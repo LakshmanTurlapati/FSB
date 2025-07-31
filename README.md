@@ -63,21 +63,7 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
    cd FSB
    ```
 
-2. **Set up your API key**
-   ```bash
-   # Copy the example environment file
-   cp .env.example .env
-   
-   # Edit .env with your xAI API key
-   echo "XAI_API_KEY=your_actual_api_key_here" > .env
-   ```
-
-3. **Run the setup script**
-   ```bash
-   node setup.js
-   ```
-
-4. **Load the extension in Chrome**
+2. **Load the extension in Chrome**
    - Open `chrome://extensions/`
    - Enable "Developer mode" (top right)
    - Click "Load unpacked"
@@ -104,80 +90,12 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 FSB follows a modular architecture designed for reliability and extensibility:
 
 ```mermaid
-graph TB
-    %% User Interface Layer
-    subgraph "User Interface Layer"
-        A[Popup Chat Interface]
-        B[Side Panel Interface] 
-        C[Options/Settings Page]
-    end
-
-    %% Background Service Worker
-    subgraph "Background Service Worker"
-        D[background.js<br/>Session Management]
-        E[ai-integration.js<br/>AI Communication]
-        F[config.js<br/>Configuration Manager]
-        G[analytics.js<br/>Usage Tracking]
-    end
-
-    %% Content Script Layer
-    subgraph "Content Script Layer"
-        H[content.js<br/>DOM Analysis & Actions]
-        I[automation-logger.js<br/>Action Logging]
-    end
-
-    %% External Services
-    subgraph "External Services"
-        J[xAI Grok-3-mini API<br/>Natural Language Processing]
-        K[CAPTCHA Services<br/>Optional Integration]
-    end
-
-    %% Chrome APIs & Storage
-    subgraph "Chrome Extension APIs"
-        L[Chrome Storage API<br/>Settings & State]
-        M[Chrome Tabs API<br/>Tab Management]
-        N[Chrome Runtime API<br/>Message Passing]
-    end
-
-    %% Web Page
-    O[Target Web Page<br/>DOM Manipulation]
-
-    %% User Interactions
-    A -->|User Input| D
-    B -->|User Input| D
-    C -->|Configuration| F
-
-    %% Background Coordination
-    D -->|AI Requests| E
-    D -->|Store Data| L
-    D -->|Tab Control| M
-    E -->|API Calls| J
-    F -->|Secure Storage| L
-    G -->|Analytics Data| L
-
-    %% Content Script Communication
-    D <==>|Chrome Messages| H
-    H -->|DOM Analysis| D
-    H -->|Actions| O
-    H -->|Logging| I
-
-    %% External API Integration
-    E -->|CAPTCHA Solving| K
-    
-    %% Data Flow Styling
-    classDef userInterface fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef background fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef content fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
-    classDef external fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef chrome fill:#f1f8e9,stroke:#33691e,stroke-width:2px
-    classDef webpage fill:#fce4ec,stroke:#880e4f,stroke-width:2px
-
-    class A,B,C userInterface
-    class D,E,F,G background
-    class H,I content
-    class J,K external
-    class L,M,N chrome
-    class O webpage
+graph TD
+    A[User Interface<br/>Popup & Side Panel] --> B[Background Service<br/>AI Integration & Sessions]
+    B --> C[Content Script<br/>DOM Analysis & Actions]
+    C --> D[Web Page<br/>Automated Interactions]
+    B --> E[xAI Grok API<br/>Natural Language Processing]
+    B --> F[Chrome Storage<br/>Settings & Analytics]
 ```
 
 **Architecture Components:**
@@ -235,29 +153,23 @@ Access settings through the extension popup or options page:
 
 ### Advanced Configuration
 
-#### Encrypted Storage
-For enhanced security, enable encrypted API key storage:
-```bash
-node setup.js
-# Choose "Yes" when prompted for encryption
-```
+#### Extension Options Page
+Configure all settings through the extension's built-in options page:
 
-#### Environment Variables
-```bash
-# Core Settings
-XAI_API_KEY=your_xai_api_key
-DEBUG_MODE=false
-SPEED_MODE=normal
+1. **Right-click the extension icon** → "Options"
+2. **Or visit**: `chrome-extension://[extension-id]/options.html`
 
-# CAPTCHA Integration
-CAPTCHA_SOLVER=none
-CAPSOLVER_API_KEY=your_capsolver_key
-TWOCAPTCHA_API_KEY=your_2captcha_key
+**Available Settings:**
+- **API Configuration**: xAI and Gemini API keys with secure storage
+- **Model Selection**: Choose between different AI models
+- **CAPTCHA Integration**: Configure CAPTCHA solving services
+- **Automation Tuning**: Action delays, max iterations, debug mode
+- **Analytics Dashboard**: Monitor usage, costs, and performance
 
-# Automation Tuning
-ACTION_DELAY=1000
-MAX_ITERATIONS=20
-```
+#### Security Features
+- **Encrypted Storage**: API keys are automatically encrypted in Chrome storage
+- **Secure Configuration**: No plain-text files or environment variables needed
+- **Session Management**: Automatic cleanup and secure key handling
 
 #### Development Setup
 Create `config/dev-settings.json` for development:
