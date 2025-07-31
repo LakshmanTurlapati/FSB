@@ -1,0 +1,157 @@
+{
+  "name": "fsb-full-self-browsing",
+  "version": "0.1.0",
+  "description": "FSB - Full Self-Browsing: An intelligent, open-source Chrome extension for AI-powered browser automation using natural language instructions",
+  "main": "background.js",
+  "homepage": "https://github.com/lakshmanturlapati/FSB",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakshmanturlapati/FSB.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lakshmanturlapati/FSB/issues"
+  },
+  "scripts": {
+    "build": "echo \"Chrome extension - no build required\"",
+    "test": "echo \"Tests not implemented yet\" && exit 1",
+    "lint": "echo \"Linting not configured yet\"",
+    "clean": "rm -f config/dev-settings.json",
+    "package": "zip -r fsb-v0.1.0.zip . -x '*.git*' 'node_modules/*' 'config/dev-*'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "browser-automation",
+    "ai-agent",
+    "natural-language",
+    "xai-grok",
+    "grok-3-mini",
+    "web-automation",
+    "dom-manipulation",
+    "ai-powered",
+    "open-source",
+    "project-mariner",
+    "full-self-browsing",
+    "fsb",
+    "automation-tool",
+    "browser-assistant",
+    "ai-browsing",
+    "intelligent-automation",
+    "web-scraping",
+    "task-automation",
+    "chrome-plugin"
+  ],
+  "author": {
+    "name": "Lakshman Turlapati",
+    "email": "lakshman@example.com",
+    "url": "https://github.com/lakshmanturlapati"
+  },
+  "contributors": [
+    {
+      "name": "Lakshman Turlapati",
+      "email": "lakshman@example.com",
+      "url": "https://github.com/lakshmanturlapati"
+    }
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "chrome": ">=88.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {},
+  "peerDependencies": {},
+  "optionalDependencies": {},
+  "manifest": {
+    "version": 3,
+    "permissions": [
+      "activeTab",
+      "scripting",
+      "storage",
+      "tabs",
+      "windows",
+      "sidePanel"
+    ],
+    "host_permissions": [
+      "<all_urls>"
+    ]
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/lakshmanturlapati"
+  },
+  "config": {
+    "setup_script": "setup.js",
+    "min_chrome_version": "88.0.0",
+    "supported_browsers": [
+      "chrome",
+      "edge",
+      "brave",
+      "chromium"
+    ]
+  },
+  "badges": [
+    {
+      "description": "Version",
+      "href": "https://github.com/lakshmanturlapati/FSB/releases",
+      "url": "https://img.shields.io/badge/version-0.1.0-blue.svg"
+    },
+    {
+      "description": "License",
+      "href": "LICENSE",
+      "url": "https://img.shields.io/badge/license-MIT-green.svg"
+    },
+    {
+      "description": "Chrome Extension",
+      "href": "https://developer.chrome.com/docs/extensions/",
+      "url": "https://img.shields.io/badge/platform-Chrome%20Extension-yellow.svg"
+    },
+    {
+      "description": "AI Powered",
+      "href": "https://x.ai/",
+      "url": "https://img.shields.io/badge/powered%20by-xAI%20Grok-purple.svg"
+    }
+  ],
+  "categories": [
+    "automation",
+    "productivity",
+    "ai-tools",
+    "browser-extensions",
+    "development-tools"
+  ],
+  "inspiration": {
+    "project": "Project Mariner",
+    "organization": "Google DeepMind",
+    "description": "FSB is inspired by Project Mariner but designed as an open-source alternative accessible to everyone"
+  },
+  "features": [
+    "Natural language task processing",
+    "Advanced DOM analysis and element identification",
+    "Comprehensive browser action execution",
+    "Smart iteration with stuck detection",
+    "Modern chat-based user interfaces",
+    "Analytics and usage tracking",
+    "Secure configuration management",
+    "Multi-UI support (popup + side panel)",
+    "CAPTCHA solving framework",
+    "Extensive debugging and logging"
+  ],
+  "techStack": {
+    "ai": "xAI Grok-3-mini",
+    "platform": "Chrome Extension Manifest V3",
+    "language": "JavaScript ES2021+",
+    "apis": [
+      "Chrome Extensions API",
+      "DOM API",
+      "Storage API",
+      "Tabs API",
+      "Scripting API"
+    ]
+  }
+}

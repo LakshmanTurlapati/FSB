@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "FSB v0.1",
+  "version": "0.1.0",
+  "description": "FSB - Fast Smart Browser automation assistant v0.1",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs",
+    "windows",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "Assets/icon16.png",
+    "48": "Assets/icon48.png",
+    "128": "Assets/icon128.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "Assets/icon16.png",
+      "48": "Assets/icon48.png",
+      "128": "Assets/icon128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html"
+}

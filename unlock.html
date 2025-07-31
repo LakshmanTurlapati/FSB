@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Unlock FSB v0.1</title>
+  <style>
+    body {
+      width: 350px;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin: 0;
+    }
+    
+    .container {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 10px;
+      padding: 30px;
+      color: #333;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+    
+    h1 {
+      font-size: 24px;
+      margin: 0 0 10px 0;
+      color: #2c3e50;
+    }
+    
+    .subtitle {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 25px;
+    }
+    
+    .icon {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 20px;
+      display: block;
+      background: #667eea;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+    }
+    
+    input[type="password"] {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 16px;
+      margin-bottom: 15px;
+      transition: border-color 0.3s;
+    }
+    
+    input[type="password"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    
+    button:hover {
+      background: #5a67d8;
+    }
+    
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .error {
+      color: #e74c3c;
+      font-size: 14px;
+      margin-top: 10px;
+      display: none;
+    }
+    
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+    
+    .checkbox-container input {
+      margin-right: 8px;
+    }
+    
+    .setup-link {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    
+    .setup-link a {
+      color: #667eea;
+      text-decoration: none;
+    }
+    
+    .setup-link a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">🔐</div>
+    <h1>Unlock Extension</h1>
+    <p class="subtitle">Enter your master password to decrypt API keys</p>
+    
+    <form id="unlockForm">
+      <input 
+        type="password" 
+        id="password" 
+        placeholder="Master password"
+        autofocus
+        required
+      />
+      
+      <div class="checkbox-container">
+        <input type="checkbox" id="remember" />
+        <label for="remember">Remember for this session</label>
+      </div>
+      
+      <button type="submit" id="unlockBtn">Unlock</button>
+      
+      <div class="error" id="errorMsg"></div>
+    </form>
+    
+    <div class="setup-link">
+      <a href="#" id="setupLink">First time? Run setup</a>
+    </div>
+  </div>
+  
+  <script src="unlock.js"></script>
+</body>
+</html>

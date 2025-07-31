@@ -1,0 +1,32 @@
+# Development files
+CLAUDE.md
+
+# Environment variables
+.env
+.env.local
+
+# Node modules
+node_modules/
+
+# Build output
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# API keys and secrets
+config/secrets.json
+*_api_key.txt

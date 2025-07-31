@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FSB - Control Panel</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="options.css">
+  <script src="chart.min.js"></script>
+</head>
+<body>
+  <div class="dashboard-container">
+    <!-- Header -->
+    <header class="dashboard-header">
+      <div class="header-left">
+        <button class="menu-toggle" id="menuToggle" title="Toggle Menu" style="display: none;">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+      
+      <div class="header-center">
+      </div>
+      
+      <div class="header-right">
+        <div class="connection-status">
+          <div class="status-indicator" id="connectionStatus">
+            <i class="fas fa-circle status-dot"></i>
+          </div>
+        </div>
+        <button class="header-btn" id="testApiBtn" title="Test API Connection">
+          <i class="fas fa-plug"></i>
+          Test API
+        </button>
+        <button class="header-btn" id="exportBtn" title="Export Settings">
+          <i class="fas fa-download"></i>
+          Export
+        </button>
+        <button class="header-btn theme-toggle" id="themeToggle" title="Toggle Theme">
+          <i class="fas fa-moon"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main Layout -->
+    <div class="dashboard-main">
+      <!-- Sidebar Navigation -->
+      <aside class="dashboard-sidebar" id="dashboardSidebar">
+        <nav class="sidebar-nav">
+          <ul class="nav-list">
+            <li class="nav-item active" data-section="dashboard">
+              <i class="fas fa-tachometer-alt"></i>
+              <span>Dashboard</span>
+            </li>
+            <li class="nav-item" data-section="api-config">
+              <i class="fas fa-key"></i>
+              <span>API Configuration</span>
+            </li>
+            <li class="nav-item" data-section="advanced">
+              <i class="fas fa-sliders-h"></i>
+              <span>Advanced Settings</span>
+            </li>
+            <li class="nav-item" data-section="logs">
+              <i class="fas fa-terminal"></i>
+              <span>Logs & Debugging</span>
+            </li>
+            <li class="nav-item" data-section="help">
+              <i class="fas fa-question-circle"></i>
+              <span>Help & Documentation</span>
+            </li>
+          </ul>
+        </nav>
+      </aside>
+
+      <!-- Content Area -->
+      <main class="dashboard-content">
+        <!-- Dashboard Section -->
+        <section class="content-section active" id="dashboard">
+          <div class="section-header">
+            <h2>Dashboard</h2>
+            <p>Monitor your AI usage, costs, and automation performance</p>
+          </div>
+          
+          <!-- Analytics Hero Section -->
+          <div class="analytics-hero">
+            <div class="hero-metrics">
+              <div class="hero-metric">
+                <div class="metric-value" id="totalTokensToday">0</div>
+                <div class="metric-label">Total Tokens</div>
+              </div>
+              <div class="hero-metric">
+                <div class="metric-value" id="totalCostToday">$0.00</div>
+                <div class="metric-label">Total Cost</div>
+              </div>
+              <div class="hero-metric">
+                <div class="metric-value" id="totalRequests">0</div>
+                <div class="metric-label">Requests</div>
+              </div>
+              <div class="hero-metric">
+                <div class="metric-value" id="successRate">100%</div>
+                <div class="metric-label">Success Rate</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Usage Chart Section -->
+          <div class="chart-section">
+            <div class="chart-header">
+              <h3>Token Usage Over Time</h3>
+              <div class="chart-controls">
+                <select id="chartTimeRange" class="chart-select">
+                  <option value="24h">Last 24 Hours</option>
+                  <option value="7d">Last 7 Days</option>
+                  <option value="30d">Last 30 Days</option>
+                </select>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="usageChart" width="400" height="200"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- API Configuration Section -->
+        <section class="content-section" id="api-config">
+          <div class="section-header">
+            <h2>API Configuration</h2>
+            <p>Configure your AI model provider and API settings</p>
+          </div>
+          
+          <div class="form-card">
+            <div class="form-section">
+              <h3>AI Model Configuration</h3>
+              
+              <!-- Model Provider Selection -->
+              <div class="form-group">
+                <label for="modelProvider">AI Provider</label>
+                <select id="modelProvider" class="form-select">
+                  <option value="xai">xAI (Grok)</option>
+                  <option value="gemini">Google Gemini</option>
+                </select>
+                <div class="form-help">Select your preferred AI provider</div>
+              </div>
+              
+              <!-- Model Selection -->
+              <div class="form-group">
+                <label for="modelName">Model</label>
+                <select id="modelName" class="form-select">
+                  <!-- Options will be populated dynamically based on provider -->
+                </select>
+                <div class="form-help" id="modelDescription">Select the AI model to use</div>
+              </div>
+              
+              <!-- xAI API Key -->
+              <div class="form-group" id="xaiApiKeyGroup">
+                <label for="apiKey">xAI API Key</label>
+                <div class="input-with-button">
+                  <input type="password" id="apiKey" placeholder="Enter your xAI API key" class="form-input">
+                  <button type="button" class="input-btn" id="toggleApiKey" title="Toggle visibility">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+                <div class="form-help">
+                  Get your API key from <a href="https://x.ai/api" target="_blank">x.ai/api</a>. Your key is stored locally and encrypted.
+                </div>
+              </div>
+              
+              <!-- Gemini API Key -->
+              <div class="form-group" id="geminiApiKeyGroup" style="display: none;">
+                <label for="geminiApiKey">Gemini API Key</label>
+                <div class="input-with-button">
+                  <input type="password" id="geminiApiKey" placeholder="Enter your Gemini API key" class="form-input">
+                  <button type="button" class="input-btn" id="toggleGeminiApiKey" title="Toggle visibility">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+                <div class="form-help">
+                  Get your API key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>. Your key is stored locally and encrypted.
+                </div>
+              </div>
+
+              <div class="api-test-section">
+                <button class="test-btn" id="fullApiTest">
+                  <i class="fas fa-flask"></i>
+                  Run Full API Test
+                </button>
+                <div class="test-results" id="testResults"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Advanced Settings Section -->
+        <section class="content-section" id="advanced">
+          <div class="section-header">
+            <h2>Advanced Settings</h2>
+            <p>Configure automation behavior, CAPTCHA solving, and security options</p>
+          </div>
+          
+          <!-- Automation Settings -->
+          <div class="form-card">
+            <div class="form-section">
+              <h3><i class="fas fa-cogs"></i> Automation Settings</h3>
+              
+              <div class="form-group">
+                <label for="actionDelay">Delay between actions (ms)</label>
+                <div class="slider-input">
+                  <input type="range" id="actionDelaySlider" min="100" max="5000" value="1000" class="form-slider">
+                  <input type="number" id="actionDelay" min="100" max="5000" value="1000" class="form-input slider-value">
+                </div>
+                <div class="form-help">Higher values reduce detection risk but slow down automation</div>
+              </div>
+
+              <div class="form-group">
+                <label for="maxIterations">Maximum iterations per task</label>
+                <div class="slider-input">
+                  <input type="range" id="maxIterationsSlider" min="5" max="50" value="20" class="form-slider">
+                  <input type="number" id="maxIterations" min="5" max="50" value="20" class="form-input slider-value">
+                </div>
+                <div class="form-help">Prevents infinite loops in complex automation tasks</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CAPTCHA Settings -->
+          <div class="form-card">
+            <div class="form-section">
+              <h3><i class="fas fa-shield-alt"></i> CAPTCHA Settings</h3>
+              
+              <div class="form-group">
+                <label for="captchaSolver">CAPTCHA Solver Service</label>
+                <select id="captchaSolver" class="form-select">
+                  <option value="none">None (Manual solving)</option>
+                  <option value="buster">Buster (Free, Audio-based)</option>
+                  <option value="capsolver">CapSolver (Paid Service)</option>
+                  <option value="2captcha">2Captcha (Paid Service)</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="captchaApiKeyGroup" style="display: none;">
+                <label for="captchaApiKey">CAPTCHA Service API Key</label>
+                <div class="input-with-button">
+                  <input type="password" id="captchaApiKey" placeholder="Enter CAPTCHA service API key" class="form-input">
+                  <button type="button" class="input-btn" id="toggleCaptchaKey" title="Toggle visibility">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="captcha-comparison">
+                <h4>Service Comparison</h4>
+                <div class="comparison-table">
+                  <div class="comparison-row header">
+                    <div>Service</div>
+                    <div>Cost</div>
+                    <div>Success Rate</div>
+                    <div>Speed</div>
+                  </div>
+                  <div class="comparison-row">
+                    <div>Buster</div>
+                    <div class="cost-free">Free</div>
+                    <div>~70%</div>
+                    <div>Slow</div>
+                  </div>
+                  <div class="comparison-row">
+                    <div>CapSolver</div>
+                    <div>$0.0008/solve</div>
+                    <div>~95%</div>
+                    <div>Fast</div>
+                  </div>
+                  <div class="comparison-row">
+                    <div>2Captcha</div>
+                    <div>$0.001/solve</div>
+                    <div>~90%</div>
+                    <div>Medium</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Security & Privacy Settings -->
+          <div class="form-card">
+            <div class="form-section">
+              <h3><i class="fas fa-lock"></i> Security & Privacy</h3>
+              
+              <div class="toggle-group">
+                <div class="toggle-item">
+                  <div class="toggle-info">
+                    <label for="confirmSensitive">Confirm Sensitive Actions</label>
+                    <div class="toggle-description">Require confirmation before form submissions, payments, or account changes</div>
+                  </div>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="confirmSensitive" checked>
+                    <span class="slider"></span>
+                  </label>
+                </div>
+
+                <div class="toggle-item">
+                  <div class="toggle-info">
+                    <label for="debugMode">Debug Mode</label>
+                    <div class="toggle-description">Enable verbose logging and step-by-step execution details</div>
+                  </div>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="debugMode">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Logs Section -->
+        <section class="content-section" id="logs">
+          <div class="section-header">
+            <h2>Logs & Debugging</h2>
+            <p>Monitor automation activity and troubleshoot issues</p>
+          </div>
+          
+          <div class="logs-card">
+            <div class="logs-header">
+              <div class="logs-controls">
+                <button class="control-btn" id="clearLogs">
+                  <i class="fas fa-trash"></i>
+                  Clear Logs
+                </button>
+                <button class="control-btn" id="exportLogs">
+                  <i class="fas fa-download"></i>
+                  Export Logs
+                </button>
+                <select id="logLevel" class="form-select small">
+                  <option value="all">All Logs</option>
+                  <option value="error">Errors Only</option>
+                  <option value="warn">Warnings & Errors</option>
+                  <option value="info">Info & Above</option>
+                </select>
+              </div>
+            </div>
+            <div class="logs-content">
+              <div id="logsDisplay" class="logs-display">
+                <div class="log-entry info">
+                  <span class="log-time">00:00:00</span>
+                  <span class="log-level">INFO</span>
+                  <span class="log-message">FSB Control Panel loaded successfully</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Analytics Debug Tools -->
+          <div class="debug-section" style="margin-top: 2rem;">
+            <div class="section-header">
+              <h3>Analytics Debug Tools</h3>
+              <p>Test and verify analytics data collection</p>
+            </div>
+            
+            <div class="debug-controls">
+              <button class="debug-btn" id="testTrackingBtn">
+                <i class="fas fa-vial"></i>
+                Test Token Tracking
+              </button>
+              <button class="debug-btn" id="viewStorageBtn">
+                <i class="fas fa-database"></i>
+                View Storage Data
+              </button>
+              <button class="debug-btn" id="clearDataBtn">
+                <i class="fas fa-trash"></i>
+                Clear Analytics Data
+              </button>
+              <button class="debug-btn" id="exportDataBtn">
+                <i class="fas fa-download"></i>
+                Export Data
+              </button>
+            </div>
+            
+            <div class="debug-output" id="debugOutput" style="display: none;">
+              <h4>Debug Output:</h4>
+              <pre id="debugContent"></pre>
+            </div>
+          </div>
+        </section>
+
+        <!-- Help Section -->
+        <section class="content-section" id="help">
+          <div class="section-header">
+            <h2>Help & Documentation</h2>
+            <p>Get help and learn more about FSB features</p>
+          </div>
+          
+          <div class="help-grid">
+            <div class="help-card">
+              <div class="help-icon">
+                <i class="fas fa-rocket"></i>
+              </div>
+              <h3>Getting Started</h3>
+              <p>Learn the basics of browser automation with FSB</p>
+              <a href="https://github.com/LakshmanTurlapati/FSB" target="_blank" class="help-link">View Repository</a>
+            </div>
+
+            <div class="help-card">
+              <div class="help-icon">
+                <i class="fas fa-book"></i>
+              </div>
+              <h3>Documentation</h3>
+              <p>Complete documentation and setup guides for FSB</p>
+              <a href="https://github.com/LakshmanTurlapati/FSB" target="_blank" class="help-link">View Repository</a>
+            </div>
+
+            <div class="help-card">
+              <div class="help-icon">
+                <i class="fas fa-bug"></i>
+              </div>
+              <h3>Issues</h3>
+              <p>Report bugs, request features, and track development progress</p>
+              <a href="https://github.com/LakshmanTurlapati/FSB/issues" target="_blank" class="help-link">View Issues</a>
+            </div>
+
+            <div class="help-card">
+              <div class="help-icon">
+                <i class="fas fa-github"></i>
+              </div>
+              <h3>Source Code</h3>
+              <p>View the source code and contribute to FSB development</p>
+              <a href="https://github.com/LakshmanTurlapati/FSB" target="_blank" class="help-link">View GitHub</a>
+            </div>
+          </div>
+        </section>
+
+        <!-- Branding Section -->
+        <section id="branding">
+          <div class="branding-section">
+            <div class="branding-content">
+              <img src="Assets/fsb_logo_text.png" alt="FSB - Fast Smart Browser" class="footer-logo">
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+
+    <!-- Save Bar -->
+    <div class="save-bar" id="saveBar" style="display: none;">
+      <div class="save-content">
+        <span class="save-message">You have unsaved changes</span>
+        <div class="save-actions">
+          <button class="save-btn secondary" id="discardBtn">Discard</button>
+          <button class="save-btn primary" id="saveBtn">Save Changes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Toast -->
+    <div id="statusToast" class="status-toast"></div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="ai-providers.js"></script>
+  <script src="ai-integration.js"></script>
+  <script src="analytics.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

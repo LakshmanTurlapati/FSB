@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>FSB</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="chat-container">
+    <header class="chat-header">
+      <div class="header-info">
+        <h1>FSB</h1>
+        <div class="status-indicator">
+          <i class="fa fa-circle status-dot"></i>
+          <span class="status-text">Ready</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="pinBtn" class="icon-btn" title="Pin Window">
+          <i class="fa fa-thumbtack"></i>
+        </button>
+        <button id="testBtn" class="icon-btn" title="Test API Connection">
+          <i class="fa fa-wrench"></i>
+        </button>
+        <button id="settingsBtn" class="icon-btn" title="Settings">
+          <i class="fa fa-cog"></i>
+        </button>
+      </div>
+    </header>
+    
+    <div class="chat-messages-area">
+      <div id="chatMessages" class="chat-messages">
+        <!-- Messages will be dynamically added here -->
+      </div>
+      <div id="typingIndicator" class="typing-indicator hidden">
+        <div class="typing-dots">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <span class="typing-text">AI is thinking...</span>
+      </div>
+    </div>
+    
+    <div class="chat-input-area">
+      <div class="input-container">
+        <div class="input-wrapper">
+          <div 
+            id="chatInput" 
+            class="chat-input" 
+            contenteditable="true" 
+            data-placeholder="Ask me to automate something..."
+            role="textbox"
+            aria-multiline="true"
+          ></div>
+          <div class="input-actions">
+            <button id="stopBtn" class="stop-btn hidden" title="Stop Automation">
+              <i class="fa fa-stop"></i>
+            </button>
+            <button id="sendBtn" class="send-btn" title="Send Message">
+              <i class="fa fa-arrow-up"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Extension Footer -->
+    <div class="author-footer">
+      <span>FSB Extension</span>
+    </div>
+  </div>
+  
+  <script src="analytics.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
