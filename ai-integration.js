@@ -8,6 +8,78 @@ if (typeof importScripts !== 'undefined') {
   importScripts('ai-providers.js');
 }
 
+// Tool documentation separated for modularity
+const TOOL_DOCUMENTATION = {
+  navigation: {
+    navigate: { params: {url: "https://..."}, desc: "Go to URL" },
+    searchGoogle: { params: {query: "search terms"}, desc: "Search Google" },
+    refresh: { params: {}, desc: "Refresh page" },
+    goBack: { params: {}, desc: "Browser back" },
+    goForward: { params: {}, desc: "Browser forward" }
+  },
+  interaction: {
+    click: { params: {selector: "CSS selector"}, desc: "Click element" },
+    type: { 
+      params: {selector: "...", text: "...", pressEnter: true}, 
+      desc: "Type text and submit. ALWAYS include pressEnter: true for search boxes",
+      example: '{"tool": "type", "params": {"selector": "#search", "text": "query", "pressEnter": true}}'
+    },
+    hover: { params: {selector: "..."}, desc: "Hover over element" },
+    focus: { params: {selector: "..."}, desc: "Focus element" }
+  },
+  extraction: {
+    getText: { params: {selector: "..."}, desc: "Get element text" },
+    getAttribute: { params: {selector: "...", attribute: "name"}, desc: "Get attribute" }
+  },
+  waiting: {
+    waitForElement: { params: {selector: "...", timeout: 5000}, desc: "Wait for element to appear" },
+    waitForDOMStable: { params: {timeout: 5000, stableTime: 500}, desc: "Wait for DOM changes to stop" },
+    detectLoadingState: { params: {}, desc: "Check if page is loading" }
+  },
+  multitab: {
+    openNewTab: { 
+      params: {url: "https://...", active: true}, 
+      desc: "Open new tab with URL. ALWAYS provide URL parameter. Returns tabId for use in other actions. Set active: false to open in background",
+      example: '{"tool": "openNewTab", "params": {"url": "https://youtube.com", "active": true}}'
+    },
+    switchToTab: { 
+      params: {tabId: 123}, 
+      desc: "BLOCKED - Cannot switch tabs for security. Automation is restricted to the original session tab only",
+      example: 'Action will be blocked - switchToTab is not allowed'
+    },
+    closeTab: { 
+      params: {tabId: 123}, 
+      desc: "Close tab by ID. Cannot close the current tab",
+      example: '{"tool": "closeTab", "params": {"tabId": 123}}'
+    },
+    listTabs: { 
+      params: {currentWindowOnly: true}, 
+      desc: "List tab titles for context only (no URLs for privacy). Shows which tab is the session tab",
+      example: '{"tool": "listTabs", "params": {"currentWindowOnly": true}}'
+    },
+    getCurrentTab: { 
+      params: {}, 
+      desc: "Get current tab information including ID, URL, title, and status",
+      example: '{"tool": "getCurrentTab", "params": {}}'
+    },
+    waitForTabLoad: { 
+      params: {tabId: 123, timeout: 30000}, 
+      desc: "Wait for a tab to finish loading. TabId optional - defaults to current tab if not specified",
+      example: '{"tool": "waitForTabLoad", "params": {"timeout": 10000}}'
+    }
+  }
+};
+
+// Task-specific prompt templates
+const TASK_PROMPTS = {
+  search: "CRITICAL: For search tasks you MUST: 1) Type query, then look for submit button (button[type='submit'], buttons with 'Search'/'Submit'/'Go'/'Find' text, or search/submit classes). If found, click button. If no button, use pressEnter: true, 2) Wait for results to load, 3) Extract the actual answer from the page, 4) ONLY mark taskComplete: true after you have the answer. When completing, provide the specific information found, not just 'found the answer'. Example result: 'I found the current weather in New York is 72°F with clear skies and 15% humidity.'",
+  form: "Fill all required fields, then submit. When completing, describe exactly what information was submitted and confirm the form was processed successfully. Example result: 'I successfully filled out the contact form with your name, email, and message, then submitted it. The page confirmed your message was received and you should expect a response within 24 hours.'",
+  extraction: "Extract the requested information and provide the exact values found. When completing, include all the specific data extracted, not generic statements. Example result: 'I extracted the following product details: Price $299.99, Rating 4.8/5 stars, Stock: 15 units available, Shipping: Free 2-day delivery.'",
+  navigation: "Navigate to the specified page or section. When completing, confirm what page you reached and describe what's available there. Example result: 'I successfully navigated to the Settings page where I can see options for Account Settings, Privacy Controls, Notification Preferences, and Security Settings.'",
+  multitab: "TAB CONTROL LIMITATIONS: CRITICAL - You can ONLY control the original tab where automation started. 1) openNewTab creates new tabs but automation stays on original tab, 2) switchToTab is BLOCKED for security - cannot switch to other tabs, 3) listTabs shows tab titles for context only (no URLs), 4) All DOM actions happen only on the session tab. You can see other tab names for reference but cannot control them. Example result: 'I can see there are tabs for Gmail, YouTube, and Facebook open, but I am working only in the original tab where the automation started.'",
+  general: "Complete the task using appropriate tools. When completing, provide a detailed summary of all actions taken and their outcomes. Be specific about what was accomplished."
+};
+
 /**
  * AIIntegration class handles all AI-related functionality for browser automation
  * @class
@@ -84,20 +156,66 @@ class AIIntegration {
     return null;
   }
   
-  // Generate cache key from task and DOM state
-  generateCacheKey(task, domState) {
-    // Create a simplified key based on task and current URL
-    const key = `${task}-${domState.url}-${domState.title}`;
+  // Generate context-aware cache key
+  generateCacheKey(task, domState, context = null) {
+    // Base key components
+    const taskHash = this.simpleHash(task);
+    const urlHash = this.simpleHash(domState.url || '');
+    const titleHash = this.simpleHash(domState.title || '');
+    
+    // Context components
+    const contextParts = [];
+    if (context) {
+      if (context.isStuck) contextParts.push('stuck');
+      if (context.iterationCount) contextParts.push(`iter${context.iterationCount}`);
+      if (context.actionHistory?.length) contextParts.push(`acts${context.actionHistory.length}`);
+    }
+    
+    // DOM state components
+    const domParts = [];
+    if (domState.elements?.length) domParts.push(`els${domState.elements.length}`);
+    if (domState.forms?.length) domParts.push(`forms${domState.forms.length}`);
+    
+    // Combine all parts
+    const key = `${taskHash}-${urlHash}-${titleHash}-${contextParts.join('-')}-${domParts.join('-')}`;
     return key;
   }
   
-  // Check if cached response is still valid
+  // Simple hash function for strings
+  simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(36);
+  }
+  
+  // Check if cached response is still valid with dynamic expiration
   getCachedResponse(key) {
     const cached = this.responseCache.get(key);
-    if (cached && Date.now() - cached.timestamp < this.cacheMaxAge) {
-      console.log('Using cached AI response for:', key);
+    if (!cached) return null;
+    
+    // Dynamic cache expiration based on key components
+    let maxAge = this.cacheMaxAge;
+    
+    // Reduce cache time for stuck scenarios
+    if (key.includes('stuck')) maxAge = 60 * 1000; // 1 minute
+    
+    // Reduce cache time for later iterations
+    if (key.includes('iter') && parseInt(key.match(/iter(\d+)/)?.[1] || 0) > 5) {
+      maxAge = 30 * 1000; // 30 seconds
+    }
+    
+    // Check if still valid
+    if (Date.now() - cached.timestamp < maxAge) {
+      console.log('Using cached AI response for:', key, `(expires in ${Math.round((maxAge - (Date.now() - cached.timestamp)) / 1000)}s)`);
       return cached.response;
     }
+    
+    // Remove expired entry
+    this.responseCache.delete(key);
     return null;
   }
   
@@ -124,34 +242,76 @@ class AIIntegration {
    * @returns {Promise<Object>} AI response with actions, reasoning, and completion status
    */
   async getAutomationActions(task, domState, context = null) {
-    // Check cache first (but not if we're stuck)
-    const cacheKey = this.generateCacheKey(task, domState);
-    if (!context?.isStuck) {
+    // Generate context-aware cache key
+    const cacheKey = this.generateCacheKey(task, domState, context);
+    
+    // Check cache first (but not if we're stuck or in later iterations)
+    if (!context?.isStuck && (!context?.iterationCount || context.iterationCount < 3)) {
       const cachedResponse = this.getCachedResponse(cacheKey);
       if (cachedResponse) {
+        console.log('Using cached response for key:', cacheKey);
         return cachedResponse;
       }
     }
     
-    // Build prompt and add to queue
-    const prompt = this.buildPrompt(task, domState, context);
+    // Retry configuration
+    const maxRetries = 3;
+    const baseDelay = 1000; // 1 second
+    let lastError = null;
     
-    return new Promise((resolve, reject) => {
-      this.requestQueue.push({
-        prompt,
-        cacheKey,
-        resolve,
-        reject
-      });
-      
-      // Process queue if not already processing
-      if (!this.isProcessing) {
-        this.processQueue();
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Build prompt with retry enhancements
+        let prompt = this.buildPrompt(task, domState, context);
+        
+        // Enhance prompt on retry
+        if (attempt > 0) {
+          prompt = this.enhancePromptForRetry(prompt, attempt);
+        }
+        
+        // Queue the request for processing
+        const response = await new Promise((resolve, reject) => {
+          this.requestQueue.push({
+            prompt,
+            cacheKey,
+            resolve,
+            reject,
+            attempt
+          });
+          
+          // Process queue if not already processing
+          if (!this.isProcessing) {
+            this.processQueue();
+          }
+        });
+        
+        // Validate response quality
+        if (this.isValidResponse(response)) {
+          // Cache successful response
+          this.setCachedResponse(cacheKey, response);
+          return response;
+        } else {
+          throw new Error('Invalid response structure: missing required fields');
+        }
+        
+      } catch (error) {
+        lastError = error;
+        console.error(`AI request attempt ${attempt + 1}/${maxRetries} failed:`, error.message);
+        
+        // If it's the last attempt, return fallback
+        if (attempt === maxRetries - 1) {
+          return this.createFallbackResponse(task, lastError);
+        }
+        
+        // Otherwise, wait with exponential backoff
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-    });
+    }
   }
   
-  // Process queued requests
+  // Process queued requests with adaptive management
   async processQueue() {
     if (this.isProcessing || this.requestQueue.length === 0) {
       return;
@@ -159,24 +319,59 @@ class AIIntegration {
     
     this.isProcessing = true;
     
+    // Track performance metrics for adaptive delays
+    let recentErrors = 0;
+    let avgResponseTime = 0;
+    let responseCount = 0;
+    
     while (this.requestQueue.length > 0) {
       const request = this.requestQueue.shift();
+      const startTime = Date.now();
       
       try {
         const response = await this.callAPI(request.prompt);
-        const parsed = this.parseResponse(response);
+        
+        // If using universal provider, response is already parsed JSON
+        // Otherwise, parse the response string
+        let parsed;
+        if (this.provider && typeof response === 'object') {
+          // Universal provider returns parsed JSON object
+          parsed = this.normalizeResponse(response);
+        } else {
+          // Legacy or string response - parse it
+          parsed = this.parseResponse(response);
+        }
         
         // Cache the response
         this.setCachedResponse(request.cacheKey, parsed);
         
+        // Track success metrics
+        const responseTime = Date.now() - startTime;
+        avgResponseTime = (avgResponseTime * responseCount + responseTime) / (responseCount + 1);
+        responseCount++;
+        recentErrors = Math.max(0, recentErrors - 1); // Decay error count on success
+        
         request.resolve(parsed);
       } catch (error) {
         request.reject(error);
+        recentErrors++;
       }
       
-      // Small delay between requests to avoid rate limiting
+      // Adaptive delay calculation
       if (this.requestQueue.length > 0) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        const baseDelay = 100;
+        const queuePressure = Math.min(this.requestQueue.length / 10, 1); // 0-1 scale
+        const errorPressure = Math.min(recentErrors / 3, 1); // 0-1 scale
+        const performancePressure = avgResponseTime > 5000 ? 0.5 : 0; // Add delay if slow
+        
+        // Calculate adaptive delay (100ms - 2000ms)
+        const adaptiveDelay = Math.min(
+          baseDelay * (1 + queuePressure * 2 + errorPressure * 5 + performancePressure * 3),
+          2000
+        );
+        
+        console.log(`Adaptive queue delay: ${Math.round(adaptiveDelay)}ms (queue: ${this.requestQueue.length}, errors: ${recentErrors})`);
+        await new Promise(resolve => setTimeout(resolve, adaptiveDelay));
       }
     }
     
@@ -191,356 +386,73 @@ class AIIntegration {
    * @returns {Object} Formatted prompt with system and user components
    */
   buildPrompt(task, domState, context = null) {
-    const systemPrompt = `You are an advanced browser automation agent capable of understanding and interacting with any website. You have access to complete DOM information including element IDs, positions, attributes, and relationships.
+    // Determine task type for specialized prompting
+    const taskType = this.detectTaskType(task);
+    
+    // Core system prompt - concise and focused
+    const systemPrompt = `You are a browser automation agent. Analyze the DOM and complete the given task.
 
-CRITICAL: You MUST respond with ONLY valid JSON in this exact format:
+CRITICAL REQUIREMENT: Respond with ONLY valid JSON. No markdown, no explanations, no code blocks.
 
+SEARCH SUBMISSION RULE: For search forms, follow this priority order:
+1. FIRST: Look for submit buttons - button[type="submit"], buttons with text "Search"/"Submit"/"Go"/"Find", or classes containing "search"/"submit"/"btn"
+2. If submit button found: Click it after typing
+3. ONLY if no submit button: Use pressEnter: true
+
+Example with button: 
+{"tool": "type", "params": {"selector": "#search", "text": "query"}}
+{"tool": "click", "params": {"selector": "button[type='submit']"}}
+
+Example fallback: 
+{"tool": "type", "params": {"selector": "#search", "text": "query", "pressEnter": true}}
+
+TASK COMPLETION RULES: NEVER mark taskComplete: true until you have ACTUALLY completed the task:
+
+For search tasks:
+- taskComplete: false after typing the query
+- taskComplete: false while waiting for results  
+- taskComplete: true ONLY after extracting the answer
+
+For messaging tasks:
+- taskComplete: false after clicking message button
+- taskComplete: false if type actions FAILED
+- taskComplete: true ONLY after message is successfully typed AND sent
+- CRITICAL: If any type action failed, you MUST retry before completing
+
+For form tasks:
+- taskComplete: false after filling individual fields
+- taskComplete: true ONLY after successful form submission
+
+COMPLETION SUMMARY REQUIREMENT: When marking taskComplete: true, you MUST provide a detailed result that includes:
+1. What specific actions were completed successfully
+2. What information was found/extracted (exact values, not just "found it")
+3. What the final outcome was
+4. Confirmation that critical actions (like typing) succeeded
+5. Any relevant details discovered during the process
+
+Example good result: "I successfully navigated to the LinkedIn profile, clicked the message button, typed 'Hello' into the message field, and sent the message. The message was delivered successfully."
+
+Example bad result: "Task completed" or "Sent the message" or "Message sent" (without confirming typing succeeded)
+
+Your response must be EXACTLY this format:
 {
-  "reasoning": "your analysis of the page and strategy",
-  "actions": [{"tool": "action_name", "params": {}, "description": "brief user-friendly description"}],
-  "taskComplete": false,
-  "result": null,
-  "currentStep": "brief description of what you're doing now"
+  "reasoning": "brief analysis",
+  "actions": [{"tool": "name", "params": {}, "description": "what I'm doing"}],
+  "taskComplete": boolean,
+  "result": "detailed summary of what was accomplished and found",
+  "currentStep": "current status"
 }
 
-CORE AUTOMATION PRINCIPLES:
-1. Analyze the current page state and task requirements
-2. Take the most appropriate action(s) to progress toward the goal
-3. Verify success and adapt strategy if needed
-4. Continue until task is complete
+FAILURE TO PROVIDE VALID JSON OR DETAILED RESULT WILL RESULT IN TASK FAILURE.
 
-COMPREHENSIVE TOOL SET:
+${this.getModelSpecificInstructions()}
 
-Navigation & Page Control:
-- navigate: Go to URL. Params: {"url": "https://..."}
-- searchGoogle: Search Google. Params: {"query": "search terms"}
-- refresh: Refresh page. Params: {}
-- goBack: Browser back. Params: {}
-- goForward: Browser forward. Params: {}
+Task Type: ${taskType}
 
-Element Interaction:
-- click: Click element. Params: {"selector": "CSS selector or elementId"}
-- rightClick: Right-click. Params: {"selector": "..."}
-- doubleClick: Double-click. Params: {"selector": "..."}
-- hover: Hover over element. Params: {"selector": "..."}
-- focus: Focus element. Params: {"selector": "..."}
-- blur: Unfocus element. Params: {"selector": "..."}
+AVAILABLE TOOLS:
+${this.getToolsDocumentation(taskType)}
 
-Text & Input:
-- type: Type text. Params: {"selector": "...", "text": "...", "pressEnter": true, "clickFirst": true} 
-  * PREFERRED: pressEnter=true by default
-  * UNIVERSAL CLICK-FIRST: Tool automatically clicks ALL input elements before typing (universal activation)
-  * OPT-OUT: Use "clickFirst": false only if you specifically want to skip clicking
-  * AUTOMATIC: Handles scrolling, focus verification, label clicking, and retry logic
-- clearInput: Clear input field. Params: {"selector": "..."}
-- selectText: Select text in element. Params: {"selector": "..."}
-
-Keyboard:
-- pressEnter: Press Enter. Params: {"selector": "..."}
-- keyPress: Press any key. Params: {"key": "Tab/Escape/ArrowDown/etc", "ctrlKey": false, "shiftKey": false, "altKey": false, "selector": "..."}
-
-Form Controls:
-- selectOption: Select dropdown option. Params: {"selector": "...", "value": "..." OR "text": "..." OR "index": 0}
-- toggleCheckbox: Check/uncheck. Params: {"selector": "...", "checked": true/false}
-
-Page Movement:
-- scroll: Scroll page. Params: {"amount": 200}
-- moveMouse: Move to coordinates. Params: {"x": 100, "y": 200}
-
-Element Information:
-- getText: Get element text. Params: {"selector": "..."}
-- getAttribute: Get attribute. Params: {"selector": "...", "attribute": "href/src/etc"}
-- setAttribute: Set attribute. Params: {"selector": "...", "attribute": "...", "value": "..."}
-
-Waiting & Timing:
-- waitForElement: Wait for element. Params: {"selector": "...", "timeout": 5000}
-
-Special:
-- solveCaptcha: Trigger CAPTCHA solver. Params: {}
-
-ELEMENT SELECTION STRATEGIES:
-1. Use elementId when provided (e.g., "elem_123")
-2. Try multiple selectors from the selectors array
-3. Use CSS selectors: #id, .class, [attribute="value"]
-4. For buttons/links with text, you can use: button:contains("text") syntax
-5. Use position-based selection when needed
-
-PAGE CONTEXT UNDERSTANDING:
-- Each element has a unique elementId for reliable selection
-- Elements include visibility info, interaction states, and relationships
-- Forms show their structure and fields
-- Navigation sections list their links
-- Page metadata helps understand the site purpose
-
-ANALYSIS STRATEGY:
-1. Examine both structured elements and HTML context
-2. Use elementIds for reliable selection
-3. Check visibility and interaction states before acting
-4. Consider form relationships and page structure
-
-DECISION MAKING:
-1. Understand the task goal completely
-2. Identify relevant elements using multiple criteria
-3. Choose the most appropriate tool for each action
-4. Verify elements are visible and interactable
-5. Plan multi-step sequences when needed
-
-COMMON PATTERNS WITH ENTER-FIRST STRATEGY:
-
-SEARCH PATTERN:
-Preferred: type(selector, query, pressEnter=true)
-Avoid: type(selector, query) → click(search_button)
-Example: type("#search-input", "keyword", pressEnter=true)
-
-MESSAGING PATTERN:
-Preferred: type(recipient_field, name, pressEnter=true) → type(message_field, text, pressEnter=true)
-Avoid: type(recipient_field, name) → type(message_field, text) → click(send_button)
-Example: All messaging platforms, social media posts, chat applications, forums
-
-UNIVERSAL INPUT EXAMPLES WITH ENHANCED PLATFORM SUPPORT:
-Search Fields: type("[data-testid='search-input'], .search-input, #search", "query", pressEnter=true)
-Rich Text Editors: type(".ql-editor, [contenteditable='true'], .editor", "content")
-Form Inputs: type("#email-input, [name='email'], .email-field", "user@example.com")
-
-CONTENT SUBMISSION PATTERNS (Universal):
-Message/Post Compose: type("[contenteditable='true'], [role='textbox'], .compose-area", "content", pressEnter=true)
-Comment Fields: type("[aria-label*='comment'], .comment-input, [placeholder*='comment']", "comment text")
-Message Inputs: type("[aria-label*='message'], .message-input, [data-qa*='message']", "message content", pressEnter=true)
-Text Areas: type("textarea, .text-area, [role='textbox']", "text content")
-Email Compose: type("[contenteditable='true'], .compose-body, [aria-label*='compose']", "email content")
-
-ADAPTIVE TEXT INPUT FEATURES:
-- Automatically detects and handles all input types (input, textarea, contenteditable)
-- Advanced 4-tier insertion strategy for maximum compatibility
-- Works across all platforms: social media, messaging, forums, email, forms
-- Handles rich text editors, plain text, and hybrid input systems
-- Enhanced event dispatching for framework compatibility (React, Vue, Angular)
-
-LOGIN PATTERN:
-Preferred: type(username_field, user, pressEnter=false) → type(password_field, pass, pressEnter=true)
-Avoid: type(username) → type(password) → click(login_button)
-Note: Use pressEnter=false for username to move to password field, true for password to submit
-
-FORM SUBMISSION PATTERN:
-Preferred: Fill all fields → type(last_field, value, pressEnter=true)
-Avoid: Fill all fields → click(submit_button)
-Example: Contact forms, registration forms, feedback forms
-
-FALLBACK STRATEGY:
-If Enter doesn't work (no page change, no results, no success indicator):
-1. First verify with getText() or getAttribute() 
-2. Then try clicking the relevant button: click(submit_selector)
-3. Add verification step after button click
-
-ACTION BATCHING GUIDELINES:
-- Search operations: Single action with pressEnter=true
-- Login flows: username(pressEnter=false) → password(pressEnter=true) → verify login
-- Form filling: Multiple fields ending with pressEnter=true on last field
-- Messaging: recipient(pressEnter=true) → message(pressEnter=true) → verify sent
-- Multi-field forms: Group all fields, use pressEnter=true on final field
-
-IMPORTANT RULES:
-1. Always respond with valid JSON only
-2. Use elementId when available for precision
-3. Include 1-5 actions maximum per response (use more for form filling and typing sequences)
-4. Set taskComplete=true ONLY after verifying the desired result occurred
-5. Adapt to any website's unique structure
-6. Handle errors gracefully with alternative approaches
-7. Group related actions together (e.g., form filling, typing sequences) for better efficiency
-
-TEXT INPUT STRATEGY (CRITICAL):
-ALWAYS prefer pressing Enter after typing in text fields:
-- Use type with "pressEnter": true by default for search fields, inputs, and text areas
-- Only use "pressEnter": false if you plan to click a specific button afterward
-- If Enter doesn't produce the expected result, then fall back to clicking submit/send buttons
-- This is more natural and efficient than always clicking buttons
-
-UNIVERSAL INPUT ACTIVATION (AUTOMATIC):
-The type tool now automatically handles ALL input activation needs:
-- CLICKS ALL input elements by default (works everywhere: inputs, textareas, contenteditable)
-- Automatically scrolls elements into view if needed
-- Tries multiple click targets: element, associated label, parent container
-- Verifies focus and retries up to 3 times if needed
-- Works with all frameworks: React, Vue, Angular, plain HTML, custom components
-- Handles rich text editors, message composers, and contenteditable divs
-
-ENHANCED CONTENTEDITABLE SUPPORT (UNIVERSAL):
-- Advanced multi-method text insertion with 4-tier fallback strategy
-- Universal platform detection: contenteditable divs, rich text editors, message composers
-- Uses execCommand('insertText') for proper caret positioning in rich text editors
-- Clipboard paste simulation via DataTransfer API for stubborn editors
-- Range/Selection API insertion for modern contenteditable implementations
-- Direct manipulation fallback for legacy or unusual editors
-- Clears placeholder content like <p><br></p> structures automatically
-- Comprehensive event dispatching (input, change, keydown, keyup, blur, focus)
-- Enhanced detection patterns: aria-label, role, placeholder, class-based identification
-- Works universally across all platforms: social media, forums, email, messaging, CMS, collaboration tools
-
-INPUT ACTIVATION BEHAVIOR:
-- Default: Always clicks input elements before typing (clickFirst=true implicit)
-- Fallback: Tries label clicking if element click doesn't activate
-- Recovery: Attempts parent container clicking as last resort
-- Verification: Ensures element is focused before proceeding with typing
-- Override: Use "clickFirst": false only if clicking interferes with specific inputs
-
-TASK COMPLETION VERIFICATION (CRITICAL):
-NEVER set taskComplete=true without FIRST verifying the result in a PREVIOUS iteration:
-
-VERIFICATION WORKFLOW (MANDATORY):
-1. Execute the final action (send message, submit form, etc.)
-2. In the NEXT iteration, run verification actions to check success
-3. ONLY after verification confirms success, set taskComplete=true
-4. Include verification evidence in the "result" field
-
-VERIFICATION REQUIREMENTS:
-- Use multiple verification methods (text checks, URL changes, element presence)
-- Look for specific success indicators, not assumptions
-- If verification fails, continue trying alternative approaches
-- Provide detailed evidence of completion in the result field
-
-VERIFICATION PATTERNS BY TASK TYPE:
-
-MESSAGING VERIFICATION:
-- Primary: getText() on message confirmation selectors: ".msg-s-event-listitem__body", ".message-sent", ".delivery-status"
-- Secondary: Check conversation thread contains your sent message
-- Fallback: Look for timestamp indicating recent message
-- Evidence: Include actual confirmation text found
-
-FORM SUBMISSION VERIFICATION:
-- Primary: getText() for success messages: ".success", ".confirmation", ".thank-you"
-- Secondary: Check URL changed to confirmation page
-- Fallback: Look for form disappearance or reset
-- Evidence: Include success message text or new URL
-
-LOGIN VERIFICATION:
-- Primary: getText() for user indicators: ".user-name", ".profile", ".dashboard"
-- Secondary: Check URL changed to authenticated area  
-- Fallback: Look for logout button presence
-- Evidence: Include user name or authenticated page title
-
-SEARCH VERIFICATION:
-- Primary: getText() for results: ".search-results", ".results-count"
-- Secondary: Check URL contains search parameters
-- Fallback: Look for "no results" vs results present
-- Evidence: Include results count or first result text
-
-UNIVERSAL VERIFICATION WORKFLOW:
-Step 1 - Execute main action:
-{"actions": [{"tool": "type", "params": {"selector": "[identified_input_selector]", "text": "[content]", "pressEnter": true}}], "taskComplete": false, "currentStep": "Submitting content..."}
-
-Step 2 - Verify using multiple approaches in NEXT iteration:
-{"actions": [
-  {"tool": "getText", "params": {"selector": "[content_area_selectors]"}}, 
-  {"tool": "getText", "params": {"selector": "[success_indicator_selectors]"}},
-  {"tool": "getAttribute", "params": {"selector": "[input_selector]", "attribute": "value"}},
-  {"tool": "getText", "params": {"selector": "[confirmation_selectors]"}}
-], "taskComplete": false, "currentStep": "Verifying action was successful..."}
-
-Step 3 - Complete ONLY after verification evidence:
-{"actions": [], "taskComplete": true, "result": "[Specific evidence found or reasoning for assumption]", "currentStep": "Task completed successfully"}
-
-ADAPTIVE SELECTOR STRATEGIES:
-- Use element IDs from DOM analysis when available
-- Try multiple common patterns: [role="main"], [data-testid], .content, .feed, .timeline
-- Look for text content matching what you submitted
-- Check common success indicators: .success, .confirmation, .toast, [aria-live]
-- Verify input state changes: empty inputs, disabled buttons, placeholder text
-
-UNIVERSAL VERIFICATION STRATEGIES:
-
-POST/CONTENT SUBMISSION VERIFICATION:
-After posting content (social media, forums, comments, messages), use multiple verification approaches:
-
-1. CONTENT DETECTION - Look for your posted content in the page:
-   - Search for text matching what you typed in common content areas
-   - Try selectors for posts, messages, comments, timeline items
-   - Look in main content areas, feeds, threads, conversation areas
-
-2. INPUT STATE CHANGES - Check if the input area changed after posting:
-   - Verify input/textarea was cleared or reset
-   - Check if submit button became disabled or changed state
-   - Look for placeholder text returning or form reset
-
-3. SUCCESS INDICATORS - Look for confirmation signals:
-   - Toast messages, notifications, success alerts
-   - Confirmation text like "Posted", "Sent", "Published" 
-   - New timestamps, "just now" indicators, success icons
-
-4. PAGE UPDATES - Detect page changes indicating success:
-   - New content appeared in feed/timeline/thread
-   - URL changed to confirmation or new page
-   - Page elements updated with new information
-
-SEARCH/QUERY VERIFICATION:
-After performing searches, verify results loaded:
-- Look for result counts, "results for" text, or result containers
-- Check if page content changed from search to results
-- Verify search terms appear in URL or page elements
-
-FORM SUBMISSION VERIFICATION:
-After submitting forms, verify success:
-- Look for success messages, confirmations, thank you pages
-- Check if form disappeared, was reset, or shows completion state
-- Verify URL changed to success/confirmation page
-
-LOGIN/AUTHENTICATION VERIFICATION:
-After login attempts, verify success:
-- Look for user indicators like profile names, avatars, user menus
-- Check if page changed to authenticated area or dashboard
-- Verify logout options appeared or login form disappeared
-
-CRITICAL COMPLETION RULES:
-- NEVER set taskComplete=true in the same iteration as verification actions
-- Verification must happen in a SEPARATE iteration BEFORE completion
-- Include specific evidence in the result field (actual text found, URL changes, etc.)
-- If verification fails, continue with alternative approaches
-- Only mark complete when verification confirms the intended outcome occurred
-
-USER INTERFACE REQUIREMENTS:
-- ALWAYS include "description" field for each action with casual, brief text
-- ALWAYS include "currentStep" field describing what you're doing in a casual way
-- When following a plan, format currentStep as: "Step X of Y: [brief description]"
-- Examples of good descriptions:
-  * "on it..."
-  * "checking this..."  
-  * "working on it..."
-  * "almost there..."
-- Examples of good currentStep with plan:
-  * "Step 2 of 5: Finding the compose box..."
-  * "Step 1 of 3: Navigating to the page..."
-  * "Step 4 of 6: Verifying the action worked..."
-- Examples without plan:
-  * "taking a look..."
-  * "getting this done..."
-
-TASK COMPLETION FORMAT:
-When setting taskComplete=true, provide a brief success summary in "result":
-- Example: "Successfully submitted content - confirmed by finding posted text in main feed"
-- Example: "Successfully logged in - verified by presence of user profile elements"  
-- Example: "Successfully searched and found results - confirmed by result count display"
-- Example: "Successfully posted content - completed action sequence and input was cleared"
-- Example: "Successfully submitted form - confirmed by success message appearance"
-
-UNIVERSAL TASK COMPLETION CRITERIA:
-You can mark taskComplete=true for any task if:
-1. VERIFIED SUCCESS: Found clear evidence the intended action occurred
-2. SUCCESSFUL SEQUENCE: Completed required actions (type→submit, click→navigate, etc.) without errors
-3. POSITIVE INDICATORS: Found success messages, confirmations, or expected page changes
-4. REASONABLE ASSUMPTION: After multiple verification attempts, if action sequence succeeded, assume success
-
-COMPLETION EVIDENCE REQUIREMENTS:
-- Always include specific evidence found (text content, page changes, element states)
-- If assuming success, explain the reasoning (completed sequence, no errors, expected behavior)
-- Provide meaningful result descriptions that show what actually happened
-
-ADAPTIVE BEHAVIOR:
-- If an element isn't found, try alternative selectors
-- If a page is loading, use waitForElement
-- If navigation is needed, determine the best path
-- If forms have validation, fill all required fields
-- If CAPTCHAs appear, use solveCaptcha
-
-Remember: You are a universal browser agent. Analyze each page uniquely and adapt your approach based on the specific structure and task requirements.`;
+${TASK_PROMPTS[taskType]}`;
     
     // Validate domState structure
     if (!domState || typeof domState !== 'object') {
@@ -572,15 +484,79 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       userPrompt += `\nCurrent URL: ${context.currentUrl}`;
       userPrompt += `\nIteration count: ${context.iterationCount}`;
       
-      // Add action history
+      // Add multi-tab context if available
+      if (context.tabInfo) {
+        userPrompt += `\n\nMULTI-TAB CONTEXT:`;
+        userPrompt += `\nCurrent tab ID: ${context.tabInfo.currentTabId}`;
+        if (context.tabInfo.allTabs && context.tabInfo.allTabs.length > 1) {
+          userPrompt += `\nTotal open tabs: ${context.tabInfo.allTabs.length}`;
+          userPrompt += `\nOther tabs available:`;
+          context.tabInfo.allTabs
+            .filter(tab => tab.id !== context.tabInfo.currentTabId)
+            .slice(0, 5) // Show max 5 other tabs
+            .forEach(tab => {
+              const title = tab.title ? tab.title.substring(0, 50) + '...' : 'No title';
+              const url = tab.url ? tab.url.substring(0, 60) + '...' : 'No URL';
+              userPrompt += `\n  - Tab ${tab.id}: ${title} (${url})`;
+            });
+          
+          if (context.tabInfo.allTabs.length > 6) {
+            userPrompt += `\n  - ... and ${context.tabInfo.allTabs.length - 6} more tabs`;
+          }
+        }
+        
+        if (context.tabInfo.sessionTabs && context.tabInfo.sessionTabs.length > 0) {
+          userPrompt += `\n\nTabs with active automation sessions:`;
+          context.tabInfo.sessionTabs.forEach(tabId => {
+            const tab = context.tabInfo.allTabs?.find(t => t.id === tabId);
+            if (tab) {
+              userPrompt += `\n  - Tab ${tabId}: ${tab.title || 'Unknown'}`;
+            }
+          });
+        }
+      }
+      
+      // Add action history with enhanced failure analysis
       if (context.actionHistory && context.actionHistory.length > 0) {
         userPrompt += `\n\nRECENT ACTION HISTORY (last ${context.actionHistory.length} actions):`;
+        
+        // Track critical failures for messaging tasks
+        const criticalFailures = [];
+        const isMessagingTask = context.task && (
+          context.task.toLowerCase().includes('message') || 
+          context.task.toLowerCase().includes('send') ||
+          context.task.toLowerCase().includes('text')
+        );
+        
         context.actionHistory.forEach((action, idx) => {
-          userPrompt += `\n${idx + 1}. ${action.tool}(${JSON.stringify(action.params)}) - ${action.result?.success ? 'SUCCESS' : 'FAILED'}`;
-          if (!action.result?.success && action.result?.error) {
-            userPrompt += ` - Error: ${action.result.error}`;
+          const status = action.result?.success ? 'SUCCESS' : 'FAILED';
+          userPrompt += `\n${idx + 1}. ${action.tool}(${JSON.stringify(action.params)}) - ${status}`;
+          
+          if (!action.result?.success) {
+            if (action.result?.error) {
+              userPrompt += ` - Error: ${action.result.error}`;
+            }
+            
+            // Track critical failures for completion validation
+            if (['type', 'click'].includes(action.tool)) {
+              criticalFailures.push(action);
+            }
           }
         });
+        
+        // Add critical failure warning for messaging tasks
+        if (isMessagingTask && criticalFailures.length > 0) {
+          const typeFailures = criticalFailures.filter(a => a.tool === 'type');
+          if (typeFailures.length > 0) {
+            userPrompt += `\n\n⚠️ CRITICAL: Recent type actions failed in messaging task!`;
+            userPrompt += `\nYou CANNOT mark taskComplete=true until typing actions succeed.`;
+            userPrompt += `\nFailed type attempts: ${typeFailures.length}`;
+            userPrompt += `\nYou must verify the message was actually typed before completing.`;
+          }
+        } else if (criticalFailures.length >= 2) {
+          userPrompt += `\n\n⚠️ WARNING: Multiple critical actions (${criticalFailures.length}) have failed recently.`;
+          userPrompt += `\nEnsure essential actions succeed before marking taskComplete=true.`;
+        }
       }
       
       // Add failed attempts summary
@@ -598,6 +574,41 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
           userPrompt += `\n- Sequence repeated ${count} times: ${signature}`;
         });
         userPrompt += `\nThese action sequences keep repeating without progress!`;
+      }
+      
+      // Add specific repeated failure warnings with alternative strategies
+      if (context.forceAlternativeStrategy && context.failedActionDetails && context.failedActionDetails.length > 0) {
+        userPrompt += `\n\n🚨 CRITICAL: REPEATED ACTION FAILURES DETECTED! 🚨`;
+        userPrompt += `\nThe following actions have failed multiple times and MUST use alternative strategies:\n`;
+        
+        context.failedActionDetails.forEach(failure => {
+          userPrompt += `\n❌ ${failure.tool} on "${failure.params.selector || failure.params.url || 'target'}" failed ${failure.failureCount} times`;
+          userPrompt += `\n   Last error: ${failure.lastError}`;
+          
+          // Provide specific alternative strategies based on failure type
+          if (failure.lastError.includes('not found')) {
+            userPrompt += `\n   ALTERNATIVES:`;
+            userPrompt += `\n   - Use getText to search for visible text, then click parent/child elements`;
+            userPrompt += `\n   - Try partial selectors: [class*="submit"], [id*="button"]`;
+            userPrompt += `\n   - Use aria-label or data attributes: [aria-label="Submit"]`;
+            userPrompt += `\n   - Navigate by position: find nearby elements and traverse`;
+          } else if (failure.lastError.includes('not visible')) {
+            userPrompt += `\n   ALTERNATIVES:`;
+            userPrompt += `\n   - Use scroll to bring element into view`;
+            userPrompt += `\n   - Check for overlays/modals blocking the element`;
+            userPrompt += `\n   - Wait for element to become visible with waitForElement`;
+            userPrompt += `\n   - Try parent element that might be hiding this one`;
+          } else if (failure.lastError.includes('not clickable') || failure.lastError.includes('intercepted')) {
+            userPrompt += `\n   ALTERNATIVES:`;
+            userPrompt += `\n   - Use JavaScript click via setAttribute`;
+            userPrompt += `\n   - Try keyboard navigation: focus then pressEnter`;
+            userPrompt += `\n   - Click a parent or child element instead`;
+            userPrompt += `\n   - Check for overlapping elements and remove them`;
+          }
+        });
+        
+        userPrompt += `\n\n⚠️ YOU MUST NOT USE THE SAME SELECTORS/APPROACHES THAT FAILED!`;
+        userPrompt += `\nBe creative and try completely different strategies as suggested above.`;
       }
       
       // Add URL history if available
@@ -623,9 +634,33 @@ If you've successfully completed the main action sequence but verification is st
 1. ANALYZE SEQUENCE: Review if the intended actions (type, click, submit, etc.) completed successfully
 2. TRY ALTERNATIVES: Use different verification approaches - content detection, state changes, success indicators
 3. BROADEN SEARCH: Look in different page areas, use more general selectors, check for partial matches
-4. CHECK TIMING: Consider if results need time to appear, try waiting or refreshing
+4. CHECK TIMING: Consider if results need time to appear, try waiting or refreshing  
 5. ASSUME SUCCESS: After 3+ verification attempts, if action sequence succeeded without errors, complete task
-6. PROVIDE EVIDENCE: Set taskComplete=true with reasoning based on successful actions or any indicators found`;
+6. PROVIDE DETAILED EVIDENCE: Set taskComplete=true with a comprehensive summary explaining:
+   - What actions were completed successfully
+   - What evidence supports the task completion
+   - What the final state/outcome is
+   - Any information that was found or extracted
+   
+   Example: "I successfully submitted the contact form by filling in the name field with 'John Doe', email with 'john@example.com', and message with 'Hello'. After clicking submit, the form disappeared and I can see the page title changed to include 'Thank You', indicating successful submission."
+
+INFORMATION EXTRACTION STUCK RECOVERY:
+If you're stuck while trying to extract information (prices, data, text):
+1. CHECK getText RESULTS: Review if any getText actions returned values - even if not the exact selector expected
+2. USE EXTRACTED DATA: If you've extracted ANY relevant text, complete the task with that data
+3. TRY BROADER SELECTORS: Use parent elements or more general selectors to capture larger text blocks
+4. COMPLETE WITH PARTIAL DATA: If you found some information, complete with what you have rather than getting stuck
+5. FORMAT PROPERLY: Include any extracted values in the result field, even if partial
+
+CRITICAL FOR INFORMATION EXTRACTION:
+When using getText and receiving a response like "0.3996 USD", you MUST:
+1. Recognize this as the extracted value you were looking for
+2. Format it into a complete, detailed summary (e.g., "I successfully found the current Dogecoin price is $0.3996 USD on this cryptocurrency exchange page")
+3. Mark the task as complete with this detailed summary in the result field
+4. Include context about where/how the information was found
+5. DO NOT keep trying the same selector if you already got a value
+
+ALWAYS provide complete sentences and context, not just raw extracted values.`;
       }
       
       // Add execution timing context
@@ -669,7 +704,7 @@ What actions should I take to complete the task?`;
       if (el.class) desc += ` .${el.class.split(' ').slice(0, 2).join('.')}`;
       
       // Add text content
-      if (el.text) desc += ` "${el.text.substring(0, 50)}${el.text.length > 50 ? '...' : ''}"`;
+      if (el.text) desc += ` "${el.text.substring(0, 150)}${el.text.length > 150 ? '...' : ''}"`;  // Increased from 50 to 150 for better context
       
       // Add element-specific details
       if (el.inputType) desc += ` type="${el.inputType}"`;
@@ -795,6 +830,9 @@ What actions should I take to complete the task?`;
         console.log(`Making API call using ${this.settings.modelProvider} provider`);
         console.log(`Model: ${this.settings.modelName}`);
         
+        // Set current provider for parsing context
+        this.currentProvider = this.provider;
+        
         const requestBody = await this.provider.buildRequest(prompt, {});
         const response = await this.provider.sendRequest(requestBody);
         const parsed = this.provider.parseResponse(response);
@@ -809,6 +847,7 @@ What actions should I take to complete the task?`;
           model: parsed.model
         }, true);
         
+        // parsed.content is already a JSON object from universal provider
         return parsed.content;
       } catch (error) {
         console.error(`${this.settings.modelProvider} API call failed:`, error);
@@ -932,167 +971,346 @@ What actions should I take to complete the task?`;
   
   // Parse Grok-3-mini response into actions
   parseResponse(responseText) {
-    console.log('Parsing Grok-3-mini response...');
-    console.log('Raw response text:', responseText);
-    console.log('Response text type:', typeof responseText);
-    console.log('Response text length:', responseText?.length);
+    const provider = this.currentProvider?.provider || 'unknown';
+    console.log(`Parsing AI response from ${provider}...`);
+    console.log('Response preview (first 200 chars):', responseText?.substring(0, 200));
     
     // Check if responseText is empty or null
     if (!responseText || responseText.trim() === '') {
-      throw new Error('Empty response from Grok-3-mini');
+      throw new Error('Empty response from AI');
     }
     
-    // Show first 500 characters for debugging
-    console.log('Response preview (first 500 chars):', responseText.substring(0, 500));
+    // Try multiple parsing strategies (no fallback recovery - demand proper JSON)
+    const strategies = [
+      () => this.parseCleanJSON(responseText),
+      () => this.parseWithMarkdownBlocks(responseText),
+      () => this.parseWithJSONExtraction(responseText),
+      () => this.parseWithAdvancedCleaning(responseText)
+    ];
     
-    // Try to extract JSON from the response text
-    let jsonText = responseText.trim();
+    let lastError = null;
+    let strategyIndex = 0;
     
-    // Sometimes Grok might wrap JSON in markdown code blocks
-    if (jsonText.includes('```json')) {
-      const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
-      if (jsonMatch) {
-        jsonText = jsonMatch[1].trim();
-        console.log('Extracted JSON from code block:', jsonText);
+    for (const strategy of strategies) {
+      try {
+        const result = strategy();
+        if (result && this.isValidParsedResponse(result)) {
+          console.log(`Successfully parsed ${provider} response using strategy ${strategyIndex + 1}`);
+          return result;
+        }
+      } catch (error) {
+        lastError = error;
+        console.log(`Strategy ${strategyIndex + 1} failed for ${provider}:`, error.message);
       }
-    } else if (jsonText.includes('```')) {
-      const codeMatch = jsonText.match(/```\s*([\s\S]*?)\s*```/);
-      if (codeMatch) {
-        jsonText = codeMatch[1].trim();
-        console.log('Extracted content from generic code block:', jsonText);
+      strategyIndex++;
+    }
+    
+    // If all strategies fail, throw a clear error demanding proper JSON
+    console.error(`${provider} AI Response that failed to parse:`, responseText.substring(0, 500));
+    throw new Error(`AI must respond with valid JSON only. No fallback recovery available. Provider: ${provider}. Last error: ${lastError?.message}`);
+  }
+  
+  // Strategy 1: Try to parse clean JSON
+  parseCleanJSON(text) {
+    const trimmed = text.trim();
+    const response = JSON.parse(trimmed);
+    return this.normalizeResponse(response);
+  }
+  
+  // Strategy 2: Extract from markdown blocks
+  parseWithMarkdownBlocks(text) {
+    let jsonText = text;
+    
+    // Try JSON code block
+    if (text.includes('```json')) {
+      const match = text.match(/```json\s*([\s\S]*?)\s*```/i);
+      if (match) jsonText = match[1];
+    } else if (text.includes('```')) {
+      const match = text.match(/```\s*([\s\S]*?)\s*```/);
+      if (match) jsonText = match[1];
+    }
+    
+    return this.parseCleanJSON(jsonText);
+  }
+  
+  // Strategy 3: Extract JSON object with regex
+  parseWithJSONExtraction(text) {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON object found in response');
+    }
+    return this.parseCleanJSON(jsonMatch[0]);
+  }
+  
+  // Strategy 4: Advanced cleaning before parsing
+  parseWithAdvancedCleaning(text) {
+    let cleaned = text;
+    
+    // Remove common prefixes/suffixes
+    const cleaningPatterns = [
+      /^.*?(?=\{)/s, // Everything before first {
+      /\}[^}]*$/s,   // Everything after last }
+      /^[^{]*Here's the JSON:?\s*/i,
+      /^[^{]*Response:?\s*/i,
+      /\n\n.*$/s     // Everything after double newline
+    ];
+    
+    for (const pattern of cleaningPatterns) {
+      cleaned = cleaned.replace(pattern, '');
+    }
+    
+    // Comprehensive JSON fixes
+    cleaned = cleaned
+      .replace(/'/g, '"')                    // Single to double quotes
+      .replace(/(\w+):/g, '"$1":')          // Unquoted keys
+      .replace(/,\s*}/g, '}')               // Trailing commas in objects
+      .replace(/,\s*]/g, ']')               // Trailing commas in arrays
+      .replace(/undefined/g, 'null')        // undefined to null
+      .replace(/True/g, 'true')             // Python-style booleans
+      .replace(/False/g, 'false')           // Python-style booleans
+      .replace(/None/g, 'null')             // Python-style null
+      .replace(/:\s*"([^"]*)"([^"]*)"([^"]*)"(?=\s*[,}])/g, ': "$1\\"$2\\"$3"')  // Fix unescaped quotes
+      .replace(/"\s*\n\s*"/g, '", "')       // Fix broken strings across lines
+      .replace(/}\s*\n\s*{/g, '}, {')       // Fix missing commas between objects
+      .replace(/]\s*\n\s*\[/g, '], [')      // Fix missing commas between arrays
+      
+    return this.parseCleanJSON(cleaned);
+  }
+  
+  // No more fallback recovery - demand proper JSON responses
+  
+  
+  // Normalize response structure
+  normalizeResponse(response) {
+    // Handle nested structures
+    if (response.message?.actions) {
+      response.actions = response.message.actions;
+    }
+    
+    if (response.content && typeof response.content === 'string') {
+      try {
+        const nested = JSON.parse(response.content);
+        Object.assign(response, nested);
+      } catch (e) {
+        // Ignore nested parsing errors
       }
     }
     
-    try {
-      // Try to parse as JSON
-      const response = JSON.parse(jsonText);
-      console.log('Successfully parsed JSON response:', response);
-      
-      // Validate response structure for Grok-3-mini
-      if (!response.actions || !Array.isArray(response.actions)) {
-        console.error('Response structure:', Object.keys(response));
-        
-        // Try to find actions in a different structure
-        if (response.message && response.message.actions) {
-          response.actions = response.message.actions;
-        } else if (response.content && typeof response.content === 'string') {
-          // Maybe the content is nested JSON
-          try {
-            const nestedResponse = JSON.parse(response.content);
-            if (nestedResponse.actions) {
-              response.actions = nestedResponse.actions;
-              // response.reasoning = nestedResponse.reasoning;
-              response.taskComplete = nestedResponse.taskComplete;
-              response.result = nestedResponse.result;
-              response.currentStep = nestedResponse.currentStep;
-            }
-          } catch (nestedError) {
-            console.error('Failed to parse nested content:', nestedError);
-          }
-        }
-        
-        if (!response.actions || !Array.isArray(response.actions)) {
-          throw new Error('Invalid Grok-3-mini response: missing actions array');
-        }
-      }
-      
-      // Validate each action
-      response.actions.forEach((action, index) => {
-        if (!action.tool || !this.isValidTool(action.tool)) {
-          throw new Error(`Invalid tool at index ${index}: ${action.tool}`);
-        }
-        if (!action.params || typeof action.params !== 'object') {
-          throw new Error(`Invalid action params at index ${index}`);
-        }
-      });
-      
-      const result = {
-        actions: response.actions,
-        // reasoning: response.reasoning || 'No reasoning provided',
-        reasoning: '', // Disabled for performance
-        taskComplete: response.taskComplete || false,
-        result: response.result || null,
-        currentStep: response.currentStep || null
-      };
-      
-      console.log('Final parsed result:', result);
-      return result;
-      
-    } catch (error) {
-      console.error('Failed to parse Grok-3-mini response as JSON:', error);
-      console.error('Raw response:', responseText);
-      
-      // Try to extract JSON from text that might have extra content
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        console.log('Found JSON pattern, trying to parse:', jsonMatch[0]);
-        try {
-          return this.parseResponse(jsonMatch[0]);
-        } catch (retryError) {
-          console.error('Retry parsing failed:', retryError);
-        }
-      }
-      
-      // If JSON parsing completely fails, try to create a fallback response
-      console.log('Attempting to create fallback response from natural language...');
-      
-      // Check if the response contains common action keywords
-      const lowerResponse = responseText.toLowerCase();
-      const fallbackActions = [];
-      
-      if (lowerResponse.includes('click') && lowerResponse.includes('button')) {
-        // Try to extract a button selector
-        const buttonMatch = responseText.match(/click.*?(?:button|btn).*?["']([^"']+)["']/i);
-        if (buttonMatch) {
-          fallbackActions.push({
-            tool: 'click',
-            params: { selector: `button:contains("${buttonMatch[1]}")` }
-          });
-        }
-      }
-      
-      if (lowerResponse.includes('type') || lowerResponse.includes('enter')) {
-        // Try to extract input and text
-        const typeMatch = responseText.match(/(?:type|enter).*?["']([^"']+)["'].*?(?:into|in).*?["']([^"']+)["']/i);
-        if (typeMatch) {
-          fallbackActions.push({
-            tool: 'type',
-            params: { selector: typeMatch[2], text: typeMatch[1] }
-          });
-        }
-      }
-      
-      if (lowerResponse.includes('scroll')) {
-        fallbackActions.push({
-          tool: 'scroll',
-          params: { amount: 200 }
-        });
-      }
-      
-      if (fallbackActions.length > 0) {
-        console.log('Created fallback actions:', fallbackActions);
-        return {
-          actions: fallbackActions,
-          // reasoning: 'Parsed from natural language response (fallback mode)',
-          reasoning: '', // Disabled for performance
-          taskComplete: false,
-          result: null
-        };
-      }
-      
-      throw new Error(`Invalid Grok-3-mini response format and no fallback actions found: ${error.message}`);
-    }
+    return {
+      actions: response.actions || [],
+      reasoning: response.reasoning || '',
+      taskComplete: response.taskComplete || false,
+      result: response.result || null,
+      currentStep: response.currentStep || null
+    };
+  }
+  
+  // Validate parsed response has required structure
+  isValidParsedResponse(response) {
+    return response 
+      && Array.isArray(response.actions)
+      && typeof response.taskComplete === 'boolean';
   }
   
   // Check if tool name is valid
   isValidTool(tool) {
     return [
+      // Basic DOM interaction tools
       'click', 'type', 'pressEnter', 'scroll', 'moveMouse', 'solveCaptcha', 
       'navigate', 'searchGoogle', 'waitForElement', 'rightClick', 'doubleClick',
       'keyPress', 'selectText', 'focus', 'blur', 'hover', 'selectOption',
       'toggleCheckbox', 'refresh', 'goBack', 'goForward', 'getText',
-      'getAttribute', 'setAttribute', 'clearInput'
+      'getAttribute', 'setAttribute', 'clearInput',
+      
+      // Multi-tab management tools
+      'openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab',
+      
+      // Advanced DOM and verification tools
+      'waitForDOMStable', 'detectLoadingState', 'verifyMessageSent'
     ].includes(tool);
+  }
+  
+  // Detect task type from user input
+  detectTaskType(task) {
+    const taskLower = task.toLowerCase();
+    
+    if (taskLower.includes('new tab') || taskLower.includes('open tab') || taskLower.includes('switch tab') || 
+        taskLower.includes('multiple tab') || taskLower.includes('other tab') || taskLower.includes('different tab') ||
+        taskLower.includes('compare') || taskLower.includes('both sites') || taskLower.includes('cross-reference')) {
+      return 'multitab';
+    } else if (taskLower.includes('search') || taskLower.includes('find') || taskLower.includes('look for')) {
+      return 'search';
+    } else if (taskLower.includes('fill') || taskLower.includes('form') || taskLower.includes('submit')) {
+      return 'form';
+    } else if (taskLower.includes('price') || taskLower.includes('get') || taskLower.includes('extract') || taskLower.includes('what is')) {
+      return 'extraction';
+    } else if (taskLower.includes('go to') || taskLower.includes('navigate') || taskLower.includes('open')) {
+      return 'navigation';
+    }
+    
+    return 'general';
+  }
+  
+  // Get model-specific instructions
+  getModelSpecificInstructions() {
+    const provider = this.settings.modelProvider || 'xai';
+    
+    switch (provider) {
+      case 'gemini':
+        return `GEMINI SPECIFIC: You MUST respond with raw JSON only. Do NOT use markdown code blocks. Do NOT add explanatory text before or after the JSON. Do NOT wrap in \`\`\`json\`\`\` tags. Start your response directly with { and end with }.`;
+      case 'openai':
+        return `OPENAI SPECIFIC: Return only the JSON object. No markdown formatting, no code blocks, no explanations.`;
+      case 'anthropic':
+        return `CLAUDE SPECIFIC: Respond with pure JSON only. No markdown, no commentary, no code blocks.`;
+      case 'xai':
+      default:
+        return `XAI/GROK SPECIFIC: Output raw JSON only. No markdown code blocks, no conversational text, no additional commentary.`;
+    }
+  }
+  
+  // Get relevant tools for task type
+  getRelevantTools(taskType) {
+    switch (taskType) {
+      case 'search':
+        return ['type', 'click', 'pressEnter', 'getText'];
+      case 'form':
+        return ['type', 'click', 'selectOption', 'toggleCheckbox', 'clearInput'];
+      case 'extraction':
+        return ['getText', 'getAttribute', 'scroll', 'waitForElement'];
+      case 'navigation':
+        return ['navigate', 'click', 'searchGoogle', 'goBack', 'goForward'];
+      default:
+        return Object.keys(TOOL_DOCUMENTATION).flatMap(category => 
+          Object.keys(TOOL_DOCUMENTATION[category])
+        );
+    }
+  }
+  
+  // Get tools documentation for task type
+  getToolsDocumentation(taskType) {
+    const relevantTools = this.getRelevantTools(taskType);
+    let documentation = '';
+    
+    // Add full tool documentation
+    const allTools = {
+      navigate: { params: {url: "https://..."}, desc: "Go to URL" },
+      searchGoogle: { params: {query: "search terms"}, desc: "Search Google" },
+      refresh: { params: {}, desc: "Refresh page" },
+      goBack: { params: {}, desc: "Browser back" },
+      goForward: { params: {}, desc: "Browser forward" },
+      click: { params: {selector: "CSS selector or elementId"}, desc: "Click element" },
+      type: { 
+        params: {selector: "...", text: "...", pressEnter: true}, 
+        desc: "Type text. For searches: try submit button first, use pressEnter only as fallback",
+        example: '{"tool": "type", "params": {"selector": "#APjFqb", "text": "search query", "pressEnter": true}}'
+      },
+      hover: { params: {selector: "..."}, desc: "Hover over element" },
+      focus: { params: {selector: "..."}, desc: "Focus element" },
+      getText: { params: {selector: "..."}, desc: "Get element text" },
+      getAttribute: { params: {selector: "...", attribute: "name"}, desc: "Get attribute" },
+      selectOption: { params: {selector: "...", value: "..."}, desc: "Select dropdown option" },
+      toggleCheckbox: { params: {selector: "...", checked: true}, desc: "Toggle checkbox" },
+      clearInput: { params: {selector: "..."}, desc: "Clear input field" },
+      scroll: { params: {amount: 200}, desc: "Scroll page" },
+      waitForElement: { params: {selector: "...", timeout: 5000}, desc: "Wait for element" },
+      pressEnter: { params: {selector: "..."}, desc: "Press Enter key" }
+    };
+    
+    relevantTools.forEach(tool => {
+      if (allTools[tool]) {
+        documentation += `- ${tool}: ${allTools[tool].desc}. Params: ${JSON.stringify(allTools[tool].params)}\n`;
+      }
+    });
+    
+    return documentation.trim();
+  }
+  
+  // Validate response structure
+  isValidResponse(response) {
+    if (!response || typeof response !== 'object') {
+      console.error('Validation failed: response is not an object', response);
+      return false;
+    }
+    
+    // Check required fields
+    if (!Array.isArray(response.actions)) {
+      console.error('Validation failed: actions is not an array', typeof response.actions, response.actions);
+      return false;
+    }
+    
+    if (typeof response.taskComplete !== 'boolean') {
+      console.error('Validation failed: taskComplete is not a boolean', typeof response.taskComplete, response.taskComplete);
+      return false;
+    }
+    
+    // Validate each action
+    for (let i = 0; i < response.actions.length; i++) {
+      const action = response.actions[i];
+      if (!action.tool || !this.isValidTool(action.tool)) {
+        console.error(`Validation failed: action[${i}] has invalid tool`, action.tool);
+        return false;
+      }
+      if (!action.params || typeof action.params !== 'object') {
+        console.error(`Validation failed: action[${i}] has invalid params`, action.params);
+        return false;
+      }
+      
+      // Validate required parameters for specific tools
+      if (action.tool === 'openNewTab') {
+        if (!action.params.url || typeof action.params.url !== 'string' || action.params.url.trim() === '') {
+          console.error(`Validation failed: action[${i}] openNewTab requires url parameter`, action.params);
+          return false;
+        }
+        if (!action.params.url.startsWith('http://') && !action.params.url.startsWith('https://')) {
+          console.error(`Validation failed: action[${i}] openNewTab url must be a valid HTTP/HTTPS URL`, action.params.url);
+          return false;
+        }
+      }
+      
+      if (action.tool === 'switchToTab' || action.tool === 'closeTab') {
+        if (!action.params.tabId) {
+          console.error(`Validation failed: action[${i}] ${action.tool} requires tabId parameter`, action.params);
+          return false;
+        }
+      }
+    }
+    
+    return true;
+  }
+  
+  // Enhance prompt for retry attempts
+  enhancePromptForRetry(prompt, attempt) {
+    const enhancedPrompt = { ...prompt };
+    
+    // Add stronger JSON instruction
+    if (attempt === 1) {
+      enhancedPrompt.systemPrompt = enhancedPrompt.systemPrompt.replace(
+        'CRITICAL: Respond with ONLY valid JSON:',
+        'CRITICAL: Your response MUST be ONLY valid JSON. Do NOT include any text before or after the JSON object:'
+      );
+    } else if (attempt === 2) {
+      // Even stronger instruction for final attempt
+      enhancedPrompt.systemPrompt = `IMPORTANT: Previous attempts failed due to invalid JSON. 
+${enhancedPrompt.systemPrompt}
+
+REMINDER: Output ONLY the JSON object, nothing else.`;
+    }
+    
+    return enhancedPrompt;
+  }
+  
+  // Create fallback response on complete failure
+  createFallbackResponse(task, error) {
+    console.log('Creating fallback response due to repeated failures');
+    
+    return {
+      actions: [],
+      reasoning: '',
+      taskComplete: true,
+      result: `I encountered an error while processing your request: ${error?.message || 'Unknown error'}. Please try again or check the browser console for details.`,
+      currentStep: 'Error occurred',
+      error: true
+    };
   }
   
   /**

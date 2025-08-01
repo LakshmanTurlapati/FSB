@@ -13,6 +13,174 @@ let activeSessions = new Map();
 // Global analytics instance
 let globalAnalytics = null;
 
+// Helper function to check if URL is restricted for content script access
+function isRestrictedURL(url) {
+  if (!url) return true;
+  
+  const restrictedProtocols = [
+    'chrome://',
+    'chrome-extension://',
+    'moz-extension://',
+    'edge://',
+    'about:',
+    'file://'
+  ];
+  
+  const restrictedPages = [
+    'chrome://extensions/',
+    'chrome://settings/',
+    'chrome://newtab/',
+    'chrome://history/',
+    'chrome://bookmarks/',
+    'chrome://downloads/',
+    'chrome://flags/',
+    'chrome://version/',
+    'chrome://webstore/',
+    'edge://extensions/',
+    'edge://settings/',
+    'about:blank',
+    'about:newtab'
+  ];
+  
+  // Check exact matches first
+  if (restrictedPages.some(page => url.startsWith(page))) {
+    return true;
+  }
+  
+  // Check protocol restrictions
+  return restrictedProtocols.some(protocol => url.startsWith(protocol));
+}
+
+// Get user-friendly page type description
+function getPageTypeDescription(url) {
+  if (url.startsWith('chrome://')) return 'Chrome internal page';
+  if (url.startsWith('chrome-extension://')) return 'Chrome extension page';
+  if (url.startsWith('edge://')) return 'Edge internal page';
+  if (url.startsWith('about:')) return 'Browser internal page';
+  if (url.startsWith('file://')) return 'Local file';
+  return 'Restricted page';
+}
+
+// Smart navigation: Analyze task and determine best website to navigate to
+function analyzeTaskAndGetTargetUrl(task) {
+  const taskLower = task.toLowerCase();
+  
+  // Email-related tasks
+  if (taskLower.includes('email') || taskLower.includes('gmail') || taskLower.includes('mail')) {
+    return 'https://gmail.com';
+  }
+  
+  // Social media tasks
+  if (taskLower.includes('twitter') || taskLower.includes('tweet')) {
+    return 'https://twitter.com';
+  }
+  if (taskLower.includes('facebook') || taskLower.includes('fb')) {
+    return 'https://facebook.com';
+  }
+  if (taskLower.includes('linkedin')) {
+    return 'https://linkedin.com';
+  }
+  if (taskLower.includes('instagram')) {
+    return 'https://instagram.com';
+  }
+  
+  // Video/Entertainment
+  if (taskLower.includes('youtube') || taskLower.includes('video') || taskLower.includes('watch')) {
+    return 'https://youtube.com';
+  }
+  if (taskLower.includes('netflix')) {
+    return 'https://netflix.com';
+  }
+  
+  // Music
+  if (taskLower.includes('spotify') || taskLower.includes('music') || taskLower.includes('song') || taskLower.includes('play')) {
+    return 'https://spotify.com';
+  }
+  
+  // Shopping
+  if (taskLower.includes('amazon') || taskLower.includes('shop') || taskLower.includes('buy')) {
+    return 'https://amazon.com';
+  }
+  
+  // News
+  if (taskLower.includes('news') || taskLower.includes('article')) {
+    return 'https://news.google.com';
+  }
+  
+  // Development/GitHub
+  if (taskLower.includes('github') || taskLower.includes('repository') || taskLower.includes('repo')) {
+    return 'https://github.com';
+  }
+  
+  // Wikipedia/Information
+  if (taskLower.includes('wikipedia') || taskLower.includes('wiki') || taskLower.includes('information about') || taskLower.includes('learn about')) {
+    return 'https://wikipedia.org';
+  }
+  
+  // Maps/Navigation
+  if (taskLower.includes('map') || taskLower.includes('direction') || taskLower.includes('navigate to')) {
+    return 'https://maps.google.com';
+  }
+  
+  // Weather
+  if (taskLower.includes('weather') || taskLower.includes('forecast')) {
+    return 'https://weather.com';
+  }
+  
+  // Chat/Communication
+  if (taskLower.includes('discord')) {
+    return 'https://discord.com';
+  }
+  if (taskLower.includes('slack')) {
+    return 'https://slack.com';
+  }
+  if (taskLower.includes('whatsapp')) {
+    return 'https://web.whatsapp.com';
+  }
+  
+  // Cloud Storage
+  if (taskLower.includes('drive') || taskLower.includes('google drive')) {
+    return 'https://drive.google.com';
+  }
+  if (taskLower.includes('dropbox')) {
+    return 'https://dropbox.com';
+  }
+  
+  // Productivity
+  if (taskLower.includes('docs') || taskLower.includes('document')) {
+    return 'https://docs.google.com';
+  }
+  if (taskLower.includes('sheets') || taskLower.includes('spreadsheet')) {
+    return 'https://sheets.google.com';
+  }
+  
+  // For search-related tasks or fallback, use Google
+  if (taskLower.includes('search') || taskLower.includes('find') || taskLower.includes('look for') || taskLower.includes('google')) {
+    return 'https://google.com';
+  }
+  
+  // Default fallback - Google for general queries
+  return 'https://google.com';
+}
+
+// Check if we should attempt smart navigation
+function shouldUseSmartNavigation(url, task) {
+  if (!isRestrictedURL(url)) {
+    return false; // Not on a restricted page
+  }
+  
+  // Only use smart navigation for chrome://newtab and about:blank
+  // Don't navigate away from settings, extensions, etc.
+  const navigablePages = [
+    'chrome://newtab/',
+    'about:blank',
+    'chrome://newtab',
+    'about:newtab'
+  ];
+  
+  return navigablePages.some(page => url.startsWith(page));
+}
+
 // Service Worker compatible analytics class
 class BackgroundAnalytics {
   constructor() {
@@ -131,6 +299,203 @@ function initializeAnalytics() {
   return globalAnalytics;
 }
 
+/**
+ * Validates if a result is meaningful based on task context
+ * @param {string} result - The result to validate
+ * @param {string} task - The original task
+ * @returns {boolean} True if result is valid and meaningful
+ */
+function isValidResult(result, task) {
+  // Handle null/undefined
+  if (!result || result === null || result === undefined) {
+    return false;
+  }
+  
+  // Convert to string for analysis
+  const resultStr = String(result).trim();
+  
+  // Empty results or placeholder text are invalid
+  if (resultStr === '' || resultStr === 'null' || resultStr === 'undefined') {
+    return false;
+  }
+  
+  // Reject generic placeholder messages
+  const genericMessages = [
+    'task completed',
+    'task completed successfully', 
+    'completed successfully',
+    'done',
+    'finished',
+    'success',
+    'completed',
+    'found it',
+    'found the information',
+    'extracted the data'
+  ];
+  
+  const resultLower = resultStr.toLowerCase();
+  if (genericMessages.some(msg => resultLower === msg || resultLower === msg + '.')) {
+    return false;
+  }
+  
+  // Accept any result that is reasonably detailed (shows AI provided context)
+  // This is much more permissive than the old validation
+  if (resultStr.length >= 15) {
+    // Check if it contains meaningful content words (not just filler)
+    const meaningfulWords = resultStr.match(/\b\w{3,}\b/g) || [];
+    return meaningfulWords.length >= 3; // At least 3 meaningful words
+  }
+  
+  // For shorter results, be more flexible - accept if it has specific data patterns
+  // Numbers, currency, percentages, URLs, etc.
+  const hasSpecificData = /(\d+\.?\d*|\$|%|https?:\/\/|@|#|\w+\.\w+)/.test(resultStr);
+  if (hasSpecificData && resultStr.length >= 5) {
+    return true;
+  }
+  
+  // Accept if it looks like extracted data (has quotes, colons, specific formats)
+  const hasDataFormat = /(["'].*["']|:\s*\w+|\w+:\s*\w+|\d+\s*(USD|EUR|BTC|°F|°C|%))/.test(resultStr);
+  if (hasDataFormat) {
+    return true;
+  }
+  
+  // Default: accept anything with reasonable length and multiple words
+  const wordCount = (resultStr.match(/\b\w+\b/g) || []).length;
+  return wordCount >= 2 && resultStr.length >= 8;
+}
+
+/**
+ * Creates a unique signature for an action based on tool and key parameters
+ * @param {Object} action - The action object
+ * @returns {string} A unique signature for the action
+ */
+function createActionSignature(action) {
+  // Create a signature that uniquely identifies this action
+  const tool = action.tool || '';
+  const params = action.params || {};
+  
+  // For most actions, the selector is the key differentiator
+  if (params.selector) {
+    return `${tool}:${params.selector}`;
+  }
+  
+  // For navigation actions, use the URL
+  if (params.url) {
+    return `${tool}:${params.url}`;
+  }
+  
+  // For type actions, include the text (truncated)
+  if (tool === 'type' && params.text) {
+    const textPreview = params.text.substring(0, 20);
+    return `${tool}:${params.selector || 'unknown'}:${textPreview}`;
+  }
+  
+  // For other actions, create a simple hash of params
+  const paramsStr = JSON.stringify(params);
+  return `${tool}:${simpleHash(paramsStr)}`;
+}
+
+/**
+ * Simple hash function for creating signatures
+ * @param {string} str - String to hash
+ * @returns {number} Hash value
+ */
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Detects if specific actions have failed repeatedly
+ * @param {Object} session - The automation session
+ * @returns {Array} Array of actions that need alternative strategies
+ */
+function detectRepeatedActionFailures(session) {
+  const repeatedFailures = [];
+  
+  // Check each failed action
+  for (const [signature, details] of Object.entries(session.failedActionDetails)) {
+    // If an action has failed 2 or more times, it needs an alternative strategy
+    if (details.count >= 2) {
+      repeatedFailures.push({
+        signature,
+        tool: details.tool,
+        params: details.params,
+        failureCount: details.count,
+        lastError: details.errors[details.errors.length - 1]?.error || 'Unknown error',
+        allErrors: details.errors.map(e => e.error),
+        timeSinceFirstFailure: Date.now() - details.firstFailure
+      });
+    }
+  }
+  
+  return repeatedFailures;
+}
+
+/**
+ * Detects if the same valid result has been extracted multiple times
+ * @param {Object} session - The automation session
+ * @returns {string|null} The repeated result if found, null otherwise
+ */
+function detectRepeatedSuccess(session) {
+  // Look at recent getText actions
+  const recentTextActions = session.actionHistory
+    .filter(action => action.tool === 'getText' && action.result?.success && action.result?.value)
+    .slice(-10); // Last 10 successful getText actions
+  
+  if (recentTextActions.length < 3) {
+    return null; // Not enough data
+  }
+  
+  // Count occurrences of each result
+  const resultCounts = {};
+  recentTextActions.forEach(action => {
+    const value = String(action.result.value).trim();
+    if (value && value !== 'null' && value !== 'undefined') {
+      resultCounts[value] = (resultCounts[value] || 0) + 1;
+    }
+  });
+  
+  // Find results that appear at least 3 times
+  for (const [result, count] of Object.entries(resultCounts)) {
+    if (count >= 3 && isValidResult(result, session.task)) {
+      console.log(`Found repeated valid result: "${result}" (appeared ${count} times)`);
+      return result;
+    }
+  }
+  
+  // Also check for similar results (e.g., same number with different formatting)
+  const numericResults = recentTextActions
+    .map(action => {
+      const value = String(action.result.value).trim();
+      const numMatch = value.match(/(\d+\.?\d*)/);
+      return numMatch ? parseFloat(numMatch[1]) : null;
+    })
+    .filter(num => num !== null);
+  
+  if (numericResults.length >= 3) {
+    // Check if the same number appears multiple times
+    const numCounts = {};
+    numericResults.forEach(num => {
+      numCounts[num] = (numCounts[num] || 0) + 1;
+    });
+    
+    for (const [num, count] of Object.entries(numCounts)) {
+      if (count >= 3) {
+        console.log(`Found repeated numeric result: ${num} (appeared ${count} times)`);
+        return String(num);
+      }
+    }
+  }
+  
+  return null;
+}
+
 // Listen for messages from popup and content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Background received message:', request.action);
@@ -163,6 +528,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'TRACK_USAGE':
       return handleTrackUsage(request, sender, sendResponse);
       
+    // Multi-tab management actions
+    case 'openNewTab':
+      handleOpenNewTab(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+      
+    case 'switchToTab':
+      handleSwitchToTab(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+      
+    case 'closeTab':
+      handleCloseTab(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+      
+    case 'listTabs':
+      handleListTabs(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+      
+    case 'getCurrentTab':
+      handleGetCurrentTab(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+      
+    case 'waitForTabLoad':
+      handleWaitForTabLoad(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+      
     default:
       sendResponse({ error: 'Unknown action' });
   }
@@ -181,16 +571,85 @@ async function handleStartAutomation(request, sender, sendResponse) {
   const { task, tabId } = request;
   
   try {
+    // Get the target tab ID
+    const targetTabId = tabId || sender.tab?.id;
+    
+    // Get tab information to check URL
+    let tabInfo;
+    try {
+      tabInfo = await chrome.tabs.get(targetTabId);
+    } catch (error) {
+      throw new Error(`Cannot access tab ${targetTabId}. Tab may have been closed or is not accessible.`);
+    }
+    
+    // Check if we need smart navigation for restricted URLs
+    if (isRestrictedURL(tabInfo.url)) {
+      if (shouldUseSmartNavigation(tabInfo.url, task)) {
+        // Determine the best website for this task
+        const targetUrl = analyzeTaskAndGetTargetUrl(task);
+        
+        console.log(`Smart navigation: ${tabInfo.url} -> ${targetUrl} for task: "${task}"`);
+        
+        // Navigate to the target website
+        await chrome.tabs.update(targetTabId, { url: targetUrl });
+        
+        // Wait for navigation to complete
+        await new Promise((resolve) => {
+          const navigationListener = (tabId, changeInfo) => {
+            if (tabId === targetTabId && changeInfo.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(navigationListener);
+              resolve();
+            }
+          };
+          chrome.tabs.onUpdated.addListener(navigationListener);
+          
+          // Timeout after 10 seconds
+          setTimeout(() => {
+            chrome.tabs.onUpdated.removeListener(navigationListener);
+            resolve();
+          }, 10000);
+        });
+        
+        // Update tabInfo after navigation
+        try {
+          tabInfo = await chrome.tabs.get(targetTabId);
+        } catch (error) {
+          throw new Error(`Tab became inaccessible after navigation to ${targetUrl}`);
+        }
+        
+        console.log(`Navigation completed to: ${tabInfo.url}`);
+      } else {
+        // For non-navigable restricted pages (settings, extensions, etc.), show error
+        const pageType = getPageTypeDescription(tabInfo.url);
+        const error = new Error(`Chrome security restrictions prevent extensions from accessing this type of page (${tabInfo.url}). Please navigate to a regular website to use automation.`);
+        error.isChromePage = true;
+        throw error;
+      }
+    }
+    
+    // Track smart navigation for user feedback
+    let navigationMessage = '';
+    const originalUrl = tabInfo.url;
+    let navigationPerformed = false;
+    
+    if (isRestrictedURL(originalUrl) && shouldUseSmartNavigation(originalUrl, task)) {
+      const targetUrl = analyzeTaskAndGetTargetUrl(task);
+      navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${new URL(targetUrl).hostname} to complete your task.`;
+      navigationPerformed = true;
+    }
+
     // Create new session with enhanced tracking
     const sessionId = `session_${Date.now()}`;
     const sessionData = {
       task,
-      tabId: tabId || sender.tab?.id,
+      tabId: targetTabId,
+      originalTabId: targetTabId,  // Store original tab - automation is restricted to this tab
       status: 'running',
       startTime: Date.now(),
       actionHistory: [],        // Track all actions executed
       stateHistory: [],         // Track DOM state changes
       failedAttempts: {},       // Track failed actions by type
+      failedActionDetails: {},  // Track detailed failures by action signature
       lastDOMHash: null,        // Hash of last DOM state to detect changes
       stuckCounter: 0,          // Counter for detecting stuck state
       iterationCount: 0,        // Total iterations
@@ -198,6 +657,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       lastUrl: null,            // Last known URL
       actionSequences: [],      // Track sequences of actions to detect patterns
       sequenceRepeatCount: {},  // Count how many times each sequence repeats
+      navigationMessage,        // Store navigation message for UI
     };
     
     activeSessions.set(sessionId, sessionData);
@@ -218,7 +678,8 @@ async function handleStartAutomation(request, sender, sendResponse) {
     sendResponse({ 
       success: true, 
       sessionId,
-      message: 'Automation started' 
+      message: navigationMessage || 'Automation started',
+      navigationPerformed: navigationPerformed
     });
     
     // Start the automation loop
@@ -228,7 +689,8 @@ async function handleStartAutomation(request, sender, sendResponse) {
     console.error('Error starting automation:', error);
     sendResponse({ 
       success: false, 
-      error: error.message 
+      error: error.message,
+      isChromePage: error.isChromePage || false
     });
   }
 }
@@ -558,6 +1020,103 @@ function createDOMHash(domState) {
 }
 
 /**
+ * Handle multi-tab actions directly in background script
+ * @param {Object} action - The action to execute
+ * @param {number} currentTabId - The current tab ID for context
+ * @returns {Promise<Object>} Action result
+ */
+async function handleMultiTabAction(action, currentTabId) {
+  const { tool, params } = action;
+  
+  console.log(`[FSB] handleMultiTabAction called:`, { tool, params, currentTabId });
+  
+  return new Promise((resolve) => {
+    const mockSender = { tab: { id: currentTabId } };
+    const mockRequest = { ...params, action: tool };
+    
+    console.log(`[FSB] Mock request for ${tool}:`, mockRequest);
+    
+    switch (tool) {
+      case 'openNewTab':
+        console.log(`[FSB] Calling handleOpenNewTab with:`, mockRequest);
+        handleOpenNewTab(mockRequest, mockSender, resolve);
+        break;
+        
+      case 'switchToTab':
+        // SECURITY: Block switching away from the original session tab
+        const switchRequest = { ...mockRequest };
+        if (switchRequest.tabId && typeof switchRequest.tabId === 'string') {
+          switchRequest.tabId = parseInt(switchRequest.tabId, 10);
+        }
+        
+        // Find the session to check originalTabId
+        const session = Array.from(activeSessions.values()).find(s => s.tabId === currentTabId);
+        if (session && switchRequest.tabId !== session.originalTabId) {
+          console.log(`[FSB] BLOCKED: Attempt to switch from session tab ${session.originalTabId} to unauthorized tab ${switchRequest.tabId}`);
+          resolve({
+            success: false,
+            error: `Security restriction: Automation is limited to the original tab (${session.originalTabId}). Cannot switch to tab ${switchRequest.tabId}.`,
+            blocked: true
+          });
+          return;
+        }
+        
+        console.log(`[FSB] Tab switch allowed: staying within session tab ${switchRequest.tabId}`);
+        resolve({
+          success: true,
+          message: `Already on session tab ${switchRequest.tabId}`,
+          tabId: switchRequest.tabId
+        });
+        break;
+        
+      case 'closeTab':
+        // Fix: Convert string tabId to integer
+        const closeRequest = { ...mockRequest };
+        if (closeRequest.tabId && typeof closeRequest.tabId === 'string') {
+          console.log(`[FSB] Converting tabId from string '${closeRequest.tabId}' to integer`);
+          closeRequest.tabId = parseInt(closeRequest.tabId, 10);
+        }
+        console.log(`[FSB] Calling handleCloseTab with:`, closeRequest);
+        handleCloseTab(closeRequest, mockSender, resolve);
+        break;
+        
+      case 'listTabs':
+        console.log(`[FSB] Calling handleListTabs with:`, mockRequest);
+        handleListTabs(mockRequest, mockSender, resolve);
+        break;
+        
+      case 'waitForTabLoad':
+        // Fix: Convert string tabId to integer, default to current tab if not specified  
+        const waitRequest = { ...mockRequest };
+        if (waitRequest.tabId) {
+          if (typeof waitRequest.tabId === 'string') {
+            console.log(`[FSB] Converting tabId from string '${waitRequest.tabId}' to integer`);
+            waitRequest.tabId = parseInt(waitRequest.tabId, 10);
+          }
+        } else {
+          waitRequest.tabId = currentTabId;
+          console.log(`[FSB] Using current tab ID: ${currentTabId}`);
+        }
+        console.log(`[FSB] Calling handleWaitForTabLoad with:`, waitRequest);
+        handleWaitForTabLoad(waitRequest, mockSender, resolve);
+        break;
+        
+      case 'getCurrentTab':
+        console.log(`[FSB] Calling handleGetCurrentTab with:`, mockRequest);
+        handleGetCurrentTab(mockRequest, mockSender, resolve);
+        break;
+        
+      default:
+        console.error(`[FSB] Unknown multi-tab action: ${tool}`);
+        resolve({
+          success: false,
+          error: `Unknown multi-tab action: ${tool}`
+        });
+    }
+  });
+}
+
+/**
  * Main automation loop that executes AI-generated actions iteratively
  * @param {string} sessionId - The unique session identifier
  * @returns {Promise<void>}
@@ -570,21 +1129,46 @@ async function startAutomationLoop(sessionId) {
   console.log(`Automation loop iteration ${session.iterationCount} for session ${sessionId}`);
   
   try {
-    // Ensure content script is injected
+    // SECURITY: Only inject content script into the original session tab
+    if (session.tabId !== session.originalTabId) {
+      throw new Error(`Security violation: Attempted to inject content script into unauthorized tab ${session.tabId}. Session is restricted to tab ${session.originalTabId}.`);
+    }
+    
+    // Ensure content script is injected into session tab only
     try {
       await chrome.scripting.executeScript({
-        target: { tabId: session.tabId },
+        target: { tabId: session.originalTabId }, // Use originalTabId for security
         files: ['content.js']
       });
+      console.log(`[FSB] Content script injected into session tab ${session.originalTabId}`);
     } catch (injectionError) {
       // Content script might already be injected, continue
       console.log('Content script injection skipped (might already exist)');
     }
     
-    // Get current DOM state
-    const domResponse = await chrome.tabs.sendMessage(session.tabId, {
-      action: 'getDOM'
-    });
+    // Get current DOM state with enhanced error handling
+    let domResponse;
+    try {
+      domResponse = await chrome.tabs.sendMessage(session.tabId, {
+        action: 'getDOM'
+      });
+    } catch (messageError) {
+      // Check if this is a restricted URL error
+      let tabInfo;
+      try {
+        tabInfo = await chrome.tabs.get(session.tabId);
+      } catch (tabError) {
+        throw new Error('Tab has been closed or is no longer accessible.');
+      }
+      
+      if (isRestrictedURL(tabInfo.url)) {
+        const pageType = getPageTypeDescription(tabInfo.url);
+        throw new Error(`Cannot access ${pageType} (${tabInfo.url}). The page navigated to a restricted URL that extensions cannot automate. Please navigate to a regular website to continue automation.`);
+      }
+      
+      // Other message sending errors
+      throw new Error(`Failed to communicate with the page (${tabInfo.url}). This may happen if the page is still loading, has security restrictions, or the content script failed to load. Error: ${messageError.message}`);
+    }
     
     // Check if DOM response is valid
     if (!domResponse || !domResponse.success || !domResponse.structuredDOM) {
@@ -666,6 +1250,33 @@ async function startAutomationLoop(sessionId) {
     // Get settings for AI call using config
     const settings = await config.getAll();
     
+    // Detect repeated action failures
+    const repeatedFailures = detectRepeatedActionFailures(session);
+    const forceAlternativeStrategy = repeatedFailures.length > 0;
+    
+    // Gather multi-tab context
+    let tabInfo = null;
+    try {
+      // Get all tabs in current window
+      const allTabs = await chrome.tabs.query({ currentWindow: true });
+      // Get tabs that have active sessions
+      const sessionTabs = Array.from(activeSessions.values()).map(s => s.tabId);
+      
+      tabInfo = {
+        currentTabId: session.tabId,
+        allTabs: allTabs.map(tab => ({
+          id: tab.id,
+          url: tab.url,
+          title: tab.title,
+          active: tab.active,
+          status: tab.status
+        })),
+        sessionTabs: sessionTabs
+      };
+    } catch (error) {
+      console.log('Failed to gather tab context:', error.message);
+    }
+    
     // Prepare context with action history and task plan
     const context = {
       actionHistory: session.actionHistory.slice(-10), // Last 10 actions
@@ -674,6 +1285,8 @@ async function startAutomationLoop(sessionId) {
       domChanged,
       urlChanged,
       failedAttempts: session.failedAttempts,
+      failedActionDetails: repeatedFailures, // Specific actions that keep failing
+      forceAlternativeStrategy, // Flag to force AI to try different approach
       iterationCount: session.iterationCount,
       urlHistory: session.urlHistory.slice(-5), // Last 5 URL changes
       currentUrl: currentUrl,
@@ -682,7 +1295,8 @@ async function startAutomationLoop(sessionId) {
         .filter(([_, count]) => count > 2)
         .map(([signature, count]) => ({ signature, count })),
       lastSequences: session.actionSequences.slice(-3), // Last 3 action sequences
-      // Add current task plan to context
+      // Add multi-tab context
+      tabInfo: tabInfo
     };
     
     // Call AI to get next actions with context
@@ -755,11 +1369,54 @@ async function startAutomationLoop(sessionId) {
           });
         }
         
-        const actionResult = await chrome.tabs.sendMessage(session.tabId, {
-          action: 'executeAction',
-          tool: action.tool,
-          params: action.params
-        });
+        let actionResult;
+        
+        // Multi-tab actions should be handled directly by background script
+        const multiTabActions = ['openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab'];
+        
+        if (multiTabActions.includes(action.tool)) {
+          // Handle multi-tab actions directly in background script
+          console.log(`[FSB] Routing multi-tab action ${action.tool} directly to background handler`);
+          try {
+            actionResult = await handleMultiTabAction(action, session.tabId);
+            console.log(`[FSB] Multi-tab action ${action.tool} result:`, actionResult);
+          } catch (error) {
+            console.error(`[FSB] Multi-tab action ${action.tool} failed:`, error);
+            actionResult = {
+              success: false,
+              error: `Multi-tab action failed: ${error.message}`,
+              tool: action.tool
+            };
+          }
+        } else {
+          // Send regular DOM actions to content script
+          try {
+            actionResult = await chrome.tabs.sendMessage(session.tabId, {
+              action: 'executeAction',
+              tool: action.tool,
+              params: action.params
+            });
+          } catch (messageError) {
+            // Check if this is a restricted URL error during action execution
+            let tabInfo;
+            try {
+              tabInfo = await chrome.tabs.get(session.tabId);
+              if (isRestrictedURL(tabInfo.url)) {
+                const pageType = getPageTypeDescription(tabInfo.url);
+                throw new Error(`Cannot execute action on ${pageType} (${tabInfo.url}). The page navigated to a restricted URL during automation.`);
+              }
+            } catch (tabError) {
+              throw new Error('Tab was closed or became inaccessible during action execution.');
+            }
+            
+            // For other errors, provide a failure result instead of crashing
+            actionResult = {
+              success: false,
+              error: `Failed to execute ${action.tool}: ${messageError.message}`,
+              tool: action.tool
+            };
+          }
+        }
         
         // Track action in history
         const actionRecord = {
@@ -774,63 +1431,289 @@ async function startAutomationLoop(sessionId) {
         // Log action result
         automationLogger.logAction(sessionId, action, actionResult);
         
+        // Ensure actionResult has proper structure
+        if (!actionResult) {
+          actionResult = {
+            success: false,
+            error: 'Action returned no result - possible content script communication failure',
+            tool: action.tool
+          };
+        }
+        
         // Track failures
-        if (!actionResult?.success) {
+        if (!actionResult.success) {
+          // Track by tool type (existing)
           if (!session.failedAttempts[action.tool]) {
             session.failedAttempts[action.tool] = 0;
           }
           session.failedAttempts[action.tool]++;
-          console.warn(`Action failed: ${action.tool}`, actionResult?.error);
+          
+          // Track detailed failures by action signature
+          const actionSignature = createActionSignature(action);
+          if (!session.failedActionDetails[actionSignature]) {
+            session.failedActionDetails[actionSignature] = {
+              tool: action.tool,
+              params: action.params,
+              count: 0,
+              errors: [],
+              firstFailure: Date.now(),
+              lastFailure: null
+            };
+          }
+          
+          session.failedActionDetails[actionSignature].count++;
+          session.failedActionDetails[actionSignature].lastFailure = Date.now();
+          const errorMessage = actionResult.error || 'Unknown error - no error details provided';
+          session.failedActionDetails[actionSignature].errors.push({
+            error: errorMessage,
+            timestamp: Date.now(),
+            iteration: session.iterationCount
+          });
+          
+          // Keep only last 3 errors to avoid memory bloat
+          if (session.failedActionDetails[actionSignature].errors.length > 3) {
+            session.failedActionDetails[actionSignature].errors.shift();
+          }
+          
+          console.warn(`Action failed: ${action.tool}`, errorMessage, `(${session.failedActionDetails[actionSignature].count} failures)`);
         }
         
-        // Smart delay calculation based on action types
+        // Smart delay calculation based on action types and DOM state
         if (i < aiResponse.actions.length - 1) { // Don't delay after the last action
-          const delay = calculateActionDelay(action, nextAction);
-          console.log(`Waiting ${delay}ms before next action`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          const nextAction = aiResponse.actions[i + 1];
+          
+          // Check if page is loading with error handling
+          let loadingCheck;
+          try {
+            loadingCheck = await chrome.tabs.sendMessage(session.tabId, {
+              action: 'executeAction',
+              tool: 'detectLoadingState',
+              params: {}
+            });
+          } catch (error) {
+            // Silently handle loading check errors - continue with fixed delay
+            console.log('Loading check failed, using fixed delay');
+            loadingCheck = { success: false };
+          }
+          
+          if (loadingCheck?.success && loadingCheck?.result?.loading) {
+            console.log(`Loading indicator detected: ${loadingCheck.result.indicator}`);
+            
+            // Wait for DOM to stabilize with error handling
+            let stableResult;
+            try {
+              stableResult = await chrome.tabs.sendMessage(session.tabId, {
+                action: 'executeAction',
+                tool: 'waitForDOMStable',
+                params: { timeout: 5000, stableTime: 500 }
+              });
+            } catch (error) {
+              // If stability check fails, use fixed delay
+              console.log('DOM stability check failed, using fixed delay');
+              stableResult = { success: false };
+            }
+            
+            console.log(`DOM stable after ${stableResult?.waitTime || 'unknown'}ms (${stableResult?.reason || 'unknown'})`);
+          } else {
+            // Use smart DOM-based waiting for certain action types
+            const actionsThatCauseChanges = ['click', 'type', 'navigate', 'searchGoogle', 'pressEnter', 'submit'];
+            const currentCausesChanges = actionsThatCauseChanges.includes(action.tool);
+            
+            if (currentCausesChanges) {
+              // Wait for DOM to stabilize after actions that typically cause changes
+              let stableResult;
+              try {
+                stableResult = await chrome.tabs.sendMessage(session.tabId, {
+                  action: 'executeAction',
+                  tool: 'waitForDOMStable',
+                  params: { timeout: 3000, stableTime: 300 }
+                });
+              } catch (error) {
+                // If stability check fails, use fixed delay
+                console.log('DOM stability check failed, using fixed delay');
+                stableResult = { success: false };
+              }
+              
+              console.log(`DOM stable after ${stableResult?.waitTime || 'unknown'}ms`);
+            } else {
+              // For other actions, use minimal delay
+              const delay = calculateActionDelay(action, nextAction);
+              console.log(`Using fixed delay: ${delay}ms`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
         }
       }
     }
     
     
-    // Check if we're stuck in a loop
-    if (session.stuckCounter >= 5) {
-      console.error('Automation appears stuck - stopping');
+    // Smart stuck detection with early exit for repeated success
+    // Check for repeated success earlier (at 4 iterations) to avoid unnecessary loops
+    if (session.stuckCounter >= 4) {
+      const repeatedResult = detectRepeatedSuccess(session);
+      if (repeatedResult) {
+        console.log(`Found repeated valid result at stuck counter ${session.stuckCounter}:`, repeatedResult);
+        // Complete the task with the repeated result
+        session.status = 'completed';
+        const duration = Date.now() - session.startTime;
+        automationLogger.logSessionEnd(sessionId, 'completed', session.actionHistory.length, duration);
+        
+        // Send success message via runtime message
+        chrome.runtime.sendMessage({
+          action: 'automationComplete',
+          sessionId,
+          result: repeatedResult,
+          navigatedTo: currentUrl
+        });
+        
+        // Clean up session
+        activeSessions.delete(sessionId);
+        return;
+      }
+    }
+    
+    // Check if we're stuck in a loop after more iterations
+    if (session.stuckCounter >= 8) {
+      
+      console.error('Automation appears stuck - attempting to provide summary');
       session.status = 'stuck';
-      session.error = 'Automation stuck in loop - no progress after 5 attempts';
+      
+      // Provide a detailed summary of what was accomplished before getting stuck
+      let finalResult = 'I attempted to complete your task but encountered repeated difficulties. ';
+      
+      // Check if we have any extracted text from recent actions
+      const recentTextActions = session.actionHistory
+        .filter(action => action.tool === 'getText' && action.result?.success && action.result?.value)
+        .slice(-5); // Last 5 getText results
+      
+      if (recentTextActions.length > 0) {
+        // We found some text, include it in the result
+        const extractedTexts = recentTextActions.map(action => action.result.value).filter(text => text && text.trim());
+        if (extractedTexts.length > 0) {
+          finalResult += `Here's what I was able to extract: ${extractedTexts.join(', ')}. `;
+        }
+      }
+      
+      // Add information about successful actions
+      const successfulActions = session.actionHistory.filter(a => a.result?.success);
+      const failedActions = session.actionHistory.filter(a => !a.result?.success);
+      
+      if (successfulActions.length > 0) {
+        const uniqueSuccessActions = [...new Set(successfulActions.map(a => a.tool))];
+        finalResult += `Successfully completed: ${uniqueSuccessActions.join(', ')}. `;
+      }
+      
+      if (failedActions.length > 0) {
+        const uniqueFailedActions = [...new Set(failedActions.map(a => a.tool))];
+        finalResult += `Had trouble with: ${uniqueFailedActions.join(', ')}. `;
+      }
+      
+      // Add current URL if changed from start
+      if (session.urlHistory.length > 1) {
+        finalResult += `Currently on: ${session.lastUrl}. `;
+      }
+      
+      finalResult += 'You may want to try rephrasing your request or breaking it into smaller steps.';
+      
       activeSessions.delete(sessionId);
       
-      // Notify UI
+      // Send completion with partial results instead of error
       chrome.runtime.sendMessage({
-        action: 'automationError',
+        action: 'automationComplete',
         sessionId,
-        error: session.error
+        result: finalResult,
+        partial: true
       });
+      
+      automationLogger.logSessionEnd(sessionId, 'stuck', session.actionHistory.length, Date.now() - session.startTime);
       return;
     }
     
-    // VERIFICATION ENFORCEMENT: Check for premature completion
+    // COMPLETION VALIDATION: Ensure AI provides meaningful results AND critical actions succeeded
     if (aiResponse.taskComplete) {
-      // Check if AI is trying to complete task while still running verification actions
-      const hasVerificationActions = aiResponse.actions && aiResponse.actions.some(action => 
-        action.tool === 'getText' || 
-        action.tool === 'getAttribute' ||
-        action.tool === 'waitForElement' ||
-        (action.description && action.description.toLowerCase().includes('verif'))
-      );
-      
-      // If AI claims completion but is still verifying, don't complete yet
-      if (hasVerificationActions) {
-        console.warn('⚠️ AI claimed taskComplete=true but still running verification actions. Continuing automation...');
-        automationLogger.logWarning(sessionId, 'Premature completion blocked - verification actions still running');
+      // Check for meaningful result
+      if (!aiResponse.result || aiResponse.result.trim().length < 10) {
+        console.warn('⚠️ AI claimed taskComplete=true but provided no meaningful result. Continuing automation...');
+        automationLogger.warn('Completion blocked - AI must provide result summary', {sessionId});
         aiResponse.taskComplete = false; // Override the AI's decision
-      }
-      
-      // Require result evidence for completion
-      if (!aiResponse.result || aiResponse.result.length < 10) {
-        console.warn('⚠️ AI claimed taskComplete=true but provided insufficient result evidence. Continuing automation...');
-        automationLogger.logWarning(sessionId, 'Premature completion blocked - insufficient result evidence');
-        aiResponse.taskComplete = false; // Override the AI's decision
+      } else {
+        // Check for recent critical action failures
+        const criticalActions = ['type', 'click'];
+        const recentActions = session.actionHistory.slice(-10); // Last 10 actions
+        const recentCriticalFailures = recentActions.filter(action => 
+          criticalActions.includes(action.tool) && !action.result?.success
+        );
+        
+        // Enhanced messaging task completion validation
+        const isMessagingTask = session.task.toLowerCase().includes('message') || 
+                               session.task.toLowerCase().includes('send') ||
+                               session.task.toLowerCase().includes('text') ||
+                               session.task.toLowerCase().includes('chat') ||
+                               session.task.toLowerCase().includes('reply') ||
+                               session.task.toLowerCase().includes('comment');
+        
+        // For messaging tasks, check if message was actually sent
+        if (isMessagingTask && recentCriticalFailures.length > 0) {
+          const typeFailures = recentCriticalFailures.filter(action => action.tool === 'type');
+          const clickSuccesses = recentActions.filter(action => 
+            action.tool === 'click' && action.result?.success
+          );
+          
+          // Allow completion if:
+          // 1. Type failed but there were successful clicks (might have sent empty/existing message)
+          // 2. Multiple attempts were made and DOM changed (likely successful)
+          // 3. AI provides detailed result indicating success
+          const shouldAllowCompletion = (
+            (typeFailures.length > 0 && clickSuccesses.length >= 2) ||  // Clicked send buttons
+            (session.stuckCounter < 3 && session.urlHistory.length > 0) || // Made progress
+            (aiResponse.result && aiResponse.result.length > 50 && 
+             aiResponse.result.toLowerCase().includes('sent')) || // AI claims success
+            (recentActions.filter(a => a.result?.success).length >= recentActions.length * 0.7) // Most actions succeeded
+          );
+          
+          if (typeFailures.length > 0 && !shouldAllowCompletion) {
+            console.warn('⚠️ AI claimed taskComplete=true but critical type actions failed. Continuing automation...');
+            automationLogger.warn('Completion blocked - critical type actions failed for messaging task', {
+              sessionId,
+              failedActions: typeFailures.map(a => ({tool: a.tool, params: a.params, error: a.result?.error})),
+              clickSuccesses: clickSuccesses.length,
+              shouldAllowCompletion
+            });
+            aiResponse.taskComplete = false; // Override the AI's decision
+          } else if (typeFailures.length > 0 && shouldAllowCompletion) {
+            console.log('✅ Allowing messaging task completion despite type failures due to other success indicators');
+          }
+        } else if (recentCriticalFailures.length >= 3) {
+          // General rule: block completion if multiple critical actions failed recently
+          // But be more lenient if there are signs of success
+          const successRate = recentActions.length > 0 ? 
+            recentActions.filter(a => a.result?.success).length / recentActions.length : 0;
+          
+          // Allow completion if success rate is decent (60%+) or if AI provides detailed result
+          const hasDetailedResult = aiResponse.result && aiResponse.result.length > 30;
+          const hasDecentSuccessRate = successRate >= 0.6;
+          
+          if (!hasDetailedResult && !hasDecentSuccessRate) {
+            console.warn('⚠️ AI claimed taskComplete=true but multiple critical actions failed. Continuing automation...');
+            automationLogger.warn('Completion blocked - multiple critical actions failed', {
+              sessionId,
+              failedActions: recentCriticalFailures.map(a => ({tool: a.tool, params: a.params, error: a.result?.error})),
+              successRate,
+              hasDetailedResult
+            });
+            aiResponse.taskComplete = false; // Override the AI's decision
+          } else {
+            console.log('✅ Allowing task completion despite failures due to success indicators:', {
+              successRate,
+              hasDetailedResult,
+              resultLength: aiResponse.result?.length || 0
+            });
+          }
+        }
+        
+        if (aiResponse.taskComplete) {
+          console.log('✅ Task completion approved with result:', aiResponse.result.substring(0, 100) + '...');
+        }
       }
     }
     
@@ -909,12 +1792,12 @@ async function callAIAPI(task, structuredDOM, settings, context = null) {
   } catch (error) {
     console.error('xAI Grok-3-mini API error:', error);
     
-    // Return fallback response for testing
+    // Return a more helpful fallback response
     return {
       actions: [],
-      taskComplete: false,
-      // reasoning: `Error: ${error.message}`,
+      taskComplete: true, // Mark as complete to avoid infinite loop
       reasoning: '', // Disabled for performance
+      result: `I encountered an error while processing your request: ${error.message}. Please try again or check your API settings.`,
       error: true
     };
   }
@@ -966,6 +1849,285 @@ function broadcastAnalyticsUpdate() {
   }).catch(() => {
     // Ignore errors if no listeners
   });
+}
+
+// Multi-tab management handler functions
+
+/**
+ * Handle opening a new tab
+ * @param {Object} request - The request object containing url and active flag
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleOpenNewTab(request, sender, sendResponse) {
+  try {
+    const { url, active } = request;
+    console.log(`Opening new tab: ${url}, active: ${active}`);
+    
+    const tab = await chrome.tabs.create({
+      url: url || 'about:blank',
+      active: active !== false // Default to true
+    });
+    
+    // If we need to inject content script into the new tab
+    if (url && url !== 'about:blank') {
+      // Wait a moment for the tab to load
+      setTimeout(async () => {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['content.js']
+          });
+        } catch (error) {
+          console.log('Content script injection skipped for new tab:', error.message);
+        }
+      }, 1000);
+    }
+    
+    sendResponse({
+      success: true,
+      tabId: tab.id,
+      url: tab.url,
+      active: tab.active
+    });
+    
+  } catch (error) {
+    console.error('Error opening new tab:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Handle switching to an existing tab
+ * @param {Object} request - The request object containing tabId
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleSwitchToTab(request, sender, sendResponse) {
+  try {
+    const { tabId } = request;
+    console.log(`Switching to tab: ${tabId}`);
+    
+    // Get current active tab first
+    const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    // Switch to the target tab
+    await chrome.tabs.update(tabId, { active: true });
+    
+    // Also bring the window to front
+    const tab = await chrome.tabs.get(tabId);
+    await chrome.windows.update(tab.windowId, { focused: true });
+    
+    sendResponse({
+      success: true,
+      tabId: tabId,
+      previousTab: currentTab ? currentTab.id : null
+    });
+    
+  } catch (error) {
+    console.error('Error switching to tab:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Handle closing a tab
+ * @param {Object} request - The request object containing tabId
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleCloseTab(request, sender, sendResponse) {
+  try {
+    const { tabId } = request;
+    console.log(`Closing tab: ${tabId}`);
+    
+    // Remove any active sessions for this tab
+    for (const [sessionId, session] of activeSessions) {
+      if (session.tabId === tabId) {
+        console.log(`Stopping session ${sessionId} for closing tab ${tabId}`);
+        session.status = 'stopped';
+        activeSessions.delete(sessionId);
+      }
+    }
+    
+    await chrome.tabs.remove(tabId);
+    
+    sendResponse({
+      success: true,
+      tabId: tabId,
+      closed: true
+    });
+    
+  } catch (error) {
+    console.error('Error closing tab:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Handle listing all tabs
+ * @param {Object} request - The request object containing currentWindowOnly flag
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleListTabs(request, sender, sendResponse) {
+  try {
+    const { currentWindowOnly } = request;
+    console.log(`Listing tabs, currentWindowOnly: ${currentWindowOnly}`);
+    
+    let queryOptions = {};
+    if (currentWindowOnly !== false) {
+      queryOptions.currentWindow = true;
+    }
+    
+    const tabs = await chrome.tabs.query(queryOptions);
+    const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    // PRIVACY: Only return tab titles for context, not URLs or sensitive data
+    // Find the requesting session to identify the session tab
+    const requestingSession = Array.from(activeSessions.values()).find(session => 
+      session.tabId === (sender.tab?.id || currentTab?.id)
+    );
+    
+    const formattedTabs = tabs.map(tab => ({
+      id: tab.id,
+      title: tab.title || 'Untitled Tab',  // Only title for context
+      isSessionTab: requestingSession && tab.id === requestingSession.originalTabId,
+      isActive: tab.active,
+      // URL and other sensitive data removed for privacy
+    }));
+    
+    sendResponse({
+      success: true,
+      tabs: formattedTabs,
+      sessionTabId: requestingSession ? requestingSession.originalTabId : null,
+      currentTab: currentTab ? currentTab.id : null,
+      totalTabs: formattedTabs.length,
+      message: 'Tab titles shown for context only. Automation is restricted to the session tab.'
+    });
+    
+  } catch (error) {
+    console.error('Error listing tabs:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Handle getting current tab information
+ * @param {Object} request - The request object
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleGetCurrentTab(request, sender, sendResponse) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (tab) {
+      sendResponse({
+        success: true,
+        tab: {
+          id: tab.id,
+          url: tab.url,
+          title: tab.title,
+          active: tab.active,
+          windowId: tab.windowId,
+          index: tab.index,
+          status: tab.status,
+          hasSession: Array.from(activeSessions.values()).some(session => session.tabId === tab.id)
+        }
+      });
+    } else {
+      sendResponse({
+        success: false,
+        error: 'No active tab found'
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error getting current tab:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Handle waiting for a tab to load
+ * @param {Object} request - The request object containing tabId and timeout
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleWaitForTabLoad(request, sender, sendResponse) {
+  try {
+    const { tabId, timeout = 30000 } = request;
+    console.log(`Waiting for tab ${tabId} to load, timeout: ${timeout}ms`);
+    
+    const startTime = Date.now();
+    
+    // Check if tab is already loaded
+    let tab = await chrome.tabs.get(tabId);
+    if (tab.status === 'complete') {
+      sendResponse({
+        success: true,
+        tabId: tabId,
+        loaded: true,
+        url: tab.url,
+        loadTime: 0
+      });
+      return;
+    }
+    
+    // Set up listener for tab updates
+    const loadPromise = new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        chrome.tabs.onUpdated.removeListener(updateListener);
+        reject(new Error('Tab load timeout'));
+      }, timeout);
+      
+      const updateListener = (updatedTabId, changeInfo, updatedTab) => {
+        if (updatedTabId === tabId && changeInfo.status === 'complete') {
+          clearTimeout(timeoutId);
+          chrome.tabs.onUpdated.removeListener(updateListener);
+          resolve({
+            url: updatedTab.url,
+            loadTime: Date.now() - startTime
+          });
+        }
+      };
+      
+      chrome.tabs.onUpdated.addListener(updateListener);
+    });
+    
+    const result = await loadPromise;
+    
+    sendResponse({
+      success: true,
+      tabId: tabId,
+      loaded: true,
+      url: result.url,
+      loadTime: result.loadTime
+    });
+    
+  } catch (error) {
+    console.error('Error waiting for tab load:', error);
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
 }
 
 // Handle action (icon) clicks - open global side panel

@@ -5,6 +5,359 @@
 let previousDOMState = null;
 let domStateCache = new Map();
 
+/**
+ * Enhanced universal message input detection for all platforms
+ * @param {Element} element - The element to check
+ * @returns {boolean} True if element is likely a message input
+ */
+function isUniversalMessageInput(element) {
+  // Get all relevant attributes for pattern matching
+  const className = (element.className || '').toLowerCase();
+  const id = (element.id || '').toLowerCase();
+  const ariaLabel = (element.getAttribute('aria-label') || '').toLowerCase();
+  const placeholder = (element.getAttribute('placeholder') || '').toLowerCase();
+  const dataTestId = (element.getAttribute('data-testid') || '').toLowerCase();
+  const dataTestid = (element.getAttribute('data-testid') || '').toLowerCase(); // Alternative casing
+  const role = (element.getAttribute('role') || '').toLowerCase();
+  const name = (element.getAttribute('name') || '').toLowerCase();
+  const parentClass = (element.parentElement?.className || '').toLowerCase();
+  const grandParentClass = (element.parentElement?.parentElement?.className || '').toLowerCase();
+  
+  // Universal messaging keywords
+  const messagingKeywords = [
+    'message', 'msg', 'chat', 'compose', 'write', 'text', 'comment', 'reply',
+    'post', 'tweet', 'status', 'update', 'note', 'memo', 'send', 'typing',
+    'input', 'editor', 'content', 'body', 'description', 'caption'
+  ];
+  
+  // Platform-specific patterns (comprehensive)
+  const platformPatterns = {
+    // LinkedIn
+    linkedin: ['msg-form__contenteditable', 'msg-form__placeholder', 'compose-publisher', 'ql-editor'],
+    // Twitter/X
+    twitter: ['tweet-box', 'rich-editor', 'notranslate', 'draftjs-editor', 'tweet-compose'],
+    // Facebook/Meta
+    facebook: ['notranslate', '_1mf', 'composerInput', 'UFIAddCommentInput', '_5rpu'],
+    // WhatsApp Web
+    whatsapp: ['selectable-text', 'copyable-text', '_3FRCZ', '_1awRl'],
+    // Discord
+    discord: ['textArea-', 'slateTextArea-', 'markup-', 'editor-'],
+    // Slack
+    slack: ['ql-editor', 'msg_input', 'p-message_input'],
+    // Telegram Web
+    telegram: ['input-message-input', 'composer_rich_textarea'],
+    // Generic messaging
+    generic: ['input-field', 'text-input', 'message-input', 'chat-input', 'compose-input']
+  };
+  
+  // Check for contenteditable div (common in modern messaging)
+  if (element.contentEditable === 'true' || element.hasAttribute('contenteditable')) {
+    // Additional checks for contenteditable elements
+    const allText = [className, id, ariaLabel, placeholder, dataTestId, parentClass, grandParentClass].join(' ');
+    
+    // Check for messaging keywords in any attribute
+    if (messagingKeywords.some(keyword => allText.includes(keyword))) {
+      return true;
+    }
+    
+    // Check for platform-specific patterns
+    for (const [platform, patterns] of Object.entries(platformPatterns)) {
+      if (patterns.some(pattern => allText.includes(pattern))) {
+        return true;
+      }
+    }
+  }
+  
+  // Check role and ARIA attributes
+  if (role === 'textbox' || role === 'combobox') {
+    return true;
+  }
+  
+  // Check for messaging-related aria-labels
+  const messagingAriaPatterns = [
+    'message', 'compose', 'write', 'chat', 'comment', 'reply', 'post', 'tweet',
+    'happening', 'mind', 'think', 'share', 'status', 'update', 'note'
+  ];
+  
+  if (messagingAriaPatterns.some(pattern => ariaLabel.includes(pattern))) {
+    return true;
+  }
+  
+  // Check placeholder text
+  const messagingPlaceholders = [
+    'message', 'type', 'write', 'compose', 'chat', 'comment', 'reply', 'post',
+    'happening', 'mind', 'think', 'share', 'status', 'say', 'tell'
+  ];
+  
+  if (messagingPlaceholders.some(pattern => placeholder.includes(pattern))) {
+    return true;
+  }
+  
+  // Check data-testid attributes
+  const testIdPatterns = [
+    'message', 'compose', 'chat', 'input', 'editor', 'text', 'comment', 'reply',
+    'post', 'tweet', 'status', 'dm-', 'msg-', 'chat-'
+  ];
+  
+  if (testIdPatterns.some(pattern => dataTestId.includes(pattern) || dataTestid.includes(pattern))) {
+    return true;
+  }
+  
+  // Check class names for messaging patterns
+  const classPatterns = [
+    'message', 'msg', 'chat', 'compose', 'editor', 'input', 'text', 'comment',
+    'reply', 'post', 'tweet', 'status', 'contenteditable', 'rich-text', 'wysiwyg'
+  ];
+  
+  if (classPatterns.some(pattern => className.includes(pattern))) {
+    return true;
+  }
+  
+  // Check name attribute
+  const namePatterns = [
+    'message', 'msg', 'text', 'comment', 'content', 'body', 'description', 'caption'
+  ];
+  
+  if (namePatterns.some(pattern => name.includes(pattern))) {
+    return true;
+  }
+  
+  // Check parent element context (sometimes inputs are wrapped)
+  if (parentClass.includes('message') || parentClass.includes('compose') || 
+      parentClass.includes('chat') || parentClass.includes('input')) {
+    return true;
+  }
+  
+  // Check for common input wrapper patterns
+  const wrapperPatterns = ['input-wrapper', 'text-wrapper', 'editor-wrapper', 'compose-wrapper'];
+  if (wrapperPatterns.some(pattern => parentClass.includes(pattern) || grandParentClass.includes(pattern))) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Enhanced selector generation for messaging interfaces
+ * @param {string} baseSelector - The original selector that failed
+ * @returns {Array} Array of fallback selectors to try
+ */
+function generateMessagingSelectors(baseSelector) {
+  const fallbacks = [];
+  
+  // Add the original selector first
+  if (baseSelector && !fallbacks.includes(baseSelector)) {
+    fallbacks.push(baseSelector);
+  }
+  
+  // Common messaging input selectors
+  const messagingSelectors = [
+    // Universal patterns
+    '[contenteditable="true"]',
+    '[role="textbox"]',
+    'div[contenteditable]',
+    'div[data-testid*="message"]',
+    'div[data-testid*="compose"]',
+    'div[data-testid*="input"]',
+    'div[aria-label*="message"]',
+    'div[aria-label*="compose"]',
+    'div[aria-label*="write"]',
+    'div[aria-label*="type"]',
+    
+    // LinkedIn specific
+    '.msg-form__contenteditable',
+    '.msg-form__placeholder',
+    '.compose-publisher [contenteditable]',
+    '.ql-editor',
+    
+    // Twitter/X specific
+    '.tweet-box',
+    '.rich-editor',
+    '.notranslate[contenteditable]',
+    '.draftjs-editor',
+    
+    // Facebook specific
+    '.notranslate._1mf',
+    '.composerInput',
+    '.UFIAddCommentInput',
+    '._5rpu',
+    
+    // WhatsApp Web specific
+    '.selectable-text[contenteditable]',
+    '._3FRCZ[contenteditable]',
+    '._1awRl',
+    
+    // Discord specific
+    '[class*="textArea-"]',
+    '[class*="slateTextArea-"]',
+    '[class*="editor-"]',
+    
+    // Slack specific
+    '.ql-editor',
+    '.msg_input',
+    '.p-message_input',
+    
+    // Generic patterns
+    '.message-input',
+    '.chat-input',
+    '.compose-input',
+    '.text-input[contenteditable]',
+    'textarea[placeholder*="message"]',
+    'input[placeholder*="message"]',
+    'textarea[placeholder*="type"]',
+    'input[placeholder*="type"]'
+  ];
+  
+  // Add messaging selectors that aren't already included
+  messagingSelectors.forEach(selector => {
+    if (!fallbacks.includes(selector)) {
+      fallbacks.push(selector);
+    }
+  });
+  
+  return fallbacks;
+}
+
+/**
+ * Find alternative selectors for an element that couldn't be found
+ * @param {string} failedSelector - The selector that failed
+ * @param {string} actionType - The type of action being attempted
+ * @returns {Array} Array of alternative selectors to try
+ */
+function findAlternativeSelectors(failedSelector, actionType) {
+  const alternatives = [];
+  
+  // Extract meaningful parts from the failed selector
+  const selectorParts = failedSelector.match(/[\w-]+/g) || [];
+  
+  // If it's a button/submit action, look for common button patterns
+  if (actionType === 'click') {
+    // Look for buttons with similar text
+    document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"], a.btn, a.button').forEach(el => {
+      const text = el.textContent?.trim().toLowerCase() || '';
+      const ariaLabel = el.getAttribute('aria-label')?.toLowerCase() || '';
+      
+      // Check if any part of the failed selector matches the element
+      const matches = selectorParts.some(part => 
+        text.includes(part.toLowerCase()) || 
+        ariaLabel.includes(part.toLowerCase()) ||
+        el.className.includes(part) ||
+        el.id.includes(part)
+      );
+      
+      if (matches && !alternatives.includes(el)) {
+        // Generate a reliable selector for this element
+        const selector = generateSelector(el);
+        if (selector) {
+          alternatives.push(selector);
+        }
+      }
+    });
+    
+    // Look for clickable elements with similar classes
+    if (failedSelector.includes('.')) {
+      const className = failedSelector.match(/\.([^.\s]+)/)?.[1];
+      if (className) {
+        // Try partial class matches
+        document.querySelectorAll(`[class*="${className}"]`).forEach(el => {
+          if (el.tagName.match(/^(A|BUTTON|INPUT|SPAN|DIV)$/) && isClickable(el)) {
+            const selector = generateSelector(el);
+            if (selector && !alternatives.includes(selector)) {
+              alternatives.push(selector);
+            }
+          }
+        });
+      }
+    }
+  }
+  
+  // For input fields, look for similar inputs
+  if (actionType === 'type') {
+    document.querySelectorAll('input, textarea, [contenteditable="true"]').forEach(el => {
+      const placeholder = el.placeholder?.toLowerCase() || '';
+      const label = el.getAttribute('aria-label')?.toLowerCase() || '';
+      const name = el.name?.toLowerCase() || '';
+      
+      const matches = selectorParts.some(part => 
+        placeholder.includes(part.toLowerCase()) ||
+        label.includes(part.toLowerCase()) ||
+        name.includes(part.toLowerCase()) ||
+        el.className.includes(part) ||
+        el.id.includes(part)
+      );
+      
+      if (matches) {
+        const selector = generateSelector(el);
+        if (selector && !alternatives.includes(selector)) {
+          alternatives.push(selector);
+        }
+      }
+    });
+  }
+  
+  return alternatives;
+}
+
+/**
+ * Generate a reliable selector for an element
+ * @param {Element} element - The element to generate a selector for
+ * @returns {string|null} A CSS selector for the element
+ */
+function generateSelector(element) {
+  // Prefer ID if available
+  if (element.id) {
+    return `#${element.id}`;
+  }
+  
+  // Use unique attributes
+  const uniqueAttrs = ['data-testid', 'data-test', 'data-id', 'aria-label'];
+  for (const attr of uniqueAttrs) {
+    const value = element.getAttribute(attr);
+    if (value) {
+      return `[${attr}="${value}"]`;
+    }
+  }
+  
+  // Use class if specific enough
+  if (element.className && typeof element.className === 'string') {
+    const classes = element.className.trim().split(/\s+/);
+    if (classes.length > 0 && classes[0]) {
+      // Check if this class selector would be unique enough
+      const selector = `.${classes.join('.')}`;
+      const matches = document.querySelectorAll(selector);
+      if (matches.length <= 3) {
+        return selector;
+      }
+    }
+  }
+  
+  // Fall back to tag + attributes
+  const tag = element.tagName.toLowerCase();
+  if (element.type) {
+    return `${tag}[type="${element.type}"]`;
+  }
+  
+  return null;
+}
+
+/**
+ * Check if an element appears to be clickable
+ * @param {Element} element - The element to check
+ * @returns {boolean} Whether the element seems clickable
+ */
+function isClickable(element) {
+  const clickableTags = ['A', 'BUTTON', 'INPUT'];
+  if (clickableTags.includes(element.tagName)) return true;
+  
+  const style = window.getComputedStyle(element);
+  if (style.cursor === 'pointer') return true;
+  
+  if (element.onclick || element.getAttribute('onclick')) return true;
+  if (element.getAttribute('role') === 'button') return true;
+  
+  return false;
+}
+
 // Tool functions for browser automation
 const tools = {
   // Scroll the page
@@ -53,61 +406,38 @@ const tools = {
       };
     }
     
-    // Try alternative selectors if primary fails
-    const alternatives = [];
-    if (params.selector.startsWith('elem_')) {
-      // It's an elementId, try to find by other means
-      const allElements = document.querySelectorAll('*');
-      for (const el of allElements) {
-        if (el.textContent?.includes(params.selector)) {
-          alternatives.push(el);
-        }
-      }
-    }
+    // Try to find alternative selectors
+    const alternatives = findAlternativeSelectors(params.selector, 'click');
     
     return { 
       success: false, 
       error: 'Element not found',
       selector: params.selector,
       alternatives: alternatives.length,
-      suggestion: alternatives.length > 0 ? 'Found elements with similar content' : null
+      alternativeSelectors: alternatives.slice(0, 3), // Return up to 3 alternatives
+      suggestion: alternatives.length > 0 ? 'Try one of the alternative selectors' : 'No similar elements found'
     };
   },
   
   // Type text into an input
   type: async (params) => {
-    const element = document.querySelector(params.selector);
+    console.log('[FSB Type] Starting type action with params:', params);
+    
+    try {
+      const element = document.querySelector(params.selector);
+      console.log('[FSB Type] Found element:', element ? element.tagName : 'null');
+    
     if (element) {
       // Check if it's a valid input element with enhanced contenteditable detection
       const isInput = element.tagName === 'INPUT' || element.tagName === 'TEXTAREA';
       
-      // Enhanced social media and rich text editor detection
+      // Enhanced universal text input detection for all platforms
       const isContentEditable = element.contentEditable === 'true' || 
                                 element.getAttribute('contenteditable') === 'true' ||
                                 element.hasAttribute('contenteditable') ||
                                 element.getAttribute('role') === 'textbox' ||
-                                // Social media specific patterns
-                                element.classList.contains('msg-form__contenteditable') ||  // LinkedIn messages
-                                element.classList.contains('tweet-box') ||                   // Twitter legacy
-                                element.classList.contains('rich-editor') ||                // Twitter/X rich editor
-                                element.hasAttribute('aria-label') && (
-                                  element.getAttribute('aria-label').includes('happening') ||     // Twitter/X
-                                  element.getAttribute('aria-label').includes('message') ||      // General messaging
-                                  element.getAttribute('aria-label').includes('comment') ||      // Comments
-                                  element.getAttribute('aria-label').includes('post') ||        // General posts
-                                  element.getAttribute('aria-label').includes('compose')        // Compose fields
-                                ) ||
-                                element.hasAttribute('data-testid') && (
-                                  element.getAttribute('data-testid').includes('tweet') ||       // Twitter/X
-                                  element.getAttribute('data-testid').includes('post') ||        // General posts
-                                  element.getAttribute('data-testid').includes('compose') ||     // Compose
-                                  element.getAttribute('data-testid').includes('message')        // Messages
-                                ) ||
-                                element.hasAttribute('placeholder') && (
-                                  element.getAttribute('placeholder').includes('mind') ||        // Facebook "What's on your mind"
-                                  element.getAttribute('placeholder').includes('happening') ||   // Twitter "What's happening"
-                                  element.getAttribute('placeholder').includes('message')        // Message placeholders
-                                );
+                                // Universal messaging patterns
+                                isUniversalMessageInput(element);
       
       if (!isInput && !isContentEditable) {
         return { 
@@ -344,12 +674,36 @@ const tools = {
       };
     }
     
+    // Try fallback selectors for messaging interfaces
+    const fallbackSelectors = generateMessagingSelectors(params.selector);
+    console.log('[FSB Type] Trying fallback selectors:', fallbackSelectors);
+    
+    for (const fallbackSelector of fallbackSelectors) {
+      const fallbackElement = document.querySelector(fallbackSelector);
+      if (fallbackElement) {
+        console.log('[FSB Type] Found element with fallback selector:', fallbackSelector);
+        // Recursively call type with the working selector
+        return await tools.type({...params, selector: fallbackSelector});
+      }
+    }
+    
     return { 
       success: false, 
-      error: 'Input element not found',
+      error: 'Input element not found with any selector',
       selector: params.selector,
-      searched: true
+      fallbacksAttempted: fallbackSelectors.length,
+      searched: true,
+      suggestion: 'No typeable element found - may need manual inspection'
     };
+    } catch (error) {
+      console.error('[FSB Type] Unexpected error in type function:', error);
+      return {
+        success: false,
+        error: error.message || 'Unknown error occurred in type function',
+        selector: params.selector,
+        stackTrace: error.stack
+      };
+    }
   },
   
   // Press Enter key on an element
@@ -472,6 +826,238 @@ const tools = {
         }
       }, 100);
     });
+  },
+  
+  // Wait for DOM to stabilize (no changes for a period)
+  // Verify if a message was successfully sent by checking DOM changes
+  verifyMessageSent: async (params) => {
+    const { timeout = 5000, messageText = '' } = params;
+    const startTime = Date.now();
+    
+    try {
+      // Look for indicators that a message was sent
+      const indicators = [
+        // Message appears in chat history
+        () => {
+          const messages = document.querySelectorAll([
+            '[data-testid*="message"]',
+            '.message',
+            '.chat-message',
+            '.msg-',
+            '[aria-label*="message"]',
+            '.conversation-message',
+            '.dm-message',
+            '.tweet-text', // Twitter
+            '.msg-form__sent-confirm', // LinkedIn
+            '.message-in', // WhatsApp
+            '.copyable-text' // WhatsApp
+          ].join(', '));
+          
+          if (messageText) {
+            // Check if our specific message appears
+            return Array.from(messages).some(msg => 
+              msg.textContent?.includes(messageText.substring(0, 20))
+            );
+          } else {
+            // Check if messages list grew (new message added)
+            const currentCount = messages.length;
+            const previousCount = window.fsb_lastMessageCount || 0;
+            window.fsb_lastMessageCount = currentCount;
+            return currentCount > previousCount;
+          }
+        },
+        
+        // Input field cleared after sending
+        () => {
+          const inputs = document.querySelectorAll([
+            '[contenteditable="true"]',
+            'textarea',
+            'input[type="text"]',
+            '.message-input',
+            '.compose-input'
+          ].join(', '));
+          
+          return Array.from(inputs).some(input => {
+            const content = input.textContent || input.value || '';
+            return content.trim() === ''; // Input was cleared
+          });
+        },
+        
+        // Success confirmation elements
+        () => {
+          const confirmations = document.querySelectorAll([
+            '.sent-confirmation',
+            '.message-sent',
+            '.delivery-confirmation',
+            '[aria-label*="sent"]',
+            '.success-indicator',
+            '.checkmark'
+          ].join(', '));
+          
+          return confirmations.length > 0 && 
+                 Array.from(confirmations).some(el => 
+                   el.offsetParent !== null // Element is visible
+                 );
+        },
+        
+        // Send button state changed (disabled/loading)
+        () => {
+          const sendButtons = document.querySelectorAll([
+            '[aria-label*="send"]',
+            'button[type="submit"]',
+            '.send-button',
+            '.submit-button',
+            '[data-testid*="send"]'
+          ].join(', '));
+          
+          return Array.from(sendButtons).some(button => 
+            button.disabled || 
+            button.classList.contains('loading') ||
+            button.classList.contains('sent') ||
+            button.textContent?.toLowerCase().includes('sent')
+          );
+        }
+      ];
+      
+      // Check indicators periodically
+      while (Date.now() - startTime < timeout) {
+        for (let i = 0; i < indicators.length; i++) {
+          try {
+            if (indicators[i]()) {
+              return {
+                success: true,
+                verified: true,
+                method: `indicator_${i + 1}`,
+                waitTime: Date.now() - startTime
+              };
+            }
+          } catch (error) {
+            // Ignore individual indicator errors
+          }
+        }
+        
+        // Wait before next check
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      
+      // Timeout reached - no verification found
+      return {
+        success: true, // Don't fail the action
+        verified: false,
+        waitTime: Date.now() - startTime,
+        note: 'Could not verify message sending, but no errors occurred'
+      };
+      
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        waitTime: Date.now() - startTime
+      };
+    }
+  },
+
+  waitForDOMStable: async (params) => {
+    const { timeout = 5000, stableTime = 500 } = params;
+    const startTime = Date.now();
+    let lastChangeTime = Date.now();
+    let changeCount = 0;
+    
+    return new Promise((resolve) => {
+      const observer = new MutationObserver((mutations) => {
+        changeCount += mutations.length;
+        lastChangeTime = Date.now();
+      });
+      
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeOldValue: false,
+        characterData: true
+      });
+      
+      const checkInterval = setInterval(() => {
+        const now = Date.now();
+        const timeSinceLastChange = now - lastChangeTime;
+        const totalTime = now - startTime;
+        
+        // DOM is stable if no changes for stableTime ms, or timeout reached
+        if (timeSinceLastChange >= stableTime || totalTime >= timeout) {
+          clearInterval(checkInterval);
+          observer.disconnect();
+          
+          resolve({
+            success: true,
+            stable: timeSinceLastChange >= stableTime,
+            waitTime: totalTime,
+            changeCount,
+            reason: totalTime >= timeout ? 'timeout' : 'stable'
+          });
+        }
+      }, 100);
+    });
+  },
+  
+  // Detect loading indicators
+  detectLoadingState: (params) => {
+    const loadingPatterns = [
+      // Common loading class names
+      '.loading', '.loader', '.spinner', '.progress', '.loading-spinner',
+      '.load-more', '.is-loading', '.in-progress', '.pending',
+      // Common loading elements
+      'div[class*="loading"]', 'div[class*="loader"]', 'div[class*="spinner"]',
+      'div[class*="progress"]', '[aria-busy="true"]',
+      // Specific site patterns
+      '.MuiCircularProgress-root', '.ant-spin', '.el-loading-mask',
+      // Custom data attributes
+      '[data-loading="true"]', '[data-state="loading"]'
+    ];
+    
+    // Check for visible loading indicators
+    for (const pattern of loadingPatterns) {
+      const elements = document.querySelectorAll(pattern);
+      for (const element of elements) {
+        const rect = element.getBoundingClientRect();
+        const isVisible = rect.width > 0 && rect.height > 0 && 
+                         window.getComputedStyle(element).display !== 'none' &&
+                         window.getComputedStyle(element).visibility !== 'hidden';
+        
+        if (isVisible) {
+          return {
+            loading: true,
+            indicator: pattern,
+            element: {
+              tag: element.tagName,
+              class: element.className,
+              id: element.id
+            }
+          };
+        }
+      }
+    }
+    
+    // Check for common loading text
+    const loadingTexts = ['loading', 'please wait', 'processing', 'fetching', 'updating'];
+    const textElements = document.querySelectorAll('*');
+    
+    for (const element of textElements) {
+      const text = element.textContent?.toLowerCase() || '';
+      if (loadingTexts.some(loadingText => text.includes(loadingText))) {
+        const rect = element.getBoundingClientRect();
+        const isVisible = rect.width > 0 && rect.height > 0;
+        
+        if (isVisible && element.children.length === 0) { // Leaf node with text
+          return {
+            loading: true,
+            indicator: 'text',
+            text: element.textContent?.trim().substring(0, 50)
+          };
+        }
+      }
+    }
+    
+    return { loading: false };
   },
   
   // Right click on element
@@ -672,9 +1258,11 @@ const tools = {
   getText: (params) => {
     const element = document.querySelector(params.selector);
     if (element) {
+      const textValue = element.innerText || element.textContent || element.value || '';
       return { 
         success: true, 
-        text: element.innerText || element.textContent || element.value || '' 
+        text: textValue,
+        value: textValue // Also include as 'value' for consistency with background.js expectations
       };
     }
     return { success: false, error: 'Element not found' };
@@ -718,6 +1306,202 @@ const tools = {
       return { success: true, cleared: params.selector };
     }
     return { success: false, error: 'Input element not found' };
+  },
+
+  // Multi-tab management tools
+  
+  // Open new tab
+  openNewTab: async (params) => {
+    const url = params.url || 'about:blank';
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'openNewTab',
+        url: url,
+        active: params.active !== false // Default to true
+      });
+      
+      if (response.success) {
+        return { 
+          success: true, 
+          tabId: response.tabId,
+          url: url,
+          active: params.active !== false
+        };
+      } else {
+        return { 
+          success: false, 
+          error: response.error || 'Failed to open new tab'
+        };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        error: `Failed to communicate with background script: ${error.message}`
+      };
+    }
+  },
+
+  // Switch to existing tab
+  switchToTab: async (params) => {
+    const tabId = params.tabId;
+    if (!tabId) {
+      return { success: false, error: 'Tab ID is required' };
+    }
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'switchToTab',
+        tabId: tabId
+      });
+      
+      if (response.success) {
+        return { 
+          success: true, 
+          tabId: tabId,
+          previousTab: response.previousTab
+        };
+      } else {
+        return { 
+          success: false, 
+          error: response.error || 'Failed to switch to tab'
+        };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        error: `Failed to communicate with background script: ${error.message}`
+      };
+    }
+  },
+
+  // Close tab
+  closeTab: async (params) => {
+    const tabId = params.tabId;
+    if (!tabId) {
+      return { success: false, error: 'Tab ID is required' };
+    }
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'closeTab',
+        tabId: tabId
+      });
+      
+      if (response.success) {
+        return { 
+          success: true, 
+          tabId: tabId,
+          closed: true
+        };
+      } else {
+        return { 
+          success: false, 
+          error: response.error || 'Failed to close tab'
+        };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        error: `Failed to communicate with background script: ${error.message}`
+      };
+    }
+  },
+
+  // List all tabs
+  listTabs: async (params) => {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'listTabs',
+        currentWindowOnly: params.currentWindowOnly !== false // Default to true
+      });
+      
+      if (response.success) {
+        return { 
+          success: true, 
+          tabs: response.tabs,
+          currentTab: response.currentTab,
+          totalTabs: response.tabs.length
+        };
+      } else {
+        return { 
+          success: false, 
+          error: response.error || 'Failed to list tabs'
+        };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        error: `Failed to communicate with background script: ${error.message}`
+      };
+    }
+  },
+
+  // Get current tab info
+  getCurrentTab: async (params) => {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getCurrentTab'
+      });
+      
+      if (response.success) {
+        return { 
+          success: true, 
+          tabId: response.tab.id,
+          url: response.tab.url,
+          title: response.tab.title,
+          active: response.tab.active,
+          tab: response.tab
+        };
+      } else {
+        return { 
+          success: false, 
+          error: response.error || 'Failed to get current tab info'
+        };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        error: `Failed to communicate with background script: ${error.message}`
+      };
+    }
+  },
+
+  // Wait for tab to load
+  waitForTabLoad: async (params) => {
+    const tabId = params.tabId;
+    const timeout = params.timeout || 30000; // 30 seconds default
+    
+    if (!tabId) {
+      return { success: false, error: 'Tab ID is required' };
+    }
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'waitForTabLoad',
+        tabId: tabId,
+        timeout: timeout
+      });
+      
+      if (response.success) {
+        return { 
+          success: true, 
+          tabId: tabId,
+          loaded: true,
+          url: response.url,
+          loadTime: response.loadTime
+        };
+      } else {
+        return { 
+          success: false, 
+          error: response.error || 'Tab failed to load within timeout'
+        };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        error: `Failed to communicate with background script: ${error.message}`
+      };
+    }
   }
 };
 
@@ -913,15 +1697,23 @@ function extractRelevantHTML() {
           elementHTML = elementHTML.replace(/\s+/g, ' ').trim();
         }
         
-        // Truncate very long HTML to prevent token overflow
-        const truncatedHTML = elementHTML.length > 250 
-          ? elementHTML.substring(0, 250) + '...'
-          : elementHTML;
+        // Smart truncation to preserve important context while preventing token overflow
+        let truncatedHTML = elementHTML;
+        if (elementHTML.length > 1000) {
+          // Try to find a good breaking point
+          const breakPoints = [
+            elementHTML.lastIndexOf('>', 900),  // End of a tag
+            elementHTML.lastIndexOf(' ', 950),  // End of a word
+            900  // Hard cutoff
+          ];
+          const breakPoint = Math.max(...breakPoints.filter(p => p > 0));
+          truncatedHTML = elementHTML.substring(0, breakPoint) + '...';
+        }
         
         relevantElements.push({
           selector: generateSelector(element),
           html: truncatedHTML,
-          text: element.innerText?.trim().substring(0, 100),
+          text: element.innerText?.trim().substring(0, 200),  // Increased from 100 to 200 for better context
           tag: element.tagName.toLowerCase(),
           position: {
             x: Math.round(rect.left),
@@ -1298,7 +2090,7 @@ function getStructuredDOM(options = {}) {
 }
 
 // Listen for messages from background script
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
   console.log('Content script received message:', request.action);
   
   switch (request.action) {
@@ -1316,7 +2108,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       try {
         const { tool, params } = request;
         if (tools[tool]) {
-          const result = tools[tool](params);
+          const result = await tools[tool](params);
           sendResponse({ success: true, result });
         } else {
           sendResponse({ success: false, error: 'Unknown tool' });
@@ -1346,6 +2138,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     default:
       sendResponse({ error: 'Unknown action' });
   }
+  
+  // Return true to indicate we'll send response asynchronously (needed for await)
+  return true;
 });
 
 // Set up mutation observer for dynamic content

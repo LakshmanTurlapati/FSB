@@ -467,7 +467,11 @@ class FSBAnalytics {
       element.textContent = value;
       console.log(`Analytics: Updated element ${id} with value: ${value}`);
     } else {
-      console.warn(`Analytics: Element ${id} not found in DOM`);
+      // Only log warnings for critical elements, not optional ones like sessionTime
+      const optionalElements = ['sessionTime'];
+      if (!optionalElements.includes(id)) {
+        console.warn(`Analytics: Element ${id} not found in DOM`);
+      }
     }
   }
 

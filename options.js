@@ -6,6 +6,11 @@ const defaultSettings = {
   modelName: 'grok-3-mini',
   apiKey: '',
   geminiApiKey: '',
+  openaiApiKey: '',
+  anthropicApiKey: '',
+  customApiKey: '',
+  customEndpoint: '',
+  reasoningEffort: 'low', // xAI reasoning effort setting
   speedMode: 'normal', // Legacy support
   captchaSolver: 'none',
   captchaApiKey: '',
@@ -24,6 +29,19 @@ const availableModels = {
   gemini: [
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Latest Gemini model' },
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Stable and reliable' }
+  ],
+  openai: [
+    { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable model' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Affordable and fast' },
+    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Fast and cost-effective' }
+  ],
+  anthropic: [
+    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Latest and most capable' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fast and efficient' },
+    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Previous flagship model' }
+  ],
+  custom: [
+    { id: 'custom-model', name: 'Custom Model', description: 'Enter your model name below' }
   ]
 };
 
@@ -124,6 +142,7 @@ function cacheElements() {
   // Form elements
   elements.modelProvider = document.getElementById('modelProvider');
   elements.modelName = document.getElementById('modelName');
+  elements.reasoningEffort = document.getElementById('reasoningEffort');
   elements.apiKey = document.getElementById('apiKey');
   elements.geminiApiKey = document.getElementById('geminiApiKey');
   elements.xaiApiKeyGroup = document.getElementById('xaiApiKeyGroup');
@@ -266,16 +285,36 @@ function setupEventListeners() {
     });
   }
   
+  // Reasoning effort change
+  if (elements.reasoningEffort) {
+    elements.reasoningEffort.addEventListener('change', () => {
+      markUnsavedChanges();
+    });
+  }
+  
   // Password visibility toggles
   if (elements.toggleApiKey) {
     elements.toggleApiKey.addEventListener('click', () => togglePasswordVisibility('apiKey'));
   }
   
-  if (elements.toggleGeminiApiKey) {
-    const toggleGeminiApiKey = document.getElementById('toggleGeminiApiKey');
-    if (toggleGeminiApiKey) {
-      toggleGeminiApiKey.addEventListener('click', () => togglePasswordVisibility('geminiApiKey'));
-    }
+  const toggleGeminiApiKey = document.getElementById('toggleGeminiApiKey');
+  if (toggleGeminiApiKey) {
+    toggleGeminiApiKey.addEventListener('click', () => togglePasswordVisibility('geminiApiKey'));
+  }
+  
+  const toggleOpenaiApiKey = document.getElementById('toggleOpenaiApiKey');
+  if (toggleOpenaiApiKey) {
+    toggleOpenaiApiKey.addEventListener('click', () => togglePasswordVisibility('openaiApiKey'));
+  }
+  
+  const toggleAnthropicApiKey = document.getElementById('toggleAnthropicApiKey');
+  if (toggleAnthropicApiKey) {
+    toggleAnthropicApiKey.addEventListener('click', () => togglePasswordVisibility('anthropicApiKey'));
+  }
+  
+  const toggleCustomApiKey = document.getElementById('toggleCustomApiKey');
+  if (toggleCustomApiKey) {
+    toggleCustomApiKey.addEventListener('click', () => togglePasswordVisibility('customApiKey'));
   }
   
   if (elements.toggleCaptchaKey) {
@@ -444,17 +483,29 @@ function updateModelDescription(description) {
 
 // Update API key visibility based on provider
 function updateApiKeyVisibility(provider) {
-  const xaiGroup = elements.xaiApiKeyGroup;
-  const geminiGroup = elements.geminiApiKeyGroup;
+  // Get all API key groups
+  const apiKeyGroups = {
+    xai: document.getElementById('xaiApiKeyGroup'),
+    gemini: document.getElementById('geminiApiKeyGroup'),
+    openai: document.getElementById('openaiApiKeyGroup'),
+    anthropic: document.getElementById('anthropicApiKeyGroup'),
+    custom: document.getElementById('customApiGroup')
+  };
   
-  if (xaiGroup && geminiGroup) {
-    if (provider === 'gemini') {
-      xaiGroup.style.display = 'none';
-      geminiGroup.style.display = 'block';
-    } else {
-      xaiGroup.style.display = 'block';
-      geminiGroup.style.display = 'none';
-    }
+  // Hide all groups first
+  Object.values(apiKeyGroups).forEach(group => {
+    if (group) group.style.display = 'none';
+  });
+  
+  // Show the selected provider's group
+  if (apiKeyGroups[provider]) {
+    apiKeyGroups[provider].style.display = 'block';
+  }
+  
+  // Show/hide reasoning effort for xAI provider
+  const reasoningEffortGroup = document.getElementById('reasoningEffortGroup');
+  if (reasoningEffortGroup) {
+    reasoningEffortGroup.style.display = provider === 'xai' ? 'block' : 'none';
   }
 }
 
@@ -491,6 +542,20 @@ function loadSettings() {
     // Update form elements
     if (elements.apiKey) elements.apiKey.value = settings.apiKey || '';
     if (elements.geminiApiKey) elements.geminiApiKey.value = settings.geminiApiKey || '';
+    if (elements.reasoningEffort) elements.reasoningEffort.value = settings.reasoningEffort || 'low';
+    
+    // Update new provider API keys
+    const openaiApiKey = document.getElementById('openaiApiKey');
+    if (openaiApiKey) openaiApiKey.value = settings.openaiApiKey || '';
+    
+    const anthropicApiKey = document.getElementById('anthropicApiKey');
+    if (anthropicApiKey) anthropicApiKey.value = settings.anthropicApiKey || '';
+    
+    const customApiKey = document.getElementById('customApiKey');
+    if (customApiKey) customApiKey.value = settings.customApiKey || '';
+    
+    const customEndpoint = document.getElementById('customEndpoint');
+    if (customEndpoint) customEndpoint.value = settings.customEndpoint || '';
     
     if (settings.speedMode === 'fast') {
       if (elements.speedModeFast) elements.speedModeFast.checked = true;
@@ -522,8 +587,13 @@ function saveSettings() {
   const settings = {
     modelProvider: elements.modelProvider?.value || 'xai',
     modelName: elements.modelName?.value || 'grok-3-mini',
+    reasoningEffort: elements.reasoningEffort?.value || 'low',
     apiKey: elements.apiKey?.value || '',
     geminiApiKey: elements.geminiApiKey?.value || '',
+    openaiApiKey: document.getElementById('openaiApiKey')?.value || '',
+    anthropicApiKey: document.getElementById('anthropicApiKey')?.value || '',
+    customApiKey: document.getElementById('customApiKey')?.value || '',
+    customEndpoint: document.getElementById('customEndpoint')?.value || '',
     speedMode: elements.speedModeFast?.checked ? 'fast' : 'normal', // Legacy
     captchaSolver: elements.captchaSolver?.value || 'none',
     captchaApiKey: elements.captchaApiKey?.value || '',

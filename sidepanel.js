@@ -21,6 +21,32 @@ function applyTheme() {
   document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
+// Check if URL is restricted for automation
+function isRestrictedURL(url) {
+  if (!url) return true;
+  
+  const restrictedProtocols = [
+    'chrome://',
+    'chrome-extension://',
+    'moz-extension://',
+    'edge://',
+    'about:',
+    'file://'
+  ];
+  
+  return restrictedProtocols.some(protocol => url.startsWith(protocol));
+}
+
+// Get user-friendly page type description
+function getPageTypeDescription(url) {
+  if (url.startsWith('chrome://')) return 'Chrome internal page';
+  if (url.startsWith('chrome-extension://')) return 'Chrome extension page';
+  if (url.startsWith('edge://')) return 'Edge internal page';
+  if (url.startsWith('about:')) return 'Browser internal page';
+  if (url.startsWith('file://')) return 'Local file';
+  return 'Restricted page';
+}
+
 // Listen for theme changes from options page
 window.addEventListener('storage', (e) => {
   if (e.key === 'fsb-theme') {
@@ -184,6 +210,8 @@ async function handleSendMessage() {
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
+    // Note: Restriction checking is now handled by background script with smart navigation
+    
     // Send start command to background
     chrome.runtime.sendMessage({
       action: 'startAutomation',
@@ -203,7 +231,12 @@ async function handleSendMessage() {
         addStatusMessage('Starting automation...');
       } else {
         const errorMsg = response ? response.error : 'Unknown error';
-        addMessage(`I encountered an error: ${errorMsg}`, 'error');
+        if (response && response.isChromePage) {
+          // Show Chrome page error as plain text, not in a bubble
+          showChromepageError(errorMsg);
+        } else {
+          addMessage(`I encountered an error: ${errorMsg}`, 'error');
+        }
         setIdleState();
       }
     });
@@ -436,6 +469,30 @@ function completeStatusMessage(text, type = 'ai') {
   }
 }
 
+// Show Chrome page error as plain text without bubble
+function showChromepageError(text) {
+  const messageDiv = document.createElement('div');
+  messageDiv.className = 'chrome-page-error';
+  messageDiv.textContent = text;
+  
+  // Add simple styling
+  messageDiv.style.cssText = `
+    color: #666;
+    font-size: 14px;
+    padding: 10px 15px;
+    margin: 10px 0;
+    text-align: center;
+    font-style: italic;
+    border-radius: 8px;
+    background: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+  `;
+  
+  const messagesContainer = document.getElementById('messages');
+  messagesContainer.appendChild(messageDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
 // Add message to chat with modern bubble styling
 function addMessage(text, type = 'system') {
   const messageDiv = document.createElement('div');
@@ -492,10 +549,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'automationComplete':
       if (request.sessionId === currentSessionId) {
+        // AI must always provide a meaningful completion message
+        const completionMessage = request.result || 'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
+        
+        // If there's a status message, complete it
+        if (currentStatusMessage) {
+          completeStatusMessage(completionMessage);
+        } else {
+          // Otherwise add a new message
+          addMessage(completionMessage, 'ai');
+        }
+        
         setIdleState();
-        // Use AI-generated summary instead of hardcoded message
-        const completionMessage = request.result || 'Task completed successfully!';
-        completeStatusMessage(completionMessage);
       }
       break;
       
@@ -565,6 +630,19 @@ function formatActionMessage(tool, params) {
       return `Moved mouse to position (${params.x}, ${params.y})`;
     case 'solveCaptcha':
       return `Attempting to solve CAPTCHA`;
+    // Multi-tab actions
+    case 'openNewTab':
+      return `Opened new tab: ${params.url || 'blank page'}${params.active === false ? ' (in background)' : ''}`;
+    case 'switchToTab':
+      return `Switched to tab ID: ${params.tabId}`;
+    case 'closeTab':
+      return `Closed tab ID: ${params.tabId}`;
+    case 'listTabs':
+      return `Listed all open tabs${params.currentWindowOnly === false ? ' (all windows)' : ' (current window)'}`;
+    case 'getCurrentTab':
+      return `Retrieved current tab information`;
+    case 'waitForTabLoad':
+      return `Waiting for tab ${params.tabId} to load...`;
     default:
       return `Executed ${tool} with params: ${JSON.stringify(params)}`;
   }

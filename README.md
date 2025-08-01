@@ -106,7 +106,7 @@ graph TD
     A[User Interface<br/>Popup & Side Panel] --> B[Background Service<br/>AI Integration & Sessions]
     B --> C[Content Script<br/>DOM Analysis & Actions]
     C --> D[Web Page<br/>Automated Interactions]
-    B --> E[AI Models<br/>Grok | Gemini | More Coming]
+    B --> E[AI Models<br/>Grok • Gemini • More Coming]
     B --> F[Chrome Storage<br/>Settings & Analytics]
 ```
 

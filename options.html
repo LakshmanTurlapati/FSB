@@ -140,6 +140,9 @@
                 <select id="modelProvider" class="form-select">
                   <option value="xai">xAI (Grok)</option>
                   <option value="gemini">Google Gemini</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="custom">Custom (OpenAI Compatible)</option>
                 </select>
                 <div class="form-help">Select your preferred AI provider</div>
               </div>
@@ -151,6 +154,16 @@
                   <!-- Options will be populated dynamically based on provider -->
                 </select>
                 <div class="form-help" id="modelDescription">Select the AI model to use</div>
+              </div>
+              
+              <!-- Reasoning Effort (xAI only) -->
+              <div class="form-group" id="reasoningEffortGroup" style="display: none;">
+                <label for="reasoningEffort">Reasoning Effort</label>
+                <select id="reasoningEffort" class="form-select">
+                  <option value="low">Low (Faster, cheaper)</option>
+                  <option value="high">High (More thorough, costlier)</option>
+                </select>
+                <div class="form-help">Controls how much reasoning the model uses. Low reduces token costs.</div>
               </div>
               
               <!-- xAI API Key -->
@@ -179,6 +192,50 @@
                 <div class="form-help">
                   Get your API key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>. Your key is stored locally and encrypted.
                 </div>
+              </div>
+              
+              <!-- OpenAI API Key -->
+              <div class="form-group" id="openaiApiKeyGroup" style="display: none;">
+                <label for="openaiApiKey">OpenAI API Key</label>
+                <div class="input-with-button">
+                  <input type="password" id="openaiApiKey" placeholder="Enter your OpenAI API key" class="form-input">
+                  <button type="button" class="input-btn" id="toggleOpenaiApiKey" title="Toggle visibility">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+                <div class="form-help">
+                  Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>. Your key is stored locally and encrypted.
+                </div>
+              </div>
+              
+              <!-- Anthropic API Key -->
+              <div class="form-group" id="anthropicApiKeyGroup" style="display: none;">
+                <label for="anthropicApiKey">Anthropic API Key</label>
+                <div class="input-with-button">
+                  <input type="password" id="anthropicApiKey" placeholder="Enter your Anthropic API key" class="form-input">
+                  <button type="button" class="input-btn" id="toggleAnthropicApiKey" title="Toggle visibility">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+                <div class="form-help">
+                  Get your API key from <a href="https://console.anthropic.com/account/keys" target="_blank">Anthropic Console</a>. Your key is stored locally and encrypted.
+                </div>
+              </div>
+              
+              <!-- Custom API Configuration -->
+              <div class="form-group" id="customApiGroup" style="display: none;">
+                <label for="customEndpoint">Custom API Endpoint</label>
+                <input type="text" id="customEndpoint" placeholder="https://api.example.com/v1/chat/completions" class="form-input">
+                <div class="form-help">Enter the full URL for your OpenAI-compatible API endpoint</div>
+                
+                <label for="customApiKey" style="margin-top: 15px;">Custom API Key</label>
+                <div class="input-with-button">
+                  <input type="password" id="customApiKey" placeholder="Enter your custom API key" class="form-input">
+                  <button type="button" class="input-btn" id="toggleCustomApiKey" title="Toggle visibility">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+                <div class="form-help">Your key is stored locally and encrypted.</div>
               </div>
 
               <div class="api-test-section">
