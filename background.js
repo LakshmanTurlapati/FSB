@@ -6,12 +6,50 @@ importScripts('init-config.js');
 importScripts('ai-integration.js');
 importScripts('automation-logger.js');
 importScripts('analytics.js');
+importScripts('keyboard-emulator.js');
 
 // Store for active automation sessions
 let activeSessions = new Map();
 
 // Global analytics instance
 let globalAnalytics = null;
+
+// Content script communication health tracking
+let contentScriptHealth = new Map();
+
+// Performance monitoring
+const performanceMetrics = {
+  sessionStats: new Map(),
+  globalStats: {
+    totalSessions: 0,
+    successfulSessions: 0,
+    totalActions: 0,
+    successfulActions: 0,
+    averageIterationsPerSession: 0,
+    averageTimePerSession: 0,
+    communicationFailures: 0,
+    alternativeActionsUsed: 0
+  }
+};
+
+// Failure classification system
+const FAILURE_TYPES = {
+  COMMUNICATION: 'communication',
+  DOM: 'dom',
+  SELECTOR: 'selector',
+  NETWORK: 'network',
+  TIMEOUT: 'timeout',
+  PERMISSION: 'permission'
+};
+
+const RETRY_STRATEGIES = {
+  [FAILURE_TYPES.COMMUNICATION]: 'reconnect_retry',
+  [FAILURE_TYPES.DOM]: 'wait_retry',
+  [FAILURE_TYPES.SELECTOR]: 'alternative_selector',
+  [FAILURE_TYPES.NETWORK]: 'exponential_backoff',
+  [FAILURE_TYPES.TIMEOUT]: 'increase_timeout',
+  [FAILURE_TYPES.PERMISSION]: 'skip_action'
+};
 
 // Helper function to check if URL is restricted for content script access
 function isRestrictedURL(url) {
@@ -59,6 +97,538 @@ function getPageTypeDescription(url) {
   if (url.startsWith('about:')) return 'Browser internal page';
   if (url.startsWith('file://')) return 'Local file';
   return 'Restricted page';
+}
+
+// Content script health monitoring
+async function checkContentScriptHealth(tabId) {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, {
+      action: 'healthCheck'
+    });
+    
+    if (response && response.success) {
+      contentScriptHealth.set(tabId, {
+        lastCheck: Date.now(),
+        healthy: true,
+        failures: 0
+      });
+      return true;
+    }
+  } catch (error) {
+    const health = contentScriptHealth.get(tabId) || { failures: 0 };
+    health.lastCheck = Date.now();
+    health.healthy = false;
+    health.failures++;
+    contentScriptHealth.set(tabId, health);
+    return false;
+  }
+  return false;
+}
+
+// Enhanced content script injection with retry logic
+async function ensureContentScriptInjected(tabId, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // First check if content script is already healthy
+      const isHealthy = await checkContentScriptHealth(tabId);
+      if (isHealthy) {
+        console.log(`[FSB] Content script already healthy in tab ${tabId}`);
+        return true;
+      }
+      
+      // Inject content script
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['content.js']
+      });
+      
+      // Wait a bit for injection to complete
+      await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+      
+      // Check health after injection
+      const healthAfterInjection = await checkContentScriptHealth(tabId);
+      if (healthAfterInjection) {
+        console.log(`[FSB] Content script successfully injected and healthy in tab ${tabId} (attempt ${attempt})`);
+        return true;
+      }
+      
+    } catch (error) {
+      console.warn(`[FSB] Content script injection attempt ${attempt} failed:`, error);
+      if (attempt === maxRetries) {
+        throw new Error(`Failed to inject content script after ${maxRetries} attempts: ${error.message}`);
+      }
+      // Exponential backoff between retries
+      await new Promise(resolve => setTimeout(resolve, 200 * Math.pow(2, attempt - 1)));
+    }
+  }
+  return false;
+}
+
+// Classify failure type based on error message and context
+function classifyFailure(error, action, context = {}) {
+  const errorMessage = (error.message || error || '').toLowerCase();
+  
+  // Communication failures
+  if (errorMessage.includes('could not establish connection') ||
+      errorMessage.includes('receiving end does not exist') ||
+      errorMessage.includes('message port closed') ||
+      errorMessage.includes('no tab with id') ||
+      errorMessage.includes('cannot access') ||
+      errorMessage.includes('communication failure')) {
+    return FAILURE_TYPES.COMMUNICATION;
+  }
+  
+  // DOM/Selector failures
+  if (errorMessage.includes('element not found') ||
+      errorMessage.includes('selector') ||
+      errorMessage.includes('not visible') ||
+      errorMessage.includes('not interactable')) {
+    return FAILURE_TYPES.SELECTOR;
+  }
+  
+  // Timeout failures
+  if (errorMessage.includes('timeout') ||
+      errorMessage.includes('timed out')) {
+    return FAILURE_TYPES.TIMEOUT;
+  }
+  
+  // Network failures
+  if (errorMessage.includes('network') ||
+      errorMessage.includes('connection') ||
+      errorMessage.includes('fetch')) {
+    return FAILURE_TYPES.NETWORK;
+  }
+  
+  // Permission failures
+  if (errorMessage.includes('permission') ||
+      errorMessage.includes('restricted') ||
+      errorMessage.includes('chrome://') ||
+      errorMessage.includes('cannot execute')) {
+    return FAILURE_TYPES.PERMISSION;
+  }
+  
+  // Default to communication for unknown errors
+  return FAILURE_TYPES.COMMUNICATION;
+}
+
+// Enhanced message sending with automatic retry and fallback
+async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Check content script health first
+      if (attempt === 1) {
+        const isHealthy = await checkContentScriptHealth(tabId);
+        if (!isHealthy) {
+          console.log(`[FSB] Content script unhealthy, re-injecting...`);
+          await ensureContentScriptInjected(tabId);
+        }
+      }
+      
+      const response = await chrome.tabs.sendMessage(tabId, message);
+      
+      // Success - reset health tracking
+      contentScriptHealth.set(tabId, {
+        lastCheck: Date.now(),
+        healthy: true,
+        failures: 0
+      });
+      
+      return response;
+      
+    } catch (error) {
+      const failureType = classifyFailure(error, message);
+      console.warn(`[FSB] Message sending attempt ${attempt} failed (${failureType}):`, error.message);
+      
+      // Update health tracking
+      const health = contentScriptHealth.get(tabId) || { failures: 0 };
+      health.failures++;
+      health.healthy = false;
+      health.lastCheck = Date.now();
+      contentScriptHealth.set(tabId, health);
+      
+      if (attempt === maxRetries) {
+        throw {
+          originalError: error,
+          failureType,
+          attempts: maxRetries,
+          message: `Failed after ${maxRetries} attempts: ${error.message}`
+        };
+      }
+      
+      // Apply failure-specific retry strategy
+      if (failureType === FAILURE_TYPES.COMMUNICATION) {
+        console.log(`[FSB] Re-injecting content script for communication failure`);
+        await ensureContentScriptInjected(tabId);
+      } else {
+        // For other failures, wait progressively longer
+        const delay = 200 * Math.pow(2, attempt - 1);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+}
+
+// Alternative action strategies for failed operations
+async function tryAlternativeAction(sessionId, originalAction, originalError) {
+  const session = activeSessions.get(sessionId);
+  if (!session) return null;
+  
+  const { tool, params } = originalAction;
+  const alternatives = [];
+  
+  // Type action alternatives
+  if (tool === 'type') {
+    alternatives.push(
+      // Try clicking first, then typing
+      { tool: 'click', params: { selector: params.selector }, description: `Click element before typing` },
+      // Try focus + clear + type
+      { tool: 'focus', params: { selector: params.selector }, description: `Focus element before typing` },
+      { tool: 'clearInput', params: { selector: params.selector }, description: `Clear input before typing` },
+      { tool: 'type', params: { ...params, slow: true }, description: `Type slowly with delays` },
+      // Try keyboard events instead
+      { tool: 'keyPress', params: { selector: params.selector, key: params.text }, description: `Use keyboard events instead of typing` }
+    );
+  }
+  
+  // Click action alternatives
+  if (tool === 'click') {
+    alternatives.push(
+      // Try different click methods
+      { tool: 'doubleClick', params, description: `Try double-click instead` },
+      { tool: 'rightClick', params, description: `Try right-click to trigger context` },
+      // Try hovering first
+      { tool: 'hover', params, description: `Hover before clicking` },
+      { tool: 'click', params: { ...params, forceClick: true }, description: `Force click ignoring visibility` }
+    );
+  }
+  
+  // Selector alternatives for any action with selector
+  if (params.selector && originalError.failureType === FAILURE_TYPES.SELECTOR) {
+    const baseSelector = params.selector;
+    const selectorAlternatives = generateAlternativeSelectors(baseSelector);
+    
+    for (const altSelector of selectorAlternatives) {
+      alternatives.push({
+        tool,
+        params: { ...params, selector: altSelector },
+        description: `Try alternative selector: ${altSelector.substring(0, 30)}...`
+      });
+    }
+  }
+  
+  // Execute alternatives one by one
+  for (const alternative of alternatives.slice(0, 3)) { // Limit to 3 alternatives
+    try {
+      console.log(`[FSB] Trying alternative action: ${alternative.description}`);
+      
+      const result = await sendMessageWithRetry(session.tabId, {
+        action: 'executeAction',
+        tool: alternative.tool,
+        params: alternative.params
+      });
+      
+      if (result && result.success) {
+        console.log(`[FSB] Alternative action succeeded: ${alternative.description}`);
+        return {
+          success: true,
+          result: result.result,
+          alternativeUsed: alternative.description,
+          originalError: originalError.error
+        };
+      }
+    } catch (error) {
+      console.warn(`[FSB] Alternative action failed: ${alternative.description}`, error);
+      continue;
+    }
+  }
+  
+  return null; // No alternatives worked
+}
+
+// Generate alternative selectors for failed selector queries
+function generateAlternativeSelectors(originalSelector) {
+  const alternatives = [];
+  
+  // If it's an ID selector, try class-based alternatives
+  if (originalSelector.startsWith('#')) {
+    const id = originalSelector.substring(1);
+    alternatives.push(
+      `[id="${id}"]`,
+      `*[id*="${id}"]`,
+      `[id^="${id}"]`,
+      `[id$="${id}"]`
+    );
+  }
+  
+  // If it's a class selector, try attribute alternatives
+  if (originalSelector.startsWith('.')) {
+    const className = originalSelector.substring(1);
+    alternatives.push(
+      `[class*="${className}"]`,
+      `[class^="${className}"]`, 
+      `[class$="${className}"]`
+    );
+  }
+  
+  // Try data attribute alternatives
+  alternatives.push(
+    `[data-testid*="${originalSelector.replace(/[#.]/g, '')}"]`,
+    `[aria-label*="${originalSelector.replace(/[#.]/g, '')}"]`,
+    `[name*="${originalSelector.replace(/[#.]/g, '')}"]`,
+    `[title*="${originalSelector.replace(/[#.]/g, '')}"]`
+  );
+  
+  // Try partial matches
+  if (originalSelector.includes('[') && originalSelector.includes('=')) {
+    const attrMatch = originalSelector.match(/\[([^=]+)="([^"]+)"\]/);
+    if (attrMatch) {
+      const [, attr, value] = attrMatch;
+      alternatives.push(
+        `[${attr}*="${value}"]`,
+        `[${attr}^="${value}"]`,
+        `[${attr}$="${value}"]`,
+        `[${attr}~="${value}"]`
+      );
+    }
+  }
+  
+  return alternatives.slice(0, 5); // Limit alternatives
+}
+
+// Enhanced stuck detection with pattern recognition
+function analyzeStuckPatterns(session) {
+  const recentActions = session.actionHistory.slice(-10); // Look at last 10 actions
+  const patterns = {
+    repetitiveActions: false,
+    cyclingBetweenStates: false,
+    failingOnSameElement: false,
+    noProgressMade: false,
+    severity: 'low'
+  };
+  
+  if (recentActions.length < 3) return patterns;
+  
+  // Check for repetitive actions (same action/params repeated)
+  const actionGroups = {};
+  recentActions.forEach(action => {
+    const key = `${action.tool}_${JSON.stringify(action.params)}`;
+    actionGroups[key] = (actionGroups[key] || 0) + 1;
+  });
+  
+  const maxRepeats = Math.max(...Object.values(actionGroups));
+  if (maxRepeats >= 3) {
+    patterns.repetitiveActions = true;
+    patterns.severity = 'high';
+  }
+  
+  // Check for cycling between different states
+  const domHashes = session.stateHistory.slice(-5).map(state => state.domHash);
+  const uniqueHashes = new Set(domHashes);
+  if (uniqueHashes.size <= 2 && domHashes.length >= 4) {
+    patterns.cyclingBetweenStates = true;
+    patterns.severity = Math.max(patterns.severity, 'medium');
+  }
+  
+  // Check for failing on same elements
+  const failedSelectors = recentActions
+    .filter(action => !action.result?.success && action.params?.selector)
+    .map(action => action.params.selector);
+  
+  if (failedSelectors.length >= 3) {
+    const selectorCounts = {};
+    failedSelectors.forEach(selector => {
+      selectorCounts[selector] = (selectorCounts[selector] || 0) + 1;
+    });
+    
+    if (Math.max(...Object.values(selectorCounts)) >= 2) {
+      patterns.failingOnSameElement = true;
+      patterns.severity = 'high';
+    }
+  }
+  
+  // Check for overall lack of progress
+  const recentSuccesses = recentActions.filter(action => action.result?.success).length;
+  if (recentSuccesses / recentActions.length < 0.3) { // Less than 30% success rate
+    patterns.noProgressMade = true;
+    patterns.severity = 'high';
+  }
+  
+  return patterns;
+}
+
+// Generate recovery strategies based on stuck patterns
+function generateRecoveryStrategies(patterns, session) {
+  const strategies = [];
+  
+  if (patterns.repetitiveActions) {
+    strategies.push({
+      type: 'break_repetition',
+      description: 'Switch to alternative approach to break repetitive loop',
+      priority: 'high'
+    });
+  }
+  
+  if (patterns.cyclingBetweenStates) {
+    strategies.push({
+      type: 'reset_state',
+      description: 'Navigate to different page or refresh to reset state',
+      priority: 'medium'
+    });
+  }
+  
+  if (patterns.failingOnSameElement) {
+    strategies.push({
+      type: 'alternative_selectors',
+      description: 'Use completely different element selection strategy',
+      priority: 'high'
+    });
+  }
+  
+  if (patterns.noProgressMade) {
+    strategies.push({
+      type: 'change_approach',
+      description: 'Fundamentally change approach (e.g., use Google search instead of direct interaction)',
+      priority: 'high'
+    });
+  }
+  
+  return strategies.sort((a, b) => {
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    return priorityOrder[b.priority] - priorityOrder[a.priority];
+  });
+}
+
+// Performance monitoring functions
+function initializeSessionMetrics(sessionId) {
+  performanceMetrics.sessionStats.set(sessionId, {
+    startTime: Date.now(),
+    endTime: null,
+    totalActions: 0,
+    successfulActions: 0,
+    failedActions: 0,
+    communicationFailures: 0,
+    alternativeActionsUsed: 0,
+    iterations: 0,
+    stuckEvents: 0,
+    domStabilityWaits: 0,
+    averageActionTime: 0,
+    actionTimes: []
+  });
+  
+  performanceMetrics.globalStats.totalSessions++;
+}
+
+function trackActionPerformance(sessionId, action, result, startTime, alternativeUsed = false) {
+  const sessionStats = performanceMetrics.sessionStats.get(sessionId);
+  if (!sessionStats) return;
+  
+  const actionTime = Date.now() - startTime;
+  sessionStats.actionTimes.push(actionTime);
+  sessionStats.totalActions++;
+  performanceMetrics.globalStats.totalActions++;
+  
+  if (result.success) {
+    sessionStats.successfulActions++;
+    performanceMetrics.globalStats.successfulActions++;
+  } else {
+    sessionStats.failedActions++;
+    if (result.failureType === FAILURE_TYPES.COMMUNICATION) {
+      sessionStats.communicationFailures++;
+      performanceMetrics.globalStats.communicationFailures++;
+    }
+  }
+  
+  if (alternativeUsed) {
+    sessionStats.alternativeActionsUsed++;
+    performanceMetrics.globalStats.alternativeActionsUsed++;
+  }
+  
+  // Update average action time
+  sessionStats.averageActionTime = sessionStats.actionTimes.reduce((a, b) => a + b, 0) / sessionStats.actionTimes.length;
+}
+
+function finalizeSessionMetrics(sessionId, successful = false) {
+  const sessionStats = performanceMetrics.sessionStats.get(sessionId);
+  if (!sessionStats) return;
+  
+  sessionStats.endTime = Date.now();
+  const sessionDuration = sessionStats.endTime - sessionStats.startTime;
+  
+  if (successful) {
+    performanceMetrics.globalStats.successfulSessions++;
+  }
+  
+  // Update global averages
+  const allSessions = Array.from(performanceMetrics.sessionStats.values());
+  const completedSessions = allSessions.filter(s => s.endTime !== null);
+  
+  if (completedSessions.length > 0) {
+    const totalIterations = completedSessions.reduce((sum, s) => sum + s.iterations, 0);
+    const totalDuration = completedSessions.reduce((sum, s) => sum + (s.endTime - s.startTime), 0);
+    
+    performanceMetrics.globalStats.averageIterationsPerSession = totalIterations / completedSessions.length;
+    performanceMetrics.globalStats.averageTimePerSession = totalDuration / completedSessions.length;
+  }
+  
+  console.log(`[FSB Performance] Session ${sessionId} completed:`, {
+    duration: sessionDuration,
+    iterations: sessionStats.iterations,
+    actions: sessionStats.totalActions,
+    successRate: (sessionStats.successfulActions / sessionStats.totalActions * 100).toFixed(1) + '%',
+    avgActionTime: sessionStats.averageActionTime.toFixed(0) + 'ms',
+    communicationFailures: sessionStats.communicationFailures,
+    alternativeActionsUsed: sessionStats.alternativeActionsUsed
+  });
+}
+
+function getPerformanceReport() {
+  const global = performanceMetrics.globalStats;
+  const actionSuccessRate = global.totalActions > 0 ? (global.successfulActions / global.totalActions * 100) : 0;
+  const sessionSuccessRate = global.totalSessions > 0 ? (global.successfulSessions / global.totalSessions * 100) : 0;
+  
+  return {
+    summary: {
+      totalSessions: global.totalSessions,
+      sessionSuccessRate: sessionSuccessRate.toFixed(1) + '%',
+      totalActions: global.totalActions,
+      actionSuccessRate: actionSuccessRate.toFixed(1) + '%',
+      averageIterationsPerSession: global.averageIterationsPerSession.toFixed(1),
+      averageTimePerSession: (global.averageTimePerSession / 1000).toFixed(1) + 's'
+    },
+    issues: {
+      communicationFailures: global.communicationFailures,
+      alternativeActionsNeeded: global.alternativeActionsUsed,
+      communicationFailureRate: global.totalActions > 0 ? (global.communicationFailures / global.totalActions * 100).toFixed(1) + '%' : '0%'
+    },
+    recommendations: generatePerformanceRecommendations()
+  };
+}
+
+function generatePerformanceRecommendations() {
+  const global = performanceMetrics.globalStats;
+  const recommendations = [];
+  
+  if (global.totalActions > 0) {
+    const commFailureRate = global.communicationFailures / global.totalActions;
+    if (commFailureRate > 0.3) {
+      recommendations.push('High communication failure rate detected. Consider improving content script stability.');
+    }
+    
+    const altActionRate = global.alternativeActionsUsed / global.totalActions;
+    if (altActionRate > 0.2) {
+      recommendations.push('High alternative action usage. Consider improving initial selector accuracy.');
+    }
+    
+    if (global.averageIterationsPerSession > 20) {
+      recommendations.push('High iteration count per session. Consider improving stuck detection and recovery.');
+    }
+  }
+  
+  if (recommendations.length === 0) {
+    recommendations.push('Performance looks good! No issues detected.');
+  }
+  
+  return recommendations;
 }
 
 // Smart navigation: Analyze task and determine best website to navigate to
@@ -510,6 +1080,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleStopAutomation(request, sender, sendResponse);
       break;
       
+    case 'getPerformanceReport':
+      const report = getPerformanceReport();
+      sendResponse({ success: true, report });
+      break;
+      
     case 'callAI':
       handleAICall(request, sender, sendResponse);
       return true; // Will respond asynchronously
@@ -551,6 +1126,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
     case 'waitForTabLoad':
       handleWaitForTabLoad(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+      
+    case 'keyboardDebuggerAction':
+      handleKeyboardDebuggerAction(request, sender, sendResponse);
       return true; // Will respond asynchronously
       
     default:
@@ -663,6 +1242,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
     activeSessions.set(sessionId, sessionData);
     
     automationLogger.logSessionStart(sessionId, task, sessionData.tabId);
+    initializeSessionMetrics(sessionId);
     console.log('Background: Created new session:', sessionId);
     console.log('Background: Session data:', sessionData);
     console.log('Background: Total active sessions:', activeSessions.size);
@@ -710,6 +1290,7 @@ function handleStopAutomation(request, sender, sendResponse) {
     console.log('Background: Found session, current status:', session.status);
     
     session.status = 'stopped';
+    finalizeSessionMetrics(sessionId, false); // Stopped, not completed
     activeSessions.delete(sessionId);
     
     console.log('Background: Session stopped and removed');
@@ -1126,6 +1707,12 @@ async function startAutomationLoop(sessionId) {
   if (!session || session.status !== 'running') return;
   
   session.iterationCount++;
+  
+  // Track iteration in performance metrics
+  const sessionStats = performanceMetrics.sessionStats.get(sessionId);
+  if (sessionStats) {
+    sessionStats.iterations = session.iterationCount;
+  }
   console.log(`Automation loop iteration ${session.iterationCount} for session ${sessionId}`);
   
   try {
@@ -1149,8 +1736,27 @@ async function startAutomationLoop(sessionId) {
     // Get current DOM state with enhanced error handling
     let domResponse;
     try {
-      domResponse = await chrome.tabs.sendMessage(session.tabId, {
-        action: 'getDOM'
+      // Get DOM optimization settings from storage
+      const settings = await chrome.storage.local.get([
+        'domOptimization',
+        'maxDOMElements', 
+        'prioritizeViewport'
+      ]);
+      const domOptimizationEnabled = settings.domOptimization !== false;
+      
+      console.log(`[FSB Background] Requesting DOM for iteration ${session.iterationCount}`, {
+        useIncrementalDiff: domOptimizationEnabled,
+        maxElements: settings.maxDOMElements || 2000,
+        prioritizeViewport: settings.prioritizeViewport !== false
+      });
+      
+      domResponse = await sendMessageWithRetry(session.tabId, {
+        action: 'getDOM',
+        options: {
+          useIncrementalDiff: domOptimizationEnabled,
+          maxElements: settings.maxDOMElements || 2000,
+          prioritizeViewport: settings.prioritizeViewport !== false
+        }
       });
     } catch (messageError) {
       // Check if this is a restricted URL error
@@ -1174,6 +1780,15 @@ async function startAutomationLoop(sessionId) {
     if (!domResponse || !domResponse.success || !domResponse.structuredDOM) {
       throw new Error('Failed to get DOM state from content script. Response: ' + JSON.stringify(domResponse));
     }
+    
+    // Log DOM response details
+    const domData = domResponse.structuredDOM;
+    console.log('[FSB Background] DOM received:', {
+      isDelta: domData._isDelta || false,
+      type: domData.type || 'full',
+      payloadSize: JSON.stringify(domData).length,
+      optimization: domData.optimization || {}
+    });
     
     // Create hash of current DOM state
     const currentDOMHash = createDOMHash(domResponse.structuredDOM);
@@ -1244,8 +1859,17 @@ async function startAutomationLoop(sessionId) {
       elementCount: domResponse.structuredDOM.elements?.length || 0
     });
     
-    // If stuck for too long, notify AI to try different approach
-    const isStuck = session.stuckCounter >= 3;
+    // Enhanced stuck detection with pattern recognition
+    const stuckPatterns = analyzeStuckPatterns(session);
+    const isStuck = session.stuckCounter >= 3 || stuckPatterns.severity === 'high';
+    
+    // Generate recovery strategies if stuck
+    let recoveryStrategies = [];
+    if (isStuck) {
+      recoveryStrategies = generateRecoveryStrategies(stuckPatterns, session);
+      console.log(`[FSB] Stuck detected with patterns:`, stuckPatterns);
+      console.log(`[FSB] Generated recovery strategies:`, recoveryStrategies);
+    }
     
     // Get settings for AI call using config
     const settings = await config.getAll();
@@ -1357,6 +1981,7 @@ async function startAutomationLoop(sessionId) {
         const nextAction = aiResponse.actions[i + 1];
         
         console.log(`Executing action ${i + 1}/${aiResponse.actions.length}: ${action.tool}`, action.params);
+        const actionStartTime = Date.now();
         
         // Send action-specific status update to UI
         if (action.description) {
@@ -1391,7 +2016,7 @@ async function startAutomationLoop(sessionId) {
         } else {
           // Send regular DOM actions to content script
           try {
-            actionResult = await chrome.tabs.sendMessage(session.tabId, {
+            actionResult = await sendMessageWithRetry(session.tabId, {
               action: 'executeAction',
               tool: action.tool,
               params: action.params
@@ -1409,11 +2034,14 @@ async function startAutomationLoop(sessionId) {
               throw new Error('Tab was closed or became inaccessible during action execution.');
             }
             
-            // For other errors, provide a failure result instead of crashing
+            // For other errors, provide a failure result with classification
+            const failureType = classifyFailure(messageError, action);
             actionResult = {
               success: false,
-              error: `Failed to execute ${action.tool}: ${messageError.message}`,
-              tool: action.tool
+              error: `Failed to execute ${action.tool}: ${messageError.message || messageError}`,
+              tool: action.tool,
+              failureType,
+              retryable: failureType !== FAILURE_TYPES.PERMISSION
             };
           }
         }
@@ -1436,11 +2064,13 @@ async function startAutomationLoop(sessionId) {
           actionResult = {
             success: false,
             error: 'Action returned no result - possible content script communication failure',
-            tool: action.tool
+            tool: action.tool,
+            failureType: FAILURE_TYPES.COMMUNICATION,
+            retryable: true
           };
         }
         
-        // Track failures
+        // Track failures and verification issues
         if (!actionResult.success) {
           // Track by tool type (existing)
           if (!session.failedAttempts[action.tool]) {
@@ -1476,6 +2106,69 @@ async function startAutomationLoop(sessionId) {
           }
           
           console.warn(`Action failed: ${action.tool}`, errorMessage, `(${session.failedActionDetails[actionSignature].count} failures)`);
+          
+          // Try alternative actions for critical failures
+          if (actionResult.retryable && actionResult.failureType !== FAILURE_TYPES.PERMISSION) {
+            console.log(`[FSB] Attempting alternative actions for failed ${action.tool}`);
+            const alternativeResult = await tryAlternativeAction(sessionId, action, actionResult);
+            
+            if (alternativeResult && alternativeResult.success) {
+              console.log(`[FSB] Alternative action succeeded: ${alternativeResult.alternativeUsed}`);
+              actionResult = alternativeResult;
+              
+              // Log the successful alternative
+              automationLogger.logAction(sessionId, {
+                ...action,
+                description: `${action.description} (Alternative: ${alternativeResult.alternativeUsed})`
+              }, alternativeResult);
+              
+              // Track alternative action usage
+              trackActionPerformance(sessionId, action, actionResult, actionStartTime, true);
+            } else {
+              // Track failed action
+              trackActionPerformance(sessionId, action, actionResult, actionStartTime, false);
+            }
+          } else {
+            // Track failed action
+            trackActionPerformance(sessionId, action, actionResult, actionStartTime, false);
+          }
+        } else {
+          // Track successful action
+          trackActionPerformance(sessionId, action, actionResult, actionStartTime, false);
+          
+          // Check for verification warnings
+          if (actionResult.success && (actionResult.warning || actionResult.hadEffect === false || actionResult.validationPassed === false)) {
+            console.warn(`[FSB] Action succeeded but verification indicates potential issue:`, {
+              tool: action.tool,
+              selector: action.params.selector,
+              warning: actionResult.warning,
+              hadEffect: actionResult.hadEffect,
+              validationPassed: actionResult.validationPassed
+            });
+            
+            // Track actions that succeeded but had no effect
+            if (!session.noEffectActions) {
+              session.noEffectActions = [];
+            }
+            
+            session.noEffectActions.push({
+              tool: action.tool,
+              params: action.params,
+              warning: actionResult.warning || 'Action completed but verification failed',
+              iteration: session.iterationCount,
+              timestamp: Date.now()
+            });
+            
+            // If too many no-effect actions, increase stuck counter
+            const recentNoEffectCount = session.noEffectActions.filter(a => 
+              Date.now() - a.timestamp < 30000 // Last 30 seconds
+            ).length;
+            
+            if (recentNoEffectCount >= 3) {
+              session.stuckCounter++;
+              console.warn(`[FSB] Multiple no-effect actions detected - incrementing stuck counter to ${session.stuckCounter}`);
+            }
+          }
         }
         
         // Smart delay calculation based on action types and DOM state
@@ -1485,7 +2178,7 @@ async function startAutomationLoop(sessionId) {
           // Check if page is loading with error handling
           let loadingCheck;
           try {
-            loadingCheck = await chrome.tabs.sendMessage(session.tabId, {
+            loadingCheck = await sendMessageWithRetry(session.tabId, {
               action: 'executeAction',
               tool: 'detectLoadingState',
               params: {}
@@ -1502,7 +2195,7 @@ async function startAutomationLoop(sessionId) {
             // Wait for DOM to stabilize with error handling
             let stableResult;
             try {
-              stableResult = await chrome.tabs.sendMessage(session.tabId, {
+              stableResult = await sendMessageWithRetry(session.tabId, {
                 action: 'executeAction',
                 tool: 'waitForDOMStable',
                 params: { timeout: 5000, stableTime: 500 }
@@ -1523,7 +2216,7 @@ async function startAutomationLoop(sessionId) {
               // Wait for DOM to stabilize after actions that typically cause changes
               let stableResult;
               try {
-                stableResult = await chrome.tabs.sendMessage(session.tabId, {
+                stableResult = await sendMessageWithRetry(session.tabId, {
                   action: 'executeAction',
                   tool: 'waitForDOMStable',
                   params: { timeout: 3000, stableTime: 300 }
@@ -1567,6 +2260,7 @@ async function startAutomationLoop(sessionId) {
         });
         
         // Clean up session
+        finalizeSessionMetrics(sessionId, true); // Successfully completed
         activeSessions.delete(sessionId);
         return;
       }
@@ -1615,6 +2309,7 @@ async function startAutomationLoop(sessionId) {
       
       finalResult += 'You may want to try rephrasing your request or breaking it into smaller steps.';
       
+      finalizeSessionMetrics(sessionId, false); // Failed due to stuck loop
       activeSessions.delete(sessionId);
       
       // Send completion with partial results instead of error
@@ -1726,6 +2421,7 @@ async function startAutomationLoop(sessionId) {
       console.log('Task completed successfully');
       console.log('Total actions executed:', session.actionHistory.length);
       
+      finalizeSessionMetrics(sessionId, true); // Successfully completed
       activeSessions.delete(sessionId);
       
       // Notify popup
@@ -1783,6 +2479,13 @@ async function callAIAPI(task, structuredDOM, settings, context = null) {
     
     // Create AI integration instance (now available via importScripts)
     const ai = new AIIntegration(settings);
+    
+    console.log('[FSB Background] Sending to AI:', {
+      task: task,
+      domType: structuredDOM._isDelta ? 'delta' : 'full',
+      contextProvided: !!context,
+      iteration: context?.iterationCount || 0
+    });
     
     // Get automation actions from Grok-3-mini with context
     const result = await ai.getAutomationActions(task, structuredDOM, context);
@@ -1952,6 +2655,7 @@ async function handleCloseTab(request, sender, sendResponse) {
       if (session.tabId === tabId) {
         console.log(`Stopping session ${sessionId} for closing tab ${tabId}`);
         session.status = 'stopped';
+        finalizeSessionMetrics(sessionId, false); // Tab closed
         activeSessions.delete(sessionId);
       }
     }
@@ -2129,6 +2833,125 @@ async function handleWaitForTabLoad(request, sender, sendResponse) {
     });
   }
 }
+
+// Global keyboard emulator instance
+let keyboardEmulator = null;
+
+/**
+ * Initialize keyboard emulator if not already initialized
+ */
+function initializeKeyboardEmulator() {
+  if (!keyboardEmulator) {
+    keyboardEmulator = new KeyboardEmulator();
+  }
+  return keyboardEmulator;
+}
+
+/**
+ * Handle keyboard emulator actions from content scripts
+ * @param {Object} request - The keyboard action request
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Response callback
+ */
+async function handleKeyboardDebuggerAction(request, sender, sendResponse) {
+  try {
+    const { method, key, keys, text, specialKey, modifiers = {}, delay = 50 } = request;
+    const tabId = sender.tab.id;
+    
+    console.log(`[FSB Keyboard] Handling ${method} for tab ${tabId}`, { key, keys, text, specialKey, modifiers });
+    
+    // Initialize keyboard emulator
+    const emulator = initializeKeyboardEmulator();
+    
+    let result;
+    
+    switch (method) {
+      case 'pressKey':
+        if (!key) {
+          throw new Error('Key parameter is required for pressKey');
+        }
+        result = await emulator.pressKey(tabId, key, modifiers);
+        break;
+        
+      case 'pressKeySequence':
+        if (!keys || !Array.isArray(keys)) {
+          throw new Error('Keys array is required for pressKeySequence');
+        }
+        result = await emulator.pressKeySequence(tabId, keys, modifiers, delay);
+        break;
+        
+      case 'typeText':
+        if (!text || typeof text !== 'string') {
+          throw new Error('Text parameter is required for typeText');
+        }
+        result = await emulator.typeText(tabId, text, delay);
+        break;
+        
+      case 'sendSpecialKey':
+        if (!specialKey || typeof specialKey !== 'string') {
+          throw new Error('SpecialKey parameter is required for sendSpecialKey');
+        }
+        result = await emulator.sendSpecialKey(tabId, specialKey);
+        break;
+        
+      default:
+        throw new Error(`Unknown keyboard emulator method: ${method}`);
+    }
+    
+    console.log(`[FSB Keyboard] ${method} result:`, result);
+    
+    sendResponse({
+      success: result.success,
+      result: result,
+      method: method,
+      tabId: tabId
+    });
+    
+  } catch (error) {
+    console.error('[FSB Keyboard] Error in keyboard emulator action:', error);
+    sendResponse({
+      success: false,
+      error: error.message || 'Keyboard emulator action failed',
+      method: request.method
+    });
+  }
+}
+
+/**
+ * Clean up keyboard emulator resources when tab is closed
+ */
+chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+  if (keyboardEmulator && keyboardEmulator.debuggerAttached) {
+    try {
+      await keyboardEmulator.detachDebugger(tabId);
+      console.log(`[FSB Keyboard] Cleaned up emulator for closed tab ${tabId}`);
+    } catch (error) {
+      console.warn(`[FSB Keyboard] Failed to clean up emulator for tab ${tabId}:`, error);
+    }
+  }
+});
+
+/**
+ * Clean up keyboard emulator when extension is suspended/unloaded
+ */
+chrome.runtime.onSuspend.addListener(async () => {
+  if (keyboardEmulator) {
+    console.log('[FSB Keyboard] Extension suspending, cleaning up keyboard emulator');
+    try {
+      // Get all tabs and detach debugger from each
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        try {
+          await keyboardEmulator.detachDebugger(tab.id);
+        } catch (error) {
+          // Ignore individual cleanup errors during shutdown
+        }
+      }
+    } catch (error) {
+      console.warn('[FSB Keyboard] Error during keyboard emulator cleanup:', error);
+    }
+  }
+});
 
 // Handle action (icon) clicks - open global side panel
 chrome.action.onClicked.addListener(async (tab) => {

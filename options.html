@@ -281,6 +281,48 @@
             </div>
           </div>
 
+          <!-- DOM Optimization Settings -->
+          <div class="form-card">
+            <div class="form-section">
+              <h3><i class="fas fa-compress"></i> DOM Optimization</h3>
+              
+              <div class="form-group">
+                <label class="switch-label">
+                  <input type="checkbox" id="domOptimization" checked>
+                  <span class="switch"></span>
+                  Enable DOM Delta Diffing
+                </label>
+                <div class="form-help">Reduces AI context by 70-90% after first iteration by sending only changes</div>
+              </div>
+
+              <div class="form-group">
+                <label for="maxDOMElements">Maximum DOM elements per snapshot</label>
+                <div class="slider-input">
+                  <input type="range" id="maxDOMElementsSlider" min="500" max="5000" value="2000" step="500" class="form-slider">
+                  <input type="number" id="maxDOMElements" min="500" max="5000" value="2000" step="500" class="form-input slider-value">
+                </div>
+                <div class="form-help">Lower values improve performance but may miss elements</div>
+              </div>
+
+              <div class="form-group">
+                <label class="switch-label">
+                  <input type="checkbox" id="prioritizeViewport" checked>
+                  <span class="switch"></span>
+                  Prioritize Viewport Elements
+                </label>
+                <div class="form-help">Focus on elements visible on screen for better relevance</div>
+              </div>
+
+              <div class="form-group">
+                <label>Optimization Stats</label>
+                <div class="stats-info" id="domOptimizationStats">
+                  <i class="fas fa-info-circle"></i> 
+                  <span>Enable optimization to see compression statistics</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- CAPTCHA Settings -->
           <div class="form-card">
             <div class="form-section">

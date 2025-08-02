@@ -221,6 +221,37 @@ function setupEventListeners() {
     }
   });
   
+  // DOM optimization controls
+  const domOptControls = [
+    document.getElementById('domOptimization'),
+    document.getElementById('prioritizeViewport'),
+    document.getElementById('maxDOMElements'),
+    document.getElementById('maxDOMElementsSlider')
+  ];
+  
+  domOptControls.forEach(control => {
+    if (control) {
+      const eventType = control.type === 'checkbox' ? 'change' : 'input';
+      control.addEventListener(eventType, () => markUnsavedChanges());
+    }
+  });
+  
+  // DOM elements slider synchronization
+  const maxDOMElementsSlider = document.getElementById('maxDOMElementsSlider');
+  const maxDOMElements = document.getElementById('maxDOMElements');
+  
+  if (maxDOMElementsSlider && maxDOMElements) {
+    maxDOMElementsSlider.addEventListener('input', (e) => {
+      maxDOMElements.value = e.target.value;
+      markUnsavedChanges();
+    });
+    
+    maxDOMElements.addEventListener('input', (e) => {
+      maxDOMElementsSlider.value = e.target.value;
+      markUnsavedChanges();
+    });
+  }
+  
   // Slider synchronization
   if (elements.actionDelaySlider && elements.actionDelay) {
     elements.actionDelaySlider.addEventListener('input', (e) => {
@@ -572,6 +603,20 @@ function loadSettings() {
     if (elements.confirmSensitive) elements.confirmSensitive.checked = settings.confirmSensitive;
     if (elements.debugMode) elements.debugMode.checked = settings.debugMode;
     
+    // Update DOM optimization settings
+    if (document.getElementById('domOptimization')) {
+      document.getElementById('domOptimization').checked = settings.domOptimization ?? true;
+    }
+    if (document.getElementById('maxDOMElements')) {
+      document.getElementById('maxDOMElements').value = settings.maxDOMElements || 2000;
+    }
+    if (document.getElementById('maxDOMElementsSlider')) {
+      document.getElementById('maxDOMElementsSlider').value = settings.maxDOMElements || 2000;
+    }
+    if (document.getElementById('prioritizeViewport')) {
+      document.getElementById('prioritizeViewport').checked = settings.prioritizeViewport ?? true;
+    }
+    
     // Update quick toggles
     if (elements.quickDebugMode) elements.quickDebugMode.checked = settings.debugMode;
     if (elements.quickConfirmSensitive) elements.quickConfirmSensitive.checked = settings.confirmSensitive;
@@ -600,7 +645,11 @@ function saveSettings() {
     actionDelay: parseInt(elements.actionDelay?.value) || 1000,
     maxIterations: parseInt(elements.maxIterations?.value) || 20,
     confirmSensitive: elements.confirmSensitive?.checked ?? true,
-    debugMode: elements.debugMode?.checked ?? false
+    debugMode: elements.debugMode?.checked ?? false,
+    // DOM Optimization settings
+    domOptimization: document.getElementById('domOptimization')?.checked ?? true,
+    maxDOMElements: parseInt(document.getElementById('maxDOMElements')?.value) || 2000,
+    prioritizeViewport: document.getElementById('prioritizeViewport')?.checked ?? true
   };
   
   chrome.storage.local.set(settings, () => {

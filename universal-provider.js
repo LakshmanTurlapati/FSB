@@ -407,11 +407,17 @@ class UniversalProvider {
   }
   
   /**
-   * Universal JSON parser that handles various malformations
+   * Enhanced universal JSON parser that handles various malformations
    */
   parseJSONSafely(content) {
     // Debug log
     console.log('parseJSONSafely input (first 300 chars):', content.substring(0, 300));
+    
+    // Stage 0: Quick validation for empty/null content
+    if (!content || content.trim().length === 0) {
+      console.warn('parseJSONSafely: Empty content provided');
+      return '{ "success": false, "error": "Empty response", "actions": [], "taskComplete": false }';
+    }
     
     // Stage 1: Try raw parsing first
     try {

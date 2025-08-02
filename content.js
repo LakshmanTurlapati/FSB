@@ -1,7 +1,414 @@
 // Content script for FSB v0.1
 // Handles DOM reading and action execution
 
-// DOM state cache for diffing
+// DOM State Manager class definition (inline for content script)
+class DOMStateManager {
+  constructor() {
+    // Previous DOM state for comparison
+    this.previousState = null;
+    
+    // Cache of elements by their hash
+    this.elementCache = new Map();
+    
+    // Track mutations in real-time
+    this.mutationObserver = null;
+    this.pendingMutations = [];
+    
+    // Changed elements since last snapshot
+    this.changedElements = new Set();
+    
+    // Configuration
+    this.config = {
+      maxUnchangedElements: 50, // Max unchanged elements to include
+      importantSelectors: [
+        'button', 'a[href]', 'input', 'textarea', 'select',
+        '[role="button"]', '[onclick]', 'form', '[data-testid]'
+      ],
+      textTruncateLength: 100,
+      enableMutationTracking: true
+    };
+  }
+  
+  /**
+   * Initialize MutationObserver to track real-time DOM changes
+   */
+  initMutationObserver() {
+    if (!this.config.enableMutationTracking) return;
+    
+    this.mutationObserver = new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        this.recordMutation(mutation);
+      });
+    });
+    
+    // Observe entire document with specific config
+    this.mutationObserver.observe(document.body, {
+      childList: true,
+      attributes: true,
+      attributeOldValue: true,
+      characterData: true,
+      characterDataOldValue: true,
+      subtree: true
+    });
+  }
+  
+  /**
+   * Record a DOM mutation for later processing
+   */
+  recordMutation(mutation) {
+    this.pendingMutations.push({
+      type: mutation.type,
+      target: mutation.target,
+      addedNodes: Array.from(mutation.addedNodes),
+      removedNodes: Array.from(mutation.removedNodes),
+      attributeName: mutation.attributeName,
+      oldValue: mutation.oldValue
+    });
+  }
+  
+  /**
+   * Generate a unique hash for element identification
+   */
+  hashElement(element) {
+    // Create hash from stable element properties
+    const text = element.text ? element.text.substring(0, 20) : '';
+    const hashStr = `${element.type}|${element.id || ''}|${element.class || ''}|${text}|${element.position?.x || 0},${element.position?.y || 0}`;
+    
+    // Simple string hash that handles Unicode
+    let hash = 0;
+    for (let i = 0; i < hashStr.length; i++) {
+      const char = hashStr.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    
+    // Convert to base36 for shorter string and ensure positive
+    return 'h' + Math.abs(hash).toString(36);
+  }
+  
+  /**
+   * Check if an element is important and should be included even if unchanged
+   */
+  isImportantElement(element) {
+    // Interactive elements are always important
+    if (element.isButton || element.isInput || element.isLink) return true;
+    
+    // Elements in viewport are important
+    if (element.position?.inViewport) return true;
+    
+    // Elements with specific attributes
+    if (element.attributes?.['data-testid'] || element.attributes?.['aria-label']) return true;
+    
+    // Form elements
+    if (element.formId) return true;
+    
+    return false;
+  }
+  
+  /**
+   * Check if an element has changed between states
+   */
+  hasElementChanged(current, previous) {
+    // Check text changes
+    if (current.text !== previous.text) return true;
+    
+    // Check position changes (significant moves only)
+    const posChange = Math.abs((current.position?.x || 0) - (previous.position?.x || 0)) > 10 ||
+                     Math.abs((current.position?.y || 0) - (previous.position?.y || 0)) > 10;
+    if (posChange) return true;
+    
+    // Check visibility changes
+    if (current.visibility?.display !== previous.visibility?.display) return true;
+    
+    // Check interaction state changes
+    if (JSON.stringify(current.interactionState) !== JSON.stringify(previous.interactionState)) return true;
+    
+    // Check attribute changes
+    if (JSON.stringify(current.attributes) !== JSON.stringify(previous.attributes)) return true;
+    
+    return false;
+  }
+  
+  /**
+   * Compute diff between current and previous DOM states
+   */
+  computeDiff(currentDOM) {
+    const diff = {
+      added: [],
+      removed: [],
+      modified: [],
+      unchanged: [],
+      metadata: {
+        totalElements: currentDOM.elements?.length || 0,
+        previousElements: this.previousState?.elements?.length || 0,
+        changeRatio: 0
+      }
+    };
+    
+    // First time - return full DOM
+    if (!this.previousState) {
+      this.updateState(currentDOM);
+      return {
+        ...diff,
+        added: currentDOM.elements || [],
+        isInitial: true
+      };
+    }
+    
+    // Create current element map
+    const currentElementMap = new Map();
+    (currentDOM.elements || []).forEach(element => {
+      const hash = this.hashElement(element);
+      currentElementMap.set(hash, element);
+    });
+    
+    // Find added and modified elements
+    currentElementMap.forEach((element, hash) => {
+      const previousElement = this.elementCache.get(hash);
+      
+      if (!previousElement) {
+        diff.added.push(element);
+      } else if (this.hasElementChanged(element, previousElement)) {
+        diff.modified.push({
+          ...element,
+          _changes: this.getElementChanges(element, previousElement)
+        });
+      } else if (this.isImportantElement(element)) {
+        // Include important unchanged elements (limited number)
+        if (diff.unchanged.length < this.config.maxUnchangedElements) {
+          diff.unchanged.push(element);
+        }
+      }
+    });
+    
+    // Find removed elements
+    this.elementCache.forEach((element, hash) => {
+      if (!currentElementMap.has(hash)) {
+        diff.removed.push({
+          ...element,
+          _wasAt: { x: element.position?.x, y: element.position?.y }
+        });
+      }
+    });
+    
+    // Calculate change metrics
+    const totalChanges = diff.added.length + diff.removed.length + diff.modified.length;
+    diff.metadata.changeRatio = totalChanges / Math.max(diff.metadata.totalElements, 1);
+    diff.metadata.addedCount = diff.added.length;
+    diff.metadata.removedCount = diff.removed.length;
+    diff.metadata.modifiedCount = diff.modified.length;
+    
+    // Update state for next comparison
+    this.updateState(currentDOM);
+    
+    return diff;
+  }
+  
+  /**
+   * Get specific changes between two element states
+   */
+  getElementChanges(current, previous) {
+    const changes = {};
+    
+    if (current.text !== previous.text) {
+      changes.text = { old: previous.text, new: current.text };
+    }
+    
+    if (current.position?.x !== previous.position?.x || current.position?.y !== previous.position?.y) {
+      changes.position = {
+        old: { x: previous.position?.x, y: previous.position?.y },
+        new: { x: current.position?.x, y: current.position?.y }
+      };
+    }
+    
+    if (JSON.stringify(current.attributes) !== JSON.stringify(previous.attributes)) {
+      changes.attributes = {
+        old: previous.attributes,
+        new: current.attributes
+      };
+    }
+    
+    return changes;
+  }
+  
+  /**
+   * Update internal state with new DOM snapshot
+   */
+  updateState(currentDOM) {
+    this.previousState = currentDOM;
+    
+    // Update element cache
+    this.elementCache.clear();
+    (currentDOM.elements || []).forEach(element => {
+      const hash = this.hashElement(element);
+      this.elementCache.set(hash, element);
+    });
+    
+    // Clear pending mutations
+    this.pendingMutations = [];
+    this.changedElements.clear();
+  }
+  
+  /**
+   * Generate optimized DOM payload for AI
+   */
+  generateOptimizedPayload(currentDOM) {
+    console.log('[FSB DOMStateManager] Computing DOM diff...');
+    const diff = this.computeDiff(currentDOM);
+    
+    // Log diff statistics
+    console.log('[FSB DOMStateManager] Diff computed:', {
+      isInitial: diff.isInitial || false,
+      added: diff.added.length,
+      removed: diff.removed.length,
+      modified: diff.modified.length,
+      unchanged: diff.unchanged.length,
+      changeRatio: (diff.metadata.changeRatio * 100).toFixed(1) + '%'
+    });
+    
+    // For initial load, return filtered full DOM
+    if (diff.isInitial) {
+      console.log('[FSB DOMStateManager] Initial DOM capture - sending full filtered DOM');
+      const payload = {
+        type: 'initial',
+        elements: this.filterAndCompressElements(diff.added),
+        htmlContext: this.compressHTMLContext(currentDOM.htmlContext),
+        metadata: {
+          totalElements: diff.metadata.totalElements,
+          includedElements: diff.added.length
+        }
+      };
+      console.log('[FSB DOMStateManager] Initial payload elements:', payload.elements.length);
+      return payload;
+    }
+    
+    // For updates, return only changes
+    console.log('[FSB DOMStateManager] Creating delta payload...');
+    
+    const payload = {
+      type: 'delta',
+      changes: {
+        added: this.filterAndCompressElements(diff.added),
+        removed: diff.removed.map(el => ({
+          elementId: el.elementId,
+          selector: el.selectors?.[0],
+          _wasAt: el._wasAt
+        })),
+        modified: this.filterAndCompressElements(diff.modified)
+      },
+      context: {
+        unchanged: this.filterAndCompressElements(diff.unchanged, true), // Heavy compression
+        metadata: diff.metadata
+      }
+    };
+    
+    // Include updated HTML context only if significant changes
+    if (diff.metadata.changeRatio > 0.3) {
+      console.log('[FSB DOMStateManager] Including HTML context due to significant changes (>', (diff.metadata.changeRatio * 100).toFixed(1) + '%)');
+      payload.htmlContext = this.compressHTMLContext(currentDOM.htmlContext);
+    }
+    
+    // Log delta details
+    console.log('[FSB DOMStateManager] Delta payload created:', {
+      addedElements: payload.changes.added.length,
+      removedElements: payload.changes.removed.length,
+      modifiedElements: payload.changes.modified.length,
+      unchangedReferences: payload.context.unchanged.length,
+      hasHtmlContext: !!payload.htmlContext
+    });
+    
+    return payload;
+  }
+  
+  /**
+   * Filter and compress elements for smaller payload
+   */
+  filterAndCompressElements(elements, heavyCompression = false) {
+    return elements.map(el => {
+      const compressed = {
+        elementId: el.elementId,
+        type: el.type,
+        selectors: el.selectors?.slice(0, 2) // Limit selectors
+      };
+      
+      // Add essential properties
+      if (el.text) {
+        compressed.text = el.text.substring(0, heavyCompression ? 50 : this.config.textTruncateLength);
+      }
+      
+      if (!heavyCompression) {
+        // Include more details for changed elements
+        if (el.id) compressed.id = el.id;
+        if (el.class) compressed.class = el.class.split(' ').slice(0, 3).join(' ');
+        if (el.position?.inViewport) compressed.inViewport = true;
+        if (el.attributes?.['data-testid']) compressed.testId = el.attributes['data-testid'];
+        if (el._changes) compressed._changes = el._changes;
+        
+        // Include interaction properties
+        if (el.isButton || el.isInput || el.isLink) {
+          compressed.interactive = true;
+          if (el.href) compressed.href = el.href;
+          if (el.inputType) compressed.inputType = el.inputType;
+        }
+      }
+      
+      return compressed;
+    });
+  }
+  
+  /**
+   * Compress HTML context for smaller payload
+   */
+  compressHTMLContext(htmlContext) {
+    if (!htmlContext) return null;
+    
+    const compressed = {};
+    
+    if (htmlContext.pageStructure) {
+      compressed.page = {
+        title: htmlContext.pageStructure.title,
+        url: htmlContext.pageStructure.url
+      };
+      
+      // Include only form structure
+      if (htmlContext.pageStructure.forms?.length > 0) {
+        compressed.forms = htmlContext.pageStructure.forms.map(form => ({
+          id: form.id,
+          fields: form.fields?.length || 0
+        }));
+      }
+    }
+    
+    return compressed;
+  }
+  
+  /**
+   * Reset state (useful for navigation)
+   */
+  reset() {
+    this.previousState = null;
+    this.elementCache.clear();
+    this.pendingMutations = [];
+    this.changedElements.clear();
+    
+    if (this.mutationObserver) {
+      this.mutationObserver.disconnect();
+    }
+  }
+  
+  /**
+   * Cleanup resources
+   */
+  destroy() {
+    this.reset();
+    this.mutationObserver = null;
+  }
+}
+
+// Initialize DOM state manager instance
+const domStateManager = new DOMStateManager();
+
+// Legacy DOM state cache for backward compatibility
 let previousDOMState = null;
 let domStateCache = new Map();
 
@@ -358,6 +765,50 @@ function isClickable(element) {
   return false;
 }
 
+// Query selector that supports shadow DOM
+function querySelectorWithShadow(selector) {
+  // Check if selector contains shadow DOM piercing operator
+  if (selector.includes('>>>')) {
+    const parts = selector.split('>>>').map(s => s.trim());
+    let element = document.querySelector(parts[0]);
+    
+    for (let i = 1; i < parts.length && element; i++) {
+      if (element.shadowRoot) {
+        element = element.shadowRoot.querySelector(parts[i]);
+      } else {
+        element = null;
+      }
+    }
+    
+    return element;
+  }
+  
+  // Regular querySelector for non-shadow DOM
+  return document.querySelector(selector);
+}
+
+// Query all elements including shadow DOM
+function querySelectorAllWithShadow(selector) {
+  const results = [];
+  
+  // Regular query first
+  results.push(...document.querySelectorAll(selector));
+  
+  // Then search in all shadow roots
+  function searchShadowRoots(root) {
+    const elements = root.querySelectorAll('*');
+    for (const element of elements) {
+      if (element.shadowRoot) {
+        results.push(...element.shadowRoot.querySelectorAll(selector));
+        searchShadowRoots(element.shadowRoot);
+      }
+    }
+  }
+  
+  searchShadowRoots(document);
+  return results;
+}
+
 // Tool functions for browser automation
 const tools = {
   // Scroll the page
@@ -368,8 +819,8 @@ const tools = {
   },
   
   // Click an element
-  click: (params) => {
-    const element = document.querySelector(params.selector);
+  click: async (params) => {
+    const element = querySelectorWithShadow(params.selector);
     if (element) {
       // Check if element is visible and clickable
       const rect = element.getBoundingClientRect();
@@ -391,18 +842,66 @@ const tools = {
       if (!isInViewport) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         // Wait a bit for scroll
-        setTimeout(() => {}, 500);
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
       
+      // Capture state before click
+      const preClickState = {
+        url: window.location.href,
+        bodyTextLength: document.body.innerText.length,
+        elementCount: document.querySelectorAll('*').length,
+        activeElement: document.activeElement?.tagName,
+        timestamp: Date.now()
+      };
+      
+      // Perform the click
       element.click();
+      
+      // Wait a bit for immediate effects
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Check for immediate DOM changes
+      const postClickState = {
+        url: window.location.href,
+        bodyTextLength: document.body.innerText.length,
+        elementCount: document.querySelectorAll('*').length,
+        activeElement: document.activeElement?.tagName,
+        timestamp: Date.now()
+      };
+      
+      // Detect changes
+      const changes = {
+        urlChanged: preClickState.url !== postClickState.url,
+        contentChanged: Math.abs(postClickState.bodyTextLength - preClickState.bodyTextLength) > 10,
+        elementCountChanged: Math.abs(postClickState.elementCount - preClickState.elementCount) > 5,
+        focusChanged: preClickState.activeElement !== postClickState.activeElement,
+        loadingDetected: !!document.querySelector('.loading, .spinner, [class*="load"], [aria-busy="true"]')
+      };
+      
+      // Determine if click had an effect
+      const hadEffect = Object.values(changes).some(v => v);
+      
       return { 
         success: true, 
         clicked: params.selector,
+        hadEffect: hadEffect,
+        verification: {
+          changes: changes,
+          preState: {
+            url: preClickState.url,
+            elementCount: preClickState.elementCount
+          },
+          postState: {
+            url: postClickState.url,
+            elementCount: postClickState.elementCount
+          }
+        },
         elementInfo: {
           tag: element.tagName,
           text: element.textContent?.trim().substring(0, 50),
           wasInViewport: isInViewport
-        }
+        },
+        warning: !hadEffect ? 'Click completed but no immediate changes detected' : null
       };
     }
     
@@ -424,7 +923,7 @@ const tools = {
     console.log('[FSB Type] Starting type action with params:', params);
     
     try {
-      const element = document.querySelector(params.selector);
+      const element = querySelectorWithShadow(params.selector);
       console.log('[FSB Type] Found element:', element ? element.tagName : 'null');
     
     if (element) {
@@ -650,17 +1149,63 @@ const tools = {
         element.dispatchEvent(enterUpEvent);
       }
       
+      // Post-typing validation to ensure text was actually inserted
+      const finalValue = element.textContent || element.value || '';
+      const typingSuccessful = finalValue.includes(params.text) || finalValue === params.text;
+      
+      // Amazon-specific validation
+      const isAmazonSearch = element.id === 'twotabsearchtextbox' || 
+                           element.name === 'searchtext' ||
+                           window.location.hostname.includes('amazon');
+      
+      if (isAmazonSearch && !typingSuccessful) {
+        console.log('[FSB Type] Amazon search input detected, attempting enhanced typing...');
+        
+        // Amazon-specific retry with different approach
+        try {
+          element.focus();
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Clear and set value directly for Amazon
+          element.value = '';
+          element.value = params.text;
+          
+          // Trigger Amazon's search events
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+          element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: params.text.slice(-1) }));
+          element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: params.text.slice(-1) }));
+          
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // Re-validate
+          const retryValue = element.value || '';
+          if (retryValue.includes(params.text) || retryValue === params.text) {
+            console.log('[FSB Type] Amazon-specific retry succeeded');
+          }
+        } catch (amazonError) {
+          console.warn('[FSB Type] Amazon-specific retry failed:', amazonError);
+        }
+      }
+      
+      // Final validation
+      const finalCheck = element.textContent || element.value || '';
+      const finalSuccess = finalCheck.includes(params.text) || finalCheck === params.text;
+      
       // Universal return object for both input types
       return { 
-        success: true, 
+        success: finalSuccess,
         typed: params.text,
+        actualValue: finalCheck,
         pressedEnter: !!params.pressEnter,
         clickedFirst: !shouldSkipClick,
         focused: document.activeElement === element,
         focusAttempts: focusAttempts,
         scrolled: rect.top < 0 || rect.top > window.innerHeight,
         insertionSuccess: isContentEditable ? insertionSuccess : true,
-        finalTextContent: element.textContent || element.value || '',
+        amazonSpecific: isAmazonSearch,
+        validationPassed: finalSuccess,
+        finalTextContent: finalCheck,
         elementInfo: {
           tag: element.tagName,
           type: isInput ? element.type : 'contenteditable',
@@ -687,28 +1232,54 @@ const tools = {
       }
     }
     
+    // Enhanced error reporting for debugging
+    const availableInputs = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"]'))
+      .map(el => ({
+        tag: el.tagName,
+        id: el.id,
+        name: el.name,
+        class: el.className,
+        type: el.type || 'contenteditable',
+        visible: el.offsetWidth > 0 && el.offsetHeight > 0
+      }))
+      .slice(0, 5); // Limit to first 5 for logging
+    
+    console.error(`[FSB Type] Failed to find typeable element with selector: ${params.selector}`);
+    console.error(`[FSB Type] Available inputs on page:`, availableInputs);
+    
     return { 
       success: false, 
       error: 'Input element not found with any selector',
       selector: params.selector,
       fallbacksAttempted: fallbackSelectors.length,
       searched: true,
-      suggestion: 'No typeable element found - may need manual inspection'
+      availableInputs: availableInputs,
+      isAmazonPage: window.location.hostname.includes('amazon'),
+      currentUrl: window.location.href,
+      suggestion: 'No typeable element found - check selector or page state'
     };
     } catch (error) {
       console.error('[FSB Type] Unexpected error in type function:', error);
+      console.error('[FSB Type] Error stack:', error.stack);
+      console.error('[FSB Type] Params at time of error:', params);
+      
       return {
         success: false,
         error: error.message || 'Unknown error occurred in type function',
         selector: params.selector,
-        stackTrace: error.stack
+        stackTrace: error.stack,
+        errorType: error.name || 'UnknownError',
+        isAmazonPage: window.location.hostname.includes('amazon'),
+        currentUrl: window.location.href,
+        timestamp: Date.now(),
+        paramsUsed: params
       };
     }
   },
   
   // Press Enter key on an element
   pressEnter: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element) {
       // Focus the element first
       element.focus();
@@ -767,30 +1338,51 @@ const tools = {
   },
   
   // Navigate to a URL
-  navigate: (params) => {
+  navigate: async (params) => {
     if (!params.url) {
       return { success: false, error: 'No URL provided' };
     }
     
+    // Capture current state
+    const preNavState = {
+      url: window.location.href,
+      timestamp: Date.now()
+    };
+    
     // Validate URL
+    let targetUrl;
     try {
       const url = new URL(params.url);
-      window.location.href = params.url;
-      return { success: true, navigatingTo: params.url };
+      targetUrl = params.url;
     } catch (e) {
       // If not a valid URL, try adding https://
       if (!params.url.startsWith('http://') && !params.url.startsWith('https://')) {
         const urlWithProtocol = 'https://' + params.url;
         try {
           new URL(urlWithProtocol);
-          window.location.href = urlWithProtocol;
-          return { success: true, navigatingTo: urlWithProtocol };
+          targetUrl = urlWithProtocol;
         } catch (e2) {
           return { success: false, error: 'Invalid URL format' };
         }
+      } else {
+        return { success: false, error: 'Invalid URL format' };
       }
-      return { success: false, error: 'Invalid URL format' };
     }
+    
+    // Initiate navigation
+    window.location.href = targetUrl;
+    
+    // Note: We can't verify navigation completion here as the page will unload
+    // The verification should happen in the next iteration when the new page loads
+    return { 
+      success: true, 
+      navigatingTo: targetUrl,
+      fromUrl: preNavState.url,
+      verification: {
+        note: 'Navigation initiated - verification will occur after page load',
+        expectedUrl: targetUrl
+      }
+    };
   },
   
   // Search Google for a website
@@ -962,11 +1554,48 @@ const tools = {
     const startTime = Date.now();
     let lastChangeTime = Date.now();
     let changeCount = 0;
+    let networkRequestCount = 0;
+    
+    // Monitor network requests for better stability detection
+    const originalFetch = window.fetch;
+    const originalXHROpen = XMLHttpRequest.prototype.open;
+    
+    // Track fetch requests
+    window.fetch = function(...args) {
+      networkRequestCount++;
+      lastChangeTime = Date.now();
+      return originalFetch.apply(this, args);
+    };
+    
+    // Track XHR requests
+    XMLHttpRequest.prototype.open = function(...args) {
+      networkRequestCount++;
+      lastChangeTime = Date.now();
+      return originalXHROpen.apply(this, args);
+    };
     
     return new Promise((resolve) => {
       const observer = new MutationObserver((mutations) => {
-        changeCount += mutations.length;
-        lastChangeTime = Date.now();
+        // Filter out trivial changes
+        const significantMutations = mutations.filter(mutation => {
+          // Ignore style changes on loading indicators
+          if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+            const target = mutation.target;
+            if (target.classList && (
+              target.classList.contains('loading') ||
+              target.classList.contains('spinner') ||
+              target.classList.contains('progress')
+            )) {
+              return false;
+            }
+          }
+          return true;
+        });
+        
+        if (significantMutations.length > 0) {
+          changeCount += significantMutations.length;
+          lastChangeTime = Date.now();
+        }
       });
       
       observer.observe(document.body, {
@@ -974,7 +1603,8 @@ const tools = {
         subtree: true,
         attributes: true,
         attributeOldValue: false,
-        characterData: true
+        characterData: true,
+        attributeFilter: ['class', 'id', 'data-*', 'aria-*'] // Focus on meaningful attributes
       });
       
       const checkInterval = setInterval(() => {
@@ -982,20 +1612,50 @@ const tools = {
         const timeSinceLastChange = now - lastChangeTime;
         const totalTime = now - startTime;
         
-        // DOM is stable if no changes for stableTime ms, or timeout reached
-        if (timeSinceLastChange >= stableTime || totalTime >= timeout) {
+        // More intelligent stability detection
+        const isStable = timeSinceLastChange >= stableTime;
+        const hasTimedOut = totalTime >= timeout;
+        
+        if (isStable || hasTimedOut) {
           clearInterval(checkInterval);
           observer.disconnect();
           
-          resolve({
+          // Restore original functions
+          window.fetch = originalFetch;
+          XMLHttpRequest.prototype.open = originalXHROpen;
+          
+          const result = {
             success: true,
-            stable: timeSinceLastChange >= stableTime,
+            stable: isStable,
             waitTime: totalTime,
             changeCount,
-            reason: totalTime >= timeout ? 'timeout' : 'stable'
-          });
+            networkRequestCount,
+            reason: hasTimedOut ? 'timeout' : 'stable',
+            stability: isStable ? 'good' : 'poor'
+          };
+          
+          console.log(`[FSB] DOM stability check completed:`, result);
+          resolve(result);
         }
-      }, 100);
+      }, 50); // Check more frequently for better precision
+      
+      // Safety timeout to prevent hanging
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        observer.disconnect();
+        window.fetch = originalFetch;
+        XMLHttpRequest.prototype.open = originalXHROpen;
+        
+        resolve({
+          success: true,
+          stable: false,
+          waitTime: timeout,
+          changeCount,
+          networkRequestCount,
+          reason: 'safety_timeout',
+          stability: 'unknown'
+        });
+      }, timeout + 1000);
     });
   },
   
@@ -1062,7 +1722,7 @@ const tools = {
   
   // Right click on element
   rightClick: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element) {
       const event = new MouseEvent('contextmenu', {
         bubbles: true,
@@ -1079,7 +1739,7 @@ const tools = {
   
   // Double click on element
   doubleClick: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element) {
       const event = new MouseEvent('dblclick', {
         bubbles: true,
@@ -1092,14 +1752,50 @@ const tools = {
     return { success: false, error: 'Element not found' };
   },
   
-  // Keyboard key press
-  keyPress: (params) => {
-    const { key, ctrlKey = false, shiftKey = false, altKey = false, selector } = params;
+  // Enhanced keyboard key press with Chrome Debugger API fallback
+  keyPress: async (params) => {
+    const { key, ctrlKey = false, shiftKey = false, altKey = false, metaKey = false, selector, useDebuggerAPI = true } = params;
+    
+    // First try Chrome Debugger API for more reliable key events
+    if (useDebuggerAPI) {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'keyboardDebuggerAction',
+          method: 'pressKey',
+          key: key,
+          modifiers: {
+            ctrl: ctrlKey,
+            shift: shiftKey,
+            alt: altKey,
+            meta: metaKey
+          }
+        });
+        
+        if (response.success) {
+          return {
+            success: true,
+            key,
+            method: 'debuggerAPI',
+            target: selector || 'activeElement',
+            result: response.result
+          };
+        } else {
+          console.warn('[FSB] Debugger API failed, falling back to DOM events:', response.error);
+        }
+      } catch (error) {
+        console.warn('[FSB] Debugger API unavailable, falling back to DOM events:', error);
+      }
+    }
+    
+    // Fallback to standard DOM events
     const target = selector ? document.querySelector(selector) : document.activeElement;
     
     if (!target) {
       return { success: false, error: 'No target element' };
     }
+    
+    // Focus the target element first
+    target.focus();
     
     const keyEvent = new KeyboardEvent('keydown', {
       key,
@@ -1107,6 +1803,7 @@ const tools = {
       ctrlKey,
       shiftKey,
       altKey,
+      metaKey,
       bubbles: true,
       cancelable: true
     });
@@ -1120,18 +1817,290 @@ const tools = {
       ctrlKey,
       shiftKey,
       altKey,
+      metaKey,
       bubbles: true,
       cancelable: true
     });
     
     target.dispatchEvent(keyUpEvent);
     
-    return { success: true, key, target: selector || 'activeElement' };
+    return { 
+      success: true, 
+      key, 
+      method: 'domEvents',
+      target: selector || 'activeElement',
+      modifiers: { ctrlKey, shiftKey, altKey, metaKey }
+    };
+  },
+
+  // Press a sequence of keys (e.g., Ctrl+C, Alt+Tab)
+  pressKeySequence: async (params) => {
+    const { keys, modifiers = {}, delay = 50, useDebuggerAPI = true } = params;
+    
+    if (!Array.isArray(keys) || keys.length === 0) {
+      return { success: false, error: 'Keys array is required' };
+    }
+    
+    // Try Chrome Debugger API first
+    if (useDebuggerAPI) {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'keyboardDebuggerAction',
+          method: 'pressKeySequence',
+          keys: keys,
+          modifiers: modifiers,
+          delay: delay
+        });
+        
+        if (response.success) {
+          return {
+            success: true,
+            action: 'pressKeySequence',
+            keys,
+            modifiers,
+            method: 'debuggerAPI',
+            result: response.result
+          };
+        } else {
+          console.warn('[FSB] Debugger API failed for key sequence, falling back to DOM events:', response.error);
+        }
+      } catch (error) {
+        console.warn('[FSB] Debugger API unavailable for key sequence, falling back to DOM events:', error);
+      }
+    }
+    
+    // Fallback to DOM events
+    const results = [];
+    try {
+      for (const key of keys) {
+        const result = await tools.keyPress({
+          key,
+          ctrlKey: modifiers.ctrl || modifiers.control,
+          shiftKey: modifiers.shift,
+          altKey: modifiers.alt,
+          metaKey: modifiers.meta || modifiers.cmd,
+          useDebuggerAPI: false // Avoid infinite recursion
+        });
+        
+        results.push(result);
+        
+        if (!result.success) {
+          return {
+            success: false,
+            error: `Failed at key: ${key}`,
+            completedKeys: results.length - 1,
+            results
+          };
+        }
+
+        if (delay > 0 && keys.indexOf(key) < keys.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+
+      return {
+        success: true,
+        action: 'pressKeySequence',
+        keys,
+        modifiers,
+        method: 'domEvents',
+        results
+      };
+      
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Key sequence failed',
+        keys,
+        modifiers,
+        results
+      };
+    }
+  },
+
+  // Type text using real keyboard events (more reliable than setting values)
+  typeWithKeys: async (params) => {
+    const { text, delay = 30, useDebuggerAPI = true } = params;
+    
+    if (!text || typeof text !== 'string') {
+      return { success: false, error: 'Text parameter is required' };
+    }
+    
+    // Try Chrome Debugger API first
+    if (useDebuggerAPI) {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'keyboardDebuggerAction',
+          method: 'typeText',
+          text: text,
+          delay: delay
+        });
+        
+        if (response.success) {
+          return {
+            success: true,
+            action: 'typeWithKeys',
+            text,
+            method: 'debuggerAPI',
+            characterCount: text.length,
+            result: response.result
+          };
+        } else {
+          console.warn('[FSB] Debugger API failed for text typing, falling back to DOM events:', response.error);
+        }
+      } catch (error) {
+        console.warn('[FSB] Debugger API unavailable for text typing, falling back to DOM events:', error);
+      }
+    }
+    
+    // Fallback to DOM events
+    const results = [];
+    try {
+      for (const char of text) {
+        let key = char;
+        let modifiers = {};
+
+        // Handle uppercase letters
+        if (char >= 'A' && char <= 'Z') {
+          key = char.toLowerCase();
+          modifiers.shift = true;
+        }
+
+        // Handle special characters that require shift
+        const shiftChars = {
+          '!': '1', '@': '2', '#': '3', '$': '4', '%': '5',
+          '^': '6', '&': '7', '*': '8', '(': '9', ')': '0',
+          '_': '-', '+': '=', '{': '[', '}': ']', '|': '\\',
+          ':': ';', '"': "'", '<': ',', '>': '.', '?': '/'
+        };
+
+        if (shiftChars[char]) {
+          key = shiftChars[char];
+          modifiers.shift = true;
+        }
+
+        const result = await tools.keyPress({
+          key,
+          shiftKey: modifiers.shift,
+          useDebuggerAPI: false // Avoid infinite recursion
+        });
+        
+        results.push({ char, key, modifiers, result });
+
+        if (!result.success) {
+          return {
+            success: false,
+            error: `Failed at character: ${char}`,
+            completedChars: results.length - 1,
+            results
+          };
+        }
+
+        if (delay > 0 && text.indexOf(char) < text.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+
+      return {
+        success: true,
+        action: 'typeWithKeys',
+        text,
+        method: 'domEvents',
+        characterCount: text.length,
+        results
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Text typing failed',
+        text,
+        results
+      };
+    }
+  },
+
+  // Send special keys like function keys or complex combinations
+  sendSpecialKey: async (params) => {
+    const { specialKey, useDebuggerAPI = true } = params;
+    
+    if (!specialKey || typeof specialKey !== 'string') {
+      return { success: false, error: 'SpecialKey parameter is required' };
+    }
+    
+    // Try Chrome Debugger API first
+    if (useDebuggerAPI) {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'keyboardDebuggerAction',
+          method: 'sendSpecialKey',
+          specialKey: specialKey
+        });
+        
+        if (response.success) {
+          return {
+            success: true,
+            action: 'sendSpecialKey',
+            specialKey,
+            method: 'debuggerAPI',
+            result: response.result
+          };
+        } else {
+          console.warn('[FSB] Debugger API failed for special key, falling back to DOM events:', response.error);
+        }
+      } catch (error) {
+        console.warn('[FSB] Debugger API unavailable for special key, falling back to DOM events:', error);
+      }
+    }
+    
+    // Fallback to DOM events - parse the special key
+    try {
+      const parts = specialKey.split('+').map(part => part.trim());
+      const modifiers = {};
+      let targetKey = parts[parts.length - 1]; // Last part is the main key
+
+      // Extract modifiers
+      for (let i = 0; i < parts.length - 1; i++) {
+        const modifier = parts[i].toLowerCase();
+        if (modifier === 'ctrl' || modifier === 'control') {
+          modifiers.ctrlKey = true;
+        } else if (modifier === 'alt') {
+          modifiers.altKey = true;
+        } else if (modifier === 'shift') {
+          modifiers.shiftKey = true;
+        } else if (modifier === 'meta' || modifier === 'cmd' || modifier === 'command') {
+          modifiers.metaKey = true;
+        }
+      }
+
+      const result = await tools.keyPress({
+        key: targetKey,
+        ...modifiers,
+        useDebuggerAPI: false // Avoid infinite recursion
+      });
+
+      return {
+        success: result.success,
+        action: 'sendSpecialKey',
+        specialKey,
+        method: 'domEvents',
+        parsedKey: targetKey,
+        parsedModifiers: modifiers,
+        result
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Special key send failed',
+        specialKey
+      };
+    }
   },
   
   // Select text in element
   selectText: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element) {
       if (element.select) {
         element.select();
@@ -1149,7 +2118,7 @@ const tools = {
   
   // Focus on element
   focus: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element) {
       element.focus();
       return { success: true, focused: params.selector };
@@ -1159,7 +2128,7 @@ const tools = {
   
   // Blur (unfocus) element
   blur: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element) {
       element.blur();
       return { success: true, blurred: params.selector };
@@ -1169,7 +2138,7 @@ const tools = {
   
   // Hover over element
   hover: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element) {
       const rect = element.getBoundingClientRect();
       const mouseOverEvent = new MouseEvent('mouseover', {
@@ -1197,7 +2166,7 @@ const tools = {
   
   // Select dropdown option
   selectOption: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element && element.tagName === 'SELECT') {
       if (params.value !== undefined) {
         element.value = params.value;
@@ -1220,7 +2189,7 @@ const tools = {
   
   // Check/uncheck checkbox or radio
   toggleCheckbox: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element && (element.type === 'checkbox' || element.type === 'radio')) {
       if (params.checked !== undefined) {
         element.checked = params.checked;
@@ -1256,7 +2225,7 @@ const tools = {
   
   // Get element text
   getText: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element) {
       const textValue = element.innerText || element.textContent || element.value || '';
       return { 
@@ -1270,7 +2239,7 @@ const tools = {
   
   // Get attribute value
   getAttribute: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element) {
       const value = element.getAttribute(params.attribute);
       return { 
@@ -1284,7 +2253,7 @@ const tools = {
   
   // Set attribute value
   setAttribute: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element) {
       element.setAttribute(params.attribute, params.value);
       return { 
@@ -1298,7 +2267,7 @@ const tools = {
   
   // Clear input field
   clearInput: (params) => {
-    const element = document.querySelector(params.selector);
+    const element = querySelectorWithShadow(params.selector);
     if (element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA')) {
       element.value = '';
       element.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1502,6 +2471,98 @@ const tools = {
         error: `Failed to communicate with background script: ${error.message}`
       };
     }
+  },
+
+  // Game controls helper - detects game context and uses optimal key sending method
+  gameControl: async (params) => {
+    const { action } = params;
+    
+    // Map common game actions to proper key events
+    const gameKeyMap = {
+      'start': 'Enter',
+      'enter': 'Enter', 
+      'up': 'ArrowUp',
+      'down': 'ArrowDown',
+      'left': 'ArrowLeft',
+      'right': 'ArrowRight',
+      'fire': ' ', // Space key
+      'shoot': ' ', // Space key
+      'jump': ' ', // Space key
+      'thrust': 'ArrowUp',
+      'hyperspace': 'Shift',
+      'pause': 'Escape'
+    };
+    
+    const key = gameKeyMap[action.toLowerCase()] || action;
+    
+    // Try to find game canvas or interactive element
+    const gameTargets = [
+      'canvas',
+      'iframe[src*="game"]',
+      'div[id*="game"]',
+      'div[class*="game"]',
+      'body' // Fallback
+    ];
+    
+    let targetElement = null;
+    for (const selector of gameTargets) {
+      targetElement = document.querySelector(selector);
+      if (targetElement) break;
+    }
+    
+    // Focus the game element if found
+    if (targetElement && targetElement !== document.body) {
+      targetElement.focus();
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    // Use keyPress tool for reliable game controls
+    const result = await tools.keyPress({
+      key: key,
+      useDebuggerAPI: true // Prefer Chrome Debugger API for games
+    });
+    
+    return {
+      success: result.success,
+      action: action,
+      key: key,
+      targetElement: targetElement ? targetElement.tagName : 'body',
+      gameControlUsed: true,
+      result: result
+    };
+  },
+
+  // Explicit arrow key tools for gaming and navigation
+  arrowUp: async (params = {}) => {
+    return await tools.keyPress({ 
+      key: 'ArrowUp', 
+      useDebuggerAPI: true, 
+      ...params 
+    });
+  },
+
+  arrowDown: async (params = {}) => {
+    return await tools.keyPress({ 
+      key: 'ArrowDown', 
+      useDebuggerAPI: true, 
+      ...params 
+    });
+  },
+
+  arrowLeft: async (params = {}) => {
+    return await tools.keyPress({ 
+      key: 'ArrowLeft', 
+      useDebuggerAPI: true, 
+      ...params 
+    });
+  },
+
+  arrowRight: async (params = {}) => {
+    return await tools.keyPress({ 
+      key: 'ArrowRight', 
+      useDebuggerAPI: true, 
+      ...params 
+    });
   }
 };
 
@@ -1535,58 +2596,601 @@ function isElementInViewport(rect) {
   );
 }
 
-// Generate multiple selectors for an element
-function generateSelectors(element) {
-  const selectors = [];
+// Slugify text for element ID generation
+function slugify(text, maxLength = 30) {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '') // Remove special chars
+    .replace(/[\s_-]+/g, '_') // Replace spaces with underscore
+    .replace(/^_+|_+$/g, '') // Remove leading/trailing underscores
+    .substring(0, maxLength);
+}
+
+// Generate semantic element ID based on element properties and context
+function generateSemanticElementId(element, elementIndex) {
+  const parts = [];
   
-  // ID selector
-  if (element.id) {
-    selectors.push(`#${element.id}`);
+  // 1. Element type or role
+  const role = element.getAttribute('role');
+  if (role) {
+    parts.push(role);
+  } else {
+    parts.push(element.tagName.toLowerCase());
   }
   
-  // Class selector
-  if (element.className && typeof element.className === 'string') {
-    const classes = element.className.trim().split(/\s+/).filter(c => c);
-    if (classes.length > 0) {
-      selectors.push(`.${classes.join('.')}`);
+  // 2. Primary identifier (in order of preference)
+  if (element.id) {
+    parts.push(slugify(element.id));
+  } else if (element.getAttribute('aria-label')) {
+    parts.push(slugify(element.getAttribute('aria-label')));
+  } else if (element.getAttribute('data-testid')) {
+    parts.push(slugify(element.getAttribute('data-testid')));
+  } else if (element.name) {
+    parts.push(slugify(element.name));
+  } else if (element.textContent && element.textContent.trim().length > 0) {
+    // For buttons, links, etc. use their text content
+    const textContent = element.textContent.trim();
+    if (['BUTTON', 'A', 'LABEL', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(element.tagName)) {
+      parts.push(slugify(textContent, 20));
     }
   }
   
-  // Data-testid selector
-  if (element.getAttribute('data-testid')) {
-    selectors.push(`[data-testid="${element.getAttribute('data-testid')}"]`);
+  // 3. Context (parent form, section, etc.)
+  const contextElement = element.closest('form, section, article, nav, header, footer, main, aside, [role]');
+  if (contextElement) {
+    const contextId = contextElement.id || 
+                     contextElement.getAttribute('aria-label') || 
+                     contextElement.getAttribute('role') ||
+                     contextElement.className?.split(' ')[0];
+    if (contextId) {
+      parts.push(slugify(contextId, 15));
+    }
   }
   
+  // 4. Add element type suffix for common interactive elements
+  if (element.tagName === 'INPUT' && element.type) {
+    parts.push(element.type);
+  }
+  
+  // 5. Ensure uniqueness with index if parts are too generic
+  const baseId = parts.filter(Boolean).join('_') || `elem_${element.tagName.toLowerCase()}`;
+  
+  // Add index for uniqueness only if needed
+  if (baseId === element.tagName.toLowerCase() || baseId.length < 5) {
+    return `${baseId}_${elementIndex}`;
+  }
+  
+  return baseId;
+}
+
+// Optimized DOM Serializer with string deduplication and compact format
+class OptimizedDOMSerializer {
+  constructor() {
+    this.stringTable = new Map();
+    this.stringIndex = 0;
+  }
+  
+  // Build string table for deduplication
+  addToStringTable(str) {
+    if (!str || typeof str !== 'string') return null;
+    
+    if (!this.stringTable.has(str)) {
+      this.stringTable.set(str, this.stringIndex++);
+    }
+    return this.stringTable.get(str);
+  }
+  
+  // Convert string table to array for serialization
+  getStringTableArray() {
+    const arr = new Array(this.stringTable.size);
+    for (const [str, index] of this.stringTable) {
+      arr[index] = str;
+    }
+    return arr;
+  }
+  
+  // Compact element representation using string references
+  compactElement(element) {
+    const compact = {
+      // Use string table references for text content
+      eId: this.addToStringTable(element.elementId),
+      t: this.addToStringTable(element.type),
+      // Pack position data as array for smaller size
+      p: [element.position.x, element.position.y, element.position.width, element.position.height],
+      v: element.position.inViewport ? 1 : 0
+    };
+    
+    // Only include non-empty values
+    if (element.text) compact.tx = this.addToStringTable(element.text.substring(0, 100));
+    if (element.id) compact.id = this.addToStringTable(element.id);
+    if (element.class) compact.cl = this.addToStringTable(element.class);
+    
+    // Selectors as array of string indices
+    if (element.selectors?.length > 0) {
+      compact.s = element.selectors.slice(0, 3).map(s => this.addToStringTable(s));
+    }
+    
+    // Interactive properties as bit flags
+    let flags = 0;
+    if (element.isButton) flags |= 1;
+    if (element.isInput) flags |= 2;
+    if (element.isLink) flags |= 4;
+    if (element.interactionState?.disabled) flags |= 8;
+    if (element.interactionState?.checked) flags |= 16;
+    if (element.interactionState?.focused) flags |= 32;
+    if (flags > 0) compact.f = flags;
+    
+    // Important attributes
+    const attrs = {};
+    if (element.attributes?.['aria-label']) attrs.al = this.addToStringTable(element.attributes['aria-label']);
+    if (element.attributes?.['data-testid']) attrs.dt = this.addToStringTable(element.attributes['data-testid']);
+    if (element.href) attrs.h = this.addToStringTable(element.href);
+    if (element.inputType) attrs.it = this.addToStringTable(element.inputType);
+    if (Object.keys(attrs).length > 0) compact.a = attrs;
+    
+    return compact;
+  }
+  
+  // Serialize elements with optimal format
+  serialize(elements) {
+    // Reset for new serialization
+    this.stringTable.clear();
+    this.stringIndex = 0;
+    
+    // Compact all elements
+    const compactElements = elements.map(el => this.compactElement(el));
+    
+    return {
+      // String lookup table
+      strings: this.getStringTableArray(),
+      // Compact element data
+      elements: compactElements,
+      // Metadata for decoding
+      version: 2,
+      compressed: true
+    };
+  }
+  
+  // Calculate compression ratio
+  getCompressionRatio(original, compressed) {
+    const originalSize = JSON.stringify(original).length;
+    const compressedSize = JSON.stringify(compressed).length;
+    return 1 - (compressedSize / originalSize);
+  }
+}
+
+// Generate multiple selectors for an element with ARIA-first strategy
+function generateSelectors(element, semanticId = null) {
+  const selectors = [];
+  const selectorScores = new Map(); // Track stability scores
+  
+  // 0. Semantic ID selector (if available) - for AI reference
+  if (semanticId && semanticId !== `elem_${element.tagName.toLowerCase()}`) {
+    // Add as a comment selector for AI to understand element purpose
+    const semanticSelector = `[data-fsb-id="${semanticId}"]`; // Virtual selector for AI understanding
+    selectors.push(semanticSelector);
+    selectorScores.set(semanticSelector, 11); // Highest priority for AI comprehension
+  }
+  
+  // 1. ARIA selectors (highest priority - most stable)
   // Aria-label selector
   if (element.getAttribute('aria-label')) {
-    selectors.push(`[aria-label="${element.getAttribute('aria-label')}"]`);
+    const selector = `[aria-label="${element.getAttribute('aria-label')}"]`;
+    selectors.push(selector);
+    selectorScores.set(selector, 10); // Highest score
   }
   
-  // Name attribute selector
-  if (element.name) {
-    selectors.push(`[name="${element.name}"]`);
+  // Role + aria attributes combo
+  const role = element.getAttribute('role');
+  if (role) {
+    let roleSelector = `[role="${role}"]`;
+    
+    // Add aria-labelledby for more specificity
+    if (element.getAttribute('aria-labelledby')) {
+      roleSelector += `[aria-labelledby="${element.getAttribute('aria-labelledby')}"]`;
+    }
+    // Add aria-describedby for additional context
+    else if (element.getAttribute('aria-describedby')) {
+      roleSelector += `[aria-describedby="${element.getAttribute('aria-describedby')}"]`;
+    }
+    
+    selectors.push(roleSelector);
+    selectorScores.set(roleSelector, 9);
   }
   
-  // Tag + text selector (for buttons and links)
-  if ((element.tagName === 'BUTTON' || element.tagName === 'A') && element.textContent) {
-    const text = element.textContent.trim();
-    if (text) {
-      selectors.push(`${element.tagName.toLowerCase()}:contains("${text}")`);
+  // Other ARIA attributes
+  const ariaAttrs = ['aria-controls', 'aria-owns', 'aria-expanded', 'aria-selected', 'aria-checked'];
+  for (const attr of ariaAttrs) {
+    if (element.hasAttribute(attr)) {
+      const selector = `[${attr}="${element.getAttribute(attr)}"]`;
+      selectors.push(selector);
+      selectorScores.set(selector, 8);
     }
   }
   
-  // Nth-child selector
+  // 2. Test ID selector (very stable for testing)
+  if (element.getAttribute('data-testid')) {
+    const selector = `[data-testid="${element.getAttribute('data-testid')}"]`;
+    selectors.push(selector);
+    selectorScores.set(selector, 9);
+  }
+  
+  // 3. ID selector (stable but may not always exist)
+  if (element.id && !element.id.match(/^[0-9a-f]{8}-|^uid-|^react-|^ember-/i)) { // Skip auto-generated IDs
+    const selector = `#${CSS.escape(element.id)}`;
+    selectors.push(selector);
+    selectorScores.set(selector, 8);
+  }
+  
+  // 4. Semantic HTML5 selectors
+  const semanticTags = ['nav', 'main', 'header', 'footer', 'section', 'article', 'aside'];
+  if (semanticTags.includes(element.tagName.toLowerCase())) {
+    const tagSelector = element.tagName.toLowerCase();
+    // Add context if available
+    if (element.className && typeof element.className === 'string') {
+      const primaryClass = element.className.trim().split(/\s+/)[0];
+      if (primaryClass && !primaryClass.match(/^js-|^css-|^is-|^has-/)) {
+        const selector = `${tagSelector}.${CSS.escape(primaryClass)}`;
+        selectors.push(selector);
+        selectorScores.set(selector, 7);
+      }
+    } else {
+      selectors.push(tagSelector);
+      selectorScores.set(tagSelector, 6);
+    }
+  }
+  
+  // 5. Name attribute selector (good for forms)
+  if (element.name) {
+    const selector = `[name="${CSS.escape(element.name)}"]`;
+    selectors.push(selector);
+    selectorScores.set(selector, 7);
+  }
+  
+  // 6. Class selector (less stable, filter out dynamic classes)
+  if (element.className && typeof element.className === 'string') {
+    const classes = element.className.trim().split(/\s+/)
+      .filter(c => c && !c.match(/^(active|selected|hover|focus|disabled|loading|hidden|show)/i))
+      .slice(0, 2); // Limit to 2 most significant classes
+    
+    if (classes.length > 0) {
+      const selector = `.${classes.map(c => CSS.escape(c)).join('.')}`;
+      selectors.push(selector);
+      selectorScores.set(selector, 5);
+    }
+  }
+  
+  // 7. Text content selector for interactive elements
+  if (['BUTTON', 'A', 'LABEL'].includes(element.tagName) && element.textContent) {
+    const text = element.textContent.trim().substring(0, 30);
+    if (text && text.length > 2) {
+      // XPath selector for exact text match
+      const selector = `//${element.tagName.toLowerCase()}[normalize-space(.)="${text}"]`;
+      selectors.push(selector);
+      selectorScores.set(selector, 6);
+    }
+  }
+  
+  // 8. Input type specific selectors
+  if (element.tagName === 'INPUT' && element.type) {
+    const typeSelector = `input[type="${element.type}"]`;
+    if (element.placeholder) {
+      const selector = `${typeSelector}[placeholder="${CSS.escape(element.placeholder)}"]`;
+      selectors.push(selector);
+      selectorScores.set(selector, 6);
+    } else {
+      selectors.push(typeSelector);
+      selectorScores.set(typeSelector, 4);
+    }
+  }
+  
+  // 9. Nth-child as last resort (least stable)
+  if (selectors.length === 0) {
+    const parent = element.parentElement;
+    if (parent) {
+      const siblings = Array.from(parent.children);
+      const index = siblings.indexOf(element) + 1;
+      const parentSelector = generateBasicSelector(parent);
+      if (parentSelector) {
+        const selector = `${parentSelector} > ${element.tagName.toLowerCase()}:nth-child(${index})`;
+        selectors.push(selector);
+        selectorScores.set(selector, 2);
+      }
+    }
+  }
+  
+  // Sort selectors by stability score (highest first)
+  const sortedSelectors = selectors.sort((a, b) => {
+    const scoreA = selectorScores.get(a) || 0;
+    const scoreB = selectorScores.get(b) || 0;
+    return scoreB - scoreA;
+  });
+  
+  // Return top 5 selectors with scores
+  return sortedSelectors.slice(0, 5).map(sel => ({
+    selector: sel,
+    score: selectorScores.get(sel) || 0
+  }));
+}
+
+// Check if element is inside shadow DOM
+function isInShadowDOM(element) {
+  let node = element;
+  while (node && node !== document) {
+    if (node.toString() === '[object ShadowRoot]') {
+      return true;
+    }
+    node = node.parentNode || node.host;
+  }
+  return false;
+}
+
+// Generate human-readable description of element
+function generateElementDescription(element) {
+  const parts = [];
+  
+  // Start with element type description
+  const typeDescriptions = {
+    'button': 'button',
+    'a': 'link',
+    'input': element.type ? `${element.type} input` : 'input field',
+    'select': 'dropdown',
+    'textarea': 'text area',
+    'img': 'image',
+    'video': 'video',
+    'audio': 'audio',
+    'iframe': 'embedded frame'
+  };
+  
+  parts.push(typeDescriptions[element.tagName.toLowerCase()] || element.tagName.toLowerCase());
+  
+  // Add descriptive text
+  const ariaLabel = element.getAttribute('aria-label');
+  const text = element.textContent?.trim();
+  const placeholder = element.placeholder;
+  const alt = element.alt;
+  const title = element.title;
+  
+  if (ariaLabel) {
+    parts.push(`"${ariaLabel}"`);
+  } else if (text && text.length > 0 && text.length < 50) {
+    parts.push(`"${text}"`);
+  } else if (placeholder) {
+    parts.push(`with placeholder "${placeholder}"`);
+  } else if (alt) {
+    parts.push(`"${alt}"`);
+  } else if (title) {
+    parts.push(`"${title}"`);
+  }
+  
+  // Add visual characteristics
+  const styles = window.getComputedStyle(element);
+  const bgColor = styles.backgroundColor;
+  const color = styles.color;
+  
+  // Add color if it's distinctive
+  if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+    const colorName = getColorName(bgColor);
+    if (colorName) parts.push(colorName);
+  }
+  
+  // Add position context
+  const rect = element.getBoundingClientRect();
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  
+  if (rect.top < viewport.height * 0.2) {
+    parts.push('at top');
+  } else if (rect.bottom > viewport.height * 0.8) {
+    parts.push('at bottom');
+  }
+  
+  if (rect.left < viewport.width * 0.3) {
+    parts.push('left side');
+  } else if (rect.right > viewport.width * 0.7) {
+    parts.push('right side');
+  } else if (rect.left > viewport.width * 0.4 && rect.right < viewport.width * 0.6) {
+    parts.push('center');
+  }
+  
+  // Add form context
+  const form = element.closest('form');
+  if (form) {
+    const formName = form.getAttribute('aria-label') || form.id || form.name;
+    if (formName) {
+      parts.push(`in "${formName}" form`);
+    } else {
+      parts.push('in form');
+    }
+  }
+  
+  return parts.join(' ');
+}
+
+// Helper function to get color name from RGB
+function getColorName(rgbString) {
+  // Simple color detection - could be enhanced
+  const rgb = rgbString.match(/\d+/g);
+  if (!rgb || rgb.length < 3) return null;
+  
+  const [r, g, b] = rgb.map(Number);
+  
+  // Basic color detection
+  if (r > 200 && g < 100 && b < 100) return 'red';
+  if (r < 100 && g > 200 && b < 100) return 'green';
+  if (r < 100 && g < 100 && b > 200) return 'blue';
+  if (r > 200 && g > 200 && b < 100) return 'yellow';
+  if (r > 200 && g < 150 && b > 200) return 'purple';
+  if (r > 200 && g > 100 && b < 50) return 'orange';
+  if (r > 200 && g > 200 && b > 200) return 'white';
+  if (r < 50 && g < 50 && b < 50) return 'black';
+  if (r > 100 && g > 100 && b > 100 && r < 200) return 'gray';
+  
+  return null;
+}
+
+// Get element clustering information
+function getElementCluster(element) {
+  const cluster = {
+    formContext: null,
+    sectionContext: null,
+    nearbyButtons: [],
+    nearbyLabels: [],
+    siblingInputs: [],
+    navigationContext: null
+  };
+  
+  // Find parent form
+  const form = element.closest('form');
+  if (form) {
+    cluster.formContext = {
+      id: form.id || null,
+      name: form.name || null,
+      action: form.action || null,
+      ariaLabel: form.getAttribute('aria-label') || null,
+      totalFields: form.querySelectorAll('input, select, textarea').length
+    };
+  }
+  
+  // Find parent section/article
+  const section = element.closest('section, article, aside, nav, header, footer, main, [role]');
+  if (section) {
+    cluster.sectionContext = {
+      tag: section.tagName.toLowerCase(),
+      id: section.id || null,
+      role: section.getAttribute('role') || null,
+      ariaLabel: section.getAttribute('aria-label') || null,
+      heading: section.querySelector('h1, h2, h3, h4, h5, h6')?.textContent?.trim() || null
+    };
+  }
+  
+  // Find nearby interactive elements
   const parent = element.parentElement;
   if (parent) {
-    const siblings = Array.from(parent.children);
-    const index = siblings.indexOf(element) + 1;
-    const parentSelector = generateBasicSelector(parent);
-    if (parentSelector) {
-      selectors.push(`${parentSelector} > ${element.tagName.toLowerCase()}:nth-child(${index})`);
+    // Find sibling buttons
+    const siblingButtons = Array.from(parent.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"]'))
+      .filter(btn => btn !== element)
+      .slice(0, 3)
+      .map(btn => ({
+        text: btn.textContent?.trim() || btn.value || '',
+        type: btn.tagName.toLowerCase(),
+        ariaLabel: btn.getAttribute('aria-label') || null
+      }));
+    cluster.nearbyButtons = siblingButtons;
+    
+    // Find sibling inputs (for form context)
+    if (element.tagName === 'INPUT' || element.tagName === 'SELECT' || element.tagName === 'TEXTAREA') {
+      const siblingInputs = Array.from(parent.querySelectorAll('input, select, textarea'))
+        .filter(input => input !== element)
+        .slice(0, 3)
+        .map(input => ({
+          type: input.type || input.tagName.toLowerCase(),
+          name: input.name || null,
+          placeholder: input.placeholder || null,
+          label: input.labels?.[0]?.textContent?.trim() || null
+        }));
+      cluster.siblingInputs = siblingInputs;
     }
   }
   
-  return selectors;
+  // Find nearby labels
+  const nearbyLabels = [];
+  
+  // Check for associated label
+  if (element.labels && element.labels.length > 0) {
+    nearbyLabels.push(...Array.from(element.labels).map(label => label.textContent?.trim()));
+  }
+  
+  // Check for aria-labelledby
+  const labelledBy = element.getAttribute('aria-labelledby');
+  if (labelledBy) {
+    const labelElement = document.getElementById(labelledBy);
+    if (labelElement) {
+      nearbyLabels.push(labelElement.textContent?.trim());
+    }
+  }
+  
+  // Check for preceding label-like elements
+  const prevSibling = element.previousElementSibling;
+  if (prevSibling && ['LABEL', 'SPAN', 'DIV'].includes(prevSibling.tagName)) {
+    const text = prevSibling.textContent?.trim();
+    if (text && text.length < 50) {
+      nearbyLabels.push(text);
+    }
+  }
+  
+  cluster.nearbyLabels = [...new Set(nearbyLabels)]; // Remove duplicates
+  
+  // Find navigation context
+  const nav = element.closest('nav, [role="navigation"]');
+  if (nav) {
+    cluster.navigationContext = {
+      ariaLabel: nav.getAttribute('aria-label') || null,
+      totalLinks: nav.querySelectorAll('a').length,
+      currentPage: nav.querySelector('[aria-current="page"]')?.textContent?.trim() || null
+    };
+  }
+  
+  return cluster;
+}
+
+// Get visual element properties
+function getVisualProperties(element) {
+  const rect = element.getBoundingClientRect();
+  const styles = window.getComputedStyle(element);
+  
+  return {
+    centerPoint: {
+      x: Math.round(rect.left + rect.width / 2),
+      y: Math.round(rect.top + rect.height / 2)
+    },
+    visualSize: {
+      width: rect.width,
+      height: rect.height,
+      area: rect.width * rect.height
+    },
+    color: styles.color,
+    backgroundColor: styles.backgroundColor,
+    fontSize: styles.fontSize,
+    fontWeight: styles.fontWeight,
+    borderColor: styles.borderColor,
+    isVisible: styles.display !== 'none' && styles.visibility !== 'hidden' && styles.opacity !== '0',
+    zIndex: parseInt(styles.zIndex) || 0,
+    cursor: styles.cursor,
+    isInteractive: ['pointer', 'hand', 'move', 'text', 'crosshair'].includes(styles.cursor)
+  };
+}
+
+// Get shadow DOM path for element
+function getShadowPath(element) {
+  const path = [];
+  let node = element;
+  
+  while (node && node !== document) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      let selector = node.tagName.toLowerCase();
+      if (node.id) {
+        selector = `#${CSS.escape(node.id)}`;
+      } else if (node.className && typeof node.className === 'string') {
+        const classes = node.className.trim().split(/\s+/).filter(c => c);
+        if (classes.length > 0) {
+          selector += `.${classes[0]}`;
+        }
+      }
+      path.unshift(selector);
+    }
+    
+    // Check if we're crossing a shadow boundary
+    if (node.parentNode && node.parentNode.toString() === '[object ShadowRoot]') {
+      path.unshift('>>>'); // Shadow DOM piercing operator
+      node = node.parentNode.host;
+    } else {
+      node = node.parentNode;
+    }
+  }
+  
+  return path.join(' ');
 }
 
 // Generate basic selector for parent elements
@@ -1909,10 +3513,29 @@ function getStructuredDOM(options = {}) {
         }
       
       // Extract element data with comprehensive context
+      const semanticId = generateSemanticElementId(node, elementCount);
+      
+      // Log semantic ID generation for debugging
+      if (node.tagName === 'BUTTON' || node.tagName === 'A' || node.tagName === 'INPUT') {
+        console.log('[FSB Semantic ID]', node.tagName, 'generated ID:', semanticId, 'from:', {
+          id: node.id,
+          'aria-label': node.getAttribute('aria-label'),
+          'data-testid': node.getAttribute('data-testid'),
+          text: node.textContent?.trim()?.substring(0, 30)
+        });
+      }
+      
       const elementData = {
-        // Unique element identifier
-        elementId: `elem_${elementCount}`,
+        // Unique element identifier with semantic naming
+        elementId: semanticId,
         type: node.tagName.toLowerCase(),
+        // Human-readable description
+        description: generateElementDescription(node),
+        // Visual properties for better understanding
+        visualProperties: getVisualProperties(node),
+        // Shadow DOM context
+        inShadowDOM: isInShadowDOM(node),
+        shadowPath: isInShadowDOM(node) ? getShadowPath(node) : null,
         text: node.innerText?.trim() || node.textContent?.trim() || '',
         id: node.id || '',
         class: node.className ? String(node.className) : '',
@@ -1941,8 +3564,14 @@ function getStructuredDOM(options = {}) {
           selected: node.selected || false,
           focused: document.activeElement === node
         },
-        // Generate multiple selectors
-        selectors: generateSelectors(node),
+        // Generate multiple selectors with stability scores
+        selectors: (() => {
+          const selectorData = generateSelectors(node, semanticId);
+          elementData._selectorScores = selectorData; // Store scores for later use
+          return selectorData.map(s => s.selector); // Return just the selector strings
+        })(),
+        // Element clustering for better context
+        cluster: getElementCluster(node),
         // Enhanced context information
         context: {
           // Associated label text (for inputs)
@@ -2029,6 +3658,20 @@ function getStructuredDOM(options = {}) {
         for (const child of node.children) {
           traverse(child, depth + 1);
         }
+        
+        // Traverse shadow DOM if present
+        if (node.shadowRoot && node.shadowRoot.mode === 'open') {
+          console.log('[FSB Shadow DOM] Found open shadow root on:', node.tagName, node.id || node.className);
+          
+          // Add shadow DOM indicator to parent element
+          elementData.hasShadowRoot = true;
+          elementData.shadowRootMode = 'open';
+          
+          // Traverse shadow DOM children
+          for (const shadowChild of node.shadowRoot.children) {
+            traverse(shadowChild, depth + 1);
+          }
+        }
       }
     } catch (error) {
       console.warn('Error processing DOM node:', error, node);
@@ -2065,7 +3708,8 @@ function getStructuredDOM(options = {}) {
     elementsToSend = [...changed, ...importantUnchanged];
   }
   
-  return {
+  // Build the base DOM structure
+  const domStructure = {
     elements: elementsToSend,
     htmlContext: relevantHTML, // Add HTML context for better AI understanding
     scrollPosition: {
@@ -2087,35 +3731,192 @@ function getStructuredDOM(options = {}) {
       usedViewportPriority: prioritizeViewport
     }
   };
+  
+  // Use DOM State Manager for intelligent diffing if available
+  if (domStateManager && options.useIncrementalDiff !== false) {
+    console.log('[FSB DOM Optimization] ===== DOM CAPTURE =====');
+    console.log('[FSB DOM Optimization] Using DOM State Manager for optimized payload');
+    console.log('[FSB DOM Optimization] Total elements found:', elements.length);
+    console.log('[FSB DOM Optimization] Elements after filtering:', elementsToSend.length);
+    
+    const optimizedPayload = domStateManager.generateOptimizedPayload(domStructure);
+    
+    // Add optimization metadata
+    domStructure.optimization.diffType = optimizedPayload.type;
+    domStructure.optimization.deltaSize = JSON.stringify(optimizedPayload).length;
+    domStructure.optimization.fullSize = JSON.stringify(domStructure).length;
+    domStructure.optimization.compressionRatio = 
+      (domStructure.optimization.fullSize - domStructure.optimization.deltaSize) / domStructure.optimization.fullSize;
+    
+    // Verbose logging
+    console.log('[FSB DOM Optimization] Mode:', optimizedPayload.type.toUpperCase());
+    console.log('[FSB DOM Optimization] Original DOM size:', domStructure.optimization.fullSize.toLocaleString(), 'bytes');
+    console.log('[FSB DOM Optimization] Optimized size:', domStructure.optimization.deltaSize.toLocaleString(), 'bytes');
+    console.log('[FSB DOM Optimization] Compression ratio:', (domStructure.optimization.compressionRatio * 100).toFixed(1) + '%');
+    console.log('[FSB DOM Optimization] Savings:', (domStructure.optimization.fullSize - domStructure.optimization.deltaSize).toLocaleString(), 'bytes');
+    
+    // Log the raw payload (truncated for very large payloads)
+    const payloadStr = JSON.stringify(optimizedPayload, null, 2);
+    if (payloadStr.length > 5000) {
+      console.log('[FSB DOM Optimization] RAW PAYLOAD (truncated to 5000 chars):');
+      console.log(payloadStr.substring(0, 5000) + '\n... [TRUNCATED]');
+    } else {
+      console.log('[FSB DOM Optimization] RAW PAYLOAD:');
+      console.log(payloadStr);
+    }
+    
+    // Return optimized payload
+    return {
+      ...domStructure,
+      ...optimizedPayload,
+      _isDelta: true
+    };
+  }
+  
+  // Log full DOM capture
+  // Apply compact serialization for better performance
+  const useCompactFormat = options.useCompactFormat !== false;
+  
+  if (useCompactFormat && elementsToSend.length > 50) {
+    console.log('[FSB DOM Optimization] Using compact serialization format');
+    const serializer = new OptimizedDOMSerializer();
+    const compactPayload = serializer.serialize(elementsToSend);
+    
+    // Calculate compression metrics
+    const originalSize = JSON.stringify(elementsToSend).length;
+    const compactSize = JSON.stringify(compactPayload).length;
+    const compressionRatio = serializer.getCompressionRatio(elementsToSend, compactPayload);
+    
+    console.log('[FSB DOM Optimization] ===== COMPACT SERIALIZATION =====');
+    console.log('[FSB DOM Optimization] Original size:', originalSize.toLocaleString(), 'bytes');
+    console.log('[FSB DOM Optimization] Compact size:', compactSize.toLocaleString(), 'bytes');
+    console.log('[FSB DOM Optimization] Compression:', (compressionRatio * 100).toFixed(1) + '%');
+    console.log('[FSB DOM Optimization] String table size:', compactPayload.strings.length);
+    
+    // Return compact format
+    return {
+      ...domStructure,
+      elements: compactPayload.elements,
+      stringTable: compactPayload.strings,
+      format: 'compact',
+      version: compactPayload.version,
+      optimization: {
+        ...domStructure.optimization,
+        compressionRatio,
+        originalSize,
+        compactSize
+      }
+    };
+  }
+  
+  console.log('[FSB DOM Optimization] ===== FULL DOM CAPTURE (No optimization) =====');
+  console.log('[FSB DOM Optimization] Total elements:', elements.length);
+  console.log('[FSB DOM Optimization] Sent elements:', elementsToSend.length);
+  console.log('[FSB DOM Optimization] Payload size:', JSON.stringify(domStructure).length.toLocaleString(), 'bytes');
+  
+  return domStructure;
+}
+
+// Async message handler with timeout support
+async function handleAsyncMessage(request, sendResponse) {
+  console.log('[FSB Content] Handling async message:', request.action);
+  
+  try {
+    let result;
+    const startTime = Date.now();
+    
+    switch (request.action) {
+      case 'getDOM':
+        console.log('[FSB Content] Getting DOM structure...');
+        // Enable incremental diff by default, can be disabled via request options
+        const domOptions = {
+          ...request.options,
+          useIncrementalDiff: request.options?.useIncrementalDiff !== false
+        };
+        result = getStructuredDOM(domOptions);
+        console.log('[FSB Content] DOM structure obtained in', Date.now() - startTime, 'ms');
+        if (result._isDelta) {
+          console.log('[FSB Content] Using delta diff - compression ratio:', 
+            (result.optimization?.compressionRatio * 100).toFixed(1) + '%');
+        }
+        sendResponse({ success: true, structuredDOM: result });
+        break;
+        
+      case 'executeAction':
+        const { tool, params } = request;
+        console.log(`[FSB Content] Executing ${tool} action with params:`, params);
+        
+        if (tools[tool]) {
+          // Add timeout wrapper for long-running operations
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`Action ${tool} timed out after 10 seconds`)), 10000);
+          });
+          
+          const actionPromise = tools[tool](params);
+          result = await Promise.race([actionPromise, timeoutPromise]);
+          
+          console.log(`[FSB Content] Action ${tool} completed in ${Date.now() - startTime}ms, result:`, result);
+          
+          // Validate result structure
+          if (result === undefined || result === null) {
+            console.warn(`[FSB Content] Action ${tool} returned null/undefined result`);
+            sendResponse({ 
+              success: false, 
+              error: `Action ${tool} returned no result`,
+              tool: tool,
+              executionTime: Date.now() - startTime
+            });
+          } else {
+            sendResponse({ 
+              success: true, 
+              result: result,
+              tool: tool,
+              executionTime: Date.now() - startTime
+            });
+          }
+        } else {
+          console.error(`[FSB Content] Unknown tool: ${tool}`);
+          sendResponse({ success: false, error: `Unknown tool: ${tool}` });
+        }
+        break;
+        
+      default:
+        console.error(`[FSB Content] Unknown async action: ${request.action}`);
+        sendResponse({ success: false, error: `Unknown action: ${request.action}` });
+    }
+  } catch (error) {
+    console.error(`[FSB Content] Error in async message handler:`, error);
+    sendResponse({ 
+      success: false, 
+      error: error.message || 'Unknown error in async handler',
+      stack: error.stack,
+      action: request.action,
+      executionTime: Date.now() - (request.startTime || Date.now())
+    });
+  }
 }
 
 // Listen for messages from background script
-chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Content script received message:', request.action);
   
+  // Handle async operations properly by returning true to keep message channel open
+  if (request.action === 'executeAction' || request.action === 'getDOM') {
+    handleAsyncMessage(request, sendResponse);
+    return true; // Keep message channel open for async response
+  }
+  
   switch (request.action) {
+    case 'healthCheck':
+      sendResponse({ success: true, healthy: true, timestamp: Date.now() });
+      break;
+      
     case 'getDOM':
-      try {
-        const structuredDOM = getStructuredDOM();
-        sendResponse({ success: true, structuredDOM });
-      } catch (error) {
-        console.error('Error getting DOM structure:', error);
-        sendResponse({ success: false, error: error.message || 'Unknown error in DOM parsing' });
-      }
+      // This case is now handled above in async handler
       break;
       
     case 'executeAction':
-      try {
-        const { tool, params } = request;
-        if (tools[tool]) {
-          const result = await tools[tool](params);
-          sendResponse({ success: true, result });
-        } else {
-          sendResponse({ success: false, error: 'Unknown tool' });
-        }
-      } catch (error) {
-        sendResponse({ success: false, error: error.message });
-      }
+      // This case is now handled above in async handler
       break;
       
     case 'highlightElement':
@@ -2143,16 +3944,76 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
   return true;
 });
 
+// Intelligent DOM change filtering
+let lastNotificationTime = 0;
+let accumulatedChanges = 0;
+let significantChangeTimeout = null;
+
+// Helper to check if mutation is significant
+function isSignificantMutation(mutation) {
+  // Ignore pure style changes
+  if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+    return false;
+  }
+  
+  // Ignore changes to invisible elements
+  if (mutation.target.nodeType === Node.ELEMENT_NODE) {
+    const styles = window.getComputedStyle(mutation.target);
+    if (styles.display === 'none' || styles.visibility === 'hidden') {
+      return false;
+    }
+  }
+  
+  // Ignore changes in script/style tags
+  if (mutation.target.tagName === 'SCRIPT' || mutation.target.tagName === 'STYLE') {
+    return false;
+  }
+  
+  // Ignore attribute changes on non-interactive elements
+  if (mutation.type === 'attributes' && 
+      !['INPUT', 'BUTTON', 'A', 'SELECT', 'TEXTAREA'].includes(mutation.target.tagName)) {
+    const importantAttrs = ['id', 'class', 'data-testid', 'aria-label', 'href', 'src'];
+    if (!importantAttrs.includes(mutation.attributeName)) {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
 // Set up mutation observer for dynamic content
 const observer = new MutationObserver((mutations) => {
-  // Notify background script of significant DOM changes
-  // This helps the automation adapt to dynamic pages
-  if (mutations.length > 10) {
-    chrome.runtime.sendMessage({
-      action: 'domChanged',
-      changeCount: mutations.length
-    });
+  // Filter out insignificant mutations
+  const significantMutations = mutations.filter(isSignificantMutation);
+  
+  if (significantMutations.length === 0) return;
+  
+  accumulatedChanges += significantMutations.length;
+  
+  // Clear existing timeout
+  if (significantChangeTimeout) {
+    clearTimeout(significantChangeTimeout);
   }
+  
+  // Batch DOM change notifications
+  significantChangeTimeout = setTimeout(() => {
+    const now = Date.now();
+    const timeSinceLastNotification = now - lastNotificationTime;
+    
+    // Only notify if we have significant changes and enough time has passed
+    if (accumulatedChanges > 5 && timeSinceLastNotification > 1000) {
+      console.log('[FSB DOM Monitor] Significant changes detected:', accumulatedChanges);
+      
+      chrome.runtime.sendMessage({
+        action: 'domChanged',
+        changeCount: accumulatedChanges,
+        significantChanges: true
+      });
+      
+      lastNotificationTime = now;
+      accumulatedChanges = 0;
+    }
+  }, 500); // Wait 500ms to batch changes
 });
 
 // Start observing

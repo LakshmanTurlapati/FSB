@@ -77,6 +77,7 @@ const TASK_PROMPTS = {
   extraction: "Extract the requested information and provide the exact values found. When completing, include all the specific data extracted, not generic statements. Example result: 'I extracted the following product details: Price $299.99, Rating 4.8/5 stars, Stock: 15 units available, Shipping: Free 2-day delivery.'",
   navigation: "Navigate to the specified page or section. When completing, confirm what page you reached and describe what's available there. Example result: 'I successfully navigated to the Settings page where I can see options for Account Settings, Privacy Controls, Notification Preferences, and Security Settings.'",
   multitab: "TAB CONTROL LIMITATIONS: CRITICAL - You can ONLY control the original tab where automation started. 1) openNewTab creates new tabs but automation stays on original tab, 2) switchToTab is BLOCKED for security - cannot switch to other tabs, 3) listTabs shows tab titles for context only (no URLs), 4) All DOM actions happen only on the session tab. You can see other tab names for reference but cannot control them. Example result: 'I can see there are tabs for Gmail, YouTube, and Facebook open, but I am working only in the original tab where the automation started.'",
+  gaming: "CRITICAL GAME CONTROLS: For games, interactive applications, or when task involves 'play', 'control', 'win', 'move': 1) NEVER use 'type' tool for game controls - it types text, not key presses, 2) PREFER dedicated arrow tools: {\"tool\": \"arrowUp\"}, {\"tool\": \"arrowDown\"}, {\"tool\": \"arrowLeft\"}, {\"tool\": \"arrowRight\"} - much simpler than keyPress, 3) For other keys use 'keyPress': {\"tool\": \"keyPress\", \"params\": {\"key\": \"Enter\"}} {\"tool\": \"keyPress\", \"params\": {\"key\": \" \"}} for Space. 4) Focus the game canvas/element if needed before key presses. When completing, describe the game actions performed and outcomes achieved.",
   general: "Complete the task using appropriate tools. When completing, provide a detailed summary of all actions taken and their outcomes. Be specific about what was accomplished."
 };
 
@@ -386,8 +387,32 @@ class AIIntegration {
    * @returns {Object} Formatted prompt with system and user components
    */
   buildPrompt(task, domState, context = null) {
+    console.log('[FSB AI Integration] ===== BUILDING PROMPT =====');
+    console.log('[FSB AI Integration] Task:', task);
+    console.log('[FSB AI Integration] DOM State Type:', domState._isDelta ? 'DELTA' : 'FULL');
+    
+    // Log raw DOM state size
+    const domStateStr = JSON.stringify(domState);
+    console.log('[FSB AI Integration] Raw DOM state size:', domStateStr.length.toLocaleString(), 'bytes');
+    
+    // Log DOM state details
+    if (domState._isDelta && domState.type === 'delta') {
+      console.log('[FSB AI Integration] Delta details:', {
+        added: domState.changes?.added?.length || 0,
+        removed: domState.changes?.removed?.length || 0,
+        modified: domState.changes?.modified?.length || 0,
+        unchanged: domState.context?.unchanged?.length || 0
+      });
+    } else {
+      console.log('[FSB AI Integration] Full DOM details:', {
+        totalElements: domState.elements?.length || 0,
+        hasHtmlContext: !!domState.htmlContext
+      });
+    }
+    
     // Determine task type for specialized prompting
     const taskType = this.detectTaskType(task);
+    console.log('[FSB AI Integration] Detected task type:', taskType);
     
     // Core system prompt - concise and focused
     const systemPrompt = `You are a browser automation agent. Analyze the DOM and complete the given task.
@@ -532,6 +557,21 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
           const status = action.result?.success ? 'SUCCESS' : 'FAILED';
           userPrompt += `\n${idx + 1}. ${action.tool}(${JSON.stringify(action.params)}) - ${status}`;
           
+          // Add verification information
+          if (action.result?.success && action.result?.verification) {
+            if (action.tool === 'click' && action.result.hadEffect !== undefined) {
+              userPrompt += ` - Effect: ${action.result.hadEffect ? 'Changes detected' : 'No changes detected'}`;
+              if (action.result.warning) {
+                userPrompt += ` ⚠️ ${action.result.warning}`;
+              }
+            } else if (action.tool === 'type' && action.result.validationPassed !== undefined) {
+              userPrompt += ` - Verified: ${action.result.validationPassed ? 'Text entered correctly' : 'Text NOT entered correctly'}`;
+              if (!action.result.validationPassed) {
+                userPrompt += ` - Expected: "${action.params.text}", Actual: "${action.result.actualValue}"`;
+              }
+            }
+          }
+          
           if (!action.result?.success) {
             if (action.result?.error) {
               userPrompt += ` - Error: ${action.result.error}`;
@@ -663,6 +703,21 @@ When using getText and receiving a response like "0.3996 USD", you MUST:
 ALWAYS provide complete sentences and context, not just raw extracted values.`;
       }
       
+      // Add verification context
+      userPrompt += `\n\nACTION VERIFICATION:
+- Actions now include verification to ensure they had their intended effect
+- For 'click' actions: System detects if DOM changed, URL changed, or new elements appeared
+- For 'type' actions: System verifies the text was actually entered in the field
+- Pay attention to verification results in action history
+- If a click shows "No changes detected", try a different element or approach
+- If typing shows "Text NOT entered correctly", the field may need special handling
+
+HANDLING VERIFICATION FAILURES:
+- If click verification shows no effect, the element may not be interactive
+- Try alternative selectors, parent/child elements, or keyboard navigation
+- For type failures, check if the field needs to be clicked/focused first
+- Some fields may need special event triggering or timing adjustments`;
+      
       // Add execution timing context
       userPrompt += `\n\nEXECUTION OPTIMIZATION:
 - The system now uses smart delays between actions
@@ -673,15 +728,66 @@ ALWAYS provide complete sentences and context, not just raw extracted values.`;
 - Group related actions together for better performance`;
     }
     
-    userPrompt += `\n\nSTRUCTURED ELEMENTS (with positions and metadata):
-${this.formatElements(domState.elements || [])}
-
-HTML CONTEXT (actual markup for better understanding):
+    // Handle delta updates differently
+    if (domState._isDelta && domState.type === 'delta') {
+      userPrompt += `\n\nDOM CHANGES SINCE LAST ACTION:`;
+      
+      // Show what changed
+      if (domState.changes) {
+        if (domState.changes.added?.length > 0) {
+          userPrompt += `\n\nNEWLY ADDED ELEMENTS (${domState.changes.added.length}):`;
+          userPrompt += `\n${this.formatDeltaElements(domState.changes.added)}`;
+        }
+        
+        if (domState.changes.removed?.length > 0) {
+          userPrompt += `\n\nREMOVED ELEMENTS (${domState.changes.removed.length}):`;
+          domState.changes.removed.forEach(el => {
+            userPrompt += `\n- ${el.elementId} (${el.selector}) was at (${el._wasAt?.x}, ${el._wasAt?.y})`;
+          });
+        }
+        
+        if (domState.changes.modified?.length > 0) {
+          userPrompt += `\n\nMODIFIED ELEMENTS (${domState.changes.modified.length}):`;
+          userPrompt += `\n${this.formatDeltaElements(domState.changes.modified, true)}`;
+        }
+      }
+      
+      // Include reference to important unchanged elements
+      if (domState.context?.unchanged?.length > 0) {
+        userPrompt += `\n\nKEY REFERENCE ELEMENTS (unchanged but important):`;
+        userPrompt += `\n${this.formatDeltaElements(domState.context.unchanged)}`;
+      }
+      
+      // Add change summary
+      if (domState.context?.metadata) {
+        const meta = domState.context.metadata;
+        userPrompt += `\n\nCHANGE SUMMARY: ${meta.changeRatio > 0.5 ? 'Major' : meta.changeRatio > 0.2 ? 'Moderate' : 'Minor'} changes detected`;
+        userPrompt += ` (${meta.addedCount} added, ${meta.removedCount} removed, ${meta.modifiedCount} modified)`;
+      }
+    } else {
+      // Full DOM snapshot (initial or fallback)
+      userPrompt += `\n\nSTRUCTURED ELEMENTS (with positions and metadata):
+${this.formatElements(domState.elements || [])}`;
+    }
+    
+    userPrompt += `\n\nHTML CONTEXT (actual markup for better understanding):
 ${this.formatHTMLContext(domState.htmlContext)}
 
 What actions should I take to complete the task?`;
     
     const finalPrompt = { systemPrompt, userPrompt };
+    
+    // Log final prompt details
+    console.log('[FSB AI Integration] Final prompt built:', {
+      systemPromptLength: systemPrompt.length,
+      userPromptLength: userPrompt.length,
+      totalLength: systemPrompt.length + userPrompt.length,
+      estimatedTokens: Math.ceil((systemPrompt.length + userPrompt.length) / 3.5)
+    });
+    
+    // Log truncated prompt for debugging (first 1000 chars of user prompt)
+    console.log('[FSB AI Integration] User prompt preview (first 1000 chars):');
+    console.log(userPrompt.substring(0, 1000) + (userPrompt.length > 1000 ? '\n... [TRUNCATED]' : ''));
     
     // Store prompt for token estimation
     this.storePrompt(finalPrompt);
@@ -698,6 +804,11 @@ What actions should I take to complete the task?`;
     
     return elements.map(el => {
       let desc = `[${el.elementId}] ${el.type}`;
+      
+      // Add human-readable description if available
+      if (el.description) {
+        desc += ` - ${el.description}`;
+      }
       
       // Add identifiers
       if (el.id) desc += ` #${el.id}`;
@@ -722,7 +833,9 @@ What actions should I take to complete the task?`;
       if (states.length > 0) desc += ` [${states.join(',')}]`;
       
       // Add position
-      desc += ` at (${el.position.x}, ${el.position.y})`;
+      if (el.position) {
+        desc += ` at (${el.position.x}, ${el.position.y})`;
+      }
       
       // Add form association
       if (el.formId) desc += ` in ${el.formId}`;
@@ -730,6 +843,48 @@ What actions should I take to complete the task?`;
       // Add primary selector
       if (el.selectors && el.selectors.length > 0) {
         desc += ` selector: "${el.selectors[0]}"`;
+      }
+      
+      return desc;
+    }).join('\\n');
+  }
+  
+  // Format delta elements (compressed format for changes)
+  formatDeltaElements(elements, showChanges = false) {
+    if (!Array.isArray(elements)) {
+      return 'No elements';
+    }
+    
+    return elements.map(el => {
+      let desc = `[${el.elementId}] ${el.type}`;
+      
+      // Add key identifiers
+      if (el.id) desc += ` #${el.id}`;
+      if (el.testId) desc += ` testId="${el.testId}"`;
+      
+      // Add text (already truncated)
+      if (el.text) desc += ` "${el.text}"`;
+      
+      // Interactive marker
+      if (el.interactive) desc += ` [interactive]`;
+      if (el.inViewport) desc += ` [in-view]`;
+      
+      // Selector
+      if (el.selectors?.[0]) desc += ` sel: "${el.selectors[0]}"`;
+      
+      // Show changes if modified
+      if (showChanges && el._changes) {
+        const changes = [];
+        if (el._changes.text) changes.push(`text: "${el._changes.text.old}" → "${el._changes.text.new}"`);
+        if (el._changes.position) {
+          const oldPos = el._changes.position.old;
+          const newPos = el._changes.position.new;
+          if (oldPos && newPos) {
+            changes.push(`moved: (${oldPos.x},${oldPos.y}) → (${newPos.x},${newPos.y})`);
+          }
+        }
+        if (el._changes.attributes) changes.push('attributes changed');
+        if (changes.length > 0) desc += ` CHANGES: ${changes.join(', ')}`;
       }
       
       return desc;
@@ -810,7 +965,11 @@ What actions should I take to complete the task?`;
       formatted += `(Found ${htmlContext.totalElementsFound} total, showing ${htmlContext.relevantElements.length})\n\n`;
       
       htmlContext.relevantElements.forEach((element, i) => {
-        formatted += `${i + 1}. ${element.tag.toUpperCase()} at (${element.position.x}, ${element.position.y})\n`;
+        formatted += `${i + 1}. ${element.tag.toUpperCase()}`;
+        if (element.position) {
+          formatted += ` at (${element.position.x}, ${element.position.y})`;
+        }
+        formatted += '\n';
         formatted += `   Selector: ${element.selector}\n`;
         if (element.text) {
           formatted += `   Text: "${element.text}"\n`;
@@ -1118,7 +1277,9 @@ What actions should I take to complete the task?`;
       // Basic DOM interaction tools
       'click', 'type', 'pressEnter', 'scroll', 'moveMouse', 'solveCaptcha', 
       'navigate', 'searchGoogle', 'waitForElement', 'rightClick', 'doubleClick',
-      'keyPress', 'selectText', 'focus', 'blur', 'hover', 'selectOption',
+      'keyPress', 'pressKeySequence', 'typeWithKeys', 'sendSpecialKey', 
+      'arrowUp', 'arrowDown', 'arrowLeft', 'arrowRight', 'gameControl',
+      'selectText', 'focus', 'blur', 'hover', 'selectOption',
       'toggleCheckbox', 'refresh', 'goBack', 'goForward', 'getText',
       'getAttribute', 'setAttribute', 'clearInput',
       
@@ -1138,6 +1299,12 @@ What actions should I take to complete the task?`;
         taskLower.includes('multiple tab') || taskLower.includes('other tab') || taskLower.includes('different tab') ||
         taskLower.includes('compare') || taskLower.includes('both sites') || taskLower.includes('cross-reference')) {
       return 'multitab';
+    } else if (taskLower.includes('play') || taskLower.includes('game') || taskLower.includes('win') || 
+               taskLower.includes('control') || taskLower.includes('move') || taskLower.includes('press enter') ||
+               taskLower.includes('arrow key') || taskLower.includes('keyboard') || taskLower.includes('key press') ||
+               taskLower.includes('start game') || taskLower.includes('use keys') || taskLower.includes('wasd') ||
+               taskLower.includes('spacebar') || /demo.*play|asteroids|snake|pong|tetris/.test(taskLower)) {
+      return 'gaming';
     } else if (taskLower.includes('search') || taskLower.includes('find') || taskLower.includes('look for')) {
       return 'search';
     } else if (taskLower.includes('fill') || taskLower.includes('form') || taskLower.includes('submit')) {
@@ -1179,6 +1346,8 @@ What actions should I take to complete the task?`;
         return ['getText', 'getAttribute', 'scroll', 'waitForElement'];
       case 'navigation':
         return ['navigate', 'click', 'searchGoogle', 'goBack', 'goForward'];
+      case 'gaming':
+        return ['arrowUp', 'arrowDown', 'arrowLeft', 'arrowRight', 'keyPress', 'gameControl', 'pressKeySequence', 'sendSpecialKey', 'typeWithKeys', 'focus', 'click', 'waitForElement'];
       default:
         return Object.keys(TOOL_DOCUMENTATION).flatMap(category => 
           Object.keys(TOOL_DOCUMENTATION[category])
@@ -1213,7 +1382,52 @@ What actions should I take to complete the task?`;
       clearInput: { params: {selector: "..."}, desc: "Clear input field" },
       scroll: { params: {amount: 200}, desc: "Scroll page" },
       waitForElement: { params: {selector: "...", timeout: 5000}, desc: "Wait for element" },
-      pressEnter: { params: {selector: "..."}, desc: "Press Enter key" }
+      pressEnter: { params: {selector: "..."}, desc: "Press Enter key" },
+      keyPress: { 
+        params: {key: "Enter", ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, selector: "..."}, 
+        desc: "Press any keyboard key with modifiers. FOR GAMES: Use this instead of 'type' for controls",
+        example: '{"tool": "keyPress", "params": {"key": "Enter"}} // Start game\n{"tool": "keyPress", "params": {"key": "ArrowUp"}} // Move up\n{"tool": "keyPress", "params": {"key": " "}} // Space key for shooting' 
+      },
+      pressKeySequence: { 
+        params: {keys: ["Ctrl", "c"], modifiers: {ctrl: true}, delay: 50}, 
+        desc: "Press sequence of keys for shortcuts. Use for Ctrl+C, Alt+Tab, etc.",
+        example: '{"tool": "pressKeySequence", "params": {"keys": ["c"], "modifiers": {"ctrl": true}}}' 
+      },
+      typeWithKeys: { 
+        params: {text: "Hello World", delay: 30}, 
+        desc: "Type text using real keyboard events (more reliable than setting values)",
+        example: '{"tool": "typeWithKeys", "params": {"text": "password123"}}' 
+      },
+      sendSpecialKey: { 
+        params: {specialKey: "F5"}, 
+        desc: "Send special keys: F1-F24, Ctrl+R, Alt+F4, etc. Supports all function and combination keys",
+        example: '{"tool": "sendSpecialKey", "params": {"specialKey": "F12"}}' 
+      },
+      arrowUp: { 
+        params: {}, 
+        desc: "Press Up Arrow key - ideal for games and navigation. Simpler than keyPress for arrow controls",
+        example: '{"tool": "arrowUp", "params": {}}'
+      },
+      arrowDown: { 
+        params: {}, 
+        desc: "Press Down Arrow key - ideal for games and navigation. Simpler than keyPress for arrow controls",
+        example: '{"tool": "arrowDown", "params": {}}'
+      },
+      arrowLeft: { 
+        params: {}, 
+        desc: "Press Left Arrow key - ideal for games and navigation. Simpler than keyPress for arrow controls",
+        example: '{"tool": "arrowLeft", "params": {}}'
+      },
+      arrowRight: { 
+        params: {}, 
+        desc: "Press Right Arrow key - ideal for games and navigation. Simpler than keyPress for arrow controls",
+        example: '{"tool": "arrowRight", "params": {}}'
+      },
+      gameControl: { 
+        params: {action: "start"}, 
+        desc: "GAME CONTROLS: Smart helper for games. Maps actions to proper keys automatically and focuses game elements",
+        example: '{"tool": "gameControl", "params": {"action": "start"}} // Enter key\n{"tool": "gameControl", "params": {"action": "fire"}} // Space key\n{"tool": "gameControl", "params": {"action": "up"}} // Arrow up' 
+      }
     };
     
     relevantTools.forEach(tool => {
