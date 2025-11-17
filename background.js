@@ -39,7 +39,8 @@ const FAILURE_TYPES = {
   SELECTOR: 'selector',
   NETWORK: 'network',
   TIMEOUT: 'timeout',
-  PERMISSION: 'permission'
+  PERMISSION: 'permission',
+  BF_CACHE: 'bfcache'  // Back/forward cache issue
 };
 
 const RETRY_STRATEGIES = {
@@ -48,7 +49,8 @@ const RETRY_STRATEGIES = {
   [FAILURE_TYPES.SELECTOR]: 'alternative_selector',
   [FAILURE_TYPES.NETWORK]: 'exponential_backoff',
   [FAILURE_TYPES.TIMEOUT]: 'increase_timeout',
-  [FAILURE_TYPES.PERMISSION]: 'skip_action'
+  [FAILURE_TYPES.PERMISSION]: 'skip_action',
+  [FAILURE_TYPES.BF_CACHE]: 'wake_and_retry'
 };
 
 // Helper function to check if URL is restricted for content script access
@@ -169,6 +171,12 @@ function classifyFailure(error, action, context = {}) {
   const errorMessage = (error.message || error || '').toLowerCase();
   
   // Communication failures
+  // Check for back/forward cache issue first
+  if (errorMessage.includes('back/forward cache') || 
+      errorMessage.includes('page keeping the extension port is moved')) {
+    return FAILURE_TYPES.BF_CACHE;
+  }
+  
   if (errorMessage.includes('could not establish connection') ||
       errorMessage.includes('receiving end does not exist') ||
       errorMessage.includes('message port closed') ||
@@ -256,7 +264,19 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
       }
       
       // Apply failure-specific retry strategy
-      if (failureType === FAILURE_TYPES.COMMUNICATION) {
+      if (failureType === FAILURE_TYPES.BF_CACHE) {
+        console.log(`[FSB] Page in back/forward cache, attempting recovery`);
+        // Try to wake up the page by focusing the tab
+        try {
+          await chrome.tabs.update(tabId, { active: true });
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (e) {
+          console.log(`[FSB] Could not activate tab:`, e);
+        }
+        // Re-inject content script after waking the page
+        await ensureContentScriptInjected(tabId);
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } else if (failureType === FAILURE_TYPES.COMMUNICATION) {
         console.log(`[FSB] Re-injecting content script for communication failure`);
         await ensureContentScriptInjected(tabId);
       } else {
@@ -631,8 +651,14 @@ function generatePerformanceRecommendations() {
   return recommendations;
 }
 
-// Smart navigation: Analyze task and determine best website to navigate to
+// Smart navigation: Let AI decide the best approach instead of hardcoding
+// The AI now has better context and tools to handle navigation
 function analyzeTaskAndGetTargetUrl(task) {
+  // Always default to Google so AI can search and navigate naturally
+  // The AI will use searchGoogle tool or navigate tool as needed
+  return 'https://google.com';
+  
+  /* Disabled hardcoded logic - AI handles this better
   const taskLower = task.toLowerCase();
   
   // Email-related tasks
@@ -647,6 +673,7 @@ function analyzeTaskAndGetTargetUrl(task) {
   if (taskLower.includes('facebook') || taskLower.includes('fb')) {
     return 'https://facebook.com';
   }
+  */
   if (taskLower.includes('linkedin')) {
     return 'https://linkedin.com';
   }
@@ -724,13 +751,7 @@ function analyzeTaskAndGetTargetUrl(task) {
     return 'https://sheets.google.com';
   }
   
-  // For search-related tasks or fallback, use Google
-  if (taskLower.includes('search') || taskLower.includes('find') || taskLower.includes('look for') || taskLower.includes('google')) {
-    return 'https://google.com';
-  }
-  
-  // Default fallback - Google for general queries
-  return 'https://google.com';
+  // All navigation decisions now handled by AI
 }
 
 // Check if we should attempt smart navigation

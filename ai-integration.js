@@ -19,6 +19,11 @@ const TOOL_DOCUMENTATION = {
   },
   interaction: {
     click: { params: {selector: "CSS selector"}, desc: "Click element" },
+    clickSearchResult: { 
+      params: {index: 0, domain: "example.com", text: "specific text"}, 
+      desc: "Click on search result links after searching. Use this on Google/Bing search results pages. Can specify index (0=first result), domain, or text to match",
+      example: '{"tool": "clickSearchResult", "params": {"index": 0}}' 
+    },
     type: { 
       params: {selector: "...", text: "...", pressEnter: true}, 
       desc: "Type text and submit. ALWAYS include pressEnter: true for search boxes",
@@ -419,17 +424,23 @@ class AIIntegration {
 
 CRITICAL REQUIREMENT: Respond with ONLY valid JSON. No markdown, no explanations, no code blocks.
 
+SEARCH RESULT NAVIGATION RULE: 
+WHEN ON SEARCH RESULTS PAGE: You MUST click on an actual search result link to navigate to the target website.
+- DO NOT type more queries if search results are already shown
+- Look for result links: h3 a, .g a, [data-testid*="result"], cite parent links
+- Click the most relevant result link that matches your task
+- If you need Qatar Airways, click the Qatar Airways result link
+- If you need a specific website, click that website's result link
+
 SEARCH SUBMISSION RULE: For search forms, follow this priority order:
 1. FIRST: Look for submit buttons - button[type="submit"], buttons with text "Search"/"Submit"/"Go"/"Find", or classes containing "search"/"submit"/"btn"
 2. If submit button found: Click it after typing
 3. ONLY if no submit button: Use pressEnter: true
 
-Example with button: 
-{"tool": "type", "params": {"selector": "#search", "text": "query"}}
-{"tool": "click", "params": {"selector": "button[type='submit']"}}
-
-Example fallback: 
-{"tool": "type", "params": {"selector": "#search", "text": "query", "pressEnter": true}}
+Example search flow:
+1. Type query: {"tool": "type", "params": {"selector": "#search", "text": "Qatar Airways"}}
+2. Submit search: {"tool": "click", "params": {"selector": "button[type='submit']"}}
+3. CRITICAL - Click result: {"tool": "click", "params": {"selector": "h3 a", "description": "Click Qatar Airways search result"}}
 
 TASK COMPLETION RULES: NEVER mark taskComplete: true until you have ACTUALLY completed the task:
 
@@ -497,10 +508,21 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
     if (context) {
       userPrompt += `\n\nAUTOMATION CONTEXT:`;
       
-      // Add stuck warning
+      // Add stuck warning with specific recovery instructions
       if (context.isStuck) {
         userPrompt += `\nIMPORTANT: The automation appears STUCK! The DOM has not changed for ${context.stuckCounter} iterations.`;
         userPrompt += `\nYou MUST try a DIFFERENT approach than before. Do NOT repeat the same actions.`;
+        
+        // Add context-specific recovery suggestions
+        if (context.currentUrl && context.currentUrl.includes('google.com/search')) {
+          userPrompt += `\n\nSTUCK ON GOOGLE SEARCH - RECOVERY ACTIONS:`;
+          userPrompt += `\n1. STOP typing more queries - search results are already visible`;
+          userPrompt += `\n2. Click on an actual search result link (h3 a, .g a)`;
+          userPrompt += `\n3. If you need a specific website, click its result link`;
+          userPrompt += `\n4. DO NOT search again - click existing results instead`;
+        } else if (context.currentUrl && (context.currentUrl.includes('bing.com/search') || context.currentUrl.includes('duckduckgo.com'))) {
+          userPrompt += `\n\nSTUCK ON SEARCH RESULTS - Click a result link instead of searching again`;
+        }
       }
       
       // Add DOM and URL change status

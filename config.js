@@ -42,10 +42,12 @@ class Config {
     this.availableModels = {
       xai: [
         { id: 'grok-3-mini', name: 'Grok 3 Mini', description: 'Fast and efficient' },
-        { id: 'grok-3-mini-fast', name: 'Grok 3 Mini Fast', description: 'Optimized for speed' }
+        { id: 'grok-3-mini-fast', name: 'Grok 3 Mini Fast', description: 'Optimized for speed' },
+        { id: 'grok-code-fast-1', name: 'Grok Code Fast 1', description: 'Optimized for agentic coding workflows' }
       ],
       gemini: [
-        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Latest Gemini model' },
+        { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Latest model with thinking capabilities' },
+        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fast and efficient' },
         { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Stable and reliable' }
       ]
     };

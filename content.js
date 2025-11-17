@@ -918,6 +918,134 @@ const tools = {
     };
   },
   
+  // Click on search result links (Google, Bing, DuckDuckGo, etc.)
+  clickSearchResult: async (params) => {
+    console.log('[FSB] Attempting to click search result with params:', params);
+    
+    // Common selectors for search result links across different search engines
+    const searchResultSelectors = [
+      // Google search results
+      'h3 a',                           // Main result titles
+      '.g a[href]:not([href*="google"])', // Result links (not Google's own links)
+      'a[jsname]',                      // Google's JS-rendered results
+      '.rc .r a',                       // Older Google format
+      '.yuRUbf a',                      // Current Google result container
+      
+      // Bing search results  
+      '.b_algo h2 a',                   // Bing main results
+      '.b_title a',                     // Bing title links
+      
+      // DuckDuckGo results
+      '.result__a',                     // DuckDuckGo results
+      '.result__title a',               // DuckDuckGo title links
+      
+      // Generic patterns
+      '[data-testid*="result"] a',     // Test ID patterns
+      '.search-result a',               // Generic search result class
+      '.result a',                      // Generic result class
+      'article a[href]',                // Article-based results
+      
+      // If specific text is provided, try to match it
+      params.text ? `a:contains("${params.text}")` : null,
+      params.domain ? `a[href*="${params.domain}"]` : null
+    ].filter(Boolean);
+    
+    // Try primary selector if provided
+    if (params.selector) {
+      const element = querySelectorWithShadow(params.selector);
+      if (element && element.tagName === 'A') {
+        element.click();
+        return {
+          success: true,
+          clicked: params.selector,
+          href: element.href,
+          text: element.textContent?.trim().substring(0, 100)
+        };
+      }
+    }
+    
+    // Try to find the nth result if index is specified
+    if (params.index !== undefined) {
+      const allResults = document.querySelectorAll('h3 a, .yuRUbf a, .b_algo h2 a, .result__a');
+      if (allResults[params.index]) {
+        const result = allResults[params.index];
+        result.click();
+        return {
+          success: true,
+          clicked: `Result #${params.index + 1}`,
+          href: result.href,
+          text: result.textContent?.trim().substring(0, 100)
+        };
+      }
+    }
+    
+    // Try each selector to find a clickable result
+    for (const selector of searchResultSelectors) {
+      try {
+        const elements = document.querySelectorAll(selector);
+        
+        // Filter for visible, clickable links
+        const visibleLinks = Array.from(elements).filter(el => {
+          if (el.tagName !== 'A') return false;
+          const rect = el.getBoundingClientRect();
+          const isVisible = rect.width > 0 && rect.height > 0;
+          const hasHref = el.href && !el.href.includes('javascript:');
+          const notGoogleLink = !el.href.includes('google.com/search');
+          return isVisible && hasHref && notGoogleLink;
+        });
+        
+        if (visibleLinks.length > 0) {
+          // Click the first visible result or one matching the domain/text
+          let targetLink = visibleLinks[0];
+          
+          // If domain specified, try to find matching domain
+          if (params.domain) {
+            const domainMatch = visibleLinks.find(link => 
+              link.href.toLowerCase().includes(params.domain.toLowerCase())
+            );
+            if (domainMatch) targetLink = domainMatch;
+          }
+          
+          // If text specified, try to find matching text
+          if (params.text) {
+            const textMatch = visibleLinks.find(link => 
+              link.textContent?.toLowerCase().includes(params.text.toLowerCase())
+            );
+            if (textMatch) targetLink = textMatch;
+          }
+          
+          targetLink.click();
+          return {
+            success: true,
+            clicked: selector,
+            href: targetLink.href,
+            text: targetLink.textContent?.trim().substring(0, 100),
+            totalResults: visibleLinks.length
+          };
+        }
+      } catch (e) {
+        console.log(`[FSB] Selector ${selector} failed:`, e);
+      }
+    }
+    
+    // Fallback: Try to extract and navigate to URL directly
+    const firstResult = document.querySelector('h3 a, .yuRUbf a');
+    if (firstResult && firstResult.href) {
+      window.location.href = firstResult.href;
+      return {
+        success: true,
+        method: 'navigation_fallback',
+        navigatedTo: firstResult.href
+      };
+    }
+    
+    return {
+      success: false,
+      error: 'No search results found to click',
+      suggestion: 'Make sure search results are loaded or try a different search query'
+    };
+  },
+  
   // Type text into an input
   type: async (params) => {
     console.log('[FSB Type] Starting type action with params:', params);

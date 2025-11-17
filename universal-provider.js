@@ -552,13 +552,49 @@ class UniversalProvider {
       }
     }
     
-    // Add missing closing brackets/braces
+    // Add missing closing brackets/braces intelligently
+    // If we're in an actions array, ensure it's properly closed
+    if (fixed.includes('"actions"') && !fixed.includes('"taskComplete"')) {
+      // We're truncated in the middle of the response
+      // Ensure actions array is closed
+      const hasOpenActionArray = fixed.includes('"actions": [') && 
+                                  !fixed.substring(fixed.lastIndexOf('"actions": [')).includes(']');
+      
+      if (hasOpenActionArray) {
+        // Check if we need to close an action object first
+        const lastActionStart = fixed.lastIndexOf('{"tool":');
+        if (lastActionStart > fixed.lastIndexOf('}')) {
+          // Incomplete action object
+          if (!fixed.includes('"params"', lastActionStart)) {
+            fixed += ', "params": {}';
+          }
+          if (!fixed.includes('"description"', lastActionStart)) {
+            fixed += ', "description": "Truncated action"';
+          }
+          fixed += '}'; // Close action object
+        }
+        fixed += ']'; // Close actions array
+      }
+      
+      // Add missing required fields
+      if (!fixed.includes('"taskComplete"')) {
+        fixed += ', "taskComplete": false';
+      }
+      if (!fixed.includes('"result"')) {
+        fixed += ', "result": "Response truncated - retrying"';
+      }
+      if (!fixed.includes('"currentStep"')) {
+        fixed += ', "currentStep": "Processing"';
+      }
+    }
+    
+    // Now add remaining closing brackets/braces
     while (bracketStack.length > 0) {
       const closingChar = bracketStack.pop();
       fixed += closingChar;
     }
     
-    console.log(`Fixed truncation: added ${depth} closing chars, inString: ${inString}`);
+    console.log(`Fixed truncation: added ${fixed.length - input.length} closing chars, inString: ${inString}`);
     return fixed;
   }
   
