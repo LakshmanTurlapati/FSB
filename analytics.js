@@ -3,22 +3,57 @@
 
 class FSBAnalytics {
   constructor() {
-    // Model pricing per 1M tokens (USD)
+    // Model pricing per 1M tokens (USD) - Updated January 2025
     this.pricing = {
+      // xAI Models
       'grok-4': { input: 3.00, output: 15.00 },
-      'gemini-2.5-pro': { input: 1.25, output: 10.00 },
+      'grok-4-fast-reasoning': { input: 0.20, output: 0.50 }, // <128K context
+      'grok-4-fast-non-reasoning': { input: 0.20, output: 0.50 }, // <128K context
+      'grok-code-fast-1': { input: 0.20, output: 1.50 },
+      'grok-3': { input: 5.00, output: 25.00 },
+      'grok-3-mini': { input: 0.30, output: 0.50 },
+      'grok-3-mini-fast': { input: 0.60, output: 4.00 },
+
+      // Anthropic Models
+      'claude-sonnet-4-5': { input: 3.00, output: 15.00 },
+      'claude-sonnet-4-5-20250929': { input: 3.00, output: 15.00 },
+      'claude-haiku-4-5': { input: 1.00, output: 5.00 },
+      'claude-haiku-4-5-20251001': { input: 1.00, output: 5.00 },
+      'claude-opus-4-1': { input: 15.00, output: 75.00 },
+      'claude-opus-4-1-20250805': { input: 15.00, output: 75.00 },
+      'claude-sonnet-4': { input: 3.00, output: 15.00 },
+      'claude-sonnet-4-20250514': { input: 3.00, output: 15.00 },
+      'claude-opus-4': { input: 15.00, output: 75.00 },
+      'claude-opus-4-20250514': { input: 15.00, output: 75.00 },
+      'claude-sonnet-3.7': { input: 3.00, output: 15.00 },
+      'claude-3-7-sonnet-20250219': { input: 3.00, output: 15.00 },
+
+      // OpenAI Models
+      'gpt-4o': { input: 5.00, output: 20.00 },
+      'gpt-4o-2024-08-06': { input: 5.00, output: 20.00 },
+      'gpt-4o-2024-05-13': { input: 5.00, output: 20.00 },
+      'chatgpt-4o-latest': { input: 5.00, output: 20.00 },
+      'gpt-4o-mini': { input: 0.15, output: 0.60 },
+      'gpt-4o-mini-2024-07-18': { input: 0.15, output: 0.60 },
+      'gpt-4-turbo': { input: 10.00, output: 30.00 },
+      'gpt-4-turbo-2024-04-09': { input: 10.00, output: 30.00 },
+
+      // Google Gemini Models
+      'gemini-2.5-flash': { input: 0.30, output: 2.50 },
+      'gemini-2.5-flash-001': { input: 0.30, output: 2.50 },
+      'gemini-2.5-flash-lite': { input: 0.10, output: 0.40 },
+      'gemini-2.5-pro': { input: 1.25, output: 10.00 }, // <200K context
+      'gemini-2.0-flash': { input: 0.00, output: 0.00 }, // FREE experimental until May 2025
+      'gemini-2.0-flash-exp': { input: 0.00, output: 0.00 }, // FREE experimental
+      'gemini-2.0-flash-001': { input: 0.00, output: 0.00 }, // FREE experimental
+
+      // Legacy models (for backward compatibility)
+      'gemini-1.5-flash': { input: 0.075, output: 0.30 }, // DEPRECATED
       'openai-o3': { input: 10.00, output: 40.00 },
       'claude-4-opus': { input: 15.00, output: 75.00 },
-      'gpt-4o': { input: 2.50, output: 10.00 },
-      'llama-3.1-405b': { input: 0.80, output: 0.80 },
       'claude-4-sonnet': { input: 3.00, output: 15.00 },
-      'grok-3': { input: 3.00, output: 15.00 },
-      'deepseek-v3': { input: 0.27, output: 1.10 },
-      'gemini-2.0-flash': { input: 0.10, output: 0.40 },
-      'gemini-1.5-flash': { input: 0.075, output: 0.30 },
-      'grok-3-mini': { input: 0.30, output: 0.50 },
-      'grok-3-mini-fast': { input: 0.30, output: 0.50 },
-      'gpt-4o-mini': { input: 0.15, output: 0.60 }
+      'llama-3.1-405b': { input: 0.80, output: 0.80 },
+      'deepseek-v3': { input: 0.27, output: 1.10 }
     };
 
     // Usage data storage
@@ -153,15 +188,43 @@ class FSBAnalytics {
 
   // Normalize model names to match pricing keys
   normalizeModelName(model) {
+    // Handle model name aliases and variations
     const normalizations = {
+      // xAI Models
+      'grok-4': 'grok-4',
+      'grok-4-fast-reasoning': 'grok-4-fast-reasoning',
+      'grok-4-fast-non-reasoning': 'grok-4-fast-non-reasoning',
+      'grok-code-fast-1': 'grok-code-fast-1',
+      'grok-3': 'grok-3',
       'grok-3-mini': 'grok-3-mini',
       'grok-3-mini-fast': 'grok-3-mini-fast',
-      'grok-3': 'grok-3',
-      'grok-4': 'grok-4',
+
+      // Anthropic Models (handle both alias and full model IDs)
+      'claude-sonnet-4.5': 'claude-sonnet-4-5',
+      'claude-haiku-4.5': 'claude-haiku-4-5',
+      'claude-opus-4.1': 'claude-opus-4-1',
+
+      // OpenAI Models
+      'gpt-4o': 'gpt-4o',
+      'chatgpt-4o-latest': 'chatgpt-4o-latest',
+      'gpt-4o-mini': 'gpt-4o-mini',
+      'gpt-4-turbo': 'gpt-4-turbo',
+
+      // Gemini Models
+      'gemini-2.5-flash': 'gemini-2.5-flash',
+      'gemini-2.5-flash-lite': 'gemini-2.5-flash-lite',
+      'gemini-2.5-pro': 'gemini-2.5-pro',
       'gemini-2.0-flash': 'gemini-2.0-flash',
-      'gemini-1.5-flash': 'gemini-1.5-flash'
+      'gemini-2.0-flash-exp': 'gemini-2.0-flash-exp',
+      'gemini-1.5-flash': 'gemini-1.5-flash', // DEPRECATED
+
+      // Legacy models
+      'gpt-3.5-turbo': 'gpt-4o-mini', // Redirect deprecated to closest equivalent
+      'claude-3-5-sonnet-20241022': 'claude-sonnet-4-5', // Redirect old to new
+      'claude-3-5-haiku-20241022': 'claude-haiku-4-5', // Redirect old to new
+      'claude-3-opus-20240229': 'claude-opus-4' // Redirect old to new
     };
-    
+
     return normalizations[model] || model;
   }
 

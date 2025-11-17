@@ -23,24 +23,34 @@ const defaultSettings = {
 // Available models configuration
 const availableModels = {
   xai: [
-    { id: 'grok-3-mini', name: 'Grok 3 Mini', description: 'Fast and efficient' },
-    { id: 'grok-3-mini-fast', name: 'Grok 3 Mini Fast', description: 'Optimized for speed' },
-    { id: 'grok-code-fast-1', name: 'Grok Code Fast 1', description: 'Optimized for agentic coding workflows' }
+    { id: 'grok-4', name: 'Grok 4', description: 'Most intelligent xAI model with 2M context' },
+    { id: 'grok-4-fast-reasoning', name: 'Grok 4 Fast (Reasoning)', description: 'Fast with thinking tokens for better reasoning' },
+    { id: 'grok-4-fast-non-reasoning', name: 'Grok 4 Fast (Non-Reasoning)', description: 'Fastest without thinking tokens' },
+    { id: 'grok-code-fast-1', name: 'Grok Code Fast 1', description: 'Optimized for agentic coding workflows' },
+    { id: 'grok-3', name: 'Grok 3', description: 'Previous generation model' },
+    { id: 'grok-3-mini', name: 'Grok 3 Mini', description: 'Fast and efficient budget option' },
+    { id: 'grok-3-mini-fast', name: 'Grok 3 Mini Fast', description: 'Optimized for speed' }
   ],
   gemini: [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Latest model with thinking capabilities' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fast and efficient' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Stable and reliable' }
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Latest with thinking capabilities' },
+    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite', description: 'Budget option with 1M context' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most powerful with 2M context' },
+    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Experimental', description: 'FREE experimental until May 2025' },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fast and efficient' }
   ],
   openai: [
-    { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable model' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Affordable and fast' },
-    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Fast and cost-effective' }
+    { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable multimodal model' },
+    { id: 'chatgpt-4o-latest', name: 'ChatGPT-4o Latest', description: 'Always newest GPT-4o version' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Affordable and fast, better than GPT-3.5' },
+    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Previous generation flagship' }
   ],
   anthropic: [
-    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Latest and most capable' },
-    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fast and efficient' },
-    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Previous flagship model' }
+    { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', description: 'Latest flagship model with 200K context' },
+    { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', description: 'Fast and cost-effective with 200K context' },
+    { id: 'claude-opus-4-1', name: 'Claude Opus 4.1', description: 'Most powerful reasoning model' },
+    { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Previous Sonnet version' },
+    { id: 'claude-opus-4', name: 'Claude Opus 4', description: 'Previous Opus version' },
+    { id: 'claude-sonnet-3.7', name: 'Claude Sonnet 3.7', description: 'Extended thinking variant' }
   ],
   custom: [
     { id: 'custom-model', name: 'Custom Model', description: 'Enter your model name below' }
