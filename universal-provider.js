@@ -42,6 +42,15 @@ const PROVIDER_CONFIGS = {
 // Cache for successful parameter configurations per model
 const parameterCache = new Map();
 
+// Rate limit tracking per provider
+const rateLimitState = new Map();
+
+// Default request timeout in milliseconds
+const DEFAULT_REQUEST_TIMEOUT = 30000;
+
+// Maximum retry attempts for rate-limited requests
+const MAX_RATE_LIMIT_RETRIES = 3;
+
 /**
  * Universal AI Provider that adapts to any model
  */
@@ -210,16 +219,109 @@ class UniversalProvider {
   }
   
   /**
+   * Create a fetch request with timeout
+   * @param {string} endpoint - The API endpoint
+   * @param {Object} fetchOptions - Fetch options
+   * @param {number} timeout - Timeout in milliseconds
+   * @returns {Promise<Response>}
+   */
+  async fetchWithTimeout(endpoint, fetchOptions, timeout = DEFAULT_REQUEST_TIMEOUT) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(endpoint, {
+        ...fetchOptions,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error(`API request timed out after ${timeout}ms`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Handle rate-limited responses with exponential backoff
+   * @param {Response} response - The HTTP response
+   * @param {number} attemptNumber - Current attempt number
+   * @returns {Promise<{shouldRetry: boolean, waitTime: number}>}
+   */
+  async handleRateLimit(response, attemptNumber = 1) {
+    const providerKey = this.provider;
+
+    // Get current rate limit state
+    let state = rateLimitState.get(providerKey) || { backoff: 1000, lastError: 0 };
+
+    // Parse Retry-After header if present
+    const retryAfter = response.headers.get('Retry-After');
+    let waitTime;
+
+    if (retryAfter) {
+      // Retry-After can be seconds (number) or HTTP date
+      if (/^\d+$/.test(retryAfter)) {
+        waitTime = parseInt(retryAfter) * 1000;
+      } else {
+        const retryDate = new Date(retryAfter);
+        waitTime = Math.max(0, retryDate.getTime() - Date.now());
+      }
+    } else {
+      // Exponential backoff: 1s, 2s, 4s, 8s, etc.
+      waitTime = Math.min(state.backoff * Math.pow(2, attemptNumber - 1), 60000);
+    }
+
+    // Update rate limit state
+    state.backoff = waitTime;
+    state.lastError = Date.now();
+    rateLimitState.set(providerKey, state);
+
+    console.log(`[FSB API] Rate limited by ${this.provider}. Waiting ${waitTime}ms before retry (attempt ${attemptNumber}/${MAX_RATE_LIMIT_RETRIES})`);
+
+    return {
+      shouldRetry: attemptNumber < MAX_RATE_LIMIT_RETRIES,
+      waitTime
+    };
+  }
+
+  /**
    * Send request with automatic retry on parameter errors
+   * Enhanced with timeout and rate-limit handling
    */
   async sendRequest(requestBody, options = {}) {
+    const { retry = false, rateLimitAttempt = 0, timeout = DEFAULT_REQUEST_TIMEOUT } = options;
+
     try {
-      const response = await fetch(this.getEndpoint(), {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify(requestBody)
-      });
-      
+      const response = await this.fetchWithTimeout(
+        this.getEndpoint(),
+        {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify(requestBody)
+        },
+        timeout
+      );
+
+      // Handle rate limiting (429) and service unavailable (503)
+      if (response.status === 429 || response.status === 503) {
+        const { shouldRetry, waitTime } = await this.handleRateLimit(response, rateLimitAttempt + 1);
+
+        if (shouldRetry) {
+          // Wait and retry
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          return this.sendRequest(requestBody, {
+            ...options,
+            rateLimitAttempt: rateLimitAttempt + 1
+          });
+        } else {
+          const errorText = await response.text().catch(() => 'Rate limit exceeded');
+          throw new Error(`${this.provider} API rate limit exceeded after ${MAX_RATE_LIMIT_RETRIES} retries: ${errorText}`);
+        }
+      }
+
       if (!response.ok) {
         const errorText = await response.text();
         const error = new Error(`${this.provider} API error: ${response.status} - ${errorText}`);
@@ -227,11 +329,14 @@ class UniversalProvider {
         error.responseText = errorText;
         throw error;
       }
-      
+
       const result = await response.json();
-      
+
+      // Reset rate limit backoff on success
+      rateLimitState.delete(this.provider);
+
       // Cache successful parameters
-      if (!options.retry && requestBody.temperature !== undefined) {
+      if (!retry && requestBody.temperature !== undefined) {
         const cacheKey = `${this.provider}:${this.model}`;
         const paramsToCache = {
           temperature: requestBody.temperature,
@@ -239,24 +344,24 @@ class UniversalProvider {
         };
         parameterCache.set(cacheKey, paramsToCache);
       }
-      
+
       return result;
-      
+
     } catch (error) {
       // Check if error is due to unsupported parameters
       if (error.status === 400 && error.responseText) {
         const unsupportedParam = this.extractUnsupportedParameter(error.responseText);
-        if (unsupportedParam && !options.retry) {
+        if (unsupportedParam && !retry) {
           console.log(`Parameter '${unsupportedParam}' not supported, retrying without it`);
-          
+
           // Rebuild request without the problematic parameter
           const cleanedRequest = this.removeParameter(requestBody, unsupportedParam);
-          
+
           // Retry with cleaned request
-          return this.sendRequest(cleanedRequest, { retry: true });
+          return this.sendRequest(cleanedRequest, { ...options, retry: true });
         }
       }
-      
+
       throw error;
     }
   }
@@ -772,15 +877,14 @@ class UniversalProvider {
    */
   supportsReasoningEffort() {
     if (this.provider !== 'xai') return false;
-    
-    // Grok models that support reasoning_effort
+
+    // Only base Grok 4 supports reasoning_effort
+    // grok-4-fast does NOT support it (returns 400 error)
     const supportedModels = [
-      'grok-3-mini',
-      'grok-3-mini-beta', 
-      'grok-3-mini-fast-beta'
+      'grok-4'
     ];
-    
-    return supportedModels.some(model => this.model.includes(model));
+
+    return supportedModels.includes(this.model);
   }
   
   /**

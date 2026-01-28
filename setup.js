@@ -9,7 +9,7 @@ class FSBSetup {
   constructor() {
     this.defaultSettings = {
       modelProvider: 'xai',
-      modelName: 'grok-3-mini',
+      modelName: 'grok-3-fast',
       apiKey: '',
       geminiApiKey: '',
       captchaSolver: 'none',
@@ -50,7 +50,7 @@ class FSBSetup {
   /**
    * Quick setup for xAI Grok
    */
-  async setupXAI(apiKey, modelName = 'grok-3-mini') {
+  async setupXAI(apiKey, modelName = 'grok-3-fast') {
     const settings = {
       ...this.defaultSettings,
       modelProvider: 'xai',

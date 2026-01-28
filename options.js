@@ -3,7 +3,7 @@
 // Default settings
 const defaultSettings = {
   modelProvider: 'xai',
-  modelName: 'grok-3-mini',
+  modelName: 'grok-3-fast',
   apiKey: '',
   geminiApiKey: '',
   openaiApiKey: '',
@@ -23,13 +23,12 @@ const defaultSettings = {
 // Available models configuration
 const availableModels = {
   xai: [
-    { id: 'grok-4', name: 'Grok 4', description: 'Most intelligent xAI model with 2M context' },
-    { id: 'grok-4-fast-reasoning', name: 'Grok 4 Fast (Reasoning)', description: 'Fast with thinking tokens for better reasoning' },
-    { id: 'grok-4-fast-non-reasoning', name: 'Grok 4 Fast (Non-Reasoning)', description: 'Fastest without thinking tokens' },
-    { id: 'grok-code-fast-1', name: 'Grok Code Fast 1', description: 'Optimized for agentic coding workflows' },
-    { id: 'grok-3', name: 'Grok 3', description: 'Previous generation model' },
-    { id: 'grok-3-mini', name: 'Grok 3 Mini', description: 'Fast and efficient budget option' },
-    { id: 'grok-3-mini-fast', name: 'Grok 3 Mini Fast', description: 'Optimized for speed' }
+    { id: 'grok-3-fast', name: 'Grok 3 Fast', description: 'Fast and efficient - best for automation' },
+    { id: 'grok-3', name: 'Grok 3', description: 'Flagship model with full capabilities' },
+    { id: 'grok-3-mini-fast-beta', name: 'Grok 3 Mini Fast', description: 'Fastest, most economical option' },
+    { id: 'grok-3-mini-beta', name: 'Grok 3 Mini', description: 'Smaller model with reasoning capabilities' },
+    { id: 'grok-4', name: 'Grok 4', description: 'Most capable reasoning model' },
+    { id: 'grok-4-fast', name: 'Grok 4 Fast', description: 'Efficient variant of Grok 4' }
   ],
   gemini: [
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Latest with thinking capabilities' },
@@ -559,7 +558,7 @@ function loadSettings() {
     // Handle legacy speedMode to new model format
     if (!settings.modelProvider && settings.speedMode) {
       settings.modelProvider = 'xai';
-      settings.modelName = settings.speedMode === 'fast' ? 'grok-3-mini-fast' : 'grok-3-mini';
+      settings.modelName = 'grok-3-fast'; // All legacy modes map to new default
     }
     
     // Update model provider and options
@@ -643,7 +642,7 @@ function loadSettings() {
 function saveSettings() {
   const settings = {
     modelProvider: elements.modelProvider?.value || 'xai',
-    modelName: elements.modelName?.value || 'grok-3-mini',
+    modelName: elements.modelName?.value || 'grok-3-fast',
     reasoningEffort: elements.reasoningEffort?.value || 'low',
     apiKey: elements.apiKey?.value || '',
     geminiApiKey: elements.geminiApiKey?.value || '',
@@ -1052,12 +1051,12 @@ async function testTokenTracking() {
     showDebugOutput('Analytics not initialized');
     return;
   }
-  
+
   showDebugOutput('Testing token tracking...');
-  
+
   // Test with fake data
   const testData = {
-    model: 'grok-3-mini',
+    model: 'grok-3-fast',
     inputTokens: 150,
     outputTokens: 75,
     success: true
@@ -1096,7 +1095,7 @@ async function clearAnalyticsData() {
       await chrome.storage.local.remove(['fsbUsageData', 'fsbCurrentModel']);
       if (analytics) {
         analytics.usageData = [];
-        analytics.currentModel = 'grok-3-mini';
+        analytics.currentModel = 'grok-3-fast';
         analytics.updateDashboard();
         analytics.updateChart('24h');
       }

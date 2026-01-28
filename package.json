@@ -24,7 +24,7 @@
     "ai-agent",
     "natural-language",
     "xai-grok",
-    "grok-3-mini",
+    "grok-3",
     "web-automation",
     "dom-manipulation",
     "ai-powered",
@@ -143,7 +143,7 @@
     "Extensive debugging and logging"
   ],
   "techStack": {
-    "ai": "xAI Grok-3-mini",
+    "ai": "xAI Grok-4.1",
     "platform": "Chrome Extension Manifest V3",
     "language": "JavaScript ES2021+",
     "apis": [

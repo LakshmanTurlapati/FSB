@@ -5,14 +5,13 @@ class FSBAnalytics {
   constructor() {
     // Model pricing per 1M tokens (USD) - Updated January 2025
     this.pricing = {
-      // xAI Models
-      'grok-4': { input: 3.00, output: 15.00 },
-      'grok-4-fast-reasoning': { input: 0.20, output: 0.50 }, // <128K context
-      'grok-4-fast-non-reasoning': { input: 0.20, output: 0.50 }, // <128K context
-      'grok-code-fast-1': { input: 0.20, output: 1.50 },
+      // xAI Models - Valid model names from xAI API
       'grok-3': { input: 5.00, output: 25.00 },
-      'grok-3-mini': { input: 0.30, output: 0.50 },
-      'grok-3-mini-fast': { input: 0.60, output: 4.00 },
+      'grok-3-fast': { input: 0.50, output: 2.50 },
+      'grok-3-mini-beta': { input: 0.30, output: 1.50 },
+      'grok-3-mini-fast-beta': { input: 0.10, output: 0.50 },
+      'grok-4': { input: 3.00, output: 15.00 },
+      'grok-4-fast': { input: 3.00, output: 15.00 },
 
       // Anthropic Models
       'claude-sonnet-4-5': { input: 3.00, output: 15.00 },
@@ -59,7 +58,7 @@ class FSBAnalytics {
     // Usage data storage
     this.usageData = [];
     this.sessionStartTime = Date.now();
-    this.currentModel = 'grok-3-mini';
+    this.currentModel = 'grok-3-fast';
     
     // Chart instance
     this.chart = null;
@@ -190,14 +189,19 @@ class FSBAnalytics {
   normalizeModelName(model) {
     // Handle model name aliases and variations
     const normalizations = {
-      // xAI Models
-      'grok-4': 'grok-4',
-      'grok-4-fast-reasoning': 'grok-4-fast-reasoning',
-      'grok-4-fast-non-reasoning': 'grok-4-fast-non-reasoning',
-      'grok-code-fast-1': 'grok-code-fast-1',
+      // xAI Models - Valid model names
       'grok-3': 'grok-3',
-      'grok-3-mini': 'grok-3-mini',
-      'grok-3-mini-fast': 'grok-3-mini-fast',
+      'grok-3-fast': 'grok-3-fast',
+      'grok-3-mini-beta': 'grok-3-mini-beta',
+      'grok-3-mini-fast-beta': 'grok-3-mini-fast-beta',
+      'grok-4': 'grok-4',
+      'grok-4-fast': 'grok-4-fast',
+      // Legacy model redirects (invalid models redirect to valid ones)
+      'grok-4-1-fast': 'grok-3-fast',
+      'grok-4-1-fast-reasoning': 'grok-3',
+      'grok-4-1-fast-non-reasoning': 'grok-3-fast',
+      'grok-3-mini': 'grok-3-mini-beta',
+      'grok-3-mini-fast': 'grok-3-mini-fast-beta',
 
       // Anthropic Models (handle both alias and full model IDs)
       'claude-sonnet-4.5': 'claude-sonnet-4-5',
@@ -541,12 +545,14 @@ class FSBAnalytics {
   // Format model name for display
   formatModelName(model) {
     const displayNames = {
-      'grok-3-mini': 'Grok 3 Mini',
-      'grok-3-mini-fast': 'Grok 3 Mini Fast',
       'grok-3': 'Grok 3',
-      'grok-4': 'Grok 4'
+      'grok-3-fast': 'Grok 3 Fast',
+      'grok-3-mini-beta': 'Grok 3 Mini',
+      'grok-3-mini-fast-beta': 'Grok 3 Mini Fast',
+      'grok-4': 'Grok 4',
+      'grok-4-fast': 'Grok 4 Fast'
     };
-    
+
     return displayNames[model] || model;
   }
 

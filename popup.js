@@ -310,7 +310,7 @@ function testAPI() {
     if (response.success) {
       addMessage('Great! API connection is working perfectly.', 'system');
       if (response.result && response.result.data) {
-        addMessage(`Connected to model: ${response.result.model || 'grok-3-mini'}`, 'ai');
+        addMessage(`Connected to model: ${response.result.model || 'grok-3-fast'}`, 'ai');
       }
     } else {
       addMessage('API connection failed. Please check your settings.', 'error');

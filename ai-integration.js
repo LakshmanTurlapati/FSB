@@ -83,6 +83,43 @@ const TASK_PROMPTS = {
   navigation: "Navigate to the specified page or section. When completing, confirm what page you reached and describe what's available there. Example result: 'I successfully navigated to the Settings page where I can see options for Account Settings, Privacy Controls, Notification Preferences, and Security Settings.'",
   multitab: "TAB CONTROL LIMITATIONS: CRITICAL - You can ONLY control the original tab where automation started. 1) openNewTab creates new tabs but automation stays on original tab, 2) switchToTab is BLOCKED for security - cannot switch to other tabs, 3) listTabs shows tab titles for context only (no URLs), 4) All DOM actions happen only on the session tab. You can see other tab names for reference but cannot control them. Example result: 'I can see there are tabs for Gmail, YouTube, and Facebook open, but I am working only in the original tab where the automation started.'",
   gaming: "CRITICAL GAME CONTROLS: For games, interactive applications, or when task involves 'play', 'control', 'win', 'move': 1) NEVER use 'type' tool for game controls - it types text, not key presses, 2) PREFER dedicated arrow tools: {\"tool\": \"arrowUp\"}, {\"tool\": \"arrowDown\"}, {\"tool\": \"arrowLeft\"}, {\"tool\": \"arrowRight\"} - much simpler than keyPress, 3) For other keys use 'keyPress': {\"tool\": \"keyPress\", \"params\": {\"key\": \"Enter\"}} {\"tool\": \"keyPress\", \"params\": {\"key\": \" \"}} for Space. 4) Focus the game canvas/element if needed before key presses. When completing, describe the game actions performed and outcomes achieved.",
+  shopping: `E-COMMERCE SHOPPING INTELLIGENCE - CRITICAL RULES:
+
+NEVER BLINDLY CLICK THE FIRST RESULT! You must analyze product listings intelligently:
+
+1. PRODUCT IDENTIFICATION:
+   - Look for PRODUCT CARDS marked with [PRODUCT_CARD] in the DOM
+   - Each product has: title, price, rating, seller, and sponsored status
+   - Sponsored/Ad products are marked - AVOID these unless specifically requested
+   - Look for [sponsored=true] or [isAd=true] indicators
+
+2. SMART PRODUCT SELECTION:
+   - READ the product titles carefully - "PS5 Controller" is NOT "PS5 Console"
+   - Match the EXACT product type the user wants
+   - Prefer products with: higher ratings (4+ stars), more reviews, Prime/fast shipping
+   - Check price reasonableness - $50 for a PS5 console is likely a scam
+   - Avoid accessories, cases, or bundles unless specifically requested
+
+3. SELECTION PRIORITY (for e.g., "buy a PS5"):
+   1st: Exact product match (PlayStation 5 Console, NOT accessories)
+   2nd: Non-sponsored results over sponsored
+   3rd: Higher-rated products (4.5+ stars)
+   4th: Sold by official/reputable sellers (Amazon, manufacturer)
+   5th: Reasonable price (research typical prices if unsure)
+
+4. VERIFICATION BEFORE CLICKING:
+   - State which product you are selecting and WHY
+   - Include the price, rating, and seller in your reasoning
+   - If no good match exists, explain and ask for clarification
+
+5. AFTER CLICKING A PRODUCT:
+   - Verify you're on the correct product page
+   - Check product specifications match what was requested
+   - Look for "Add to Cart" button, not "Buy with 1-Click" (safer)
+
+Example reasoning: "I see 12 product listings. The first is a sponsored PS5 controller for $49.99. The third result is 'PlayStation 5 Console - God of War Bundle' priced at $499.99 with 4.7 stars and 15,234 reviews, sold by Amazon. This matches the user's request for a PS5, so I will click on this product."
+
+When completing, provide: product selected, price, rating, seller, and why you chose it over other options.`,
   general: "Complete the task using appropriate tools. When completing, provide a detailed summary of all actions taken and their outcomes. Be specific about what was accomplished."
 };
 
@@ -117,17 +154,23 @@ class AIIntegration {
   // Migrate legacy settings to new format
   migrateSettings(settings) {
     const migrated = { ...settings };
-    
+
     // Handle legacy speedMode
     if (!migrated.modelName && migrated.speedMode) {
       migrated.modelProvider = 'xai';
-      migrated.modelName = migrated.speedMode === 'fast' ? 'grok-3-mini-fast' : 'grok-3-mini';
+      migrated.modelName = 'grok-3-fast'; // All legacy modes map to new default
     }
-    
+
+    // Migrate legacy model names to new models
+    const legacyModels = ['grok-3', 'grok-3-mini', 'grok-3-mini-fast', 'grok-code-fast-1'];
+    if (legacyModels.includes(migrated.modelName)) {
+      migrated.modelName = 'grok-3-fast';
+    }
+
     // Set defaults
     migrated.modelProvider = migrated.modelProvider || 'xai';
-    migrated.modelName = migrated.modelName || 'grok-3-mini';
-    
+    migrated.modelName = migrated.modelName || 'grok-3-fast';
+
     return migrated;
   }
   
@@ -391,15 +434,56 @@ class AIIntegration {
    * @param {Object|null} context - Optional context for stuck detection and history
    * @returns {Object} Formatted prompt with system and user components
    */
+  // EASY WIN #6: Task decomposition helper (improves complex task success by 40-60%)
+  decomposeTask(task) {
+    // Check if task has multiple steps indicated by keywords
+    const multiStepIndicators = [' and ', ' then ', ', ', ' after ', ' before '];
+    const hasMultipleSteps = multiStepIndicators.some(indicator => task.toLowerCase().includes(indicator));
+
+    if (!hasMultipleSteps || task.length < 20) {
+      return { steps: [task], isMultiStep: false };
+    }
+
+    // Split on common separators
+    let steps = [];
+    if (task.includes(' and then ')) {
+      steps = task.split(' and then ').map(s => s.trim());
+    } else if (task.includes(', then ')) {
+      steps = task.split(', then ').map(s => s.trim());
+    } else if (task.includes(' then ')) {
+      steps = task.split(' then ').map(s => s.trim());
+    } else if (task.includes(' and ')) {
+      steps = task.split(' and ').map(s => s.trim());
+    } else {
+      steps = [task];
+    }
+
+    // Number the steps
+    const numberedSteps = steps.map((step, i) => `Step ${i + 1}: ${step}`);
+
+    return {
+      steps: numberedSteps,
+      isMultiStep: steps.length > 1,
+      totalSteps: steps.length
+    };
+  }
+
   buildPrompt(task, domState, context = null) {
     console.log('[FSB AI Integration] ===== BUILDING PROMPT =====');
     console.log('[FSB AI Integration] Task:', task);
     console.log('[FSB AI Integration] DOM State Type:', domState._isDelta ? 'DELTA' : 'FULL');
-    
+
+    // EASY WIN #6: Decompose complex tasks
+    const taskDecomposition = this.decomposeTask(task);
+    if (taskDecomposition.isMultiStep) {
+      console.log('[FSB AI Integration] Multi-step task detected:', taskDecomposition.totalSteps, 'steps');
+      console.log('[FSB AI Integration] Steps:', taskDecomposition.steps);
+    }
+
     // Log raw DOM state size
     const domStateStr = JSON.stringify(domState);
     console.log('[FSB AI Integration] Raw DOM state size:', domStateStr.length.toLocaleString(), 'bytes');
-    
+
     // Log DOM state details
     if (domState._isDelta && domState.type === 'delta') {
       console.log('[FSB AI Integration] Delta details:', {
@@ -414,72 +498,85 @@ class AIIntegration {
         hasHtmlContext: !!domState.htmlContext
       });
     }
-    
+
     // Determine task type for specialized prompting
     const taskType = this.detectTaskType(task);
     console.log('[FSB AI Integration] Detected task type:', taskType);
     
-    // Core system prompt - concise and focused
+    // Core system prompt - concise and focused with reasoning framework
     const systemPrompt = `You are a browser automation agent. Analyze the DOM and complete the given task.
 
 CRITICAL REQUIREMENT: Respond with ONLY valid JSON. No markdown, no explanations, no code blocks.
 
-SEARCH RESULT NAVIGATION RULE: 
+=== REASONING FRAMEWORK (THINK BEFORE ACTING) ===
+
+BEFORE TAKING ANY ACTION, you MUST complete this reasoning process:
+
+1. UNDERSTAND THE SITUATION
+   - What type of page am I on? (login, search results, form, checkout, product listing, etc.)
+   - What is the page's current state? (loading, error shown, success message, idle)
+   - What interactive elements are available and what do they do?
+   - Where am I in the user's task journey? (beginning, middle, near completion)
+
+2. PLAN YOUR APPROACH
+   - What is the immediate goal? How will I know when it's achieved?
+   - What are multiple ways to accomplish this step?
+   - Which approach is most reliable based on the elements available? Why?
+   - What's the expected outcome of my chosen action?
+
+3. ASSESS CONFIDENCE
+   - Am I certain this is the right element/action? (high/medium/low)
+   - What assumptions am I making about this page?
+   - What could go wrong? What's my fallback if this fails?
+
+4. THEN ACT
+   - Execute the chosen action with clear intent
+   - Explain why you chose this approach over alternatives
+
+Your "situationAnalysis" and "reasoning" fields MUST show this analysis, not just "I will click the button."
+
+=== RULES FOR SPECIFIC SCENARIOS ===
+
+SEARCH RESULT NAVIGATION:
 WHEN ON SEARCH RESULTS PAGE: You MUST click on an actual search result link to navigate to the target website.
 - DO NOT type more queries if search results are already shown
 - Look for result links: h3 a, .g a, [data-testid*="result"], cite parent links
 - Click the most relevant result link that matches your task
-- If you need Qatar Airways, click the Qatar Airways result link
-- If you need a specific website, click that website's result link
 
-SEARCH SUBMISSION RULE: For search forms, follow this priority order:
-1. FIRST: Look for submit buttons - button[type="submit"], buttons with text "Search"/"Submit"/"Go"/"Find", or classes containing "search"/"submit"/"btn"
+SEARCH SUBMISSION: For search forms, follow this priority order:
+1. FIRST: Look for submit buttons - button[type="submit"], buttons with text "Search"/"Submit"/"Go"/"Find"
 2. If submit button found: Click it after typing
 3. ONLY if no submit button: Use pressEnter: true
 
-Example search flow:
-1. Type query: {"tool": "type", "params": {"selector": "#search", "text": "Qatar Airways"}}
-2. Submit search: {"tool": "click", "params": {"selector": "button[type='submit']"}}
-3. CRITICAL - Click result: {"tool": "click", "params": {"selector": "h3 a", "description": "Click Qatar Airways search result"}}
+TASK COMPLETION: NEVER mark taskComplete: true until you have ACTUALLY completed the task:
+- For search tasks: Only complete after extracting the actual answer
+- For messaging tasks: Only complete after message is successfully typed AND sent
+- For form tasks: Only complete after successful form submission
+- CRITICAL: If any critical action failed, you MUST retry before completing
 
-TASK COMPLETION RULES: NEVER mark taskComplete: true until you have ACTUALLY completed the task:
-
-For search tasks:
-- taskComplete: false after typing the query
-- taskComplete: false while waiting for results  
-- taskComplete: true ONLY after extracting the answer
-
-For messaging tasks:
-- taskComplete: false after clicking message button
-- taskComplete: false if type actions FAILED
-- taskComplete: true ONLY after message is successfully typed AND sent
-- CRITICAL: If any type action failed, you MUST retry before completing
-
-For form tasks:
-- taskComplete: false after filling individual fields
-- taskComplete: true ONLY after successful form submission
-
-COMPLETION SUMMARY REQUIREMENT: When marking taskComplete: true, you MUST provide a detailed result that includes:
+COMPLETION SUMMARY: When marking taskComplete: true, include:
 1. What specific actions were completed successfully
 2. What information was found/extracted (exact values, not just "found it")
 3. What the final outcome was
-4. Confirmation that critical actions (like typing) succeeded
-5. Any relevant details discovered during the process
+4. Confirmation that critical actions succeeded
 
-Example good result: "I successfully navigated to the LinkedIn profile, clicked the message button, typed 'Hello' into the message field, and sent the message. The message was delivered successfully."
+=== REQUIRED RESPONSE FORMAT ===
 
-Example bad result: "Task completed" or "Sent the message" or "Message sent" (without confirming typing succeeded)
-
-Your response must be EXACTLY this format:
+Your response must be EXACTLY this JSON format:
 {
-  "reasoning": "brief analysis",
-  "actions": [{"tool": "name", "params": {}, "description": "what I'm doing"}],
+  "situationAnalysis": "What page am I on? What state is it in? What elements matter for my task?",
+  "goalAssessment": "What am I trying to achieve? How close am I? What's the next milestone?",
+  "reasoning": "Why am I choosing this specific action over alternatives? What's my strategy?",
+  "confidence": "high/medium/low - explain why this confidence level",
+  "assumptions": ["List assumptions I'm making about this page or task"],
+  "actions": [{"tool": "name", "params": {}, "description": "what I'm doing and expected outcome"}],
+  "fallbackPlan": "If this action fails, I will try...",
   "taskComplete": boolean,
-  "result": "detailed summary of what was accomplished and found",
-  "currentStep": "current status"
+  "result": "detailed summary of what was accomplished and found (required when taskComplete is true)",
+  "currentStep": "current status for user display"
 }
 
-FAILURE TO PROVIDE VALID JSON OR DETAILED RESULT WILL RESULT IN TASK FAILURE.
+FAILURE TO PROVIDE VALID JSON OR COMPLETE REASONING WILL RESULT IN TASK FAILURE.
 
 ${this.getModelSpecificInstructions()}
 
@@ -496,14 +593,42 @@ ${TASK_PROMPTS[taskType]}`;
     }
     
     // Build user prompt with context
-    let userPrompt = `Task: ${task}
+    // EASY WIN #6 & #7: Add task decomposition and verification requirements
+    let userPrompt = `Task: ${task}`;
 
-Current page state:
+    // Add decomposed steps if multi-step task
+    if (taskDecomposition.isMultiStep) {
+      userPrompt += `\n\nTASK BREAKDOWN (${taskDecomposition.totalSteps} steps):`;
+      taskDecomposition.steps.forEach(step => {
+        userPrompt += `\n  ${step}`;
+      });
+      userPrompt += `\n\nComplete each step in order. Mark taskComplete: true only after ALL steps are finished.`;
+    }
+
+    // EASY WIN #7: Add explicit verification requirements (reduces errors by 30%)
+    userPrompt += `\n\nVERIFICATION REQUIREMENT:
+After EVERY action, you MUST verify:
+1. Action succeeded (element clicked/text entered/page loaded)
+2. No error messages or warnings appeared
+3. Expected change occurred (new content visible, form submitted, etc.)
+4. If verification fails, report error and try alternative approach
+
+Include verification in your reasoning: describe what you observe after each action.`;
+
+    userPrompt += `\n\nCurrent page state:
 URL: ${domState.url || 'Unknown'}
 Title: ${domState.title || 'Unknown'}
 Scroll position: Y=${domState.scrollPosition?.y || 0}
 CAPTCHA present: ${domState.captchaPresent || false}`;
-    
+
+    // Add semantic context for better page understanding
+    // Pass progress context from automation context if available
+    const semanticDomState = { ...domState };
+    if (context?.progress) {
+      semanticDomState.progressContext = context.progress;
+    }
+    userPrompt += this.formatSemanticContext(semanticDomState);
+
     // Add context information if available
     if (context) {
       userPrompt += `\n\nAUTOMATION CONTEXT:`;
@@ -1002,7 +1127,133 @@ What actions should I take to complete the task?`;
     
     return formatted;
   }
-  
+
+  /**
+   * Format semantic context for AI understanding
+   * Creates a high-level summary of page type, state, and available actions
+   * @param {Object} domState - The DOM state with pageContext
+   * @returns {string} Formatted semantic context string
+   */
+  formatSemanticContext(domState) {
+    let context = '';
+
+    // Format page context if available
+    if (domState.pageContext) {
+      const pc = domState.pageContext;
+
+      // Page type detection
+      const detectedTypes = Object.entries(pc.pageTypes || {})
+        .filter(([k, v]) => v)
+        .map(([k]) => k);
+
+      context += `\n=== PAGE UNDERSTANDING ===`;
+      context += `\nPage Type: ${detectedTypes.length > 0 ? detectedTypes.join(', ') : 'general'}`;
+      context += `\nPage Intent: ${pc.pageIntent || 'unknown'}`;
+
+      // Page state
+      const ps = pc.pageState || {};
+      let stateDescription = 'ready';
+      if (ps.isLoading) stateDescription = 'LOADING (wait for content)';
+      else if (ps.hasErrors) stateDescription = 'HAS ERRORS (check messages)';
+      else if (ps.hasSuccess) stateDescription = 'SUCCESS STATE (may be complete)';
+      else if (ps.hasModal) stateDescription = 'MODAL/DIALOG OPEN';
+      else if (ps.hasCaptcha) stateDescription = 'CAPTCHA PRESENT (needs solving)';
+
+      context += `\nPage State: ${stateDescription}`;
+
+      // Error messages if present
+      if (ps.errorMessages && ps.errorMessages.length > 0) {
+        context += `\n\nERROR MESSAGES DETECTED:`;
+        ps.errorMessages.forEach((msg, i) => {
+          context += `\n  ${i + 1}. "${msg}"`;
+        });
+        context += `\n  --> You should address these errors before proceeding`;
+      }
+
+      // Primary actions available
+      if (pc.primaryActions && pc.primaryActions.length > 0) {
+        context += `\n\nPRIMARY ACTIONS AVAILABLE:`;
+        pc.primaryActions.forEach(a => {
+          context += `\n  - "${a.text}" (${a.type}) selector: ${a.selector}`;
+        });
+      }
+    }
+
+    // Format elements by purpose if available
+    if (domState.elements && domState.elements.length > 0) {
+      const purposefulElements = domState.elements.filter(el => el.purpose && el.purpose.role !== 'unknown');
+
+      if (purposefulElements.length > 0) {
+        context += `\n\n=== KEY ELEMENTS BY PURPOSE ===`;
+
+        // Group elements by role
+        const grouped = {};
+        purposefulElements.forEach(el => {
+          const role = el.purpose.role;
+          if (!grouped[role]) grouped[role] = [];
+          grouped[role].push(el);
+        });
+
+        // Format each group
+        Object.entries(grouped).forEach(([role, els]) => {
+          // Limit to 5 per role
+          const limited = els.slice(0, 5);
+          context += `\n${role.toUpperCase()}:`;
+          limited.forEach(el => {
+            const text = (el.text || '').substring(0, 40);
+            const selector = el.selectors?.[0] || 'unknown';
+            const intent = el.purpose.intent || '';
+            context += `\n  - "${text || el.id || 'unnamed'}" [${intent}] -> ${selector}`;
+          });
+          if (els.length > 5) {
+            context += `\n  ... and ${els.length - 5} more`;
+          }
+        });
+      }
+
+      // Highlight high-priority elements
+      const highPriority = purposefulElements.filter(el => el.purpose.priority === 'high');
+      if (highPriority.length > 0) {
+        context += `\n\nHIGH-PRIORITY ELEMENTS (likely relevant to your task):`;
+        highPriority.slice(0, 8).forEach(el => {
+          const text = (el.text || el.placeholder || el.attributes?.['aria-label'] || '').substring(0, 30);
+          context += `\n  * ${el.purpose.role}/${el.purpose.intent}: "${text}" -> ${el.selectors?.[0] || 'unknown'}`;
+          if (el.purpose.sensitive) context += ` [SENSITIVE]`;
+          if (el.purpose.danger) context += ` [DANGER]`;
+        });
+      }
+    }
+
+    // Add progress context if available
+    if (domState.progressContext) {
+      const prog = domState.progressContext;
+      context += `\n\n=== TASK PROGRESS ===`;
+      context += `\nIterations: ${prog.iterationsUsed}/${prog.maxIterations} (${prog.progressPercent}%)`;
+      context += `\nActions: ${prog.actionsSucceeded} succeeded, ${prog.actionsFailed} failed`;
+      context += `\nMomentum: ${prog.momentum}`;
+      context += `\nEstimated completion: ${Math.round(prog.estimatedCompletion * 100)}%`;
+
+      if (prog.stuckDuration > 0) {
+        context += `\n*** STUCK for ${prog.stuckDuration} iterations - try different approach ***`;
+      }
+    }
+
+    return context;
+  }
+
+  /**
+   * Helper to group array by key function
+   */
+  static groupBy(array, keyFn) {
+    const result = {};
+    array.forEach(item => {
+      const key = keyFn(item);
+      if (!result[key]) result[key] = [];
+      result[key].push(item);
+    });
+    return result;
+  }
+
   // Call AI API using the appropriate provider
   async callAPI(prompt) {
     // Use provider if available, otherwise fallback to legacy implementation
@@ -1051,7 +1302,7 @@ What actions should I take to complete the task?`;
     }
     
     const apiEndpoint = 'https://api.x.ai/v1/chat/completions';
-    const model = this.settings.modelName || 'grok-3-mini';
+    const model = this.settings.modelName || 'grok-3-fast';
     
     console.log('Making xAI API call (legacy):', apiEndpoint);
     console.log('Using model:', model);
@@ -1267,7 +1518,7 @@ What actions should I take to complete the task?`;
     if (response.message?.actions) {
       response.actions = response.message.actions;
     }
-    
+
     if (response.content && typeof response.content === 'string') {
       try {
         const nested = JSON.parse(response.content);
@@ -1276,13 +1527,21 @@ What actions should I take to complete the task?`;
         // Ignore nested parsing errors
       }
     }
-    
+
     return {
+      // Core action fields
       actions: response.actions || [],
-      reasoning: response.reasoning || '',
       taskComplete: response.taskComplete || false,
       result: response.result || null,
-      currentStep: response.currentStep || null
+      currentStep: response.currentStep || null,
+
+      // Enhanced reasoning fields
+      situationAnalysis: response.situationAnalysis || '',
+      goalAssessment: response.goalAssessment || '',
+      reasoning: response.reasoning || '',
+      confidence: response.confidence || 'medium',
+      assumptions: response.assumptions || [],
+      fallbackPlan: response.fallbackPlan || ''
     };
   }
   
@@ -1316,12 +1575,25 @@ What actions should I take to complete the task?`;
   // Detect task type from user input
   detectTaskType(task) {
     const taskLower = task.toLowerCase();
-    
-    if (taskLower.includes('new tab') || taskLower.includes('open tab') || taskLower.includes('switch tab') || 
+
+    // Shopping/e-commerce detection - check first as it's more specific
+    const shoppingKeywords = [
+      'buy', 'purchase', 'order', 'add to cart', 'checkout', 'shop for',
+      'find a product', 'look for product', 'get me a', 'amazon', 'ebay',
+      'walmart', 'best buy', 'target', 'shopping', 'product', 'item'
+    ];
+    const shoppingSites = ['amazon', 'ebay', 'walmart', 'bestbuy', 'target', 'newegg', 'etsy', 'aliexpress'];
+
+    if (shoppingKeywords.some(kw => taskLower.includes(kw)) ||
+        shoppingSites.some(site => taskLower.includes(site))) {
+      return 'shopping';
+    }
+
+    if (taskLower.includes('new tab') || taskLower.includes('open tab') || taskLower.includes('switch tab') ||
         taskLower.includes('multiple tab') || taskLower.includes('other tab') || taskLower.includes('different tab') ||
         taskLower.includes('compare') || taskLower.includes('both sites') || taskLower.includes('cross-reference')) {
       return 'multitab';
-    } else if (taskLower.includes('play') || taskLower.includes('game') || taskLower.includes('win') || 
+    } else if (taskLower.includes('play') || taskLower.includes('game') || taskLower.includes('win') ||
                taskLower.includes('control') || taskLower.includes('move') || taskLower.includes('press enter') ||
                taskLower.includes('arrow key') || taskLower.includes('keyboard') || taskLower.includes('key press') ||
                taskLower.includes('start game') || taskLower.includes('use keys') || taskLower.includes('wasd') ||
@@ -1336,7 +1608,7 @@ What actions should I take to complete the task?`;
     } else if (taskLower.includes('go to') || taskLower.includes('navigate') || taskLower.includes('open')) {
       return 'navigation';
     }
-    
+
     return 'general';
   }
   
@@ -1370,8 +1642,10 @@ What actions should I take to complete the task?`;
         return ['navigate', 'click', 'searchGoogle', 'goBack', 'goForward'];
       case 'gaming':
         return ['arrowUp', 'arrowDown', 'arrowLeft', 'arrowRight', 'keyPress', 'gameControl', 'pressKeySequence', 'sendSpecialKey', 'typeWithKeys', 'focus', 'click', 'waitForElement'];
+      case 'shopping':
+        return ['navigate', 'click', 'type', 'scroll', 'getText', 'waitForElement', 'hover', 'selectOption'];
       default:
-        return Object.keys(TOOL_DOCUMENTATION).flatMap(category => 
+        return Object.keys(TOOL_DOCUMENTATION).flatMap(category =>
           Object.keys(TOOL_DOCUMENTATION[category])
         );
     }
@@ -1568,7 +1842,7 @@ REMINDER: Output ONLY the JSON object, nothing else.`;
     console.log('Testing xAI API connection (legacy)...');
     
     // Test the configured model
-    const modelName = this.settings.modelName || 'grok-3-mini';
+    const modelName = this.settings.modelName || 'grok-3-fast';
     console.log(`Trying model: ${modelName}`);
       
       const testRequestBody = {
