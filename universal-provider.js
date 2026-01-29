@@ -1,5 +1,5 @@
 /**
- * Universal AI Provider for FSB v0.1
+ * Universal AI Provider for FSB v0.9
  * A model-agnostic provider that works with any OpenAI-compatible API
  */
 
@@ -46,7 +46,9 @@ const parameterCache = new Map();
 const rateLimitState = new Map();
 
 // Default request timeout in milliseconds
-const DEFAULT_REQUEST_TIMEOUT = 30000;
+// INCREASED: 45s gives more headroom for complex responses while payload reduction
+// should make most requests complete under 30s
+const DEFAULT_REQUEST_TIMEOUT = 45000;
 
 // Maximum retry attempts for rate-limited requests
 const MAX_RATE_LIMIT_RETRIES = 3;
@@ -515,21 +517,23 @@ class UniversalProvider {
    * Enhanced universal JSON parser that handles various malformations
    */
   parseJSONSafely(content) {
-    // Debug log
-    console.log('parseJSONSafely input (first 300 chars):', content.substring(0, 300));
-    
+    const parseStartTime = Date.now();
+
     // Stage 0: Quick validation for empty/null content
     if (!content || content.trim().length === 0) {
       console.warn('parseJSONSafely: Empty content provided');
       return '{ "success": false, "error": "Empty response", "actions": [], "taskComplete": false }';
     }
-    
-    // Stage 1: Try raw parsing first
+
+    // Stage 1: Try raw parsing first - EXIT IMMEDIATELY if already valid
+    // This is the fast path for well-formed responses
     try {
       JSON.parse(content);
-      return content; // Already valid
+      console.log('parseJSONSafely: Valid JSON, early exit', { parseTime: Date.now() - parseStartTime });
+      return content; // Already valid - no cleaning needed
     } catch (e) {
-      // Continue with cleaning
+      // Continue with cleaning only if raw parse fails
+      console.log('parseJSONSafely: Needs cleaning, continuing...', { parseTime: Date.now() - parseStartTime });
     }
     
     let cleaned = content;

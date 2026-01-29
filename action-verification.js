@@ -1,4 +1,4 @@
-// Action Verification Module for FSB v0.1
+// Action Verification Module for FSB v0.9
 // Provides post-action verification to ensure actions have their intended effects
 
 /**
@@ -126,17 +126,43 @@ async function waitForDOMStable(maxWait = 3000) {
 async function verifyClickEffect(selector, preClickState) {
   // Wait for DOM to stabilize
   const stabilityResult = await waitForDOMStable();
-  
+
   // Capture post-click state
   const postClickState = capturePageState();
-  
+
+  // FIX: Early success return if URL changed - navigation definitely worked
+  // This prevents false negatives where clicks are reported as "no effect" despite navigating
+  if (postClickState.url !== preClickState.url) {
+    return {
+      verified: true,
+      changes: { urlChanged: true, navigated: true },
+      effects: { navigation: true },
+      stabilityResult,
+      selector,
+      suggestion: null
+    };
+  }
+
   // Compare states
   const changes = comparePageStates(preClickState, postClickState);
-  
+
+  // FIX: If DOM element count changed significantly, click definitely worked
+  // This catches cases where content updates but URL stays the same
+  if (Math.abs(postClickState.elementCount - preClickState.elementCount) > 10) {
+    return {
+      verified: true,
+      changes: { domChanged: true, elementCountDelta: postClickState.elementCount - preClickState.elementCount },
+      effects: { contentUpdate: true },
+      stabilityResult,
+      selector,
+      suggestion: null
+    };
+  }
+
   // Check for specific click effects
   const clickEffects = {
     navigationStarted: changes.urlChanged,
-    modalOpened: changes.newVisibleElements.some(el => 
+    modalOpened: changes.newVisibleElements.some(el =>
       el.selector.includes('modal') || el.selector.includes('dialog') || el.selector.includes('popup')
     ),
     formSubmitted: changes.urlChanged || changes.contentChanged,
@@ -144,10 +170,10 @@ async function verifyClickEffect(selector, preClickState) {
     loadingStarted: document.querySelector('.loading, .spinner, [class*="load"]') !== null,
     contentUpdated: changes.contentChanged && !changes.urlChanged
   };
-  
+
   // Determine if click was effective
   const wasEffective = changes.hasSignificantChanges || Object.values(clickEffects).some(v => v);
-  
+
   return {
     verified: wasEffective,
     changes,

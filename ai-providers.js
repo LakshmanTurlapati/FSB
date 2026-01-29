@@ -1,5 +1,5 @@
 /**
- * AI Provider implementations for FSB v0.1
+ * AI Provider implementations for FSB v0.9
  * This module now uses the universal provider for model-agnostic support
  */
 

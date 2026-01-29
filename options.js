@@ -1,4 +1,4 @@
-// FSB v0.1 - Modern Dashboard Control Panel Script
+// FSB v0.9 - Modern Dashboard Control Panel Script
 
 // Default settings
 const defaultSettings = {
@@ -948,15 +948,28 @@ function toggleTheme() {
   showToast(`Switched to ${newTheme} theme`, 'info');
 }
 
+function updateFooterLogo(theme) {
+  const footerLogo = document.getElementById('footer-logo-img');
+  if (footerLogo) {
+    const logoSrc = theme === 'light'
+      ? 'Assets/fsb_logo_light_footer.png'
+      : 'Assets/fsb_logo_dark_footer.png';
+    footerLogo.src = logoSrc;
+  }
+}
+
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
-  
+
   if (elements.themeToggle) {
     const icon = elements.themeToggle.querySelector('i');
     if (icon) {
       icon.className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
     }
   }
+
+  // Update footer logo based on theme
+  updateFooterLogo(theme);
 }
 
 function initializeLogs() {
@@ -1493,6 +1506,11 @@ async function clearAllSessions() {
     showToast('Failed to clear sessions', 'error');
   }
 }
+
+// Expose session management functions to global scope for inline onclick handlers
+window.viewSession = viewSession;
+window.downloadSessionLogs = downloadSessionLogs;
+window.deleteSession = deleteSession;
 
 /**
  * Format session logs for display in the detail panel

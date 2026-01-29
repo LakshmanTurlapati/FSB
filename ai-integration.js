@@ -344,17 +344,28 @@ class AIIntegration {
     const maxRetries = 3;
     const baseDelay = 1000; // 1 second
     let lastError = null;
-    
+
+    // PART 2: Track retry attempts with timing
+    const retryStats = {
+      startTime: Date.now(),
+      attempts: 0,
+      timeouts: 0,
+      totalWaitTime: 0
+    };
+
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      retryStats.attempts++;
+      const attemptStart = Date.now();
+
       try {
         // Build prompt with retry enhancements
         let prompt = this.buildPrompt(task, domState, context);
-        
+
         // Enhance prompt on retry
         if (attempt > 0) {
           prompt = this.enhancePromptForRetry(prompt, attempt);
         }
-        
+
         // Queue the request for processing
         const response = await new Promise((resolve, reject) => {
           this.requestQueue.push({
@@ -364,34 +375,101 @@ class AIIntegration {
             reject,
             attempt
           });
-          
+
           // Process queue if not already processing
           if (!this.isProcessing) {
             this.processQueue();
           }
         });
-        
+
         // Validate response quality
         if (this.isValidResponse(response)) {
           // Cache successful response
           this.setCachedResponse(cacheKey, response);
+
+          // Log retry summary on success (only if retries occurred)
+          if (retryStats.attempts > 1) {
+            automationLogger.logTiming(this.currentSessionId, 'LLM', 'retry_summary', Date.now() - retryStats.startTime, {
+              attempts: retryStats.attempts,
+              timeouts: retryStats.timeouts,
+              totalWaitTime: retryStats.totalWaitTime,
+              success: true
+            });
+          }
           return response;
         } else {
           throw new Error('Invalid response structure: missing required fields');
         }
-        
+
       } catch (error) {
         lastError = error;
-        automationLogger.error(`AI request attempt ${attempt + 1}/${maxRetries} failed`, { sessionId: this.currentSessionId, error: error.message });
-        
-        // If it's the last attempt, return fallback
+        const attemptDuration = Date.now() - attemptStart;
+
+        // Track timeout specifically
+        if (error.message.includes('timed out') || error.message.includes('timeout')) {
+          retryStats.timeouts++;
+          automationLogger.warn('API timeout', {
+            sessionId: this.currentSessionId,
+            attempt: attempt + 1,
+            maxAttempts: maxRetries,
+            attemptDuration,
+            cumulativeTime: Date.now() - retryStats.startTime,
+            remainingAttempts: maxRetries - attempt - 1
+          });
+
+          // PART 6: Send retry status to UI
+          try {
+            chrome.runtime.sendMessage({
+              action: 'statusUpdate',
+              sessionId: this.currentSessionId,
+              message: `AI retry ${attempt + 1}/${maxRetries}... (timeout after ${Math.round(attemptDuration / 1000)}s)`
+            }).catch(() => {});
+          } catch (e) {
+            // Ignore messaging errors
+          }
+        }
+
+        automationLogger.error(`AI request attempt ${attempt + 1}/${maxRetries} failed`, {
+          sessionId: this.currentSessionId,
+          error: error.message,
+          attemptDuration,
+          cumulativeTime: Date.now() - retryStats.startTime
+        });
+
+        // If it's the last attempt, log retry summary and return fallback
         if (attempt === maxRetries - 1) {
+          automationLogger.logTiming(this.currentSessionId, 'LLM', 'retry_summary', Date.now() - retryStats.startTime, {
+            attempts: retryStats.attempts,
+            timeouts: retryStats.timeouts,
+            totalWaitTime: retryStats.totalWaitTime,
+            success: false,
+            lastError: error.message
+          });
           return this.createFallbackResponse(task, lastError);
         }
-        
+
         // Otherwise, wait with exponential backoff
         const delay = baseDelay * Math.pow(2, attempt);
-        automationLogger.debug(`Retrying AI request in ${delay}ms`, { sessionId: this.currentSessionId, attempt: attempt + 1, delay });
+        retryStats.totalWaitTime += delay;
+
+        automationLogger.debug(`Retrying AI request in ${delay}ms`, {
+          sessionId: this.currentSessionId,
+          attempt: attempt + 1,
+          delay,
+          cumulativeWaitTime: retryStats.totalWaitTime
+        });
+
+        // Send retry status to UI
+        try {
+          chrome.runtime.sendMessage({
+            action: 'statusUpdate',
+            sessionId: this.currentSessionId,
+            message: `AI retry ${attempt + 2}/${maxRetries} in ${delay / 1000}s...`
+          }).catch(() => {});
+        } catch (e) {
+          // Ignore messaging errors
+        }
+
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -446,21 +524,27 @@ class AIIntegration {
         recentErrors++;
       }
       
-      // Adaptive delay calculation
+      // Adaptive delay calculation - optimized for lower latency
+      // Only delay if there's queue pressure or errors, skip delay when processing smoothly
       if (this.requestQueue.length > 0) {
-        const baseDelay = 100;
         const queuePressure = Math.min(this.requestQueue.length / 10, 1); // 0-1 scale
         const errorPressure = Math.min(recentErrors / 3, 1); // 0-1 scale
         const performancePressure = avgResponseTime > 5000 ? 0.5 : 0; // Add delay if slow
-        
-        // Calculate adaptive delay (100ms - 2000ms)
-        const adaptiveDelay = Math.min(
-          baseDelay * (1 + queuePressure * 2 + errorPressure * 5 + performancePressure * 3),
-          2000
-        );
-        
-        automationLogger.logQueue(this.currentSessionId, 'adaptive_delay', { delay: Math.round(adaptiveDelay), queueLength: this.requestQueue.length, recentErrors });
-        await new Promise(resolve => setTimeout(resolve, adaptiveDelay));
+
+        // Skip delay entirely when no pressure (queue=1, no errors, good performance)
+        const totalPressure = queuePressure + errorPressure + performancePressure;
+        if (totalPressure > 0.1) {
+          const baseDelay = 50;  // Reduced from 100ms
+          // Calculate adaptive delay (50ms - 1000ms) - reduced from 100-2000ms
+          const adaptiveDelay = Math.min(
+            baseDelay * (1 + queuePressure * 2 + errorPressure * 5 + performancePressure * 3),
+            1000  // Reduced max from 2000ms
+          );
+
+          automationLogger.logQueue(this.currentSessionId, 'adaptive_delay', { delay: Math.round(adaptiveDelay), queueLength: this.requestQueue.length, recentErrors });
+          await new Promise(resolve => setTimeout(resolve, adaptiveDelay));
+        }
+        // When totalPressure <= 0.1, skip delay entirely for faster processing
       }
     }
     
@@ -517,6 +601,7 @@ class AIIntegration {
   }
 
   buildPrompt(task, domState, context = null) {
+    const buildStartTime = Date.now();  // Track prompt build time for performance monitoring
     automationLogger.debug('Building prompt', { sessionId: this.currentSessionId, task, domStateType: domState._isDelta ? 'DELTA' : 'FULL' });
 
     // PERFORMANCE: Track iteration for tiered prompting
@@ -594,12 +679,36 @@ BEFORE TAKING ANY ACTION, you MUST complete this reasoning process:
 
 Your "situationAnalysis" and "reasoning" fields MUST show this analysis, not just "I will click the button."
 
+=== TOOL PREFERENCES (ALWAYS USE THESE WHEN AVAILABLE) ===
+
+1. Google searches: ALWAYS use searchGoogle tool, NEVER type+click manually
+   - searchGoogle handles edge cases, modals, and selector changes automatically
+   - Manual typing into Google search is fragile and often fails
+
+2. Clicking Google results: ALWAYS use clickSearchResult with index parameter
+   - clickSearchResult handles modern Google DOM structure automatically
+   - Example: {"tool": "clickSearchResult", "params": {"index": 0}} for first result
+
+3. Manual selectors should ONLY be fallback AFTER specialized tools fail
+
+=== MODERN GOOGLE SELECTORS (2024+) ===
+
+Google has updated its DOM structure. Use these selectors:
+- Search input: textarea[name="q"] (NOT input[name="q"] - this is outdated!)
+- Search button: button[type="submit"], .gNO89b
+- Result titles: h3.LC20lb, [data-header-feature] h3
+- Result links: a[jsname], .yuRUbf > a, a[data-ved], a:has(h3)
+- IMPORTANT: Use searchGoogle tool for searches - it handles all edge cases
+- IMPORTANT: Use clickSearchResult tool for clicking results - most reliable approach
+
 === RULES FOR SPECIFIC SCENARIOS ===
 
 SEARCH RESULT NAVIGATION:
 WHEN ON SEARCH RESULTS PAGE: You MUST click on an actual search result link to navigate to the target website.
 - DO NOT type more queries if search results are already shown
-- Look for result links: h3 a, .g a, [data-testid*="result"], cite parent links
+- BEST APPROACH: Use clickSearchResult tool with index parameter (e.g., index: 0 for first result)
+- Modern Google uses LINKS CONTAINING HEADINGS (a > h3), not headings containing links (h3 > a)
+- Look for result links: .yuRUbf a, a[href] h3, h3 a, .g a, a:has(h3), [data-ved]
 - Click the most relevant result link that matches your task
 
 SEARCH SUBMISSION: For search forms, follow this priority order:
@@ -753,18 +862,26 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       }
       
       // Add action history with enhanced failure analysis
+      // PROMPT SIZE OPTIMIZATION: Limit action history to reduce token usage and prevent API timeouts
+      const MAX_ACTION_HISTORY = 5; // Limit to last 5 actions to keep prompts under 5000 tokens
       if (context.actionHistory && context.actionHistory.length > 0) {
-        userPrompt += `\n\nRECENT ACTION HISTORY (last ${context.actionHistory.length} actions):`;
-        
+        const recentActions = context.actionHistory.slice(-MAX_ACTION_HISTORY);
+        const skippedCount = context.actionHistory.length - recentActions.length;
+
+        userPrompt += `\n\nRECENT ACTION HISTORY (last ${recentActions.length} of ${context.actionHistory.length} actions):`;
+        if (skippedCount > 0) {
+          userPrompt += `\n(${skippedCount} earlier actions omitted for brevity)`;
+        }
+
         // Track critical failures for messaging tasks
         const criticalFailures = [];
         const isMessagingTask = context.task && (
-          context.task.toLowerCase().includes('message') || 
+          context.task.toLowerCase().includes('message') ||
           context.task.toLowerCase().includes('send') ||
           context.task.toLowerCase().includes('text')
         );
-        
-        context.actionHistory.forEach((action, idx) => {
+
+        recentActions.forEach((action, idx) => {
           const status = action.result?.success ? 'SUCCESS' : 'FAILED';
           userPrompt += `\n${idx + 1}. ${action.tool}(${JSON.stringify(action.params)}) - ${status}`;
           
@@ -828,11 +945,14 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       }
       
       // Add specific repeated failure warnings with alternative strategies
+      // PROMPT SIZE OPTIMIZATION: Limit failed action details to most recent failures
+      const MAX_FAILED_DETAILS = 3;
       if (context.forceAlternativeStrategy && context.failedActionDetails && context.failedActionDetails.length > 0) {
-        userPrompt += `\n\n🚨 CRITICAL: REPEATED ACTION FAILURES DETECTED! 🚨`;
+        const recentFailures = context.failedActionDetails.slice(-MAX_FAILED_DETAILS);
+        userPrompt += `\n\nCRITICAL: REPEATED ACTION FAILURES DETECTED!`;
         userPrompt += `\nThe following actions have failed multiple times and MUST use alternative strategies:\n`;
-        
-        context.failedActionDetails.forEach(failure => {
+
+        recentFailures.forEach(failure => {
           userPrompt += `\n❌ ${failure.tool} on "${failure.params.selector || failure.params.url || 'target'}" failed ${failure.failureCount} times`;
           userPrompt += `\n   Last error: ${failure.lastError}`;
           
@@ -855,6 +975,14 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
             userPrompt += `\n   - Try keyboard navigation: focus then pressEnter`;
             userPrompt += `\n   - Click a parent or child element instead`;
             userPrompt += `\n   - Check for overlapping elements and remove them`;
+          } else if (failure.lastError.includes('obscured')) {
+            userPrompt += `\n   OBSCURED ELEMENT RECOVERY:`;
+            userPrompt += `\n   - Press Escape first to dismiss any popups/overlays`;
+            userPrompt += `\n   - Scroll element to center with scroll tool`;
+            userPrompt += `\n   - Close visible modals/dialogs by clicking X or outside`;
+            userPrompt += `\n   - Try clicking a parent element that wraps the target`;
+            userPrompt += `\n   - Wait 500ms for animations to complete`;
+            userPrompt += `\n   - Use keyPress with key: "Escape" before retrying`;
           }
         });
         
@@ -989,13 +1117,25 @@ What actions should I take to complete the task?`;
     const finalPrompt = { systemPrompt, userPrompt };
     
     // Log final prompt details
+    const estimatedTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 3.5);
     automationLogger.debug('Final prompt built', {
       sessionId: this.currentSessionId,
       systemPromptLength: systemPrompt.length,
       userPromptLength: userPrompt.length,
       totalLength: systemPrompt.length + userPrompt.length,
-      estimatedTokens: Math.ceil((systemPrompt.length + userPrompt.length) / 3.5)
+      estimatedTokens
     });
+
+    // PART 1: Add prompt size warning when exceeding threshold
+    if (estimatedTokens > 10000) {
+      automationLogger.warn('Large prompt detected', {
+        sessionId: this.currentSessionId,
+        estimatedTokens,
+        systemPromptLength: systemPrompt.length,
+        userPromptLength: userPrompt.length,
+        recommendation: 'Consider reducing DOM element count or HTML context'
+      });
+    }
 
     // Store prompt for token estimation
     this.storePrompt(finalPrompt);
@@ -1009,6 +1149,9 @@ What actions should I take to complete the task?`;
         this.currentIteration || 0
       );
     }
+
+    // Log prompt build timing for performance monitoring
+    automationLogger.logTiming(this.currentSessionId, 'PROMPT', 'build_total', Date.now() - buildStartTime);
 
     return finalPrompt;
   }
@@ -1906,15 +2049,17 @@ REMINDER: Output ONLY the JSON object, nothing else.`;
   }
   
   // Create fallback response on complete failure
+  // CRITICAL FIX: Do NOT mark taskComplete: true on errors - this falsely reports success
   createFallbackResponse(task, error) {
     automationLogger.logRecovery(this.currentSessionId, 'repeated_failures', 'fallback_response', 'created', { error: error?.message });
 
     return {
       actions: [],
       reasoning: '',
-      taskComplete: true,
-      result: `I encountered an error while processing your request: ${error?.message || 'Unknown error'}. Please try again or check the browser console for details.`,
-      currentStep: 'Error occurred',
+      taskComplete: false,  // FIX: Do not mark as complete when there's an error
+      failedDueToError: true,  // NEW: Explicit error flag for UI to display
+      result: `Task failed due to error: ${error?.message || 'Unknown error'}. The automation will stop. Please check your settings and try again.`,
+      currentStep: 'Error - automation stopped',
       error: true
     };
   }

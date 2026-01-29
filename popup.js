@@ -1,4 +1,4 @@
-// Modern Chat Interface Script for FSB v0.1
+// Modern Chat Interface Script for FSB v0.9
 
 let currentSessionId = null;
 let isRunning = false;
@@ -12,7 +12,6 @@ const testBtn = document.getElementById('testBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const pinBtn = document.getElementById('pinBtn');
 const chatMessages = document.getElementById('chatMessages');
-const typingIndicator = document.getElementById('typingIndicator');
 const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
 
@@ -118,6 +117,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
     if (response && response.activeSessions > 0) {
       setRunningState();
+      // Recover sessionId from background if UI lost it (e.g., after service worker restart)
+      if (!currentSessionId && response.currentSessionId) {
+        currentSessionId = response.currentSessionId;
+        console.log('FSB: Recovered sessionId from background:', currentSessionId);
+      }
     }
   });
   
@@ -202,9 +206,6 @@ async function handleSendMessage() {
     chatInput.textContent = '';
     updateSendButtonState();
     
-    // Show typing indicator
-    showTypingIndicator();
-    
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
@@ -216,8 +217,6 @@ async function handleSendMessage() {
       task: message,
       tabId: tab.id
     }, (response) => {
-      hideTypingIndicator();
-      
       if (response.success) {
         currentSessionId = response.sessionId;
         setRunningState();
@@ -234,7 +233,6 @@ async function handleSendMessage() {
     });
     
   } catch (error) {
-    hideTypingIndicator();
     addMessage(`Something went wrong: ${error.message}`, 'error');
     setIdleState();
   }
@@ -252,9 +250,7 @@ function stopAutomation() {
     return;
   }
   
-  // Set flag to prevent new typing indicators
   stopRequested = true;
-  hideTypingIndicator();
   
   console.log('Sending stop message to background script');
   chrome.runtime.sendMessage({
@@ -292,7 +288,6 @@ function stopAutomation() {
 // Test API connection
 function testAPI() {
   addMessage('Testing xAI API connection...', 'system');
-  showTypingIndicator('Connecting to xAI Grok...');
   
   const testIcon = testBtn.querySelector('i');
   if (testIcon) {
@@ -302,7 +297,6 @@ function testAPI() {
   chrome.runtime.sendMessage({
     action: 'testAPI'
   }, (response) => {
-    hideTypingIndicator();
     if (testIcon) {
       testIcon.className = 'fa fa-wrench';
     }
@@ -326,28 +320,6 @@ function testAPI() {
   });
 }
 
-// Show typing indicator
-function showTypingIndicator(customText = null) {
-  // Don't show typing indicator if stop was requested
-  if (stopRequested) {
-    console.log('Typing indicator blocked - stop requested');
-    return;
-  }
-  
-  if (customText) {
-    typingIndicator.querySelector('.typing-text').textContent = customText;
-  } else {
-    typingIndicator.querySelector('.typing-text').textContent = 'AI is thinking...';
-  }
-  typingIndicator.classList.remove('hidden');
-  scrollToBottom();
-}
-
-// Hide typing indicator
-function hideTypingIndicator() {
-  typingIndicator.classList.add('hidden');
-}
-
 // Update UI for running state
 function setRunningState() {
   isRunning = true;
@@ -366,7 +338,6 @@ function setIdleState() {
   stopBtn.classList.add('hidden');
   statusDot.classList.remove('running', 'error');
   statusText.textContent = 'Ready';
-  hideTypingIndicator();
   
   // Clean up any remaining status message with loader
   if (currentStatusMessage) {
@@ -387,7 +358,6 @@ function setErrorState() {
   stopBtn.classList.add('hidden');
   statusDot.classList.add('error');
   statusText.textContent = 'Error';
-  hideTypingIndicator();
   updateSendButtonState();
 }
 
@@ -620,22 +590,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // Show a more user-friendly action message
         const actionMessage = formatActionMessage(request.tool, request.params);
         addMessage(actionMessage, 'action');
-        
-        // Update typing indicator for next action
-        showTypingIndicator('Analyzing results...');
-      }
-      break;
-      
-    case 'aiThinking':
-      if (request.sessionId === currentSessionId && !stopRequested) {
-        // Handle AI thinking messages
-        if (request.message.includes('Analyzing')) {
-          showTypingIndicator('Analyzing page...');
-        // } else if (request.message.includes('reasoning')) {
-        //   addMessage(request.message, 'ai');
-        } else {
-          showTypingIndicator(request.message);
-        }
       }
       break;
   }
@@ -700,4 +654,4 @@ chatInput.addEventListener('input', adjustInputHeight);
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => e.preventDefault());
 
-console.log('FSB v0.1 chat interface loaded');
+console.log('FSB v0.9 chat interface loaded');

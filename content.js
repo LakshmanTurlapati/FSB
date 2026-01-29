@@ -1,4 +1,4 @@
-// Content script for FSB v0.1
+// Content script for FSB v0.9
 // Handles DOM reading and action execution
 
 // Current session ID for logging (set by background.js messages)
@@ -1294,6 +1294,452 @@ function querySelectorAllWithShadow(selector) {
   return results;
 }
 
+// =============================================================================
+// ACCESSIBILITY TREE FUNCTIONS (Playwright MCP-inspired)
+// =============================================================================
+
+/**
+ * Get the implicit ARIA role for an input element based on type
+ * @param {HTMLInputElement} input - The input element
+ * @returns {string|null} The implicit ARIA role
+ */
+function getInputRole(input) {
+  const typeRoles = {
+    'button': 'button',
+    'checkbox': 'checkbox',
+    'email': 'textbox',
+    'image': 'button',
+    'number': 'spinbutton',
+    'radio': 'radio',
+    'range': 'slider',
+    'reset': 'button',
+    'search': 'searchbox',
+    'submit': 'button',
+    'tel': 'textbox',
+    'text': 'textbox',
+    'url': 'textbox',
+    'password': 'textbox',
+    'date': 'textbox',
+    'datetime-local': 'textbox',
+    'month': 'textbox',
+    'week': 'textbox',
+    'time': 'textbox',
+    'file': 'button',
+    'color': 'button'
+  };
+  return typeRoles[input.type] || 'textbox';
+}
+
+/**
+ * Get the implicit ARIA role for semantic HTML elements
+ * Based on WAI-ARIA specification
+ * @param {Element} node - The DOM element
+ * @returns {string|null} The implicit or explicit ARIA role
+ */
+function getImplicitRole(node) {
+  // Explicit role overrides implicit
+  const explicitRole = node.getAttribute('role');
+  if (explicitRole) return explicitRole;
+
+  const tagRoles = {
+    'A': node.href ? 'link' : null,
+    'ARTICLE': 'article',
+    'ASIDE': 'complementary',
+    'BUTTON': 'button',
+    'DATALIST': 'listbox',
+    'DETAILS': 'group',
+    'DIALOG': 'dialog',
+    'FIELDSET': 'group',
+    'FIGURE': 'figure',
+    'FOOTER': 'contentinfo',
+    'FORM': 'form',
+    'H1': 'heading', 'H2': 'heading', 'H3': 'heading',
+    'H4': 'heading', 'H5': 'heading', 'H6': 'heading',
+    'HEADER': 'banner',
+    'HR': 'separator',
+    'IMG': node.alt ? 'img' : 'presentation',
+    'INPUT': getInputRole(node),
+    'LI': 'listitem',
+    'MAIN': 'main',
+    'MENU': 'menu',
+    'NAV': 'navigation',
+    'OL': 'list',
+    'OPTGROUP': 'group',
+    'OPTION': 'option',
+    'OUTPUT': 'status',
+    'PROGRESS': 'progressbar',
+    'SECTION': node.getAttribute('aria-label') || node.getAttribute('aria-labelledby') ? 'region' : null,
+    'SELECT': node.multiple ? 'listbox' : 'combobox',
+    'SUMMARY': 'button',
+    'TABLE': 'table',
+    'TBODY': 'rowgroup', 'THEAD': 'rowgroup', 'TFOOT': 'rowgroup',
+    'TD': 'cell',
+    'TEXTAREA': 'textbox',
+    'TH': 'columnheader',
+    'TR': 'row',
+    'UL': 'list'
+  };
+
+  return tagRoles[node.tagName] || null;
+}
+
+/**
+ * Compute accessible name following ARIA specification algorithm
+ * Priority: aria-labelledby > aria-label > native label > contents > title/placeholder
+ * @param {Element} node - The DOM element
+ * @returns {Object} { name: string, source: string }
+ */
+function computeAccessibleName(node) {
+  // 1. aria-labelledby (highest priority)
+  const labelledBy = node.getAttribute('aria-labelledby');
+  if (labelledBy) {
+    const names = labelledBy.split(/\s+/)
+      .map(id => document.getElementById(id)?.textContent?.trim())
+      .filter(Boolean);
+    if (names.length > 0) return { name: names.join(' '), source: 'aria-labelledby' };
+  }
+
+  // 2. aria-label
+  const ariaLabel = node.getAttribute('aria-label');
+  if (ariaLabel) return { name: ariaLabel, source: 'aria-label' };
+
+  // 3. Native label association (for form controls)
+  if (node.id) {
+    const label = document.querySelector(`label[for="${node.id}"]`);
+    if (label) return { name: label.textContent?.trim(), source: 'label-for' };
+  }
+
+  // Implicit label (wrapped in label element)
+  const parentLabel = node.closest('label');
+  if (parentLabel && parentLabel !== node) {
+    const labelText = parentLabel.textContent?.trim();
+    if (labelText) return { name: labelText, source: 'label-wrap' };
+  }
+
+  // 4. Text content (for buttons, links, etc.)
+  const role = getImplicitRole(node);
+  if (['button', 'link', 'menuitem', 'option', 'tab', 'treeitem'].includes(role)) {
+    const text = node.textContent?.trim();
+    if (text) return { name: text.substring(0, 200), source: 'contents' };
+  }
+
+  // 5. Special cases
+  if (node.tagName === 'IMG') {
+    if (node.alt) return { name: node.alt, source: 'alt' };
+  }
+  if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA') {
+    if (node.placeholder) return { name: node.placeholder, source: 'placeholder' };
+  }
+
+  // 6. title attribute (lowest priority)
+  const title = node.getAttribute('title');
+  if (title) return { name: title, source: 'title' };
+
+  return { name: '', source: 'none' };
+}
+
+/**
+ * Extract ARIA relationships for an element
+ * These help AI understand compound widgets and element associations
+ * @param {Element} node - The DOM element
+ * @returns {Object|null} Relationship mappings or null if none
+ */
+function getARIARelationships(node) {
+  const relationships = {};
+
+  // aria-controls: elements this element controls
+  const controls = node.getAttribute('aria-controls');
+  if (controls) {
+    relationships.controls = controls.split(/\s+/).filter(id => document.getElementById(id));
+  }
+
+  // aria-owns: elements logically owned by this element
+  const owns = node.getAttribute('aria-owns');
+  if (owns) {
+    relationships.owns = owns.split(/\s+/).filter(id => document.getElementById(id));
+  }
+
+  // aria-describedby: elements that describe this element
+  const describedBy = node.getAttribute('aria-describedby');
+  if (describedBy) {
+    const descriptions = describedBy.split(/\s+/)
+      .map(id => document.getElementById(id)?.textContent?.trim())
+      .filter(Boolean);
+    if (descriptions.length > 0) {
+      relationships.describedBy = descriptions.join(' ').substring(0, 200);
+    }
+  }
+
+  // aria-activedescendant: currently active descendant
+  const activeDesc = node.getAttribute('aria-activedescendant');
+  if (activeDesc && document.getElementById(activeDesc)) {
+    relationships.activeDescendant = activeDesc;
+  }
+
+  // aria-flowto: next element in reading order
+  const flowTo = node.getAttribute('aria-flowto');
+  if (flowTo) {
+    relationships.flowTo = flowTo.split(/\s+/).filter(id => document.getElementById(id));
+  }
+
+  // Clean up empty arrays
+  Object.keys(relationships).forEach(key => {
+    if (Array.isArray(relationships[key]) && relationships[key].length === 0) {
+      delete relationships[key];
+    }
+  });
+
+  return Object.keys(relationships).length > 0 ? relationships : null;
+}
+
+/**
+ * Check if element is truly actionable (can be clicked/typed/focused)
+ * More comprehensive than simple visibility check
+ * @param {Element} node - The DOM element
+ * @returns {Object} { actionable: boolean, reasons: string[], focusable: boolean, obscuredBy?: string }
+ */
+function isElementActionable(node) {
+  const result = {
+    actionable: true,
+    reasons: []
+  };
+
+  // 1. Check display/visibility
+  const style = window.getComputedStyle(node);
+  if (style.display === 'none') {
+    result.actionable = false;
+    result.reasons.push('display:none');
+  }
+  if (style.visibility === 'hidden') {
+    result.actionable = false;
+    result.reasons.push('visibility:hidden');
+  }
+  if (parseFloat(style.opacity) === 0) {
+    result.actionable = false;
+    result.reasons.push('opacity:0');
+  }
+
+  // 2. Check pointer-events
+  if (style.pointerEvents === 'none') {
+    result.actionable = false;
+    result.reasons.push('pointer-events:none');
+  }
+
+  // 3. Check disabled state (element and ancestors)
+  if (node.disabled) {
+    result.actionable = false;
+    result.reasons.push('disabled');
+  }
+  if (node.getAttribute('aria-disabled') === 'true') {
+    result.actionable = false;
+    result.reasons.push('aria-disabled');
+  }
+
+  // Check parent fieldset disabled
+  const fieldset = node.closest('fieldset');
+  if (fieldset?.disabled && !node.closest('legend')) {
+    result.actionable = false;
+    result.reasons.push('fieldset-disabled');
+  }
+
+  // 4. Check if obscured by another element
+  const rect = node.getBoundingClientRect();
+  if (rect.width > 0 && rect.height > 0) {
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    // Only check if center point is in viewport
+    if (centerX >= 0 && centerX <= window.innerWidth &&
+        centerY >= 0 && centerY <= window.innerHeight) {
+      const topElement = document.elementFromPoint(centerX, centerY);
+      if (topElement && topElement !== node && !node.contains(topElement) && !topElement.contains(node)) {
+        result.actionable = false;
+        result.reasons.push('obscured');
+        result.obscuredBy = topElement.tagName.toLowerCase() +
+          (topElement.id ? `#${topElement.id}` : '') +
+          (topElement.className && typeof topElement.className === 'string'
+            ? `.${topElement.className.split(' ')[0]}`
+            : '');
+      }
+    }
+  }
+
+  // 5. Check if zero dimensions
+  if (rect.width === 0 && rect.height === 0) {
+    result.actionable = false;
+    result.reasons.push('zero-size');
+  }
+
+  // 6. Check keyboard accessibility (for focus operations)
+  const tabindex = node.getAttribute('tabindex');
+  const isNativelyFocusable = ['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(node.tagName);
+  result.focusable = isNativelyFocusable || (tabindex !== null && tabindex !== '-1');
+
+  return result;
+}
+
+/**
+ * Smart wait for element to be actionable using DOM mutation detection
+ * NO hardcoded timeouts - uses actual DOM signals for fail-fast behavior
+ * @param {string} selector - CSS selector for the element
+ * @param {Object} options - Wait options
+ * @param {number} options.maxWait - Safety cap for maximum wait time (default 10000)
+ * @param {string[]} options.waitFor - Conditions to wait for (default ['visible', 'enabled', 'stable'])
+ * @returns {Promise<Object>} { success: boolean, element?: Element, waitTime: number, reason?: string, domStableFor?: number }
+ */
+async function waitForActionable(selector, options = {}) {
+  const {
+    maxWait = 10000,  // Safety cap only, not expected to hit this
+    timeout = maxWait, // Support legacy callers using 'timeout'
+    waitFor = ['visible', 'enabled', 'stable']
+  } = options;
+
+  const effectiveMaxWait = Math.min(maxWait, timeout);
+  const startTime = Date.now();
+  let lastReason = '';
+  let domStableSince = null;
+  let lastMutationTime = Date.now();
+  const STABLE_THRESHOLD = 300; // DOM stable if no changes for 300ms
+
+  // Set up MutationObserver to track DOM changes
+  const mutationDetected = { value: false };
+  const observer = new MutationObserver(() => {
+    mutationDetected.value = true;
+    lastMutationTime = Date.now();
+    domStableSince = null; // Reset stability
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'style', 'disabled', 'aria-disabled', 'hidden', 'aria-hidden']
+  });
+
+  try {
+    while (Date.now() - startTime < effectiveMaxWait) {
+      const element = querySelectorWithShadow(selector);
+      const now = Date.now();
+      const timeSinceLastMutation = now - lastMutationTime;
+
+      // Track DOM stability
+      if (timeSinceLastMutation >= STABLE_THRESHOLD) {
+        if (!domStableSince) domStableSince = now;
+      } else {
+        domStableSince = null;
+      }
+
+      // Check for loading indicators (only call if tools is defined)
+      let isPageLoading = false;
+      if (typeof tools !== 'undefined' && tools.detectLoadingState) {
+        const loadingState = tools.detectLoadingState({});
+        isPageLoading = loadingState.loading;
+      }
+
+      if (!element) {
+        // SMART FAIL-FAST: If DOM is stable AND no loading indicators, element won't appear
+        const domStableFor = domStableSince ? (now - domStableSince) : 0;
+
+        if (!isPageLoading && domStableFor > 500) {
+          // DOM has been stable for 500ms with no loading - fail fast
+          return {
+            success: false,
+            reason: 'Element not found (DOM stable)',
+            waitTime: now - startTime,
+            domStableFor
+          };
+        }
+
+        lastReason = 'Element not found';
+        mutationDetected.value = false;
+        await new Promise(r => setTimeout(r, 50));
+        continue;
+      }
+
+      // Element exists - check actionability
+      const actionability = isElementActionable(element);
+      let ready = true;
+
+      if (waitFor.includes('visible') && !actionability.actionable) {
+        ready = false;
+        lastReason = actionability.reasons.join(', ') || 'Not visible';
+
+        // AUTO-RECOVERY: If element is obscured, try Escape key to dismiss popups
+        if (actionability.reasons.includes('obscured')) {
+          try {
+            // Dispatch Escape key to document to dismiss popups/modals
+            document.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'Escape',
+              code: 'Escape',
+              keyCode: 27,
+              which: 27,
+              bubbles: true,
+              cancelable: true
+            }));
+            document.dispatchEvent(new KeyboardEvent('keyup', {
+              key: 'Escape',
+              code: 'Escape',
+              keyCode: 27,
+              which: 27,
+              bubbles: true,
+              cancelable: true
+            }));
+            // Wait for any overlay dismissal animation
+            await new Promise(r => setTimeout(r, 300));
+            // Don't set ready=true yet - let the next loop iteration re-check
+          } catch (e) {
+            // Ignore escape key errors
+          }
+        }
+      }
+
+      if (waitFor.includes('enabled')) {
+        if (element.disabled || element.getAttribute('aria-disabled') === 'true') {
+          ready = false;
+          lastReason = 'Element is disabled';
+        }
+      }
+
+      if (waitFor.includes('stable') && ready) {
+        // Check position stability (element not animating)
+        const rect1 = element.getBoundingClientRect();
+        await new Promise(r => setTimeout(r, 50));
+        const rect2 = element.getBoundingClientRect();
+
+        const isAnimating = Math.abs(rect1.left - rect2.left) > 1 ||
+                           Math.abs(rect1.top - rect2.top) > 1 ||
+                           Math.abs(rect1.width - rect2.width) > 1 ||
+                           Math.abs(rect1.height - rect2.height) > 1;
+
+        if (isAnimating) {
+          ready = false;
+          lastReason = 'Element is animating';
+        }
+      }
+
+      if (ready) {
+        return {
+          success: true,
+          element,
+          waitTime: Date.now() - startTime
+        };
+      }
+
+      // Element exists but not ready - wait for next DOM change or short interval
+      mutationDetected.value = false;
+      await new Promise(r => setTimeout(r, 50));
+    }
+
+    return { success: false, reason: lastReason || 'Max wait exceeded', waitTime: effectiveMaxWait };
+  } finally {
+    observer.disconnect();
+  }
+}
+
+// =============================================================================
+// END ACCESSIBILITY TREE FUNCTIONS
+// =============================================================================
+
 // Tool functions for browser automation
 const tools = {
   // Scroll the page
@@ -1305,26 +1751,57 @@ const tools = {
   
   // Click an element
   click: async (params) => {
-    // EASY WIN #3: Re-locate element before action (prevents 40-60% of stale element errors)
-    // Never cache element references - always query fresh
-    let element = querySelectorWithShadow(params.selector);
+    // AUTO-DISMISS: Try to dismiss common overlays before attempting click
+    // This reduces "obscured" errors caused by cookie banners, modals, etc.
+    const overlayDismissSelectors = [
+      '[class*="modal-backdrop"]:not([style*="display: none"])',
+      '[class*="overlay-close"]',
+      '[class*="popup-close"]',
+      '[aria-label="Close"]',
+      '[aria-label="Dismiss"]',
+      '.modal .close',
+      '[data-dismiss="modal"]',
+      'button[class*="cookie"][class*="accept"]',
+      'button[class*="consent"][class*="accept"]',
+      '[id*="cookie"] button[class*="accept"]'
+    ];
+
+    for (const selector of overlayDismissSelectors) {
+      try {
+        const overlay = document.querySelector(selector);
+        if (overlay && overlay.offsetParent !== null) {
+          overlay.click();
+          await new Promise(r => setTimeout(r, 200));
+        }
+      } catch (e) {
+        // Ignore errors - overlay dismissal is best-effort
+      }
+    }
+
+    // AUTO-WAIT: Wait for element to be actionable before attempting click
+    // Implements Playwright-style auto-wait for improved reliability
+    const waitResult = await waitForActionable(params.selector, {
+      timeout: 3000,
+      waitFor: ['visible', 'enabled', 'stable']
+    });
+
+    if (!waitResult.success) {
+      return {
+        success: false,
+        error: `Element not actionable: ${waitResult.reason}`,
+        selector: params.selector,
+        waitTime: waitResult.waitTime
+      };
+    }
+
+    let element = waitResult.element;
 
     if (element) {
-      // Check if element is visible and clickable
+      // Get position info for viewport check (after waitForActionable confirms visibility)
       const rect = element.getBoundingClientRect();
-      const isVisible = rect.width > 0 && rect.height > 0;
       const isInViewport = rect.top >= 0 && rect.left >= 0 &&
                           rect.bottom <= window.innerHeight &&
                           rect.right <= window.innerWidth;
-
-      if (!isVisible) {
-        return {
-          success: false,
-          error: 'Element not visible',
-          selector: params.selector,
-          visibility: { width: rect.width, height: rect.height }
-        };
-      }
 
       // EASY WIN #2: Always scroll to center for reliability (reduces failures by 30-50%)
       // Even if in viewport, center positioning avoids fixed headers/footers
@@ -1591,28 +2068,34 @@ const tools = {
     automationLogger.logActionExecution(currentSessionId, 'clickSearchResult', 'start', params);
     
     // Common selectors for search result links across different search engines
+    // NOTE: Modern Google uses "a > h3" structure (link contains heading), not "h3 > a"
     const searchResultSelectors = [
-      // Google search results
-      'h3 a',                           // Main result titles
+      // Google search results - MODERN STRUCTURE (link contains heading)
+      'a[href] h3',                     // Link contains H3 heading (current Google structure)
+      'a[href] h2',                     // Link contains H2 heading
+      '.yuRUbf a',                      // Current Google result container
       '.g a[href]:not([href*="google"])', // Result links (not Google's own links)
       'a[jsname]',                      // Google's JS-rendered results
+
+      // Google search results - LEGACY STRUCTURE (heading contains link)
+      'h3 a',                           // Older Google: H3 contains link
       '.rc .r a',                       // Older Google format
-      '.yuRUbf a',                      // Current Google result container
-      
-      // Bing search results  
+
+      // Bing search results
       '.b_algo h2 a',                   // Bing main results
       '.b_title a',                     // Bing title links
-      
+
       // DuckDuckGo results
       '.result__a',                     // DuckDuckGo results
       '.result__title a',               // DuckDuckGo title links
-      
-      // Generic patterns
+
+      // Generic patterns - handles various search engines
+      '[role="listitem"] a[href]',     // Accessible list-based results
       '[data-testid*="result"] a',     // Test ID patterns
       '.search-result a',               // Generic search result class
       '.result a',                      // Generic result class
       'article a[href]',                // Article-based results
-      
+
       // If specific text is provided, try to match it
       params.text ? `a:contains("${params.text}")` : null,
       params.domain ? `a[href*="${params.domain}"]` : null
@@ -1634,7 +2117,8 @@ const tools = {
     
     // Try to find the nth result if index is specified
     if (params.index !== undefined) {
-      const allResults = document.querySelectorAll('h3 a, .yuRUbf a, .b_algo h2 a, .result__a');
+      // Include both modern (a > h3) and legacy (h3 > a) patterns for maximum compatibility
+      const allResults = document.querySelectorAll('a[href] h3, h3 a, .yuRUbf a, .b_algo h2 a, .result__a');
       if (allResults[params.index]) {
         const result = allResults[params.index];
         result.click();
@@ -1731,11 +2215,26 @@ const tools = {
   // Type text into an input
   type: async (params) => {
     automationLogger.logActionExecution(currentSessionId, 'type', 'start', params);
-    
+
     try {
-      const element = querySelectorWithShadow(params.selector);
-      automationLogger.logActionExecution(currentSessionId, 'type', 'element_found', { tagName: element ? element.tagName : 'null' });
-    
+      // AUTO-WAIT: Wait for element to be actionable before typing
+      const waitResult = await waitForActionable(params.selector, {
+        timeout: 3000,
+        waitFor: ['visible', 'enabled', 'stable']
+      });
+
+      if (!waitResult.success) {
+        return {
+          success: false,
+          error: `Element not actionable for typing: ${waitResult.reason}`,
+          selector: params.selector,
+          waitTime: waitResult.waitTime
+        };
+      }
+
+      const element = waitResult.element;
+      automationLogger.logActionExecution(currentSessionId, 'type', 'element_found', { tagName: element ? element.tagName : 'null', waitTime: waitResult.waitTime });
+
     if (element) {
       // Check if it's a valid input element with enhanced contenteditable detection
       const isInput = element.tagName === 'INPUT' || element.tagName === 'TEXTAREA';
@@ -1807,7 +2306,8 @@ const tools = {
       
       // Universal text insertion handling for both input elements and contenteditable
       let previousValue = '';
-      
+      let insertionSuccess = false;  // Declare at function scope to avoid 'not defined' errors
+
       if (isInput) {
         // Store previous value for comparison
         previousValue = element.value;
@@ -1825,9 +2325,9 @@ const tools = {
       } else if (isContentEditable) {
         // Store previous content for comparison
         previousValue = element.textContent || element.innerText || '';
-        
+
         // Advanced ContentEditable Text Insertion
-        let insertionSuccess = false;
+        insertionSuccess = false;  // Reset for this branch (already declared at function scope)
         
         // Method 1: Try execCommand insertText (proper caret positioning)
         if (document.execCommand) {
@@ -3044,12 +3544,27 @@ const tools = {
     return { success: false, error: 'Element not found' };
   },
   
-  // Focus on element
-  focus: (params) => {
-    const element = querySelectorWithShadow(params.selector);
+  // Focus on element with auto-wait
+  focus: async (params) => {
+    // AUTO-WAIT: Wait for element to be actionable before focusing
+    const waitResult = await waitForActionable(params.selector, {
+      timeout: 2000,
+      waitFor: ['visible', 'enabled']
+    });
+
+    if (!waitResult.success) {
+      return {
+        success: false,
+        error: `Element not actionable for focus: ${waitResult.reason}`,
+        selector: params.selector,
+        waitTime: waitResult.waitTime
+      };
+    }
+
+    const element = waitResult.element;
     if (element) {
       element.focus();
-      return { success: true, focused: params.selector };
+      return { success: true, focused: params.selector, waitTime: waitResult.waitTime };
     }
     return { success: false, error: 'Element not found' };
   },
@@ -4499,7 +5014,13 @@ function extractRelevantHTML() {
         // Skip invisible elements
         const rect = element.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) return;
-        
+
+        // Viewport-only: skip elements outside viewport to reduce prompt size
+        if (rect.bottom < 0 || rect.top > window.innerHeight ||
+            rect.right < 0 || rect.left > window.innerWidth) {
+          return;
+        }
+
         // Extract and compress the element HTML
         let elementHTML = element.outerHTML;
         
@@ -4515,24 +5036,24 @@ function extractRelevantHTML() {
           elementHTML = elementHTML.replace(/\s+/g, ' ').trim();
         }
         
-        // EASY WIN #8: Increase HTML context to 4000 chars (modern AI models can handle it)
-        // Smart truncation to preserve important context while preventing token overflow
+        // PERFORMANCE FIX: Reduce HTML context to 500 chars max to prevent payload bloat
+        // 4000 chars per element * 500 elements = 2MB+ which causes API timeouts
         let truncatedHTML = elementHTML;
-        if (elementHTML.length > 4000) {
+        if (elementHTML.length > 500) {
           // Try to find a good breaking point at tag or word boundaries
           const breakPoints = [
-            elementHTML.lastIndexOf('>', 3900),  // End of a tag
-            elementHTML.lastIndexOf(' ', 3950),  // End of a word
-            3900  // Hard cutoff
+            elementHTML.lastIndexOf('>', 450),  // End of a tag
+            elementHTML.lastIndexOf(' ', 480),  // End of a word
+            450  // Hard cutoff
           ];
           const breakPoint = Math.max(...breakPoints.filter(p => p > 0));
           truncatedHTML = elementHTML.substring(0, breakPoint) + '...';
         }
-        
+
         relevantElements.push({
           selector: generateSelector(element),
           html: truncatedHTML,
-          text: element.innerText?.trim().substring(0, 200),  // Increased from 100 to 200 for better context
+          text: element.innerText?.trim().substring(0, 100),  // REDUCED from 200 to 100
           tag: element.tagName.toLowerCase(),
           position: {
             x: Math.round(rect.left),
@@ -4615,10 +5136,11 @@ function extractRelevantHTML() {
     } : null
   };
   
-  // Dynamic element limit based on page complexity and element quality
+  // PERFORMANCE FIX: Reduced element limit to prevent massive payloads
+  // Old limit of 500 elements * 500 chars HTML each = 250KB just for HTML context
   const maxElementsToSend = Math.min(
-    Math.max(150, Math.floor(relevantElements.length * 0.3)), // At least 150, or 30% of found elements
-    500 // Hard cap at 500 to prevent token overflow
+    Math.max(50, Math.floor(relevantElements.length * 0.2)), // At least 50, or 20% of found elements
+    100 // REDUCED: Hard cap at 100 to prevent token overflow
   );
   
   return {
@@ -5071,18 +5593,22 @@ function extractEcommerceProducts() {
  * @param {Object} options - Configuration options for DOM extraction
  * @param {boolean} options.useDiffing - Whether to use DOM diffing for optimization
  * @param {boolean} options.prioritizeViewport - Whether to prioritize visible elements
+ * @param {boolean} options.viewportOnlyMode - Capture ONLY viewport elements (60-70% prompt reduction)
  * @param {number} options.maxElements - Maximum number of elements to extract
  * @param {boolean} options.includeAllAttributes - Whether to include all element attributes
  * @param {boolean} options.includeComputedStyles - Whether to include computed styles
  * @returns {Object} Structured DOM representation with elements, context, and metadata
  */
 function getStructuredDOM(options = {}) {
+  // PERFORMANCE FIX: Reduced defaults to prevent 135k-191k char payloads that cause API timeouts
+  // Target: Keep prompts under 50k chars (~15k tokens) for reliable 30s responses
   const {
     useDiffing = false, // Disable diffing to get full context
-    prioritizeViewport = true, // CHANGED: Default to viewport-first for performance
-    maxElements = 2000, // Increased limit for comprehensive context
-    includeAllAttributes = true, // Include all element attributes
-    includeComputedStyles = true // Include visibility and display info
+    prioritizeViewport = true, // Viewport-first for performance
+    viewportOnlyMode = true, // Viewport-only mode: AI can scroll to reveal more content when needed, keeps payloads smaller
+    maxElements = 300, // REDUCED from 2000 - 300 is sufficient for most pages
+    includeAllAttributes = false, // CHANGED: Only include essential attributes
+    includeComputedStyles = false // CHANGED: Skip computed styles to save ~40% payload
   } = options;
 
   // PERFORMANCE: Viewport dimensions for prioritization
@@ -5128,7 +5654,7 @@ function getStructuredDOM(options = {}) {
         }
       
       // Extract element data with comprehensive context
-      const semanticId = generateSemanticElementId(node, elementCount);
+      const semanticId = generateSemanticElementId(node, totalElementCount);
       
       // Log semantic ID generation for debugging (only in verbose mode)
       // Debug logging removed to reduce noise - IDs are visible in DOM structure
@@ -5174,6 +5700,11 @@ function getStructuredDOM(options = {}) {
           selected: node.selected || false,
           focused: document.activeElement === node
         },
+        // Accessibility tree properties (Playwright MCP-inspired)
+        accessibilityName: computeAccessibleName(node),
+        implicitRole: getImplicitRole(node),
+        ariaRelationships: getARIARelationships(node),
+        actionability: isElementActionable(node),
         // Generate multiple selectors with stability scores
         selectors: (() => {
           const selectorData = generateSelectors(node, semanticId);
@@ -5265,7 +5796,8 @@ function getStructuredDOM(options = {}) {
       const inViewport = isInViewportRect(rect);
       if (inViewport) {
         viewportElements.push(elementData);
-      } else {
+      } else if (!viewportOnlyMode) {
+        // Only collect offscreen elements if not in viewport-only mode
         offscreenElements.push(elementData);
       }
       totalElementCount++;
@@ -5290,7 +5822,15 @@ function getStructuredDOM(options = {}) {
         }
       }
     } catch (error) {
-      automationLogger.warn('Error processing DOM node', { sessionId: currentSessionId, error: error.message, tagName: node?.tagName });
+      automationLogger.error('Error processing DOM node - CRITICAL', {
+        sessionId: currentSessionId,
+        error: error.message,
+        stack: error.stack,
+        nodeTag: node?.tagName,
+        nodeId: node?.id
+      });
+      // Log to console for immediate visibility during debugging
+      console.error('[FSB] DOM traverse error:', error);
       // Continue processing other nodes even if one fails
     }
   }
@@ -5298,30 +5838,44 @@ function getStructuredDOM(options = {}) {
   traverse(document.body);
 
   // PERFORMANCE: Combine viewport and offscreen elements with viewport priority
-  // Budget allocation: 70% for viewport, 30% for important offscreen elements
-  const viewportBudget = Math.min(viewportElements.length, Math.floor(maxElements * 0.7));
-  const offscreenBudget = Math.min(
-    offscreenElements.length,
-    maxElements - viewportBudget
-  );
+  let elements;
+  let viewportBudget;
+  let offscreenBudget;
+  let importantOffscreen = [];
 
-  // Filter offscreen elements to only include important ones
-  const importantOffscreen = offscreenElements
-    .filter(el => el.isButton || el.isInput || el.isLink ||
-                  el.attributes?.['data-testid'] || el.attributes?.['aria-label'] ||
-                  el.isCaptcha)
-    .slice(0, offscreenBudget);
+  if (viewportOnlyMode) {
+    // Viewport-only mode: use full budget for viewport elements only
+    // AI can use scroll/click tools to reveal more content when needed
+    viewportBudget = maxElements;
+    offscreenBudget = 0;
+    elements = viewportElements.slice(0, maxElements);
+  } else {
+    // Legacy mode: 70/30 split between viewport and important offscreen elements
+    viewportBudget = Math.min(viewportElements.length, Math.floor(maxElements * 0.7));
+    offscreenBudget = Math.min(
+      offscreenElements.length,
+      maxElements - viewportBudget
+    );
 
-  // Combine: viewport elements first, then important offscreen elements
-  const elements = [
-    ...viewportElements.slice(0, viewportBudget),
-    ...importantOffscreen
-  ];
+    // Filter offscreen elements to only include important ones
+    importantOffscreen = offscreenElements
+      .filter(el => el.isButton || el.isInput || el.isLink ||
+                    el.attributes?.['data-testid'] || el.attributes?.['aria-label'] ||
+                    el.isCaptcha)
+      .slice(0, offscreenBudget);
+
+    // Combine: viewport elements first, then important offscreen elements
+    elements = [
+      ...viewportElements.slice(0, viewportBudget),
+      ...importantOffscreen
+    ];
+  }
 
   // Log viewport-first performance stats
   automationLogger.logDOMOperation(currentSessionId, 'viewport_first_collection', {
+    viewportOnlyMode,
     viewportElements: viewportElements.length,
-    offscreenElements: offscreenElements.length,
+    offscreenElements: viewportOnlyMode ? 0 : offscreenElements.length,
     viewportBudget,
     offscreenBudget,
     importantOffscreenIncluded: importantOffscreen.length,
@@ -5382,7 +5936,8 @@ function getStructuredDOM(options = {}) {
       totalElements: elements.length,
       sentElements: elementsToSend.length,
       usedDiffing: useDiffing,
-      usedViewportPriority: prioritizeViewport
+      usedViewportPriority: prioritizeViewport,
+      viewportOnlyMode: viewportOnlyMode
     }
   };
   
@@ -5534,9 +6089,11 @@ async function handleAsyncMessage(request, sendResponse) {
               executionTime: Date.now() - startTime
             });
           } else {
+            // FIX: Pass through the action's success status directly
+            // Previously we wrapped with {success: true} which masked action failures
+            // The result object already has its own success field
             sendResponse({
-              success: true,
-              result: result,
+              ...result,  // Spread result first (includes result.success)
               tool: tool,
               executionTime: Date.now() - startTime
             });
@@ -5757,7 +6314,7 @@ if (document.body) {
   }
 }
 
-automationLogger.logInit('content_script', 'loaded', { version: '0.1', url: window.location.href });
+automationLogger.logInit('content_script', 'loaded', { version: '0.9', url: window.location.href });
 
 // Signal to background script that content script is fully initialized and ready
 // This is sent AFTER all initialization to ensure the script is truly ready

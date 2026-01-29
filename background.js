@@ -1,4 +1,4 @@
-// Background service worker for FSB v0.1
+// Background service worker for FSB v0.9
 
 // Import configuration and AI integration modules
 importScripts('config.js');
@@ -7,6 +7,17 @@ importScripts('ai-integration.js');
 importScripts('automation-logger.js');
 importScripts('analytics.js');
 importScripts('keyboard-emulator.js');
+
+// PART 3: Helper function to format duration for session elapsed timer
+function formatDuration(ms) {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const remainingSecs = seconds % 60;
+  if (minutes > 0) {
+    return `${minutes}m ${remainingSecs}s`;
+  }
+  return `${seconds}s`;
+}
 
 /**
  * PageLoadWatcher - Event-driven page load detection
@@ -291,6 +302,8 @@ async function cleanupSession(sessionId) {
   }
 
   activeSessions.delete(sessionId);
+  // Also remove from persistent storage
+  removePersistedSession(sessionId);
 
   // Stop keep-alive if no more active sessions
   if (activeSessions.size === 0) {
@@ -309,6 +322,81 @@ function isSessionTerminating(sessionId) {
 
 // Store for active automation sessions
 let activeSessions = new Map();
+
+// Session persistence helpers - survive service worker restarts
+// Persists essential session data to chrome.storage.session
+async function persistSession(sessionId, session) {
+  try {
+    // Only persist essential fields needed for stop button to work
+    const persistableSession = {
+      sessionId: sessionId,
+      task: session.task,
+      tabId: session.tabId,
+      status: session.status,
+      startTime: session.startTime,
+      // Don't persist: loopPromise, pendingTimeout, DOM hashes, etc. (non-serializable or transient)
+    };
+
+    const key = `session_${sessionId}`;
+    await chrome.storage.session.set({ [key]: persistableSession });
+    automationLogger.debug('Session persisted to storage', { sessionId });
+  } catch (error) {
+    automationLogger.warn('Failed to persist session', { sessionId, error: error.message });
+  }
+}
+
+// Remove persisted session from storage
+async function removePersistedSession(sessionId) {
+  try {
+    const key = `session_${sessionId}`;
+    await chrome.storage.session.remove(key);
+    automationLogger.debug('Session removed from storage', { sessionId });
+  } catch (error) {
+    automationLogger.warn('Failed to remove persisted session', { sessionId, error: error.message });
+  }
+}
+
+// Restore sessions from storage on service worker startup
+// Note: Restored sessions can only be stopped, not resumed (loop state is lost)
+async function restoreSessionsFromStorage() {
+  try {
+    const allStorage = await chrome.storage.session.get(null);
+    const sessionKeys = Object.keys(allStorage).filter(k => k.startsWith('session_'));
+
+    for (const key of sessionKeys) {
+      const persistedSession = allStorage[key];
+      if (persistedSession && persistedSession.sessionId) {
+        // Check if session is still supposed to be running
+        if (persistedSession.status === 'running') {
+          // Restore to activeSessions map so stop button works
+          // Mark as 'recoverable' so we know it was restored (can't resume automation loop)
+          activeSessions.set(persistedSession.sessionId, {
+            ...persistedSession,
+            isRestored: true,  // Flag to indicate this was restored, automation loop is not running
+            status: 'running', // Keep as running so stop button works
+          });
+          automationLogger.info('Restored session from storage', {
+            sessionId: persistedSession.sessionId,
+            task: persistedSession.task?.substring(0, 50)
+          });
+        } else {
+          // Clean up non-running sessions from storage
+          await removePersistedSession(persistedSession.sessionId);
+        }
+      }
+    }
+
+    automationLogger.logServiceWorker('sessions_restored', { count: activeSessions.size });
+  } catch (error) {
+    automationLogger.warn('Failed to restore sessions from storage', { error: error.message });
+  }
+}
+
+// Immediately restore sessions when service worker wakes up
+// This handles both service worker restarts and browser startups
+restoreSessionsFromStorage().catch(err => {
+  console.warn('FSB: Failed to restore sessions on wake:', err);
+});
 
 // Track content script ready status per tab
 let contentScriptReadyStatus = new Map();
@@ -1685,7 +1773,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
     case 'stopAutomation':
       handleStopAutomation(request, sender, sendResponse);
-      break;
+      return true; // Will respond asynchronously
       
     case 'getPerformanceReport':
       const report = getPerformanceReport();
@@ -1697,9 +1785,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true; // Will respond asynchronously
       
     case 'getStatus':
-      sendResponse({ 
-        status: 'ready', 
-        activeSessions: activeSessions.size 
+      // Return sessionIds so UI can recover after service worker restart
+      const sessionIds = Array.from(activeSessions.keys());
+      sendResponse({
+        status: 'ready',
+        activeSessions: activeSessions.size,
+        sessionIds: sessionIds,
+        currentSessionId: sessionIds[0] || null  // First active session for UI recovery
       });
       break;
       
@@ -1898,6 +1990,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       failedActionDetails: {},  // Track detailed failures by action signature
       lastDOMHash: null,        // Hash of last DOM state to detect changes
       stuckCounter: 0,          // Counter for detecting stuck state
+      consecutiveNoProgressCount: 0, // Counter for iterations with no meaningful progress (doesn't reset on URL change)
       iterationCount: 0,        // Total iterations
       urlHistory: [],           // Track URL changes
       lastUrl: null,            // Last known URL
@@ -1907,6 +2000,8 @@ async function handleStartAutomation(request, sender, sendResponse) {
     };
     
     activeSessions.set(sessionId, sessionData);
+    // Persist session to storage so stop button works after service worker restart
+    persistSession(sessionId, sessionData);
 
     automationLogger.logSessionStart(sessionId, task, sessionData.tabId);
     initializeSessionMetrics(sessionId);
@@ -1949,13 +2044,36 @@ async function handleStartAutomation(request, sender, sendResponse) {
 
 
 // Handle automation stop
-function handleStopAutomation(request, sender, sendResponse) {
+async function handleStopAutomation(request, sender, sendResponse) {
   const { sessionId } = request;
 
   automationLogger.info('Stop automation request received', { sessionId, activeSessions: Array.from(activeSessions.keys()) });
 
-  if (activeSessions.has(sessionId)) {
-    const session = activeSessions.get(sessionId);
+  // Check in-memory first
+  let session = activeSessions.get(sessionId);
+
+  // Fallback: Check storage if not in memory (service worker may have restarted)
+  if (!session) {
+    automationLogger.info('Session not in memory, checking storage...', { sessionId });
+    try {
+      const key = `session_${sessionId}`;
+      const stored = await chrome.storage.session.get(key);
+      if (stored[key] && stored[key].sessionId === sessionId) {
+        // Restore to activeSessions so cleanup works properly
+        session = {
+          ...stored[key],
+          isRestored: true,
+          actionHistory: stored[key].actionHistory || []
+        };
+        activeSessions.set(sessionId, session);
+        automationLogger.info('Session restored from storage for stop', { sessionId });
+      }
+    } catch (error) {
+      automationLogger.warn('Failed to check storage for session', { sessionId, error: error.message });
+    }
+  }
+
+  if (session) {
     automationLogger.debug('Found session to stop', { sessionId, status: session.status });
 
     session.status = 'stopped';
@@ -1974,7 +2092,7 @@ function handleStopAutomation(request, sender, sendResponse) {
       message: 'Automation stopped'
     });
   } else {
-    automationLogger.warn('Session not found', { sessionId });
+    automationLogger.warn('Session not found in memory or storage', { sessionId });
     sendResponse({
       success: false,
       error: 'Session not found'
@@ -2418,13 +2536,29 @@ async function startAutomationLoop(sessionId) {
 
   // FSB TIMING: Track iteration start time
   const iterationStart = Date.now();
-  automationLogger.logTiming(sessionId, 'LOOP', 'iteration_start', 0, { iteration: session.iterationCount });
+
+  // PART 3: Add cumulative session elapsed time
+  const sessionElapsed = Date.now() - (session.startTime || Date.now());
+  automationLogger.logTiming(sessionId, 'LOOP', 'iteration_start', 0, {
+    iteration: session.iterationCount,
+    sessionElapsedMs: sessionElapsed,
+    sessionElapsedFormatted: formatDuration(sessionElapsed)
+  });
 
   // Track iteration in performance metrics
   const sessionStats = performanceMetrics.sessionStats.get(sessionId);
   if (sessionStats) {
     sessionStats.iterations = session.iterationCount;
   }
+
+  // Log iteration with session elapsed context
+  automationLogger.debug('Iteration start', {
+    sessionId,
+    iteration: session.iterationCount,
+    sessionElapsedMs: sessionElapsed,
+    sessionElapsedFormatted: formatDuration(sessionElapsed),
+    stuckCounter: session.stuckCounter
+  });
   automationLogger.logIteration(sessionId, session.iterationCount, session.lastDOMHash, session.stuckCounter);
 
   try {
@@ -2440,7 +2574,13 @@ async function startAutomationLoop(sessionId) {
       const maxHealthRetries = 5;
       const healthRetryDelay = 500;
 
+      // PART 4: Track health check recovery timing
+      const recoveryStart = Date.now();
+      let wasReinjected = false;
+      let healthCheckAttempts = 0;
+
       for (let attempt = 1; attempt <= maxHealthRetries; attempt++) {
+        healthCheckAttempts = attempt;
         automationLogger.logComm(sessionId, 'health', 'healthCheck', true, { tabId: session.originalTabId, attempt, maxRetries: maxHealthRetries });
         healthOk = await checkContentScriptHealth(session.originalTabId);
 
@@ -2455,6 +2595,7 @@ async function startAutomationLoop(sessionId) {
             automationLogger.logRecovery(sessionId, 'health_fail', 're-inject', 'attempt', { tabId: session.originalTabId, attempt });
             try {
               await ensureContentScriptInjected(session.originalTabId);
+              wasReinjected = true;
             } catch (e) {
               automationLogger.logRecovery(sessionId, 'health_fail', 're-inject', 'failed', { tabId: session.originalTabId, error: e.message });
             }
@@ -2466,7 +2607,20 @@ async function startAutomationLoop(sessionId) {
       if (!healthOk) {
         throw new Error('Content script not responding to health check after multiple attempts');
       }
-      automationLogger.logComm(sessionId, 'health', 'verified', true, { tabId: session.originalTabId });
+
+      // PART 4: Log recovery duration if it took significant time
+      const recoveryDuration = Date.now() - recoveryStart;
+      if (recoveryDuration > 2000) {
+        automationLogger.info('Health check recovery completed', {
+          sessionId,
+          recoveryDurationMs: recoveryDuration,
+          recoveryDurationFormatted: formatDuration(recoveryDuration),
+          attempts: healthCheckAttempts,
+          method: wasReinjected ? 'content_script_reinjection' : 'retry'
+        });
+      }
+
+      automationLogger.logComm(sessionId, 'health', 'verified', true, { tabId: session.originalTabId, recoveryDurationMs: recoveryDuration });
     } catch (healthError) {
       automationLogger.logComm(sessionId, 'health', 'healthCheck', false, { tabId: session.originalTabId, error: healthError.message });
 
@@ -2821,8 +2975,32 @@ async function startAutomationLoop(sessionId) {
     // Log AI response
     // automationLogger.logAIResponse(sessionId, aiResponse.reasoning, aiResponse.actions, aiResponse.taskComplete);
     automationLogger.logAIResponse(sessionId, '', aiResponse.actions, aiResponse.taskComplete); // Reasoning disabled for performance
-    
-    
+
+    // CRITICAL FIX: Handle failedDueToError flag - stop automation and report failure properly
+    if (aiResponse.failedDueToError) {
+      session.status = 'failed';
+      const duration = Date.now() - session.startTime;
+
+      automationLogger.logSessionEnd(sessionId, 'failed', session.actionHistory.length, duration);
+      automationLogger.error('Task failed due to API error', { sessionId, result: aiResponse.result });
+
+      // Save session logs for history
+      automationLogger.saveSession(sessionId, session);
+
+      finalizeSessionMetrics(sessionId, false); // Failed
+      cleanupSession(sessionId);
+
+      // Notify UI of failure
+      chrome.runtime.sendMessage({
+        action: 'automationFailed',
+        sessionId,
+        error: aiResponse.result || 'Unknown API error',
+        message: aiResponse.currentStep || 'Automation stopped due to error'
+      }).catch(() => {});
+
+      return; // Stop automation loop
+    }
+
     // Send dynamic status update to UI
     if (aiResponse.currentStep) {
       chrome.runtime.sendMessage({
@@ -2833,7 +3011,7 @@ async function startAutomationLoop(sessionId) {
         // Ignore errors if no listeners
       });
     }
-    
+
     // Execute actions and track results
     if (aiResponse.actions && aiResponse.actions.length > 0) {
       // Create a smart signature for this action sequence
@@ -3144,8 +3322,101 @@ async function startAutomationLoop(sessionId) {
         }
       }
     }
-    
-    
+
+    // === PROGRESS TRACKING: Determine if this iteration made meaningful progress ===
+    // This counter does NOT reset on URL changes like stuckCounter does
+    const iterationActions = session.actionHistory.filter(a => a.iteration === session.iterationCount);
+    const iterationStats = {
+      actionsSucceeded: iterationActions.filter(a => a.result?.success).length,
+      actionsFailed: iterationActions.filter(a => !a.result?.success).length,
+      domChanged: session.lastDOMHash !== null && createDOMHash(domResponse.structuredDOM) !== session.lastDOMHash,
+      urlChanged: currentUrl !== session.lastUrl,
+      newDataExtracted: iterationActions.some(a =>
+        a.tool === 'getText' && a.result?.success && a.result?.value && a.result.value.trim().length > 0
+      ),
+      hadEffect: iterationActions.some(a => a.result?.hadEffect === true)
+    };
+
+    // Meaningful progress: DOM changed with successful actions, or URL changed, or new data extracted
+    const madeProgress = (
+      (iterationStats.domChanged && iterationStats.actionsSucceeded > 0) ||
+      iterationStats.urlChanged ||
+      iterationStats.newDataExtracted ||
+      iterationStats.hadEffect
+    );
+
+    if (madeProgress) {
+      session.consecutiveNoProgressCount = 0;
+      automationLogger.debug('Progress made this iteration', {
+        sessionId,
+        consecutiveNoProgressCount: session.consecutiveNoProgressCount,
+        stats: iterationStats
+      });
+    } else if (iterationStats.actionsFailed > 0 || !iterationStats.domChanged) {
+      session.consecutiveNoProgressCount++;
+      automationLogger.debug('No meaningful progress this iteration', {
+        sessionId,
+        consecutiveNoProgressCount: session.consecutiveNoProgressCount,
+        stats: iterationStats
+      });
+    }
+
+    // === HARD STOP: No progress for 6 consecutive iterations ===
+    if (session.consecutiveNoProgressCount >= 6) {
+      automationLogger.warn('No progress detected for 6 consecutive iterations', {
+        sessionId,
+        consecutiveNoProgressCount: session.consecutiveNoProgressCount,
+        iterationCount: session.iterationCount,
+        lastIterationStats: iterationStats
+      });
+      session.status = 'no_progress';
+
+      // Provide a helpful summary of what was accomplished
+      let finalResult = 'Automation stopped after 6 consecutive iterations without meaningful progress. ';
+
+      // Check for any extracted text from recent actions
+      const recentTextActions = session.actionHistory
+        .filter(action => action.tool === 'getText' && action.result?.success && action.result?.value)
+        .slice(-5);
+
+      if (recentTextActions.length > 0) {
+        const extractedTexts = recentTextActions.map(action => action.result.value).filter(text => text && text.trim());
+        if (extractedTexts.length > 0) {
+          finalResult += `Here's what I found: ${extractedTexts.join(', ')}. `;
+        }
+      }
+
+      // Add information about successful actions
+      const successfulActions = session.actionHistory.filter(a => a.result?.success);
+      if (successfulActions.length > 0) {
+        const uniqueSuccessActions = [...new Set(successfulActions.map(a => a.tool))];
+        finalResult += `Actions completed: ${uniqueSuccessActions.join(', ')}. `;
+      }
+
+      // Add current URL if navigated
+      if (session.urlHistory.length > 1) {
+        finalResult += `Currently on: ${session.lastUrl}. `;
+      }
+
+      finalResult += 'The automation may be stuck in a loop or unable to interact with the page effectively.';
+
+      automationLogger.logSessionEnd(sessionId, 'no_progress', session.actionHistory.length, Date.now() - session.startTime);
+      automationLogger.saveSession(sessionId, session);
+
+      finalizeSessionMetrics(sessionId, false);
+      cleanupSession(sessionId);
+
+      chrome.runtime.sendMessage({
+        action: 'automationComplete',
+        sessionId,
+        result: finalResult,
+        partial: true,
+        reason: 'no_progress'
+      });
+
+      return;
+    }
+
     // Smart stuck detection with early exit for repeated success
     // Check for repeated success earlier (at 4 iterations) to avoid unnecessary loops
     if (session.stuckCounter >= 4) {
@@ -3174,7 +3445,7 @@ async function startAutomationLoop(sessionId) {
         return;
       }
     }
-    
+
     // Check if we're stuck in a loop after more iterations
     if (session.stuckCounter >= 8) {
 
@@ -3427,12 +3698,15 @@ async function callAIAPI(task, structuredDOM, settings, context = null) {
   } catch (error) {
     automationLogger.error('AI API error', { sessionId: context?.sessionId, error: error.message });
 
-    // Return a more helpful fallback response
+    // CRITICAL FIX: Do NOT mark taskComplete: true on errors - this falsely reports success
+    // Return error response that stops automation but indicates failure
     return {
       actions: [],
-      taskComplete: true, // Mark as complete to avoid infinite loop
-      reasoning: '', // Disabled for performance
-      result: `I encountered an error while processing your request: ${error.message}. Please try again or check your API settings.`,
+      taskComplete: false,  // FIX: Do not mark as complete when there's an error
+      failedDueToError: true,  // NEW: Explicit error flag for UI to display
+      reasoning: '',
+      result: `Task failed due to API error: ${error.message}. The automation will stop. Please check your API settings and try again.`,
+      currentStep: 'Error - automation stopped',
       error: true
     };
   }
@@ -4024,7 +4298,7 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // Set up side panel behavior
 chrome.runtime.onInstalled.addListener(async () => {
-  automationLogger.logInit('extension', 'installed', { version: 'v0.1' });
+  automationLogger.logInit('extension', 'installed', { version: 'v0.9' });
 
   // Initialize analytics
   initializeAnalytics();
@@ -4045,8 +4319,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 
-// Initialize analytics on startup
-chrome.runtime.onStartup.addListener(() => {
+// Initialize analytics and restore sessions on startup
+chrome.runtime.onStartup.addListener(async () => {
   automationLogger.logServiceWorker('startup', {});
   initializeAnalytics();
+  // Restore sessions from storage so stop button works after service worker restart
+  await restoreSessionsFromStorage();
 });

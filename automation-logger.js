@@ -1,4 +1,4 @@
-// Automation Logger for FSB v0.1
+// Automation Logger for FSB v0.9
 // Provides structured logging for debugging automation loops
 
 class AutomationLogger {
@@ -794,6 +794,56 @@ class AutomationLogger {
       lines.push('No logs recorded for this session.');
     }
 
+    // PART 5: Add timeout analysis section
+    lines.push('');
+    lines.push(divider);
+    lines.push('TIMEOUT ANALYSIS');
+    lines.push(divider);
+    lines.push('');
+
+    const timeoutEvents = (session.logs || []).filter(
+      log => (log.level === 'ERROR' || log.level === 'WARN') &&
+             (log.message?.includes('timed out') ||
+              log.message?.includes('timeout') ||
+              log.message?.includes('API timeout') ||
+              log.data?.error?.includes('timeout'))
+    );
+
+    if (timeoutEvents.length > 0) {
+      lines.push(`Total Timeouts: ${timeoutEvents.length}`);
+      lines.push(`Estimated Timeout Duration: ~45s each (${timeoutEvents.length * 45}s total estimated)`);
+      lines.push('');
+      lines.push('Timeout Events:');
+      timeoutEvents.forEach((event, i) => {
+        const time = new Date(event.timestamp).toLocaleTimeString('en-US', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        const iteration = event.data?.iteration || event.data?.attempt || '?';
+        const duration = event.data?.attemptDuration ? ` (${Math.round(event.data.attemptDuration / 1000)}s)` : '';
+        lines.push(`  ${i + 1}. [${time}] ${event.message}${duration} - Iteration/Attempt: ${iteration}`);
+      });
+    } else {
+      lines.push('No API timeouts recorded.');
+    }
+
+    // Add retry summary if available
+    const retrySummaries = (session.logs || []).filter(
+      log => log.data?.logType === 'timing' && log.data?.operation === 'retry_summary'
+    );
+
+    if (retrySummaries.length > 0) {
+      lines.push('');
+      lines.push('Retry Summaries:');
+      retrySummaries.forEach((summary, i) => {
+        const data = summary.data;
+        lines.push(`  ${i + 1}. Attempts: ${data.attempts || '?'}, Timeouts: ${data.timeouts || 0}, Wait Time: ${data.totalWaitTime || 0}ms, Success: ${data.success ? 'Yes' : 'No'}`);
+      });
+    }
+
+    lines.push('');
     lines.push(divider);
     lines.push(`Report generated: ${new Date().toLocaleString()}`);
 

@@ -233,48 +233,6 @@ body {
   max-width: 100%;
 }
 
-/* Typing Indicator */
-.typing-indicator {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  background: var(--border-color);
-  margin-top: auto;
-}
-
-.typing-indicator.hidden {
-  display: none;
-}
-
-.typing-dots {
-  display: flex;
-  gap: 4px;
-}
-
-.typing-dots span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #9ca3af;
-  animation: typing 1.4s infinite ease-in-out;
-}
-
-.typing-dots span:nth-child(1) { animation-delay: 0s; }
-.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes typing {
-  0%, 60%, 100% {
-    transform: translateY(0);
-    opacity: 0.4;
-  }
-  30% {
-    transform: translateY(-10px);
-    opacity: 1;
-  }
-}
-
 /* Status message with integrated loader */
 .message.status-message {
   background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
@@ -307,6 +265,17 @@ body {
 .message.status-message .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
 .message.status-message .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
 
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+}
+
 .message.status-message .status-text {
   font-weight: 500;
   color: var(--text-primary);
@@ -336,12 +305,6 @@ body {
 
 [data-theme="dark"] .message.completed .status-text {
   color: #6ee7b7;
-}
-
-.typing-text {
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-style: italic;
 }
 
 /* Chat Input Area */

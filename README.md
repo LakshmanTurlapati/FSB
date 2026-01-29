@@ -1,10 +1,10 @@
-# FSB v0.1 - Full Self-Browsing
+# FSB v0.9 - Full Self-Browsing
 
 <div align="center">
 
 <img src="Assets/fsb.png" alt="FSB Logo" width="200" />
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/lakshmanturlapati/FSB/releases)
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/lakshmanturlapati/FSB/releases)
 [![Status](https://img.shields.io/badge/status-prototype-orange.svg)](https://github.com/lakshmanturlapati/FSB)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Chrome Extension](https://img.shields.io/badge/platform-Chrome%20Extension-yellow.svg)](https://developer.chrome.com/docs/extensions/)

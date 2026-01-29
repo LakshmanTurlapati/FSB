@@ -1,4 +1,4 @@
-// Side Panel Script for FSB v0.1 - Persistent UI
+// Side Panel Script for FSB v0.9 - Persistent UI
 
 let currentSessionId = null;
 let isRunning = false;
@@ -11,7 +11,6 @@ const stopBtn = document.getElementById('stopBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const chatMessages = document.getElementById('chatMessages');
-const typingIndicator = document.getElementById('typingIndicator');
 const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
 
@@ -79,7 +78,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Initialize side panel
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('FSB v0.1 side panel loaded');
+  console.log('FSB v0.9 side panel loaded');
   
   // Apply theme first
   applyTheme();
@@ -117,6 +116,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (response && response.activeSessions > 0) {
       setRunningState();
+      // Recover sessionId from background if UI lost it (e.g., after service worker restart)
+      if (!currentSessionId && response.currentSessionId) {
+        currentSessionId = response.currentSessionId;
+        console.log('FSB: Recovered sessionId from background:', currentSessionId);
+      }
     }
   });
   
@@ -204,9 +208,6 @@ async function handleSendMessage() {
     chatInput.textContent = '';
     updateSendButtonState();
     
-    // Show typing indicator
-    showTypingIndicator();
-    
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
@@ -218,8 +219,6 @@ async function handleSendMessage() {
       task: message,
       tabId: tab.id
     }, (response) => {
-      hideTypingIndicator();
-      
       if (chrome.runtime.lastError) {
         addMessage(`Error communicating with background script: ${chrome.runtime.lastError.message}`, 'error');
         return;
@@ -242,7 +241,6 @@ async function handleSendMessage() {
     });
     
   } catch (error) {
-    hideTypingIndicator();
     addMessage(`Something went wrong: ${error.message}`, 'error');
     setIdleState();
   }
@@ -259,9 +257,7 @@ function stopAutomation() {
     return;
   }
   
-  // Set flag to prevent new typing indicators
   stopRequested = true;
-  hideTypingIndicator();
   
   console.log('Side panel: Sending stop message to background script');
   chrome.runtime.sendMessage({
@@ -333,20 +329,6 @@ function startNewChat() {
 }
 
 
-// Show typing indicator
-function showTypingIndicator(customText = null) {
-  let displayText = customText || 'AI is thinking...';
-  
-  typingIndicator.querySelector('.typing-text').textContent = displayText;
-  typingIndicator.classList.remove('hidden');
-  scrollToBottom();
-}
-
-// Hide typing indicator
-function hideTypingIndicator() {
-  typingIndicator.classList.add('hidden');
-}
-
 // Update UI for running state
 function setRunningState() {
   isRunning = true;
@@ -364,7 +346,6 @@ function setIdleState() {
   stopBtn.classList.add('hidden');
   statusDot.classList.remove('running', 'error');
   statusText.textContent = 'Ready';
-  hideTypingIndicator();
   
   // Clean up any remaining status message with loader
   if (currentStatusMessage) {
@@ -385,7 +366,6 @@ function setErrorState() {
   stopBtn.classList.add('hidden');
   statusDot.classList.add('error');
   statusText.textContent = 'Error';
-  hideTypingIndicator();
   updateSendButtonState();
 }
 
@@ -541,7 +521,11 @@ function scrollToBottom() {
 
 // Open settings
 function openSettings() {
+  // Open the options page first
   chrome.runtime.openOptionsPage();
+
+  // Then close the side panel
+  window.close();
 }
 
 // Listen for messages from background
@@ -593,22 +577,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // Show a more user-friendly action message
         const actionMessage = formatActionMessage(request.tool, request.params);
         addMessage(actionMessage, 'action');
-        
-        // Update typing indicator for next action
-        showTypingIndicator('Analyzing results...');
-      }
-      break;
-      
-    case 'aiThinking':
-      if (request.sessionId === currentSessionId) {
-        // Handle AI thinking messages
-        if (request.message.includes('Analyzing')) {
-          showTypingIndicator('Analyzing page...');
-        // } else if (request.message.includes('reasoning')) {
-        //   addMessage(request.message, 'ai');
-        } else {
-          showTypingIndicator(request.message);
-        }
       }
       break;
   }
@@ -684,4 +652,4 @@ document.addEventListener('visibilitychange', () => {
 
 
 
-console.log('FSB v0.1 side panel script loaded');
+console.log('FSB v0.9 side panel script loaded');
