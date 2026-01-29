@@ -449,6 +449,61 @@
             </div>
           </div>
           
+          <!-- Session History Section -->
+          <div class="session-history-section" style="margin-top: 2rem;">
+            <div class="section-header">
+              <h3>Session History</h3>
+              <p>View and export logs from past automation sessions</p>
+            </div>
+
+            <div class="session-controls">
+              <button class="control-btn" id="refreshSessions">
+                <i class="fas fa-sync-alt"></i>
+                Refresh
+              </button>
+              <button class="control-btn" id="clearAllSessions">
+                <i class="fas fa-trash"></i>
+                Clear All Sessions
+              </button>
+            </div>
+
+            <div class="session-list-container" id="sessionListContainer">
+              <div class="session-list" id="sessionList">
+                <!-- Session items will be rendered here -->
+                <div class="session-empty-state">
+                  <i class="fas fa-inbox"></i>
+                  <p>No sessions recorded yet. Run an automation task to see session logs here.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Session Detail Panel -->
+            <div class="session-detail-panel" id="sessionDetailPanel" style="display: none;">
+              <div class="session-detail-header">
+                <div class="session-detail-title">
+                  <h4 id="sessionDetailTitle">Session Details</h4>
+                  <span class="session-detail-status" id="sessionDetailStatus"></span>
+                </div>
+                <div class="session-detail-actions">
+                  <button class="control-btn" id="downloadSessionLogs">
+                    <i class="fas fa-download"></i>
+                    Download
+                  </button>
+                  <button class="control-btn" id="closeSessionDetail">
+                    <i class="fas fa-times"></i>
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div class="session-detail-meta" id="sessionDetailMeta">
+                <!-- Session metadata will be rendered here -->
+              </div>
+              <div class="session-logs-container">
+                <pre class="session-logs-content" id="sessionLogsContent">Loading...</pre>
+              </div>
+            </div>
+          </div>
+
           <!-- Analytics Debug Tools -->
           <div class="debug-section" style="margin-top: 2rem;">
             <div class="section-header">
@@ -556,6 +611,7 @@
   </div>
 
   <script src="config.js"></script>
+  <script src="universal-provider.js"></script>
   <script src="ai-providers.js"></script>
   <script src="ai-integration.js"></script>
   <script src="analytics.js"></script>

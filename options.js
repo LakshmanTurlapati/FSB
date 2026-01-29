@@ -3,7 +3,7 @@
 // Default settings
 const defaultSettings = {
   modelProvider: 'xai',
-  modelName: 'grok-3-fast',
+  modelName: 'grok-4-1-fast',
   apiKey: '',
   geminiApiKey: '',
   openaiApiKey: '',
@@ -23,12 +23,12 @@ const defaultSettings = {
 // Available models configuration
 const availableModels = {
   xai: [
-    { id: 'grok-3-fast', name: 'Grok 3 Fast', description: 'Fast and efficient - best for automation' },
-    { id: 'grok-3', name: 'Grok 3', description: 'Flagship model with full capabilities' },
-    { id: 'grok-3-mini-fast-beta', name: 'Grok 3 Mini Fast', description: 'Fastest, most economical option' },
-    { id: 'grok-3-mini-beta', name: 'Grok 3 Mini', description: 'Smaller model with reasoning capabilities' },
-    { id: 'grok-4', name: 'Grok 4', description: 'Most capable reasoning model' },
-    { id: 'grok-4-fast', name: 'Grok 4 Fast', description: 'Efficient variant of Grok 4' }
+    { id: 'grok-4-1-fast', name: 'Grok 4.1 Fast', description: 'High-speed, 2M context - best for automation (Recommended)' },
+    { id: 'grok-4-1-fast-reasoning', name: 'Grok 4.1 Fast Reasoning', description: 'With multi-step reasoning enabled' },
+    { id: 'grok-4', name: 'Grok 4', description: 'Complex reasoning model' },
+    { id: 'grok-code-fast-1', name: 'Grok Code Fast 1', description: 'Dedicated code generation & debugging' },
+    { id: 'grok-3', name: 'Grok 3', description: 'Legacy flagship model' },
+    { id: 'grok-3-mini', name: 'Grok 3 Mini', description: 'Budget option with reasoning' }
   ],
   gemini: [
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Latest with thinking capabilities' },
@@ -322,7 +322,10 @@ function setupEventListeners() {
   
   // Model name change
   if (elements.modelName) {
-    elements.modelName.addEventListener('change', () => {
+    elements.modelName.addEventListener('change', (e) => {
+      // Update reasoning effort visibility when model changes
+      const provider = elements.modelProvider?.value || 'xai';
+      updateApiKeyVisibility(provider, e.target.value);
       markUnsavedChanges();
     });
   }
@@ -523,8 +526,12 @@ function updateModelDescription(description) {
   }
 }
 
+// Models that support the reasoning effort parameter
+// Keep in sync with universal-provider.js supportsReasoningEffort()
+const REASONING_EFFORT_MODELS = ['grok-4'];
+
 // Update API key visibility based on provider
-function updateApiKeyVisibility(provider) {
+function updateApiKeyVisibility(provider, modelName = null) {
   // Get all API key groups
   const apiKeyGroups = {
     xai: document.getElementById('xaiApiKeyGroup'),
@@ -533,21 +540,25 @@ function updateApiKeyVisibility(provider) {
     anthropic: document.getElementById('anthropicApiKeyGroup'),
     custom: document.getElementById('customApiGroup')
   };
-  
+
   // Hide all groups first
   Object.values(apiKeyGroups).forEach(group => {
     if (group) group.style.display = 'none';
   });
-  
+
   // Show the selected provider's group
   if (apiKeyGroups[provider]) {
     apiKeyGroups[provider].style.display = 'block';
   }
-  
-  // Show/hide reasoning effort for xAI provider
+
+  // Get current model if not provided
+  const currentModel = modelName || elements.modelName?.value;
+
+  // Show/hide reasoning effort only for models that support it
   const reasoningEffortGroup = document.getElementById('reasoningEffortGroup');
   if (reasoningEffortGroup) {
-    reasoningEffortGroup.style.display = provider === 'xai' ? 'block' : 'none';
+    const showReasoning = provider === 'xai' && REASONING_EFFORT_MODELS.includes(currentModel);
+    reasoningEffortGroup.style.display = showReasoning ? 'block' : 'none';
   }
 }
 
@@ -558,7 +569,7 @@ function loadSettings() {
     // Handle legacy speedMode to new model format
     if (!settings.modelProvider && settings.speedMode) {
       settings.modelProvider = 'xai';
-      settings.modelName = 'grok-3-fast'; // All legacy modes map to new default
+      settings.modelName = 'grok-4-1-fast'; // All legacy modes map to new default
     }
     
     // Update model provider and options
@@ -578,6 +589,8 @@ function loadSettings() {
         if (selectedModel) {
           updateModelDescription(selectedModel.description);
         }
+        // Update reasoning effort visibility based on selected model
+        updateApiKeyVisibility(settings.modelProvider || 'xai', settings.modelName);
       }, 100);
     }
     
@@ -642,7 +655,7 @@ function loadSettings() {
 function saveSettings() {
   const settings = {
     modelProvider: elements.modelProvider?.value || 'xai',
-    modelName: elements.modelName?.value || 'grok-3-fast',
+    modelName: elements.modelName?.value || 'grok-4-1-fast',
     reasoningEffort: elements.reasoningEffort?.value || 'low',
     apiKey: elements.apiKey?.value || '',
     geminiApiKey: elements.geminiApiKey?.value || '',
@@ -730,21 +743,40 @@ function togglePasswordVisibility(fieldId) {
 async function checkApiConnection() {
   dashboardState.connectionStatus = 'checking';
   updateConnectionStatus('checking', 'Checking connection...');
-  
+
   try {
     const settings = await getStoredSettings();
-    
-    if (!settings.apiKey) {
+    const provider = settings.modelProvider || 'xai';
+
+    // Check appropriate API key based on provider
+    const apiKeyMap = {
+      xai: settings.apiKey,
+      gemini: settings.geminiApiKey,
+      openai: settings.openaiApiKey,
+      anthropic: settings.anthropicApiKey,
+      custom: settings.customApiKey
+    };
+
+    const apiKey = apiKeyMap[provider];
+
+    if (!apiKey) {
+      const providerNames = {
+        xai: 'xAI',
+        gemini: 'Gemini',
+        openai: 'OpenAI',
+        anthropic: 'Anthropic',
+        custom: 'Custom'
+      };
       updateConnectionStatus('disconnected', 'No API key configured');
-      updateApiStatusCard('disconnected', 'No API Key', 'Configure your xAI API key to get started');
+      updateApiStatusCard('disconnected', 'No API Key', `Configure your ${providerNames[provider]} API key to get started`);
       return;
     }
-    
+
     // Use AI integration to test connection
     const aiIntegration = new AIIntegration(settings);
-    
+
     const result = await aiIntegration.testConnection();
-    
+
     if (result.ok) {
       updateConnectionStatus('connected', 'Connected');
       updateApiStatusCard('connected', 'Connected', `Using model: ${result.model}`);
@@ -811,30 +843,40 @@ async function testApiConnection() {
 
 async function runFullApiTest() {
   if (!elements.fullApiTest || !elements.testResults) return;
-  
+
   elements.fullApiTest.disabled = true;
   elements.fullApiTest.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
   elements.testResults.classList.remove('show');
-  
+
   try {
     const settings = await getStoredSettings();
-    
-    // Check appropriate API key based on provider
     const provider = settings.modelProvider || 'xai';
-    if (provider === 'gemini' && !settings.geminiApiKey) {
-      throw new Error('Gemini API key is required for testing');
-    } else if (provider === 'xai' && !settings.apiKey) {
-      throw new Error('xAI API key is required for testing');
+
+    // Check appropriate API key based on provider
+    const apiKeyMap = {
+      xai: { key: settings.apiKey, name: 'xAI' },
+      gemini: { key: settings.geminiApiKey, name: 'Gemini' },
+      openai: { key: settings.openaiApiKey, name: 'OpenAI' },
+      anthropic: { key: settings.anthropicApiKey, name: 'Anthropic' },
+      custom: { key: settings.customApiKey, name: 'Custom' }
+    };
+
+    const providerInfo = apiKeyMap[provider];
+    if (!providerInfo.key) {
+      throw new Error(`${providerInfo.name} API key is required for testing`);
     }
-    
+
     // Test AI integration
     const aiIntegration = new AIIntegration(settings);
-    
+
     const result = await aiIntegration.testConnection();
-    
+
     // Display results
     elements.testResults.innerHTML = `
       <h4>API Test Results</h4>
+      <div class="test-result-item">
+        <strong>Provider:</strong> ${providerInfo.name}
+      </div>
       <div class="test-result-item">
         <strong>Status:</strong> ${result.ok ? 'Success' : 'Failed'}
       </div>
@@ -847,10 +889,10 @@ async function runFullApiTest() {
       ${result.error ? `<div class="test-result-item error"><strong>Error:</strong> ${result.error}</div>` : ''}
       ${result.data ? `<div class="test-result-item"><strong>Response:</strong> <pre>${JSON.stringify(result.data, null, 2)}</pre></div>` : ''}
     `;
-    
+
     elements.testResults.classList.add('show');
     addLog(result.ok ? 'info' : 'error', `Full API test ${result.ok ? 'passed' : 'failed'}: ${result.error || 'Success'}`);
-    
+
   } catch (error) {
     elements.testResults.innerHTML = `
       <h4>API Test Results</h4>
@@ -1056,7 +1098,7 @@ async function testTokenTracking() {
 
   // Test with fake data
   const testData = {
-    model: 'grok-3-fast',
+    model: 'grok-4-1-fast',
     inputTokens: 150,
     outputTokens: 75,
     success: true
@@ -1095,7 +1137,7 @@ async function clearAnalyticsData() {
       await chrome.storage.local.remove(['fsbUsageData', 'fsbCurrentModel']);
       if (analytics) {
         analytics.usageData = [];
-        analytics.currentModel = 'grok-3-fast';
+        analytics.currentModel = 'grok-4-1-fast';
         analytics.updateDashboard();
         analytics.updateChart('24h');
       }
@@ -1138,12 +1180,924 @@ function showDebugOutput(content) {
   }
 }
 
+// ==========================================
+// Session History Functions
+// ==========================================
+
+// Current session being viewed
+let currentViewingSession = null;
+
+/**
+ * Initialize session history UI and event listeners
+ */
+function initializeSessionHistory() {
+  // Cache elements
+  const refreshBtn = document.getElementById('refreshSessions');
+  const clearAllBtn = document.getElementById('clearAllSessions');
+  const downloadBtn = document.getElementById('downloadSessionLogs');
+  const closeBtn = document.getElementById('closeSessionDetail');
+
+  // Event listeners
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', loadSessionList);
+  }
+
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', clearAllSessions);
+  }
+
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', downloadCurrentSessionLogs);
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeSessionDetail);
+  }
+
+  // Load initial session list
+  loadSessionList();
+}
+
+/**
+ * Load and display the list of saved sessions
+ */
+async function loadSessionList() {
+  const sessionList = document.getElementById('sessionList');
+  if (!sessionList) return;
+
+  try {
+    // Get session index from storage
+    const stored = await chrome.storage.local.get(['fsbSessionIndex']);
+    const sessions = stored.fsbSessionIndex || [];
+
+    if (sessions.length === 0) {
+      sessionList.innerHTML = `
+        <div class="session-empty-state">
+          <i class="fas fa-inbox"></i>
+          <p>No sessions recorded yet. Run an automation task to see session logs here.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Render session items
+    sessionList.innerHTML = sessions.map(session => `
+      <div class="session-item" data-session-id="${session.id}">
+        <div class="session-item-info">
+          <div class="session-item-task">${escapeHtml(session.task || 'Unknown task')}</div>
+          <div class="session-item-meta">
+            <span><i class="fas fa-clock"></i> ${formatSessionDate(session.startTime)}</span>
+            <span><i class="fas fa-play-circle"></i> ${session.actionCount || 0} actions</span>
+            <span><i class="fas fa-hourglass-half"></i> ${formatSessionDuration(session.startTime, session.endTime)}</span>
+          </div>
+        </div>
+        <div class="session-item-status">
+          <span class="session-status-badge ${session.status}">${session.status}</span>
+        </div>
+        <div class="session-item-actions">
+          <button class="session-action-btn view" title="View logs" onclick="viewSession('${session.id}')">
+            <i class="fas fa-eye"></i>
+          </button>
+          <button class="session-action-btn download" title="Download logs" onclick="downloadSessionLogs('${session.id}')">
+            <i class="fas fa-download"></i>
+          </button>
+          <button class="session-action-btn delete" title="Delete session" onclick="deleteSession('${session.id}')">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    // Add click listeners for session items (for viewing)
+    sessionList.querySelectorAll('.session-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        // Don't trigger if clicking action buttons
+        if (e.target.closest('.session-item-actions')) return;
+        const sessionId = item.dataset.sessionId;
+        viewSession(sessionId);
+      });
+    });
+
+    addLog('info', `Loaded ${sessions.length} sessions`);
+
+  } catch (error) {
+    console.error('Failed to load session list:', error);
+    sessionList.innerHTML = `
+      <div class="session-empty-state">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>Failed to load sessions: ${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+/**
+ * View a specific session's details and logs
+ * @param {string} sessionId - The session ID to view
+ */
+async function viewSession(sessionId) {
+  const detailPanel = document.getElementById('sessionDetailPanel');
+  const titleEl = document.getElementById('sessionDetailTitle');
+  const statusEl = document.getElementById('sessionDetailStatus');
+  const metaEl = document.getElementById('sessionDetailMeta');
+  const logsEl = document.getElementById('sessionLogsContent');
+
+  if (!detailPanel) return;
+
+  try {
+    // Load full session data
+    const stored = await chrome.storage.local.get(['fsbSessionLogs']);
+    const sessionStorage = stored.fsbSessionLogs || {};
+    const session = sessionStorage[sessionId];
+
+    if (!session) {
+      showToast('Session not found', 'error');
+      return;
+    }
+
+    currentViewingSession = session;
+
+    // Update header
+    titleEl.textContent = session.task || 'Unknown Task';
+    statusEl.textContent = session.status;
+    statusEl.className = `session-detail-status session-status-badge ${session.status}`;
+
+    // Update metadata
+    metaEl.innerHTML = `
+      <div class="session-meta-item">
+        <span class="session-meta-label">Session ID</span>
+        <span class="session-meta-value">${session.id}</span>
+      </div>
+      <div class="session-meta-item">
+        <span class="session-meta-label">Started</span>
+        <span class="session-meta-value">${new Date(session.startTime).toLocaleString()}</span>
+      </div>
+      <div class="session-meta-item">
+        <span class="session-meta-label">Ended</span>
+        <span class="session-meta-value">${new Date(session.endTime).toLocaleString()}</span>
+      </div>
+      <div class="session-meta-item">
+        <span class="session-meta-label">Duration</span>
+        <span class="session-meta-value">${formatSessionDuration(session.startTime, session.endTime)}</span>
+      </div>
+      <div class="session-meta-item">
+        <span class="session-meta-label">Actions</span>
+        <span class="session-meta-value">${session.actionCount || 0}</span>
+      </div>
+      <div class="session-meta-item">
+        <span class="session-meta-label">Iterations</span>
+        <span class="session-meta-value">${session.iterationCount || 'N/A'}</span>
+      </div>
+    `;
+
+    // Format and display logs
+    logsEl.textContent = formatSessionLogsForDisplay(session);
+
+    // Show panel
+    detailPanel.style.display = 'block';
+    detailPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    addLog('info', `Viewing session ${sessionId}`);
+
+  } catch (error) {
+    console.error('Failed to view session:', error);
+    showToast('Failed to load session details', 'error');
+  }
+}
+
+/**
+ * Close the session detail panel
+ */
+function closeSessionDetail() {
+  const detailPanel = document.getElementById('sessionDetailPanel');
+  if (detailPanel) {
+    detailPanel.style.display = 'none';
+  }
+  currentViewingSession = null;
+}
+
+/**
+ * Download logs for the currently viewing session
+ */
+function downloadCurrentSessionLogs() {
+  if (!currentViewingSession) {
+    showToast('No session selected', 'warning');
+    return;
+  }
+  downloadSessionLogs(currentViewingSession.id);
+}
+
+/**
+ * Download logs for a specific session as a text file
+ * @param {string} sessionId - The session ID to download
+ */
+async function downloadSessionLogs(sessionId) {
+  try {
+    const stored = await chrome.storage.local.get(['fsbSessionLogs']);
+    const sessionStorage = stored.fsbSessionLogs || {};
+    const session = sessionStorage[sessionId];
+
+    if (!session) {
+      showToast('Session not found', 'error');
+      return;
+    }
+
+    // Generate formatted report
+    const report = formatSessionReport(session);
+
+    // Create download
+    const blob = new Blob([report], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const timestamp = new Date(session.startTime).toISOString().split('T')[0];
+    const filename = `fsb-session-${timestamp}-${sessionId.replace('session_', '')}.txt`;
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast('Session logs downloaded', 'success');
+    addLog('info', `Downloaded session ${sessionId}`);
+
+  } catch (error) {
+    console.error('Failed to download session:', error);
+    showToast('Failed to download session logs', 'error');
+  }
+}
+
+/**
+ * Delete a specific session
+ * @param {string} sessionId - The session ID to delete
+ */
+async function deleteSession(sessionId) {
+  if (!confirm('Are you sure you want to delete this session? This cannot be undone.')) {
+    return;
+  }
+
+  try {
+    const stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex']);
+    const sessionStorage = stored.fsbSessionLogs || {};
+    const sessionIndex = stored.fsbSessionIndex || [];
+
+    // Remove from storage
+    delete sessionStorage[sessionId];
+
+    // Remove from index
+    const updatedIndex = sessionIndex.filter(s => s.id !== sessionId);
+
+    // Save changes
+    await chrome.storage.local.set({
+      fsbSessionLogs: sessionStorage,
+      fsbSessionIndex: updatedIndex
+    });
+
+    // Close detail panel if viewing this session
+    if (currentViewingSession && currentViewingSession.id === sessionId) {
+      closeSessionDetail();
+    }
+
+    // Refresh list
+    loadSessionList();
+
+    showToast('Session deleted', 'success');
+    addLog('info', `Deleted session ${sessionId}`);
+
+  } catch (error) {
+    console.error('Failed to delete session:', error);
+    showToast('Failed to delete session', 'error');
+  }
+}
+
+/**
+ * Clear all saved sessions
+ */
+async function clearAllSessions() {
+  if (!confirm('Are you sure you want to delete ALL session history? This cannot be undone.')) {
+    return;
+  }
+
+  try {
+    await chrome.storage.local.remove(['fsbSessionLogs', 'fsbSessionIndex']);
+
+    closeSessionDetail();
+    loadSessionList();
+
+    showToast('All sessions cleared', 'success');
+    addLog('info', 'All sessions cleared');
+
+  } catch (error) {
+    console.error('Failed to clear sessions:', error);
+    showToast('Failed to clear sessions', 'error');
+  }
+}
+
+/**
+ * Format session logs for display in the detail panel
+ * @param {Object} session - The session object
+ * @returns {string} Formatted logs text
+ */
+function formatSessionLogsForDisplay(session) {
+  if (!session.logs || session.logs.length === 0) {
+    return 'No logs recorded for this session.';
+  }
+
+  return session.logs.map(log => {
+    const time = new Date(log.timestamp).toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+
+    let line = `[${time}] [${log.level.toUpperCase()}] ${log.message}`;
+
+    // Add relevant data if present
+    if (log.data) {
+      const dataStr = formatLogDataCompact(log.data);
+      if (dataStr) {
+        line += `\n    ${dataStr}`;
+      }
+    }
+
+    return line;
+  }).join('\n');
+}
+
+/**
+ * Format log data compactly for display
+ * @param {Object} data - Log data object
+ * @returns {string} Formatted data string
+ */
+function formatLogDataCompact(data) {
+  if (!data) return '';
+
+  const parts = [];
+
+  if (data.action) {
+    const paramsStr = JSON.stringify(data.action.params || {});
+    parts.push(`Action: ${data.action.tool}(${paramsStr.substring(0, 100)}${paramsStr.length > 100 ? '...' : ''})`);
+  }
+  if (data.result && typeof data.result === 'object' && data.result.success !== undefined) {
+    parts.push(`Result: ${data.result.success ? 'success' : 'failed'}`);
+    if (data.result.error) {
+      parts.push(`Error: ${data.result.error}`);
+    }
+  }
+  if (data.iterationCount !== undefined) {
+    parts.push(`Iteration: ${data.iterationCount}`);
+  }
+  if (data.taskComplete !== undefined) {
+    parts.push(`Task Complete: ${data.taskComplete}`);
+  }
+  if (data.actionCount !== undefined && parts.length === 0) {
+    parts.push(`Actions: ${data.actionCount}`);
+  }
+
+  return parts.join(' | ');
+}
+
+/**
+ * Format a full session report for download
+ * @param {Object} session - The session object
+ * @returns {string} Formatted report text
+ */
+function formatSessionReport(session) {
+  const lines = [];
+  const divider = '='.repeat(80);
+  const shortDivider = '-'.repeat(80);
+
+  // Header
+  lines.push(divider);
+  lines.push('FSB Automation Session Report');
+  lines.push(divider);
+  lines.push('');
+
+  // Session info
+  lines.push(`Session ID: ${session.id}`);
+  lines.push(`Task: ${session.task}`);
+  lines.push(`Started: ${new Date(session.startTime).toLocaleString()}`);
+  lines.push(`Ended: ${new Date(session.endTime).toLocaleString()}`);
+  lines.push(`Status: ${session.status.toUpperCase()}`);
+  lines.push(`Duration: ${formatSessionDuration(session.startTime, session.endTime)}`);
+  lines.push(`Total Actions: ${session.actionCount}`);
+  lines.push(`Iterations: ${session.iterationCount || 'N/A'}`);
+  lines.push('');
+
+  // Process logs to extract conversations by iteration
+  const conversationLogs = extractConversationLogs(session.logs || []);
+  const tokenUsageLogs = extractTokenUsageLogs(session.logs || []);
+  const actionLogs = extractActionLogs(session.logs || []);
+  const timingLogs = extractTimingLogs(session.logs || []);
+  const commLogs = extractCommLogs(session.logs || []);
+  const recoveryLogs = extractRecoveryLogs(session.logs || []);
+
+  // AI Conversation Log Section
+  if (conversationLogs.length > 0) {
+    lines.push(divider);
+    lines.push('AI CONVERSATION LOG');
+    lines.push(divider);
+    lines.push('');
+
+    conversationLogs.forEach(conv => {
+      lines.push(`${shortDivider}`);
+      lines.push(`--- Iteration ${conv.iteration} ---`);
+      lines.push('');
+
+      // Prompt section
+      if (conv.prompt) {
+        lines.push(`[PROMPT - System] (${conv.prompt.systemPromptLength || 0} chars)`);
+        if (conv.prompt.systemPrompt) {
+          lines.push(conv.prompt.systemPrompt.substring(0, 2000));
+          if (conv.prompt.systemPrompt.length > 2000) {
+            lines.push('... [TRUNCATED]');
+          }
+        }
+        lines.push('');
+        lines.push(`[PROMPT - User] (${conv.prompt.userPromptLength || 0} chars)`);
+        if (conv.prompt.userPrompt) {
+          lines.push(conv.prompt.userPrompt.substring(0, 3000));
+          if (conv.prompt.userPrompt.length > 3000) {
+            lines.push('... [TRUNCATED]');
+          }
+        }
+        lines.push('');
+      }
+
+      // Raw response section
+      if (conv.rawResponse) {
+        lines.push(`[RAW RESPONSE] (${conv.rawResponse.rawResponseLength || 0} chars, parse: ${conv.rawResponse.parseSuccess ? 'success' : 'failed'})`);
+        if (conv.rawResponse.rawResponse) {
+          lines.push(conv.rawResponse.rawResponse.substring(0, 2000));
+          if (conv.rawResponse.rawResponse.length > 2000) {
+            lines.push('... [TRUNCATED]');
+          }
+        }
+        lines.push('');
+      }
+
+      // Reasoning section
+      if (conv.reasoning) {
+        lines.push('[REASONING]');
+        if (conv.reasoning.situationAnalysis) {
+          lines.push(`Situation: ${conv.reasoning.situationAnalysis}`);
+        }
+        if (conv.reasoning.goalAssessment) {
+          lines.push(`Goal: ${conv.reasoning.goalAssessment}`);
+        }
+        if (conv.reasoning.reasoning) {
+          lines.push(`Reasoning: ${conv.reasoning.reasoning}`);
+        }
+        if (conv.reasoning.confidence) {
+          lines.push(`Confidence: ${conv.reasoning.confidence}`);
+        }
+        if (conv.reasoning.assumptions && conv.reasoning.assumptions.length > 0) {
+          lines.push(`Assumptions: ${JSON.stringify(conv.reasoning.assumptions)}`);
+        }
+        if (conv.reasoning.fallbackPlan) {
+          lines.push(`Fallback: ${conv.reasoning.fallbackPlan}`);
+        }
+        lines.push('');
+      }
+
+      // Token usage for this iteration
+      if (conv.tokenUsage) {
+        lines.push('[TOKEN USAGE]');
+        lines.push(`Model: ${conv.tokenUsage.model} | Input: ${conv.tokenUsage.inputTokens} | Output: ${conv.tokenUsage.outputTokens} | Total: ${conv.tokenUsage.totalTokens} | Source: ${conv.tokenUsage.source}`);
+        lines.push('');
+      }
+
+      lines.push('');
+    });
+  }
+
+  // Timing Analysis Section
+  if (timingLogs.length > 0) {
+    lines.push(divider);
+    lines.push('TIMING ANALYSIS');
+    lines.push(divider);
+    lines.push('');
+
+    // Group timings by category
+    const timingByCategory = {};
+    timingLogs.forEach(t => {
+      const key = t.category || 'OTHER';
+      if (!timingByCategory[key]) {
+        timingByCategory[key] = [];
+      }
+      timingByCategory[key].push(t.durationMs);
+    });
+
+    lines.push('Category        | Count | Avg (ms) | Min    | Max    | Total');
+    lines.push(shortDivider);
+
+    Object.entries(timingByCategory).forEach(([category, durations]) => {
+      const count = durations.length;
+      const total = durations.reduce((a, b) => a + b, 0);
+      const avg = Math.round(total / count);
+      const min = Math.min(...durations);
+      const max = Math.max(...durations);
+      lines.push(`${category.padEnd(15)} | ${String(count).padStart(5)} | ${String(avg).padStart(8)} | ${String(min).padStart(6)} | ${String(max).padStart(6)} | ${String(total).padStart(6)}`);
+    });
+
+    lines.push('');
+  }
+
+  // Communication Log Section
+  if (commLogs.length > 0) {
+    lines.push(divider);
+    lines.push('COMMUNICATION LOG');
+    lines.push(divider);
+    lines.push('');
+
+    commLogs.slice(0, 50).forEach(comm => {
+      const time = new Date(comm.timestamp).toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        fractionalSecondDigits: 3
+      });
+      const direction = comm.direction.toUpperCase().padEnd(7);
+      const success = comm.success ? 'OK' : 'FAIL';
+      lines.push(`[${time}] ${direction} ${comm.type.padEnd(25)} ${success}`);
+    });
+
+    if (commLogs.length > 50) {
+      lines.push(`... and ${commLogs.length - 50} more communication events`);
+    }
+    lines.push('');
+  }
+
+  // Recovery Events Section
+  if (recoveryLogs.length > 0) {
+    lines.push(divider);
+    lines.push('RECOVERY EVENTS');
+    lines.push(divider);
+    lines.push('');
+
+    recoveryLogs.forEach(recovery => {
+      const time = new Date(recovery.timestamp).toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        fractionalSecondDigits: 3
+      });
+      lines.push(`[${time}] ${recovery.issue} -> ${recovery.action} -> ${recovery.result}`);
+      if (recovery.details) {
+        lines.push(`  Details: ${JSON.stringify(recovery.details)}`);
+      }
+    });
+
+    lines.push('');
+  }
+
+  // Token Usage Summary
+  if (tokenUsageLogs.length > 0) {
+    lines.push(divider);
+    lines.push('TOKEN USAGE SUMMARY');
+    lines.push(divider);
+    lines.push('');
+
+    let totalInput = 0;
+    let totalOutput = 0;
+
+    tokenUsageLogs.forEach(usage => {
+      totalInput += usage.inputTokens || 0;
+      totalOutput += usage.outputTokens || 0;
+      lines.push(`Iteration ${usage.iteration || 'N/A'}: Model=${usage.model}, In=${usage.inputTokens}, Out=${usage.outputTokens}, Source=${usage.source}`);
+    });
+
+    lines.push('');
+    lines.push(`TOTAL: Input=${totalInput}, Output=${totalOutput}, Combined=${totalInput + totalOutput}`);
+    lines.push('');
+  }
+
+  // Log entries (standard format)
+  lines.push(divider);
+  lines.push('SESSION LOGS');
+  lines.push(divider);
+  lines.push('');
+
+  if (session.logs && session.logs.length > 0) {
+    session.logs.forEach(log => {
+      const time = new Date(log.timestamp).toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        fractionalSecondDigits: 3
+      });
+
+      lines.push(`[${time}] [${log.level.toUpperCase()}] ${log.message}`);
+
+      if (log.data) {
+        const dataStr = formatLogDataForReport(log.data);
+        if (dataStr) {
+          lines.push(`  ${dataStr}`);
+        }
+      }
+      lines.push('');
+    });
+  } else {
+    lines.push('No logs recorded for this session.');
+  }
+
+  lines.push(divider);
+  lines.push(`Report generated: ${new Date().toLocaleString()}`);
+
+  return lines.join('\n');
+}
+
+/**
+ * Extract conversation logs grouped by iteration
+ * @param {Array} logs - Array of log entries
+ * @returns {Array} Conversation logs grouped by iteration
+ */
+function extractConversationLogs(logs) {
+  const iterations = new Map();
+
+  logs.forEach(log => {
+    if (!log.data || !log.data.logType) return;
+
+    const iteration = log.data.iteration || 0;
+    if (!iterations.has(iteration)) {
+      iterations.set(iteration, {
+        iteration: iteration,
+        prompt: null,
+        rawResponse: null,
+        reasoning: null,
+        tokenUsage: null
+      });
+    }
+
+    const conv = iterations.get(iteration);
+
+    switch (log.data.logType) {
+      case 'prompt':
+        conv.prompt = log.data;
+        break;
+      case 'rawResponse':
+        conv.rawResponse = log.data;
+        break;
+      case 'reasoning':
+        conv.reasoning = log.data;
+        break;
+      case 'tokenUsage':
+        conv.tokenUsage = log.data;
+        break;
+    }
+  });
+
+  // Convert to array and sort by iteration
+  return Array.from(iterations.values())
+    .filter(conv => conv.prompt || conv.rawResponse || conv.reasoning)
+    .sort((a, b) => a.iteration - b.iteration);
+}
+
+/**
+ * Extract token usage logs
+ * @param {Array} logs - Array of log entries
+ * @returns {Array} Token usage log entries
+ */
+function extractTokenUsageLogs(logs) {
+  return logs
+    .filter(log => log.data && log.data.logType === 'tokenUsage')
+    .map(log => log.data)
+    .sort((a, b) => (a.iteration || 0) - (b.iteration || 0));
+}
+
+/**
+ * Extract action logs
+ * @param {Array} logs - Array of log entries
+ * @returns {Array} Action log entries
+ */
+function extractActionLogs(logs) {
+  return logs
+    .filter(log => log.data && log.data.action)
+    .map(log => ({
+      timestamp: log.timestamp,
+      action: log.data.action,
+      result: log.data.result
+    }));
+}
+
+/**
+ * Extract timing logs
+ * @param {Array} logs - Array of log entries
+ * @returns {Array} Timing log entries
+ */
+function extractTimingLogs(logs) {
+  return logs
+    .filter(log => log.data && log.data.logType === 'timing')
+    .map(log => ({
+      timestamp: log.timestamp,
+      category: log.data.category,
+      operation: log.data.operation,
+      durationMs: log.data.durationMs
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp);
+}
+
+/**
+ * Extract communication logs
+ * @param {Array} logs - Array of log entries
+ * @returns {Array} Communication log entries
+ */
+function extractCommLogs(logs) {
+  return logs
+    .filter(log => log.data && log.data.logType === 'comm')
+    .map(log => ({
+      timestamp: log.timestamp,
+      direction: log.data.direction,
+      type: log.data.type,
+      success: log.data.success
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp);
+}
+
+/**
+ * Extract recovery event logs
+ * @param {Array} logs - Array of log entries
+ * @returns {Array} Recovery event log entries
+ */
+function extractRecoveryLogs(logs) {
+  return logs
+    .filter(log => log.data && log.data.logType === 'recovery')
+    .map(log => ({
+      timestamp: log.timestamp,
+      issue: log.data.issue,
+      action: log.data.action,
+      result: log.data.result,
+      details: log.data.details || null
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp);
+}
+
+/**
+ * Format log data for report export
+ * @param {Object} data - Log data object
+ * @returns {string} Formatted data string
+ */
+function formatLogDataForReport(data) {
+  if (!data) return '';
+
+  const parts = [];
+
+  // Handle new log types
+  if (data.logType) {
+    switch (data.logType) {
+      case 'prompt':
+        parts.push(`Prompt: System(${data.systemPromptLength}), User(${data.userPromptLength}), Est. tokens: ${data.estimatedTokens}`);
+        break;
+      case 'rawResponse':
+        parts.push(`Raw Response: ${data.rawResponseLength} chars, Parse: ${data.parseSuccess ? 'OK' : 'FAILED'}`);
+        break;
+      case 'reasoning':
+        if (data.confidence) parts.push(`Confidence: ${data.confidence}`);
+        if (data.currentStep) parts.push(`Step: ${data.currentStep}`);
+        break;
+      case 'domState':
+        parts.push(`DOM: ${data.elementCount} elements, URL: ${data.url}, Delta: ${data.isDelta}`);
+        break;
+      case 'contentMessage':
+        parts.push(`${data.direction.toUpperCase()}: ${data.messageType}, Success: ${data.success}`);
+        break;
+      case 'tokenUsage':
+        parts.push(`Tokens: In=${data.inputTokens}, Out=${data.outputTokens}, Model=${data.model}, Source=${data.source}`);
+        break;
+      case 'timing':
+        parts.push(`Timing: ${data.category}/${data.operation} took ${data.durationMs}ms`);
+        break;
+      case 'comm':
+        parts.push(`Comm: ${data.direction} ${data.type} - ${data.success ? 'success' : 'failed'}`);
+        break;
+      case 'recovery':
+        parts.push(`Recovery: ${data.issue} -> ${data.action} -> ${data.result}`);
+        break;
+      case 'navigation':
+        parts.push(`Navigation: ${data.type} from ${data.from} to ${data.to}`);
+        break;
+      case 'domOperation':
+        parts.push(`DOM: ${data.operation}`);
+        break;
+      case 'actionExec':
+        parts.push(`Action: ${data.tool} (${data.phase})`);
+        break;
+      case 'api':
+        parts.push(`API: ${data.provider}/${data.operation}`);
+        break;
+      case 'serviceWorker':
+        parts.push(`ServiceWorker: ${data.event}`);
+        break;
+      case 'init':
+        parts.push(`Init: ${data.component} - ${data.status}`);
+        break;
+    }
+    return parts.join(' | ');
+  }
+
+  // Handle legacy log formats
+  if (data.action) {
+    parts.push(`Action: ${data.action.tool}(${JSON.stringify(data.action.params || {})})`);
+  }
+  if (data.result !== undefined) {
+    const resultStr = typeof data.result === 'object'
+      ? JSON.stringify(data.result)
+      : String(data.result);
+    parts.push(`Result: ${resultStr.substring(0, 200)}${resultStr.length > 200 ? '...' : ''}`);
+  }
+  if (data.error) {
+    parts.push(`Error: ${data.error}`);
+  }
+  if (data.iterationCount !== undefined) {
+    parts.push(`Iteration: ${data.iterationCount}`);
+  }
+  if (data.domHash) {
+    parts.push(`DOM Hash: ${data.domHash}`);
+  }
+  if (data.stuckCounter !== undefined) {
+    parts.push(`Stuck Counter: ${data.stuckCounter}`);
+  }
+
+  return parts.join(' | ');
+}
+
+/**
+ * Format session date for display
+ * @param {number} timestamp - Unix timestamp
+ * @returns {string} Formatted date string
+ */
+function formatSessionDate(timestamp) {
+  if (!timestamp) return 'Unknown';
+
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffHours = diffMs / (1000 * 60 * 60);
+
+  if (diffHours < 1) {
+    const mins = Math.floor(diffMs / (1000 * 60));
+    return `${mins}m ago`;
+  } else if (diffHours < 24) {
+    return `${Math.floor(diffHours)}h ago`;
+  } else if (diffHours < 48) {
+    return 'Yesterday';
+  } else {
+    return date.toLocaleDateString();
+  }
+}
+
+/**
+ * Format session duration
+ * @param {number} startTime - Start timestamp
+ * @param {number} endTime - End timestamp
+ * @returns {string} Formatted duration string
+ */
+function formatSessionDuration(startTime, endTime) {
+  if (!startTime || !endTime) return 'Unknown';
+
+  const durationMs = endTime - startTime;
+  const seconds = Math.floor(durationMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  if (minutes > 0) {
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+  return `${seconds}s`;
+}
+
+/**
+ * Escape HTML special characters
+ * @param {string} str - String to escape
+ * @returns {string} Escaped string
+ */
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Initialize session history when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  // Delay initialization to ensure all elements are ready
+  setTimeout(initializeSessionHistory, 500);
+});
+
 // Export for potential use by other scripts
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     dashboardState,
     switchSection,
     addLog,
-    showToast
+    showToast,
+    loadSessionList,
+    viewSession,
+    deleteSession
   };
 }

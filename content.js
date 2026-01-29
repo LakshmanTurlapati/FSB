@@ -1,6 +1,9 @@
 // Content script for FSB v0.1
 // Handles DOM reading and action execution
 
+// Current session ID for logging (set by background.js messages)
+let currentSessionId = null;
+
 // DOM State Manager class definition (inline for content script)
 class DOMStateManager {
   constructor() {
@@ -259,13 +262,14 @@ class DOMStateManager {
   
   /**
    * Generate optimized DOM payload for AI
+   * PERFORMANCE FIX: Compare delta vs full size and use smaller one
    */
   generateOptimizedPayload(currentDOM) {
-    console.log('[FSB DOMStateManager] Computing DOM diff...');
+    automationLogger.logDOMOperation(currentSessionId, 'compute_diff', { phase: 'start' });
     const diff = this.computeDiff(currentDOM);
-    
+
     // Log diff statistics
-    console.log('[FSB DOMStateManager] Diff computed:', {
+    automationLogger.logDOMOperation(currentSessionId, 'diff_computed', {
       isInitial: diff.isInitial || false,
       added: diff.added.length,
       removed: diff.removed.length,
@@ -273,10 +277,10 @@ class DOMStateManager {
       unchanged: diff.unchanged.length,
       changeRatio: (diff.metadata.changeRatio * 100).toFixed(1) + '%'
     });
-    
+
     // For initial load, return filtered full DOM
     if (diff.isInitial) {
-      console.log('[FSB DOMStateManager] Initial DOM capture - sending full filtered DOM');
+      automationLogger.logDOMOperation(currentSessionId, 'initial_capture', { reason: 'no_previous_state' });
       const payload = {
         type: 'initial',
         elements: this.filterAndCompressElements(diff.added),
@@ -286,14 +290,13 @@ class DOMStateManager {
           includedElements: diff.added.length
         }
       };
-      console.log('[FSB DOMStateManager] Initial payload elements:', payload.elements.length);
+      automationLogger.logDOMOperation(currentSessionId, 'initial_payload', { elementCount: payload.elements.length });
       return payload;
     }
-    
-    // For updates, return only changes
-    console.log('[FSB DOMStateManager] Creating delta payload...');
-    
-    const payload = {
+
+    // PERFORMANCE FIX: Build both delta and compact full payloads, use smaller one
+    // Build delta payload
+    const deltaPayload = {
       type: 'delta',
       changes: {
         added: this.filterAndCompressElements(diff.added),
@@ -309,23 +312,47 @@ class DOMStateManager {
         metadata: diff.metadata
       }
     };
-    
+
     // Include updated HTML context only if significant changes
     if (diff.metadata.changeRatio > 0.3) {
-      console.log('[FSB DOMStateManager] Including HTML context due to significant changes (>', (diff.metadata.changeRatio * 100).toFixed(1) + '%)');
-      payload.htmlContext = this.compressHTMLContext(currentDOM.htmlContext);
+      deltaPayload.htmlContext = this.compressHTMLContext(currentDOM.htmlContext);
     }
-    
-    // Log delta details
-    console.log('[FSB DOMStateManager] Delta payload created:', {
-      addedElements: payload.changes.added.length,
-      removedElements: payload.changes.removed.length,
-      modifiedElements: payload.changes.modified.length,
-      unchangedReferences: payload.context.unchanged.length,
-      hasHtmlContext: !!payload.htmlContext
+
+    // Build compact full payload (just essential elements for AI)
+    const compactFullPayload = {
+      type: 'compact_full',
+      elements: this.filterAndCompressElements(
+        (currentDOM.elements || [])
+          .filter(el => el.position?.inViewport || el.isButton || el.isInput || el.isLink)
+          .slice(0, 100), // Limit to top 100 most relevant elements
+        false
+      ),
+      htmlContext: this.compressHTMLContext(currentDOM.htmlContext),
+      metadata: {
+        totalElements: currentDOM.elements?.length || 0,
+        includedElements: Math.min(100, currentDOM.elements?.length || 0)
+      }
+    };
+
+    // Compare sizes and use smaller payload
+    const deltaSize = JSON.stringify(deltaPayload).length;
+    const compactFullSize = JSON.stringify(compactFullPayload).length;
+
+    automationLogger.logDOMOperation(currentSessionId, 'payload_comparison', {
+      deltaSize,
+      compactFullSize,
+      winner: deltaSize < compactFullSize ? 'DELTA' : 'COMPACT_FULL',
+      savings: Math.abs(deltaSize - compactFullSize)
     });
-    
-    return payload;
+
+    // Use whichever is smaller (with 20% margin to prefer delta for consistency)
+    if (deltaSize < compactFullSize * 0.8) {
+      automationLogger.logDOMOperation(currentSessionId, 'using_delta', { reason: 'smaller_payload' });
+      return deltaPayload;
+    } else {
+      automationLogger.logDOMOperation(currentSessionId, 'using_compact_full', { reason: 'smaller_or_similar' });
+      return compactFullPayload;
+    }
   }
   
   /**
@@ -416,6 +443,89 @@ class DOMStateManager {
 // Initialize DOM state manager instance
 const domStateManager = new DOMStateManager();
 
+/**
+ * Check if the document is fully ready for interaction
+ * Provides detailed readiness state for smart page load detection
+ * @returns {Object} Readiness state with details
+ */
+function checkDocumentReady() {
+  const state = {
+    readyState: document.readyState,
+    isComplete: document.readyState === 'complete',
+    isInteractive: document.readyState !== 'loading',
+    hasBody: !!document.body,
+    bodyHasContent: document.body?.children?.length > 0,
+
+    // Check for common loading indicators
+    isLoading: !!document.querySelector(
+      '[class*="loading"], [class*="spinner"], [aria-busy="true"], ' +
+      '.loader, .skeleton, [data-loading="true"], .is-loading, ' +
+      '.MuiCircularProgress-root, .ant-spin, .el-loading-mask'
+    ),
+
+    // Check for blocking overlays
+    hasBlockingOverlay: false,
+
+    // Network activity (if Performance API available)
+    pendingResources: 0,
+
+    // Additional context
+    url: window.location.href,
+    timestamp: Date.now()
+  };
+
+  // Check for visible blocking overlays
+  const overlaySelectors = [
+    '.overlay:not([style*="display: none"]):not([style*="display:none"])',
+    '.modal-backdrop:not([style*="display: none"])',
+    '[class*="loading-overlay"]:not([style*="display: none"])',
+    '.loading-mask:not([style*="display: none"])',
+    '[class*="page-loader"]:not([style*="display: none"])'
+  ];
+
+  for (const selector of overlaySelectors) {
+    try {
+      const overlay = document.querySelector(selector);
+      if (overlay) {
+        const rect = overlay.getBoundingClientRect();
+        const styles = window.getComputedStyle(overlay);
+        // Only count as blocking if visible and covers significant area
+        if (rect.width > 100 && rect.height > 100 &&
+            styles.display !== 'none' &&
+            styles.visibility !== 'hidden' &&
+            parseFloat(styles.opacity) > 0.1) {
+          state.hasBlockingOverlay = true;
+          break;
+        }
+      }
+    } catch (e) {
+      // Ignore selector errors
+    }
+  }
+
+  // Check for pending resources via Performance API
+  if (window.performance && window.performance.getEntriesByType) {
+    try {
+      const resources = window.performance.getEntriesByType('resource');
+      // Count resources that haven't finished loading
+      state.pendingResources = resources.filter(r =>
+        r.responseEnd === 0 || r.duration === 0
+      ).length;
+    } catch (e) {
+      // Performance API might not be available
+    }
+  }
+
+  // Determine overall readiness
+  state.isReady = state.isComplete &&
+                  state.hasBody &&
+                  state.bodyHasContent &&
+                  !state.isLoading &&
+                  !state.hasBlockingOverlay;
+
+  return state;
+}
+
 // Legacy DOM state cache for backward compatibility
 let previousDOMState = null;
 let domStateCache = new Map();
@@ -446,15 +556,15 @@ if (isInIframe) {
   } catch (e) {
     // Cross-origin iframe - can't access parent
     frameContext.isCrossOrigin = true;
-    console.log('[FSB Frame] Running in cross-origin iframe:', window.location.href);
+    automationLogger.logInit('content_script', 'cross_origin_iframe', { url: window.location.href });
   }
 }
 
 // Log frame context on initialization
 if (isInIframe) {
-  console.log('[FSB Frame] Content script loaded in iframe:', frameContext);
+  automationLogger.logInit('content_script', 'iframe_loaded', frameContext);
 } else {
-  console.log('[FSB Frame] Content script loaded in main frame');
+  automationLogger.logInit('content_script', 'main_frame_loaded', {});
 }
 
 // Generate frame-aware selector prefix for elements in iframes
@@ -537,7 +647,7 @@ async function collectChildFramesDom(timeout = 3000) {
     return [];
   }
 
-  console.log(`[FSB Frame] Found ${iframes.length} iframes, requesting DOM from accessible ones`);
+  automationLogger.logDOMOperation(currentSessionId, 'collect_iframes', { iframeCount: iframes.length });
 
   const framePromises = [];
   const pendingRequests = new Map();
@@ -603,7 +713,7 @@ async function collectChildFramesDom(timeout = 3000) {
 
   // Filter successful results
   const successfulFrames = results.filter(r => r.success);
-  console.log(`[FSB Frame] Collected DOM from ${successfulFrames.length}/${iframes.length} iframes`);
+  automationLogger.logDOMOperation(currentSessionId, 'iframes_collected', { successful: successfulFrames.length, total: iframes.length });
 
   return results;
 }
@@ -1090,7 +1200,7 @@ function sanitizeSelector(selector) {
     .filter(s => s.length > 0 && s !== '*'); // Remove empty or just asterisk
 
   if (parts.length === 0) {
-    console.warn('[FSB] Selector completely invalidated after sanitization:', selector);
+    automationLogger.warn('Selector completely invalidated after sanitization', { sessionId: currentSessionId, selector });
     return null;
   }
 
@@ -1102,7 +1212,7 @@ function querySelectorWithShadow(selector) {
   // Sanitize selector first to remove invalid pseudo-selectors
   const sanitized = sanitizeSelector(selector);
   if (!sanitized) {
-    console.warn('[FSB] Cannot query with invalid selector:', selector);
+    automationLogger.warn('Cannot query with invalid selector', { sessionId: currentSessionId, selector });
     return null;
   }
 
@@ -1113,7 +1223,7 @@ function querySelectorWithShadow(selector) {
     try {
       element = document.querySelector(parts[0]);
     } catch (e) {
-      console.warn('[FSB] Invalid selector part:', parts[0], e.message);
+      automationLogger.warn('Invalid selector part', { sessionId: currentSessionId, part: parts[0], error: e.message });
       return null;
     }
 
@@ -1122,7 +1232,7 @@ function querySelectorWithShadow(selector) {
         try {
           element = element.shadowRoot.querySelector(parts[i]);
         } catch (e) {
-          console.warn('[FSB] Invalid shadow selector part:', parts[i], e.message);
+          automationLogger.warn('Invalid shadow selector part', { sessionId: currentSessionId, part: parts[i], error: e.message });
           return null;
         }
       } else {
@@ -1137,7 +1247,7 @@ function querySelectorWithShadow(selector) {
   try {
     return document.querySelector(sanitized);
   } catch (e) {
-    console.warn('[FSB] querySelector failed for:', sanitized, e.message);
+    automationLogger.warn('querySelector failed', { sessionId: currentSessionId, selector: sanitized, error: e.message });
     return null;
   }
 }
@@ -1147,7 +1257,7 @@ function querySelectorAllWithShadow(selector) {
   // Sanitize selector first to remove invalid pseudo-selectors
   const sanitized = sanitizeSelector(selector);
   if (!sanitized) {
-    console.warn('[FSB] Cannot queryAll with invalid selector:', selector);
+    automationLogger.warn('Cannot queryAll with invalid selector', { sessionId: currentSessionId, selector });
     return [];
   }
 
@@ -1157,7 +1267,7 @@ function querySelectorAllWithShadow(selector) {
   try {
     results.push(...document.querySelectorAll(sanitized));
   } catch (e) {
-    console.warn('[FSB] querySelectorAll failed for:', sanitized, e.message);
+    automationLogger.warn('querySelectorAll failed', { sessionId: currentSessionId, selector: sanitized, error: e.message });
     return [];
   }
 
@@ -1244,6 +1354,34 @@ const tools = {
           error: 'Element no longer in DOM',
           selector: params.selector
         };
+      }
+
+      // FIX: Handle target="_blank" links that would open in a new tab
+      // Instead, navigate in the current tab for automation continuity
+      const anchor = element.tagName === 'A' ? element : element.closest('a');
+      if (anchor) {
+        const opensNewTab = anchor.target === '_blank' ||
+                            anchor.target === '_new' ||
+                            anchor.rel?.includes('noopener');
+
+        if (opensNewTab && anchor.href) {
+          automationLogger.logActionExecution(currentSessionId, 'click', 'redirect_navigation', { originalTarget: anchor.target, href: anchor.href });
+
+          // Navigate directly using window.location for same-tab navigation
+          const targetUrl = anchor.href;
+          window.location.href = targetUrl;
+
+          return {
+            success: true,
+            clicked: params.selector,
+            hadEffect: true,
+            navigationTriggered: true,
+            method: 'direct-navigation',
+            message: 'Navigated directly instead of opening in new tab',
+            targetUrl: targetUrl,
+            originalTarget: anchor.target
+          };
+        }
       }
 
       // Capture comprehensive state before click
@@ -1450,7 +1588,7 @@ const tools = {
   
   // Click on search result links (Google, Bing, DuckDuckGo, etc.)
   clickSearchResult: async (params) => {
-    console.log('[FSB] Attempting to click search result with params:', params);
+    automationLogger.logActionExecution(currentSessionId, 'clickSearchResult', 'start', params);
     
     // Common selectors for search result links across different search engines
     const searchResultSelectors = [
@@ -1544,7 +1682,7 @@ const tools = {
             });
             if (domainMatch) {
               targetLink = domainMatch;
-              console.log(`[FSB] Found domain match for ${params.domain}:`, targetLink.href);
+              automationLogger.logActionExecution(currentSessionId, 'clickSearchResult', 'domain_match', { domain: params.domain, href: targetLink.href });
             }
           }
 
@@ -1558,13 +1696,13 @@ const tools = {
             });
             if (textMatch) {
               targetLink = textMatch;
-              console.log(`[FSB] Found text match for "${params.text}":`, targetLink.href);
+              automationLogger.logActionExecution(currentSessionId, 'clickSearchResult', 'text_match', { text: params.text, href: targetLink.href });
             }
           }
 
           // FIXED: Use actual click instead of navigation
           targetLink.click();
-          console.log(`[FSB] Clicked search result:`, targetLink.href);
+          automationLogger.logActionExecution(currentSessionId, 'clickSearchResult', 'clicked', { href: targetLink.href });
 
           return {
             success: true,
@@ -1576,7 +1714,7 @@ const tools = {
           };
         }
       } catch (e) {
-        console.log(`[FSB] Selector ${selector} failed:`, e);
+        automationLogger.debug('Selector failed for search result', { sessionId: currentSessionId, selector, error: e.message });
       }
     }
 
@@ -1592,11 +1730,11 @@ const tools = {
   
   // Type text into an input
   type: async (params) => {
-    console.log('[FSB Type] Starting type action with params:', params);
+    automationLogger.logActionExecution(currentSessionId, 'type', 'start', params);
     
     try {
       const element = querySelectorWithShadow(params.selector);
-      console.log('[FSB Type] Found element:', element ? element.tagName : 'null');
+      automationLogger.logActionExecution(currentSessionId, 'type', 'element_found', { tagName: element ? element.tagName : 'null' });
     
     if (element) {
       // Check if it's a valid input element with enhanced contenteditable detection
@@ -1701,10 +1839,10 @@ const tools = {
               insertionSuccess = true;
             }
           } catch (e) {
-            console.log('execCommand insertText failed:', e);
+            automationLogger.debug('execCommand insertText failed', { sessionId: currentSessionId, error: e.message });
           }
         }
-        
+
         // Method 2: Clipboard paste simulation (for stubborn editors like Twitter/X)
         if (!insertionSuccess) {
           try {
@@ -1716,28 +1854,28 @@ const tools = {
               cancelable: true
             });
             element.dispatchEvent(pasteEvent);
-            
+
             // Check if paste worked
             await new Promise(resolve => setTimeout(resolve, 50));
             if (element.textContent.includes(params.text)) {
               insertionSuccess = true;
             }
           } catch (e) {
-            console.log('Clipboard paste simulation failed:', e);
+            automationLogger.debug('Clipboard paste simulation failed', { sessionId: currentSessionId, error: e.message });
           }
         }
-        
+
         // Method 3: Range/Selection API insertion (modern approach)
         if (!insertionSuccess) {
           try {
             // Clear existing content
             element.innerHTML = '';
             element.textContent = '';
-            
+
             // Create text node and insert
             const textNode = document.createTextNode(params.text);
             element.appendChild(textNode);
-            
+
             // Position caret at end
             const range = document.createRange();
             const selection = window.getSelection();
@@ -1745,13 +1883,13 @@ const tools = {
             range.collapse(true);
             selection.removeAllRanges();
             selection.addRange(range);
-            
+
             insertionSuccess = true;
           } catch (e) {
-            console.log('Range/Selection API insertion failed:', e);
+            automationLogger.debug('Range/Selection API insertion failed', { sessionId: currentSessionId, error: e.message });
           }
         }
-        
+
         // Method 4: Direct manipulation fallback
         if (!insertionSuccess) {
           // Clear existing content properly (handle various structures)
@@ -1760,7 +1898,7 @@ const tools = {
           } else {
             element.textContent = '';
           }
-          
+
           // Try innerHTML then textContent
           try {
             element.innerHTML = params.text;
@@ -1769,10 +1907,10 @@ const tools = {
             }
             insertionSuccess = true;
           } catch (e) {
-            console.log('Direct manipulation failed:', e);
+            automationLogger.debug('Direct manipulation failed', { sessionId: currentSessionId, error: e.message });
           }
         }
-        
+
         // Enhanced event dispatching for rich text editors
         const events = [
           new Event('input', { bubbles: true }),
@@ -1782,12 +1920,12 @@ const tools = {
           new Event('blur', { bubbles: true }),
           new Event('focus', { bubbles: true })
         ];
-        
+
         events.forEach(event => {
           try {
             element.dispatchEvent(event);
           } catch (e) {
-            console.log('Event dispatch failed:', event.type, e);
+            automationLogger.debug('Event dispatch failed', { sessionId: currentSessionId, eventType: event.type, error: e.message });
           }
         });
         
@@ -1831,32 +1969,32 @@ const tools = {
                            window.location.hostname.includes('amazon');
       
       if (isAmazonSearch && !typingSuccessful) {
-        console.log('[FSB Type] Amazon search input detected, attempting enhanced typing...');
-        
+        automationLogger.logActionExecution(currentSessionId, 'type', 'amazon_retry', { reason: 'initial_typing_failed' });
+
         // Amazon-specific retry with different approach
         try {
           element.focus();
           await new Promise(resolve => setTimeout(resolve, 100));
-          
+
           // Clear and set value directly for Amazon
           element.value = '';
           element.value = params.text;
-          
+
           // Trigger Amazon's search events
           element.dispatchEvent(new Event('input', { bubbles: true }));
           element.dispatchEvent(new Event('change', { bubbles: true }));
           element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: params.text.slice(-1) }));
           element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: params.text.slice(-1) }));
-          
+
           await new Promise(resolve => setTimeout(resolve, 200));
-          
+
           // Re-validate
           const retryValue = element.value || '';
           if (retryValue.includes(params.text) || retryValue === params.text) {
-            console.log('[FSB Type] Amazon-specific retry succeeded');
+            automationLogger.logActionExecution(currentSessionId, 'type', 'amazon_retry_success', {});
           }
         } catch (amazonError) {
-          console.warn('[FSB Type] Amazon-specific retry failed:', amazonError);
+          automationLogger.warn('Amazon-specific retry failed', { sessionId: currentSessionId, error: amazonError.message });
         }
       }
       
@@ -1883,7 +2021,7 @@ const tools = {
       // Return failure if typing didn't work
       if (!finalSuccess || (isContentEditable && !insertionSuccess)) {
         // ENHANCED: Try CDP-based text insertion as last resort for stubborn editors
-        console.log('[FSB Type] All standard methods failed, attempting CDP fallback...');
+        automationLogger.logActionExecution(currentSessionId, 'type', 'cdp_fallback_attempt', { reason: 'standard_methods_failed' });
 
         try {
           const cdpResult = await new Promise((resolve, reject) => {
@@ -1908,7 +2046,7 @@ const tools = {
           const cdpSuccess = cdpFinalCheck.includes(params.text) || cdpFinalCheck.trim() === params.text.trim();
 
           if (cdpSuccess) {
-            console.log('[FSB Type] CDP fallback succeeded');
+            automationLogger.logActionExecution(currentSessionId, 'type', 'cdp_fallback_success', {});
             return {
               success: true,
               typed: params.text,
@@ -1923,7 +2061,7 @@ const tools = {
             };
           }
         } catch (cdpError) {
-          console.log('[FSB Type] CDP fallback also failed:', cdpError.message);
+          automationLogger.debug('CDP fallback failed', { sessionId: currentSessionId, error: cdpError.message });
         }
 
         return {
@@ -1982,17 +2120,17 @@ const tools = {
     
     // Try fallback selectors for messaging interfaces
     const fallbackSelectors = generateMessagingSelectors(params.selector);
-    console.log('[FSB Type] Trying fallback selectors:', fallbackSelectors);
-    
+    automationLogger.debug('Trying fallback selectors for type', { sessionId: currentSessionId, count: fallbackSelectors.length });
+
     for (const fallbackSelector of fallbackSelectors) {
       const fallbackElement = document.querySelector(fallbackSelector);
       if (fallbackElement) {
-        console.log('[FSB Type] Found element with fallback selector:', fallbackSelector);
+        automationLogger.logActionExecution(currentSessionId, 'type', 'fallback_found', { selector: fallbackSelector });
         // Recursively call type with the working selector
         return await tools.type({...params, selector: fallbackSelector});
       }
     }
-    
+
     // Enhanced error reporting for debugging
     const availableInputs = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"]'))
       .map(el => ({
@@ -2004,9 +2142,8 @@ const tools = {
         visible: el.offsetWidth > 0 && el.offsetHeight > 0
       }))
       .slice(0, 5); // Limit to first 5 for logging
-    
-    console.error(`[FSB Type] Failed to find typeable element with selector: ${params.selector}`);
-    console.error(`[FSB Type] Available inputs on page:`, availableInputs);
+
+    automationLogger.error('Failed to find typeable element', { sessionId: currentSessionId, selector: params.selector, availableInputs });
     
     return { 
       success: false, 
@@ -2020,10 +2157,13 @@ const tools = {
       suggestion: 'No typeable element found - check selector or page state'
     };
     } catch (error) {
-      console.error('[FSB Type] Unexpected error in type function:', error);
-      console.error('[FSB Type] Error stack:', error.stack);
-      console.error('[FSB Type] Params at time of error:', params);
-      
+      automationLogger.error('Unexpected error in type function', {
+        sessionId: currentSessionId,
+        error: error.message,
+        stack: error.stack,
+        params
+      });
+
       return {
         success: false,
         error: error.message || 'Unknown error occurred in type function',
@@ -2394,8 +2534,10 @@ const tools = {
             reason: hasTimedOut ? 'timeout' : 'stable',
             stability: isStable ? 'good' : 'poor'
           };
-          
-          console.log(`[FSB] DOM stability check completed:`, result);
+
+          // FSB TIMING: Log DOM stability wait time
+          automationLogger.logTiming(currentSessionId, 'WAIT', 'dom_stable', totalTime, { changes: changeCount });
+          automationLogger.logDOMOperation(currentSessionId, 'stability_check', result);
           resolve(result);
         }
       }, 50); // Check more frequently for better precision
@@ -2422,6 +2564,8 @@ const tools = {
   
   // Detect loading indicators
   detectLoadingState: (params) => {
+    // FSB TIMING: Track loading state detection
+    const detectStart = Date.now();
     const loadingPatterns = [
       // Common loading class names
       '.loading', '.loader', '.spinner', '.progress', '.loading-spinner',
@@ -2445,7 +2589,7 @@ const tools = {
                          window.getComputedStyle(element).visibility !== 'hidden';
         
         if (isVisible) {
-          return {
+          const result = {
             loading: true,
             indicator: pattern,
             element: {
@@ -2454,6 +2598,8 @@ const tools = {
               id: element.id
             }
           };
+          automationLogger.logTiming(currentSessionId, 'WAIT', 'loading_detect', Date.now() - detectStart, { loading: true, indicator: pattern });
+          return result;
         }
       }
     }
@@ -2469,18 +2615,21 @@ const tools = {
         const isVisible = rect.width > 0 && rect.height > 0;
         
         if (isVisible && element.children.length === 0) { // Leaf node with text
-          return {
+          const result = {
             loading: true,
             indicator: 'text',
             text: element.textContent?.trim().substring(0, 50)
           };
+          automationLogger.logTiming(currentSessionId, 'WAIT', 'loading_detect', Date.now() - detectStart, { loading: true, indicator: 'text' });
+          return result;
         }
       }
     }
     
+    automationLogger.logTiming(currentSessionId, 'WAIT', 'loading_detect', Date.now() - detectStart, { loading: false });
     return { loading: false };
   },
-  
+
   // Right click on element
   rightClick: (params) => {
     const element = querySelectorWithShadow(params.selector);
@@ -2541,13 +2690,13 @@ const tools = {
             result: response.result
           };
         } else {
-          console.warn('[FSB] Debugger API failed, falling back to DOM events:', response.error);
+          automationLogger.logRecovery(currentSessionId, 'debugger_api_failed', 'dom_events_fallback', 'started', { error: response.error });
         }
       } catch (error) {
-        console.warn('[FSB] Debugger API unavailable, falling back to DOM events:', error);
+        automationLogger.logRecovery(currentSessionId, 'debugger_api_unavailable', 'dom_events_fallback', 'started', { error: error.message });
       }
     }
-    
+
     // Fallback to standard DOM events
     const target = selector ? document.querySelector(selector) : document.activeElement;
     
@@ -2623,13 +2772,13 @@ const tools = {
             result: response.result
           };
         } else {
-          console.warn('[FSB] Debugger API failed for key sequence, falling back to DOM events:', response.error);
+          automationLogger.logRecovery(currentSessionId, 'debugger_api_key_sequence_failed', 'dom_events_fallback', 'started', { error: response.error });
         }
       } catch (error) {
-        console.warn('[FSB] Debugger API unavailable for key sequence, falling back to DOM events:', error);
+        automationLogger.logRecovery(currentSessionId, 'debugger_api_key_sequence_unavailable', 'dom_events_fallback', 'started', { error: error.message });
       }
     }
-    
+
     // Fallback to DOM events
     const results = [];
     try {
@@ -2707,10 +2856,28 @@ const tools = {
             result: response.result
           };
         } else {
-          console.warn('[FSB] Debugger API failed for text typing, falling back to DOM events:', response.error);
+          // Return failure with details - don't silently fall through to DOM fallback
+          // This ensures the caller knows the actual result
+          automationLogger.logRecovery(currentSessionId, 'debugger_api_text_failed', 'return_error', 'failed', { error: response.error });
+          return {
+            success: false,
+            error: response.error || 'Keyboard debugger API failed',
+            completedChars: response.result?.completedChars || 0,
+            method: 'debugger-failed',
+            text,
+            action: 'typeWithKeys'
+          };
         }
       } catch (error) {
-        console.warn('[FSB] Debugger API unavailable for text typing, falling back to DOM events:', error);
+        // Return failure on exception - don't silently fall through
+        automationLogger.logRecovery(currentSessionId, 'debugger_api_text_unavailable', 'return_error', 'failed', { error: error.message });
+        return {
+          success: false,
+          error: error.message || 'Debugger API unavailable',
+          method: 'debugger-exception',
+          text,
+          action: 'typeWithKeys'
+        };
       }
     }
     
@@ -2807,13 +2974,13 @@ const tools = {
             result: response.result
           };
         } else {
-          console.warn('[FSB] Debugger API failed for special key, falling back to DOM events:', response.error);
+          automationLogger.logRecovery(currentSessionId, 'debugger_api_special_key_failed', 'dom_events_fallback', 'started', { error: response.error });
         }
       } catch (error) {
-        console.warn('[FSB] Debugger API unavailable for special key, falling back to DOM events:', error);
+        automationLogger.logRecovery(currentSessionId, 'debugger_api_special_key_unavailable', 'dom_events_fallback', 'started', { error: error.message });
       }
     }
-    
+
     // Fallback to DOM events - parse the special key
     try {
       const parts = specialKey.split('+').map(part => part.trim());
@@ -4374,7 +4541,7 @@ function extractRelevantHTML() {
         });
       });
     } catch (error) {
-      console.warn(`Error processing selector ${selector}:`, error);
+      automationLogger.warn('Error processing selector', { sessionId: currentSessionId, selector, error: error.message });
     }
   });
   
@@ -4640,15 +4807,13 @@ function detectPageContext() {
   // Infer overall page intent
   const pageIntent = inferPageIntent(pageTypes, limitedActions, pageState);
 
-  console.log('[FSB Page Context] Detected:', {
+  automationLogger.logDOMOperation(currentSessionId, 'page_context', {
     pageTypes: Object.entries(pageTypes).filter(([k, v]) => v).map(([k]) => k),
     pageIntent,
     primaryActionsCount: limitedActions.length,
-    pageState: {
-      hasErrors: pageState.hasErrors,
-      hasSuccess: pageState.hasSuccess,
-      isLoading: pageState.isLoading
-    }
+    hasErrors: pageState.hasErrors,
+    hasSuccess: pageState.hasSuccess,
+    isLoading: pageState.isLoading
   });
 
   return {
@@ -4765,7 +4930,7 @@ function extractEcommerceProducts() {
     return null;
   }
 
-  console.log('[FSB E-commerce] Detecting product listings on:', window.location.hostname);
+  automationLogger.logDOMOperation(currentSessionId, 'ecommerce_detect', { hostname: window.location.hostname });
 
   const products = [];
 
@@ -4819,7 +4984,7 @@ function extractEcommerceProducts() {
 
   // Find all product cards
   const productCards = document.querySelectorAll(selectors.productCard);
-  console.log('[FSB E-commerce] Found', productCards.length, 'potential product cards');
+  automationLogger.logDOMOperation(currentSessionId, 'ecommerce_cards_found', { count: productCards.length });
 
   productCards.forEach((card, index) => {
     if (index >= 20) return; // Limit to first 20 products for context
@@ -4882,7 +5047,7 @@ function extractEcommerceProducts() {
         productUrl: productLink.substring(0, 200)
       });
     } catch (e) {
-      console.warn('[FSB E-commerce] Error extracting product:', e);
+      automationLogger.warn('Error extracting product', { sessionId: currentSessionId, index, error: e.message });
     }
   });
 
@@ -4890,7 +5055,7 @@ function extractEcommerceProducts() {
     return null;
   }
 
-  console.log('[FSB E-commerce] Extracted', products.length, 'products with semantic data');
+  automationLogger.logDOMOperation(currentSessionId, 'ecommerce_extracted', { productCount: products.length });
 
   return {
     isEcommercePage: true,
@@ -4965,15 +5130,8 @@ function getStructuredDOM(options = {}) {
       // Extract element data with comprehensive context
       const semanticId = generateSemanticElementId(node, elementCount);
       
-      // Log semantic ID generation for debugging
-      if (node.tagName === 'BUTTON' || node.tagName === 'A' || node.tagName === 'INPUT') {
-        console.log('[FSB Semantic ID]', node.tagName, 'generated ID:', semanticId, 'from:', {
-          id: node.id,
-          'aria-label': node.getAttribute('aria-label'),
-          'data-testid': node.getAttribute('data-testid'),
-          text: node.textContent?.trim()?.substring(0, 30)
-        });
-      }
+      // Log semantic ID generation for debugging (only in verbose mode)
+      // Debug logging removed to reduce noise - IDs are visible in DOM structure
       
       const elementData = {
         // Unique element identifier with semantic naming
@@ -5119,7 +5277,7 @@ function getStructuredDOM(options = {}) {
 
         // Traverse shadow DOM if present
         if (node.shadowRoot && node.shadowRoot.mode === 'open') {
-          console.log('[FSB Shadow DOM] Found open shadow root on:', node.tagName, node.id || node.className);
+          automationLogger.logDOMOperation(currentSessionId, 'shadow_dom_found', { tagName: node.tagName, id: node.id || node.className });
 
           // Add shadow DOM indicator to parent element
           elementData.hasShadowRoot = true;
@@ -5132,7 +5290,7 @@ function getStructuredDOM(options = {}) {
         }
       }
     } catch (error) {
-      console.warn('Error processing DOM node:', error, node);
+      automationLogger.warn('Error processing DOM node', { sessionId: currentSessionId, error: error.message, tagName: node?.tagName });
       // Continue processing other nodes even if one fails
     }
   }
@@ -5161,7 +5319,7 @@ function getStructuredDOM(options = {}) {
   ];
 
   // Log viewport-first performance stats
-  console.log('[FSB DOM Optimization] Viewport-first collection:', {
+  automationLogger.logDOMOperation(currentSessionId, 'viewport_first_collection', {
     viewportElements: viewportElements.length,
     offscreenElements: offscreenElements.length,
     viewportBudget,
@@ -5230,64 +5388,71 @@ function getStructuredDOM(options = {}) {
   
   // Use DOM State Manager for intelligent diffing if available
   if (domStateManager && options.useIncrementalDiff !== false) {
-    console.log('[FSB DOM Optimization] ===== DOM CAPTURE =====');
-    console.log('[FSB DOM Optimization] Using DOM State Manager for optimized payload');
-    console.log('[FSB DOM Optimization] Total elements found:', elements.length);
-    console.log('[FSB DOM Optimization] Elements after filtering:', elementsToSend.length);
-    
+    automationLogger.logDOMOperation(currentSessionId, 'dom_capture_start', {
+      totalElements: elements.length,
+      filteredElements: elementsToSend.length,
+      method: 'state_manager'
+    });
+
     const optimizedPayload = domStateManager.generateOptimizedPayload(domStructure);
-    
+
     // Add optimization metadata
     domStructure.optimization.diffType = optimizedPayload.type;
     domStructure.optimization.deltaSize = JSON.stringify(optimizedPayload).length;
     domStructure.optimization.fullSize = JSON.stringify(domStructure).length;
-    domStructure.optimization.compressionRatio = 
+    domStructure.optimization.compressionRatio =
       (domStructure.optimization.fullSize - domStructure.optimization.deltaSize) / domStructure.optimization.fullSize;
-    
-    // Verbose logging
-    console.log('[FSB DOM Optimization] Mode:', optimizedPayload.type.toUpperCase());
-    console.log('[FSB DOM Optimization] Original DOM size:', domStructure.optimization.fullSize.toLocaleString(), 'bytes');
-    console.log('[FSB DOM Optimization] Optimized size:', domStructure.optimization.deltaSize.toLocaleString(), 'bytes');
-    console.log('[FSB DOM Optimization] Compression ratio:', (domStructure.optimization.compressionRatio * 100).toFixed(1) + '%');
-    console.log('[FSB DOM Optimization] Savings:', (domStructure.optimization.fullSize - domStructure.optimization.deltaSize).toLocaleString(), 'bytes');
-    
-    // Log the raw payload (truncated for very large payloads)
-    const payloadStr = JSON.stringify(optimizedPayload, null, 2);
-    if (payloadStr.length > 5000) {
-      console.log('[FSB DOM Optimization] RAW PAYLOAD (truncated to 5000 chars):');
-      console.log(payloadStr.substring(0, 5000) + '\n... [TRUNCATED]');
-    } else {
-      console.log('[FSB DOM Optimization] RAW PAYLOAD:');
-      console.log(payloadStr);
-    }
+
+    automationLogger.logDOMOperation(currentSessionId, 'dom_capture_optimized', {
+      mode: optimizedPayload.type.toUpperCase(),
+      fullSize: domStructure.optimization.fullSize,
+      deltaSize: domStructure.optimization.deltaSize,
+      compressionRatio: (domStructure.optimization.compressionRatio * 100).toFixed(1) + '%',
+      savings: domStructure.optimization.fullSize - domStructure.optimization.deltaSize
+    });
     
     // Return optimized payload
+    // For delta updates, exclude the full elements array to prevent payload explosion
+    if (optimizedPayload.type === 'delta') {
+      // Remove elements from domStructure for delta payloads
+      const { elements, ...domStructureWithoutElements } = domStructure;
+
+      return {
+        ...domStructureWithoutElements,
+        ...optimizedPayload,
+        _isDelta: true,
+        // Only include element count for reference
+        _totalElements: elements?.length || 0
+      };
+    }
+
+    // For initial/full payloads, include everything
     return {
       ...domStructure,
       ...optimizedPayload,
-      _isDelta: true
+      _isDelta: false
     };
   }
   
-  // Log full DOM capture
   // Apply compact serialization for better performance
   const useCompactFormat = options.useCompactFormat !== false;
-  
+
   if (useCompactFormat && elementsToSend.length > 50) {
-    console.log('[FSB DOM Optimization] Using compact serialization format');
+    automationLogger.logDOMOperation(currentSessionId, 'compact_serialization', { elementCount: elementsToSend.length });
     const serializer = new OptimizedDOMSerializer();
     const compactPayload = serializer.serialize(elementsToSend);
-    
+
     // Calculate compression metrics
     const originalSize = JSON.stringify(elementsToSend).length;
     const compactSize = JSON.stringify(compactPayload).length;
     const compressionRatio = serializer.getCompressionRatio(elementsToSend, compactPayload);
-    
-    console.log('[FSB DOM Optimization] ===== COMPACT SERIALIZATION =====');
-    console.log('[FSB DOM Optimization] Original size:', originalSize.toLocaleString(), 'bytes');
-    console.log('[FSB DOM Optimization] Compact size:', compactSize.toLocaleString(), 'bytes');
-    console.log('[FSB DOM Optimization] Compression:', (compressionRatio * 100).toFixed(1) + '%');
-    console.log('[FSB DOM Optimization] String table size:', compactPayload.strings.length);
+
+    automationLogger.logDOMOperation(currentSessionId, 'compact_serialization_complete', {
+      originalSize,
+      compactSize,
+      compressionRatio: (compressionRatio * 100).toFixed(1) + '%',
+      stringTableSize: compactPayload.strings.length
+    });
     
     // Return compact format
     return {
@@ -5305,83 +5470,89 @@ function getStructuredDOM(options = {}) {
     };
   }
   
-  console.log('[FSB DOM Optimization] ===== FULL DOM CAPTURE (No optimization) =====');
-  console.log('[FSB DOM Optimization] Total elements:', elements.length);
-  console.log('[FSB DOM Optimization] Sent elements:', elementsToSend.length);
-  console.log('[FSB DOM Optimization] Payload size:', JSON.stringify(domStructure).length.toLocaleString(), 'bytes');
-  
+  automationLogger.logDOMOperation(currentSessionId, 'full_dom_capture', {
+    totalElements: elements.length,
+    sentElements: elementsToSend.length,
+    payloadSize: JSON.stringify(domStructure).length
+  });
+
   return domStructure;
 }
 
 // Async message handler with timeout support
 async function handleAsyncMessage(request, sendResponse) {
-  console.log('[FSB Content] Handling async message:', request.action);
-  
+  automationLogger.logComm(currentSessionId, 'handle', request.action, true, { type: 'async' });
+
   try {
     let result;
     const startTime = Date.now();
-    
+
     switch (request.action) {
       case 'getDOM':
-        console.log('[FSB Content] Getting DOM structure...');
+        automationLogger.logDOMOperation(currentSessionId, 'get_dom_start', {});
         // Enable incremental diff by default, can be disabled via request options
         const domOptions = {
           ...request.options,
           useIncrementalDiff: request.options?.useIncrementalDiff !== false
         };
+        // FSB TIMING: Track getStructuredDOM time
+        const domStart = Date.now();
         result = getStructuredDOM(domOptions);
-        console.log('[FSB Content] DOM structure obtained in', Date.now() - startTime, 'ms');
+        const domTime = Date.now() - domStart;
+        automationLogger.logTiming(currentSessionId, 'DOM', 'getStructuredDOM', domTime, { elements: result.elements?.length || result._totalElements || 0 });
         if (result._isDelta) {
-          console.log('[FSB Content] Using delta diff - compression ratio:', 
-            (result.optimization?.compressionRatio * 100).toFixed(1) + '%');
+          automationLogger.logDOMOperation(currentSessionId, 'delta_diff_used', {
+            compressionRatio: (result.optimization?.compressionRatio * 100).toFixed(1) + '%'
+          });
         }
         sendResponse({ success: true, structuredDOM: result });
         break;
         
       case 'executeAction':
         const { tool, params } = request;
-        console.log(`[FSB Content] Executing ${tool} action with params:`, params);
-        
+        automationLogger.logActionExecution(currentSessionId, tool, 'start', params);
+
         if (tools[tool]) {
           // Add timeout wrapper for long-running operations
           const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error(`Action ${tool} timed out after 10 seconds`)), 10000);
           });
-          
+
+          // FSB TIMING: Track action execution time in content script
+          const execStart = Date.now();
           const actionPromise = tools[tool](params);
           result = await Promise.race([actionPromise, timeoutPromise]);
-          
-          console.log(`[FSB Content] Action ${tool} completed in ${Date.now() - startTime}ms, result:`, result);
-          
+          automationLogger.logTiming(currentSessionId, 'ACTION', tool, Date.now() - execStart, { success: result?.success });
+
           // Validate result structure
           if (result === undefined || result === null) {
-            console.warn(`[FSB Content] Action ${tool} returned null/undefined result`);
-            sendResponse({ 
-              success: false, 
+            automationLogger.warn('Action returned null/undefined result', { sessionId: currentSessionId, tool });
+            sendResponse({
+              success: false,
               error: `Action ${tool} returned no result`,
               tool: tool,
               executionTime: Date.now() - startTime
             });
           } else {
-            sendResponse({ 
-              success: true, 
+            sendResponse({
+              success: true,
               result: result,
               tool: tool,
               executionTime: Date.now() - startTime
             });
           }
         } else {
-          console.error(`[FSB Content] Unknown tool: ${tool}`);
+          automationLogger.error('Unknown tool requested', { sessionId: currentSessionId, tool });
           sendResponse({ success: false, error: `Unknown tool: ${tool}` });
         }
         break;
-        
+
       default:
-        console.error(`[FSB Content] Unknown async action: ${request.action}`);
+        automationLogger.error('Unknown async action', { sessionId: currentSessionId, action: request.action });
         sendResponse({ success: false, error: `Unknown action: ${request.action}` });
     }
   } catch (error) {
-    console.error(`[FSB Content] Error in async message handler:`, error);
+    automationLogger.error('Error in async message handler', { sessionId: currentSessionId, action: request.action, error: error.message });
     sendResponse({ 
       success: false, 
       error: error.message || 'Unknown error in async handler',
@@ -5394,8 +5565,13 @@ async function handleAsyncMessage(request, sendResponse) {
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Content script received message:', request.action);
-  
+  // Store sessionId from any incoming message for logging
+  if (request.sessionId) {
+    currentSessionId = request.sessionId;
+  }
+
+  automationLogger.logComm(currentSessionId, 'receive', request.action, true, { hasSessionId: !!request.sessionId });
+
   // Handle async operations properly by returning true to keep message channel open
   if (request.action === 'executeAction' || request.action === 'getDOM') {
     handleAsyncMessage(request, sendResponse);
@@ -5404,9 +5580,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   switch (request.action) {
     case 'healthCheck':
-      sendResponse({ success: true, healthy: true, timestamp: Date.now() });
+      // Enhanced healthCheck with page readiness information
+      const readiness = checkDocumentReady();
+      sendResponse({
+        success: true,
+        healthy: true,
+        ready: readiness.isReady,
+        readyState: readiness.readyState,
+        isLoading: readiness.isLoading,
+        hasBlockingOverlay: readiness.hasBlockingOverlay,
+        timestamp: Date.now()
+      });
       break;
-      
+
+    case 'checkPageReady':
+      // Detailed page readiness check for smart load detection
+      const pageReadiness = checkDocumentReady();
+      sendResponse({ success: true, ...pageReadiness });
+      break;
+
     case 'getDOM':
       // This case is now handled above in async handler
       break;
@@ -5435,13 +5627,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Reset DOM state cache between sessions to prevent stale state comparison
     case 'resetDOMState':
       try {
-        console.log('[FSB] Resetting DOM state for new session');
+        automationLogger.logDOMOperation(currentSessionId, 'reset_state', { reason: 'new_session' });
         domStateManager.reset();
         previousDOMState = null;
         domStateCache.clear();
         sendResponse({ success: true, message: 'DOM state reset successfully' });
       } catch (error) {
-        console.error('[FSB] Error resetting DOM state:', error);
+        automationLogger.error('Error resetting DOM state', { sessionId: currentSessionId, error: error.message });
         sendResponse({ success: false, error: error.message });
       }
       break;
@@ -5521,8 +5713,8 @@ const observer = new MutationObserver((mutations) => {
     
     // Only notify if we have significant changes and enough time has passed
     if (accumulatedChanges > 5 && timeSinceLastNotification > 1000) {
-      console.log('[FSB DOM Monitor] Significant changes detected:', accumulatedChanges);
-      
+      automationLogger.logDOMOperation(currentSessionId, 'significant_changes', { changeCount: accumulatedChanges });
+
       chrome.runtime.sendMessage({
         action: 'domChanged',
         changeCount: accumulatedChanges,
@@ -5542,10 +5734,10 @@ if (document.body) {
     subtree: true,
     attributes: true
   });
-  console.log('[FSB] Mutation observer started on document.body');
+  automationLogger.logInit('mutation_observer', 'started', { target: 'document.body' });
 } else {
   // Body not ready yet, wait for it
-  console.log('[FSB] document.body not ready, waiting for DOMContentLoaded');
+  automationLogger.logInit('mutation_observer', 'waiting', { reason: 'document.body not ready' });
   const startObserver = () => {
     if (document.body) {
       observer.observe(document.body, {
@@ -5553,7 +5745,7 @@ if (document.body) {
         subtree: true,
         attributes: true
       });
-      console.log('[FSB] Mutation observer started after DOMContentLoaded');
+      automationLogger.logInit('mutation_observer', 'started_after_dom', {});
     }
   };
 
@@ -5565,7 +5757,7 @@ if (document.body) {
   }
 }
 
-console.log('FSB v0.1 content script loaded');
+automationLogger.logInit('content_script', 'loaded', { version: '0.1', url: window.location.href });
 
 // Signal to background script that content script is fully initialized and ready
 // This is sent AFTER all initialization to ensure the script is truly ready
@@ -5581,7 +5773,7 @@ console.log('FSB v0.1 content script loaded');
       url: window.location.href,
       readyState: document.readyState
     });
-    console.log('[FSB] Content script ready signal sent successfully');
+    automationLogger.logComm(currentSessionId, 'send', 'contentScriptReady', true, {});
 
     // Send a confirmation ping after short delay to verify bidirectional communication
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -5590,9 +5782,9 @@ console.log('FSB v0.1 content script loaded');
       timestamp: Date.now(),
       url: window.location.href
     });
-    console.log('[FSB] Content script confirmation ping sent');
+    automationLogger.logComm(currentSessionId, 'send', 'contentScriptConfirmation', true, {});
   } catch (e) {
-    console.warn('[FSB] Could not send ready signal:', e.message);
+    automationLogger.warn('Could not send ready signal', { error: e.message });
 
     // Retry once after a short delay
     setTimeout(async () => {
@@ -5604,9 +5796,9 @@ console.log('FSB v0.1 content script loaded');
           readyState: document.readyState,
           retry: true
         });
-        console.log('[FSB] Content script ready signal sent on retry');
+        automationLogger.logComm(currentSessionId, 'send', 'contentScriptReady', true, { retry: true });
       } catch (retryError) {
-        console.error('[FSB] Ready signal retry failed:', retryError.message);
+        automationLogger.error('Ready signal retry failed', { error: retryError.message });
       }
     }, 200);
   }
@@ -5614,7 +5806,12 @@ console.log('FSB v0.1 content script loaded');
 
 // Global error handler for uncaught errors in content script
 window.addEventListener('error', (event) => {
-  console.error('[FSB] Uncaught error in content script:', event.error);
+  automationLogger.error('Uncaught error in content script', {
+    sessionId: currentSessionId,
+    error: event.error?.message,
+    filename: event.filename,
+    lineno: event.lineno
+  });
 
   // Try to notify background script of the error
   try {
@@ -5629,16 +5826,16 @@ window.addEventListener('error', (event) => {
       timestamp: Date.now()
     }).catch(() => {
       // Can't even send error message
-      console.error('[FSB] Could not send error report to background');
+      automationLogger.error('Could not send error report to background', { sessionId: currentSessionId });
     });
   } catch (e) {
-    console.error('[FSB] Error in error handler:', e);
+    automationLogger.error('Error in error handler', { sessionId: currentSessionId, error: e.message });
   }
 });
 
 // Global promise rejection handler
 window.addEventListener('unhandledrejection', (event) => {
-  console.error('[FSB] Unhandled promise rejection in content script:', event.reason);
+  automationLogger.error('Unhandled promise rejection in content script', { sessionId: currentSessionId, reason: String(event.reason) });
 
   // Try to notify background script
   try {
@@ -5648,9 +5845,9 @@ window.addEventListener('unhandledrejection', (event) => {
       url: window.location.href,
       timestamp: Date.now()
     }).catch(() => {
-      console.error('[FSB] Could not send rejection report to background');
+      automationLogger.error('Could not send rejection report to background', { sessionId: currentSessionId });
     });
   } catch (e) {
-    console.error('[FSB] Error in rejection handler:', e);
+    automationLogger.error('Error in rejection handler', { sessionId: currentSessionId, error: e.message });
   }
 });

@@ -8,6 +8,234 @@ importScripts('automation-logger.js');
 importScripts('analytics.js');
 importScripts('keyboard-emulator.js');
 
+/**
+ * PageLoadWatcher - Event-driven page load detection
+ * Replaces hardcoded delays with smart waiting that proceeds immediately when ready
+ */
+class PageLoadWatcher {
+  constructor() {
+    this.pendingLoads = new Map(); // tabId -> {resolve, timeout, startTime}
+  }
+
+  /**
+   * Wait for a tab to be fully loaded and ready for interaction
+   * @param {number} tabId - Tab to watch
+   * @param {Object} options - Configuration options
+   * @returns {Promise<{success: boolean, waitTime: number, method: string}>}
+   */
+  async waitForPageReady(tabId, options = {}) {
+    const {
+      maxWait = 10000,         // Maximum wait time in ms
+      requireDOMStable = true, // Also wait for DOM to stabilize
+      stableTime = 300,        // How long DOM must be stable (ms)
+    } = options;
+
+    const startTime = Date.now();
+
+    try {
+      // Step 1: Wait for tab status='complete'
+      await this.waitForTabComplete(tabId, maxWait);
+
+      const afterTabComplete = Date.now() - startTime;
+      automationLogger.logTiming(null, 'WAIT', 'tab_complete', afterTabComplete, { tabId });
+
+      // Step 2: Verify content script is responsive
+      const remainingForPing = Math.max(2000, maxWait - (Date.now() - startTime));
+      const healthOk = await this.pingContentScript(tabId, remainingForPing);
+      if (!healthOk) {
+        automationLogger.logComm(null, 'health', 'healthCheck', false, { tabId, reason: 'not_responsive' });
+        return { success: false, waitTime: Date.now() - startTime, method: 'health-failed' };
+      }
+
+      // Step 3: Optionally wait for DOM stability
+      if (requireDOMStable) {
+        const remainingTime = maxWait - (Date.now() - startTime);
+        if (remainingTime > stableTime) {
+          const stableResult = await this.waitForDOMStable(tabId, remainingTime, stableTime);
+          automationLogger.logTiming(null, 'WAIT', 'dom_stable', stableResult?.waitTime || remainingTime, { tabId, ...stableResult });
+        }
+      }
+
+      const waitTime = Date.now() - startTime;
+      automationLogger.logTiming(null, 'WAIT', 'page_ready', waitTime, { tabId, method: 'event-driven' });
+
+      return { success: true, waitTime, method: 'event-driven' };
+    } catch (error) {
+      const waitTime = Date.now() - startTime;
+      automationLogger.logComm(null, 'health', 'page_ready', false, { tabId, error: error.message, waitTime });
+      return {
+        success: false,
+        waitTime,
+        method: 'error',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Wait for chrome.tabs.onUpdated status='complete'
+   * @param {number} tabId - Tab to watch
+   * @param {number} timeout - Max wait time in ms
+   * @returns {Promise<void>}
+   */
+  waitForTabComplete(tabId, timeout) {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        chrome.tabs.onUpdated.removeListener(listener);
+        reject(new Error('Tab load timeout'));
+      }, timeout);
+
+      const listener = (updatedTabId, changeInfo) => {
+        if (updatedTabId === tabId && changeInfo.status === 'complete') {
+          clearTimeout(timeoutId);
+          chrome.tabs.onUpdated.removeListener(listener);
+          resolve();
+        }
+      };
+
+      // Check if already complete
+      chrome.tabs.get(tabId).then(tab => {
+        if (tab.status === 'complete') {
+          clearTimeout(timeoutId);
+          resolve();
+        } else {
+          chrome.tabs.onUpdated.addListener(listener);
+        }
+      }).catch(err => {
+        clearTimeout(timeoutId);
+        reject(err);
+      });
+    });
+  }
+
+  /**
+   * Ping content script to verify it's responsive
+   * @param {number} tabId - Tab to ping
+   * @param {number} timeout - Max wait time in ms
+   * @returns {Promise<boolean>}
+   */
+  async pingContentScript(tabId, timeout = 2000) {
+    try {
+      const response = await Promise.race([
+        chrome.tabs.sendMessage(tabId, { action: 'healthCheck' }, { frameId: 0 }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Ping timeout')), timeout)
+        )
+      ]);
+      return response?.success === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Wait for DOM to stabilize via content script
+   * @param {number} tabId - Tab to check
+   * @param {number} timeout - Max wait time in ms
+   * @param {number} stableTime - How long DOM must be stable
+   * @returns {Promise<Object>}
+   */
+  async waitForDOMStable(tabId, timeout, stableTime) {
+    try {
+      const response = await chrome.tabs.sendMessage(tabId, {
+        action: 'executeAction',
+        tool: 'waitForDOMStable',
+        params: { timeout, stableTime }
+      }, { frameId: 0 });
+      return response || { success: false };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Quick check if page appears ready (non-blocking)
+   * @param {number} tabId - Tab to check
+   * @returns {Promise<Object>}
+   */
+  async checkPageReady(tabId) {
+    try {
+      const response = await Promise.race([
+        chrome.tabs.sendMessage(tabId, { action: 'checkPageReady' }, { frameId: 0 }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Check timeout')), 1000)
+        )
+      ]);
+      return response || { success: false, isReady: false };
+    } catch {
+      return { success: false, isReady: false };
+    }
+  }
+}
+
+// Global PageLoadWatcher instance
+const pageLoadWatcher = new PageLoadWatcher();
+
+/**
+ * Calculate smart delay after an action based on what happened
+ * @param {Object} actionResult - Result from the action
+ * @param {Object} context - Current automation context
+ * @returns {Promise} Resolves when ready to continue
+ */
+async function smartWaitAfterAction(actionResult, context) {
+  const { tool, params } = context.lastAction || {};
+  const tabId = context.tabId;
+
+  // Navigation actions - wait for page load
+  if (['navigate', 'goBack', 'goForward'].includes(tool)) {
+    automationLogger.logNavigation(null, tool, null, null, { waiting: true, tabId });
+    return pageLoadWatcher.waitForPageReady(tabId, {
+      maxWait: 5000,
+      requireDOMStable: true,
+      stableTime: 300
+    });
+  }
+
+  // Click that triggered navigation
+  if (tool === 'click' && (actionResult?.navigationTriggered || context.urlChanged)) {
+    automationLogger.logNavigation(null, 'click', context.lastUrl, null, { navigationTriggered: true, tabId });
+    return pageLoadWatcher.waitForPageReady(tabId, {
+      maxWait: 5000,
+      requireDOMStable: true,
+      stableTime: 300
+    });
+  }
+
+  // Type/input actions - minimal wait, just ensure input registered
+  if (['type', 'clearInput', 'keyPress'].includes(tool)) {
+    // No delay needed - immediate continuation is fine
+    return Promise.resolve({ success: true, waitTime: 0, method: 'no-wait' });
+  }
+
+  // pressEnter might trigger form submission/navigation
+  if (tool === 'pressEnter') {
+    // Brief check for URL change
+    await new Promise(resolve => setTimeout(resolve, 100));
+    if (context.urlChanged) {
+      return pageLoadWatcher.waitForPageReady(tabId, {
+        maxWait: 5000,
+        requireDOMStable: true
+      });
+    }
+    // Otherwise just wait for DOM stability
+    return pageLoadWatcher.waitForDOMStable(tabId, 2000, 200);
+  }
+
+  // Click that didn't navigate - might trigger AJAX
+  if (tool === 'click' && !context.urlChanged) {
+    automationLogger.logActionExecution(null, 'click', 'wait_dom', { tabId, reason: 'ajax_possible' });
+    return pageLoadWatcher.waitForDOMStable(tabId, 2000, 200);
+  }
+
+  // Scroll actions - short wait for lazy loading
+  if (tool === 'scroll') {
+    return pageLoadWatcher.waitForDOMStable(tabId, 1500, 200);
+  }
+
+  // Default: no delay needed
+  return Promise.resolve({ success: true, waitTime: 0, method: 'default' });
+}
+
 // EASY WIN #10: Service worker keep-alive mechanism
 // Prevents service worker from shutting down during active automation sessions
 let keepAliveInterval = null;
@@ -15,7 +243,7 @@ let keepAliveInterval = null;
 function startKeepAlive() {
   if (keepAliveInterval) return; // Already running
 
-  console.log('[FSB] Starting service worker keep-alive');
+  automationLogger.logServiceWorker('keepalive_start', { interval: 20000 });
   keepAliveInterval = setInterval(() => {
     // No-op operation to keep service worker alive
     chrome.runtime.getPlatformInfo(() => {
@@ -26,7 +254,7 @@ function startKeepAlive() {
 
 function stopKeepAlive() {
   if (keepAliveInterval) {
-    console.log('[FSB] Stopping service worker keep-alive');
+    automationLogger.logServiceWorker('keepalive_stop', {});
     clearInterval(keepAliveInterval);
     keepAliveInterval = null;
   }
@@ -43,7 +271,7 @@ async function cleanupSession(sessionId) {
 
     // If there's an active loop iteration, wait for it to yield
     if (session.loopPromise) {
-      console.log(`[FSB] Waiting for active loop to yield for session ${sessionId}`);
+      automationLogger.debug('Waiting for active loop to yield', { sessionId });
       try {
         // Wait up to 5 seconds for the loop to yield
         await Promise.race([
@@ -51,7 +279,7 @@ async function cleanupSession(sessionId) {
           new Promise(resolve => setTimeout(resolve, 5000))
         ]);
       } catch (e) {
-        console.log(`[FSB] Loop yield wait completed with:`, e?.message || 'timeout');
+        automationLogger.debug('Loop yield wait completed', { sessionId, message: e?.message || 'timeout' });
       }
     }
 
@@ -66,10 +294,10 @@ async function cleanupSession(sessionId) {
 
   // Stop keep-alive if no more active sessions
   if (activeSessions.size === 0) {
-    console.log('[FSB] No active sessions remaining, stopping keep-alive');
+    automationLogger.logServiceWorker('session_count', { count: 0, action: 'stopping_keepalive' });
     stopKeepAlive();
   } else {
-    console.log(`[FSB] ${activeSessions.size} active sessions remaining, keeping worker alive`);
+    automationLogger.logServiceWorker('session_count', { count: activeSessions.size, action: 'keeping_alive' });
   }
 }
 
@@ -130,14 +358,18 @@ const RETRY_STRATEGIES = {
 // EASY WIN #9: Specialized recovery handlers for each error type
 const RECOVERY_HANDLERS = {
   async [FAILURE_TYPES.COMMUNICATION](tabId, error) {
-    console.log('[FSB Recovery] Communication failure - re-injecting content script');
+    automationLogger.logRecovery(null, 'comm_failure', 're-inject', 'attempt', { tabId });
     await ensureContentScriptInjected(tabId);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Use smart page ready check instead of hardcoded 500ms
+    const ready = await pageLoadWatcher.pingContentScript(tabId, 2000);
+    if (!ready) {
+      automationLogger.logRecovery(null, 'comm_failure', 're-inject', 'failed', { tabId, reason: 'not_responsive' });
+    }
     return { recovered: true, method: 'script_reinjection' };
   },
 
   async [FAILURE_TYPES.DOM](tabId, error) {
-    console.log('[FSB Recovery] DOM failure - waiting for DOM to stabilize');
+    automationLogger.logRecovery(null, 'dom_failure', 'dom_wait', 'attempt', { tabId });
     try {
       await sendMessageWithRetry(tabId, {
         action: 'executeAction',
@@ -151,33 +383,49 @@ const RECOVERY_HANDLERS = {
   },
 
   async [FAILURE_TYPES.SELECTOR](tabId, error, action) {
-    console.log('[FSB Recovery] Selector failure - trying alternative selectors');
+    automationLogger.logRecovery(null, 'selector_fail', 'alternative', 'pending', { tabId });
     // This is handled by tryAlternativeAction, but we track it
     return { recovered: false, method: 'needs_alternative_selector' };
   },
 
   async [FAILURE_TYPES.NETWORK](tabId, error) {
-    console.log('[FSB Recovery] Network failure - waiting for network idle');
-    // Wait longer for network issues
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    return { recovered: true, method: 'network_wait' };
+    automationLogger.logRecovery(null, 'network_failure', 'dom_wait', 'attempt', { tabId });
+    // Use DOM stability check which also monitors network activity
+    const stabilityResult = await pageLoadWatcher.waitForDOMStable(tabId, 3000, 500);
+    automationLogger.logRecovery(null, 'network_failure', 'dom_wait', stabilityResult?.success ? 'success' : 'failed', { tabId, ...stabilityResult });
+    return { recovered: true, method: 'network_wait', details: stabilityResult };
   },
 
   async [FAILURE_TYPES.TIMEOUT](tabId, error) {
-    console.log('[FSB Recovery] Timeout - giving more time');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return { recovered: true, method: 'timeout_extended' };
+    automationLogger.logRecovery(null, 'timeout', 'page_ready', 'attempt', { tabId });
+    // Use smart page ready detection instead of hardcoded 1000ms
+    const readyResult = await pageLoadWatcher.waitForPageReady(tabId, {
+      maxWait: 3000,
+      requireDOMStable: true,
+      stableTime: 300
+    });
+    automationLogger.logRecovery(null, 'timeout', 'page_ready', readyResult?.success ? 'success' : 'failed', { tabId, ...readyResult });
+    return { recovered: true, method: 'timeout_extended', details: readyResult };
   },
 
   async [FAILURE_TYPES.BF_CACHE](tabId, error) {
-    console.log('[FSB Recovery] BF Cache issue - waking page');
+    automationLogger.logRecovery(null, 'bfcache', 'wake_page', 'attempt', { tabId });
     try {
       await chrome.tabs.update(tabId, { active: true });
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await ensureContentScriptInjected(tabId);
-      return { recovered: true, method: 'page_wakeup' };
+      // Use smart page ready detection instead of hardcoded 500ms
+      const loadResult = await pageLoadWatcher.waitForPageReady(tabId, {
+        maxWait: 2000,
+        requireDOMStable: false // Just need tab complete + health check
+      });
+      automationLogger.logRecovery(null, 'bfcache', 'wake_page', loadResult.success ? 'success' : 'retry', { tabId, waitTime: loadResult.waitTime });
+      if (!loadResult.success) {
+        // Fallback: re-inject content script
+        await ensureContentScriptInjected(tabId);
+      }
+      return { recovered: true, method: 'page_wakeup', details: loadResult };
     } catch (e) {
-      return { recovered: false, method: 'wakeup_failed' };
+      automationLogger.logRecovery(null, 'bfcache', 'wake_page', 'failed', { tabId, error: e.message });
+      return { recovered: false, method: 'wakeup_failed', error: e.message };
     }
   }
 };
@@ -271,7 +519,7 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
       // Wait for page to be fully loaded before health check
       const tab = await chrome.tabs.get(tabId);
       if (tab.status === 'loading') {
-        console.log(`[FSB] Tab ${tabId} still loading, waiting...`);
+        automationLogger.logComm(null, 'health', 'tab_loading', true, { tabId, status: 'waiting' });
         await new Promise(resolve => {
           const listener = (updatedTabId, changeInfo) => {
             if (updatedTabId === tabId && changeInfo.status === 'complete') {
@@ -291,7 +539,7 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
       // First check if we already received a ready signal
       const readyStatus = contentScriptReadyStatus.get(tabId);
       if (readyStatus && readyStatus.ready) {
-        console.log(`[FSB] Content script already signaled ready in tab ${tabId}`);
+        automationLogger.logComm(null, 'health', 'ready_signal', true, { tabId, source: 'cached' });
         // Still do a health check to be sure
         const isHealthy = await checkContentScriptHealth(tabId);
         if (isHealthy) {
@@ -304,7 +552,7 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
       // Check if content script is already healthy (might be from previous injection)
       const isHealthy = await checkContentScriptHealth(tabId);
       if (isHealthy) {
-        console.log(`[FSB] Content script already healthy in tab ${tabId}`);
+        automationLogger.logComm(null, 'health', 'healthCheck', true, { tabId, source: 'existing' });
         contentScriptReadyStatus.set(tabId, { ready: true, timestamp: Date.now() });
         return true;
       }
@@ -316,24 +564,24 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
         tabIds: [tabId]
       });
       if (existingPorts && (await existingPorts).length > 0) {
-        console.log(`[FSB] Content script context exists, waiting for response...`);
-        // Give it more time to respond
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const recheckHealthy = await checkContentScriptHealth(tabId);
+        automationLogger.logComm(null, 'health', 'context_check', true, { tabId, contextExists: true });
+        // Use smart ping instead of hardcoded 500ms delay
+        const recheckHealthy = await pageLoadWatcher.pingContentScript(tabId, 1000);
         if (recheckHealthy) {
+          automationLogger.logComm(null, 'health', 'ping', true, { tabId });
           return true;
         }
       }
 
       // Inject content script - target only main frame to avoid iframe issues
-      console.log(`[FSB] Injecting content script into tab ${tabId} (attempt ${attempt})`);
+      automationLogger.logComm(null, 'send', 'inject', true, { tabId, attempt });
       await chrome.scripting.executeScript({
         target: { tabId, frameIds: [0] },  // frameIds: [0] = main frame only
         files: ['content.js']
       });
 
       // Wait for ready signal or timeout
-      console.log(`[FSB] Waiting for content script ready signal from tab ${tabId}...`);
+      automationLogger.logComm(null, 'receive', 'ready_signal', true, { tabId, status: 'waiting' });
       const readySignalReceived = await new Promise((resolve) => {
         const startTime = Date.now();
         const maxWaitTime = 1000 * attempt; // Progressive: 1s, 2s, 3s
@@ -342,11 +590,11 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
           const readyStatus = contentScriptReadyStatus.get(tabId);
           if (readyStatus && readyStatus.ready) {
             clearInterval(checkInterval);
-            console.log(`[FSB] Ready signal received after ${Date.now() - startTime}ms`);
+            automationLogger.logComm(null, 'receive', 'ready_signal', true, { tabId, waitTime: Date.now() - startTime });
             resolve(true);
           } else if (Date.now() - startTime > maxWaitTime) {
             clearInterval(checkInterval);
-            console.log(`[FSB] Ready signal timeout after ${maxWaitTime}ms, proceeding to health check`);
+            automationLogger.logComm(null, 'receive', 'ready_signal', false, { tabId, timeout: maxWaitTime });
             resolve(false);
           }
         }, 100); // Check every 100ms
@@ -356,28 +604,33 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
       if (readySignalReceived) {
         const healthAfterReady = await checkContentScriptHealth(tabId);
         if (healthAfterReady) {
-          console.log(`[FSB] Content script ready and healthy in tab ${tabId} (attempt ${attempt})`);
+          automationLogger.logComm(null, 'health', 'healthCheck', true, { tabId, attempt, source: 'after_ready' });
           return true;
         }
       }
 
       // Fallback: Check health multiple times even without ready signal
-      console.log(`[FSB] Checking content script health (no ready signal received)`);
+      automationLogger.logComm(null, 'health', 'fallback_check', true, { tabId, reason: 'no_ready_signal' });
       for (let healthAttempt = 1; healthAttempt <= 3; healthAttempt++) {
         const healthAfterInjection = await checkContentScriptHealth(tabId);
         if (healthAfterInjection) {
-          console.log(`[FSB] Content script healthy in tab ${tabId} (attempt ${attempt}, health check ${healthAttempt})`);
+          automationLogger.logComm(null, 'health', 'healthCheck', true, { tabId, attempt, healthAttempt });
           contentScriptReadyStatus.set(tabId, { ready: true, timestamp: Date.now() });
           return true;
         }
-        // Wait a bit before next health check
+        // Use progressive ping timeout instead of hardcoded 500ms delay
         if (healthAttempt < 3) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          const pingOk = await pageLoadWatcher.pingContentScript(tabId, 500 * healthAttempt);
+          if (pingOk) {
+            automationLogger.logComm(null, 'health', 'ping', true, { tabId, healthAttempt });
+            contentScriptReadyStatus.set(tabId, { ready: true, timestamp: Date.now() });
+            return true;
+          }
         }
       }
 
     } catch (error) {
-      console.warn(`[FSB] Content script injection attempt ${attempt} failed:`, error);
+      automationLogger.logComm(null, 'send', 'inject', false, { tabId, attempt, error: error.message });
       if (attempt === maxRetries) {
         throw new Error(`Failed to inject content script after ${maxRetries} attempts: ${error.message}`);
       }
@@ -459,7 +712,7 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
       if (attempt === 1) {
         const isHealthy = await checkContentScriptHealth(tabId);
         if (!isHealthy) {
-          console.log(`[FSB] Content script unhealthy, re-injecting...`);
+          automationLogger.logComm(null, 'health', 'pre_message', false, { tabId, action: 're-inject' });
           await ensureContentScriptInjected(tabId);
         }
       }
@@ -479,7 +732,7 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
       
     } catch (error) {
       const failureType = classifyFailure(error, message);
-      console.warn(`[FSB] Message sending attempt ${attempt} failed (${failureType}):`, error.message);
+      automationLogger.logComm(null, 'send', message.action || 'unknown', false, { tabId, attempt, failureType, error: error.message });
       
       // Update health tracking
       const health = contentScriptHealth.get(tabId) || { failures: 0 };
@@ -499,7 +752,7 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
       
       // Apply failure-specific retry strategy
       if (failureType === FAILURE_TYPES.BF_CACHE) {
-        console.log(`[FSB] Page in back/forward cache, attempting recovery`);
+        automationLogger.logRecovery(null, 'bfcache', 'detect', 'attempt', { tabId });
 
         // CRITICAL: BFCache often means navigation happened (click triggered page change)
         // Check if URL changed - if so, the action likely succeeded!
@@ -509,8 +762,7 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
           const previousUrl = message._previousUrl; // Stored before sending
 
           if (previousUrl && currentUrl && currentUrl !== previousUrl) {
-            console.log(`[FSB] BFCache + URL change detected: action likely succeeded (navigation triggered)`);
-            console.log(`[FSB] URL changed from ${previousUrl} to ${currentUrl}`);
+            automationLogger.logNavigation(null, 'bfcache_nav', previousUrl, currentUrl, { success: true, note: 'navigation_triggered' });
             return {
               success: true,
               navigationTriggered: true,
@@ -520,21 +772,30 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
             };
           }
         } catch (urlCheckError) {
-          console.log(`[FSB] Could not check URL change:`, urlCheckError.message);
+          automationLogger.debug('Could not check URL change', { tabId, error: urlCheckError.message });
         }
 
         // Try to wake up the page by focusing the tab
         try {
           await chrome.tabs.update(tabId, { active: true });
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Use smart page ready detection instead of hardcoded delays
+          const wakeResult = await pageLoadWatcher.waitForPageReady(tabId, {
+            maxWait: 2000,
+            requireDOMStable: false
+          });
+          automationLogger.logRecovery(null, 'bfcache', 'wake_tab', wakeResult.success ? 'success' : 'failed', { tabId, waitTime: wakeResult.waitTime, method: wakeResult.method });
         } catch (e) {
-          console.log(`[FSB] Could not activate tab:`, e);
+          automationLogger.logRecovery(null, 'bfcache', 'wake_tab', 'failed', { tabId, error: e.message });
         }
         // Re-inject content script after waking the page
         await ensureContentScriptInjected(tabId);
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Verify content script is responsive
+        const pingOk = await pageLoadWatcher.pingContentScript(tabId, 1000);
+        if (!pingOk) {
+          automationLogger.logRecovery(null, 'bfcache', 'verify_ping', 'failed', { tabId });
+        }
       } else if (failureType === FAILURE_TYPES.COMMUNICATION) {
-        console.log(`[FSB] Re-injecting content script for communication failure`);
+        automationLogger.logRecovery(null, 'comm_failure', 're-inject', 'attempt', { tabId });
         await ensureContentScriptInjected(tabId);
       }
 
@@ -545,7 +806,7 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
       const jitter = Math.random() * 1000; // 0-1000ms random jitter
       const totalDelay = exponentialDelay + jitter;
 
-      console.log(`[FSB] Waiting ${Math.round(totalDelay)}ms before retry ${attempt + 1}`);
+      automationLogger.logTiming(null, 'WAIT', 'retry_backoff', Math.round(totalDelay), { tabId, attempt: attempt + 1 });
       await new Promise(resolve => setTimeout(resolve, totalDelay));
     }
   }
@@ -602,7 +863,7 @@ async function tryAlternativeAction(sessionId, originalAction, originalError) {
   // Execute alternatives one by one
   for (const alternative of alternatives.slice(0, 3)) { // Limit to 3 alternatives
     try {
-      console.log(`[FSB] Trying alternative action: ${alternative.description}`);
+      automationLogger.logActionExecution(sessionId, alternative.tool, 'fallback', { description: alternative.description });
       
       const result = await sendMessageWithRetry(session.tabId, {
         action: 'executeAction',
@@ -611,7 +872,7 @@ async function tryAlternativeAction(sessionId, originalAction, originalError) {
       });
       
       if (result && result.success) {
-        console.log(`[FSB] Alternative action succeeded: ${alternative.description}`);
+        automationLogger.logActionExecution(sessionId, alternative.tool, 'complete', { success: true, alternative: alternative.description });
         return {
           success: true,
           result: result.result,
@@ -620,7 +881,7 @@ async function tryAlternativeAction(sessionId, originalAction, originalError) {
         };
       }
     } catch (error) {
-      console.warn(`[FSB] Alternative action failed: ${alternative.description}`, error);
+      automationLogger.logActionExecution(sessionId, alternative.tool, 'complete', { success: false, alternative: alternative.description, error: error.message });
       continue;
     }
   }
@@ -911,11 +1172,10 @@ function finalizeSessionMetrics(sessionId, successful = false) {
     performanceMetrics.globalStats.averageTimePerSession = totalDuration / completedSessions.length;
   }
   
-  console.log(`[FSB Performance] Session ${sessionId} completed:`, {
-    duration: sessionDuration,
+  automationLogger.logTiming(sessionId, 'SESSION', 'complete', sessionDuration, {
     iterations: sessionStats.iterations,
     actions: sessionStats.totalActions,
-    successRate: (sessionStats.successfulActions / sessionStats.totalActions * 100).toFixed(1) + '%',
+    successRate: sessionStats.totalActions > 0 ? (sessionStats.successfulActions / sessionStats.totalActions * 100).toFixed(1) + '%' : '0%',
     avgActionTime: sessionStats.averageActionTime.toFixed(0) + 'ms',
     communicationFailures: sessionStats.communicationFailures,
     alternativeActionsUsed: sessionStats.alternativeActionsUsed
@@ -1104,12 +1364,12 @@ class BackgroundAnalytics {
   
   async initialize() {
     try {
-      console.log('Background Analytics initializing...');
+      automationLogger.logInit('analytics', 'loading', {});
       await this.loadStoredData();
       this.initialized = true;
-      console.log('Background Analytics initialized successfully');
+      automationLogger.logInit('analytics', 'ready', {});
     } catch (error) {
-      console.error('Failed to initialize Background Analytics:', error);
+      automationLogger.logInit('analytics', 'failed', { error: error.message });
     }
   }
   
@@ -1118,52 +1378,57 @@ class BackgroundAnalytics {
       const result = await chrome.storage.local.get(['fsbUsageData', 'fsbCurrentModel']);
       if (result.fsbUsageData) {
         this.usageData = result.fsbUsageData;
-        console.log(`Background: Loaded ${this.usageData.length} usage entries`);
+        automationLogger.debug('Loaded analytics data', { entries: this.usageData.length });
       }
       if (result.fsbCurrentModel) {
         this.currentModel = result.fsbCurrentModel;
       }
     } catch (error) {
-      console.error('Background: Failed to load analytics data:', error);
+      automationLogger.error('Failed to load analytics data', { error: error.message });
     }
   }
   
   async saveData() {
     try {
-      console.log('Background: Saving analytics data...', {
-        entries: this.usageData.length,
-        model: this.currentModel
-      });
-      
+      automationLogger.debug('Saving analytics data', { entries: this.usageData.length, model: this.currentModel });
+
       await chrome.storage.local.set({
         fsbUsageData: this.usageData,
         fsbCurrentModel: this.currentModel
       });
-      
-      console.log(`Background: Successfully saved ${this.usageData.length} usage entries`);
-      
+
+      automationLogger.debug('Analytics data saved', { entries: this.usageData.length });
+
       // Verify save by reading back
       const verify = await chrome.storage.local.get(['fsbUsageData']);
-      console.log('Background: Verification - saved entries:', verify.fsbUsageData?.length);
+      automationLogger.debug('Analytics save verified', { savedEntries: verify.fsbUsageData?.length });
     } catch (error) {
-      console.error('Background: Failed to save analytics data:', error);
+      automationLogger.error('Failed to save analytics data', { error: error.message });
       throw error; // Re-throw to be caught by caller
     }
   }
   
   calculateCost(model, inputTokens, outputTokens) {
     const pricing = {
-      'grok-3': { input: 5.00, output: 25.00 },
-      'grok-3-fast': { input: 0.50, output: 2.50 },
-      'grok-3-mini-beta': { input: 0.30, output: 1.50 },
-      'grok-3-mini-fast-beta': { input: 0.10, output: 0.50 },
+      // New Grok 4.1 series (2026)
+      'grok-4-1': { input: 3.00, output: 15.00 },
+      'grok-4-1-fast': { input: 0.20, output: 0.50 },
       'grok-4': { input: 3.00, output: 15.00 },
+      'grok-code-fast-1': { input: 0.20, output: 1.50 },
+      'grok-3': { input: 3.00, output: 15.00 },
+      'grok-3-mini': { input: 0.30, output: 0.50 },
+      'grok-2-vision': { input: 2.00, output: 10.00 },
+      // Legacy model IDs for backward compatibility
+      'grok-3-fast': { input: 0.20, output: 0.50 },
+      'grok-3-mini-beta': { input: 0.30, output: 0.50 },
+      'grok-3-mini-fast-beta': { input: 0.20, output: 0.50 },
       'grok-4-fast': { input: 3.00, output: 15.00 },
+      // Other providers
       'gpt-4o': { input: 2.50, output: 10.00 },
       'gpt-4o-mini': { input: 0.15, output: 0.60 }
     };
 
-    const modelPricing = pricing[model] || pricing['grok-3-fast'];
+    const modelPricing = pricing[model] || pricing['grok-4-1-fast'];
     const inputCost = (inputTokens / 1000000) * modelPricing.input;
     const outputCost = (outputTokens / 1000000) * modelPricing.output;
     return inputCost + outputCost;
@@ -1187,19 +1452,17 @@ class BackgroundAnalytics {
 
       this.usageData.push(entry);
       this.currentModel = model;
-      
-      console.log('Background: Usage tracked:', entry);
-      console.log('Background: Total entries:', this.usageData.length);
-      
+
+      automationLogger.logAPI(null, 'analytics', 'track', { model, inputTokens, outputTokens, success, cost: entry.cost });
+
       // Clean old data (keep only last 30 days)
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
       this.usageData = this.usageData.filter(entry => entry.timestamp > thirtyDaysAgo);
-      
+
       await this.saveData();
-      console.log('Background: Data saved successfully');
-      
+
     } catch (error) {
-      console.error('Background: Failed to track usage:', error);
+      automationLogger.error('Failed to track usage', { error: error.message });
       throw error; // Re-throw to be caught by caller
     }
   }
@@ -1209,7 +1472,7 @@ class BackgroundAnalytics {
 function initializeAnalytics() {
   if (!globalAnalytics) {
     globalAnalytics = new BackgroundAnalytics();
-    console.log('Background analytics created');
+    automationLogger.logInit('background_analytics', 'ready', {});
   }
   return globalAnalytics;
 }
@@ -1379,7 +1642,7 @@ function detectRepeatedSuccess(session) {
   // Find results that appear at least 3 times
   for (const [result, count] of Object.entries(resultCounts)) {
     if (count >= 3 && isValidResult(result, session.task)) {
-      console.log(`Found repeated valid result: "${result}" (appeared ${count} times)`);
+      automationLogger.debug('Found repeated valid result', { result: result.substring(0, 100), count });
       return result;
     }
   }
@@ -1392,29 +1655,28 @@ function detectRepeatedSuccess(session) {
       return numMatch ? parseFloat(numMatch[1]) : null;
     })
     .filter(num => num !== null);
-  
+
   if (numericResults.length >= 3) {
     // Check if the same number appears multiple times
     const numCounts = {};
     numericResults.forEach(num => {
       numCounts[num] = (numCounts[num] || 0) + 1;
     });
-    
+
     for (const [num, count] of Object.entries(numCounts)) {
       if (count >= 3) {
-        console.log(`Found repeated numeric result: ${num} (appeared ${count} times)`);
+        automationLogger.debug('Found repeated numeric result', { num, count });
         return String(num);
       }
     }
   }
-  
+
   return null;
 }
 
 // Listen for messages from popup and content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Background received message:', request.action);
-  console.log('Full request object:', request);
+  automationLogger.logComm(null, 'receive', request.action || 'unknown', true, { tabId: sender.tab?.id });
   
   switch (request.action) {
     case 'startAutomation':
@@ -1495,12 +1757,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             url: request.url || sender.url,
             frameId: frameId
           });
-          console.log(`[FSB] Content script ready signal received from tab ${tabId} (main frame)`, {
-            readyState: request.readyState,
-            retry: request.retry || false
-          });
+          automationLogger.logInit('content_script', 'ready', { tabId, frameId, readyState: request.readyState, retry: request.retry || false });
         } else {
-          console.log(`[FSB] Content script ready signal from tab ${tabId} iframe (frameId: ${frameId}) - ignored for health tracking`);
+          automationLogger.debug('Iframe content script ready (ignored)', { tabId, frameId });
         }
       }
       sendResponse({ success: true });
@@ -1519,7 +1778,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             existingStatus.confirmTimestamp = Date.now();
             contentScriptReadyStatus.set(confirmTabId, existingStatus);
           }
-          console.log(`[FSB] Content script confirmation ping received from tab ${confirmTabId} (main frame)`);
+          automationLogger.logComm(null, 'receive', 'confirmation', true, { tabId: confirmTabId, frameId: confirmFrameId });
         }
         // Silently ignore iframe confirmations
       }
@@ -1528,15 +1787,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'contentScriptError':
       // Content script encountered an error during initialization
-      console.error('[FSB] Content script error reported:', {
+      automationLogger.logInit('content_script', 'failed', {
         tabId: sender.tab?.id,
         url: request.url,
         error: request.error,
         stack: request.stack,
         filename: request.filename,
         lineno: request.lineno,
-        colno: request.colno,
-        timestamp: request.timestamp
+        colno: request.colno
       });
       sendResponse({ success: true });
       break;
@@ -1576,7 +1834,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
         // Determine the best website for this task
         const targetUrl = analyzeTaskAndGetTargetUrl(task);
         
-        console.log(`Smart navigation: ${tabInfo.url} -> ${targetUrl} for task: "${task}"`);
+        automationLogger.logNavigation(null, 'smart', tabInfo.url, targetUrl, { task: task.substring(0, 100) });
         
         // Navigate to the target website
         await chrome.tabs.update(targetTabId, { url: targetUrl });
@@ -1605,7 +1863,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
           throw new Error(`Tab became inaccessible after navigation to ${targetUrl}`);
         }
         
-        console.log(`Navigation completed to: ${tabInfo.url}`);
+        automationLogger.logNavigation(null, 'smart', null, tabInfo.url, { status: 'completed' });
       } else {
         // For non-navigable restricted pages (settings, extensions, etc.), show error
         const pageType = getPageTypeDescription(tabInfo.url);
@@ -1649,12 +1907,10 @@ async function handleStartAutomation(request, sender, sendResponse) {
     };
     
     activeSessions.set(sessionId, sessionData);
-    
+
     automationLogger.logSessionStart(sessionId, task, sessionData.tabId);
     initializeSessionMetrics(sessionId);
-    console.log('Background: Created new session:', sessionId);
-    console.log('Background: Session data:', sessionData);
-    console.log('Background: Total active sessions:', activeSessions.size);
+    automationLogger.info('Created new session', { sessionId, tabId: sessionData.tabId, activeSessions: activeSessions.size });
 
     // Content script injection is now handled by the automation loop
     // to prevent double injection and race conditions
@@ -1671,19 +1927,19 @@ async function handleStartAutomation(request, sender, sendResponse) {
 
     // Reset DOM state in content script to prevent stale state comparison between sessions
     try {
-      await chrome.tabs.sendMessage(targetTabId, { action: 'resetDOMState' });
-      console.log('[FSB] DOM state reset for new session');
+      await chrome.tabs.sendMessage(targetTabId, { action: 'resetDOMState', sessionId });
+      automationLogger.logDOMOperation(sessionId, 'reset', {}, { tabId: targetTabId });
     } catch (e) {
-      console.log('[FSB] Could not reset DOM state (content script may not be ready):', e.message);
+      automationLogger.debug('Could not reset DOM state', { sessionId, error: e.message });
     }
 
     // Start the automation loop
     startAutomationLoop(sessionId);
 
   } catch (error) {
-    console.error('Error starting automation:', error);
-    sendResponse({ 
-      success: false, 
+    automationLogger.error('Error starting automation', { error: error.message, isChromePage: error.isChromePage || false });
+    sendResponse({
+      success: false,
       error: error.message,
       isChromePage: error.isChromePage || false
     });
@@ -1695,29 +1951,33 @@ async function handleStartAutomation(request, sender, sendResponse) {
 // Handle automation stop
 function handleStopAutomation(request, sender, sendResponse) {
   const { sessionId } = request;
-  
-  console.log('Background: Stop automation request received');
-  console.log('Background: Session ID to stop:', sessionId);
-  console.log('Background: Active sessions:', Array.from(activeSessions.keys()));
-  
+
+  automationLogger.info('Stop automation request received', { sessionId, activeSessions: Array.from(activeSessions.keys()) });
+
   if (activeSessions.has(sessionId)) {
     const session = activeSessions.get(sessionId);
-    console.log('Background: Found session, current status:', session.status);
-    
+    automationLogger.debug('Found session to stop', { sessionId, status: session.status });
+
     session.status = 'stopped';
+
+    // Log and save session before cleanup
+    const duration = Date.now() - session.startTime;
+    automationLogger.logSessionEnd(sessionId, 'stopped', session.actionHistory.length, duration);
+    automationLogger.saveSession(sessionId, session);
+
     finalizeSessionMetrics(sessionId, false); // Stopped, not completed
     cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
 
-    console.log('Background: Session stopped and removed');
-    sendResponse({ 
-      success: true, 
-      message: 'Automation stopped' 
+    automationLogger.info('Session stopped and removed', { sessionId });
+    sendResponse({
+      success: true,
+      message: 'Automation stopped'
     });
   } else {
-    console.log('Background: Session not found in active sessions');
-    sendResponse({ 
-      success: false, 
-      error: 'Session not found' 
+    automationLogger.warn('Session not found', { sessionId });
+    sendResponse({
+      success: false,
+      error: 'Session not found'
     });
   }
 }
@@ -1754,10 +2014,10 @@ async function handleTestAPI(request, sender, sendResponse) {
     });
     
   } catch (error) {
-    console.error('API test error:', error);
-    sendResponse({ 
-      success: false, 
-      error: error.message 
+    automationLogger.error('API test error', { error: error.message });
+    sendResponse({
+      success: false,
+      error: error.message
     });
   }
 }
@@ -1776,10 +2036,10 @@ async function handleAICall(request, sender, sendResponse) {
       response: aiResponse 
     });
   } catch (error) {
-    console.error('AI API error:', error);
-    sendResponse({ 
-      success: false, 
-      error: error.message 
+    automationLogger.error('AI API error', { error: error.message });
+    sendResponse({
+      success: false,
+      error: error.message
     });
   }
 }
@@ -1877,19 +2137,19 @@ function calculateActionDelay(currentAction, nextAction, context = {}) {
   // Increase delay if recent failures detected
   if (context.recentFailures && context.recentFailures > 2) {
     adjustedDelay *= 2; // Double delay when struggling
-    console.log(`[FSB] Increasing delay due to ${context.recentFailures} recent failures`);
+    automationLogger.logTiming(null, 'ACTION', 'delay_increase', adjustedDelay, { reason: 'recent_failures', failures: context.recentFailures });
   }
 
   // Increase delay if DOM is changing rapidly
   if (context.domChangeVelocity && context.domChangeVelocity > 10) {
     adjustedDelay *= 1.5; // 50% more time for unstable DOM
-    console.log(`[FSB] Increasing delay due to rapid DOM changes`);
+    automationLogger.logTiming(null, 'ACTION', 'delay_increase', adjustedDelay, { reason: 'rapid_dom_changes', velocity: context.domChangeVelocity });
   }
 
   // Increase delay if network activity detected
   if (context.networkActive) {
     adjustedDelay *= 1.5;
-    console.log(`[FSB] Increasing delay due to network activity`);
+    automationLogger.logTiming(null, 'ACTION', 'delay_increase', adjustedDelay, { reason: 'network_active' });
   }
 
   // Decrease delay if consecutive successes (things going smoothly)
@@ -2057,32 +2317,29 @@ function createDOMHash(domState) {
  */
 async function handleMultiTabAction(action, currentTabId) {
   const { tool, params } = action;
-  
-  console.log(`[FSB] handleMultiTabAction called:`, { tool, params, currentTabId });
-  
+
+  automationLogger.logActionExecution(null, tool, 'start', { params, currentTabId });
+
   return new Promise((resolve) => {
     const mockSender = { tab: { id: currentTabId } };
     const mockRequest = { ...params, action: tool };
-    
-    console.log(`[FSB] Mock request for ${tool}:`, mockRequest);
-    
+
     switch (tool) {
       case 'openNewTab':
-        console.log(`[FSB] Calling handleOpenNewTab with:`, mockRequest);
         handleOpenNewTab(mockRequest, mockSender, resolve);
         break;
-        
+
       case 'switchToTab':
         // SECURITY: Block switching away from the original session tab
         const switchRequest = { ...mockRequest };
         if (switchRequest.tabId && typeof switchRequest.tabId === 'string') {
           switchRequest.tabId = parseInt(switchRequest.tabId, 10);
         }
-        
+
         // Find the session to check originalTabId
         const session = Array.from(activeSessions.values()).find(s => s.tabId === currentTabId);
         if (session && switchRequest.tabId !== session.originalTabId) {
-          console.log(`[FSB] BLOCKED: Attempt to switch from session tab ${session.originalTabId} to unauthorized tab ${switchRequest.tabId}`);
+          automationLogger.warn('Tab switch blocked', { sessionTabId: session.originalTabId, requestedTabId: switchRequest.tabId });
           resolve({
             success: false,
             error: `Security restriction: Automation is limited to the original tab (${session.originalTabId}). Cannot switch to tab ${switchRequest.tabId}.`,
@@ -2090,54 +2347,47 @@ async function handleMultiTabAction(action, currentTabId) {
           });
           return;
         }
-        
-        console.log(`[FSB] Tab switch allowed: staying within session tab ${switchRequest.tabId}`);
+
+        automationLogger.debug('Tab switch allowed', { tabId: switchRequest.tabId });
         resolve({
           success: true,
           message: `Already on session tab ${switchRequest.tabId}`,
           tabId: switchRequest.tabId
         });
         break;
-        
+
       case 'closeTab':
         // Fix: Convert string tabId to integer
         const closeRequest = { ...mockRequest };
         if (closeRequest.tabId && typeof closeRequest.tabId === 'string') {
-          console.log(`[FSB] Converting tabId from string '${closeRequest.tabId}' to integer`);
           closeRequest.tabId = parseInt(closeRequest.tabId, 10);
         }
-        console.log(`[FSB] Calling handleCloseTab with:`, closeRequest);
         handleCloseTab(closeRequest, mockSender, resolve);
         break;
-        
+
       case 'listTabs':
-        console.log(`[FSB] Calling handleListTabs with:`, mockRequest);
         handleListTabs(mockRequest, mockSender, resolve);
         break;
-        
+
       case 'waitForTabLoad':
-        // Fix: Convert string tabId to integer, default to current tab if not specified  
+        // Fix: Convert string tabId to integer, default to current tab if not specified
         const waitRequest = { ...mockRequest };
         if (waitRequest.tabId) {
           if (typeof waitRequest.tabId === 'string') {
-            console.log(`[FSB] Converting tabId from string '${waitRequest.tabId}' to integer`);
             waitRequest.tabId = parseInt(waitRequest.tabId, 10);
           }
         } else {
           waitRequest.tabId = currentTabId;
-          console.log(`[FSB] Using current tab ID: ${currentTabId}`);
         }
-        console.log(`[FSB] Calling handleWaitForTabLoad with:`, waitRequest);
         handleWaitForTabLoad(waitRequest, mockSender, resolve);
         break;
-        
+
       case 'getCurrentTab':
-        console.log(`[FSB] Calling handleGetCurrentTab with:`, mockRequest);
         handleGetCurrentTab(mockRequest, mockSender, resolve);
         break;
-        
+
       default:
-        console.error(`[FSB] Unknown multi-tab action: ${tool}`);
+        automationLogger.error('Unknown multi-tab action', { tool });
         resolve({
           success: false,
           error: `Unknown multi-tab action: ${tool}`
@@ -2156,7 +2406,7 @@ async function startAutomationLoop(sessionId) {
 
   // RACE CONDITION FIX: Check if session is terminating before starting iteration
   if (isSessionTerminating(sessionId)) {
-    console.log(`[FSB] Session ${sessionId} is terminating, exiting loop`);
+    automationLogger.debug('Session is terminating, exiting loop', { sessionId });
     return;
   }
 
@@ -2166,12 +2416,16 @@ async function startAutomationLoop(sessionId) {
 
   session.iterationCount++;
 
+  // FSB TIMING: Track iteration start time
+  const iterationStart = Date.now();
+  automationLogger.logTiming(sessionId, 'LOOP', 'iteration_start', 0, { iteration: session.iterationCount });
+
   // Track iteration in performance metrics
   const sessionStats = performanceMetrics.sessionStats.get(sessionId);
   if (sessionStats) {
     sessionStats.iterations = session.iterationCount;
   }
-  console.log(`Automation loop iteration ${session.iterationCount} for session ${sessionId}`);
+  automationLogger.logIteration(sessionId, session.iterationCount, session.lastDOMHash, session.stuckCounter);
 
   try {
     // SECURITY: Only inject content script into the original session tab
@@ -2187,22 +2441,22 @@ async function startAutomationLoop(sessionId) {
       const healthRetryDelay = 500;
 
       for (let attempt = 1; attempt <= maxHealthRetries; attempt++) {
-        console.log(`[FSB] Health check attempt ${attempt}/${maxHealthRetries} for tab ${session.originalTabId}`);
+        automationLogger.logComm(sessionId, 'health', 'healthCheck', true, { tabId: session.originalTabId, attempt, maxRetries: maxHealthRetries });
         healthOk = await checkContentScriptHealth(session.originalTabId);
 
         if (healthOk) {
-          console.log(`[FSB] Content script healthy on attempt ${attempt}`);
+          automationLogger.logComm(sessionId, 'health', 'healthCheck', true, { tabId: session.originalTabId, attempt, status: 'healthy' });
           break;
         }
 
         if (attempt < maxHealthRetries) {
           // Try re-injecting content script on later attempts
           if (attempt >= 3) {
-            console.log(`[FSB] Re-injecting content script on attempt ${attempt}`);
+            automationLogger.logRecovery(sessionId, 'health_fail', 're-inject', 'attempt', { tabId: session.originalTabId, attempt });
             try {
               await ensureContentScriptInjected(session.originalTabId);
             } catch (e) {
-              console.warn(`[FSB] Re-injection failed:`, e.message);
+              automationLogger.logRecovery(sessionId, 'health_fail', 're-inject', 'failed', { tabId: session.originalTabId, error: e.message });
             }
           }
           await new Promise(resolve => setTimeout(resolve, healthRetryDelay * attempt));
@@ -2212,9 +2466,9 @@ async function startAutomationLoop(sessionId) {
       if (!healthOk) {
         throw new Error('Content script not responding to health check after multiple attempts');
       }
-      console.log(`[FSB] Content script verified healthy in session tab ${session.originalTabId}`);
+      automationLogger.logComm(sessionId, 'health', 'verified', true, { tabId: session.originalTabId });
     } catch (healthError) {
-      console.error(`[FSB] Content script health check failed in tab ${session.originalTabId}:`, healthError);
+      automationLogger.logComm(sessionId, 'health', 'healthCheck', false, { tabId: session.originalTabId, error: healthError.message });
 
       // Get tab URL for error message
       let tabUrl = 'unknown';
@@ -2247,19 +2501,34 @@ async function startAutomationLoop(sessionId) {
       ]);
       const domOptimizationEnabled = settings.domOptimization !== false;
       
-      console.log(`[FSB Background] Requesting DOM for iteration ${session.iterationCount}`, {
+      automationLogger.logDOMOperation(sessionId, 'request', {
+        iteration: session.iterationCount,
         useIncrementalDiff: domOptimizationEnabled,
         maxElements: settings.maxDOMElements || 2000,
         prioritizeViewport: settings.prioritizeViewport !== false
       });
-      
-      domResponse = await sendMessageWithRetry(session.tabId, {
+
+      // FSB TIMING: Track DOM fetch time
+      const domFetchStart = Date.now();
+      const getDOMPayload = {
         action: 'getDOM',
         options: {
           useIncrementalDiff: domOptimizationEnabled,
           maxElements: settings.maxDOMElements || 2000,
           prioritizeViewport: settings.prioritizeViewport !== false
         }
+      };
+
+      // Log outgoing message for comprehensive session logging
+      automationLogger.logContentMessage(sessionId, 'send', 'getDOM', getDOMPayload, null);
+
+      domResponse = await sendMessageWithRetry(session.tabId, getDOMPayload);
+      automationLogger.logTiming(sessionId, 'DOM', 'fetch', Date.now() - domFetchStart, { tabId: session.tabId });
+
+      // Log received DOM response
+      automationLogger.logContentMessage(sessionId, 'receive', 'getDOM', null, {
+        success: domResponse?.success,
+        elementCount: domResponse?.structuredDOM?.elements?.length || 0
       });
     } catch (messageError) {
       // Check if this is a restricted URL error
@@ -2286,13 +2555,16 @@ async function startAutomationLoop(sessionId) {
     
     // Log DOM response details
     const domData = domResponse.structuredDOM;
-    console.log('[FSB Background] DOM received:', {
+    automationLogger.logDOMOperation(sessionId, 'received', {
       isDelta: domData._isDelta || false,
       type: domData.type || 'full',
       payloadSize: JSON.stringify(domData).length,
       optimization: domData.optimization || {}
     });
-    
+
+    // Log DOM state for comprehensive session logging
+    automationLogger.logDOMState(sessionId, domData, session.iterationCount);
+
     // Create hash of current DOM state
     const currentDOMHash = createDOMHash(domResponse.structuredDOM);
     const currentUrl = domResponse.structuredDOM.url;
@@ -2307,7 +2579,7 @@ async function startAutomationLoop(sessionId) {
           timestamp: Date.now(),
           iteration: session.iterationCount
         });
-        console.log(`URL changed from ${session.lastUrl} to ${currentUrl}`);
+        automationLogger.logNavigation(sessionId, 'change', session.lastUrl, currentUrl, { iteration: session.iterationCount });
       }
     }
     session.lastUrl = currentUrl;
@@ -2343,19 +2615,19 @@ async function startAutomationLoop(sessionId) {
 
           if (sameTypeRepeats >= 2) {
             session.stuckCounter++;
-            console.log(`Repetitive typing detected - stuck counter: ${session.stuckCounter}`);
+            automationLogger.debug('Stuck: Repetitive typing detected', { sessionId, stuckCounter: session.stuckCounter });
           } else if (allTypingFailed) {
             session.stuckCounter++;
-            console.log(`All recent type actions failed - stuck counter: ${session.stuckCounter}`);
+            automationLogger.debug('Stuck: All recent type actions failed', { sessionId, stuckCounter: session.stuckCounter });
           } else if (clicksNearSameArea) {
             session.stuckCounter++;
-            console.log(`Clicking same area repeatedly - stuck counter: ${session.stuckCounter}`);
+            automationLogger.debug('Stuck: Clicking same area repeatedly', { sessionId, stuckCounter: session.stuckCounter });
           } else {
-            console.log(`Typing sequence in progress - not counting as stuck`);
+            automationLogger.debug('Typing sequence in progress - not counting as stuck', { sessionId });
           }
         } else {
           session.stuckCounter++;
-          console.log(`DOM and URL unchanged for ${session.stuckCounter} iterations`);
+          automationLogger.debug('Stuck: DOM and URL unchanged', { sessionId, stuckCounter: session.stuckCounter });
         }
         
         if (session.stuckCounter > 0) {
@@ -2386,8 +2658,7 @@ async function startAutomationLoop(sessionId) {
     let recoveryStrategies = [];
     if (isStuck) {
       recoveryStrategies = generateRecoveryStrategies(stuckPatterns, session);
-      console.log(`[FSB] Stuck detected with patterns:`, stuckPatterns);
-      console.log(`[FSB] Generated recovery strategies:`, recoveryStrategies);
+      automationLogger.logRecovery(sessionId, 'stuck_detected', 'analyze', 'attempt', { patterns: stuckPatterns, strategies: recoveryStrategies.length });
     }
     
     // Get settings for AI call using config
@@ -2417,7 +2688,7 @@ async function startAutomationLoop(sessionId) {
         sessionTabs: sessionTabs
       };
     } catch (error) {
-      console.log('Failed to gather tab context:', error.message);
+      automationLogger.debug('Failed to gather tab context', { sessionId, error: error.message });
     }
     
     // Calculate progress metrics for AI context
@@ -2461,6 +2732,7 @@ async function startAutomationLoop(sessionId) {
 
     // Prepare context with action history and task plan
     const context = {
+      sessionId: sessionId, // Include sessionId for comprehensive logging
       actionHistory: session.actionHistory.slice(-10), // Last 10 actions
       isStuck,
       stuckCounter: session.stuckCounter,
@@ -2498,11 +2770,15 @@ async function startAutomationLoop(sessionId) {
     const isIntermediatePage = intermediatePagePatterns.some(pattern => pattern.test(currentUrl));
 
     if (isIntermediatePage) {
-      console.log(`[FSB] Main frame is on intermediate/redirect page: ${currentUrl}`);
-      console.log('[FSB] Waiting 1500ms for page to auto-resolve...');
+      automationLogger.logNavigation(sessionId, 'intermediate', currentUrl, null, { waiting: true });
 
-      // Wait for the page to potentially auto-redirect
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Wait for page to be ready using event-driven detection instead of hardcoded 1500ms
+      const loadResult = await pageLoadWatcher.waitForPageReady(session.tabId, {
+        maxWait: 3000,
+        requireDOMStable: true,
+        stableTime: 300
+      });
+      automationLogger.logTiming(sessionId, 'WAIT', 'intermediate_page', loadResult.waitTime, { method: loadResult.method });
 
       // Check if URL changed after waiting
       let newTabInfo;
@@ -2513,7 +2789,7 @@ async function startAutomationLoop(sessionId) {
       }
 
       if (newTabInfo && newTabInfo.url !== currentUrl) {
-        console.log(`[FSB] Page redirected to: ${newTabInfo.url}`);
+        automationLogger.logNavigation(sessionId, 'redirect', currentUrl, newTabInfo.url, {});
 
         // Reset state for the new page
         session.lastUrl = newTabInfo.url;
@@ -2531,7 +2807,7 @@ async function startAutomationLoop(sessionId) {
       // If still on intermediate page after waiting, add context for AI
       context.isIntermediatePage = true;
       context.intermediatePageNote = 'This appears to be an intermediate/authentication page. Wait for it to redirect or look for a continue/proceed button.';
-      console.log('[FSB] Still on intermediate page, continuing with AI call with context');
+      automationLogger.debug('Still on intermediate page, continuing with AI', { sessionId, url: currentUrl });
     }
 
     // Call AI to get next actions with context
@@ -2575,7 +2851,7 @@ async function startAutomationLoop(sessionId) {
       const isHarmfulRepetition = checkHarmfulRepetition(aiResponse.actions, sequenceRepeats, session);
       
       if (isHarmfulRepetition) {
-        console.warn(`Potentially harmful action sequence repeated ${sequenceRepeats} times: ${sequenceSignature}`);
+        automationLogger.warn('Harmful action sequence repetition', { sessionId, repeats: sequenceRepeats, signature: sequenceSignature });
         session.stuckCounter = Math.max(session.stuckCounter, 2); // Increase stuck counter but not too aggressively
       }
       
@@ -2590,8 +2866,8 @@ async function startAutomationLoop(sessionId) {
       for (let i = 0; i < aiResponse.actions.length; i++) {
         const action = aiResponse.actions[i];
         const nextAction = aiResponse.actions[i + 1];
-        
-        console.log(`Executing action ${i + 1}/${aiResponse.actions.length}: ${action.tool}`, action.params);
+
+        automationLogger.logActionExecution(sessionId, action.tool, 'start', { index: i + 1, total: aiResponse.actions.length, params: action.params });
         const actionStartTime = Date.now();
         
         // Send action-specific status update to UI
@@ -2612,12 +2888,12 @@ async function startAutomationLoop(sessionId) {
         
         if (multiTabActions.includes(action.tool)) {
           // Handle multi-tab actions directly in background script
-          console.log(`[FSB] Routing multi-tab action ${action.tool} directly to background handler`);
+          automationLogger.logActionExecution(sessionId, action.tool, 'routing', { handler: 'background' });
           try {
             actionResult = await handleMultiTabAction(action, session.tabId);
-            console.log(`[FSB] Multi-tab action ${action.tool} result:`, actionResult);
+            automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: actionResult?.success });
           } catch (error) {
-            console.error(`[FSB] Multi-tab action ${action.tool} failed:`, error);
+            automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: false, error: error.message });
             actionResult = {
               success: false,
               error: `Multi-tab action failed: ${error.message}`,
@@ -2627,11 +2903,19 @@ async function startAutomationLoop(sessionId) {
         } else {
           // Send regular DOM actions to content script
           try {
-            actionResult = await sendMessageWithRetry(session.tabId, {
+            const actionPayload = {
               action: 'executeAction',
               tool: action.tool,
               params: action.params
-            });
+            };
+
+            // Log outgoing action message for comprehensive session logging
+            automationLogger.logContentMessage(sessionId, 'send', 'executeAction', actionPayload, null);
+
+            actionResult = await sendMessageWithRetry(session.tabId, actionPayload);
+
+            // Log action result received
+            automationLogger.logContentMessage(sessionId, 'receive', 'executeAction', { tool: action.tool }, actionResult);
           } catch (messageError) {
             // Check if this is a restricted URL error during action execution
             let tabInfo;
@@ -2657,6 +2941,9 @@ async function startAutomationLoop(sessionId) {
           }
         }
         
+        // FSB TIMING: Log action execution time
+        automationLogger.logTiming(sessionId, 'ACTION', action.tool, Date.now() - actionStartTime, { success: actionResult?.success });
+
         // Track action in history
         const actionRecord = {
           timestamp: Date.now(),
@@ -2666,7 +2953,7 @@ async function startAutomationLoop(sessionId) {
           iteration: session.iterationCount
         };
         session.actionHistory.push(actionRecord);
-        
+
         // Log action result
         automationLogger.logAction(sessionId, action, actionResult);
         
@@ -2716,15 +3003,15 @@ async function startAutomationLoop(sessionId) {
             session.failedActionDetails[actionSignature].errors.shift();
           }
           
-          console.warn(`Action failed: ${action.tool}`, errorMessage, `(${session.failedActionDetails[actionSignature].count} failures)`);
+          automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: false, error: errorMessage, failureCount: session.failedActionDetails[actionSignature].count });
           
           // Try alternative actions for critical failures
           if (actionResult.retryable && actionResult.failureType !== FAILURE_TYPES.PERMISSION) {
-            console.log(`[FSB] Attempting alternative actions for failed ${action.tool}`);
+            automationLogger.logRecovery(sessionId, 'action_fail', 'alternative', 'attempt', { tool: action.tool });
             const alternativeResult = await tryAlternativeAction(sessionId, action, actionResult);
-            
+
             if (alternativeResult && alternativeResult.success) {
-              console.log(`[FSB] Alternative action succeeded: ${alternativeResult.alternativeUsed}`);
+              automationLogger.logRecovery(sessionId, 'action_fail', 'alternative', 'success', { tool: action.tool, alternative: alternativeResult.alternativeUsed });
               actionResult = alternativeResult;
               
               // Log the successful alternative
@@ -2749,9 +3036,9 @@ async function startAutomationLoop(sessionId) {
           
           // Check for verification warnings
           if (actionResult.success && (actionResult.warning || actionResult.hadEffect === false || actionResult.validationPassed === false)) {
-            console.warn(`[FSB] Action succeeded but verification indicates potential issue:`, {
+            automationLogger.logValidation(sessionId, 'action_effect', false, {
               tool: action.tool,
-              selector: action.params.selector,
+              selector: action.params?.selector,
               warning: actionResult.warning,
               hadEffect: actionResult.hadEffect,
               validationPassed: actionResult.validationPassed
@@ -2777,7 +3064,7 @@ async function startAutomationLoop(sessionId) {
             
             if (recentNoEffectCount >= 3) {
               session.stuckCounter++;
-              console.warn(`[FSB] Multiple no-effect actions detected - incrementing stuck counter to ${session.stuckCounter}`);
+              automationLogger.debug('Multiple no-effect actions detected', { sessionId, stuckCounter: session.stuckCounter, noEffectCount: recentNoEffectCount });
             }
           }
         }
@@ -2796,12 +3083,12 @@ async function startAutomationLoop(sessionId) {
             });
           } catch (error) {
             // Silently handle loading check errors - continue with fixed delay
-            console.log('Loading check failed, using fixed delay');
+            automationLogger.debug('Loading check failed, using fixed delay', { sessionId });
             loadingCheck = { success: false };
           }
-          
+
           if (loadingCheck?.success && loadingCheck?.result?.loading) {
-            console.log(`Loading indicator detected: ${loadingCheck.result.indicator}`);
+            automationLogger.debug('Loading indicator detected', { sessionId, indicator: loadingCheck.result.indicator });
             
             // Wait for DOM to stabilize with error handling
             let stableResult;
@@ -2813,11 +3100,11 @@ async function startAutomationLoop(sessionId) {
               });
             } catch (error) {
               // If stability check fails, use fixed delay
-              console.log('DOM stability check failed, using fixed delay');
+              automationLogger.debug('DOM stability check failed', { sessionId });
               stableResult = { success: false };
             }
-            
-            console.log(`DOM stable after ${stableResult?.waitTime || 'unknown'}ms (${stableResult?.reason || 'unknown'})`);
+
+            automationLogger.logTiming(sessionId, 'WAIT', 'dom_stable', stableResult?.waitTime || 0, { reason: stableResult?.reason });
           } else {
             // Use smart DOM-based waiting for certain action types
             const actionsThatCauseChanges = ['click', 'type', 'navigate', 'searchGoogle', 'pressEnter', 'submit'];
@@ -2834,16 +3121,24 @@ async function startAutomationLoop(sessionId) {
                 });
               } catch (error) {
                 // If stability check fails, use fixed delay
-                console.log('DOM stability check failed, using fixed delay');
+                automationLogger.debug('DOM stability check failed', { sessionId });
                 stableResult = { success: false };
               }
-              
-              console.log(`DOM stable after ${stableResult?.waitTime || 'unknown'}ms`);
+
+              automationLogger.logTiming(sessionId, 'WAIT', 'dom_stable', stableResult?.waitTime || 0, {});
             } else {
-              // For other actions, use minimal delay
-              const delay = calculateActionDelay(action, nextAction);
-              console.log(`Using fixed delay: ${delay}ms`);
-              await new Promise(resolve => setTimeout(resolve, delay));
+              // For read-only actions (getText, getAttribute, etc.), use minimal delay
+              // These don't change the DOM so no need for smart waiting
+              const readOnlyActions = ['getText', 'getAttribute', 'hover', 'moveMouse', 'focus'];
+              if (readOnlyActions.includes(action.tool)) {
+                // Minimal delay for read-only actions
+                automationLogger.debug('Read-only action, minimal delay', { sessionId, tool: action.tool });
+              } else {
+                // For unknown actions, use a small safety delay
+                const delay = Math.min(calculateActionDelay(action, nextAction), 500);
+                automationLogger.logTiming(sessionId, 'WAIT', 'unknown_action', delay, { tool: action.tool });
+                await new Promise(resolve => setTimeout(resolve, delay));
+              }
             }
           }
         }
@@ -2856,12 +3151,15 @@ async function startAutomationLoop(sessionId) {
     if (session.stuckCounter >= 4) {
       const repeatedResult = detectRepeatedSuccess(session);
       if (repeatedResult) {
-        console.log(`Found repeated valid result at stuck counter ${session.stuckCounter}:`, repeatedResult);
+        automationLogger.info('Found repeated valid result', { sessionId, stuckCounter: session.stuckCounter, result: repeatedResult.substring(0, 100) });
         // Complete the task with the repeated result
         session.status = 'completed';
         const duration = Date.now() - session.startTime;
         automationLogger.logSessionEnd(sessionId, 'completed', session.actionHistory.length, duration);
-        
+
+        // Save session logs for history
+        automationLogger.saveSession(sessionId, session);
+
         // Send success message via runtime message
         chrome.runtime.sendMessage({
           action: 'automationComplete',
@@ -2869,7 +3167,7 @@ async function startAutomationLoop(sessionId) {
           result: repeatedResult,
           navigatedTo: currentUrl
         });
-        
+
         // Clean up session
         finalizeSessionMetrics(sessionId, true); // Successfully completed
         cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
@@ -2879,8 +3177,8 @@ async function startAutomationLoop(sessionId) {
     
     // Check if we're stuck in a loop after more iterations
     if (session.stuckCounter >= 8) {
-      
-      console.error('Automation appears stuck - attempting to provide summary');
+
+      automationLogger.error('Automation appears stuck', { sessionId, stuckCounter: session.stuckCounter });
       session.status = 'stuck';
       
       // Provide a detailed summary of what was accomplished before getting stuck
@@ -2919,7 +3217,12 @@ async function startAutomationLoop(sessionId) {
       }
       
       finalResult += 'You may want to try rephrasing your request or breaking it into smaller steps.';
-      
+
+      automationLogger.logSessionEnd(sessionId, 'stuck', session.actionHistory.length, Date.now() - session.startTime);
+
+      // Save session logs for history
+      automationLogger.saveSession(sessionId, session);
+
       finalizeSessionMetrics(sessionId, false); // Failed due to stuck loop
       cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
 
@@ -2930,8 +3233,7 @@ async function startAutomationLoop(sessionId) {
         result: finalResult,
         partial: true
       });
-      
-      automationLogger.logSessionEnd(sessionId, 'stuck', session.actionHistory.length, Date.now() - session.startTime);
+
       return;
     }
     
@@ -2939,8 +3241,7 @@ async function startAutomationLoop(sessionId) {
     if (aiResponse.taskComplete) {
       // Check for meaningful result
       if (!aiResponse.result || aiResponse.result.trim().length < 10) {
-        console.warn('⚠️ AI claimed taskComplete=true but provided no meaningful result. Continuing automation...');
-        automationLogger.warn('Completion blocked - AI must provide result summary', {sessionId});
+        automationLogger.warn('Completion blocked - AI must provide result summary', { sessionId });
         aiResponse.taskComplete = false; // Override the AI's decision
       } else {
         // Check for recent critical action failures
@@ -2978,16 +3279,14 @@ async function startAutomationLoop(sessionId) {
           );
           
           if (typeFailures.length > 0 && !shouldAllowCompletion) {
-            console.warn('⚠️ AI claimed taskComplete=true but critical type actions failed. Continuing automation...');
-            automationLogger.warn('Completion blocked - critical type actions failed for messaging task', {
+            automationLogger.warn('Completion blocked - critical type actions failed', {
               sessionId,
               failedActions: typeFailures.map(a => ({tool: a.tool, params: a.params, error: a.result?.error})),
-              clickSuccesses: clickSuccesses.length,
-              shouldAllowCompletion
+              clickSuccesses: clickSuccesses.length
             });
             aiResponse.taskComplete = false; // Override the AI's decision
           } else if (typeFailures.length > 0 && shouldAllowCompletion) {
-            console.log('✅ Allowing messaging task completion despite type failures due to other success indicators');
+            automationLogger.info('Allowing messaging task completion despite type failures', { sessionId });
           }
         } else if (recentCriticalFailures.length >= 3) {
           // General rule: block completion if multiple critical actions failed recently
@@ -3000,7 +3299,6 @@ async function startAutomationLoop(sessionId) {
           const hasDecentSuccessRate = successRate >= 0.6;
           
           if (!hasDetailedResult && !hasDecentSuccessRate) {
-            console.warn('⚠️ AI claimed taskComplete=true but multiple critical actions failed. Continuing automation...');
             automationLogger.warn('Completion blocked - multiple critical actions failed', {
               sessionId,
               failedActions: recentCriticalFailures.map(a => ({tool: a.tool, params: a.params, error: a.result?.error})),
@@ -3009,16 +3307,12 @@ async function startAutomationLoop(sessionId) {
             });
             aiResponse.taskComplete = false; // Override the AI's decision
           } else {
-            console.log('✅ Allowing task completion despite failures due to success indicators:', {
-              successRate,
-              hasDetailedResult,
-              resultLength: aiResponse.result?.length || 0
-            });
+            automationLogger.info('Allowing task completion despite failures', { sessionId, successRate, hasDetailedResult, resultLength: aiResponse.result?.length || 0 });
           }
         }
-        
+
         if (aiResponse.taskComplete) {
-          console.log('✅ Task completion approved with result:', aiResponse.result.substring(0, 100) + '...');
+          automationLogger.info('Task completion approved', { sessionId, resultPreview: aiResponse.result.substring(0, 100) });
         }
       }
     }
@@ -3027,11 +3321,13 @@ async function startAutomationLoop(sessionId) {
     if (aiResponse.taskComplete) {
       session.status = 'completed';
       const duration = Date.now() - session.startTime;
-      
+
       automationLogger.logSessionEnd(sessionId, 'completed', session.actionHistory.length, duration);
-      console.log('Task completed successfully');
-      console.log('Total actions executed:', session.actionHistory.length);
-      
+      automationLogger.info('Task completed successfully', { sessionId, totalActions: session.actionHistory.length, duration });
+
+      // Save session logs for history
+      automationLogger.saveSession(sessionId, session);
+
       finalizeSessionMetrics(sessionId, true); // Successfully completed
       cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
 
@@ -3043,15 +3339,18 @@ async function startAutomationLoop(sessionId) {
       });
     } else {
       // Dynamic delay based on stuck counter - optimized for speed
+      // FSB TIMING: Log iteration end
+      automationLogger.logTiming(sessionId, 'LOOP', 'iteration_end', Date.now() - iterationStart, { iteration: session.iterationCount });
+
       const delay = session.stuckCounter > 0 ?
         Math.min(1000 * Math.pow(1.5, session.stuckCounter), 10000) : // Exponential backoff up to 10s
         800; // Reduced from 2000ms for faster automation
 
-      console.log(`Continuing loop in ${delay}ms`);
+      automationLogger.debug('Continuing loop', { sessionId, delay, stuckCounter: session.stuckCounter });
 
       // RACE CONDITION FIX: Check termination before scheduling next iteration
       if (isSessionTerminating(sessionId)) {
-        console.log(`[FSB] Session ${sessionId} terminated during iteration, not scheduling next loop`);
+        automationLogger.debug('Session terminated during iteration', { sessionId });
         loopResolve?.(); // Signal that loop has yielded
         return;
       }
@@ -3064,7 +3363,7 @@ async function startAutomationLoop(sessionId) {
     }
 
   } catch (error) {
-    console.error('Automation loop error:', error);
+    automationLogger.error('Automation loop error', { sessionId, error: error.message });
 
     // Check if session still exists before updating
     const currentSession = activeSessions.get(sessionId);
@@ -3111,21 +3410,23 @@ async function callAIAPI(task, structuredDOM, settings, context = null) {
     // Create AI integration instance (now available via importScripts)
     const ai = new AIIntegration(settings);
     
-    console.log('[FSB Background] Sending to AI:', {
-      task: task,
+    automationLogger.logAPI(context?.sessionId, settings.modelProvider || 'xai', 'call', {
+      task: task.substring(0, 100),
       domType: structuredDOM._isDelta ? 'delta' : 'full',
-      contextProvided: !!context,
       iteration: context?.iterationCount || 0
     });
-    
+
+    // FSB TIMING: Track AI API call time
+    const aiCallStart = Date.now();
     // Get automation actions from Grok-3-mini with context
     const result = await ai.getAutomationActions(task, structuredDOM, context);
-    
+    automationLogger.logTiming(context?.sessionId, 'LLM', 'api_call', Date.now() - aiCallStart, { model: settings.modelName || 'default' });
+
     return result;
     
   } catch (error) {
-    console.error('xAI Grok-3-mini API error:', error);
-    
+    automationLogger.error('AI API error', { sessionId: context?.sessionId, error: error.message });
+
     // Return a more helpful fallback response
     return {
       actions: [],
@@ -3139,35 +3440,33 @@ async function callAIAPI(task, structuredDOM, settings, context = null) {
 
 // Handle usage tracking from all contexts
 function handleTrackUsage(request, sender, sendResponse) {
-  console.log('Background: handleTrackUsage called');
-  
+  automationLogger.debug('Usage tracking request received', {});
+
   // Initialize analytics if not already done
   const analytics = initializeAnalytics();
-  
+
   const { model, inputTokens, outputTokens, success, tokenSource, timestamp } = request.data;
-  
-  console.log('Background: Received tracking request:', {
+
+  automationLogger.logAPI(null, 'analytics', 'track_request', {
     model,
     inputTokens,
     outputTokens,
     success,
     tokenSource,
-    timestamp,
-    context: sender.tab ? 'content' : 'extension',
-    senderId: sender.id
+    context: sender.tab ? 'content' : 'extension'
   });
-  
+
   // Track the usage and handle response
   analytics.trackUsage(model, inputTokens, outputTokens, success)
     .then(() => {
       // Broadcast update to all extension contexts
       broadcastAnalyticsUpdate();
-      
-      console.log('Background: Usage tracking completed successfully');
+
+      automationLogger.debug('Usage tracking completed', {});
       sendResponse({ success: true, message: 'Usage tracked successfully' });
     })
     .catch((error) => {
-      console.error('Background: Failed to handle usage tracking:', error);
+      automationLogger.error('Failed to handle usage tracking', { error: error.message });
       sendResponse({ success: false, error: error.message });
     });
   
@@ -3196,7 +3495,7 @@ function broadcastAnalyticsUpdate() {
 async function handleOpenNewTab(request, sender, sendResponse) {
   try {
     const { url, active } = request;
-    console.log(`Opening new tab: ${url}, active: ${active}`);
+    automationLogger.debug('Opening new tab', { url, active });
     
     const tab = await chrome.tabs.create({
       url: url || 'about:blank',
@@ -3213,20 +3512,20 @@ async function handleOpenNewTab(request, sender, sendResponse) {
             files: ['content.js']
           });
         } catch (error) {
-          console.log('Content script injection skipped for new tab:', error.message);
+          automationLogger.debug('Content script injection skipped for new tab', { tabId: tab.id, error: error.message });
         }
       }, 1000);
     }
-    
+
     sendResponse({
       success: true,
       tabId: tab.id,
       url: tab.url,
       active: tab.active
     });
-    
+
   } catch (error) {
-    console.error('Error opening new tab:', error);
+    automationLogger.error('Error opening new tab', { error: error.message });
     sendResponse({
       success: false,
       error: error.message
@@ -3243,7 +3542,7 @@ async function handleOpenNewTab(request, sender, sendResponse) {
 async function handleSwitchToTab(request, sender, sendResponse) {
   try {
     const { tabId } = request;
-    console.log(`Switching to tab: ${tabId}`);
+    automationLogger.debug('Switching to tab', { tabId });
     
     // Get current active tab first
     const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -3262,7 +3561,7 @@ async function handleSwitchToTab(request, sender, sendResponse) {
     });
     
   } catch (error) {
-    console.error('Error switching to tab:', error);
+    automationLogger.error('Error switching to tab', { error: error.message });
     sendResponse({
       success: false,
       error: error.message
@@ -3279,28 +3578,28 @@ async function handleSwitchToTab(request, sender, sendResponse) {
 async function handleCloseTab(request, sender, sendResponse) {
   try {
     const { tabId } = request;
-    console.log(`Closing tab: ${tabId}`);
-    
+    automationLogger.debug('Closing tab', { tabId });
+
     // Remove any active sessions for this tab
     for (const [sessionId, session] of activeSessions) {
       if (session.tabId === tabId) {
-        console.log(`Stopping session ${sessionId} for closing tab ${tabId}`);
+        automationLogger.info('Stopping session for closing tab', { sessionId, tabId });
         session.status = 'stopped';
         finalizeSessionMetrics(sessionId, false); // Tab closed
         cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
       }
     }
-    
+
     await chrome.tabs.remove(tabId);
-    
+
     sendResponse({
       success: true,
       tabId: tabId,
       closed: true
     });
-    
+
   } catch (error) {
-    console.error('Error closing tab:', error);
+    automationLogger.error('Error closing tab', { error: error.message });
     sendResponse({
       success: false,
       error: error.message
@@ -3332,7 +3631,7 @@ async function handleCDPInsertText(request, sender, sendResponse) {
   let debuggerAttached = false;
 
   try {
-    console.log(`[FSB CDP] Inserting text via CDP in tab ${tabId}: "${text.substring(0, 50)}..."`);
+    automationLogger.logActionExecution(null, 'cdpInsertText', 'start', { tabId, textLength: text.length });
 
     // Attach debugger to the tab
     await chrome.debugger.attach({ tabId }, '1.3');
@@ -3399,7 +3698,7 @@ async function handleCDPInsertText(request, sender, sendResponse) {
     await chrome.debugger.detach({ tabId });
     debuggerAttached = false;
 
-    console.log(`[FSB CDP] Text inserted successfully`);
+    automationLogger.logActionExecution(null, 'cdpInsertText', 'complete', { success: true, tabId, textLength: text.length });
     sendResponse({
       success: true,
       text: text,
@@ -3408,14 +3707,14 @@ async function handleCDPInsertText(request, sender, sendResponse) {
     });
 
   } catch (error) {
-    console.error('[FSB CDP] Error inserting text:', error);
+    automationLogger.logActionExecution(null, 'cdpInsertText', 'complete', { success: false, tabId, error: error.message });
 
     // Try to detach debugger if it was attached
     if (debuggerAttached) {
       try {
         await chrome.debugger.detach({ tabId });
       } catch (detachError) {
-        console.log('[FSB CDP] Debugger already detached');
+        automationLogger.debug('Debugger already detached', { tabId });
       }
     }
 
@@ -3436,7 +3735,7 @@ async function handleCDPInsertText(request, sender, sendResponse) {
 async function handleListTabs(request, sender, sendResponse) {
   try {
     const { currentWindowOnly } = request;
-    console.log(`Listing tabs, currentWindowOnly: ${currentWindowOnly}`);
+    automationLogger.debug('Listing tabs', { currentWindowOnly });
     
     let queryOptions = {};
     if (currentWindowOnly !== false) {
@@ -3470,7 +3769,7 @@ async function handleListTabs(request, sender, sendResponse) {
     });
     
   } catch (error) {
-    console.error('Error listing tabs:', error);
+    automationLogger.error('Error listing tabs', { error: error.message });
     sendResponse({
       success: false,
       error: error.message
@@ -3510,7 +3809,7 @@ async function handleGetCurrentTab(request, sender, sendResponse) {
     }
     
   } catch (error) {
-    console.error('Error getting current tab:', error);
+    automationLogger.error('Error getting current tab', { error: error.message });
     sendResponse({
       success: false,
       error: error.message
@@ -3527,7 +3826,7 @@ async function handleGetCurrentTab(request, sender, sendResponse) {
 async function handleWaitForTabLoad(request, sender, sendResponse) {
   try {
     const { tabId, timeout = 30000 } = request;
-    console.log(`Waiting for tab ${tabId} to load, timeout: ${timeout}ms`);
+    automationLogger.logTiming(null, 'WAIT', 'tab_load_start', 0, { tabId, timeout });
     
     const startTime = Date.now();
     
@@ -3576,7 +3875,7 @@ async function handleWaitForTabLoad(request, sender, sendResponse) {
     });
     
   } catch (error) {
-    console.error('Error waiting for tab load:', error);
+    automationLogger.error('Error waiting for tab load', { error: error.message });
     sendResponse({
       success: false,
       error: error.message
@@ -3607,8 +3906,8 @@ async function handleKeyboardDebuggerAction(request, sender, sendResponse) {
   try {
     const { method, key, keys, text, specialKey, modifiers = {}, delay = 50 } = request;
     const tabId = sender.tab.id;
-    
-    console.log(`[FSB Keyboard] Handling ${method} for tab ${tabId}`, { key, keys, text, specialKey, modifiers });
+
+    automationLogger.logActionExecution(null, `keyboard_${method}`, 'start', { tabId, key, specialKey });
     
     // Initialize keyboard emulator
     const emulator = initializeKeyboardEmulator();
@@ -3647,18 +3946,18 @@ async function handleKeyboardDebuggerAction(request, sender, sendResponse) {
       default:
         throw new Error(`Unknown keyboard emulator method: ${method}`);
     }
-    
-    console.log(`[FSB Keyboard] ${method} result:`, result);
-    
+
+    automationLogger.logActionExecution(null, `keyboard_${method}`, 'complete', { tabId, success: result.success });
+
     sendResponse({
       success: result.success,
       result: result,
       method: method,
       tabId: tabId
     });
-    
+
   } catch (error) {
-    console.error('[FSB Keyboard] Error in keyboard emulator action:', error);
+    automationLogger.logActionExecution(null, `keyboard_${request.method}`, 'complete', { success: false, error: error.message });
     sendResponse({
       success: false,
       error: error.message || 'Keyboard emulator action failed',
@@ -3674,9 +3973,9 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   if (keyboardEmulator && keyboardEmulator.debuggerAttached) {
     try {
       await keyboardEmulator.detachDebugger(tabId);
-      console.log(`[FSB Keyboard] Cleaned up emulator for closed tab ${tabId}`);
+      automationLogger.debug('Cleaned up keyboard emulator for closed tab', { tabId });
     } catch (error) {
-      console.warn(`[FSB Keyboard] Failed to clean up emulator for tab ${tabId}:`, error);
+      automationLogger.debug('Failed to clean up keyboard emulator', { tabId, error: error.message });
     }
   }
 });
@@ -3686,7 +3985,7 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
  */
 chrome.runtime.onSuspend.addListener(async () => {
   if (keyboardEmulator) {
-    console.log('[FSB Keyboard] Extension suspending, cleaning up keyboard emulator');
+    automationLogger.logServiceWorker('suspend', { component: 'keyboard_emulator' });
     try {
       // Get all tabs and detach debugger from each
       const tabs = await chrome.tabs.query({});
@@ -3698,21 +3997,21 @@ chrome.runtime.onSuspend.addListener(async () => {
         }
       }
     } catch (error) {
-      console.warn('[FSB Keyboard] Error during keyboard emulator cleanup:', error);
+      automationLogger.debug('Error during keyboard emulator cleanup', { error: error.message });
     }
   }
 });
 
 // Handle action (icon) clicks - open global side panel
 chrome.action.onClicked.addListener(async (tab) => {
-  console.log('Extension icon clicked - opening global side panel');
-  
+  automationLogger.logInit('sidepanel', 'opening', { windowId: tab.windowId });
+
   // Open global side panel for the entire browser window
   try {
     await chrome.sidePanel.open({ windowId: tab.windowId });
-    console.log('Global side panel opened successfully');
+    automationLogger.logInit('sidepanel', 'ready', { windowId: tab.windowId });
   } catch (error) {
-    console.error('Failed to open global side panel:', error);
+    automationLogger.logInit('sidepanel', 'failed', { error: error.message, fallback: 'popup' });
     // Fallback to popup window if side panel fails
     chrome.windows.create({
       url: chrome.runtime.getURL('popup.html'),
@@ -3725,29 +4024,29 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // Set up side panel behavior
 chrome.runtime.onInstalled.addListener(async () => {
-  console.log('FSB v0.1 installed');
-  
+  automationLogger.logInit('extension', 'installed', { version: 'v0.1' });
+
   // Initialize analytics
   initializeAnalytics();
-  
+
   // Set default UI mode if not set
   const { uiMode } = await chrome.storage.local.get(['uiMode']);
   if (!uiMode) {
     await chrome.storage.local.set({ uiMode: 'sidepanel' });
-    console.log('Default UI mode set to sidepanel');
+    automationLogger.debug('Default UI mode set to sidepanel', {});
   }
-  
+
   // Configure side panel to open automatically on action click
   try {
     await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
-    console.log('Side panel behavior configured for automatic opening');
+    automationLogger.debug('Side panel behavior configured', { autoOpen: true });
   } catch (error) {
-    console.log('Side panel API not available (Chrome < 114)');
+    automationLogger.debug('Side panel API not available', { chromeVersion: 'below 114' });
   }
 });
 
 // Initialize analytics on startup
 chrome.runtime.onStartup.addListener(() => {
-  console.log('FSB service worker starting up');
+  automationLogger.logServiceWorker('startup', {});
   initializeAnalytics();
 });

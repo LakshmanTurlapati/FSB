@@ -892,24 +892,36 @@ class UniversalProvider {
    */
   async testConnection() {
     const testPrompt = {
-      systemPrompt: "You are a helpful assistant.",
-      userPrompt: "Test connection. Respond with 'Connected successfully!'"
+      systemPrompt: "You are a helpful assistant. Respond with only valid JSON.",
+      userPrompt: "Test connection. Respond with exactly: {\"status\": \"ok\"}"
     };
-    
+
+    const startTime = Date.now();
+
     try {
       const request = await this.buildRequest(testPrompt);
       const response = await this.sendRequest(request);
       const parsed = this.parseResponse(response);
-      
+      const responseTime = Date.now() - startTime;
+
       return {
-        success: true,
+        ok: true,
+        success: true,  // Keep for backward compatibility
         message: parsed.content,
-        model: parsed.model
+        model: parsed.model || this.model,
+        responseTime,
+        data: parsed.content
       };
     } catch (error) {
+      const responseTime = Date.now() - startTime;
+
       return {
-        success: false,
-        message: error.message
+        ok: false,
+        success: false,  // Keep for backward compatibility
+        error: error.message,
+        message: error.message,
+        model: this.model,
+        responseTime
       };
     }
   }

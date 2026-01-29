@@ -16,7 +16,7 @@ class Config {
     this.defaults = {
       // Model configuration
       modelProvider: 'xai', // 'xai' or 'gemini'
-      modelName: 'grok-3-fast', // Current selected model - fast and efficient for automation
+      modelName: 'grok-4-1-fast', // Current selected model - fast and efficient for automation
       
       // API Keys
       apiKey: '', // xAI API key (for Grok models)
@@ -41,12 +41,12 @@ class Config {
     // Available models configuration
     this.availableModels = {
       xai: [
-        { id: 'grok-3-fast', name: 'Grok 3 Fast', description: 'Fast and efficient - best for automation' },
-        { id: 'grok-3', name: 'Grok 3', description: 'Flagship model with full capabilities' },
-        { id: 'grok-3-mini-fast-beta', name: 'Grok 3 Mini Fast', description: 'Fastest, most economical option' },
-        { id: 'grok-3-mini-beta', name: 'Grok 3 Mini', description: 'Smaller model with reasoning capabilities' },
-        { id: 'grok-4', name: 'Grok 4', description: 'Most capable reasoning model' },
-        { id: 'grok-4-fast', name: 'Grok 4 Fast', description: 'Efficient variant of Grok 4' }
+        { id: 'grok-4-1-fast', name: 'Grok 4.1 Fast', description: 'High-speed, 2M context - best for automation (Recommended)' },
+        { id: 'grok-4-1-fast-reasoning', name: 'Grok 4.1 Fast Reasoning', description: 'With multi-step reasoning enabled' },
+        { id: 'grok-4', name: 'Grok 4', description: 'Complex reasoning model' },
+        { id: 'grok-code-fast-1', name: 'Grok Code Fast 1', description: 'Dedicated code generation & debugging' },
+        { id: 'grok-3', name: 'Grok 3', description: 'Legacy flagship model' },
+        { id: 'grok-3-mini', name: 'Grok 3 Mini', description: 'Budget option with reasoning' }
       ],
       gemini: [
         { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Latest with thinking capabilities' },
@@ -119,16 +119,16 @@ class Config {
     // Model is invalid - attempt to correct it
     console.warn(`[Config] Model "${modelName}" is not valid for provider "${provider}"`);
 
-    // Common corrections for xAI models
+    // Common corrections for xAI models - map legacy/invalid models to valid ones
     const xaiCorrections = {
-      'grok-4-1-fast-non-reasoning': 'grok-4-fast',
-      'grok-4-1-fast': 'grok-4-fast',
-      'grok-4-1': 'grok-4',
-      'grok-4-non-reasoning': 'grok-4-fast',
-      'grok-3-mini': 'grok-3-mini-beta',
-      'grok-3-mini-fast': 'grok-3-mini-fast-beta',
-      'grok-beta': 'grok-3',
-      'grok-vision-beta': 'grok-3'
+      'grok-3-fast': 'grok-4-1-fast',
+      'grok-3-fast-beta': 'grok-4-1-fast',
+      'grok-3-mini-fast-beta': 'grok-4-1-fast',
+      'grok-3-mini-beta': 'grok-3-mini',
+      'grok-3-mini-fast': 'grok-4-1-fast',
+      'grok-4-fast': 'grok-4-1-fast',
+      'grok-4-1': 'grok-4',  // grok-4-1 doesn't exist, map to grok-4
+      'grok-beta': 'grok-3'
     };
 
     // Check if we have a known correction
@@ -138,13 +138,13 @@ class Config {
 
     // Default fallbacks per provider
     const defaultModels = {
-      'xai': 'grok-4-fast',
+      'xai': 'grok-4-1-fast',
       'gemini': 'gemini-2.5-flash',
       'openai': 'gpt-4o',
       'anthropic': 'claude-sonnet-4-5'
     };
 
-    return defaultModels[provider] || 'grok-4-fast';
+    return defaultModels[provider] || 'grok-4-1-fast';
   }
   
   // Check if running in development mode

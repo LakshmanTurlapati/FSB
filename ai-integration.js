@@ -123,6 +123,27 @@ When completing, provide: product selected, price, rating, seller, and why you c
   general: "Complete the task using appropriate tools. When completing, provide a detailed summary of all actions taken and their outcomes. Be specific about what was accomplished."
 };
 
+// PERFORMANCE OPTIMIZATION: Tiered system prompts
+// Use minimal prompt for continuation iterations to reduce token usage by 40-60%
+const MINIMAL_CONTINUATION_PROMPT = `You are a browser automation agent. Continue the task based on the current page state.
+
+RESPOND WITH ONLY VALID JSON. No markdown, no explanations.
+
+IMPORTANT RULES:
+1. If search results are shown, CLICK a result link - do NOT search again
+2. Only mark taskComplete: true when task is ACTUALLY done
+3. Provide detailed result summary when completing
+
+RESPONSE FORMAT:
+{
+  "reasoning": "Brief analysis of current state and chosen action",
+  "actions": [{"tool": "name", "params": {}, "description": "what and why"}],
+  "taskComplete": boolean,
+  "result": "summary if complete",
+  "currentStep": "status for user"
+}`;
+
+
 /**
  * AIIntegration class handles all AI-related functionality for browser automation
  * @class
@@ -139,10 +160,17 @@ class AIIntegration {
    */
   constructor(settings) {
     this.settings = this.migrateSettings(settings);
-    
+
+    // Initialize model name from settings (fix for undefined in analytics)
+    // This ensures model is available before testConnection() completes
+    this.model = this.settings.modelName || this.settings.model || 'unknown';
+
+    // Set API endpoint for legacy fallback
+    this.apiEndpoint = 'https://api.x.ai/v1/chat/completions';
+
     // Create appropriate provider instance
     this.provider = this.createProvider();
-    
+
     // Request queue and cache
     this.requestQueue = [];
     this.isProcessing = false;
@@ -158,50 +186,55 @@ class AIIntegration {
     // Handle legacy speedMode
     if (!migrated.modelName && migrated.speedMode) {
       migrated.modelProvider = 'xai';
-      migrated.modelName = 'grok-3-fast'; // All legacy modes map to new default
+      migrated.modelName = 'grok-4-1-fast'; // All legacy modes map to new default
     }
 
     // Migrate legacy model names to new models
-    const legacyModels = ['grok-3', 'grok-3-mini', 'grok-3-mini-fast', 'grok-code-fast-1'];
+    const legacyModels = [
+      'grok-3-fast',
+      'grok-3-mini-fast-beta',
+      'grok-3-mini-beta',
+      'grok-4-fast',        // Old model that no longer exists
+      'grok-3-fast-beta'    // Old beta model
+    ];
     if (legacyModels.includes(migrated.modelName)) {
-      migrated.modelName = 'grok-3-fast';
+      migrated.modelName = 'grok-4-1-fast'; // New recommended default
     }
 
     // Set defaults
     migrated.modelProvider = migrated.modelProvider || 'xai';
-    migrated.modelName = migrated.modelName || 'grok-3-fast';
+    migrated.modelName = migrated.modelName || 'grok-4-1-fast';
 
     return migrated;
   }
   
   // Create provider instance based on settings
   createProvider() {
-    console.log('Creating AI provider for:', this.settings.modelProvider);
-    console.log('Model name:', this.settings.modelName);
-    
+    automationLogger.logInit('ai_provider', 'loading', { provider: this.settings.modelProvider, model: this.settings.modelName });
+
     try {
       // Check if provider classes are available
       if (typeof XAIProvider !== 'undefined' && typeof GeminiProvider !== 'undefined') {
         switch (this.settings.modelProvider) {
           case 'gemini':
-            console.log('Creating GeminiProvider instance');
+            automationLogger.logInit('ai_provider', 'ready', { type: 'GeminiProvider' });
             return new GeminiProvider(this.settings);
           case 'xai':
           default:
-            console.log('Creating XAIProvider instance');
+            automationLogger.logInit('ai_provider', 'ready', { type: 'XAIProvider' });
             return new XAIProvider(this.settings);
         }
       } else if (typeof createAIProvider !== 'undefined') {
         // Fallback to factory function
-        console.log('Using createAIProvider factory');
+        automationLogger.debug('Using createAIProvider factory', {});
         return createAIProvider(this.settings);
       }
     } catch (error) {
-      console.error('Failed to create provider:', error);
+      automationLogger.logInit('ai_provider', 'failed', { error: error.message });
     }
-    
+
     // Fallback for environments where ai-providers.js isn't loaded
-    console.warn('AI providers not loaded, using legacy xAI implementation');
+    automationLogger.warn('AI providers not loaded, using legacy xAI implementation', {});
     return null;
   }
   
@@ -259,7 +292,7 @@ class AIIntegration {
     
     // Check if still valid
     if (Date.now() - cached.timestamp < maxAge) {
-      console.log('Using cached AI response for:', key, `(expires in ${Math.round((maxAge - (Date.now() - cached.timestamp)) / 1000)}s)`);
+      automationLogger.logCache(this.currentSessionId, 'hit', key, { expiresIn: Math.round((maxAge - (Date.now() - cached.timestamp)) / 1000) });
       return cached.response;
     }
     
@@ -291,18 +324,22 @@ class AIIntegration {
    * @returns {Promise<Object>} AI response with actions, reasoning, and completion status
    */
   async getAutomationActions(task, domState, context = null) {
+    // Track session context for comprehensive logging
+    this.currentSessionId = context?.sessionId || null;
+    this.currentIteration = context?.iterationCount || 0;
+
     // Generate context-aware cache key
     const cacheKey = this.generateCacheKey(task, domState, context);
-    
+
     // Check cache first (but not if we're stuck or in later iterations)
     if (!context?.isStuck && (!context?.iterationCount || context.iterationCount < 3)) {
       const cachedResponse = this.getCachedResponse(cacheKey);
       if (cachedResponse) {
-        console.log('Using cached response for key:', cacheKey);
+        automationLogger.logCache(this.currentSessionId, 'hit', cacheKey, { source: 'getAutomationActions' });
         return cachedResponse;
       }
     }
-    
+
     // Retry configuration
     const maxRetries = 3;
     const baseDelay = 1000; // 1 second
@@ -345,7 +382,7 @@ class AIIntegration {
         
       } catch (error) {
         lastError = error;
-        console.error(`AI request attempt ${attempt + 1}/${maxRetries} failed:`, error.message);
+        automationLogger.error(`AI request attempt ${attempt + 1}/${maxRetries} failed`, { sessionId: this.currentSessionId, error: error.message });
         
         // If it's the last attempt, return fallback
         if (attempt === maxRetries - 1) {
@@ -354,7 +391,7 @@ class AIIntegration {
         
         // Otherwise, wait with exponential backoff
         const delay = baseDelay * Math.pow(2, attempt);
-        console.log(`Retrying in ${delay}ms...`);
+        automationLogger.debug(`Retrying AI request in ${delay}ms`, { sessionId: this.currentSessionId, attempt: attempt + 1, delay });
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -376,10 +413,13 @@ class AIIntegration {
     while (this.requestQueue.length > 0) {
       const request = this.requestQueue.shift();
       const startTime = Date.now();
-      
+
       try {
         const response = await this.callAPI(request.prompt);
-        
+
+        // FSB TIMING: Log queue processing time
+        automationLogger.logTiming(this.currentSessionId, 'LLM', 'queue_process', Date.now() - startTime, { model: this.model });
+
         // If using universal provider, response is already parsed JSON
         // Otherwise, parse the response string
         let parsed;
@@ -390,16 +430,16 @@ class AIIntegration {
           // Legacy or string response - parse it
           parsed = this.parseResponse(response);
         }
-        
+
         // Cache the response
         this.setCachedResponse(request.cacheKey, parsed);
-        
+
         // Track success metrics
         const responseTime = Date.now() - startTime;
         avgResponseTime = (avgResponseTime * responseCount + responseTime) / (responseCount + 1);
         responseCount++;
         recentErrors = Math.max(0, recentErrors - 1); // Decay error count on success
-        
+
         request.resolve(parsed);
       } catch (error) {
         request.reject(error);
@@ -419,7 +459,7 @@ class AIIntegration {
           2000
         );
         
-        console.log(`Adaptive queue delay: ${Math.round(adaptiveDelay)}ms (queue: ${this.requestQueue.length}, errors: ${recentErrors})`);
+        automationLogger.logQueue(this.currentSessionId, 'adaptive_delay', { delay: Math.round(adaptiveDelay), queueLength: this.requestQueue.length, recentErrors });
         await new Promise(resolve => setTimeout(resolve, adaptiveDelay));
       }
     }
@@ -435,65 +475,77 @@ class AIIntegration {
    * @returns {Object} Formatted prompt with system and user components
    */
   // EASY WIN #6: Task decomposition helper (improves complex task success by 40-60%)
+  // Fixed: Only split on explicit sequential indicators, not "and" which appears in titles/names
   decomposeTask(task) {
-    // Check if task has multiple steps indicated by keywords
-    const multiStepIndicators = [' and ', ' then ', ', ', ' after ', ' before '];
-    const hasMultipleSteps = multiStepIndicators.some(indicator => task.toLowerCase().includes(indicator));
+    // Only split on explicit sequential indicators that clearly separate steps
+    // DO NOT split on just " and " as it appears in movie titles, product names, etc.
+    // e.g., "Avatar Fire and Ash", "Romeo and Juliet", "Search and Rescue"
+    const explicitSeparators = [
+      ' and then ',
+      ', then ',
+      ' then ',
+      ' after that ',
+      ' afterwards ',
+      ' next ',
+      '. Then ',
+      '. After that '
+    ];
 
-    if (!hasMultipleSteps || task.length < 20) {
-      return { steps: [task], isMultiStep: false };
+    const lowerTask = task.toLowerCase();
+
+    // Check each separator in order of specificity (most specific first)
+    for (const separator of explicitSeparators) {
+      if (lowerTask.includes(separator.toLowerCase())) {
+        // Split case-insensitively
+        const regex = new RegExp(separator.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        const steps = task.split(regex).map(s => s.trim()).filter(s => s.length > 0);
+
+        if (steps.length > 1) {
+          const numberedSteps = steps.map((step, i) => `Step ${i + 1}: ${step}`);
+          return {
+            steps: numberedSteps,
+            isMultiStep: true,
+            totalSteps: steps.length
+          };
+        }
+      }
     }
 
-    // Split on common separators
-    let steps = [];
-    if (task.includes(' and then ')) {
-      steps = task.split(' and then ').map(s => s.trim());
-    } else if (task.includes(', then ')) {
-      steps = task.split(', then ').map(s => s.trim());
-    } else if (task.includes(' then ')) {
-      steps = task.split(' then ').map(s => s.trim());
-    } else if (task.includes(' and ')) {
-      steps = task.split(' and ').map(s => s.trim());
-    } else {
-      steps = [task];
-    }
-
-    // Number the steps
-    const numberedSteps = steps.map((step, i) => `Step ${i + 1}: ${step}`);
-
-    return {
-      steps: numberedSteps,
-      isMultiStep: steps.length > 1,
-      totalSteps: steps.length
-    };
+    // No explicit separators found - treat as single task
+    // This ensures movie titles like "Avatar Fire and Ash" stay intact
+    return { steps: [task], isMultiStep: false };
   }
 
   buildPrompt(task, domState, context = null) {
-    console.log('[FSB AI Integration] ===== BUILDING PROMPT =====');
-    console.log('[FSB AI Integration] Task:', task);
-    console.log('[FSB AI Integration] DOM State Type:', domState._isDelta ? 'DELTA' : 'FULL');
+    automationLogger.debug('Building prompt', { sessionId: this.currentSessionId, task, domStateType: domState._isDelta ? 'DELTA' : 'FULL' });
+
+    // PERFORMANCE: Track iteration for tiered prompting
+    const iterationCount = context?.iterationCount || 1;
+    const isFirstIteration = iterationCount <= 1;
+    const isStuck = context?.isStuck || false;
+
+    automationLogger.debug('Prompt context', { sessionId: this.currentSessionId, iterationCount, isFirstIteration, isStuck });
 
     // EASY WIN #6: Decompose complex tasks
     const taskDecomposition = this.decomposeTask(task);
     if (taskDecomposition.isMultiStep) {
-      console.log('[FSB AI Integration] Multi-step task detected:', taskDecomposition.totalSteps, 'steps');
-      console.log('[FSB AI Integration] Steps:', taskDecomposition.steps);
+      automationLogger.debug('Multi-step task detected', { sessionId: this.currentSessionId, totalSteps: taskDecomposition.totalSteps, steps: taskDecomposition.steps });
     }
 
     // Log raw DOM state size
     const domStateStr = JSON.stringify(domState);
-    console.log('[FSB AI Integration] Raw DOM state size:', domStateStr.length.toLocaleString(), 'bytes');
+    automationLogger.logDOMOperation(this.currentSessionId, 'serialize', { sizeBytes: domStateStr.length });
 
     // Log DOM state details
     if (domState._isDelta && domState.type === 'delta') {
-      console.log('[FSB AI Integration] Delta details:', {
+      automationLogger.logDOMOperation(this.currentSessionId, 'delta_details', {
         added: domState.changes?.added?.length || 0,
         removed: domState.changes?.removed?.length || 0,
         modified: domState.changes?.modified?.length || 0,
         unchanged: domState.context?.unchanged?.length || 0
       });
     } else {
-      console.log('[FSB AI Integration] Full DOM details:', {
+      automationLogger.logDOMOperation(this.currentSessionId, 'full_dom_details', {
         totalElements: domState.elements?.length || 0,
         hasHtmlContext: !!domState.htmlContext
       });
@@ -501,10 +553,17 @@ class AIIntegration {
 
     // Determine task type for specialized prompting
     const taskType = this.detectTaskType(task);
-    console.log('[FSB AI Integration] Detected task type:', taskType);
-    
-    // Core system prompt - concise and focused with reasoning framework
-    const systemPrompt = `You are a browser automation agent. Analyze the DOM and complete the given task.
+    automationLogger.debug('Detected task type', { sessionId: this.currentSessionId, taskType });
+
+    // PERFORMANCE OPTIMIZATION: Use tiered system prompts
+    // First iteration OR stuck: Use full prompt with all instructions
+    // Subsequent iterations: Use minimal continuation prompt to save tokens
+    let systemPrompt;
+
+    if (isFirstIteration || isStuck) {
+      automationLogger.debug('Using FULL system prompt', { sessionId: this.currentSessionId, reason: isFirstIteration ? 'first_iteration' : 'stuck' });
+      // Core system prompt - concise and focused with reasoning framework
+      systemPrompt = `You are a browser automation agent. Analyze the DOM and complete the given task.
 
 CRITICAL REQUIREMENT: Respond with ONLY valid JSON. No markdown, no explanations, no code blocks.
 
@@ -586,7 +645,12 @@ AVAILABLE TOOLS:
 ${this.getToolsDocumentation(taskType)}
 
 ${TASK_PROMPTS[taskType]}`;
-    
+    } else {
+      // PERFORMANCE: Use minimal prompt for continuation iterations
+      automationLogger.debug('Using MINIMAL system prompt', { sessionId: this.currentSessionId, reason: 'continuation_iteration' });
+      systemPrompt = MINIMAL_CONTINUATION_PROMPT;
+    }
+
     // Validate domState structure
     if (!domState || typeof domState !== 'object') {
       throw new Error('Invalid DOM state provided to AI integration');
@@ -925,27 +989,34 @@ What actions should I take to complete the task?`;
     const finalPrompt = { systemPrompt, userPrompt };
     
     // Log final prompt details
-    console.log('[FSB AI Integration] Final prompt built:', {
+    automationLogger.debug('Final prompt built', {
+      sessionId: this.currentSessionId,
       systemPromptLength: systemPrompt.length,
       userPromptLength: userPrompt.length,
       totalLength: systemPrompt.length + userPrompt.length,
       estimatedTokens: Math.ceil((systemPrompt.length + userPrompt.length) / 3.5)
     });
-    
-    // Log truncated prompt for debugging (first 1000 chars of user prompt)
-    console.log('[FSB AI Integration] User prompt preview (first 1000 chars):');
-    console.log(userPrompt.substring(0, 1000) + (userPrompt.length > 1000 ? '\n... [TRUNCATED]' : ''));
-    
+
     // Store prompt for token estimation
     this.storePrompt(finalPrompt);
-    
+
+    // Log full prompt for session history (comprehensive logging)
+    if (typeof automationLogger !== 'undefined' && this.currentSessionId) {
+      automationLogger.logPrompt(
+        this.currentSessionId,
+        systemPrompt,
+        userPrompt,
+        this.currentIteration || 0
+      );
+    }
+
     return finalPrompt;
   }
   
   // Format elements for AI context with enhanced information
   formatElements(elements) {
     if (!Array.isArray(elements)) {
-      console.warn('formatElements received non-array:', elements);
+      automationLogger.warn('formatElements received non-array', { sessionId: this.currentSessionId, type: typeof elements });
       return 'No elements available';
     }
     
@@ -1259,15 +1330,25 @@ What actions should I take to complete the task?`;
     // Use provider if available, otherwise fallback to legacy implementation
     if (this.provider) {
       try {
-        console.log(`Making API call using ${this.settings.modelProvider} provider`);
-        console.log(`Model: ${this.settings.modelName}`);
-        
+        automationLogger.logAPI(this.currentSessionId, this.settings.modelProvider, 'call', { model: this.settings.modelName });
+
         // Set current provider for parsing context
         this.currentProvider = this.provider;
-        
+
+        // FSB TIMING: Track build request time
+        const buildStart = Date.now();
         const requestBody = await this.provider.buildRequest(prompt, {});
+        automationLogger.logTiming(this.currentSessionId, 'LLM', 'build_request', Date.now() - buildStart);
+
+        // FSB TIMING: Track send request time (main API latency)
+        const sendStart = Date.now();
         const response = await this.provider.sendRequest(requestBody);
+        automationLogger.logTiming(this.currentSessionId, 'LLM', 'send_request', Date.now() - sendStart);
+
+        // FSB TIMING: Track parse response time
+        const parseStart = Date.now();
         const parsed = this.provider.parseResponse(response);
+        automationLogger.logTiming(this.currentSessionId, 'LLM', 'parse_response', Date.now() - parseStart);
         
         // Track token usage
         this.trackTokenUsage({
@@ -1282,30 +1363,29 @@ What actions should I take to complete the task?`;
         // parsed.content is already a JSON object from universal provider
         return parsed.content;
       } catch (error) {
-        console.error(`${this.settings.modelProvider} API call failed:`, error);
+        automationLogger.error('API call failed', { sessionId: this.currentSessionId, provider: this.settings.modelProvider, error: error.message });
         this.trackTokenUsage(null, false);
         throw error;
       }
     }
-    
+
     // Legacy xAI implementation for backward compatibility
     return this.legacyCallAPI(prompt);
   }
-  
+
   // Legacy xAI API implementation
   async legacyCallAPI(prompt) {
     const { systemPrompt, userPrompt } = prompt;
-    
+
     // Check if API key is provided
     if (!this.settings.apiKey) {
       throw new Error('xAI API key is not configured. Please set it in extension settings.');
     }
-    
+
     const apiEndpoint = 'https://api.x.ai/v1/chat/completions';
     const model = this.settings.modelName || 'grok-3-fast';
-    
-    console.log('Making xAI API call (legacy):', apiEndpoint);
-    console.log('Using model:', model);
+
+    automationLogger.logAPI(this.currentSessionId, 'xai', 'legacy_call', { endpoint: apiEndpoint, model });
     
     const requestBody = {
       model: model,
@@ -1337,66 +1417,55 @@ What actions should I take to complete the task?`;
       return this.extractContent(data);
       
     } catch (error) {
-      console.error('xAI API call failed:', error);
+      automationLogger.error('xAI API call failed (legacy)', { sessionId: this.currentSessionId, error: error.message });
       this.trackTokenUsage(null, false);
       throw error;
     }
   }
-  
+
   // Extract content from xAI API response
   extractContent(data) {
-    console.log('Extracting content from xAI response...');
-    console.log('Full response data:', JSON.stringify(data, null, 2));
-    
-    // Log the response structure in detail
-    console.log('Response structure analysis:');
-    console.log('- Has choices:', !!data.choices);
-    console.log('- Choices is array:', Array.isArray(data.choices));
-    console.log('- Choices length:', data.choices?.length);
-    
-    if (data.choices && data.choices.length > 0) {
-      console.log('- First choice exists:', !!data.choices[0]);
-      console.log('- First choice keys:', Object.keys(data.choices[0] || {}));
-      
-      if (data.choices[0].message) {
-        console.log('- Message exists:', !!data.choices[0].message);
-        console.log('- Message keys:', Object.keys(data.choices[0].message || {}));
-        console.log('- Message content exists:', !!data.choices[0].message.content);
-      }
-    }
-    
+    automationLogger.logAPI(this.currentSessionId, 'xai', 'extract_content', {
+      hasChoices: !!data.choices,
+      choicesLength: data.choices?.length
+    });
+
     // Try multiple possible response formats for xAI Grok
     let messageContent = null;
-    
+    let contentFormat = null;
+
     // Standard OpenAI format
     if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
       messageContent = data.choices[0].message.content;
-      console.log('Found content using OpenAI format');
+      contentFormat = 'openai';
     }
     // Alternative xAI format - sometimes content is at root level
     else if (data.content) {
       messageContent = data.content;
-      console.log('Found content at root level');
+      contentFormat = 'root_level';
     }
     // Another alternative - text field
     else if (data.choices && data.choices[0] && data.choices[0].text) {
       messageContent = data.choices[0].text;
-      console.log('Found content in text field');
+      contentFormat = 'text_field';
     }
     // Direct message format
     else if (data.message) {
       messageContent = data.message;
-      console.log('Found content in direct message field');
+      contentFormat = 'direct_message';
     }
-    
+
     if (messageContent) {
-      console.log('Extracted message content:', messageContent);
-      console.log('Message content type:', typeof messageContent);
-      console.log('Message content length:', messageContent?.length);
+      automationLogger.logAPI(this.currentSessionId, 'xai', 'content_extracted', {
+        format: contentFormat,
+        contentLength: messageContent?.length
+      });
       return messageContent;
     } else {
-      console.error('Could not find message content in any expected location');
-      console.error('Available keys in response:', Object.keys(data));
+      automationLogger.error('Could not find message content in xAI response', {
+        sessionId: this.currentSessionId,
+        availableKeys: Object.keys(data)
+      });
       throw new Error('Could not extract message content from xAI API response');
     }
   }
@@ -1404,14 +1473,23 @@ What actions should I take to complete the task?`;
   // Parse Grok-3-mini response into actions
   parseResponse(responseText) {
     const provider = this.currentProvider?.provider || 'unknown';
-    console.log(`Parsing AI response from ${provider}...`);
-    console.log('Response preview (first 200 chars):', responseText?.substring(0, 200));
-    
+    automationLogger.logAPI(this.currentSessionId, provider, 'parse_start', { responsePreview: responseText?.substring(0, 200) });
+
+    // Log raw response for comprehensive session logging
+    if (typeof automationLogger !== 'undefined' && this.currentSessionId) {
+      automationLogger.logRawResponse(
+        this.currentSessionId,
+        responseText,
+        false, // Will update to true if parsing succeeds
+        this.currentIteration
+      );
+    }
+
     // Check if responseText is empty or null
     if (!responseText || responseText.trim() === '') {
       throw new Error('Empty response from AI');
     }
-    
+
     // Try multiple parsing strategies (no fallback recovery - demand proper JSON)
     const strategies = [
       () => this.parseCleanJSON(responseText),
@@ -1419,26 +1497,37 @@ What actions should I take to complete the task?`;
       () => this.parseWithJSONExtraction(responseText),
       () => this.parseWithAdvancedCleaning(responseText)
     ];
-    
+
     let lastError = null;
     let strategyIndex = 0;
-    
+
     for (const strategy of strategies) {
       try {
         const result = strategy();
         if (result && this.isValidParsedResponse(result)) {
-          console.log(`Successfully parsed ${provider} response using strategy ${strategyIndex + 1}`);
+          automationLogger.logAPI(this.currentSessionId, provider, 'parse_success', { strategy: strategyIndex + 1 });
+
+          // Log successful parse
+          if (typeof automationLogger !== 'undefined' && this.currentSessionId) {
+            automationLogger.logRawResponse(
+              this.currentSessionId,
+              responseText,
+              true,
+              this.currentIteration
+            );
+          }
+
           return result;
         }
       } catch (error) {
         lastError = error;
-        console.log(`Strategy ${strategyIndex + 1} failed for ${provider}:`, error.message);
+        automationLogger.debug(`Parse strategy ${strategyIndex + 1} failed`, { sessionId: this.currentSessionId, provider, error: error.message });
       }
       strategyIndex++;
     }
-    
+
     // If all strategies fail, throw a clear error demanding proper JSON
-    console.error(`${provider} AI Response that failed to parse:`, responseText.substring(0, 500));
+    automationLogger.error('All parse strategies failed', { sessionId: this.currentSessionId, provider, responsePreview: responseText.substring(0, 500) });
     throw new Error(`AI must respond with valid JSON only. No fallback recovery available. Provider: ${provider}. Last error: ${lastError?.message}`);
   }
   
@@ -1528,7 +1617,7 @@ What actions should I take to complete the task?`;
       }
     }
 
-    return {
+    const normalized = {
       // Core action fields
       actions: response.actions || [],
       taskComplete: response.taskComplete || false,
@@ -1543,6 +1632,13 @@ What actions should I take to complete the task?`;
       assumptions: response.assumptions || [],
       fallbackPlan: response.fallbackPlan || ''
     };
+
+    // Log reasoning fields for comprehensive session logging
+    if (typeof automationLogger !== 'undefined' && this.currentSessionId) {
+      automationLogger.logReasoning(this.currentSessionId, normalized, this.currentIteration);
+    }
+
+    return normalized;
   }
   
   // Validate parsed response has required structure
@@ -1738,53 +1834,53 @@ What actions should I take to complete the task?`;
   // Validate response structure
   isValidResponse(response) {
     if (!response || typeof response !== 'object') {
-      console.error('Validation failed: response is not an object', response);
+      automationLogger.logValidation(this.currentSessionId, 'response', false, { reason: 'not_an_object' });
       return false;
     }
-    
+
     // Check required fields
     if (!Array.isArray(response.actions)) {
-      console.error('Validation failed: actions is not an array', typeof response.actions, response.actions);
+      automationLogger.logValidation(this.currentSessionId, 'actions', false, { reason: 'not_an_array', type: typeof response.actions });
       return false;
     }
-    
+
     if (typeof response.taskComplete !== 'boolean') {
-      console.error('Validation failed: taskComplete is not a boolean', typeof response.taskComplete, response.taskComplete);
+      automationLogger.logValidation(this.currentSessionId, 'taskComplete', false, { reason: 'not_boolean', type: typeof response.taskComplete });
       return false;
     }
-    
+
     // Validate each action
     for (let i = 0; i < response.actions.length; i++) {
       const action = response.actions[i];
       if (!action.tool || !this.isValidTool(action.tool)) {
-        console.error(`Validation failed: action[${i}] has invalid tool`, action.tool);
+        automationLogger.logValidation(this.currentSessionId, 'action_tool', false, { index: i, tool: action.tool });
         return false;
       }
       if (!action.params || typeof action.params !== 'object') {
-        console.error(`Validation failed: action[${i}] has invalid params`, action.params);
+        automationLogger.logValidation(this.currentSessionId, 'action_params', false, { index: i, params: action.params });
         return false;
       }
-      
+
       // Validate required parameters for specific tools
       if (action.tool === 'openNewTab') {
         if (!action.params.url || typeof action.params.url !== 'string' || action.params.url.trim() === '') {
-          console.error(`Validation failed: action[${i}] openNewTab requires url parameter`, action.params);
+          automationLogger.logValidation(this.currentSessionId, 'openNewTab_url', false, { index: i, reason: 'missing_url' });
           return false;
         }
         if (!action.params.url.startsWith('http://') && !action.params.url.startsWith('https://')) {
-          console.error(`Validation failed: action[${i}] openNewTab url must be a valid HTTP/HTTPS URL`, action.params.url);
+          automationLogger.logValidation(this.currentSessionId, 'openNewTab_url', false, { index: i, reason: 'invalid_protocol', url: action.params.url });
           return false;
         }
       }
-      
+
       if (action.tool === 'switchToTab' || action.tool === 'closeTab') {
         if (!action.params.tabId) {
-          console.error(`Validation failed: action[${i}] ${action.tool} requires tabId parameter`, action.params);
+          automationLogger.logValidation(this.currentSessionId, `${action.tool}_tabId`, false, { index: i, reason: 'missing_tabId' });
           return false;
         }
       }
     }
-    
+
     return true;
   }
   
@@ -1811,8 +1907,8 @@ REMINDER: Output ONLY the JSON object, nothing else.`;
   
   // Create fallback response on complete failure
   createFallbackResponse(task, error) {
-    console.log('Creating fallback response due to repeated failures');
-    
+    automationLogger.logRecovery(this.currentSessionId, 'repeated_failures', 'fallback_response', 'created', { error: error?.message });
+
     return {
       actions: [],
       reasoning: '',
@@ -1830,20 +1926,17 @@ REMINDER: Output ONLY the JSON object, nothing else.`;
   async testConnection() {
     // Use provider if available
     if (this.provider) {
-      console.log(`Testing ${this.settings.modelProvider} API connection...`);
+      automationLogger.logAPI(null, this.settings.modelProvider, 'test_connection', { mode: 'provider' });
       return await this.provider.testConnection();
     }
-    
+
     // Legacy xAI test implementation
     if (!this.settings.apiKey) {
       throw new Error('API key is required for testing');
     }
-    
-    console.log('Testing xAI API connection (legacy)...');
-    
-    // Test the configured model
+
     const modelName = this.settings.modelName || 'grok-3-fast';
-    console.log(`Trying model: ${modelName}`);
+    automationLogger.logAPI(null, 'xai', 'test_connection', { mode: 'legacy', model: modelName });
       
       const testRequestBody = {
         model: modelName,
@@ -1874,27 +1967,27 @@ REMINDER: Output ONLY the JSON object, nothing else.`;
         if (response.ok) {
           const data = await response.json();
           result.data = data;
-          console.log(`✓ API test successful with model ${modelName}:`, result);
-          
+          automationLogger.logAPI(null, 'xai', 'test_success', { model: modelName, status: response.status });
+
           // Update the working model name
           this.model = modelName;
           return result;
-          
+
         } else {
           const errorText = await response.text();
           result.error = errorText;
-          console.log(`✗ Model ${modelName} failed:`, result);
-          
+          automationLogger.logAPI(null, 'xai', 'test_failed', { model: modelName, status: response.status, error: errorText });
+
           // Return the error result
           return result;
         }
-        
+
       } catch (error) {
-        console.error(`Connection failed for model ${modelName}:`, error);
-        
+        automationLogger.error('Connection test failed', { provider: 'xai', model: modelName, error: error.message });
+
         // Return the connection error
-        return { 
-          error: error.message, 
+        return {
+          error: error.message,
           connectionFailed: true,
           model: modelName
         };
@@ -1907,31 +2000,31 @@ REMINDER: Output ONLY the JSON object, nothing else.`;
       let inputTokens = 0;
       let outputTokens = 0;
       let tokenSource = 'none';
-      
-      console.log('Tracking token usage - API Response structure:', {
+
+      automationLogger.debug('Tracking token usage', {
+        sessionId: this.currentSessionId,
         hasUsage: !!(apiResponse && apiResponse.usage),
-        usage: apiResponse?.usage,
-        success: success,
-        responseKeys: apiResponse ? Object.keys(apiResponse) : null
+        success
       });
-      
+
       if (apiResponse && apiResponse.usage) {
         // Standard OpenAI-compatible usage format
         inputTokens = apiResponse.usage.prompt_tokens || 0;
         outputTokens = apiResponse.usage.completion_tokens || 0;
         tokenSource = 'api';
-        console.log('Using API-provided token counts:', { inputTokens, outputTokens });
+        automationLogger.debug('Using API-provided token counts', { sessionId: this.currentSessionId, inputTokens, outputTokens });
       } else if (apiResponse && success) {
         // Estimate token usage if not provided
         const responseText = this.extractContent(apiResponse);
-        
+
         // Improved estimation: GPT-style tokens are roughly 0.75 words or 4 characters
         const promptText = JSON.stringify(this.lastPrompt || '');
         inputTokens = Math.ceil(promptText.length / 3.5); // More accurate estimate
         outputTokens = Math.ceil((responseText?.length || 0) / 3.5);
         tokenSource = 'estimated';
-        
-        console.log('Using estimated token counts:', {
+
+        automationLogger.debug('Using estimated token counts', {
+          sessionId: this.currentSessionId,
           inputTokens,
           outputTokens,
           promptLength: promptText.length,
@@ -1943,46 +2036,62 @@ REMINDER: Output ONLY the JSON object, nothing else.`;
         inputTokens = Math.ceil(promptText.length / 3.5);
         outputTokens = 0;
         tokenSource = 'error';
-        
-        console.log('Tracking failed request:', { inputTokens, outputTokens });
+
+        automationLogger.debug('Tracking failed request', { sessionId: this.currentSessionId, inputTokens, outputTokens });
       }
-      
-      console.log('Final token tracking data:', {
-        model: this.model,
+
+      // Use model name with fallback to ensure it's never undefined
+      const modelName = this.model || this.settings?.modelName || 'unknown';
+
+      // Log token usage for comprehensive session logging
+      if (typeof automationLogger !== 'undefined' && this.currentSessionId) {
+        automationLogger.logTokenUsage(
+          this.currentSessionId,
+          modelName,
+          inputTokens,
+          outputTokens,
+          tokenSource,
+          this.currentIteration
+        );
+      }
+
+      automationLogger.debug('Final token tracking data', {
+        sessionId: this.currentSessionId,
+        model: modelName,
         inputTokens,
         outputTokens,
         success,
         tokenSource
       });
-      
+
       // Check if analytics is available (from options page)
       if (typeof window !== 'undefined' && window.analytics) {
-        console.log('Tracking via window.analytics');
-        window.analytics.trackUsage(this.model, inputTokens, outputTokens, success);
+        automationLogger.debug('Tracking via window.analytics', { sessionId: this.currentSessionId });
+        window.analytics.trackUsage(modelName, inputTokens, outputTokens, success);
       } else {
-        console.log('window.analytics not available - using background script');
+        automationLogger.debug('window.analytics not available - using background script', { sessionId: this.currentSessionId });
       }
-      
+
       // Check if we're in the background script context
       if (typeof initializeAnalytics !== 'undefined') {
         // We're in the background script, track directly
-        console.log('AI Integration: In background context, tracking directly');
+        automationLogger.debug('In background context, tracking directly', { sessionId: this.currentSessionId });
         try {
           const analytics = initializeAnalytics();
-          analytics.trackUsage(this.model, inputTokens, outputTokens, success).then(() => {
-            console.log('AI Integration: Direct usage tracking completed');
+          analytics.trackUsage(modelName, inputTokens, outputTokens, success).then(() => {
+            automationLogger.debug('Direct usage tracking completed', { sessionId: this.currentSessionId });
           }).catch((error) => {
-            console.error('AI Integration: Direct tracking failed:', error);
+            automationLogger.error('Direct tracking failed', { sessionId: this.currentSessionId, error: error.message });
           });
         } catch (error) {
-          console.error('AI Integration: Failed to initialize analytics:', error);
+          automationLogger.error('Failed to initialize analytics', { sessionId: this.currentSessionId, error: error.message });
         }
       } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
         // We're in a content script or other context, send message
         const trackingData = {
           action: 'TRACK_USAGE',
           data: {
-            model: this.model,
+            model: modelName,
             inputTokens: inputTokens,
             outputTokens: outputTokens,
             success: success,
@@ -1990,32 +2099,29 @@ REMINDER: Output ONLY the JSON object, nothing else.`;
             timestamp: Date.now()
           }
         };
-        
-        console.log('AI Integration: Sending tracking message to background:', trackingData);
-        
+
+        automationLogger.logComm(this.currentSessionId, 'send', 'TRACK_USAGE', true, { model: modelName, inputTokens, outputTokens });
+
         chrome.runtime.sendMessage(trackingData).then((response) => {
-          console.log('AI Integration: Background response received:', response);
           if (response && response.error) {
-            console.error('AI Integration: Background returned error:', response.error);
+            automationLogger.error('Background returned error for tracking', { sessionId: this.currentSessionId, error: response.error });
           } else if (!response) {
-            console.warn('AI Integration: Background returned no response');
+            automationLogger.warn('Background returned no response for tracking', { sessionId: this.currentSessionId });
           } else if (response.success) {
-            console.log('AI Integration: Usage tracking confirmed by background');
+            automationLogger.debug('Usage tracking confirmed by background', { sessionId: this.currentSessionId });
           }
         }).catch((error) => {
-          console.error('AI Integration: Failed to send tracking message:', error);
-          console.error('AI Integration: Error details:', {
-            name: error.name,
-            message: error.message,
-            stack: error.stack
+          automationLogger.error('Failed to send tracking message', {
+            sessionId: this.currentSessionId,
+            error: error.message,
+            name: error.name
           });
         });
       } else {
-        console.warn('AI Integration: Chrome runtime not available for usage tracking');
-        console.warn('AI Integration: Available globals:', Object.keys(typeof window !== 'undefined' ? window : global || self));
+        automationLogger.warn('Chrome runtime not available for usage tracking', { sessionId: this.currentSessionId });
       }
     } catch (error) {
-      console.error('Failed to track token usage:', error);
+      automationLogger.error('Failed to track token usage', { sessionId: this.currentSessionId, error: error.message });
     }
   }
   
