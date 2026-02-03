@@ -2808,14 +2808,78 @@ const tools = {
     
     // Try to find alternative selectors
     const alternatives = findAlternativeSelectors(params.selector, 'click');
-    
-    return { 
-      success: false, 
-      error: 'Element not found',
+
+    // Try alternative selectors first
+    for (const altSelector of alternatives.slice(0, 3)) {
+      try {
+        const altElement = querySelectorWithShadow(altSelector);
+        if (altElement) {
+          // Found an alternative - attempt click
+          altElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          const altRect = altElement.getBoundingClientRect();
+          const altCenterX = altRect.left + altRect.width / 2;
+          const altCenterY = altRect.top + altRect.height / 2;
+
+          const mouseEventInit = {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            clientX: altCenterX,
+            clientY: altCenterY,
+            screenX: altCenterX + window.screenX,
+            screenY: altCenterY + window.screenY,
+            button: 0,
+            buttons: 1
+          };
+
+          altElement.dispatchEvent(new MouseEvent('mousedown', mouseEventInit));
+          altElement.dispatchEvent(new MouseEvent('mouseup', mouseEventInit));
+          altElement.dispatchEvent(new MouseEvent('click', mouseEventInit));
+          altElement.click();
+
+          automationLogger.log('info', 'Click succeeded with alternative selector', {
+            sessionId: currentSessionId,
+            originalSelector: params.selector,
+            usedSelector: altSelector
+          });
+
+          return {
+            success: true,
+            clicked: altSelector,
+            usedAlternative: true,
+            originalSelector: params.selector,
+            message: 'Clicked using alternative selector'
+          };
+        }
+      } catch (e) {
+        // Continue to next alternative
+      }
+    }
+
+    // All selectors failed - try coordinate fallback if coordinates provided
+    if (params.coordinates && typeof params.coordinates.x === 'number' && typeof params.coordinates.y === 'number') {
+      return await clickAtCoordinates({
+        x: params.coordinates.x,
+        y: params.coordinates.y,
+        width: params.coordinates.width || 0,
+        height: params.coordinates.height || 0,
+        originalSelector: params.selector,
+        reason: 'all_selectors_failed'
+      });
+    }
+
+    // No coordinates available - return failure
+    return {
+      success: false,
+      error: 'Element not found and no coordinates available for fallback',
       selector: params.selector,
       alternatives: alternatives.length,
-      alternativeSelectors: alternatives.slice(0, 3), // Return up to 3 alternatives
-      suggestion: alternatives.length > 0 ? 'Try one of the alternative selectors' : 'No similar elements found'
+      alternativeSelectors: alternatives.slice(0, 3),
+      suggestion: alternatives.length > 0
+        ? 'Try one of the alternative selectors'
+        : 'No similar elements found. AI should provide coordinates in click params for fallback.'
     };
   },
   
