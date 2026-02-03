@@ -1590,6 +1590,421 @@ function isElementActionable(node) {
   return result;
 }
 
+// =============================================================================
+// ELEMENT READINESS CHECK FUNCTIONS (Playwright-style actionability validation)
+// =============================================================================
+
+/**
+ * Check if element is visible (not hidden by CSS or zero dimensions)
+ * @param {Element} element - The DOM element to check
+ * @returns {Object} { passed: boolean, reason: string|null, details: object }
+ */
+function checkElementVisibility(element) {
+  // Check element exists
+  if (!element) {
+    return {
+      passed: false,
+      reason: 'Element is null or undefined',
+      details: { elementExists: false }
+    };
+  }
+
+  // Check bounding box has non-zero dimensions
+  const rect = element.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) {
+    return {
+      passed: false,
+      reason: 'Element has zero dimensions',
+      details: {
+        rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left }
+      }
+    };
+  }
+
+  // Use modern checkVisibility API if available
+  if (typeof element.checkVisibility === 'function') {
+    const isVisible = element.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+    if (!isVisible) {
+      // Fallback to get specific reason via computed style
+      const style = window.getComputedStyle(element);
+      return {
+        passed: false,
+        reason: 'Element not visible (checkVisibility returned false)',
+        details: {
+          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
+          display: style.display,
+          visibility: style.visibility,
+          opacity: style.opacity
+        }
+      };
+    }
+  } else {
+    // Fallback to getComputedStyle checks
+    const style = window.getComputedStyle(element);
+
+    if (style.display === 'none') {
+      return {
+        passed: false,
+        reason: 'Element has display:none',
+        details: {
+          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
+          display: style.display
+        }
+      };
+    }
+
+    if (style.visibility === 'hidden') {
+      return {
+        passed: false,
+        reason: 'Element has visibility:hidden',
+        details: {
+          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
+          visibility: style.visibility
+        }
+      };
+    }
+
+    if (parseFloat(style.opacity) === 0) {
+      return {
+        passed: false,
+        reason: 'Element has opacity:0',
+        details: {
+          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
+          opacity: style.opacity
+        }
+      };
+    }
+  }
+
+  return {
+    passed: true,
+    reason: null,
+    details: {
+      rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left }
+    }
+  };
+}
+
+/**
+ * Check if element is enabled (not disabled by various mechanisms)
+ * @param {Element} element - The DOM element to check
+ * @returns {Object} { passed: boolean, reason: string|null, details: object }
+ */
+function checkElementEnabled(element) {
+  const details = {};
+
+  // Check native disabled (catches fieldset-disabled too via :disabled pseudo-class)
+  try {
+    if (element.matches(':disabled')) {
+      details.nativeDisabled = true;
+      return {
+        passed: false,
+        reason: 'Element is disabled (native :disabled)',
+        details
+      };
+    }
+    details.nativeDisabled = false;
+  } catch (e) {
+    // :disabled not applicable to this element type
+    details.nativeDisabled = false;
+  }
+
+  // Check aria-disabled on element
+  if (element.getAttribute('aria-disabled') === 'true') {
+    details.ariaDisabled = true;
+    return {
+      passed: false,
+      reason: 'Element has aria-disabled="true"',
+      details
+    };
+  }
+  details.ariaDisabled = false;
+
+  // Check ancestor aria-disabled
+  const disabledAncestor = element.closest('[aria-disabled="true"]');
+  if (disabledAncestor && disabledAncestor !== element) {
+    details.ancestorAriaDisabled = true;
+    return {
+      passed: false,
+      reason: 'Ancestor has aria-disabled="true"',
+      details
+    };
+  }
+  details.ancestorAriaDisabled = false;
+
+  // Check inert (element is inert or inside inert container)
+  try {
+    if (element.matches('[inert], [inert] *')) {
+      details.inert = true;
+      return {
+        passed: false,
+        reason: 'Element is inert or inside inert container',
+        details
+      };
+    }
+    details.inert = false;
+  } catch (e) {
+    details.inert = false;
+  }
+
+  return {
+    passed: true,
+    reason: null,
+    details
+  };
+}
+
+/**
+ * Check if element position is stable (not animating)
+ * @param {Element} element - The DOM element to check
+ * @param {number} maxWaitMs - Maximum time to wait for stability (default 300ms)
+ * @returns {Promise<Object>} { passed: boolean, reason: string|null, details: object }
+ */
+async function checkElementStable(element, maxWaitMs = 300) {
+  const startTime = Date.now();
+  const TOLERANCE = 1; // 1px tolerance for position comparison
+
+  // Get initial position
+  const getPosition = () => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+  };
+
+  const initialPosition = getPosition();
+
+  // Check position after one frame
+  const checkAfterFrame = () => {
+    return new Promise(resolve => {
+      requestAnimationFrame(() => {
+        const newPosition = getPosition();
+        const delta = {
+          top: Math.abs(newPosition.top - initialPosition.top),
+          left: Math.abs(newPosition.left - initialPosition.left),
+          width: Math.abs(newPosition.width - initialPosition.width),
+          height: Math.abs(newPosition.height - initialPosition.height)
+        };
+
+        const isStable = delta.top <= TOLERANCE &&
+                         delta.left <= TOLERANCE &&
+                         delta.width <= TOLERANCE &&
+                         delta.height <= TOLERANCE;
+
+        resolve({ isStable, newPosition, delta });
+      });
+    });
+  };
+
+  // First check
+  let result = await checkAfterFrame();
+
+  if (result.isStable) {
+    return {
+      passed: true,
+      reason: null,
+      details: {
+        position: initialPosition,
+        checkTime: Date.now() - startTime
+      }
+    };
+  }
+
+  // Element is moving - wait for stability up to maxWaitMs
+  while (Date.now() - startTime < maxWaitMs) {
+    await new Promise(r => setTimeout(r, 50)); // Check every 50ms
+
+    const prevPosition = result.newPosition;
+    result = await checkAfterFrame();
+
+    // Check against previous position, not initial
+    const delta = {
+      top: Math.abs(result.newPosition.top - prevPosition.top),
+      left: Math.abs(result.newPosition.left - prevPosition.left),
+      width: Math.abs(result.newPosition.width - prevPosition.width),
+      height: Math.abs(result.newPosition.height - prevPosition.height)
+    };
+
+    const nowStable = delta.top <= TOLERANCE &&
+                      delta.left <= TOLERANCE &&
+                      delta.width <= TOLERANCE &&
+                      delta.height <= TOLERANCE;
+
+    if (nowStable) {
+      return {
+        passed: true,
+        reason: null,
+        details: {
+          position: result.newPosition,
+          checkTime: Date.now() - startTime
+        }
+      };
+    }
+  }
+
+  // Timed out waiting for stability
+  return {
+    passed: false,
+    reason: 'Element position is unstable (animating)',
+    details: {
+      position: result.newPosition,
+      delta: result.delta,
+      checkTime: Date.now() - startTime
+    }
+  };
+}
+
+/**
+ * Check if element can receive pointer events (not obscured by other elements)
+ * Uses multi-point hit testing for more reliable detection
+ * @param {Element} element - The DOM element to check
+ * @returns {Object} { passed: boolean, reason: string|null, details: object, obscuredBy?: string }
+ */
+function checkElementReceivesEvents(element) {
+  const rect = element.getBoundingClientRect();
+
+  // Calculate 5 check points: center + 4 quadrant points
+  const points = [
+    { name: 'center', x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+    { name: 'topLeft', x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25 },
+    { name: 'topRight', x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25 },
+    { name: 'bottomLeft', x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75 },
+    { name: 'bottomRight', x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75 }
+  ];
+
+  // Filter to points within viewport
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  const pointsInViewport = points.filter(p =>
+    p.x >= 0 && p.x <= viewportWidth && p.y >= 0 && p.y <= viewportHeight
+  );
+
+  if (pointsInViewport.length === 0) {
+    return {
+      passed: false,
+      reason: 'Element is outside viewport',
+      details: {
+        checkedPoints: 0,
+        passedPoints: 0,
+        rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+      }
+    };
+  }
+
+  // Check each point
+  const checkedPoints = [];
+  const passedPoints = [];
+  let obscuredBy = null;
+
+  for (const point of pointsInViewport) {
+    const hitElement = document.elementFromPoint(point.x, point.y);
+    checkedPoints.push(point.name);
+
+    // Check if hit element is the target, or they have a parent/child relationship
+    const hitIsTarget = hitElement === element;
+    const targetContainsHit = hitElement && element.contains(hitElement);
+    const hitContainsTarget = hitElement && hitElement.contains(element);
+
+    if (hitIsTarget || targetContainsHit || hitContainsTarget) {
+      passedPoints.push(point.name);
+    } else if (!obscuredBy && hitElement) {
+      // Record what's obscuring (only first one)
+      obscuredBy = hitElement.tagName.toLowerCase() +
+        (hitElement.id ? `#${hitElement.id}` : '') +
+        (hitElement.className && typeof hitElement.className === 'string'
+          ? `.${hitElement.className.split(' ')[0]}`
+          : '');
+    }
+  }
+
+  // Require center point to pass (if it was checked), or at least 1 point if center not in viewport
+  const centerChecked = checkedPoints.includes('center');
+  const centerPassed = passedPoints.includes('center');
+
+  const passed = centerChecked ? centerPassed : passedPoints.length > 0;
+
+  const result = {
+    passed,
+    reason: passed ? null : `Element is obscured at ${centerChecked ? 'center' : 'all visible points'}`,
+    details: {
+      checkedPoints: checkedPoints.length,
+      passedPoints: passedPoints.length,
+      checkedPointNames: checkedPoints,
+      passedPointNames: passedPoints
+    }
+  };
+
+  if (obscuredBy) {
+    result.obscuredBy = obscuredBy;
+  }
+
+  return result;
+}
+
+/**
+ * Check if element is editable (for input operations)
+ * @param {Element} element - The DOM element to check
+ * @returns {Object} { passed: boolean, reason: string|null, details: object }
+ */
+function checkElementEditable(element) {
+  const details = {};
+
+  // Check disabled
+  try {
+    if (element.matches(':disabled')) {
+      details.disabled = true;
+      return {
+        passed: false,
+        reason: 'Element is disabled',
+        details
+      };
+    }
+    details.disabled = false;
+  } catch (e) {
+    details.disabled = false;
+  }
+
+  // Check readonly property
+  if (element.readOnly) {
+    details.readonly = true;
+    return {
+      passed: false,
+      reason: 'Element is readonly',
+      details
+    };
+  }
+  details.readonly = false;
+
+  // Check aria-readonly
+  if (element.getAttribute('aria-readonly') === 'true') {
+    details.ariaReadonly = true;
+    return {
+      passed: false,
+      reason: 'Element has aria-readonly="true"',
+      details
+    };
+  }
+  details.ariaReadonly = false;
+
+  // Check contenteditable="false" for contenteditable elements
+  const contentEditable = element.getAttribute('contenteditable');
+  if (contentEditable !== null) {
+    details.contenteditable = contentEditable;
+    if (contentEditable === 'false') {
+      return {
+        passed: false,
+        reason: 'Element has contenteditable="false"',
+        details
+      };
+    }
+  }
+
+  return {
+    passed: true,
+    reason: null,
+    details
+  };
+}
+
 /**
  * Smart wait for element to be actionable using DOM mutation detection
  * NO hardcoded timeouts - uses actual DOM signals for fail-fast behavior
