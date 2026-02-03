@@ -903,6 +903,14 @@ class ProgressOverlay {
 // Singleton instance for progress overlay
 const progressOverlay = new ProgressOverlay();
 
+// VIS-07: Clean up visual feedback on page navigation/unload
+window.addEventListener('beforeunload', () => {
+  try {
+    highlightManager.cleanup();
+    progressOverlay.destroy();
+  } catch (e) { /* ignore cleanup errors on unload */ }
+});
+
 // ============================================================================
 // IFRAME SUPPORT - Detect if running in iframe and manage cross-frame comms
 // ============================================================================
@@ -7491,41 +7499,112 @@ async function handleAsyncMessage(request, sendResponse) {
         break;
         
       case 'executeAction':
-        const { tool, params } = request;
+        const { tool, params, visualContext } = request;
         automationLogger.logActionExecution(currentSessionId, tool, 'start', params);
 
+        // VIS-02: Initialize/update progress overlay on action start
+        if (visualContext) {
+          try {
+            progressOverlay.create();
+            progressOverlay.update({
+              taskName: visualContext.taskName,
+              stepNumber: visualContext.stepNumber,
+              stepText: `${tool}: Preparing...`,
+              progress: ((visualContext.stepNumber - 1) / visualContext.totalSteps) * 100
+            });
+            progressOverlay.show();
+          } catch (overlayError) {
+            console.warn('[FSB] Progress overlay error (non-blocking):', overlayError.message);
+          }
+        }
+
         if (tools[tool]) {
+          // VIS-01/VIS-03: Show highlight on target element if selector present
+          // Wrapped in try-catch to prevent highlight failures from blocking action (VIS-05)
+          if (params && params.selector) {
+            try {
+              const targetElement = querySelectorWithShadow(params.selector);
+              if (targetElement) {
+                // VIS-03: 500ms minimum highlight before action proceeds
+                await highlightManager.show(targetElement, { duration: 500 });
+              }
+            } catch (highlightError) {
+              console.warn('[FSB] Highlight error (non-blocking):', highlightError.message);
+              // Proceed with action even if highlight fails
+            }
+          }
+
+          // Update progress to show executing
+          if (visualContext) {
+            try {
+              progressOverlay.update({
+                stepText: `${tool}: Executing...`,
+                progress: (visualContext.stepNumber / visualContext.totalSteps) * 100
+              });
+            } catch (updateError) {
+              // Non-blocking - continue with action
+            }
+          }
+
           // Add timeout wrapper for long-running operations
           const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error(`Action ${tool} timed out after 10 seconds`)), 10000);
           });
 
-          // FSB TIMING: Track action execution time in content script
-          const execStart = Date.now();
-          const actionPromise = tools[tool](params);
-          result = await Promise.race([actionPromise, timeoutPromise]);
-          automationLogger.logTiming(currentSessionId, 'ACTION', tool, Date.now() - execStart, { success: result?.success });
+          try {
+            // FSB TIMING: Track action execution time in content script
+            const execStart = Date.now();
+            const actionPromise = tools[tool](params);
+            result = await Promise.race([actionPromise, timeoutPromise]);
+            automationLogger.logTiming(currentSessionId, 'ACTION', tool, Date.now() - execStart, { success: result?.success });
 
-          // Validate result structure
-          if (result === undefined || result === null) {
-            automationLogger.warn('Action returned null/undefined result', { sessionId: currentSessionId, tool });
-            sendResponse({
-              success: false,
-              error: `Action ${tool} returned no result`,
-              tool: tool,
-              executionTime: Date.now() - startTime
-            });
-          } else {
-            // FIX: Pass through the action's success status directly
-            // Previously we wrapped with {success: true} which masked action failures
-            // The result object already has its own success field
-            sendResponse({
-              ...result,  // Spread result first (includes result.success)
-              tool: tool,
-              executionTime: Date.now() - startTime
-            });
+            // VIS-04: Clean up highlight after action completes
+            highlightManager.hide();
+
+            // VIS-06: Destroy progress overlay after last action in sequence
+            if (visualContext && visualContext.stepNumber === visualContext.totalSteps) {
+              setTimeout(() => {
+                try {
+                  progressOverlay.destroy();
+                } catch (e) { /* ignore cleanup errors */ }
+              }, 500);
+            }
+
+            // Validate result structure
+            if (result === undefined || result === null) {
+              automationLogger.warn('Action returned null/undefined result', { sessionId: currentSessionId, tool });
+              sendResponse({
+                success: false,
+                error: `Action ${tool} returned no result`,
+                tool: tool,
+                executionTime: Date.now() - startTime
+              });
+            } else {
+              // FIX: Pass through the action's success status directly
+              // Previously we wrapped with {success: true} which masked action failures
+              // The result object already has its own success field
+              sendResponse({
+                ...result,  // Spread result first (includes result.success)
+                tool: tool,
+                executionTime: Date.now() - startTime
+              });
+            }
+          } catch (actionError) {
+            // VIS-06: Clean up visual feedback on action error
+            try {
+              highlightManager.hide();
+              progressOverlay.destroy();
+            } catch (cleanupError) {
+              // Ignore cleanup errors
+            }
+            // Re-throw to preserve existing error handling in outer catch
+            throw actionError;
           }
         } else {
+          // VIS-06: Clean up overlay for unknown tool
+          try {
+            progressOverlay.destroy();
+          } catch (e) { /* ignore */ }
           automationLogger.error('Unknown tool requested', { sessionId: currentSessionId, tool });
           sendResponse({ success: false, error: `Unknown tool: ${tool}` });
         }
@@ -7536,9 +7615,16 @@ async function handleAsyncMessage(request, sendResponse) {
         sendResponse({ success: false, error: `Unknown action: ${request.action}` });
     }
   } catch (error) {
+    // VIS-06: Clean up visual feedback on any error in async handler
+    try {
+      highlightManager.hide();
+      progressOverlay.destroy();
+    } catch (cleanupError) {
+      // Ignore cleanup errors
+    }
     automationLogger.error('Error in async message handler', { sessionId: currentSessionId, action: request.action, error: error.message });
-    sendResponse({ 
-      success: false, 
+    sendResponse({
+      success: false,
       error: error.message || 'Unknown error in async handler',
       stack: error.stack,
       action: request.action,
@@ -7592,20 +7678,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break;
       
     case 'highlightElement':
-      try {
-        const element = document.querySelector(request.selector);
-        if (element) {
-          element.style.outline = '3px solid red';
-          setTimeout(() => {
-            element.style.outline = '';
-          }, 2000);
-          sendResponse({ success: true });
-        } else {
-          sendResponse({ success: false, error: 'Element not found' });
+      // Use highlightManager for consistent visual feedback
+      (async () => {
+        try {
+          const element = querySelectorWithShadow(request.selector);
+          if (element) {
+            await highlightManager.show(element, { duration: request.duration || 2000 });
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false, error: 'Element not found' });
+          }
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
         }
-      } catch (error) {
-        sendResponse({ success: false, error: error.message });
-      }
+      })();
+      return true; // Keep message channel open for async response
       break;
 
     // Reset DOM state cache between sessions to prevent stale state comparison
