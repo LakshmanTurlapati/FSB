@@ -2006,6 +2006,159 @@ function checkElementEditable(element) {
 }
 
 /**
+ * Scroll element into view only if needed (not fully visible or center not visible)
+ * @param {Element} element - The DOM element to scroll into view
+ * @returns {Promise<Object>} { scrolled: boolean, details: object }
+ */
+async function scrollIntoViewIfNeeded(element) {
+  const rect = element.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  // Check if element is fully visible in viewport
+  const wasFullyVisible = rect.top >= 0 &&
+                          rect.left >= 0 &&
+                          rect.bottom <= viewportHeight &&
+                          rect.right <= viewportWidth;
+
+  // Check if center is visible (even if edges are clipped)
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const wasCenterVisible = centerX >= 0 &&
+                           centerX <= viewportWidth &&
+                           centerY >= 0 &&
+                           centerY <= viewportHeight;
+
+  const initialRect = {
+    top: rect.top,
+    left: rect.left,
+    bottom: rect.bottom,
+    right: rect.right,
+    width: rect.width,
+    height: rect.height
+  };
+
+  // If fully visible and center is visible, no need to scroll
+  if (wasFullyVisible && wasCenterVisible) {
+    return {
+      scrolled: false,
+      details: {
+        initialRect,
+        wasFullyVisible,
+        wasCenterVisible
+      }
+    };
+  }
+
+  // Need to scroll - use smooth scroll to center
+  element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+
+  // Wait for scroll animation (300ms)
+  await new Promise(r => setTimeout(r, 300));
+
+  // Get final rect
+  const finalRectRaw = element.getBoundingClientRect();
+  const finalRect = {
+    top: finalRectRaw.top,
+    left: finalRectRaw.left,
+    bottom: finalRectRaw.bottom,
+    right: finalRectRaw.right,
+    width: finalRectRaw.width,
+    height: finalRectRaw.height
+  };
+
+  return {
+    scrolled: true,
+    details: {
+      initialRect,
+      finalRect,
+      wasFullyVisible,
+      wasCenterVisible
+    }
+  };
+}
+
+/**
+ * Orchestrator function to ensure element is ready for interaction
+ * Calls all readiness checks in correct order and returns unified result
+ * @param {Element} element - The DOM element to check
+ * @param {string} actionType - Type of action to perform (default 'click')
+ * @returns {Promise<Object>} Unified readiness result object
+ */
+async function ensureElementReady(element, actionType = 'click') {
+  const inputActions = ['type', 'fill', 'clear', 'clearInput', 'selectText'];
+  const result = {
+    ready: true,
+    element: element,
+    scrolled: false,
+    checks: {},
+    failureReason: null,
+    failureDetails: null
+  };
+
+  // 1. Check visibility - fail fast if not visible
+  const visibleCheck = checkElementVisibility(element);
+  result.checks.visible = visibleCheck;
+  if (!visibleCheck.passed) {
+    result.ready = false;
+    result.failureReason = visibleCheck.reason;
+    result.failureDetails = visibleCheck.details;
+    return result;
+  }
+
+  // 2. Check enabled - fail fast if disabled
+  const enabledCheck = checkElementEnabled(element);
+  result.checks.enabled = enabledCheck;
+  if (!enabledCheck.passed) {
+    result.ready = false;
+    result.failureReason = enabledCheck.reason;
+    result.failureDetails = enabledCheck.details;
+    return result;
+  }
+
+  // 3. Scroll into view if needed
+  const scrollResult = await scrollIntoViewIfNeeded(element);
+  result.scrolled = scrollResult.scrolled;
+
+  // 4. Check stability - wait for animations
+  const stableCheck = await checkElementStable(element);
+  result.checks.stable = stableCheck;
+  if (!stableCheck.passed) {
+    result.ready = false;
+    result.failureReason = stableCheck.reason;
+    result.failureDetails = stableCheck.details;
+    return result;
+  }
+
+  // 5. Check receives events - not obscured
+  const eventsCheck = checkElementReceivesEvents(element);
+  result.checks.receivesEvents = eventsCheck;
+  if (!eventsCheck.passed) {
+    result.ready = false;
+    result.failureReason = eventsCheck.reason;
+    result.failureDetails = eventsCheck.details;
+    if (eventsCheck.obscuredBy) {
+      result.failureDetails.obscuredBy = eventsCheck.obscuredBy;
+    }
+    return result;
+  }
+
+  // 6. Check editable - only for input actions
+  if (inputActions.includes(actionType)) {
+    const editableCheck = checkElementEditable(element);
+    result.checks.editable = editableCheck;
+    if (!editableCheck.passed) {
+      result.ready = false;
+      result.failureReason = editableCheck.reason;
+      result.failureDetails = editableCheck.details;
+      return result;
+    }
+  }
+
+  return result;
+}
+
+/**
  * Smart wait for element to be actionable using DOM mutation detection
  * NO hardcoded timeouts - uses actual DOM signals for fail-fast behavior
  * @param {string} selector - CSS selector for the element
