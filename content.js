@@ -671,6 +671,238 @@ class HighlightManager {
 // Singleton instance for highlight management
 const highlightManager = new HighlightManager();
 
+/**
+ * ProgressOverlay - Floating progress indicator using Shadow DOM
+ *
+ * Uses Shadow DOM for complete style isolation from host page.
+ * Shows task name, step number, step text, and progress bar.
+ * Positioned in top-right corner with maximum z-index.
+ */
+class ProgressOverlay {
+  constructor() {
+    this.host = null;
+    this.shadow = null;
+    this.container = null;
+  }
+
+  /**
+   * Create the overlay in Shadow DOM if not already created
+   */
+  create() {
+    if (this.host) return; // Already created
+
+    // Create host element
+    this.host = document.createElement('div');
+    this.host.id = 'fsb-progress-host';
+    // Reset all inherited styles and position at top of stacking context
+    this.host.style.cssText = `
+      all: initial !important;
+      position: fixed !important;
+      z-index: 2147483647 !important;
+      top: 0 !important;
+      right: 0 !important;
+      pointer-events: none !important;
+    `;
+
+    // Create shadow root for complete style isolation
+    this.shadow = this.host.attachShadow({ mode: 'open' });
+
+    // Inject styles (completely isolated from host page)
+    const style = document.createElement('style');
+    style.textContent = `
+      :host {
+        all: initial !important;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      .fsb-overlay {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        min-width: 200px;
+        max-width: 300px;
+        background: rgba(20, 20, 25, 0.95);
+        color: #ffffff;
+        padding: 14px 18px;
+        border-radius: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
+        line-height: 1.4;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 140, 0, 0.3);
+        pointer-events: auto;
+        transform: translateY(0);
+        opacity: 1;
+        transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+      }
+
+      .fsb-overlay.hidden {
+        transform: translateY(-20px);
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .fsb-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .fsb-logo {
+        width: 20px;
+        height: 20px;
+        background: linear-gradient(135deg, #FF8C00, #FF6600);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 10px;
+        color: #ffffff;
+      }
+
+      .fsb-title {
+        font-weight: 600;
+        color: #ffffff;
+        font-size: 13px;
+      }
+
+      .fsb-task {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 12px;
+        margin-bottom: 8px;
+        word-break: break-word;
+      }
+
+      .fsb-step {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .fsb-step-number {
+        background: rgba(255, 140, 0, 0.2);
+        color: #FF8C00;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .fsb-step-text {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 12px;
+        flex: 1;
+      }
+
+      .fsb-progress-bar {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+
+      .fsb-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #FF8C00, #FF6600);
+        border-radius: 2px;
+        transition: width 0.3s ease-out;
+      }
+    `;
+
+    this.shadow.appendChild(style);
+
+    // Create overlay container
+    this.container = document.createElement('div');
+    this.container.className = 'fsb-overlay';
+    this.container.innerHTML = `
+      <div class="fsb-header">
+        <div class="fsb-logo">F</div>
+        <span class="fsb-title">FSB Automating</span>
+      </div>
+      <div class="fsb-task">-</div>
+      <div class="fsb-step">
+        <span class="fsb-step-number">Step 0</span>
+        <span class="fsb-step-text">Initializing...</span>
+      </div>
+      <div class="fsb-progress-bar">
+        <div class="fsb-progress-fill" style="width: 0%"></div>
+      </div>
+    `;
+
+    this.shadow.appendChild(this.container);
+    document.body.appendChild(this.host);
+  }
+
+  /**
+   * Update overlay content
+   * @param {Object} data - Update data
+   * @param {string} data.taskName - Task description
+   * @param {number} data.stepNumber - Current step number
+   * @param {string} data.stepText - Step description
+   * @param {number} data.progress - Progress percentage (0-100)
+   */
+  update({ taskName, stepNumber, stepText, progress }) {
+    if (!this.container) return;
+
+    if (taskName !== undefined) {
+      this.container.querySelector('.fsb-task').textContent = taskName;
+    }
+    if (stepNumber !== undefined) {
+      this.container.querySelector('.fsb-step-number').textContent = `Step ${stepNumber}`;
+    }
+    if (stepText !== undefined) {
+      this.container.querySelector('.fsb-step-text').textContent = stepText;
+    }
+    if (progress !== undefined) {
+      // Clamp progress to 0-100%
+      const clampedProgress = Math.min(100, Math.max(0, progress));
+      this.container.querySelector('.fsb-progress-fill').style.width = `${clampedProgress}%`;
+    }
+  }
+
+  /**
+   * Show the overlay (remove hidden class)
+   */
+  show() {
+    if (this.container) {
+      this.container.classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Hide the overlay (add hidden class for fade out)
+   */
+  hide() {
+    if (this.container) {
+      this.container.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Remove overlay from DOM completely
+   */
+  destroy() {
+    if (this.host) {
+      this.host.remove();
+      this.host = null;
+      this.shadow = null;
+      this.container = null;
+    }
+  }
+}
+
+// Singleton instance for progress overlay
+const progressOverlay = new ProgressOverlay();
+
 // ============================================================================
 // IFRAME SUPPORT - Detect if running in iframe and manage cross-frame comms
 // ============================================================================
