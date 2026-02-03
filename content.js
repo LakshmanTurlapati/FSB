@@ -2320,6 +2320,182 @@ async function waitForActionable(selector, options = {}) {
 // END ACCESSIBILITY TREE FUNCTIONS
 // =============================================================================
 
+// =============================================================================
+// COORDINATE FALLBACK UTILITIES
+// Used when all selectors fail and stored coordinates are available
+// =============================================================================
+
+/**
+ * Validates that coordinates point to a clickable element.
+ * Uses elementFromPoint to check what's actually at the viewport coordinates.
+ * @param {number} x - Viewport X coordinate
+ * @param {number} y - Viewport Y coordinate
+ * @returns {{valid: boolean, element?: Element, reason?: string}}
+ */
+function validateCoordinates(x, y) {
+  // Check coordinates are within viewport bounds
+  if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) {
+    return { valid: false, reason: 'coordinates_outside_viewport' };
+  }
+
+  const element = document.elementFromPoint(x, y);
+  if (!element) {
+    return { valid: false, reason: 'no_element_at_coordinates' };
+  }
+
+  // Check element is interactable (not hidden, not pointer-events:none)
+  const style = window.getComputedStyle(element);
+  if (style.pointerEvents === 'none') {
+    return { valid: false, reason: 'element_has_pointer_events_none', element };
+  }
+  if (style.visibility === 'hidden') {
+    return { valid: false, reason: 'element_is_hidden', element };
+  }
+
+  return { valid: true, element };
+}
+
+/**
+ * Scrolls to make document coordinates visible in viewport.
+ * Converts stored document coordinates to current viewport coordinates.
+ * @param {number} docX - Document X coordinate (stored from getBoundingClientRect + scroll)
+ * @param {number} docY - Document Y coordinate (stored from getBoundingClientRect + scroll)
+ * @param {number} width - Element width
+ * @param {number} height - Element height
+ * @returns {Promise<{x: number, y: number, scrolled: boolean}>}
+ */
+async function ensureCoordinatesVisible(docX, docY, width, height) {
+  // Convert stored document coordinates to current viewport coordinates
+  const viewportX = docX - window.scrollX;
+  const viewportY = docY - window.scrollY;
+
+  // Check if already visible (with padding for element size)
+  const padding = 50;
+  const isVisible = viewportX >= padding &&
+                    viewportY >= padding &&
+                    viewportX + width <= window.innerWidth - padding &&
+                    viewportY + height <= window.innerHeight - padding;
+
+  if (!isVisible) {
+    // Scroll to center the target area
+    window.scrollTo({
+      left: Math.max(0, docX - window.innerWidth / 2 + width / 2),
+      top: Math.max(0, docY - window.innerHeight / 2 + height / 2),
+      behavior: 'smooth'
+    });
+
+    // Wait for scroll animation to complete
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+
+  // Return current viewport coordinates after potential scroll
+  return {
+    x: docX - window.scrollX,
+    y: docY - window.scrollY,
+    scrolled: !isVisible
+  };
+}
+
+/**
+ * Clicks at stored coordinates as a fallback when selectors fail.
+ * This is a last-resort mechanism for when DOM changes make selectors unreliable.
+ * @param {{x: number, y: number, width: number, height: number, originalSelector?: string, reason?: string}} params
+ * @returns {Promise<{success: boolean, fallbackUsed: true, ...}>}
+ */
+async function clickAtCoordinates(params) {
+  const { x, y, width = 0, height = 0, originalSelector, reason } = params;
+
+  // Log that we're using coordinate fallback
+  automationLogger.warn('Using coordinate fallback', {
+    sessionId: currentSessionId,
+    reason: reason || 'all_selectors_failed',
+    originalSelector,
+    targetCoordinates: { x, y, width, height }
+  });
+
+  // Calculate center point of the element
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+
+  // Ensure coordinates are visible (scroll if needed)
+  const scrollResult = await ensureCoordinatesVisible(x, y, width, height);
+
+  // Convert center to current viewport coordinates
+  const viewportCenterX = centerX - window.scrollX;
+  const viewportCenterY = centerY - window.scrollY;
+
+  // Validate there's a clickable element at these coordinates
+  const validation = validateCoordinates(viewportCenterX, viewportCenterY);
+  if (!validation.valid) {
+    automationLogger.warn('Coordinate fallback validation failed', {
+      sessionId: currentSessionId,
+      reason: validation.reason,
+      coordinates: { x: viewportCenterX, y: viewportCenterY }
+    });
+    return {
+      success: false,
+      error: `Coordinate fallback failed: ${validation.reason}`,
+      coordinates: { x: viewportCenterX, y: viewportCenterY },
+      fallbackUsed: true
+    };
+  }
+
+  const element = validation.element;
+
+  // Dispatch full mouse event sequence (proven pattern from existing click tool)
+  const mouseEventInit = {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+    clientX: viewportCenterX,
+    clientY: viewportCenterY,
+    screenX: viewportCenterX + window.screenX,
+    screenY: viewportCenterY + window.screenY,
+    button: 0,
+    buttons: 1
+  };
+
+  element.dispatchEvent(new MouseEvent('mousedown', mouseEventInit));
+  element.dispatchEvent(new MouseEvent('mouseup', mouseEventInit));
+  element.dispatchEvent(new MouseEvent('click', mouseEventInit));
+
+  // Also call native click as fallback
+  if (typeof element.click === 'function') {
+    element.click();
+  }
+
+  // Wait for potential effects
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  automationLogger.log('info', 'Coordinate fallback click executed', {
+    sessionId: currentSessionId,
+    clickedElement: {
+      tag: element.tagName,
+      id: element.id || null,
+      class: element.className ? element.className.substring(0, 50) : null
+    },
+    coordinates: { x: viewportCenterX, y: viewportCenterY },
+    scrolled: scrollResult.scrolled
+  });
+
+  return {
+    success: true,
+    fallbackUsed: true,
+    clickedElement: {
+      tag: element.tagName,
+      id: element.id || null,
+      class: element.className ? element.className.substring(0, 50) : null
+    },
+    coordinates: { x: viewportCenterX, y: viewportCenterY },
+    scrolled: scrollResult.scrolled,
+    message: 'Clicked using coordinate fallback (selector-based approach failed)'
+  };
+}
+
+// =============================================================================
+// END COORDINATE FALLBACK UTILITIES
+// =============================================================================
+
 // Tool functions for browser automation
 const tools = {
   // Scroll the page
