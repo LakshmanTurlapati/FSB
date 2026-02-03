@@ -3002,58 +3002,68 @@ const tools = {
     automationLogger.logActionExecution(currentSessionId, 'type', 'start', params);
 
     try {
-      // AUTO-WAIT: Wait for element to be actionable before typing
-      const waitResult = await waitForActionable(params.selector, {
-        timeout: 3000,
-        waitFor: ['visible', 'enabled', 'stable']
-      });
-
-      if (!waitResult.success) {
+      // Find element using shadow DOM aware query
+      let element = querySelectorWithShadow(params.selector);
+      if (!element) {
         return {
           success: false,
-          error: `Element not actionable for typing: ${waitResult.reason}`,
-          selector: params.selector,
-          waitTime: waitResult.waitTime
+          error: 'Element not found',
+          selector: params.selector
         };
       }
 
-      const element = waitResult.element;
-      automationLogger.logActionExecution(currentSessionId, 'type', 'element_found', { tagName: element ? element.tagName : 'null', waitTime: waitResult.waitTime });
+      // Use unified readiness check with 'type' action type (includes editable check)
+      const readiness = await ensureElementReady(element, 'type');
+      if (!readiness.ready) {
+        return {
+          success: false,
+          error: `Element not ready for typing: ${readiness.failureReason}`,
+          selector: params.selector,
+          checks: readiness.checks,
+          failureDetails: readiness.failureDetails
+        };
+      }
+
+      // Re-fetch element after potential scroll (may have become stale)
+      if (readiness.scrolled) {
+        element = querySelectorWithShadow(params.selector);
+        if (!element) {
+          return {
+            success: false,
+            error: 'Element became stale after scrolling',
+            selector: params.selector
+          };
+        }
+      }
+
+      automationLogger.logActionExecution(currentSessionId, 'type', 'element_ready', { tagName: element.tagName, scrolled: readiness.scrolled });
 
     if (element) {
       // Check if it's a valid input element with enhanced contenteditable detection
       const isInput = element.tagName === 'INPUT' || element.tagName === 'TEXTAREA';
-      
+
       // Enhanced universal text input detection for all platforms
-      const isContentEditable = element.contentEditable === 'true' || 
+      const isContentEditable = element.contentEditable === 'true' ||
                                 element.getAttribute('contenteditable') === 'true' ||
                                 element.hasAttribute('contenteditable') ||
                                 element.getAttribute('role') === 'textbox' ||
                                 // Universal messaging patterns
                                 isUniversalMessageInput(element);
-      
+
       if (!isInput && !isContentEditable) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'Element is not an input field',
           selector: params.selector,
           elementType: element.tagName,
           suggestion: 'Element found but it\'s not typeable'
         };
       }
-      
+
       // Universal activation strategy - click ALL input elements by default
       // Modern websites often require click activation regardless of framework
       const shouldSkipClick = params.clickFirst === false; // Explicit opt-out only
-      
-      // Ensure element is visible and scroll into view if needed
-      const rect = element.getBoundingClientRect();
-      if (rect.top < 0 || rect.top > window.innerHeight) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // Wait for scroll to complete
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-      
+
       // Universal click-first activation (unless explicitly disabled)
       if (!shouldSkipClick) {
         // Try clicking the element itself first
@@ -4365,31 +4375,53 @@ const tools = {
   },
   
   // Hover over element
-  hover: (params) => {
-    const element = querySelectorWithShadow(params.selector);
-    if (element) {
-      const rect = element.getBoundingClientRect();
-      const mouseOverEvent = new MouseEvent('mouseover', {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        clientX: rect.left + rect.width / 2,
-        clientY: rect.top + rect.height / 2
-      });
-      element.dispatchEvent(mouseOverEvent);
-      
-      const mouseEnterEvent = new MouseEvent('mouseenter', {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        clientX: rect.left + rect.width / 2,
-        clientY: rect.top + rect.height / 2
-      });
-      element.dispatchEvent(mouseEnterEvent);
-      
-      return { success: true, hovering: params.selector };
+  hover: async (params) => {
+    // Find element using shadow DOM aware query
+    let element = querySelectorWithShadow(params.selector);
+    if (!element) {
+      return { success: false, error: 'Element not found', selector: params.selector };
     }
-    return { success: false, error: 'Element not found' };
+
+    // Use unified readiness check for hover
+    const readiness = await ensureElementReady(element, 'hover');
+    if (!readiness.ready) {
+      return {
+        success: false,
+        error: `Element not ready for hover: ${readiness.failureReason}`,
+        selector: params.selector,
+        checks: readiness.checks
+      };
+    }
+
+    // Re-fetch element after potential scroll (may have become stale)
+    if (readiness.scrolled) {
+      element = querySelectorWithShadow(params.selector);
+      if (!element) {
+        return { success: false, error: 'Element became stale after scrolling', selector: params.selector };
+      }
+    }
+
+    // Now perform the hover
+    const rect = element.getBoundingClientRect();
+    const mouseOverEvent = new MouseEvent('mouseover', {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2
+    });
+    element.dispatchEvent(mouseOverEvent);
+
+    const mouseEnterEvent = new MouseEvent('mouseenter', {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2
+    });
+    element.dispatchEvent(mouseEnterEvent);
+
+    return { success: true, hovering: params.selector, scrolled: readiness.scrolled };
   },
   
   // Select dropdown option
