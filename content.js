@@ -543,6 +543,135 @@ let previousDOMState = null;
 let domStateCache = new Map();
 
 // ============================================================================
+// VISUAL FEEDBACK - Highlight Manager and Progress Overlay
+// ============================================================================
+
+/**
+ * HighlightManager - Manages element highlighting with orange glow effect
+ *
+ * Uses inline styles with !important to override host page styles.
+ * Single highlight at a time to avoid visual clutter.
+ * WeakMap storage for original styles prevents memory leaks.
+ */
+class HighlightManager {
+  constructor() {
+    this.activeHighlight = null;
+    this.originalStyles = new WeakMap();
+    this.pendingTimeout = null;
+  }
+
+  /**
+   * Show orange glow highlight on an element
+   * @param {Element} element - DOM element to highlight
+   * @param {Object} options - Configuration options
+   * @param {number} options.duration - How long to show highlight (default: 500ms)
+   * @param {string} options.color - Outline color (default: #FF8C00)
+   * @param {string} options.glowColor - Glow color (default: rgba(255, 140, 0, 0.8))
+   * @returns {Promise} Resolves after duration
+   */
+  show(element, options = {}) {
+    const {
+      duration = 500,
+      color = '#FF8C00',
+      glowColor = 'rgba(255, 140, 0, 0.8)'
+    } = options;
+
+    // Clean up any existing highlight first
+    this.hide();
+
+    // Validate element
+    if (!element || !element.style) {
+      return Promise.resolve();
+    }
+
+    // Store original styles for clean restoration
+    this.originalStyles.set(element, {
+      outline: element.style.outline,
+      boxShadow: element.style.boxShadow,
+      transition: element.style.transition,
+      zIndex: element.style.zIndex,
+      position: element.style.position
+    });
+
+    this.activeHighlight = element;
+
+    // Apply highlight with !important to override host page styles
+    element.style.setProperty('outline', `3px solid ${color}`, 'important');
+    element.style.setProperty('box-shadow', `0 0 10px ${glowColor}, 0 0 20px ${glowColor}, 0 0 30px rgba(255, 140, 0, 0.4)`, 'important');
+    element.style.setProperty('transition', 'box-shadow 0.15s ease-out', 'important');
+    element.style.setProperty('z-index', '2147483646', 'important');
+
+    // Only set position: relative if currently static (preserve existing positioning)
+    const computedPosition = window.getComputedStyle(element).position;
+    if (computedPosition === 'static') {
+      element.style.setProperty('position', 'relative', 'important');
+    }
+
+    // Return promise that resolves after duration
+    return new Promise(resolve => {
+      this.pendingTimeout = setTimeout(() => {
+        this.pendingTimeout = null;
+        resolve();
+      }, duration);
+    });
+  }
+
+  /**
+   * Hide the current highlight and restore original styles
+   */
+  hide() {
+    if (!this.activeHighlight) return;
+
+    const element = this.activeHighlight;
+    const original = this.originalStyles.get(element);
+
+    if (original) {
+      // Restore each property individually
+      this._restoreProperty(element, 'outline', original.outline);
+      this._restoreProperty(element, 'boxShadow', original.boxShadow);
+      this._restoreProperty(element, 'transition', original.transition);
+      this._restoreProperty(element, 'zIndex', original.zIndex);
+      this._restoreProperty(element, 'position', original.position);
+
+      this.originalStyles.delete(element);
+    }
+
+    this.activeHighlight = null;
+  }
+
+  /**
+   * Restore a single style property, handling empty values properly
+   * @param {Element} element - DOM element
+   * @param {string} property - CSS property name (camelCase)
+   * @param {string} value - Original value to restore
+   */
+  _restoreProperty(element, property, value) {
+    if (value === '' || value === undefined || value === null) {
+      // Convert camelCase to kebab-case for removeProperty
+      const kebabProperty = property.replace(/([A-Z])/g, '-$1').toLowerCase();
+      element.style.removeProperty(kebabProperty);
+    } else {
+      element.style[property] = value;
+    }
+  }
+
+  /**
+   * Clean up all highlights and cancel pending timeouts
+   */
+  cleanup() {
+    // Cancel any pending timeout
+    if (this.pendingTimeout) {
+      clearTimeout(this.pendingTimeout);
+      this.pendingTimeout = null;
+    }
+    this.hide();
+  }
+}
+
+// Singleton instance for highlight management
+const highlightManager = new HighlightManager();
+
+// ============================================================================
 // IFRAME SUPPORT - Detect if running in iframe and manage cross-frame comms
 // ============================================================================
 
