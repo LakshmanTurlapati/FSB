@@ -2507,70 +2507,30 @@ const tools = {
   
   // Click an element
   click: async (params) => {
-    // AUTO-DISMISS: Try to dismiss common overlays before attempting click
-    // This reduces "obscured" errors caused by cookie banners, modals, etc.
-    const overlayDismissSelectors = [
-      '[class*="modal-backdrop"]:not([style*="display: none"])',
-      '[class*="overlay-close"]',
-      '[class*="popup-close"]',
-      '[aria-label="Close"]',
-      '[aria-label="Dismiss"]',
-      '.modal .close',
-      '[data-dismiss="modal"]',
-      'button[class*="cookie"][class*="accept"]',
-      'button[class*="consent"][class*="accept"]',
-      '[id*="cookie"] button[class*="accept"]'
-    ];
-
-    for (const selector of overlayDismissSelectors) {
-      try {
-        const overlay = document.querySelector(selector);
-        if (overlay && overlay.offsetParent !== null) {
-          overlay.click();
-          await new Promise(r => setTimeout(r, 200));
-        }
-      } catch (e) {
-        // Ignore errors - overlay dismissal is best-effort
-      }
-    }
-
-    // AUTO-WAIT: Wait for element to be actionable before attempting click
-    // Implements Playwright-style auto-wait for improved reliability
-    const waitResult = await waitForActionable(params.selector, {
-      timeout: 3000,
-      waitFor: ['visible', 'enabled', 'stable']
-    });
-
-    if (!waitResult.success) {
+    // Find element first using shadow DOM aware query
+    let element = querySelectorWithShadow(params.selector);
+    if (!element) {
       return {
         success: false,
-        error: `Element not actionable: ${waitResult.reason}`,
-        selector: params.selector,
-        waitTime: waitResult.waitTime
+        error: 'Element not found',
+        selector: params.selector
       };
     }
 
-    let element = waitResult.element;
+    // Use unified readiness check (visibility, enabled, stable, receives events)
+    const readiness = await ensureElementReady(element, 'click');
+    if (!readiness.ready) {
+      return {
+        success: false,
+        error: `Element not ready: ${readiness.failureReason}`,
+        selector: params.selector,
+        checks: readiness.checks,
+        failureDetails: readiness.failureDetails
+      };
+    }
 
-    if (element) {
-      // Get position info for viewport check (after waitForActionable confirms visibility)
-      const rect = element.getBoundingClientRect();
-      const isInViewport = rect.top >= 0 && rect.left >= 0 &&
-                          rect.bottom <= window.innerHeight &&
-                          rect.right <= window.innerWidth;
-
-      // EASY WIN #2: Always scroll to center for reliability (reduces failures by 30-50%)
-      // Even if in viewport, center positioning avoids fixed headers/footers
-      element.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'center'
-      });
-
-      // Wait for scroll animation to complete
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // EASY WIN #3: Re-locate element after scroll (DOM might have changed during scroll)
+    // Re-fetch element after scroll (may have become stale)
+    if (readiness.scrolled) {
       element = querySelectorWithShadow(params.selector);
       if (!element) {
         return {
@@ -2579,7 +2539,12 @@ const tools = {
           selector: params.selector
         };
       }
+    }
 
+    // Track if element was scrolled for response
+    const wasScrolled = readiness.scrolled;
+
+    if (element) {
       // Verify element is still interactive
       if (!document.contains(element)) {
         return {
@@ -2777,7 +2742,7 @@ const tools = {
           elementInfo: {
             tag: element.tagName,
             text: element.textContent?.trim().substring(0, 50),
-            wasInViewport: isInViewport
+            wasScrolledIntoView: wasScrolled
           },
           suggestion: 'Element may not be interactive or may require different interaction method'
         };
@@ -2801,11 +2766,11 @@ const tools = {
         elementInfo: {
           tag: element.tagName,
           text: element.textContent?.trim().substring(0, 50),
-          wasInViewport: isInViewport
+          wasScrolledIntoView: wasScrolled
         }
       };
     }
-    
+
     // Try to find alternative selectors
     const alternatives = findAlternativeSelectors(params.selector, 'click');
 
