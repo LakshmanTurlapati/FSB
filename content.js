@@ -1,6 +1,18 @@
 // Content script for FSB v0.9
 // Handles DOM reading and action execution
 
+// Double-injection protection - exit early if already loaded
+if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
+  console.log('[FSB Content] Already loaded, skipping duplicate injection');
+  // But still try to reconnect port if it was lost
+  if (typeof establishBackgroundConnection === 'function' && !backgroundPort) {
+    establishBackgroundConnection();
+  }
+  // Exit early to prevent duplicate listeners and state
+  throw new Error('FSB_ALREADY_LOADED');
+}
+window.__FSB_CONTENT_SCRIPT_LOADED__ = true;
+
 // Current session ID for logging (set by background.js messages)
 let currentSessionId = null;
 
@@ -4204,6 +4216,71 @@ class OptimizedDOMSerializer {
   }
 }
 
+// ============================================================================
+// SELECTOR VALIDATION UTILITIES
+// These functions validate whether selectors uniquely identify elements
+// ============================================================================
+
+/**
+ * Validates whether a CSS selector uniquely identifies exactly one element
+ * @param {string} selector - The CSS selector to validate
+ * @param {Element|Document} root - The root element to search within (default: document)
+ * @returns {Object} Validation result with isValid, isUnique, count, selector, and optional error
+ */
+function validateSelectorUniqueness(selector, root = document) {
+  try {
+    const matches = root.querySelectorAll(selector);
+    const count = matches.length;
+    return {
+      isValid: true,
+      isUnique: count === 1,
+      count: count,
+      selector: selector
+    };
+  } catch (error) {
+    return {
+      isValid: false,
+      isUnique: false,
+      count: 0,
+      selector: selector,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Validates whether an XPath selector uniquely identifies exactly one element
+ * @param {string} xpath - The XPath expression to validate
+ * @param {Element|Document} root - The root element to search within (default: document)
+ * @returns {Object} Validation result with isValid, isUnique, count, selector, and optional error
+ */
+function validateXPathUniqueness(xpath, root = document) {
+  try {
+    const result = document.evaluate(
+      xpath,
+      root,
+      null,
+      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+      null
+    );
+    const count = result.snapshotLength;
+    return {
+      isValid: true,
+      isUnique: count === 1,
+      count: count,
+      selector: xpath
+    };
+  } catch (error) {
+    return {
+      isValid: false,
+      isUnique: false,
+      count: 0,
+      selector: xpath,
+      error: error.message
+    };
+  }
+}
+
 // Generate multiple selectors for an element with ARIA-first strategy
 function generateSelectors(element, semanticId = null) {
   const selectors = [];
@@ -6316,48 +6393,129 @@ if (document.body) {
 
 automationLogger.logInit('content_script', 'loaded', { version: '0.9', url: window.location.href });
 
-// Signal to background script that content script is fully initialized and ready
-// This is sent AFTER all initialization to ensure the script is truly ready
-(async function sendReadySignal() {
-  try {
-    // Give a longer delay to ensure message listener is fully registered
-    await new Promise(resolve => setTimeout(resolve, 100));
+// Google-specific SPA navigation detection
+// Google uses History API for navigation within search results
+if (window.location.hostname.includes('google.com')) {
+  const originalPushState = history.pushState;
+  history.pushState = function(...args) {
+    originalPushState.apply(this, args);
+    chrome.runtime.sendMessage({
+      action: 'spaNavigation',
+      url: args[2],
+      method: 'pushState'
+    }).catch(() => {});
+  };
 
-    // Send ready signal with explicit promise handling
-    await chrome.runtime.sendMessage({
-      action: 'contentScriptReady',
-      timestamp: Date.now(),
+  const originalReplaceState = history.replaceState;
+  history.replaceState = function(...args) {
+    originalReplaceState.apply(this, args);
+    chrome.runtime.sendMessage({
+      action: 'spaNavigation',
+      url: args[2],
+      method: 'replaceState'
+    }).catch(() => {});
+  };
+
+  window.addEventListener('popstate', () => {
+    chrome.runtime.sendMessage({
+      action: 'spaNavigation',
       url: window.location.href,
-      readyState: document.readyState
-    });
-    automationLogger.logComm(currentSessionId, 'send', 'contentScriptReady', true, {});
+      method: 'popstate'
+    }).catch(() => {});
+  });
 
-    // Send a confirmation ping after short delay to verify bidirectional communication
-    await new Promise(resolve => setTimeout(resolve, 50));
-    await chrome.runtime.sendMessage({
-      action: 'contentScriptConfirmation',
-      timestamp: Date.now(),
-      url: window.location.href
-    });
-    automationLogger.logComm(currentSessionId, 'send', 'contentScriptConfirmation', true, {});
-  } catch (e) {
-    automationLogger.warn('Could not send ready signal', { error: e.message });
+  automationLogger.logInit('spa_detection', 'enabled', { hostname: 'google.com' });
+}
 
-    // Retry once after a short delay
-    setTimeout(async () => {
-      try {
-        await chrome.runtime.sendMessage({
-          action: 'contentScriptReady',
-          timestamp: Date.now(),
-          url: window.location.href,
-          readyState: document.readyState,
-          retry: true
-        });
-        automationLogger.logComm(currentSessionId, 'send', 'contentScriptReady', true, { retry: true });
-      } catch (retryError) {
-        automationLogger.error('Ready signal retry failed', { error: retryError.message });
+// Establish persistent connection to background script
+let backgroundPort = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+function establishBackgroundConnection() {
+  try {
+    backgroundPort = chrome.runtime.connect({ name: 'content-script' });
+
+    backgroundPort.onDisconnect.addListener(() => {
+      backgroundPort = null;
+      const lastError = chrome.runtime.lastError;
+      automationLogger.warn('Background port disconnected', {
+        error: lastError?.message,
+        reconnectAttempts
+      });
+
+      // Attempt to reconnect with exponential backoff
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+        setTimeout(() => {
+          reconnectAttempts++;
+          establishBackgroundConnection();
+        }, delay);
       }
-    }, 200);
+    });
+
+    backgroundPort.onMessage.addListener((msg) => {
+      if (msg.type === 'heartbeat') {
+        backgroundPort.postMessage({
+          type: 'heartbeat-ack',
+          timestamp: Date.now()
+        });
+      }
+    });
+
+    // Reset reconnect counter on successful connection
+    reconnectAttempts = 0;
+
+    // Send ready signal via port (most reliable method)
+    backgroundPort.postMessage({
+      type: 'ready',
+      url: window.location.href,
+      readyState: document.readyState,
+      timestamp: Date.now()
+    });
+
+    automationLogger.logComm(currentSessionId, 'send', 'port_ready', true, {});
+  } catch (e) {
+    automationLogger.error('Failed to establish background connection', { error: e.message });
+  }
+}
+
+// Signal to background script that content script is fully initialized and ready
+// Uses multi-strategy approach for maximum reliability
+(async function sendReadySignal() {
+  // Strategy 1: Port-based connection (most reliable, bidirectional)
+  establishBackgroundConnection();
+
+  // Strategy 2: Message-based fallback with retries
+  // This ensures we still work even if port connection fails
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      await chrome.runtime.sendMessage({
+        action: 'contentScriptReady',
+        timestamp: Date.now(),
+        url: window.location.href,
+        readyState: document.readyState,
+        attempt
+      });
+      automationLogger.logComm(currentSessionId, 'send', 'contentScriptReady', true, { attempt });
+
+      // Send confirmation ping after short delay
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await chrome.runtime.sendMessage({
+        action: 'contentScriptConfirmation',
+        timestamp: Date.now(),
+        url: window.location.href
+      });
+      automationLogger.logComm(currentSessionId, 'send', 'contentScriptConfirmation', true, {});
+      break; // Success, exit retry loop
+    } catch (e) {
+      if (attempt < 5) {
+        // Exponential backoff: 100ms, 200ms, 400ms, 800ms
+        await new Promise(r => setTimeout(r, 100 * Math.pow(2, attempt - 1)));
+      } else {
+        automationLogger.error('All ready signal attempts failed', { error: e.message });
+      }
+    }
   }
 })();
 
