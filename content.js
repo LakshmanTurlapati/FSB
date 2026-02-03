@@ -3926,35 +3926,83 @@ const tools = {
   },
 
   // Right click on element
-  rightClick: (params) => {
-    const element = querySelectorWithShadow(params.selector);
-    if (element) {
-      const event = new MouseEvent('contextmenu', {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        clientX: element.getBoundingClientRect().left + 10,
-        clientY: element.getBoundingClientRect().top + 10
-      });
-      element.dispatchEvent(event);
-      return { success: true, rightClicked: params.selector };
+  rightClick: async (params) => {
+    // Find element using shadow DOM aware query
+    let element = querySelectorWithShadow(params.selector);
+    if (!element) {
+      return { success: false, error: 'Element not found', selector: params.selector };
     }
-    return { success: false, error: 'Element not found' };
+
+    // Use unified readiness check for right click
+    const readiness = await ensureElementReady(element, 'rightClick');
+    if (!readiness.ready) {
+      return {
+        success: false,
+        error: `Element not ready for right click: ${readiness.failureReason}`,
+        selector: params.selector,
+        checks: readiness.checks
+      };
+    }
+
+    // Re-fetch element after potential scroll (may have become stale)
+    if (readiness.scrolled) {
+      element = querySelectorWithShadow(params.selector);
+      if (!element) {
+        return { success: false, error: 'Element became stale after scrolling', selector: params.selector };
+      }
+    }
+
+    // Now perform the right click
+    const rect = element.getBoundingClientRect();
+    const event = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2
+    });
+    element.dispatchEvent(event);
+    return { success: true, rightClicked: params.selector, scrolled: readiness.scrolled };
   },
   
   // Double click on element
-  doubleClick: (params) => {
-    const element = querySelectorWithShadow(params.selector);
-    if (element) {
-      const event = new MouseEvent('dblclick', {
-        bubbles: true,
-        cancelable: true,
-        view: window
-      });
-      element.dispatchEvent(event);
-      return { success: true, doubleClicked: params.selector };
+  doubleClick: async (params) => {
+    // Find element using shadow DOM aware query
+    let element = querySelectorWithShadow(params.selector);
+    if (!element) {
+      return { success: false, error: 'Element not found', selector: params.selector };
     }
-    return { success: false, error: 'Element not found' };
+
+    // Use unified readiness check for double click
+    const readiness = await ensureElementReady(element, 'doubleClick');
+    if (!readiness.ready) {
+      return {
+        success: false,
+        error: `Element not ready for double click: ${readiness.failureReason}`,
+        selector: params.selector,
+        checks: readiness.checks
+      };
+    }
+
+    // Re-fetch element after potential scroll (may have become stale)
+    if (readiness.scrolled) {
+      element = querySelectorWithShadow(params.selector);
+      if (!element) {
+        return { success: false, error: 'Element became stale after scrolling', selector: params.selector };
+      }
+    }
+
+    // Now perform the double click
+    const rect = element.getBoundingClientRect();
+    const event = new MouseEvent('dblclick', {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2
+    });
+    element.dispatchEvent(event);
+    return { success: true, doubleClicked: params.selector, scrolled: readiness.scrolled };
   },
   
   // Enhanced keyboard key press with Chrome Debugger API fallback
@@ -4341,27 +4389,34 @@ const tools = {
   
   // Focus on element with auto-wait
   focus: async (params) => {
-    // AUTO-WAIT: Wait for element to be actionable before focusing
-    const waitResult = await waitForActionable(params.selector, {
-      timeout: 2000,
-      waitFor: ['visible', 'enabled']
-    });
+    // Find element using shadow DOM aware query
+    let element = querySelectorWithShadow(params.selector);
+    if (!element) {
+      return { success: false, error: 'Element not found', selector: params.selector };
+    }
 
-    if (!waitResult.success) {
+    // Use unified readiness check for focus
+    const readiness = await ensureElementReady(element, 'focus');
+    if (!readiness.ready) {
       return {
         success: false,
-        error: `Element not actionable for focus: ${waitResult.reason}`,
+        error: `Element not ready for focus: ${readiness.failureReason}`,
         selector: params.selector,
-        waitTime: waitResult.waitTime
+        checks: readiness.checks
       };
     }
 
-    const element = waitResult.element;
-    if (element) {
-      element.focus();
-      return { success: true, focused: params.selector, waitTime: waitResult.waitTime };
+    // Re-fetch element after potential scroll (may have become stale)
+    if (readiness.scrolled) {
+      element = querySelectorWithShadow(params.selector);
+      if (!element) {
+        return { success: false, error: 'Element became stale after scrolling', selector: params.selector };
+      }
     }
-    return { success: false, error: 'Element not found' };
+
+    // Now perform the focus
+    element.focus();
+    return { success: true, focused: params.selector, scrolled: readiness.scrolled };
   },
   
   // Blur (unfocus) element
