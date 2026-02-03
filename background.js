@@ -305,6 +305,16 @@ async function cleanupSession(sessionId) {
   // Also remove from persistent storage
   removePersistedSession(sessionId);
 
+  // Clean up AI instance and its conversation history
+  if (sessionAIInstances.has(sessionId)) {
+    const ai = sessionAIInstances.get(sessionId);
+    if (ai && typeof ai.clearConversationHistory === 'function') {
+      ai.clearConversationHistory();
+    }
+    sessionAIInstances.delete(sessionId);
+    automationLogger.debug('Cleaned up AI instance for session', { sessionId });
+  }
+
   // Stop keep-alive if no more active sessions
   if (activeSessions.size === 0) {
     automationLogger.logServiceWorker('session_count', { count: 0, action: 'stopping_keepalive' });
@@ -322,6 +332,10 @@ function isSessionTerminating(sessionId) {
 
 // Store for active automation sessions
 let activeSessions = new Map();
+
+// Store for AI integration instances per session (for multi-turn conversations)
+// This allows conversation history to persist across iterations within a session
+let sessionAIInstances = new Map();
 
 // Session persistence helpers - survive service worker restarts
 // Persists essential session data to chrome.storage.session
@@ -406,6 +420,94 @@ let globalAnalytics = null;
 
 // Content script communication health tracking
 let contentScriptHealth = new Map();
+
+// Track active content script ports per tab for persistent connections
+const contentScriptPorts = new Map();
+
+// Listen for persistent port connections from content scripts
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'content-script') {
+    const tabId = port.sender?.tab?.id;
+    if (!tabId || port.sender?.frameId !== 0) return; // Main frame only
+
+    contentScriptPorts.set(tabId, {
+      port,
+      connectedAt: Date.now(),
+      lastHeartbeat: Date.now()
+    });
+
+    automationLogger.logComm(null, 'receive', 'port_connected', true, { tabId });
+
+    port.onMessage.addListener((msg) => {
+      if (msg.type === 'ready') {
+        // Update heartbeat timestamp when ready message is received
+        const portInfo = contentScriptPorts.get(tabId);
+        if (portInfo) portInfo.lastHeartbeat = Date.now();
+
+        contentScriptReadyStatus.set(tabId, {
+          ready: true,
+          timestamp: msg.timestamp,
+          url: msg.url,
+          method: 'port'
+        });
+        automationLogger.logComm(null, 'receive', 'port_ready', true, { tabId, url: msg.url });
+      } else if (msg.type === 'heartbeat-ack') {
+        const portInfo = contentScriptPorts.get(tabId);
+        if (portInfo) portInfo.lastHeartbeat = Date.now();
+      } else if (msg.type === 'spaNavigation') {
+        // Handle SPA navigation notification via port
+        const status = contentScriptReadyStatus.get(tabId);
+        if (status) {
+          status.url = msg.url;
+          status.lastSpaNav = Date.now();
+        }
+        automationLogger.logComm(null, 'receive', 'spa_nav_port', true, { tabId, url: msg.url, method: msg.method });
+      }
+    });
+
+    port.onDisconnect.addListener(() => {
+      contentScriptPorts.delete(tabId);
+      contentScriptReadyStatus.delete(tabId);
+      contentScriptHealth.delete(tabId);
+      automationLogger.logComm(null, 'receive', 'port_disconnected', true, { tabId });
+    });
+  }
+});
+
+// Clear content script state on navigation to prevent stale state issues
+chrome.webNavigation.onCommitted.addListener((details) => {
+  if (details.frameId !== 0) return; // Main frame only
+
+  const tabId = details.tabId;
+
+  // Clear all state for this tab
+  contentScriptReadyStatus.delete(tabId);
+  contentScriptHealth.delete(tabId);
+
+  // Disconnect existing port if any
+  const portInfo = contentScriptPorts.get(tabId);
+  if (portInfo) {
+    try { portInfo.port.disconnect(); } catch (e) {}
+    contentScriptPorts.delete(tabId);
+  }
+
+  automationLogger.logComm(null, 'nav', 'state_cleared', true, {
+    tabId,
+    transitionType: details.transitionType,
+    url: details.url
+  });
+});
+
+// Send periodic heartbeats to keep port connections validated
+setInterval(() => {
+  for (const [tabId, portInfo] of contentScriptPorts.entries()) {
+    try {
+      portInfo.port.postMessage({ type: 'heartbeat', timestamp: Date.now() });
+    } catch (e) {
+      // Port disconnected, cleanup will handle via onDisconnect
+    }
+  }
+}, 3000);
 
 // Performance monitoring
 const performanceMetrics = {
@@ -567,36 +669,142 @@ function getPageTypeDescription(url) {
 }
 
 // Content script health monitoring with enhanced timeout and retry
-async function checkContentScriptHealth(tabId, timeout = 3000) {
+async function checkContentScriptHealth(tabId, timeout = 4000) {
   try {
-    // Create a promise that times out
-    // CRITICAL: Use frameId: 0 to target ONLY the main frame
-    const healthCheckPromise = chrome.tabs.sendMessage(tabId, {
-      action: 'healthCheck'
-    }, { frameId: 0 });
-
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Health check timeout')), timeout)
-    );
-
-    const response = await Promise.race([healthCheckPromise, timeoutPromise]);
-
-    if (response && response.success) {
+    // Quick check: use port if available and recently active (10s window)
+    let portInfo = contentScriptPorts.get(tabId);
+    if (portInfo && Date.now() - portInfo.lastHeartbeat < 10000) {
       contentScriptHealth.set(tabId, {
         lastCheck: Date.now(),
         healthy: true,
-        failures: 0
+        failures: 0,
+        method: 'port'
       });
       return true;
     }
+
+    // If port not found but we know content script should be there,
+    // wait briefly for port reconnection (service worker may have just woken)
+    if (!portInfo) {
+      automationLogger.debug('Port not found, waiting for potential reconnection', { tabId });
+      await new Promise(r => setTimeout(r, 1000)); // Wait 1 second
+      portInfo = contentScriptPorts.get(tabId);
+      if (portInfo && Date.now() - portInfo.lastHeartbeat < 10000) {
+        automationLogger.logComm(null, 'health', 'port_reconnected', true, { tabId });
+        contentScriptHealth.set(tabId, {
+          lastCheck: Date.now(),
+          healthy: true,
+          failures: 0,
+          method: 'port_reconnect'
+        });
+        return true;
+      }
+    }
+
+    // Adaptive timeout for known heavy sites (Google, YouTube)
+    let adjustedTimeout = timeout;
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.url?.includes('google.com') || tab.url?.includes('youtube.com')) {
+        adjustedTimeout = Math.min(timeout * 2.5, 10000);
+        automationLogger.debug('Using extended timeout for heavy site', { tabId, url: tab.url, timeout: adjustedTimeout });
+      }
+    } catch (e) {
+      // Tab might not exist, continue with default timeout
+    }
+
+    // Message-based check with internal retry
+    for (let msgAttempt = 1; msgAttempt <= 2; msgAttempt++) {
+      try {
+        // CRITICAL: Use frameId: 0 to target ONLY the main frame
+        const healthCheckPromise = chrome.tabs.sendMessage(tabId, {
+          action: 'healthCheck'
+        }, { frameId: 0 });
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Health check timeout')), adjustedTimeout)
+        );
+
+        const response = await Promise.race([healthCheckPromise, timeoutPromise]);
+
+        if (response && response.success) {
+          contentScriptHealth.set(tabId, {
+            lastCheck: Date.now(),
+            healthy: true,
+            failures: 0,
+            method: 'message'
+          });
+          return true;
+        }
+      } catch (e) {
+        if (msgAttempt < 2) {
+          automationLogger.debug('Message health check failed, retrying', { tabId, attempt: msgAttempt, error: e.message });
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+    }
+
+    // All attempts failed
+    const health = contentScriptHealth.get(tabId) || { failures: 0 };
+    health.lastCheck = Date.now();
+    health.healthy = false;
+    health.failures++;
+    health.lastError = 'All health check attempts failed';
+    contentScriptHealth.set(tabId, health);
+    return false;
   } catch (error) {
     const health = contentScriptHealth.get(tabId) || { failures: 0 };
     health.lastCheck = Date.now();
     health.healthy = false;
     health.failures++;
+    health.lastError = error.message;
     contentScriptHealth.set(tabId, health);
     return false;
   }
+}
+
+// Wait for content script to be ready before starting automation
+// This prevents the race condition where automation starts before port is established
+async function waitForContentScriptReady(tabId, timeout = 5000) {
+  const startTime = Date.now();
+  const pollInterval = 200;
+
+  while (Date.now() - startTime < timeout) {
+    // Check if port is established and has recent heartbeat
+    const portInfo = contentScriptPorts.get(tabId);
+    if (portInfo && Date.now() - portInfo.lastHeartbeat < 10000) {
+      automationLogger.debug('Content script ready via port', { tabId });
+      return true;
+    }
+
+    // Check if ready status is set
+    const readyStatus = contentScriptReadyStatus.get(tabId);
+    if (readyStatus && readyStatus.ready) {
+      automationLogger.debug('Content script ready via status', { tabId });
+      return true;
+    }
+
+    await new Promise(r => setTimeout(r, pollInterval));
+  }
+
+  // Timeout reached - try to ensure content script is injected
+  automationLogger.debug('Content script ready timeout, ensuring injection', { tabId });
+  await ensureContentScriptInjected(tabId);
+
+  // Give it one more check after injection
+  const portInfo = contentScriptPorts.get(tabId);
+  if (portInfo && Date.now() - portInfo.lastHeartbeat < 10000) {
+    automationLogger.debug('Content script ready after injection', { tabId });
+    return true;
+  }
+
+  const readyStatus = contentScriptReadyStatus.get(tabId);
+  if (readyStatus && readyStatus.ready) {
+    automationLogger.debug('Content script ready via status after injection', { tabId });
+    return true;
+  }
+
+  automationLogger.debug('Content script readiness uncertain, proceeding anyway', { tabId });
   return false;
 }
 
@@ -624,7 +832,14 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
         });
       }
 
-      // First check if we already received a ready signal
+      // Check port connection first - most reliable indicator
+      const portInfo = contentScriptPorts.get(tabId);
+      if (portInfo && Date.now() - portInfo.lastHeartbeat < 10000) {
+        automationLogger.logComm(null, 'health', 'port_healthy', true, { tabId, source: 'port' });
+        return true;
+      }
+
+      // Then check if we already received a ready signal
       const readyStatus = contentScriptReadyStatus.get(tabId);
       if (readyStatus && readyStatus.ready) {
         automationLogger.logComm(null, 'health', 'ready_signal', true, { tabId, source: 'cached' });
@@ -633,8 +848,11 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
         if (isHealthy) {
           return true;
         }
-        // Ready signal received but health check failed, clear and retry
-        contentScriptReadyStatus.delete(tabId);
+        // Ready signal received but health check failed
+        // Don't delete ready status if port method was used - port disconnect handles cleanup
+        if (readyStatus.method !== 'port') {
+          contentScriptReadyStatus.delete(tabId);
+        }
       }
 
       // Check if content script is already healthy (might be from previous injection)
@@ -657,6 +875,19 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
         const recheckHealthy = await pageLoadWatcher.pingContentScript(tabId, 1000);
         if (recheckHealthy) {
           automationLogger.logComm(null, 'health', 'ping', true, { tabId });
+          return true;
+        }
+      }
+
+      // Check if content script was recently healthy - likely just needs time to reconnect
+      const recentHealth = contentScriptHealth.get(tabId);
+      if (recentHealth && Date.now() - recentHealth.lastCheck < 30000 && recentHealth.healthy) {
+        automationLogger.debug('Content script was recently healthy, skipping re-injection', { tabId });
+        // Just wait a bit more for reconnection instead of re-injecting
+        await new Promise(r => setTimeout(r, 1500));
+        const recheckHealthy = await checkContentScriptHealth(tabId);
+        if (recheckHealthy) {
+          automationLogger.logComm(null, 'health', 'reconnected_after_wait', true, { tabId });
           return true;
         }
       }
@@ -1877,6 +2108,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: true });
       break;
 
+    case 'spaNavigation':
+      // Content script detected SPA navigation (Google, etc.)
+      const spaTabId = sender.tab?.id;
+      if (spaTabId) {
+        const status = contentScriptReadyStatus.get(spaTabId);
+        if (status) {
+          status.url = request.url;
+          status.lastSpaNav = Date.now();
+        }
+        automationLogger.logComm(null, 'receive', 'spa_navigation', true, {
+          tabId: spaTabId,
+          url: request.url,
+          method: request.method
+        });
+      }
+      sendResponse({ success: true });
+      break;
+
     case 'contentScriptError':
       // Content script encountered an error during initialization
       automationLogger.logInit('content_script', 'failed', {
@@ -2019,6 +2268,12 @@ async function handleStartAutomation(request, sender, sendResponse) {
 
     // EASY WIN #10: Start keep-alive when automation begins
     startKeepAlive();
+
+    // Wait for content script to be ready before starting automation
+    // This prevents race conditions where automation starts before port connection is established
+    automationLogger.debug('Waiting for content script readiness', { sessionId, tabId: targetTabId });
+    const isReady = await waitForContentScriptReady(targetTabId, 5000);
+    automationLogger.debug('Content script readiness check complete', { sessionId, tabId: targetTabId, isReady });
 
     // Reset DOM state in content script to prevent stale state comparison between sessions
     try {
@@ -3084,10 +3339,16 @@ async function startAutomationLoop(sessionId) {
             const actionPayload = {
               action: 'executeAction',
               tool: action.tool,
-              params: action.params
+              params: action.params,
+              visualContext: {
+                taskName: session.task?.substring(0, 50) || 'Automation',
+                stepNumber: i + 1,
+                totalSteps: aiResponse.actions.length,
+                iterationCount: session.iterationCount
+              }
             };
 
-            // Log outgoing action message for comprehensive session logging
+            // Log outgoing action message for comprehensive session logging (includes visualContext)
             automationLogger.logContentMessage(sessionId, 'send', 'executeAction', actionPayload, null);
 
             actionResult = await sendMessageWithRetry(session.tabId, actionPayload);
@@ -3669,7 +3930,7 @@ async function callAIAPI(task, structuredDOM, settings, context = null) {
     if (!settings) {
       settings = await config.getAll();
     }
-    
+
     // Check if appropriate API key is configured
     const provider = settings.modelProvider || 'xai';
     if (provider === 'gemini' && !settings.geminiApiKey) {
@@ -3677,19 +3938,37 @@ async function callAIAPI(task, structuredDOM, settings, context = null) {
     } else if (provider === 'xai' && !settings.apiKey) {
       throw new Error('xAI API key not configured. Please set it in extension settings.');
     }
-    
-    // Create AI integration instance (now available via importScripts)
-    const ai = new AIIntegration(settings);
-    
+
+    // Get or create AI integration instance for this session
+    // Reusing instances enables multi-turn conversation history
+    const sessionId = context?.sessionId;
+    let ai;
+
+    if (sessionId && sessionAIInstances.has(sessionId)) {
+      // Reuse existing instance for multi-turn conversation
+      ai = sessionAIInstances.get(sessionId);
+      automationLogger.debug('Reusing AI instance for multi-turn', { sessionId });
+    } else {
+      // Create new AI integration instance
+      ai = new AIIntegration(settings);
+
+      // Store for future iterations if we have a session ID
+      if (sessionId) {
+        sessionAIInstances.set(sessionId, ai);
+        automationLogger.debug('Created new AI instance for session', { sessionId });
+      }
+    }
+
     automationLogger.logAPI(context?.sessionId, settings.modelProvider || 'xai', 'call', {
       task: task.substring(0, 100),
       domType: structuredDOM._isDelta ? 'delta' : 'full',
-      iteration: context?.iterationCount || 0
+      iteration: context?.iterationCount || 0,
+      multiTurn: sessionId && sessionAIInstances.has(sessionId)
     });
 
     // FSB TIMING: Track AI API call time
     const aiCallStart = Date.now();
-    // Get automation actions from Grok-3-mini with context
+    // Get automation actions with context (multi-turn if available)
     const result = await ai.getAutomationActions(task, structuredDOM, context);
     automationLogger.logTiming(context?.sessionId, 'LLM', 'api_call', Date.now() - aiCallStart, { model: settings.modelName || 'default' });
 
