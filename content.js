@@ -5241,45 +5241,191 @@ const tools = {
     return { success: true, hovering: params.selector, scrolled: readiness.scrolled };
   },
   
-  // Select dropdown option
-  selectOption: (params) => {
-    const element = querySelectorWithShadow(params.selector);
-    if (element && element.tagName === 'SELECT') {
-      if (params.value !== undefined) {
-        element.value = params.value;
-      } else if (params.index !== undefined) {
-        element.selectedIndex = params.index;
-      } else if (params.text !== undefined) {
-        const option = Array.from(element.options).find(opt => opt.text === params.text);
-        if (option) {
-          option.selected = true;
+  // Select dropdown option with verification
+  selectOption: async (params) => {
+    // Build selectors array for alternative selector support
+    const selectors = params.selectors || [params.selector];
+    let lastAttemptError = null;
+    let lastVerification = null;
+
+    // Try each selector until one succeeds with verified effect
+    for (let selectorIndex = 0; selectorIndex < selectors.length; selectorIndex++) {
+      const currentSelector = selectors[selectorIndex];
+
+      try {
+        let element = querySelectorWithShadow(currentSelector);
+        if (!element || element.tagName !== 'SELECT') {
+          lastAttemptError = `Select element not found with selector: ${currentSelector}`;
+          continue; // Try next selector
         }
+
+        // Use unified readiness check
+        const readiness = await ensureElementReady(element, 'selectOption');
+        if (!readiness.ready) {
+          lastAttemptError = `Element not ready: ${readiness.failureReason}`;
+          continue;
+        }
+
+        // Re-fetch element after potential scroll
+        if (readiness.scrolled) {
+          element = querySelectorWithShadow(currentSelector);
+          if (!element) {
+            lastAttemptError = 'Element became stale after scrolling';
+            continue;
+          }
+        }
+
+        // Capture pre-state for verification
+        const preState = captureActionState(element, 'selectOption');
+
+        // Perform the selection
+        if (params.value !== undefined) {
+          element.value = params.value;
+        } else if (params.index !== undefined) {
+          element.selectedIndex = params.index;
+        } else if (params.text !== undefined) {
+          const option = Array.from(element.options).find(opt => opt.text === params.text);
+          if (option) {
+            option.selected = true;
+          }
+        }
+
+        // Dispatch change event
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+
+        // Wait for page stability
+        await waitForPageStability({ maxWait: 1000, stableTime: 200 });
+
+        // Capture post-state for verification
+        const postState = captureActionState(element, 'selectOption');
+
+        // Verify action effect
+        const verification = verifyActionEffect(preState, postState, 'selectOption');
+        lastVerification = verification;
+
+        if (!verification.verified) {
+          lastAttemptError = `Selection had no verified effect: ${verification.reason}`;
+          continue; // Try next selector
+        }
+
+        return {
+          success: true,
+          selected: params.value || params.text || params.index,
+          selector: currentSelector,
+          selectorIndex: selectorIndex,
+          usedFallback: selectorIndex > 0,
+          hadEffect: true,
+          verification: {
+            verified: verification.verified,
+            reason: verification.reason,
+            changes: verification.changes
+          }
+        };
+      } catch (error) {
+        lastAttemptError = error.message;
       }
-      
-      // Dispatch change event
-      element.dispatchEvent(new Event('change', { bubbles: true }));
-      
-      return { success: true, selected: params.value || params.text || params.index };
     }
-    return { success: false, error: 'Select element not found' };
+
+    // All selectors exhausted without verified effect
+    return {
+      success: false,
+      error: lastAttemptError || 'Selection had no effect with any available selector',
+      hadEffect: false,
+      selectorsTriad: selectors.length,
+      lastVerification: lastVerification,
+      suggestion: 'Option may not exist or select may be disabled'
+    };
   },
-  
-  // Check/uncheck checkbox or radio
-  toggleCheckbox: (params) => {
-    const element = querySelectorWithShadow(params.selector);
-    if (element && (element.type === 'checkbox' || element.type === 'radio')) {
-      if (params.checked !== undefined) {
-        element.checked = params.checked;
-      } else {
-        element.checked = !element.checked;
+
+  // Check/uncheck checkbox or radio with verification
+  toggleCheckbox: async (params) => {
+    // Build selectors array for alternative selector support
+    const selectors = params.selectors || [params.selector];
+    let lastAttemptError = null;
+    let lastVerification = null;
+
+    // Try each selector until one succeeds with verified effect
+    for (let selectorIndex = 0; selectorIndex < selectors.length; selectorIndex++) {
+      const currentSelector = selectors[selectorIndex];
+
+      try {
+        let element = querySelectorWithShadow(currentSelector);
+        if (!element || (element.type !== 'checkbox' && element.type !== 'radio')) {
+          lastAttemptError = `Checkbox/radio element not found with selector: ${currentSelector}`;
+          continue; // Try next selector
+        }
+
+        // Use unified readiness check
+        const readiness = await ensureElementReady(element, 'toggleCheckbox');
+        if (!readiness.ready) {
+          lastAttemptError = `Element not ready: ${readiness.failureReason}`;
+          continue;
+        }
+
+        // Re-fetch element after potential scroll
+        if (readiness.scrolled) {
+          element = querySelectorWithShadow(currentSelector);
+          if (!element) {
+            lastAttemptError = 'Element became stale after scrolling';
+            continue;
+          }
+        }
+
+        // Capture pre-state for verification
+        const preState = captureActionState(element, 'toggleCheckbox');
+
+        // Perform the toggle
+        if (params.checked !== undefined) {
+          element.checked = params.checked;
+        } else {
+          element.checked = !element.checked;
+        }
+
+        // Dispatch change event
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+
+        // Wait for page stability
+        await waitForPageStability({ maxWait: 1000, stableTime: 200 });
+
+        // Capture post-state for verification
+        const postState = captureActionState(element, 'toggleCheckbox');
+
+        // Verify action effect
+        const verification = verifyActionEffect(preState, postState, 'toggleCheckbox');
+        lastVerification = verification;
+
+        if (!verification.verified) {
+          lastAttemptError = `Toggle had no verified effect: ${verification.reason}`;
+          continue; // Try next selector
+        }
+
+        return {
+          success: true,
+          checked: element.checked,
+          selector: currentSelector,
+          selectorIndex: selectorIndex,
+          usedFallback: selectorIndex > 0,
+          hadEffect: true,
+          verification: {
+            verified: verification.verified,
+            reason: verification.reason,
+            changes: verification.changes
+          }
+        };
+      } catch (error) {
+        lastAttemptError = error.message;
       }
-      
-      // Dispatch change event
-      element.dispatchEvent(new Event('change', { bubbles: true }));
-      
-      return { success: true, checked: element.checked };
     }
-    return { success: false, error: 'Checkbox/radio element not found' };
+
+    // All selectors exhausted without verified effect
+    return {
+      success: false,
+      error: lastAttemptError || 'Toggle had no effect with any available selector',
+      hadEffect: false,
+      selectorsTriad: selectors.length,
+      lastVerification: lastVerification,
+      suggestion: 'Checkbox may be readonly or controlled by JavaScript'
+    };
   },
   
   // Refresh page
