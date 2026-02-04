@@ -13,10 +13,10 @@ This roadmap transforms FSB from an unreliable "hit or miss" automation tool int
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Selector Generation** - Multiple selector strategies with reliability scoring
-- [ ] **Phase 2: Element Readiness** - Verify elements are visible, interactable, and in viewport
-- [ ] **Phase 3: Coordinate Fallback** - X,Y clicking when selectors fail
-- [ ] **Phase 4: Visual Highlighting** - Orange glow feedback showing targeted elements
-- [ ] **Phase 5: Context Quality** - Focused, semantic DOM context for AI
+- [x] **Phase 2: Element Readiness** - Verify elements are visible, interactable, and in viewport
+- [x] **Phase 3: Coordinate Fallback** - X,Y clicking when selectors fail
+- [x] **Phase 4: Visual Highlighting** - Orange glow feedback showing targeted elements
+- [x] **Phase 5: Context Quality** - Focused, semantic DOM context for AI
 - [ ] **Phase 6: Action Verification** - Confirm actions succeeded before proceeding
 - [ ] **Phase 7: Debugging Infrastructure** - Comprehensive logging and inspection tools
 - [ ] **Phase 8: Execution Speed** - Dynamic delays and parallel processing
@@ -50,8 +50,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md - Create unified element readiness check functions
-- [ ] 02-02-PLAN.md - Integrate ensureElementReady into action handlers
+- [x] 02-01-PLAN.md - Create unified element readiness check functions
+- [x] 02-02-PLAN.md - Integrate ensureElementReady into action handlers
 
 ### Phase 3: Coordinate Fallback
 **Goal**: When all selectors fail, the system falls back to coordinate-based clicking
@@ -61,10 +61,11 @@ Plans:
   1. If all selectors fail to match, the system uses stored x,y coordinates
   2. Coordinate-based clicks hit the center of where the element was observed
   3. The fallback is logged so users know a selector-based approach failed
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: TBD
+- [x] 03-01-PLAN.md - Add coordinate validation utilities and integrate into click tool failure path
+- [x] 03-02-PLAN.md - Fix unreachable coordinate fallback code (gap closure)
 
 ### Phase 4: Visual Highlighting
 **Goal**: Users see exactly which element FSB is targeting before each action
@@ -76,11 +77,12 @@ Plans:
   3. A floating overlay shows current step, task name, and progress
   4. Highlights are removed cleanly with no visual artifacts after action completes
   5. Visual feedback works on any website without CSS conflicts
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [x] 04-01-PLAN.md - Create HighlightManager and ProgressOverlay classes
+- [x] 04-02-PLAN.md - Integrate visual feedback into action execution flow
+- [x] 04-03-PLAN.md - Human verification of visual feedback system
 
 ### Phase 5: Context Quality
 **Goal**: AI receives focused, semantic DOM information instead of noise
@@ -92,12 +94,12 @@ Plans:
   3. Page structure summary identifies forms, navigation, and content regions
   4. AI sees action history showing what was attempted and results
   5. Element relationships (button in form, link in nav) are explicitly stated
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
-- [ ] 05-03: TBD
+- [x] 05-01-PLAN.md - Create 3-stage element filtering pipeline (visibility, interactivity, relevance)
+- [x] 05-02-PLAN.md - Add relationship context to element descriptions (form, navigation, region)
+- [x] 05-03-PLAN.md - Enhance AI context with page structure summary and action history
 
 ### Phase 6: Action Verification
 **Goal**: Each action is verified to have succeeded before proceeding to next step
@@ -108,11 +110,11 @@ Plans:
   2. If first selector has no effect, an alternative selector is tried
   3. Actions with no observable effect are reported clearly
   4. Completion is only reported after page stability (no pending requests, DOM stable)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
+- [ ] 06-01-PLAN.md - Create unified verification utilities (captureActionState, verifyActionEffect, waitForPageStability)
+- [ ] 06-02-PLAN.md - Integrate verification into action handlers (type, selectOption, toggleCheckbox, pressEnter)
 
 ### Phase 7: Debugging Infrastructure
 **Goal**: Clear visibility into what FSB is doing and why actions fail
@@ -156,10 +158,10 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Selector Generation | 2/2 | Complete | 2026-02-03 |
-| 2. Element Readiness | 0/2 | Planned | - |
-| 3. Coordinate Fallback | 0/1 | Not started | - |
-| 4. Visual Highlighting | 0/2 | Not started | - |
-| 5. Context Quality | 0/3 | Not started | - |
+| 2. Element Readiness | 2/2 | Complete | 2026-02-03 |
+| 3. Coordinate Fallback | 2/2 | Complete | 2026-02-04 |
+| 4. Visual Highlighting | 3/3 | Complete | 2026-02-04 |
+| 5. Context Quality | 3/3 | Complete | 2026-02-04 |
 | 6. Action Verification | 0/2 | Not started | - |
 | 7. Debugging Infrastructure | 0/3 | Not started | - |
 | 8. Execution Speed | 0/3 | Not started | - |
