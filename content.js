@@ -6011,6 +6011,131 @@ function inferElementPurpose(element) {
   return { role: 'unknown', intent: null, danger: false, sensitive: false, priority: 'low' };
 }
 
+// Get relationship context for an element (modal, form, navigation, region)
+// Returns a descriptive string like "in checkout form" or "in main navigation"
+function getRelationshipContext(element) {
+  const contexts = [];
+
+  // Check if element is in a modal/dialog
+  const modal = element.closest('[role="dialog"], [role="alertdialog"], dialog, .modal, [aria-modal="true"]');
+  if (modal) {
+    const modalTitle = modal.querySelector('[role="heading"], h1, h2, h3, .modal-title')?.textContent?.trim();
+    if (modalTitle && modalTitle.length < 50) {
+      contexts.push(`in "${modalTitle}" modal`);
+    } else {
+      contexts.push('in modal');
+    }
+  }
+
+  // Check if element is in a form (skip if already in modal context)
+  if (!modal) {
+    const form = element.closest('form');
+    if (form) {
+      // Try to get form identifier
+      const formLabel = form.getAttribute('aria-label');
+      const formName = form.name;
+      const formId = form.id;
+
+      // Try to infer form purpose from heading or action
+      const formHeading = form.querySelector('h1, h2, h3, legend')?.textContent?.trim();
+      const formAction = form.action;
+
+      let formIdentifier = null;
+
+      if (formLabel && formLabel.length < 50) {
+        formIdentifier = formLabel;
+      } else if (formHeading && formHeading.length < 50) {
+        formIdentifier = formHeading;
+      } else if (formId && formId !== '' && !formId.match(/^form[-_]?\d*$/i)) {
+        // Use ID if it's meaningful (not just "form" or "form_1")
+        formIdentifier = formId.replace(/[-_]/g, ' ');
+      } else if (formName && formName !== '' && !formName.match(/^form[-_]?\d*$/i)) {
+        formIdentifier = formName.replace(/[-_]/g, ' ');
+      } else if (formAction) {
+        // Try to infer from action URL
+        const actionPath = formAction.split('/').pop()?.split('?')[0]?.replace(/[-_]/g, ' ');
+        if (actionPath && actionPath.length > 2 && actionPath.length < 30) {
+          formIdentifier = actionPath;
+        }
+      }
+
+      if (formIdentifier) {
+        contexts.push(`in ${formIdentifier} form`);
+      } else {
+        contexts.push('in form');
+      }
+    }
+  }
+
+  // Check if element is in navigation
+  const nav = element.closest('nav, [role="navigation"], header nav, .nav, .navigation, .navbar, .menu');
+  if (nav) {
+    const navLabel = nav.getAttribute('aria-label');
+    if (navLabel && navLabel.length < 30) {
+      contexts.push(`in ${navLabel}`);
+    } else if (nav.closest('header')) {
+      contexts.push('in main navigation');
+    } else if (nav.closest('footer')) {
+      contexts.push('in footer navigation');
+    } else {
+      contexts.push('in navigation');
+    }
+  }
+
+  // Check for semantic regions (if not already in nav or form)
+  if (contexts.length === 0) {
+    const region = element.closest('header, footer, aside, main, article, section[aria-label], [role="banner"], [role="main"], [role="complementary"], [role="contentinfo"]');
+    if (region) {
+      const regionTag = region.tagName.toLowerCase();
+      const regionLabel = region.getAttribute('aria-label');
+      const regionRole = region.getAttribute('role');
+
+      if (regionLabel && regionLabel.length < 30) {
+        contexts.push(`in ${regionLabel}`);
+      } else if (regionTag === 'header' || regionRole === 'banner') {
+        contexts.push('in header');
+      } else if (regionTag === 'footer' || regionRole === 'contentinfo') {
+        contexts.push('in footer');
+      } else if (regionTag === 'aside' || regionRole === 'complementary') {
+        contexts.push('in sidebar');
+      } else if (regionTag === 'main' || regionRole === 'main') {
+        contexts.push('in main content');
+      } else if (regionTag === 'article') {
+        const articleTitle = region.querySelector('h1, h2, h3')?.textContent?.trim();
+        if (articleTitle && articleTitle.length < 40) {
+          contexts.push(`in "${articleTitle}" article`);
+        } else {
+          contexts.push('in article');
+        }
+      }
+    }
+  }
+
+  // Check for list context (useful for repeated items)
+  const listItem = element.closest('li');
+  if (listItem) {
+    const list = listItem.closest('ul, ol');
+    if (list) {
+      const listLabel = list.getAttribute('aria-label');
+      if (listLabel && listLabel.length < 30) {
+        contexts.push(`in ${listLabel} list`);
+      }
+    }
+  }
+
+  // Check for card/tile context (common UI pattern)
+  const card = element.closest('.card, [class*="card"], .tile, [class*="tile"], article:not(article article)');
+  if (card && !element.closest('nav')) {
+    const cardTitle = card.querySelector('h1, h2, h3, h4, .card-title, [class*="title"]')?.textContent?.trim();
+    if (cardTitle && cardTitle.length < 40 && cardTitle.length > 2) {
+      contexts.push(`in "${cardTitle}" card`);
+    }
+  }
+
+  // Return the most specific context (first one found), or empty string
+  return contexts.length > 0 ? contexts[0] : '';
+}
+
 // Generate human-readable description of element (enhanced with purpose)
 function generateElementDescription(element) {
   const parts = [];
@@ -6086,15 +6211,10 @@ function generateElementDescription(element) {
     parts.push('center');
   }
 
-  // Add form context
-  const form = element.closest('form');
-  if (form) {
-    const formName = form.getAttribute('aria-label') || form.id || form.name;
-    if (formName) {
-      parts.push(`in "${formName}" form`);
-    } else {
-      parts.push('in form');
-    }
+  // Add relationship context (form, navigation, modal, region)
+  const relationshipContext = getRelationshipContext(element);
+  if (relationshipContext) {
+    parts.push(relationshipContext);
   }
 
   // Add danger/sensitive flags
@@ -7222,7 +7342,9 @@ function getStructuredDOM(options = {}) {
           // Placeholder or hint text
           hintText: node.placeholder || node.title || node.getAttribute('aria-describedby') ?
                    document.getElementById(node.getAttribute('aria-describedby'))?.textContent?.trim() : null
-        }
+        },
+        // Element relationship context for disambiguation (form, navigation, modal, region)
+        relationshipContext: getRelationshipContext(node)
       };
 
       // Special handling for different element types with safety checks
