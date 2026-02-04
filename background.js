@@ -337,6 +337,55 @@ let activeSessions = new Map();
 // This allows conversation history to persist across iterations within a session
 let sessionAIInstances = new Map();
 
+// SPEED-02: Track pending DOM prefetch for parallel analysis
+// When AI is processing, we speculatively start the next DOM fetch
+let pendingDOMPrefetch = null;
+
+/**
+ * SPEED-02: Prefetch DOM for parallel analysis
+ * Initiates DOM analysis while AI is processing, to reduce sequential waiting.
+ * Returns a Promise that can be awaited later (or discarded if not needed).
+ *
+ * @param {number} tabId - Tab ID to fetch DOM from
+ * @param {Object} options - DOM fetch options
+ * @returns {Promise<Object|null>} Promise resolving to DOM response, or null on failure
+ */
+async function prefetchDOM(tabId, options = {}) {
+  try {
+    const domOptions = {
+      useIncrementalDiff: true,
+      prefetch: true, // Hint to content.js this is speculative
+      ...options
+    };
+
+    automationLogger.debug('Starting DOM prefetch', { tabId, options: domOptions });
+
+    const response = await chrome.tabs.sendMessage(tabId, {
+      action: 'getDOM',
+      options: domOptions
+    }, { frameId: 0 });
+
+    if (response && response.success) {
+      automationLogger.debug('DOM prefetch complete', {
+        tabId,
+        elementCount: response.structuredDOM?.elements?.length || 0
+      });
+      return response;
+    }
+
+    // Invalid response
+    automationLogger.debug('DOM prefetch returned invalid response', { tabId });
+    return null;
+  } catch (error) {
+    // Prefetch failure should not block - return null silently
+    automationLogger.debug('DOM prefetch failed (non-blocking)', {
+      tabId,
+      error: error.message
+    });
+    return null;
+  }
+}
+
 // Session persistence helpers - survive service worker restarts
 // Persists essential session data to chrome.storage.session
 async function persistSession(sessionId, session) {
@@ -2140,6 +2189,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: true });
       break;
 
+    case 'getSessionReplayData':
+      // Get structured replay data for session visualization
+      (async () => {
+        try {
+          const replay = await automationLogger.getReplayData(request.sessionId);
+          sendResponse({ replay });
+        } catch (error) {
+          sendResponse({ replay: null, error: error.message });
+        }
+      })();
+      return true; // Will respond asynchronously
+
+    case 'exportSessionHumanReadable':
+      // Export session as human-readable text report
+      (async () => {
+        try {
+          const text = await automationLogger.exportHumanReadable(request.sessionId);
+          sendResponse({ text });
+        } catch (error) {
+          sendResponse({ text: null, error: error.message });
+        }
+      })();
+      return true; // Will respond asynchronously
+
     default:
       sendResponse({ error: 'Unknown action' });
   }
@@ -2690,6 +2763,209 @@ async function outcomeBasedDelay(tabId, outcomeType, options = {}) {
   }
 }
 
+/**
+ * SPEED-03: Deterministic action patterns that can be batched without AI roundtrips
+ * These patterns represent predictable sequences where we know the outcome
+ */
+const DETERMINISTIC_PATTERNS = [
+  {
+    name: 'formFill',
+    description: 'Multiple type actions to different form fields',
+    detect: (actions) => {
+      // All actions must be type operations
+      if (!actions.every(a => a.tool === 'type')) return false;
+      // Must target different selectors (filling different fields)
+      const selectors = actions.map(a => a.params?.selector).filter(Boolean);
+      return selectors.length === actions.length &&
+             new Set(selectors).size === selectors.length;
+    },
+    optimize: true,
+    minDelay: 50  // Minimal delay between batched typing actions
+  },
+  {
+    name: 'clickType',
+    description: 'Click input then type (focus + input pattern)',
+    detect: (actions) => {
+      // Click followed by type (clicking input then typing)
+      return actions.length === 2 &&
+             actions[0].tool === 'click' &&
+             actions[1].tool === 'type';
+    },
+    optimize: true,
+    minDelay: 100  // Small delay between click and type
+  },
+  {
+    name: 'multiClick',
+    description: 'Multiple clicks to different elements (checkbox selections)',
+    detect: (actions) => {
+      // All actions must be clicks
+      if (!actions.every(a => a.tool === 'click')) return false;
+      // Must target different selectors
+      const selectors = actions.map(a => a.params?.selector).filter(Boolean);
+      // Limit to 3 to avoid unexpected side effects
+      return selectors.length === actions.length &&
+             new Set(selectors).size === selectors.length &&
+             actions.length <= 3;
+    },
+    optimize: true,
+    minDelay: 100  // Between click actions
+  }
+];
+
+/**
+ * SPEED-03: Detect if an action sequence matches a deterministic pattern
+ * @param {Array} actions - Array of actions to analyze
+ * @returns {Object|null} Matching pattern or null
+ */
+function detectDeterministicPattern(actions) {
+  if (!actions || actions.length < 1) return null;
+
+  for (const pattern of DETERMINISTIC_PATTERNS) {
+    if (pattern.detect(actions)) {
+      automationLogger.debug('Deterministic pattern detected', {
+        pattern: pattern.name,
+        actionCount: actions.length,
+        tools: actions.map(a => a.tool)
+      });
+      return pattern;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * SPEED-03: Execute a batch of actions matching a deterministic pattern
+ * Skips AI roundtrips between actions, using minimal inter-action delays
+ *
+ * @param {Array} actions - Actions to execute
+ * @param {Object} session - Current automation session
+ * @param {number} tabId - Tab ID for action execution
+ * @returns {Promise<Object|null>} Batch result or null if pattern not matched
+ */
+async function executeDeterministicBatch(actions, session, tabId) {
+  const pattern = detectDeterministicPattern(actions);
+
+  // If no pattern matched, return null (caller should execute normally)
+  if (!pattern || !pattern.optimize) {
+    return null;
+  }
+
+  const batchStartTime = Date.now();
+  const results = [];
+
+  automationLogger.info('Executing deterministic batch', {
+    sessionId: session?.sessionId,
+    pattern: pattern.name,
+    actionCount: actions.length
+  });
+
+  try {
+    for (let i = 0; i < actions.length; i++) {
+      const action = actions[i];
+      const actionStartTime = Date.now();
+
+      // Execute the action
+      const actionResult = await sendMessageWithRetry(tabId, {
+        action: 'executeAction',
+        tool: action.tool,
+        params: action.params,
+        visualContext: {
+          taskName: session?.task?.substring(0, 50) || 'Automation',
+          stepNumber: i + 1,
+          totalSteps: actions.length,
+          iterationCount: session?.iterationCount || 1,
+          isBatchedAction: true,
+          batchPattern: pattern.name
+        }
+      });
+
+      results.push({
+        action,
+        result: actionResult,
+        duration: Date.now() - actionStartTime
+      });
+
+      // Track in session action history
+      if (session) {
+        session.actionHistory.push({
+          timestamp: Date.now(),
+          tool: action.tool,
+          params: action.params,
+          result: actionResult,
+          iteration: session.iterationCount,
+          batched: true,
+          batchPattern: pattern.name
+        });
+      }
+
+      // Log action execution
+      automationLogger.logTiming(
+        session?.sessionId,
+        'ACTION',
+        `${action.tool}_batched`,
+        Date.now() - actionStartTime,
+        { success: actionResult?.success, batch: pattern.name }
+      );
+
+      // If action failed, break the batch (don't continue with remaining actions)
+      if (!actionResult?.success) {
+        automationLogger.warn('Batch action failed, breaking batch', {
+          sessionId: session?.sessionId,
+          pattern: pattern.name,
+          actionIndex: i,
+          tool: action.tool,
+          error: actionResult?.error
+        });
+        break;
+      }
+
+      // Apply minimal delay between actions (except for last action)
+      if (i < actions.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, pattern.minDelay));
+      }
+    }
+
+    const batchDuration = Date.now() - batchStartTime;
+    const successCount = results.filter(r => r.result?.success).length;
+
+    automationLogger.info('Deterministic batch complete', {
+      sessionId: session?.sessionId,
+      pattern: pattern.name,
+      successCount,
+      totalCount: actions.length,
+      batchDuration,
+      savedTime: `~${(actions.length - 1) * 1000}ms AI roundtrips avoided`
+    });
+
+    return {
+      batched: true,
+      pattern: pattern.name,
+      results,
+      count: actions.length,
+      successCount,
+      duration: batchDuration
+    };
+  } catch (error) {
+    automationLogger.error('Deterministic batch execution error', {
+      sessionId: session?.sessionId,
+      pattern: pattern.name,
+      error: error.message
+    });
+
+    // Return partial results if any completed
+    return {
+      batched: true,
+      pattern: pattern.name,
+      results,
+      count: actions.length,
+      successCount: results.filter(r => r.result?.success).length,
+      duration: Date.now() - batchStartTime,
+      error: error.message
+    };
+  }
+}
+
 // Helper function to create smart sequence signatures that group similar actions
 function createSmartSequenceSignature(actions) {
   return actions.map(action => {
@@ -3054,39 +3330,75 @@ async function startAutomationLoop(sessionId) {
     }
     
     // Get current DOM state with enhanced error handling
+    // SPEED-02: Check for pending prefetch first
     let domResponse;
+    let usedPrefetch = false;
     try {
       // Get DOM optimization settings from storage
       const settings = await chrome.storage.local.get([
         'domOptimization',
-        'maxDOMElements', 
+        'maxDOMElements',
         'prioritizeViewport'
       ]);
       const domOptimizationEnabled = settings.domOptimization !== false;
-      
-      automationLogger.logDOMOperation(sessionId, 'request', {
-        iteration: session.iterationCount,
-        useIncrementalDiff: domOptimizationEnabled,
-        maxElements: settings.maxDOMElements || 2000,
-        prioritizeViewport: settings.prioritizeViewport !== false
-      });
 
       // FSB TIMING: Track DOM fetch time
       const domFetchStart = Date.now();
-      const getDOMPayload = {
-        action: 'getDOM',
-        options: {
+
+      // SPEED-02: Try to use pending prefetch if available
+      if (pendingDOMPrefetch) {
+        automationLogger.debug('Using pending DOM prefetch', { sessionId, iteration: session.iterationCount });
+        try {
+          domResponse = await pendingDOMPrefetch;
+          usedPrefetch = true;
+          if (domResponse && domResponse.success) {
+            automationLogger.logTiming(sessionId, 'DOM', 'prefetch_consumed', Date.now() - domFetchStart, {
+              tabId: session.tabId,
+              source: 'prefetch'
+            });
+          } else {
+            // Prefetch returned invalid response, fetch normally
+            automationLogger.debug('Prefetch response invalid, fetching normally', { sessionId });
+            domResponse = null;
+          }
+        } catch (prefetchErr) {
+          // Prefetch failed, will fetch normally
+          automationLogger.debug('Prefetch await failed, fetching normally', {
+            sessionId,
+            error: prefetchErr.message
+          });
+          domResponse = null;
+        }
+        pendingDOMPrefetch = null; // Clear regardless of success
+      }
+
+      // If no prefetch or prefetch failed, fetch normally
+      if (!domResponse) {
+        automationLogger.logDOMOperation(sessionId, 'request', {
+          iteration: session.iterationCount,
           useIncrementalDiff: domOptimizationEnabled,
           maxElements: settings.maxDOMElements || 2000,
           prioritizeViewport: settings.prioritizeViewport !== false
-        }
-      };
+        });
 
-      // Log outgoing message for comprehensive session logging
-      automationLogger.logContentMessage(sessionId, 'send', 'getDOM', getDOMPayload, null);
+        const getDOMPayload = {
+          action: 'getDOM',
+          options: {
+            useIncrementalDiff: domOptimizationEnabled,
+            maxElements: settings.maxDOMElements || 2000,
+            prioritizeViewport: settings.prioritizeViewport !== false
+          }
+        };
 
-      domResponse = await sendMessageWithRetry(session.tabId, getDOMPayload);
-      automationLogger.logTiming(sessionId, 'DOM', 'fetch', Date.now() - domFetchStart, { tabId: session.tabId });
+        // Log outgoing message for comprehensive session logging
+        automationLogger.logContentMessage(sessionId, 'send', 'getDOM', getDOMPayload, null);
+
+        domResponse = await sendMessageWithRetry(session.tabId, getDOMPayload);
+        automationLogger.logTiming(sessionId, 'DOM', 'fetch', Date.now() - domFetchStart, {
+          tabId: session.tabId,
+          source: 'direct'
+        });
+      }
 
       // Log received DOM response
       automationLogger.logContentMessage(sessionId, 'receive', 'getDOM', null, {
@@ -3374,13 +3686,25 @@ async function startAutomationLoop(sessionId) {
     }
 
     // Call AI to get next actions with context
-    const aiResponse = await callAIAPI(
+    // SPEED-02: Start AI call and DOM prefetch in parallel
+    // The prefetch will be ready for the NEXT iteration while we process this one
+    const aiPromise = callAIAPI(
       session.task,
       domResponse.structuredDOM,
       settings,
       context
     );
-    
+
+    // Start prefetching DOM for next iteration while AI processes
+    // Key: prefetch starts AFTER AI call begins, so DOM reflects current state changes
+    pendingDOMPrefetch = prefetchDOM(session.tabId, {
+      maxElements: settings.maxDOMElements || 2000,
+      prioritizeViewport: settings.prioritizeViewport !== false
+    });
+
+    // Now await the AI response
+    const aiResponse = await aiPromise;
+
     // Log AI response
     // automationLogger.logAIResponse(sessionId, aiResponse.reasoning, aiResponse.actions, aiResponse.taskComplete);
     automationLogger.logAIResponse(sessionId, '', aiResponse.actions, aiResponse.taskComplete); // Reasoning disabled for performance
@@ -3449,14 +3773,43 @@ async function startAutomationLoop(sessionId) {
         iteration: session.iterationCount,
         repeatCount: sequenceRepeats
       });
-      
+
+      // SPEED-03: Try deterministic batch execution for recognized patterns
+      // This skips AI roundtrips between actions for predictable sequences
+      let batchExecuted = false;
+      if (aiResponse.actions.length > 1) {
+        const batchResult = await executeDeterministicBatch(aiResponse.actions, session, session.tabId);
+        if (batchResult) {
+          batchExecuted = true;
+          automationLogger.info('Deterministic batch completed', {
+            sessionId,
+            pattern: batchResult.pattern,
+            successCount: batchResult.successCount,
+            totalCount: batchResult.count,
+            duration: batchResult.duration
+          });
+
+          // Clear stale prefetch since batch may have changed DOM significantly
+          // Start fresh prefetch for next iteration
+          if (batchResult.successCount > 0) {
+            pendingDOMPrefetch = null;
+            pendingDOMPrefetch = prefetchDOM(session.tabId, {
+              maxElements: settings.maxDOMElements || 2000,
+              prioritizeViewport: settings.prioritizeViewport !== false
+            });
+          }
+        }
+      }
+
+      // Skip individual action loop if batch was executed
+      if (!batchExecuted) {
       for (let i = 0; i < aiResponse.actions.length; i++) {
         const action = aiResponse.actions[i];
         const nextAction = aiResponse.actions[i + 1];
 
         automationLogger.logActionExecution(sessionId, action.tool, 'start', { index: i + 1, total: aiResponse.actions.length, params: action.params });
         const actionStartTime = Date.now();
-        
+
         // Send action-specific status update to UI
         if (action.description) {
           chrome.runtime.sendMessage({
@@ -3755,6 +4108,7 @@ async function startAutomationLoop(sessionId) {
           });
         }
       }
+      } // End of if (!batchExecuted)
     }
 
     // === PROGRESS TRACKING: Determine if this iteration made meaningful progress ===
