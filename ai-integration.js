@@ -177,6 +177,12 @@ class AIIntegration {
     this.responseCache = new Map();
     this.cacheMaxSize = 50;
     this.cacheMaxAge = 5 * 60 * 1000; // 5 minutes
+
+    // Multi-turn conversation state for token efficiency
+    // Stores message history per session to avoid rebuilding full context each iteration
+    this.conversationHistory = [];
+    this.conversationSessionId = null;
+    this.maxConversationTurns = 8; // Keep last 8 user+assistant pairs
   }
   
   // Migrate legacy settings to new format
@@ -237,7 +243,161 @@ class AIIntegration {
     automationLogger.warn('AI providers not loaded, using legacy xAI implementation', {});
     return null;
   }
-  
+
+  /**
+   * Clear conversation history for multi-turn sessions
+   * Call this when a session ends or a new task starts
+   */
+  clearConversationHistory() {
+    const previousLength = this.conversationHistory.length;
+    this.conversationHistory = [];
+    this.conversationSessionId = null;
+    if (previousLength > 0) {
+      automationLogger.debug('Cleared conversation history', { previousLength });
+    }
+  }
+
+  /**
+   * Build minimal update prompt for subsequent iterations
+   * Only sends what changed since last iteration to save tokens
+   * @param {Object} domState - Current DOM state
+   * @param {Object} context - Automation context with last action result
+   * @returns {string} Minimal update prompt
+   */
+  buildMinimalUpdate(domState, context) {
+    let update = `Page state after your action:
+
+URL: ${domState.url || 'Unknown'}
+Title: ${domState.title || 'Unknown'}
+DOM changed: ${context?.domChanged ? 'Yes' : 'No'}
+Scroll: Y=${domState.scrollPosition?.y || 0}`;
+
+    // Add last action result if available
+    if (context?.lastActionResult) {
+      const result = context.lastActionResult;
+      update += `\n\nLast action result:`;
+      update += `\n- Tool: ${result.tool || 'unknown'}`;
+      update += `\n- Success: ${result.success ? 'Yes' : 'No'}`;
+      if (result.error) {
+        update += `\n- Error: ${result.error}`;
+      }
+      if (result.result) {
+        const resultStr = typeof result.result === 'string'
+          ? result.result.substring(0, 200)
+          : JSON.stringify(result.result).substring(0, 200);
+        update += `\n- Result: ${resultStr}`;
+      }
+    }
+
+    // Add CAPTCHA warning if present
+    if (domState.captchaPresent) {
+      update += `\n\nWARNING: CAPTCHA detected on page - may need human intervention`;
+    }
+
+    // Add stuck warning if applicable
+    if (context?.isStuck) {
+      update += `\n\nWARNING: Automation appears STUCK (${context.stuckCounter} iterations without progress)`;
+      update += `\nTry a DIFFERENT approach than before.`;
+    }
+
+    // Add key visible elements summary (condensed)
+    if (domState.elements && domState.elements.length > 0) {
+      const interactiveElements = domState.elements
+        .filter(el => ['button', 'a', 'input', 'select', 'textarea'].includes(el.type))
+        .slice(0, 10);
+
+      if (interactiveElements.length > 0) {
+        update += `\n\nKey interactive elements (${domState.elements.length} total):`;
+        interactiveElements.forEach(el => {
+          const text = el.text?.substring(0, 30) || el.labelText?.substring(0, 30) || '';
+          const selector = el.selectors?.[0] || el.id || el.class;
+          update += `\n- ${el.type}: "${text}" [${selector}]`;
+        });
+      }
+    }
+
+    update += `\n\nContinue with the task. What's next?`;
+
+    return update;
+  }
+
+  /**
+   * Manage conversation history size to prevent unbounded growth
+   * Keeps system message + last N turns
+   */
+  trimConversationHistory() {
+    const maxMessages = this.maxConversationTurns * 2 + 1; // N pairs + system
+
+    if (this.conversationHistory.length > maxMessages) {
+      // Keep system message (first) + last N turns
+      const systemMessage = this.conversationHistory[0];
+      const recentMessages = this.conversationHistory.slice(-(this.maxConversationTurns * 2));
+      this.conversationHistory = [systemMessage, ...recentMessages];
+
+      automationLogger.debug('Trimmed conversation history', {
+        maxMessages,
+        newLength: this.conversationHistory.length,
+        keptTurns: this.maxConversationTurns
+      });
+    }
+  }
+
+  /**
+   * Update conversation history after a successful API call
+   * @param {Object} prompt - The prompt that was sent
+   * @param {Object} response - The AI response
+   * @param {boolean} isFirstIteration - Whether this is the first iteration
+   */
+  updateConversationHistory(prompt, response, isFirstIteration) {
+    try {
+      // Serialize response to string for storage
+      const responseContent = typeof response === 'string'
+        ? response
+        : JSON.stringify(response);
+
+      if (isFirstIteration) {
+        // First iteration: store system + user + assistant
+        if (prompt.systemPrompt && prompt.userPrompt) {
+          this.conversationHistory = [
+            { role: 'system', content: prompt.systemPrompt },
+            { role: 'user', content: prompt.userPrompt },
+            { role: 'assistant', content: responseContent }
+          ];
+        } else if (prompt.messages) {
+          // Already in messages format
+          this.conversationHistory = [
+            ...prompt.messages,
+            { role: 'assistant', content: responseContent }
+          ];
+        }
+      } else {
+        // Subsequent iterations: append user + assistant
+        if (prompt.messages && prompt.messages.length > 0) {
+          // Get the last user message from the prompt
+          const lastUserMsg = prompt.messages[prompt.messages.length - 1];
+          if (lastUserMsg.role === 'user') {
+            this.conversationHistory.push(lastUserMsg);
+          }
+        }
+        this.conversationHistory.push({ role: 'assistant', content: responseContent });
+      }
+
+      // Trim history to prevent unbounded growth
+      this.trimConversationHistory();
+
+      automationLogger.debug('Updated conversation history', {
+        sessionId: this.currentSessionId,
+        historyLength: this.conversationHistory.length,
+        messageRoles: this.conversationHistory.map(m => m.role)
+      });
+    } catch (error) {
+      automationLogger.warn('Failed to update conversation history', {
+        sessionId: this.currentSessionId,
+        error: error.message
+      });
+    }
+  }
+
   // Generate context-aware cache key
   generateCacheKey(task, domState, context = null) {
     // Base key components
@@ -318,6 +478,7 @@ class AIIntegration {
   
   /**
    * Main method to get AI response for browser automation
+   * Now supports multi-turn conversations for token efficiency
    * @param {string} task - The task description in natural language
    * @param {Object} domState - The structured DOM state from content script
    * @param {Object|null} context - Optional context including action history and stuck detection
@@ -327,6 +488,14 @@ class AIIntegration {
     // Track session context for comprehensive logging
     this.currentSessionId = context?.sessionId || null;
     this.currentIteration = context?.iterationCount || 0;
+
+    // Reset conversation history if this is a new session
+    const sessionId = context?.sessionId;
+    if (sessionId !== this.conversationSessionId) {
+      this.clearConversationHistory();
+      this.conversationSessionId = sessionId;
+      automationLogger.debug('New session detected, reset conversation history', { sessionId });
+    }
 
     // Generate context-aware cache key
     const cacheKey = this.generateCacheKey(task, domState, context);
@@ -358,12 +527,42 @@ class AIIntegration {
       const attemptStart = Date.now();
 
       try {
-        // Build prompt with retry enhancements
-        let prompt = this.buildPrompt(task, domState, context);
+        // Build prompt - either full prompt (first iteration) or multi-turn (subsequent)
+        let prompt;
+        const isFirstIteration = this.conversationHistory.length === 0;
+        const useMultiTurn = !isFirstIteration && !context?.isStuck;
 
-        // Enhance prompt on retry
-        if (attempt > 0) {
-          prompt = this.enhancePromptForRetry(prompt, attempt);
+        if (useMultiTurn) {
+          // MULTI-TURN: Use conversation history + minimal update
+          const minimalUpdate = this.buildMinimalUpdate(domState, context);
+          prompt = {
+            messages: [
+              ...this.conversationHistory,
+              { role: 'user', content: minimalUpdate }
+            ]
+          };
+          automationLogger.debug('Using multi-turn conversation', {
+            sessionId: this.currentSessionId,
+            historyLength: this.conversationHistory.length,
+            updateLength: minimalUpdate.length
+          });
+        } else {
+          // FIRST ITERATION or STUCK: Build full prompt
+          prompt = this.buildPrompt(task, domState, context);
+
+          // Enhance prompt on retry
+          if (attempt > 0) {
+            prompt = this.enhancePromptForRetry(prompt, attempt);
+          }
+
+          // If stuck, reset conversation to force fresh context
+          if (context?.isStuck && this.conversationHistory.length > 0) {
+            automationLogger.debug('Stuck detected, resetting conversation history', {
+              sessionId: this.currentSessionId,
+              previousHistoryLength: this.conversationHistory.length
+            });
+            this.conversationHistory = [];
+          }
         }
 
         // Queue the request for processing
@@ -373,7 +572,8 @@ class AIIntegration {
             cacheKey,
             resolve,
             reject,
-            attempt
+            attempt,
+            isMultiTurn: useMultiTurn
           });
 
           // Process queue if not already processing
@@ -381,6 +581,11 @@ class AIIntegration {
             this.processQueue();
           }
         });
+
+        // Store this exchange in conversation history for next iteration
+        if (this.isValidResponse(response)) {
+          this.updateConversationHistory(prompt, response, isFirstIteration);
+        }
 
         // Validate response quality
         if (this.isValidResponse(response)) {
@@ -1343,6 +1548,166 @@ What actions should I take to complete the task?`;
   }
 
   /**
+   * Format a hierarchical page structure summary
+   * @param {Object} pageContext - The page context from detectPageContext
+   * @param {Array} elements - The filtered elements array
+   * @returns {string} Formatted page structure summary
+   */
+  formatPageStructureSummary(pageContext, elements) {
+    let summary = '\n=== PAGE STRUCTURE ===';
+
+    // Forms summary
+    const formElements = elements.filter(el => el.context?.formId || el.type === 'form');
+    const forms = {};
+    formElements.forEach(el => {
+      const formId = el.context?.formId || el.formId || 'unnamed';
+      if (!forms[formId]) {
+        forms[formId] = { fields: [], hasSubmit: false };
+      }
+      if (el.type === 'input' || el.type === 'textarea' || el.type === 'select') {
+        forms[formId].fields.push(el.purpose?.intent || el.inputType || 'field');
+      }
+      if (el.purpose?.intent === 'submit' || el.isButton) {
+        forms[formId].hasSubmit = true;
+      }
+    });
+
+    if (Object.keys(forms).length > 0) {
+      summary += '\n\nFORMS:';
+      Object.entries(forms).forEach(([id, form]) => {
+        const fieldTypes = [...new Set(form.fields)].slice(0, 5);
+        summary += `\n  - ${id}: ${form.fields.length} fields (${fieldTypes.join(', ')})`;
+        summary += form.hasSubmit ? ' [has submit]' : ' [no submit button found]';
+      });
+    }
+
+    // Navigation regions
+    const navElements = elements.filter(el =>
+      el.relationshipContext?.includes('navigation') ||
+      el.purpose?.role?.includes('navigation')
+    );
+    if (navElements.length > 0) {
+      summary += '\n\nNAVIGATION:';
+      // Group by context
+      const navGroups = {};
+      navElements.forEach(el => {
+        const ctx = el.relationshipContext || 'main navigation';
+        if (!navGroups[ctx]) navGroups[ctx] = [];
+        navGroups[ctx].push(el);
+      });
+      Object.entries(navGroups).forEach(([ctx, els]) => {
+        summary += `\n  - ${ctx}: ${els.length} links`;
+      });
+    }
+
+    // Main content areas
+    const mainElements = elements.filter(el =>
+      el.relationshipContext?.includes('main content') ||
+      el.relationshipContext?.includes('article')
+    );
+    if (mainElements.length > 0) {
+      summary += '\n\nMAIN CONTENT:';
+      summary += `\n  - ${mainElements.length} interactive elements`;
+
+      // Identify content type
+      const hasArticle = mainElements.some(el => el.relationshipContext?.includes('article'));
+      const hasCards = mainElements.some(el => el.relationshipContext?.includes('card'));
+      const hasList = mainElements.some(el => el.relationshipContext?.includes('list'));
+
+      if (hasArticle) summary += '\n  - Contains article content';
+      if (hasCards) summary += '\n  - Contains cards/items';
+      if (hasList) summary += '\n  - Contains list items';
+    }
+
+    // Modal/dialog present
+    const modalElements = elements.filter(el => el.relationshipContext?.includes('modal'));
+    if (modalElements.length > 0) {
+      summary += '\n\n*** MODAL ACTIVE ***';
+      summary += `\n  - ${modalElements.length} elements in modal`;
+      summary += '\n  - Interact with modal first before underlying page';
+    }
+
+    return summary;
+  }
+
+  /**
+   * Format action history for AI context
+   * Shows what was attempted and results to prevent repeating failures
+   * @param {Array} actionHistory - Array of past actions with results
+   * @param {number} maxActions - Maximum number of actions to show (default 5)
+   * @returns {string} Formatted action history
+   */
+  formatActionHistory(actionHistory, maxActions = 5) {
+    if (!actionHistory || actionHistory.length === 0) {
+      return '\n\n=== ACTION HISTORY ===\nNo actions taken yet.';
+    }
+
+    const recent = actionHistory.slice(-maxActions);
+    const skipped = actionHistory.length - recent.length;
+
+    let history = '\n\n=== ACTION HISTORY ===';
+    history += `\nRecent actions (last ${recent.length} of ${actionHistory.length}):`;
+
+    if (skipped > 0) {
+      history += ` (${skipped} earlier actions omitted)`;
+    }
+
+    recent.forEach((action, i) => {
+      const status = action.result?.success ? 'OK' : 'FAILED';
+      const tool = action.tool || action.action || 'unknown';
+
+      // Summarize target
+      let target = '';
+      if (action.params?.selector) {
+        // Shorten long selectors
+        const sel = action.params.selector;
+        target = sel.length > 40 ? sel.substring(0, 37) + '...' : sel;
+      } else if (action.params?.text) {
+        target = `"${action.params.text.substring(0, 25)}..."`;
+      } else if (action.params?.url) {
+        // Extract last path segment
+        target = action.params.url.split('/').slice(-2).join('/');
+      } else {
+        target = 'target';
+      }
+
+      history += `\n  ${i + 1}. ${tool}(${target}) -> ${status}`;
+
+      // Add effect or error details
+      if (action.result?.success) {
+        if (action.result.hadEffect === false) {
+          history += ' [no visible change]';
+        } else if (action.result.navigationOccurred) {
+          history += ' [page changed]';
+        } else if (action.result.formSubmitted) {
+          history += ' [form submitted]';
+        }
+      } else if (action.result?.error) {
+        history += ` [${action.result.error.substring(0, 40)}]`;
+      }
+    });
+
+    // Add guidance based on history
+    const failures = recent.filter(a => !a.result?.success);
+    if (failures.length >= 2) {
+      history += '\n\n*** Multiple recent failures - try a different approach ***';
+
+      // Identify repeated failures
+      const failedSelectors = failures
+        .map(f => f.params?.selector)
+        .filter(Boolean);
+      const uniqueSelectors = [...new Set(failedSelectors)];
+
+      if (uniqueSelectors.length < failedSelectors.length) {
+        history += '\n  - Same selector failing multiple times';
+        history += '\n  - Consider: different selector, scroll to element, or wait for element';
+      }
+    }
+
+    return history;
+  }
+
+  /**
    * Format semantic context for AI understanding
    * Creates a high-level summary of page type, state, and available actions
    * @param {Object} domState - The DOM state with pageContext
@@ -1351,7 +1716,12 @@ What actions should I take to complete the task?`;
   formatSemanticContext(domState) {
     let context = '';
 
-    // Format page context if available
+    // 1. PAGE STRUCTURE SUMMARY (forms, navigation, regions)
+    if (domState.pageContext && domState.elements) {
+      context += this.formatPageStructureSummary(domState.pageContext, domState.elements);
+    }
+
+    // 2. PAGE UNDERSTANDING (type, intent, state)
     if (domState.pageContext) {
       const pc = domState.pageContext;
 
@@ -1417,7 +1787,8 @@ What actions should I take to complete the task?`;
             const text = (el.text || '').substring(0, 40);
             const selector = el.selectors?.[0] || 'unknown';
             const intent = el.purpose.intent || '';
-            context += `\n  - "${text || el.id || 'unnamed'}" [${intent}] -> ${selector}`;
+            const relationship = el.relationshipContext ? ` ${el.relationshipContext}` : '';
+            context += `\n  - "${text || el.id || 'unnamed'}" [${intent}]${relationship} -> ${selector}`;
           });
           if (els.length > 5) {
             context += `\n  ... and ${els.length - 5} more`;
@@ -1438,7 +1809,12 @@ What actions should I take to complete the task?`;
       }
     }
 
-    // Add progress context if available
+    // 4. ACTION HISTORY (what was tried, what worked/failed)
+    if (domState.actionHistory) {
+      context += this.formatActionHistory(domState.actionHistory);
+    }
+
+    // 5. PROGRESS CONTEXT (iterations, success rate)
     if (domState.progressContext) {
       const prog = domState.progressContext;
       context += `\n\n=== TASK PROGRESS ===`;
