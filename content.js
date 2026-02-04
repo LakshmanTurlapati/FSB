@@ -4235,40 +4235,121 @@ const tools = {
     };
   },
   
-  // Press Enter key on an element
-  pressEnter: (params) => {
-    const element = querySelectorWithShadow(params.selector);
-    if (element) {
-      // Focus the element first
-      element.focus();
-      
-      // Create and dispatch keydown event
-      const enterDownEvent = new KeyboardEvent('keydown', {
-        key: 'Enter',
-        code: 'Enter',
-        keyCode: 13,
-        which: 13,
-        bubbles: true,
-        cancelable: true
-      });
-      
-      element.dispatchEvent(enterDownEvent);
-      
-      // Create and dispatch keyup event for completeness
-      const enterUpEvent = new KeyboardEvent('keyup', {
-        key: 'Enter',
-        code: 'Enter',
-        keyCode: 13,
-        which: 13,
-        bubbles: true,
-        cancelable: true
-      });
-      
-      element.dispatchEvent(enterUpEvent);
-      
-      return { success: true, key: 'Enter', selector: params.selector };
+  // Press Enter key on an element with verification
+  pressEnter: async (params) => {
+    // Build selectors array for alternative selector support
+    const selectors = params.selectors || [params.selector];
+    let lastAttemptError = null;
+    let lastVerification = null;
+
+    // Try each selector until one succeeds
+    for (let selectorIndex = 0; selectorIndex < selectors.length; selectorIndex++) {
+      const currentSelector = selectors[selectorIndex];
+
+      try {
+        let element = querySelectorWithShadow(currentSelector);
+        if (!element) {
+          lastAttemptError = `Element not found with selector: ${currentSelector}`;
+          continue; // Try next selector
+        }
+
+        // Use unified readiness check
+        const readiness = await ensureElementReady(element, 'pressEnter');
+        if (!readiness.ready) {
+          lastAttemptError = `Element not ready: ${readiness.failureReason}`;
+          continue;
+        }
+
+        // Re-fetch element after potential scroll
+        if (readiness.scrolled) {
+          element = querySelectorWithShadow(currentSelector);
+          if (!element) {
+            lastAttemptError = 'Element became stale after scrolling';
+            continue;
+          }
+        }
+
+        // Check if element is inside a form (affects verification expectations)
+        const isInsideForm = !!element.closest('form');
+        const formElement = element.closest('form');
+
+        // Capture pre-state for verification
+        const preState = captureActionState(element, 'pressEnter');
+
+        // Focus the element first
+        element.focus();
+
+        // Create and dispatch keydown event
+        const enterDownEvent = new KeyboardEvent('keydown', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true
+        });
+
+        element.dispatchEvent(enterDownEvent);
+
+        // Create and dispatch keyup event for completeness
+        const enterUpEvent = new KeyboardEvent('keyup', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true
+        });
+
+        element.dispatchEvent(enterUpEvent);
+
+        // Wait for page stability - longer wait for pressEnter as it often triggers navigation
+        await waitForPageStability({ maxWait: 2000, stableTime: 300 });
+
+        // Capture post-state for verification
+        const postState = captureActionState(element, 'pressEnter');
+
+        // Verify action effect
+        const verification = verifyActionEffect(preState, postState, 'pressEnter');
+        lastVerification = verification;
+
+        // For form contexts, we expect some effect; for non-form (like textarea), it's optional
+        if (!verification.verified && isInsideForm) {
+          // Form submission was expected but nothing changed
+          lastAttemptError = `Enter key pressed but form submission had no effect`;
+          continue; // Try next selector
+        }
+
+        // For non-form contexts, return success even without observable effect
+        // (e.g., pressing Enter in a textarea just adds a newline)
+        return {
+          success: true,
+          key: 'Enter',
+          selector: currentSelector,
+          selectorIndex: selectorIndex,
+          usedFallback: selectorIndex > 0,
+          hadEffect: verification.verified,
+          isInsideForm: isInsideForm,
+          verification: {
+            verified: verification.verified,
+            reason: verification.reason,
+            changes: verification.changes
+          }
+        };
+      } catch (error) {
+        lastAttemptError = error.message;
+      }
     }
-    return { success: false, error: 'Element not found' };
+
+    // All selectors exhausted
+    return {
+      success: false,
+      error: lastAttemptError || 'Enter key had no effect with any available selector',
+      hadEffect: false,
+      selectorsTriad: selectors.length,
+      lastVerification: lastVerification,
+      suggestion: 'Form may have validation errors or require button click instead'
+    };
   },
   
   // Move mouse to coordinates (simulated)
