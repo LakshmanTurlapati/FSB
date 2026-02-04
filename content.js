@@ -456,6 +456,127 @@ class DOMStateManager {
 const domStateManager = new DOMStateManager();
 
 /**
+ * ElementCache - Caches element lookups with MutationObserver invalidation
+ * Uses WeakRef for automatic cleanup when elements are garbage collected
+ * SPEED-04: Reduces repeated DOM queries within same page state
+ */
+class ElementCache {
+  constructor() {
+    this.cache = new Map(); // selector -> { ref: WeakRef(element), version: number, timestamp: number }
+    this.stateVersion = 0;
+    this.observer = null;
+    this.maxCacheSize = 100;
+  }
+
+  /**
+   * Initialize MutationObserver to track DOM changes
+   */
+  initialize() {
+    if (this.observer) return; // Already initialized
+
+    this.observer = new MutationObserver((mutations) => {
+      // Invalidate cache on structural changes or high mutation count
+      if (mutations.length > 20 || this.hasStructuralChange(mutations)) {
+        this.invalidate();
+      }
+    });
+
+    // Wait for body to be available
+    if (document.body) {
+      this.observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'id', 'disabled', 'hidden', 'style']
+      });
+    }
+  }
+
+  /**
+   * Check if any mutation is a structural change (added/removed nodes)
+   * @param {MutationRecord[]} mutations - Array of mutation records
+   * @returns {boolean} True if structural change detected
+   */
+  hasStructuralChange(mutations) {
+    for (const mutation of mutations) {
+      if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Get cached element for selector
+   * @param {string} selector - CSS selector
+   * @returns {Element|null} Cached element or null if not found/invalid
+   */
+  get(selector) {
+    const entry = this.cache.get(selector);
+    if (!entry) return null;
+
+    // Check version matches current state
+    if (entry.version !== this.stateVersion) {
+      this.cache.delete(selector);
+      return null;
+    }
+
+    // Dereference WeakRef and verify element is still connected
+    const element = entry.ref.deref();
+    if (!element || !element.isConnected) {
+      this.cache.delete(selector);
+      return null;
+    }
+
+    return element;
+  }
+
+  /**
+   * Cache element for selector
+   * @param {string} selector - CSS selector
+   * @param {Element} element - DOM element to cache
+   */
+  set(selector, element) {
+    if (!element) return;
+
+    // Evict oldest entries if cache is full
+    if (this.cache.size >= this.maxCacheSize) {
+      // Remove oldest entry (first in Map iteration order)
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+
+    this.cache.set(selector, {
+      ref: new WeakRef(element),
+      version: this.stateVersion,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * Invalidate entire cache (called on significant DOM changes)
+   */
+  invalidate() {
+    this.cache.clear();
+    this.stateVersion++;
+  }
+
+  /**
+   * Cleanup and disconnect observer
+   */
+  destroy() {
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+    this.cache.clear();
+  }
+}
+
+// Global element cache instance
+const elementCache = new ElementCache();
+
+/**
  * Check if the document is fully ready for interaction
  * Provides detailed readiness state for smart page load detection
  * @returns {Object} Readiness state with details
@@ -8647,6 +8768,8 @@ if (document.body) {
     attributes: true
   });
   automationLogger.logInit('mutation_observer', 'started', { target: 'document.body' });
+  // Initialize element cache observer
+  elementCache.initialize();
 } else {
   // Body not ready yet, wait for it
   automationLogger.logInit('mutation_observer', 'waiting', { reason: 'document.body not ready' });
@@ -8658,6 +8781,8 @@ if (document.body) {
         attributes: true
       });
       automationLogger.logInit('mutation_observer', 'started_after_dom', {});
+      // Initialize element cache observer
+      elementCache.initialize();
     }
   };
 
