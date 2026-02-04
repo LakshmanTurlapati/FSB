@@ -5681,15 +5681,34 @@ const tools = {
 
   // Right click on element
   rightClick: async (params) => {
+    const startTime = Date.now();
     // Find element using shadow DOM aware query
     let element = querySelectorWithShadow(params.selector);
     if (!element) {
+      actionRecorder.record(null, 'rightClick', params, {
+        selectorTried: params.selector,
+        elementFound: false,
+        success: false,
+        error: 'Element not found',
+        diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector }),
+        duration: Date.now() - startTime
+      });
       return { success: false, error: 'Element not found', selector: params.selector };
     }
 
     // SPEED-05: Use smart readiness check with fast-path for ready elements
     const readiness = await smartEnsureReady(element, 'rightClick');
     if (!readiness.ready) {
+      actionRecorder.record(null, 'rightClick', params, {
+        selectorTried: params.selector,
+        selectorUsed: params.selector,
+        elementFound: true,
+        elementDetails: captureElementDetails(element),
+        success: false,
+        error: `Element not ready for right click: ${readiness.failureReason}`,
+        diagnostic: generateDiagnostic('notReady', { selector: params.selector, checks: readiness.checks }),
+        duration: Date.now() - startTime
+      });
       return {
         success: false,
         error: `Element not ready for right click: ${readiness.failureReason}`,
@@ -5702,6 +5721,14 @@ const tools = {
     if (readiness.scrolled) {
       element = querySelectorWithShadow(params.selector);
       if (!element) {
+        actionRecorder.record(null, 'rightClick', params, {
+          selectorTried: params.selector,
+          elementFound: false,
+          success: false,
+          error: 'Element became stale after scrolling',
+          diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector }),
+          duration: Date.now() - startTime
+        });
         return { success: false, error: 'Element became stale after scrolling', selector: params.selector };
       }
     }
@@ -5716,20 +5743,50 @@ const tools = {
       clientY: rect.top + rect.height / 2
     });
     element.dispatchEvent(event);
+    actionRecorder.record(null, 'rightClick', params, {
+      selectorTried: params.selector,
+      selectorUsed: params.selector,
+      elementFound: true,
+      elementDetails: captureElementDetails(element),
+      coordinatesUsed: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+      coordinateSource: 'element_center',
+      success: true,
+      hadEffect: true,
+      duration: Date.now() - startTime
+    });
     return { success: true, rightClicked: params.selector, scrolled: readiness.scrolled };
   },
   
   // Double click on element
   doubleClick: async (params) => {
+    const startTime = Date.now();
     // Find element using shadow DOM aware query
     let element = querySelectorWithShadow(params.selector);
     if (!element) {
+      actionRecorder.record(null, 'doubleClick', params, {
+        selectorTried: params.selector,
+        elementFound: false,
+        success: false,
+        error: 'Element not found',
+        diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector }),
+        duration: Date.now() - startTime
+      });
       return { success: false, error: 'Element not found', selector: params.selector };
     }
 
     // SPEED-05: Use smart readiness check with fast-path for ready elements
     const readiness = await smartEnsureReady(element, 'doubleClick');
     if (!readiness.ready) {
+      actionRecorder.record(null, 'doubleClick', params, {
+        selectorTried: params.selector,
+        selectorUsed: params.selector,
+        elementFound: true,
+        elementDetails: captureElementDetails(element),
+        success: false,
+        error: `Element not ready for double click: ${readiness.failureReason}`,
+        diagnostic: generateDiagnostic('notReady', { selector: params.selector, checks: readiness.checks }),
+        duration: Date.now() - startTime
+      });
       return {
         success: false,
         error: `Element not ready for double click: ${readiness.failureReason}`,
@@ -5742,6 +5799,14 @@ const tools = {
     if (readiness.scrolled) {
       element = querySelectorWithShadow(params.selector);
       if (!element) {
+        actionRecorder.record(null, 'doubleClick', params, {
+          selectorTried: params.selector,
+          elementFound: false,
+          success: false,
+          error: 'Element became stale after scrolling',
+          diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector }),
+          duration: Date.now() - startTime
+        });
         return { success: false, error: 'Element became stale after scrolling', selector: params.selector };
       }
     }
@@ -5756,6 +5821,17 @@ const tools = {
       clientY: rect.top + rect.height / 2
     });
     element.dispatchEvent(event);
+    actionRecorder.record(null, 'doubleClick', params, {
+      selectorTried: params.selector,
+      selectorUsed: params.selector,
+      elementFound: true,
+      elementDetails: captureElementDetails(element),
+      coordinatesUsed: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+      coordinateSource: 'element_center',
+      success: true,
+      hadEffect: true,
+      duration: Date.now() - startTime
+    });
     return { success: true, doubleClicked: params.selector, scrolled: readiness.scrolled };
   },
   
