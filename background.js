@@ -2536,6 +2536,160 @@ function calculateActionDelay(currentAction, nextAction, context = {}) {
   return Math.round(adjustedDelay);
 }
 
+/**
+ * SPEED-01: Outcome-based delay strategies
+ * Maps detected outcome types to appropriate wait strategies
+ */
+const OUTCOME_DELAYS = {
+  navigation: { waitFor: 'pageLoad', maxWait: 5000 },
+  network: { waitFor: 'networkQuiet', maxWait: 2000, quietTime: 200 },
+  majorDOMChange: { waitFor: 'domStable', maxWait: 1000, stableTime: 300 },
+  minorDOMChange: { waitFor: 'domStable', maxWait: 500, stableTime: 100 },
+  elementStateChange: { waitFor: 'minimal', delayMs: 50 },
+  noChange: { waitFor: 'none', delayMs: 0 }
+};
+
+/**
+ * SPEED-01: Applies outcome-based delay instead of category-based delay
+ * Waits appropriately based on what actually happened after an action
+ * @param {number} tabId - Tab ID for communication with content script
+ * @param {string} outcomeType - Type from detectActionOutcome (navigation, network, etc.)
+ * @param {Object} options - Override options
+ * @returns {Promise<Object>} Wait result { waited: true, strategy, waitTime }
+ */
+async function outcomeBasedDelay(tabId, outcomeType, options = {}) {
+  const startTime = Date.now();
+  const strategy = OUTCOME_DELAYS[outcomeType] || OUTCOME_DELAYS.noChange;
+
+  try {
+    switch (strategy.waitFor) {
+      case 'pageLoad':
+        // Use pageLoadWatcher for navigation outcomes
+        const loadResult = await pageLoadWatcher.waitForPageReady(tabId, {
+          maxWait: options.maxWait || strategy.maxWait,
+          requireDOMStable: true,
+          stableTime: 300
+        });
+        automationLogger.logTiming(null, 'WAIT', 'outcome_pageLoad', Date.now() - startTime, {
+          outcomeType,
+          success: loadResult.success
+        });
+        return {
+          waited: true,
+          strategy: outcomeType,
+          waitTime: Date.now() - startTime,
+          method: 'pageLoad',
+          result: loadResult
+        };
+
+      case 'networkQuiet':
+        // Wait for network to quiet down
+        try {
+          const networkResult = await sendMessageWithRetry(tabId, {
+            action: 'executeAction',
+            tool: 'waitForPageStability',
+            params: {
+              maxWait: options.maxWait || strategy.maxWait,
+              stableTime: 100,
+              networkQuietTime: options.quietTime || strategy.quietTime
+            }
+          });
+          automationLogger.logTiming(null, 'WAIT', 'outcome_networkQuiet', Date.now() - startTime, {
+            outcomeType,
+            stable: networkResult?.result?.stable
+          });
+          return {
+            waited: true,
+            strategy: outcomeType,
+            waitTime: Date.now() - startTime,
+            method: 'networkQuiet',
+            result: networkResult
+          };
+        } catch (err) {
+          // Fallback to minimal delay if network wait fails
+          await new Promise(r => setTimeout(r, 200));
+          return {
+            waited: true,
+            strategy: outcomeType,
+            waitTime: Date.now() - startTime,
+            method: 'networkQuiet-fallback',
+            error: err.message
+          };
+        }
+
+      case 'domStable':
+        // Wait for DOM to stabilize
+        try {
+          const domResult = await sendMessageWithRetry(tabId, {
+            action: 'executeAction',
+            tool: 'waitForDOMStable',
+            params: {
+              timeout: options.maxWait || strategy.maxWait,
+              stableTime: options.stableTime || strategy.stableTime
+            }
+          });
+          automationLogger.logTiming(null, 'WAIT', 'outcome_domStable', Date.now() - startTime, {
+            outcomeType,
+            stable: domResult?.result?.stable
+          });
+          return {
+            waited: true,
+            strategy: outcomeType,
+            waitTime: Date.now() - startTime,
+            method: 'domStable',
+            result: domResult
+          };
+        } catch (err) {
+          // Fallback to minimal delay if DOM wait fails
+          await new Promise(r => setTimeout(r, 100));
+          return {
+            waited: true,
+            strategy: outcomeType,
+            waitTime: Date.now() - startTime,
+            method: 'domStable-fallback',
+            error: err.message
+          };
+        }
+
+      case 'minimal':
+        // Very short fixed delay for state changes
+        await new Promise(r => setTimeout(r, strategy.delayMs));
+        automationLogger.logTiming(null, 'WAIT', 'outcome_minimal', strategy.delayMs, { outcomeType });
+        return {
+          waited: true,
+          strategy: outcomeType,
+          waitTime: strategy.delayMs,
+          method: 'minimal'
+        };
+
+      case 'none':
+      default:
+        // No delay needed
+        automationLogger.logTiming(null, 'WAIT', 'outcome_none', 0, { outcomeType });
+        return {
+          waited: false,
+          strategy: outcomeType,
+          waitTime: 0,
+          method: 'none'
+        };
+    }
+  } catch (error) {
+    automationLogger.warn('Outcome-based delay error, using fallback', {
+      outcomeType,
+      error: error.message
+    });
+    // Fallback: use a safe minimal delay
+    await new Promise(r => setTimeout(r, 100));
+    return {
+      waited: true,
+      strategy: outcomeType,
+      waitTime: Date.now() - startTime,
+      method: 'error-fallback',
+      error: error.message
+    };
+  }
+}
+
 // Helper function to create smart sequence signatures that group similar actions
 function createSmartSequenceSignature(actions) {
   return actions.map(action => {
