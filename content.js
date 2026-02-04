@@ -3240,6 +3240,96 @@ function verifyActionEffect(preState, postState, actionType) {
 }
 
 /**
+ * SPEED-01: Detects the outcome of an action to determine appropriate wait strategy
+ * Classifies outcomes: navigation, network, majorDOMChange, minorDOMChange, elementStateChange, noChange
+ * @param {Object} preState - State captured before action (from captureActionState)
+ * @param {Object} postState - State captured after action (from captureActionState)
+ * @param {Object} actionResult - Result from action handler (contains verification info)
+ * @returns {Object} Outcome { type, confidence, details }
+ */
+function detectActionOutcome(preState, postState, actionResult = {}) {
+  // Calculate deltas
+  const elementDelta = Math.abs((postState?.elementCount || 0) - (preState?.elementCount || 0));
+  const textDelta = Math.abs((postState?.bodyTextLength || 0) - (preState?.bodyTextLength || 0));
+
+  // Priority 1: Navigation detected (URL changed)
+  if (preState?.url && postState?.url && preState.url !== postState.url) {
+    return {
+      type: 'navigation',
+      confidence: 'HIGH',
+      details: {
+        fromUrl: preState.url,
+        toUrl: postState.url
+      }
+    };
+  }
+
+  // Priority 2: Network activity (actionResult indicates network or pending requests)
+  if (actionResult?.triggeredNetwork || (postState?.pendingRequests && postState.pendingRequests > 0)) {
+    return {
+      type: 'network',
+      confidence: 'HIGH',
+      details: {
+        triggeredNetwork: actionResult?.triggeredNetwork || false,
+        pendingRequests: postState?.pendingRequests || 0
+      }
+    };
+  }
+
+  // Priority 3: Major DOM change (significant element or text changes)
+  if (elementDelta > 10 || textDelta > 500) {
+    return {
+      type: 'majorDOMChange',
+      confidence: 'HIGH',
+      details: {
+        elementDelta,
+        textDelta
+      }
+    };
+  }
+
+  // Priority 4: Minor DOM change (any element or text change)
+  if (elementDelta > 0 || textDelta > 0) {
+    return {
+      type: 'minorDOMChange',
+      confidence: 'MEDIUM',
+      details: {
+        elementDelta,
+        textDelta
+      }
+    };
+  }
+
+  // Priority 5: Element state change (class, aria-expanded, etc.)
+  const changes = actionResult?.verification?.changes || {};
+  if (changes.classChanged || changes.ariaExpandedChanged ||
+      changes.ariaSelectedChanged || changes.ariaPressedChanged ||
+      changes.dataStateChanged || changes.openChanged) {
+    return {
+      type: 'elementStateChange',
+      confidence: 'HIGH',
+      details: {
+        classChanged: changes.classChanged,
+        ariaExpandedChanged: changes.ariaExpandedChanged,
+        ariaSelectedChanged: changes.ariaSelectedChanged,
+        ariaPressedChanged: changes.ariaPressedChanged
+      }
+    };
+  }
+
+  // Default: No detectable change
+  return {
+    type: 'noChange',
+    confidence: 'HIGH',
+    details: {
+      elementDelta,
+      textDelta,
+      reason: 'No detectable outcome from action'
+    }
+  };
+}
+
+/**
  * Waits for page stability - both DOM stable AND network quiet
  * Enhanced version of waitForDOMStable with proper network request tracking
  * @param {Object} options - Configuration options
