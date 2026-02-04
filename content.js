@@ -3743,42 +3743,44 @@ const tools = {
   type: async (params) => {
     automationLogger.logActionExecution(currentSessionId, 'type', 'start', params);
 
+    // Build selectors array for alternative selector support
+    const selectors = params.selectors || [params.selector];
+    let lastAttemptError = null;
+    let lastVerification = null;
+
+    // Try each selector until one succeeds with verified effect
+    for (let selectorIndex = 0; selectorIndex < selectors.length; selectorIndex++) {
+      const currentSelector = selectors[selectorIndex];
+      automationLogger.debug('Trying selector for type', { sessionId: currentSessionId, selectorIndex, selector: currentSelector });
+
     try {
       // Find element using shadow DOM aware query
-      let element = querySelectorWithShadow(params.selector);
+      let element = querySelectorWithShadow(currentSelector);
       if (!element) {
-        return {
-          success: false,
-          error: 'Element not found',
-          selector: params.selector
-        };
+        lastAttemptError = `Element not found with selector: ${currentSelector}`;
+        continue; // Try next selector
       }
 
       // Use unified readiness check with 'type' action type (includes editable check)
       const readiness = await ensureElementReady(element, 'type');
       if (!readiness.ready) {
-        return {
-          success: false,
-          error: `Element not ready for typing: ${readiness.failureReason}`,
-          selector: params.selector,
-          checks: readiness.checks,
-          failureDetails: readiness.failureDetails
-        };
+        lastAttemptError = `Element not ready for typing: ${readiness.failureReason}`;
+        continue; // Try next selector
       }
 
       // Re-fetch element after potential scroll (may have become stale)
       if (readiness.scrolled) {
-        element = querySelectorWithShadow(params.selector);
+        element = querySelectorWithShadow(currentSelector);
         if (!element) {
-          return {
-            success: false,
-            error: 'Element became stale after scrolling',
-            selector: params.selector
-          };
+          lastAttemptError = 'Element became stale after scrolling';
+          continue; // Try next selector
         }
       }
 
       automationLogger.logActionExecution(currentSessionId, 'type', 'element_ready', { tagName: element.tagName, scrolled: readiness.scrolled });
+
+      // Capture pre-state for verification
+      const preState = captureActionState(element, 'type');
 
     if (element) {
       // Check if it's a valid input element with enhanced contenteditable detection
@@ -3793,13 +3795,8 @@ const tools = {
                                 isUniversalMessageInput(element);
 
       if (!isInput && !isContentEditable) {
-        return {
-          success: false,
-          error: 'Element is not an input field',
-          selector: params.selector,
-          elementType: element.tagName,
-          suggestion: 'Element found but it\'s not typeable'
-        };
+        lastAttemptError = 'Element is not an input field';
+        continue; // Try next selector
       }
 
       // Universal activation strategy - click ALL input elements by default
@@ -4128,10 +4125,39 @@ const tools = {
         };
       }
 
+      // Wait for page stability before capturing post-state
+      await waitForPageStability({ maxWait: 1000, stableTime: 200 });
+
+      // Capture post-state for verification
+      const postState = captureActionState(element, 'type');
+
+      // Verify action effect
+      const verification = verifyActionEffect(preState, postState, 'type');
+      lastVerification = verification;
+
+      if (!verification.verified) {
+        automationLogger.debug('Type verification failed, trying next selector', {
+          sessionId: currentSessionId,
+          selector: currentSelector,
+          reason: verification.reason
+        });
+        lastAttemptError = `Type action had no verified effect: ${verification.reason}`;
+        continue; // Try next selector
+      }
+
       // Universal return object for both input types
       return {
         success: true,
         typed: params.text,
+        selector: currentSelector,
+        selectorIndex: selectorIndex,
+        usedFallback: selectorIndex > 0,
+        hadEffect: true,
+        verification: {
+          verified: verification.verified,
+          reason: verification.reason,
+          changes: verification.changes
+        },
         actualValue: finalCheck,
         pressedEnter: !!params.pressEnter,
         clickedFirst: !shouldSkipClick,
@@ -4154,9 +4180,9 @@ const tools = {
         }
       };
     }
-    
+
     // Try fallback selectors for messaging interfaces
-    const fallbackSelectors = generateMessagingSelectors(params.selector);
+    const fallbackSelectors = generateMessagingSelectors(currentSelector);
     automationLogger.debug('Trying fallback selectors for type', { sessionId: currentSessionId, count: fallbackSelectors.length });
 
     for (const fallbackSelector of fallbackSelectors) {
@@ -4180,39 +4206,33 @@ const tools = {
       }))
       .slice(0, 5); // Limit to first 5 for logging
 
-    automationLogger.error('Failed to find typeable element', { sessionId: currentSessionId, selector: params.selector, availableInputs });
-    
-    return { 
-      success: false, 
-      error: 'Input element not found with any selector',
-      selector: params.selector,
-      fallbacksAttempted: fallbackSelectors.length,
-      searched: true,
-      availableInputs: availableInputs,
-      isAmazonPage: window.location.hostname.includes('amazon'),
-      currentUrl: window.location.href,
-      suggestion: 'No typeable element found - check selector or page state'
-    };
+    automationLogger.error('Failed to find typeable element', { sessionId: currentSessionId, selector: currentSelector, availableInputs });
+    lastAttemptError = 'Input element not found with any selector';
+
     } catch (error) {
       automationLogger.error('Unexpected error in type function', {
         sessionId: currentSessionId,
         error: error.message,
         stack: error.stack,
-        params
+        params,
+        currentSelector: currentSelector
       });
-
-      return {
-        success: false,
-        error: error.message || 'Unknown error occurred in type function',
-        selector: params.selector,
-        stackTrace: error.stack,
-        errorType: error.name || 'UnknownError',
-        isAmazonPage: window.location.hostname.includes('amazon'),
-        currentUrl: window.location.href,
-        timestamp: Date.now(),
-        paramsUsed: params
-      };
+      lastAttemptError = error.message || 'Unknown error occurred in type function';
     }
+    } // End selector loop
+
+    // All selectors exhausted without verified effect
+    return {
+      success: false,
+      error: lastAttemptError || 'Type action had no effect with any available selector',
+      hadEffect: false,
+      selectorsTriad: selectors.length,
+      lastVerification: lastVerification,
+      suggestion: 'Input may be readonly, disabled, or requires focus first',
+      isAmazonPage: window.location.hostname.includes('amazon'),
+      currentUrl: window.location.href,
+      timestamp: Date.now()
+    };
   },
   
   // Press Enter key on an element
