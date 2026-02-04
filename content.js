@@ -3118,6 +3118,190 @@ function verifyActionEffect(preState, postState, actionType) {
   return result;
 }
 
+/**
+ * Waits for page stability - both DOM stable AND network quiet
+ * Enhanced version of waitForDOMStable with proper network request tracking
+ * @param {Object} options - Configuration options
+ * @param {number} options.maxWait - Maximum wait time in ms (default: 5000)
+ * @param {number} options.stableTime - DOM must be stable for this long in ms (default: 500)
+ * @param {number} options.networkQuietTime - No network activity for this long in ms (default: 300)
+ * @returns {Promise<Object>} Stability info { stable, timedOut, domStableFor, networkQuietFor, pendingRequests, waitTime }
+ */
+async function waitForPageStability(options = {}) {
+  const {
+    maxWait = 5000,
+    stableTime = 500,
+    networkQuietTime = 300
+  } = options;
+
+  const startTime = Date.now();
+  let lastDOMChange = Date.now();
+  let lastNetworkActivity = Date.now();
+  let pendingRequestCount = 0;
+  let domChangeCount = 0;
+  let networkRequestCount = 0;
+
+  // Store original functions
+  const originalFetch = window.fetch;
+  const originalXHROpen = XMLHttpRequest.prototype.open;
+  const originalXHRSend = XMLHttpRequest.prototype.send;
+
+  // Track fetch requests with proper completion tracking
+  window.fetch = function(...args) {
+    pendingRequestCount++;
+    networkRequestCount++;
+    lastNetworkActivity = Date.now();
+    return originalFetch.apply(this, args).finally(() => {
+      pendingRequestCount--;
+      lastNetworkActivity = Date.now();
+    });
+  };
+
+  // Track XHR requests with proper completion tracking
+  XMLHttpRequest.prototype.open = function(...args) {
+    networkRequestCount++;
+    lastNetworkActivity = Date.now();
+    return originalXHROpen.apply(this, args);
+  };
+
+  XMLHttpRequest.prototype.send = function(...args) {
+    pendingRequestCount++;
+    lastNetworkActivity = Date.now();
+
+    // Track completion
+    this.addEventListener('loadend', () => {
+      pendingRequestCount--;
+      lastNetworkActivity = Date.now();
+    }, { once: true });
+
+    return originalXHRSend.apply(this, args);
+  };
+
+  // Create mutation observer
+  const observer = new MutationObserver((mutations) => {
+    // Filter out trivial changes (loading indicators, etc.)
+    const significantMutations = mutations.filter(mutation => {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+        const target = mutation.target;
+        if (target.classList && (
+          target.classList.contains('loading') ||
+          target.classList.contains('spinner') ||
+          target.classList.contains('progress')
+        )) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    if (significantMutations.length > 0) {
+      domChangeCount += significantMutations.length;
+      lastDOMChange = Date.now();
+    }
+  });
+
+  try {
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeOldValue: false,
+      characterData: true,
+      attributeFilter: ['class', 'id', 'data-state', 'aria-expanded', 'aria-hidden', 'aria-selected']
+    });
+
+    return await new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        const now = Date.now();
+        const totalTime = now - startTime;
+        const domStableFor = now - lastDOMChange;
+        const networkQuietFor = now - lastNetworkActivity;
+
+        // Check if both DOM and network are stable
+        const isDOMStable = domStableFor >= stableTime;
+        const isNetworkQuiet = networkQuietFor >= networkQuietTime && pendingRequestCount === 0;
+        const isStable = isDOMStable && isNetworkQuiet;
+        const hasTimedOut = totalTime >= maxWait;
+
+        if (isStable || hasTimedOut) {
+          clearInterval(checkInterval);
+          observer.disconnect();
+
+          // Restore original functions
+          window.fetch = originalFetch;
+          XMLHttpRequest.prototype.open = originalXHROpen;
+          XMLHttpRequest.prototype.send = originalXHRSend;
+
+          const result = {
+            stable: isStable,
+            timedOut: hasTimedOut && !isStable,
+            domStableFor,
+            networkQuietFor,
+            pendingRequests: pendingRequestCount,
+            waitTime: totalTime,
+            domChangeCount,
+            networkRequestCount,
+            reason: isStable ? 'stable' : (hasTimedOut ? 'timeout' : 'pending')
+          };
+
+          // Log for debugging
+          if (typeof automationLogger !== 'undefined' && typeof currentSessionId !== 'undefined') {
+            automationLogger.logTiming(currentSessionId, 'WAIT', 'page_stability', totalTime, {
+              domChanges: domChangeCount,
+              networkRequests: networkRequestCount,
+              pendingRequests: pendingRequestCount,
+              stable: isStable
+            });
+          }
+
+          resolve(result);
+        }
+      }, 50);
+
+      // Safety timeout
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        observer.disconnect();
+
+        // Restore original functions
+        window.fetch = originalFetch;
+        XMLHttpRequest.prototype.open = originalXHROpen;
+        XMLHttpRequest.prototype.send = originalXHRSend;
+
+        resolve({
+          stable: false,
+          timedOut: true,
+          domStableFor: Date.now() - lastDOMChange,
+          networkQuietFor: Date.now() - lastNetworkActivity,
+          pendingRequests: pendingRequestCount,
+          waitTime: maxWait + 1000,
+          domChangeCount,
+          networkRequestCount,
+          reason: 'safety_timeout'
+        });
+      }, maxWait + 1000);
+    });
+  } catch (error) {
+    // Ensure restoration on error
+    observer.disconnect();
+    window.fetch = originalFetch;
+    XMLHttpRequest.prototype.open = originalXHROpen;
+    XMLHttpRequest.prototype.send = originalXHRSend;
+
+    return {
+      stable: false,
+      timedOut: false,
+      error: error.message,
+      waitTime: Date.now() - startTime,
+      reason: 'error'
+    };
+  }
+}
+
+// =============================================================================
+// END ACTION VERIFICATION UTILITIES
+// =============================================================================
+
 // Tool functions for browser automation
 const tools = {
   // Scroll the page
