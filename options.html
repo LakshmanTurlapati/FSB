@@ -478,16 +478,20 @@
             </div>
 
             <!-- Session Detail Panel -->
-            <div class="session-detail-panel" id="sessionDetailPanel" style="display: none;">
+            <div class="session-detail-panel" id="sessionDetailPanel" style="display: none;" data-session-id="">
               <div class="session-detail-header">
                 <div class="session-detail-title">
                   <h4 id="sessionDetailTitle">Session Details</h4>
                   <span class="session-detail-status" id="sessionDetailStatus"></span>
                 </div>
                 <div class="session-detail-actions">
-                  <button class="control-btn" id="downloadSessionLogs">
+                  <button class="control-btn" id="exportSessionText" title="Export as human-readable text">
+                    <i class="fas fa-file-alt"></i>
+                    Export Text
+                  </button>
+                  <button class="control-btn" id="downloadSessionLogs" title="Download JSON logs">
                     <i class="fas fa-download"></i>
-                    Download
+                    Download JSON
                   </button>
                   <button class="control-btn" id="closeSessionDetail">
                     <i class="fas fa-times"></i>
@@ -498,8 +502,39 @@
               <div class="session-detail-meta" id="sessionDetailMeta">
                 <!-- Session metadata will be rendered here -->
               </div>
-              <div class="session-logs-container">
-                <pre class="session-logs-content" id="sessionLogsContent">Loading...</pre>
+
+              <!-- Session Replay UI -->
+              <div class="session-replay-container" id="sessionReplayContainer">
+                <div class="replay-controls">
+                  <button class="replay-btn" id="prevStep" disabled>
+                    <i class="fas fa-chevron-left"></i> Prev
+                  </button>
+                  <span class="replay-step-indicator">
+                    Step <span id="currentStepNum">0</span> of <span id="totalSteps">0</span>
+                  </span>
+                  <button class="replay-btn" id="nextStep" disabled>
+                    Next <i class="fas fa-chevron-right"></i>
+                  </button>
+                </div>
+
+                <div class="replay-step-content" id="replayStepContent">
+                  <!-- Step details rendered here -->
+                  <div class="step-placeholder">Select a session to view replay</div>
+                </div>
+
+                <div class="replay-summary" id="replaySummary" style="display: none;">
+                  <!-- Summary rendered here -->
+                </div>
+              </div>
+
+              <!-- Raw logs container (collapsible) -->
+              <div class="session-logs-section">
+                <button class="logs-toggle-btn" id="toggleRawLogs">
+                  <i class="fas fa-chevron-down"></i> Show Raw Logs
+                </button>
+                <div class="session-logs-container" id="rawLogsContainer" style="display: none;">
+                  <pre class="session-logs-content" id="sessionLogsContent">Loading...</pre>
+                </div>
               </div>
             </div>
           </div>

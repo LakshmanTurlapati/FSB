@@ -1890,6 +1890,200 @@ body {
   background: var(--bg-primary);
 }
 
+/* ==========================================
+   Session Replay UI Styles
+   ========================================== */
+
+.session-replay-container {
+  padding: var(--space-lg);
+}
+
+.replay-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.replay-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.replay-btn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--primary-color);
+}
+
+.replay-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.replay-step-indicator {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.replay-step-content {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  min-height: 200px;
+}
+
+.step-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.step-header strong {
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.step-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.step-status.success {
+  background: var(--success-light);
+  color: var(--success-color);
+}
+
+.step-status.failed {
+  background: var(--error-light);
+  color: var(--error-color);
+}
+
+.step-section {
+  margin-top: var(--space-lg);
+}
+
+.step-section h5 {
+  margin: 0 0 var(--space-sm) 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.step-detail {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  margin: var(--space-xs) 0;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.step-detail code {
+  background: var(--bg-tertiary);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.replay-summary {
+  margin-top: var(--space-lg);
+  padding: var(--space-md);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+}
+
+.replay-summary strong {
+  color: var(--text-primary);
+}
+
+/* Raw logs toggle section */
+.session-logs-section {
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--border-color);
+}
+
+.logs-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.logs-toggle-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.logs-toggle-btn.expanded i {
+  transform: rotate(180deg);
+}
+
+.session-logs-container {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-top: var(--space-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+/* Dark theme adjustments for replay */
+[data-theme="dark"] .replay-controls {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .replay-step-content {
+  background: var(--bg-secondary);
+}
+
+[data-theme="dark"] .replay-btn {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .replay-btn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
 /* Dark theme adjustments */
 [data-theme="dark"] .session-history-section,
 [data-theme="dark"] .session-detail-panel {

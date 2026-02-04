@@ -1200,6 +1200,10 @@ function showDebugOutput(content) {
 // Current session being viewed
 let currentViewingSession = null;
 
+// Session replay state
+let currentReplayData = null;
+let currentStepIndex = 0;
+
 /**
  * Initialize session history UI and event listeners
  */
@@ -1208,7 +1212,11 @@ function initializeSessionHistory() {
   const refreshBtn = document.getElementById('refreshSessions');
   const clearAllBtn = document.getElementById('clearAllSessions');
   const downloadBtn = document.getElementById('downloadSessionLogs');
+  const exportTextBtn = document.getElementById('exportSessionText');
   const closeBtn = document.getElementById('closeSessionDetail');
+  const prevStepBtn = document.getElementById('prevStep');
+  const nextStepBtn = document.getElementById('nextStep');
+  const toggleRawLogsBtn = document.getElementById('toggleRawLogs');
 
   // Event listeners
   if (refreshBtn) {
@@ -1223,8 +1231,50 @@ function initializeSessionHistory() {
     downloadBtn.addEventListener('click', downloadCurrentSessionLogs);
   }
 
+  if (exportTextBtn) {
+    exportTextBtn.addEventListener('click', () => {
+      if (currentViewingSession) {
+        exportSessionText(currentViewingSession.id);
+      } else {
+        showToast('No session selected', 'warning');
+      }
+    });
+  }
+
   if (closeBtn) {
     closeBtn.addEventListener('click', closeSessionDetail);
+  }
+
+  // Replay navigation controls
+  if (prevStepBtn) {
+    prevStepBtn.addEventListener('click', () => {
+      if (currentStepIndex > 0) {
+        renderStep(currentStepIndex - 1);
+      }
+    });
+  }
+
+  if (nextStepBtn) {
+    nextStepBtn.addEventListener('click', () => {
+      if (currentReplayData && currentStepIndex < currentReplayData.steps.length - 1) {
+        renderStep(currentStepIndex + 1);
+      }
+    });
+  }
+
+  // Raw logs toggle
+  if (toggleRawLogsBtn) {
+    toggleRawLogsBtn.addEventListener('click', () => {
+      const rawLogsContainer = document.getElementById('rawLogsContainer');
+      if (rawLogsContainer) {
+        const isVisible = rawLogsContainer.style.display !== 'none';
+        rawLogsContainer.style.display = isVisible ? 'none' : 'block';
+        toggleRawLogsBtn.innerHTML = isVisible
+          ? '<i class="fas fa-chevron-down"></i> Show Raw Logs'
+          : '<i class="fas fa-chevron-up"></i> Hide Raw Logs';
+        toggleRawLogsBtn.classList.toggle('expanded', !isVisible);
+      }
+    });
   }
 
   // Load initial session list
@@ -1329,6 +1379,7 @@ async function viewSession(sessionId) {
     }
 
     currentViewingSession = session;
+    detailPanel.dataset.sessionId = sessionId;
 
     // Update header
     titleEl.textContent = session.task || 'Unknown Task';
@@ -1365,6 +1416,20 @@ async function viewSession(sessionId) {
 
     // Format and display logs
     logsEl.textContent = formatSessionLogsForDisplay(session);
+
+    // Load replay data
+    renderSessionReplay(sessionId);
+
+    // Reset raw logs toggle state
+    const rawLogsContainer = document.getElementById('rawLogsContainer');
+    const toggleRawLogsBtn = document.getElementById('toggleRawLogs');
+    if (rawLogsContainer) {
+      rawLogsContainer.style.display = 'none';
+    }
+    if (toggleRawLogsBtn) {
+      toggleRawLogsBtn.innerHTML = '<i class="fas fa-chevron-down"></i> Show Raw Logs';
+      toggleRawLogsBtn.classList.remove('expanded');
+    }
 
     // Show panel
     detailPanel.style.display = 'block';
@@ -2099,6 +2164,173 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+// ==========================================
+// Session Replay Functions
+// ==========================================
+
+/**
+ * Render session replay data with step-by-step navigation
+ * @param {string} sessionId - The session ID to render replay for
+ */
+async function renderSessionReplay(sessionId) {
+  // Get replay data from background (automationLogger runs there)
+  const response = await chrome.runtime.sendMessage({
+    action: 'getSessionReplayData',
+    sessionId
+  });
+
+  if (!response?.replay || !response.replay.steps || response.replay.steps.length === 0) {
+    document.getElementById('replayStepContent').innerHTML = '<div class="step-placeholder">No replay data available for this session</div>';
+    document.getElementById('replaySummary').style.display = 'none';
+    document.getElementById('prevStep').disabled = true;
+    document.getElementById('nextStep').disabled = true;
+    document.getElementById('currentStepNum').textContent = '0';
+    document.getElementById('totalSteps').textContent = '0';
+    return;
+  }
+
+  currentReplayData = response.replay;
+  currentStepIndex = 0;
+
+  // Update controls
+  document.getElementById('totalSteps').textContent = currentReplayData.steps.length;
+  document.getElementById('prevStep').disabled = true;
+  document.getElementById('nextStep').disabled = currentReplayData.steps.length <= 1;
+
+  // Render first step
+  renderStep(0);
+
+  // Show summary
+  renderReplaySummary();
+}
+
+/**
+ * Render a specific step in the replay
+ * @param {number} index - Step index to render
+ */
+function renderStep(index) {
+  if (!currentReplayData || !currentReplayData.steps) return;
+
+  const step = currentReplayData.steps[index];
+  if (!step) return;
+
+  currentStepIndex = index;
+  document.getElementById('currentStepNum').textContent = index + 1;
+  document.getElementById('prevStep').disabled = index === 0;
+  document.getElementById('nextStep').disabled = index === currentReplayData.steps.length - 1;
+
+  const statusClass = step.result.success ? 'success' : 'failed';
+  const statusText = step.result.success ? 'OK' : 'FAILED';
+
+  let html = `
+    <div class="step-header">
+      <span class="step-status ${statusClass}">${statusText}</span>
+      <strong>${escapeHtml(step.action.tool)}</strong>
+    </div>
+    <div class="step-section">
+      <h5>Targeting</h5>
+      <div class="step-detail">Selector: <code>${escapeHtml(step.targeting.selectorUsed || step.targeting.selectorTried || 'N/A')}</code></div>
+      <div class="step-detail">Element Found: ${step.targeting.elementFound ? 'Yes' : 'No'}</div>
+      ${step.targeting.coordinatesUsed ? `<div class="step-detail">Coordinates: (${step.targeting.coordinatesUsed.x}, ${step.targeting.coordinatesUsed.y})</div>` : ''}
+    </div>
+  `;
+
+  if (step.targeting.elementDetails) {
+    const el = step.targeting.elementDetails;
+    const tagDisplay = `&lt;${el.tagName || 'unknown'}${el.id ? ' id="' + escapeHtml(el.id) + '"' : ''}${el.className ? ' class="' + escapeHtml(el.className.split(' ')[0]) + '"' : ''}&gt;`;
+    html += `
+      <div class="step-section">
+        <h5>Element</h5>
+        <div class="step-detail">${tagDisplay}</div>
+        ${el.text ? `<div class="step-detail">Text: "${escapeHtml(el.text.substring(0, 50))}${el.text.length > 50 ? '...' : ''}"</div>` : ''}
+      </div>
+    `;
+  }
+
+  // Show action parameters if any
+  if (step.action.params && Object.keys(step.action.params).length > 0) {
+    const paramsStr = JSON.stringify(step.action.params, null, 2);
+    html += `
+      <div class="step-section">
+        <h5>Parameters</h5>
+        <div class="step-detail" style="white-space: pre-wrap; font-size: 0.8rem;">${escapeHtml(paramsStr.substring(0, 300))}${paramsStr.length > 300 ? '...' : ''}</div>
+      </div>
+    `;
+  }
+
+  if (!step.result.success && step.result.diagnostic) {
+    html += `
+      <div class="step-section">
+        <h5>Diagnostic</h5>
+        <div class="step-detail" style="color: var(--error-color);">${escapeHtml(step.result.diagnostic.message || 'Unknown error')}</div>
+        ${step.result.diagnostic.details ? `<div class="step-detail">${escapeHtml(step.result.diagnostic.details)}</div>` : ''}
+        ${step.result.diagnostic.suggestions && step.result.diagnostic.suggestions.length > 0 ? `<div class="step-detail">Suggestions:<br>${step.result.diagnostic.suggestions.map(s => '  - ' + escapeHtml(s)).join('<br>')}</div>` : ''}
+      </div>
+    `;
+  } else if (!step.result.success && step.result.error) {
+    html += `
+      <div class="step-section">
+        <h5>Error</h5>
+        <div class="step-detail" style="color: var(--error-color);">${escapeHtml(step.result.error)}</div>
+      </div>
+    `;
+  }
+
+  document.getElementById('replayStepContent').innerHTML = html;
+}
+
+/**
+ * Render the replay summary section
+ */
+function renderReplaySummary() {
+  if (!currentReplayData || !currentReplayData.summary) {
+    document.getElementById('replaySummary').style.display = 'none';
+    return;
+  }
+
+  const summary = currentReplayData.summary;
+  let summaryHtml = `
+    <strong>Summary:</strong> ${summary.successfulSteps}/${summary.totalSteps} steps successful
+    ${summary.failedSteps > 0 ? ` | <span style="color: var(--error-color);">${summary.failedSteps} failed</span>` : ''}
+  `;
+
+  document.getElementById('replaySummary').innerHTML = summaryHtml;
+  document.getElementById('replaySummary').style.display = 'block';
+}
+
+/**
+ * Export session as human-readable text
+ * @param {string} sessionId - The session ID to export
+ */
+async function exportSessionText(sessionId) {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'exportSessionHumanReadable',
+      sessionId
+    });
+
+    if (response?.text) {
+      const blob = new Blob([response.text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fsb-session-${sessionId.substring(0, 8)}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast('Session report exported', 'success');
+      addLog('info', `Exported session ${sessionId} as text`);
+    } else {
+      showToast('Failed to export session', 'error');
+    }
+  } catch (error) {
+    console.error('Failed to export session text:', error);
+    showToast('Export failed: ' + error.message, 'error');
+  }
 }
 
 // Initialize session history when DOM is ready
