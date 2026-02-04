@@ -2865,6 +2865,81 @@ async function clickAtCoordinates(params) {
 // END COORDINATE FALLBACK UTILITIES
 // =============================================================================
 
+// =============================================================================
+// ACTION VERIFICATION UTILITIES
+// =============================================================================
+
+/**
+ * Captures comprehensive state before/after an action for verification
+ * @param {Element|null} element - The element being acted upon (null for page-level actions)
+ * @param {string} actionType - Type of action being performed (click, type, etc.)
+ * @returns {Object} State snapshot for comparison
+ */
+function captureActionState(element, actionType) {
+  // Global state - always captured
+  const state = {
+    timestamp: Date.now(),
+    url: window.location.href,
+    bodyTextLength: document.body?.innerText?.length || 0,
+    elementCount: document.querySelectorAll('*').length,
+    activeElement: document.activeElement?.tagName || null,
+    element: { exists: false },
+    relatedElements: []
+  };
+
+  // Element-specific state (if element provided)
+  if (element && document.contains(element)) {
+    state.element = {
+      exists: true,
+      tagName: element.tagName,
+      className: element.className || '',
+      value: element.value !== undefined ? element.value : null,
+      checked: element.checked !== undefined ? element.checked : null,
+      selectedIndex: element.selectedIndex !== undefined ? element.selectedIndex : null,
+      innerText: (element.innerText || '').substring(0, 100),
+      // ARIA state
+      ariaExpanded: element.getAttribute('aria-expanded'),
+      ariaSelected: element.getAttribute('aria-selected'),
+      ariaChecked: element.getAttribute('aria-checked'),
+      ariaPressed: element.getAttribute('aria-pressed'),
+      ariaHidden: element.getAttribute('aria-hidden'),
+      dataState: element.getAttribute('data-state'),
+      // Additional element state
+      open: element.open !== undefined ? element.open : null,
+      disabled: element.disabled !== undefined ? element.disabled : null
+    };
+
+    // For click actions, capture related elements that might change
+    if (actionType === 'click' || actionType === 'hover') {
+      const relatedSelectors = [
+        element.nextElementSibling,
+        element.querySelector('[role="menu"], [role="listbox"], .dropdown-menu, .submenu'),
+        element.id ? document.querySelector(`[aria-labelledby="${element.id}"]`) : null,
+        element.id ? document.querySelector(`[aria-controls="${element.id}"]`) : null,
+        element.id ? document.querySelector(`#${element.id}-content, #${element.id}-panel, #${element.id}-menu`) : null
+      ].filter(Boolean);
+
+      state.relatedElements = relatedSelectors.map(el => {
+        try {
+          const style = getComputedStyle(el);
+          return {
+            tagName: el.tagName,
+            display: style.display,
+            visibility: style.visibility,
+            opacity: style.opacity,
+            height: el.getBoundingClientRect().height,
+            ariaHidden: el.getAttribute('aria-hidden')
+          };
+        } catch (e) {
+          return null;
+        }
+      }).filter(Boolean);
+    }
+  }
+
+  return state;
+}
+
 // Tool functions for browser automation
 const tools = {
   // Scroll the page
