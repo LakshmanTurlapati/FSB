@@ -2879,9 +2879,21 @@ const tools = {
     // Find element first using shadow DOM aware query
     let element = querySelectorWithShadow(params.selector);
     if (!element) {
+      // Try coordinate fallback if coordinates provided
+      if (params.coordinates && typeof params.coordinates.x === 'number' && typeof params.coordinates.y === 'number') {
+        return await clickAtCoordinates({
+          x: params.coordinates.x,
+          y: params.coordinates.y,
+          width: params.coordinates.width || 0,
+          height: params.coordinates.height || 0,
+          originalSelector: params.selector,
+          reason: 'selector_not_found'
+        });
+      }
+
       return {
         success: false,
-        error: 'Element not found',
+        error: 'Element not found and no coordinates available for fallback',
         selector: params.selector
       };
     }
