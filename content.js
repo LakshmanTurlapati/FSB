@@ -1710,6 +1710,7 @@ function sanitizeSelector(selector) {
 }
 
 // Query selector that supports shadow DOM
+// SPEED-04: Uses elementCache for faster repeated lookups
 function querySelectorWithShadow(selector) {
   // Sanitize selector first to remove invalid pseudo-selectors
   const sanitized = sanitizeSelector(selector);
@@ -1718,10 +1719,17 @@ function querySelectorWithShadow(selector) {
     return null;
   }
 
+  // SPEED-04: Check cache first for fast repeated lookups
+  const cached = elementCache.get(sanitized);
+  if (cached) {
+    return cached;
+  }
+
+  let element = null;
+
   // Check if selector contains shadow DOM piercing operator
   if (sanitized.includes('>>>')) {
     const parts = sanitized.split('>>>').map(s => s.trim());
-    let element = null;
     try {
       element = document.querySelector(parts[0]);
     } catch (e) {
@@ -1741,17 +1749,22 @@ function querySelectorWithShadow(selector) {
         element = null;
       }
     }
-
-    return element;
+  } else {
+    // Regular querySelector for non-shadow DOM
+    try {
+      element = document.querySelector(sanitized);
+    } catch (e) {
+      automationLogger.warn('querySelector failed', { sessionId: currentSessionId, selector: sanitized, error: e.message });
+      return null;
+    }
   }
 
-  // Regular querySelector for non-shadow DOM
-  try {
-    return document.querySelector(sanitized);
-  } catch (e) {
-    automationLogger.warn('querySelector failed', { sessionId: currentSessionId, selector: sanitized, error: e.message });
-    return null;
+  // SPEED-04: Cache the found element for future lookups
+  if (element) {
+    elementCache.set(sanitized, element);
   }
+
+  return element;
 }
 
 // Query all elements including shadow DOM
@@ -3936,8 +3949,8 @@ const tools = {
       };
     }
 
-    // Use unified readiness check (visibility, enabled, stable, receives events)
-    const readiness = await ensureElementReady(element, 'click');
+    // SPEED-05: Use smart readiness check with fast-path for ready elements
+    const readiness = await smartEnsureReady(element, 'click');
     if (!readiness.ready) {
       // Record failure - element not ready
       actionRecorder.record(null, 'click', params, {
@@ -4383,12 +4396,15 @@ const tools = {
   
   // Type text into an input
   type: async (params) => {
+    const startTime = Date.now();
     automationLogger.logActionExecution(currentSessionId, 'type', 'start', params);
 
     // Build selectors array for alternative selector support
     const selectors = params.selectors || [params.selector];
     let lastAttemptError = null;
     let lastVerification = null;
+    let selectorUsed = null;
+    let lastElement = null;
 
     // Try each selector until one succeeds with verified effect
     for (let selectorIndex = 0; selectorIndex < selectors.length; selectorIndex++) {
@@ -4403,8 +4419,8 @@ const tools = {
         continue; // Try next selector
       }
 
-      // Use unified readiness check with 'type' action type (includes editable check)
-      const readiness = await ensureElementReady(element, 'type');
+      // SPEED-05: Use smart readiness check with fast-path for ready elements
+      const readiness = await smartEnsureReady(element, 'type');
       if (!readiness.ready) {
         lastAttemptError = `Element not ready for typing: ${readiness.failureReason}`;
         continue; // Try next selector
@@ -4787,6 +4803,21 @@ const tools = {
         continue; // Try next selector
       }
 
+      // Record successful action
+      selectorUsed = currentSelector;
+      actionRecorder.record(null, 'type', params, {
+        selectorTried: params.selector,
+        selectorUsed: currentSelector,
+        elementFound: true,
+        elementDetails: captureElementDetails(element),
+        coordinatesUsed: null,
+        coordinateSource: null,
+        success: true,
+        hadEffect: true,
+        effectDetails: verification.changes,
+        duration: Date.now() - startTime
+      });
+
       // Universal return object for both input types
       return {
         success: true,
@@ -4863,6 +4894,21 @@ const tools = {
     }
     } // End selector loop
 
+    // Record failure - all selectors exhausted
+    actionRecorder.record(null, 'type', params, {
+      selectorTried: params.selector,
+      selectorUsed: null,
+      elementFound: false,
+      elementDetails: null,
+      coordinatesUsed: null,
+      coordinateSource: null,
+      success: false,
+      error: lastAttemptError || 'Type action had no effect with any available selector',
+      hadEffect: false,
+      diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector, tried: selectors }),
+      duration: Date.now() - startTime
+    });
+
     // All selectors exhausted without verified effect
     return {
       success: false,
@@ -4876,13 +4922,15 @@ const tools = {
       timestamp: Date.now()
     };
   },
-  
+
   // Press Enter key on an element with verification
   pressEnter: async (params) => {
+    const startTime = Date.now();
     // Build selectors array for alternative selector support
     const selectors = params.selectors || [params.selector];
     let lastAttemptError = null;
     let lastVerification = null;
+    let lastElement = null;
 
     // Try each selector until one succeeds
     for (let selectorIndex = 0; selectorIndex < selectors.length; selectorIndex++) {
@@ -4895,8 +4943,8 @@ const tools = {
           continue; // Try next selector
         }
 
-        // Use unified readiness check
-        const readiness = await ensureElementReady(element, 'pressEnter');
+        // SPEED-05: Use smart readiness check with fast-path for ready elements
+        const readiness = await smartEnsureReady(element, 'pressEnter');
         if (!readiness.ready) {
           lastAttemptError = `Element not ready: ${readiness.failureReason}`;
           continue;
@@ -4962,6 +5010,20 @@ const tools = {
           continue; // Try next selector
         }
 
+        // Record successful action
+        actionRecorder.record(null, 'pressEnter', params, {
+          selectorTried: params.selector,
+          selectorUsed: currentSelector,
+          elementFound: true,
+          elementDetails: captureElementDetails(element),
+          coordinatesUsed: null,
+          coordinateSource: null,
+          success: true,
+          hadEffect: verification.verified,
+          effectDetails: verification.changes,
+          duration: Date.now() - startTime
+        });
+
         // For non-form contexts, return success even without observable effect
         // (e.g., pressing Enter in a textarea just adds a newline)
         return {
@@ -4982,6 +5044,21 @@ const tools = {
         lastAttemptError = error.message;
       }
     }
+
+    // Record failure - all selectors exhausted
+    actionRecorder.record(null, 'pressEnter', params, {
+      selectorTried: params.selector,
+      selectorUsed: null,
+      elementFound: false,
+      elementDetails: null,
+      coordinatesUsed: null,
+      coordinateSource: null,
+      success: false,
+      error: lastAttemptError || 'Enter key had no effect with any available selector',
+      hadEffect: false,
+      diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector, tried: selectors }),
+      duration: Date.now() - startTime
+    });
 
     // All selectors exhausted
     return {
@@ -5418,8 +5495,8 @@ const tools = {
       return { success: false, error: 'Element not found', selector: params.selector };
     }
 
-    // Use unified readiness check for right click
-    const readiness = await ensureElementReady(element, 'rightClick');
+    // SPEED-05: Use smart readiness check with fast-path for ready elements
+    const readiness = await smartEnsureReady(element, 'rightClick');
     if (!readiness.ready) {
       return {
         success: false,
@@ -5458,8 +5535,8 @@ const tools = {
       return { success: false, error: 'Element not found', selector: params.selector };
     }
 
-    // Use unified readiness check for double click
-    const readiness = await ensureElementReady(element, 'doubleClick');
+    // SPEED-05: Use smart readiness check with fast-path for ready elements
+    const readiness = await smartEnsureReady(element, 'doubleClick');
     if (!readiness.ready) {
       return {
         success: false,
@@ -5880,8 +5957,8 @@ const tools = {
       return { success: false, error: 'Element not found', selector: params.selector };
     }
 
-    // Use unified readiness check for focus
-    const readiness = await ensureElementReady(element, 'focus');
+    // SPEED-05: Use smart readiness check with fast-path for ready elements
+    const readiness = await smartEnsureReady(element, 'focus');
     if (!readiness.ready) {
       return {
         success: false,
@@ -5922,8 +5999,8 @@ const tools = {
       return { success: false, error: 'Element not found', selector: params.selector };
     }
 
-    // Use unified readiness check for hover
-    const readiness = await ensureElementReady(element, 'hover');
+    // SPEED-05: Use smart readiness check with fast-path for ready elements
+    const readiness = await smartEnsureReady(element, 'hover');
     if (!readiness.ready) {
       return {
         success: false,
@@ -5982,8 +6059,8 @@ const tools = {
           continue; // Try next selector
         }
 
-        // Use unified readiness check
-        const readiness = await ensureElementReady(element, 'selectOption');
+        // SPEED-05: Use smart readiness check with fast-path for ready elements
+        const readiness = await smartEnsureReady(element, 'selectOption');
         if (!readiness.ready) {
           lastAttemptError = `Element not ready: ${readiness.failureReason}`;
           continue;
@@ -6078,8 +6155,8 @@ const tools = {
           continue; // Try next selector
         }
 
-        // Use unified readiness check
-        const readiness = await ensureElementReady(element, 'toggleCheckbox');
+        // SPEED-05: Use smart readiness check with fast-path for ready elements
+        const readiness = await smartEnsureReady(element, 'toggleCheckbox');
         if (!readiness.ready) {
           lastAttemptError = `Element not ready: ${readiness.failureReason}`;
           continue;
@@ -6213,13 +6290,16 @@ const tools = {
   
   // Clear input field
   clearInput: (params) => {
+    const startTime = Date.now();
     const element = querySelectorWithShadow(params.selector);
     if (element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA')) {
       element.value = '';
       element.dispatchEvent(new Event('input', { bubbles: true }));
       element.dispatchEvent(new Event('change', { bubbles: true }));
+      actionRecorder.record(null, 'clearInput', params, { selectorTried: params.selector, selectorUsed: params.selector, elementFound: true, elementDetails: captureElementDetails(element), success: true, hadEffect: true, duration: Date.now() - startTime });
       return { success: true, cleared: params.selector };
     }
+    actionRecorder.record(null, 'clearInput', params, { selectorTried: params.selector, elementFound: false, success: false, error: 'Input element not found', diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector }), duration: Date.now() - startTime });
     return { success: false, error: 'Input element not found' };
   },
 
