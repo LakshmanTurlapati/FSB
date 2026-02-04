@@ -4378,6 +4378,49 @@ async function startAutomationLoop(sessionId) {
     
     // Check if task is complete (after verification enforcement)
     if (aiResponse.taskComplete) {
+      // VERIFY-04: Global stability gate - enforce page stability before confirming completion
+      // AI operates on DOM snapshots and cannot see pending network requests or in-flight mutations
+      automationLogger.info('Task completion claimed by AI, verifying page stability', { sessionId });
+
+      try {
+        const stabilityCheck = await sendMessageWithRetry(session.tabId, {
+          action: 'waitForPageStability',
+          options: {
+            maxWait: 3000,     // Allow more time for final action effects
+            stableTime: 500,   // DOM stable for 500ms
+            networkQuietTime: 300  // No network for 300ms
+          }
+        });
+
+        const stabilityDuration = stabilityCheck?.waitTime || 0;
+        automationLogger.logTiming(sessionId, 'WAIT', 'completion_stability', stabilityDuration, {
+          stable: stabilityCheck?.stable,
+          timedOut: stabilityCheck?.timedOut,
+          pendingRequests: stabilityCheck?.pendingRequests,
+          domChanges: stabilityCheck?.domChangeCount
+        });
+
+        if (!stabilityCheck?.stable) {
+          automationLogger.warn('Task completion: page not fully stable, proceeding anyway', {
+            sessionId,
+            timedOut: stabilityCheck?.timedOut,
+            pendingRequests: stabilityCheck?.pendingRequests,
+            domStableFor: stabilityCheck?.domStableFor,
+            networkQuietFor: stabilityCheck?.networkQuietFor
+          });
+        } else {
+          automationLogger.info('Task completion: page stability verified', { sessionId });
+        }
+      } catch (stabilityError) {
+        // Stability check failure should NOT block completion
+        // Content script may be disconnected if final action navigated away
+        automationLogger.warn('Stability check failed before completion, proceeding anyway', {
+          sessionId,
+          error: stabilityError.message
+        });
+      }
+
+      // NOW mark complete (existing logic below this point stays unchanged)
       session.status = 'completed';
       const duration = Date.now() - session.startTime;
 
