@@ -2569,6 +2569,105 @@ async function scrollIntoViewIfNeeded(element) {
 }
 
 /**
+ * Perform quick readiness check for fast-path detection
+ * SPEED-05: Skip full readiness checks when element is obviously ready
+ * @param {Element} element - The DOM element to check
+ * @returns {Object} Quick check result with definitelyReady/definitelyNotReady flags
+ */
+function performQuickReadinessCheck(element) {
+  const checks = {
+    hasSize: false,
+    notDisabled: false,
+    visible: false,
+    receivesEvents: false,
+    inViewport: false
+  };
+
+  // Early return for null/undefined element
+  if (!element) {
+    return {
+      definitelyReady: false,
+      definitelyNotReady: true,
+      concern: 'no-element',
+      checks
+    };
+  }
+
+  // Get bounding rect for size and viewport checks
+  const rect = element.getBoundingClientRect();
+
+  // Check 1: Has size (width > 0 AND height > 0)
+  checks.hasSize = rect.width > 0 && rect.height > 0;
+
+  // Check 2: Not disabled
+  checks.notDisabled = !element.disabled && element.getAttribute('aria-disabled') !== 'true';
+
+  // Check 3: Visible (computed style)
+  const style = getComputedStyle(element);
+  checks.visible = style.display !== 'none' &&
+                   style.visibility !== 'hidden' &&
+                   parseFloat(style.opacity) > 0;
+
+  // Check 4: In viewport
+  checks.inViewport = rect.top >= 0 &&
+                      rect.bottom <= window.innerHeight &&
+                      rect.left >= 0 &&
+                      rect.right <= window.innerWidth;
+
+  // Check 5: Receives events (element at center point)
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const elementAtPoint = document.elementFromPoint(centerX, centerY);
+  checks.receivesEvents = elementAtPoint === element || element.contains(elementAtPoint);
+
+  // Determine overall status
+  const basicChecksPass = checks.hasSize && checks.notDisabled && checks.visible;
+  const definitelyNotReady = !checks.hasSize || !checks.notDisabled || !checks.visible;
+  const definitelyReady = basicChecksPass && checks.inViewport && checks.receivesEvents;
+
+  // Determine concern if not definitely ready
+  let concern = null;
+  if (!definitelyReady && !definitelyNotReady) {
+    if (!checks.inViewport) concern = 'scroll';
+    else if (!checks.receivesEvents) concern = 'obscured';
+  }
+
+  return {
+    definitelyReady,
+    definitelyNotReady,
+    concern,
+    checks
+  };
+}
+
+/**
+ * Smart element readiness wrapper that uses fast-path when possible
+ * SPEED-05: Bypass full ensureElementReady when quick check passes
+ * @param {Element} element - The DOM element to check
+ * @param {string} actionType - Type of action to perform (default 'click')
+ * @returns {Promise<Object>} Readiness result object
+ */
+async function smartEnsureReady(element, actionType = 'click') {
+  // Perform quick readiness check
+  const quickCheck = performQuickReadinessCheck(element);
+
+  // Fast path: element is definitely ready, skip full checks
+  if (quickCheck.definitelyReady) {
+    return {
+      ready: true,
+      element: element,
+      scrolled: false,
+      fastPath: true,
+      checks: quickCheck.checks
+    };
+  }
+
+  // Slow path: element has concerns or is definitely not ready
+  // Fall through to full ensureElementReady
+  return ensureElementReady(element, actionType);
+}
+
+/**
  * Orchestrator function to ensure element is ready for interaction
  * Calls all readiness checks in correct order and returns unified result
  * @param {Element} element - The DOM element to check
@@ -3238,6 +3337,263 @@ function verifyActionEffect(preState, postState, actionType) {
 
   return result;
 }
+
+// =============================================================================
+// DIAGNOSTIC MESSAGES AND ACTION RECORDING
+// =============================================================================
+
+/**
+ * Diagnostic message templates for different failure types
+ * Each provides: message, details, suggestions, and optional fields
+ */
+const DIAGNOSTIC_MESSAGES = {
+  elementNotFound: {
+    message: 'Element not found',
+    getDetails: (context) => `Selector "${context.selector}" did not match any element on the page`,
+    suggestions: [
+      'Element may not exist yet - check if page is still loading',
+      'Selector may be stale - page content may have changed',
+      'Element may be inside an iframe or shadow DOM',
+      'Try using a more specific or alternative selector'
+    ]
+  },
+  elementNotVisible: {
+    message: 'Element not visible',
+    getDetails: (context) => {
+      const style = context.style || {};
+      return `Element exists but is not visible: display=${style.display || 'unknown'}, visibility=${style.visibility || 'unknown'}, opacity=${style.opacity || 'unknown'}`;
+    },
+    suggestions: [
+      'Element may be hidden by CSS - check parent containers',
+      'Element may require scroll into view',
+      'Element may be covered by overlay or modal',
+      'Wait for animation to complete'
+    ]
+  },
+  elementDisabled: {
+    message: 'Element disabled',
+    getDetails: (context) => `Element has disabled=${context.disabled}, aria-disabled=${context.ariaDisabled || 'false'}`,
+    suggestions: [
+      'Wait for element to become enabled',
+      'Check if prerequisite actions are needed (form validation, etc.)',
+      'Fill required fields before interacting with this element'
+    ]
+  },
+  clickIntercepted: {
+    message: 'Click intercepted by overlay',
+    getDetails: (context) => {
+      const cover = context.coveringElement || {};
+      return `Click would hit ${cover.tagName || 'unknown'}.${cover.className || ''} instead of target`;
+    },
+    suggestions: [
+      'Close any modal or overlay first',
+      'Scroll to bring element into view',
+      'Wait for animation to complete',
+      'Try clicking the covering element to dismiss it'
+    ]
+  },
+  noEffect: {
+    message: 'Action had no effect',
+    getDetails: (context) => `${context.action || 'Action'} executed but no expected changes detected`,
+    suggestions: [
+      'Element may not be interactive (decoration only)',
+      'JavaScript event handler may not be attached',
+      'Try alternative selector or action method',
+      'Element may require focus before interaction'
+    ]
+  },
+  notReady: {
+    message: 'Element not ready',
+    getDetails: (context) => {
+      const checks = context.checks || {};
+      const failed = Object.entries(checks)
+        .filter(([key, val]) => val && !val.passed)
+        .map(([key]) => key);
+      return `Element failed readiness checks: ${failed.join(', ') || 'unknown'}`;
+    },
+    suggestions: [
+      'Wait for element to stabilize',
+      'Element may be animating or transitioning',
+      'Check if element is covered by another element',
+      'Ensure element is within viewport'
+    ]
+  }
+};
+
+/**
+ * Generates a diagnostic object for a specific failure type
+ * @param {string} failureType - One of: elementNotFound, elementNotVisible, elementDisabled, clickIntercepted, noEffect, notReady
+ * @param {Object} context - Context data for the failure (selector, style, checks, etc.)
+ * @returns {Object} Diagnostic object with message, details, suggestions, and context-specific fields
+ */
+function generateDiagnostic(failureType, context = {}) {
+  const template = DIAGNOSTIC_MESSAGES[failureType];
+
+  if (!template) {
+    return {
+      message: failureType || 'Unknown failure',
+      details: JSON.stringify(context),
+      suggestions: ['Check the logs for more information']
+    };
+  }
+
+  const diagnostic = {
+    message: template.message,
+    details: template.getDetails(context),
+    suggestions: template.suggestions
+  };
+
+  // Add context-specific fields
+  if (context.selector) {
+    diagnostic.tried = Array.isArray(context.tried) ? context.tried : [context.selector];
+  }
+
+  if (context.coveringElement) {
+    diagnostic.coveringElement = {
+      tagName: context.coveringElement.tagName,
+      className: context.coveringElement.className,
+      id: context.coveringElement.id
+    };
+  }
+
+  if (context.checks) {
+    diagnostic.checkResults = context.checks;
+  }
+
+  return diagnostic;
+}
+
+/**
+ * Captures details about an element for action recording
+ * @param {Element|null} element - The DOM element to capture details from
+ * @returns {Object|null} Element details including visibility, position, interactability, or null if element is null
+ */
+function captureElementDetails(element) {
+  if (!element) return null;
+
+  try {
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+
+    return {
+      // Basic identity
+      tagName: element.tagName,
+      id: element.id || null,
+      className: element.className || null,
+      text: (element.innerText || element.textContent || '').substring(0, 50),
+
+      // Visibility state
+      isVisible: style.display !== 'none' &&
+                 style.visibility !== 'hidden' &&
+                 parseFloat(style.opacity) > 0,
+      isEnabled: !element.disabled && element.getAttribute('aria-disabled') !== 'true',
+      isInViewport: rect.top >= 0 && rect.left >= 0 &&
+                    rect.bottom <= viewportHeight &&
+                    rect.right <= viewportWidth,
+
+      // Position
+      boundingRect: {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      }
+    };
+  } catch (error) {
+    // Return minimal info on error
+    return {
+      tagName: element.tagName || 'UNKNOWN',
+      error: error.message
+    };
+  }
+}
+
+/**
+ * ActionRecorder class for structured action logging
+ * Records every action attempt with full context for debugging and replay
+ */
+class ActionRecorder {
+  constructor() {
+    this.records = [];
+    this.currentSessionId = null;
+  }
+
+  /**
+   * Sets the current session ID for all subsequent records
+   * @param {string} sessionId - The session ID to associate with records
+   */
+  setSession(sessionId) {
+    this.currentSessionId = sessionId;
+  }
+
+  /**
+   * Records an action with full context
+   * @param {string|null} actionId - Unique action ID (generated if not provided)
+   * @param {string} tool - The tool/action name (e.g., 'click', 'type')
+   * @param {Object} params - Original parameters passed to the tool
+   * @param {Object} data - Additional data (selectorTried, elementFound, coordinates, success, etc.)
+   * @returns {string} The action ID for reference
+   */
+  record(actionId, tool, params, data = {}) {
+    const id = actionId || crypto.randomUUID();
+
+    const record = {
+      actionId: id,
+      sessionId: this.currentSessionId,
+      timestamp: Date.now(),
+      tool,
+      params,
+      // Spread additional data fields
+      selectorTried: data.selectorTried || null,
+      selectorUsed: data.selectorUsed || null,
+      elementFound: data.elementFound !== undefined ? data.elementFound : null,
+      elementDetails: data.elementDetails || null,
+      coordinatesUsed: data.coordinatesUsed || null,
+      coordinateSource: data.coordinateSource || null,
+      success: data.success !== undefined ? data.success : null,
+      error: data.error || null,
+      hadEffect: data.hadEffect !== undefined ? data.hadEffect : null,
+      effectDetails: data.effectDetails || null,
+      diagnostic: data.diagnostic || null,
+      duration: data.duration || null
+    };
+
+    // Store in local records
+    this.records.push(record);
+
+    // Keep records bounded
+    if (this.records.length > 1000) {
+      this.records = this.records.slice(-500);
+    }
+
+    // Log via automationLogger if available
+    if (typeof automationLogger !== 'undefined' && automationLogger.logActionRecord) {
+      automationLogger.logActionRecord(record);
+    }
+
+    return id;
+  }
+
+  /**
+   * Returns all recorded actions
+   * @returns {Array} All action records
+   */
+  getRecords() {
+    return this.records;
+  }
+
+  /**
+   * Clears all records
+   */
+  clear() {
+    this.records = [];
+  }
+}
+
+// Create singleton instance
+const actionRecorder = new ActionRecorder();
 
 /**
  * SPEED-01: Detects the outcome of an action to determine appropriate wait strategy
