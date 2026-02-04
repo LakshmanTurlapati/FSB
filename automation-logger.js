@@ -430,6 +430,142 @@ class AutomationLogger {
   }
 
   /**
+   * Get structured replay data for a session
+   * Transforms raw action records into step-by-step replay format
+   * @param {string} sessionId - The session ID to get replay data for
+   * @returns {Promise<Object|null>} Replay object with steps, or null if session not found
+   */
+  async getReplayData(sessionId) {
+    const session = await this.loadSession(sessionId);
+    if (!session) {
+      return null;
+    }
+
+    const actionRecords = this.getSessionActionRecords(sessionId);
+
+    return {
+      version: '1.0',
+      id: sessionId,
+      metadata: {
+        task: session.task,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        status: session.status,
+        url: session.logs?.[0]?.data?.url || 'Unknown',
+        actionCount: actionRecords.length
+      },
+      steps: actionRecords.map((record, index) => ({
+        stepNumber: index + 1,
+        timestamp: record.timestamp,
+        action: {
+          tool: record.tool,
+          params: record.params || {}
+        },
+        targeting: {
+          selectorTried: record.selectorTried,
+          selectorUsed: record.selectorUsed,
+          elementFound: record.elementFound,
+          elementDetails: record.elementDetails,
+          coordinatesUsed: record.coordinatesUsed,
+          coordinateSource: record.coordinateSource
+        },
+        result: {
+          success: record.success,
+          error: record.error,
+          hadEffect: record.hadEffect,
+          diagnostic: record.diagnostic
+        },
+        duration: record.duration
+      })),
+      summary: {
+        totalSteps: actionRecords.length,
+        successfulSteps: actionRecords.filter(r => r.success).length,
+        failedSteps: actionRecords.filter(r => !r.success).length,
+        totalDuration: session.endTime - session.startTime
+      }
+    };
+  }
+
+  /**
+   * Export session as human-readable text report
+   * Provides detailed step-by-step execution log with targeting and diagnostic info
+   * @param {string} sessionId - The session ID to export
+   * @returns {Promise<string>} Formatted text report
+   */
+  async exportHumanReadable(sessionId) {
+    const replay = await this.getReplayData(sessionId);
+    if (!replay) {
+      return 'Session not found.';
+    }
+
+    const lines = [];
+    const divider = '='.repeat(80);
+
+    // Header
+    lines.push(divider);
+    lines.push('FSB AUTOMATION SESSION REPORT');
+    lines.push(divider);
+    lines.push('');
+    lines.push(`Session ID: ${replay.id}`);
+    lines.push(`Task: ${replay.metadata.task}`);
+    lines.push(`Status: ${replay.metadata.status}`);
+    lines.push(`Duration: ${this.formatDuration(replay.summary.totalDuration)}`);
+    lines.push(`Steps: ${replay.summary.successfulSteps}/${replay.summary.totalSteps} successful`);
+    lines.push('');
+
+    // Step-by-step execution
+    lines.push(divider);
+    lines.push('STEP-BY-STEP EXECUTION');
+    lines.push(divider);
+    lines.push('');
+
+    replay.steps.forEach(step => {
+      const status = step.result.success ? '[OK]' : '[FAILED]';
+      lines.push(`${status} Step ${step.stepNumber}: ${step.action.tool}`);
+      lines.push(`    Selector: ${step.targeting.selectorUsed || step.targeting.selectorTried || 'N/A'}`);
+      lines.push(`    Element Found: ${step.targeting.elementFound ? 'Yes' : 'No'}`);
+
+      if (step.targeting.elementDetails) {
+        const el = step.targeting.elementDetails;
+        lines.push(`    Element: <${el.tagName}${el.id ? '#' + el.id : ''}${el.className ? '.' + el.className.split(' ')[0] : ''}>`);
+      }
+
+      if (step.targeting.coordinatesUsed) {
+        lines.push(`    Coordinates: (${step.targeting.coordinatesUsed.x}, ${step.targeting.coordinatesUsed.y})`);
+      }
+
+      if (!step.result.success && step.result.diagnostic) {
+        lines.push(`    Error: ${step.result.diagnostic.message}`);
+        lines.push(`    Details: ${step.result.diagnostic.details}`);
+        if (step.result.diagnostic.suggestions?.length) {
+          lines.push('    Suggestions:');
+          step.result.diagnostic.suggestions.forEach(s => lines.push(`      - ${s}`));
+        }
+      }
+
+      lines.push('');
+    });
+
+    // Failure summary if any failures
+    const failures = replay.steps.filter(s => !s.result.success);
+    if (failures.length > 0) {
+      lines.push(divider);
+      lines.push('FAILURE SUMMARY');
+      lines.push(divider);
+      lines.push('');
+      failures.forEach(step => {
+        lines.push(`Step ${step.stepNumber}: ${step.result.diagnostic?.message || step.result.error || 'Unknown error'}`);
+      });
+      lines.push('');
+    }
+
+    lines.push(divider);
+    lines.push(`Report generated: ${new Date().toLocaleString()}`);
+
+    return lines.join('\n');
+  }
+
+  /**
    * Log API/Provider operations
    * @param {string} sessionId - The session ID
    * @param {string} provider - Provider: 'xai', 'gemini', 'openai', 'anthropic'
