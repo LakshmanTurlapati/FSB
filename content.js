@@ -9512,6 +9512,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
       break;
 
+    // DEBUG-07: Toggle element inspection mode
+    case 'toggleInspectionMode':
+      try {
+        if (elementInspector.isActive) {
+          elementInspector.disable();
+        } else {
+          elementInspector.enable();
+        }
+        sendResponse({ success: true, active: elementInspector.isActive });
+      } catch (error) {
+        automationLogger.error('Error toggling inspection mode', {
+          sessionId: currentSessionId,
+          error: error.message
+        });
+        sendResponse({ success: false, error: error.message });
+      }
+      break;
+
+    // DEBUG-07: Get inspection mode status
+    case 'getInspectionModeStatus':
+      sendResponse({ active: elementInspector.isActive });
+      break;
+
     default:
       sendResponse({ error: 'Unknown action' });
   }
