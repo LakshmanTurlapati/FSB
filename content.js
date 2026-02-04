@@ -4219,41 +4219,8 @@ const tools = {
         }
       }
 
-      // Capture comprehensive state before click
-      const preClickState = {
-        url: window.location.href,
-        bodyTextLength: document.body.innerText.length,
-        elementCount: document.querySelectorAll('*').length,
-        activeElement: document.activeElement?.tagName,
-        timestamp: Date.now(),
-        // ENHANCED: Capture element-specific state for better verification
-        elementClass: element.className,
-        elementAriaExpanded: element.getAttribute('aria-expanded'),
-        elementAriaSelected: element.getAttribute('aria-selected'),
-        elementAriaChecked: element.getAttribute('aria-checked'),
-        elementAriaPressed: element.getAttribute('aria-pressed'),
-        elementAriaHidden: element.getAttribute('aria-hidden'),
-        elementDataState: element.getAttribute('data-state'),
-        elementChecked: element.checked,
-        elementOpen: element.open
-      };
-
-      // Capture related elements that might change (dropdowns, menus, modals)
-      const relatedElements = [
-        element.nextElementSibling,
-        element.querySelector('[role="menu"], [role="listbox"], .dropdown-menu, .submenu'),
-        document.querySelector(`[aria-labelledby="${element.id}"]`),
-        document.querySelector(`[aria-controls="${element.id}"]`),
-        element.id ? document.querySelector(`#${element.id}-content, #${element.id}-panel, #${element.id}-menu`) : null
-      ].filter(Boolean);
-
-      const preRelatedStates = relatedElements.map(el => ({
-        display: getComputedStyle(el).display,
-        visibility: getComputedStyle(el).visibility,
-        opacity: getComputedStyle(el).opacity,
-        height: el.getBoundingClientRect().height,
-        ariaHidden: el.getAttribute('aria-hidden')
-      }));
+      // VERIFY-04: Capture pre-state using SHARED verification utility
+      const preState = captureActionState(element, 'click');
 
       // Perform the click using proper mouse events for better compatibility
       // Many modern sites (Amazon, etc.) need full event sequence
@@ -4281,81 +4248,24 @@ const tools = {
       // Also call native click as fallback for some elements
       element.click();
 
-      // Wait a bit for immediate effects
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // VERIFY-04: Wait for page stability (REPLACE fixed 300ms with dynamic stability detection)
+      await waitForPageStability({ maxWait: 1000, stableTime: 200 });
 
-      // Check for immediate DOM changes
-      const postClickState = {
-        url: window.location.href,
-        bodyTextLength: document.body.innerText.length,
-        elementCount: document.querySelectorAll('*').length,
-        activeElement: document.activeElement?.tagName,
-        timestamp: Date.now(),
-        // ENHANCED: Capture element-specific state after click
-        elementClass: element.className,
-        elementAriaExpanded: element.getAttribute('aria-expanded'),
-        elementAriaSelected: element.getAttribute('aria-selected'),
-        elementAriaChecked: element.getAttribute('aria-checked'),
-        elementAriaPressed: element.getAttribute('aria-pressed'),
-        elementAriaHidden: element.getAttribute('aria-hidden'),
-        elementDataState: element.getAttribute('data-state'),
-        elementChecked: element.checked,
-        elementOpen: element.open
-      };
+      // VERIFY-04: Capture post-state and verify using SHARED utilities
+      const postState = captureActionState(element, 'click');
+      const verification = verifyActionEffect(preState, postState, 'click');
 
-      // Check related elements after click
-      const postRelatedStates = relatedElements.map(el => ({
-        display: getComputedStyle(el).display,
-        visibility: getComputedStyle(el).visibility,
-        opacity: getComputedStyle(el).opacity,
-        height: el.getBoundingClientRect().height,
-        ariaHidden: el.getAttribute('aria-hidden')
-      }));
-
-      // Check if any related element's visibility changed
-      const relatedVisibilityChanged = preRelatedStates.some((pre, i) => {
-        const post = postRelatedStates[i];
-        return pre.display !== post.display ||
-               pre.visibility !== post.visibility ||
-               pre.opacity !== post.opacity ||
-               Math.abs(pre.height - post.height) > 5 ||
-               pre.ariaHidden !== post.ariaHidden;
-      });
-
-      // Detect changes - ENHANCED with more checks
-      const changes = {
-        urlChanged: preClickState.url !== postClickState.url,
-        contentChanged: Math.abs(postClickState.bodyTextLength - preClickState.bodyTextLength) > 10,
-        elementCountChanged: Math.abs(postClickState.elementCount - preClickState.elementCount) > 5,
-        focusChanged: preClickState.activeElement !== postClickState.activeElement,
-        loadingDetected: !!document.querySelector('.loading, .spinner, [class*="load"], [aria-busy="true"]'),
-        // NEW: Enhanced change detection
-        classChanged: preClickState.elementClass !== postClickState.elementClass,
-        ariaExpandedChanged: preClickState.elementAriaExpanded !== postClickState.elementAriaExpanded,
-        ariaSelectedChanged: preClickState.elementAriaSelected !== postClickState.elementAriaSelected,
-        ariaCheckedChanged: preClickState.elementAriaChecked !== postClickState.elementAriaChecked,
-        ariaPressedChanged: preClickState.elementAriaPressed !== postClickState.elementAriaPressed,
-        dataStateChanged: preClickState.elementDataState !== postClickState.elementDataState,
-        checkedChanged: preClickState.elementChecked !== postClickState.elementChecked,
-        openChanged: preClickState.elementOpen !== postClickState.elementOpen,
-        relatedVisibilityChanged: relatedVisibilityChanged
-      };
+      // Check for loading indicators (not captured by standard verification)
+      const loadingDetected = !!document.querySelector('.loading, .spinner, [class*="load"], [aria-busy="true"]');
 
       // Determine if click had an effect
       // For anchor tags, require URL change or significant DOM change (not just focus)
       const isAnchorElement = element.tagName === 'A' || element.closest('a');
-      const hasSignificantChange = changes.urlChanged ||
-                                   changes.contentChanged ||
-                                   changes.elementCountChanged ||
-                                   changes.loadingDetected ||
-                                   changes.ariaExpandedChanged ||
-                                   changes.relatedVisibilityChanged;
-
-      // For links: require URL/content change, not just focus
-      // For other elements: any change counts
       const hadEffect = isAnchorElement
-        ? hasSignificantChange
-        : Object.values(changes).some(v => v);
+        ? (verification.changes?.urlChanged || verification.changes?.contentChanged ||
+           verification.changes?.elementCountChanged || verification.changes?.ariaExpandedChanged ||
+           verification.changes?.relatedVisibilityChanged || loadingDetected || false)
+        : verification.verified;
 
       // CRITICAL FIX: Return success=false when click has no effect
       // This prevents AI from continuing after failed clicks
@@ -4371,8 +4281,13 @@ const tools = {
           success: false,
           error: 'Click executed but had no detectable effect on the page',
           hadEffect: false,
-          effectDetails: changes,
-          diagnostic: generateDiagnostic('noEffect', { action: 'click', changes }),
+          effectDetails: verification.changes,
+          verification: {
+            verified: verification.verified,
+            changes: verification.changes,
+            reason: verification.reason
+          },
+          diagnostic: generateDiagnostic('noEffect', { action: 'click', changes: verification.changes }),
           duration: Date.now() - startTime
         });
         return {
@@ -4381,15 +4296,11 @@ const tools = {
           clicked: params.selector,
           hadEffect: false,
           verification: {
-            changes: changes,
-            preState: {
-              url: preClickState.url,
-              elementCount: preClickState.elementCount
-            },
-            postState: {
-              url: postClickState.url,
-              elementCount: postClickState.elementCount
-            }
+            preState,
+            postState,
+            verified: verification.verified,
+            changes: verification.changes,
+            reason: verification.reason
           },
           elementInfo: {
             tag: element.tagName,
@@ -4410,23 +4321,25 @@ const tools = {
         coordinateSource: 'selector',
         success: true,
         hadEffect: true,
-        effectDetails: changes,
+        effectDetails: verification.changes,
+        verification: {
+          verified: verification.verified,
+          changes: verification.changes,
+          reason: verification.reason
+        },
         duration: Date.now() - startTime
       });
       return {
         success: true,
         clicked: params.selector,
         hadEffect: true,
+        scrolled: wasScrolled,
         verification: {
-          changes: changes,
-          preState: {
-            url: preClickState.url,
-            elementCount: preClickState.elementCount
-          },
-          postState: {
-            url: postClickState.url,
-            elementCount: postClickState.elementCount
-          }
+          preState,
+          postState,
+          verified: verification.verified,
+          changes: verification.changes,
+          reason: verification.reason
         },
         elementInfo: {
           tag: element.tagName,
@@ -9702,6 +9615,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           error: error.message
         });
         sendResponse({ type: 'noChange', confidence: 'LOW', error: error.message });
+      }
+      break;
+
+    // VERIFY-04: Wait for page stability (callable from background.js)
+    case 'waitForPageStability':
+      try {
+        const stabilityResult = await waitForPageStability(request.options || {});
+        sendResponse(stabilityResult);
+      } catch (error) {
+        automationLogger.error('waitForPageStability message handler error', {
+          sessionId: currentSessionId,
+          error: error.message
+        });
+        sendResponse({ stable: false, error: error.message, timedOut: true });
       }
       break;
 
