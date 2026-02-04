@@ -3880,12 +3880,19 @@ const tools = {
   
   // Click an element
   click: async (params) => {
+    const startTime = Date.now();
+    const selectorTried = params.selector;
+    let coordinatesUsed = null;
+    let coordinateSource = null;
+
     // Find element first using shadow DOM aware query
     let element = querySelectorWithShadow(params.selector);
     if (!element) {
       // Try coordinate fallback if coordinates provided
       if (params.coordinates && typeof params.coordinates.x === 'number' && typeof params.coordinates.y === 'number') {
-        return await clickAtCoordinates({
+        coordinatesUsed = { x: params.coordinates.x, y: params.coordinates.y };
+        coordinateSource = 'fallback';
+        const result = await clickAtCoordinates({
           x: params.coordinates.x,
           y: params.coordinates.y,
           width: params.coordinates.width || 0,
@@ -3893,8 +3900,35 @@ const tools = {
           originalSelector: params.selector,
           reason: 'selector_not_found'
         });
+        // Record the action
+        actionRecorder.record(null, 'click', params, {
+          selectorTried,
+          selectorUsed: null,
+          elementFound: false,
+          elementDetails: null,
+          coordinatesUsed,
+          coordinateSource,
+          success: result.success,
+          error: result.error || null,
+          hadEffect: result.hadEffect,
+          duration: Date.now() - startTime
+        });
+        return result;
       }
 
+      // Record failure - element not found, no fallback
+      actionRecorder.record(null, 'click', params, {
+        selectorTried,
+        selectorUsed: null,
+        elementFound: false,
+        elementDetails: null,
+        coordinatesUsed: null,
+        coordinateSource: null,
+        success: false,
+        error: 'Element not found and no coordinates available for fallback',
+        diagnostic: generateDiagnostic('elementNotFound', { selector: selectorTried }),
+        duration: Date.now() - startTime
+      });
       return {
         success: false,
         error: 'Element not found and no coordinates available for fallback',
@@ -3905,6 +3939,19 @@ const tools = {
     // Use unified readiness check (visibility, enabled, stable, receives events)
     const readiness = await ensureElementReady(element, 'click');
     if (!readiness.ready) {
+      // Record failure - element not ready
+      actionRecorder.record(null, 'click', params, {
+        selectorTried,
+        selectorUsed: selectorTried,
+        elementFound: true,
+        elementDetails: captureElementDetails(element),
+        coordinatesUsed: null,
+        coordinateSource: null,
+        success: false,
+        error: `Element not ready: ${readiness.failureReason}`,
+        diagnostic: generateDiagnostic('notReady', { selector: selectorTried, checks: readiness.checks }),
+        duration: Date.now() - startTime
+      });
       return {
         success: false,
         error: `Element not ready: ${readiness.failureReason}`,
@@ -4108,6 +4155,21 @@ const tools = {
       // CRITICAL FIX: Return success=false when click has no effect
       // This prevents AI from continuing after failed clicks
       if (!hadEffect) {
+        // Record action - click had no effect
+        actionRecorder.record(null, 'click', params, {
+          selectorTried,
+          selectorUsed: selectorTried,
+          elementFound: true,
+          elementDetails: captureElementDetails(element),
+          coordinatesUsed: { x: Math.round(centerX), y: Math.round(centerY) },
+          coordinateSource: 'selector',
+          success: false,
+          error: 'Click executed but had no detectable effect on the page',
+          hadEffect: false,
+          effectDetails: changes,
+          diagnostic: generateDiagnostic('noEffect', { action: 'click', changes }),
+          duration: Date.now() - startTime
+        });
         return {
           success: false,
           error: 'Click executed but had no detectable effect on the page',
@@ -4133,6 +4195,19 @@ const tools = {
         };
       }
 
+      // Record successful action
+      actionRecorder.record(null, 'click', params, {
+        selectorTried,
+        selectorUsed: selectorTried,
+        elementFound: true,
+        elementDetails: captureElementDetails(element),
+        coordinatesUsed: { x: Math.round(centerX), y: Math.round(centerY) },
+        coordinateSource: 'selector',
+        success: true,
+        hadEffect: true,
+        effectDetails: changes,
+        duration: Date.now() - startTime
+      });
       return {
         success: true,
         clicked: params.selector,
@@ -9124,6 +9199,45 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         frameContext: frameContext,
         isMainFrame: !isInIframe
       });
+      break;
+
+    // SPEED-01: Detect action outcome for outcome-based delays
+    case 'detectActionOutcome':
+      try {
+        const outcome = detectActionOutcome(
+          request.preState,
+          request.postState,
+          request.actionResult
+        );
+        sendResponse(outcome);
+      } catch (error) {
+        automationLogger.error('Error detecting action outcome', {
+          sessionId: currentSessionId,
+          error: error.message
+        });
+        sendResponse({ type: 'noChange', confidence: 'LOW', error: error.message });
+      }
+      break;
+
+    // SPEED-01: Capture current page state for outcome detection
+    case 'capturePageState':
+      try {
+        const pageState = {
+          url: window.location.href,
+          bodyTextLength: document.body?.innerText?.length || 0,
+          elementCount: document.querySelectorAll('*').length,
+          activeElement: document.activeElement?.tagName || null,
+          urlChanged: false, // Will be compared by caller
+          timestamp: Date.now()
+        };
+        sendResponse(pageState);
+      } catch (error) {
+        automationLogger.error('Error capturing page state', {
+          sessionId: currentSessionId,
+          error: error.message
+        });
+        sendResponse({ error: error.message });
+      }
       break;
 
     default:

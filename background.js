@@ -3662,78 +3662,97 @@ async function startAutomationLoop(sessionId) {
           }
         }
         
-        // Smart delay calculation based on action types and DOM state
-        if (i < aiResponse.actions.length - 1) { // Don't delay after the last action
+        // SPEED-01: Outcome-based delay calculation
+        // Only add delay if not the last action in this batch
+        if (i < aiResponse.actions.length - 1) {
           const nextAction = aiResponse.actions[i + 1];
-          
-          // Check if page is loading with error handling
-          let loadingCheck;
+
+          // Try to detect action outcome for smart waiting
+          let outcomeType = 'noChange'; // Default to no change
+
           try {
-            loadingCheck = await sendMessageWithRetry(session.tabId, {
-              action: 'executeAction',
-              tool: 'detectLoadingState',
-              params: {}
-            });
-          } catch (error) {
-            // Silently handle loading check errors - continue with fixed delay
-            automationLogger.debug('Loading check failed, using fixed delay', { sessionId });
-            loadingCheck = { success: false };
-          }
-
-          if (loadingCheck?.success && loadingCheck?.result?.loading) {
-            automationLogger.debug('Loading indicator detected', { sessionId, indicator: loadingCheck.result.indicator });
-            
-            // Wait for DOM to stabilize with error handling
-            let stableResult;
-            try {
-              stableResult = await sendMessageWithRetry(session.tabId, {
-                action: 'executeAction',
-                tool: 'waitForDOMStable',
-                params: { timeout: 5000, stableTime: 500 }
+            // Check if actionResult already has verification with pre/post state
+            if (actionResult?.verification?.preState && actionResult?.verification?.postState) {
+              // Use verification data already captured by the action handler
+              const outcome = await sendMessageWithRetry(session.tabId, {
+                action: 'detectActionOutcome',
+                preState: actionResult.verification.preState,
+                postState: actionResult.verification.postState,
+                actionResult: actionResult
               });
-            } catch (error) {
-              // If stability check fails, use fixed delay
-              automationLogger.debug('DOM stability check failed', { sessionId });
-              stableResult = { success: false };
-            }
 
-            automationLogger.logTiming(sessionId, 'WAIT', 'dom_stable', stableResult?.waitTime || 0, { reason: stableResult?.reason });
-          } else {
-            // Use smart DOM-based waiting for certain action types
-            const actionsThatCauseChanges = ['click', 'type', 'navigate', 'searchGoogle', 'pressEnter', 'submit'];
-            const currentCausesChanges = actionsThatCauseChanges.includes(action.tool);
-            
-            if (currentCausesChanges) {
-              // Wait for DOM to stabilize after actions that typically cause changes
-              let stableResult;
-              try {
-                stableResult = await sendMessageWithRetry(session.tabId, {
-                  action: 'executeAction',
-                  tool: 'waitForDOMStable',
-                  params: { timeout: 3000, stableTime: 300 }
+              if (outcome?.type) {
+                outcomeType = outcome.type;
+                automationLogger.debug('Outcome detected from verification', {
+                  sessionId,
+                  tool: action.tool,
+                  outcomeType,
+                  confidence: outcome.confidence
                 });
-              } catch (error) {
-                // If stability check fails, use fixed delay
-                automationLogger.debug('DOM stability check failed', { sessionId });
-                stableResult = { success: false };
+              }
+            } else {
+              // For actions without built-in verification, capture current state and compare
+              // Get current page state as a proxy for post-action state
+              const postState = await sendMessageWithRetry(session.tabId, {
+                action: 'capturePageState'
+              });
+
+              // Infer outcome based on action type and result
+              if (actionResult?.success) {
+                if (['navigate', 'searchGoogle', 'goBack', 'goForward'].includes(action.tool)) {
+                  outcomeType = 'navigation';
+                } else if (['click', 'type', 'pressEnter', 'submit'].includes(action.tool)) {
+                  // Check if there was a URL change or DOM change indication
+                  if (postState?.urlChanged || actionResult?.urlChanged) {
+                    outcomeType = 'navigation';
+                  } else if (actionResult?.hadEffect) {
+                    outcomeType = 'minorDOMChange';
+                  } else {
+                    // Check for loading indicators
+                    const loadingCheck = await sendMessageWithRetry(session.tabId, {
+                      action: 'executeAction',
+                      tool: 'detectLoadingState',
+                      params: {}
+                    });
+                    if (loadingCheck?.success && loadingCheck?.result?.loading) {
+                      outcomeType = 'network';
+                    }
+                  }
+                } else if (['getText', 'getAttribute', 'hover', 'moveMouse', 'focus'].includes(action.tool)) {
+                  // Read-only actions - no change expected
+                  outcomeType = 'noChange';
+                }
               }
 
-              automationLogger.logTiming(sessionId, 'WAIT', 'dom_stable', stableResult?.waitTime || 0, {});
-            } else {
-              // For read-only actions (getText, getAttribute, etc.), use minimal delay
-              // These don't change the DOM so no need for smart waiting
-              const readOnlyActions = ['getText', 'getAttribute', 'hover', 'moveMouse', 'focus'];
-              if (readOnlyActions.includes(action.tool)) {
-                // Minimal delay for read-only actions
-                automationLogger.debug('Read-only action, minimal delay', { sessionId, tool: action.tool });
-              } else {
-                // For unknown actions, use a small safety delay
-                const delay = Math.min(calculateActionDelay(action, nextAction), 500);
-                automationLogger.logTiming(sessionId, 'WAIT', 'unknown_action', delay, { tool: action.tool });
-                await new Promise(resolve => setTimeout(resolve, delay));
-              }
+              automationLogger.debug('Outcome inferred from action type', {
+                sessionId,
+                tool: action.tool,
+                outcomeType,
+                hadEffect: actionResult?.hadEffect
+              });
             }
+          } catch (outcomeError) {
+            // If outcome detection fails, fall back to category-based delay
+            automationLogger.debug('Outcome detection failed, using fallback', {
+              sessionId,
+              error: outcomeError.message
+            });
+
+            // Fallback: use calculateActionDelay for unknown situations
+            const fallbackDelay = Math.min(calculateActionDelay(action, nextAction), 500);
+            automationLogger.logTiming(sessionId, 'WAIT', 'outcome_fallback', fallbackDelay, { tool: action.tool });
+            await new Promise(resolve => setTimeout(resolve, fallbackDelay));
+            continue; // Skip outcome-based delay
           }
+
+          // Apply outcome-based delay
+          const delayResult = await outcomeBasedDelay(session.tabId, outcomeType);
+          automationLogger.debug('Applied outcome-based delay', {
+            sessionId,
+            outcomeType,
+            waitTime: delayResult.waitTime,
+            method: delayResult.method
+          });
         }
       }
     }
