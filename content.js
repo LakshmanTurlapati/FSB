@@ -6143,15 +6143,34 @@ const tools = {
   
   // Focus on element with auto-wait
   focus: async (params) => {
+    const startTime = Date.now();
     // Find element using shadow DOM aware query
     let element = querySelectorWithShadow(params.selector);
     if (!element) {
+      actionRecorder.record(null, 'focus', params, {
+        selectorTried: params.selector,
+        elementFound: false,
+        success: false,
+        error: 'Element not found',
+        diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector }),
+        duration: Date.now() - startTime
+      });
       return { success: false, error: 'Element not found', selector: params.selector };
     }
 
     // SPEED-05: Use smart readiness check with fast-path for ready elements
     const readiness = await smartEnsureReady(element, 'focus');
     if (!readiness.ready) {
+      actionRecorder.record(null, 'focus', params, {
+        selectorTried: params.selector,
+        selectorUsed: params.selector,
+        elementFound: true,
+        elementDetails: captureElementDetails(element),
+        success: false,
+        error: `Element not ready for focus: ${readiness.failureReason}`,
+        diagnostic: generateDiagnostic('notReady', { selector: params.selector, checks: readiness.checks }),
+        duration: Date.now() - startTime
+      });
       return {
         success: false,
         error: `Element not ready for focus: ${readiness.failureReason}`,
@@ -6164,36 +6183,90 @@ const tools = {
     if (readiness.scrolled) {
       element = querySelectorWithShadow(params.selector);
       if (!element) {
+        actionRecorder.record(null, 'focus', params, {
+          selectorTried: params.selector,
+          elementFound: false,
+          success: false,
+          error: 'Element became stale after scrolling',
+          diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector }),
+          duration: Date.now() - startTime
+        });
         return { success: false, error: 'Element became stale after scrolling', selector: params.selector };
       }
     }
 
     // Now perform the focus
     element.focus();
+    actionRecorder.record(null, 'focus', params, {
+      selectorTried: params.selector,
+      selectorUsed: params.selector,
+      elementFound: true,
+      elementDetails: captureElementDetails(element),
+      success: true,
+      hadEffect: true,
+      duration: Date.now() - startTime
+    });
     return { success: true, focused: params.selector, scrolled: readiness.scrolled };
   },
   
   // Blur (unfocus) element
   blur: (params) => {
+    const startTime = Date.now();
     const element = querySelectorWithShadow(params.selector);
     if (element) {
       element.blur();
+      actionRecorder.record(null, 'blur', params, {
+        selectorTried: params.selector,
+        selectorUsed: params.selector,
+        elementFound: true,
+        elementDetails: captureElementDetails(element),
+        success: true,
+        hadEffect: true,
+        duration: Date.now() - startTime
+      });
       return { success: true, blurred: params.selector };
     }
+    actionRecorder.record(null, 'blur', params, {
+      selectorTried: params.selector,
+      elementFound: false,
+      success: false,
+      error: 'Element not found',
+      diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector }),
+      duration: Date.now() - startTime
+    });
     return { success: false, error: 'Element not found' };
   },
   
   // Hover over element
   hover: async (params) => {
+    const startTime = Date.now();
     // Find element using shadow DOM aware query
     let element = querySelectorWithShadow(params.selector);
     if (!element) {
+      actionRecorder.record(null, 'hover', params, {
+        selectorTried: params.selector,
+        elementFound: false,
+        success: false,
+        error: 'Element not found',
+        diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector }),
+        duration: Date.now() - startTime
+      });
       return { success: false, error: 'Element not found', selector: params.selector };
     }
 
     // SPEED-05: Use smart readiness check with fast-path for ready elements
     const readiness = await smartEnsureReady(element, 'hover');
     if (!readiness.ready) {
+      actionRecorder.record(null, 'hover', params, {
+        selectorTried: params.selector,
+        selectorUsed: params.selector,
+        elementFound: true,
+        elementDetails: captureElementDetails(element),
+        success: false,
+        error: `Element not ready for hover: ${readiness.failureReason}`,
+        diagnostic: generateDiagnostic('notReady', { selector: params.selector, checks: readiness.checks }),
+        duration: Date.now() - startTime
+      });
       return {
         success: false,
         error: `Element not ready for hover: ${readiness.failureReason}`,
@@ -6206,6 +6279,14 @@ const tools = {
     if (readiness.scrolled) {
       element = querySelectorWithShadow(params.selector);
       if (!element) {
+        actionRecorder.record(null, 'hover', params, {
+          selectorTried: params.selector,
+          elementFound: false,
+          success: false,
+          error: 'Element became stale after scrolling',
+          diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector }),
+          duration: Date.now() - startTime
+        });
         return { success: false, error: 'Element became stale after scrolling', selector: params.selector };
       }
     }
@@ -6230,6 +6311,15 @@ const tools = {
     });
     element.dispatchEvent(mouseEnterEvent);
 
+    actionRecorder.record(null, 'hover', params, {
+      selectorTried: params.selector,
+      selectorUsed: params.selector,
+      elementFound: true,
+      elementDetails: captureElementDetails(element),
+      success: true,
+      hadEffect: true,
+      duration: Date.now() - startTime
+    });
     return { success: true, hovering: params.selector, scrolled: readiness.scrolled };
   },
   
