@@ -6959,8 +6959,114 @@ function extractEcommerceProducts() {
 }
 
 /**
+ * Calculate relevance score for an element based on purpose, visibility, and task type
+ * Used by getFilteredElements to prioritize the most relevant elements
+ * @param {Element} element - DOM element to score
+ * @param {string} taskType - Current task type ('search', 'form', 'login', 'navigation', 'general')
+ * @param {boolean} prioritizeViewport - Whether to give bonus for viewport visibility
+ * @returns {number} Relevance score (higher is more relevant)
+ */
+function calculateElementScore(element, taskType, prioritizeViewport) {
+  let score = 0;
+
+  // Viewport bonus (+10 for fully visible, +5 for partially visible)
+  if (prioritizeViewport) {
+    const rect = element.getBoundingClientRect();
+    if (rect.top >= 0 && rect.bottom <= window.innerHeight &&
+        rect.left >= 0 && rect.right <= window.innerWidth) {
+      score += 10;
+    } else if (rect.bottom > 0 && rect.top < window.innerHeight) {
+      score += 5; // Partially visible
+    }
+  }
+
+  // Purpose-based scoring using existing inferElementPurpose
+  const purpose = inferElementPurpose(element);
+  if (purpose.priority === 'high') score += 8;
+  else if (purpose.priority === 'medium') score += 4;
+  else if (purpose.priority === 'low') score += 1;
+
+  // Task-type alignment bonus
+  if (taskType === 'search' && purpose.role === 'search-input') score += 6;
+  if (taskType === 'search' && purpose.role === 'search-action') score += 6;
+  if (taskType === 'form' && purpose.role.includes('input')) score += 5;
+  if (taskType === 'login' && (purpose.intent === 'login' || purpose.intent === 'password' || purpose.intent === 'username')) score += 6;
+  if (taskType === 'navigation' && purpose.role.includes('navigation')) score += 5;
+
+  // Interactive element type bonus
+  const tag = element.tagName;
+  if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT') score += 3;
+  if (tag === 'A') score += 2;
+  if (tag === 'TEXTAREA') score += 3;
+
+  // Has accessible name bonus
+  if (element.getAttribute('aria-label') || element.textContent?.trim()) score += 2;
+
+  // Form association bonus
+  if (element.form) score += 2;
+
+  // Has data-testid (test-friendly, likely important)
+  if (element.hasAttribute('data-testid')) score += 3;
+
+  return score;
+}
+
+/**
+ * Get filtered elements using a 3-stage pipeline: collection -> visibility -> scoring
+ * PHASE 5-01: Reduces DOM noise from 300+ elements to ~50 relevant ones
+ * @param {Object} options - Configuration options
+ * @param {number} options.maxElements - Maximum elements to return (default: 50)
+ * @param {boolean} options.prioritizeViewport - Whether to prioritize viewport elements (default: true)
+ * @param {string} options.taskType - Task type for relevance scoring ('search', 'form', 'login', 'navigation', 'general')
+ * @returns {Element[]} Array of filtered DOM elements sorted by relevance
+ */
+function getFilteredElements(options = {}) {
+  const {
+    maxElements = 50,
+    prioritizeViewport = true,
+    taskType = 'general'
+  } = options;
+
+  // Stage 1: Get potentially relevant elements (interactive tags, roles, click handlers)
+  const candidates = document.querySelectorAll(
+    'button, a, input, select, textarea, ' +
+    '[role="button"], [role="link"], [role="textbox"], [role="checkbox"], [role="radio"], ' +
+    '[role="combobox"], [role="listbox"], [role="menuitem"], [role="tab"], [role="switch"], ' +
+    '[onclick], [tabindex]:not([tabindex="-1"]), ' +
+    'label, [contenteditable="true"], summary, details'
+  );
+
+  // Stage 2: Filter by visibility
+  const visible = Array.from(candidates).filter(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return false;
+
+    const styles = getComputedStyle(el);
+    if (styles.display === 'none') return false;
+    if (styles.visibility === 'hidden') return false;
+    if (parseFloat(styles.opacity) === 0) return false;
+    if (el.getAttribute('aria-hidden') === 'true') return false;
+
+    return true;
+  });
+
+  // Stage 3: Score by relevance and limit
+  const scored = visible.map(el => ({
+    element: el,
+    score: calculateElementScore(el, taskType, prioritizeViewport)
+  }));
+
+  // Sort by score descending, take top maxElements
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxElements)
+    .map(item => item.element);
+}
+
+/**
  * Extracts and structures DOM information for AI processing
- * ENHANCED: Viewport-first traversal for better performance
+ * ENHANCED: Uses 3-stage filtering (visibility -> interactivity -> relevance) to return ~50 relevant elements
+ * instead of 300+ raw DOM elements. This reduces AI context bloat and improves decision quality.
  * @param {Object} options - Configuration options for DOM extraction
  * @param {boolean} options.useDiffing - Whether to use DOM diffing for optimization
  * @param {boolean} options.prioritizeViewport - Whether to prioritize visible elements
