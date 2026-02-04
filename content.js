@@ -2940,6 +2940,184 @@ function captureActionState(element, actionType) {
   return state;
 }
 
+/**
+ * Expected effects for each action type
+ * - required: All must occur for verification to pass
+ * - anyOf: At least one must occur (unless optional is true)
+ * - optional: Action may not have visible effect (e.g., hover)
+ * - timeout: Suggested wait time for effects to manifest
+ */
+const EXPECTED_EFFECTS = {
+  click: {
+    anyOf: ['urlChanged', 'contentChanged', 'elementCountChanged', 'ariaExpandedChanged',
+            'focusChanged', 'classChanged', 'relatedVisibilityChanged'],
+    timeout: 300
+  },
+  type: {
+    required: ['valueChanged'],
+    anyOf: ['contentChanged'],
+    timeout: 200
+  },
+  selectOption: {
+    required: ['selectedIndexChanged'],
+    anyOf: ['valueChanged'],
+    timeout: 200
+  },
+  toggleCheckbox: {
+    required: ['checkedChanged'],
+    timeout: 200
+  },
+  pressEnter: {
+    anyOf: ['urlChanged', 'elementCountChanged', 'contentChanged', 'focusChanged'],
+    timeout: 1000
+  },
+  navigate: {
+    required: ['urlChanged'],
+    timeout: 5000
+  },
+  hover: {
+    anyOf: ['classChanged', 'ariaExpandedChanged', 'relatedVisibilityChanged'],
+    optional: true  // Hover may not have visible effect
+  },
+  focus: {
+    required: ['focusChanged'],
+    timeout: 100
+  }
+};
+
+/**
+ * Detects changes between pre and post action states
+ * @param {Object} preState - State before action
+ * @param {Object} postState - State after action
+ * @returns {Object} Object with boolean flags for each type of change
+ */
+function detectChanges(preState, postState) {
+  const changes = {
+    // Global changes
+    urlChanged: preState.url !== postState.url,
+    contentChanged: Math.abs(postState.bodyTextLength - preState.bodyTextLength) > 10,
+    elementCountChanged: Math.abs(postState.elementCount - preState.elementCount) > 5,
+    focusChanged: preState.activeElement !== postState.activeElement,
+    loadingDetected: !!document.querySelector('.loading, .spinner, [class*="load"], [aria-busy="true"]')
+  };
+
+  // Element-specific changes (only if element exists in both states)
+  if (preState.element.exists && postState.element.exists) {
+    changes.classChanged = preState.element.className !== postState.element.className;
+    changes.valueChanged = preState.element.value !== postState.element.value;
+    changes.checkedChanged = preState.element.checked !== postState.element.checked;
+    changes.selectedIndexChanged = preState.element.selectedIndex !== postState.element.selectedIndex;
+    changes.ariaExpandedChanged = preState.element.ariaExpanded !== postState.element.ariaExpanded;
+    changes.ariaSelectedChanged = preState.element.ariaSelected !== postState.element.ariaSelected;
+    changes.ariaCheckedChanged = preState.element.ariaChecked !== postState.element.ariaChecked;
+    changes.ariaPressedChanged = preState.element.ariaPressed !== postState.element.ariaPressed;
+    changes.dataStateChanged = preState.element.dataState !== postState.element.dataState;
+    changes.openChanged = preState.element.open !== postState.element.open;
+  } else {
+    // Element became unavailable - treat as a change
+    changes.elementLost = preState.element.exists && !postState.element.exists;
+    changes.classChanged = false;
+    changes.valueChanged = false;
+    changes.checkedChanged = false;
+    changes.selectedIndexChanged = false;
+    changes.ariaExpandedChanged = false;
+    changes.ariaSelectedChanged = false;
+    changes.ariaCheckedChanged = false;
+    changes.ariaPressedChanged = false;
+    changes.dataStateChanged = false;
+    changes.openChanged = false;
+  }
+
+  // Related element visibility changes (for click/hover actions)
+  changes.relatedVisibilityChanged = false;
+  if (preState.relatedElements.length > 0 && postState.relatedElements.length > 0) {
+    changes.relatedVisibilityChanged = preState.relatedElements.some((pre, i) => {
+      const post = postState.relatedElements[i];
+      if (!post) return false;
+      return pre.display !== post.display ||
+             pre.visibility !== post.visibility ||
+             pre.opacity !== post.opacity ||
+             Math.abs(pre.height - post.height) > 5 ||
+             pre.ariaHidden !== post.ariaHidden;
+    });
+  }
+
+  return changes;
+}
+
+/**
+ * Verifies that an action had its expected effect
+ * @param {Object} preState - State captured before action
+ * @param {Object} postState - State captured after action
+ * @param {string} actionType - Type of action performed
+ * @returns {Object} Verification result { verified, reason, changes, details }
+ */
+function verifyActionEffect(preState, postState, actionType) {
+  const changes = detectChanges(preState, postState);
+  const expectations = EXPECTED_EFFECTS[actionType];
+
+  // If no expectations defined for this action type, assume verified
+  if (!expectations) {
+    return {
+      verified: true,
+      reason: 'No expectations defined for action type',
+      changes,
+      details: { actionType, expectationsDefined: false }
+    };
+  }
+
+  const result = {
+    verified: false,
+    reason: '',
+    changes,
+    details: {
+      actionType,
+      expectations,
+      requiredMet: null,
+      anyOfMet: null
+    }
+  };
+
+  // Check required changes (all must occur)
+  if (expectations.required) {
+    const requiredMet = expectations.required.every(change => changes[change] === true);
+    result.details.requiredMet = requiredMet;
+
+    if (!requiredMet) {
+      const missingRequired = expectations.required.filter(change => !changes[change]);
+      result.reason = `Required changes not detected: ${missingRequired.join(', ')}`;
+      return result;
+    }
+  }
+
+  // Check anyOf changes (at least one must occur)
+  if (expectations.anyOf) {
+    const anyOfMet = expectations.anyOf.some(change => changes[change] === true);
+    result.details.anyOfMet = anyOfMet;
+
+    if (!anyOfMet) {
+      // If action is optional, still verify but with note
+      if (expectations.optional) {
+        result.verified = true;
+        result.reason = 'Optional action - no detectable effect (may be normal)';
+        return result;
+      }
+
+      result.reason = `No expected effects detected. Expected one of: ${expectations.anyOf.join(', ')}`;
+      return result;
+    }
+  }
+
+  // All checks passed
+  result.verified = true;
+  const detectedChanges = Object.entries(changes)
+    .filter(([key, value]) => value === true)
+    .map(([key]) => key);
+  result.reason = `Action verified: ${detectedChanges.join(', ')}`;
+
+  return result;
+}
+
 // Tool functions for browser automation
 const tools = {
   // Scroll the page
