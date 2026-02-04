@@ -1024,11 +1024,203 @@ class ProgressOverlay {
 // Singleton instance for progress overlay
 const progressOverlay = new ProgressOverlay();
 
+/**
+ * ElementInspector - Debugging tool for inspecting elements as FSB sees them
+ *
+ * Allows users to hover over elements to see their bounds and click to inspect
+ * detailed information including selectors FSB would try, attributes, and
+ * interactability status. Uses Shadow DOM for complete style isolation.
+ */
+class ElementInspector {
+  constructor() {
+    this.isActive = false;
+    this.hoverOverlay = null;
+    this.inspectionPanel = null;
+    this.currentElement = null;
+    this.activeIndicator = null;
+    this.handleMouseMove = this.handleMouseMove.bind(this);
+    this.handleClick = this.handleClick.bind(this);
+  }
+
+  enable() {
+    if (this.isActive) return;
+    this.isActive = true;
+    this.createHoverOverlay();
+    this.createInspectionPanel();
+    this.createActiveIndicator();
+    document.addEventListener('mousemove', this.handleMouseMove, true);
+    document.addEventListener('click', this.handleClick, true);
+  }
+
+  disable() {
+    if (!this.isActive) return;
+    this.isActive = false;
+    document.removeEventListener('mousemove', this.handleMouseMove, true);
+    document.removeEventListener('click', this.handleClick, true);
+    if (this.hoverOverlay) { this.hoverOverlay.remove(); this.hoverOverlay = null; }
+    if (this.inspectionPanel) { this.inspectionPanel.remove(); this.inspectionPanel = null; }
+    if (this.activeIndicator) { this.activeIndicator.remove(); this.activeIndicator = null; }
+    this.currentElement = null;
+  }
+
+  createHoverOverlay() {
+    if (this.hoverOverlay) return;
+    this.hoverOverlay = document.createElement('div');
+    this.hoverOverlay.id = 'fsb-inspector-overlay';
+    this.hoverOverlay.style.cssText = 'all:initial!important;position:fixed!important;pointer-events:none!important;z-index:2147483645!important;border:2px dashed #FF8C00!important;background:rgba(255,165,0,0.1)!important;display:none!important;box-sizing:border-box!important;';
+    document.body.appendChild(this.hoverOverlay);
+  }
+
+  createInspectionPanel() {
+    if (this.inspectionPanel) return;
+    this.inspectionPanel = document.createElement('div');
+    this.inspectionPanel.id = 'fsb-inspector-panel';
+    this.inspectionPanel.style.cssText = 'all:initial!important;position:fixed!important;bottom:20px!important;right:20px!important;z-index:2147483647!important;display:none!important;';
+    const shadow = this.inspectionPanel.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = ':host{all:initial!important}*{box-sizing:border-box;margin:0;padding:0}.panel{width:350px;max-height:400px;overflow-y:auto;background:#fff;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);font-family:system-ui,-apple-system,sans-serif;font-size:12px;color:#333}.header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#FF8C00;color:#fff;border-radius:8px 8px 0 0;font-weight:600}.header-tag{font-size:14px}.badge{display:inline-block;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-size:10px;margin-left:4px}.close-btn{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:0 4px;line-height:1}.close-btn:hover{opacity:0.8}.section{padding:12px 16px;border-bottom:1px solid #eee}.section:last-child{border-bottom:none}.section-title{font-weight:600;color:#666;margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px}.selector-list{list-style:none}.selector-item{display:flex;align-items:flex-start;margin-bottom:6px;gap:8px}.selector-index{background:#f0f0f0;color:#666;padding:2px 6px;border-radius:3px;font-size:10px;min-width:20px;text-align:center}.selector-value{font-family:Monaco,Menlo,monospace;font-size:11px;word-break:break-all;color:#0066cc}.attr-list{display:grid;grid-template-columns:auto 1fr;gap:4px 12px}.attr-key{font-weight:500;color:#666}.attr-value{font-family:Monaco,Menlo,monospace;font-size:11px;color:#333;word-break:break-all}.check-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}.check-item{display:flex;align-items:center;gap:6px}.check-pass{color:#22c55e}.check-fail{color:#ef4444}.position-info{font-family:Monaco,Menlo,monospace;font-size:11px;color:#666}.text-preview{font-style:italic;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}';
+    shadow.appendChild(style);
+    const container = document.createElement('div');
+    container.className = 'panel';
+    container.innerHTML = '<div class="section">Click an element to inspect</div>';
+    shadow.appendChild(container);
+    document.body.appendChild(this.inspectionPanel);
+  }
+
+  createActiveIndicator() {
+    if (this.activeIndicator) return;
+    this.activeIndicator = document.createElement('div');
+    this.activeIndicator.id = 'fsb-inspector-indicator';
+    this.activeIndicator.style.cssText = 'all:initial!important;position:fixed!important;top:10px!important;left:50%!important;transform:translateX(-50%)!important;z-index:2147483647!important;background:#FF8C00!important;color:#fff!important;padding:6px 16px!important;border-radius:20px!important;font-family:system-ui,-apple-system,sans-serif!important;font-size:12px!important;font-weight:600!important;box-shadow:0 2px 10px rgba(0,0,0,0.3)!important;pointer-events:none!important;';
+    this.activeIndicator.textContent = 'FSB Inspector Mode (Ctrl+Shift+E to exit)';
+    document.body.appendChild(this.activeIndicator);
+  }
+
+  handleMouseMove(e) {
+    if (!this.isActive) return;
+    const element = document.elementFromPoint(e.clientX, e.clientY);
+    if (!element || this.isOwnElement(element)) return;
+    if (element !== this.currentElement) {
+      this.currentElement = element;
+      this.updateOverlayPosition(element);
+    }
+  }
+
+  handleClick(e) {
+    if (!this.isActive) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const element = document.elementFromPoint(e.clientX, e.clientY);
+    if (!element || this.isOwnElement(element)) return;
+    this.showInspectionPanel(element);
+  }
+
+  isOwnElement(element) {
+    return element === this.hoverOverlay || element === this.inspectionPanel || element === this.activeIndicator || this.inspectionPanel?.contains(element) || this.hoverOverlay?.contains(element) || this.activeIndicator?.contains(element);
+  }
+
+  updateOverlayPosition(element) {
+    if (!this.hoverOverlay || !element) return;
+    const rect = element.getBoundingClientRect();
+    this.hoverOverlay.style.setProperty('top', rect.top + 'px', 'important');
+    this.hoverOverlay.style.setProperty('left', rect.left + 'px', 'important');
+    this.hoverOverlay.style.setProperty('width', rect.width + 'px', 'important');
+    this.hoverOverlay.style.setProperty('height', rect.height + 'px', 'important');
+    this.hoverOverlay.style.setProperty('display', 'block', 'important');
+  }
+
+  getElementInspection(element) {
+    if (!element) return null;
+    const selectors = generateSelectors(element);
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    return {
+      tagName: element.tagName,
+      id: element.id || null,
+      className: element.className || null,
+      selectors: selectors,
+      preferredSelector: selectors[0]?.selector || null,
+      attributes: {
+        'data-testid': element.getAttribute('data-testid'),
+        'aria-label': element.getAttribute('aria-label'),
+        'role': element.getAttribute('role'),
+        'type': element.type || null,
+        'name': element.name || null,
+        'href': element.href || null,
+        'value': element.value ? element.value.substring(0, 50) : null
+      },
+      interactability: {
+        isVisible: style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity) > 0,
+        isEnabled: !element.disabled,
+        isInViewport: rect.top >= 0 && rect.left >= 0 && rect.bottom <= window.innerHeight && rect.right <= window.innerWidth,
+        receivesPointerEvents: style.pointerEvents !== 'none'
+      },
+      boundingRect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
+      text: element.innerText ? element.innerText.substring(0, 100) : null
+    };
+  }
+
+  showInspectionPanel(element) {
+    const inspection = this.getElementInspection(element);
+    if (!inspection || !this.inspectionPanel) return;
+    const shadow = this.inspectionPanel.shadowRoot;
+    const container = shadow.querySelector('.panel');
+    if (!container) return;
+    let headerContent = '<span class="header-tag">&lt;' + inspection.tagName.toLowerCase() + '&gt;</span>';
+    if (inspection.id) headerContent += '<span class="badge">#' + inspection.id + '</span>';
+    let selectorsHtml = '<ul class="selector-list">';
+    inspection.selectors.forEach((sel, idx) => {
+      const uniqueIcon = sel.isUnique ? ' [unique]' : ' [' + sel.matchCount + ' matches]';
+      selectorsHtml += '<li class="selector-item"><span class="selector-index">' + (idx + 1) + '</span><span class="selector-value">' + this.escapeHtml(sel.selector) + uniqueIcon + '</span></li>';
+    });
+    selectorsHtml += '</ul>';
+    let attrsHtml = '<div class="attr-list">';
+    let hasAttrs = false;
+    for (const [key, value] of Object.entries(inspection.attributes)) {
+      if (value !== null && value !== undefined) {
+        hasAttrs = true;
+        attrsHtml += '<span class="attr-key">' + key + ':</span><span class="attr-value">' + this.escapeHtml(String(value)) + '</span>';
+      }
+    }
+    attrsHtml += '</div>';
+    const checks = inspection.interactability;
+    const checkIcon = (pass) => pass ? '<span class="check-pass">OK</span>' : '<span class="check-fail">FAIL</span>';
+    const interactHtml = '<div class="check-list"><div class="check-item">' + checkIcon(checks.isVisible) + ' Visible</div><div class="check-item">' + checkIcon(checks.isEnabled) + ' Enabled</div><div class="check-item">' + checkIcon(checks.isInViewport) + ' In Viewport</div><div class="check-item">' + checkIcon(checks.receivesPointerEvents) + ' Pointer Events</div></div>';
+    const pos = inspection.boundingRect;
+    const positionHtml = '<span class="position-info">x: ' + pos.x + ', y: ' + pos.y + ', w: ' + pos.width + ', h: ' + pos.height + '</span>';
+    let textHtml = '';
+    if (inspection.text) textHtml = '<div class="section"><div class="section-title">Text Content</div><div class="text-preview">' + this.escapeHtml(inspection.text) + '</div></div>';
+    container.innerHTML = '<div class="header"><div>' + headerContent + '</div><button class="close-btn" id="fsb-close-panel">x</button></div><div class="section"><div class="section-title">Selectors FSB Would Try</div>' + selectorsHtml + '</div>' + (hasAttrs ? '<div class="section"><div class="section-title">Attributes</div>' + attrsHtml + '</div>' : '') + '<div class="section"><div class="section-title">Interactability</div>' + interactHtml + '</div><div class="section"><div class="section-title">Position</div>' + positionHtml + '</div>' + textHtml;
+    const closeBtn = shadow.querySelector('#fsb-close-panel');
+    if (closeBtn) closeBtn.addEventListener('click', () => { this.inspectionPanel.style.setProperty('display', 'none', 'important'); });
+    this.inspectionPanel.style.setProperty('display', 'block', 'important');
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+}
+
+// Singleton instance for element inspector
+const elementInspector = new ElementInspector();
+
+// Keyboard shortcut to toggle inspection mode (Ctrl+Shift+E)
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+    e.preventDefault();
+    if (elementInspector.isActive) elementInspector.disable();
+    else elementInspector.enable();
+  }
+});
+
 // VIS-07: Clean up visual feedback on page navigation/unload
 window.addEventListener('beforeunload', () => {
   try {
     highlightManager.cleanup();
     progressOverlay.destroy();
+    elementInspector.disable();
   } catch (e) { /* ignore cleanup errors on unload */ }
 });
 

@@ -8,6 +8,7 @@ class AutomationLogger {
     this.logLevel = 'debug'; // 'error', 'warn', 'info', 'debug'
     this.maxSessionLogs = 1000; // Max logs per session before compaction
     this.storageMode = 'full'; // 'full', 'compact', 'minimal'
+    this.actionRecords = []; // Structured action records for debugging and replay
   }
   
   // Add a log entry
@@ -371,6 +372,61 @@ class AutomationLogger {
       phase,
       ...details
     });
+  }
+
+  /**
+   * Log structured action record for debugging and replay
+   * Stores complete action context including selector, element, coordinates, and result
+   * @param {Object} record - The action record from ActionRecorder
+   * @param {string} record.actionId - Unique action identifier
+   * @param {string} record.sessionId - Session identifier
+   * @param {number} record.timestamp - When the action occurred
+   * @param {string} record.tool - Tool/action name
+   * @param {Object} record.params - Original parameters
+   * @param {string} record.selectorTried - Selector that was attempted
+   * @param {string} record.selectorUsed - Selector that worked (if any)
+   * @param {boolean} record.elementFound - Whether element was found
+   * @param {Object} record.elementDetails - Element state capture
+   * @param {Object} record.coordinatesUsed - Coordinates used for action
+   * @param {string} record.coordinateSource - How coordinates were obtained
+   * @param {boolean} record.success - Whether action succeeded
+   * @param {string} record.error - Error message if failed
+   * @param {boolean} record.hadEffect - Whether action had observable effect
+   * @param {Object} record.diagnostic - Diagnostic info if failed
+   * @param {number} record.duration - How long the action took
+   */
+  logActionRecord(record) {
+    // Validate required fields
+    if (!record || !record.tool || !record.timestamp) {
+      this.warn('Invalid action record', { record });
+      return;
+    }
+
+    // Determine log level based on success and element found
+    const level = (!record.success || !record.elementFound) ? 'warn' : 'info';
+
+    // Log the record
+    this.log(level, 'Action Record', {
+      ...record,
+      logType: 'actionRecord'
+    });
+
+    // Store in actionRecords array
+    this.actionRecords.push(record);
+
+    // Keep actionRecords bounded (max 500 entries)
+    if (this.actionRecords.length > 500) {
+      this.actionRecords = this.actionRecords.slice(-250);
+    }
+  }
+
+  /**
+   * Get action records for a specific session
+   * @param {string} sessionId - The session ID to filter by
+   * @returns {Array} Action records for the session
+   */
+  getSessionActionRecords(sessionId) {
+    return this.actionRecords.filter(r => r.sessionId === sessionId);
   }
 
   /**
