@@ -6235,6 +6235,7 @@ const tools = {
   
   // Select dropdown option with verification
   selectOption: async (params) => {
+    const startTime = Date.now();
     // Build selectors array for alternative selector support
     const selectors = params.selectors || [params.selector];
     let lastAttemptError = null;
@@ -6300,6 +6301,18 @@ const tools = {
           continue; // Try next selector
         }
 
+        // Record successful action
+        actionRecorder.record(null, 'selectOption', params, {
+          selectorTried: selectors[0],
+          selectorUsed: currentSelector,
+          elementFound: true,
+          elementDetails: captureElementDetails(element),
+          success: true,
+          hadEffect: true,
+          verification: verification,
+          duration: Date.now() - startTime
+        });
+
         return {
           success: true,
           selected: params.value || params.text || params.index,
@@ -6319,6 +6332,17 @@ const tools = {
     }
 
     // All selectors exhausted without verified effect
+    // Record failed action
+    actionRecorder.record(null, 'selectOption', params, {
+      selectorTried: selectors[0],
+      selectorUsed: null,
+      elementFound: false,
+      success: false,
+      error: lastAttemptError || 'Selection had no effect with any available selector',
+      diagnostic: generateDiagnostic('noEffect', { selector: selectors[0] }),
+      duration: Date.now() - startTime
+    });
+
     return {
       success: false,
       error: lastAttemptError || 'Selection had no effect with any available selector',
@@ -6331,6 +6355,7 @@ const tools = {
 
   // Check/uncheck checkbox or radio with verification
   toggleCheckbox: async (params) => {
+    const startTime = Date.now();
     // Build selectors array for alternative selector support
     const selectors = params.selectors || [params.selector];
     let lastAttemptError = null;
@@ -6391,6 +6416,18 @@ const tools = {
           continue; // Try next selector
         }
 
+        // Record successful action
+        actionRecorder.record(null, 'toggleCheckbox', params, {
+          selectorTried: selectors[0],
+          selectorUsed: currentSelector,
+          elementFound: true,
+          elementDetails: captureElementDetails(element),
+          success: true,
+          hadEffect: true,
+          verification: verification,
+          duration: Date.now() - startTime
+        });
+
         return {
           success: true,
           checked: element.checked,
@@ -6410,6 +6447,17 @@ const tools = {
     }
 
     // All selectors exhausted without verified effect
+    // Record failed action
+    actionRecorder.record(null, 'toggleCheckbox', params, {
+      selectorTried: selectors[0],
+      selectorUsed: null,
+      elementFound: false,
+      success: false,
+      error: lastAttemptError || 'Toggle had no effect with any available selector',
+      diagnostic: generateDiagnostic('noEffect', { selector: selectors[0] }),
+      duration: Date.now() - startTime
+    });
+
     return {
       success: false,
       error: lastAttemptError || 'Toggle had no effect with any available selector',
