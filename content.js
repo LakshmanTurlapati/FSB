@@ -7083,7 +7083,7 @@ function getStructuredDOM(options = {}) {
     useDiffing = false, // Disable diffing to get full context
     prioritizeViewport = true, // Viewport-first for performance
     viewportOnlyMode = true, // Viewport-only mode: AI can scroll to reveal more content when needed, keeps payloads smaller
-    maxElements = 300, // REDUCED from 2000 - 300 is sufficient for most pages
+    maxElements = 50, // PHASE 5-01: Aggressive filtering from 300 to 50 using 3-stage pipeline
     includeAllAttributes = false, // CHANGED: Only include essential attributes
     includeComputedStyles = false // CHANGED: Skip computed styles to save ~40% payload
   } = options;
@@ -7112,37 +7112,44 @@ function getStructuredDOM(options = {}) {
            rect.left <= viewportRect.right;
   }
 
-  function traverse(node, depth = 0) {
-    // Use combined count for limit
-    const currentTotal = viewportElements.length + offscreenElements.length;
-    if (currentTotal >= maxElements || depth > 10) return;
-    
+  // PHASE 5-01: Infer task type from page context for relevance scoring
+  function inferTaskTypeFromContext() {
+    const url = window.location.href.toLowerCase();
+    const hasSearchInput = document.querySelector('[type="search"], [role="searchbox"]');
+    const hasLoginForm = document.querySelector('input[type="password"]');
+    const hasForms = document.forms.length > 0;
+
+    if (/search|results|q=/.test(url) || hasSearchInput) return 'search';
+    if (/login|signin/.test(url) || hasLoginForm) return 'login';
+    if (/checkout|payment|cart/.test(url)) return 'checkout';
+    if (hasForms) return 'form';
+    return 'general';
+  }
+
+  // PHASE 5-01: Use 3-stage filtered elements instead of full DOM traversal
+  const filteredElements = getFilteredElements({
+    maxElements,
+    prioritizeViewport,
+    taskType: inferTaskTypeFromContext()
+  });
+
+  // Process filtered elements directly (no recursive traversal needed)
+  filteredElements.forEach(node => {
     try {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const rect = node.getBoundingClientRect();
-        
-        // Skip truly invisible elements but preserve semantic ones
-        const isSemanticElement = ['LABEL', 'LEGEND', 'FIELDSET', 'FORM', 'SECTION', 'NAV', 'HEADER', 'FOOTER', 'MAIN', 'ASIDE'].includes(node.tagName);
-        const hasImportantAttributes = node.hasAttribute('aria-label') || node.hasAttribute('data-testid') || node.hasAttribute('role');
-        const isHiddenButImportant = node.type === 'hidden' || node.style.position === 'absolute';
-        
-        if (rect.width === 0 && rect.height === 0 && !isSemanticElement && !hasImportantAttributes && !isHiddenButImportant) {
-          return;
-        }
-      
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+      const rect = node.getBoundingClientRect();
+
       // Extract element data with comprehensive context
       const semanticId = generateSemanticElementId(node, totalElementCount);
-      
-      // Log semantic ID generation for debugging (only in verbose mode)
-      // Debug logging removed to reduce noise - IDs are visible in DOM structure
-      
+
       const elementData = {
         // Unique element identifier with semantic naming
         elementId: semanticId,
         type: node.tagName.toLowerCase(),
         // Human-readable description
         description: generateElementDescription(node),
-        // NEW: Semantic purpose classification
+        // Semantic purpose classification
         purpose: inferElementPurpose(node),
         // Visual properties for better understanding
         visualProperties: getVisualProperties(node),
@@ -7196,8 +7203,8 @@ function getStructuredDOM(options = {}) {
           labelText: (() => {
             if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.tagName === 'SELECT') {
               // Look for associated label
-              const labelElement = node.id ? document.querySelector(`label[for="${node.id}"]`) : 
-                                 node.closest('label') || 
+              const labelElement = node.id ? document.querySelector(`label[for="${node.id}"]`) :
+                                 node.closest('label') ||
                                  node.parentElement?.querySelector('label');
               return labelElement ? labelElement.textContent?.trim() : null;
             }
@@ -7213,11 +7220,11 @@ function getStructuredDOM(options = {}) {
             'aria-label': node.parentElement.getAttribute('aria-label')
           } : null,
           // Placeholder or hint text
-          hintText: node.placeholder || node.title || node.getAttribute('aria-describedby') ? 
+          hintText: node.placeholder || node.title || node.getAttribute('aria-describedby') ?
                    document.getElementById(node.getAttribute('aria-describedby'))?.textContent?.trim() : null
         }
       };
-      
+
       // Special handling for different element types with safety checks
       if (node.tagName === 'INPUT') {
         elementData.inputType = node.type || '';
@@ -7234,13 +7241,13 @@ function getStructuredDOM(options = {}) {
         elementData.alt = node.alt || '';
         elementData.isImage = true;
       }
-      
+
       // Check for CAPTCHA - safely handle className
       const classNames = node.className ? String(node.className) : '';
       if (classNames.includes('g-recaptcha') || classNames.includes('recaptcha')) {
         elementData.isCaptcha = true;
       }
-      
+
       // Add ALL attributes
       if (includeAllAttributes) {
         Array.from(node.attributes).forEach(attr => {
@@ -7258,18 +7265,25 @@ function getStructuredDOM(options = {}) {
           }
         });
       }
-      
+
       // Add form relationships
       if (node.form) {
         elementData.formId = node.form.id || `form_${Array.from(document.forms).indexOf(node.form)}`;
       }
-      
+
       // Add label associations
       if (node.labels && node.labels.length > 0) {
         elementData.labelText = Array.from(node.labels).map(l => l.textContent?.trim()).join(' ');
       }
-      
-      // PERFORMANCE: Sort elements into viewport vs offscreen collections
+
+      // Check for shadow DOM
+      if (node.shadowRoot && node.shadowRoot.mode === 'open') {
+        automationLogger.logDOMOperation(currentSessionId, 'shadow_dom_found', { tagName: node.tagName, id: node.id || node.className });
+        elementData.hasShadowRoot = true;
+        elementData.shadowRootMode = 'open';
+      }
+
+      // Sort elements into viewport vs offscreen collections
       const inViewport = isInViewportRect(rect);
       if (inViewport) {
         viewportElements.push(elementData);
@@ -7279,25 +7293,6 @@ function getStructuredDOM(options = {}) {
       }
       totalElementCount++;
 
-        // Traverse children
-        for (const child of node.children) {
-          traverse(child, depth + 1);
-        }
-
-        // Traverse shadow DOM if present
-        if (node.shadowRoot && node.shadowRoot.mode === 'open') {
-          automationLogger.logDOMOperation(currentSessionId, 'shadow_dom_found', { tagName: node.tagName, id: node.id || node.className });
-
-          // Add shadow DOM indicator to parent element
-          elementData.hasShadowRoot = true;
-          elementData.shadowRootMode = 'open';
-
-          // Traverse shadow DOM children
-          for (const shadowChild of node.shadowRoot.children) {
-            traverse(shadowChild, depth + 1);
-          }
-        }
-      }
     } catch (error) {
       automationLogger.error('Error processing DOM node - CRITICAL', {
         sessionId: currentSessionId,
@@ -7307,12 +7302,10 @@ function getStructuredDOM(options = {}) {
         nodeId: node?.id
       });
       // Log to console for immediate visibility during debugging
-      console.error('[FSB] DOM traverse error:', error);
-      // Continue processing other nodes even if one fails
+      console.error('[FSB] DOM element processing error:', error);
+      // Continue processing other elements even if one fails
     }
-  }
-
-  traverse(document.body);
+  });
 
   // PERFORMANCE: Combine viewport and offscreen elements with viewport priority
   let elements;
