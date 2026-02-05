@@ -110,14 +110,14 @@ function initializeDashboard() {
   
   // Initialize logs
   initializeLogs();
-  
+
   // Initialize analytics chart after initialization completes
   if (analytics) {
     analytics.initPromise.then(() => {
       console.log('Options page: Analytics initialized, setting up dashboard...');
       analytics.initializeChart();
       analytics.updateDashboard();
-      
+
       // Set up periodic refresh every 30 seconds
       setInterval(() => {
         if (analytics && analytics.initialized) {
@@ -135,7 +135,10 @@ function initializeDashboard() {
       console.error('Options page: Analytics initialization failed:', error);
     });
   }
-  
+
+  // Initialize session history
+  setTimeout(initializeSessionHistory, 500);
+
   console.log('FSB Control Panel initialized successfully');
 }
 
@@ -158,8 +161,6 @@ function cacheElements() {
   elements.geminiApiKey = document.getElementById('geminiApiKey');
   elements.xaiApiKeyGroup = document.getElementById('xaiApiKeyGroup');
   elements.geminiApiKeyGroup = document.getElementById('geminiApiKeyGroup');
-  elements.speedModeNormal = document.getElementById('speedModeNormal'); // Legacy
-  elements.speedModeFast = document.getElementById('speedModeFast'); // Legacy
   elements.captchaSolver = document.getElementById('captchaSolver');
   elements.captchaApiKey = document.getElementById('captchaApiKey');
   elements.captchaApiKeyGroup = document.getElementById('captchaApiKeyGroup');
@@ -169,19 +170,12 @@ function cacheElements() {
   elements.maxIterationsSlider = document.getElementById('maxIterationsSlider');
   elements.confirmSensitive = document.getElementById('confirmSensitive');
   elements.debugMode = document.getElementById('debugMode');
-  
-  // Quick toggles
-  elements.quickDebugMode = document.getElementById('quickDebugMode');
-  elements.quickConfirmSensitive = document.getElementById('quickConfirmSensitive');
-  
+
   // Button elements
   elements.toggleApiKey = document.getElementById('toggleApiKey');
   elements.toggleCaptchaKey = document.getElementById('toggleCaptchaKey');
   elements.fullApiTest = document.getElementById('fullApiTest');
   elements.testResults = document.getElementById('testResults');
-  
-  // Dashboard cards
-  elements.apiStatusCard = document.getElementById('apiStatusCard');
   elements.tasksToday = document.getElementById('tasksToday');
   elements.successRate = document.getElementById('successRate');
   elements.avgDuration = document.getElementById('avgDuration');
@@ -215,8 +209,6 @@ function setupEventListeners() {
   // Form inputs change detection
   const formInputs = [
     elements.apiKey,
-    elements.speedModeNormal,
-    elements.speedModeFast,
     elements.captchaSolver,
     elements.captchaApiKey,
     elements.actionDelay,
@@ -285,29 +277,6 @@ function setupEventListeners() {
     elements.maxIterations.addEventListener('input', (e) => {
       elements.maxIterationsSlider.value = e.target.value;
       markUnsavedChanges();
-    });
-  }
-  
-  // Quick toggles sync
-  if (elements.quickDebugMode && elements.debugMode) {
-    elements.quickDebugMode.addEventListener('change', (e) => {
-      elements.debugMode.checked = e.target.checked;
-      markUnsavedChanges();
-    });
-    
-    elements.debugMode.addEventListener('change', (e) => {
-      elements.quickDebugMode.checked = e.target.checked;
-    });
-  }
-  
-  if (elements.quickConfirmSensitive && elements.confirmSensitive) {
-    elements.quickConfirmSensitive.addEventListener('change', (e) => {
-      elements.confirmSensitive.checked = e.target.checked;
-      markUnsavedChanges();
-    });
-    
-    elements.confirmSensitive.addEventListener('change', (e) => {
-      elements.quickConfirmSensitive.checked = e.target.checked;
     });
   }
   
@@ -611,13 +580,7 @@ function loadSettings() {
     
     const customEndpoint = document.getElementById('customEndpoint');
     if (customEndpoint) customEndpoint.value = settings.customEndpoint || '';
-    
-    if (settings.speedMode === 'fast') {
-      if (elements.speedModeFast) elements.speedModeFast.checked = true;
-    } else {
-      if (elements.speedModeNormal) elements.speedModeNormal.checked = true;
-    }
-    
+
     if (elements.captchaSolver) elements.captchaSolver.value = settings.captchaSolver;
     if (elements.captchaApiKey) elements.captchaApiKey.value = settings.captchaApiKey || '';
     if (elements.actionDelay) elements.actionDelay.value = settings.actionDelay;
@@ -640,11 +603,7 @@ function loadSettings() {
     if (document.getElementById('prioritizeViewport')) {
       document.getElementById('prioritizeViewport').checked = settings.prioritizeViewport ?? true;
     }
-    
-    // Update quick toggles
-    if (elements.quickDebugMode) elements.quickDebugMode.checked = settings.debugMode;
-    if (elements.quickConfirmSensitive) elements.quickConfirmSensitive.checked = settings.confirmSensitive;
-    
+
     // Update CAPTCHA API key visibility
     updateCaptchaApiKeyVisibility();
     
@@ -663,7 +622,6 @@ function saveSettings() {
     anthropicApiKey: document.getElementById('anthropicApiKey')?.value || '',
     customApiKey: document.getElementById('customApiKey')?.value || '',
     customEndpoint: document.getElementById('customEndpoint')?.value || '',
-    speedMode: elements.speedModeFast?.checked ? 'fast' : 'normal', // Legacy
     captchaSolver: elements.captchaSolver?.value || 'none',
     captchaApiKey: elements.captchaApiKey?.value || '',
     actionDelay: parseInt(elements.actionDelay?.value) || 1000,
@@ -2332,12 +2290,6 @@ async function exportSessionText(sessionId) {
     showToast('Export failed: ' + error.message, 'error');
   }
 }
-
-// Initialize session history when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  // Delay initialization to ensure all elements are ready
-  setTimeout(initializeSessionHistory, 500);
-});
 
 // Export for potential use by other scripts
 if (typeof module !== 'undefined' && module.exports) {
