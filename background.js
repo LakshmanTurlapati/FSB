@@ -8,6 +8,37 @@ importScripts('automation-logger.js');
 importScripts('analytics.js');
 importScripts('keyboard-emulator.js');
 
+// Debug mode flag (controlled by options page toggle)
+let fsbDebugMode = false;
+
+/**
+ * Debug logging helper - only logs when debug mode is enabled
+ * @param {string} message - Debug message
+ * @param {*} data - Optional data to log
+ */
+function debugLog(message, data) {
+  if (fsbDebugMode) {
+    if (data !== undefined) {
+      console.log('[FSB DEBUG]', message, data);
+    } else {
+      console.log('[FSB DEBUG]', message);
+    }
+  }
+}
+
+/**
+ * Load debug mode setting from storage
+ */
+async function loadDebugMode() {
+  try {
+    const stored = await chrome.storage.local.get(['debugMode']);
+    fsbDebugMode = stored.debugMode === true;
+    debugLog('Debug mode ' + (fsbDebugMode ? 'enabled' : 'disabled'));
+  } catch (e) {
+    fsbDebugMode = false;
+  }
+}
+
 // PART 3: Helper function to format duration for session elapsed timer
 function formatDuration(ms) {
   const seconds = Math.floor(ms / 1000);
@@ -3246,6 +3277,13 @@ async function startAutomationLoop(sessionId) {
   });
   automationLogger.logIteration(sessionId, session.iterationCount, session.lastDOMHash, session.stuckCounter);
 
+  // Debug mode: Log iteration start
+  debugLog('Iteration start', {
+    sessionId,
+    iterationCount: session.iterationCount,
+    stuckCounter: session.stuckCounter
+  });
+
   try {
     // SECURITY: Only inject content script into the original session tab
     if (session.tabId !== session.originalTabId) {
@@ -3439,6 +3477,12 @@ async function startAutomationLoop(sessionId) {
 
     // Log DOM state for comprehensive session logging
     automationLogger.logDOMState(sessionId, domData, session.iterationCount);
+
+    // Debug mode: Log DOM received
+    debugLog('DOM received', {
+      elementCount: domData?.elements?.length,
+      url: domData?.url
+    });
 
     // Create hash of current DOM state
     const currentDOMHash = createDOMHash(domResponse.structuredDOM);
@@ -3688,6 +3732,14 @@ async function startAutomationLoop(sessionId) {
     // Call AI to get next actions with context
     // SPEED-02: Start AI call and DOM prefetch in parallel
     // The prefetch will be ready for the NEXT iteration while we process this one
+
+    // Debug mode: Log AI call start
+    debugLog('Sending to AI', {
+      model: settings.modelName,
+      provider: settings.modelProvider,
+      isStuck: context.isStuck
+    });
+
     const aiPromise = callAIAPI(
       session.task,
       domResponse.structuredDOM,
@@ -3708,6 +3760,13 @@ async function startAutomationLoop(sessionId) {
     // Log AI response
     // automationLogger.logAIResponse(sessionId, aiResponse.reasoning, aiResponse.actions, aiResponse.taskComplete);
     automationLogger.logAIResponse(sessionId, '', aiResponse.actions, aiResponse.taskComplete); // Reasoning disabled for performance
+
+    // Debug mode: Log AI response received
+    debugLog('AI response received', {
+      hasActions: !!aiResponse?.actions?.length,
+      actionCount: aiResponse?.actions?.length || 0,
+      taskComplete: aiResponse?.taskComplete
+    });
 
     // CRITICAL FIX: Handle failedDueToError flag - stop automation and report failure properly
     if (aiResponse.failedDueToError) {
@@ -3809,6 +3868,13 @@ async function startAutomationLoop(sessionId) {
 
         automationLogger.logActionExecution(sessionId, action.tool, 'start', { index: i + 1, total: aiResponse.actions.length, params: action.params });
         const actionStartTime = Date.now();
+
+        // Debug mode: Log action execution
+        debugLog('Executing action', {
+          tool: action.tool,
+          index: i + 1,
+          total: aiResponse.actions.length
+        });
 
         // Send action-specific status update to UI
         if (action.description) {
@@ -4426,6 +4492,13 @@ async function startAutomationLoop(sessionId) {
 
       automationLogger.logSessionEnd(sessionId, 'completed', session.actionHistory.length, duration);
       automationLogger.info('Task completed successfully', { sessionId, totalActions: session.actionHistory.length, duration });
+
+      // Debug mode: Log task completion
+      debugLog('Task complete', {
+        sessionId,
+        totalActions: session.actionHistory.length,
+        durationMs: duration
+      });
 
       // Save session logs for history
       automationLogger.saveSession(sessionId, session);
@@ -5152,6 +5225,9 @@ chrome.runtime.onInstalled.addListener(async () => {
   // Initialize analytics
   initializeAnalytics();
 
+  // Load debug mode setting
+  await loadDebugMode();
+
   // Set default UI mode if not set
   const { uiMode } = await chrome.storage.local.get(['uiMode']);
   if (!uiMode) {
@@ -5172,6 +5248,16 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.runtime.onStartup.addListener(async () => {
   automationLogger.logServiceWorker('startup', {});
   initializeAnalytics();
+  // Load debug mode setting
+  await loadDebugMode();
   // Restore sessions from storage so stop button works after service worker restart
   await restoreSessionsFromStorage();
+});
+
+// Listen for storage changes to update debug mode in real-time
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local' && changes.debugMode) {
+    fsbDebugMode = changes.debugMode.newValue === true;
+    debugLog('Debug mode ' + (fsbDebugMode ? 'enabled' : 'disabled'));
+  }
 });
