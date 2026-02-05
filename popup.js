@@ -286,28 +286,40 @@ function stopAutomation() {
 }
 
 // Test API connection
-function testAPI() {
-  addMessage('Testing xAI API connection...', 'system');
-  
+async function testAPI() {
+  // Read current provider for display
+  const stored = await chrome.storage.local.get(['modelProvider']);
+  const provider = stored.modelProvider || 'xai';
+  const providerNames = {
+    xai: 'xAI',
+    gemini: 'Gemini',
+    openai: 'OpenAI',
+    anthropic: 'Anthropic',
+    custom: 'Custom'
+  };
+  const displayName = providerNames[provider] || provider;
+
+  addMessage(`Testing ${displayName} API connection...`, 'system');
+
   const testIcon = testBtn.querySelector('i');
   if (testIcon) {
     testIcon.className = 'fa fa-spinner fa-spin';
   }
-  
+
   chrome.runtime.sendMessage({
     action: 'testAPI'
   }, (response) => {
     if (testIcon) {
       testIcon.className = 'fa fa-wrench';
     }
-    
+
     if (response.success) {
-      addMessage('Great! API connection is working perfectly.', 'system');
+      addMessage(`${displayName} API connection is working.`, 'system');
       if (response.result && response.result.data) {
-        addMessage(`Connected to model: ${response.result.model || 'grok-3-fast'}`, 'ai');
+        addMessage(`Connected to model: ${response.result.model || 'unknown'}`, 'ai');
       }
     } else {
-      addMessage('API connection failed. Please check your settings.', 'error');
+      addMessage(`${displayName} API connection failed. Please check your settings.`, 'error');
       if (response.result) {
         addMessage(`Status: ${response.result.status} - ${response.result.statusText}`, 'error');
         if (response.result.error) {
