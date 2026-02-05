@@ -39,6 +39,31 @@ async function loadDebugMode() {
   }
 }
 
+/**
+ * Wrapper for chrome.storage.local.get() with timeout to prevent indefinite hanging
+ * @param {Array|Object|string} keys - Storage keys to retrieve
+ * @param {number} timeout - Timeout in milliseconds (default 3000)
+ * @param {Object} defaults - Default values if storage read fails or times out
+ * @returns {Promise<Object>} Storage data or defaults
+ */
+async function getStorageWithTimeout(keys, timeout = 3000, defaults = {}) {
+  try {
+    const storagePromise = chrome.storage.local.get(keys);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Storage read timeout')), timeout)
+    );
+
+    const result = await Promise.race([storagePromise, timeoutPromise]);
+    return result;
+  } catch (error) {
+    automationLogger.warn('Storage read failed or timed out, using defaults', {
+      error: error.message,
+      keys
+    });
+    return defaults;
+  }
+}
+
 // PART 3: Helper function to format duration for session elapsed timer
 function formatDuration(ms) {
   const seconds = Math.floor(ms / 1000);
@@ -3372,12 +3397,12 @@ async function startAutomationLoop(sessionId) {
     let domResponse;
     let usedPrefetch = false;
     try {
-      // Get DOM optimization settings from storage
-      const settings = await chrome.storage.local.get([
-        'domOptimization',
-        'maxDOMElements',
-        'prioritizeViewport'
-      ]);
+      // Get DOM optimization settings from storage with timeout to prevent hanging
+      const settings = await getStorageWithTimeout(
+        ['domOptimization', 'maxDOMElements', 'prioritizeViewport'],
+        2000, // 2 second timeout
+        { domOptimization: true, maxDOMElements: 2000, prioritizeViewport: true } // defaults
+      );
       const domOptimizationEnabled = settings.domOptimization !== false;
 
       // FSB TIMING: Track DOM fetch time
@@ -5254,10 +5279,11 @@ chrome.runtime.onStartup.addListener(async () => {
   await restoreSessionsFromStorage();
 });
 
-// Listen for storage changes to update debug mode in real-time
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes.debugMode) {
-    fsbDebugMode = changes.debugMode.newValue === true;
-    debugLog('Debug mode ' + (fsbDebugMode ? 'enabled' : 'disabled'));
-  }
-});
+// DISABLED: Storage listener interferes with automation loop async operations
+// Debug mode will load on startup but won't update in real-time
+// chrome.storage.onChanged.addListener((changes, namespace) => {
+//   if (namespace === 'local' && changes.debugMode) {
+//     fsbDebugMode = changes.debugMode.newValue === true;
+//     debugLog('Debug mode ' + (fsbDebugMode ? 'enabled' : 'disabled'));
+//   }
+// });
