@@ -46,9 +46,41 @@ const parameterCache = new Map();
 const rateLimitState = new Map();
 
 // Default request timeout in milliseconds
-// INCREASED: 45s gives more headroom for complex responses while payload reduction
-// should make most requests complete under 30s
-const DEFAULT_REQUEST_TIMEOUT = 45000;
+// Increased from 20s: later iterations with longer history can take 15-25s
+// Adaptive timeout scales with prompt size to handle multi-turn conversations
+const DEFAULT_REQUEST_TIMEOUT = 30000;
+
+// Maximum timeout cap - never wait longer than this
+const MAX_REQUEST_TIMEOUT = 35000;
+
+// Higher base timeout for reasoning models (internal chain-of-thought takes longer)
+const REASONING_MODEL_TIMEOUT = 45000;
+
+// Higher cap for reasoning models
+const MAX_REASONING_TIMEOUT = 90000;
+
+/**
+ * Calculate adaptive timeout based on prompt/request size and model type
+ * Base 30s + 5s per estimated 5K input tokens (45s base for reasoning models)
+ * @param {Object} requestBody - The request body to estimate size from
+ * @param {string} modelName - The model name to check for reasoning model patterns
+ * @returns {number} Timeout in milliseconds
+ */
+function calculateAdaptiveTimeout(requestBody, modelName = '') {
+  const isReasoning = /reasoning|grok-4(?!.*(?:fast|mini))/.test(modelName);
+  const baseTimeout = isReasoning ? REASONING_MODEL_TIMEOUT : DEFAULT_REQUEST_TIMEOUT;
+  const maxTimeout = isReasoning ? MAX_REASONING_TIMEOUT : MAX_REQUEST_TIMEOUT;
+
+  try {
+    const bodyStr = JSON.stringify(requestBody);
+    // Rough estimate: 1 token ~= 4 characters
+    const estimatedTokens = bodyStr.length / 4;
+    const extra = Math.floor(estimatedTokens / 5000) * 5000;
+    return Math.min(baseTimeout + extra, maxTimeout);
+  } catch {
+    return baseTimeout;
+  }
+}
 
 // Maximum retry attempts for rate-limited requests
 const MAX_RATE_LIMIT_RETRIES = 3;
@@ -76,11 +108,13 @@ class UniversalProvider {
   async buildRequest(prompt, options = {}) {
     const cacheKey = `${this.provider}:${this.model}`;
     const cachedParams = parameterCache.get(cacheKey);
-    
+
     // Start with minimal base request
+    // Support pre-built messages array for multi-turn conversations
+    // Falls back to systemPrompt/userPrompt for backward compatibility
     let request = {
       model: this.model,
-      messages: [
+      messages: prompt.messages || [
         {
           role: "system",
           content: prompt.systemPrompt
@@ -108,10 +142,6 @@ class UniversalProvider {
         // Don't add frequency_penalty or presence_penalty by default
       };
       
-      // Add reasoning_effort for xAI Grok models that support it
-      if (this.provider === 'xai' && this.supportsReasoningEffort()) {
-        request.reasoning_effort = this.settings.reasoningEffort || 'low';
-      }
     }
     
     return this.formatForProvider(request);
@@ -133,15 +163,48 @@ class UniversalProvider {
   
   /**
    * Convert to Gemini format
+   * Handles both single-shot and multi-turn conversation formats
    */
   formatGeminiRequest(request) {
-    return {
-      contents: [{
+    // Check if this is a multi-turn conversation (more than 2 messages)
+    const messages = request.messages;
+    let contents;
+
+    if (messages.length <= 2) {
+      // Legacy single-shot format: combine system + user
+      contents = [{
         role: "user",
-        parts: [{ 
-          text: request.messages[0].content + "\\n\\n" + request.messages[1].content 
+        parts: [{
+          text: messages[0].content + "\\n\\n" + messages[1].content
         }]
-      }],
+      }];
+    } else {
+      // Multi-turn format: convert to Gemini's expected format
+      // Gemini uses "user" and "model" roles (not "assistant")
+      contents = [];
+      let systemPrompt = '';
+
+      for (const msg of messages) {
+        if (msg.role === 'system') {
+          // Prepend system prompt to first user message
+          systemPrompt = msg.content + "\\n\\n";
+        } else if (msg.role === 'user') {
+          contents.push({
+            role: 'user',
+            parts: [{ text: systemPrompt + msg.content }]
+          });
+          systemPrompt = ''; // Only prepend to first user message
+        } else if (msg.role === 'assistant') {
+          contents.push({
+            role: 'model',
+            parts: [{ text: msg.content }]
+          });
+        }
+      }
+    }
+
+    return {
+      contents,
       generationConfig: {
         temperature: request.temperature || 0.7,
         topP: request.top_p || 0.9,
@@ -167,15 +230,25 @@ class UniversalProvider {
       ]
     };
   }
-  
+
   /**
    * Convert to Anthropic format
+   * Handles both single-shot and multi-turn conversation formats
    */
   formatAnthropicRequest(request) {
+    const messages = request.messages;
+
+    // Extract system prompt (first message with role 'system')
+    const systemMsg = messages.find(m => m.role === 'system');
+    const systemPrompt = systemMsg ? systemMsg.content : '';
+
+    // Filter out system messages for the messages array
+    const conversationMessages = messages.filter(m => m.role !== 'system');
+
     return {
       model: request.model,
-      messages: request.messages.slice(1), // Anthropic doesn't use system role in messages
-      system: request.messages[0].content, // System prompt as separate field
+      messages: conversationMessages,
+      system: systemPrompt,
       max_tokens: request.max_tokens || 2000,
       temperature: request.temperature || 0.7
     };
@@ -294,7 +367,9 @@ class UniversalProvider {
    * Enhanced with timeout and rate-limit handling
    */
   async sendRequest(requestBody, options = {}) {
-    const { retry = false, rateLimitAttempt = 0, timeout = DEFAULT_REQUEST_TIMEOUT } = options;
+    // Use adaptive timeout based on request size if no explicit timeout provided
+    const defaultTimeout = options.timeout || calculateAdaptiveTimeout(requestBody, this.model);
+    const { retry = false, rateLimitAttempt = 0, timeout = defaultTimeout } = options;
 
     try {
       const response = await this.fetchWithTimeout(
@@ -692,9 +767,6 @@ class UniversalProvider {
       if (!fixed.includes('"result"')) {
         fixed += ', "result": "Response truncated - retrying"';
       }
-      if (!fixed.includes('"currentStep"')) {
-        fixed += ', "currentStep": "Processing"';
-      }
     }
     
     // Now add remaining closing brackets/braces
@@ -876,20 +948,6 @@ class UniversalProvider {
     });
   }
   
-  /**
-   * Check if current model supports reasoning_effort parameter
-   */
-  supportsReasoningEffort() {
-    if (this.provider !== 'xai') return false;
-
-    // Only base Grok 4 supports reasoning_effort
-    // grok-4-fast does NOT support it (returns 400 error)
-    const supportedModels = [
-      'grok-4'
-    ];
-
-    return supportedModels.includes(this.model);
-  }
   
   /**
    * Test connection

@@ -14,7 +14,6 @@ class FSBAnalytics {
       'grok-4-fast': { input: 3.00, output: 15.00 },
       'grok-4-1': { input: 3.00, output: 15.00 },
       'grok-4-1-fast': { input: 0.20, output: 0.50 },
-      'grok-4-1-fast-reasoning': { input: 0.20, output: 0.50 },
       'grok-4-1-fast-non-reasoning': { input: 0.20, output: 0.50 },
       'grok-code-fast-1': { input: 0.20, output: 1.50 },
 
@@ -63,7 +62,7 @@ class FSBAnalytics {
     // Usage data storage
     this.usageData = [];
     this.sessionStartTime = Date.now();
-    this.currentModel = 'grok-3-fast';
+    this.currentModel = 'grok-4-1-fast';
     
     // Chart instance
     this.chart = null;
@@ -204,7 +203,6 @@ class FSBAnalytics {
       // Grok 4.1 models (current valid models)
       'grok-4-1': 'grok-4-1',
       'grok-4-1-fast': 'grok-4-1-fast',
-      'grok-4-1-fast-reasoning': 'grok-4-1-fast-reasoning',
       'grok-4-1-fast-non-reasoning': 'grok-4-1-fast-non-reasoning',
       'grok-code-fast-1': 'grok-code-fast-1',
       // Legacy model redirects
@@ -561,7 +559,6 @@ class FSBAnalytics {
       'grok-4-fast': 'Grok 4 Fast',
       'grok-4-1': 'Grok 4.1',
       'grok-4-1-fast': 'Grok 4.1 Fast',
-      'grok-4-1-fast-reasoning': 'Grok 4.1 Fast (Reasoning)',
       'grok-4-1-fast-non-reasoning': 'Grok 4.1 Fast (Non-Reasoning)',
       'grok-code-fast-1': 'Grok Code Fast'
     };

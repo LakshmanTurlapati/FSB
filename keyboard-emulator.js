@@ -434,6 +434,11 @@ class KeyboardEmulator {
           modifiers.shift = true;
         }
 
+        // Map space character to 'Space' key name for KEY_MAPPINGS lookup
+        if (key === ' ') {
+          key = 'Space';
+        }
+
         const result = await this.pressKey(tabId, key, modifiers);
         results.push({ char, key, modifiers, result });
 

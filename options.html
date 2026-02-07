@@ -156,15 +156,7 @@
                 <div class="form-help" id="modelDescription">Select the AI model to use</div>
               </div>
               
-              <!-- Reasoning Effort (xAI only) -->
-              <div class="form-group" id="reasoningEffortGroup" style="display: none;">
-                <label for="reasoningEffort">Reasoning Effort</label>
-                <select id="reasoningEffort" class="form-select">
-                  <option value="low">Low (Faster, cheaper)</option>
-                  <option value="high">High (More thorough, costlier)</option>
-                </select>
-                <div class="form-help">Controls how much reasoning the model uses. Low reduces token costs.</div>
-              </div>
+              <!-- Reasoning Effort removed: no current models need it -->
               
               <!-- xAI API Key -->
               <div class="form-group" id="xaiApiKeyGroup">
@@ -176,7 +168,7 @@
                   </button>
                 </div>
                 <div class="form-help">
-                  Get your API key from <a href="https://x.ai/api" target="_blank">x.ai/api</a>. Your key is stored locally and encrypted.
+                  Get your API key from <a href="https://x.ai/api" target="_blank">x.ai/api</a>. Your key is stored locally in your browser.
                 </div>
               </div>
               
@@ -190,7 +182,7 @@
                   </button>
                 </div>
                 <div class="form-help">
-                  Get your API key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>. Your key is stored locally and encrypted.
+                  Get your API key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>. Your key is stored locally in your browser.
                 </div>
               </div>
               
@@ -204,7 +196,7 @@
                   </button>
                 </div>
                 <div class="form-help">
-                  Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>. Your key is stored locally and encrypted.
+                  Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>. Your key is stored locally in your browser.
                 </div>
               </div>
               
@@ -218,7 +210,7 @@
                   </button>
                 </div>
                 <div class="form-help">
-                  Get your API key from <a href="https://console.anthropic.com/account/keys" target="_blank">Anthropic Console</a>. Your key is stored locally and encrypted.
+                  Get your API key from <a href="https://console.anthropic.com/account/keys" target="_blank">Anthropic Console</a>. Your key is stored locally in your browser.
                 </div>
               </div>
               
@@ -235,7 +227,20 @@
                     <i class="fas fa-eye"></i>
                   </button>
                 </div>
-                <div class="form-help">Your key is stored locally and encrypted.</div>
+                <div class="form-help">Your key is stored locally in your browser.</div>
+              </div>
+
+              <!-- API Status Card -->
+              <div class="api-status-card" id="apiStatusCard" style="display: none;">
+                <div class="status-display">
+                  <div class="status-icon">
+                    <i class="fas fa-spinner fa-spin"></i>
+                  </div>
+                  <div class="status-info">
+                    <div class="status-title">Checking...</div>
+                    <div class="status-detail">Verifying API connection</div>
+                  </div>
+                </div>
               </div>
 
               <div class="api-test-section">
@@ -253,154 +258,153 @@
         <section class="content-section" id="advanced">
           <div class="section-header">
             <h2>Advanced Settings</h2>
-            <p>Configure automation behavior, CAPTCHA solving, and security options</p>
-          </div>
-          
-          <!-- Automation Settings -->
-          <div class="form-card">
-            <div class="form-section">
-              <h3><i class="fas fa-cogs"></i> Automation Settings</h3>
-              
-              <div class="form-group">
-                <label for="actionDelay">Delay between actions (ms)</label>
-                <div class="slider-input">
-                  <input type="range" id="actionDelaySlider" min="100" max="5000" value="1000" class="form-slider">
-                  <input type="number" id="actionDelay" min="100" max="5000" value="1000" class="form-input slider-value">
-                </div>
-                <div class="form-help">Higher values reduce detection risk but slow down automation</div>
-              </div>
-
-              <div class="form-group">
-                <label for="maxIterations">Maximum iterations per task</label>
-                <div class="slider-input">
-                  <input type="range" id="maxIterationsSlider" min="5" max="50" value="20" class="form-slider">
-                  <input type="number" id="maxIterations" min="5" max="50" value="20" class="form-input slider-value">
-                </div>
-                <div class="form-help">Prevents infinite loops in complex automation tasks</div>
-              </div>
-            </div>
+            <p>Fine-tune automation behavior and performance</p>
           </div>
 
-          <!-- DOM Optimization Settings -->
-          <div class="form-card">
-            <div class="form-section">
-              <h3><i class="fas fa-compress"></i> DOM Optimization</h3>
-              
-              <div class="form-group">
-                <label class="switch-label">
-                  <input type="checkbox" id="domOptimization" checked>
-                  <span class="switch"></span>
-                  Enable DOM Delta Diffing
-                </label>
-                <div class="form-help">Reduces AI context by 70-90% after first iteration by sending only changes</div>
-              </div>
+          <!-- Settings Grid -->
+          <div class="advanced-settings-grid">
 
-              <div class="form-group">
-                <label for="maxDOMElements">Maximum DOM elements per snapshot</label>
-                <div class="slider-input">
-                  <input type="range" id="maxDOMElementsSlider" min="500" max="5000" value="2000" step="500" class="form-slider">
-                  <input type="number" id="maxDOMElements" min="500" max="5000" value="2000" step="500" class="form-input slider-value">
+            <!-- Automation Limits Card -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <div class="settings-card-icon">
+                  <i class="fas fa-repeat"></i>
                 </div>
-                <div class="form-help">Lower values improve performance but may miss elements</div>
-              </div>
-
-              <div class="form-group">
-                <label class="switch-label">
-                  <input type="checkbox" id="prioritizeViewport" checked>
-                  <span class="switch"></span>
-                  Prioritize Viewport Elements
-                </label>
-                <div class="form-help">Focus on elements visible on screen for better relevance</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- CAPTCHA Settings -->
-          <div class="form-card">
-            <div class="form-section">
-              <h3><i class="fas fa-shield-alt"></i> CAPTCHA Settings</h3>
-              
-              <div class="form-group">
-                <label for="captchaSolver">CAPTCHA Solver Service</label>
-                <select id="captchaSolver" class="form-select">
-                  <option value="none">None (Manual solving)</option>
-                  <option value="buster">Buster (Free, Audio-based)</option>
-                  <option value="capsolver">CapSolver (Paid Service)</option>
-                  <option value="2captcha">2Captcha (Paid Service)</option>
-                </select>
-              </div>
-
-              <div class="form-group" id="captchaApiKeyGroup" style="display: none;">
-                <label for="captchaApiKey">CAPTCHA Service API Key</label>
-                <div class="input-with-button">
-                  <input type="password" id="captchaApiKey" placeholder="Enter CAPTCHA service API key" class="form-input">
-                  <button type="button" class="input-btn" id="toggleCaptchaKey" title="Toggle visibility">
-                    <i class="fas fa-eye"></i>
-                  </button>
+                <div class="settings-card-title">
+                  <h3>Automation Limits</h3>
+                  <p>Control task execution boundaries</p>
                 </div>
               </div>
-
-              <div class="captcha-comparison">
-                <h4>Service Comparison</h4>
-                <div class="comparison-table">
-                  <div class="comparison-row header">
-                    <div>Service</div>
-                    <div>Cost</div>
-                    <div>Success Rate</div>
-                    <div>Speed</div>
+              <div class="settings-card-content">
+                <div class="setting-item">
+                  <div class="setting-label">
+                    <span>Max Iterations</span>
+                    <span class="setting-value-display" id="maxIterationsDisplay">20</span>
                   </div>
-                  <div class="comparison-row">
-                    <div>Buster</div>
-                    <div class="cost-free">Free</div>
-                    <div>~70%</div>
-                    <div>Slow</div>
-                  </div>
-                  <div class="comparison-row">
-                    <div>CapSolver</div>
-                    <div>$0.0008/solve</div>
-                    <div>~95%</div>
-                    <div>Fast</div>
-                  </div>
-                  <div class="comparison-row">
-                    <div>2Captcha</div>
-                    <div>$0.001/solve</div>
-                    <div>~90%</div>
-                    <div>Medium</div>
-                  </div>
+                  <input type="range" id="maxIterationsSlider" min="5" max="50" value="20" class="modern-slider">
+                  <input type="hidden" id="maxIterations" value="20">
+                  <div class="setting-hint">Prevents runaway automation loops</div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Security & Privacy Settings -->
-          <div class="form-card">
-            <div class="form-section">
-              <h3><i class="fas fa-lock"></i> Security & Privacy</h3>
-              
-              <div class="toggle-group">
-                <div class="toggle-item">
-                  <div class="toggle-info">
-                    <label for="confirmSensitive">Confirm Sensitive Actions</label>
-                    <div class="toggle-description">Require confirmation before form submissions, payments, or account changes</div>
+            <!-- DOM Analysis Card -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <div class="settings-card-icon">
+                  <i class="fas fa-sitemap"></i>
+                </div>
+                <div class="settings-card-title">
+                  <h3>DOM Analysis</h3>
+                  <p>Optimize page element processing</p>
+                </div>
+              </div>
+              <div class="settings-card-content">
+                <div class="setting-item">
+                  <div class="setting-label">
+                    <span>Element Limit</span>
+                    <span class="setting-value-display" id="maxDOMElementsDisplay">2000</span>
                   </div>
-                  <label class="toggle-switch">
-                    <input type="checkbox" id="confirmSensitive" checked>
-                    <span class="slider"></span>
+                  <input type="range" id="maxDOMElementsSlider" min="500" max="5000" value="2000" step="500" class="modern-slider">
+                  <input type="hidden" id="maxDOMElements" value="2000">
+                  <div class="setting-hint">Balance between coverage and speed</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Performance Card -->
+            <div class="settings-card full-width">
+              <div class="settings-card-header">
+                <div class="settings-card-icon perf">
+                  <i class="fas fa-bolt"></i>
+                </div>
+                <div class="settings-card-title">
+                  <h3>Performance Optimizations</h3>
+                  <p>Enable smart features to improve speed and accuracy</p>
+                </div>
+              </div>
+              <div class="settings-card-content">
+                <div class="toggle-grid">
+                  <label class="modern-toggle">
+                    <input type="checkbox" id="domOptimization" checked>
+                    <span class="toggle-track">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                    <div class="toggle-content">
+                      <span class="toggle-label">Delta Diffing</span>
+                      <span class="toggle-desc">Send only DOM changes after first scan (70-90% context reduction)</span>
+                    </div>
+                  </label>
+
+                  <label class="modern-toggle">
+                    <input type="checkbox" id="prioritizeViewport" checked>
+                    <span class="toggle-track">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                    <div class="toggle-content">
+                      <span class="toggle-label">Viewport Priority</span>
+                      <span class="toggle-desc">Focus on visible elements for faster, more relevant results</span>
+                    </div>
+                  </label>
+
+                </div>
+              </div>
+            </div>
+
+            <!-- Visual Feedback Card -->
+            <div class="settings-card full-width">
+              <div class="settings-card-header">
+                <div class="settings-card-icon visual">
+                  <i class="fas fa-eye"></i>
+                </div>
+                <div class="settings-card-title">
+                  <h3>Visual Feedback</h3>
+                  <p>Control visual indicators during automation</p>
+                </div>
+              </div>
+              <div class="settings-card-content">
+                <div class="toggle-grid single">
+                  <label class="modern-toggle">
+                    <input type="checkbox" id="animatedActionHighlights" checked>
+                    <span class="toggle-track">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                    <div class="toggle-content">
+                      <span class="toggle-label">Animated Action Highlights</span>
+                      <span class="toggle-desc">Show a pulsing glow around elements while actions are being performed</span>
+                    </div>
                   </label>
                 </div>
+              </div>
+            </div>
 
-                <div class="toggle-item">
-                  <div class="toggle-info">
-                    <label for="debugMode">Debug Mode</label>
-                    <div class="toggle-description">Enable verbose logging and step-by-step execution details</div>
-                  </div>
-                  <label class="toggle-switch">
+            <!-- Developer Card -->
+            <div class="settings-card full-width">
+              <div class="settings-card-header">
+                <div class="settings-card-icon dev">
+                  <i class="fas fa-code"></i>
+                </div>
+                <div class="settings-card-title">
+                  <h3>Developer Options</h3>
+                  <p>Tools for debugging and troubleshooting</p>
+                </div>
+              </div>
+              <div class="settings-card-content">
+                <div class="toggle-grid single">
+                  <label class="modern-toggle">
                     <input type="checkbox" id="debugMode">
-                    <span class="slider"></span>
+                    <span class="toggle-track">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                    <div class="toggle-content">
+                      <span class="toggle-label">Debug Mode</span>
+                      <span class="toggle-desc">Enable verbose console logging for troubleshooting automation issues</span>
+                    </div>
                   </label>
                 </div>
               </div>
             </div>
+
           </div>
         </section>
 
@@ -469,66 +473,7 @@
               </div>
             </div>
 
-            <!-- Session Detail Panel -->
-            <div class="session-detail-panel" id="sessionDetailPanel" style="display: none;" data-session-id="">
-              <div class="session-detail-header">
-                <div class="session-detail-title">
-                  <h4 id="sessionDetailTitle">Session Details</h4>
-                  <span class="session-detail-status" id="sessionDetailStatus"></span>
-                </div>
-                <div class="session-detail-actions">
-                  <button class="control-btn" id="exportSessionText" title="Export as human-readable text">
-                    <i class="fas fa-file-alt"></i>
-                    Export Text
-                  </button>
-                  <button class="control-btn" id="downloadSessionLogs" title="Download JSON logs">
-                    <i class="fas fa-download"></i>
-                    Download JSON
-                  </button>
-                  <button class="control-btn" id="closeSessionDetail">
-                    <i class="fas fa-times"></i>
-                    Close
-                  </button>
-                </div>
-              </div>
-              <div class="session-detail-meta" id="sessionDetailMeta">
-                <!-- Session metadata will be rendered here -->
-              </div>
-
-              <!-- Session Replay UI -->
-              <div class="session-replay-container" id="sessionReplayContainer">
-                <div class="replay-controls">
-                  <button class="replay-btn" id="prevStep" disabled>
-                    <i class="fas fa-chevron-left"></i> Prev
-                  </button>
-                  <span class="replay-step-indicator">
-                    Step <span id="currentStepNum">0</span> of <span id="totalSteps">0</span>
-                  </span>
-                  <button class="replay-btn" id="nextStep" disabled>
-                    Next <i class="fas fa-chevron-right"></i>
-                  </button>
-                </div>
-
-                <div class="replay-step-content" id="replayStepContent">
-                  <!-- Step details rendered here -->
-                  <div class="step-placeholder">Select a session to view replay</div>
-                </div>
-
-                <div class="replay-summary" id="replaySummary" style="display: none;">
-                  <!-- Summary rendered here -->
-                </div>
-              </div>
-
-              <!-- Raw logs container (collapsible) -->
-              <div class="session-logs-section">
-                <button class="logs-toggle-btn" id="toggleRawLogs">
-                  <i class="fas fa-chevron-down"></i> Show Raw Logs
-                </button>
-                <div class="session-logs-container" id="rawLogsContainer" style="display: none;">
-                  <pre class="session-logs-content" id="sessionLogsContent">Loading...</pre>
-                </div>
-              </div>
-            </div>
+            <!-- Session detail panels are created dynamically inline by viewSession() -->
           </div>
 
           <!-- Analytics Debug Tools -->
@@ -638,6 +583,7 @@
   </div>
 
   <script src="config.js"></script>
+  <script src="automation-logger.js"></script>
   <script src="universal-provider.js"></script>
   <script src="ai-providers.js"></script>
   <script src="ai-integration.js"></script>

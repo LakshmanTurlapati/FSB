@@ -10,7 +10,8 @@
     "tabs",
     "windows",
     "sidePanel",
-    "debugger"
+    "debugger",
+    "webNavigation"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -38,7 +39,7 @@
       "matches": ["<all_urls>"],
       "js": ["automation-logger.js", "content.js"],
       "run_at": "document_idle",
-      "all_frames": true
+      "all_frames": false
     }
   ],
   "options_page": "options.html"

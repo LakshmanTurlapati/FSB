@@ -10,47 +10,19 @@ const defaultSettings = {
   anthropicApiKey: '',
   customApiKey: '',
   customEndpoint: '',
-  reasoningEffort: 'low', // xAI reasoning effort setting
   speedMode: 'normal', // Legacy support
-  captchaSolver: 'none',
-  captchaApiKey: '',
-  actionDelay: 1000,
   maxIterations: 20,
-  confirmSensitive: true,
-  debugMode: false
+  debugMode: false,
+  // DOM Optimization settings
+  domOptimization: true,
+  maxDOMElements: 2000,
+  prioritizeViewport: true,
+  animatedActionHighlights: true
 };
 
-// Available models configuration
+// Available models - sourced from config.js (loaded before this script) with custom provider added
 const availableModels = {
-  xai: [
-    { id: 'grok-4-1-fast', name: 'Grok 4.1 Fast', description: 'High-speed, 2M context - best for automation (Recommended)' },
-    { id: 'grok-4-1-fast-reasoning', name: 'Grok 4.1 Fast Reasoning', description: 'With multi-step reasoning enabled' },
-    { id: 'grok-4', name: 'Grok 4', description: 'Complex reasoning model' },
-    { id: 'grok-code-fast-1', name: 'Grok Code Fast 1', description: 'Dedicated code generation & debugging' },
-    { id: 'grok-3', name: 'Grok 3', description: 'Legacy flagship model' },
-    { id: 'grok-3-mini', name: 'Grok 3 Mini', description: 'Budget option with reasoning' }
-  ],
-  gemini: [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Latest with thinking capabilities' },
-    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite', description: 'Budget option with 1M context' },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most powerful with 2M context' },
-    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Experimental', description: 'FREE experimental until May 2025' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fast and efficient' }
-  ],
-  openai: [
-    { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable multimodal model' },
-    { id: 'chatgpt-4o-latest', name: 'ChatGPT-4o Latest', description: 'Always newest GPT-4o version' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Affordable and fast, better than GPT-3.5' },
-    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Previous generation flagship' }
-  ],
-  anthropic: [
-    { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', description: 'Latest flagship model with 200K context' },
-    { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', description: 'Fast and cost-effective with 200K context' },
-    { id: 'claude-opus-4-1', name: 'Claude Opus 4.1', description: 'Most powerful reasoning model' },
-    { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Previous Sonnet version' },
-    { id: 'claude-opus-4', name: 'Claude Opus 4', description: 'Previous Opus version' },
-    { id: 'claude-sonnet-3.7', name: 'Claude Sonnet 3.7', description: 'Extended thinking variant' }
-  ],
+  ...config.availableModels,
   custom: [
     { id: 'custom-model', name: 'Custom Model', description: 'Enter your model name below' }
   ]
@@ -69,9 +41,6 @@ let analytics = null;
 
 // Statistics data
 const statsData = {
-  tasksToday: 0,
-  successRate: 0,
-  avgDuration: 0,
   logs: []
 };
 
@@ -156,29 +125,30 @@ function cacheElements() {
   // Form elements
   elements.modelProvider = document.getElementById('modelProvider');
   elements.modelName = document.getElementById('modelName');
-  elements.reasoningEffort = document.getElementById('reasoningEffort');
   elements.apiKey = document.getElementById('apiKey');
   elements.geminiApiKey = document.getElementById('geminiApiKey');
   elements.xaiApiKeyGroup = document.getElementById('xaiApiKeyGroup');
   elements.geminiApiKeyGroup = document.getElementById('geminiApiKeyGroup');
-  elements.captchaSolver = document.getElementById('captchaSolver');
-  elements.captchaApiKey = document.getElementById('captchaApiKey');
-  elements.captchaApiKeyGroup = document.getElementById('captchaApiKeyGroup');
-  elements.actionDelay = document.getElementById('actionDelay');
-  elements.actionDelaySlider = document.getElementById('actionDelaySlider');
   elements.maxIterations = document.getElementById('maxIterations');
   elements.maxIterationsSlider = document.getElementById('maxIterationsSlider');
-  elements.confirmSensitive = document.getElementById('confirmSensitive');
+  elements.maxIterationsDisplay = document.getElementById('maxIterationsDisplay');
   elements.debugMode = document.getElementById('debugMode');
+  // DOM Optimization elements
+  elements.domOptimization = document.getElementById('domOptimization');
+  elements.maxDOMElements = document.getElementById('maxDOMElements');
+  elements.maxDOMElementsSlider = document.getElementById('maxDOMElementsSlider');
+  elements.maxDOMElementsDisplay = document.getElementById('maxDOMElementsDisplay');
+  elements.prioritizeViewport = document.getElementById('prioritizeViewport');
+  elements.animatedActionHighlights = document.getElementById('animatedActionHighlights');
 
   // Button elements
   elements.toggleApiKey = document.getElementById('toggleApiKey');
-  elements.toggleCaptchaKey = document.getElementById('toggleCaptchaKey');
   elements.fullApiTest = document.getElementById('fullApiTest');
   elements.testResults = document.getElementById('testResults');
-  elements.tasksToday = document.getElementById('tasksToday');
   elements.successRate = document.getElementById('successRate');
-  elements.avgDuration = document.getElementById('avgDuration');
+
+  // API Status Card
+  elements.apiStatusCard = document.getElementById('apiStatusCard');
   
   // Logs
   elements.logsDisplay = document.getElementById('logsDisplay');
@@ -209,73 +179,42 @@ function setupEventListeners() {
   // Form inputs change detection
   const formInputs = [
     elements.apiKey,
-    elements.captchaSolver,
-    elements.captchaApiKey,
-    elements.actionDelay,
+    elements.geminiApiKey,
+    document.getElementById('openaiApiKey'),
+    document.getElementById('anthropicApiKey'),
+    document.getElementById('customApiKey'),
+    document.getElementById('customEndpoint'),
     elements.maxIterations,
-    elements.confirmSensitive,
-    elements.debugMode
+    elements.debugMode,
+    elements.domOptimization,
+    elements.maxDOMElements,
+    elements.prioritizeViewport,
+    elements.animatedActionHighlights
   ];
-  
+
   formInputs.forEach(input => {
     if (input) {
       const eventType = input.type === 'checkbox' || input.type === 'radio' ? 'change' : 'input';
       input.addEventListener(eventType, () => markUnsavedChanges());
     }
   });
-  
-  // DOM optimization controls
-  const domOptControls = [
-    document.getElementById('domOptimization'),
-    document.getElementById('prioritizeViewport'),
-    document.getElementById('maxDOMElements'),
-    document.getElementById('maxDOMElementsSlider')
-  ];
-  
-  domOptControls.forEach(control => {
-    if (control) {
-      const eventType = control.type === 'checkbox' ? 'change' : 'input';
-      control.addEventListener(eventType, () => markUnsavedChanges());
-    }
-  });
-  
-  // DOM elements slider synchronization
-  const maxDOMElementsSlider = document.getElementById('maxDOMElementsSlider');
-  const maxDOMElements = document.getElementById('maxDOMElements');
-  
-  if (maxDOMElementsSlider && maxDOMElements) {
-    maxDOMElementsSlider.addEventListener('input', (e) => {
-      maxDOMElements.value = e.target.value;
-      markUnsavedChanges();
-    });
-    
-    maxDOMElements.addEventListener('input', (e) => {
-      maxDOMElementsSlider.value = e.target.value;
-      markUnsavedChanges();
-    });
-  }
-  
-  // Slider synchronization
-  if (elements.actionDelaySlider && elements.actionDelay) {
-    elements.actionDelaySlider.addEventListener('input', (e) => {
-      elements.actionDelay.value = e.target.value;
-      markUnsavedChanges();
-    });
-    
-    elements.actionDelay.addEventListener('input', (e) => {
-      elements.actionDelaySlider.value = e.target.value;
-      markUnsavedChanges();
-    });
-  }
-  
-  if (elements.maxIterationsSlider && elements.maxIterations) {
+
+  // Max iterations slider with display update
+  if (elements.maxIterationsSlider) {
     elements.maxIterationsSlider.addEventListener('input', (e) => {
-      elements.maxIterations.value = e.target.value;
+      const value = e.target.value;
+      if (elements.maxIterations) elements.maxIterations.value = value;
+      if (elements.maxIterationsDisplay) elements.maxIterationsDisplay.textContent = value;
       markUnsavedChanges();
     });
-    
-    elements.maxIterations.addEventListener('input', (e) => {
-      elements.maxIterationsSlider.value = e.target.value;
+  }
+
+  // Max DOM elements slider with display update
+  if (elements.maxDOMElementsSlider) {
+    elements.maxDOMElementsSlider.addEventListener('input', (e) => {
+      const value = e.target.value;
+      if (elements.maxDOMElements) elements.maxDOMElements.value = value;
+      if (elements.maxDOMElementsDisplay) elements.maxDOMElementsDisplay.textContent = value;
       markUnsavedChanges();
     });
   }
@@ -292,16 +231,6 @@ function setupEventListeners() {
   // Model name change
   if (elements.modelName) {
     elements.modelName.addEventListener('change', (e) => {
-      // Update reasoning effort visibility when model changes
-      const provider = elements.modelProvider?.value || 'xai';
-      updateApiKeyVisibility(provider, e.target.value);
-      markUnsavedChanges();
-    });
-  }
-  
-  // Reasoning effort change
-  if (elements.reasoningEffort) {
-    elements.reasoningEffort.addEventListener('change', () => {
       markUnsavedChanges();
     });
   }
@@ -331,14 +260,6 @@ function setupEventListeners() {
     toggleCustomApiKey.addEventListener('click', () => togglePasswordVisibility('customApiKey'));
   }
   
-  if (elements.toggleCaptchaKey) {
-    elements.toggleCaptchaKey.addEventListener('click', () => togglePasswordVisibility('captchaApiKey'));
-  }
-  
-  // CAPTCHA solver change
-  if (elements.captchaSolver) {
-    elements.captchaSolver.addEventListener('change', updateCaptchaApiKeyVisibility);
-  }
   
   // API test
   if (elements.fullApiTest) {
@@ -495,12 +416,8 @@ function updateModelDescription(description) {
   }
 }
 
-// Models that support the reasoning effort parameter
-// Keep in sync with universal-provider.js supportsReasoningEffort()
-const REASONING_EFFORT_MODELS = ['grok-4'];
-
 // Update API key visibility based on provider
-function updateApiKeyVisibility(provider, modelName = null) {
+function updateApiKeyVisibility(provider) {
   // Get all API key groups
   const apiKeyGroups = {
     xai: document.getElementById('xaiApiKeyGroup'),
@@ -518,16 +435,6 @@ function updateApiKeyVisibility(provider, modelName = null) {
   // Show the selected provider's group
   if (apiKeyGroups[provider]) {
     apiKeyGroups[provider].style.display = 'block';
-  }
-
-  // Get current model if not provided
-  const currentModel = modelName || elements.modelName?.value;
-
-  // Show/hide reasoning effort only for models that support it
-  const reasoningEffortGroup = document.getElementById('reasoningEffortGroup');
-  if (reasoningEffortGroup) {
-    const showReasoning = provider === 'xai' && REASONING_EFFORT_MODELS.includes(currentModel);
-    reasoningEffortGroup.style.display = showReasoning ? 'block' : 'none';
   }
 }
 
@@ -558,16 +465,13 @@ function loadSettings() {
         if (selectedModel) {
           updateModelDescription(selectedModel.description);
         }
-        // Update reasoning effort visibility based on selected model
-        updateApiKeyVisibility(settings.modelProvider || 'xai', settings.modelName);
+        updateApiKeyVisibility(settings.modelProvider || 'xai');
       }, 100);
     }
     
     // Update form elements
     if (elements.apiKey) elements.apiKey.value = settings.apiKey || '';
     if (elements.geminiApiKey) elements.geminiApiKey.value = settings.geminiApiKey || '';
-    if (elements.reasoningEffort) elements.reasoningEffort.value = settings.reasoningEffort || 'low';
-    
     // Update new provider API keys
     const openaiApiKey = document.getElementById('openaiApiKey');
     if (openaiApiKey) openaiApiKey.value = settings.openaiApiKey || '';
@@ -581,32 +485,30 @@ function loadSettings() {
     const customEndpoint = document.getElementById('customEndpoint');
     if (customEndpoint) customEndpoint.value = settings.customEndpoint || '';
 
-    if (elements.captchaSolver) elements.captchaSolver.value = settings.captchaSolver;
-    if (elements.captchaApiKey) elements.captchaApiKey.value = settings.captchaApiKey || '';
-    if (elements.actionDelay) elements.actionDelay.value = settings.actionDelay;
-    if (elements.actionDelaySlider) elements.actionDelaySlider.value = settings.actionDelay;
-    if (elements.maxIterations) elements.maxIterations.value = settings.maxIterations;
-    if (elements.maxIterationsSlider) elements.maxIterationsSlider.value = settings.maxIterations;
-    if (elements.confirmSensitive) elements.confirmSensitive.checked = settings.confirmSensitive;
+    // Max iterations
+    const maxIter = settings.maxIterations || 20;
+    if (elements.maxIterations) elements.maxIterations.value = maxIter;
+    if (elements.maxIterationsSlider) elements.maxIterationsSlider.value = maxIter;
+    if (elements.maxIterationsDisplay) elements.maxIterationsDisplay.textContent = maxIter;
+
+    // Debug mode
     if (elements.debugMode) elements.debugMode.checked = settings.debugMode;
-    
-    // Update DOM optimization settings
-    if (document.getElementById('domOptimization')) {
-      document.getElementById('domOptimization').checked = settings.domOptimization ?? true;
+
+    // DOM optimization settings
+    if (elements.domOptimization) {
+      elements.domOptimization.checked = settings.domOptimization ?? true;
     }
-    if (document.getElementById('maxDOMElements')) {
-      document.getElementById('maxDOMElements').value = settings.maxDOMElements || 2000;
+    const maxDOM = settings.maxDOMElements || 2000;
+    if (elements.maxDOMElements) elements.maxDOMElements.value = maxDOM;
+    if (elements.maxDOMElementsSlider) elements.maxDOMElementsSlider.value = maxDOM;
+    if (elements.maxDOMElementsDisplay) elements.maxDOMElementsDisplay.textContent = maxDOM;
+    if (elements.prioritizeViewport) {
+      elements.prioritizeViewport.checked = settings.prioritizeViewport ?? true;
     }
-    if (document.getElementById('maxDOMElementsSlider')) {
-      document.getElementById('maxDOMElementsSlider').value = settings.maxDOMElements || 2000;
-    }
-    if (document.getElementById('prioritizeViewport')) {
-      document.getElementById('prioritizeViewport').checked = settings.prioritizeViewport ?? true;
+    if (elements.animatedActionHighlights) {
+      elements.animatedActionHighlights.checked = settings.animatedActionHighlights ?? true;
     }
 
-    // Update CAPTCHA API key visibility
-    updateCaptchaApiKeyVisibility();
-    
     addLog('info', 'Settings loaded successfully');
   });
 }
@@ -615,23 +517,19 @@ function saveSettings() {
   const settings = {
     modelProvider: elements.modelProvider?.value || 'xai',
     modelName: elements.modelName?.value || 'grok-4-1-fast',
-    reasoningEffort: elements.reasoningEffort?.value || 'low',
     apiKey: elements.apiKey?.value || '',
     geminiApiKey: elements.geminiApiKey?.value || '',
     openaiApiKey: document.getElementById('openaiApiKey')?.value || '',
     anthropicApiKey: document.getElementById('anthropicApiKey')?.value || '',
     customApiKey: document.getElementById('customApiKey')?.value || '',
     customEndpoint: document.getElementById('customEndpoint')?.value || '',
-    captchaSolver: elements.captchaSolver?.value || 'none',
-    captchaApiKey: elements.captchaApiKey?.value || '',
-    actionDelay: parseInt(elements.actionDelay?.value) || 1000,
     maxIterations: parseInt(elements.maxIterations?.value) || 20,
-    confirmSensitive: elements.confirmSensitive?.checked ?? true,
     debugMode: elements.debugMode?.checked ?? false,
     // DOM Optimization settings
-    domOptimization: document.getElementById('domOptimization')?.checked ?? true,
-    maxDOMElements: parseInt(document.getElementById('maxDOMElements')?.value) || 2000,
-    prioritizeViewport: document.getElementById('prioritizeViewport')?.checked ?? true
+    domOptimization: elements.domOptimization?.checked ?? true,
+    maxDOMElements: parseInt(elements.maxDOMElements?.value) || 2000,
+    prioritizeViewport: elements.prioritizeViewport?.checked ?? true,
+    animatedActionHighlights: elements.animatedActionHighlights?.checked ?? true
   };
   
   chrome.storage.local.set(settings, () => {
@@ -676,12 +574,6 @@ function hideSaveBar() {
   }
 }
 
-function updateCaptchaApiKeyVisibility() {
-  const needsKey = ['capsolver', '2captcha'].includes(elements.captchaSolver?.value);
-  if (elements.captchaApiKeyGroup) {
-    elements.captchaApiKeyGroup.style.display = needsKey ? 'block' : 'none';
-  }
-}
 
 function togglePasswordVisibility(fieldId) {
   const field = document.getElementById(fieldId);
@@ -737,7 +629,10 @@ async function checkApiConnection() {
 
     if (result.ok) {
       updateConnectionStatus('connected', 'Connected');
-      updateApiStatusCard('connected', 'Connected', `Using model: ${result.model}`);
+      // Hide status card on success - only show on errors
+      if (elements.apiStatusCard) {
+        elements.apiStatusCard.style.display = 'none';
+      }
       addLog('info', `API connection successful with model: ${result.model}`);
     } else {
       updateConnectionStatus('disconnected', 'Connection failed');
@@ -765,16 +660,19 @@ function updateConnectionStatus(status, text) {
 
 function updateApiStatusCard(status, title, detail) {
   if (elements.apiStatusCard) {
+    elements.apiStatusCard.style.display = 'block';
+    elements.apiStatusCard.className = `api-status-card ${status}`;
+
     const icon = elements.apiStatusCard.querySelector('.status-icon i');
     const titleElement = elements.apiStatusCard.querySelector('.status-title');
     const detailElement = elements.apiStatusCard.querySelector('.status-detail');
-    
+
     if (icon) {
       icon.className = status === 'checking' ? 'fas fa-spinner fa-spin' :
                      status === 'connected' ? 'fas fa-check-circle' :
                      'fas fa-exclamation-triangle';
     }
-    
+
     if (titleElement) titleElement.textContent = title;
     if (detailElement) detailElement.textContent = detail;
   }
@@ -869,12 +767,15 @@ async function runFullApiTest() {
 function exportSettings() {
   chrome.storage.local.get(Object.keys(defaultSettings), (data) => {
     const settings = { ...defaultSettings, ...data };
-    
+
     // Remove sensitive data
     const exportData = {
       ...settings,
       apiKey: settings.apiKey ? '[CONFIGURED]' : '',
-      captchaApiKey: settings.captchaApiKey ? '[CONFIGURED]' : ''
+      geminiApiKey: settings.geminiApiKey ? '[CONFIGURED]' : '',
+      openaiApiKey: settings.openaiApiKey ? '[CONFIGURED]' : '',
+      anthropicApiKey: settings.anthropicApiKey ? '[CONFIGURED]' : '',
+      customApiKey: settings.customApiKey ? '[CONFIGURED]' : ''
     };
     
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -932,7 +833,6 @@ function applyTheme(theme) {
 
 function initializeLogs() {
   addLog('info', 'FSB Control Panel loaded successfully');
-  updateStatistics();
 }
 
 function addLog(level, message) {
@@ -999,21 +899,6 @@ function exportLogs() {
 
 function filterLogs() {
   updateLogsDisplay();
-}
-
-function updateStatistics() {
-  // Update dashboard statistics
-  if (elements.tasksToday) {
-    elements.tasksToday.textContent = statsData.tasksToday;
-  }
-  
-  if (elements.successRate) {
-    elements.successRate.textContent = `${statsData.successRate}%`;
-  }
-  
-  if (elements.avgDuration) {
-    elements.avgDuration.textContent = `${statsData.avgDuration}s`;
-  }
 }
 
 function showToast(message, type = 'info') {
@@ -1166,17 +1051,10 @@ let currentStepIndex = 0;
  * Initialize session history UI and event listeners
  */
 function initializeSessionHistory() {
-  // Cache elements
+  // Top-level control buttons
   const refreshBtn = document.getElementById('refreshSessions');
   const clearAllBtn = document.getElementById('clearAllSessions');
-  const downloadBtn = document.getElementById('downloadSessionLogs');
-  const exportTextBtn = document.getElementById('exportSessionText');
-  const closeBtn = document.getElementById('closeSessionDetail');
-  const prevStepBtn = document.getElementById('prevStep');
-  const nextStepBtn = document.getElementById('nextStep');
-  const toggleRawLogsBtn = document.getElementById('toggleRawLogs');
 
-  // Event listeners
   if (refreshBtn) {
     refreshBtn.addEventListener('click', loadSessionList);
   }
@@ -1185,52 +1063,23 @@ function initializeSessionHistory() {
     clearAllBtn.addEventListener('click', clearAllSessions);
   }
 
-  if (downloadBtn) {
-    downloadBtn.addEventListener('click', downloadCurrentSessionLogs);
-  }
+  // Event delegation on session list for all item/button clicks
+  const sessionList = document.getElementById('sessionList');
+  if (sessionList) {
+    sessionList.addEventListener('click', (e) => {
+      const actionBtn = e.target.closest('.session-action-btn');
+      const sessionItem = e.target.closest('.session-item');
+      if (!sessionItem) return;
+      const sessionId = sessionItem.dataset.sessionId;
 
-  if (exportTextBtn) {
-    exportTextBtn.addEventListener('click', () => {
-      if (currentViewingSession) {
-        exportSessionText(currentViewingSession.id);
+      if (actionBtn) {
+        e.stopPropagation();
+        const action = actionBtn.dataset.action;
+        if (action === 'view') viewSession(sessionId);
+        else if (action === 'download') downloadSessionLogs(sessionId);
+        else if (action === 'delete') deleteSession(sessionId);
       } else {
-        showToast('No session selected', 'warning');
-      }
-    });
-  }
-
-  if (closeBtn) {
-    closeBtn.addEventListener('click', closeSessionDetail);
-  }
-
-  // Replay navigation controls
-  if (prevStepBtn) {
-    prevStepBtn.addEventListener('click', () => {
-      if (currentStepIndex > 0) {
-        renderStep(currentStepIndex - 1);
-      }
-    });
-  }
-
-  if (nextStepBtn) {
-    nextStepBtn.addEventListener('click', () => {
-      if (currentReplayData && currentStepIndex < currentReplayData.steps.length - 1) {
-        renderStep(currentStepIndex + 1);
-      }
-    });
-  }
-
-  // Raw logs toggle
-  if (toggleRawLogsBtn) {
-    toggleRawLogsBtn.addEventListener('click', () => {
-      const rawLogsContainer = document.getElementById('rawLogsContainer');
-      if (rawLogsContainer) {
-        const isVisible = rawLogsContainer.style.display !== 'none';
-        rawLogsContainer.style.display = isVisible ? 'none' : 'block';
-        toggleRawLogsBtn.innerHTML = isVisible
-          ? '<i class="fas fa-chevron-down"></i> Show Raw Logs'
-          : '<i class="fas fa-chevron-up"></i> Hide Raw Logs';
-        toggleRawLogsBtn.classList.toggle('expanded', !isVisible);
+        viewSession(sessionId);
       }
     });
   }
@@ -1261,7 +1110,7 @@ async function loadSessionList() {
       return;
     }
 
-    // Render session items
+    // Render session items (using data-action attributes, no inline onclick)
     sessionList.innerHTML = sessions.map(session => `
       <div class="session-item" data-session-id="${session.id}">
         <div class="session-item-info">
@@ -1276,28 +1125,18 @@ async function loadSessionList() {
           <span class="session-status-badge ${session.status}">${session.status}</span>
         </div>
         <div class="session-item-actions">
-          <button class="session-action-btn view" title="View logs" onclick="viewSession('${session.id}')">
+          <button class="session-action-btn view" data-action="view" title="View logs">
             <i class="fas fa-eye"></i>
           </button>
-          <button class="session-action-btn download" title="Download logs" onclick="downloadSessionLogs('${session.id}')">
+          <button class="session-action-btn download" data-action="download" title="Download logs">
             <i class="fas fa-download"></i>
           </button>
-          <button class="session-action-btn delete" title="Delete session" onclick="deleteSession('${session.id}')">
+          <button class="session-action-btn delete" data-action="delete" title="Delete session">
             <i class="fas fa-trash"></i>
           </button>
         </div>
       </div>
     `).join('');
-
-    // Add click listeners for session items (for viewing)
-    sessionList.querySelectorAll('.session-item').forEach(item => {
-      item.addEventListener('click', (e) => {
-        // Don't trigger if clicking action buttons
-        if (e.target.closest('.session-item-actions')) return;
-        const sessionId = item.dataset.sessionId;
-        viewSession(sessionId);
-      });
-    });
 
     addLog('info', `Loaded ${sessions.length} sessions`);
 
@@ -1317,13 +1156,20 @@ async function loadSessionList() {
  * @param {string} sessionId - The session ID to view
  */
 async function viewSession(sessionId) {
-  const detailPanel = document.getElementById('sessionDetailPanel');
-  const titleEl = document.getElementById('sessionDetailTitle');
-  const statusEl = document.getElementById('sessionDetailStatus');
-  const metaEl = document.getElementById('sessionDetailMeta');
-  const logsEl = document.getElementById('sessionLogsContent');
+  const sessionList = document.getElementById('sessionList');
+  if (!sessionList) return;
 
-  if (!detailPanel) return;
+  const sessionItem = sessionList.querySelector(`.session-item[data-session-id="${sessionId}"]`);
+  if (!sessionItem) return;
+
+  // Toggle: if same session is already expanded, collapse it
+  if (sessionItem.classList.contains('expanded')) {
+    collapseSessionDetail();
+    return;
+  }
+
+  // Collapse any currently expanded session first
+  collapseSessionDetail();
 
   try {
     // Load full session data
@@ -1337,61 +1183,30 @@ async function viewSession(sessionId) {
     }
 
     currentViewingSession = session;
-    detailPanel.dataset.sessionId = sessionId;
 
-    // Update header
-    titleEl.textContent = session.task || 'Unknown Task';
-    statusEl.textContent = session.status;
-    statusEl.className = `session-detail-status session-status-badge ${session.status}`;
+    // Mark item as expanded
+    sessionItem.classList.add('expanded');
 
-    // Update metadata
-    metaEl.innerHTML = `
-      <div class="session-meta-item">
-        <span class="session-meta-label">Session ID</span>
-        <span class="session-meta-value">${session.id}</span>
-      </div>
-      <div class="session-meta-item">
-        <span class="session-meta-label">Started</span>
-        <span class="session-meta-value">${new Date(session.startTime).toLocaleString()}</span>
-      </div>
-      <div class="session-meta-item">
-        <span class="session-meta-label">Ended</span>
-        <span class="session-meta-value">${new Date(session.endTime).toLocaleString()}</span>
-      </div>
-      <div class="session-meta-item">
-        <span class="session-meta-label">Duration</span>
-        <span class="session-meta-value">${formatSessionDuration(session.startTime, session.endTime)}</span>
-      </div>
-      <div class="session-meta-item">
-        <span class="session-meta-label">Actions</span>
-        <span class="session-meta-value">${session.actionCount || 0}</span>
-      </div>
-      <div class="session-meta-item">
-        <span class="session-meta-label">Iterations</span>
-        <span class="session-meta-value">${session.iterationCount || 'N/A'}</span>
-      </div>
-    `;
+    // Create inline detail wrapper and insert after the session item
+    const wrapper = document.createElement('div');
+    wrapper.className = 'session-detail-wrapper';
+    wrapper.innerHTML = createInlineDetailHTML(session);
+    sessionItem.after(wrapper);
 
-    // Format and display logs
-    logsEl.textContent = formatSessionLogsForDisplay(session);
+    // Populate logs content
+    const logsEl = wrapper.querySelector('#sessionLogsContent');
+    if (logsEl) {
+      logsEl.textContent = formatSessionLogsForDisplay(session);
+    }
+
+    // Attach event listeners to the new inline panel
+    attachInlinePanelListeners(wrapper, session);
 
     // Load replay data
     renderSessionReplay(sessionId);
 
-    // Reset raw logs toggle state
-    const rawLogsContainer = document.getElementById('rawLogsContainer');
-    const toggleRawLogsBtn = document.getElementById('toggleRawLogs');
-    if (rawLogsContainer) {
-      rawLogsContainer.style.display = 'none';
-    }
-    if (toggleRawLogsBtn) {
-      toggleRawLogsBtn.innerHTML = '<i class="fas fa-chevron-down"></i> Show Raw Logs';
-      toggleRawLogsBtn.classList.remove('expanded');
-    }
-
-    // Show panel
-    detailPanel.style.display = 'block';
-    detailPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Scroll expanded item into view
+    sessionItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     addLog('info', `Viewing session ${sessionId}`);
 
@@ -1402,14 +1217,174 @@ async function viewSession(sessionId) {
 }
 
 /**
- * Close the session detail panel
+ * Collapse any currently expanded session detail panel
+ */
+function collapseSessionDetail() {
+  // Remove expanded class from any session item
+  const expandedItem = document.querySelector('.session-item.expanded');
+  if (expandedItem) {
+    expandedItem.classList.remove('expanded');
+  }
+
+  // Remove the inline detail wrapper from DOM
+  const wrapper = document.querySelector('.session-detail-wrapper');
+  if (wrapper) {
+    wrapper.remove();
+  }
+
+  currentViewingSession = null;
+  currentReplayData = null;
+  currentStepIndex = 0;
+}
+
+/**
+ * Close the session detail panel (alias for collapseSessionDetail)
  */
 function closeSessionDetail() {
-  const detailPanel = document.getElementById('sessionDetailPanel');
-  if (detailPanel) {
-    detailPanel.style.display = 'none';
+  collapseSessionDetail();
+}
+
+/**
+ * Create the inline detail panel HTML for a session
+ * @param {Object} session - The session data object
+ * @returns {string} HTML string for the inline detail panel
+ */
+function createInlineDetailHTML(session) {
+  return `
+    <div class="session-detail-panel" data-session-id="${session.id}">
+      <div class="session-detail-header">
+        <div class="session-detail-title">
+          <h4 id="sessionDetailTitle">${escapeHtml(session.task || 'Unknown Task')}</h4>
+          <span class="session-detail-status session-status-badge ${session.status}" id="sessionDetailStatus">${session.status}</span>
+        </div>
+        <div class="session-detail-actions">
+          <button class="control-btn" id="exportSessionText" title="Export as human-readable text">
+            <i class="fas fa-file-alt"></i>
+            Export Text
+          </button>
+          <button class="control-btn" id="downloadSessionLogs" title="Download JSON logs">
+            <i class="fas fa-download"></i>
+            Download JSON
+          </button>
+          <button class="control-btn" id="closeSessionDetail">
+            <i class="fas fa-times"></i>
+            Close
+          </button>
+        </div>
+      </div>
+      <div class="session-detail-meta" id="sessionDetailMeta">
+        <div class="session-meta-item">
+          <span class="session-meta-label">Session ID</span>
+          <span class="session-meta-value">${session.id}</span>
+        </div>
+        <div class="session-meta-item">
+          <span class="session-meta-label">Started</span>
+          <span class="session-meta-value">${new Date(session.startTime).toLocaleString()}</span>
+        </div>
+        <div class="session-meta-item">
+          <span class="session-meta-label">Ended</span>
+          <span class="session-meta-value">${new Date(session.endTime).toLocaleString()}</span>
+        </div>
+        <div class="session-meta-item">
+          <span class="session-meta-label">Duration</span>
+          <span class="session-meta-value">${formatSessionDuration(session.startTime, session.endTime)}</span>
+        </div>
+        <div class="session-meta-item">
+          <span class="session-meta-label">Actions</span>
+          <span class="session-meta-value">${session.actionCount || 0}</span>
+        </div>
+        <div class="session-meta-item">
+          <span class="session-meta-label">Iterations</span>
+          <span class="session-meta-value">${session.iterationCount || 'N/A'}</span>
+        </div>
+      </div>
+      <div class="session-replay-container" id="sessionReplayContainer">
+        <div class="replay-controls">
+          <button class="replay-btn" id="prevStep" disabled>
+            <i class="fas fa-chevron-left"></i> Prev
+          </button>
+          <span class="replay-step-indicator">
+            Step <span id="currentStepNum">0</span> of <span id="totalSteps">0</span>
+          </span>
+          <button class="replay-btn" id="nextStep" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+        <div class="replay-step-content" id="replayStepContent">
+          <div class="step-placeholder">Loading replay data...</div>
+        </div>
+        <div class="replay-summary" id="replaySummary" style="display: none;"></div>
+      </div>
+      <div class="session-logs-section">
+        <button class="logs-toggle-btn" id="toggleRawLogs">
+          <i class="fas fa-chevron-down"></i> Show Raw Logs
+        </button>
+        <div class="session-logs-container" id="rawLogsContainer" style="display: none;">
+          <pre class="session-logs-content" id="sessionLogsContent">Loading...</pre>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Attach event listeners to the dynamically created inline panel buttons
+ * @param {HTMLElement} wrapper - The .session-detail-wrapper element
+ * @param {Object} session - The session data object
+ */
+function attachInlinePanelListeners(wrapper, session) {
+  const exportTextBtn = wrapper.querySelector('#exportSessionText');
+  const downloadBtn = wrapper.querySelector('#downloadSessionLogs');
+  const closeBtn = wrapper.querySelector('#closeSessionDetail');
+  const prevStepBtn = wrapper.querySelector('#prevStep');
+  const nextStepBtn = wrapper.querySelector('#nextStep');
+  const toggleRawLogsBtn = wrapper.querySelector('#toggleRawLogs');
+
+  if (exportTextBtn) {
+    exportTextBtn.addEventListener('click', () => {
+      exportSessionText(session.id);
+    });
   }
-  currentViewingSession = null;
+
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', () => {
+      downloadSessionLogs(session.id);
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', collapseSessionDetail);
+  }
+
+  if (prevStepBtn) {
+    prevStepBtn.addEventListener('click', () => {
+      if (currentStepIndex > 0) {
+        renderStep(currentStepIndex - 1);
+      }
+    });
+  }
+
+  if (nextStepBtn) {
+    nextStepBtn.addEventListener('click', () => {
+      if (currentReplayData && currentStepIndex < currentReplayData.steps.length - 1) {
+        renderStep(currentStepIndex + 1);
+      }
+    });
+  }
+
+  if (toggleRawLogsBtn) {
+    toggleRawLogsBtn.addEventListener('click', () => {
+      const rawLogsContainer = wrapper.querySelector('#rawLogsContainer');
+      if (rawLogsContainer) {
+        const isVisible = rawLogsContainer.style.display !== 'none';
+        rawLogsContainer.style.display = isVisible ? 'none' : 'block';
+        toggleRawLogsBtn.innerHTML = isVisible
+          ? '<i class="fas fa-chevron-down"></i> Show Raw Logs'
+          : '<i class="fas fa-chevron-up"></i> Hide Raw Logs';
+        toggleRawLogsBtn.classList.toggle('expanded', !isVisible);
+      }
+    });
+  }
 }
 
 /**
@@ -1424,7 +1399,7 @@ function downloadCurrentSessionLogs() {
 }
 
 /**
- * Download logs for a specific session as a text file
+ * Download raw JSON data for a specific session
  * @param {string} sessionId - The session ID to download
  */
 async function downloadSessionLogs(sessionId) {
@@ -1438,14 +1413,12 @@ async function downloadSessionLogs(sessionId) {
       return;
     }
 
-    // Generate formatted report
-    const report = formatSessionReport(session);
-
-    // Create download
-    const blob = new Blob([report], { type: 'text/plain' });
+    // Download raw JSON session data
+    const jsonStr = JSON.stringify(session, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const timestamp = new Date(session.startTime).toISOString().split('T')[0];
-    const filename = `fsb-session-${timestamp}-${sessionId.replace('session_', '')}.txt`;
+    const filename = `fsb-session-${timestamp}-${sessionId.replace('session_', '')}.json`;
 
     const a = document.createElement('a');
     a.href = url;
@@ -1455,7 +1428,7 @@ async function downloadSessionLogs(sessionId) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    showToast('Session logs downloaded', 'success');
+    showToast('Session JSON downloaded', 'success');
     addLog('info', `Downloaded session ${sessionId}`);
 
   } catch (error) {
@@ -1530,10 +1503,7 @@ async function clearAllSessions() {
   }
 }
 
-// Expose session management functions to global scope for inline onclick handlers
-window.viewSession = viewSession;
-window.downloadSessionLogs = downloadSessionLogs;
-window.deleteSession = deleteSession;
+// Session functions are now accessed via event delegation - no global window exposure needed
 
 /**
  * Format session logs for display in the detail panel

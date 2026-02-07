@@ -36,6 +36,19 @@ const TOOL_DOCUMENTATION = {
     getText: { params: {selector: "..."}, desc: "Get element text" },
     getAttribute: { params: {selector: "...", attribute: "name"}, desc: "Get attribute" }
   },
+  scrolling: {
+    scroll: {
+      params: {direction: "down", amount: 800},
+      desc: "Scroll page. direction: 'up'/'down' (scrolls one viewport) OR amount: positive=down, negative=up",
+      example: '{"tool": "scroll", "params": {"direction": "down"}}'
+    },
+    scrollToTop: { params: {}, desc: "Scroll to top of page" },
+    scrollToBottom: { params: {}, desc: "Scroll to bottom of page" },
+    scrollToElement: {
+      params: {selector: "...", position: "center"},
+      desc: "Scroll element into view"
+    }
+  },
   waiting: {
     waitForElement: { params: {selector: "...", timeout: 5000}, desc: "Wait for element to appear" },
     waitForDOMStable: { params: {timeout: 5000, stableTime: 500}, desc: "Wait for DOM changes to stop" },
@@ -77,9 +90,9 @@ const TOOL_DOCUMENTATION = {
 
 // Task-specific prompt templates
 const TASK_PROMPTS = {
-  search: "CRITICAL: For search tasks you MUST: 1) Type query, then look for submit button (button[type='submit'], buttons with 'Search'/'Submit'/'Go'/'Find' text, or search/submit classes). If found, click button. If no button, use pressEnter: true, 2) Wait for results to load, 3) Extract the actual answer from the page, 4) ONLY mark taskComplete: true after you have the answer. When completing, provide the specific information found, not just 'found the answer'. Example result: 'I found the current weather in New York is 72°F with clear skies and 15% humidity.'",
-  form: "Fill all required fields, then submit. When completing, describe exactly what information was submitted and confirm the form was processed successfully. Example result: 'I successfully filled out the contact form with your name, email, and message, then submitted it. The page confirmed your message was received and you should expect a response within 24 hours.'",
-  extraction: "Extract the requested information and provide the exact values found. When completing, include all the specific data extracted, not generic statements. Example result: 'I extracted the following product details: Price $299.99, Rating 4.8/5 stars, Stock: 15 units available, Shipping: Free 2-day delivery.'",
+  search: "CRITICAL: For search tasks you MUST: 1) Type query, then look for submit button (button[type='submit'], buttons with 'Search'/'Submit'/'Go'/'Find' text, or search/submit classes). If found, click button. If no button, use pressEnter: true, 2) Wait for results to load, 3) Extract the actual answer from the page, 4) ONLY mark taskComplete: true after you have the answer. If you don't see relevant results, scroll down to see more. When completing, provide the specific information found, not just 'found the answer'. Example result: 'I found the current weather in New York is 72°F with clear skies and 15% humidity.'",
+  form: "Fill all required fields, then submit. If you don't see a submit button after filling fields, scroll down -- long forms often have buttons at the bottom. When completing, describe exactly what information was submitted and confirm the form was processed successfully. Example result: 'I successfully filled out the contact form with your name, email, and message, then submitted it. The page confirmed your message was received and you should expect a response within 24 hours.'",
+  extraction: "Extract the requested information and provide the exact values found. Use systematic scrolling: extract visible items, scroll down, repeat until atBottom. When completing, include all the specific data extracted, not generic statements. Example result: 'I extracted the following product details: Price $299.99, Rating 4.8/5 stars, Stock: 15 units available, Shipping: Free 2-day delivery.'",
   navigation: "Navigate to the specified page or section. When completing, confirm what page you reached and describe what's available there. Example result: 'I successfully navigated to the Settings page where I can see options for Account Settings, Privacy Controls, Notification Preferences, and Security Settings.'",
   multitab: "TAB CONTROL LIMITATIONS: CRITICAL - You can ONLY control the original tab where automation started. 1) openNewTab creates new tabs but automation stays on original tab, 2) switchToTab is BLOCKED for security - cannot switch to other tabs, 3) listTabs shows tab titles for context only (no URLs), 4) All DOM actions happen only on the session tab. You can see other tab names for reference but cannot control them. Example result: 'I can see there are tabs for Gmail, YouTube, and Facebook open, but I am working only in the original tab where the automation started.'",
   gaming: "CRITICAL GAME CONTROLS: For games, interactive applications, or when task involves 'play', 'control', 'win', 'move': 1) NEVER use 'type' tool for game controls - it types text, not key presses, 2) PREFER dedicated arrow tools: {\"tool\": \"arrowUp\"}, {\"tool\": \"arrowDown\"}, {\"tool\": \"arrowLeft\"}, {\"tool\": \"arrowRight\"} - much simpler than keyPress, 3) For other keys use 'keyPress': {\"tool\": \"keyPress\", \"params\": {\"key\": \"Enter\"}} {\"tool\": \"keyPress\", \"params\": {\"key\": \" \"}} for Space. 4) Focus the game canvas/element if needed before key presses. When completing, describe the game actions performed and outcomes achieved.",
@@ -120,7 +133,7 @@ NEVER BLINDLY CLICK THE FIRST RESULT! You must analyze product listings intellig
 Example reasoning: "I see 12 product listings. The first is a sponsored PS5 controller for $49.99. The third result is 'PlayStation 5 Console - God of War Bundle' priced at $499.99 with 4.7 stars and 15,234 reviews, sold by Amazon. This matches the user's request for a PS5, so I will click on this product."
 
 When completing, provide: product selected, price, rating, seller, and why you chose it over other options.`,
-  general: "Complete the task using appropriate tools. When completing, provide a detailed summary of all actions taken and their outcomes. Be specific about what was accomplished."
+  general: "Complete the task step by step. For reading/summarizing tasks: navigate to the source, click to open the specific item (email, article, post), then extract and report the content. For action tasks: perform each step and verify the outcome. When completing, provide a detailed summary with specific data found or actions taken."
 };
 
 // PERFORMANCE OPTIMIZATION: Tiered system prompts
@@ -133,14 +146,20 @@ IMPORTANT RULES:
 1. If search results are shown, CLICK a result link - do NOT search again
 2. Only mark taskComplete: true when task is ACTUALLY done
 3. Provide detailed result summary when completing
+4. If a previous type action SUCCEEDED, do NOT re-type. The text IS in the field. Just submit (pressEnter or click submit button)
+5. For search boxes: ALWAYS use type with pressEnter: true, or follow with pressEnter tool
+6. Before retrying a failed type: use getAttribute to check if text is already in the field
+7. VIEWPORT: You only see current viewport elements. If looking for content, check hasMoreBelow and scroll down if true
+8. EXTRACTION: For "get all X" tasks, extract visible items, scroll down, repeat until atBottom
+9. TASK COMPLETION CHECK: If ALL critical actions (type + click/send) SUCCEEDED in recent history AND URL changed, the task is very likely complete. Verify and mark taskComplete: true.
+10. Do NOT retry actions that already showed SUCCESS in the action history. Trust action results over visual page state.
 
 RESPONSE FORMAT:
 {
   "reasoning": "Brief analysis of current state and chosen action",
-  "actions": [{"tool": "name", "params": {}, "description": "what and why"}],
+  "actions": [{"tool": "name", "params": {}}],
   "taskComplete": boolean,
-  "result": "summary if complete",
-  "currentStep": "status for user"
+  "result": "summary if complete"
 }`;
 
 
@@ -270,7 +289,8 @@ class AIIntegration {
 URL: ${domState.url || 'Unknown'}
 Title: ${domState.title || 'Unknown'}
 DOM changed: ${context?.domChanged ? 'Yes' : 'No'}
-Scroll: Y=${domState.scrollPosition?.y || 0}`;
+Scroll: Y=${domState.scrollPosition?.y || 0} | ${domState.scrollInfo?.scrollPercentage || 0}% down | Page: ${domState.scrollInfo?.pageHeight || '?'}px
+${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see it' : 'At bottom of page'}`;
 
     // Add last action result if available
     if (context?.lastActionResult) {
@@ -300,18 +320,122 @@ Scroll: Y=${domState.scrollPosition?.y || 0}`;
       update += `\nTry a DIFFERENT approach than before.`;
     }
 
-    // Add key visible elements summary (condensed)
+    // --- ELEMENT VISIBILITY FIX ---
+    // Get elements from whatever source is available:
+    //   1. domState.elements       - full payload (iteration 1)
+    //   2. domState.viewportElements - delta payload with viewport snapshot (iteration 2+)
+    //   3. Reconstructed from delta changes (fallback)
+    let availableElements = [];
     if (domState.elements && domState.elements.length > 0) {
-      const interactiveElements = domState.elements
-        .filter(el => ['button', 'a', 'input', 'select', 'textarea'].includes(el.type))
-        .slice(0, 10);
+      availableElements = domState.elements;
+    } else if (domState.viewportElements && domState.viewportElements.length > 0) {
+      availableElements = domState.viewportElements;
+    } else if (domState._isDelta && domState.changes) {
+      // Fallback: reconstruct from delta changes
+      availableElements = [
+        ...(domState.changes.added || []),
+        ...(domState.changes.modified || []),
+        ...(domState.context?.unchanged || [])
+      ];
+    }
 
-      if (interactiveElements.length > 0) {
-        update += `\n\nKey interactive elements (${domState.elements.length} total):`;
-        interactiveElements.forEach(el => {
-          const text = el.text?.substring(0, 30) || el.labelText?.substring(0, 30) || '';
-          const selector = el.selectors?.[0] || el.id || el.class;
-          update += `\n- ${el.type}: "${text}" [${selector}]`;
+    // Broad interactive element detection -- not just tag-based, but also
+    // ARIA roles, contenteditable, and actionability flags. This catches
+    // div[contenteditable], div[role="textbox"], span[role="button"], etc.
+    const isInteractive = (el) => {
+      const tagTypes = ['button', 'a', 'input', 'select', 'textarea'];
+      if (tagTypes.includes(el.type)) return true;
+      const role = el.attributes?.role || el.implicitRole || '';
+      const interactiveRoles = [
+        'button', 'link', 'textbox', 'checkbox', 'radio', 'tab', 'menuitem',
+        'option', 'switch', 'combobox', 'searchbox', 'slider'
+      ];
+      if (interactiveRoles.includes(role)) return true;
+      if (el.attributes?.contenteditable === 'true') return true;
+      if (el.actionability?.isActionable) return true;
+      return false;
+    };
+
+    const MAX_MINIMAL_ELEMENTS = 25;
+
+    if (availableElements.length > 0) {
+      // Check if modal is open -- prioritize modal elements
+      const hasModal = domState.pageContext?.pageState?.hasModal;
+      let elementsToShow;
+
+      if (hasModal) {
+        // When a modal/dialog is open, prioritize elements that may belong to it
+        // (newly added elements or elements near the top z-index layer)
+        const modalCandidates = availableElements.filter(el => {
+          const isNew = domState.changes?.added?.some(a => a.elementId === el.elementId);
+          const isInViewport = el.position?.inViewport;
+          return isNew || isInViewport;
+        });
+        const interactiveModal = modalCandidates.filter(isInteractive);
+        const interactiveOther = availableElements.filter(isInteractive)
+          .filter(el => !interactiveModal.includes(el));
+        elementsToShow = [...interactiveModal, ...interactiveOther].slice(0, MAX_MINIMAL_ELEMENTS);
+
+        update += `\n\nMODAL/DIALOG DETECTED - INTERACT WITH MODAL FIRST`;
+      } else {
+        // Standard: interactive elements first, then any in-viewport elements
+        const interactive = availableElements.filter(isInteractive);
+        const inViewport = availableElements
+          .filter(el => el.position?.inViewport && !interactive.includes(el));
+        elementsToShow = [...interactive, ...inViewport].slice(0, MAX_MINIMAL_ELEMENTS);
+      }
+
+      if (elementsToShow.length > 0) {
+        update += `\n\nVISIBLE INTERACTIVE ELEMENTS (${elementsToShow.length} of ${domState._totalElements || availableElements.length} total):`;
+        update += `\n${this.formatElements(elementsToShow)}`;
+      } else {
+        update += `\n\nWARNING: No interactive elements found on page. The page may still be loading, or you may need to scroll.`;
+      }
+
+      // Add delta change summary if available
+      if (domState._isDelta && domState.changes) {
+        const added = domState.changes.added?.length || 0;
+        const removed = domState.changes.removed?.length || 0;
+        const modified = domState.changes.modified?.length || 0;
+        if (added || removed || modified) {
+          update += `\n\nDOM changes: ${added} added, ${removed} removed, ${modified} modified`;
+        }
+      }
+    } else {
+      update += `\n\nWARNING: 0 page elements available. The page may still be loading or the content script may need re-injection. Try waiting or refreshing.`;
+    }
+
+    // Add page state context from semantic analysis
+    if (domState.pageContext) {
+      const pc = domState.pageContext;
+      const ps = pc.pageState || {};
+
+      // Page type
+      const detectedTypes = Object.entries(pc.pageTypes || {})
+        .filter(([k, v]) => v)
+        .map(([k]) => k);
+      if (detectedTypes.length > 0) {
+        update += `\nPage type: ${detectedTypes.join(', ')}`;
+      }
+
+      // Critical state flags
+      if (ps.noSearchResults) {
+        update += `\n\nSEARCH RETURNED NO RESULTS: ${ps.noSearchResults}`;
+        update += `\n  --> Try a DIFFERENT, broader search query.`;
+        update += `\n  --> Do NOT click results - there are none.`;
+      }
+      if (ps.hasErrors && ps.errorMessages?.length > 0) {
+        update += `\nPage errors: ${ps.errorMessages.slice(0, 3).join('; ')}`;
+      }
+      if (ps.hasCaptcha) {
+        update += `\nCAPTCHA detected on page`;
+      }
+
+      // Primary actions available
+      if (pc.primaryActions && pc.primaryActions.length > 0) {
+        update += `\n\nPrimary actions:`;
+        pc.primaryActions.slice(0, 5).forEach(a => {
+          update += `\n  - "${a.text}" (${a.type}) selector: ${a.selector}`;
         });
       }
     }
@@ -484,7 +608,7 @@ Scroll: Y=${domState.scrollPosition?.y || 0}`;
    * @param {Object|null} context - Optional context including action history and stuck detection
    * @returns {Promise<Object>} AI response with actions, reasoning, and completion status
    */
-  async getAutomationActions(task, domState, context = null) {
+  async getAutomationActions(task, domState, context = null, options = null) {
     // Track session context for comprehensive logging
     this.currentSessionId = context?.sessionId || null;
     this.currentIteration = context?.iterationCount || 0;
@@ -523,6 +647,12 @@ Scroll: Y=${domState.scrollPosition?.y || 0}`;
     };
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // FIX 1B: Check if session was stopped before each retry attempt
+      if (options?.shouldAbort?.()) {
+        automationLogger.debug('AI request aborted - session stopped', { sessionId: this.currentSessionId, attempt });
+        throw new Error('Session stopped by user');
+      }
+
       retryStats.attempts++;
       const attemptStart = Date.now();
 
@@ -544,7 +674,8 @@ Scroll: Y=${domState.scrollPosition?.y || 0}`;
           automationLogger.debug('Using multi-turn conversation', {
             sessionId: this.currentSessionId,
             historyLength: this.conversationHistory.length,
-            updateLength: minimalUpdate.length
+            updateLength: minimalUpdate.length,
+            updateContent: minimalUpdate
           });
         } else {
           // FIRST ITERATION or STUCK: Build full prompt
@@ -627,7 +758,7 @@ Scroll: Y=${domState.scrollPosition?.y || 0}`;
             chrome.runtime.sendMessage({
               action: 'statusUpdate',
               sessionId: this.currentSessionId,
-              message: `AI retry ${attempt + 1}/${maxRetries}... (timeout after ${Math.round(attemptDuration / 1000)}s)`
+              message: 'Thinking...'
             }).catch(() => {});
           } catch (e) {
             // Ignore messaging errors
@@ -669,17 +800,23 @@ Scroll: Y=${domState.scrollPosition?.y || 0}`;
           chrome.runtime.sendMessage({
             action: 'statusUpdate',
             sessionId: this.currentSessionId,
-            message: `AI retry ${attempt + 2}/${maxRetries} in ${delay / 1000}s...`
+            message: 'Retrying...'
           }).catch(() => {});
         } catch (e) {
           // Ignore messaging errors
+        }
+
+        // FIX 1B: Check if session was stopped before backoff sleep
+        if (options?.shouldAbort?.()) {
+          automationLogger.debug('AI request aborted before backoff - session stopped', { sessionId: this.currentSessionId });
+          throw new Error('Session stopped by user');
         }
 
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
-  
+
   // Process queued requests with adaptive management
   async processQueue() {
     if (this.isProcessing || this.requestQueue.length === 0) {
@@ -896,6 +1033,10 @@ Your "situationAnalysis" and "reasoning" fields MUST show this analysis, not jus
 
 3. Manual selectors should ONLY be fallback AFTER specialized tools fail
 
+4. Off-screen navigation links: If a link element is marked [off-screen] and has an href URL,
+   prefer using the navigate tool with that URL instead of clicking the element.
+   Clicking off-screen elements is less reliable than direct navigation.
+
 === MODERN GOOGLE SELECTORS (2024+) ===
 
 Google has updated its DOM structure. Use these selectors:
@@ -916,6 +1057,26 @@ WHEN ON SEARCH RESULTS PAGE: You MUST click on an actual search result link to n
 - Look for result links: .yuRUbf a, a[href] h3, h3 a, .g a, a:has(h3), [data-ved]
 - Click the most relevant result link that matches your task
 
+CONTENT READING (emails, articles, messages, posts):
+When the task requires reading, checking, or summarizing content:
+1. Navigate to the content source (e.g., Gmail, news site, social media)
+2. CLICK on the specific item to OPEN it -- do NOT try to read from list/preview views
+   - In an inbox: click the email row/subject to open the full email
+   - On a news site: click the article headline to open the full article
+   - On social media: click the post to expand it
+3. After the item opens, use getText to extract the full content
+4. Then summarize/report what you found
+
+COMMON MISTAKE: Using getText on a list/inbox view only gets subject lines or previews,
+not the full content. You MUST click to open the item first.
+
+CODE EDITORS: When interacting with code editors (Monaco, CodeMirror, ACE):
+1. Use specific selectors: ".monaco-editor textarea", ".CodeMirror textarea", ".ace_editor textarea"
+2. If typing fails with "unstable" or "animating", use waitForElement first, then retry
+3. CRITICAL: If typing into a code editor FAILED, do NOT click Run/Submit/Execute. Retry typing first.
+4. Include proper indentation in your code text (use spaces, include newlines as \\n in the text)
+5. For multi-line code, send the complete code in a single type action
+
 SEARCH SUBMISSION: For search forms, follow this priority order:
 1. FIRST: Look for submit buttons - button[type="submit"], buttons with text "Search"/"Submit"/"Go"/"Find"
 2. If submit button found: Click it after typing
@@ -933,6 +1094,28 @@ COMPLETION SUMMARY: When marking taskComplete: true, include:
 3. What the final outcome was
 4. Confirmation that critical actions succeeded
 
+=== VIEWPORT & SCROLLING ===
+
+You can ONLY see elements in the current viewport (the visible part of the page).
+The page may have more content above or below that you cannot see.
+
+SCROLL METRICS (provided in page state):
+- pageHeight: Total page height in pixels
+- scrollPercentage: How far down the page you are (0-100%)
+- hasMoreBelow / hasMoreAbove: Whether scrolling would reveal new content
+- atTop / atBottom: Whether you are at page boundaries
+
+WHEN TO SCROLL:
+1. Looking for an element but don't see it? Check hasMoreBelow, scroll down if true
+2. Extraction tasks (get all items)? Extract visible, scroll down, repeat until atBottom
+3. Filled a form but no submit button? Scroll down -- long forms have buttons at the bottom
+4. After submitting, check for confirmation messages below the viewport
+
+SCROLL TOOLS:
+- scroll: direction "up"/"down" (one viewport) or amount for precise control
+- scrollToTop / scrollToBottom: Jump to page boundaries
+- scrollToElement: Scroll a known element into view
+
 === REQUIRED RESPONSE FORMAT ===
 
 Your response must be EXACTLY this JSON format:
@@ -942,11 +1125,10 @@ Your response must be EXACTLY this JSON format:
   "reasoning": "Why am I choosing this specific action over alternatives? What's my strategy?",
   "confidence": "high/medium/low - explain why this confidence level",
   "assumptions": ["List assumptions I'm making about this page or task"],
-  "actions": [{"tool": "name", "params": {}, "description": "what I'm doing and expected outcome"}],
+  "actions": [{"tool": "name", "params": {}}],
   "fallbackPlan": "If this action fails, I will try...",
   "taskComplete": boolean,
-  "result": "detailed summary of what was accomplished and found (required when taskComplete is true)",
-  "currentStep": "current status for user display"
+  "result": "detailed summary of what was accomplished and found (required when taskComplete is true)"
 }
 
 FAILURE TO PROVIDE VALID JSON OR COMPLETE REASONING WILL RESULT IN TASK FAILURE.
@@ -974,6 +1156,11 @@ ${TASK_PROMPTS[taskType]}`;
     // EASY WIN #6 & #7: Add task decomposition and verification requirements
     let userPrompt = `Task: ${task}`;
 
+    // For information-gathering tasks, add explicit navigation enforcement
+    if (this.isInformationGatheringTask(task)) {
+      userPrompt += `\n\nNAVIGATION REQUIREMENT: This is an information-gathering task. You MUST navigate to the target website to find the answer. Do NOT try to extract information from Google search result snippets. Use clickSearchResult to visit the actual page, then extract information from there.`;
+    }
+
     // Add decomposed steps if multi-step task
     if (taskDecomposition.isMultiStep) {
       userPrompt += `\n\nTASK BREAKDOWN (${taskDecomposition.totalSteps} steps):`;
@@ -996,7 +1183,8 @@ Include verification in your reasoning: describe what you observe after each act
     userPrompt += `\n\nCurrent page state:
 URL: ${domState.url || 'Unknown'}
 Title: ${domState.title || 'Unknown'}
-Scroll position: Y=${domState.scrollPosition?.y || 0}
+Scroll: Y=${domState.scrollPosition?.y || 0} (${domState.scrollInfo?.scrollPercentage || 0}% of page)
+Page height: ${domState.scrollInfo?.pageHeight || '?'}px | ${domState.scrollInfo?.hasMoreBelow ? 'MORE CONTENT BELOW' : 'At bottom'}
 CAPTCHA present: ${domState.captchaPresent || false}`;
 
     // Add semantic context for better page understanding
@@ -1017,21 +1205,34 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         userPrompt += `\nYou MUST try a DIFFERENT approach than before. Do NOT repeat the same actions.`;
         
         // Add context-specific recovery suggestions
-        if (context.currentUrl && context.currentUrl.includes('google.com/search')) {
-          userPrompt += `\n\nSTUCK ON GOOGLE SEARCH - RECOVERY ACTIONS:`;
-          userPrompt += `\n1. STOP typing more queries - search results are already visible`;
-          userPrompt += `\n2. Click on an actual search result link (h3 a, .g a)`;
-          userPrompt += `\n3. If you need a specific website, click its result link`;
-          userPrompt += `\n4. DO NOT search again - click existing results instead`;
-        } else if (context.currentUrl && (context.currentUrl.includes('bing.com/search') || context.currentUrl.includes('duckduckgo.com'))) {
-          userPrompt += `\n\nSTUCK ON SEARCH RESULTS - Click a result link instead of searching again`;
+        const isOnSearchPage = context.currentUrl && (
+          context.currentUrl.includes('google.com/search') ||
+          context.currentUrl.includes('bing.com/search') ||
+          context.currentUrl.includes('duckduckgo.com')
+        );
+        if (isOnSearchPage) {
+          userPrompt += `\n\nSTUCK ON SEARCH RESULTS - MANDATORY RECOVERY:`;
+          userPrompt += `\n1. STOP all getText/extraction attempts - you CANNOT get the answer from search snippets`;
+          userPrompt += `\n2. You MUST click a search result NOW using: {"tool": "clickSearchResult", "params": {"index": 0}}`;
+          userPrompt += `\n3. After clicking, wait for the target page to load, then extract information from THAT page`;
+          userPrompt += `\n4. DO NOT search again, DO NOT use getText on this page`;
+          if (context.stuckCounter >= 2) {
+            userPrompt += `\n\nFORCED ACTION: You have been stuck for ${context.stuckCounter} iterations. Your ONLY allowed action is clickSearchResult. Execute it NOW.`;
+          }
         }
       }
       
       // Add DOM and URL change status
       userPrompt += `\nDOM changed since last action: ${context.domChanged ? 'Yes' : 'No'}`;
-      userPrompt += `\nURL changed since last action: ${context.urlChanged ? 'Yes' : 'No'}`;
-      userPrompt += `\nCurrent URL: ${context.currentUrl}`;
+      if (context.urlChanged) {
+        const prevUrl = context.urlHistory?.length > 1
+          ? context.urlHistory[context.urlHistory.length - 2]?.url
+          : null;
+        userPrompt += `\nURL CHANGED: ${prevUrl ? prevUrl.substring(0, 80) + ' -> ' : ''}${context.currentUrl}`;
+        userPrompt += `\nPage navigation occurred since last iteration - verify if your previous actions achieved the goal.`;
+      } else {
+        userPrompt += `\nURL: ${context.currentUrl} (unchanged)`;
+      }
       userPrompt += `\nIteration count: ${context.iterationCount}`;
       
       // Add multi-tab context if available
@@ -1068,7 +1269,8 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       
       // Add action history with enhanced failure analysis
       // PROMPT SIZE OPTIMIZATION: Limit action history to reduce token usage and prevent API timeouts
-      const MAX_ACTION_HISTORY = 5; // Limit to last 5 actions to keep prompts under 5000 tokens
+      // When stuck, only show last 3 actions to keep focused recovery prompt small
+      const MAX_ACTION_HISTORY = context.isStuck ? 3 : 5;
       if (context.actionHistory && context.actionHistory.length > 0) {
         const recentActions = context.actionHistory.slice(-MAX_ACTION_HISTORY);
         const skippedCount = context.actionHistory.length - recentActions.length;
@@ -1127,8 +1329,24 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
             userPrompt += `\nYou must verify the message was actually typed before completing.`;
           }
         } else if (criticalFailures.length >= 2) {
-          userPrompt += `\n\n⚠️ WARNING: Multiple critical actions (${criticalFailures.length}) have failed recently.`;
+          userPrompt += `\n\nWARNING: Multiple critical actions (${criticalFailures.length}) have failed recently.`;
           userPrompt += `\nEnsure essential actions succeed before marking taskComplete=true.`;
+        }
+
+        // Add iteration result summary for previous actions
+        const allActions = recentActions;
+        const successCount = allActions.filter(a => a.result?.success).length;
+        const criticalSuccess = allActions.filter(a =>
+          ['type', 'click', 'pressEnter'].includes(a.tool) && a.result?.success
+        );
+        const criticalTotal = allActions.filter(a =>
+          ['type', 'click', 'pressEnter'].includes(a.tool)
+        );
+
+        if (criticalTotal.length > 0 && criticalSuccess.length === criticalTotal.length) {
+          userPrompt += `\n\nITERATION RESULT: All ${criticalSuccess.length} critical actions (type/click) SUCCEEDED.`;
+          userPrompt += `\nIf these actions achieved the task goal, mark taskComplete: true with a detailed result.`;
+          userPrompt += `\nDo NOT retry actions that already succeeded.`;
         }
       }
       
@@ -1203,124 +1421,122 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         });
       }
       
-      // Strong instruction when stuck
+      // Focused stuck recovery instructions (kept concise to avoid prompt explosion)
       if (context.isStuck) {
-        userPrompt += `\n\nCRITICAL: Since previous approaches failed, you MUST:
-1. Try a completely different strategy
-2. Use alternative selectors or methods
-3. Consider if the page needs navigation or different interaction
-4. Check if elements might be in iframes or hidden
-5. Try waiting for elements if they might be loading
-6. Consider if the task might already be complete
-
-UNIVERSAL STUCK RECOVERY (When verification is failing):
-If you've successfully completed the main action sequence but verification is stuck:
-1. ANALYZE SEQUENCE: Review if the intended actions (type, click, submit, etc.) completed successfully
-2. TRY ALTERNATIVES: Use different verification approaches - content detection, state changes, success indicators
-3. BROADEN SEARCH: Look in different page areas, use more general selectors, check for partial matches
-4. CHECK TIMING: Consider if results need time to appear, try waiting or refreshing  
-5. ASSUME SUCCESS: After 3+ verification attempts, if action sequence succeeded without errors, complete task
-6. PROVIDE DETAILED EVIDENCE: Set taskComplete=true with a comprehensive summary explaining:
-   - What actions were completed successfully
-   - What evidence supports the task completion
-   - What the final state/outcome is
-   - Any information that was found or extracted
-   
-   Example: "I successfully submitted the contact form by filling in the name field with 'John Doe', email with 'john@example.com', and message with 'Hello'. After clicking submit, the form disappeared and I can see the page title changed to include 'Thank You', indicating successful submission."
-
-INFORMATION EXTRACTION STUCK RECOVERY:
-If you're stuck while trying to extract information (prices, data, text):
-1. CHECK getText RESULTS: Review if any getText actions returned values - even if not the exact selector expected
-2. USE EXTRACTED DATA: If you've extracted ANY relevant text, complete the task with that data
-3. TRY BROADER SELECTORS: Use parent elements or more general selectors to capture larger text blocks
-4. COMPLETE WITH PARTIAL DATA: If you found some information, complete with what you have rather than getting stuck
-5. FORMAT PROPERLY: Include any extracted values in the result field, even if partial
-
-CRITICAL FOR INFORMATION EXTRACTION:
-When using getText and receiving a response like "0.3996 USD", you MUST:
-1. Recognize this as the extracted value you were looking for
-2. Format it into a complete, detailed summary (e.g., "I successfully found the current Dogecoin price is $0.3996 USD on this cryptocurrency exchange page")
-3. Mark the task as complete with this detailed summary in the result field
-4. Include context about where/how the information was found
-5. DO NOT keep trying the same selector if you already got a value
-
-ALWAYS provide complete sentences and context, not just raw extracted values.`;
+        userPrompt += `\n\nSTUCK RECOVERY - You MUST change approach:
+1. Try completely different selectors or methods
+2. If on a search page, click a result link to navigate away
+3. If you already extracted data (getText returned values), complete the task with that data
+4. If actions succeeded but verification is failing after 3+ attempts, assume success and complete
+5. Include all found information in a detailed result summary when completing`;
       }
       
-      // Add verification context
-      userPrompt += `\n\nACTION VERIFICATION:
-- Actions now include verification to ensure they had their intended effect
+      // Add verification context (condensed when stuck to save prompt space)
+      if (!context.isStuck) {
+        userPrompt += `\n\nACTION VERIFICATION:
 - For 'click' actions: System detects if DOM changed, URL changed, or new elements appeared
 - For 'type' actions: System verifies the text was actually entered in the field
-- Pay attention to verification results in action history
 - If a click shows "No changes detected", try a different element or approach
 - If typing shows "Text NOT entered correctly", the field may need special handling
-
-HANDLING VERIFICATION FAILURES:
-- If click verification shows no effect, the element may not be interactive
-- Try alternative selectors, parent/child elements, or keyboard navigation
-- For type failures, check if the field needs to be clicked/focused first
-- Some fields may need special event triggering or timing adjustments`;
-      
-      // Add execution timing context
-      userPrompt += `\n\nEXECUTION OPTIMIZATION:
-- The system now uses smart delays between actions
-- Typing actions (type, clearInput, focus) have shorter delays (200-500ms)
-- Click and navigation actions have longer delays (800-2000ms) 
-- You can safely include 3-5 related actions in a single response
-- Form filling and typing sequences are optimized for speed
-- Group related actions together for better performance`;
+- You can safely include 3-5 related actions in a single response`;
+      }
     }
     
+    // PROMPT SIZE LIMITS: Cap element count and HTML context when stuck to prevent 49K+ prompts
+    const MAX_ELEMENTS_STUCK = 20;  // Only top 20 relevant elements when stuck
+    const MAX_HTML_CONTEXT_STUCK = 5000; // 5K chars max for HTML context when stuck
+    const HARD_PROMPT_CAP = 15000; // Hard cap on total user prompt characters
+
     // Handle delta updates differently
     if (domState._isDelta && domState.type === 'delta') {
       userPrompt += `\n\nDOM CHANGES SINCE LAST ACTION:`;
-      
+
       // Show what changed
       if (domState.changes) {
         if (domState.changes.added?.length > 0) {
-          userPrompt += `\n\nNEWLY ADDED ELEMENTS (${domState.changes.added.length}):`;
-          userPrompt += `\n${this.formatDeltaElements(domState.changes.added)}`;
+          const addedElements = isStuck ? domState.changes.added.slice(0, MAX_ELEMENTS_STUCK) : domState.changes.added;
+          userPrompt += `\n\nNEWLY ADDED ELEMENTS (${addedElements.length}${isStuck && domState.changes.added.length > MAX_ELEMENTS_STUCK ? ` of ${domState.changes.added.length}` : ''}):`;
+          userPrompt += `\n${this.formatDeltaElements(addedElements)}`;
         }
-        
+
         if (domState.changes.removed?.length > 0) {
-          userPrompt += `\n\nREMOVED ELEMENTS (${domState.changes.removed.length}):`;
-          domState.changes.removed.forEach(el => {
+          const removedElements = isStuck ? domState.changes.removed.slice(0, 5) : domState.changes.removed;
+          userPrompt += `\n\nREMOVED ELEMENTS (${removedElements.length}):`;
+          removedElements.forEach(el => {
             userPrompt += `\n- ${el.elementId} (${el.selector}) was at (${el._wasAt?.x}, ${el._wasAt?.y})`;
           });
         }
-        
+
         if (domState.changes.modified?.length > 0) {
-          userPrompt += `\n\nMODIFIED ELEMENTS (${domState.changes.modified.length}):`;
-          userPrompt += `\n${this.formatDeltaElements(domState.changes.modified, true)}`;
+          const modifiedElements = isStuck ? domState.changes.modified.slice(0, MAX_ELEMENTS_STUCK) : domState.changes.modified;
+          userPrompt += `\n\nMODIFIED ELEMENTS (${modifiedElements.length}):`;
+          userPrompt += `\n${this.formatDeltaElements(modifiedElements, true)}`;
         }
       }
-      
-      // Include reference to important unchanged elements
+
+      // Include reference to important unchanged elements (limit when stuck)
       if (domState.context?.unchanged?.length > 0) {
+        const unchangedElements = isStuck ? domState.context.unchanged.slice(0, 10) : domState.context.unchanged;
         userPrompt += `\n\nKEY REFERENCE ELEMENTS (unchanged but important):`;
-        userPrompt += `\n${this.formatDeltaElements(domState.context.unchanged)}`;
+        userPrompt += `\n${this.formatDeltaElements(unchangedElements)}`;
       }
-      
+
       // Add change summary
       if (domState.context?.metadata) {
         const meta = domState.context.metadata;
         userPrompt += `\n\nCHANGE SUMMARY: ${meta.changeRatio > 0.5 ? 'Major' : meta.changeRatio > 0.2 ? 'Moderate' : 'Minor'} changes detected`;
         userPrompt += ` (${meta.addedCount} added, ${meta.removedCount} removed, ${meta.modifiedCount} modified)`;
       }
+
+      // Include viewport elements in delta path so the AI always has page context.
+      // Delta changes alone may not capture all visible interactive elements.
+      if (domState.viewportElements && domState.viewportElements.length > 0) {
+        const vpLimit = isStuck ? MAX_ELEMENTS_STUCK : domState.viewportElements.length;
+        const vpElements = domState.viewportElements.slice(0, vpLimit);
+        userPrompt += `\n\nCURRENT VIEWPORT ELEMENTS (${vpElements.length} of ${domState._totalElements || '?'} total):`;
+        userPrompt += `\n${this.formatElements(vpElements)}`;
+      }
     } else {
       // Full DOM snapshot (initial or fallback)
-      userPrompt += `\n\nSTRUCTURED ELEMENTS (with positions and metadata):
-${this.formatElements(domState.elements || [])}`;
+      // When stuck, limit to top interactive elements to keep prompt small
+      let elements = domState.elements || [];
+      if (isStuck && elements.length > MAX_ELEMENTS_STUCK) {
+        // Prioritize interactive elements (buttons, links, inputs) that are in viewport
+        elements = elements
+          .filter(el => ['button', 'a', 'input', 'select', 'textarea'].includes(el.type) || el.position?.inViewport)
+          .slice(0, MAX_ELEMENTS_STUCK);
+        userPrompt += `\n\nSTRUCTURED ELEMENTS (top ${elements.length} of ${domState.elements.length} - focused for recovery):
+${this.formatElements(elements)}`;
+      } else {
+        userPrompt += `\n\nSTRUCTURED ELEMENTS (with positions and metadata):
+${this.formatElements(elements)}`;
+      }
     }
-    
+
+    // HTML context - cap size when stuck to prevent prompt explosion
+    let htmlContextStr = this.formatHTMLContext(domState.htmlContext);
+    if (isStuck && htmlContextStr.length > MAX_HTML_CONTEXT_STUCK) {
+      htmlContextStr = htmlContextStr.substring(0, MAX_HTML_CONTEXT_STUCK) + '\n... (truncated for stuck recovery)';
+    }
+
     userPrompt += `\n\nHTML CONTEXT (actual markup for better understanding):
-${this.formatHTMLContext(domState.htmlContext)}
+${htmlContextStr}
 
 What actions should I take to complete the task?`;
-    
+
+    // HARD CAP: Truncate user prompt if it exceeds the limit
+    if (userPrompt.length > HARD_PROMPT_CAP) {
+      automationLogger.warn('User prompt exceeded hard cap, truncating', {
+        sessionId: this.currentSessionId,
+        originalLength: userPrompt.length,
+        cap: HARD_PROMPT_CAP,
+        isStuck
+      });
+      userPrompt = userPrompt.substring(0, HARD_PROMPT_CAP) + '\n\n[Prompt truncated for performance. Focus on the task and available elements above.]';
+    }
+
     const finalPrompt = { systemPrompt, userPrompt };
-    
+
     // Log final prompt details
     const estimatedTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 3.5);
     automationLogger.debug('Final prompt built', {
@@ -1328,7 +1544,9 @@ What actions should I take to complete the task?`;
       systemPromptLength: systemPrompt.length,
       userPromptLength: userPrompt.length,
       totalLength: systemPrompt.length + userPrompt.length,
-      estimatedTokens
+      estimatedTokens,
+      wasStuck: isStuck,
+      wasCapped: userPrompt.includes('[Prompt truncated')
     });
 
     // PART 1: Add prompt size warning when exceeding threshold
@@ -1406,9 +1624,11 @@ What actions should I take to complete the task?`;
       // Add form association
       if (el.formId) desc += ` in ${el.formId}`;
       
-      // Add primary selector
+      // Add primary selector -- prefer CSS over XPath for querySelector compatibility
       if (el.selectors && el.selectors.length > 0) {
-        desc += ` selector: "${el.selectors[0]}"`;
+        const cssSelector = el.selectors.find(s => !s.startsWith('//'));
+        const primarySelector = cssSelector || el.selectors[0];
+        desc += ` selector: "${primarySelector}"`;
       }
       
       return desc;
@@ -1716,9 +1936,12 @@ What actions should I take to complete the task?`;
   formatSemanticContext(domState) {
     let context = '';
 
+    // Use elements from whatever source is available (full payload or delta viewport snapshot)
+    const elementsForContext = domState.elements || domState.viewportElements || [];
+
     // 1. PAGE STRUCTURE SUMMARY (forms, navigation, regions)
-    if (domState.pageContext && domState.elements) {
-      context += this.formatPageStructureSummary(domState.pageContext, domState.elements);
+    if (domState.pageContext && elementsForContext.length > 0) {
+      context += this.formatPageStructureSummary(domState.pageContext, elementsForContext);
     }
 
     // 2. PAGE UNDERSTANDING (type, intent, state)
@@ -1754,6 +1977,14 @@ What actions should I take to complete the task?`;
         context += `\n  --> You should address these errors before proceeding`;
       }
 
+      // Surface "no search results" state
+      if (ps.noSearchResults) {
+        context += `\n\nSEARCH RETURNED NO RESULTS: ${ps.noSearchResults}`;
+        context += `\n  --> Your search query found nothing. Try a DIFFERENT, broader query.`;
+        context += `\n  --> Do NOT use clickSearchResult - there are no results to click.`;
+        context += `\n  --> Remove restrictive operators like site:, exact quotes, etc.`;
+      }
+
       // Primary actions available
       if (pc.primaryActions && pc.primaryActions.length > 0) {
         context += `\n\nPRIMARY ACTIONS AVAILABLE:`;
@@ -1763,9 +1994,9 @@ What actions should I take to complete the task?`;
       }
     }
 
-    // Format elements by purpose if available
-    if (domState.elements && domState.elements.length > 0) {
-      const purposefulElements = domState.elements.filter(el => el.purpose && el.purpose.role !== 'unknown');
+    // Format elements by purpose if available (use fallback to viewportElements)
+    if (elementsForContext.length > 0) {
+      const purposefulElements = elementsForContext.filter(el => el.purpose && el.purpose.role !== 'unknown');
 
       if (purposefulElements.length > 0) {
         context += `\n\n=== KEY ELEMENTS BY PURPOSE ===`;
@@ -2141,7 +2372,6 @@ What actions should I take to complete the task?`;
       actions: response.actions || [],
       taskComplete: response.taskComplete || false,
       result: response.result || null,
-      currentStep: response.currentStep || null,
 
       // Enhanced reasoning fields
       situationAnalysis: response.situationAnalysis || '',
@@ -2171,7 +2401,7 @@ What actions should I take to complete the task?`;
   isValidTool(tool) {
     return [
       // Basic DOM interaction tools
-      'click', 'type', 'pressEnter', 'scroll', 'moveMouse', 'solveCaptcha', 
+      'click', 'clickSearchResult', 'type', 'pressEnter', 'scroll', 'moveMouse', 'solveCaptcha',
       'navigate', 'searchGoogle', 'waitForElement', 'rightClick', 'doubleClick',
       'keyPress', 'pressKeySequence', 'typeWithKeys', 'sendSpecialKey', 
       'arrowUp', 'arrowDown', 'arrowLeft', 'arrowRight', 'gameControl',
@@ -2182,6 +2412,9 @@ What actions should I take to complete the task?`;
       // Multi-tab management tools
       'openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab',
       
+      // Scroll tools
+      'scrollToTop', 'scrollToBottom', 'scrollToElement',
+
       // Advanced DOM and verification tools
       'waitForDOMStable', 'detectLoadingState', 'verifyMessageSent'
     ].includes(tool);
@@ -2226,6 +2459,20 @@ What actions should I take to complete the task?`;
 
     return 'general';
   }
+
+  /**
+   * Detect if task is an information-gathering task that requires navigating to a website
+   * These tasks should click through search results, not extract from Google snippets
+   */
+  isInformationGatheringTask(task) {
+    const taskLower = task.toLowerCase();
+    const infoKeywords = [
+      'check', 'find', 'look up', 'lookup', 'price', 'cost',
+      'get info', 'get information', 'what is', 'how much',
+      'tell me', 'show me', 'verify', 'confirm'
+    ];
+    return infoKeywords.some(kw => taskLower.includes(kw));
+  }
   
   // Get model-specific instructions
   getModelSpecificInstructions() {
@@ -2248,17 +2495,17 @@ What actions should I take to complete the task?`;
   getRelevantTools(taskType) {
     switch (taskType) {
       case 'search':
-        return ['type', 'click', 'pressEnter', 'getText'];
+        return ['type', 'click', 'pressEnter', 'getText', 'scroll'];
       case 'form':
-        return ['type', 'click', 'selectOption', 'toggleCheckbox', 'clearInput'];
+        return ['type', 'click', 'selectOption', 'toggleCheckbox', 'clearInput', 'scroll', 'scrollToElement'];
       case 'extraction':
-        return ['getText', 'getAttribute', 'scroll', 'waitForElement'];
+        return ['click', 'navigate', 'getText', 'getAttribute', 'scroll', 'scrollToTop', 'scrollToBottom', 'waitForElement'];
       case 'navigation':
-        return ['navigate', 'click', 'searchGoogle', 'goBack', 'goForward'];
+        return ['navigate', 'click', 'searchGoogle', 'goBack', 'goForward', 'scroll'];
       case 'gaming':
         return ['arrowUp', 'arrowDown', 'arrowLeft', 'arrowRight', 'keyPress', 'gameControl', 'pressKeySequence', 'sendSpecialKey', 'typeWithKeys', 'focus', 'click', 'waitForElement'];
       case 'shopping':
-        return ['navigate', 'click', 'type', 'scroll', 'getText', 'waitForElement', 'hover', 'selectOption'];
+        return ['navigate', 'click', 'type', 'scroll', 'scrollToBottom', 'getText', 'waitForElement', 'hover', 'selectOption'];
       default:
         return Object.keys(TOOL_DOCUMENTATION).flatMap(category =>
           Object.keys(TOOL_DOCUMENTATION[category])
@@ -2291,7 +2538,17 @@ What actions should I take to complete the task?`;
       selectOption: { params: {selector: "...", value: "..."}, desc: "Select dropdown option" },
       toggleCheckbox: { params: {selector: "...", checked: true}, desc: "Toggle checkbox" },
       clearInput: { params: {selector: "..."}, desc: "Clear input field" },
-      scroll: { params: {amount: 200}, desc: "Scroll page" },
+      scroll: {
+        params: {direction: "down", amount: 800},
+        desc: "Scroll page. direction: 'up'/'down' (scrolls one viewport) OR amount: positive=down, negative=up",
+        example: '{"tool": "scroll", "params": {"direction": "down"}}'
+      },
+      scrollToTop: { params: {}, desc: "Scroll to top of page" },
+      scrollToBottom: { params: {}, desc: "Scroll to bottom of page" },
+      scrollToElement: {
+        params: {selector: "...", position: "center"},
+        desc: "Scroll element into view"
+      },
       waitForElement: { params: {selector: "...", timeout: 5000}, desc: "Wait for element" },
       pressEnter: { params: {selector: "..."}, desc: "Press Enter key" },
       keyPress: { 
@@ -2435,7 +2692,6 @@ REMINDER: Output ONLY the JSON object, nothing else.`;
       taskComplete: false,  // FIX: Do not mark as complete when there's an error
       failedDueToError: true,  // NEW: Explicit error flag for UI to display
       result: `Task failed due to error: ${error?.message || 'Unknown error'}. The automation will stop. Please check your settings and try again.`,
-      currentStep: 'Error - automation stopped',
       error: true
     };
   }

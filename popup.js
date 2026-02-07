@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await checkWindowMode();
   
   // Add welcome message
-  addMessage('Welcome to FSB, Let\'s get started, How can i Help?', 'system');
+  addMessage('Welcome to FSB. How can I help?', 'system');
   
   // Focus the input
   chatInput.focus();
@@ -429,7 +429,8 @@ function updateStatusMessage(text) {
   }
 }
 
-// Complete status message (remove loader, show final result)
+// Complete status message (remove loader, show brief label)
+// Full result is shown in a separate completion bubble below
 function completeStatusMessage(text, type = 'ai') {
   if (currentStatusMessage) {
     // Remove loader dots
@@ -437,19 +438,57 @@ function completeStatusMessage(text, type = 'ai') {
     if (loaderDots) {
       loaderDots.remove();
     }
-    
-    // Update text and styling
-    const statusText = currentStatusMessage.querySelector('.status-text');
-    if (statusText) {
-      statusText.textContent = text;
+
+    // Set a brief label on the status bubble
+    const briefLabel = type === 'error' ? 'Error occurred'
+      : type === 'system' ? text
+      : 'Task completed';
+    const statusTextEl = currentStatusMessage.querySelector('.status-text');
+    if (statusTextEl) {
+      statusTextEl.textContent = briefLabel;
     }
-    
-    // Change message type styling
-    currentStatusMessage.className = `message ${type} completed`;
-    
+
+    // Style as completed
+    currentStatusMessage.className = `message ${type === 'error' ? 'error' : 'ai'} completed`;
+
     // Clear reference
     currentStatusMessage = null;
+
+    // Show full result in a separate bubble (skip for system messages like "Automation stopped")
+    if (type !== 'system') {
+      addCompletionMessage(text, type);
+    }
   }
+}
+
+// Add a separate completion message bubble with markdown support
+function addCompletionMessage(text, type = 'ai') {
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `message ai-completion new`;
+
+  if (type === 'error') {
+    messageDiv.className = `message error new`;
+    messageDiv.textContent = text;
+  } else {
+    // Use markdown rendering if available, plain text fallback
+    if (typeof FSBMarkdown !== 'undefined') {
+      FSBMarkdown.applyToElement(messageDiv, text);
+    } else {
+      messageDiv.textContent = text;
+    }
+  }
+
+  chatMessages.appendChild(messageDiv);
+
+  setTimeout(() => {
+    messageDiv.classList.remove('new');
+  }, 400);
+
+  while (chatMessages.children.length > 100) {
+    chatMessages.removeChild(chatMessages.firstChild);
+  }
+
+  scrollToBottom();
 }
 
 // Show Chrome page error as plain text without bubble
@@ -574,11 +613,18 @@ function openSettings() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'automationComplete':
+      if (!isRunning) return; // Already idle, ignore duplicate
       if (request.sessionId === currentSessionId) {
-        setIdleState();
         // AI must always provide a meaningful completion message
         const completionMessage = request.result || 'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
-        completeStatusMessage(completionMessage);
+
+        if (currentStatusMessage) {
+          completeStatusMessage(completionMessage);
+        } else {
+          addCompletionMessage(completionMessage);
+        }
+
+        setIdleState();
       }
       break;
       
@@ -590,6 +636,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break;
       
     case 'automationError':
+      if (!isRunning) return; // Already idle, ignore duplicate
       if (request.sessionId === currentSessionId) {
         setErrorState();
         completeStatusMessage(`Error: ${request.error}`, 'error');

@@ -5,22 +5,20 @@ const defaultConfig = {
   // AI Provider Configuration
   aiProvider: 'xai',
   apiKey: '', // Will be set from environment or user input
-  
+
   // Alternative providers
   openaiApiKey: '',
   customApiEndpoint: '',
-  
-  // CAPTCHA Configuration
-  captchaSolver: 'none',
-  captchaApiKey: '',
-  capsolverApiKey: '',
-  twocaptchaApiKey: '',
-  
+
   // Automation Settings
-  actionDelay: 1000,
   maxIterations: 20,
-  confirmSensitive: true,
-  debugMode: false
+  debugMode: false,
+
+  // DOM Optimization Settings
+  domOptimization: true,
+  maxDOMElements: 2000,
+  prioritizeViewport: true,
+  animatedActionHighlights: true
 };
 
 // Function to initialize with test/development keys

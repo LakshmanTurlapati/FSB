@@ -27,6 +27,92 @@ function debugLog(message, data) {
 }
 
 /**
+ * Simplify a status message for user display.
+ * Truncates to a short, clean one-liner.
+ * @param {string} msg - Raw status message
+ * @param {number} maxLen - Maximum character length (default 60)
+ * @returns {string} Simplified message
+ */
+function simplifyStatus(msg, maxLen = 60) {
+  if (!msg || typeof msg !== 'string') return 'Working...';
+  // Strip leading/trailing whitespace
+  let clean = msg.trim();
+  // If already short, return as-is
+  if (clean.length <= maxLen) return clean;
+  // Truncate at last word boundary within limit
+  const truncated = clean.substring(0, maxLen);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return (lastSpace > 20 ? truncated.substring(0, lastSpace) : truncated) + '...';
+}
+
+/**
+ * Generate a human-readable status string from an action's tool and params.
+ * Replaces AI-generated currentStep/description fields to save tokens.
+ * @param {string} tool - The action tool name
+ * @param {Object} params - The action parameters
+ * @returns {string} Short status string for UI display
+ */
+function getActionStatus(tool, params) {
+  switch (tool) {
+    case 'click':          return 'Clicking button';
+    case 'type':           return 'Entering text';
+    case 'pressEnter':     return 'Submitting';
+    case 'navigate':       return 'Opening page';
+    case 'searchGoogle':   return `Looking up "${shorten(params?.query)}"`;
+    case 'scroll':         return 'Scrolling';
+    case 'getText':        return 'Reading content';
+    case 'getAttribute':   return 'Inspecting page';
+    case 'selectOption':   return 'Selecting option';
+    case 'toggleCheckbox': return 'Toggling checkbox';
+    case 'hover':          return 'Hovering';
+    case 'focus':          return 'Focusing field';
+    case 'clearInput':     return 'Clearing field';
+    case 'waitForElement': return 'Waiting for page';
+    case 'goBack':         return 'Going back';
+    case 'goForward':      return 'Going forward';
+    case 'refresh':        return 'Refreshing';
+    case 'doubleClick':    return 'Double-clicking';
+    case 'rightClick':     return 'Right-clicking';
+    case 'moveMouse':      return 'Moving cursor';
+    case 'keyPress':       return `Pressing ${params?.key || 'key'}`;
+    case 'selectText':     return 'Selecting text';
+    case 'setAttribute':   return 'Updating page';
+    case 'solveCaptcha':   return 'Solving captcha';
+    case 'openNewTab':     return 'Opening new tab';
+    case 'switchToTab':    return 'Switching tab';
+    case 'closeTab':       return 'Closing tab';
+    case 'listTabs':       return 'Checking tabs';
+    default:               return 'Working';
+  }
+}
+
+/**
+ * Shorten a text string for display (used for search queries)
+ * @param {string} text - Text to shorten
+ * @param {number} max - Maximum length
+ * @returns {string} Shortened text
+ */
+function shorten(text, max = 30) {
+  if (!text || typeof text !== 'string') return '';
+  return text.length > max ? text.substring(0, max) + '...' : text;
+}
+
+/**
+ * Send session status to content script for visual feedback (viewport glow + progress overlay).
+ * Non-blocking -- silently ignores failures (tab may be navigating).
+ * @param {number} tabId - Target tab ID
+ * @param {Object} statusData - Status fields: phase, taskName, iteration, maxIterations, reason, animatedHighlights
+ */
+async function sendSessionStatus(tabId, statusData) {
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      action: 'sessionStatus',
+      ...statusData
+    });
+  } catch (e) { /* non-blocking -- tab may be navigating */ }
+}
+
+/**
  * Load debug mode setting from storage
  */
 async function loadDebugMode() {
@@ -531,15 +617,22 @@ const contentScriptPorts = new Map();
 
 // Listen for persistent port connections from content scripts
 chrome.runtime.onConnect.addListener((port) => {
+  console.log('[FSB Background] onConnect received, port name:', port.name);
   if (port.name === 'content-script') {
     const tabId = port.sender?.tab?.id;
-    if (!tabId || port.sender?.frameId !== 0) return; // Main frame only
+    const frameId = port.sender?.frameId;
+    console.log('[FSB Background] Content script port connection, tabId:', tabId, 'frameId:', frameId);
+    if (!tabId || frameId !== 0) {
+      console.log('[FSB Background] Ignoring non-main-frame port');
+      return; // Main frame only
+    }
 
     contentScriptPorts.set(tabId, {
       port,
       connectedAt: Date.now(),
       lastHeartbeat: Date.now()
     });
+    console.log('[FSB Background] Port stored for tab:', tabId);
 
     automationLogger.logComm(null, 'receive', 'port_connected', true, { tabId });
 
@@ -821,6 +914,7 @@ async function checkContentScriptHealth(tabId, timeout = 4000) {
     // Message-based check with internal retry
     for (let msgAttempt = 1; msgAttempt <= 2; msgAttempt++) {
       try {
+        console.log('[FSB Background] Sending healthCheck to tab:', tabId, 'attempt:', msgAttempt);
         // CRITICAL: Use frameId: 0 to target ONLY the main frame
         const healthCheckPromise = chrome.tabs.sendMessage(tabId, {
           action: 'healthCheck'
@@ -831,8 +925,10 @@ async function checkContentScriptHealth(tabId, timeout = 4000) {
         );
 
         const response = await Promise.race([healthCheckPromise, timeoutPromise]);
+        console.log('[FSB Background] healthCheck response:', response);
 
         if (response && response.success) {
+          console.log('[FSB Background] healthCheck successful for tab:', tabId);
           contentScriptHealth.set(tabId, {
             lastCheck: Date.now(),
             healthy: true,
@@ -842,6 +938,7 @@ async function checkContentScriptHealth(tabId, timeout = 4000) {
           return true;
         }
       } catch (e) {
+        console.log('[FSB Background] healthCheck failed, tab:', tabId, 'error:', e.message);
         if (msgAttempt < 2) {
           automationLogger.debug('Message health check failed, retrying', { tabId, attempt: msgAttempt, error: e.message });
           await new Promise(r => setTimeout(r, 500));
@@ -998,10 +1095,16 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
       }
 
       // Inject content script - target only main frame to avoid iframe issues
+      // CRITICAL: Must inject automation-logger.js BEFORE content.js because content.js
+      // depends on the automationLogger global defined in automation-logger.js.
+      // Without it, content.js crashes at initialization and never registers its
+      // onMessage listener, causing all health checks and readiness signals to fail.
       automationLogger.logComm(null, 'send', 'inject', true, { tabId, attempt });
       await chrome.scripting.executeScript({
         target: { tabId, frameIds: [0] },  // frameIds: [0] = main frame only
-        files: ['content.js']
+        files: ['automation-logger.js', 'content.js'],
+        world: 'ISOLATED',  // Explicitly specify isolated world
+        injectImmediately: true  // Don't wait for document_idle
       });
 
       // Wait for ready signal or timeout
@@ -1837,6 +1940,7 @@ class BackgroundAnalytics {
       // New Grok 4.1 series (2026)
       'grok-4-1': { input: 3.00, output: 15.00 },
       'grok-4-1-fast': { input: 0.20, output: 0.50 },
+      'grok-4-1-fast-non-reasoning': { input: 0.20, output: 0.50 },
       'grok-4': { input: 3.00, output: 15.00 },
       'grok-code-fast-1': { input: 0.20, output: 1.50 },
       'grok-3': { input: 3.00, output: 15.00 },
@@ -2173,6 +2277,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'contentScriptReady':
       // Content script signals it's ready and message listener is registered
+      console.log('[FSB Background] contentScriptReady received from tab:', sender.tab?.id, 'frame:', sender.frameId);
       const tabId = sender.tab?.id;
       const frameId = sender.frameId;
       if (tabId) {
@@ -2185,8 +2290,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             url: request.url || sender.url,
             frameId: frameId
           });
+          console.log('[FSB Background] Tab marked as ready:', tabId);
           automationLogger.logInit('content_script', 'ready', { tabId, frameId, readyState: request.readyState, retry: request.retry || false });
         } else {
+          console.log('[FSB Background] Iframe ready ignored, frame:', frameId);
           automationLogger.debug('Iframe content script ready (ignored)', { tabId, frameId });
         }
       }
@@ -2354,6 +2461,14 @@ async function handleStartAutomation(request, sender, sendResponse) {
       navigationPerformed = true;
     }
 
+    // Read settings from storage before creating session
+    const storedSettings = await getStorageWithTimeout(
+      ['maxIterations', 'animatedActionHighlights'],
+      3000,
+      { maxIterations: 20, animatedActionHighlights: true }
+    );
+    const userMaxIterations = parseInt(storedSettings.maxIterations) || 20;
+
     // Create new session with enhanced tracking
     const sessionId = `session_${Date.now()}`;
     const sessionData = {
@@ -2362,6 +2477,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       originalTabId: targetTabId,  // Store original tab - automation is restricted to this tab
       status: 'running',
       startTime: Date.now(),
+      maxIterations: userMaxIterations, // User-configured iteration limit
       actionHistory: [],        // Track all actions executed
       stateHistory: [],         // Track DOM state changes
       failedAttempts: {},       // Track failed actions by type
@@ -2375,6 +2491,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       actionSequences: [],      // Track sequences of actions to detect patterns
       sequenceRepeatCount: {},  // Count how many times each sequence repeats
       navigationMessage,        // Store navigation message for UI
+      animatedActionHighlights: storedSettings.animatedActionHighlights ?? true
     };
     
     activeSessions.set(sessionId, sessionData);
@@ -2401,8 +2518,65 @@ async function handleStartAutomation(request, sender, sendResponse) {
     // Wait for content script to be ready before starting automation
     // This prevents race conditions where automation starts before port connection is established
     automationLogger.debug('Waiting for content script readiness', { sessionId, tabId: targetTabId });
+
+    // Send status update to UI so user knows we're connecting
+    chrome.runtime.sendMessage({
+      action: 'statusUpdate',
+      sessionId: sessionId,
+      message: 'Connecting to page...'
+    }).catch(() => {});
+
     const isReady = await waitForContentScriptReady(targetTabId, 5000);
     automationLogger.debug('Content script readiness check complete', { sessionId, tabId: targetTabId, isReady });
+
+    // CRITICAL FIX: Check isReady and fail fast if content script is not available
+    // Previously, isReady was captured but never checked, causing a 90-second death spiral
+    // where the automation loop would start and waste time on health checks that inevitably fail
+    if (!isReady) {
+      // Do one final health check to be absolutely sure
+      const finalHealthCheck = await checkContentScriptHealth(targetTabId);
+      if (!finalHealthCheck) {
+        automationLogger.warn('Content script not ready after waiting, aborting session', {
+          sessionId,
+          tabId: targetTabId
+        });
+
+        // Clean up the session
+        const session = activeSessions.get(sessionId);
+        if (session) {
+          session.status = 'failed';
+          const duration = Date.now() - session.startTime;
+          automationLogger.logSessionEnd(sessionId, 'failed', 0, duration);
+          automationLogger.saveSession(sessionId, session);
+          cleanupSession(sessionId);
+        }
+
+        // Send actionable error to UI
+        chrome.runtime.sendMessage({
+          action: 'automationError',
+          sessionId: sessionId,
+          error: 'Could not connect to the page. Please refresh the page and try again. If the problem persists, reload the extension from chrome://extensions.'
+        }).catch(() => {});
+
+        return; // Exit early - do not start the automation loop
+      }
+    }
+
+    // Send status update to UI
+    chrome.runtime.sendMessage({
+      action: 'statusUpdate',
+      sessionId: sessionId,
+      message: 'Connected. Analyzing page...'
+    }).catch(() => {});
+
+    // Send session status to content script for visual feedback
+    sendSessionStatus(targetTabId, {
+      phase: 'analyzing',
+      taskName: task,
+      iteration: 0,
+      maxIterations: userMaxIterations,
+      animatedHighlights: sessionData.animatedActionHighlights
+    });
 
     // Reset DOM state in content script to prevent stale state comparison between sessions
     try {
@@ -2467,8 +2641,14 @@ async function handleStopAutomation(request, sender, sendResponse) {
     automationLogger.logSessionEnd(sessionId, 'stopped', session.actionHistory.length, duration);
     automationLogger.saveSession(sessionId, session);
 
+    // Tell content script to clean up visual overlays
+    sendSessionStatus(session.tabId || session.originalTabId, {
+      phase: 'ended',
+      reason: 'stopped'
+    });
+
     finalizeSessionMetrics(sessionId, false); // Stopped, not completed
-    cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
+    await cleanupSession(sessionId); // Await to ensure full cleanup before responding
 
     automationLogger.info('Session stopped and removed', { sessionId });
     sendResponse({
@@ -2492,16 +2672,17 @@ async function handleTestAPI(request, sender, sendResponse) {
     
     // Check appropriate API key based on provider
     const provider = settings.modelProvider || 'xai';
-    if (provider === 'gemini' && !settings.geminiApiKey) {
-      sendResponse({ 
-        success: false, 
-        error: 'Gemini API key not configured. Please set it in extension settings.' 
-      });
-      return;
-    } else if (provider === 'xai' && !settings.apiKey) {
-      sendResponse({ 
-        success: false, 
-        error: 'xAI API key not configured. Please set it in extension settings.' 
+    const providerApiKeyMap = {
+      xai: { key: 'apiKey', name: 'xAI' },
+      gemini: { key: 'geminiApiKey', name: 'Gemini' },
+      openai: { key: 'openaiApiKey', name: 'OpenAI' },
+      anthropic: { key: 'anthropicApiKey', name: 'Anthropic' }
+    };
+    const testProviderConfig = providerApiKeyMap[provider];
+    if (testProviderConfig && !settings[testProviderConfig.key]) {
+      sendResponse({
+        success: false,
+        error: `${testProviderConfig.name} API key not configured. Please set it in extension settings.`
       });
       return;
     }
@@ -2932,7 +3113,8 @@ async function executeDeterministicBatch(actions, session, tabId) {
           totalSteps: actions.length,
           iterationCount: session?.iterationCount || 1,
           isBatchedAction: true,
-          batchPattern: pattern.name
+          batchPattern: pattern.name,
+          animatedHighlights: session?.animatedActionHighlights ?? true
         }
       });
 
@@ -3275,6 +3457,82 @@ async function startAutomationLoop(sessionId) {
 
   session.iterationCount++;
 
+  // Update content script with iteration progress
+  sendSessionStatus(session.tabId, {
+    phase: 'analyzing',
+    taskName: session.task,
+    iteration: session.iterationCount,
+    maxIterations: session.maxIterations || 20,
+    animatedHighlights: session.animatedActionHighlights
+  });
+
+  // === SAFETY NET: Absolute iteration cap and session time limit ===
+  const ABSOLUTE_MAX_ITERATIONS = session.maxIterations || 20;
+  const MAX_SESSION_DURATION = 5 * 60 * 1000; // 5 minutes
+  const sessionAge = Date.now() - (session.startTime || Date.now());
+
+  if (session.iterationCount > ABSOLUTE_MAX_ITERATIONS) {
+    automationLogger.warn('Absolute iteration cap reached', {
+      sessionId,
+      iterationCount: session.iterationCount,
+      maxIterations: ABSOLUTE_MAX_ITERATIONS
+    });
+    session.status = 'max_iterations';
+
+    const duration = Date.now() - session.startTime;
+    const finalResult = 'Reached the maximum number of iterations (' + ABSOLUTE_MAX_ITERATIONS + '). ' +
+      'The task may be too complex for a single session. Try breaking it into smaller steps.';
+
+    automationLogger.logSessionEnd(sessionId, 'max_iterations', session.actionHistory.length, duration);
+    automationLogger.saveSession(sessionId, session);
+
+    sendSessionStatus(session.tabId, { phase: 'ended', reason: 'max_iterations' });
+    finalizeSessionMetrics(sessionId, false);
+    cleanupSession(sessionId);
+
+    chrome.runtime.sendMessage({
+      action: 'automationComplete',
+      sessionId,
+      result: finalResult,
+      partial: true,
+      reason: 'max_iterations'
+    }).catch(() => {});
+
+    loopResolve?.();
+    return;
+  }
+
+  if (sessionAge > MAX_SESSION_DURATION) {
+    automationLogger.warn('Session time limit exceeded', {
+      sessionId,
+      sessionAge,
+      maxDuration: MAX_SESSION_DURATION,
+      iterationCount: session.iterationCount
+    });
+    session.status = 'timeout';
+
+    const finalResult = 'Session timed out after ' + Math.round(sessionAge / 1000) + ' seconds. ' +
+      'Try breaking the task into smaller steps.';
+
+    automationLogger.logSessionEnd(sessionId, 'timeout', session.actionHistory.length, sessionAge);
+    automationLogger.saveSession(sessionId, session);
+
+    sendSessionStatus(session.tabId, { phase: 'ended', reason: 'timeout' });
+    finalizeSessionMetrics(sessionId, false);
+    cleanupSession(sessionId);
+
+    chrome.runtime.sendMessage({
+      action: 'automationComplete',
+      sessionId,
+      result: finalResult,
+      partial: true,
+      reason: 'timeout'
+    }).catch(() => {});
+
+    loopResolve?.();
+    return;
+  }
+
   // FSB TIMING: Track iteration start time
   const iterationStart = Date.now();
 
@@ -3329,11 +3587,15 @@ async function startAutomationLoop(sessionId) {
 
       for (let attempt = 1; attempt <= maxHealthRetries; attempt++) {
         healthCheckAttempts = attempt;
-        automationLogger.logComm(sessionId, 'health', 'healthCheck', true, { tabId: session.originalTabId, attempt, maxRetries: maxHealthRetries });
+        // FIX: Log the health check attempt WITHOUT claiming success yet
+        // Previously logged success:true before the check ran, making comm logs misleading
+        automationLogger.logComm(sessionId, 'health', 'healthCheck_attempt', true, { tabId: session.originalTabId, attempt, maxRetries: maxHealthRetries });
         healthOk = await checkContentScriptHealth(session.originalTabId);
 
+        // Log the ACTUAL result of the health check
+        automationLogger.logComm(sessionId, 'health', 'healthCheck', healthOk, { tabId: session.originalTabId, attempt, status: healthOk ? 'healthy' : 'failed' });
+
         if (healthOk) {
-          automationLogger.logComm(sessionId, 'health', 'healthCheck', true, { tabId: session.originalTabId, attempt, status: 'healthy' });
           break;
         }
 
@@ -3388,10 +3650,14 @@ async function startAutomationLoop(sessionId) {
 
       // Stop the session
       session.status = 'failed';
+      const duration = Date.now() - session.startTime;
+      automationLogger.logSessionEnd(sessionId, 'failed', session.actionHistory.length, duration);
+      automationLogger.saveSession(sessionId, session);
+      sendSessionStatus(session.tabId, { phase: 'ended', reason: 'error' });
       cleanupSession(sessionId);
       return;
     }
-    
+
     // Get current DOM state with enhanced error handling
     // SPEED-02: Check for pending prefetch first
     let domResponse;
@@ -3415,10 +3681,36 @@ async function startAutomationLoop(sessionId) {
           domResponse = await pendingDOMPrefetch;
           usedPrefetch = true;
           if (domResponse && domResponse.success) {
-            automationLogger.logTiming(sessionId, 'DOM', 'prefetch_consumed', Date.now() - domFetchStart, {
-              tabId: session.tabId,
-              source: 'prefetch'
-            });
+            // Safety net: verify prefetch URL matches current tab URL
+            // Catches stale prefetches from before navigation (e.g., click that redirects)
+            try {
+              const currentTab = await chrome.tabs.get(session.tabId);
+              const prefetchUrl = domResponse.structuredDOM?.url || domResponse.structuredDOM?.htmlContext?.pageStructure?.url || '';
+              const tabUrl = currentTab?.url || '';
+              if (prefetchUrl && tabUrl) {
+                const prefetchOrigin = new URL(prefetchUrl).origin;
+                const tabOrigin = new URL(tabUrl).origin;
+                if (prefetchOrigin !== tabOrigin) {
+                  automationLogger.debug('Prefetch URL mismatch, fetching fresh DOM', {
+                    sessionId, prefetchUrl, tabUrl
+                  });
+                  domResponse = null; // Discard stale prefetch
+                  usedPrefetch = false;
+                }
+              }
+            } catch (urlCheckErr) {
+              // URL check failed - still use the prefetch rather than failing
+              automationLogger.debug('Prefetch URL verification failed, using prefetch anyway', {
+                sessionId, error: urlCheckErr.message
+              });
+            }
+
+            if (domResponse) {
+              automationLogger.logTiming(sessionId, 'DOM', 'prefetch_consumed', Date.now() - domFetchStart, {
+                tabId: session.tabId,
+                source: 'prefetch'
+              });
+            }
           } else {
             // Prefetch returned invalid response, fetch normally
             automationLogger.debug('Prefetch response invalid, fetching normally', { sessionId });
@@ -3490,7 +3782,56 @@ async function startAutomationLoop(sessionId) {
     if (!domResponse || !domResponse.success || !domResponse.structuredDOM) {
       throw new Error('Failed to get DOM state from content script. Response: ' + JSON.stringify(domResponse));
     }
-    
+
+    // FIX 2: SPA retry - if 0 elements after recent navigation, wait for SPA frameworks to render
+    const initialElementCount = domResponse.structuredDOM.elements?.length || 0;
+    const initialTotalElements = domResponse.structuredDOM._totalElements || initialElementCount;
+    const urlRecentlyChanged = session.lastUrl && session.lastUrl !== domResponse.structuredDOM.url;
+
+    if (initialTotalElements === 0 && (urlRecentlyChanged || session.iterationCount <= 2)) {
+      automationLogger.debug('Zero elements detected after navigation, waiting for SPA render', {
+        sessionId,
+        url: domResponse.structuredDOM.url,
+        iteration: session.iterationCount
+      });
+
+      for (let spaRetry = 0; spaRetry < 6; spaRetry++) {
+        await new Promise(r => setTimeout(r, 500));
+
+        if (isSessionTerminating(sessionId)) {
+          loopResolve?.();
+          return;
+        }
+
+        try {
+          const retryResponse = await sendMessageWithRetry(session.tabId, {
+            action: 'getDOM',
+            options: {
+              useIncrementalDiff: false,
+              maxElements: settings.maxDOMElements || 2000,
+              prioritizeViewport: settings.prioritizeViewport !== false
+            }
+          });
+
+          const retryCount = retryResponse?.structuredDOM?.elements?.length ||
+                             retryResponse?.structuredDOM?._totalElements || 0;
+
+          if (retryCount > 0) {
+            automationLogger.debug('SPA elements appeared after retry', {
+              sessionId,
+              elementCount: retryCount,
+              retryAttempt: spaRetry + 1,
+              waitTime: (spaRetry + 1) * 500
+            });
+            domResponse = retryResponse;
+            break;
+          }
+        } catch (e) {
+          automationLogger.debug('SPA retry DOM fetch failed', { sessionId, error: e.message });
+        }
+      }
+    }
+
     // Log DOM response details
     const domData = domResponse.structuredDOM;
     automationLogger.logDOMOperation(sessionId, 'received', {
@@ -3765,6 +4106,15 @@ async function startAutomationLoop(sessionId) {
       isStuck: context.isStuck
     });
 
+    // Signal thinking phase to content script
+    sendSessionStatus(session.tabId, {
+      phase: 'thinking',
+      taskName: session.task,
+      iteration: session.iterationCount,
+      maxIterations: session.maxIterations || 20,
+      animatedHighlights: session.animatedActionHighlights
+    });
+
     const aiPromise = callAIAPI(
       session.task,
       domResponse.structuredDOM,
@@ -3779,8 +4129,33 @@ async function startAutomationLoop(sessionId) {
       prioritizeViewport: settings.prioritizeViewport !== false
     });
 
-    // Now await the AI response
-    const aiResponse = await aiPromise;
+    // FIX 1A: Race AI response against a stop signal so stop button works during API calls
+    const stopSignal = new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (isSessionTerminating(sessionId)) {
+          clearInterval(checkInterval);
+          resolve({ stopped: true });
+        }
+      }, 500);
+      session._stopCheckInterval = checkInterval;
+    });
+
+    const raceResult = await Promise.race([aiPromise, stopSignal]);
+
+    // Clean up the stop check interval
+    if (session._stopCheckInterval) {
+      clearInterval(session._stopCheckInterval);
+      session._stopCheckInterval = null;
+    }
+
+    // If stopped, bail out immediately
+    if (raceResult?.stopped) {
+      automationLogger.debug('Session stopped during AI call', { sessionId });
+      loopResolve?.();
+      return;
+    }
+
+    const aiResponse = raceResult;
 
     // Log AI response
     // automationLogger.logAIResponse(sessionId, aiResponse.reasoning, aiResponse.actions, aiResponse.taskComplete);
@@ -3804,33 +4179,32 @@ async function startAutomationLoop(sessionId) {
       // Save session logs for history
       automationLogger.saveSession(sessionId, session);
 
+      sendSessionStatus(session.tabId, { phase: 'ended', reason: 'error' });
       finalizeSessionMetrics(sessionId, false); // Failed
       cleanupSession(sessionId);
 
-      // Notify UI of failure
+      // Notify UI of failure (simple message for user)
       chrome.runtime.sendMessage({
-        action: 'automationFailed',
+        action: 'automationError',
         sessionId,
-        error: aiResponse.result || 'Unknown API error',
-        message: aiResponse.currentStep || 'Automation stopped due to error'
+        error: 'AI service error - please try again',
+        message: 'Stopped due to an error'
       }).catch(() => {});
 
       return; // Stop automation loop
     }
 
-    // Send dynamic status update to UI
-    if (aiResponse.currentStep) {
-      chrome.runtime.sendMessage({
-        action: 'statusUpdate',
-        sessionId,
-        message: aiResponse.currentStep
-      }).catch(() => {
-        // Ignore errors if no listeners
-      });
-    }
-
     // Execute actions and track results
     if (aiResponse.actions && aiResponse.actions.length > 0) {
+      // Signal acting phase to content script
+      sendSessionStatus(session.tabId, {
+        phase: 'acting',
+        taskName: session.task,
+        iteration: session.iterationCount,
+        maxIterations: session.maxIterations || 20,
+        actionCount: aiResponse.actions.length,
+        animatedHighlights: session.animatedActionHighlights
+      });
       // Create a smart signature for this action sequence
       const sequenceSignature = createSmartSequenceSignature(aiResponse.actions);
       
@@ -3891,6 +4265,13 @@ async function startAutomationLoop(sessionId) {
         const action = aiResponse.actions[i];
         const nextAction = aiResponse.actions[i + 1];
 
+        // Check if session was stopped between actions
+        if (isSessionTerminating(sessionId)) {
+          automationLogger.debug('Session terminated during action execution', { sessionId, actionIndex: i, totalActions: aiResponse.actions.length });
+          loopResolve?.();
+          return;
+        }
+
         automationLogger.logActionExecution(sessionId, action.tool, 'start', { index: i + 1, total: aiResponse.actions.length, params: action.params });
         const actionStartTime = Date.now();
 
@@ -3902,15 +4283,13 @@ async function startAutomationLoop(sessionId) {
         });
 
         // Send action-specific status update to UI
-        if (action.description) {
-          chrome.runtime.sendMessage({
-            action: 'statusUpdate',
-            sessionId,
-            message: action.description
-          }).catch(() => {
-            // Ignore errors if no listeners
-          });
-        }
+        chrome.runtime.sendMessage({
+          action: 'statusUpdate',
+          sessionId,
+          message: getActionStatus(action.tool, action.params)
+        }).catch(() => {
+          // Ignore errors if no listeners
+        });
         
         let actionResult;
         
@@ -3942,7 +4321,8 @@ async function startAutomationLoop(sessionId) {
                 taskName: session.task?.substring(0, 50) || 'Automation',
                 stepNumber: i + 1,
                 totalSteps: aiResponse.actions.length,
-                iterationCount: session.iterationCount
+                iterationCount: session.iterationCount,
+                animatedHighlights: session.animatedActionHighlights ?? true
               }
             };
 
@@ -3993,7 +4373,32 @@ async function startAutomationLoop(sessionId) {
 
         // Log action result
         automationLogger.logAction(sessionId, action, actionResult);
-        
+
+        // Fix: Invalidate stale DOM prefetch after navigation-triggering actions
+        // Navigate returns instantly (window.location.href = url) but the page hasn't loaded yet.
+        // Without this, the next iteration consumes a prefetch captured from the OLD page.
+        const navigationTools = ['navigate', 'searchGoogle', 'goBack', 'goForward'];
+        if (navigationTools.includes(action.tool) || actionResult?.navigationTriggered) {
+          pendingDOMPrefetch = null;
+          automationLogger.debug('Invalidated stale DOM prefetch after navigation action', {
+            sessionId, tool: action.tool
+          });
+
+          // Wait for the new page to actually load before continuing
+          if (actionResult?.success) {
+            try {
+              await pageLoadWatcher.waitForPageReady(session.tabId, { maxWait: 5000 });
+              automationLogger.debug('Page load confirmed after navigation', {
+                sessionId, tool: action.tool
+              });
+            } catch (e) {
+              automationLogger.debug('Page load wait failed after navigation', {
+                sessionId, tool: action.tool, error: e.message
+              });
+            }
+          }
+        }
+
         // Ensure actionResult has proper structure
         if (!actionResult) {
           actionResult = {
@@ -4054,7 +4459,7 @@ async function startAutomationLoop(sessionId) {
               // Log the successful alternative
               automationLogger.logAction(sessionId, {
                 ...action,
-                description: `${action.description} (Alternative: ${alternativeResult.alternativeUsed})`
+                description: `${getActionStatus(action.tool, action.params)} (Alternative: ${alternativeResult.alternativeUsed})`
               }, alternativeResult);
               
               // Track alternative action usage
@@ -4200,6 +4605,23 @@ async function startAutomationLoop(sessionId) {
         }
       }
       } // End of if (!batchExecuted)
+
+      // Invalidate stale DOM prefetch if actions had visible effects
+      // The prefetch was started BEFORE actions executed (line ~4127), so it's stale
+      if (!batchExecuted) {
+        const currentIterationActions = session.actionHistory.filter(a => a.iteration === session.iterationCount);
+        const anyHadEffect = currentIterationActions.some(a =>
+          a.result?.hadEffect || a.result?.navigationTriggered ||
+          a.result?.verification?.urlChanged || a.result?.verification?.contentChanged
+        );
+        if (anyHadEffect) {
+          pendingDOMPrefetch = null;
+          automationLogger.debug('Invalidated stale DOM prefetch - actions had visible effects', {
+            sessionId,
+            effectfulActions: currentIterationActions.filter(a => a.result?.hadEffect).map(a => a.tool)
+          });
+        }
+      }
     }
 
     // === PROGRESS TRACKING: Determine if this iteration made meaningful progress ===
@@ -4210,18 +4632,23 @@ async function startAutomationLoop(sessionId) {
       actionsFailed: iterationActions.filter(a => !a.result?.success).length,
       domChanged: session.lastDOMHash !== null && createDOMHash(domResponse.structuredDOM) !== session.lastDOMHash,
       urlChanged: currentUrl !== session.lastUrl,
+      // getText/getAttribute are read-only operations - tracked for logging but NOT counted as progress
       newDataExtracted: iterationActions.some(a =>
         a.tool === 'getText' && a.result?.success && a.result?.value && a.result.value.trim().length > 0
       ),
-      hadEffect: iterationActions.some(a => a.result?.hadEffect === true)
+      hadEffect: iterationActions.some(a => a.result?.hadEffect === true),
+      hadNavigation: iterationActions.some(a =>
+        ['navigate', 'goBack', 'goForward'].includes(a.tool) && a.result?.success
+      )
     };
 
-    // Meaningful progress: DOM changed with successful actions, or URL changed, or new data extracted
+    // Meaningful progress: only count actual page changes (DOM hash, URL, or hadEffect from click/type)
+    // getText/getAttribute are read-only and should NOT reset stuck detection
     const madeProgress = (
       (iterationStats.domChanged && iterationStats.actionsSucceeded > 0) ||
       iterationStats.urlChanged ||
-      iterationStats.newDataExtracted ||
-      iterationStats.hadEffect
+      iterationStats.hadEffect ||
+      iterationStats.hadNavigation
     );
 
     if (madeProgress) {
@@ -4250,38 +4677,29 @@ async function startAutomationLoop(sessionId) {
       });
       session.status = 'no_progress';
 
-      // Provide a helpful summary of what was accomplished
-      let finalResult = 'Automation stopped after 6 consecutive iterations without meaningful progress. ';
+      // Provide a concise summary for the user
+      let finalResult = 'Could not complete the task - the page was not responding as expected. ';
 
-      // Check for any extracted text from recent actions
+      // Include any extracted text if available
       const recentTextActions = session.actionHistory
         .filter(action => action.tool === 'getText' && action.result?.success && action.result?.value)
-        .slice(-5);
+        .slice(-3);
 
       if (recentTextActions.length > 0) {
         const extractedTexts = recentTextActions.map(action => action.result.value).filter(text => text && text.trim());
         if (extractedTexts.length > 0) {
-          finalResult += `Here's what I found: ${extractedTexts.join(', ')}. `;
+          finalResult += `Found: ${extractedTexts[0].substring(0, 150)}`;
+          if (extractedTexts[0].length > 150) finalResult += '...';
+          finalResult += ' ';
         }
       }
 
-      // Add information about successful actions
-      const successfulActions = session.actionHistory.filter(a => a.result?.success);
-      if (successfulActions.length > 0) {
-        const uniqueSuccessActions = [...new Set(successfulActions.map(a => a.tool))];
-        finalResult += `Actions completed: ${uniqueSuccessActions.join(', ')}. `;
-      }
-
-      // Add current URL if navigated
-      if (session.urlHistory.length > 1) {
-        finalResult += `Currently on: ${session.lastUrl}. `;
-      }
-
-      finalResult += 'The automation may be stuck in a loop or unable to interact with the page effectively.';
+      finalResult += 'Try refreshing the page or rephrasing your request.';
 
       automationLogger.logSessionEnd(sessionId, 'no_progress', session.actionHistory.length, Date.now() - session.startTime);
       automationLogger.saveSession(sessionId, session);
 
+      sendSessionStatus(session.tabId, { phase: 'ended', reason: 'no_progress' });
       finalizeSessionMetrics(sessionId, false);
       cleanupSession(sessionId);
 
@@ -4319,6 +4737,7 @@ async function startAutomationLoop(sessionId) {
         });
 
         // Clean up session
+        sendSessionStatus(session.tabId, { phase: 'ended', reason: 'complete' });
         finalizeSessionMetrics(sessionId, true); // Successfully completed
         cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
         return;
@@ -4331,48 +4750,31 @@ async function startAutomationLoop(sessionId) {
       automationLogger.error('Automation appears stuck', { sessionId, stuckCounter: session.stuckCounter });
       session.status = 'stuck';
       
-      // Provide a detailed summary of what was accomplished before getting stuck
-      let finalResult = 'I attempted to complete your task but encountered repeated difficulties. ';
-      
-      // Check if we have any extracted text from recent actions
+      // Provide a concise summary for the user
+      let finalResult = 'Got stuck trying to complete your task. ';
+
+      // Include any extracted text if available
       const recentTextActions = session.actionHistory
         .filter(action => action.tool === 'getText' && action.result?.success && action.result?.value)
-        .slice(-5); // Last 5 getText results
-      
+        .slice(-3);
+
       if (recentTextActions.length > 0) {
-        // We found some text, include it in the result
         const extractedTexts = recentTextActions.map(action => action.result.value).filter(text => text && text.trim());
         if (extractedTexts.length > 0) {
-          finalResult += `Here's what I was able to extract: ${extractedTexts.join(', ')}. `;
+          finalResult += `Found: ${extractedTexts[0].substring(0, 150)}`;
+          if (extractedTexts[0].length > 150) finalResult += '...';
+          finalResult += ' ';
         }
       }
-      
-      // Add information about successful actions
-      const successfulActions = session.actionHistory.filter(a => a.result?.success);
-      const failedActions = session.actionHistory.filter(a => !a.result?.success);
-      
-      if (successfulActions.length > 0) {
-        const uniqueSuccessActions = [...new Set(successfulActions.map(a => a.tool))];
-        finalResult += `Successfully completed: ${uniqueSuccessActions.join(', ')}. `;
-      }
-      
-      if (failedActions.length > 0) {
-        const uniqueFailedActions = [...new Set(failedActions.map(a => a.tool))];
-        finalResult += `Had trouble with: ${uniqueFailedActions.join(', ')}. `;
-      }
-      
-      // Add current URL if changed from start
-      if (session.urlHistory.length > 1) {
-        finalResult += `Currently on: ${session.lastUrl}. `;
-      }
-      
-      finalResult += 'You may want to try rephrasing your request or breaking it into smaller steps.';
+
+      finalResult += 'Try rephrasing your request or breaking it into smaller steps.';
 
       automationLogger.logSessionEnd(sessionId, 'stuck', session.actionHistory.length, Date.now() - session.startTime);
 
       // Save session logs for history
       automationLogger.saveSession(sessionId, session);
 
+      sendSessionStatus(session.tabId, { phase: 'ended', reason: 'stuck' });
       finalizeSessionMetrics(sessionId, false); // Failed due to stuck loop
       cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
 
@@ -4528,6 +4930,7 @@ async function startAutomationLoop(sessionId) {
       // Save session logs for history
       automationLogger.saveSession(sessionId, session);
 
+      sendSessionStatus(session.tabId, { phase: 'ended', reason: 'complete' });
       finalizeSessionMetrics(sessionId, true); // Successfully completed
       cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
 
@@ -4570,17 +4973,36 @@ async function startAutomationLoop(sessionId) {
     if (currentSession && !currentSession.isTerminating) {
       currentSession.status = 'error';
       currentSession.error = error.message;
+
+      // Save session logs so failures are recorded
+      const duration = Date.now() - currentSession.startTime;
+      automationLogger.logSessionEnd(sessionId, 'error', currentSession.actionHistory?.length || 0, duration);
+      automationLogger.saveSession(sessionId, currentSession);
     }
 
-    // Notify UI about error
+    // Notify UI about error (keep message simple for user)
+    const userError = error.message && error.message.length > 100
+      ? 'Something went wrong. Please try again.'
+      : (error.message || 'Something went wrong. Please try again.');
     chrome.runtime.sendMessage({
       action: 'automationError',
       sessionId,
-      error: error.message
+      error: userError
     });
   } finally {
     // Signal that this loop iteration has completed
     loopResolve?.();
+
+    // Defensive: If session was terminated (stopped/failed) and the loop is exiting,
+    // notify the UI in case the stop handler's sendResponse didn't reach it
+    const finalSession = activeSessions.get(sessionId);
+    if (!finalSession || finalSession.status === 'stopped' || finalSession.status === 'failed') {
+      chrome.runtime.sendMessage({
+        action: 'automationError',
+        sessionId,
+        error: 'Automation ended.'
+      }).catch(() => {});
+    }
   }
 }
 
@@ -4599,12 +5021,17 @@ async function callAIAPI(task, structuredDOM, settings, context = null) {
       settings = await config.getAll();
     }
 
-    // Check if appropriate API key is configured
+    // Check if appropriate API key is configured for the selected provider
     const provider = settings.modelProvider || 'xai';
-    if (provider === 'gemini' && !settings.geminiApiKey) {
-      throw new Error('Gemini API key not configured. Please set it in extension settings.');
-    } else if (provider === 'xai' && !settings.apiKey) {
-      throw new Error('xAI API key not configured. Please set it in extension settings.');
+    const providerApiKeyMap = {
+      xai: { key: 'apiKey', name: 'xAI' },
+      gemini: { key: 'geminiApiKey', name: 'Gemini' },
+      openai: { key: 'openaiApiKey', name: 'OpenAI' },
+      anthropic: { key: 'anthropicApiKey', name: 'Anthropic' }
+    };
+    const providerConfig = providerApiKeyMap[provider];
+    if (providerConfig && !settings[providerConfig.key]) {
+      throw new Error(`${providerConfig.name} API key not configured. Please set it in extension settings.`);
     }
 
     // Get or create AI integration instance for this session
@@ -4637,7 +5064,10 @@ async function callAIAPI(task, structuredDOM, settings, context = null) {
     // FSB TIMING: Track AI API call time
     const aiCallStart = Date.now();
     // Get automation actions with context (multi-turn if available)
-    const result = await ai.getAutomationActions(task, structuredDOM, context);
+    // FIX 1B: Pass shouldAbort callback so retry loop can check if session was stopped
+    const result = await ai.getAutomationActions(task, structuredDOM, context, {
+      shouldAbort: () => isSessionTerminating(context?.sessionId)
+    });
     automationLogger.logTiming(context?.sessionId, 'LLM', 'api_call', Date.now() - aiCallStart, { model: settings.modelName || 'default' });
 
     return result;
@@ -4653,7 +5083,6 @@ async function callAIAPI(task, structuredDOM, settings, context = null) {
       failedDueToError: true,  // NEW: Explicit error flag for UI to display
       reasoning: '',
       result: `Task failed due to API error: ${error.message}. The automation will stop. Please check your API settings and try again.`,
-      currentStep: 'Error - automation stopped',
       error: true
     };
   }
@@ -5279,11 +5708,10 @@ chrome.runtime.onStartup.addListener(async () => {
   await restoreSessionsFromStorage();
 });
 
-// DISABLED: Storage listener interferes with automation loop async operations
-// Debug mode will load on startup but won't update in real-time
-// chrome.storage.onChanged.addListener((changes, namespace) => {
-//   if (namespace === 'local' && changes.debugMode) {
-//     fsbDebugMode = changes.debugMode.newValue === true;
-//     debugLog('Debug mode ' + (fsbDebugMode ? 'enabled' : 'disabled'));
-//   }
-// });
+// Listen for debug mode changes so toggling takes effect immediately
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local' && changes.debugMode) {
+    fsbDebugMode = changes.debugMode.newValue === true;
+    console.log('[FSB] Debug mode ' + (fsbDebugMode ? 'enabled' : 'disabled'));
+  }
+});

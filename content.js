@@ -1,20 +1,44 @@
-// Content script for FSB v0.9
-// Handles DOM reading and action execution
+// Content script for FSB v0.9 - Guard against re-injection
+// Content scripts can be injected multiple times (manifest + executeScript)
+// This guard ensures we only initialize once, preventing "already declared" errors
 
-// Double-injection protection - exit early if already loaded
 if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
-  console.log('[FSB Content] Already loaded, skipping duplicate injection');
-  // But still try to reconnect port if it was lost
-  if (typeof establishBackgroundConnection === 'function' && !backgroundPort) {
-    establishBackgroundConnection();
+  // Already loaded - just log and exit
+  console.log('[FSB Content] Already loaded, skipping re-injection');
+} else {
+  // Mark as loaded FIRST to prevent race conditions
+  window.__FSB_CONTENT_SCRIPT_LOADED__ = true;
+  console.log('[FSB Content] Loading for the first time');
+
+  // Get automationLogger from window (set by automation-logger.js) or create fallback
+  var automationLogger = window.automationLogger || {
+    log: function() {},
+    error: function(msg, data) { console.error('[FSB Fallback]', msg, data || ''); },
+    warn: function(msg, data) { console.warn('[FSB Fallback]', msg, data || ''); },
+    info: function(msg, data) { console.log('[FSB Fallback]', msg, data || ''); },
+    debug: function() {},
+    logComm: function() {},
+    logInit: function() {},
+    logDOMOperation: function() {},
+    logAction: function() {},
+    logAI: function() {},
+    logTiming: function() {},
+    logNavigation: function() {},
+    logSessionStart: function() {},
+    logSessionEnd: function() {},
+    logServiceWorker: function() {},
+    getSessionLogs: function() { return []; },
+    saveSession: function() { return Promise.resolve(false); },
+    persistLogs: function() {},
+    recordAction: function() {}
+  };
+
+  if (!window.automationLogger) {
+    console.warn('[FSB Content] automation-logger.js was not loaded. Using fallback logger.');
   }
-  // Exit early to prevent duplicate listeners and state
-  throw new Error('FSB_ALREADY_LOADED');
-}
-window.__FSB_CONTENT_SCRIPT_LOADED__ = true;
 
 // Current session ID for logging (set by background.js messages)
-let currentSessionId = null;
+var currentSessionId = null;
 
 // DOM State Manager class definition (inline for content script)
 class DOMStateManager {
@@ -335,7 +359,7 @@ class DOMStateManager {
       type: 'compact_full',
       elements: this.filterAndCompressElements(
         (currentDOM.elements || [])
-          .filter(el => el.position?.inViewport || el.isButton || el.isInput || el.isLink)
+          .filter(el => el.position?.inViewport)
           .slice(0, 100), // Limit to top 100 most relevant elements
         false
       ),
@@ -823,6 +847,7 @@ class ProgressOverlay {
       top: 0 !important;
       right: 0 !important;
       pointer-events: none !important;
+      isolation: isolate !important;
     `;
 
     // Create shadow root for complete style isolation
@@ -960,7 +985,7 @@ class ProgressOverlay {
     `;
 
     this.shadow.appendChild(this.container);
-    document.body.appendChild(this.host);
+    document.documentElement.appendChild(this.host);
   }
 
   /**
@@ -971,14 +996,18 @@ class ProgressOverlay {
    * @param {string} data.stepText - Step description
    * @param {number} data.progress - Progress percentage (0-100)
    */
-  update({ taskName, stepNumber, stepText, progress }) {
+  update({ taskName, stepNumber, totalSteps, stepText, progress }) {
     if (!this.container) return;
 
     if (taskName !== undefined) {
       this.container.querySelector('.fsb-task').textContent = taskName;
     }
     if (stepNumber !== undefined) {
-      this.container.querySelector('.fsb-step-number').textContent = `Step ${stepNumber}`;
+      // Show iteration-based format when totalSteps is provided
+      const label = totalSteps
+        ? `Iter ${stepNumber}/${totalSteps}`
+        : `Step ${stepNumber}`;
+      this.container.querySelector('.fsb-step-number').textContent = label;
     }
     if (stepText !== undefined) {
       this.container.querySelector('.fsb-step-text').textContent = stepText;
@@ -994,6 +1023,10 @@ class ProgressOverlay {
    * Show the overlay (remove hidden class)
    */
   show() {
+    if (this.host && this.host.parentNode) {
+      // Re-append to ensure we're last in DOM (wins z-index ties)
+      document.documentElement.appendChild(this.host);
+    }
     if (this.container) {
       this.container.classList.remove('hidden');
     }
@@ -1023,6 +1056,393 @@ class ProgressOverlay {
 
 // Singleton instance for progress overlay
 const progressOverlay = new ProgressOverlay();
+
+/**
+ * ViewportGlow - Full-viewport border glow indicating AI activity state
+ *
+ * Uses Shadow DOM for style isolation. Shows four traveling light beams around
+ * the viewport edges plus a soft ambient inset glow. Two color states:
+ * - 'thinking' (blue/cyan): AI analyzing page or planning actions (slower 3s cycle)
+ * - 'acting' (orange/amber): Executing actions on the page (faster 2s cycle)
+ */
+class ViewportGlow {
+  constructor() {
+    this.host = null;
+    this.shadow = null;
+    this.state = null; // 'thinking' or 'acting'
+  }
+
+  show(state) {
+    if (!this.host) {
+      this._create();
+    }
+    this.setState(state);
+  }
+
+  setState(state) {
+    if (!this.shadow) return;
+    this.state = state;
+    const root = this.shadow.querySelector('.viewport-glow-root');
+    if (root) {
+      root.classList.remove('state-thinking', 'state-acting');
+      root.classList.add(`state-${state}`);
+    }
+  }
+
+  _create() {
+    this.host = document.createElement('div');
+    this.host.id = 'fsb-viewport-glow-host';
+    this.host.style.cssText = 'all:initial!important;position:fixed!important;inset:0!important;z-index:2147483644!important;pointer-events:none!important;';
+
+    this.shadow = this.host.attachShadow({ mode: 'closed' });
+
+    const style = document.createElement('style');
+    style.textContent = `
+      :host { all: initial !important; }
+
+      .viewport-glow-root {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+
+      /* Ambient inset glow */
+      .viewport-ambient {
+        position: absolute;
+        inset: 0;
+        transition: box-shadow 0.5s ease;
+      }
+      .state-thinking .viewport-ambient {
+        box-shadow:
+          inset 0 0 64px rgba(255, 140, 0, 0.13),
+          inset 0 0 128px rgba(245, 158, 11, 0.07);
+      }
+      .state-acting .viewport-ambient {
+        box-shadow:
+          inset 0 0 64px rgba(255, 140, 0, 0.20),
+          inset 0 0 128px rgba(255, 102, 0, 0.10);
+      }
+
+      /* Traveling light beam bars */
+      .bar {
+        position: absolute;
+        transition: background 0.5s ease;
+        filter: blur(2px);
+      }
+
+      .bar-top, .bar-bottom {
+        left: 0; right: 0; height: 4px;
+        background-size: 200% 100%;
+      }
+      .bar-left, .bar-right {
+        top: 0; bottom: 0; width: 4px;
+        background-size: 100% 200%;
+      }
+
+      .bar-top    { top: 0; }
+      .bar-bottom { bottom: 0; }
+      .bar-left   { left: 0; }
+      .bar-right  { right: 0; }
+
+      /* Thinking state: dimmer orange, 3s cycle (calm) */
+      .state-thinking .bar-top {
+        background: linear-gradient(90deg, transparent 0%, #ff8c00 40%, #f59e0b 60%, transparent 100%);
+        background-size: 200% 100%;
+        animation: slideRight 3s linear infinite;
+      }
+      .state-thinking .bar-right {
+        background: linear-gradient(180deg, transparent 0%, #ff8c00 40%, #f59e0b 60%, transparent 100%);
+        background-size: 100% 200%;
+        animation: slideDown 3s linear infinite 0.75s;
+      }
+      .state-thinking .bar-bottom {
+        background: linear-gradient(270deg, transparent 0%, #ff8c00 40%, #f59e0b 60%, transparent 100%);
+        background-size: 200% 100%;
+        animation: slideLeft 3s linear infinite 1.5s;
+      }
+      .state-thinking .bar-left {
+        background: linear-gradient(0deg, transparent 0%, #ff8c00 40%, #f59e0b 60%, transparent 100%);
+        background-size: 100% 200%;
+        animation: slideUp 3s linear infinite 2.25s;
+      }
+
+      /* Acting state: brighter orange, 2s cycle (urgent) */
+      .state-acting .bar-top {
+        background: linear-gradient(90deg, transparent 0%, #ff6600 40%, #ff8c00 60%, transparent 100%);
+        background-size: 200% 100%;
+        animation: slideRight 2s linear infinite;
+      }
+      .state-acting .bar-right {
+        background: linear-gradient(180deg, transparent 0%, #ff6600 40%, #ff8c00 60%, transparent 100%);
+        background-size: 100% 200%;
+        animation: slideDown 2s linear infinite 0.5s;
+      }
+      .state-acting .bar-bottom {
+        background: linear-gradient(270deg, transparent 0%, #ff6600 40%, #ff8c00 60%, transparent 100%);
+        background-size: 200% 100%;
+        animation: slideLeft 2s linear infinite 1s;
+      }
+      .state-acting .bar-left {
+        background: linear-gradient(0deg, transparent 0%, #ff6600 40%, #ff8c00 60%, transparent 100%);
+        background-size: 100% 200%;
+        animation: slideUp 2s linear infinite 1.5s;
+      }
+
+      @keyframes slideRight {
+        0%   { background-position: -100% 0; }
+        100% { background-position: 200% 0; }
+      }
+      @keyframes slideDown {
+        0%   { background-position: 0 -100%; }
+        100% { background-position: 0 200%; }
+      }
+      @keyframes slideLeft {
+        0%   { background-position: 200% 0; }
+        100% { background-position: -100% 0; }
+      }
+      @keyframes slideUp {
+        0%   { background-position: 0 200%; }
+        100% { background-position: 0 -100%; }
+      }
+    `;
+    this.shadow.appendChild(style);
+
+    const root = document.createElement('div');
+    root.className = 'viewport-glow-root';
+    root.innerHTML = `
+      <div class="viewport-ambient"></div>
+      <div class="bar bar-top"></div>
+      <div class="bar bar-right"></div>
+      <div class="bar bar-bottom"></div>
+      <div class="bar bar-left"></div>
+    `;
+    this.shadow.appendChild(root);
+    document.body.appendChild(this.host);
+  }
+
+  destroy() {
+    if (this.host) {
+      this.host.remove();
+      this.host = null;
+      this.shadow = null;
+      this.state = null;
+    }
+  }
+}
+
+// Singleton instance for viewport glow
+const viewportGlow = new ViewportGlow();
+
+/**
+ * ActionGlowOverlay - Animated pulsing glow that persists during action execution
+ *
+ * Uses Shadow DOM for style isolation. Shows an orange pulsing glow border
+ * around the target element for the entire duration of the action, with
+ * smooth fade-in/out transitions and requestAnimationFrame position tracking.
+ */
+class ActionGlowOverlay {
+  constructor() {
+    this.host = null;
+    this.shadow = null;
+    this.overlay = null;
+    this.targetElement = null;
+    this.trackingId = null;
+  }
+
+  /**
+   * Find the nearest visually meaningful parent to highlight instead of a tiny inner element.
+   * Walks up the DOM to find interactive or reasonably sized ancestors.
+   */
+  _findHighlightTarget(element) {
+    const INTERACTIVE_TAGS = new Set(['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA']);
+    const INTERACTIVE_ROLES = new Set(['button', 'link', 'tab', 'menuitem', 'option', 'switch']);
+
+    // If element is already interactive, use it directly
+    if (INTERACTIVE_TAGS.has(element.tagName)) return element;
+    const role = element.getAttribute('role');
+    if (role && INTERACTIVE_ROLES.has(role)) return element;
+
+    // Walk up to find a better target
+    let candidate = null;
+    let current = element.parentElement;
+    for (let i = 0; i < 5 && current && current !== document.body; i++) {
+      // Check if parent is interactive
+      if (INTERACTIVE_TAGS.has(current.tagName)) return current;
+      const parentRole = current.getAttribute('role');
+      if (parentRole && INTERACTIVE_ROLES.has(parentRole)) return current;
+
+      // Check if parent has a reasonable visual size
+      const rect = current.getBoundingClientRect();
+      if (rect.width >= 32 && rect.height >= 32) {
+        if (!candidate) candidate = current;
+        // If the next parent is much wider, stop at current candidate
+        const nextParent = current.parentElement;
+        if (nextParent && nextParent !== document.body) {
+          const nextRect = nextParent.getBoundingClientRect();
+          if (nextRect.width > rect.width * 3) return candidate;
+        }
+      }
+      current = current.parentElement;
+    }
+
+    return candidate || element;
+  }
+
+  show(element) {
+    // Destroy any existing overlay first
+    this.destroy();
+
+    // Find the best visual target to highlight
+    this.targetElement = this._findHighlightTarget(element);
+
+    // Create host element
+    this.host = document.createElement('div');
+    this.host.id = 'fsb-action-glow-host';
+    this.host.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;';
+
+    // Attach Shadow DOM
+    this.shadow = this.host.attachShadow({ mode: 'closed' });
+
+    // Inject styles
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes fsbActionGlow {
+        0%, 100% {
+          box-shadow:
+            0 0 6px 2px rgba(255, 140, 0, 0.55),
+            0 0 16px 4px rgba(255, 140, 0, 0.33),
+            0 0 32px 8px rgba(255, 140, 0, 0.17),
+            0 0 56px 12px rgba(255, 140, 0, 0.09);
+          border-color: rgba(255, 140, 0, 0.77);
+        }
+        50% {
+          box-shadow:
+            0 0 10px 2px rgba(255, 140, 0, 0.77),
+            0 0 20px 6px rgba(255, 140, 0, 0.50),
+            0 0 40px 12px rgba(255, 140, 0, 0.28),
+            0 0 64px 16px rgba(255, 140, 0, 0.13);
+          border-color: rgba(255, 140, 0, 1);
+        }
+      }
+      @keyframes fsbGlowAppear {
+        0%   { transform: scale(1); }
+        40%  { transform: scale(1.03); }
+        100% { transform: scale(1); }
+      }
+      .glow-overlay {
+        position: fixed;
+        border: 2.5px solid rgba(255, 140, 0, 0.8);
+        border-radius: 10px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.25s ease-out;
+        animation: fsbActionGlow 1.5s ease-in-out infinite;
+        background: rgba(255, 140, 0, 0.04);
+      }
+      .glow-overlay.active {
+        opacity: 1;
+        animation: fsbActionGlow 1.5s ease-in-out infinite, fsbGlowAppear 0.3s ease-out;
+      }
+    `;
+    this.shadow.appendChild(style);
+
+    // Create overlay div
+    this.overlay = document.createElement('div');
+    this.overlay.className = 'glow-overlay';
+    this.shadow.appendChild(this.overlay);
+
+    // Position over element
+    this._updatePosition();
+
+    // Append to DOM
+    document.body.appendChild(this.host);
+
+    // Trigger fade-in on next frame
+    requestAnimationFrame(() => {
+      if (this.overlay) {
+        this.overlay.classList.add('active');
+      }
+    });
+
+    // Start position tracking
+    this._startTracking();
+  }
+
+  _updatePosition() {
+    if (!this.targetElement || !this.overlay) return;
+
+    // Check if element is still in DOM
+    if (!document.body.contains(this.targetElement)) {
+      this.destroy();
+      return;
+    }
+
+    const rect = this.targetElement.getBoundingClientRect();
+    const padding = 10;
+
+    // Calculate position with padding, clamped to viewport
+    const top = Math.max(0, rect.top - padding);
+    const left = Math.max(0, rect.left - padding);
+    const width = Math.min(window.innerWidth - left, rect.width + padding * 2);
+    const height = Math.min(window.innerHeight - top, rect.height + padding * 2);
+
+    this.overlay.style.top = `${top}px`;
+    this.overlay.style.left = `${left}px`;
+    this.overlay.style.width = `${width}px`;
+    this.overlay.style.height = `${height}px`;
+  }
+
+  _startTracking() {
+    const track = () => {
+      this._updatePosition();
+      if (this.targetElement) {
+        this.trackingId = requestAnimationFrame(track);
+      }
+    };
+    this.trackingId = requestAnimationFrame(track);
+  }
+
+  _stopTracking() {
+    if (this.trackingId) {
+      cancelAnimationFrame(this.trackingId);
+      this.trackingId = null;
+    }
+  }
+
+  hide() {
+    this._stopTracking();
+
+    if (this.overlay) {
+      this.overlay.classList.remove('active');
+    }
+
+    // Wait for fade-out transition then clean up
+    setTimeout(() => {
+      if (this.host) {
+        this.host.remove();
+      }
+      this.host = null;
+      this.shadow = null;
+      this.overlay = null;
+      this.targetElement = null;
+    }, 250);
+  }
+
+  destroy() {
+    this._stopTracking();
+    if (this.host) {
+      this.host.remove();
+    }
+    this.host = null;
+    this.shadow = null;
+    this.overlay = null;
+    this.targetElement = null;
+  }
+}
+
+// Singleton instance for action glow overlay
+const actionGlowOverlay = new ActionGlowOverlay();
 
 /**
  * ElementInspector - Debugging tool for inspecting elements as FSB sees them
@@ -1218,6 +1638,8 @@ document.addEventListener('keydown', (e) => {
 // VIS-07: Clean up visual feedback on page navigation/unload
 window.addEventListener('beforeunload', () => {
   try {
+    viewportGlow.destroy();
+    actionGlowOverlay.destroy();
     highlightManager.cleanup();
     progressOverlay.destroy();
     elementInspector.disable();
@@ -1919,6 +2341,26 @@ function querySelectorWithShadow(selector) {
 
   let element = null;
 
+  // Handle XPath selectors (start with // or /)
+  if (sanitized.startsWith('//') || (sanitized.startsWith('/') && !sanitized.startsWith('/*'))) {
+    try {
+      const result = document.evaluate(
+        sanitized, document, null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE, null
+      );
+      element = result.singleNodeValue;
+      if (element) {
+        elementCache.set(sanitized, element);
+      }
+      return element;
+    } catch (e) {
+      automationLogger.warn('XPath evaluation failed', {
+        sessionId: currentSessionId, selector: sanitized, error: e.message
+      });
+      return null;
+    }
+  }
+
   // Check if selector contains shadow DOM piercing operator
   if (sanitized.includes('>>>')) {
     const parts = sanitized.split('>>>').map(s => s.trim());
@@ -2548,6 +2990,46 @@ async function checkElementStable(element, maxWaitMs = 300) {
 }
 
 /**
+ * Detect if an element is inside a code editor (Monaco, CodeMirror, ACE, etc.)
+ * Uses DOM ancestry inspection -- no site-specific logic.
+ * @param {Element} element - The DOM element to check
+ * @returns {Object} { isCodeEditor: boolean, type: string|null, container: Element|null }
+ */
+function detectCodeEditor(element) {
+  const editorPatterns = [
+    { selector: '.monaco-editor', type: 'monaco' },
+    { selector: '.CodeMirror', type: 'codemirror' },
+    { selector: '.cm-editor', type: 'codemirror6' },
+    { selector: '.ace_editor', type: 'ace' },
+    { selector: '[data-mode-id]', type: 'monaco' },
+    { selector: '.code-editor', type: 'generic' },
+  ];
+
+  for (const { selector, type } of editorPatterns) {
+    const container = element.closest(selector);
+    if (container) {
+      return { isCodeEditor: true, type, container };
+    }
+  }
+
+  // Broader check: walk up to 10 ancestors looking for editor-like class names
+  let parent = element.parentElement;
+  for (let depth = 0; parent && depth < 10; depth++) {
+    if (parent.classList) {
+      const hasEditorClass = Array.from(parent.classList).some(c =>
+        /monaco|codemirror|ace[_-]editor|code[_-]?editor/i.test(c)
+      );
+      if (hasEditorClass) {
+        return { isCodeEditor: true, type: 'unknown', container: parent };
+      }
+    }
+    parent = parent.parentElement;
+  }
+
+  return { isCodeEditor: false, type: null, container: null };
+}
+
+/**
  * Check if element can receive pointer events (not obscured by other elements)
  * Uses multi-point hit testing for more reliable detection
  * @param {Element} element - The DOM element to check
@@ -2915,7 +3397,15 @@ async function ensureElementReady(element, actionType = 'click') {
   result.scrolled = scrollResult.scrolled;
 
   // 4. Check stability - wait for animations
-  const stableCheck = await checkElementStable(element);
+  const editorInfo = detectCodeEditor(element);
+  const stabilityTimeout = editorInfo.isCodeEditor ? 1500 : 300;
+  if (editorInfo.isCodeEditor) {
+    automationLogger.debug('Code editor detected, using extended stability timeout', {
+      type: editorInfo.type,
+      timeout: stabilityTimeout
+    });
+  }
+  const stableCheck = await checkElementStable(element, stabilityTimeout);
   result.checks.stable = stableCheck;
   if (!stableCheck.passed) {
     result.ready = false;
@@ -3319,6 +3809,7 @@ function captureActionState(element, actionType) {
       tagName: element.tagName,
       className: element.className || '',
       value: element.value !== undefined ? element.value : null,
+      textContent: element.isContentEditable ? (element.textContent || '').substring(0, 500) : null,
       checked: element.checked !== undefined ? element.checked : null,
       selectedIndex: element.selectedIndex !== undefined ? element.selectedIndex : null,
       innerText: (element.innerText || '').substring(0, 100),
@@ -3379,8 +3870,7 @@ const EXPECTED_EFFECTS = {
     timeout: 300
   },
   type: {
-    required: ['valueChanged'],
-    anyOf: ['contentChanged'],
+    anyOf: ['valueChanged', 'textContentChanged'],
     timeout: 200
   },
   selectOption: {
@@ -3430,6 +3920,7 @@ function detectChanges(preState, postState) {
   if (preState.element.exists && postState.element.exists) {
     changes.classChanged = preState.element.className !== postState.element.className;
     changes.valueChanged = preState.element.value !== postState.element.value;
+    changes.textContentChanged = preState.element.textContent !== postState.element.textContent;
     changes.checkedChanged = preState.element.checked !== postState.element.checked;
     changes.selectedIndexChanged = preState.element.selectedIndex !== postState.element.selectedIndex;
     changes.ariaExpandedChanged = preState.element.ariaExpanded !== postState.element.ariaExpanded;
@@ -4076,11 +4567,56 @@ async function waitForPageStability(options = {}) {
 
 // Tool functions for browser automation
 const tools = {
-  // Scroll the page
-  scroll: (params) => {
-    const amount = params.amount || 100;
+  // Scroll the page - supports direction ("up"/"down") or raw amount
+  scroll: async (params) => {
+    let amount;
+    if (params.direction) {
+      const viewportScroll = window.innerHeight - 100;
+      amount = params.direction === 'up' ? -viewportScroll : viewportScroll;
+    } else {
+      amount = params.amount || 300;
+    }
     window.scrollBy(0, amount);
-    return { success: true, scrollY: window.scrollY };
+    await new Promise(r => setTimeout(r, 300));
+    const pageHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+    const maxScroll = pageHeight - window.innerHeight;
+    const atBottom = window.scrollY >= maxScroll - 10;
+    return {
+      success: true,
+      scrollY: window.scrollY,
+      pageHeight,
+      atTop: window.scrollY === 0,
+      atBottom,
+      hasMoreBelow: !atBottom
+    };
+  },
+
+  // Scroll to top of page
+  scrollToTop: async () => {
+    window.scrollTo(0, 0);
+    await new Promise(r => setTimeout(r, 300));
+    return { success: true, scrollY: 0, atTop: true };
+  },
+
+  // Scroll to bottom of page
+  scrollToBottom: async () => {
+    window.scrollTo(0, document.body.scrollHeight);
+    await new Promise(r => setTimeout(r, 300));
+    return { success: true, scrollY: window.scrollY, atBottom: true };
+  },
+
+  // Scroll a specific element into view
+  scrollToElement: async (params) => {
+    const selector = params.selector;
+    if (!selector) return { success: false, error: 'No selector provided' };
+    const element = document.querySelector(selector);
+    if (!element) return { success: false, error: `Element not found: ${selector}` };
+    const position = params.position || 'center';
+    element.scrollIntoView({ behavior: 'smooth', block: position === 'center' ? 'center' : 'start' });
+    await new Promise(r => setTimeout(r, 300));
+    const rect = element.getBoundingClientRect();
+    const inViewport = rect.top >= 0 && rect.bottom <= window.innerHeight;
+    return { success: true, scrollY: window.scrollY, elementInViewport: inViewport };
   },
   
   // Click an element
@@ -4090,8 +4626,19 @@ const tools = {
     let coordinatesUsed = null;
     let coordinateSource = null;
 
-    // Find element first using shadow DOM aware query
-    let element = querySelectorWithShadow(params.selector);
+    // Support selector cascade -- try multiple selectors before falling back to coordinates
+    const selectors = params.selectors || [params.selector];
+    let element = null;
+    let selectorUsed = null;
+
+    for (const sel of selectors) {
+      element = querySelectorWithShadow(sel);
+      if (element) {
+        selectorUsed = sel;
+        break;
+      }
+    }
+
     if (!element) {
       // Try coordinate fallback if coordinates provided
       if (params.coordinates && typeof params.coordinates.x === 'number' && typeof params.coordinates.y === 'number') {
@@ -4147,14 +4694,14 @@ const tools = {
       // Record failure - element not ready
       actionRecorder.record(null, 'click', params, {
         selectorTried,
-        selectorUsed: selectorTried,
+        selectorUsed: selectorUsed,
         elementFound: true,
         elementDetails: captureElementDetails(element),
         coordinatesUsed: null,
         coordinateSource: null,
         success: false,
         error: `Element not ready: ${readiness.failureReason}`,
-        diagnostic: generateDiagnostic('notReady', { selector: selectorTried, checks: readiness.checks }),
+        diagnostic: generateDiagnostic('notReady', { selector: selectorUsed, checks: readiness.checks }),
         duration: Date.now() - startTime
       });
       return {
@@ -4168,7 +4715,7 @@ const tools = {
 
     // Re-fetch element after scroll (may have become stale)
     if (readiness.scrolled) {
-      element = querySelectorWithShadow(params.selector);
+      element = querySelectorWithShadow(selectorUsed);
       if (!element) {
         return {
           success: false,
@@ -4270,6 +4817,33 @@ const tools = {
       // CRITICAL FIX: Return success=false when click has no effect
       // This prevents AI from continuing after failed clicks
       if (!hadEffect) {
+        // FALLBACK: For anchor tags with valid href, try direct navigation
+        // Google and other sites may intercept click events, preventing programmatic navigation
+        const failedAnchor = element.tagName === 'A' ? element : element.closest('a');
+        if (failedAnchor && failedAnchor.href &&
+            failedAnchor.href.startsWith('http') &&
+            !failedAnchor.href.includes('javascript:')) {
+          automationLogger.logActionExecution(currentSessionId, 'click', 'href_fallback', {
+            href: failedAnchor.href,
+            originalSelector: params.selector
+          });
+          window.location.href = failedAnchor.href;
+          return {
+            success: true,
+            clicked: params.selector,
+            hadEffect: true,
+            navigationTriggered: true,
+            method: 'href-fallback',
+            message: 'Click had no effect, navigated via href fallback',
+            targetUrl: failedAnchor.href,
+            elementInfo: {
+              tag: element.tagName,
+              text: element.textContent?.trim().substring(0, 50),
+              wasScrolledIntoView: wasScrolled
+            }
+          };
+        }
+
         // Record action - click had no effect
         actionRecorder.record(null, 'click', params, {
           selectorTried,
@@ -4353,7 +4927,19 @@ const tools = {
   // Click on search result links (Google, Bing, DuckDuckGo, etc.)
   clickSearchResult: async (params) => {
     automationLogger.logActionExecution(currentSessionId, 'clickSearchResult', 'start', params);
-    
+
+    // Detect "no results" pages before attempting to click
+    const noResultsDetected = detectSearchNoResults();
+    if (noResultsDetected) {
+      automationLogger.logActionExecution(currentSessionId, 'clickSearchResult', 'no_results_page', { message: noResultsDetected });
+      return {
+        success: false,
+        error: `Search returned no results: ${noResultsDetected}`,
+        noResults: true,
+        suggestion: 'Try a different search query with fewer or different keywords'
+      };
+    }
+
     // Common selectors for search result links across different search engines
     // NOTE: Modern Google uses "a > h3" structure (link contains heading), not "h3 > a"
     const searchResultSelectors = [
@@ -4362,7 +4948,7 @@ const tools = {
       'a[href] h2',                     // Link contains H2 heading
       '.yuRUbf a',                      // Current Google result container
       '.g a[href]:not([href*="google"])', // Result links (not Google's own links)
-      'a[jsname]',                      // Google's JS-rendered results
+      '#search a[jsname]',              // Google's JS-rendered results (only within search container)
 
       // Google search results - LEGACY STRUCTURE (heading contains link)
       'h3 a',                           // Older Google: H3 contains link
@@ -4557,6 +5143,9 @@ const tools = {
                                 // Universal messaging patterns
                                 isUniversalMessageInput(element);
 
+      const codeEditorInfo = detectCodeEditor(element);
+      const isCodeEditorInput = isInput && codeEditorInfo.isCodeEditor;
+
       if (!isInput && !isContentEditable) {
         lastAttemptError = 'Element is not an input field';
         continue; // Try next selector
@@ -4605,16 +5194,90 @@ const tools = {
       let previousValue = '';
       let insertionSuccess = false;  // Declare at function scope to avoid 'not defined' errors
 
-      if (isInput) {
+      if (isCodeEditorInput) {
+        // Code editors (Monaco, CodeMirror, ACE) use a proxy textarea for input.
+        // Setting element.value doesn't work -- must use execCommand or InputEvent.
+        previousValue = element.value || '';
+        element.focus();
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        let codeInserted = false;
+
+        // Method 1: execCommand insertText (works with Monaco and most editors)
+        if (!codeInserted && document.execCommand) {
+          try {
+            element.select();
+            if (document.execCommand('insertText', false, params.text)) {
+              codeInserted = true;
+            }
+          } catch (e) {
+            automationLogger.debug('Code editor execCommand failed', { error: e.message });
+          }
+        }
+
+        // Method 2: InputEvent (modern editors listen for beforeinput)
+        if (!codeInserted) {
+          try {
+            element.select();
+            element.dispatchEvent(new InputEvent('beforeinput', {
+              inputType: 'insertText',
+              data: params.text,
+              bubbles: true,
+              cancelable: true,
+              composed: true
+            }));
+            element.dispatchEvent(new InputEvent('input', {
+              inputType: 'insertText',
+              data: params.text,
+              bubbles: true
+            }));
+            codeInserted = true;
+          } catch (e) {
+            automationLogger.debug('Code editor InputEvent failed', { error: e.message });
+          }
+        }
+
+        // Method 3: Clipboard paste simulation
+        if (!codeInserted) {
+          try {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.setData('text/plain', params.text);
+            element.dispatchEvent(new ClipboardEvent('paste', {
+              clipboardData: dataTransfer,
+              bubbles: true,
+              cancelable: true
+            }));
+            await new Promise(resolve => setTimeout(resolve, 100));
+            codeInserted = true;
+          } catch (e) {
+            automationLogger.debug('Code editor clipboard paste failed', { error: e.message });
+          }
+        }
+
+        // Method 4: Fallback to value set (last resort)
+        if (!codeInserted) {
+          element.value = params.text;
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        automationLogger.debug('Code editor typing complete', {
+          sessionId: currentSessionId,
+          editorType: codeEditorInfo.type,
+          method: codeInserted ? 'specialized' : 'fallback',
+          textLength: params.text.length
+        });
+
+      } else if (isInput) {
         // Store previous value for comparison
         previousValue = element.value;
-        
+
         // Clear existing value if needed
         element.value = '';
-        
+
         // Type the new value
         element.value = params.text;
-        
+
         // Dispatch multiple events for better compatibility
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
@@ -4941,7 +5604,7 @@ const tools = {
         clickedFirst: !shouldSkipClick,
         focused: document.activeElement === element,
         focusAttempts: focusAttempts,
-        scrolled: rect.top < 0 || rect.top > window.innerHeight,
+        scrolled: readiness.scrolled || false,
         insertionSuccess: isContentEditable ? insertionSuccess : true,
         amazonSpecific: isAmazonSearch,
         validationPassed: true,
@@ -4995,6 +5658,32 @@ const tools = {
         params,
         currentSelector: currentSelector
       });
+
+      // If verification already passed, the text was entered successfully
+      // despite the error (e.g., in return statement formatting).
+      // Return success rather than falling through to failure.
+      if (lastVerification && lastVerification.verified) {
+        automationLogger.warn('Type verification passed but post-success error occurred, returning success', {
+          sessionId: currentSessionId,
+          error: error.message,
+          verification: lastVerification.reason
+        });
+        return {
+          success: true,
+          typed: params.text,
+          selector: currentSelector,
+          hadEffect: true,
+          verification: {
+            verified: true,
+            reason: lastVerification.reason,
+            changes: lastVerification.changes
+          },
+          pressedEnter: !!params.pressEnter,
+          validationPassed: true,
+          recoveredFromError: error.message
+        };
+      }
+
       lastAttemptError = error.message || 'Unknown error occurred in type function';
     }
     } // End selector loop
@@ -5237,8 +5926,9 @@ const tools = {
     
     // Note: We can't verify navigation completion here as the page will unload
     // The verification should happen in the next iteration when the new page loads
-    return { 
-      success: true, 
+    return {
+      success: true,
+      hadEffect: true,
       navigatingTo: targetUrl,
       fromUrl: preNavState.url,
       verification: {
@@ -5916,7 +6606,7 @@ const tools = {
 
   // Type text using real keyboard events (more reliable than setting values)
   typeWithKeys: async (params) => {
-    const { text, delay = 30, useDebuggerAPI = true } = params;
+    const { text, delay = 30, useDebuggerAPI = true, clearFirst = true } = params;
     
     if (!text || typeof text !== 'string') {
       return { success: false, error: 'Text parameter is required' };
@@ -5925,6 +6615,30 @@ const tools = {
     // Try Chrome Debugger API first
     if (useDebuggerAPI) {
       try {
+        // Clear existing text before typing to prevent text doubling
+        if (clearFirst) {
+          try {
+            // Select all existing text with Ctrl+A
+            await chrome.runtime.sendMessage({
+              action: 'keyboardDebuggerAction',
+              method: 'pressKey',
+              key: 'a',
+              modifiers: { ctrl: true }
+            });
+            await new Promise(resolve => setTimeout(resolve, 30));
+            // Delete selected text
+            await chrome.runtime.sendMessage({
+              action: 'keyboardDebuggerAction',
+              method: 'pressKey',
+              key: 'Backspace',
+              modifiers: {}
+            });
+            await new Promise(resolve => setTimeout(resolve, 30));
+          } catch (clearErr) {
+            // Non-fatal: proceed with typing even if clear fails
+          }
+        }
+
         const response = await chrome.runtime.sendMessage({
           action: 'keyboardDebuggerAction',
           method: 'typeText',
@@ -5970,6 +6684,20 @@ const tools = {
     // Fallback to DOM events
     const results = [];
     try {
+      // Clear existing text before typing to prevent text doubling
+      if (clearFirst) {
+        const activeEl = document.activeElement;
+        if (activeEl) {
+          if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') {
+            activeEl.value = '';
+            activeEl.dispatchEvent(new Event('input', { bubbles: true }));
+          } else if (activeEl.contentEditable === 'true') {
+            document.execCommand('selectAll', false, null);
+            document.execCommand('delete', false, null);
+          }
+        }
+      }
+
       for (const char of text) {
         let key = char;
         let modifiers = {};
@@ -8531,15 +9259,40 @@ function detectPageContext() {
       '.loader, .progress, [class*="skeleton"]'
     ) !== null,
 
-    hasModal: document.querySelector(
-      '[role="dialog"], [class*="modal"][class*="show"], [class*="overlay"][class*="visible"]'
-    ) !== null,
+    hasModal: (() => {
+      // Check for modal/dialog elements but filter out known non-blocking patterns
+      const modalCandidates = document.querySelectorAll(
+        '[role="dialog"], [class*="modal"][class*="show"], [class*="overlay"][class*="visible"]'
+      );
+      for (const modal of modalCandidates) {
+        const text = (modal.textContent || '').toLowerCase();
+        const cls = (modal.className || '').toLowerCase();
+        // Skip Google feedback dialogs
+        if (text.includes('feedback') || cls.includes('feedback')) continue;
+        // Skip cookie consent banners
+        if (text.includes('cookie') || text.includes('consent') || cls.includes('cookie') || cls.includes('consent')) continue;
+        // Skip small overlays that don't block main content
+        const rect = modal.getBoundingClientRect();
+        const viewportArea = window.innerWidth * window.innerHeight;
+        const modalArea = rect.width * rect.height;
+        if (modalArea < viewportArea * 0.15) continue; // Less than 15% of viewport
+        // This modal actually blocks interaction
+        return true;
+      }
+      return false;
+    })(),
 
     hasCaptcha: document.querySelector(
       '.g-recaptcha, .h-captcha, [class*="captcha"], iframe[src*="recaptcha"]'
     ) !== null,
 
-    errorMessages: extractErrorMessages()
+    errorMessages: extractErrorMessages(),
+
+    noSearchResults: (() => {
+      const noResults = detectSearchNoResults();
+      if (noResults) return noResults;
+      return false;
+    })()
   };
 
   // Infer overall page intent
@@ -8563,6 +9316,80 @@ function detectPageContext() {
     hostname: hostname,
     title: document.title
   };
+}
+
+/**
+ * Detect if a search engine results page has no results
+ * Checks Google, Bing, and DuckDuckGo for "no results" indicators
+ * @returns {string|null} Description of no-results state, or null if results exist
+ */
+function detectSearchNoResults() {
+  const url = window.location.href.toLowerCase();
+
+  // Google: "Your search - X - did not match any documents"
+  if (url.includes('google.com/search')) {
+    const topstuff = document.getElementById('topstuff');
+    if (topstuff) {
+      const text = topstuff.textContent.toLowerCase();
+      if (text.includes('did not match any documents') || text.includes('no results found')) {
+        return 'Google: No documents matched your search';
+      }
+    }
+    const botstuff = document.getElementById('botstuff');
+    if (botstuff) {
+      const text = botstuff.textContent.toLowerCase();
+      if (text.includes('did not match any documents')) {
+        return 'Google: No documents matched your search';
+      }
+    }
+    // Check result stats for "About 0 results"
+    const resultStats = document.getElementById('result-stats');
+    if (resultStats) {
+      const text = resultStats.textContent;
+      if (/about 0 results/i.test(text)) {
+        return 'Google: About 0 results';
+      }
+    }
+    // Definitive check: search page but NO result containers at all
+    const hasResultContainers = document.querySelector('.g, .yuRUbf, [data-hveid] h3, #search .g');
+    if (!hasResultContainers) {
+      return 'Google: No search result containers found on page';
+    }
+  }
+
+  // Bing: "There are no results for"
+  if (url.includes('bing.com/search')) {
+    const noResults = document.querySelector('.b_no');
+    if (noResults) {
+      return 'Bing: No results found';
+    }
+  }
+
+  // DuckDuckGo: "No results found for"
+  if (url.includes('duckduckgo.com')) {
+    const noResults = document.querySelector('.no-results');
+    if (noResults) {
+      return 'DuckDuckGo: No results found';
+    }
+  }
+
+  // LinkedIn: "No results found"
+  if (url.includes('linkedin.com/search')) {
+    const workspace = document.getElementById('workspace');
+    if (workspace) {
+      const text = workspace.textContent.toLowerCase();
+      if (text.includes('no results found') || text.includes('no results')) {
+        return 'LinkedIn: No results found for this search';
+      }
+    }
+    // Also check for generic no-results containers
+    const linkedInNoResults = document.querySelector('.search-no-results, .no-results-message');
+    if (linkedInNoResults) {
+      return 'LinkedIn: No results found';
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -9035,11 +9862,7 @@ function getStructuredDOM(options = {}) {
         ariaRelationships: getARIARelationships(node),
         actionability: isElementActionable(node),
         // Generate multiple selectors with stability scores
-        selectors: (() => {
-          const selectorData = generateSelectors(node, semanticId);
-          elementData._selectorScores = selectorData; // Store scores for later use
-          return selectorData.map(s => s.selector); // Return just the selector strings
-        })(),
+        selectors: generateSelectors(node, semanticId).map(s => s.selector),
         // Element clustering for better context
         cluster: getElementCluster(node),
         // Enhanced context information
@@ -9243,6 +10066,23 @@ function getStructuredDOM(options = {}) {
       width: window.innerWidth,
       height: window.innerHeight
     },
+    scrollInfo: (() => {
+      const pageHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+      const viewportHeight = window.innerHeight;
+      const scrollY = window.scrollY;
+      const maxScroll = pageHeight - viewportHeight;
+      const atBottom = scrollY >= maxScroll - 10;
+      return {
+        pageHeight,
+        scrollY,
+        viewportHeight,
+        scrollPercentage: maxScroll > 0 ? Math.round((scrollY / maxScroll) * 100) : 100,
+        atTop: scrollY === 0,
+        atBottom,
+        hasMoreBelow: !atBottom,
+        hasMoreAbove: scrollY > 0
+      };
+    })(),
     url: window.location.href,
     title: document.title,
     captchaPresent: elements.some(el => el.isCaptcha) || pageContext.pageState.hasCaptcha,
@@ -9286,15 +10126,22 @@ function getStructuredDOM(options = {}) {
     // Return optimized payload
     // For delta updates, exclude the full elements array to prevent payload explosion
     if (optimizedPayload.type === 'delta') {
-      // Remove elements from domStructure for delta payloads
+      // Remove full elements array from domStructure for delta payloads
       const { elements, ...domStructureWithoutElements } = domStructure;
+
+      // CRITICAL FIX: Always include viewport elements even in delta payloads.
+      // Without this, buildMinimalUpdate() receives 0 elements and the AI is
+      // completely blind to what's on the page after iteration 1.
+      const viewportElements = (elements || [])
+        .filter(el => el.position?.inViewport)
+        .slice(0, 30);
 
       return {
         ...domStructureWithoutElements,
         ...optimizedPayload,
         _isDelta: true,
-        // Only include element count for reference
-        _totalElements: elements?.length || 0
+        _totalElements: elements?.length || 0,
+        viewportElements: viewportElements
       };
     }
 
@@ -9407,8 +10254,12 @@ async function handleAsyncMessage(request, sendResponse) {
             try {
               const targetElement = querySelectorWithShadow(params.selector);
               if (targetElement) {
-                // VIS-03: 500ms minimum highlight before action proceeds
-                await highlightManager.show(targetElement, { duration: 500 });
+                if (visualContext?.animatedHighlights !== false) {
+                  // Animated glow: show and persist during action (non-blocking)
+                  actionGlowOverlay.show(targetElement);
+                  // Set viewport glow to acting state during action execution
+                  try { viewportGlow.setState('acting'); } catch (e) { /* non-blocking */ }
+                }
               }
             } catch (highlightError) {
               console.warn('[FSB] Highlight error (non-blocking):', highlightError.message);
@@ -9441,16 +10292,13 @@ async function handleAsyncMessage(request, sendResponse) {
             automationLogger.logTiming(currentSessionId, 'ACTION', tool, Date.now() - execStart, { success: result?.success });
 
             // VIS-04: Clean up highlight after action completes
+            try { actionGlowOverlay.hide(); } catch (e) { /* non-blocking */ }
             highlightManager.hide();
+            // Transition viewport glow back to thinking state after action
+            try { viewportGlow.setState('thinking'); } catch (e) { /* non-blocking */ }
 
-            // VIS-06: Destroy progress overlay after last action in sequence
-            if (visualContext && visualContext.stepNumber === visualContext.totalSteps) {
-              setTimeout(() => {
-                try {
-                  progressOverlay.destroy();
-                } catch (e) { /* ignore cleanup errors */ }
-              }, 500);
-            }
+            // Progress overlay lifecycle is now controlled by sessionStatus messages
+            // (no per-batch destruction here)
 
             // Validate result structure
             if (result === undefined || result === null) {
@@ -9472,10 +10320,10 @@ async function handleAsyncMessage(request, sendResponse) {
               });
             }
           } catch (actionError) {
-            // VIS-06: Clean up visual feedback on action error
+            // Clean up action glow on error (progress overlay lifecycle managed by sessionStatus)
             try {
+              actionGlowOverlay.destroy();
               highlightManager.hide();
-              progressOverlay.destroy();
             } catch (cleanupError) {
               // Ignore cleanup errors
             }
@@ -9483,9 +10331,9 @@ async function handleAsyncMessage(request, sendResponse) {
             throw actionError;
           }
         } else {
-          // VIS-06: Clean up overlay for unknown tool
+          // Clean up action glow for unknown tool
           try {
-            progressOverlay.destroy();
+            actionGlowOverlay.destroy();
           } catch (e) { /* ignore */ }
           automationLogger.error('Unknown tool requested', { sessionId: currentSessionId, tool });
           sendResponse({ success: false, error: `Unknown tool: ${tool}` });
@@ -9497,10 +10345,10 @@ async function handleAsyncMessage(request, sendResponse) {
         sendResponse({ success: false, error: `Unknown action: ${request.action}` });
     }
   } catch (error) {
-    // VIS-06: Clean up visual feedback on any error in async handler
+    // Clean up action glow on error (progress overlay lifecycle managed by sessionStatus)
     try {
+      actionGlowOverlay.destroy();
       highlightManager.hide();
-      progressOverlay.destroy();
     } catch (cleanupError) {
       // Ignore cleanup errors
     }
@@ -9515,8 +10363,8 @@ async function handleAsyncMessage(request, sendResponse) {
   }
 }
 
-// Listen for messages from background script
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+// Named message handler function - allows Chrome to dedupe on re-injection
+function handleBackgroundMessage(request, sender, sendResponse) {
   // Store sessionId from any incoming message for logging
   if (request.sessionId) {
     currentSessionId = request.sessionId;
@@ -9549,6 +10397,45 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // Detailed page readiness check for smart load detection
       const pageReadiness = checkDocumentReady();
       sendResponse({ success: true, ...pageReadiness });
+      break;
+
+    case 'sessionStatus':
+      try {
+        const { phase, taskName, iteration, maxIterations, reason, animatedHighlights } = request;
+
+        if (phase === 'ended') {
+          // Clean up all visual overlays
+          viewportGlow.destroy();
+          progressOverlay.destroy();
+          actionGlowOverlay.destroy();
+        } else {
+          // Show viewport glow only when animated highlights are enabled
+          if (animatedHighlights !== false) {
+            const glowState = (phase === 'acting') ? 'acting' : 'thinking';
+            viewportGlow.show(glowState);
+          }
+
+          // Progress overlay always shown regardless of highlight setting
+          progressOverlay.create();
+          const phaseLabels = {
+            analyzing: 'Analyzing page...',
+            thinking: 'Planning actions...',
+            acting: 'Executing...'
+          };
+          progressOverlay.update({
+            taskName: taskName,
+            stepNumber: iteration || 0,
+            totalSteps: maxIterations,
+            stepText: phaseLabels[phase] || phase,
+            progress: maxIterations ? (iteration / maxIterations) * 100 : 0
+          });
+          progressOverlay.show();
+        }
+        sendResponse({ success: true });
+      } catch (e) {
+        console.warn('[FSB] sessionStatus handler error (non-blocking):', e.message);
+        sendResponse({ success: false, error: e.message });
+      }
       break;
 
     case 'getDOM':
@@ -9620,17 +10507,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     // VERIFY-04: Wait for page stability (callable from background.js)
     case 'waitForPageStability':
-      try {
-        const stabilityResult = await waitForPageStability(request.options || {});
-        sendResponse(stabilityResult);
-      } catch (error) {
-        automationLogger.error('waitForPageStability message handler error', {
-          sessionId: currentSessionId,
-          error: error.message
-        });
-        sendResponse({ stable: false, error: error.message, timedOut: true });
-      }
-      break;
+      (async () => {
+        try {
+          const stabilityResult = await waitForPageStability(request.options || {});
+          sendResponse(stabilityResult);
+        } catch (error) {
+          automationLogger.error('waitForPageStability message handler error', {
+            sessionId: currentSessionId,
+            error: error.message
+          });
+          sendResponse({ stable: false, error: error.message, timedOut: true });
+        }
+      })();
+      return true; // Keep message channel open for async response
 
     // SPEED-01: Capture current page state for outcome detection
     case 'capturePageState':
@@ -9679,10 +10568,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     default:
       sendResponse({ error: 'Unknown action' });
   }
-  
+
   // Return true to indicate we'll send response asynchronously (needed for await)
   return true;
-});
+}
+
+// Register the named function - Chrome deduplicates identical function references
+chrome.runtime.onMessage.addListener(handleBackgroundMessage);
 
 // Intelligent DOM change filtering
 let lastNotificationTime = 0;
@@ -9832,8 +10724,24 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
 function establishBackgroundConnection() {
+  console.log('[FSB Content] establishBackgroundConnection called');
+
+  // Check if extension context is still valid
   try {
+    if (!chrome.runtime?.id) {
+      console.warn('[FSB Content] Extension context invalid, cannot establish connection');
+      return;
+    }
+    console.log('[FSB Content] Extension context valid, id:', chrome.runtime.id);
+  } catch (e) {
+    console.warn('[FSB Content] Extension context check failed:', e.message);
+    return;
+  }
+
+  try {
+    console.log('[FSB Content] Attempting chrome.runtime.connect...');
     backgroundPort = chrome.runtime.connect({ name: 'content-script' });
+    console.log('[FSB Content] Port created:', backgroundPort ? 'success' : 'null');
 
     backgroundPort.onDisconnect.addListener(() => {
       backgroundPort = null;
@@ -9881,14 +10789,23 @@ function establishBackgroundConnection() {
 
 // Signal to background script that content script is fully initialized and ready
 // Uses multi-strategy approach for maximum reliability
+console.log('[FSB Content] About to start sendReadySignal IIFE');
 (async function sendReadySignal() {
+  console.log('[FSB Content] sendReadySignal started');
+
   // Strategy 1: Port-based connection (most reliable, bidirectional)
-  establishBackgroundConnection();
+  try {
+    establishBackgroundConnection();
+  } catch (portError) {
+    console.error('[FSB Content] Port connection failed:', portError.message);
+  }
 
   // Strategy 2: Message-based fallback with retries
   // This ensures we still work even if port connection fails
+  console.log('[FSB Content] Starting message-based ready signal attempts');
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
+      console.log('[FSB Content] Sending contentScriptReady, attempt:', attempt);
       await chrome.runtime.sendMessage({
         action: 'contentScriptReady',
         timestamp: Date.now(),
@@ -9896,6 +10813,7 @@ function establishBackgroundConnection() {
         readyState: document.readyState,
         attempt
       });
+      console.log('[FSB Content] contentScriptReady sent successfully, attempt:', attempt);
       automationLogger.logComm(currentSessionId, 'send', 'contentScriptReady', true, { attempt });
 
       // Send confirmation ping after short delay
@@ -9965,3 +10883,5 @@ window.addEventListener('unhandledrejection', (event) => {
     automationLogger.error('Error in rejection handler', { sessionId: currentSessionId, error: e.message });
   }
 });
+
+} // End of re-injection guard else block

@@ -5,7 +5,7 @@
  * Captures the current state of the page for comparison
  */
 function capturePageState() {
-  return {
+  const state = {
     url: window.location.href,
     title: document.title,
     bodyText: document.body.innerText.substring(0, 1000), // First 1000 chars
@@ -14,7 +14,7 @@ function capturePageState() {
     visibleElements: [],
     timestamp: Date.now()
   };
-  
+
   // Capture input values
   const inputs = document.querySelectorAll('input, textarea, [contenteditable="true"]');
   inputs.forEach((input, index) => {
@@ -23,7 +23,7 @@ function capturePageState() {
       state.inputValues[key] = input.value || input.textContent || '';
     }
   });
-  
+
   // Capture visible elements
   const visibleSelectors = ['button', 'a', '[role="button"]', '[onclick]', '.modal', '.dialog', '.popup'];
   visibleSelectors.forEach(selector => {
@@ -38,7 +38,7 @@ function capturePageState() {
       }
     });
   });
-  
+
   return state;
 }
 

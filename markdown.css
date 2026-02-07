@@ -1,0 +1,266 @@
+/* Shared Markdown Styles for FSB UI (popup + sidepanel) */
+
+/* ============================================
+   Markdown-rendered content (.md-rendered)
+   ============================================ */
+
+.md-rendered {
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.md-rendered > :first-child {
+  margin-top: 0;
+}
+
+.md-rendered > :last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.md-rendered h1 {
+  font-size: 1.3em;
+  font-weight: 700;
+  margin: 12px 0 6px;
+  line-height: 1.3;
+}
+
+.md-rendered h2 {
+  font-size: 1.15em;
+  font-weight: 600;
+  margin: 10px 0 5px;
+  line-height: 1.3;
+}
+
+.md-rendered h3 {
+  font-size: 1.05em;
+  font-weight: 600;
+  margin: 8px 0 4px;
+  line-height: 1.3;
+}
+
+.md-rendered h4,
+.md-rendered h5,
+.md-rendered h6 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 6px 0 3px;
+}
+
+/* Paragraphs */
+.md-rendered p {
+  margin: 6px 0;
+}
+
+/* Code blocks */
+.md-rendered pre {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 8px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.md-rendered pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+/* Inline code */
+.md-rendered code {
+  background: rgba(0, 0, 0, 0.06);
+  color: #e83e8c;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-size: 0.9em;
+}
+
+/* Lists */
+.md-rendered ul,
+.md-rendered ol {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+
+.md-rendered li {
+  margin: 2px 0;
+}
+
+.md-rendered li > ul,
+.md-rendered li > ol {
+  margin: 0;
+}
+
+/* Tables */
+.md-rendered table {
+  border-collapse: collapse;
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.md-rendered th,
+.md-rendered td {
+  border: 1px solid #ddd;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.md-rendered th {
+  background: rgba(0, 0, 0, 0.04);
+  font-weight: 600;
+}
+
+.md-rendered tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* Blockquotes */
+.md-rendered blockquote {
+  border-left: 3px solid #ccc;
+  margin: 8px 0;
+  padding: 4px 12px;
+  background: rgba(0, 0, 0, 0.02);
+  color: inherit;
+  opacity: 0.85;
+}
+
+.md-rendered blockquote p {
+  margin: 2px 0;
+}
+
+/* Links */
+.md-rendered a {
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+.md-rendered a:hover {
+  text-decoration: underline;
+}
+
+/* Horizontal rules */
+.md-rendered hr {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 10px 0;
+}
+
+/* Strikethrough */
+.md-rendered del {
+  opacity: 0.6;
+}
+
+/* Strong/Em inside code blocks should not override */
+.md-rendered pre strong,
+.md-rendered pre em {
+  font-weight: inherit;
+  font-style: inherit;
+}
+
+/* ============================================
+   AI Completion message bubble
+   ============================================ */
+
+.message.ai-completion {
+  align-self: flex-start;
+  max-width: 100%;
+  background: #f8fafc;
+  color: #1e293b;
+  border-bottom-left-radius: 6px;
+  border-left: 3px solid #3b82f6;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ============================================
+   Dark mode - markdown content
+   ============================================ */
+
+[data-theme="dark"] .md-rendered code {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f472b6;
+}
+
+[data-theme="dark"] .md-rendered pre {
+  background: #0d1117;
+  color: #c9d1d9;
+}
+
+[data-theme="dark"] .md-rendered th {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .md-rendered tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="dark"] .md-rendered th,
+[data-theme="dark"] .md-rendered td {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .md-rendered blockquote {
+  border-left-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="dark"] .md-rendered a {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .md-rendered hr {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================
+   Dark mode - ai-completion bubble
+   ============================================ */
+
+[data-theme="dark"] .message.ai-completion {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-left-color: #3b82f6;
+}
+
+/* ============================================
+   Dark mode - existing message types
+   (system, ai, error, action)
+   ============================================ */
+
+[data-theme="dark"] .message.system {
+  background: #374151;
+  color: #d1d5db;
+  border-left-color: #4b5563;
+}
+
+[data-theme="dark"] .message.ai {
+  background: #1e3a5f;
+  color: #93c5fd;
+  border-left-color: #3b82f6;
+}
+
+[data-theme="dark"] .message.error {
+  background: #451a1a;
+  color: #fca5a5;
+  border-left-color: #ef4444;
+}
+
+[data-theme="dark"] .message.action {
+  background: #1a2e1a;
+  color: #86efac;
+  border-left-color: #4ade80;
+}

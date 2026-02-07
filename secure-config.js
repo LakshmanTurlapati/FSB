@@ -7,9 +7,9 @@ class SecureConfig {
     this.sensitiveKeys = [
       'apiKey',
       'openaiApiKey',
-      'captchaApiKey',
-      'capsolverApiKey',
-      'twocaptchaApiKey'
+      'geminiApiKey',
+      'anthropicApiKey',
+      'customApiKey'
     ];
     
     // Runtime decrypted values (never persisted)

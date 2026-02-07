@@ -24,16 +24,16 @@ class Config {
       
       // Legacy support
       speedMode: 'normal', // Deprecated - use modelName instead
-      
-      // CAPTCHA configuration
-      captchaSolver: 'none',
-      captchaApiKey: '',
-      
+
       // Automation settings
-      actionDelay: 1000,
       maxIterations: 20,
-      confirmSensitive: true,
-      debugMode: false
+      debugMode: false,
+
+      // DOM Optimization settings
+      domOptimization: true,
+      maxDOMElements: 2000,
+      prioritizeViewport: true,
+      animatedActionHighlights: true
     };
     
     // Chrome extensions use storage API instead of environment variables
@@ -41,8 +41,8 @@ class Config {
     // Available models configuration
     this.availableModels = {
       xai: [
-        { id: 'grok-4-1-fast', name: 'Grok 4.1 Fast', description: 'High-speed, 2M context - best for automation (Recommended)' },
-        { id: 'grok-4-1-fast-reasoning', name: 'Grok 4.1 Fast Reasoning', description: 'With multi-step reasoning enabled' },
+        { id: 'grok-4-1-fast', name: 'Grok 4.1 Fast', description: 'High-speed with reasoning, 2M context (Recommended)' },
+        { id: 'grok-4-1-fast-non-reasoning', name: 'Grok 4.1 Fast Non-Reasoning', description: 'Without reasoning for faster responses' },
         { id: 'grok-4', name: 'Grok 4', description: 'Complex reasoning model' },
         { id: 'grok-code-fast-1', name: 'Grok Code Fast 1', description: 'Dedicated code generation & debugging' },
         { id: 'grok-3', name: 'Grok 3', description: 'Legacy flagship model' },
@@ -173,17 +173,10 @@ class Config {
   }
   
   // Get CAPTCHA API key based on solver
+  // Note: CAPTCHA solving is not fully implemented yet
   async getCaptchaApiKey(solver) {
-    const config = await this.loadFromStorage();
-    
-    switch (solver) {
-      case 'capsolver':
-        return config.capsolverApiKey || config.captchaApiKey;
-      case '2captcha':
-        return config.twocaptchaApiKey || config.captchaApiKey;
-      default:
-        return config.captchaApiKey;
-    }
+    // Returns null as CAPTCHA solver integration is not available
+    return null;
   }
   
   // Save configuration to storage
