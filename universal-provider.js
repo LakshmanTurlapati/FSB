@@ -40,10 +40,26 @@ const PROVIDER_CONFIGS = {
 };
 
 // Cache for successful parameter configurations per model
+// PERF: Size-limited to prevent unbounded growth
 const parameterCache = new Map();
+const PARAM_CACHE_MAX = 50;
 
 // Rate limit tracking per provider
+// PERF: Entries expire after 10 minutes
 const rateLimitState = new Map();
+const RATE_LIMIT_MAX = 50;
+const RATE_LIMIT_TTL = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * PERF: Set a value in a size-limited Map, evicting oldest if over limit.
+ */
+function boundedMapSet(map, key, value, maxSize) {
+  map.set(key, value);
+  if (map.size > maxSize) {
+    const firstKey = map.keys().next().value;
+    map.delete(firstKey);
+  }
+}
 
 // Default request timeout in milliseconds
 // Increased from 20s: later iterations with longer history can take 15-25s
@@ -51,7 +67,8 @@ const rateLimitState = new Map();
 const DEFAULT_REQUEST_TIMEOUT = 30000;
 
 // Maximum timeout cap - never wait longer than this
-const MAX_REQUEST_TIMEOUT = 35000;
+// Increased from 35s: API calls to large-context models can take 40-50s on first attempt
+const MAX_REQUEST_TIMEOUT = 60000;
 
 // Higher base timeout for reasoning models (internal chain-of-thought takes longer)
 const REASONING_MODEL_TIMEOUT = 45000;
@@ -60,25 +77,38 @@ const REASONING_MODEL_TIMEOUT = 45000;
 const MAX_REASONING_TIMEOUT = 90000;
 
 /**
- * Calculate adaptive timeout based on prompt/request size and model type
- * Base 30s + 5s per estimated 5K input tokens (45s base for reasoning models)
+ * Calculate adaptive timeout based on prompt/request size, model type, and retry attempt.
+ * Base 30s + 5s per estimated 5K input tokens (45s base for reasoning models).
+ * Progressive increase on retries: attempt 0 = base, attempt 1 = base * 1.5, attempt 2 = base * 2
  * @param {Object} requestBody - The request body to estimate size from
  * @param {string} modelName - The model name to check for reasoning model patterns
+ * @param {number} attempt - Retry attempt number (0-based), increases timeout progressively
  * @returns {number} Timeout in milliseconds
  */
-function calculateAdaptiveTimeout(requestBody, modelName = '') {
+function calculateAdaptiveTimeout(requestBody, modelName = '', attempt = 0) {
   const isReasoning = /reasoning|grok-4(?!.*(?:fast|mini))/.test(modelName);
   const baseTimeout = isReasoning ? REASONING_MODEL_TIMEOUT : DEFAULT_REQUEST_TIMEOUT;
   const maxTimeout = isReasoning ? MAX_REASONING_TIMEOUT : MAX_REQUEST_TIMEOUT;
 
+  // Progressive multiplier: 1x, 1.5x, 2x for attempts 0, 1, 2+
+  const retryMultiplier = 1 + (Math.min(attempt, 2) * 0.5);
+
   try {
-    const bodyStr = JSON.stringify(requestBody);
-    // Rough estimate: 1 token ~= 4 characters
-    const estimatedTokens = bodyStr.length / 4;
+    // PERF: Estimate size from messages array length instead of serializing entire body
+    let estimatedChars = 0;
+    if (requestBody.messages && Array.isArray(requestBody.messages)) {
+      for (const msg of requestBody.messages) {
+        estimatedChars += (msg.content || '').length;
+      }
+    } else {
+      // Fallback: rough estimate from stringify (only if no messages array)
+      estimatedChars = JSON.stringify(requestBody).length;
+    }
+    const estimatedTokens = estimatedChars / 4;
     const extra = Math.floor(estimatedTokens / 5000) * 5000;
-    return Math.min(baseTimeout + extra, maxTimeout);
+    return Math.min(Math.round((baseTimeout + extra) * retryMultiplier), maxTimeout);
   } catch {
-    return baseTimeout;
+    return Math.min(Math.round(baseTimeout * retryMultiplier), maxTimeout);
   }
 }
 
@@ -98,7 +128,7 @@ class UniversalProvider {
     // Initialize parameter cache for this model if not exists
     const cacheKey = `${this.provider}:${this.model}`;
     if (!parameterCache.has(cacheKey)) {
-      parameterCache.set(cacheKey, null);
+      boundedMapSet(parameterCache, cacheKey, null, PARAM_CACHE_MAX);
     }
   }
   
@@ -352,7 +382,7 @@ class UniversalProvider {
     // Update rate limit state
     state.backoff = waitTime;
     state.lastError = Date.now();
-    rateLimitState.set(providerKey, state);
+    boundedMapSet(rateLimitState, providerKey, state, RATE_LIMIT_MAX);
 
     console.log(`[FSB API] Rate limited by ${this.provider}. Waiting ${waitTime}ms before retry (attempt ${attemptNumber}/${MAX_RATE_LIMIT_RETRIES})`);
 
@@ -367,8 +397,9 @@ class UniversalProvider {
    * Enhanced with timeout and rate-limit handling
    */
   async sendRequest(requestBody, options = {}) {
-    // Use adaptive timeout based on request size if no explicit timeout provided
-    const defaultTimeout = options.timeout || calculateAdaptiveTimeout(requestBody, this.model);
+    // Use adaptive timeout based on request size and retry attempt if no explicit timeout provided
+    const attempt = options.attempt || 0;
+    const defaultTimeout = options.timeout || calculateAdaptiveTimeout(requestBody, this.model, attempt);
     const { retry = false, rateLimitAttempt = 0, timeout = defaultTimeout } = options;
 
     try {
@@ -419,7 +450,7 @@ class UniversalProvider {
           temperature: requestBody.temperature,
           top_p: requestBody.top_p
         };
-        parameterCache.set(cacheKey, paramsToCache);
+        boundedMapSet(parameterCache, cacheKey, paramsToCache, PARAM_CACHE_MAX);
       }
 
       return result;
@@ -502,8 +533,7 @@ class UniversalProvider {
         }
         content = response.candidates[0].content.parts[0].text;
         
-        // Debug: Log raw Gemini response before cleaning
-        console.log('Raw Gemini response content (first 500 chars):', content.substring(0, 500));
+        // Debug: Log raw Gemini response before cleaning (only in debug mode)
         
         usage = {
           inputTokens: response.usageMetadata?.promptTokenCount || 0,
@@ -528,10 +558,7 @@ class UniversalProvider {
         }
         content = response.choices[0].message.content;
         
-        // Debug: Log raw xAI response before cleaning
-        if (this.provider === 'xai') {
-          console.log('Raw xAI response content (first 500 chars):', content.substring(0, 500));
-        }
+        // Debug: raw xAI response logging removed for performance
         
         // Handle xAI's separate reasoning token counting
         if (this.provider === 'xai' && response.usage?.completion_tokens_details?.reasoning_tokens) {
@@ -557,11 +584,7 @@ class UniversalProvider {
     const originalContent = content;
     content = this.cleanResponse(content);
     
-    // Debug: Show cleaning effect for xAI
-    if (this.provider === 'xai' && originalContent !== content) {
-      console.log('xAI content was modified during cleaning');
-      console.log('After cleaning (first 500 chars):', content.substring(0, 500));
-    }
+    // Debug: xAI cleaning effect logging removed for performance
     
     // Parse the cleaned JSON content
     let parsedContent;
@@ -604,11 +627,9 @@ class UniversalProvider {
     // This is the fast path for well-formed responses
     try {
       JSON.parse(content);
-      console.log('parseJSONSafely: Valid JSON, early exit', { parseTime: Date.now() - parseStartTime });
       return content; // Already valid - no cleaning needed
     } catch (e) {
       // Continue with cleaning only if raw parse fails
-      console.log('parseJSONSafely: Needs cleaning, continuing...', { parseTime: Date.now() - parseStartTime });
     }
     
     let cleaned = content;
@@ -633,7 +654,6 @@ class UniversalProvider {
     // Stage 5: Validate and return
     try {
       JSON.parse(cleaned);
-      console.log('parseJSONSafely success');
       return cleaned;
     } catch (e) {
       console.error('parseJSONSafely failed after all attempts:', e.message);
@@ -644,10 +664,9 @@ class UniversalProvider {
       if (fallback) {
         try {
           JSON.parse(fallback);
-          console.log('Fallback extraction succeeded');
           return fallback;
         } catch (fe) {
-          console.log('Fallback extraction also failed:', fe.message);
+          // Fallback extraction also failed
         }
       }
       
@@ -663,8 +682,7 @@ class UniversalProvider {
   fixCommonMalformations(input) {
     let fixed = input;
     
-    // Debug log
-    console.log('fixCommonMalformations input sample:', fixed.substring(200, 400));
+    // PERF: Debug logging removed from hot parsing path
     
     // Fix unquoted string values with special characters or units
     // This regex looks for patterns like: "key": 29%, "key": 8 mph, etc.
@@ -674,7 +692,7 @@ class UniversalProvider {
     // Use negative lookahead to exclude true, false, null
     fixed = fixed.replace(/("[^"]+"\s*:\s*)(?!(true|false|null)([,}\]\s]))([^"\[\{\-\d\s][^,}\]]*?)([,}\]])/g, '$1"$4"$5');
     
-    console.log('After malformation fixes:', fixed.substring(200, 400));
+    // PERF: Post-fix logging removed from hot parsing path
     
     return fixed;
   }
@@ -775,7 +793,7 @@ class UniversalProvider {
       fixed += closingChar;
     }
     
-    console.log(`Fixed truncation: added ${fixed.length - input.length} closing chars, inString: ${inString}`);
+    // PERF: Truncation fix logging removed from hot parsing path
     return fixed;
   }
   
@@ -939,7 +957,7 @@ class UniversalProvider {
     }
     
     // If all else fails, create a minimal valid response
-    console.log('Creating minimal fallback response');
+    console.warn('[FSB] Creating minimal fallback response');
     return JSON.stringify({
       reasoning: "Failed to parse AI response",
       actions: [],

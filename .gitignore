@@ -29,4 +29,12 @@ Thumbs.db
 
 # API keys and secrets
 config/secrets.json
-*_api_key.txt.planning/
+*_api_key.txt
+.planning/
+
+# Log files with potential secrets
+Logs/
+Extenive logs, multiple scenariaos.txt
+
+# Showcase assets
+Showcase/

@@ -3,10 +3,24 @@
 // Import configuration and AI integration modules
 importScripts('config.js');
 importScripts('init-config.js');
+importScripts('secure-config.js');
 importScripts('ai-integration.js');
 importScripts('automation-logger.js');
 importScripts('analytics.js');
 importScripts('keyboard-emulator.js');
+importScripts('site-explorer.js');
+
+// Site-specific AI guidance modules
+importScripts('site-guides/index.js');
+importScripts('site-guides/ecommerce.js');
+importScripts('site-guides/social.js');
+importScripts('site-guides/coding.js');
+importScripts('site-guides/travel.js');
+importScripts('site-guides/finance.js');
+importScripts('site-guides/email.js');
+
+// Site Explorer instance
+const siteExplorer = new SiteExplorer();
 
 // Debug mode flag (controlled by options page toggle)
 let fsbDebugMode = false;
@@ -159,6 +173,84 @@ function formatDuration(ms) {
     return `${minutes}m ${remainingSecs}s`;
   }
   return `${seconds}s`;
+}
+
+/**
+ * Calculate progress percentage and estimated time remaining for a session.
+ * @param {Object} session - Active automation session
+ * @returns {{ progressPercent: number, estimatedTimeRemaining: string|null }}
+ */
+function calculateProgress(session) {
+  const maxIter = session.maxIterations || 20;
+  const current = session.iterationCount || 0;
+  const progressPercent = Math.min(99, Math.round((current / maxIter) * 100));
+
+  let estimatedTimeRemaining = null;
+  if (current > 0 && session.startTime) {
+    const elapsed = Date.now() - session.startTime;
+    const avgPerIteration = elapsed / current;
+    const remaining = (maxIter - current) * avgPerIteration;
+    if (remaining > 0) {
+      estimatedTimeRemaining = formatETA(remaining);
+    }
+  }
+  return { progressPercent, estimatedTimeRemaining };
+}
+
+/**
+ * Format milliseconds into a human-readable ETA string.
+ * @param {number} ms - Remaining time in milliseconds
+ * @returns {string}
+ */
+function formatETA(ms) {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `~${seconds}s remaining`;
+  const minutes = Math.round(seconds / 60);
+  return `~${minutes}m remaining`;
+}
+
+/**
+ * Summarize a task description into a short label using the AI provider.
+ * Non-blocking -- returns null on failure. Skips tasks already short enough.
+ * @param {string} taskText - Original task description
+ * @param {Object} settings - Extension settings (for provider config)
+ * @returns {Promise<string|null>}
+ */
+async function summarizeTask(taskText, settings) {
+  try {
+    if (!taskText || taskText.length <= 40) return taskText;
+
+    const provider = new UniversalProvider(settings);
+    const requestBody = await provider.buildRequest({
+      systemPrompt: 'Summarize this browser automation task in under 10 words. Return only the summary, nothing else.',
+      userPrompt: taskText
+    }, {});
+
+    // Limit tokens for this tiny call
+    if (requestBody.max_tokens) requestBody.max_tokens = 50;
+    if (requestBody.generationConfig?.maxOutputTokens) requestBody.generationConfig.maxOutputTokens = 50;
+
+    const response = await provider.sendRequest(requestBody, { timeout: 8000 });
+
+    // Extract raw text content directly (parseResponse expects JSON, but we want plain text)
+    let summary = null;
+    const providerName = settings.modelProvider || 'xai';
+    if (providerName === 'gemini') {
+      summary = response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    } else if (providerName === 'anthropic') {
+      summary = response?.content?.[0]?.text;
+    } else {
+      // xAI / OpenAI compatible
+      summary = response?.choices?.[0]?.message?.content;
+    }
+
+    summary = summary?.trim();
+    if (summary && summary.length > 0 && summary.length <= 60) return summary;
+    return summary ? summary.substring(0, 40) : null;
+  } catch (e) {
+    automationLogger.debug('Task summarization failed (non-blocking)', { error: e.message });
+    return null;
+  }
 }
 
 /**
@@ -422,6 +514,12 @@ async function cleanupSession(sessionId) {
   if (session) {
     session.isTerminating = true;
 
+    // PERF: Signal the stop via AbortController (replaces 500ms polling)
+    if (session._stopAbortController) {
+      session._stopAbortController.abort();
+      session._stopAbortController = null;
+    }
+
     // If there's an active loop iteration, wait for it to yield
     if (session.loopPromise) {
       automationLogger.debug('Waiting for active loop to yield', { sessionId });
@@ -440,6 +538,13 @@ async function cleanupSession(sessionId) {
     if (session.pendingTimeout) {
       clearTimeout(session.pendingTimeout);
       session.pendingTimeout = null;
+    }
+
+    // Clean up orphaned login handler if session had one
+    if (session._loginHandler) {
+      chrome.runtime.onMessage.removeListener(session._loginHandler.handler);
+      clearTimeout(session._loginHandler.timeout);
+      session._loginHandler = null;
     }
   }
 
@@ -478,6 +583,24 @@ let activeSessions = new Map();
 // Store for AI integration instances per session (for multi-turn conversations)
 // This allows conversation history to persist across iterations within a session
 let sessionAIInstances = new Map();
+
+// PERF: Max Map sizes to prevent unbounded growth
+const MAX_CONTENT_SCRIPT_ENTRIES = 200;
+
+/**
+ * Enforce size limit on a Map by evicting oldest entries.
+ * @param {Map} map - The map to trim
+ * @param {number} maxSize - Maximum allowed entries
+ */
+function enforceMapLimit(map, maxSize) {
+  if (map.size <= maxSize) return;
+  const excess = map.size - maxSize;
+  const iter = map.keys();
+  for (let i = 0; i < excess; i++) {
+    const key = iter.next().value;
+    map.delete(key);
+  }
+}
 
 // SPEED-02: Track pending DOM prefetch for parallel analysis
 // When AI is processing, we speculatively start the next DOM fetch
@@ -617,13 +740,13 @@ const contentScriptPorts = new Map();
 
 // Listen for persistent port connections from content scripts
 chrome.runtime.onConnect.addListener((port) => {
-  console.log('[FSB Background] onConnect received, port name:', port.name);
+  debugLog('[FSB Background] onConnect received, port name:', port.name);
   if (port.name === 'content-script') {
     const tabId = port.sender?.tab?.id;
     const frameId = port.sender?.frameId;
-    console.log('[FSB Background] Content script port connection, tabId:', tabId, 'frameId:', frameId);
+    debugLog('[FSB Background] Content script port connection', { tabId, frameId });
     if (!tabId || frameId !== 0) {
-      console.log('[FSB Background] Ignoring non-main-frame port');
+      debugLog('[FSB Background] Ignoring non-main-frame port');
       return; // Main frame only
     }
 
@@ -632,7 +755,8 @@ chrome.runtime.onConnect.addListener((port) => {
       connectedAt: Date.now(),
       lastHeartbeat: Date.now()
     });
-    console.log('[FSB Background] Port stored for tab:', tabId);
+    enforceMapLimit(contentScriptPorts, MAX_CONTENT_SCRIPT_ENTRIES);
+    debugLog('[FSB Background] Port stored for tab:', tabId);
 
     automationLogger.logComm(null, 'receive', 'port_connected', true, { tabId });
 
@@ -696,8 +820,27 @@ chrome.webNavigation.onCommitted.addListener((details) => {
   });
 });
 
+// PERF: Clean up all state when a tab is closed to prevent memory leaks
+chrome.tabs.onRemoved.addListener((tabId) => {
+  contentScriptPorts.delete(tabId);
+  contentScriptReadyStatus.delete(tabId);
+  contentScriptHealth.delete(tabId);
+
+  // Clean up any active sessions for this tab
+  for (const [sessionId, session] of activeSessions) {
+    if (session.tabId === tabId) {
+      session.status = 'stopped';
+      activeSessions.delete(sessionId);
+      if (sessionAIInstances.has(sessionId)) {
+        sessionAIInstances.delete(sessionId);
+      }
+    }
+  }
+});
+
 // Send periodic heartbeats to keep port connections validated
-setInterval(() => {
+// PERF: Store interval ID so it can be cleared on suspension
+const _heartbeatIntervalId = setInterval(() => {
   for (const [tabId, portInfo] of contentScriptPorts.entries()) {
     try {
       portInfo.port.postMessage({ type: 'heartbeat', timestamp: Date.now() });
@@ -706,6 +849,14 @@ setInterval(() => {
     }
   }
 }, 3000);
+
+// PERF: Clean up on service worker suspension
+chrome.runtime.onSuspend.addListener(() => {
+  clearInterval(_heartbeatIntervalId);
+  contentScriptPorts.clear();
+  contentScriptReadyStatus.clear();
+  contentScriptHealth.clear();
+});
 
 // Performance monitoring
 const performanceMetrics = {
@@ -914,7 +1065,7 @@ async function checkContentScriptHealth(tabId, timeout = 4000) {
     // Message-based check with internal retry
     for (let msgAttempt = 1; msgAttempt <= 2; msgAttempt++) {
       try {
-        console.log('[FSB Background] Sending healthCheck to tab:', tabId, 'attempt:', msgAttempt);
+        debugLog('[FSB Background] Sending healthCheck to tab:', { tabId, attempt: msgAttempt });
         // CRITICAL: Use frameId: 0 to target ONLY the main frame
         const healthCheckPromise = chrome.tabs.sendMessage(tabId, {
           action: 'healthCheck'
@@ -925,10 +1076,10 @@ async function checkContentScriptHealth(tabId, timeout = 4000) {
         );
 
         const response = await Promise.race([healthCheckPromise, timeoutPromise]);
-        console.log('[FSB Background] healthCheck response:', response);
+        debugLog('[FSB Background] healthCheck response', response);
 
         if (response && response.success) {
-          console.log('[FSB Background] healthCheck successful for tab:', tabId);
+          debugLog('[FSB Background] healthCheck successful for tab:', tabId);
           contentScriptHealth.set(tabId, {
             lastCheck: Date.now(),
             healthy: true,
@@ -938,7 +1089,7 @@ async function checkContentScriptHealth(tabId, timeout = 4000) {
           return true;
         }
       } catch (e) {
-        console.log('[FSB Background] healthCheck failed, tab:', tabId, 'error:', e.message);
+        debugLog('[FSB Background] healthCheck failed', { tabId, error: e.message });
         if (msgAttempt < 2) {
           automationLogger.debug('Message health check failed, retrying', { tabId, attempt: msgAttempt, error: e.message });
           await new Promise(r => setTimeout(r, 500));
@@ -1219,6 +1370,28 @@ function classifyFailure(error, action, context = {}) {
   
   // Default to communication for unknown errors
   return FAILURE_TYPES.COMMUNICATION;
+}
+
+// Slim down action results before storing in session history.
+// Keeps only the fields that ai-integration and stuck detection actually read.
+function slimActionResult(result) {
+  if (!result) return result;
+  const slim = { success: result.success };
+  if (result.error) slim.error = result.error;
+  if (result.hadEffect !== undefined) slim.hadEffect = result.hadEffect;
+  if (result.navigationTriggered) slim.navigationTriggered = true;
+  if (result.validationPassed !== undefined) slim.validationPassed = result.validationPassed;
+  if (result.validationPassed === false && result.actualValue !== undefined) slim.actualValue = result.actualValue;
+  if (result.warning) slim.warning = result.warning;
+  if (!result.success && result.suggestion) slim.suggestion = result.suggestion;
+  if (result.typed) slim.typed = result.typed;
+  if (result.clicked) slim.clicked = result.clicked;
+  if (result.navigatingTo) slim.navigatingTo = result.navigatingTo;
+  if (result.selected) slim.selected = result.selected;
+  if (result.checked !== undefined) slim.checked = result.checked;
+  if (result.failureType) slim.failureType = result.failureType;
+  if (result.retryable !== undefined) slim.retryable = result.retryable;
+  return slim;
 }
 
 // Enhanced message sending with automatic retry and fallback
@@ -1619,8 +1792,17 @@ function generateRecoveryStrategies(patterns, session) {
       description: 'Fundamentally change approach (e.g., use Google search instead of direct interaction)',
       priority: 'high'
     });
+
+    // If we navigated or clicked before getting stuck, suggest goBack to return to previous page
+    if (session.actionHistory?.some(a => a.tool === 'navigate' || a.tool === 'click' || a.tool === 'clickSearchResult')) {
+      strategies.push({
+        type: 'go_back',
+        description: 'Use goBack to return to previous page (e.g., search results) and try a different link or approach',
+        priority: 'high'
+      });
+    }
   }
-  
+
   return strategies.sort((a, b) => {
     const priorityOrder = { high: 3, medium: 2, low: 1 };
     return priorityOrder[b.priority] - priorityOrder[a.priority];
@@ -2204,8 +2386,15 @@ function detectRepeatedSuccess(session) {
 
 // Listen for messages from popup and content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // Security: Only accept messages from our own extension contexts
+  if (sender.id !== chrome.runtime.id) {
+    console.warn('[FSB] Rejected message from unknown sender:', sender.id);
+    sendResponse({ success: false, error: 'Unauthorized sender' });
+    return;
+  }
+
   automationLogger.logComm(null, 'receive', request.action || 'unknown', true, { tabId: sender.tab?.id });
-  
+
   switch (request.action) {
     case 'startAutomation':
       handleStartAutomation(request, sender, sendResponse);
@@ -2275,9 +2464,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleCDPInsertText(request, sender, sendResponse);
       return true; // Will respond asynchronously
 
+    case 'monacoEditorInsert':
+      handleMonacoEditorInsert(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
     case 'contentScriptReady':
       // Content script signals it's ready and message listener is registered
-      console.log('[FSB Background] contentScriptReady received from tab:', sender.tab?.id, 'frame:', sender.frameId);
+      debugLog('[FSB Background] contentScriptReady received', { tab: sender.tab?.id, frame: sender.frameId });
       const tabId = sender.tab?.id;
       const frameId = sender.frameId;
       if (tabId) {
@@ -2290,10 +2483,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             url: request.url || sender.url,
             frameId: frameId
           });
-          console.log('[FSB Background] Tab marked as ready:', tabId);
+          debugLog('[FSB Background] Tab marked as ready:', tabId);
           automationLogger.logInit('content_script', 'ready', { tabId, frameId, readyState: request.readyState, retry: request.retry || false });
         } else {
-          console.log('[FSB Background] Iframe ready ignored, frame:', frameId);
+          debugLog('[FSB Background] Iframe ready ignored, frame:', frameId);
           automationLogger.debug('Iframe content script ready (ignored)', { tabId, frameId });
         }
       }
@@ -2319,6 +2512,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
       sendResponse({ success: true });
       break;
+
+    case 'solveCaptcha':
+      handleSolveCaptcha(request, sender, sendResponse);
+      return true; // Will respond asynchronously
 
     case 'spaNavigation':
       // Content script detected SPA navigation (Google, etc.)
@@ -2376,6 +2573,150 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })();
       return true; // Will respond asynchronously
 
+    // Credential management actions (Passwords Beta)
+    case 'getCredential':
+      (async () => {
+        try {
+          const cred = await secureConfig.getCredential(request.domain);
+          sendResponse({ success: true, credential: cred });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getFullCredential':
+      (async () => {
+        try {
+          const cred = await secureConfig.getFullCredential(request.domain);
+          sendResponse({ success: true, credential: cred });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'saveCredential':
+      (async () => {
+        try {
+          const result = await secureConfig.saveCredential(request.domain, request.data);
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getAllCredentials':
+      (async () => {
+        try {
+          const credentials = await secureConfig.getAllCredentials();
+          sendResponse({ success: true, credentials });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'deleteCredential':
+      (async () => {
+        try {
+          const result = await secureConfig.deleteCredential(request.domain);
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'updateCredential':
+      (async () => {
+        try {
+          const result = await secureConfig.updateCredential(request.domain, request.updates);
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    // Site Explorer message handlers
+    case 'startExplorer':
+      (async () => {
+        try {
+          const result = await siteExplorer.start(request.url, {
+            maxDepth: request.maxDepth || 3,
+            maxPages: request.maxPages || 25,
+            callerTabId: sender.tab?.id || null
+          });
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'stopExplorer':
+      (async () => {
+        try {
+          const result = await siteExplorer.stop();
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getExplorerStatus':
+      sendResponse(siteExplorer.getStatus());
+      break;
+
+    case 'getResearchList':
+      (async () => {
+        try {
+          const stored = await chrome.storage.local.get(['fsbResearchIndex']);
+          sendResponse({ success: true, list: stored.fsbResearchIndex || [] });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getResearchData':
+      (async () => {
+        try {
+          const stored = await chrome.storage.local.get(['fsbResearchData']);
+          const data = (stored.fsbResearchData || {})[request.researchId];
+          if (data) {
+            sendResponse({ success: true, data });
+          } else {
+            sendResponse({ success: false, error: 'Research not found' });
+          }
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'deleteResearch':
+      (async () => {
+        try {
+          const stored = await chrome.storage.local.get(['fsbResearchData', 'fsbResearchIndex']);
+          const researchData = stored.fsbResearchData || {};
+          const researchIndex = stored.fsbResearchIndex || [];
+          delete researchData[request.researchId];
+          const updatedIndex = researchIndex.filter(r => r.id !== request.researchId);
+          await chrome.storage.local.set({
+            fsbResearchData: researchData,
+            fsbResearchIndex: updatedIndex
+          });
+          sendResponse({ success: true });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
     default:
       sendResponse({ error: 'Unknown action' });
   }
@@ -2390,6 +2731,140 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
  * @param {Function} sendResponse - Function to send response back to sender
  * @returns {Promise<void>}
  */
+
+// ==========================================
+// 2Captcha CAPTCHA Solver Relay
+// ==========================================
+
+/**
+ * Known 2Captcha error codes mapped to user-friendly messages
+ */
+const TWOCAPTCHA_ERRORS = {
+  'ERROR_WRONG_USER_KEY': 'Invalid 2Captcha API key. Check your key in FSB settings.',
+  'ERROR_KEY_DOES_NOT_EXIST': 'Invalid 2Captcha API key. Check your key in FSB settings.',
+  'ERROR_ZERO_BALANCE': '2Captcha account has no balance. Please add funds at 2captcha.com.',
+  'ERROR_NO_SLOT_AVAILABLE': '2Captcha is busy. Please try again in a moment.',
+  'ERROR_CAPTCHA_UNSOLVABLE': 'CAPTCHA could not be solved. It may be too distorted.',
+  'ERROR_WRONG_CAPTCHA_ID': 'Internal error: invalid CAPTCHA task ID.',
+  'ERROR_BAD_DUPLICATES': 'CAPTCHA solve failed due to inconsistent results.',
+  'ERROR_PAGEURL': 'Invalid page URL provided for CAPTCHA solving.',
+  'ERROR_PROXY': 'Proxy error during CAPTCHA solving.'
+};
+
+/**
+ * Handle CAPTCHA solving via 2Captcha API
+ * Content scripts cannot make cross-origin requests, so this relays through the background
+ */
+async function handleSolveCaptcha(request, sender, sendResponse) {
+  const { captchaType, sitekey, pageUrl, apiKey } = request;
+
+  try {
+    // Validate inputs
+    if (!apiKey) {
+      sendResponse({ success: false, error: 'No 2Captcha API key configured. Add it in FSB settings.' });
+      return;
+    }
+    if (!sitekey) {
+      sendResponse({ success: false, error: 'Could not extract sitekey from the page.' });
+      return;
+    }
+    if (!pageUrl) {
+      sendResponse({ success: false, error: 'Page URL is required for CAPTCHA solving.' });
+      return;
+    }
+
+    // Determine method based on CAPTCHA type
+    let method;
+    switch (captchaType) {
+      case 'recaptcha':
+        method = 'userrecaptcha';
+        break;
+      case 'hcaptcha':
+        method = 'hcaptcha';
+        break;
+      case 'turnstile':
+        method = 'turnstile';
+        break;
+      default:
+        sendResponse({ success: false, error: `Unsupported CAPTCHA type: ${captchaType}` });
+        return;
+    }
+
+    console.log(`[FSB] Submitting ${captchaType} CAPTCHA to 2Captcha...`);
+
+    // Step 1: Submit CAPTCHA to 2Captcha (POST to keep API key out of URL/logs)
+    const submitParams = new URLSearchParams({
+      key: apiKey,
+      method: method,
+      googlekey: sitekey,
+      pageurl: pageUrl,
+      json: '1'
+    });
+
+    const submitResponse = await fetch('https://2captcha.com/in.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: submitParams.toString()
+    });
+    const submitData = await submitResponse.json();
+
+    if (submitData.status !== 1) {
+      const errorMsg = TWOCAPTCHA_ERRORS[submitData.request] || `2Captcha error: ${submitData.request}`;
+      console.error('[FSB] 2Captcha submit failed:', submitData.request);
+      sendResponse({ success: false, error: errorMsg });
+      return;
+    }
+
+    const taskId = submitData.request;
+    console.log(`[FSB] 2Captcha task submitted: ${taskId}. Polling for result...`);
+
+    // Step 2: Poll for result (every 5s, max 30 attempts = 150s)
+    const maxAttempts = 30;
+    const pollInterval = 5000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+      const resultParams = new URLSearchParams({
+        key: apiKey,
+        action: 'get',
+        id: taskId,
+        json: '1'
+      });
+
+      const resultResponse = await fetch('https://2captcha.com/res.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: resultParams.toString()
+      });
+      const resultData = await resultResponse.json();
+
+      if (resultData.status === 1) {
+        console.log(`[FSB] CAPTCHA solved successfully after ${(attempt + 1) * 5}s`);
+        sendResponse({ success: true, token: resultData.request });
+        return;
+      }
+
+      if (resultData.request !== 'CAPCHA_NOT_READY') {
+        const errorMsg = TWOCAPTCHA_ERRORS[resultData.request] || `2Captcha error: ${resultData.request}`;
+        console.error('[FSB] 2Captcha solve failed:', resultData.request);
+        sendResponse({ success: false, error: errorMsg });
+        return;
+      }
+
+      // CAPCHA_NOT_READY - continue polling
+      debugLog(`2Captcha polling attempt ${attempt + 1}/${maxAttempts}...`);
+    }
+
+    // Timeout
+    sendResponse({ success: false, error: 'CAPTCHA solve timed out after 150 seconds. The CAPTCHA may be too complex.' });
+
+  } catch (error) {
+    console.error('[FSB] CAPTCHA solve error:', error);
+    sendResponse({ success: false, error: `CAPTCHA solve failed: ${error.message}` });
+  }
+}
+
 async function handleStartAutomation(request, sender, sendResponse) {
   const { task, tabId } = request;
   
@@ -2575,8 +3050,21 @@ async function handleStartAutomation(request, sender, sendResponse) {
       taskName: task,
       iteration: 0,
       maxIterations: userMaxIterations,
-      animatedHighlights: sessionData.animatedActionHighlights
+      animatedHighlights: sessionData.animatedActionHighlights,
+      progressPercent: 0,
+      estimatedTimeRemaining: null,
+      taskSummary: null
     });
+
+    // Non-blocking task summarization (runs in parallel, does not delay start)
+    config.getAll().then(settings => {
+      summarizeTask(task, settings).then(summary => {
+        const s = activeSessions.get(sessionId);
+        if (s && summary) {
+          s.taskSummary = summary;
+        }
+      });
+    }).catch(() => {});
 
     // Reset DOM state in content script to prevent stale state comparison between sessions
     try {
@@ -3124,13 +3612,13 @@ async function executeDeterministicBatch(actions, session, tabId) {
         duration: Date.now() - actionStartTime
       });
 
-      // Track in session action history
+      // Track in session action history (slim result to reduce memory and prompt token usage)
       if (session) {
         session.actionHistory.push({
           timestamp: Date.now(),
           tool: action.tool,
           params: action.params,
-          result: actionResult,
+          result: slimActionResult(actionResult),
           iteration: session.iterationCount,
           batched: true,
           batchPattern: pattern.name
@@ -3273,6 +3761,221 @@ function checkHarmfulRepetition(actions, repeatCount, session) {
   
   // Default threshold - flag as harmful if repeated more than 4 times
   return repeatCount > 4;
+}
+
+// ==========================================
+// Login Detection Helpers (Passwords Beta)
+// ==========================================
+
+// Wait for the user to respond to a login prompt (submit or skip)
+function waitForLoginResponse(sessionId) {
+  return new Promise((resolve) => {
+    // Set a timeout to auto-skip after 2 minutes
+    const timeout = setTimeout(() => {
+      chrome.runtime.onMessage.removeListener(handler);
+      resolve({ action: 'loginSkipped', sessionId, reason: 'timeout' });
+    }, 120000);
+
+    const handler = (request, sender, sendResponse) => {
+      if (request.sessionId === sessionId &&
+          (request.action === 'loginFormSubmitted' || request.action === 'loginSkipped')) {
+        clearTimeout(timeout);
+        chrome.runtime.onMessage.removeListener(handler);
+        resolve(request);
+        sendResponse({ received: true });
+      }
+    };
+    chrome.runtime.onMessage.addListener(handler);
+
+    // Store reference for cleanup on session termination
+    const session = activeSessions.get(sessionId);
+    if (session) {
+      session._loginHandler = { handler, timeout };
+    }
+  });
+}
+
+// Extract login field selectors from DOM analysis
+function extractLoginFields(domData) {
+  const elements = domData?.elements || [];
+  let usernameSelector = null;
+  let passwordSelector = null;
+  let submitSelector = null;
+  let usernameType = 'text';
+  let passwordFormId = null;
+
+  // Find password field and record its form context
+  for (const el of elements) {
+    if (el.type === 'input' && el.attributes?.type === 'password') {
+      passwordSelector = el.selectors?.[0] || (el.id ? `#${el.id}` : null) || 'input[type="password"]';
+      passwordFormId = el.formId || null;
+      break;
+    }
+  }
+
+  // Helper: check if an element looks like a search input (not a login field)
+  function isSearchInput(el) {
+    const role = el.attributes?.role || '';
+    const placeholder = (el.attributes?.placeholder || '').toLowerCase();
+    const ariaLabel = (el.attributes?.['aria-label'] || '').toLowerCase();
+    return role === 'combobox' || role === 'search' ||
+           placeholder.includes('search') || ariaLabel.includes('search');
+  }
+
+  // Find username/email field: input[type=text|email] near password, or with matching name/id
+  const usernamePatterns = /user|email|login|account|name|ident/i;
+  for (const el of elements) {
+    if (el.type !== 'input') continue;
+    const inputType = el.attributes?.type || 'text';
+    if (!['text', 'email', 'tel'].includes(inputType)) continue;
+
+    const nameOrId = (el.id || '') + (el.attributes?.name || '') + (el.attributes?.placeholder || '');
+    if (usernamePatterns.test(nameOrId) || inputType === 'email') {
+      usernameSelector = el.selectors?.[0] || (el.id ? `#${el.id}` : null);
+      usernameType = inputType === 'email' ? 'email' : 'text';
+      break;
+    }
+  }
+
+  // If no username found by pattern but we know the password's form, search within that form
+  if (!usernameSelector && passwordFormId) {
+    for (const el of elements) {
+      if (el.type !== 'input') continue;
+      if (el.formId !== passwordFormId) continue;
+      const inputType = el.attributes?.type || 'text';
+      if (!['text', 'email', 'tel'].includes(inputType)) continue;
+      if (isSearchInput(el)) continue;
+
+      usernameSelector = el.selectors?.[0] || (el.id ? `#${el.id}` : null);
+      usernameType = inputType === 'email' ? 'email' : 'text';
+      automationLogger.debug('Username found via form-scoped search', { formId: passwordFormId, selector: usernameSelector });
+      break;
+    }
+  }
+
+  // Last fallback: first text/email input that isn't password and isn't a search input
+  if (!usernameSelector) {
+    for (const el of elements) {
+      if (el.type !== 'input') continue;
+      const inputType = el.attributes?.type || 'text';
+      if (!['text', 'email', 'tel'].includes(inputType)) continue;
+      if (isSearchInput(el)) continue;
+
+      usernameSelector = el.selectors?.[0] || (el.id ? `#${el.id}` : null);
+      break;
+    }
+  }
+
+  // Find submit button
+  const submitPatterns = /log.?in|sign.?in|submit|continue|next/i;
+  for (const el of elements) {
+    if (el.type !== 'button' && !(el.type === 'input' && el.attributes?.type === 'submit')) continue;
+    const text = (el.text || '') + (el.attributes?.value || '') + (el.attributes?.['aria-label'] || '');
+    if (submitPatterns.test(text)) {
+      submitSelector = el.selectors?.[0] || (el.id ? `#${el.id}` : null);
+      break;
+    }
+  }
+
+  // Fallback: any button[type=submit] or input[type=submit]
+  if (!submitSelector) {
+    for (const el of elements) {
+      if (el.attributes?.type === 'submit') {
+        submitSelector = el.selectors?.[0] || (el.id ? `#${el.id}` : null);
+        break;
+      }
+    }
+  }
+
+  return { usernameSelector, passwordSelector, submitSelector, usernameType };
+}
+
+// Fill credentials on page using saved credentials (looks up from storage)
+async function fillCredentialsOnPage(tabId, domain, domData) {
+  const cred = await secureConfig.getCredential(domain);
+  if (!cred) return { success: false, error: 'No credentials found' };
+
+  const fields = extractLoginFields(domData);
+
+  return await fillCredentialsOnPageDirect(tabId, {
+    usernameSelector: fields.usernameSelector,
+    passwordSelector: fields.passwordSelector,
+    submitSelector: fields.submitSelector,
+    username: cred.username,
+    password: cred.password
+  });
+}
+
+// Fill credentials on page directly via chrome.scripting.executeScript
+// This avoids sending credentials over message passing where they could be intercepted
+// Uses React-compatible native setter to work with frameworks that intercept value changes
+async function fillCredentialsOnPageDirect(tabId, { usernameSelector, passwordSelector, submitSelector, username, password }) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (uSel, pSel, sSel, u, p) => {
+        // React-compatible value setter: uses the native HTMLInputElement prototype setter
+        // which triggers React's synthetic event system, unlike direct .value assignment
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype, 'value'
+        ).set;
+
+        function setInputValue(el, value) {
+          if (!el) return false;
+          el.focus();
+          // Use native setter to bypass React's interception
+          nativeInputValueSetter.call(el, value);
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+
+          // Verify the value stuck
+          if (el.value === value) return true;
+
+          // Fallback: select all + insertText (works with most frameworks)
+          el.focus();
+          el.select();
+          document.execCommand('selectAll', false, null);
+          document.execCommand('insertText', false, value);
+
+          return el.value === value;
+        }
+
+        const uEl = uSel ? document.querySelector(uSel) : null;
+        const pEl = pSel ? document.querySelector(pSel) : null;
+
+        const uFilled = setInputValue(uEl, u);
+        const pFilled = setInputValue(pEl, p);
+
+        // Verify both fields after filling
+        const uVerified = uEl ? uEl.value === u : false;
+        const pVerified = pEl ? pEl.value === p : false;
+
+        // Delay submit click to let framework state updates settle
+        if (sSel) {
+          setTimeout(() => {
+            const sEl = document.querySelector(sSel);
+            if (sEl) sEl.click();
+          }, 300);
+        }
+
+        return {
+          success: uVerified && pVerified,
+          filledUsername: uFilled,
+          filledPassword: pFilled,
+          usernameVerified: uVerified,
+          passwordVerified: pVerified
+        };
+      },
+      args: [usernameSelector, passwordSelector, submitSelector, username, password],
+      world: 'MAIN'
+    });
+    const result = results[0]?.result || { success: false, error: 'No result from script injection' };
+    automationLogger.debug('fillCredentialsOnPageDirect result', result);
+    return result;
+  } catch (error) {
+    console.error('[FSB] fillCredentialsOnPageDirect error:', error.message || 'Unknown error');
+    return { success: false, error: 'Credential fill failed' };
+  }
 }
 
 // Helper function to create a more intelligent hash of DOM state
@@ -3463,7 +4166,10 @@ async function startAutomationLoop(sessionId) {
     taskName: session.task,
     iteration: session.iterationCount,
     maxIterations: session.maxIterations || 20,
-    animatedHighlights: session.animatedActionHighlights
+    animatedHighlights: session.animatedActionHighlights,
+    statusText: session.lastActionStatusText || null,
+    ...calculateProgress(session),
+    taskSummary: session.taskSummary || null
   });
 
   // === SAFETY NET: Absolute iteration cap and session time limit ===
@@ -3948,7 +4654,157 @@ async function startAutomationLoop(sessionId) {
     
     // Get settings for AI call using config
     const settings = await config.getAll();
-    
+
+    // ==========================================
+    // LOGIN DETECTION HOOK (Passwords Beta)
+    // ==========================================
+    const enableLogin = settings.enableLogin === true;
+    const domElements = domResponse.structuredDOM?.elements || [];
+    const domForms = domResponse.structuredDOM?.htmlContext?.pageStructure?.forms || [];
+    const hasPasswordField = domElements.some(el =>
+      el.type === 'input' && (
+        el.inputType === 'password' ||
+        el.attributes?.type === 'password' ||
+        (el.id && el.id.includes('password')) ||
+        el.selectors?.some(s => typeof s === 'string' && s.includes('type="password"'))
+      )
+    ) || domForms.some(f => f.fields?.some(field => field.type === 'password'));
+
+    if (enableLogin && hasPasswordField && !session._loginHandledForUrl?.includes(currentUrl)) {
+      const loginDomain = secureConfig.normalizeDomain(currentUrl);
+      automationLogger.debug('Login page detected', { sessionId, domain: loginDomain, url: currentUrl });
+
+      // Track that we've handled login for this URL to avoid repeated prompts
+      if (!session._loginHandledForUrl) session._loginHandledForUrl = [];
+
+      // Check for saved credentials
+      const savedCred = await secureConfig.getCredential(loginDomain);
+
+      if (savedCred) {
+        // SILENT AUTO-FILL: use saved credentials
+        automationLogger.info('Auto-filling saved credentials', { sessionId, domain: loginDomain });
+
+        sendSessionStatus(session.tabId, {
+          phase: 'acting',
+          taskName: session.task,
+          iteration: session.iterationCount,
+          maxIterations: session.maxIterations || 20,
+          statusText: 'Signing in...',
+          animatedHighlights: session.animatedActionHighlights
+        });
+
+        chrome.runtime.sendMessage({
+          action: 'statusUpdate',
+          sessionId,
+          message: 'Signing in...'
+        }).catch(() => {});
+
+        const loginFields = extractLoginFields(domResponse.structuredDOM);
+        const fillResult = await fillCredentialsOnPage(session.tabId, loginDomain, domResponse.structuredDOM);
+
+        automationLogger.debug('Auto-fill result', { sessionId, success: fillResult?.success, filledUsername: fillResult?.filledUsername, filledPassword: fillResult?.filledPassword, usernameVerified: fillResult?.usernameVerified, passwordVerified: fillResult?.passwordVerified });
+
+        if (fillResult?.success) {
+          session._loginHandledForUrl.push(currentUrl);
+        } else {
+          automationLogger.warn('Auto-fill credentials did not verify - will allow re-detection', { sessionId, domain: loginDomain });
+        }
+
+        // Wait for page to settle after login submission
+        await new Promise(r => setTimeout(r, 2000));
+
+        // Check if login actually succeeded (URL changed = redirect after login)
+        if (fillResult?.success) {
+          try {
+            const tab = await chrome.tabs.get(session.tabId);
+            const newUrl = tab?.url || '';
+            if (newUrl === currentUrl) {
+              // Still on login page - login may have failed, allow re-detection
+              const idx = session._loginHandledForUrl.indexOf(currentUrl);
+              if (idx !== -1) session._loginHandledForUrl.splice(idx, 1);
+              automationLogger.debug('Still on login page after fill - re-enabling detection', { sessionId });
+            }
+          } catch (e) { /* tab may be gone */ }
+        }
+
+        // Continue to next iteration (re-analyze DOM)
+        loopResolve?.();
+        if (!isSessionTerminating(sessionId) && activeSessions.has(sessionId)) {
+          setTimeout(() => startAutomationLoop(sessionId), 500);
+        }
+        return;
+      } else {
+        // NO SAVED CREDS: interrupt sidepanel for credentials
+        const loginFields = extractLoginFields(domResponse.structuredDOM);
+        automationLogger.info('No saved credentials, requesting from user', { sessionId, domain: loginDomain });
+
+        chrome.runtime.sendMessage({
+          action: 'loginDetected',
+          sessionId,
+          domain: loginDomain,
+          fields: loginFields
+        }).catch(() => {});
+
+        // PAUSE: wait for user response
+        const userResponse = await waitForLoginResponse(sessionId);
+
+        if (userResponse.action === 'loginFormSubmitted') {
+          // Save credentials if requested
+          if (userResponse.save) {
+            await secureConfig.saveCredential(loginDomain, {
+              username: userResponse.credentials.username,
+              password: userResponse.credentials.password
+            });
+          }
+
+          // Fill the form on page
+          const directFillResult = await fillCredentialsOnPageDirect(session.tabId, {
+            usernameSelector: loginFields.usernameSelector,
+            passwordSelector: loginFields.passwordSelector,
+            submitSelector: loginFields.submitSelector,
+            username: userResponse.credentials.username,
+            password: userResponse.credentials.password
+          });
+
+          if (directFillResult?.success) {
+            session._loginHandledForUrl.push(currentUrl);
+          } else {
+            automationLogger.warn('Direct credential fill did not verify - will allow re-detection', { sessionId, domain: loginDomain, result: directFillResult });
+          }
+
+          // Wait for page to settle
+          await new Promise(r => setTimeout(r, 2000));
+
+          // Check if login actually succeeded (URL changed = redirect after login)
+          if (directFillResult?.success) {
+            try {
+              const tab = await chrome.tabs.get(session.tabId);
+              const newUrl = tab?.url || '';
+              if (newUrl === currentUrl) {
+                const idx = session._loginHandledForUrl.indexOf(currentUrl);
+                if (idx !== -1) session._loginHandledForUrl.splice(idx, 1);
+                automationLogger.debug('Still on login page after direct fill - re-enabling detection', { sessionId });
+              }
+            } catch (e) { /* tab may be gone */ }
+          }
+
+          // Continue to next iteration
+          loopResolve?.();
+          if (!isSessionTerminating(sessionId) && activeSessions.has(sessionId)) {
+            setTimeout(() => startAutomationLoop(sessionId), 500);
+          }
+          return;
+        } else {
+          // User skipped - mark as handled so we don't prompt again
+          session._loginHandledForUrl.push(currentUrl);
+          // Continue automation, AI will handle as it can
+        }
+      }
+    }
+    // ==========================================
+    // END LOGIN DETECTION HOOK
+    // ==========================================
+
     // Detect repeated action failures
     const repeatedFailures = detectRepeatedActionFailures(session);
     const forceAlternativeStrategy = repeatedFailures.length > 0;
@@ -4037,7 +4893,9 @@ async function startAutomationLoop(sessionId) {
         .map(([signature, count]) => ({ signature, count })),
       lastSequences: session.actionSequences.slice(-3), // Last 3 action sequences
       // Add multi-tab context
-      tabInfo: tabInfo
+      tabInfo: tabInfo,
+      // Recovery strategies when stuck (generated by generateRecoveryStrategies)
+      recoveryStrategies: recoveryStrategies.length > 0 ? recoveryStrategies : undefined
     };
 
     // Check for intermediate/redirect pages that should be allowed to resolve
@@ -4112,7 +4970,10 @@ async function startAutomationLoop(sessionId) {
       taskName: session.task,
       iteration: session.iterationCount,
       maxIterations: session.maxIterations || 20,
-      animatedHighlights: session.animatedActionHighlights
+      animatedHighlights: session.animatedActionHighlights,
+      statusText: session.lastActionStatusText || null,
+      ...calculateProgress(session),
+      taskSummary: session.taskSummary || null
     });
 
     const aiPromise = callAIAPI(
@@ -4130,23 +4991,24 @@ async function startAutomationLoop(sessionId) {
     });
 
     // FIX 1A: Race AI response against a stop signal so stop button works during API calls
+    // PERF: Use event-based AbortController pattern instead of 500ms polling
+    const stopController = new AbortController();
+    session._stopAbortController = stopController;
+
     const stopSignal = new Promise((resolve) => {
-      const checkInterval = setInterval(() => {
-        if (isSessionTerminating(sessionId)) {
-          clearInterval(checkInterval);
-          resolve({ stopped: true });
-        }
-      }, 500);
-      session._stopCheckInterval = checkInterval;
+      stopController.signal.addEventListener('abort', () => {
+        resolve({ stopped: true });
+      }, { once: true });
+      // Fallback: check once in case already terminating
+      if (isSessionTerminating(sessionId)) {
+        resolve({ stopped: true });
+      }
     });
 
     const raceResult = await Promise.race([aiPromise, stopSignal]);
 
-    // Clean up the stop check interval
-    if (session._stopCheckInterval) {
-      clearInterval(session._stopCheckInterval);
-      session._stopCheckInterval = null;
-    }
+    // Clean up the abort controller
+    session._stopAbortController = null;
 
     // If stopped, bail out immediately
     if (raceResult?.stopped) {
@@ -4203,7 +5065,10 @@ async function startAutomationLoop(sessionId) {
         iteration: session.iterationCount,
         maxIterations: session.maxIterations || 20,
         actionCount: aiResponse.actions.length,
-        animatedHighlights: session.animatedActionHighlights
+        animatedHighlights: session.animatedActionHighlights,
+        statusText: session.lastActionStatusText || null,
+        ...calculateProgress(session),
+        taskSummary: session.taskSummary || null
       });
       // Create a smart signature for this action sequence
       const sequenceSignature = createSmartSequenceSignature(aiResponse.actions);
@@ -4290,7 +5155,22 @@ async function startAutomationLoop(sessionId) {
         }).catch(() => {
           // Ignore errors if no listeners
         });
-        
+
+        // Store last action status on session so it persists across navigations
+        session.lastActionStatusText = getActionStatus(action.tool, action.params);
+
+        // Send per-action status to content script viewport overlay
+        sendSessionStatus(session.tabId, {
+          phase: 'acting',
+          taskName: session.task,
+          iteration: session.iterationCount,
+          maxIterations: session.maxIterations || 20,
+          statusText: getActionStatus(action.tool, action.params),
+          animatedHighlights: session.animatedActionHighlights,
+          ...calculateProgress(session),
+          taskSummary: session.taskSummary || null
+        });
+
         let actionResult;
         
         // Multi-tab actions should be handled directly by background script
@@ -4361,12 +5241,12 @@ async function startAutomationLoop(sessionId) {
         // FSB TIMING: Log action execution time
         automationLogger.logTiming(sessionId, 'ACTION', action.tool, Date.now() - actionStartTime, { success: actionResult?.success });
 
-        // Track action in history
+        // Track action in history (slim result to reduce memory and prompt token usage)
         const actionRecord = {
           timestamp: Date.now(),
           tool: action.tool,
           params: action.params,
-          result: actionResult,
+          result: slimActionResult(actionResult),
           iteration: session.iterationCount
         };
         session.actionHistory.push(actionRecord);
@@ -5289,13 +6169,17 @@ async function handleCDPInsertText(request, sender, sendResponse) {
 
     // If clearFirst is requested, select all and delete
     if (clearFirst) {
+      // Detect platform: modifier 4 = Meta (Cmd) on macOS, modifier 2 = Ctrl on others
+      const isMac = navigator.userAgent?.includes('Macintosh') || navigator.platform?.includes('Mac');
+      const selectAllModifier = isMac ? 4 : 2;
+
       // Select all text in focused element
       await chrome.debugger.sendCommand(
         { tabId },
         'Input.dispatchKeyEvent',
         {
           type: 'keyDown',
-          modifiers: 2, // Ctrl/Cmd
+          modifiers: selectAllModifier,
           key: 'a',
           code: 'KeyA'
         }
@@ -5305,14 +6189,14 @@ async function handleCDPInsertText(request, sender, sendResponse) {
         'Input.dispatchKeyEvent',
         {
           type: 'keyUp',
-          modifiers: 2,
+          modifiers: selectAllModifier,
           key: 'a',
           code: 'KeyA'
         }
       );
 
-      // Small delay for selection
-      await new Promise(r => setTimeout(r, 50));
+      // Delay for selection -- Monaco needs ~200ms to process Ctrl+A and update its internal model
+      await new Promise(r => setTimeout(r, 200));
 
       // Delete selected text
       await chrome.debugger.sendCommand(
@@ -5334,7 +6218,8 @@ async function handleCDPInsertText(request, sender, sendResponse) {
         }
       );
 
-      await new Promise(r => setTimeout(r, 50));
+      // Delay for deletion -- Monaco needs time to clear its buffer before accepting new input
+      await new Promise(r => setTimeout(r, 200));
     }
 
     // Use Input.insertText for reliable text insertion
@@ -5373,6 +6258,88 @@ async function handleCDPInsertText(request, sender, sendResponse) {
       error: error.message,
       method: 'cdp'
     });
+  }
+}
+
+/**
+ * Handle Monaco/CodeMirror editor insert via MAIN world script injection.
+ * Bypasses auto-indent by using the editor's native API (executeEdits) directly.
+ * @param {Object} request - The request object containing text to insert
+ * @param {Object} sender - The message sender
+ * @param {Function} sendResponse - Function to send response
+ */
+async function handleMonacoEditorInsert(request, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  const { text } = request;
+
+  if (!tabId || !text) {
+    sendResponse({ success: false, error: !tabId ? 'No tab ID' : 'No text provided' });
+    return;
+  }
+
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      args: [text],
+      func: (codeText) => {
+        // Attempt 1: Monaco editor API
+        if (typeof monaco !== 'undefined' && monaco.editor) {
+          const editors = typeof monaco.editor.getEditors === 'function'
+            ? monaco.editor.getEditors() : [];
+          // Prefer the focused editor, fall back to first
+          const editor = editors.find(e => e.hasTextFocus?.()) || editors[0];
+          if (editor) {
+            const model = editor.getModel();
+            if (model) {
+              const fullRange = model.getFullModelRange();
+              editor.executeEdits('fsb-automation', [{
+                range: fullRange,
+                text: codeText
+              }]);
+              // Move cursor to end
+              const lastLine = model.getLineCount();
+              const lastCol = model.getLineMaxColumn(lastLine);
+              editor.setPosition({ lineNumber: lastLine, column: lastCol });
+              return { success: true, method: 'monaco_executeEdits' };
+            }
+          }
+          // Fallback: try models directly
+          const models = typeof monaco.editor.getModels === 'function'
+            ? monaco.editor.getModels() : [];
+          if (models.length > 0) {
+            const model = models[0];
+            const fullRange = model.getFullModelRange();
+            model.pushEditOperations([], [{
+              range: fullRange,
+              text: codeText
+            }], () => null);
+            return { success: true, method: 'monaco_pushEditOperations' };
+          }
+        }
+
+        // Attempt 2: CodeMirror 6 API
+        const cmElement = document.querySelector('.cm-editor');
+        if (cmElement?.cmView?.view) {
+          const view = cmElement.cmView.view;
+          view.dispatch({
+            changes: { from: 0, to: view.state.doc.length, insert: codeText }
+          });
+          return { success: true, method: 'codemirror6_dispatch' };
+        }
+
+        return { success: false, error: 'No editor API found on page' };
+      }
+    });
+
+    const result = results?.[0]?.result;
+    if (result?.success) {
+      sendResponse(result);
+    } else {
+      sendResponse({ success: false, error: result?.error || 'Editor API injection returned no result' });
+    }
+  } catch (error) {
+    sendResponse({ success: false, error: error.message });
   }
 }
 

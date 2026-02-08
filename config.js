@@ -33,7 +33,14 @@ class Config {
       domOptimization: true,
       maxDOMElements: 2000,
       prioritizeViewport: true,
-      animatedActionHighlights: true
+      animatedActionHighlights: true,
+
+      // Credential Manager (Beta)
+      enableLogin: false,
+
+      // CAPTCHA Solver
+      captchaSolverEnabled: false,
+      captchaApiKey: ''
     };
     
     // Chrome extensions use storage API instead of environment variables
@@ -172,11 +179,10 @@ class Config {
     return config.apiKey;
   }
   
-  // Get CAPTCHA API key based on solver
-  // Note: CAPTCHA solving is not fully implemented yet
-  async getCaptchaApiKey(solver) {
-    // Returns null as CAPTCHA solver integration is not available
-    return null;
+  // Get CAPTCHA API key (2Captcha)
+  async getCaptchaApiKey() {
+    const config = await this.loadFromStorage();
+    return config.captchaApiKey || null;
   }
   
   // Save configuration to storage

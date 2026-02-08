@@ -15,11 +15,11 @@
 
 [data-theme="dark"] {
   /* Dark theme colors */
-  --bg-primary: #1f2937;
-  --bg-secondary: #111827;
-  --text-primary: #f9fafb;
-  --text-secondary: #d1d5db;
-  --text-muted: #9ca3af;
+  --bg-primary: #262626;
+  --bg-secondary: #171717;
+  --text-primary: #fafafa;
+  --text-secondary: #d4d4d4;
+  --text-muted: #a3a3a3;
   --border-color: rgba(255, 255, 255, 0.1);
   --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
@@ -56,8 +56,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
+  border-bottom: 1px solid transparent;
+  box-shadow: none;
   flex-shrink: 0;
 }
 
@@ -171,18 +171,6 @@ body {
   line-height: 1.4;
   word-wrap: break-word;
   position: relative;
-  animation: messageSlide 0.3s ease-out;
-}
-
-@keyframes messageSlide {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* User Messages (Right-aligned) */
@@ -200,7 +188,6 @@ body {
   background: #f1f3f5;
   color: #495057;
   border-bottom-left-radius: 6px;
-  border-left: 3px solid #dee2e6;
 }
 
 /* AI Messages (Left-aligned) */
@@ -294,7 +281,7 @@ body {
 
 /* Dark theme adjustments */
 [data-theme="dark"] .message.status-message {
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  background: linear-gradient(135deg, #262626 0%, #404040 100%);
   border-left-color: var(--primary-color);
 }
 
@@ -307,11 +294,25 @@ body {
   color: #6ee7b7;
 }
 
+/* Minimal dots-only status indicator (no bubble) */
+.message.status-dots-only {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 8px 16px;
+  align-self: flex-start;
+}
+
+.message.status-dots-only .status-text {
+  display: none;
+}
+
 /* Chat Input Area */
 .chat-input-area {
   background: var(--bg-primary);
-  border-top: 1px solid var(--border-color);
-  padding: 16px 20px;
+  border-top: 1px solid transparent;
+  margin-top: 2px;
+  padding: clamp(12px, 4vw, 18px) clamp(16px, 5vw, 24px);
   flex-shrink: 0;
 }
 
@@ -324,7 +325,7 @@ body {
   align-items: flex-end;
   background: var(--bg-secondary);
   border: 2px solid var(--border-color);
-  border-radius: 20px;
+  border-radius: clamp(16px, 5vw, 24px);
   transition: all 0.2s ease;
   overflow: hidden;
 }
@@ -336,7 +337,7 @@ body {
 
 .chat-input {
   flex: 1;
-  padding: 12px 16px;
+  padding: 12px clamp(12px, 4vw, 20px);
   border: none;
   outline: none;
   background: transparent;
@@ -358,7 +359,7 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  padding: 4px clamp(6px, 2vw, 10px);
 }
 
 .send-btn, .stop-btn {
@@ -466,7 +467,7 @@ body {
   backdrop-filter: blur(10px);
   padding: 8px 20px;
   text-align: center;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid transparent;
   flex-shrink: 0;
   z-index: 100;
 }
@@ -506,10 +507,6 @@ body {
     gap: 12px;
   }
   
-  .chat-input-area {
-    padding: 12px 16px;
-  }
-  
   .message {
     max-width: 95%;
   }
@@ -520,10 +517,222 @@ body {
     max-width: 85%;
     font-size: 15px;
   }
-  
+
   .chat-input {
     font-size: 15px;
   }
+}
+
+/* ==========================================
+   Login Prompt Styles
+   ========================================== */
+
+.message.login-prompt {
+  align-self: stretch;
+  max-width: 100%;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  border: 1.5px solid #fb923c;
+  border-radius: 12px;
+  padding: 16px;
+  border-left: none;
+}
+
+[data-theme="dark"] .message.login-prompt {
+  background: linear-gradient(135deg, #451a03 0%, #78350f 100%);
+  border-color: #d97706;
+}
+
+.login-prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #9a3412;
+  margin-bottom: 4px;
+}
+
+[data-theme="dark"] .login-prompt-header {
+  color: #fbbf24;
+}
+
+.login-prompt-header i {
+  font-size: 14px;
+}
+
+.login-prompt-domain {
+  font-size: 13px;
+  color: #c2410c;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+[data-theme="dark"] .login-prompt-domain {
+  color: #fcd34d;
+}
+
+.login-prompt-subtext {
+  font-size: 11px;
+  color: #a16207;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+[data-theme="dark"] .login-prompt-subtext {
+  color: #d97706;
+}
+
+.login-prompt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.login-prompt-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 4px;
+}
+
+[data-theme="dark"] .login-prompt-field label {
+  color: #fbbf24;
+}
+
+.login-prompt-field input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  color: #1c1917;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.login-prompt-field input:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
+}
+
+[data-theme="dark"] .login-prompt-field input {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: #92400e;
+  color: #fef3c7;
+}
+
+[data-theme="dark"] .login-prompt-field input:focus {
+  border-color: #f59e0b;
+}
+
+.login-prompt-password-wrapper {
+  position: relative;
+}
+
+.login-prompt-password-wrapper input {
+  padding-right: 36px;
+}
+
+.login-prompt-eye {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #9a3412;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+[data-theme="dark"] .login-prompt-eye {
+  color: #fbbf24;
+}
+
+.login-prompt-save-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #92400e;
+  cursor: pointer;
+}
+
+[data-theme="dark"] .login-prompt-save-label {
+  color: #d97706;
+}
+
+.login-prompt-save-label input[type="checkbox"] {
+  accent-color: #f97316;
+}
+
+.login-prompt-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.login-prompt-btn {
+  flex: 1;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.login-prompt-btn.primary {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: white;
+}
+
+.login-prompt-btn.primary:hover {
+  background: linear-gradient(135deg, #ea580c, #c2410c);
+  transform: translateY(-1px);
+}
+
+.login-prompt-btn.ghost {
+  background: transparent;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.login-prompt-btn.ghost:hover {
+  background: rgba(249, 115, 22, 0.1);
+}
+
+[data-theme="dark"] .login-prompt-btn.ghost {
+  color: #fbbf24;
+  border-color: #92400e;
+}
+
+[data-theme="dark"] .login-prompt-btn.ghost:hover {
+  background: rgba(249, 115, 22, 0.15);
+}
+
+/* Partial result indicator */
+.message.partial-result {
+  border-left: 3px solid #f59e0b;
+  background: #fffbeb;
+}
+
+[data-theme="dark"] .message.partial-result {
+  background: rgba(245, 158, 11, 0.1);
+  border-left-color: #d97706;
+}
+
+.partial-result-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #d97706;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
 }
 
 

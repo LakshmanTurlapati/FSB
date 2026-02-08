@@ -165,11 +165,19 @@ stopBtn.addEventListener('click', stopAutomation);
 newChatBtn.addEventListener('click', startNewChat);
 settingsBtn.addEventListener('click', openSettings);
 
+// PERF: Debounced storage save to avoid writes on every keystroke
+let _saveTaskTimer = null;
+function debouncedSaveTask() {
+  clearTimeout(_saveTaskTimer);
+  _saveTaskTimer = setTimeout(() => {
+    chrome.storage.local.set({ lastTask: chatInput.textContent.trim() });
+  }, 500);
+}
+
 // Chat input event handlers
 chatInput.addEventListener('input', () => {
   updateSendButtonState();
-  // Save task as user types
-  chrome.storage.local.set({ lastTask: chatInput.textContent.trim() });
+  debouncedSaveTask();
 });
 
 chatInput.addEventListener('keydown', (e) => {
@@ -380,7 +388,7 @@ function addStatusMessage(text, type = 'ai') {
   }
   
   const messageDiv = document.createElement('div');
-  messageDiv.className = `message ${type} status-message new`;
+  messageDiv.className = `message status-message status-dots-only new`;
   
   // Create message content with integrated loader
   const messageContent = document.createElement('div');
@@ -426,53 +434,47 @@ function updateStatusMessage(text) {
 }
 
 
-// Complete status message (remove loader, show brief label)
-// Full result is shown in a separate completion bubble below
+// Complete status message: remove dots-only indicator, show only the result bubble
 function completeStatusMessage(text, type = 'ai') {
   if (currentStatusMessage) {
-    // Remove loader dots
-    const loaderDots = currentStatusMessage.querySelector('.typing-dots');
-    if (loaderDots) {
-      loaderDots.remove();
-    }
-
-    // Set a brief label on the status bubble
-    const briefLabel = type === 'error' ? 'Error occurred'
-      : type === 'system' ? text
-      : 'Task completed';
-    const statusTextEl = currentStatusMessage.querySelector('.status-text');
-    if (statusTextEl) {
-      statusTextEl.textContent = briefLabel;
-    }
-
-    // Style as completed
-    currentStatusMessage.className = `message ${type === 'error' ? 'error' : 'ai'} completed`;
-
-    // Clear reference
+    currentStatusMessage.remove();
     currentStatusMessage = null;
 
-    // Show full result in a separate bubble (skip for system messages like "Automation stopped")
-    if (type !== 'system') {
+    if (type === 'partial') {
+      addCompletionMessage(text, 'ai', true);
+    } else if (type !== 'system') {
       addCompletionMessage(text, type);
+    } else {
+      addMessage(text, 'system');
     }
   }
 }
 
 // Add a separate completion message bubble with markdown support
-function addCompletionMessage(text, type = 'ai') {
+function addCompletionMessage(text, type = 'ai', isPartial = false) {
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ai-completion new`;
+
+  if (isPartial) {
+    messageDiv.classList.add('partial-result');
+    const label = document.createElement('div');
+    label.className = 'partial-result-label';
+    label.textContent = 'Partial result';
+    messageDiv.appendChild(label);
+  }
 
   if (type === 'error') {
     messageDiv.className = `message error new`;
     messageDiv.textContent = text;
   } else {
     // Use markdown rendering if available, plain text fallback
+    const contentDiv = document.createElement('div');
     if (typeof FSBMarkdown !== 'undefined') {
-      FSBMarkdown.applyToElement(messageDiv, text);
+      FSBMarkdown.applyToElement(contentDiv, text);
     } else {
-      messageDiv.textContent = text;
+      contentDiv.textContent = text;
     }
+    messageDiv.appendChild(contentDiv);
   }
 
   chatMessages.appendChild(messageDiv);
@@ -575,11 +577,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.sessionId === currentSessionId) {
         // AI must always provide a meaningful completion message
         const completionMessage = request.result || 'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
+        const isPartial = request.partial === true;
 
         if (currentStatusMessage) {
-          completeStatusMessage(completionMessage);
+          completeStatusMessage(completionMessage, isPartial ? 'partial' : undefined);
         } else {
-          addCompletionMessage(completionMessage);
+          addCompletionMessage(completionMessage, 'ai', isPartial);
         }
 
         setIdleState();
@@ -618,8 +621,155 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         addMessage(actionMessage, 'action');
       }
       break;
+
+    case 'loginDetected':
+      if (request.sessionId === currentSessionId) {
+        // Pause the status loader
+        if (currentStatusMessage) {
+          updateStatusMessage('Login page detected...');
+        }
+        showLoginPrompt(request.domain, request.fields);
+        sendResponse({ received: true });
+      }
+      return;
   }
 });
+
+// Show inline login prompt in the chat
+function showLoginPrompt(domain, fields) {
+  // Prevent duplicate prompts if rapid loginDetected messages arrive
+  const existing = document.getElementById('login-prompt');
+  if (existing) existing.remove();
+
+  // Complete any active status message
+  if (currentStatusMessage) {
+    completeStatusMessage('Login required', 'system');
+  }
+
+  const container = document.createElement('div');
+  container.className = 'message login-prompt new';
+  container.id = 'login-prompt';
+
+  const fieldLabel = (fields && fields.usernameType === 'email') ? 'Email' : 'Username / Email';
+
+  // Escape domain for safe HTML insertion
+  const safeDomain = (domain || 'this site').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+
+  container.innerHTML = `
+    <div class="login-prompt-header">
+      <i class="fas fa-lock"></i>
+      <span>Login Required</span>
+    </div>
+    <div class="login-prompt-domain">${safeDomain}</div>
+    <div class="login-prompt-subtext">Enter your credentials to sign in. They will be encrypted and saved for future use.</div>
+    <div class="login-prompt-form">
+      <div class="login-prompt-field">
+        <label>${fieldLabel}</label>
+        <input type="text" id="loginPromptUsername" placeholder="${fieldLabel}" autocomplete="username">
+      </div>
+      <div class="login-prompt-field">
+        <label>Password</label>
+        <div class="login-prompt-password-wrapper">
+          <input type="password" id="loginPromptPassword" placeholder="Password" autocomplete="current-password">
+          <button type="button" class="login-prompt-eye" id="loginPromptTogglePw">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+      </div>
+      <label class="login-prompt-save-label">
+        <input type="checkbox" id="loginPromptSave" checked>
+        <span>Save for future use</span>
+      </label>
+      <div class="login-prompt-actions">
+        <button class="login-prompt-btn primary" id="loginPromptSubmit">Sign In</button>
+        <button class="login-prompt-btn ghost" id="loginPromptSkip">Skip</button>
+      </div>
+    </div>
+  `;
+
+  chatMessages.appendChild(container);
+  scrollToBottom();
+
+  // Remove 'new' class after animation
+  setTimeout(() => container.classList.remove('new'), 400);
+
+  // Focus username field
+  setTimeout(() => {
+    const usernameInput = document.getElementById('loginPromptUsername');
+    if (usernameInput) usernameInput.focus();
+  }, 100);
+
+  // Toggle password visibility
+  const toggleBtn = document.getElementById('loginPromptTogglePw');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const pwField = document.getElementById('loginPromptPassword');
+      if (pwField) {
+        const isPassword = pwField.type === 'password';
+        pwField.type = isPassword ? 'text' : 'password';
+        const icon = toggleBtn.querySelector('i');
+        if (icon) icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+      }
+    });
+  }
+
+  // Sign In button
+  const submitBtn = document.getElementById('loginPromptSubmit');
+  if (submitBtn) {
+    submitBtn.addEventListener('click', () => {
+      const username = document.getElementById('loginPromptUsername')?.value?.trim();
+      const password = document.getElementById('loginPromptPassword')?.value;
+      const save = document.getElementById('loginPromptSave')?.checked ?? true;
+
+      if (!username && !password) {
+        return;
+      }
+
+      // Send credentials to background
+      chrome.runtime.sendMessage({
+        action: 'loginFormSubmitted',
+        sessionId: currentSessionId,
+        domain: domain,
+        credentials: { username, password },
+        save: save
+      });
+
+      // Remove prompt from chat
+      container.remove();
+
+      // Add system message
+      addMessage('Signing in...', 'system');
+      addStatusMessage('Signing in...');
+    });
+  }
+
+  // Skip button
+  const skipBtn = document.getElementById('loginPromptSkip');
+  if (skipBtn) {
+    skipBtn.addEventListener('click', () => {
+      chrome.runtime.sendMessage({
+        action: 'loginSkipped',
+        sessionId: currentSessionId
+      });
+
+      // Remove prompt
+      container.remove();
+      addMessage('Login skipped. Continuing automation...', 'system');
+      addStatusMessage('Continuing...');
+    });
+  }
+
+  // Handle Enter key in password field
+  const pwField = document.getElementById('loginPromptPassword');
+  if (pwField) {
+    pwField.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitBtn?.click();
+      }
+    });
+  }
+}
 
 // Format action messages for better user experience
 function formatActionMessage(tool, params) {
@@ -650,6 +800,65 @@ function formatActionMessage(tool, params) {
       return `Retrieved current tab information`;
     case 'waitForTabLoad':
       return `Waiting for tab ${params.tabId} to load...`;
+    // Navigation & search
+    case 'navigate':
+      return `Navigating to ${params.url}`;
+    case 'searchGoogle':
+      return `Searching Google for: ${params.query}`;
+    case 'scrollToElement':
+      return `Scrolled to element: ${params.selector}`;
+    case 'clickSearchResult':
+      return `Clicked search result: ${params.selector}`;
+    // Waiting & detection
+    case 'waitForElement':
+      return `Waiting for element: ${params.selector}`;
+    case 'verifyMessageSent':
+      return `Verifying message was sent`;
+    case 'waitForDOMStable':
+      return `Waiting for page to stabilize...`;
+    case 'detectLoadingState':
+      return `Checking if page is loading...`;
+    // Click variants
+    case 'rightClick':
+      return `Right-clicked on element: ${params.selector}`;
+    case 'doubleClick':
+      return `Double-clicked on element: ${params.selector}`;
+    // Keyboard actions
+    case 'keyPress':
+      return `Pressed key: ${params.key}`;
+    case 'pressKeySequence':
+      return `Pressed key sequence: ${Array.isArray(params.keys) ? params.keys.join(', ') : params.keys}`;
+    case 'typeWithKeys':
+      return `Typing with key events: ${params.text}`;
+    case 'sendSpecialKey':
+      return `Pressed special key: ${params.key}`;
+    // Text & focus
+    case 'selectText':
+      return `Selected text in: ${params.selector}`;
+    case 'focus':
+      return `Focused on element: ${params.selector}`;
+    case 'blur':
+      return `Removed focus from: ${params.selector}`;
+    case 'hover':
+      return `Hovering over element: ${params.selector}`;
+    // Form controls
+    case 'selectOption':
+      return `Selected '${params.optionText || params.value}' from dropdown: ${params.selector}`;
+    case 'toggleCheckbox':
+      return `Toggled checkbox: ${params.selector}`;
+    // Data extraction
+    case 'getText':
+      return `Reading text from: ${params.selector}`;
+    case 'getAttribute':
+      return `Reading ${params.attribute} from: ${params.selector}`;
+    case 'setAttribute':
+      return `Setting ${params.attribute} on: ${params.selector}`;
+    // Input management
+    case 'clearInput':
+      return `Cleared input: ${params.selector}`;
+    // Gaming
+    case 'gameControl':
+      return `Game control: ${params.action}`;
     default:
       return `Executed ${tool} with params: ${JSON.stringify(params)}`;
   }

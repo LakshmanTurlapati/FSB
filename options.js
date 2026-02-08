@@ -17,7 +17,12 @@ const defaultSettings = {
   domOptimization: true,
   maxDOMElements: 2000,
   prioritizeViewport: true,
-  animatedActionHighlights: true
+  animatedActionHighlights: true,
+  // Credential Manager (Beta)
+  enableLogin: false,
+  // CAPTCHA Solver
+  captchaSolverEnabled: false,
+  captchaApiKey: ''
 };
 
 // Available models - sourced from config.js (loaded before this script) with custom provider added
@@ -108,6 +113,9 @@ function initializeDashboard() {
   // Initialize session history
   setTimeout(initializeSessionHistory, 500);
 
+  // Initialize site explorer
+  setTimeout(initializeSiteExplorer, 600);
+
   console.log('FSB Control Panel initialized successfully');
 }
 
@@ -141,6 +149,14 @@ function cacheElements() {
   elements.prioritizeViewport = document.getElementById('prioritizeViewport');
   elements.animatedActionHighlights = document.getElementById('animatedActionHighlights');
 
+  // Credentials (Beta)
+  elements.enableLogin = document.getElementById('enableLogin');
+
+  // CAPTCHA Solver
+  elements.captchaSolverEnabled = document.getElementById('captchaSolverEnabled');
+  elements.captchaApiKey = document.getElementById('captchaApiKey');
+  elements.toggleCaptchaApiKey = document.getElementById('toggleCaptchaApiKey');
+
   // Button elements
   elements.toggleApiKey = document.getElementById('toggleApiKey');
   elements.fullApiTest = document.getElementById('fullApiTest');
@@ -163,6 +179,19 @@ function cacheElements() {
   
   // Status toast
   elements.statusToast = document.getElementById('statusToast');
+
+  // Site Explorer
+  elements.explorerUrl = document.getElementById('explorerUrl');
+  elements.explorerGoBtn = document.getElementById('explorerGoBtn');
+  elements.explorerStopBtn = document.getElementById('explorerStopBtn');
+  elements.explorerMaxDepth = document.getElementById('explorerMaxDepth');
+  elements.explorerMaxPages = document.getElementById('explorerMaxPages');
+  elements.explorerProgress = document.getElementById('explorerProgress');
+  elements.explorerProgressFill = document.getElementById('explorerProgressFill');
+  elements.explorerProgressText = document.getElementById('explorerProgressText');
+  elements.explorerProgressCount = document.getElementById('explorerProgressCount');
+  elements.explorerCurrentUrl = document.getElementById('explorerCurrentUrl');
+  elements.researchList = document.getElementById('researchList');
 }
 
 function setupEventListeners() {
@@ -189,7 +218,10 @@ function setupEventListeners() {
     elements.domOptimization,
     elements.maxDOMElements,
     elements.prioritizeViewport,
-    elements.animatedActionHighlights
+    elements.animatedActionHighlights,
+    elements.enableLogin,
+    elements.captchaSolverEnabled,
+    elements.captchaApiKey
   ];
 
   formInputs.forEach(input => {
@@ -259,8 +291,19 @@ function setupEventListeners() {
   if (toggleCustomApiKey) {
     toggleCustomApiKey.addEventListener('click', () => togglePasswordVisibility('customApiKey'));
   }
-  
-  
+
+  // CAPTCHA Solver toggle visibility
+  if (elements.captchaSolverEnabled) {
+    elements.captchaSolverEnabled.addEventListener('change', (e) => {
+      updateCaptchaSolverVisibility(e.target.checked);
+      markUnsavedChanges();
+    });
+  }
+
+  if (elements.toggleCaptchaApiKey) {
+    elements.toggleCaptchaApiKey.addEventListener('click', () => togglePasswordVisibility('captchaApiKey'));
+  }
+
   // API test
   if (elements.fullApiTest) {
     elements.fullApiTest.addEventListener('click', runFullApiTest);
@@ -333,20 +376,27 @@ function setupEventListeners() {
     }
   });
   
-  // Listen for storage changes to update analytics
+  // PERF: Debounced storage change listener to avoid duplicate analytics refreshes
+  // (the 30-second setInterval above already refreshes periodically)
+  let _analyticsRefreshTimer = null;
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local') {
       if (changes.fsbUsageData || changes.fsbCurrentModel) {
-        console.log('Options: Storage changed, updating analytics dashboard');
-        if (analytics && analytics.initialized) {
-          analytics.loadStoredData().then(() => {
-            analytics.updateDashboard();
-            if (analytics.chart) {
-              const timeRange = document.getElementById('chartTimeRange')?.value || '24h';
-              analytics.updateChart(timeRange);
-            }
-          });
-        }
+        // Only refresh if the analytics section is currently visible
+        if (dashboardState.currentSection !== 'analytics') return;
+
+        clearTimeout(_analyticsRefreshTimer);
+        _analyticsRefreshTimer = setTimeout(() => {
+          if (analytics && analytics.initialized) {
+            analytics.loadStoredData().then(() => {
+              analytics.updateDashboard();
+              if (analytics.chart) {
+                const timeRange = document.getElementById('chartTimeRange')?.value || '24h';
+                analytics.updateChart(timeRange);
+              }
+            });
+          }
+        }, 2000);
       }
     }
   });
@@ -509,6 +559,19 @@ function loadSettings() {
       elements.animatedActionHighlights.checked = settings.animatedActionHighlights ?? true;
     }
 
+    // Credential Manager
+    if (elements.enableLogin) {
+      elements.enableLogin.checked = settings.enableLogin ?? false;
+      updateCredentialsManagerVisibility(settings.enableLogin ?? false);
+    }
+
+    // CAPTCHA Solver
+    if (elements.captchaSolverEnabled) {
+      elements.captchaSolverEnabled.checked = settings.captchaSolverEnabled ?? false;
+      updateCaptchaSolverVisibility(settings.captchaSolverEnabled ?? false);
+    }
+    if (elements.captchaApiKey) elements.captchaApiKey.value = settings.captchaApiKey || '';
+
     addLog('info', 'Settings loaded successfully');
   });
 }
@@ -529,7 +592,10 @@ function saveSettings() {
     domOptimization: elements.domOptimization?.checked ?? true,
     maxDOMElements: parseInt(elements.maxDOMElements?.value) || 2000,
     prioritizeViewport: elements.prioritizeViewport?.checked ?? true,
-    animatedActionHighlights: elements.animatedActionHighlights?.checked ?? true
+    animatedActionHighlights: elements.animatedActionHighlights?.checked ?? true,
+    enableLogin: elements.enableLogin?.checked ?? false,
+    captchaSolverEnabled: elements.captchaSolverEnabled?.checked ?? false,
+    captchaApiKey: elements.captchaApiKey?.value || ''
   };
   
   chrome.storage.local.set(settings, () => {
@@ -731,19 +797,19 @@ async function runFullApiTest() {
     elements.testResults.innerHTML = `
       <h4>API Test Results</h4>
       <div class="test-result-item">
-        <strong>Provider:</strong> ${providerInfo.name}
+        <strong>Provider:</strong> ${escapeHtml(providerInfo.name)}
       </div>
       <div class="test-result-item">
         <strong>Status:</strong> ${result.ok ? 'Success' : 'Failed'}
       </div>
       <div class="test-result-item">
-        <strong>Model:</strong> ${result.model || 'Unknown'}
+        <strong>Model:</strong> ${escapeHtml(result.model || 'Unknown')}
       </div>
       <div class="test-result-item">
-        <strong>Response Time:</strong> ${result.responseTime || 'N/A'}ms
+        <strong>Response Time:</strong> ${escapeHtml(String(result.responseTime || 'N/A'))}ms
       </div>
-      ${result.error ? `<div class="test-result-item error"><strong>Error:</strong> ${result.error}</div>` : ''}
-      ${result.data ? `<div class="test-result-item"><strong>Response:</strong> <pre>${JSON.stringify(result.data, null, 2)}</pre></div>` : ''}
+      ${result.error ? `<div class="test-result-item error"><strong>Error:</strong> ${escapeHtml(result.error)}</div>` : ''}
+      ${result.data ? `<div class="test-result-item"><strong>Response:</strong> <pre>${escapeHtml(JSON.stringify(result.data, null, 2))}</pre></div>` : ''}
     `;
 
     elements.testResults.classList.add('show');
@@ -753,7 +819,7 @@ async function runFullApiTest() {
     elements.testResults.innerHTML = `
       <h4>API Test Results</h4>
       <div class="test-result-item error">
-        <strong>Error:</strong> ${error.message}
+        <strong>Error:</strong> ${escapeHtml(error.message)}
       </div>
     `;
     elements.testResults.classList.add('show');
@@ -862,10 +928,10 @@ function updateLogsDisplay() {
   });
   
   elements.logsDisplay.innerHTML = filteredLogs.slice(0, 100).map(log => `
-    <div class="log-entry ${log.level}">
-      <span class="log-time">${log.timestamp}</span>
-      <span class="log-level">${log.level.toUpperCase()}</span>
-      <span class="log-message">${log.message}</span>
+    <div class="log-entry ${escapeHtml(log.level)}">
+      <span class="log-time">${escapeHtml(log.timestamp)}</span>
+      <span class="log-level">${escapeHtml(log.level.toUpperCase())}</span>
+      <span class="log-message">${escapeHtml(log.message)}</span>
     </div>
   `).join('');
 }
@@ -2258,6 +2324,711 @@ async function exportSessionText(sessionId) {
   } catch (error) {
     console.error('Failed to export session text:', error);
     showToast('Export failed: ' + error.message, 'error');
+  }
+}
+
+// ==========================================
+// Credential Manager Functions (Passwords Beta)
+// ==========================================
+
+// Current state for credential modal
+let credentialModalMode = 'add'; // 'add' or 'edit'
+let credentialEditingDomain = null;
+
+// Show/hide credentials manager based on toggle
+function updateCaptchaSolverVisibility(enabled) {
+  const configPanel = document.getElementById('captchaSolverConfig');
+  if (configPanel) {
+    configPanel.style.display = enabled ? 'block' : 'none';
+  }
+}
+
+function updateCredentialsManagerVisibility(enabled) {
+  const manager = document.getElementById('credentialsManager');
+  if (manager) {
+    manager.style.display = enabled ? 'block' : 'none';
+    if (enabled) {
+      loadCredentials();
+    }
+  }
+}
+
+// Load and display all credentials
+async function loadCredentials() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getAllCredentials' });
+
+    if (!response || !response.success) {
+      console.error('Failed to load credentials:', response?.error);
+      return;
+    }
+
+    const credentials = response.credentials || [];
+    const listEl = document.getElementById('credentialsList');
+    const emptyEl = document.getElementById('credentialsEmpty');
+
+    if (credentials.length === 0) {
+      if (listEl) listEl.innerHTML = '';
+      if (emptyEl) emptyEl.style.display = 'flex';
+      return;
+    }
+
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    if (listEl) {
+      listEl.innerHTML = credentials.map(cred => renderCredentialCard(cred)).join('');
+    }
+  } catch (error) {
+    console.error('Error loading credentials:', error);
+  }
+}
+
+// Render a single credential card
+function renderCredentialCard(cred) {
+  const initial = (cred.domain || '?')[0].toUpperCase();
+  const faviconUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(cred.domain)}&sz=32`;
+  const dateStr = cred.updatedAt ? new Date(cred.updatedAt).toLocaleDateString() : '';
+
+  return `
+    <div class="credential-card" data-domain="${escapeHtml(cred.domain)}">
+      <div class="credential-card-icon">
+        <img src="${faviconUrl}" alt="${initial}" onerror="this.style.display='none';this.parentNode.textContent='${initial}'">
+      </div>
+      <div class="credential-card-info">
+        <div class="credential-card-domain">${escapeHtml(cred.domain)}</div>
+        <div class="credential-card-username">${escapeHtml(cred.username || 'No username')}</div>
+      </div>
+      <div class="credential-card-password" data-domain="${escapeHtml(cred.domain)}">
+        <span class="password-dots">--------</span>
+      </div>
+      <div class="credential-card-actions">
+        <button class="credential-action-btn" data-cred-action="toggle-password" data-cred-domain="${escapeHtml(cred.domain)}" title="Show password">
+          <i class="fas fa-eye"></i>
+        </button>
+        <button class="credential-action-btn" data-cred-action="edit" data-cred-domain="${escapeHtml(cred.domain)}" title="Edit">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button class="credential-action-btn delete" data-cred-action="delete" data-cred-domain="${escapeHtml(cred.domain)}" title="Delete">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Filter credentials by search query
+function filterCredentials(query) {
+  const cards = document.querySelectorAll('.credential-card');
+  const lowerQuery = query.toLowerCase();
+
+  cards.forEach(card => {
+    const domain = card.dataset.domain || '';
+    const username = card.querySelector('.credential-card-username')?.textContent || '';
+    const matches = domain.toLowerCase().includes(lowerQuery) ||
+                    username.toLowerCase().includes(lowerQuery);
+    card.style.display = matches ? 'flex' : 'none';
+  });
+}
+
+// Show add/edit modal
+async function showCredentialModal(mode, domain) {
+  credentialModalMode = mode;
+  credentialEditingDomain = domain || null;
+
+  const modal = document.getElementById('credentialModal');
+  const titleEl = document.getElementById('credentialModalTitle');
+  const domainInput = document.getElementById('credModalDomain');
+  const usernameInput = document.getElementById('credModalUsername');
+  const passwordInput = document.getElementById('credModalPassword');
+  const notesInput = document.getElementById('credModalNotes');
+
+  if (titleEl) titleEl.textContent = mode === 'edit' ? 'Edit Credential' : 'Add Credential';
+
+  // Clear fields
+  if (domainInput) domainInput.value = '';
+  if (usernameInput) usernameInput.value = '';
+  if (passwordInput) passwordInput.value = '';
+  if (notesInput) notesInput.value = '';
+
+  // Pre-fill for edit mode
+  if (mode === 'edit' && domain) {
+    if (domainInput) {
+      domainInput.value = domain;
+      domainInput.readOnly = true;
+    }
+
+    // Fetch full credential (including password) for editing
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getFullCredential',
+        domain: domain
+      });
+
+      if (response?.success && response.credential) {
+        if (usernameInput) usernameInput.value = response.credential.username || '';
+        if (passwordInput) passwordInput.value = response.credential.password || '';
+        if (notesInput) notesInput.value = response.credential.notes || '';
+      }
+    } catch (error) {
+      console.error('Failed to load credential for editing:', error);
+    }
+  } else {
+    if (domainInput) domainInput.readOnly = false;
+  }
+
+  // Show modal
+  if (modal) modal.classList.remove('hidden');
+}
+
+// Hide modal
+function hideCredentialModal() {
+  const modal = document.getElementById('credentialModal');
+  if (modal) modal.classList.add('hidden');
+  credentialModalMode = 'add';
+  credentialEditingDomain = null;
+}
+
+// Save credential from modal
+async function saveCredentialFromModal() {
+  const domain = document.getElementById('credModalDomain')?.value?.trim();
+  const username = document.getElementById('credModalUsername')?.value?.trim();
+  const password = document.getElementById('credModalPassword')?.value;
+  const notes = document.getElementById('credModalNotes')?.value?.trim();
+
+  if (!domain) {
+    showToast('Domain is required', 'error');
+    return;
+  }
+
+  if (!username && !password) {
+    showToast('Username or password is required', 'error');
+    return;
+  }
+
+  try {
+    const action = credentialModalMode === 'edit' ? 'updateCredential' : 'saveCredential';
+    const message = credentialModalMode === 'edit'
+      ? { action, domain: credentialEditingDomain || domain, updates: { username, password, notes } }
+      : { action, domain, data: { username, password, notes } };
+
+    const response = await chrome.runtime.sendMessage(message);
+
+    if (response?.success) {
+      showToast(credentialModalMode === 'edit' ? 'Credential updated' : 'Credential saved', 'success');
+      hideCredentialModal();
+      loadCredentials();
+    } else {
+      showToast('Failed to save: ' + (response?.error || 'Unknown error'), 'error');
+    }
+  } catch (error) {
+    showToast('Error saving credential: ' + error.message, 'error');
+  }
+}
+
+// Delete credential with confirmation
+async function deleteCredentialConfirm(domain) {
+  if (!confirm(`Delete saved credential for "${domain}"? This cannot be undone.`)) {
+    return;
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'deleteCredential',
+      domain: domain
+    });
+
+    if (response?.success) {
+      showToast('Credential deleted', 'success');
+      loadCredentials();
+    } else {
+      showToast('Failed to delete: ' + (response?.error || 'Unknown error'), 'error');
+    }
+  } catch (error) {
+    showToast('Error deleting credential: ' + error.message, 'error');
+  }
+}
+
+// Toggle password visibility for a credential card
+async function toggleCredentialPassword(domain) {
+  const passwordEl = document.querySelector(`.credential-card-password[data-domain="${domain}"]`);
+  if (!passwordEl) return;
+
+  const dotsEl = passwordEl.querySelector('.password-dots');
+  if (!dotsEl) return;
+
+  // If currently showing dots, fetch and show password
+  if (dotsEl.textContent === '--------') {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getFullCredential',
+        domain: domain
+      });
+
+      if (response?.success && response.credential) {
+        dotsEl.textContent = response.credential.password || '(empty)';
+        dotsEl.style.color = 'var(--text-primary)';
+
+        // Find the eye icon and switch it
+        const card = passwordEl.closest('.credential-card');
+        const eyeBtn = card?.querySelector('.credential-action-btn:first-child i');
+        if (eyeBtn) eyeBtn.className = 'fas fa-eye-slash';
+
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+          dotsEl.textContent = '--------';
+          dotsEl.style.color = '';
+          if (eyeBtn) eyeBtn.className = 'fas fa-eye';
+        }, 5000);
+      }
+    } catch (error) {
+      console.error('Failed to fetch password:', error);
+    }
+  } else {
+    // Hide password
+    dotsEl.textContent = '--------';
+    dotsEl.style.color = '';
+
+    const card = passwordEl.closest('.credential-card');
+    const eyeBtn = card?.querySelector('.credential-action-btn:first-child i');
+    if (eyeBtn) eyeBtn.className = 'fas fa-eye';
+  }
+}
+
+// Initialize credential manager event listeners
+function initializeCredentialManager() {
+  // Event delegation for credential card action buttons (avoids inline onclick XSS risk)
+  const credList = document.getElementById('credentialsList');
+  if (credList) {
+    credList.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-cred-action]');
+      if (!btn) return;
+      const action = btn.dataset.credAction;
+      const domain = btn.dataset.credDomain;
+      if (!domain) return;
+      if (action === 'toggle-password') toggleCredentialPassword(domain);
+      else if (action === 'edit') showCredentialModal('edit', domain);
+      else if (action === 'delete') deleteCredentialConfirm(domain);
+    });
+  }
+
+  // Enable login toggle
+  const enableLoginToggle = document.getElementById('enableLogin');
+  if (enableLoginToggle) {
+    enableLoginToggle.addEventListener('change', (e) => {
+      updateCredentialsManagerVisibility(e.target.checked);
+      markUnsavedChanges();
+    });
+  }
+
+  // Search filter
+  const searchInput = document.getElementById('credentialSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      filterCredentials(e.target.value);
+    });
+  }
+
+  // Add New button
+  const addBtn = document.getElementById('addCredentialBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => showCredentialModal('add'));
+  }
+
+  // Modal buttons
+  const modalSave = document.getElementById('credentialModalSave');
+  const modalCancel = document.getElementById('credentialModalCancel');
+  const modalClose = document.getElementById('credentialModalClose');
+  const modalBackdrop = document.querySelector('.credential-modal-backdrop');
+
+  if (modalSave) modalSave.addEventListener('click', saveCredentialFromModal);
+  if (modalCancel) modalCancel.addEventListener('click', hideCredentialModal);
+  if (modalClose) modalClose.addEventListener('click', hideCredentialModal);
+  if (modalBackdrop) modalBackdrop.addEventListener('click', hideCredentialModal);
+
+  // Modal password toggle
+  const toggleModalPw = document.getElementById('toggleCredModalPassword');
+  if (toggleModalPw) {
+    toggleModalPw.addEventListener('click', () => {
+      const pwField = document.getElementById('credModalPassword');
+      if (pwField) {
+        const isPassword = pwField.type === 'password';
+        pwField.type = isPassword ? 'text' : 'password';
+        const icon = toggleModalPw.querySelector('i');
+        if (icon) icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+      }
+    });
+  }
+
+  // Load credentials when switching to passwords section (override inside init to ensure DOM is ready)
+  const origSwitchSection = switchSection;
+  switchSection = function(sectionId) {
+    origSwitchSection(sectionId);
+    if (sectionId === 'passwords') {
+      const enableLogin = document.getElementById('enableLogin');
+      if (enableLogin?.checked) {
+        loadCredentials();
+      }
+    }
+  };
+}
+
+// Initialize credential manager after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  // Delay slightly to ensure all other init is done
+  setTimeout(initializeCredentialManager, 200);
+});
+
+// ==========================================
+// Site Explorer Functions
+// ==========================================
+
+function initializeSiteExplorer() {
+  // Go button
+  if (elements.explorerGoBtn) {
+    elements.explorerGoBtn.addEventListener('click', startExplorer);
+  }
+
+  // Stop button
+  if (elements.explorerStopBtn) {
+    elements.explorerStopBtn.addEventListener('click', stopExplorer);
+  }
+
+  // Enter key on URL input
+  if (elements.explorerUrl) {
+    elements.explorerUrl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') startExplorer();
+    });
+  }
+
+  // Research list controls
+  const refreshBtn = document.getElementById('refreshResearch');
+  const clearAllBtn = document.getElementById('clearAllResearch');
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', loadResearchList);
+  }
+
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', clearAllResearchResults);
+  }
+
+  // Event delegation on research list for item/button clicks
+  if (elements.researchList) {
+    elements.researchList.addEventListener('click', (e) => {
+      const actionBtn = e.target.closest('.session-action-btn');
+      const researchItem = e.target.closest('.session-item');
+      if (!researchItem) return;
+      const researchId = researchItem.dataset.researchId;
+
+      if (actionBtn) {
+        e.stopPropagation();
+        const action = actionBtn.dataset.action;
+        if (action === 'view') viewResearch(researchId);
+        else if (action === 'download') downloadResearch(researchId);
+        else if (action === 'delete') deleteResearch(researchId);
+      } else {
+        viewResearch(researchId);
+      }
+    });
+  }
+
+  // Listen for explorer status broadcasts from background
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'explorerStatusUpdate') {
+      updateExplorerProgress(message.data);
+    }
+  });
+
+  // Load initial research list
+  loadResearchList();
+}
+
+async function startExplorer() {
+  const url = (elements.explorerUrl?.value || '').trim();
+  if (!url) {
+    showToast('Please enter a URL to explore', 'error');
+    return;
+  }
+
+  // Validate URL format
+  let testUrl = url;
+  if (!testUrl.startsWith('http://') && !testUrl.startsWith('https://')) {
+    testUrl = 'https://' + testUrl;
+  }
+  try {
+    new URL(testUrl);
+  } catch (e) {
+    showToast('Invalid URL format', 'error');
+    return;
+  }
+
+  const maxDepth = parseInt(elements.explorerMaxDepth?.value || '3');
+  const maxPages = parseInt(elements.explorerMaxPages?.value || '25');
+
+  // Toggle UI
+  elements.explorerGoBtn.style.display = 'none';
+  elements.explorerStopBtn.style.display = '';
+  elements.explorerProgress.style.display = '';
+  elements.explorerProgressFill.style.width = '0%';
+  elements.explorerProgressText.textContent = 'Starting crawl...';
+  elements.explorerProgressCount.textContent = '0 / ' + maxPages + ' pages';
+  elements.explorerCurrentUrl.textContent = '';
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'startExplorer',
+      url: testUrl,
+      maxDepth,
+      maxPages
+    });
+
+    if (!response || !response.success) {
+      showToast('Failed to start explorer: ' + (response?.error || 'Unknown error'), 'error');
+      resetExplorerUI();
+    } else {
+      addLog('info', 'Site Explorer started for ' + testUrl);
+    }
+  } catch (error) {
+    showToast('Failed to start explorer: ' + error.message, 'error');
+    resetExplorerUI();
+  }
+}
+
+async function stopExplorer() {
+  try {
+    await chrome.runtime.sendMessage({ action: 'stopExplorer' });
+    addLog('info', 'Site Explorer stopped');
+    showToast('Explorer stopped', 'info');
+  } catch (error) {
+    console.error('Failed to stop explorer:', error);
+  }
+  resetExplorerUI();
+}
+
+function resetExplorerUI() {
+  if (elements.explorerGoBtn) elements.explorerGoBtn.style.display = '';
+  if (elements.explorerStopBtn) elements.explorerStopBtn.style.display = 'none';
+  if (elements.explorerProgress) elements.explorerProgress.style.display = 'none';
+}
+
+function updateExplorerProgress(data) {
+  if (!data) return;
+
+  if (data.status === 'crawling') {
+    // Show progress
+    if (elements.explorerProgress) elements.explorerProgress.style.display = '';
+    if (elements.explorerGoBtn) elements.explorerGoBtn.style.display = 'none';
+    if (elements.explorerStopBtn) elements.explorerStopBtn.style.display = '';
+
+    const percent = data.maxPages > 0 ? Math.round((data.pagesCollected / data.maxPages) * 100) : 0;
+    if (elements.explorerProgressFill) elements.explorerProgressFill.style.width = percent + '%';
+    if (elements.explorerProgressText) elements.explorerProgressText.textContent = 'Crawling ' + (data.domain || '');
+    if (elements.explorerProgressCount) elements.explorerProgressCount.textContent = data.pagesCollected + ' / ' + data.maxPages + ' pages';
+    if (elements.explorerCurrentUrl) elements.explorerCurrentUrl.textContent = data.currentUrl || '';
+  } else if (data.status === 'completed' || data.status === 'stopped' || data.status === 'error') {
+    resetExplorerUI();
+
+    if (data.status === 'completed') {
+      showToast('Crawl completed: ' + data.pagesCollected + ' pages collected', 'success');
+      addLog('info', 'Site Explorer completed: ' + data.pagesCollected + ' pages from ' + data.domain);
+    } else if (data.status === 'error') {
+      showToast('Crawl failed', 'error');
+    }
+
+    // Refresh research list
+    loadResearchList();
+  }
+}
+
+async function loadResearchList() {
+  if (!elements.researchList) return;
+
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getResearchList' });
+    const list = (response && response.list) || [];
+
+    if (list.length === 0) {
+      elements.researchList.innerHTML = `
+        <div class="session-empty-state">
+          <i class="fas fa-flask"></i>
+          <p>No research results yet. Use Site Explorer above to crawl a website.</p>
+        </div>
+      `;
+      return;
+    }
+
+    elements.researchList.innerHTML = list.map(item => `
+      <div class="session-item" data-research-id="${item.id}">
+        <div class="session-item-info">
+          <div class="session-item-task">${escapeHtml(item.domain || 'Unknown')}</div>
+          <div class="session-item-meta">
+            <span><i class="fas fa-clock"></i> ${formatSessionDate(item.startTime)}</span>
+            <span><i class="fas fa-file-alt"></i> ${item.pageCount || 0} pages</span>
+            <span><i class="fas fa-hourglass-half"></i> ${formatSessionDuration(item.startTime, item.endTime)}</span>
+          </div>
+        </div>
+        <div class="session-item-status">
+          <span class="session-status-badge ${item.status}">${item.status}</span>
+        </div>
+        <div class="session-item-actions">
+          <button class="session-action-btn view" data-action="view" title="View details">
+            <i class="fas fa-eye"></i>
+          </button>
+          <button class="session-action-btn download" data-action="download" title="Download JSON">
+            <i class="fas fa-download"></i>
+          </button>
+          <button class="session-action-btn delete" data-action="delete" title="Delete">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+  } catch (error) {
+    console.error('Failed to load research list:', error);
+    elements.researchList.innerHTML = `
+      <div class="session-empty-state">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>Failed to load research results: ${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+async function viewResearch(researchId) {
+  if (!elements.researchList) return;
+
+  const researchItem = elements.researchList.querySelector(`.session-item[data-research-id="${researchId}"]`);
+  if (!researchItem) return;
+
+  // Toggle: collapse if already expanded
+  const existingDetail = researchItem.querySelector('.research-detail');
+  if (existingDetail) {
+    existingDetail.remove();
+    researchItem.classList.remove('expanded');
+    return;
+  }
+
+  // Collapse any other expanded items
+  elements.researchList.querySelectorAll('.research-detail').forEach(d => d.remove());
+  elements.researchList.querySelectorAll('.session-item.expanded').forEach(i => i.classList.remove('expanded'));
+
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getResearchData', researchId });
+    if (!response || !response.success || !response.data) {
+      showToast('Research data not found', 'error');
+      return;
+    }
+
+    const data = response.data;
+    const summary = data.summary || {};
+
+    const detailHtml = `
+      <div class="research-detail">
+        <div class="research-detail-grid">
+          <div class="research-stat">
+            <div class="research-stat-value">${summary.totalPages || 0}</div>
+            <div class="research-stat-label">Pages</div>
+          </div>
+          <div class="research-stat">
+            <div class="research-stat-value">${summary.totalElements || 0}</div>
+            <div class="research-stat-label">Elements</div>
+          </div>
+          <div class="research-stat">
+            <div class="research-stat-value">${summary.totalForms || 0}</div>
+            <div class="research-stat-label">Forms</div>
+          </div>
+          <div class="research-stat">
+            <div class="research-stat-value">${summary.totalLinks || 0}</div>
+            <div class="research-stat-label">Links</div>
+          </div>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-muted);">
+          <strong>Start URL:</strong> ${escapeHtml(data.startUrl || '')}<br>
+          <strong>Duration:</strong> ${formatSessionDuration(data.startTime, data.endTime)}<br>
+          <strong>Depth:</strong> ${data.settings?.maxDepth || '?'} | <strong>Status:</strong> ${data.status}
+        </div>
+        ${data.pages && data.pages.length > 0 ? `
+          <details style="margin-top: 0.5rem;">
+            <summary style="cursor: pointer; font-size: 0.8125rem; color: var(--text-secondary);">Pages crawled (${data.pages.length})</summary>
+            <ul style="margin: 0.25rem 0 0; padding-left: 1.25rem; font-size: 0.75rem; font-family: monospace; color: var(--text-muted); max-height: 200px; overflow-y: auto;">
+              ${data.pages.map(p => `<li>${escapeHtml(p.url)} (${p.interactiveElements?.length || 0} elements)</li>`).join('')}
+            </ul>
+          </details>
+        ` : ''}
+      </div>
+    `;
+
+    researchItem.insertAdjacentHTML('beforeend', detailHtml);
+    researchItem.classList.add('expanded');
+
+  } catch (error) {
+    console.error('Failed to view research:', error);
+    showToast('Failed to load research details', 'error');
+  }
+}
+
+async function downloadResearch(researchId) {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getResearchData', researchId });
+    if (!response || !response.success || !response.data) {
+      showToast('Research data not found', 'error');
+      return;
+    }
+
+    const data = response.data;
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const date = new Date(data.startTime).toISOString().split('T')[0];
+    const filename = `fsb-research-${data.domain || 'unknown'}-${date}.json`;
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast('Research JSON downloaded', 'success');
+    addLog('info', 'Downloaded research for ' + (data.domain || researchId));
+
+  } catch (error) {
+    console.error('Failed to download research:', error);
+    showToast('Failed to download research', 'error');
+  }
+}
+
+async function deleteResearch(researchId) {
+  if (!confirm('Are you sure you want to delete this research result?')) {
+    return;
+  }
+
+  try {
+    await chrome.runtime.sendMessage({ action: 'deleteResearch', researchId });
+    loadResearchList();
+    showToast('Research deleted', 'success');
+    addLog('info', 'Deleted research ' + researchId);
+  } catch (error) {
+    console.error('Failed to delete research:', error);
+    showToast('Failed to delete research', 'error');
+  }
+}
+
+async function clearAllResearchResults() {
+  if (!confirm('Are you sure you want to delete ALL research results? This cannot be undone.')) {
+    return;
+  }
+
+  try {
+    await chrome.storage.local.remove(['fsbResearchData', 'fsbResearchIndex']);
+    loadResearchList();
+    showToast('All research results cleared', 'success');
+    addLog('info', 'All research results cleared');
+  } catch (error) {
+    console.error('Failed to clear research results:', error);
+    showToast('Failed to clear research results', 'error');
   }
 }
 

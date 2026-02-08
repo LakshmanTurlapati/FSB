@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FSB - Control Panel</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg==" crossorigin="anonymous" referrerpolicy="no-referrer">
   <link rel="stylesheet" href="options.css">
   <script src="chart.min.js"></script>
 </head>
@@ -54,9 +54,17 @@
               <i class="fas fa-tachometer-alt"></i>
               <span>Dashboard</span>
             </li>
+            <li class="nav-item" data-section="background-agents">
+              <i class="fas fa-server"></i>
+              <span>Background Agents</span>
+            </li>
             <li class="nav-item" data-section="api-config">
               <i class="fas fa-key"></i>
               <span>API Configuration</span>
+            </li>
+            <li class="nav-item" data-section="passwords">
+              <i class="fas fa-lock"></i>
+              <span>Passwords <span class="feature-badge beta">Beta</span></span>
             </li>
             <li class="nav-item" data-section="advanced">
               <i class="fas fa-sliders-h"></i>
@@ -378,6 +386,48 @@
               </div>
             </div>
 
+            <!-- CAPTCHA Solver Card -->
+            <div class="settings-card full-width">
+              <div class="settings-card-header">
+                <div class="settings-card-icon captcha">
+                  <i class="fas fa-puzzle-piece"></i>
+                </div>
+                <div class="settings-card-title">
+                  <h3>CAPTCHA Solver</h3>
+                  <p>Automatically solve CAPTCHAs during automation using 2Captcha</p>
+                </div>
+              </div>
+              <div class="settings-card-content">
+                <div class="toggle-grid single">
+                  <label class="modern-toggle">
+                    <input type="checkbox" id="captchaSolverEnabled">
+                    <span class="toggle-track">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                    <div class="toggle-content">
+                      <span class="toggle-label">Enable CAPTCHA Solving</span>
+                      <span class="toggle-desc">Use 2Captcha service to solve reCAPTCHA v2, hCaptcha, and Cloudflare Turnstile challenges</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div id="captchaSolverConfig" style="display: none; margin-top: var(--space-lg);">
+                  <div class="form-group">
+                    <label for="captchaApiKey">2Captcha API Key</label>
+                    <div class="input-with-button">
+                      <input type="password" id="captchaApiKey" placeholder="Enter your 2Captcha API key" class="form-input">
+                      <button type="button" class="input-btn" id="toggleCaptchaApiKey" title="Toggle visibility">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                    </div>
+                    <div class="form-help">
+                      Sign up at <a href="https://2captcha.com?from=fsb" target="_blank">2captcha.com</a>, add balance, then copy your API key from the dashboard. Solves reCAPTCHA v2, hCaptcha, and Turnstile.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Developer Card -->
             <div class="settings-card full-width">
               <div class="settings-card-header">
@@ -405,6 +455,25 @@
               </div>
             </div>
 
+          </div>
+        </section>
+
+        <!-- Background Agents Section -->
+        <section class="content-section" id="background-agents">
+          <div class="section-header">
+            <h2>Background Agents</h2>
+            <p>Configure and manage background automation agents</p>
+          </div>
+          <div class="settings-card full-width">
+            <div class="settings-card-header">
+              <div class="settings-card-icon">
+                <i class="fas fa-server"></i>
+              </div>
+              <div class="settings-card-title">
+                <h3>Coming Soon</h3>
+                <p>Background agent configuration will be available here</p>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -505,6 +574,183 @@
             <div class="debug-output" id="debugOutput" style="display: none;">
               <h4>Debug Output:</h4>
               <pre id="debugContent"></pre>
+            </div>
+          </div>
+
+          <!-- Site Explorer -->
+          <div class="explorer-section" style="margin-top: 2rem;">
+            <div class="section-header">
+              <h3>Site Explorer</h3>
+              <p>Crawl a website to map its interactive structure, navigation, and selectors</p>
+            </div>
+
+            <div class="explorer-card">
+              <div class="explorer-input-row">
+                <div class="explorer-url-wrapper">
+                  <i class="fas fa-globe explorer-url-icon"></i>
+                  <input type="text" id="explorerUrl" class="explorer-url-input" placeholder="https://example.com" />
+                </div>
+                <button class="control-btn explorer-go-btn" id="explorerGoBtn">
+                  <i class="fas fa-search"></i>
+                  Go
+                </button>
+                <button class="control-btn explorer-stop-btn" id="explorerStopBtn" style="display: none;">
+                  <i class="fas fa-stop"></i>
+                  Stop
+                </button>
+              </div>
+
+              <div class="explorer-options-row">
+                <label class="explorer-option">
+                  <span>Max Depth</span>
+                  <select id="explorerMaxDepth" class="form-select small">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3" selected>3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                  </select>
+                </label>
+                <label class="explorer-option">
+                  <span>Max Pages</span>
+                  <select id="explorerMaxPages" class="form-select small">
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="explorer-progress" id="explorerProgress" style="display: none;">
+                <div class="explorer-progress-bar">
+                  <div class="explorer-progress-fill" id="explorerProgressFill" style="width: 0%;"></div>
+                </div>
+                <div class="explorer-progress-info">
+                  <span id="explorerProgressText">Starting...</span>
+                  <span id="explorerProgressCount">0 / 0 pages</span>
+                </div>
+                <div class="explorer-current-url" id="explorerCurrentUrl"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Research Results -->
+          <div class="research-section" style="margin-top: 2rem;">
+            <div class="section-header">
+              <h3>Research Results</h3>
+              <p>View and download site reconnaissance data</p>
+            </div>
+
+            <div class="session-controls">
+              <button class="control-btn" id="refreshResearch">
+                <i class="fas fa-sync-alt"></i>
+                Refresh
+              </button>
+              <button class="control-btn" id="clearAllResearch">
+                <i class="fas fa-trash"></i>
+                Clear All
+              </button>
+            </div>
+
+            <div class="session-list-container" id="researchListContainer">
+              <div class="session-list" id="researchList">
+                <div class="session-empty-state">
+                  <i class="fas fa-flask"></i>
+                  <p>No research results yet. Use Site Explorer above to crawl a website.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- Passwords Section (Beta) -->
+        <section class="content-section" id="passwords">
+          <div class="section-header">
+            <h2>Passwords <span class="feature-badge beta">Beta</span></h2>
+            <p>Manage saved login credentials for automated sign-in</p>
+          </div>
+
+          <!-- Enable Login Toggle -->
+          <div class="toggle-grid single" style="margin-bottom: 1.5rem;">
+            <label class="modern-toggle">
+              <input type="checkbox" id="enableLogin">
+              <span class="toggle-track">
+                <span class="toggle-thumb"></span>
+              </span>
+              <div class="toggle-content">
+                <span class="toggle-label">Enable Auto-Login</span>
+                <span class="toggle-desc">When enabled, FSB will detect login pages and offer to sign in automatically using saved credentials</span>
+              </div>
+            </label>
+          </div>
+
+          <!-- Credentials Manager (shown when toggle is on) -->
+          <div id="credentialsManager" style="display: none;">
+
+            <!-- Toolbar: search + Add New button -->
+            <div class="credentials-toolbar">
+              <div class="credentials-search-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="search" id="credentialSearch" placeholder="Search sites..." class="form-input">
+              </div>
+              <button id="addCredentialBtn" class="test-btn">
+                <i class="fas fa-plus"></i>
+                Add New
+              </button>
+            </div>
+
+            <!-- Credentials List -->
+            <div id="credentialsList" class="credentials-list">
+              <!-- Dynamically populated -->
+            </div>
+
+            <!-- Empty state -->
+            <div id="credentialsEmpty" class="credentials-empty-state">
+              <i class="fas fa-lock"></i>
+              <p>No saved credentials yet. Credentials will be saved automatically when you sign in during automation, or you can add them manually.</p>
+            </div>
+          </div>
+
+          <!-- Add/Edit Modal -->
+          <div id="credentialModal" class="credential-modal hidden">
+            <div class="credential-modal-backdrop"></div>
+            <div class="credential-modal-content">
+              <div class="credential-modal-header">
+                <h3 id="credentialModalTitle">Add Credential</h3>
+                <button class="credential-modal-close" id="credentialModalClose">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="credential-modal-body">
+                <div class="form-group">
+                  <label for="credModalDomain">Website / Domain</label>
+                  <input type="text" id="credModalDomain" placeholder="example.com" class="form-input">
+                  <div class="form-help">Enter the website domain (e.g., github.com, mail.google.com)</div>
+                </div>
+                <div class="form-group">
+                  <label for="credModalUsername">Username / Email</label>
+                  <input type="text" id="credModalUsername" placeholder="user@example.com" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label for="credModalPassword">Password</label>
+                  <div class="input-with-button">
+                    <input type="password" id="credModalPassword" placeholder="Enter password" class="form-input">
+                    <button type="button" class="input-btn" id="toggleCredModalPassword" title="Toggle visibility">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="credModalNotes">Notes (optional)</label>
+                  <input type="text" id="credModalNotes" placeholder="Optional notes" class="form-input">
+                </div>
+              </div>
+              <div class="credential-modal-footer">
+                <button class="save-btn secondary" id="credentialModalCancel">Cancel</button>
+                <button class="save-btn primary" id="credentialModalSave">Save</button>
+              </div>
             </div>
           </div>
         </section>

@@ -2,6 +2,17 @@
 // Provides post-action verification to ensure actions have their intended effects
 
 /**
+ * Safely extract className as a string (SVG elements have SVGAnimatedString, not a string)
+ */
+function getClassNameSafe(element) {
+  if (!element) return '';
+  const cn = element.className;
+  if (typeof cn === 'string') return cn;
+  if (cn && typeof cn.baseVal === 'string') return cn.baseVal;
+  return '';
+}
+
+/**
  * Captures the current state of the page for comparison
  */
 function capturePageState() {
@@ -33,7 +44,7 @@ function capturePageState() {
         state.visibleElements.push({
           tag: el.tagName,
           text: (el.textContent || '').trim().substring(0, 50),
-          selector: el.id ? `#${el.id}` : el.className ? `.${el.className.split(' ')[0]}` : el.tagName.toLowerCase()
+          selector: el.id ? `#${el.id}` : getClassNameSafe(el) ? `.${getClassNameSafe(el).split(' ')[0]}` : el.tagName.toLowerCase()
         });
       }
     });
@@ -88,28 +99,42 @@ function comparePageStates(before, after) {
 }
 
 /**
- * Waits for DOM to stabilize with a timeout
+ * Waits for DOM to stabilize with a timeout.
+ * PERF: Uses MutationObserver instead of polling document.body.innerHTML
+ * which was extremely expensive on large pages (full serialization every 100ms).
  */
 async function waitForDOMStable(maxWait = 3000) {
   const startTime = Date.now();
   let lastChangeTime = Date.now();
-  let previousHTML = document.body.innerHTML;
-  
+
   return new Promise((resolve) => {
-    const checkInterval = setInterval(() => {
-      const currentHTML = document.body.innerHTML;
+    let observer;
+    let checkTimer;
+
+    const cleanup = () => {
+      if (observer) observer.disconnect();
+      if (checkTimer) clearInterval(checkTimer);
+    };
+
+    // Track DOM mutations via MutationObserver (lightweight)
+    observer = new MutationObserver(() => {
+      lastChangeTime = Date.now();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      attributes: true,
+      subtree: true,
+      characterData: true
+    });
+
+    // Periodically check if DOM has been stable long enough
+    checkTimer = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      
-      if (currentHTML !== previousHTML) {
-        lastChangeTime = Date.now();
-        previousHTML = currentHTML;
-      }
-      
       const stableTime = Date.now() - lastChangeTime;
-      
-      // DOM is stable if no changes for 500ms or max wait reached
+
       if (stableTime > 500 || elapsed > maxWait) {
-        clearInterval(checkInterval);
+        cleanup();
         resolve({
           stable: stableTime > 500,
           waitTime: elapsed,

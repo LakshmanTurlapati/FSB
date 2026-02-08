@@ -3,12 +3,10 @@
 // This guard ensures we only initialize once, preventing "already declared" errors
 
 if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
-  // Already loaded - just log and exit
-  console.log('[FSB Content] Already loaded, skipping re-injection');
+  // Already loaded - skip re-injection
 } else {
   // Mark as loaded FIRST to prevent race conditions
   window.__FSB_CONTENT_SCRIPT_LOADED__ = true;
-  console.log('[FSB Content] Loading for the first time');
 
   // Get automationLogger from window (set by automation-logger.js) or create fallback
   var automationLogger = window.automationLogger || {
@@ -40,7 +38,112 @@ if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
 // Current session ID for logging (set by background.js messages)
 var currentSessionId = null;
 
+/**
+ * Safely extract className as a string from any element.
+ * SVG elements have className as SVGAnimatedString (object), not a string.
+ * Calling string methods on it throws TypeError and crashes the content script.
+ * @param {Element} element - DOM element
+ * @returns {string} The className as a plain string
+ */
+function getClassName(element) {
+  if (!element) return '';
+  const cn = element.className;
+  if (typeof cn === 'string') return cn;
+  if (cn && typeof cn.baseVal === 'string') return cn.baseVal;
+  return '';
+}
+
+/**
+ * Strip invisible Unicode control/bidirectional characters from a string.
+ * Gmail and other apps embed chars like U+202A (LRE), U+202C (PDF) in aria-labels
+ * (e.g., "Send \u202a(Cmd+Enter)\u202c") which break CSS selector matching.
+ * @param {string} str - Input string
+ * @returns {string} Cleaned string with control chars removed
+ */
+function stripUnicodeControl(str) {
+  if (!str) return str;
+  // U+200B-200F: zero-width/directional marks
+  // U+202A-202E: bidirectional embedding/override/pop
+  // U+2060-2069: word joiner, invisible separators, bidi isolates
+  // U+FEFF: byte order mark / zero-width no-break space
+  // U+00AD: soft hyphen
+  return str.replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF\u00AD]/g, '');
+}
+
+/**
+ * Find an element by matching its aria-label after stripping Unicode control chars.
+ * Fallback for when document.querySelector() fails because the selector contains
+ * clean text but the actual DOM attribute has invisible Unicode chars (or vice versa).
+ * @param {string} selectorStr - The full CSS selector string containing aria-label
+ * @returns {Element|null} Matching element or null
+ */
+function findElementByNormalizedAriaLabel(selectorStr) {
+  // Extract the aria-label value and operator from the selector
+  // Supports: [aria-label="..."], [aria-label*="..."], [aria-label^="..."], [aria-label$="..."]
+  const match = selectorStr.match(/\[aria-label([*^$]?)=["'](.+?)["']\]/);
+  if (!match) return null;
+
+  const operator = match[1];
+  const searchValue = stripUnicodeControl(match[2]).trim().toLowerCase();
+  if (!searchValue) return null;
+
+  // Also extract any tag name prefix (e.g., "button" from "button[aria-label...]")
+  const tagMatch = selectorStr.match(/^([a-zA-Z]+)\[aria-label/);
+  const tagFilter = tagMatch ? tagMatch[1].toUpperCase() : null;
+
+  const candidates = document.querySelectorAll('[aria-label]');
+  for (const el of candidates) {
+    if (tagFilter && el.tagName !== tagFilter) continue;
+    const raw = el.getAttribute('aria-label');
+    const cleaned = stripUnicodeControl(raw).trim().toLowerCase();
+    let matches = false;
+    switch (operator) {
+      case '*': matches = cleaned.includes(searchValue); break;
+      case '^': matches = cleaned.startsWith(searchValue); break;
+      case '$': matches = cleaned.endsWith(searchValue); break;
+      default:  matches = cleaned === searchValue; break;
+    }
+    if (matches) return el;
+  }
+  return null;
+}
+
+/**
+ * Check if an element belongs to the FSB overlay (crossing shadow DOM boundaries).
+ * element.closest() does NOT cross shadow DOM boundaries, so we also check getRootNode().
+ * @param {Element} el - DOM element to check
+ * @returns {boolean} True if element is part of the FSB overlay
+ */
+function isFsbElement(el) {
+  if (!el) return false;
+  if (el.id === 'fsb-progress-host') return true;
+  if (el.hasAttribute?.('data-fsb-id')) return true;
+  if (el.closest?.('#fsb-progress-host')) return true;
+  const root = el.getRootNode?.();
+  if (root && root !== document && root.host?.id === 'fsb-progress-host') return true;
+  return false;
+}
+
 // DOM State Manager class definition (inline for content script)
+/**
+ * PERF: Lightweight shallow object equality check.
+ * Replaces JSON.stringify(a) !== JSON.stringify(b) for small flat objects
+ * like interactionState and attributes. Avoids full serialization overhead.
+ */
+function shallowEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (typeof a !== 'object' || typeof b !== 'object') return a === b;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (let i = 0; i < keysA.length; i++) {
+    const key = keysA[i];
+    if (a[key] !== b[key]) return false;
+  }
+  return true;
+}
+
 class DOMStateManager {
   constructor() {
     // Previous DOM state for comparison
@@ -167,11 +270,11 @@ class DOMStateManager {
     // Check visibility changes
     if (current.visibility?.display !== previous.visibility?.display) return true;
     
-    // Check interaction state changes
-    if (JSON.stringify(current.interactionState) !== JSON.stringify(previous.interactionState)) return true;
-    
-    // Check attribute changes
-    if (JSON.stringify(current.attributes) !== JSON.stringify(previous.attributes)) return true;
+    // Check interaction state changes (PERF: shallow compare instead of JSON.stringify)
+    if (!shallowEqual(current.interactionState, previous.interactionState)) return true;
+
+    // Check attribute changes (PERF: shallow compare instead of JSON.stringify)
+    if (!shallowEqual(current.attributes, previous.attributes)) return true;
     
     return false;
   }
@@ -268,7 +371,8 @@ class DOMStateManager {
       };
     }
     
-    if (JSON.stringify(current.attributes) !== JSON.stringify(previous.attributes)) {
+    // PERF: shallow compare instead of JSON.stringify
+    if (!shallowEqual(current.attributes, previous.attributes)) {
       changes.attributes = {
         old: previous.attributes,
         new: current.attributes
@@ -740,14 +844,16 @@ class HighlightManager {
 
     this.activeHighlight = element;
 
-    // Apply highlight with !important to override host page styles
+    // PERF: Read computed style BEFORE any writes to avoid layout thrashing
+    const computedPosition = window.getComputedStyle(element).position;
+
+    // Batch all style writes together
     element.style.setProperty('outline', `3px solid ${color}`, 'important');
     element.style.setProperty('box-shadow', `0 0 10px ${glowColor}, 0 0 20px ${glowColor}, 0 0 30px rgba(255, 140, 0, 0.4)`, 'important');
     element.style.setProperty('transition', 'box-shadow 0.15s ease-out', 'important');
     element.style.setProperty('z-index', '2147483646', 'important');
 
     // Only set position: relative if currently static (preserve existing positioning)
-    const computedPosition = window.getComputedStyle(element).position;
     if (computedPosition === 'static') {
       element.style.setProperty('position', 'relative', 'important');
     }
@@ -842,12 +948,12 @@ class ProgressOverlay {
     // Reset all inherited styles and position at top of stacking context
     this.host.style.cssText = `
       all: initial !important;
+      display: block !important;
       position: fixed !important;
       z-index: 2147483647 !important;
-      top: 0 !important;
-      right: 0 !important;
+      top: 16px !important;
+      right: 16px !important;
       pointer-events: none !important;
-      isolation: isolate !important;
     `;
 
     // Create shadow root for complete style isolation
@@ -857,7 +963,7 @@ class ProgressOverlay {
     const style = document.createElement('style');
     style.textContent = `
       :host {
-        all: initial !important;
+        display: block !important;
       }
 
       * {
@@ -867,12 +973,8 @@ class ProgressOverlay {
       }
 
       .fsb-overlay {
-        position: fixed;
-        top: 16px;
-        right: 16px;
-        min-width: 200px;
-        max-width: 300px;
-        background: rgba(20, 20, 25, 0.95);
+        width: 300px;
+        background: #000000;
         color: #ffffff;
         padding: 14px 18px;
         border-radius: 10px;
@@ -881,13 +983,12 @@ class ProgressOverlay {
         line-height: 1.4;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 140, 0, 0.3);
         pointer-events: auto;
-        transform: translateY(0);
         opacity: 1;
-        transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+        transition: opacity 0.2s ease-out;
+        contain: paint;
       }
 
       .fsb-overlay.hidden {
-        transform: translateY(-20px);
         opacity: 0;
         pointer-events: none;
       }
@@ -904,14 +1005,8 @@ class ProgressOverlay {
       .fsb-logo {
         width: 20px;
         height: 20px;
-        background: linear-gradient(135deg, #FF8C00, #FF6600);
         border-radius: 4px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        font-size: 10px;
-        color: #ffffff;
+        object-fit: contain;
       }
 
       .fsb-title {
@@ -924,7 +1019,9 @@ class ProgressOverlay {
         color: rgba(255, 255, 255, 0.7);
         font-size: 12px;
         margin-bottom: 8px;
-        word-break: break-word;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .fsb-step {
@@ -947,6 +1044,16 @@ class ProgressOverlay {
         color: rgba(255, 255, 255, 0.9);
         font-size: 12px;
         flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .fsb-eta {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 11px;
+        margin-bottom: 8px;
+        text-align: right;
       }
 
       .fsb-progress-bar {
@@ -971,18 +1078,23 @@ class ProgressOverlay {
     this.container.className = 'fsb-overlay';
     this.container.innerHTML = `
       <div class="fsb-header">
-        <div class="fsb-logo">F</div>
+        <img class="fsb-logo" src="" alt="FSB">
         <span class="fsb-title">FSB Automating</span>
       </div>
       <div class="fsb-task">-</div>
       <div class="fsb-step">
-        <span class="fsb-step-number">Step 0</span>
+        <span class="fsb-step-number">0%</span>
         <span class="fsb-step-text">Initializing...</span>
       </div>
+      <div class="fsb-eta"></div>
       <div class="fsb-progress-bar">
         <div class="fsb-progress-fill" style="width: 0%"></div>
       </div>
     `;
+
+    // Set logo image src using chrome.runtime.getURL for web_accessible_resources
+    const logoImg = this.container.querySelector('.fsb-logo');
+    logoImg.src = chrome.runtime.getURL('Assets/icon48.png');
 
     this.shadow.appendChild(this.container);
     document.documentElement.appendChild(this.host);
@@ -996,26 +1108,26 @@ class ProgressOverlay {
    * @param {string} data.stepText - Step description
    * @param {number} data.progress - Progress percentage (0-100)
    */
-  update({ taskName, stepNumber, totalSteps, stepText, progress }) {
+  update({ taskName, stepNumber, totalSteps, stepText, progress, eta }) {
     if (!this.container) return;
 
     if (taskName !== undefined) {
       this.container.querySelector('.fsb-task').textContent = taskName;
     }
-    if (stepNumber !== undefined) {
-      // Show iteration-based format when totalSteps is provided
-      const label = totalSteps
-        ? `Iter ${stepNumber}/${totalSteps}`
-        : `Step ${stepNumber}`;
+    if (progress !== undefined) {
+      const clamped = Math.min(100, Math.max(0, progress));
+      this.container.querySelector('.fsb-step-number').textContent = `${Math.round(clamped)}%`;
+      this.container.querySelector('.fsb-progress-fill').style.width = `${clamped}%`;
+    } else if (stepNumber !== undefined) {
+      const label = totalSteps ? `Iter ${stepNumber}/${totalSteps}` : `Step ${stepNumber}`;
       this.container.querySelector('.fsb-step-number').textContent = label;
     }
     if (stepText !== undefined) {
       this.container.querySelector('.fsb-step-text').textContent = stepText;
     }
-    if (progress !== undefined) {
-      // Clamp progress to 0-100%
-      const clampedProgress = Math.min(100, Math.max(0, progress));
-      this.container.querySelector('.fsb-progress-fill').style.width = `${clampedProgress}%`;
+    if (eta !== undefined) {
+      const etaEl = this.container.querySelector('.fsb-eta');
+      if (etaEl) etaEl.textContent = eta || '';
     }
   }
 
@@ -1057,6 +1169,9 @@ class ProgressOverlay {
 // Singleton instance for progress overlay
 const progressOverlay = new ProgressOverlay();
 
+// Persist the last action-specific status text so thinking phases can reuse it
+let lastActionStatusText = null;
+
 /**
  * ViewportGlow - Full-viewport border glow indicating AI activity state
  *
@@ -1075,12 +1190,19 @@ class ViewportGlow {
   show(state) {
     if (!this.host) {
       this._create();
+      // Set initial state directly on the freshly created root -- avoids the
+      // remove+add cycle in setState which would be harmless here but is
+      // unnecessary on first creation.
+      this.state = state;
+      const root = this.shadow.querySelector('.viewport-glow-root');
+      if (root) root.classList.add(`state-${state}`);
+      return;
     }
     this.setState(state);
   }
 
   setState(state) {
-    if (!this.shadow) return;
+    if (!this.shadow || this.state === state) return;
     this.state = state;
     const root = this.shadow.querySelector('.viewport-glow-root');
     if (root) {
@@ -1105,38 +1227,60 @@ class ViewportGlow {
         inset: 0;
         pointer-events: none;
         overflow: hidden;
+        /* Default custom properties (no glow until a state class is set) */
+        --glow-duration: 6s;
+        --glow-color-1: #ff8c00;
+        --glow-color-2: #f59e0b;
+        --glow-opacity: 0;
+        --glow-brightness: 1.25;
+        --ambient-inner: rgba(255, 140, 0, 0);
+        --ambient-outer: rgba(245, 158, 11, 0);
+      }
+
+      /* State classes only update custom properties -- never touch animation */
+      .viewport-glow-root.state-thinking {
+        --glow-duration: 6s;
+        --glow-color-1: #ff8c00;
+        --glow-color-2: #f59e0b;
+        --glow-opacity: 1;
+        --glow-brightness: 1.25;
+        --ambient-inner: rgba(255, 140, 0, 0.20);
+        --ambient-outer: rgba(245, 158, 11, 0.10);
+      }
+      .viewport-glow-root.state-acting {
+        --glow-duration: 4s;
+        --glow-color-1: #ff6600;
+        --glow-color-2: #ff8c00;
+        --glow-opacity: 1;
+        --glow-brightness: 1.5;
+        --ambient-inner: rgba(255, 140, 0, 0.30);
+        --ambient-outer: rgba(255, 102, 0, 0.15);
       }
 
       /* Ambient inset glow */
       .viewport-ambient {
         position: absolute;
         inset: 0;
+        box-shadow:
+          inset 0 0 64px var(--ambient-inner),
+          inset 0 0 128px var(--ambient-outer);
         transition: box-shadow 0.5s ease;
       }
-      .state-thinking .viewport-ambient {
-        box-shadow:
-          inset 0 0 64px rgba(255, 140, 0, 0.13),
-          inset 0 0 128px rgba(245, 158, 11, 0.07);
-      }
-      .state-acting .viewport-ambient {
-        box-shadow:
-          inset 0 0 64px rgba(255, 140, 0, 0.20),
-          inset 0 0 128px rgba(255, 102, 0, 0.10);
-      }
 
-      /* Traveling light beam bars */
+      /* Traveling light beam bars -- always animated, driven by custom properties */
       .bar {
         position: absolute;
-        transition: background 0.5s ease;
-        filter: blur(2px);
+        opacity: var(--glow-opacity);
+        filter: blur(1.5px) brightness(var(--glow-brightness));
+        transition: opacity 0.5s ease, filter 0.5s ease;
       }
 
       .bar-top, .bar-bottom {
-        left: 0; right: 0; height: 4px;
+        left: 0; right: 0; height: 5px;
         background-size: 200% 100%;
       }
       .bar-left, .bar-right {
-        top: 0; bottom: 0; width: 4px;
+        top: 0; bottom: 0; width: 5px;
         background-size: 100% 200%;
       }
 
@@ -1145,65 +1289,48 @@ class ViewportGlow {
       .bar-left   { left: 0; }
       .bar-right  { right: 0; }
 
-      /* Thinking state: dimmer orange, 3s cycle (calm) */
-      .state-thinking .bar-top {
-        background: linear-gradient(90deg, transparent 0%, #ff8c00 40%, #f59e0b 60%, transparent 100%);
+      /* Bars always run their animation -- state changes only affect variables */
+      /* Coordinated: each bar is active for its 25% window, idle the rest */
+      .bar-top {
+        background: linear-gradient(90deg, transparent 0%, var(--glow-color-1) 40%, var(--glow-color-2) 60%, transparent 100%);
         background-size: 200% 100%;
-        animation: slideRight 3s linear infinite;
+        animation: travelRight var(--glow-duration) linear infinite;
       }
-      .state-thinking .bar-right {
-        background: linear-gradient(180deg, transparent 0%, #ff8c00 40%, #f59e0b 60%, transparent 100%);
+      .bar-right {
+        background: linear-gradient(180deg, transparent 0%, var(--glow-color-1) 40%, var(--glow-color-2) 60%, transparent 100%);
         background-size: 100% 200%;
-        animation: slideDown 3s linear infinite 0.75s;
+        animation: travelDown var(--glow-duration) linear infinite;
       }
-      .state-thinking .bar-bottom {
-        background: linear-gradient(270deg, transparent 0%, #ff8c00 40%, #f59e0b 60%, transparent 100%);
+      .bar-bottom {
+        background: linear-gradient(270deg, transparent 0%, var(--glow-color-1) 40%, var(--glow-color-2) 60%, transparent 100%);
         background-size: 200% 100%;
-        animation: slideLeft 3s linear infinite 1.5s;
+        animation: travelLeft var(--glow-duration) linear infinite;
       }
-      .state-thinking .bar-left {
-        background: linear-gradient(0deg, transparent 0%, #ff8c00 40%, #f59e0b 60%, transparent 100%);
+      .bar-left {
+        background: linear-gradient(0deg, transparent 0%, var(--glow-color-1) 40%, var(--glow-color-2) 60%, transparent 100%);
         background-size: 100% 200%;
-        animation: slideUp 3s linear infinite 2.25s;
+        animation: travelUp var(--glow-duration) linear infinite;
       }
 
-      /* Acting state: brighter orange, 2s cycle (urgent) */
-      .state-acting .bar-top {
-        background: linear-gradient(90deg, transparent 0%, #ff6600 40%, #ff8c00 60%, transparent 100%);
-        background-size: 200% 100%;
-        animation: slideRight 2s linear infinite;
+      /* Clockwise loop: top(0-25%), right(25-50%), bottom(50-75%), left(75-100%) */
+      @keyframes travelRight {
+        0%              { background-position: -100% 0; }
+        25%             { background-position: 200% 0; }
+        25.001%, 100%   { background-position: 200% 0; }
       }
-      .state-acting .bar-right {
-        background: linear-gradient(180deg, transparent 0%, #ff6600 40%, #ff8c00 60%, transparent 100%);
-        background-size: 100% 200%;
-        animation: slideDown 2s linear infinite 0.5s;
+      @keyframes travelDown {
+        0%, 25%         { background-position: 0 -100%; }
+        50%             { background-position: 0 200%; }
+        50.001%, 100%   { background-position: 0 200%; }
       }
-      .state-acting .bar-bottom {
-        background: linear-gradient(270deg, transparent 0%, #ff6600 40%, #ff8c00 60%, transparent 100%);
-        background-size: 200% 100%;
-        animation: slideLeft 2s linear infinite 1s;
+      @keyframes travelLeft {
+        0%, 50%         { background-position: 200% 0; }
+        75%             { background-position: -100% 0; }
+        75.001%, 100%   { background-position: -100% 0; }
       }
-      .state-acting .bar-left {
-        background: linear-gradient(0deg, transparent 0%, #ff6600 40%, #ff8c00 60%, transparent 100%);
-        background-size: 100% 200%;
-        animation: slideUp 2s linear infinite 1.5s;
-      }
-
-      @keyframes slideRight {
-        0%   { background-position: -100% 0; }
-        100% { background-position: 200% 0; }
-      }
-      @keyframes slideDown {
-        0%   { background-position: 0 -100%; }
-        100% { background-position: 0 200%; }
-      }
-      @keyframes slideLeft {
-        0%   { background-position: 200% 0; }
-        100% { background-position: -100% 0; }
-      }
-      @keyframes slideUp {
-        0%   { background-position: 0 200%; }
-        100% { background-position: 0 -100%; }
+      @keyframes travelUp {
+        0%, 75%         { background-position: 0 200%; }
+        100%            { background-position: 0 -100%; }
       }
     `;
     this.shadow.appendChild(style);
@@ -1395,6 +1522,11 @@ class ActionGlowOverlay {
 
   _startTracking() {
     const track = () => {
+      // PERF: Stop tracking if host element was removed from DOM (prevents RAF leak)
+      if (!this.host || !document.body.contains(this.host)) {
+        this.trackingId = null;
+        return;
+      }
       this._updatePosition();
       if (this.targetElement) {
         this.trackingId = requestAnimationFrame(track);
@@ -1557,7 +1689,7 @@ class ElementInspector {
     return {
       tagName: element.tagName,
       id: element.id || null,
-      className: element.className || null,
+      className: getClassName(element) || null,
       selectors: selectors,
       preferredSelector: selectors[0]?.selector || null,
       attributes: {
@@ -1636,6 +1768,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // VIS-07: Clean up visual feedback on page navigation/unload
+// PERF: Also disconnect MutationObservers to prevent orphaned observers on BFCache navigation
 window.addEventListener('beforeunload', () => {
   try {
     viewportGlow.destroy();
@@ -1643,6 +1776,13 @@ window.addEventListener('beforeunload', () => {
     highlightManager.cleanup();
     progressOverlay.destroy();
     elementInspector.disable();
+    // Disconnect MutationObservers to prevent leaks on BFCache/re-injection
+    if (domStateManager && domStateManager.mutationObserver) {
+      domStateManager.mutationObserver.disconnect();
+    }
+    if (typeof elementCache !== 'undefined' && elementCache.observer) {
+      elementCache.observer.disconnect();
+    }
   } catch (e) { /* ignore cleanup errors on unload */ }
 });
 
@@ -1711,6 +1851,11 @@ window.addEventListener('message', (event) => {
     return;
   }
 
+  // Validate origin: only accept messages from same origin
+  if (event.origin !== window.location.origin) {
+    return;
+  }
+
   const { action, requestId } = event.data;
 
   if (action === 'getFrameDOM') {
@@ -1733,20 +1878,20 @@ window.addEventListener('message', (event) => {
         }));
       }
 
-      // Send response back to parent
+      // Send response back to parent (restrict to same origin)
       window.parent.postMessage({
         type: 'FSB_FRAME_RESPONSE',
         requestId: requestId,
         success: true,
         data: domData
-      }, '*');
+      }, window.location.origin);
     } catch (error) {
       window.parent.postMessage({
         type: 'FSB_FRAME_RESPONSE',
         requestId: requestId,
         success: false,
         error: error.message
-      }, '*');
+      }, window.location.origin);
     }
   }
 });
@@ -1770,6 +1915,10 @@ async function collectChildFramesDom(timeout = 3000) {
 
   // Set up message listener for responses
   const responseHandler = (event) => {
+    // Validate origin of frame responses
+    if (event.origin !== window.location.origin) {
+      return;
+    }
     if (event.data?.type === 'FSB_FRAME_RESPONSE') {
       const { requestId, success, data, error } = event.data;
       const resolver = pendingRequests.get(requestId);
@@ -1797,15 +1946,16 @@ async function collectChildFramesDom(timeout = 3000) {
         }
       }, timeout);
 
-      // Send request to iframe
+      // Send request to iframe (use iframe's origin instead of wildcard)
       try {
+        const iframeOrigin = iframe.src ? new URL(iframe.src).origin : window.location.origin;
         iframe.contentWindow.postMessage({
           type: 'FSB_FRAME_REQUEST',
           action: 'getFrameDOM',
           requestId: requestId
-        }, '*');
+        }, iframeOrigin);
       } catch (e) {
-        // Cross-origin iframe, can't send message directly
+        // Cross-origin iframe or invalid URL, can't send message directly
         resolve({ success: false, error: 'cross-origin' });
       }
     });
@@ -1841,7 +1991,7 @@ async function collectChildFramesDom(timeout = 3000) {
  */
 function isUniversalMessageInput(element) {
   // Get all relevant attributes for pattern matching
-  const className = (element.className || '').toLowerCase();
+  const className = getClassName(element).toLowerCase();
   const id = (element.id || '').toLowerCase();
   const ariaLabel = (element.getAttribute('aria-label') || '').toLowerCase();
   const placeholder = (element.getAttribute('placeholder') || '').toLowerCase();
@@ -1849,8 +1999,8 @@ function isUniversalMessageInput(element) {
   const dataTestid = (element.getAttribute('data-testid') || '').toLowerCase(); // Alternative casing
   const role = (element.getAttribute('role') || '').toLowerCase();
   const name = (element.getAttribute('name') || '').toLowerCase();
-  const parentClass = (element.parentElement?.className || '').toLowerCase();
-  const grandParentClass = (element.parentElement?.parentElement?.className || '').toLowerCase();
+  const parentClass = getClassName(element.parentElement).toLowerCase();
+  const grandParentClass = getClassName(element.parentElement?.parentElement).toLowerCase();
   
   // Universal messaging keywords
   const messagingKeywords = [
@@ -2048,82 +2198,84 @@ function generateMessagingSelectors(baseSelector) {
 }
 
 /**
- * Find alternative selectors for an element that couldn't be found
+ * Find alternative selectors for an element that couldn't be found.
+ * PERF: Uses cached DOM queries to avoid multiple overlapping querySelectorAll calls.
  * @param {string} failedSelector - The selector that failed
  * @param {string} actionType - The type of action being attempted
  * @returns {Array} Array of alternative selectors to try
  */
 function findAlternativeSelectors(failedSelector, actionType) {
   const alternatives = [];
-  
+
   // Extract meaningful parts from the failed selector
   const selectorParts = failedSelector.match(/[\w-]+/g) || [];
-  
-  // If it's a button/submit action, look for common button patterns
+  const lowerParts = selectorParts.map(p => p.toLowerCase());
+
+  // Helper: check if element text/attributes match any selector part
+  function matchesParts(el) {
+    const text = el.textContent?.trim().toLowerCase() || '';
+    const ariaLabel = el.getAttribute('aria-label')?.toLowerCase() || '';
+    const className = getClassName(el);
+    const id = el.id || '';
+    return lowerParts.some(part =>
+      text.includes(part) ||
+      ariaLabel.includes(part) ||
+      className.includes(part) ||
+      id.includes(part)
+    );
+  }
+
   if (actionType === 'click') {
-    // Look for buttons with similar text
-    document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"], a.btn, a.button').forEach(el => {
-      const text = el.textContent?.trim().toLowerCase() || '';
-      const ariaLabel = el.getAttribute('aria-label')?.toLowerCase() || '';
-      
-      // Check if any part of the failed selector matches the element
-      const matches = selectorParts.some(part => 
-        text.includes(part.toLowerCase()) || 
-        ariaLabel.includes(part.toLowerCase()) ||
-        el.className.includes(part) ||
-        el.id.includes(part)
-      );
-      
-      if (matches && !alternatives.includes(el)) {
-        // Generate a reliable selector for this element
+    // Single query for all clickable elements
+    const clickables = document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"], a.btn, a.button');
+    for (const el of clickables) {
+      if (matchesParts(el)) {
         const selector = generateSelector(el);
-        if (selector) {
+        if (selector && !alternatives.includes(selector)) {
           alternatives.push(selector);
         }
       }
-    });
-    
-    // Look for clickable elements with similar classes
-    if (failedSelector.includes('.')) {
+    }
+
+    // Partial class match - only if not already found enough
+    if (alternatives.length < 3 && failedSelector.includes('.')) {
       const className = failedSelector.match(/\.([^.\s]+)/)?.[1];
       if (className) {
-        // Try partial class matches
-        document.querySelectorAll(`[class*="${className}"]`).forEach(el => {
+        const classMatches = document.querySelectorAll(`[class*="${className}"]`);
+        for (const el of classMatches) {
           if (el.tagName.match(/^(A|BUTTON|INPUT|SPAN|DIV)$/) && isClickable(el)) {
             const selector = generateSelector(el);
             if (selector && !alternatives.includes(selector)) {
               alternatives.push(selector);
             }
           }
-        });
+        }
       }
     }
   }
-  
-  // For input fields, look for similar inputs
+
   if (actionType === 'type') {
-    document.querySelectorAll('input, textarea, [contenteditable="true"]').forEach(el => {
+    // Single query for all input elements
+    const inputs = document.querySelectorAll('input, textarea, [contenteditable="true"]');
+    for (const el of inputs) {
       const placeholder = el.placeholder?.toLowerCase() || '';
-      const label = el.getAttribute('aria-label')?.toLowerCase() || '';
       const name = el.name?.toLowerCase() || '';
-      
-      const matches = selectorParts.some(part => 
-        placeholder.includes(part.toLowerCase()) ||
-        label.includes(part.toLowerCase()) ||
-        name.includes(part.toLowerCase()) ||
-        el.className.includes(part) ||
-        el.id.includes(part)
+      const matches = lowerParts.some(part =>
+        placeholder.includes(part) ||
+        (el.getAttribute('aria-label') || '').toLowerCase().includes(part) ||
+        name.includes(part) ||
+        getClassName(el).includes(part) ||
+        (el.id || '').includes(part)
       );
-      
       if (matches) {
         const selector = generateSelector(el);
         if (selector && !alternatives.includes(selector)) {
           alternatives.push(selector);
         }
       }
-    });
+    }
   }
-  
+
   return alternatives;
 }
 
@@ -2393,6 +2545,17 @@ function querySelectorWithShadow(selector) {
     }
   }
 
+  // Unicode-aware aria-label fallback: if querySelector returned null and the
+  // selector contains aria-label, try matching after stripping invisible chars
+  if (!element && sanitized.includes('aria-label')) {
+    element = findElementByNormalizedAriaLabel(sanitized);
+    if (element) {
+      automationLogger.debug('Found element via Unicode-normalized aria-label fallback', {
+        sessionId: currentSessionId, selector: sanitized
+      });
+    }
+  }
+
   // SPEED-04: Cache the found element for future lookups
   if (element) {
     elementCache.set(sanitized, element);
@@ -2548,9 +2711,9 @@ function computeAccessibleName(node) {
     if (names.length > 0) return { name: names.join(' '), source: 'aria-labelledby' };
   }
 
-  // 2. aria-label
+  // 2. aria-label (strip invisible Unicode control chars for clean AI output)
   const ariaLabel = node.getAttribute('aria-label');
-  if (ariaLabel) return { name: ariaLabel, source: 'aria-label' };
+  if (ariaLabel) return { name: stripUnicodeControl(ariaLabel), source: 'aria-label' };
 
   // 3. Native label association (for form controls)
   if (node.id) {
@@ -2702,13 +2865,16 @@ function isElementActionable(node) {
         centerY >= 0 && centerY <= window.innerHeight) {
       const topElement = document.elementFromPoint(centerX, centerY);
       if (topElement && topElement !== node && !node.contains(topElement) && !topElement.contains(node)) {
-        result.actionable = false;
-        result.reasons.push('obscured');
-        result.obscuredBy = topElement.tagName.toLowerCase() +
-          (topElement.id ? `#${topElement.id}` : '') +
-          (topElement.className && typeof topElement.className === 'string'
-            ? `.${topElement.className.split(' ')[0]}`
-            : '');
+        // Ignore FSB's own overlay elements (including shadow DOM children)
+        if (!isFsbElement(topElement)) {
+          result.actionable = false;
+          result.reasons.push('obscured');
+          result.obscuredBy = topElement.tagName.toLowerCase() +
+            (topElement.id ? `#${topElement.id}` : '') +
+            (topElement.className && typeof topElement.className === 'string'
+              ? `.${topElement.className.split(' ')[0]}`
+              : '');
+        }
       }
     }
   }
@@ -3082,6 +3248,9 @@ function checkElementReceivesEvents(element) {
     const hitContainsTarget = hitElement && hitElement.contains(element);
 
     if (hitIsTarget || targetContainsHit || hitContainsTarget) {
+      passedPoints.push(point.name);
+    } else if (isFsbElement(hitElement)) {
+      // FSB's own overlay (including shadow DOM children) -- ignore, treat target as accessible
       passedPoints.push(point.name);
     } else if (!obscuredBy && hitElement) {
       // Record what's obscuring (only first one)
@@ -3756,7 +3925,7 @@ async function clickAtCoordinates(params) {
     clickedElement: {
       tag: element.tagName,
       id: element.id || null,
-      class: element.className ? element.className.substring(0, 50) : null
+      class: getClassName(element).substring(0, 50) || null
     },
     coordinates: { x: viewportCenterX, y: viewportCenterY },
     scrolled: scrollResult.scrolled
@@ -3768,7 +3937,7 @@ async function clickAtCoordinates(params) {
     clickedElement: {
       tag: element.tagName,
       id: element.id || null,
-      class: element.className ? element.className.substring(0, 50) : null
+      class: getClassName(element).substring(0, 50) || null
     },
     coordinates: { x: viewportCenterX, y: viewportCenterY },
     scrolled: scrollResult.scrolled,
@@ -3807,7 +3976,7 @@ function captureActionState(element, actionType) {
     state.element = {
       exists: true,
       tagName: element.tagName,
-      className: element.className || '',
+      className: getClassName(element),
       value: element.value !== undefined ? element.value : null,
       textContent: element.isContentEditable ? (element.textContent || '').substring(0, 500) : null,
       checked: element.checked !== undefined ? element.checked : null,
@@ -4079,7 +4248,7 @@ const DIAGNOSTIC_MESSAGES = {
     message: 'Click intercepted by overlay',
     getDetails: (context) => {
       const cover = context.coveringElement || {};
-      return `Click would hit ${cover.tagName || 'unknown'}.${cover.className || ''} instead of target`;
+      return `Click would hit ${cover.tagName || 'unknown'}.${typeof cover.className === 'string' ? cover.className : ''} instead of target`;
     },
     suggestions: [
       'Close any modal or overlay first',
@@ -4147,7 +4316,7 @@ function generateDiagnostic(failureType, context = {}) {
   if (context.coveringElement) {
     diagnostic.coveringElement = {
       tagName: context.coveringElement.tagName,
-      className: context.coveringElement.className,
+      className: getClassName(context.coveringElement),
       id: context.coveringElement.id
     };
   }
@@ -4177,7 +4346,7 @@ function captureElementDetails(element) {
       // Basic identity
       tagName: element.tagName,
       id: element.id || null,
-      className: element.className || null,
+      className: getClassName(element) || null,
       text: (element.innerText || element.textContent || '').substring(0, 50),
 
       // Visibility state
@@ -4807,12 +4976,18 @@ const tools = {
 
       // Determine if click had an effect
       // For anchor tags, require URL change or significant DOM change (not just focus)
+      // For radio/checkbox elements, treat checkedChanged as a valid effect
       const isAnchorElement = element.tagName === 'A' || element.closest('a');
-      const hadEffect = isAnchorElement
-        ? (verification.changes?.urlChanged || verification.changes?.contentChanged ||
-           verification.changes?.elementCountChanged || verification.changes?.ariaExpandedChanged ||
-           verification.changes?.relatedVisibilityChanged || loadingDetected || false)
-        : verification.verified;
+      const isCheckableElement = element.type === 'radio' || element.type === 'checkbox' ||
+        element.getAttribute('role') === 'radio' || element.getAttribute('role') === 'checkbox' ||
+        element.getAttribute('role') === 'switch';
+      const hadEffect = isCheckableElement
+        ? (verification.changes?.checkedChanged || verification.changes?.ariaExpandedChanged || verification.verified)
+        : isAnchorElement
+          ? (verification.changes?.urlChanged || verification.changes?.contentChanged ||
+             verification.changes?.elementCountChanged || verification.changes?.ariaExpandedChanged ||
+             verification.changes?.relatedVisibilityChanged || loadingDetected || false)
+          : verification.verified;
 
       // CRITICAL FIX: Return success=false when click has no effect
       // This prevents AI from continuing after failed clicks
@@ -5194,6 +5369,115 @@ const tools = {
       let previousValue = '';
       let insertionSuccess = false;  // Declare at function scope to avoid 'not defined' errors
 
+      // CODE EDITOR CDP FAST-PATH: Use CDP for ALL code editor elements (textarea or contenteditable)
+      // CDP's Input.insertText goes through the browser's native input pipeline,
+      // which Monaco/CodeMirror/ACE process correctly -- preserving newlines and indentation.
+      // This must come BEFORE standard branching because:
+      //   - isCodeEditorInput branch: execCommand/InputEvent may partially work but validation fails
+      //   - isContentEditable branch: standard methods collapse whitespace/newlines
+      if (codeEditorInfo.isCodeEditor) {
+        // STEP 1: Try MAIN world executeEdits (Monaco/CM6) -- bypasses auto-indent
+        if (codeEditorInfo.type === 'monaco' || codeEditorInfo.type === 'codemirror6') {
+          try {
+            automationLogger.debug('Trying editor API via MAIN world injection', {
+              sessionId: currentSessionId,
+              editorType: codeEditorInfo.type,
+              textLength: params.text.length
+            });
+
+            const editorResult = await new Promise((resolve, reject) => {
+              chrome.runtime.sendMessage({
+                action: 'monacoEditorInsert',
+                text: params.text
+              }, (response) => {
+                if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+                else if (response?.success) resolve(response);
+                else reject(new Error(response?.error || 'Editor API failed'));
+              });
+            });
+
+            // Wait for editor to process the insertion
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            automationLogger.debug('Editor API via MAIN world succeeded', {
+              sessionId: currentSessionId,
+              editorType: codeEditorInfo.type,
+              method: editorResult.method
+            });
+
+            return {
+              success: true,
+              typed: params.text,
+              method: editorResult.method,
+              pressedEnter: !!params.pressEnter,
+              clickedFirst: !shouldSkipClick,
+              editorType: codeEditorInfo.type,
+              elementInfo: {
+                tag: element.tagName,
+                type: 'code_editor',
+                name: element.name || element.id || element.className
+              }
+            };
+          } catch (editorApiError) {
+            automationLogger.debug('Editor API failed, falling through to CDP', {
+              sessionId: currentSessionId,
+              error: editorApiError.message
+            });
+            // Fall through to CDP fast-path below
+          }
+        }
+
+        // STEP 2: CDP fast-path (fallback for Monaco/CM6 failure, primary for ACE/others)
+        try {
+          automationLogger.debug('Code editor detected, using CDP fast-path', {
+            sessionId: currentSessionId,
+            editorType: codeEditorInfo.type,
+            elementTag: element.tagName,
+            textLength: params.text.length
+          });
+
+          const cdpResult = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({
+              action: 'cdpInsertText',
+              text: params.text,
+              clearFirst: true
+            }, (response) => {
+              if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+              else if (response?.success) resolve(response);
+              else reject(new Error(response?.error || 'CDP failed'));
+            });
+          });
+
+          // Wait for editor to process the insertion
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          automationLogger.debug('CDP code editor fast-path succeeded', {
+            sessionId: currentSessionId,
+            editorType: codeEditorInfo.type
+          });
+
+          return {
+            success: true,
+            typed: params.text,
+            method: 'cdp_code_editor',
+            pressedEnter: !!params.pressEnter,
+            clickedFirst: !shouldSkipClick,
+            editorType: codeEditorInfo.type,
+            elementInfo: {
+              tag: element.tagName,
+              type: 'code_editor',
+              name: element.name || element.id || element.className
+            }
+          };
+        } catch (cdpCodeEditorError) {
+          automationLogger.debug('CDP code editor fast-path failed, falling through to standard methods', {
+            sessionId: currentSessionId,
+            error: cdpCodeEditorError.message
+          });
+          // Fall through to standard branching below
+        }
+      }
+
       if (isCodeEditorInput) {
         // Code editors (Monaco, CodeMirror, ACE) use a proxy textarea for input.
         // Setting element.value doesn't work -- must use execCommand or InputEvent.
@@ -5288,9 +5572,10 @@ const tools = {
 
         // Advanced ContentEditable Text Insertion
         insertionSuccess = false;  // Reset for this branch (already declared at function scope)
-        
+
+        // Standard contenteditable methods (for non-code-editor contenteditable, or CDP fallback)
         // Method 1: Try execCommand insertText (proper caret positioning)
-        if (document.execCommand) {
+        if (!insertionSuccess && document.execCommand) {
           try {
             // Clear existing content first
             element.focus();
@@ -5359,12 +5644,9 @@ const tools = {
             element.textContent = '';
           }
 
-          // Try innerHTML then textContent
+          // Use textContent to prevent injection of HTML/JS from AI-controlled data
           try {
-            element.innerHTML = params.text;
-            if (element.textContent !== params.text) {
-              element.textContent = params.text;
-            }
+            element.textContent = params.text;
             insertionSuccess = true;
           } catch (e) {
             automationLogger.debug('Direct manipulation failed', { sessionId: currentSessionId, error: e.message });
@@ -5392,7 +5674,33 @@ const tools = {
         // Additional delay for social media platforms to process
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-      
+
+      // Gmail/email recipient field: dispatch Tab to confirm the recipient "chip"
+      // Gmail replaces typed email text with a contact chip after Tab/Enter
+      const recipientKeywords = ['to recipients', 'cc recipients', 'bcc recipients', 'to', 'cc', 'bcc', 'recipients'];
+      const elAriaLabel = (element.getAttribute('aria-label') || '').toLowerCase();
+      const elName = (element.getAttribute('name') || '').toLowerCase();
+      const isRecipientField = recipientKeywords.some(kw => elAriaLabel.includes(kw)) ||
+                               ['to', 'cc', 'bcc'].includes(elName);
+      const looksLikeEmail = params.text && params.text.includes('@');
+
+      if (isRecipientField && looksLikeEmail) {
+        automationLogger.debug('Recipient field detected, sending Tab to confirm chip', {
+          sessionId: currentSessionId, ariaLabel: elAriaLabel, text: params.text
+        });
+        // Wait for Gmail autocomplete to process
+        await new Promise(resolve => setTimeout(resolve, 200));
+        // Dispatch Tab key to confirm the recipient
+        element.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true, cancelable: true
+        }));
+        element.dispatchEvent(new KeyboardEvent('keyup', {
+          key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true, cancelable: true
+        }));
+        // Wait for chip to render
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
       // Optional: Press Enter after typing (works for both input types)
       if (params.pressEnter) {
         const enterEvent = new KeyboardEvent('keydown', {
@@ -5420,7 +5728,8 @@ const tools = {
       }
       
       // Post-typing validation to ensure text was actually inserted
-      const finalValue = element.textContent || element.value || '';
+      // For input/textarea, check .value first (textContent reflects HTML source, not dynamic value)
+      const finalValue = isInput ? (element.value || '') : (element.textContent || element.value || '');
       const typingSuccessful = finalValue.includes(params.text) || finalValue === params.text;
       
       // Amazon-specific validation
@@ -5459,7 +5768,8 @@ const tools = {
       }
       
       // CRITICAL FIX: Strengthen validation - require exact match, not partial
-      const finalCheck = element.textContent || element.value || '';
+      // For input/textarea, check .value first (textContent reflects HTML source, not dynamic value)
+      const finalCheck = isInput ? (element.value || '') : (element.textContent || element.value || '');
       const trimmedFinal = finalCheck.trim();
       const trimmedExpected = params.text.trim();
 
@@ -5478,8 +5788,55 @@ const tools = {
       // If all 4 methods failed, insertionSuccess is still false
       const contentEditableActuallyWorked = !isContentEditable || (insertionSuccess && finalSuccess);
 
+      // Gmail recipient field: after Tab confirmation, Gmail replaces typed text with a chip.
+      // The original text won't be in the field anymore, so standard validation fails.
+      // Detect chip presence or cleared field as proof of successful recipient entry.
+      if (isRecipientField && looksLikeEmail && !finalSuccess) {
+        const chipEl = element.closest('[role="list"], .fX, .afV')?.querySelector(
+          '.vR, [data-hovercard-id], [data-name], .afX'
+        );
+        const fieldCleared = trimmedFinal === '' || !trimmedFinal.includes(params.text);
+        if (chipEl || fieldCleared) {
+          automationLogger.debug('Recipient chip detected or field cleared after Tab, treating as success', {
+            sessionId: currentSessionId, chipFound: !!chipEl, fieldCleared
+          });
+          return {
+            success: true,
+            typed: params.text,
+            method: 'recipient_chip',
+            pressedEnter: !!params.pressEnter,
+            clickedFirst: !shouldSkipClick,
+            note: chipEl ? 'recipient_chip_confirmed' : 'field_cleared_after_tab',
+            elementInfo: {
+              tag: element.tagName,
+              type: isInput ? element.type : 'contenteditable',
+              name: element.name || element.id || getClassName(element)
+            }
+          };
+        }
+      }
+
       // Return failure if typing didn't work
-      if (!finalSuccess || (isContentEditable && !insertionSuccess)) {
+      if (!finalSuccess || (isContentEditable && !isCodeEditorInput && !insertionSuccess)) {
+        // Safety guard: re-check if text is actually present before triggering CDP
+        // (validation may have used wrong property, e.g. textContent on textarea)
+        const recheck = isInput ? (element.value || '') : (element.textContent || element.innerText || '');
+        if (recheck.includes(params.text)) {
+          return {
+            success: true,
+            typed: params.text,
+            method: 'standard',
+            pressedEnter: !!params.pressEnter,
+            clickedFirst: !shouldSkipClick,
+            note: 'recheck_confirmed_text_present',
+            elementInfo: {
+              tag: element.tagName,
+              type: isInput ? element.type : 'contenteditable',
+              name: element.name || element.id || element.className
+            }
+          };
+        }
+
         // ENHANCED: Try CDP-based text insertion as last resort for stubborn editors
         automationLogger.logActionExecution(currentSessionId, 'type', 'cdp_fallback_attempt', { reason: 'standard_methods_failed' });
 
@@ -5502,7 +5859,7 @@ const tools = {
 
           // Verify CDP insertion worked
           await new Promise(resolve => setTimeout(resolve, 200));
-          const cdpFinalCheck = element.textContent || element.value || '';
+          const cdpFinalCheck = isInput ? (element.value || '') : (element.textContent || element.value || '');
           const cdpSuccess = cdpFinalCheck.includes(params.text) || cdpFinalCheck.trim() === params.text.trim();
 
           if (cdpSuccess) {
@@ -5542,7 +5899,7 @@ const tools = {
             tag: element.tagName,
             type: isInput ? element.type : 'contenteditable',
             previousValue: previousValue.substring(0, 20),
-            name: element.name || element.id || element.className,
+            name: element.name || element.id || getClassName(element),
             contentEditable: isContentEditable
           },
           suggestion: isContentEditable
@@ -5613,11 +5970,11 @@ const tools = {
           tag: element.tagName,
           type: isInput ? element.type : 'contenteditable',
           previousValue: previousValue.substring(0, 20),
-          name: element.name || element.id || element.className,
+          name: element.name || element.id || getClassName(element),
           contentEditable: isContentEditable,
           ariaLabel: element.getAttribute('aria-label'),
           dataTestId: element.getAttribute('data-testid'),
-          className: element.className
+          className: getClassName(element)
         }
       };
     }
@@ -5641,7 +5998,7 @@ const tools = {
         tag: el.tagName,
         id: el.id,
         name: el.name,
-        class: el.className,
+        class: getClassName(el),
         type: el.type || 'contenteditable',
         visible: el.offsetWidth > 0 && el.offsetHeight > 0
       }))
@@ -5879,14 +6236,175 @@ const tools = {
     return { success: false, error: 'No element at coordinates' };
   },
   
-  // Placeholder for CAPTCHA solving
+  // CAPTCHA solving via 2Captcha service
   solveCaptcha: async (params) => {
-    // TODO: Integrate with Buster or CapSolver
-    const captchaElement = document.querySelector('.g-recaptcha');
-    if (captchaElement) {
-      return { success: false, error: 'CAPTCHA solving not yet implemented' };
+    // Check if CAPTCHA solving is enabled
+    const settings = await new Promise(resolve => {
+      chrome.storage.local.get(['captchaSolverEnabled', 'captchaApiKey'], resolve);
+    });
+
+    if (!settings.captchaSolverEnabled) {
+      return { success: false, error: 'CAPTCHA solving is disabled. Enable it in FSB settings (Advanced > CAPTCHA Solver).' };
     }
-    return { success: false, error: 'No CAPTCHA found' };
+    if (!settings.captchaApiKey) {
+      return { success: false, error: 'No 2Captcha API key configured. Add it in FSB settings (Advanced > CAPTCHA Solver).' };
+    }
+
+    // Detect CAPTCHA type and extract sitekey
+    let captchaType = null;
+    let sitekey = null;
+
+    // reCAPTCHA v2
+    const recaptchaEl = document.querySelector('.g-recaptcha, [data-sitekey]');
+    const recaptchaIframe = document.querySelector('iframe[src*="recaptcha"]');
+    if (recaptchaEl) {
+      captchaType = 'recaptcha';
+      sitekey = recaptchaEl.getAttribute('data-sitekey');
+    } else if (recaptchaIframe) {
+      captchaType = 'recaptcha';
+      try {
+        const iframeSrc = new URL(recaptchaIframe.src);
+        sitekey = iframeSrc.searchParams.get('k');
+      } catch (e) { /* URL parse failed */ }
+    }
+
+    // hCaptcha
+    if (!captchaType) {
+      const hcaptchaEl = document.querySelector('.h-captcha, [data-hcaptcha-sitekey]');
+      const hcaptchaIframe = document.querySelector('iframe[src*="hcaptcha"]');
+      if (hcaptchaEl) {
+        captchaType = 'hcaptcha';
+        sitekey = hcaptchaEl.getAttribute('data-sitekey') || hcaptchaEl.getAttribute('data-hcaptcha-sitekey');
+      } else if (hcaptchaIframe) {
+        captchaType = 'hcaptcha';
+        try {
+          const iframeSrc = new URL(hcaptchaIframe.src);
+          sitekey = iframeSrc.searchParams.get('sitekey');
+        } catch (e) { /* URL parse failed */ }
+      }
+    }
+
+    // Cloudflare Turnstile
+    if (!captchaType) {
+      const turnstileEl = document.querySelector('.cf-turnstile, [data-turnstile-sitekey]');
+      const turnstileIframe = document.querySelector('iframe[src*="challenges.cloudflare.com"]');
+      if (turnstileEl) {
+        captchaType = 'turnstile';
+        sitekey = turnstileEl.getAttribute('data-sitekey') || turnstileEl.getAttribute('data-turnstile-sitekey');
+      } else if (turnstileIframe) {
+        captchaType = 'turnstile';
+        try {
+          const iframeSrc = new URL(turnstileIframe.src);
+          sitekey = iframeSrc.searchParams.get('k');
+        } catch (e) { /* URL parse failed */ }
+      }
+    }
+
+    if (!captchaType) {
+      return { success: false, error: 'No supported CAPTCHA found on page (supports reCAPTCHA v2, hCaptcha, Turnstile).' };
+    }
+    if (!sitekey) {
+      return { success: false, error: `Found ${captchaType} CAPTCHA but could not extract sitekey from the page.` };
+    }
+
+    // Send to background.js for 2Captcha API relay
+    try {
+      const response = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          action: 'solveCaptcha',
+          captchaType: captchaType,
+          sitekey: sitekey,
+          pageUrl: window.location.href,
+          apiKey: settings.captchaApiKey
+        }, (result) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(result);
+          }
+        });
+      });
+
+      if (!response || !response.success) {
+        return { success: false, error: response?.error || 'CAPTCHA solve failed' };
+      }
+
+      const token = response.token;
+
+      // Inject the solved token into the page
+      try {
+        if (captchaType === 'recaptcha') {
+          // Set the response textarea
+          const textarea = document.querySelector('#g-recaptcha-response, textarea[name="g-recaptcha-response"]');
+          if (textarea) {
+            textarea.style.display = 'block';
+            textarea.value = token;
+            textarea.style.display = 'none';
+          }
+          // Try to trigger the callback
+          const recaptchaWidget = document.querySelector('.g-recaptcha, [data-sitekey]');
+          const callbackName = recaptchaWidget?.getAttribute('data-callback');
+          if (callbackName && typeof window[callbackName] === 'function') {
+            window[callbackName](token);
+          } else if (typeof window.___grecaptcha_cfg !== 'undefined') {
+            // Try the internal grecaptcha callback
+            try {
+              const clients = window.___grecaptcha_cfg?.clients;
+              if (clients) {
+                for (const clientKey of Object.keys(clients)) {
+                  const client = clients[clientKey];
+                  for (const key of Object.keys(client)) {
+                    const obj = client[key];
+                    if (obj && typeof obj === 'object') {
+                      for (const innerKey of Object.keys(obj)) {
+                        if (typeof obj[innerKey] === 'function') {
+                          obj[innerKey](token);
+                          break;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (e) { /* callback trigger failed, token still set */ }
+          }
+        } else if (captchaType === 'hcaptcha') {
+          const textarea = document.querySelector('textarea[name="h-captcha-response"], textarea[name="g-recaptcha-response"]');
+          if (textarea) {
+            textarea.style.display = 'block';
+            textarea.value = token;
+            textarea.style.display = 'none';
+          }
+          const hcaptchaWidget = document.querySelector('.h-captcha, [data-hcaptcha-sitekey]');
+          const callbackName = hcaptchaWidget?.getAttribute('data-callback');
+          if (callbackName && typeof window[callbackName] === 'function') {
+            window[callbackName](token);
+          }
+        } else if (captchaType === 'turnstile') {
+          const input = document.querySelector('input[name="cf-turnstile-response"]');
+          if (input) {
+            input.value = token;
+          }
+          const turnstileWidget = document.querySelector('.cf-turnstile, [data-turnstile-sitekey]');
+          const callbackName = turnstileWidget?.getAttribute('data-callback');
+          if (callbackName && typeof window[callbackName] === 'function') {
+            window[callbackName](token);
+          }
+        }
+
+        return { success: true, captchaType: captchaType, message: `${captchaType} CAPTCHA solved and token injected` };
+      } catch (injectError) {
+        // Token was solved but injection failed -- return the raw token
+        return {
+          success: false,
+          error: `Token injection failed: ${injectError.message}. Raw token available for manual use.`,
+          token: token,
+          captchaType: captchaType
+        };
+      }
+    } catch (error) {
+      return { success: false, error: `CAPTCHA solve request failed: ${error.message}` };
+    }
   },
   
   // Navigate to a URL
@@ -6246,7 +6764,7 @@ const tools = {
             indicator: pattern,
             element: {
               tag: element.tagName,
-              class: element.className,
+              class: getClassName(element),
               id: element.id
             }
           };
@@ -7298,15 +7816,61 @@ const tools = {
     const element = querySelectorWithShadow(params.selector);
     if (element) {
       const textValue = element.innerText || element.textContent || element.value || '';
-      return { 
-        success: true, 
+      return {
+        success: true,
         text: textValue,
         value: textValue // Also include as 'value' for consistency with background.js expectations
       };
     }
     return { success: false, error: 'Element not found' };
   },
-  
+
+  // Read current content from a code editor (Monaco, CodeMirror, ACE)
+  // Returns the full code with indentation preserved
+  getEditorContent: (params) => {
+    // Strategy 1: Read from Monaco's .view-lines (most accurate for what's rendered)
+    const viewLines = document.querySelector('.view-lines');
+    if (viewLines) {
+      const lines = viewLines.querySelectorAll('.view-line');
+      const content = Array.from(lines).map(line => {
+        // Each .view-line may contain spans with individual tokens.
+        // Using textContent preserves the text without HTML formatting.
+        return line.textContent;
+      }).join('\n');
+      return { success: true, content, method: 'monacoViewLines', lineCount: lines.length };
+    }
+
+    // Strategy 2: Read from contenteditable [role="textbox"]
+    const editorSelector = params?.selector || '[role="textbox"]';
+    const editor = document.querySelector(editorSelector);
+    if (editor) {
+      const content = editor.innerText || editor.textContent || '';
+      return { success: true, content, method: 'contenteditable', lineCount: content.split('\n').length };
+    }
+
+    // Strategy 3: CodeMirror .cm-content
+    const cmContent = document.querySelector('.cm-content');
+    if (cmContent) {
+      const content = cmContent.innerText || cmContent.textContent || '';
+      return { success: true, content, method: 'codeMirror', lineCount: content.split('\n').length };
+    }
+
+    // Strategy 4: ACE editor
+    const aceContent = document.querySelector('.ace_text-layer');
+    if (aceContent) {
+      const content = aceContent.innerText || aceContent.textContent || '';
+      return { success: true, content, method: 'aceEditor', lineCount: content.split('\n').length };
+    }
+
+    // Strategy 5: Any textarea within a code editor container
+    const codeTextarea = document.querySelector('.monaco-editor textarea, .CodeMirror textarea, .ace_editor textarea');
+    if (codeTextarea && codeTextarea.value) {
+      return { success: true, content: codeTextarea.value, method: 'editorTextarea', lineCount: codeTextarea.value.split('\n').length };
+    }
+
+    return { success: false, error: 'No code editor content found on page' };
+  },
+
   // Get attribute value
   getAttribute: (params) => {
     const element = querySelectorWithShadow(params.selector);
@@ -7713,10 +8277,10 @@ function generateSemanticElementId(element, elementIndex) {
   // 3. Context (parent form, section, etc.)
   const contextElement = element.closest('form, section, article, nav, header, footer, main, aside, [role]');
   if (contextElement) {
-    const contextId = contextElement.id || 
-                     contextElement.getAttribute('aria-label') || 
+    const contextId = contextElement.id ||
+                     contextElement.getAttribute('aria-label') ||
                      contextElement.getAttribute('role') ||
-                     contextElement.className?.split(' ')[0];
+                     getClassName(contextElement).split(' ')[0];
     if (contextId) {
       parts.push(slugify(contextId, 15));
     }
@@ -7991,11 +8555,20 @@ function generateSelectors(element, semanticId = null) {
   }
   
   // 1. ARIA selectors (highest priority - most stable)
-  // Aria-label selector
+  // Aria-label selector -- strip invisible Unicode control chars so AI gets clean selectors
   if (element.getAttribute('aria-label')) {
-    const selector = `[aria-label="${element.getAttribute('aria-label')}"]`;
-    selectors.push(selector);
-    selectorScores.set(selector, 10); // Highest score
+    const rawLabel = element.getAttribute('aria-label');
+    const cleanLabel = stripUnicodeControl(rawLabel);
+    // Emit clean selector as primary (AI can match it reliably)
+    const cleanSelector = `[aria-label="${cleanLabel}"]`;
+    selectors.push(cleanSelector);
+    selectorScores.set(cleanSelector, 10); // Highest score
+    // If raw differs from clean, also emit raw as lower-priority fallback
+    if (rawLabel !== cleanLabel) {
+      const rawSelector = `[aria-label="${rawLabel}"]`;
+      selectors.push(rawSelector);
+      selectorScores.set(rawSelector, 9);
+    }
   }
   
   // Role + aria attributes combo
@@ -8284,7 +8857,7 @@ function isInShadowDOM(element) {
 function inferElementPurpose(element) {
   const text = (element.textContent || '').toLowerCase().trim();
   const ariaLabel = (element.getAttribute('aria-label') || '').toLowerCase();
-  const className = (element.className || '').toLowerCase();
+  const className = getClassName(element).toLowerCase();
   const type = element.type?.toLowerCase() || '';
   const name = (element.name || '').toLowerCase();
   const id = (element.id || '').toLowerCase();
@@ -9283,7 +9856,7 @@ function detectPageContext() {
     })(),
 
     hasCaptcha: document.querySelector(
-      '.g-recaptcha, .h-captcha, [class*="captcha"], iframe[src*="recaptcha"]'
+      '.g-recaptcha, .h-captcha, .cf-turnstile, .captcha-container, .captcha-challenge, iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="challenges.cloudflare.com"]'
     ) !== null,
 
     errorMessages: extractErrorMessages(),
@@ -9582,7 +10155,7 @@ function extractEcommerceProducts() {
 
       // Check if sponsored/ad
       const sponsoredEl = card.querySelector(selectors.sponsored);
-      const isSponsored = !!sponsoredEl || /sponsor|ad|promoted/i.test(card.className);
+      const isSponsored = !!sponsoredEl || /sponsor|ad|promoted/i.test(getClassName(card));
 
       // Check for Prime badge (Amazon)
       const primeEl = card.querySelector(selectors.prime);
@@ -9805,6 +10378,10 @@ function getStructuredDOM(options = {}) {
     taskType: inferTaskTypeFromContext()
   });
 
+  // Capture previous element hashes for new-element detection
+  const hasPreviousState = domStateManager && domStateManager.elementCache.size > 0;
+  const previousElementHashes = hasPreviousState ? new Set(domStateManager.elementCache.keys()) : new Set();
+
   // Process filtered elements directly (no recursive traversal needed)
   filteredElements.forEach(node => {
     try {
@@ -9895,6 +10472,14 @@ function getStructuredDOM(options = {}) {
         relationshipContext: getRelationshipContext(node)
       };
 
+      // Flag elements that are new since the last DOM snapshot
+      if (hasPreviousState) {
+        const hash = domStateManager.hashElement(elementData);
+        if (!previousElementHashes.has(hash)) {
+          elementData.isNew = true;
+        }
+      }
+
       // Special handling for different element types with safety checks
       if (node.tagName === 'INPUT') {
         elementData.inputType = node.type || '';
@@ -9914,7 +10499,9 @@ function getStructuredDOM(options = {}) {
 
       // Check for CAPTCHA - safely handle className
       const classNames = node.className ? String(node.className) : '';
-      if (classNames.includes('g-recaptcha') || classNames.includes('recaptcha')) {
+      if (classNames.includes('g-recaptcha') || classNames.includes('recaptcha') ||
+          classNames.includes('h-captcha') || classNames.includes('hcaptcha') ||
+          classNames.includes('cf-turnstile') || classNames.includes('turnstile')) {
         elementData.isCaptcha = true;
       }
 
@@ -10092,6 +10679,7 @@ function getStructuredDOM(options = {}) {
     optimization: {
       totalElements: elements.length,
       sentElements: elementsToSend.length,
+      newElementCount: elementsToSend.filter(el => el.isNew).length,
       usedDiffing: useDiffing,
       usedViewportPriority: prioritizeViewport,
       viewportOnlyMode: viewportOnlyMode
@@ -10280,8 +10868,9 @@ async function handleAsyncMessage(request, sendResponse) {
           }
 
           // Add timeout wrapper for long-running operations
+          const actionTimeout = tool === 'solveCaptcha' ? 180000 : 10000;
           const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error(`Action ${tool} timed out after 10 seconds`)), 10000);
+            setTimeout(() => reject(new Error(`Action ${tool} timed out after ${actionTimeout / 1000} seconds`)), actionTimeout);
           });
 
           try {
@@ -10340,6 +10929,11 @@ async function handleAsyncMessage(request, sendResponse) {
         }
         break;
 
+      case 'getExplorerData':
+        result = collectExplorerData();
+        sendResponse({ success: true, data: result });
+        break;
+
       default:
         automationLogger.error('Unknown async action', { sessionId: currentSessionId, action: request.action });
         sendResponse({ success: false, error: `Unknown action: ${request.action}` });
@@ -10363,6 +10957,344 @@ async function handleAsyncMessage(request, sendResponse) {
   }
 }
 
+// ==========================================
+// Site Explorer Data Collection
+// Extracts navigation, headings, layout, links, and key selectors for site reconnaissance
+// ==========================================
+
+function collectExplorerData() {
+  return {
+    navigation: explorerExtractNavigation(),
+    headings: explorerExtractHeadings(),
+    layout: explorerDetectLayout(),
+    internalLinks: explorerExtractInternalLinks(),
+    loadingPatterns: explorerDetectLoadingPatterns(),
+    keySelectors: explorerExtractKeySelectors()
+  };
+}
+
+function explorerBuildSelector(el) {
+  if (!el || !el.tagName) return '';
+  if (el.id) return '#' + CSS.escape(el.id);
+  const testId = el.getAttribute('data-testid');
+  if (testId) return '[data-testid="' + testId + '"]';
+  const ariaLabel = el.getAttribute('aria-label');
+  if (ariaLabel && ariaLabel.length < 60) {
+    return el.tagName.toLowerCase() + '[aria-label="' + CSS.escape(ariaLabel) + '"]';
+  }
+  const tag = el.tagName.toLowerCase();
+  const parent = el.parentElement;
+  if (parent) {
+    const siblings = Array.from(parent.children).filter(c => c.tagName === el.tagName);
+    if (siblings.length === 1 && parent.id) {
+      return '#' + CSS.escape(parent.id) + ' > ' + tag;
+    }
+    const index = siblings.indexOf(el) + 1;
+    return tag + ':nth-of-type(' + index + ')';
+  }
+  return tag;
+}
+
+function explorerExtractNavigation() {
+  const navs = [];
+  const navElements = document.querySelectorAll('nav, [role="navigation"]');
+  navElements.forEach((nav, idx) => {
+    const links = Array.from(nav.querySelectorAll('a[href]'));
+    navs.push({
+      type: 'nav',
+      selector: nav.id ? '#' + nav.id : 'nav:nth-of-type(' + (idx + 1) + ')',
+      ariaLabel: nav.getAttribute('aria-label') || '',
+      items: links.slice(0, 50).map(a => ({
+        text: (a.textContent || '').trim().substring(0, 100),
+        href: a.href,
+        selector: explorerBuildSelector(a)
+      }))
+    });
+  });
+  const menus = document.querySelectorAll('[role="menu"], [role="menubar"]');
+  menus.forEach(menu => {
+    const items = Array.from(menu.querySelectorAll('[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]'));
+    navs.push({
+      type: 'menu',
+      selector: explorerBuildSelector(menu),
+      items: items.slice(0, 30).map(item => ({
+        text: (item.textContent || '').trim().substring(0, 100),
+        href: item.href || '',
+        selector: explorerBuildSelector(item)
+      }))
+    });
+  });
+  const breadcrumbs = document.querySelectorAll('[aria-label*="breadcrumb" i], .breadcrumb, .breadcrumbs, nav.breadcrumb');
+  breadcrumbs.forEach(bc => {
+    const links = Array.from(bc.querySelectorAll('a[href], [aria-current]'));
+    if (links.length > 0) {
+      navs.push({
+        type: 'breadcrumb',
+        selector: explorerBuildSelector(bc),
+        items: links.map(a => ({
+          text: (a.textContent || '').trim().substring(0, 100),
+          href: a.href || '',
+          selector: explorerBuildSelector(a)
+        }))
+      });
+    }
+  });
+  return navs;
+}
+
+function explorerExtractHeadings() {
+  const headings = [];
+  document.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(el => {
+    const text = (el.textContent || '').trim();
+    if (text) {
+      headings.push({
+        level: parseInt(el.tagName.charAt(1)),
+        text: text.substring(0, 200),
+        id: el.id || '',
+        selector: explorerBuildSelector(el)
+      });
+    }
+  });
+  return headings;
+}
+
+function explorerDetectLayout() {
+  const layout = {};
+  const regions = {
+    header: 'header, [role="banner"]',
+    footer: 'footer, [role="contentinfo"]',
+    sidebar: 'aside, [role="complementary"]',
+    main: 'main, [role="main"]',
+    search: '[role="search"]',
+    form: '[role="form"]'
+  };
+  for (const [name, selector] of Object.entries(regions)) {
+    const el = document.querySelector(selector);
+    if (el) {
+      layout[name] = {
+        exists: true,
+        selector: explorerBuildSelector(el),
+        tagName: el.tagName.toLowerCase(),
+        id: el.id || '',
+        className: (el.className || '').toString().substring(0, 100)
+      };
+    } else {
+      layout[name] = { exists: false };
+    }
+  }
+  return layout;
+}
+
+function explorerExtractInternalLinks() {
+  const currentHost = window.location.hostname;
+  const seen = new Set();
+  const links = [];
+
+  function processElement(el, href) {
+    if (!href || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('#')) return;
+    try {
+      const parsed = new URL(href, window.location.origin);
+      if (parsed.hostname !== currentHost) return;
+      const normalized = parsed.origin + parsed.pathname.replace(/\/$/, '') + parsed.search;
+      if (seen.has(normalized)) return;
+      seen.add(normalized);
+      links.push({
+        url: normalized,
+        text: (el.textContent || '').trim().substring(0, 100),
+        selector: explorerBuildSelector(el)
+      });
+    } catch (e) {
+      // Invalid URL, skip
+    }
+  }
+
+  // Standard <a href> links
+  document.querySelectorAll('a[href]').forEach(a => {
+    processElement(a, a.href);
+  });
+
+  // [role="link"] elements (LinkedIn, SPAs)
+  document.querySelectorAll('[role="link"]').forEach(el => {
+    const href = el.getAttribute('href') || el.getAttribute('data-href') || el.getAttribute('data-url');
+    if (href) {
+      processElement(el, href);
+    }
+  });
+
+  return links;
+}
+
+function explorerDetectLoadingPatterns() {
+  const patterns = [];
+  document.querySelectorAll('[aria-busy="true"]').forEach(el => {
+    patterns.push({ type: 'aria-busy', selector: explorerBuildSelector(el) });
+  });
+  const spinnerSelectors = [
+    '.spinner', '.loader', '.loading', '.skeleton',
+    '[class*="spinner"]', '[class*="loader"]', '[class*="loading"]', '[class*="skeleton"]',
+    '.progress', '[role="progressbar"]'
+  ];
+  for (const sel of spinnerSelectors) {
+    document.querySelectorAll(sel).forEach(el => {
+      if (el.offsetParent !== null) {
+        patterns.push({ type: 'spinner/loader', selector: explorerBuildSelector(el), className: (el.className || '').toString().substring(0, 80) });
+      }
+    });
+  }
+  return patterns;
+}
+
+function explorerExtractKeySelectors() {
+  const selectors = [];
+  document.querySelectorAll('[data-testid]').forEach(el => {
+    selectors.push({
+      selector: '[data-testid="' + el.getAttribute('data-testid') + '"]',
+      elementType: el.tagName.toLowerCase(),
+      purpose: 'test-id',
+      reliability: 'high'
+    });
+  });
+  document.querySelectorAll('[id]').forEach(el => {
+    const id = el.id;
+    if (id && !/^[0-9]|^:/.test(id) && id.length < 60 && !/^\w{20,}$/.test(id)) {
+      const tagName = el.tagName.toLowerCase();
+      if (['button', 'input', 'select', 'textarea', 'form', 'a', 'nav', 'main', 'header', 'footer'].includes(tagName)) {
+        selectors.push({
+          selector: '#' + CSS.escape(id),
+          elementType: tagName,
+          purpose: 'unique-id',
+          reliability: 'high'
+        });
+      }
+    }
+  });
+  document.querySelectorAll('[aria-label]').forEach(el => {
+    const label = el.getAttribute('aria-label');
+    if (label && label.length < 80) {
+      selectors.push({
+        selector: '[aria-label="' + CSS.escape(label) + '"]',
+        elementType: el.tagName.toLowerCase(),
+        purpose: 'aria-label',
+        reliability: 'medium'
+      });
+    }
+  });
+  return selectors.slice(0, 200);
+}
+
+// ==========================================
+// Direct Login Handler (Passwords Beta)
+// Fills credentials on the page without AI involvement
+// ==========================================
+async function executeDirectLogin({ usernameSelector, passwordSelector, submitSelector, username, password }) {
+  let filledUsername = false;
+  let filledPassword = false;
+
+  // Helper: find element by selector with fallbacks
+  function findElement(selector) {
+    if (!selector) return null;
+    try {
+      return document.querySelector(selector);
+    } catch {
+      return null;
+    }
+  }
+
+  // Helper: set input value with proper event dispatching for React/Vue/Angular
+  function setInputValue(el, value) {
+    if (!el || !value) return false;
+    el.focus();
+    el.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+
+    // Use native setter to bypass React's synthetic events
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value'
+    )?.set;
+
+    if (nativeInputValueSetter) {
+      nativeInputValueSetter.call(el, value);
+    } else {
+      el.value = value;
+    }
+
+    // Dispatch events that frameworks listen to
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+    el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+    return true;
+  }
+
+  // Fill username (if field exists on this page -- might be split flow)
+  if (usernameSelector && username) {
+    const usernameEl = findElement(usernameSelector);
+    if (usernameEl) {
+      filledUsername = setInputValue(usernameEl, username);
+    } else {
+      // Fallback: try common username selectors (no bare input[type="text"] to avoid matching search boxes)
+      const fallbackSelectors = [
+        'input[type="email"]',
+        'input[name="email"]',
+        'input[name="username"]',
+        'input[name="login"]',
+        'input[type="text"][autocomplete="username"]',
+        'input[type="text"][autocomplete*="user"]',
+        'input[type="text"][name*="user"]',
+        'input[type="text"][name*="login"]'
+      ];
+      for (const sel of fallbackSelectors) {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) {
+          filledUsername = setInputValue(el, username);
+          if (filledUsername) break;
+        }
+      }
+    }
+  }
+
+  // Fill password (if field exists on this page)
+  if (passwordSelector && password) {
+    const passwordEl = findElement(passwordSelector);
+    if (passwordEl) {
+      filledPassword = setInputValue(passwordEl, password);
+    } else {
+      // Fallback: try common password selectors
+      const el = document.querySelector('input[type="password"]');
+      if (el && el.offsetParent !== null) {
+        filledPassword = setInputValue(el, password);
+      }
+    }
+  }
+
+  // Click submit button
+  if (submitSelector || filledUsername || filledPassword) {
+    await new Promise(r => setTimeout(r, 200));
+
+    const submitEl = findElement(submitSelector);
+    if (submitEl) {
+      submitEl.click();
+    } else {
+      // Fallback: try common submit selectors
+      const fallbackSubmit = [
+        'button[type="submit"]',
+        'input[type="submit"]',
+        'button[name="login"]',
+        'button[name="submit"]'
+      ];
+      for (const sel of fallbackSubmit) {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) {
+          el.click();
+          break;
+        }
+      }
+    }
+  }
+
+  return { success: true, filledUsername, filledPassword };
+}
+
 // Named message handler function - allows Chrome to dedupe on re-injection
 function handleBackgroundMessage(request, sender, sendResponse) {
   // Store sessionId from any incoming message for logging
@@ -10377,7 +11309,20 @@ function handleBackgroundMessage(request, sender, sendResponse) {
     handleAsyncMessage(request, sendResponse);
     return true; // Keep message channel open for async response
   }
-  
+
+  // Direct login handler -- fills credentials WITHOUT going through the AI
+  if (request.action === 'executeDirectLogin') {
+    (async () => {
+      try {
+        const result = await executeDirectLogin(request);
+        sendResponse(result);
+      } catch (error) {
+        sendResponse({ success: false, error: 'Login execution failed' });
+      }
+    })();
+    return true; // Keep message channel open for async response
+  }
+
   switch (request.action) {
     case 'healthCheck':
       // Enhanced healthCheck with page readiness information
@@ -10401,33 +11346,47 @@ function handleBackgroundMessage(request, sender, sendResponse) {
 
     case 'sessionStatus':
       try {
-        const { phase, taskName, iteration, maxIterations, reason, animatedHighlights } = request;
+        const { phase, taskName, iteration, maxIterations, reason,
+                animatedHighlights, statusText, progressPercent,
+                estimatedTimeRemaining, taskSummary } = request;
 
         if (phase === 'ended') {
-          // Clean up all visual overlays
           viewportGlow.destroy();
           progressOverlay.destroy();
           actionGlowOverlay.destroy();
+          lastActionStatusText = null;
         } else {
-          // Show viewport glow only when animated highlights are enabled
           if (animatedHighlights !== false) {
             const glowState = (phase === 'acting') ? 'acting' : 'thinking';
             viewportGlow.show(glowState);
           }
 
-          // Progress overlay always shown regardless of highlight setting
+          // Persist action-specific text for reuse during thinking phases
+          if (statusText) {
+            lastActionStatusText = statusText;
+          }
+
           progressOverlay.create();
           const phaseLabels = {
             analyzing: 'Analyzing page...',
-            thinking: 'Planning actions...',
+            thinking: 'Planning next step...',
             acting: 'Executing...'
           };
+          // Prefer: explicit statusText > persisted last action text > generic phase label
+          const displayText = statusText
+            || lastActionStatusText
+            || phaseLabels[phase]
+            || phase;
+
           progressOverlay.update({
-            taskName: taskName,
+            taskName: taskSummary || taskName,
             stepNumber: iteration || 0,
             totalSteps: maxIterations,
-            stepText: phaseLabels[phase] || phase,
-            progress: maxIterations ? (iteration / maxIterations) * 100 : 0
+            stepText: displayText,
+            progress: progressPercent !== undefined
+              ? progressPercent
+              : (maxIterations ? (iteration / maxIterations) * 100 : 0),
+            eta: estimatedTimeRemaining
           });
           progressOverlay.show();
         }
@@ -10724,24 +11683,24 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
 function establishBackgroundConnection() {
-  console.log('[FSB Content] establishBackgroundConnection called');
+  automationLogger.debug('[FSB Content] establishBackgroundConnection called');
 
   // Check if extension context is still valid
   try {
     if (!chrome.runtime?.id) {
-      console.warn('[FSB Content] Extension context invalid, cannot establish connection');
+      automationLogger.warn('[FSB Content] Extension context invalid, cannot establish connection');
       return;
     }
-    console.log('[FSB Content] Extension context valid, id:', chrome.runtime.id);
+    automationLogger.debug('[FSB Content] Extension context valid', { id: chrome.runtime.id });
   } catch (e) {
-    console.warn('[FSB Content] Extension context check failed:', e.message);
+    automationLogger.warn('[FSB Content] Extension context check failed', { error: e.message });
     return;
   }
 
   try {
-    console.log('[FSB Content] Attempting chrome.runtime.connect...');
+    automationLogger.debug('[FSB Content] Attempting chrome.runtime.connect...');
     backgroundPort = chrome.runtime.connect({ name: 'content-script' });
-    console.log('[FSB Content] Port created:', backgroundPort ? 'success' : 'null');
+    automationLogger.debug('[FSB Content] Port created', { success: !!backgroundPort });
 
     backgroundPort.onDisconnect.addListener(() => {
       backgroundPort = null;
@@ -10789,9 +11748,9 @@ function establishBackgroundConnection() {
 
 // Signal to background script that content script is fully initialized and ready
 // Uses multi-strategy approach for maximum reliability
-console.log('[FSB Content] About to start sendReadySignal IIFE');
+automationLogger.debug('[FSB Content] About to start sendReadySignal IIFE');
 (async function sendReadySignal() {
-  console.log('[FSB Content] sendReadySignal started');
+  automationLogger.debug('[FSB Content] sendReadySignal started');
 
   // Strategy 1: Port-based connection (most reliable, bidirectional)
   try {
@@ -10802,10 +11761,10 @@ console.log('[FSB Content] About to start sendReadySignal IIFE');
 
   // Strategy 2: Message-based fallback with retries
   // This ensures we still work even if port connection fails
-  console.log('[FSB Content] Starting message-based ready signal attempts');
+  automationLogger.debug('[FSB Content] Starting message-based ready signal attempts');
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
-      console.log('[FSB Content] Sending contentScriptReady, attempt:', attempt);
+      automationLogger.debug('[FSB Content] Sending contentScriptReady', { attempt });
       await chrome.runtime.sendMessage({
         action: 'contentScriptReady',
         timestamp: Date.now(),
@@ -10813,7 +11772,7 @@ console.log('[FSB Content] About to start sendReadySignal IIFE');
         readyState: document.readyState,
         attempt
       });
-      console.log('[FSB Content] contentScriptReady sent successfully, attempt:', attempt);
+      automationLogger.debug('[FSB Content] contentScriptReady sent successfully', { attempt });
       automationLogger.logComm(currentSessionId, 'send', 'contentScriptReady', true, { attempt });
 
       // Send confirmation ping after short delay

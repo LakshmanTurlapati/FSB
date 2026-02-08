@@ -177,10 +177,10 @@
 .message.ai-completion {
   align-self: flex-start;
   max-width: 100%;
-  background: #f8fafc;
-  color: #1e293b;
+  background: #fafafa;
+  color: #171717;
   border-bottom-left-radius: 6px;
-  border-left: 3px solid #3b82f6;
+  border-left: 3px solid #ff6b35;
   padding: 14px 16px;
   font-size: 14px;
   line-height: 1.5;
@@ -227,13 +227,49 @@
 }
 
 /* ============================================
+   Mermaid diagrams
+   ============================================ */
+
+.mermaid-container {
+  margin: 8px 0;
+}
+
+.mermaid {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  text-align: center;
+}
+
+[data-theme="dark"] .mermaid {
+  background: #1a1a1a;
+}
+
+/* ============================================
+   Chart.js charts
+   ============================================ */
+
+.fsb-chart {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+  max-height: 280px;
+}
+
+[data-theme="dark"] .fsb-chart {
+  background: #1e1e1e;
+}
+
+/* ============================================
    Dark mode - ai-completion bubble
    ============================================ */
 
 [data-theme="dark"] .message.ai-completion {
-  background: #1e293b;
-  color: #e2e8f0;
-  border-left-color: #3b82f6;
+  background: #262626;
+  color: #e5e5e5;
+  border-left-color: #ff6b35;
 }
 
 /* ============================================
@@ -242,15 +278,15 @@
    ============================================ */
 
 [data-theme="dark"] .message.system {
-  background: #374151;
-  color: #d1d5db;
-  border-left-color: #4b5563;
+  background: #303030;
+  color: #d4d4d4;
+  border-left-color: #525252;
 }
 
 [data-theme="dark"] .message.ai {
-  background: #1e3a5f;
-  color: #93c5fd;
-  border-left-color: #3b82f6;
+  background: #292929;
+  color: #d4d4d4;
+  border-left-color: #ff6b35;
 }
 
 [data-theme="dark"] .message.error {

@@ -15,11 +15,11 @@
 
 [data-theme="dark"] {
   /* Dark theme colors */
-  --bg-primary: #1f2937;
-  --bg-secondary: #111827;
-  --text-primary: #f9fafb;
-  --text-secondary: #d1d5db;
-  --text-muted: #9ca3af;
+  --bg-primary: #262626;
+  --bg-secondary: #171717;
+  --text-primary: #fafafa;
+  --text-secondary: #d4d4d4;
+  --text-muted: #a3a3a3;
   --border-color: rgba(255, 255, 255, 0.1);
   --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
@@ -301,7 +301,7 @@ body {
 
 /* Dark theme adjustments */
 [data-theme="dark"] .message.status-message {
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  background: linear-gradient(135deg, #262626 0%, #404040 100%);
   border-left-color: var(--primary-color);
 }
 
@@ -501,4 +501,24 @@ body {
   font-weight: 500;
   opacity: 0.7;
   letter-spacing: 0.02em;
+}
+
+/* Partial result indicator */
+.message.partial-result {
+  border-left: 3px solid #f59e0b;
+  background: #fffbeb;
+}
+
+[data-theme="dark"] .message.partial-result {
+  background: rgba(245, 158, 11, 0.1);
+  border-left-color: #d97706;
+}
+
+.partial-result-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #d97706;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
 }

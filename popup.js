@@ -163,11 +163,19 @@ testBtn.addEventListener('click', testAPI);
 settingsBtn.addEventListener('click', openSettings);
 pinBtn.addEventListener('click', togglePinWindow);
 
+// PERF: Debounced storage save to avoid writes on every keystroke
+let _saveTaskTimer = null;
+function debouncedSaveTask() {
+  clearTimeout(_saveTaskTimer);
+  _saveTaskTimer = setTimeout(() => {
+    chrome.storage.local.set({ lastTask: chatInput.textContent.trim() });
+  }, 500);
+}
+
 // Chat input event handlers
 chatInput.addEventListener('input', () => {
   updateSendButtonState();
-  // Save task as user types
-  chrome.storage.local.set({ lastTask: chatInput.textContent.trim() });
+  debouncedSaveTask();
 });
 
 chatInput.addEventListener('keydown', (e) => {
@@ -442,6 +450,7 @@ function completeStatusMessage(text, type = 'ai') {
     // Set a brief label on the status bubble
     const briefLabel = type === 'error' ? 'Error occurred'
       : type === 'system' ? text
+      : type === 'partial' ? 'Task partially completed'
       : 'Task completed';
     const statusTextEl = currentStatusMessage.querySelector('.status-text');
     if (statusTextEl) {
@@ -455,27 +464,39 @@ function completeStatusMessage(text, type = 'ai') {
     currentStatusMessage = null;
 
     // Show full result in a separate bubble (skip for system messages like "Automation stopped")
-    if (type !== 'system') {
+    if (type === 'partial') {
+      addCompletionMessage(text, 'ai', true);
+    } else if (type !== 'system') {
       addCompletionMessage(text, type);
     }
   }
 }
 
 // Add a separate completion message bubble with markdown support
-function addCompletionMessage(text, type = 'ai') {
+function addCompletionMessage(text, type = 'ai', isPartial = false) {
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ai-completion new`;
+
+  if (isPartial) {
+    messageDiv.classList.add('partial-result');
+    const label = document.createElement('div');
+    label.className = 'partial-result-label';
+    label.textContent = 'Partial result';
+    messageDiv.appendChild(label);
+  }
 
   if (type === 'error') {
     messageDiv.className = `message error new`;
     messageDiv.textContent = text;
   } else {
     // Use markdown rendering if available, plain text fallback
+    const contentDiv = document.createElement('div');
     if (typeof FSBMarkdown !== 'undefined') {
-      FSBMarkdown.applyToElement(messageDiv, text);
+      FSBMarkdown.applyToElement(contentDiv, text);
     } else {
-      messageDiv.textContent = text;
+      contentDiv.textContent = text;
     }
+    messageDiv.appendChild(contentDiv);
   }
 
   chatMessages.appendChild(messageDiv);
@@ -617,11 +638,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.sessionId === currentSessionId) {
         // AI must always provide a meaningful completion message
         const completionMessage = request.result || 'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
+        const isPartial = request.partial === true;
 
         if (currentStatusMessage) {
-          completeStatusMessage(completionMessage);
+          completeStatusMessage(completionMessage, isPartial ? 'partial' : undefined);
         } else {
-          addCompletionMessage(completionMessage);
+          addCompletionMessage(completionMessage, 'ai', isPartial);
         }
 
         setIdleState();
@@ -683,6 +705,65 @@ function formatActionMessage(tool, params) {
       return `Retrieved current tab information`;
     case 'waitForTabLoad':
       return `Waiting for tab ${params.tabId} to load...`;
+    // Navigation & search
+    case 'navigate':
+      return `Navigating to ${params.url}`;
+    case 'searchGoogle':
+      return `Searching Google for: ${params.query}`;
+    case 'scrollToElement':
+      return `Scrolled to element: ${params.selector}`;
+    case 'clickSearchResult':
+      return `Clicked search result: ${params.selector}`;
+    // Waiting & detection
+    case 'waitForElement':
+      return `Waiting for element: ${params.selector}`;
+    case 'verifyMessageSent':
+      return `Verifying message was sent`;
+    case 'waitForDOMStable':
+      return `Waiting for page to stabilize...`;
+    case 'detectLoadingState':
+      return `Checking if page is loading...`;
+    // Click variants
+    case 'rightClick':
+      return `Right-clicked on element: ${params.selector}`;
+    case 'doubleClick':
+      return `Double-clicked on element: ${params.selector}`;
+    // Keyboard actions
+    case 'keyPress':
+      return `Pressed key: ${params.key}`;
+    case 'pressKeySequence':
+      return `Pressed key sequence: ${Array.isArray(params.keys) ? params.keys.join(', ') : params.keys}`;
+    case 'typeWithKeys':
+      return `Typing with key events: ${params.text}`;
+    case 'sendSpecialKey':
+      return `Pressed special key: ${params.key}`;
+    // Text & focus
+    case 'selectText':
+      return `Selected text in: ${params.selector}`;
+    case 'focus':
+      return `Focused on element: ${params.selector}`;
+    case 'blur':
+      return `Removed focus from: ${params.selector}`;
+    case 'hover':
+      return `Hovering over element: ${params.selector}`;
+    // Form controls
+    case 'selectOption':
+      return `Selected '${params.optionText || params.value}' from dropdown: ${params.selector}`;
+    case 'toggleCheckbox':
+      return `Toggled checkbox: ${params.selector}`;
+    // Data extraction
+    case 'getText':
+      return `Reading text from: ${params.selector}`;
+    case 'getAttribute':
+      return `Reading ${params.attribute} from: ${params.selector}`;
+    case 'setAttribute':
+      return `Setting ${params.attribute} on: ${params.selector}`;
+    // Input management
+    case 'clearInput':
+      return `Cleared input: ${params.selector}`;
+    // Gaming
+    case 'gameControl':
+      return `Game control: ${params.action}`;
     default:
       return `Executed ${tool} with params: ${JSON.stringify(params)}`;
   }

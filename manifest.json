@@ -34,13 +34,11 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "content_scripts": [
+  "options_page": "options.html",
+  "web_accessible_resources": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["automation-logger.js", "content.js"],
-      "run_at": "document_idle",
-      "all_frames": false
+      "resources": ["Assets/icon48.png"],
+      "matches": ["<all_urls>"]
     }
-  ],
-  "options_page": "options.html"
+  ]
 }
