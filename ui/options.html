@@ -6,7 +6,7 @@
   <title>FSB - Control Panel</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg==" crossorigin="anonymous" referrerpolicy="no-referrer">
   <link rel="stylesheet" href="options.css">
-  <script src="chart.min.js"></script>
+  <script src="../lib/chart.min.js"></script>
 </head>
 <body>
   <div class="dashboard-container">
@@ -462,16 +462,161 @@
         <section class="content-section" id="background-agents">
           <div class="section-header">
             <h2>Background Agents</h2>
-            <p>Configure and manage background automation agents</p>
+            <p>Configure and manage scheduled automation agents that run in the background</p>
           </div>
-          <div class="settings-card full-width">
+
+          <!-- Agent Stats Bar -->
+          <div class="agent-stats-bar" id="agentStatsBar">
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="statTotalAgents">0</span>
+              <span class="agent-stat-label">Agents</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="statEnabledAgents">0</span>
+              <span class="agent-stat-label">Active</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="statRunsToday">0</span>
+              <span class="agent-stat-label">Runs Today</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="statSuccessRate">--</span>
+              <span class="agent-stat-label">Success Rate</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="statTotalCost">$0</span>
+              <span class="agent-stat-label">Total Cost</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="statReplayRuns">0</span>
+              <span class="agent-stat-label">Replays</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value cost-saved" id="statCostSaved">$0</span>
+              <span class="agent-stat-label">Cost Saved</span>
+            </div>
+          </div>
+
+          <!-- Create Agent Button -->
+          <div class="agent-actions-bar">
+            <button class="control-btn primary" id="btnCreateAgent">
+              <i class="fas fa-plus"></i>
+              Create Agent
+            </button>
+            <button class="control-btn" id="btnRefreshAgents">
+              <i class="fas fa-sync-alt"></i>
+              Refresh
+            </button>
+          </div>
+
+          <!-- Agent Creation/Edit Form (hidden by default) -->
+          <div class="agent-form-card" id="agentFormCard" style="display: none;">
+            <div class="agent-form-header">
+              <h3 id="agentFormTitle">Create New Agent</h3>
+              <button class="agent-form-close" id="btnCloseAgentForm">&times;</button>
+            </div>
+            <div class="agent-form-body">
+              <input type="hidden" id="agentFormId" value="">
+              <div class="form-group">
+                <label for="agentName">Agent Name</label>
+                <input type="text" id="agentName" class="form-input" placeholder="e.g., Price Monitor" maxlength="60">
+              </div>
+              <div class="form-group">
+                <label for="agentTask">Task Description</label>
+                <textarea id="agentTask" class="form-input" rows="3" placeholder="Describe what the agent should do..."></textarea>
+              </div>
+              <div class="form-group">
+                <label for="agentTargetUrl">Target URL</label>
+                <input type="url" id="agentTargetUrl" class="form-input" placeholder="https://example.com">
+              </div>
+              <div class="form-group">
+                <label for="agentScheduleType">Schedule Type</label>
+                <select id="agentScheduleType" class="form-select">
+                  <option value="interval">Interval (repeat every X minutes)</option>
+                  <option value="daily">Daily (at a specific time)</option>
+                  <option value="once">Once (run one time)</option>
+                </select>
+              </div>
+              <div class="form-group" id="intervalGroup">
+                <label for="agentInterval">Interval (minutes)</label>
+                <input type="number" id="agentInterval" class="form-input" min="1" max="1440" value="30" placeholder="30">
+              </div>
+              <div class="form-group" id="dailyGroup" style="display: none;">
+                <label for="agentDailyTime">Time</label>
+                <input type="time" id="agentDailyTime" class="form-input" value="09:00">
+                <label class="mt-sm">Days of Week (leave empty for every day)</label>
+                <div class="days-of-week-selector" id="agentDaysOfWeek">
+                  <label class="day-checkbox"><input type="checkbox" value="0"><span>Sun</span></label>
+                  <label class="day-checkbox"><input type="checkbox" value="1"><span>Mon</span></label>
+                  <label class="day-checkbox"><input type="checkbox" value="2"><span>Tue</span></label>
+                  <label class="day-checkbox"><input type="checkbox" value="3"><span>Wed</span></label>
+                  <label class="day-checkbox"><input type="checkbox" value="4"><span>Thu</span></label>
+                  <label class="day-checkbox"><input type="checkbox" value="5"><span>Fri</span></label>
+                  <label class="day-checkbox"><input type="checkbox" value="6"><span>Sat</span></label>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="agentMaxIterations">Max Iterations</label>
+                <input type="number" id="agentMaxIterations" class="form-input" min="1" max="50" value="15" placeholder="15">
+              </div>
+              <div class="form-group">
+                <label class="modern-toggle compact">
+                  <input type="checkbox" id="agentReplayEnabled" checked>
+                  <span class="toggle-track">
+                    <span class="toggle-thumb"></span>
+                  </span>
+                  <div class="toggle-content">
+                    <span class="toggle-label">Session Replay</span>
+                    <span class="toggle-desc">After a successful AI run, replay the same actions without AI calls (zero cost)</span>
+                  </div>
+                </label>
+              </div>
+              <div class="agent-form-actions">
+                <button class="control-btn" id="btnCancelAgent">Cancel</button>
+                <button class="control-btn primary" id="btnSaveAgent">Save Agent</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Agent List -->
+          <div class="agent-list" id="agentList">
+            <div class="agent-empty-state" id="agentEmptyState">
+              <i class="fas fa-robot"></i>
+              <p>No background agents configured yet.</p>
+              <p>Create an agent to automate tasks on a schedule.</p>
+            </div>
+          </div>
+
+          <!-- Server Connection (Phase 2) -->
+          <div class="settings-card full-width" style="margin-top: 20px;">
             <div class="settings-card-header">
               <div class="settings-card-icon">
                 <i class="fas fa-server"></i>
               </div>
               <div class="settings-card-title">
-                <h3>Coming Soon</h3>
-                <p>Background agent configuration will be available here</p>
+                <h3>Server Sync</h3>
+                <p>Connect to FSB server for result storage and dashboard access</p>
+              </div>
+            </div>
+            <div class="settings-card-content">
+              <div class="form-group">
+                <label for="serverUrl">Server URL</label>
+                <input type="url" id="serverUrl" class="form-input" placeholder="https://fsb-server.fly.dev">
+              </div>
+              <div class="form-group">
+                <label for="serverHashKey">Hash Key</label>
+                <div class="input-with-button">
+                  <input type="text" id="serverHashKey" class="form-input" placeholder="Your server hash key" readonly>
+                  <button class="control-btn small" id="btnGenerateHashKey">Generate</button>
+                  <button class="control-btn small" id="btnCopyHashKey">Copy</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <button class="control-btn" id="btnTestConnection">
+                  <i class="fas fa-plug"></i>
+                  Test Connection
+                </button>
+                <span class="connection-status" id="connectionStatus"></span>
               </div>
             </div>
           </div>
@@ -805,7 +950,7 @@
         <section id="branding">
           <div class="branding-section">
             <div class="branding-content">
-              <img id="footer-logo-img" src="Assets/fsb_logo_dark_footer.png" alt="FSB - Fast Smart Browser" class="footer-logo">
+              <img id="footer-logo-img" src="../Assets/fsb_logo_dark_footer.png" alt="FSB - Fast Smart Browser" class="footer-logo">
             </div>
           </div>
         </section>
@@ -828,12 +973,12 @@
     <div id="statusToast" class="status-toast"></div>
   </div>
 
-  <script src="config.js"></script>
-  <script src="automation-logger.js"></script>
-  <script src="universal-provider.js"></script>
-  <script src="ai-providers.js"></script>
-  <script src="ai-integration.js"></script>
-  <script src="analytics.js"></script>
+  <script src="../config/config.js"></script>
+  <script src="../utils/automation-logger.js"></script>
+  <script src="../ai/universal-provider.js"></script>
+  <script src="../ai/ai-providers.js"></script>
+  <script src="../ai/ai-integration.js"></script>
+  <script src="../utils/analytics.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

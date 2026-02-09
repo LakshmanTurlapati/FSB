@@ -25,7 +25,7 @@ unlockForm.addEventListener('submit', async (e) => {
     
     if (testKey.apiKey) {
       // Import secure config
-      const { secureConfig } = await import('./secure-config.js');
+      const { secureConfig } = await import('../config/secure-config.js');
       
       // Try to decrypt a test value
       await secureConfig.decrypt(testKey.apiKey, password);

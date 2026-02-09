@@ -7,7 +7,7 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
   globalThis.__FSB_AUTOMATION_LOGGER_LOADED__ = true;
   console.log('[FSB] automation-logger.js loading');
 
-  // Automation Logger for FSB v0.9
+  // Automation Logger for FSB v9.0.1
   // Provides structured logging for debugging automation loops
 
   class AutomationLogger {
@@ -18,6 +18,7 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
       this.maxSessionLogs = 1000;
       this.storageMode = 'full';
       this.actionRecords = [];
+      this._persistTimer = null;
     }
 
     log(level, message, data = null) {
@@ -39,7 +40,13 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
                            'log';
       console[consoleMethod](`[FSB ${level.toUpperCase()}]`, message, data || '');
 
-      this.persistLogs();
+      // PERF: Debounce persistLogs to batch writes every 2 seconds
+      if (!this._persistTimer) {
+        this._persistTimer = setTimeout(() => {
+          this.persistLogs();
+          this._persistTimer = null;
+        }, 2000);
+      }
     }
 
     error(message, data) { this.log('error', message, data); }
@@ -342,7 +349,24 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
 
     getRecentLogs(count = 50) { return this.logs.slice(-count); }
     getSessionLogs(sessionId) { return this.logs.filter(log => log.data?.sessionId === sessionId); }
-    clearLogs() { this.logs = []; this.persistLogs(); }
+    clearLogs() {
+      this.logs = [];
+      // Cancel any pending debounced write and persist immediately
+      if (this._persistTimer) {
+        clearTimeout(this._persistTimer);
+        this._persistTimer = null;
+      }
+      this.persistLogs();
+    }
+
+    // Flush any pending debounced log writes (call at session end)
+    flush() {
+      if (this._persistTimer) {
+        clearTimeout(this._persistTimer);
+        this._persistTimer = null;
+        this.persistLogs();
+      }
+    }
 
     async persistLogs() {
       try {

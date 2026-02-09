@@ -1,4 +1,4 @@
-// Content script for FSB v0.9 - Guard against re-injection
+// Content script for FSB v9.0.1 - Guard against re-injection
 // Content scripts can be injected multiple times (manifest + executeScript)
 // This guard ensures we only initialize once, preventing "already declared" errors
 
@@ -791,6 +791,31 @@ function checkDocumentReady() {
 let previousDOMState = null;
 let domStateCache = new Map();
 
+// PERF: Pre-built element type indexes for faster fallback selector matching
+// Rebuilt on demand and invalidated by DOM mutations
+let _elementIndexes = null;
+let _elementIndexTimestamp = 0;
+const _ELEMENT_INDEX_TTL = 2000; // 2 seconds -- invalidated faster than a full iteration
+
+function getElementIndexes() {
+  const now = Date.now();
+  if (_elementIndexes && (now - _elementIndexTimestamp) < _ELEMENT_INDEX_TTL) {
+    return _elementIndexes;
+  }
+  _elementIndexes = {
+    clickable: document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"], a.btn, a.button'),
+    input: document.querySelectorAll('input, textarea, [contenteditable="true"]'),
+    link: document.querySelectorAll('a[href]')
+  };
+  _elementIndexTimestamp = now;
+  return _elementIndexes;
+}
+
+function invalidateElementIndexes() {
+  _elementIndexes = null;
+  _elementIndexTimestamp = 0;
+}
+
 // ============================================================================
 // VISUAL FEEDBACK - Highlight Manager and Progress Overlay
 // ============================================================================
@@ -1175,27 +1200,30 @@ let lastActionStatusText = null;
 /**
  * ViewportGlow - Full-viewport border glow indicating AI activity state
  *
- * Uses Shadow DOM for style isolation. Shows four traveling light beams around
- * the viewport edges plus a soft ambient inset glow. Two color states:
- * - 'thinking' (blue/cyan): AI analyzing page or planning actions (slower 3s cycle)
- * - 'acting' (orange/amber): Executing actions on the page (faster 2s cycle)
+ * Uses Shadow DOM for style isolation. A single requestAnimationFrame loop
+ * drives one continuous light bead clockwise around the viewport border,
+ * with perimeter-proportional timing so the bead moves at uniform speed
+ * regardless of aspect ratio. Two color states:
+ * - 'thinking' (orange/amber): AI analyzing page or planning actions (6s cycle)
+ * - 'acting' (orange/red): Executing actions on the page (4s cycle)
  */
 class ViewportGlow {
   constructor() {
     this.host = null;
     this.shadow = null;
     this.state = null; // 'thinking' or 'acting'
+    this._rafId = null;
+    this._startTime = null;
+    this._bars = null; // cached DOM references: { top, right, bottom, left }
   }
 
   show(state) {
     if (!this.host) {
       this._create();
-      // Set initial state directly on the freshly created root -- avoids the
-      // remove+add cycle in setState which would be harmless here but is
-      // unnecessary on first creation.
       this.state = state;
       const root = this.shadow.querySelector('.viewport-glow-root');
       if (root) root.classList.add(`state-${state}`);
+      this._startAnimation();
       return;
     }
     this.setState(state);
@@ -1203,11 +1231,151 @@ class ViewportGlow {
 
   setState(state) {
     if (!this.shadow || this.state === state) return;
-    this.state = state;
+    // Preserve visual position across speed change
+    if (this._startTime !== null) {
+      const now = performance.now();
+      const oldDuration = this._getDuration();
+      const elapsed = (now - this._startTime) % oldDuration;
+      const progress = elapsed / oldDuration;
+      this.state = state;
+      const newDuration = this._getDuration();
+      // Adjust start time so new duration yields the same progress
+      this._startTime = now - progress * newDuration;
+    } else {
+      this.state = state;
+    }
     const root = this.shadow.querySelector('.viewport-glow-root');
     if (root) {
       root.classList.remove('state-thinking', 'state-acting');
       root.classList.add(`state-${state}`);
+    }
+  }
+
+  _getDuration() {
+    return this.state === 'acting' ? 4000 : 6000;
+  }
+
+  /**
+   * Calculate perimeter segment boundaries based on viewport dimensions.
+   * Returns { s1, s2, s3 } where segments are:
+   *   top:    [0, s1)
+   *   right:  [s1, s2)
+   *   bottom: [s2, s3)
+   *   left:   [s3, 1)
+   */
+  _getSegments() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const perim = 2 * (w + h);
+    const s1 = w / perim;          // end of top
+    const s2 = (w + h) / perim;    // end of right (= 0.5)
+    const s3 = (2 * w + h) / perim; // end of bottom
+    return { s1, s2, s3 };
+  }
+
+  /**
+   * Calculate how much a bead [beadStart, beadEnd] overlaps a segment [segStart, segEnd].
+   * Returns null if no overlap, or { start, end } as fractions within the segment (0-1).
+   * Handles wrap-around at the 0/1 boundary.
+   */
+  _beadOverlap(beadStart, beadEnd, segStart, segEnd) {
+    // Normalize bead into [0, 1) range -- beadEnd may exceed 1.0 for wrap
+    const segLen = segEnd - segStart;
+    if (segLen <= 0) return null;
+
+    // Check two ranges: the bead itself, and the wrapped portion (if any)
+    const ranges = [{ s: beadStart, e: beadEnd }];
+    if (beadEnd > 1.0) {
+      ranges.push({ s: beadStart - 1.0, e: beadEnd - 1.0 });
+    }
+    if (beadStart < 0) {
+      ranges.push({ s: beadStart + 1.0, e: beadEnd + 1.0 });
+    }
+
+    for (const r of ranges) {
+      const overlapStart = Math.max(r.s, segStart);
+      const overlapEnd = Math.min(r.e, segEnd);
+      if (overlapEnd > overlapStart) {
+        return {
+          start: (overlapStart - segStart) / segLen,
+          end: (overlapEnd - segStart) / segLen
+        };
+      }
+    }
+    return null;
+  }
+
+  _startAnimation() {
+    this._startTime = performance.now();
+    const tick = (now) => {
+      const duration = this._getDuration();
+      const elapsed = (now - this._startTime) % duration;
+      const progress = elapsed / duration;
+      this._updateBars(progress);
+      this._rafId = requestAnimationFrame(tick);
+    };
+    this._rafId = requestAnimationFrame(tick);
+  }
+
+  _stopAnimation() {
+    if (this._rafId !== null) {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
+    }
+    this._startTime = null;
+  }
+
+  _updateBars(progress) {
+    if (!this._bars) return;
+    const { s1, s2, s3 } = this._getSegments();
+    const beadLen = 0.12; // 12% of perimeter
+    const fadeLen = 0.02; // 2% fade on each end
+    const beadStart = progress;
+    const beadEnd = progress + beadLen;
+
+    // Top bar: segment [0, s1), gradient left-to-right
+    this._renderBar(this._bars.top, beadStart, beadEnd, 0, s1, fadeLen, 'horizontal', false);
+    // Right bar: segment [s1, s2), gradient top-to-bottom
+    this._renderBar(this._bars.right, beadStart, beadEnd, s1, s2, fadeLen, 'vertical', false);
+    // Bottom bar: segment [s2, s3), gradient right-to-left (reversed)
+    this._renderBar(this._bars.bottom, beadStart, beadEnd, s2, s3, fadeLen, 'horizontal', true);
+    // Left bar: segment [s3, 1), gradient bottom-to-top (reversed)
+    this._renderBar(this._bars.left, beadStart, beadEnd, s3, 1.0, fadeLen, 'vertical', true);
+  }
+
+  _renderBar(bar, beadStart, beadEnd, segStart, segEnd, fadeLen, orientation, reversed) {
+    const overlap = this._beadOverlap(beadStart, beadEnd, segStart, segEnd);
+    if (!overlap) {
+      bar.style.opacity = '0';
+      return;
+    }
+
+    bar.style.opacity = '';  // fall back to CSS var(--glow-opacity)
+
+    let start = overlap.start;
+    let end = overlap.end;
+    if (reversed) {
+      const tmp = start;
+      start = 1 - end;
+      end = 1 - tmp;
+    }
+
+    // Convert fadeLen from perimeter-fraction to segment-fraction
+    const segLen = segEnd - segStart;
+    const fadeFrac = segLen > 0 ? fadeLen / segLen : 0;
+    // Clamp fade so it doesn't exceed the overlap region
+    const overlapLen = end - start;
+    const actualFade = Math.min(fadeFrac, overlapLen / 2);
+
+    const fadeStart = Math.max(0, start - actualFade);
+    const fadeEnd = Math.min(1, end + actualFade);
+
+    const pct = (v) => (v * 100).toFixed(2) + '%';
+
+    if (orientation === 'horizontal') {
+      bar.style.background = `linear-gradient(90deg, transparent ${pct(fadeStart)}, var(--glow-color-1) ${pct(start)}, var(--glow-color-2) ${pct(end)}, transparent ${pct(fadeEnd)})`;
+    } else {
+      bar.style.background = `linear-gradient(180deg, transparent ${pct(fadeStart)}, var(--glow-color-1) ${pct(start)}, var(--glow-color-2) ${pct(end)}, transparent ${pct(fadeEnd)})`;
     }
   }
 
@@ -1227,8 +1395,6 @@ class ViewportGlow {
         inset: 0;
         pointer-events: none;
         overflow: hidden;
-        /* Default custom properties (no glow until a state class is set) */
-        --glow-duration: 6s;
         --glow-color-1: #ff8c00;
         --glow-color-2: #f59e0b;
         --glow-opacity: 0;
@@ -1237,24 +1403,21 @@ class ViewportGlow {
         --ambient-outer: rgba(245, 158, 11, 0);
       }
 
-      /* State classes only update custom properties -- never touch animation */
       .viewport-glow-root.state-thinking {
-        --glow-duration: 6s;
         --glow-color-1: #ff8c00;
         --glow-color-2: #f59e0b;
         --glow-opacity: 1;
-        --glow-brightness: 1.25;
-        --ambient-inner: rgba(255, 140, 0, 0.20);
-        --ambient-outer: rgba(245, 158, 11, 0.10);
+        --glow-brightness: 1.625;
+        --ambient-inner: rgba(255, 140, 0, 0.34);
+        --ambient-outer: rgba(245, 158, 11, 0.17);
       }
       .viewport-glow-root.state-acting {
-        --glow-duration: 4s;
         --glow-color-1: #ff6600;
         --glow-color-2: #ff8c00;
         --glow-opacity: 1;
-        --glow-brightness: 1.5;
-        --ambient-inner: rgba(255, 140, 0, 0.30);
-        --ambient-outer: rgba(255, 102, 0, 0.15);
+        --glow-brightness: 1.95;
+        --ambient-inner: rgba(255, 140, 0, 0.51);
+        --ambient-outer: rgba(255, 102, 0, 0.26);
       }
 
       /* Ambient inset glow */
@@ -1262,76 +1425,31 @@ class ViewportGlow {
         position: absolute;
         inset: 0;
         box-shadow:
-          inset 0 0 64px var(--ambient-inner),
-          inset 0 0 128px var(--ambient-outer);
+          inset 0 0 83px var(--ambient-inner),
+          inset 0 0 166px var(--ambient-outer);
         transition: box-shadow 0.5s ease;
       }
 
-      /* Traveling light beam bars -- always animated, driven by custom properties */
+      /* Bar elements -- JS controls background and opacity directly */
       .bar {
         position: absolute;
-        opacity: var(--glow-opacity);
-        filter: blur(1.5px) brightness(var(--glow-brightness));
-        transition: opacity 0.5s ease, filter 0.5s ease;
+        opacity: 0;
+        filter: blur(2px) brightness(var(--glow-brightness));
+        transition: filter 0.5s ease;
+        will-change: opacity, background;
       }
 
       .bar-top, .bar-bottom {
-        left: 0; right: 0; height: 5px;
-        background-size: 200% 100%;
+        left: 0; right: 0; height: 6.5px;
       }
       .bar-left, .bar-right {
-        top: 0; bottom: 0; width: 5px;
-        background-size: 100% 200%;
+        top: 0; bottom: 0; width: 6.5px;
       }
 
       .bar-top    { top: 0; }
       .bar-bottom { bottom: 0; }
       .bar-left   { left: 0; }
       .bar-right  { right: 0; }
-
-      /* Bars always run their animation -- state changes only affect variables */
-      /* Coordinated: each bar is active for its 25% window, idle the rest */
-      .bar-top {
-        background: linear-gradient(90deg, transparent 0%, var(--glow-color-1) 40%, var(--glow-color-2) 60%, transparent 100%);
-        background-size: 200% 100%;
-        animation: travelRight var(--glow-duration) linear infinite;
-      }
-      .bar-right {
-        background: linear-gradient(180deg, transparent 0%, var(--glow-color-1) 40%, var(--glow-color-2) 60%, transparent 100%);
-        background-size: 100% 200%;
-        animation: travelDown var(--glow-duration) linear infinite;
-      }
-      .bar-bottom {
-        background: linear-gradient(270deg, transparent 0%, var(--glow-color-1) 40%, var(--glow-color-2) 60%, transparent 100%);
-        background-size: 200% 100%;
-        animation: travelLeft var(--glow-duration) linear infinite;
-      }
-      .bar-left {
-        background: linear-gradient(0deg, transparent 0%, var(--glow-color-1) 40%, var(--glow-color-2) 60%, transparent 100%);
-        background-size: 100% 200%;
-        animation: travelUp var(--glow-duration) linear infinite;
-      }
-
-      /* Clockwise loop: top(0-25%), right(25-50%), bottom(50-75%), left(75-100%) */
-      @keyframes travelRight {
-        0%              { background-position: -100% 0; }
-        25%             { background-position: 200% 0; }
-        25.001%, 100%   { background-position: 200% 0; }
-      }
-      @keyframes travelDown {
-        0%, 25%         { background-position: 0 -100%; }
-        50%             { background-position: 0 200%; }
-        50.001%, 100%   { background-position: 0 200%; }
-      }
-      @keyframes travelLeft {
-        0%, 50%         { background-position: 200% 0; }
-        75%             { background-position: -100% 0; }
-        75.001%, 100%   { background-position: -100% 0; }
-      }
-      @keyframes travelUp {
-        0%, 75%         { background-position: 0 200%; }
-        100%            { background-position: 0 -100%; }
-      }
     `;
     this.shadow.appendChild(style);
 
@@ -1345,15 +1463,26 @@ class ViewportGlow {
       <div class="bar bar-left"></div>
     `;
     this.shadow.appendChild(root);
+
+    // Cache bar references for rAF loop
+    this._bars = {
+      top: root.querySelector('.bar-top'),
+      right: root.querySelector('.bar-right'),
+      bottom: root.querySelector('.bar-bottom'),
+      left: root.querySelector('.bar-left')
+    };
+
     document.body.appendChild(this.host);
   }
 
   destroy() {
+    this._stopAnimation();
     if (this.host) {
       this.host.remove();
       this.host = null;
       this.shadow = null;
       this.state = null;
+      this._bars = null;
     }
   }
 }
@@ -2226,8 +2355,8 @@ function findAlternativeSelectors(failedSelector, actionType) {
   }
 
   if (actionType === 'click') {
-    // Single query for all clickable elements
-    const clickables = document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"], a.btn, a.button');
+    // PERF: Use cached element indexes instead of re-querying DOM
+    const clickables = getElementIndexes().clickable;
     for (const el of clickables) {
       if (matchesParts(el)) {
         const selector = generateSelector(el);
@@ -2255,8 +2384,8 @@ function findAlternativeSelectors(failedSelector, actionType) {
   }
 
   if (actionType === 'type') {
-    // Single query for all input elements
-    const inputs = document.querySelectorAll('input, textarea, [contenteditable="true"]');
+    // PERF: Use cached element indexes instead of re-querying DOM
+    const inputs = getElementIndexes().input;
     for (const el of inputs) {
       const placeholder = el.placeholder?.toLowerCase() || '';
       const name = el.name?.toLowerCase() || '';
@@ -2915,13 +3044,43 @@ function checkElementVisibility(element) {
   // Check bounding box has non-zero dimensions
   const rect = element.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) {
-    return {
-      passed: false,
-      reason: 'Element has zero dimensions',
-      details: {
-        rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left }
+    // Contenteditable elements and role="textbox" can be interactable
+    // even with zero bounding rect (e.g., Gmail compose body when empty)
+    const isEditable = element.contentEditable === 'true' ||
+                       element.hasAttribute('contenteditable') ||
+                       element.getAttribute('role') === 'textbox';
+    if (isEditable) {
+      const style = window.getComputedStyle(element);
+      const isCSSVisible = style.display !== 'none' &&
+                           style.visibility !== 'hidden' &&
+                           parseFloat(style.opacity) > 0;
+      if (isCSSVisible) {
+        // Allow through -- element is editable and CSS-visible despite zero rect
+        automationLogger.debug('Zero-dim editable element bypassed visibility check', {
+          tag: element.tagName,
+          role: element.getAttribute('role'),
+          contentEditable: element.contentEditable,
+          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left }
+        });
+      } else {
+        return {
+          passed: false,
+          reason: 'Element has zero dimensions',
+          details: {
+            rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
+            editableBypass: 'failed-css-hidden'
+          }
+        };
       }
-    };
+    } else {
+      return {
+        passed: false,
+        reason: 'Element has zero dimensions',
+        details: {
+          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left }
+        }
+      };
+    }
   }
 
   // Use modern checkVisibility API if available
@@ -3202,35 +3361,63 @@ function detectCodeEditor(element) {
  * @returns {Object} { passed: boolean, reason: string|null, details: object, obscuredBy?: string }
  */
 function checkElementReceivesEvents(element) {
-  const rect = element.getBoundingClientRect();
+  let rect = element.getBoundingClientRect();
 
-  // Calculate 5 check points: center + 4 quadrant points
-  const points = [
-    { name: 'center', x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
-    { name: 'topLeft', x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25 },
-    { name: 'topRight', x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25 },
-    { name: 'bottomLeft', x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75 },
-    { name: 'bottomRight', x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75 }
+  // Helper to calculate 5 check points from a rect
+  const getCheckPoints = (r) => [
+    { name: 'center', x: r.left + r.width / 2, y: r.top + r.height / 2 },
+    { name: 'topLeft', x: r.left + r.width * 0.25, y: r.top + r.height * 0.25 },
+    { name: 'topRight', x: r.left + r.width * 0.75, y: r.top + r.height * 0.25 },
+    { name: 'bottomLeft', x: r.left + r.width * 0.25, y: r.top + r.height * 0.75 },
+    { name: 'bottomRight', x: r.left + r.width * 0.75, y: r.top + r.height * 0.75 }
   ];
+
+  let points = getCheckPoints(rect);
 
   // Filter to points within viewport
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
 
-  const pointsInViewport = points.filter(p =>
+  let pointsInViewport = points.filter(p =>
     p.x >= 0 && p.x <= viewportWidth && p.y >= 0 && p.y <= viewportHeight
   );
 
   if (pointsInViewport.length === 0) {
-    return {
-      passed: false,
-      reason: 'Element is outside viewport',
-      details: {
-        checkedPoints: 0,
-        passedPoints: 0,
-        rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+    // Attempt to scroll element into view before giving up
+    try {
+      element.scrollIntoView({ behavior: 'instant', block: 'center' });
+      // Re-check after scroll
+      const newRect = element.getBoundingClientRect();
+      const newPoints = getCheckPoints(newRect).filter(p =>
+        p.x >= 0 && p.x <= viewportWidth && p.y >= 0 && p.y <= viewportHeight
+      );
+      if (newPoints.length > 0) {
+        // Element is now in viewport after scroll -- update and continue with checks
+        rect = newRect;
+        points = getCheckPoints(newRect);
+        pointsInViewport = newPoints;
+      } else {
+        return {
+          passed: false,
+          reason: 'Element is outside viewport (even after scroll attempt)',
+          details: {
+            checkedPoints: 0,
+            passedPoints: 0,
+            rect: { top: newRect.top, left: newRect.left, width: newRect.width, height: newRect.height }
+          }
+        };
       }
-    };
+    } catch (e) {
+      return {
+        passed: false,
+        reason: 'Element is outside viewport',
+        details: {
+          checkedPoints: 0,
+          passedPoints: 0,
+          rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+        }
+      };
+    }
   }
 
   // Check each point
@@ -3549,6 +3736,24 @@ async function ensureElementReady(element, actionType = 'click') {
     result.failureReason = visibleCheck.reason;
     result.failureDetails = visibleCheck.details;
     return result;
+  }
+
+  // 1b. Post-render delay for zero-dim editable elements
+  // If the element passed visibility via the contenteditable bypass (zero rect but CSS-visible),
+  // wait briefly for it to finish rendering, then re-check dimensions
+  const elRect = element.getBoundingClientRect();
+  if ((elRect.width === 0 || elRect.height === 0) &&
+      (element.contentEditable === 'true' || element.hasAttribute('contenteditable') ||
+       element.getAttribute('role') === 'textbox')) {
+    automationLogger.debug('Zero-dim editable passed visibility, waiting 200ms for render');
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const updatedRect = element.getBoundingClientRect();
+    if (updatedRect.width > 0 && updatedRect.height > 0) {
+      automationLogger.debug('Editable element gained dimensions after render wait', {
+        width: updatedRect.width, height: updatedRect.height
+      });
+    }
+    // Proceed regardless -- the contenteditable bypass already approved this element
   }
 
   // 2. Check enabled - fail fast if disabled
@@ -3996,13 +4201,19 @@ function captureActionState(element, actionType) {
 
     // For click actions, capture related elements that might change
     if (actionType === 'click' || actionType === 'hover') {
-      const relatedSelectors = [
-        element.nextElementSibling,
-        element.querySelector('[role="menu"], [role="listbox"], .dropdown-menu, .submenu'),
-        element.id ? document.querySelector(`[aria-labelledby="${element.id}"]`) : null,
-        element.id ? document.querySelector(`[aria-controls="${element.id}"]`) : null,
-        element.id ? document.querySelector(`#${element.id}-content, #${element.id}-panel, #${element.id}-menu`) : null
-      ].filter(Boolean);
+      let relatedSelectors = [];
+      try {
+        const escapedId = element.id ? CSS.escape(element.id) : null;
+        relatedSelectors = [
+          element.nextElementSibling,
+          element.querySelector('[role="menu"], [role="listbox"], .dropdown-menu, .submenu'),
+          element.id ? document.querySelector(`[aria-labelledby="${element.id}"]`) : null,
+          element.id ? document.querySelector(`[aria-controls="${element.id}"]`) : null,
+          escapedId ? document.querySelector(`#${escapedId}-content, #${escapedId}-panel, #${escapedId}-menu`) : null
+        ].filter(Boolean);
+      } catch (e) {
+        // Don't let related element lookup crash the action
+      }
 
       state.relatedElements = relatedSelectors.map(el => {
         try {
@@ -4035,7 +4246,7 @@ function captureActionState(element, actionType) {
 const EXPECTED_EFFECTS = {
   click: {
     anyOf: ['urlChanged', 'contentChanged', 'elementCountChanged', 'ariaExpandedChanged',
-            'focusChanged', 'classChanged', 'relatedVisibilityChanged'],
+            'focusChanged', 'classChanged', 'relatedVisibilityChanged', 'loadingDetected'],
     timeout: 300
   },
   type: {
@@ -4080,7 +4291,7 @@ function detectChanges(preState, postState) {
     // Global changes
     urlChanged: preState.url !== postState.url,
     contentChanged: Math.abs(postState.bodyTextLength - preState.bodyTextLength) > 10,
-    elementCountChanged: Math.abs(postState.elementCount - preState.elementCount) > 5,
+    elementCountChanged: Math.abs(postState.elementCount - preState.elementCount) > 2,
     focusChanged: preState.activeElement !== postState.activeElement,
     loadingDetected: !!document.querySelector('.loading, .spinner, [class*="load"], [aria-busy="true"]')
   };
@@ -4987,7 +5198,7 @@ const tools = {
           ? (verification.changes?.urlChanged || verification.changes?.contentChanged ||
              verification.changes?.elementCountChanged || verification.changes?.ariaExpandedChanged ||
              verification.changes?.relatedVisibilityChanged || loadingDetected || false)
-          : verification.verified;
+          : (verification.verified || loadingDetected);
 
       // CRITICAL FIX: Return success=false when click has no effect
       // This prevents AI from continuing after failed clicks
@@ -5017,6 +5228,35 @@ const tools = {
               wasScrolledIntoView: wasScrolled
             }
           };
+        }
+
+        // FALLBACK 2: For form submit buttons, try form.submit()
+        const isSubmitButton = (element.tagName === 'INPUT' && element.type === 'submit') ||
+          (element.tagName === 'BUTTON' && (element.type === 'submit' || !element.type));
+        const parentForm = element.closest('form');
+        if (isSubmitButton && parentForm) {
+          automationLogger.logActionExecution(currentSessionId, 'click', 'form_submit_fallback', {
+            formAction: parentForm.action,
+            originalSelector: params.selector
+          });
+          try {
+            parentForm.submit();
+            return {
+              success: true,
+              clicked: params.selector,
+              hadEffect: true,
+              navigationTriggered: true,
+              method: 'form-submit-fallback',
+              message: 'Click had no effect, submitted form directly',
+              elementInfo: {
+                tag: element.tagName,
+                text: element.textContent?.trim().substring(0, 50) || element.value?.substring(0, 50),
+                wasScrolledIntoView: wasScrolled
+              }
+            };
+          } catch (formError) {
+            automationLogger.warn('Form submit fallback failed', { error: formError.message });
+          }
         }
 
         // Record action - click had no effect
@@ -10540,6 +10780,12 @@ function getStructuredDOM(options = {}) {
         elementData.shadowRootMode = 'open';
       }
 
+      // Skip screen-reader-only elements hidden at extreme off-screen positions
+      // These are accessibility elements (e.g., position left: -9966px) that the AI should never interact with
+      if (rect.left < -500 || rect.top < -500 || rect.right < -500 || rect.bottom < -500) {
+        return;
+      }
+
       // Sort elements into viewport vs offscreen collections
       const inViewport = isInViewportRect(rect);
       if (inViewport) {
@@ -10879,6 +11125,9 @@ async function handleAsyncMessage(request, sendResponse) {
             const actionPromise = tools[tool](params);
             result = await Promise.race([actionPromise, timeoutPromise]);
             automationLogger.logTiming(currentSessionId, 'ACTION', tool, Date.now() - execStart, { success: result?.success });
+
+            // PERF: Invalidate cached element indexes after any action (DOM may have changed)
+            invalidateElementIndexes();
 
             // VIS-04: Clean up highlight after action completes
             try { actionGlowOverlay.hide(); } catch (e) { /* non-blocking */ }
@@ -11480,6 +11729,52 @@ function handleBackgroundMessage(request, sender, sendResponse) {
       })();
       return true; // Keep message channel open for async response
 
+    // PERF: Event-driven SPA element detection using MutationObserver
+    // Replaces polling loop in background.js for faster SPA render detection
+    case 'waitForInteractiveElements':
+      (async () => {
+        const timeout = request.timeout || 3000;
+        const startTime = Date.now();
+        const interactiveSelector = 'button, input, a[href], [role="button"], textarea, select, [contenteditable="true"]';
+
+        try {
+          // Check immediately -- elements may already exist
+          const existing = document.querySelectorAll(interactiveSelector);
+          if (existing.length > 0) {
+            sendResponse({ success: true, found: true, elementCount: existing.length, waitTime: 0 });
+            return;
+          }
+
+          // Observe DOM for interactive elements appearing
+          const result = await new Promise((resolve) => {
+            const observer = new MutationObserver(() => {
+              const found = document.querySelectorAll(interactiveSelector);
+              if (found.length > 0) {
+                observer.disconnect();
+                resolve({ found: true, elementCount: found.length, waitTime: Date.now() - startTime });
+              }
+            });
+
+            observer.observe(document.body || document.documentElement, {
+              childList: true,
+              subtree: true
+            });
+
+            // Timeout safety net
+            setTimeout(() => {
+              observer.disconnect();
+              const found = document.querySelectorAll(interactiveSelector);
+              resolve({ found: found.length > 0, elementCount: found.length, waitTime: Date.now() - startTime });
+            }, timeout);
+          });
+
+          sendResponse({ success: true, ...result });
+        } catch (error) {
+          sendResponse({ success: false, found: false, elementCount: 0, waitTime: Date.now() - startTime, error: error.message });
+        }
+      })();
+      return true; // Keep message channel open for async response
+
     // SPEED-01: Capture current page state for outcome detection
     case 'capturePageState':
       try {
@@ -11641,7 +11936,7 @@ if (document.body) {
   }
 }
 
-automationLogger.logInit('content_script', 'loaded', { version: '0.9', url: window.location.href });
+automationLogger.logInit('content_script', 'loaded', { version: '9.0.1', url: window.location.href });
 
 // Google-specific SPA navigation detection
 // Google uses History API for navigation within search results

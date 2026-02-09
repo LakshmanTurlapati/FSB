@@ -1,5 +1,5 @@
 /**
- * Configuration management for FSB v0.9
+ * Configuration management for FSB v9.0.1
  * This file handles loading configuration from environment variables and Chrome storage
  */
 
@@ -40,9 +40,29 @@ class Config {
 
       // CAPTCHA Solver
       captchaSolverEnabled: false,
-      captchaApiKey: ''
+      captchaApiKey: '',
+
+      // Background Agents Server
+      serverUrl: 'https://fsb-server.fly.dev',
+      serverHashKey: '',
+      serverSyncEnabled: false
     };
-    
+
+    // PERF: In-memory config cache with TTL to avoid repeated chrome.storage reads
+    this._cachedConfig = null;
+    this._cacheTimestamp = 0;
+    this._cacheTTL = 10000; // 10 seconds
+
+    // Invalidate cache when storage changes externally
+    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local') {
+          this._cachedConfig = null;
+          this._cacheTimestamp = 0;
+        }
+      });
+    }
+
     // Chrome extensions use storage API instead of environment variables
     
     // Available models configuration
@@ -84,6 +104,11 @@ class Config {
    * @returns {Promise<Object>} Complete configuration object with defaults applied
    */
   async loadFromStorage() {
+    // PERF: Return cached config if still fresh
+    if (this._cachedConfig && (Date.now() - this._cacheTimestamp) < this._cacheTTL) {
+      return { ...this._cachedConfig };
+    }
+
     const config = { ...this.defaults };
 
     try {
@@ -103,6 +128,10 @@ class Config {
     } catch (error) {
       console.error('Error loading config from Chrome storage:', error);
     }
+
+    // Update cache
+    this._cachedConfig = { ...config };
+    this._cacheTimestamp = Date.now();
 
     return config;
   }
@@ -188,6 +217,9 @@ class Config {
   // Save configuration to storage
   async save(newConfig) {
     try {
+      // Invalidate cache before saving to ensure next read gets fresh data
+      this._cachedConfig = null;
+      this._cacheTimestamp = 0;
       await chrome.storage.local.set(newConfig);
       return true;
     } catch (error) {

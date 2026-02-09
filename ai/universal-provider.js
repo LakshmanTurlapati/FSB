@@ -1,5 +1,5 @@
 /**
- * Universal AI Provider for FSB v0.9
+ * Universal AI Provider for FSB v9.0.1
  * A model-agnostic provider that works with any OpenAI-compatible API
  */
 

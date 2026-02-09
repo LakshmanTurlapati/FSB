@@ -238,24 +238,31 @@ class FSBAnalytics {
     return normalizations[model] || model;
   }
 
-  // Get all-time usage statistics (no time filtering)
+  // PERF: Single-pass aggregation for all-time stats (replaces 5 separate array passes)
   getAllTimeStats() {
-    const stats = {
-      totalRequests: this.usageData.length,
-      successfulRequests: this.usageData.filter(entry => entry.success).length,
-      totalInputTokens: this.usageData.reduce((sum, entry) => sum + entry.inputTokens, 0),
-      totalOutputTokens: this.usageData.reduce((sum, entry) => sum + entry.outputTokens, 0),
-      totalCost: this.usageData.reduce((sum, entry) => sum + entry.cost, 0),
-      successRate: 0,
-      averageCostPerRequest: 0
-    };
+    let successfulRequests = 0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let totalCost = 0;
 
-    if (stats.totalRequests > 0) {
-      stats.successRate = (stats.successfulRequests / stats.totalRequests) * 100;
-      stats.averageCostPerRequest = stats.totalCost / stats.totalRequests;
+    for (const entry of this.usageData) {
+      if (entry.success) successfulRequests++;
+      totalInputTokens += entry.inputTokens || 0;
+      totalOutputTokens += entry.outputTokens || 0;
+      totalCost += entry.cost || 0;
     }
 
-    stats.totalTokens = stats.totalInputTokens + stats.totalOutputTokens;
+    const totalRequests = this.usageData.length;
+    const stats = {
+      totalRequests,
+      successfulRequests,
+      totalInputTokens,
+      totalOutputTokens,
+      totalCost,
+      successRate: totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0,
+      averageCostPerRequest: totalRequests > 0 ? totalCost / totalRequests : 0,
+      totalTokens: totalInputTokens + totalOutputTokens
+    };
 
     return stats;
   }
@@ -279,24 +286,33 @@ class FSBAnalytics {
         startTime = now - (24 * 60 * 60 * 1000);
     }
 
-    const filteredData = this.usageData.filter(entry => entry.timestamp >= startTime);
+    // PERF: Single-pass aggregation with inline time filtering
+    let totalRequests = 0;
+    let successfulRequests = 0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let totalCost = 0;
 
-    const stats = {
-      totalRequests: filteredData.length,
-      successfulRequests: filteredData.filter(entry => entry.success).length,
-      totalInputTokens: filteredData.reduce((sum, entry) => sum + entry.inputTokens, 0),
-      totalOutputTokens: filteredData.reduce((sum, entry) => sum + entry.outputTokens, 0),
-      totalCost: filteredData.reduce((sum, entry) => sum + entry.cost, 0),
-      successRate: 0,
-      averageCostPerRequest: 0
-    };
-
-    if (stats.totalRequests > 0) {
-      stats.successRate = (stats.successfulRequests / stats.totalRequests) * 100;
-      stats.averageCostPerRequest = stats.totalCost / stats.totalRequests;
+    for (const entry of this.usageData) {
+      if (entry.timestamp >= startTime) {
+        totalRequests++;
+        if (entry.success) successfulRequests++;
+        totalInputTokens += entry.inputTokens || 0;
+        totalOutputTokens += entry.outputTokens || 0;
+        totalCost += entry.cost || 0;
+      }
     }
 
-    stats.totalTokens = stats.totalInputTokens + stats.totalOutputTokens;
+    const stats = {
+      totalRequests,
+      successfulRequests,
+      totalInputTokens,
+      totalOutputTokens,
+      totalCost,
+      successRate: totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0,
+      averageCostPerRequest: totalRequests > 0 ? totalCost / totalRequests : 0,
+      totalTokens: totalInputTokens + totalOutputTokens
+    };
 
     return stats;
   }

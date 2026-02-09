@@ -1,4 +1,4 @@
-// FSB v0.9 - Modern Dashboard Control Panel Script
+// FSB v9.0.1 - Modern Dashboard Control Panel Script
 
 // Default settings
 const defaultSettings = {
@@ -877,8 +877,8 @@ function updateFooterLogo(theme) {
   const footerLogo = document.getElementById('footer-logo-img');
   if (footerLogo) {
     const logoSrc = theme === 'light'
-      ? 'Assets/fsb_logo_light_footer.png'
-      : 'Assets/fsb_logo_dark_footer.png';
+      ? '../Assets/fsb_logo_light_footer.png'
+      : '../Assets/fsb_logo_dark_footer.png';
     footerLogo.src = logoSrc;
   }
 }
@@ -3031,6 +3031,603 @@ async function clearAllResearchResults() {
     showToast('Failed to clear research results', 'error');
   }
 }
+
+// ==========================================
+// Background Agent Management
+// ==========================================
+
+function initializeAgentSection() {
+  const btnCreate = document.getElementById('btnCreateAgent');
+  const btnRefresh = document.getElementById('btnRefreshAgents');
+  const btnClose = document.getElementById('btnCloseAgentForm');
+  const btnCancel = document.getElementById('btnCancelAgent');
+  const btnSave = document.getElementById('btnSaveAgent');
+  const scheduleType = document.getElementById('agentScheduleType');
+
+  if (btnCreate) btnCreate.addEventListener('click', showAgentForm);
+  if (btnRefresh) btnRefresh.addEventListener('click', loadAgentList);
+  if (btnClose) btnClose.addEventListener('click', hideAgentForm);
+  if (btnCancel) btnCancel.addEventListener('click', hideAgentForm);
+  if (btnSave) btnSave.addEventListener('click', saveAgent);
+
+  if (scheduleType) {
+    scheduleType.addEventListener('change', () => {
+      const type = scheduleType.value;
+      const intervalGroup = document.getElementById('intervalGroup');
+      const dailyGroup = document.getElementById('dailyGroup');
+      if (intervalGroup) intervalGroup.style.display = type === 'interval' ? '' : 'none';
+      if (dailyGroup) dailyGroup.style.display = type === 'daily' ? '' : 'none';
+    });
+  }
+
+  // Server sync buttons
+  const btnGenerate = document.getElementById('btnGenerateHashKey');
+  const btnCopy = document.getElementById('btnCopyHashKey');
+  const btnTest = document.getElementById('btnTestConnection');
+
+  if (btnGenerate) btnGenerate.addEventListener('click', generateHashKey);
+  if (btnCopy) btnCopy.addEventListener('click', copyHashKey);
+  if (btnTest) btnTest.addEventListener('click', testServerConnection);
+
+  // Load server settings
+  loadServerSettings();
+
+  // Load agents on section init
+  loadAgentList();
+  loadAgentStats();
+
+  // Listen for messages from popup/sidepanel and agent run completions
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === 'agentRunComplete') {
+      loadAgentList();
+      loadAgentStats();
+    }
+    if (message.action === 'openAgentForm') {
+      document.getElementById('background-agents')?.scrollIntoView({ behavior: 'smooth' });
+      showAgentForm();
+    }
+  });
+}
+
+function showAgentForm(editAgent) {
+  const form = document.getElementById('agentFormCard');
+  const title = document.getElementById('agentFormTitle');
+  if (!form) return;
+
+  if (editAgent && typeof editAgent === 'object' && editAgent.agentId) {
+    // Edit mode
+    title.textContent = 'Edit Agent';
+    document.getElementById('agentFormId').value = editAgent.agentId;
+    document.getElementById('agentName').value = editAgent.name || '';
+    document.getElementById('agentTask').value = editAgent.task || '';
+    document.getElementById('agentTargetUrl').value = editAgent.targetUrl || '';
+    document.getElementById('agentScheduleType').value = editAgent.schedule?.type || 'interval';
+    document.getElementById('agentInterval').value = editAgent.schedule?.intervalMinutes || 30;
+    document.getElementById('agentDailyTime').value = editAgent.schedule?.dailyTime || '09:00';
+    document.getElementById('agentMaxIterations').value = editAgent.maxIterations || 15;
+
+    // Set replay toggle
+    const replayToggle = document.getElementById('agentReplayEnabled');
+    if (replayToggle) replayToggle.checked = editAgent.replayEnabled !== false;
+
+    // Set days of week checkboxes
+    const daysContainer = document.getElementById('agentDaysOfWeek');
+    if (daysContainer) {
+      const checkboxes = daysContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        cb.checked = (editAgent.schedule?.daysOfWeek || []).includes(parseInt(cb.value));
+      });
+    }
+
+    // Trigger schedule type change to show/hide fields
+    document.getElementById('agentScheduleType').dispatchEvent(new Event('change'));
+  } else {
+    // Create mode
+    title.textContent = 'Create New Agent';
+    document.getElementById('agentFormId').value = '';
+    document.getElementById('agentName').value = '';
+    document.getElementById('agentTask').value = '';
+    document.getElementById('agentTargetUrl').value = '';
+    document.getElementById('agentScheduleType').value = 'interval';
+    document.getElementById('agentInterval').value = 30;
+    document.getElementById('agentDailyTime').value = '09:00';
+    document.getElementById('agentMaxIterations').value = 15;
+    const replayToggleCreate = document.getElementById('agentReplayEnabled');
+    if (replayToggleCreate) replayToggleCreate.checked = true;
+    document.getElementById('agentScheduleType').dispatchEvent(new Event('change'));
+  }
+
+  form.style.display = '';
+}
+
+function hideAgentForm() {
+  const form = document.getElementById('agentFormCard');
+  if (form) form.style.display = 'none';
+}
+
+async function saveAgent() {
+  const agentId = document.getElementById('agentFormId').value;
+  const name = document.getElementById('agentName').value.trim();
+  const task = document.getElementById('agentTask').value.trim();
+  const targetUrl = document.getElementById('agentTargetUrl').value.trim();
+  const scheduleType = document.getElementById('agentScheduleType').value;
+  const intervalMinutes = parseInt(document.getElementById('agentInterval').value) || 30;
+  const dailyTime = document.getElementById('agentDailyTime').value;
+  const maxIterations = parseInt(document.getElementById('agentMaxIterations').value) || 15;
+
+  if (!name || !task || !targetUrl) {
+    showToast('Please fill in all required fields', 'error');
+    return;
+  }
+
+  // Build schedule
+  const schedule = { type: scheduleType };
+  if (scheduleType === 'interval') {
+    schedule.intervalMinutes = Math.max(1, intervalMinutes);
+  } else if (scheduleType === 'daily') {
+    schedule.dailyTime = dailyTime;
+    const daysContainer = document.getElementById('agentDaysOfWeek');
+    if (daysContainer) {
+      const checked = Array.from(daysContainer.querySelectorAll('input:checked')).map(cb => parseInt(cb.value));
+      if (checked.length > 0) {
+        schedule.daysOfWeek = checked;
+      }
+    }
+  }
+
+  const replayEnabled = document.getElementById('agentReplayEnabled')?.checked !== false;
+
+  const action = agentId ? 'updateAgent' : 'createAgent';
+  const payload = agentId
+    ? { action, agentId, updates: { name, task, targetUrl, schedule, maxIterations, replayEnabled } }
+    : { action, params: { name, task, targetUrl, schedule, maxIterations, replayEnabled } };
+
+  try {
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(payload, resolve);
+    });
+
+    if (response.success) {
+      showToast(agentId ? 'Agent updated' : 'Agent created', 'success');
+      hideAgentForm();
+      loadAgentList();
+      loadAgentStats();
+    } else {
+      showToast('Error: ' + (response.error || 'Unknown error'), 'error');
+    }
+  } catch (error) {
+    showToast('Error: ' + error.message, 'error');
+  }
+}
+
+async function loadAgentList() {
+  try {
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage({ action: 'listAgents' }, resolve);
+    });
+
+    const list = document.getElementById('agentList');
+    const emptyState = document.getElementById('agentEmptyState');
+    if (!list) return;
+
+    // Remove existing agent cards (keep empty state)
+    list.querySelectorAll('.agent-card').forEach(card => card.remove());
+
+    const agents = response?.agents || [];
+
+    if (agents.length === 0) {
+      if (emptyState) emptyState.style.display = '';
+      return;
+    }
+
+    if (emptyState) emptyState.style.display = 'none';
+
+    for (const agent of agents) {
+      const card = createAgentCard(agent);
+      list.appendChild(card);
+    }
+  } catch (error) {
+    console.error('Failed to load agents:', error);
+  }
+}
+
+function createAgentCard(agent) {
+  const card = document.createElement('div');
+  card.className = 'agent-card';
+  card.dataset.agentId = agent.agentId;
+
+  const statusClass = agent.enabled ? 'active' : 'disabled';
+  const statusText = agent.enabled ? 'Active' : 'Disabled';
+  const lastRun = agent.lastRunAt ? formatTimeAgo(agent.lastRunAt) : 'Never';
+  const scheduleText = formatSchedule(agent.schedule);
+
+  // Replay info
+  const hasScript = agent.recordedScript && agent.recordedScript.steps && agent.recordedScript.steps.length > 0;
+  const replayEnabled = agent.replayEnabled !== false;
+  const replayBadgeClass = hasScript ? 'active' : 'inactive';
+  const replayBadgeText = hasScript
+    ? 'Replay Ready - ' + agent.recordedScript.totalSteps + ' steps'
+    : 'No Script';
+  const replayStats = agent.replayStats || { totalReplays: 0, estimatedCostSaved: 0 };
+  const costSavedText = replayStats.estimatedCostSaved > 0
+    ? '$' + replayStats.estimatedCostSaved.toFixed(4)
+    : '$0';
+
+  card.innerHTML = `
+    <div class="agent-card-header">
+      <div class="agent-card-info">
+        <h4 class="agent-card-name">${escapeHtml(agent.name)}</h4>
+        <span class="agent-status-badge ${statusClass}">${statusText}</span>
+      </div>
+      <label class="toggle-switch small">
+        <input type="checkbox" class="agent-toggle" data-agent-id="${agent.agentId}" ${agent.enabled ? 'checked' : ''}>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="agent-card-body">
+      <div class="agent-card-detail">
+        <span class="agent-detail-label">Task:</span>
+        <span class="agent-detail-value">${escapeHtml(agent.task.substring(0, 100))}${agent.task.length > 100 ? '...' : ''}</span>
+      </div>
+      <div class="agent-card-detail">
+        <span class="agent-detail-label">URL:</span>
+        <span class="agent-detail-value">${escapeHtml(agent.targetUrl)}</span>
+      </div>
+      <div class="agent-card-detail">
+        <span class="agent-detail-label">Schedule:</span>
+        <span class="agent-detail-value">${scheduleText}</span>
+      </div>
+      <div class="agent-card-replay">
+        <span class="replay-badge ${replayBadgeClass}">${replayBadgeText}</span>
+        ${replayStats.totalReplays > 0 ? `<span class="replay-count">${replayStats.totalReplays} replays</span>` : ''}
+        ${replayStats.estimatedCostSaved > 0 ? `<span class="cost-saved">${costSavedText} saved</span>` : ''}
+        ${hasScript ? `<button class="control-btn tiny agent-rerecord-btn" data-agent-id="${agent.agentId}" title="Clear script and re-record on next run">Re-record</button>` : ''}
+      </div>
+      <div class="agent-card-meta">
+        <span>Last run: ${lastRun}</span>
+        <span>Runs: ${agent.runCount}</span>
+        ${agent.lastRunStatus ? `<span class="run-status-${agent.lastRunStatus}">${agent.lastRunStatus}</span>` : ''}
+      </div>
+    </div>
+    <div class="agent-card-actions">
+      <button class="control-btn small agent-run-btn" data-agent-id="${agent.agentId}">
+        <i class="fas fa-play"></i> Run Now
+      </button>
+      <button class="control-btn small agent-edit-btn" data-agent-id="${agent.agentId}">
+        <i class="fas fa-edit"></i> Edit
+      </button>
+      <button class="control-btn small danger agent-delete-btn" data-agent-id="${agent.agentId}">
+        <i class="fas fa-trash"></i> Delete
+      </button>
+      <button class="control-btn small agent-history-btn" data-agent-id="${agent.agentId}">
+        <i class="fas fa-history"></i> History
+      </button>
+    </div>
+    <div class="agent-run-history" id="history-${agent.agentId}" style="display: none;"></div>
+  `;
+
+  // Toggle handler
+  const toggle = card.querySelector('.agent-toggle');
+  if (toggle) {
+    toggle.addEventListener('change', () => toggleAgent(agent.agentId));
+  }
+
+  // Run now
+  const runBtn = card.querySelector('.agent-run-btn');
+  if (runBtn) {
+    runBtn.addEventListener('click', () => runAgentNow(agent.agentId));
+  }
+
+  // Edit
+  const editBtn = card.querySelector('.agent-edit-btn');
+  if (editBtn) {
+    editBtn.addEventListener('click', async () => {
+      const response = await new Promise(resolve => {
+        chrome.runtime.sendMessage({ action: 'listAgents' }, resolve);
+      });
+      const fresh = (response?.agents || []).find(a => a.agentId === agent.agentId);
+      if (fresh) showAgentForm(fresh);
+    });
+  }
+
+  // Delete
+  const deleteBtn = card.querySelector('.agent-delete-btn');
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', () => deleteAgent(agent.agentId, agent.name));
+  }
+
+  // History toggle
+  const historyBtn = card.querySelector('.agent-history-btn');
+  if (historyBtn) {
+    historyBtn.addEventListener('click', () => toggleAgentHistory(agent.agentId));
+  }
+
+  // Re-record button (clear script)
+  const rerecordBtn = card.querySelector('.agent-rerecord-btn');
+  if (rerecordBtn) {
+    rerecordBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('Clear the recorded script for "' + agent.name + '"? The next run will use AI to re-record.')) return;
+      try {
+        const response = await new Promise(resolve => {
+          chrome.runtime.sendMessage({ action: 'clearAgentScript', agentId: agent.agentId }, resolve);
+        });
+        if (response.success) {
+          showToast('Script cleared - next run will use AI', 'success');
+          loadAgentList();
+        } else {
+          showToast('Error: ' + (response.error || 'Failed to clear script'), 'error');
+        }
+      } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+      }
+    });
+  }
+
+  return card;
+}
+
+async function toggleAgent(agentId) {
+  try {
+    const response = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'toggleAgent', agentId }, resolve);
+    });
+    if (response.success) {
+      loadAgentList();
+      loadAgentStats();
+    } else {
+      showToast('Error: ' + (response.error || 'Failed to toggle agent'), 'error');
+    }
+  } catch (error) {
+    showToast('Error: ' + error.message, 'error');
+  }
+}
+
+async function runAgentNow(agentId) {
+  showToast('Starting agent run...', 'info');
+  try {
+    const response = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'runAgentNow', agentId }, resolve);
+    });
+    if (response.success) {
+      showToast('Agent execution started', 'success');
+    } else {
+      showToast('Error: ' + (response.error || 'Failed to start agent'), 'error');
+    }
+  } catch (error) {
+    showToast('Error: ' + error.message, 'error');
+  }
+}
+
+async function deleteAgent(agentId, name) {
+  if (!confirm('Delete agent "' + name + '"? This cannot be undone.')) return;
+
+  try {
+    const response = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'deleteAgent', agentId }, resolve);
+    });
+    if (response.success) {
+      showToast('Agent deleted', 'success');
+      loadAgentList();
+      loadAgentStats();
+    } else {
+      showToast('Error: ' + (response.error || 'Failed to delete agent'), 'error');
+    }
+  } catch (error) {
+    showToast('Error: ' + error.message, 'error');
+  }
+}
+
+async function toggleAgentHistory(agentId) {
+  const container = document.getElementById('history-' + agentId);
+  if (!container) return;
+
+  if (container.style.display !== 'none') {
+    container.style.display = 'none';
+    return;
+  }
+
+  try {
+    const response = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'getAgentRunHistory', agentId, limit: 10 }, resolve);
+    });
+
+    const history = response?.history || [];
+    if (history.length === 0) {
+      container.innerHTML = '<div class="history-empty">No run history yet.</div>';
+    } else {
+      container.innerHTML = history.map(run => {
+        const mode = run.executionMode || 'ai_initial';
+        let modeBadge = '';
+        if (mode === 'replay') {
+          modeBadge = '<span class="mode-badge replay">Replay</span>';
+        } else if (mode === 'ai_fallback') {
+          modeBadge = '<span class="mode-badge fallback">AI Fallback</span>';
+        } else {
+          modeBadge = '<span class="mode-badge ai">AI</span>';
+        }
+        const costSavedInfo = run.costSaved > 0
+          ? '<span class="cost-saved">$' + run.costSaved.toFixed(4) + ' saved</span>'
+          : '';
+        return `
+          <div class="history-entry ${run.success ? 'success' : 'failed'}">
+            <div class="history-entry-header">
+              <span class="history-status">${run.success ? 'Success' : 'Failed'}</span>
+              ${modeBadge}
+              <span class="history-time">${new Date(run.timestamp).toLocaleString()}</span>
+              <span class="history-duration">${formatDuration(run.duration)}</span>
+              ${costSavedInfo}
+            </div>
+            <div class="history-entry-body">
+              ${run.result ? '<p>' + escapeHtml(run.result.substring(0, 200)) + '</p>' : ''}
+              ${run.error ? '<p class="history-error">' + escapeHtml(run.error.substring(0, 200)) + '</p>' : ''}
+              <span class="history-iterations">${run.iterations || 0} iterations</span>
+              ${run.replayFailedAtStep != null ? '<span class="history-replay-fail">Replay failed at step ' + run.replayFailedAtStep + '</span>' : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    container.style.display = '';
+  } catch (error) {
+    container.innerHTML = '<div class="history-empty">Failed to load history.</div>';
+    container.style.display = '';
+  }
+}
+
+async function loadAgentStats() {
+  try {
+    const response = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'getAgentStats' }, resolve);
+    });
+
+    const stats = response?.stats;
+    if (!stats) return;
+
+    const el = (id) => document.getElementById(id);
+    if (el('statTotalAgents')) el('statTotalAgents').textContent = stats.totalAgents;
+    if (el('statEnabledAgents')) el('statEnabledAgents').textContent = stats.enabledAgents;
+    if (el('statRunsToday')) el('statRunsToday').textContent = stats.runsToday;
+    if (el('statSuccessRate')) el('statSuccessRate').textContent = stats.totalRuns > 0 ? stats.successRate + '%' : '--';
+    if (el('statTotalCost')) el('statTotalCost').textContent = '$' + stats.totalCost.toFixed(4);
+    if (el('statReplayRuns')) el('statReplayRuns').textContent = stats.totalReplayRuns || 0;
+    if (el('statCostSaved')) el('statCostSaved').textContent = '$' + (stats.totalCostSaved || 0).toFixed(4);
+  } catch (error) {
+    console.error('Failed to load agent stats:', error);
+  }
+}
+
+function formatSchedule(schedule) {
+  if (!schedule) return 'Not set';
+  switch (schedule.type) {
+    case 'interval':
+      const mins = schedule.intervalMinutes || 1;
+      if (mins >= 60) return 'Every ' + (mins / 60) + ' hour' + (mins >= 120 ? 's' : '');
+      return 'Every ' + mins + ' minute' + (mins > 1 ? 's' : '');
+    case 'daily':
+      const days = schedule.daysOfWeek;
+      const time = schedule.dailyTime || '09:00';
+      if (days && days.length > 0 && days.length < 7) {
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        return 'Daily at ' + time + ' (' + days.map(d => dayNames[d]).join(', ') + ')';
+      }
+      return 'Daily at ' + time;
+    case 'once':
+      return 'Run once';
+    default:
+      return schedule.type;
+  }
+}
+
+function formatTimeAgo(timestamp) {
+  const diff = Date.now() - timestamp;
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+  return Math.floor(diff / 86400000) + 'd ago';
+}
+
+function formatDuration(ms) {
+  if (!ms) return '--';
+  if (ms < 1000) return ms + 'ms';
+  if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+  return Math.floor(ms / 60000) + 'm ' + Math.floor((ms % 60000) / 1000) + 's';
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Server sync functions
+async function loadServerSettings() {
+  try {
+    const stored = await chrome.storage.local.get(['serverUrl', 'serverHashKey']);
+    const urlInput = document.getElementById('serverUrl');
+    const keyInput = document.getElementById('serverHashKey');
+    if (urlInput && stored.serverUrl) urlInput.value = stored.serverUrl;
+    if (keyInput && stored.serverHashKey) keyInput.value = stored.serverHashKey;
+  } catch (e) {
+    // Ignore
+  }
+}
+
+async function generateHashKey() {
+  const serverUrl = document.getElementById('serverUrl')?.value?.trim();
+  if (!serverUrl) {
+    showToast('Please enter a server URL first', 'error');
+    return;
+  }
+
+  try {
+    const resp = await fetch(serverUrl + '/api/auth/register', { method: 'POST' });
+    const data = await resp.json();
+    if (data.hashKey) {
+      document.getElementById('serverHashKey').value = data.hashKey;
+      await chrome.storage.local.set({ serverUrl, serverHashKey: data.hashKey });
+      showToast('Hash key generated and saved', 'success');
+    } else {
+      showToast('Failed to generate hash key', 'error');
+    }
+  } catch (error) {
+    showToast('Cannot connect to server: ' + error.message, 'error');
+  }
+}
+
+async function copyHashKey() {
+  const key = document.getElementById('serverHashKey')?.value;
+  if (!key) {
+    showToast('No hash key to copy', 'error');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(key);
+    showToast('Hash key copied', 'success');
+  } catch (error) {
+    showToast('Failed to copy', 'error');
+  }
+}
+
+async function testServerConnection() {
+  const serverUrl = document.getElementById('serverUrl')?.value?.trim();
+  const hashKey = document.getElementById('serverHashKey')?.value?.trim();
+  const statusEl = document.getElementById('connectionStatus');
+
+  if (!serverUrl || !hashKey) {
+    showToast('Please enter server URL and hash key', 'error');
+    return;
+  }
+
+  if (statusEl) statusEl.textContent = 'Testing...';
+
+  try {
+    const resp = await fetch(serverUrl + '/api/auth/validate', {
+      headers: { 'X-FSB-Hash-Key': hashKey }
+    });
+    const data = await resp.json();
+    if (data.valid) {
+      if (statusEl) statusEl.textContent = 'Connected';
+      if (statusEl) statusEl.className = 'connection-status connected';
+      showToast('Server connection successful', 'success');
+    } else {
+      if (statusEl) statusEl.textContent = 'Invalid key';
+      if (statusEl) statusEl.className = 'connection-status error';
+      showToast('Hash key is invalid', 'error');
+    }
+  } catch (error) {
+    if (statusEl) statusEl.textContent = 'Failed';
+    if (statusEl) statusEl.className = 'connection-status error';
+    showToast('Cannot connect to server', 'error');
+  }
+}
+
+// Initialize agent section when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(initializeAgentSection, 300);
+});
+
 
 // Export for potential use by other scripts
 if (typeof module !== 'undefined' && module.exports) {

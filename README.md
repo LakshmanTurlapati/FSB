@@ -1,10 +1,10 @@
-# FSB v0.9 - Full Self-Browsing
+# FSB v9.0.1 - Full Self-Browsing
 
 <div align="center">
 
 <img src="Assets/fsb.png" alt="FSB Logo" width="200" />
 
-[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/lakshmanturlapati/FSB/releases)
+[![Version](https://img.shields.io/badge/version-9.0.1-blue.svg)](https://github.com/lakshmanturlapati/FSB/releases)
 [![Status](https://img.shields.io/badge/status-production--ready-green.svg)](https://github.com/lakshmanturlapati/FSB)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Chrome Extension](https://img.shields.io/badge/platform-Chrome%20Extension-yellow.svg)](https://developer.chrome.com/docs/extensions/)
@@ -23,7 +23,7 @@
 
 ## Overview
 
-> **Note**: While FSB v0.9 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
+> **Note**: While FSB v9.0.1 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
 
 FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers** -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 20+ model options.
 
@@ -521,7 +521,7 @@ FSB provides real-time visual indicators during automation:
 
 ## Roadmap
 
-### Completed in v0.9
+### Completed in v9.0.1
 - Full automation engine with smart iteration and stuck recovery
 - Four AI providers (xAI, OpenAI, Anthropic, Gemini) with 20+ models
 - Universal model-agnostic provider architecture

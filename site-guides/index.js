@@ -114,6 +114,10 @@ function getGuideForTask(task, url) {
     'Email Platforms': [
       'email', 'mail', 'gmail', 'outlook', 'compose',
       'send email', 'inbox', 'reply', 'forward', 'draft', 'recipient'
+    ],
+    'Gaming Platforms': [
+      'steam', 'epic games', 'gog', 'humble bundle',
+      'game price', 'game store', 'wishlist', 'dlc'
     ]
   };
 

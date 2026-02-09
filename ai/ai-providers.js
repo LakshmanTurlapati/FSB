@@ -1,11 +1,11 @@
 /**
- * AI Provider implementations for FSB v0.9
+ * AI Provider implementations for FSB v9.0.1
  * This module now uses the universal provider for model-agnostic support
  */
 
 // Import universal provider
 if (typeof importScripts !== 'undefined') {
-  importScripts('universal-provider.js');
+  importScripts('ai/universal-provider.js');
 }
 
 /**

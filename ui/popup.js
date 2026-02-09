@@ -1,4 +1,4 @@
-// Modern Chat Interface Script for FSB v0.9
+// Modern Chat Interface Script for FSB v9.0.1
 
 let currentSessionId = null;
 let isRunning = false;
@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!session.masterPassword) {
       // Need to unlock - open unlock page
       chrome.windows.create({
-        url: chrome.runtime.getURL('unlock.html'),
+        url: chrome.runtime.getURL('ui/unlock.html'),
         type: 'popup',
         width: 400,
         height: 500
@@ -201,15 +201,24 @@ function updateSendButtonState() {
 // Handle sending a message
 async function handleSendMessage() {
   const message = chatInput.textContent.trim();
-  
+
   if (!message || isRunning) {
     return;
   }
-  
+
+  // Handle /agent slash commands
+  if (message.startsWith('/agent')) {
+    chatInput.textContent = '';
+    updateSendButtonState();
+    addMessage(message, 'user');
+    handleAgentCommand(message);
+    return;
+  }
+
   try {
     // Add user message to chat
     addMessage(message, 'user');
-    
+
     // Clear input
     chatInput.textContent = '';
     updateSendButtonState();
@@ -602,7 +611,7 @@ async function togglePinWindow() {
     // Create persistent window
     const currentWindow = await chrome.windows.getCurrent();
     chrome.windows.create({
-      url: chrome.runtime.getURL('popup.html'),
+      url: chrome.runtime.getURL('ui/popup.html'),
       type: 'popup',
       width: 400,
       height: 600,
@@ -794,4 +803,106 @@ chatInput.addEventListener('input', adjustInputHeight);
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => e.preventDefault());
 
-console.log('FSB v0.9 chat interface loaded');
+console.log('FSB v9.0.1 chat interface loaded');
+
+// ==========================================
+// /agent Slash Command Handler
+// ==========================================
+
+function handleAgentCommand(message) {
+  const parts = message.split(/\s+/);
+  const subCommand = parts[1] || '';
+
+  if (subCommand === 'list') {
+    showAgentList();
+  } else if (subCommand === 'stop') {
+    const agentName = parts.slice(2).join(' ');
+    stopAgentByName(agentName);
+  } else {
+    startAgentWizard();
+  }
+}
+
+async function showAgentList() {
+  try {
+    const response = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'listAgents' }, resolve);
+    });
+
+    const agents = response?.agents || [];
+    if (agents.length === 0) {
+      addMessage('No background agents configured. Use /agent to create one.', 'system');
+      return;
+    }
+
+    let listText = 'Background Agents:\n';
+    for (const agent of agents) {
+      const status = agent.enabled ? '[ON]' : '[OFF]';
+      const lastRun = agent.lastRunAt ? new Date(agent.lastRunAt).toLocaleString() : 'Never';
+      listText += `\n${status} ${agent.name} - ${formatScheduleShort(agent.schedule)} - Last: ${lastRun}`;
+    }
+    addMessage(listText, 'system');
+  } catch (error) {
+    addMessage('Failed to load agents: ' + error.message, 'error');
+  }
+}
+
+async function stopAgentByName(name) {
+  if (!name) {
+    addMessage('Usage: /agent stop <agent name>', 'system');
+    return;
+  }
+
+  try {
+    const response = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'listAgents' }, resolve);
+    });
+
+    const agents = response?.agents || [];
+    const agent = agents.find(a => a.name.toLowerCase().includes(name.toLowerCase()));
+
+    if (!agent) {
+      addMessage('Agent not found: "' + name + '"', 'error');
+      return;
+    }
+
+    if (!agent.enabled) {
+      addMessage('Agent "' + agent.name + '" is already disabled.', 'system');
+      return;
+    }
+
+    const toggleResp = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'toggleAgent', agentId: agent.agentId }, resolve);
+    });
+
+    if (toggleResp.success) {
+      addMessage('Agent "' + agent.name + '" has been disabled.', 'system');
+    } else {
+      addMessage('Failed to stop agent: ' + (toggleResp.error || 'Unknown error'), 'error');
+    }
+  } catch (error) {
+    addMessage('Error: ' + error.message, 'error');
+  }
+}
+
+function startAgentWizard() {
+  chrome.runtime.openOptionsPage();
+  setTimeout(() => {
+    chrome.runtime.sendMessage({ action: 'openAgentForm' });
+  }, 500);
+  addMessage('Opening agent settings... Use the form in the options page to create your agent.', 'system');
+}
+
+function formatScheduleShort(schedule) {
+  if (!schedule) return 'Not set';
+  switch (schedule.type) {
+    case 'interval':
+      return 'Every ' + (schedule.intervalMinutes || 1) + ' min';
+    case 'daily':
+      return 'Daily at ' + (schedule.dailyTime || '09:00');
+    case 'once':
+      return 'Run once';
+    default:
+      return schedule.type;
+  }
+}

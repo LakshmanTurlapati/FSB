@@ -1,14 +1,14 @@
-// Background service worker for FSB v0.9
+// Background service worker for FSB v9.0.1
 
 // Import configuration and AI integration modules
-importScripts('config.js');
-importScripts('init-config.js');
-importScripts('secure-config.js');
-importScripts('ai-integration.js');
-importScripts('automation-logger.js');
-importScripts('analytics.js');
-importScripts('keyboard-emulator.js');
-importScripts('site-explorer.js');
+importScripts('config/config.js');
+importScripts('config/init-config.js');
+importScripts('config/secure-config.js');
+importScripts('ai/ai-integration.js');
+importScripts('utils/automation-logger.js');
+importScripts('utils/analytics.js');
+importScripts('utils/keyboard-emulator.js');
+importScripts('utils/site-explorer.js');
 
 // Site-specific AI guidance modules
 importScripts('site-guides/index.js');
@@ -18,6 +18,13 @@ importScripts('site-guides/coding.js');
 importScripts('site-guides/travel.js');
 importScripts('site-guides/finance.js');
 importScripts('site-guides/email.js');
+importScripts('site-guides/gaming-platforms.js');
+
+// Background agent modules
+importScripts('agents/agent-manager.js');
+importScripts('agents/agent-scheduler.js');
+importScripts('agents/agent-executor.js');
+importScripts('agents/server-sync.js');
 
 // Site Explorer instance
 const siteExplorer = new SiteExplorer();
@@ -546,6 +553,11 @@ async function cleanupSession(sessionId) {
       clearTimeout(session._loginHandler.timeout);
       session._loginHandler = null;
     }
+  }
+
+  // PERF: Flush any pending debounced log writes before session cleanup
+  if (automationLogger && typeof automationLogger.flush === 'function') {
+    automationLogger.flush();
   }
 
   activeSessions.delete(sessionId);
@@ -1253,7 +1265,7 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
       automationLogger.logComm(null, 'send', 'inject', true, { tabId, attempt });
       await chrome.scripting.executeScript({
         target: { tabId, frameIds: [0] },  // frameIds: [0] = main frame only
-        files: ['automation-logger.js', 'content.js'],
+        files: ['utils/automation-logger.js', 'content.js'],
         world: 'ISOLATED',  // Explicitly specify isolated world
         injectImmediately: true  // Don't wait for document_idle
       });
@@ -1408,13 +1420,11 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      // Check content script health first
-      if (attempt === 1) {
-        const isHealthy = await checkContentScriptHealth(tabId);
-        if (!isHealthy) {
-          automationLogger.logComm(null, 'health', 'pre_message', false, { tabId, action: 're-inject' });
-          await ensureContentScriptInjected(tabId);
-        }
+      // Check content script health before every attempt (not just the first)
+      const isHealthy = await checkContentScriptHealth(tabId);
+      if (!isHealthy) {
+        automationLogger.logComm(null, 'health', 'pre_message', false, { tabId, attempt, action: 're-inject' });
+        await ensureContentScriptInjected(tabId);
       }
 
       // CRITICAL: Use frameId: 0 to target ONLY the main frame
@@ -2717,6 +2727,173 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })();
       return true;
 
+    // --- Background Agent Management ---
+    case 'createAgent':
+      (async () => {
+        try {
+          const agent = await agentManager.createAgent(request.params);
+          if (agent.enabled) {
+            await agentScheduler.scheduleAgent(agent);
+          }
+          sendResponse({ success: true, agent });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'updateAgent':
+      (async () => {
+        try {
+          const agent = await agentManager.updateAgent(request.agentId, request.updates);
+          // Reschedule if schedule or enabled state changed
+          if (agent.enabled) {
+            await agentScheduler.scheduleAgent(agent);
+          } else {
+            await agentScheduler.clearAlarm(agent.agentId);
+          }
+          sendResponse({ success: true, agent });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'deleteAgent':
+      (async () => {
+        try {
+          await agentScheduler.clearAlarm(request.agentId);
+          await agentExecutor.forceStop(request.agentId);
+          const deleted = await agentManager.deleteAgent(request.agentId);
+          sendResponse({ success: deleted });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'listAgents':
+      (async () => {
+        try {
+          const agents = await agentManager.listAgents();
+          sendResponse({ success: true, agents });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'toggleAgent':
+      (async () => {
+        try {
+          const agent = await agentManager.toggleAgent(request.agentId);
+          if (agent.enabled) {
+            await agentScheduler.scheduleAgent(agent);
+          } else {
+            await agentScheduler.clearAlarm(agent.agentId);
+          }
+          sendResponse({ success: true, agent });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'runAgentNow':
+      (async () => {
+        try {
+          const agent = await agentManager.getAgent(request.agentId);
+          if (!agent) {
+            sendResponse({ success: false, error: 'Agent not found' });
+            return;
+          }
+          // Execute immediately in background
+          sendResponse({ success: true, message: 'Agent execution started' });
+          const result = await agentExecutor.execute(agent);
+          await agentManager.recordRun(agent.agentId, result);
+          chrome.runtime.sendMessage({
+            action: 'agentRunComplete',
+            agentId: agent.agentId,
+            result: { success: result.success, duration: result.duration, error: result.error }
+          }).catch(() => {});
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getAgentStats':
+      (async () => {
+        try {
+          const stats = await agentManager.getStats();
+          sendResponse({ success: true, stats });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getAgentRunHistory':
+      (async () => {
+        try {
+          const history = await agentManager.getRunHistory(request.agentId, request.limit || 10);
+          sendResponse({ success: true, history });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'clearAgentScript':
+      (async () => {
+        try {
+          await agentManager.clearRecordedScript(request.agentId);
+          sendResponse({ success: true });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getAgentReplayInfo':
+      (async () => {
+        try {
+          const agent = await agentManager.getAgent(request.agentId);
+          if (!agent) {
+            sendResponse({ success: false, error: 'Agent not found' });
+            return;
+          }
+          sendResponse({
+            success: true,
+            replayEnabled: agent.replayEnabled !== false,
+            hasScript: !!(agent.recordedScript && agent.recordedScript.steps && agent.recordedScript.steps.length > 0),
+            scriptSteps: agent.recordedScript?.totalSteps || 0,
+            recordedAt: agent.recordedScript?.recordedAt || null,
+            replayStats: agent.replayStats || { totalReplays: 0, totalAISaves: 0, estimatedCostSaved: 0 }
+          });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'toggleAgentReplay':
+      (async () => {
+        try {
+          const agent = await agentManager.getAgent(request.agentId);
+          if (!agent) {
+            sendResponse({ success: false, error: 'Agent not found' });
+            return;
+          }
+          const newValue = !(agent.replayEnabled !== false);
+          await agentManager.updateAgent(request.agentId, { replayEnabled: newValue });
+          sendResponse({ success: true, replayEnabled: newValue });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
     default:
       sendResponse({ error: 'Unknown action' });
   }
@@ -2938,9 +3115,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
 
     // Read settings from storage before creating session
     const storedSettings = await getStorageWithTimeout(
-      ['maxIterations', 'animatedActionHighlights'],
+      ['maxIterations', 'animatedActionHighlights', 'domOptimization', 'maxDOMElements', 'prioritizeViewport'],
       3000,
-      { maxIterations: 20, animatedActionHighlights: true }
+      { maxIterations: 20, animatedActionHighlights: true, domOptimization: true, maxDOMElements: 2000, prioritizeViewport: true }
     );
     const userMaxIterations = parseInt(storedSettings.maxIterations) || 20;
 
@@ -2966,7 +3143,13 @@ async function handleStartAutomation(request, sender, sendResponse) {
       actionSequences: [],      // Track sequences of actions to detect patterns
       sequenceRepeatCount: {},  // Count how many times each sequence repeats
       navigationMessage,        // Store navigation message for UI
-      animatedActionHighlights: storedSettings.animatedActionHighlights ?? true
+      animatedActionHighlights: storedSettings.animatedActionHighlights ?? true,
+      // PERF: Cache DOM settings at session start to avoid repeated storage reads
+      domSettings: {
+        domOptimization: storedSettings.domOptimization !== false,
+        maxDOMElements: storedSettings.maxDOMElements || 2000,
+        prioritizeViewport: storedSettings.prioritizeViewport !== false
+      }
     };
     
     activeSessions.set(sessionId, sessionData);
@@ -3087,6 +3270,146 @@ async function handleStartAutomation(request, sender, sendResponse) {
   }
 }
 
+
+/**
+ * Execute an automation task programmatically (used by background agents).
+ * Creates a session, runs the automation loop, and returns a Promise with the result.
+ * @param {number} tabId - Target tab ID (must already exist and be loaded)
+ * @param {string} task - Task description for the AI
+ * @param {Object} [options] - Execution options
+ * @param {number} [options.maxIterations=15] - Max automation iterations
+ * @param {boolean} [options.isBackgroundAgent=false] - If true, skip UI status messages
+ * @param {string} [options.agentId] - Agent ID for tracking
+ * @returns {Promise<Object>} { success, sessionId, result, error, duration, tokensUsed, costUsd, iterations }
+ */
+async function executeAutomationTask(tabId, task, options = {}) {
+  const { maxIterations = 15, isBackgroundAgent = false, agentId = null } = options;
+
+  return new Promise(async (resolve) => {
+    try {
+      const sessionId = `session_${Date.now()}`;
+      const sessionData = {
+        task,
+        tabId: tabId,
+        originalTabId: tabId,
+        status: 'running',
+        startTime: Date.now(),
+        maxIterations: maxIterations,
+        actionHistory: [],
+        stateHistory: [],
+        failedAttempts: {},
+        failedActionDetails: {},
+        lastDOMHash: null,
+        stuckCounter: 0,
+        consecutiveNoProgressCount: 0,
+        iterationCount: 0,
+        urlHistory: [],
+        lastUrl: null,
+        actionSequences: [],
+        sequenceRepeatCount: {},
+        isBackgroundAgent: isBackgroundAgent,
+        agentId: agentId,
+        animatedActionHighlights: false, // No highlights for background agents
+        _completionCallback: resolve, // Store callback for when automation finishes
+        // PERF: Cache DOM settings (use defaults for background agents)
+        domSettings: {
+          domOptimization: true,
+          maxDOMElements: 2000,
+          prioritizeViewport: true
+        }
+      };
+
+      activeSessions.set(sessionId, sessionData);
+      persistSession(sessionId, sessionData);
+
+      automationLogger.logSessionStart(sessionId, task, tabId);
+      initializeSessionMetrics(sessionId);
+
+      startKeepAlive();
+
+      // Reset DOM state
+      try {
+        await chrome.tabs.sendMessage(tabId, { action: 'resetDOMState', sessionId });
+      } catch (e) {
+        // Content script may not be ready yet, proceed anyway
+      }
+
+      // Intercept completion messages for this session
+      const originalCleanup = cleanupSession;
+
+      // Patch: listen for automationComplete for this session to capture result
+      const completionListener = (message) => {
+        if (message.action === 'automationComplete' && message.sessionId === sessionId) {
+          chrome.runtime.onMessage.removeListener(completionListener);
+          const session = activeSessions.get(sessionId) || sessionData;
+          const duration = Date.now() - sessionData.startTime;
+          const metrics = performanceMetrics.sessionStats.get(sessionId);
+          resolve({
+            success: !message.partial && !message.error,
+            sessionId,
+            result: message.result || null,
+            error: message.error || (message.partial ? 'Task completed partially: ' + (message.reason || 'unknown') : null),
+            duration,
+            tokensUsed: metrics?.totalActions || 0,
+            costUsd: 0,
+            iterations: session.iterationCount || 0,
+            actionHistory: session.actionHistory || []
+          });
+        }
+
+        if (message.action === 'automationError' && message.sessionId === sessionId) {
+          chrome.runtime.onMessage.removeListener(completionListener);
+          const duration = Date.now() - sessionData.startTime;
+          resolve({
+            success: false,
+            sessionId,
+            result: null,
+            error: message.error || 'Automation error',
+            duration,
+            tokensUsed: 0,
+            costUsd: 0,
+            iterations: sessionData.iterationCount || 0
+          });
+        }
+      };
+      chrome.runtime.onMessage.addListener(completionListener);
+
+      // Safety timeout - resolve after maxIterations * 30s max
+      const safetyTimeout = setTimeout(() => {
+        chrome.runtime.onMessage.removeListener(completionListener);
+        const duration = Date.now() - sessionData.startTime;
+        resolve({
+          success: false,
+          sessionId,
+          result: null,
+          error: 'Execution safety timeout reached',
+          duration,
+          tokensUsed: 0,
+          costUsd: 0,
+          iterations: sessionData.iterationCount || 0
+        });
+      }, Math.min(maxIterations * 30000, 4 * 60 * 1000));
+
+      // Store timeout for cleanup
+      sessionData._safetyTimeout = safetyTimeout;
+
+      // Start the automation loop
+      startAutomationLoop(sessionId);
+
+    } catch (error) {
+      resolve({
+        success: false,
+        sessionId: null,
+        result: null,
+        error: error.message,
+        duration: 0,
+        tokensUsed: 0,
+        costUsd: 0,
+        iterations: 0
+      });
+    }
+  });
+}
 
 
 // Handle automation stop
@@ -3978,77 +4301,39 @@ async function fillCredentialsOnPageDirect(tabId, { usernameSelector, passwordSe
   }
 }
 
-// Helper function to create a more intelligent hash of DOM state
+// PERF: Simplified DOM hash for stuck detection
+// Uses lightweight signature: element count + top 5 element types + title + URL path
+// Skips position data (scroll-dependent) to avoid false "changed" detection
 function createDOMHash(domState) {
-  // Filter out elements that should not affect stuck detection
-  const coreElements = (domState.elements || []).filter(el => {
-    const classStr = String(el.class || '').toLowerCase();
-    const idStr = String(el.id || '').toLowerCase();
-    const textStr = String(el.text || '').toLowerCase();
-    
-    // Exclude common modal/overlay indicators
-    const isModal = classStr.includes('modal') || classStr.includes('overlay') || 
-                   classStr.includes('popup') || classStr.includes('dialog') ||
-                   idStr.includes('modal') || idStr.includes('overlay') ||
-                   classStr.includes('dropdown') || classStr.includes('menu');
-    
-    // Exclude elements that are typically transient
-    const isTransient = classStr.includes('loading') || classStr.includes('spinner') ||
-                       classStr.includes('toast') || classStr.includes('alert') ||
-                       classStr.includes('notification') || classStr.includes('tooltip') ||
-                       classStr.includes('progress') || classStr.includes('skeleton');
-    
-    // Exclude dynamic content that changes frequently
-    const isDynamic = classStr.includes('timestamp') || classStr.includes('counter') ||
-                     classStr.includes('badge') || classStr.includes('status') ||
-                     textStr.includes('ago') || textStr.includes('now') ||
-                     textStr.includes('online') || textStr.includes('offline');
-    
-    // Exclude animations and transitions
-    const isAnimated = classStr.includes('animate') || classStr.includes('transition') ||
-                      classStr.includes('fade') || classStr.includes('slide') ||
-                      classStr.includes('bounce') || classStr.includes('pulse');
-    
-    // Exclude ads and tracking elements
-    const isAd = classStr.includes('ad') || classStr.includes('advertisement') ||
-                classStr.includes('promo') || classStr.includes('banner') ||
-                idStr.includes('ad') || classStr.includes('google') ||
-                classStr.includes('facebook') || classStr.includes('twitter');
-    
-    // Exclude temporary UI states
-    const isTemporaryState = classStr.includes('hover') || classStr.includes('focus') ||
-                            classStr.includes('active') || classStr.includes('selected') ||
-                            classStr.includes('highlighted');
-    
-    return !isModal && !isTransient && !isDynamic && !isAnimated && !isAd && !isTemporaryState;
-  });
-  
-  // Create a more meaningful key that represents the core page state
-  // Focus on stable elements that indicate real page structure changes
-  const stableElements = coreElements.filter(el => {
-    // Only include elements that are likely to be stable page structure
-    return ['button', 'input', 'select', 'textarea', 'form', 'nav', 'header', 'main', 'section'].includes(el.type) ||
-           (el.id && el.id.length > 2) || // Elements with meaningful IDs
-           (el.text && el.text.trim().length > 3 && el.text.length < 100); // Elements with meaningful text
-  });
-  
-  const key = [
-    domState.url,
-    domState.title,
-    stableElements.length,
-    // Include key element identifiers to detect real changes
-    stableElements.slice(0, 15).map(el => {
-      const identifier = el.id || el.class?.split(' ')[0] || el.type;
-      const text = el.text ? el.text.substring(0, 20) : '';
-      return `${el.type}-${identifier}-${text}`;
-    }).join(',')
-  ].join('-');
-  
+  const elements = domState.elements || [];
+
+  // Count elements by type (only interactive/structural types matter for stuck detection)
+  const typeCounts = {};
+  for (const el of elements) {
+    const t = el.type;
+    if (t) typeCounts[t] = (typeCounts[t] || 0) + 1;
+  }
+
+  // Top 5 element types by count
+  const topTypes = Object.entries(typeCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([type, count]) => `${type}:${count}`)
+    .join(',');
+
+  // Extract URL path without query params (query changes shouldn't affect stuck detection)
+  let urlPath = '';
+  try {
+    urlPath = new URL(domState.url || '').pathname;
+  } catch { urlPath = domState.url || ''; }
+
+  const key = `${urlPath}|${domState.title || ''}|${elements.length}|${topTypes}`;
+
   let hash = 0;
   for (let i = 0; i < key.length; i++) {
     const char = key.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+    hash = hash & hash;
   }
   return hash.toString();
 }
@@ -4369,12 +4654,8 @@ async function startAutomationLoop(sessionId) {
     let domResponse;
     let usedPrefetch = false;
     try {
-      // Get DOM optimization settings from storage with timeout to prevent hanging
-      const settings = await getStorageWithTimeout(
-        ['domOptimization', 'maxDOMElements', 'prioritizeViewport'],
-        2000, // 2 second timeout
-        { domOptimization: true, maxDOMElements: 2000, prioritizeViewport: true } // defaults
-      );
+      // PERF: Use session-cached DOM settings instead of reading from storage each iteration
+      const settings = session.domSettings || { domOptimization: true, maxDOMElements: 2000, prioritizeViewport: true };
       const domOptimizationEnabled = settings.domOptimization !== false;
 
       // FSB TIMING: Track DOM fetch time
@@ -4489,7 +4770,8 @@ async function startAutomationLoop(sessionId) {
       throw new Error('Failed to get DOM state from content script. Response: ' + JSON.stringify(domResponse));
     }
 
-    // FIX 2: SPA retry - if 0 elements after recent navigation, wait for SPA frameworks to render
+    // PERF: Event-driven SPA element detection (replaces 6-iteration polling loop)
+    // Uses MutationObserver in content script to detect elements as soon as they render
     const initialElementCount = domResponse.structuredDOM.elements?.length || 0;
     const initialTotalElements = domResponse.structuredDOM._totalElements || initialElementCount;
     const urlRecentlyChanged = session.lastUrl && session.lastUrl !== domResponse.structuredDOM.url;
@@ -4501,16 +4783,26 @@ async function startAutomationLoop(sessionId) {
         iteration: session.iterationCount
       });
 
-      for (let spaRetry = 0; spaRetry < 6; spaRetry++) {
-        await new Promise(r => setTimeout(r, 500));
+      if (isSessionTerminating(sessionId)) {
+        loopResolve?.();
+        return;
+      }
 
-        if (isSessionTerminating(sessionId)) {
-          loopResolve?.();
-          return;
-        }
+      try {
+        const waitResult = await sendMessageWithRetry(session.tabId, {
+          action: 'waitForInteractiveElements',
+          timeout: 3000
+        });
 
-        try {
-          const retryResponse = await sendMessageWithRetry(session.tabId, {
+        if (waitResult?.found) {
+          automationLogger.debug('SPA elements appeared via MutationObserver', {
+            sessionId,
+            elementCount: waitResult.elementCount,
+            waitTime: waitResult.waitTime
+          });
+
+          // Fetch fresh DOM now that elements exist
+          domResponse = await sendMessageWithRetry(session.tabId, {
             action: 'getDOM',
             options: {
               useIncrementalDiff: false,
@@ -4518,23 +4810,14 @@ async function startAutomationLoop(sessionId) {
               prioritizeViewport: settings.prioritizeViewport !== false
             }
           });
-
-          const retryCount = retryResponse?.structuredDOM?.elements?.length ||
-                             retryResponse?.structuredDOM?._totalElements || 0;
-
-          if (retryCount > 0) {
-            automationLogger.debug('SPA elements appeared after retry', {
-              sessionId,
-              elementCount: retryCount,
-              retryAttempt: spaRetry + 1,
-              waitTime: (spaRetry + 1) * 500
-            });
-            domResponse = retryResponse;
-            break;
-          }
-        } catch (e) {
-          automationLogger.debug('SPA retry DOM fetch failed', { sessionId, error: e.message });
+        } else {
+          automationLogger.debug('SPA wait timed out, proceeding with empty DOM', {
+            sessionId,
+            waitTime: waitResult?.waitTime
+          });
         }
+      } catch (e) {
+        automationLogger.debug('SPA MutationObserver wait failed, proceeding', { sessionId, error: e.message });
       }
     }
 
@@ -4706,15 +4989,11 @@ async function startAutomationLoop(sessionId) {
 
         if (fillResult?.success) {
           session._loginHandledForUrl.push(currentUrl);
-        } else {
-          automationLogger.warn('Auto-fill credentials did not verify - will allow re-detection', { sessionId, domain: loginDomain });
-        }
 
-        // Wait for page to settle after login submission
-        await new Promise(r => setTimeout(r, 2000));
+          // Wait for page to settle after login submission
+          await new Promise(r => setTimeout(r, 2000));
 
-        // Check if login actually succeeded (URL changed = redirect after login)
-        if (fillResult?.success) {
+          // Check if login actually succeeded (URL changed = redirect after login)
           try {
             const tab = await chrome.tabs.get(session.tabId);
             const newUrl = tab?.url || '';
@@ -4725,14 +5004,17 @@ async function startAutomationLoop(sessionId) {
               automationLogger.debug('Still on login page after fill - re-enabling detection', { sessionId });
             }
           } catch (e) { /* tab may be gone */ }
-        }
 
-        // Continue to next iteration (re-analyze DOM)
-        loopResolve?.();
-        if (!isSessionTerminating(sessionId) && activeSessions.has(sessionId)) {
-          setTimeout(() => startAutomationLoop(sessionId), 500);
+          // Auto-fill succeeded -- restart loop to verify login worked
+          loopResolve?.();
+          if (!isSessionTerminating(sessionId) && activeSessions.has(sessionId)) {
+            setTimeout(() => startAutomationLoop(sessionId), 500);
+          }
+          return;
         }
-        return;
+        // Auto-fill failed -- fall through to AI call so it can handle the login form
+        automationLogger.info('Auto-fill failed, deferring to AI for login handling', { sessionId, domain: loginDomain });
+        session._loginHandledForUrl.push(currentUrl); // Prevent re-triggering hook next iteration
       } else {
         // NO SAVED CREDS: interrupt sidepanel for credentials
         const loginFields = extractLoginFields(domResponse.structuredDOM);
@@ -4768,15 +5050,11 @@ async function startAutomationLoop(sessionId) {
 
           if (directFillResult?.success) {
             session._loginHandledForUrl.push(currentUrl);
-          } else {
-            automationLogger.warn('Direct credential fill did not verify - will allow re-detection', { sessionId, domain: loginDomain, result: directFillResult });
-          }
 
-          // Wait for page to settle
-          await new Promise(r => setTimeout(r, 2000));
+            // Wait for page to settle
+            await new Promise(r => setTimeout(r, 2000));
 
-          // Check if login actually succeeded (URL changed = redirect after login)
-          if (directFillResult?.success) {
+            // Check if login actually succeeded (URL changed = redirect after login)
             try {
               const tab = await chrome.tabs.get(session.tabId);
               const newUrl = tab?.url || '';
@@ -4786,14 +5064,17 @@ async function startAutomationLoop(sessionId) {
                 automationLogger.debug('Still on login page after direct fill - re-enabling detection', { sessionId });
               }
             } catch (e) { /* tab may be gone */ }
-          }
 
-          // Continue to next iteration
-          loopResolve?.();
-          if (!isSessionTerminating(sessionId) && activeSessions.has(sessionId)) {
-            setTimeout(() => startAutomationLoop(sessionId), 500);
+            // Direct fill succeeded -- restart loop
+            loopResolve?.();
+            if (!isSessionTerminating(sessionId) && activeSessions.has(sessionId)) {
+              setTimeout(() => startAutomationLoop(sessionId), 500);
+            }
+            return;
           }
-          return;
+          // Direct fill failed -- fall through to AI
+          automationLogger.info('Direct credential fill failed, deferring to AI', { sessionId, domain: loginDomain });
+          session._loginHandledForUrl.push(currentUrl);
         } else {
           // User skipped - mark as handled so we don't prompt again
           session._loginHandledForUrl.push(currentUrl);
@@ -6631,7 +6912,7 @@ chrome.action.onClicked.addListener(async (tab) => {
     automationLogger.logInit('sidepanel', 'failed', { error: error.message, fallback: 'popup' });
     // Fallback to popup window if side panel fails
     chrome.windows.create({
-      url: chrome.runtime.getURL('popup.html'),
+      url: chrome.runtime.getURL('ui/popup.html'),
       type: 'popup',
       width: 400,
       height: 600
@@ -6639,9 +6920,75 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 });
 
+// --- Background Agent Alarm Handler ---
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  const agentId = agentScheduler.getAgentIdFromAlarm(alarm.name);
+  if (!agentId) return; // Not an FSB agent alarm
+
+  console.log('[FSB] Agent alarm fired:', alarm.name);
+
+  try {
+    const agent = await agentManager.getAgent(agentId);
+    if (!agent) {
+      console.warn('[FSB] Agent not found for alarm, clearing:', agentId);
+      await agentScheduler.clearAlarm(agentId);
+      return;
+    }
+
+    if (!agent.enabled) {
+      console.log('[FSB] Agent disabled, skipping:', agentId);
+      return;
+    }
+
+    // Guard against double-runs
+    if (!agentScheduler.isValidAlarmFire(agent)) {
+      console.log('[FSB] Agent alarm fired too soon, skipping:', agentId);
+      return;
+    }
+
+    // Execute the agent
+    const result = await agentExecutor.execute(agent);
+
+    // Record the run
+    const updatedAgent = await agentManager.recordRun(agentId, result);
+
+    // Reschedule daily agents for their next occurrence
+    if (agent.schedule.type === 'daily') {
+      await agentScheduler.rescheduleDaily(updatedAgent);
+    }
+
+    // Disable once-type agents after execution
+    if (agent.schedule.type === 'once') {
+      await agentManager.updateAgent(agentId, { enabled: false });
+      await agentScheduler.clearAlarm(agentId);
+    }
+
+    // Notify any open UI about the run completion
+    chrome.runtime.sendMessage({
+      action: 'agentRunComplete',
+      agentId: agentId,
+      result: {
+        success: result.success,
+        duration: result.duration,
+        error: result.error
+      }
+    }).catch(() => {}); // UI may not be open
+
+    // Sync to server if enabled
+    if (updatedAgent.syncEnabled && typeof serverSync !== 'undefined') {
+      serverSync.syncRun(updatedAgent, result).catch(err => {
+        console.warn('[FSB] Server sync failed:', err.message);
+      });
+    }
+
+  } catch (error) {
+    console.error('[FSB] Agent alarm handler error:', error.message);
+  }
+});
+
 // Set up side panel behavior
 chrome.runtime.onInstalled.addListener(async () => {
-  automationLogger.logInit('extension', 'installed', { version: 'v0.9' });
+  automationLogger.logInit('extension', 'installed', { version: 'v9.0.1' });
 
   // Initialize analytics
   initializeAnalytics();
@@ -6663,6 +7010,9 @@ chrome.runtime.onInstalled.addListener(async () => {
   } catch (error) {
     automationLogger.debug('Side panel API not available', { chromeVersion: 'below 114' });
   }
+
+  // Reschedule all background agents
+  agentScheduler.rescheduleAllAgents();
 });
 
 // Initialize analytics and restore sessions on startup
@@ -6673,6 +7023,8 @@ chrome.runtime.onStartup.addListener(async () => {
   await loadDebugMode();
   // Restore sessions from storage so stop button works after service worker restart
   await restoreSessionsFromStorage();
+  // Reschedule all background agents
+  agentScheduler.rescheduleAllAgents();
 });
 
 // Listen for debug mode changes so toggling takes effect immediately
@@ -6680,5 +7032,20 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.debugMode) {
     fsbDebugMode = changes.debugMode.newValue === true;
     console.log('[FSB] Debug mode ' + (fsbDebugMode ? 'enabled' : 'disabled'));
+  }
+
+  // PERF: Update cached DOM settings in active sessions when changed
+  if (namespace === 'local') {
+    const domKeys = ['domOptimization', 'maxDOMElements', 'prioritizeViewport'];
+    const hasDomChange = domKeys.some(key => key in changes);
+    if (hasDomChange) {
+      for (const [, session] of activeSessions) {
+        if (session.domSettings) {
+          if ('domOptimization' in changes) session.domSettings.domOptimization = changes.domOptimization.newValue;
+          if ('maxDOMElements' in changes) session.domSettings.maxDOMElements = changes.maxDOMElements.newValue;
+          if ('prioritizeViewport' in changes) session.domSettings.prioritizeViewport = changes.prioritizeViewport.newValue;
+        }
+      }
+    }
   }
 });

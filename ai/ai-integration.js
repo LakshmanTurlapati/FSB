@@ -5,7 +5,7 @@
 
 // Import provider implementations
 if (typeof importScripts !== 'undefined') {
-  importScripts('ai-providers.js');
+  importScripts('ai/ai-providers.js');
 }
 
 // Tool documentation separated for modularity
@@ -100,22 +100,24 @@ const TASK_PROMPTS = {
   search: "CRITICAL: For search tasks you MUST: 1) Type query, then look for submit button (button[type='submit'], buttons with 'Search'/'Submit'/'Go'/'Find' text, or search/submit classes). If found, click button. If no button, use pressEnter: true, 2) Wait for results to load, 3) Extract the actual answer from the page, 4) ONLY mark taskComplete: true after you have the answer. If you don't see relevant results, scroll down to see more. When completing, provide the specific information found, not just 'found the answer'. Example result: 'I found the current weather in New York is 72°F with clear skies and 15% humidity.'",
   email: `EMAIL COMPOSITION WORKFLOW - CRITICAL RULES:
 
-1. COMPOSE: Click the Compose button to open a new email window.
-2. TO FIELD: Type the recipient email address. After typing, the email client (Gmail, Outlook) needs a Tab or Enter keypress to convert the text into a recipient "chip". The automation handles this automatically via the type tool -- just type the email address normally.
-3. SUBJECT: Click the Subject field and type the subject line.
-4. BODY: Click the message body area and type the email content.
-5. SEND: Click the Send button. IMPORTANT: Use the selectors provided in the DOM analysis. Do NOT construct your own aria-label selectors for the Send button -- Gmail embeds invisible Unicode characters in aria-labels that will cause selector mismatches.
-6. FALLBACK: If clicking the Send button fails, use keyPress with key: "Enter" and ctrlKey: true (Ctrl+Enter / Cmd+Enter sends email in Gmail).
+1. OPEN COMPOSE: Use keyPress with key "c" (Gmail keyboard shortcut). Do NOT try to click the Compose button -- it is often outside the visible DOM element list and will fail. After pressing "c", use waitForElement to wait for the To field to appear (e.g., selector: [aria-label="To recipients"], [name="to"], input[type="email"]).
+2. TO FIELD: Use the type tool with the recipient email address. Do NOT click the field first -- the type tool handles focus internally. After typing, the automation handles Tab confirmation automatically.
+3. SUBJECT: Use the type tool on the Subject field. Do NOT click the field first -- the type tool handles focus.
+4. BODY: Use the type tool on the message body area. Do NOT click the field first -- the type tool handles focus. The body is a contenteditable div that may report zero dimensions -- the automation handles this correctly.
+5. SEND: Click the Send button using the selector from DOM analysis. IMPORTANT: Do NOT construct your own aria-label selectors for Send -- Gmail embeds invisible Unicode characters in aria-labels that cause selector mismatches.
+6. FALLBACK: If clicking Send fails, use keyPress with key: "Enter" and ${navigator.userAgent?.includes('Macintosh') ? 'metaKey: true (Cmd+Enter on macOS)' : 'ctrlKey: true (Ctrl+Enter)'}.
 7. VERIFY: After sending, confirm the compose window has closed.
 
-RECIPIENT FIELD RULES:
-- Type the full email address (e.g., user@example.com)
-- Do NOT press Enter manually after typing in the To field -- the type tool handles Tab confirmation
-- Wait for the recipient chip to appear before moving to Subject
+KEY RULES:
+- Use "c" keyboard shortcut to open compose -- NEVER click the Compose button
+- Do NOT click fields before typing -- the type tool handles click+focus automatically
+- Wait for compose window to fully render before typing (waitForElement on To field)
+- Type To, Subject, Body in sequence without extra clicks between them
+- Use selectors from DOM analysis for Send button, never construct your own
 
 SEND BUTTON RULES:
 - Use the selector from DOM analysis (it will be clean, without Unicode chars)
-- If Send click returns an error, immediately try: {"tool": "keyPress", "params": {"key": "Enter", "ctrlKey": true}}
+- If Send click returns an error, immediately try: ${navigator.userAgent?.includes('Macintosh') ? '{"tool": "keyPress", "params": {"key": "Enter", "metaKey": true}}' : '{"tool": "keyPress", "params": {"key": "Enter", "ctrlKey": true}}'}
 - Do NOT retry clicking Send with a manually constructed selector`,
   form: "Fill all required fields, then submit. If you don't see a submit button after filling fields, scroll down -- long forms often have buttons at the bottom. When completing, describe exactly what information was submitted and confirm the form was processed successfully. Example result: 'I successfully filled out the contact form with your name, email, and message, then submitted it. The page confirmed your message was received and you should expect a response within 24 hours.'",
   extraction: "Extract the requested information and provide the exact values found. Use systematic scrolling: extract visible items, scroll down, repeat until atBottom. When completing, include all the specific data extracted, not generic statements. For numerical data (prices, ratings, stats), use a ```chart block to visualize comparisons. For structured data with multiple fields, use markdown tables. Example result: 'I extracted the following product details: Price $299.99, Rating 4.8/5 stars, Stock: 15 units available, Shipping: Free 2-day delivery.'",
@@ -231,7 +233,7 @@ class AIIntegration {
     // Stores message history per session to avoid rebuilding full context each iteration
     this.conversationHistory = [];
     this.conversationSessionId = null;
-    this.maxConversationTurns = 8; // Keep last 8 user+assistant pairs
+    this.maxConversationTurns = 4; // PERF: Reduced from 8 to 4 -- session memory and compacted summary preserve older context
 
     // Session memory: structured facts extracted locally each turn
     this.sessionMemory = null;
@@ -1832,7 +1834,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
     // PROMPT SIZE LIMITS: Cap element count and HTML context when stuck to prevent 49K+ prompts
     const MAX_ELEMENTS_STUCK = 20;  // Only top 20 relevant elements when stuck
     const MAX_HTML_CONTEXT_STUCK = 5000; // 5K chars max for HTML context when stuck
-    const HARD_PROMPT_CAP = 15000; // Hard cap on total user prompt characters
+    const HARD_PROMPT_CAP = 5000; // PERF: Reduced from 15K to 5K -- structured element data is the primary AI input
 
     // Handle delta updates differently
     if (domState._isDelta && domState.type === 'delta') {
@@ -2951,7 +2953,8 @@ What actions should I take to complete the task?`;
         'Coding Platforms': 'general',
         'Travel & Booking': 'form',
         'Finance & Trading': 'extraction',
-        'Email Platforms': 'email'
+        'Email Platforms': 'email',
+        'Gaming Platforms': 'extraction'
       };
       const guideTaskType = guideToTaskType[siteGuide.name];
       // Guide provides a default, but explicit keywords can still override
@@ -3116,10 +3119,12 @@ What actions should I take to complete the task?`;
       },
       waitForElement: { params: {selector: "...", timeout: 5000}, desc: "Wait for element" },
       pressEnter: { params: {selector: "..."}, desc: "Press Enter key" },
-      keyPress: { 
-        params: {key: "Enter", ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, selector: "..."}, 
-        desc: "Press any keyboard key with modifiers. FOR GAMES: Use this instead of 'type' for controls",
-        example: '{"tool": "keyPress", "params": {"key": "Enter"}} // Start game\n{"tool": "keyPress", "params": {"key": "ArrowUp"}} // Move up\n{"tool": "keyPress", "params": {"key": " "}} // Space key for shooting' 
+      keyPress: {
+        params: {key: "Enter", ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, selector: "..."},
+        desc: `Press any keyboard key with modifiers. FOR GAMES: Use this instead of 'type' for controls.${navigator.userAgent?.includes('Macintosh') ? ' PLATFORM: macOS detected -- use metaKey: true (NOT ctrlKey) for Cmd shortcuts like Cmd+Enter, Cmd+C, Cmd+V, Cmd+A.' : ''}`,
+        example: navigator.userAgent?.includes('Macintosh')
+          ? '{"tool": "keyPress", "params": {"key": "Enter", "metaKey": true}} // Cmd+Enter (macOS)\n{"tool": "keyPress", "params": {"key": "ArrowUp"}} // Move up\n{"tool": "keyPress", "params": {"key": " "}} // Space key'
+          : '{"tool": "keyPress", "params": {"key": "Enter"}} // Start game\n{"tool": "keyPress", "params": {"key": "ArrowUp"}} // Move up\n{"tool": "keyPress", "params": {"key": " "}} // Space key for shooting'
       },
       pressKeySequence: { 
         params: {keys: ["Ctrl", "c"], modifiers: {ctrl: true}, delay: 50}, 
