@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - FSB Background Agents</title>
+  <meta name="description" content="Monitor your FSB background agents, view run history, and track cost savings.">
+  <link rel="icon" type="image/png" href="assets/icon48.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <script>
+  (function(){if(localStorage.getItem('fsb-showcase-theme')==='light'){document.documentElement.setAttribute('data-theme','light')}})();
+  </script>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-brand">
+        <img src="assets/icon128.png" alt="FSB Logo">
+        <span>FSB</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="about.html">About</a>
+        <a href="dashboard.html" class="active">Dashboard</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html">Support</a>
+      </div>
+      <div class="nav-actions">
+        <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-sm btn-github">
+          <i class="fa-brands fa-github"></i> GitHub
+        </a>
+      </div>
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile nav -->
+  <div class="nav-mobile">
+    <a href="index.html">Home</a>
+    <a href="about.html">About</a>
+    <a href="dashboard.html" class="active">Dashboard</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+    <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">
+      <i class="fa-brands fa-github"></i> GitHub
+    </a>
+  </div>
+
+  <!-- Login Section -->
+  <section id="dash-login" class="dash-login-section section">
+    <div class="container">
+      <div class="dash-login-card">
+        <div class="dash-login-icon">
+          <i class="fa-solid fa-key"></i>
+        </div>
+        <h2>Agent Dashboard</h2>
+        <p>Paste your hash key from the FSB extension to view your background agents.</p>
+        <div class="dash-login-form">
+          <input type="text" id="dash-key-input" class="dash-input" placeholder="Enter your hash key..." spellcheck="false" autocomplete="off">
+          <button id="dash-connect-btn" class="btn btn-primary">
+            <i class="fa-solid fa-plug"></i> Connect
+          </button>
+        </div>
+        <p class="dash-login-hint">Find your hash key in the FSB extension settings under Server Sync.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Dashboard Content -->
+  <section id="dash-content" class="dash-content-section section" style="display: none;">
+    <div class="container">
+
+      <!-- Header -->
+      <div class="dash-header">
+        <div class="dash-header-left">
+          <h2>Your Agents</h2>
+          <span id="dash-agent-count" class="dash-badge">0 agents</span>
+          <span id="dash-sse-status" class="dash-sse-badge dash-sse-disconnected">offline</span>
+        </div>
+        <button id="dash-disconnect-btn" class="btn btn-outline btn-sm">
+          <i class="fa-solid fa-right-from-bracket"></i> Disconnect
+        </button>
+      </div>
+
+      <!-- Stats Bar -->
+      <div class="dash-stats-bar">
+        <div class="dash-stat-card">
+          <div class="dash-stat-value" id="stat-agents">0</div>
+          <div class="dash-stat-label">Agents</div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-value" id="stat-enabled">0</div>
+          <div class="dash-stat-label">Active</div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-value" id="stat-runs-today">0</div>
+          <div class="dash-stat-label">Runs Today</div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-value" id="stat-success-rate">0%</div>
+          <div class="dash-stat-label">Success Rate</div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-value" id="stat-total-cost">$0.00</div>
+          <div class="dash-stat-label">Total Cost</div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-value" id="stat-cost-saved">$0.00</div>
+          <div class="dash-stat-label">Cost Saved</div>
+        </div>
+      </div>
+
+      <!-- Agent Grid -->
+      <div id="dash-agent-grid" class="dash-agent-grid">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- Run History (expanded below selected agent) -->
+      <div id="dash-runs-panel" class="dash-runs-panel" style="display: none;">
+        <div class="dash-runs-header">
+          <h3 id="dash-runs-title">Run History</h3>
+          <button id="dash-runs-close" class="dash-runs-close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="dash-runs-list" class="dash-runs-list">
+          <!-- Populated by JS -->
+        </div>
+        <div id="dash-runs-pagination" class="dash-runs-pagination"></div>
+      </div>
+
+      <!-- Empty state -->
+      <div id="dash-empty" class="dash-empty" style="display: none;">
+        <i class="fa-solid fa-robot"></i>
+        <p>No agents found. Create a background agent in the FSB extension to see it here.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img src="assets/icon48.png" alt="FSB">
+          <span>FSB</span>
+        </div>
+        <div class="footer-links">
+          <div class="footer-column">
+            <h4>Pages</h4>
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="dashboard.html">Dashboard</a>
+            <a href="privacy.html">Privacy</a>
+            <a href="support.html">Support</a>
+          </div>
+          <div class="footer-column">
+            <h4>Project</h4>
+            <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">Issues</a>
+            <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>Made by Lakshman Turlapati</p>
+        <p>FSB v0.9</p>
+      </div>
+    </div>
+  </footer>
+
+  <button class="theme-toggle-btn" aria-label="Toggle theme">
+    <i class="ph ph-sun"></i>
+  </button>
+
+  <script src="js/main.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

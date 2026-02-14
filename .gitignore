@@ -35,6 +35,3 @@ config/secrets.json
 # Log files with potential secrets
 Logs/
 Extenive logs, multiple scenariaos.txt
-
-# Showcase assets
-Showcase/

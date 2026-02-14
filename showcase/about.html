@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About FSB - Full Self-Browsing</title>
+  <meta name="description" content="See FSB in action through interactive CSS recreations of the browser automation experience.">
+  <link rel="icon" type="image/png" href="assets/icon48.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/recreations.css">
+  <link rel="stylesheet" href="css/about.css">
+  <script>
+  (function(){if(localStorage.getItem('fsb-showcase-theme')==='light'){document.documentElement.setAttribute('data-theme','light')}})();
+  </script>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-brand">
+        <img src="assets/icon128.png" alt="FSB Logo">
+        <span>FSB</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="about.html" class="active">About</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html">Support</a>
+      </div>
+      <div class="nav-actions">
+        <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-sm btn-github">
+          <i class="fa-brands fa-github"></i> GitHub
+        </a>
+      </div>
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+  <div class="nav-mobile">
+    <a href="index.html">Home</a>
+    <a href="about.html" class="active">About</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+    <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub</a>
+  </div>
+
+  <!-- Page Header -->
+  <section class="about-hero">
+    <div class="container">
+      <h1>See FSB in <span class="text-orange">Action</span></h1>
+    </div>
+  </section>
+
+  <!-- Recreation 1: FSB on Google Search -->
+  <section class="recreation-section section">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>FSB on Google Search</h2>
+        <p>FSB searches for information and clicks through results autonomously.</p>
+      </div>
+      <div class="browser-frame reveal-scale">
+        <div class="browser-topbar">
+          <div class="browser-dots">
+            <span class="dot-red"></span>
+            <span class="dot-yellow"></span>
+            <span class="dot-green"></span>
+          </div>
+          <div class="browser-address">
+            <i class="fa-solid fa-lock" style="margin-right: 6px; font-size: 10px;"></i>
+            www.google.com/search?q=latest+AI+news
+          </div>
+        </div>
+        <div class="browser-content">
+          <!-- Google Search Page -->
+          <div class="rec-google-page">
+            <!-- Viewport glow -->
+            <div class="rec-viewport-glow">
+              <div class="rec-glow-ambient"></div>
+              <div class="rec-glow-bar top"></div>
+              <div class="rec-glow-bar right"></div>
+              <div class="rec-glow-bar bottom"></div>
+              <div class="rec-glow-bar left"></div>
+            </div>
+
+            <!-- Google Header: Logo + Search Bar -->
+            <div class="rec-google-header">
+              <div class="rec-google-logo">
+                <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png" alt="Google" />
+              </div>
+              <div class="rec-google-searchbar">
+                <span class="rec-searchbar-text">latest AI news</span>
+                <span class="rec-searchbar-clear">&#x2715;</span>
+                <span class="rec-searchbar-divider"></span>
+                <i class="fa-solid fa-microphone rec-searchbar-icon"></i>
+                <i class="fa-solid fa-magnifying-glass rec-searchbar-icon"></i>
+              </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="rec-google-nav">
+              <a class="rec-google-nav-tab active"><i class="fa-solid fa-magnifying-glass"></i> All</a>
+              <a class="rec-google-nav-tab"><i class="fa-regular fa-image"></i> Images</a>
+              <a class="rec-google-nav-tab"><i class="fa-solid fa-video"></i> Videos</a>
+              <a class="rec-google-nav-tab"><i class="fa-regular fa-newspaper"></i> News</a>
+              <a class="rec-google-nav-tab"><i class="fa-solid fa-map-location-dot"></i> Maps</a>
+              <a class="rec-google-nav-tab">More</a>
+            </div>
+
+            <!-- Result Count -->
+            <div class="rec-google-result-count">About 1,240,000,000 results (0.42 seconds)</div>
+
+            <!-- Search Results -->
+            <div class="rec-google-results">
+              <div class="rec-google-result rec-element-highlight">
+                <div class="rec-result-site">
+                  <span class="rec-result-favicon" style="background: #0a9e28;">T</span>
+                  <div class="rec-result-site-info">
+                    <span class="rec-result-site-name">TechCrunch</span>
+                    <span class="rec-result-url">https://techcrunch.com &rsaquo; ai-news</span>
+                  </div>
+                </div>
+                <div class="rec-result-title">Latest AI News and Breakthroughs - TechCrunch</div>
+                <div class="rec-result-snippet">The latest developments in artificial intelligence, including new model releases, industry partnerships, and research breakthroughs...</div>
+              </div>
+              <div class="rec-google-result">
+                <div class="rec-result-site">
+                  <span class="rec-result-favicon" style="background: #f26522;">R</span>
+                  <div class="rec-result-site-info">
+                    <span class="rec-result-site-name">Reuters</span>
+                    <span class="rec-result-url">https://reuters.com &rsaquo; technology &rsaquo; ai</span>
+                  </div>
+                </div>
+                <div class="rec-result-title">AI Industry Updates and Analysis - Reuters</div>
+                <div class="rec-result-snippet">Comprehensive coverage of artificial intelligence trends, policy developments, and enterprise adoption across global markets...</div>
+              </div>
+              <div class="rec-google-result">
+                <div class="rec-result-site">
+                  <span class="rec-result-favicon" style="background: #ff4500;">A</span>
+                  <div class="rec-result-site-info">
+                    <span class="rec-result-site-name">Ars Technica</span>
+                    <span class="rec-result-url">https://arstechnica.com &rsaquo; ai</span>
+                  </div>
+                </div>
+                <div class="rec-result-title">AI Research and Applications - Ars Technica</div>
+                <div class="rec-result-snippet">In-depth analysis of AI research papers, model benchmarks, and practical applications shaping the future of technology...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- FSB Side Panel -->
+          <div class="rec-sidepanel">
+            <div class="rec-sp-header">
+              <div class="rec-sp-header-info">
+                <span class="rec-sp-title">FSB</span>
+                <div class="rec-sp-status">
+                  <div class="rec-status-dot running"></div>
+                  <span class="rec-status-text">Automating</span>
+                </div>
+              </div>
+              <div class="rec-sp-actions">
+                <div class="rec-sp-icon-btn"><i class="fa-solid fa-gear"></i></div>
+              </div>
+            </div>
+            <div class="rec-messages">
+              <div class="rec-msg user">Search for the latest AI news and summarize the top 3 results</div>
+              <div class="rec-msg system">Connected to tab</div>
+              <div class="rec-msg action">searchGoogle("latest AI news")</div>
+              <div class="rec-msg ai">Found search results. Clicking the first result to read the article...</div>
+              <div class="rec-msg action">click("#result-1 a")</div>
+              <div class="rec-msg status">
+                <div class="rec-typing-dots">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <span>Analyzing page content...</span>
+              </div>
+            </div>
+            <div class="rec-sp-input">
+              <div class="rec-sp-input-inner">
+                <span class="rec-sp-input-text">Type a message...</span>
+                <div class="rec-sp-send-btn"><i class="fa-solid fa-arrow-up"></i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Recreation 2: Dashboard Analytics -->
+  <section class="recreation-section section">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>Dashboard Analytics</h2>
+        <p>Track usage, costs, success rates, and session history from the options dashboard.</p>
+      </div>
+      <div class="browser-frame reveal-scale">
+        <div class="browser-topbar">
+          <div class="browser-dots">
+            <span class="dot-red"></span>
+            <span class="dot-yellow"></span>
+            <span class="dot-green"></span>
+          </div>
+          <div class="browser-address">
+            <i class="fa-solid fa-puzzle-piece" style="margin-right: 6px; font-size: 10px;"></i>
+            chrome-extension://...id.../options.html
+          </div>
+        </div>
+        <div class="browser-content">
+          <div class="rec-dashboard">
+            <!-- Header bar -->
+            <div class="rec-dashboard-header">
+              <div class="rec-header-left">
+                <button class="rec-header-menu" style="display: none;">
+                  <i class="fa-solid fa-bars"></i>
+                </button>
+              </div>
+              <div class="rec-header-right">
+                <div class="rec-header-status">
+                  <i class="fa-solid fa-circle rec-header-status-dot"></i>
+                </div>
+                <button class="rec-header-btn">
+                  <i class="fa-solid fa-plug"></i> Test API
+                </button>
+                <button class="rec-header-btn">
+                  <i class="fa-solid fa-download"></i> Export
+                </button>
+                <button class="rec-header-btn rec-header-theme-toggle">
+                  <i class="fa-solid fa-moon"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="rec-dashboard-body">
+              <!-- Sidebar -->
+              <div class="rec-sidebar">
+                <div class="rec-sidebar-item active">
+                  <i class="fa-solid fa-tachometer-alt"></i> Dashboard
+                </div>
+                <div class="rec-sidebar-item">
+                  <i class="fa-solid fa-key"></i> API Configuration
+                </div>
+                <div class="rec-sidebar-item">
+                  <i class="fa-solid fa-lock"></i> Passwords <span class="rec-badge-beta">Beta</span>
+                </div>
+                <div class="rec-sidebar-item">
+                  <i class="fa-solid fa-sliders-h"></i> Advanced Settings
+                </div>
+                <div class="rec-sidebar-item">
+                  <i class="fa-solid fa-terminal"></i> Logs & Debugging
+                </div>
+                <div class="rec-sidebar-item">
+                  <i class="fa-solid fa-question-circle"></i> Help & Documentation
+                </div>
+              </div>
+
+              <!-- Main content -->
+              <div class="rec-main-content">
+                <!-- Analytics hero -->
+                <div class="rec-analytics-hero reveal">
+                  <div class="rec-metric">
+                    <div class="rec-metric-value" data-count="24580" data-suffix="">0</div>
+                    <div class="rec-metric-label">Total Tokens</div>
+                  </div>
+                  <div class="rec-metric">
+                    <div class="rec-metric-value" data-count="1.47" data-prefix="$" data-suffix="">$0</div>
+                    <div class="rec-metric-label">Total Cost</div>
+                  </div>
+                  <div class="rec-metric">
+                    <div class="rec-metric-value" data-count="142" data-suffix="">0</div>
+                    <div class="rec-metric-label">Requests</div>
+                  </div>
+                  <div class="rec-metric">
+                    <div class="rec-metric-value" data-count="98.5" data-suffix="%">0%</div>
+                    <div class="rec-metric-label">Success Rate</div>
+                  </div>
+                </div>
+
+                <!-- Line chart -->
+                <div class="rec-chart">
+                  <div class="rec-chart-header">
+                    <div class="rec-chart-title">Token Usage Over Time</div>
+                    <select class="rec-chart-select">
+                      <option>Last 24 Hours</option>
+                      <option>Last 7 Days</option>
+                      <option>Last 30 Days</option>
+                    </select>
+                  </div>
+                  <div class="rec-chart-line">
+                    <svg viewBox="0 0 400 140" preserveAspectRatio="none" class="rec-line-svg">
+                      <defs>
+                        <linearGradient id="recLineGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.3"/>
+                          <stop offset="100%" stop-color="var(--primary)" stop-opacity="0.02"/>
+                        </linearGradient>
+                      </defs>
+                      <polygon points="0,140 0,110 40,95 80,100 120,70 160,80 200,45 240,55 280,30 320,40 360,20 400,35 400,140" fill="url(#recLineGrad)"/>
+                      <polyline points="0,110 40,95 80,100 120,70 160,80 200,45 240,55 280,30 320,40 360,20 400,35" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                </div>
+
+                <!-- Session history -->
+                <div class="rec-sessions">
+                  <div class="rec-session-card">
+                    <div class="rec-session-info">
+                      <span class="rec-session-task">Search for flight prices SF to NYC</span>
+                      <span class="rec-session-time">Today, 2:34 PM -- 8 iterations, 12s</span>
+                    </div>
+                    <span class="rec-session-badge completed">Completed</span>
+                  </div>
+                  <div class="rec-session-card">
+                    <div class="rec-session-info">
+                      <span class="rec-session-task">Fill out contact form on example.com</span>
+                      <span class="rec-session-time">Today, 1:15 PM -- 5 iterations, 8s</span>
+                    </div>
+                    <span class="rec-session-badge completed">Completed</span>
+                  </div>
+                  <div class="rec-session-card">
+                    <div class="rec-session-info">
+                      <span class="rec-session-task">Compare laptop prices across sites</span>
+                      <span class="rec-session-time">Yesterday, 4:02 PM -- 12 iterations, 25s</span>
+                    </div>
+                    <span class="rec-session-badge stopped">Stopped</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Recreation 3: FSB Automating a Form -->
+  <section class="recreation-section section">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>FSB Automating a Form</h2>
+        <p>Watch FSB fill out forms intelligently, field by field, with visual feedback.</p>
+      </div>
+      <div class="browser-frame reveal-scale">
+        <div class="browser-topbar">
+          <div class="browser-dots">
+            <span class="dot-red"></span>
+            <span class="dot-yellow"></span>
+            <span class="dot-green"></span>
+          </div>
+          <div class="browser-address">
+            <i class="fa-solid fa-lock" style="margin-right: 6px; font-size: 10px;"></i>
+            https://example.com/contact
+          </div>
+        </div>
+        <div class="browser-content">
+          <!-- Contact form page -->
+          <div class="rec-form-page">
+            <!-- Viewport glow -->
+            <div class="rec-viewport-glow">
+              <div class="rec-glow-ambient"></div>
+              <div class="rec-glow-bar top"></div>
+              <div class="rec-glow-bar right"></div>
+              <div class="rec-glow-bar bottom"></div>
+              <div class="rec-glow-bar left"></div>
+            </div>
+
+            <!-- Progress overlay -->
+            <div class="rec-progress-overlay">
+              <div class="rec-overlay-header">
+                <img class="rec-overlay-logo" src="assets/icon48.png" alt="FSB">
+                <span class="rec-overlay-title">FSB Automating</span>
+              </div>
+              <div class="rec-overlay-task">Fill contact form with test data</div>
+              <div class="rec-overlay-step">
+                <span class="rec-overlay-step-badge">Iter 3/6</span>
+                <span class="rec-overlay-step-text">Typing email address...</span>
+              </div>
+              <div class="rec-progress-track">
+                <div class="rec-progress-fill" data-width="50%"></div>
+              </div>
+            </div>
+
+            <div class="rec-contact-form">
+              <div class="rec-form-title">Contact Us</div>
+              <div class="rec-form-group">
+                <label class="rec-form-label">Full Name</label>
+                <div class="rec-form-input filled">John Doe</div>
+              </div>
+              <div class="rec-form-group">
+                <label class="rec-form-label">Email Address</label>
+                <div class="rec-form-input filled highlighted rec-element-highlight">john.doe@email.c</div>
+              </div>
+              <div class="rec-form-group">
+                <label class="rec-form-label">Message</label>
+                <div class="rec-form-textarea">Write your message here...</div>
+              </div>
+              <div class="rec-form-submit">
+                <i class="fa-solid fa-paper-plane"></i> Submit
+              </div>
+            </div>
+          </div>
+
+          <!-- FSB Side Panel -->
+          <div class="rec-sidepanel">
+            <div class="rec-sp-header">
+              <div class="rec-sp-header-info">
+                <span class="rec-sp-title">FSB</span>
+                <div class="rec-sp-status">
+                  <div class="rec-status-dot running"></div>
+                  <span class="rec-status-text">Automating</span>
+                </div>
+              </div>
+              <div class="rec-sp-actions">
+                <div class="rec-sp-icon-btn"><i class="fa-solid fa-gear"></i></div>
+              </div>
+            </div>
+            <div class="rec-messages">
+              <div class="rec-msg user">Fill out the contact form with test data</div>
+              <div class="rec-msg system">Connected to tab</div>
+              <div class="rec-msg ai">I can see a contact form with Name, Email, and Message fields. I'll fill them in order.</div>
+              <div class="rec-msg action">click("#name-input")</div>
+              <div class="rec-msg action">type("John Doe")</div>
+              <div class="rec-msg action">click("#email-input")</div>
+              <div class="rec-msg status">
+                <div class="rec-typing-dots">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <span>Typing email address...</span>
+              </div>
+            </div>
+            <div class="rec-sp-input">
+              <div class="rec-sp-input-inner">
+                <span class="rec-sp-input-text">Type a message...</span>
+                <div class="rec-sp-send-btn"><i class="fa-solid fa-arrow-up"></i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture Diagram -->
+  <section class="arch-section section">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>Architecture</h2>
+        <p>How FSB's components communicate to automate browser tasks.</p>
+      </div>
+      <div class="arch-diagram reveal">
+        <!-- Row 1: User interfaces -->
+        <div class="arch-row">
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-message"></i></div>
+            <h4>Popup UI</h4>
+            <p>Quick chat interface</p>
+          </div>
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-columns"></i></div>
+            <h4>Side Panel</h4>
+            <p>Persistent automation view</p>
+          </div>
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-gauge-high"></i></div>
+            <h4>Options Dashboard</h4>
+            <p>Settings and analytics</p>
+          </div>
+        </div>
+
+        <div class="arch-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+
+        <!-- Row 2: Background -->
+        <div class="arch-row">
+          <div class="arch-box primary">
+            <div class="arch-icon"><i class="fa-solid fa-server"></i></div>
+            <h4>Background Service Worker</h4>
+            <p>Session management, AI communication, message routing</p>
+          </div>
+        </div>
+
+        <div class="arch-row" style="gap: 80px;">
+          <div style="text-align: center;">
+            <div class="arch-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+          </div>
+          <div style="text-align: center;">
+            <div class="arch-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+          </div>
+        </div>
+
+        <!-- Row 3: Content Script + AI -->
+        <div class="arch-row">
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-code"></i></div>
+            <h4>Content Script</h4>
+            <p>DOM analysis, action execution, direct credential fill</p>
+          </div>
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-brain"></i></div>
+            <h4>AI Provider</h4>
+            <p>xAI / OpenAI / Anthropic / Gemini</p>
+          </div>
+        </div>
+
+        <div class="arch-row" style="justify-content: flex-start; padding-left: calc(50% - 100px);">
+          <div class="arch-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+        </div>
+
+        <!-- Row 4: Web Page -->
+        <div class="arch-row" style="justify-content: flex-start; padding-left: calc(50% - 100px);">
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-globe"></i></div>
+            <h4>Web Page</h4>
+            <p>Target page DOM</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Action Library -->
+  <section class="action-library section">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>Action Library</h2>
+        <p>40+ browser actions organized by category, all executable through natural language.</p>
+      </div>
+      <div class="action-categories">
+        <div class="action-category reveal delay-1">
+          <h4><i class="fa-solid fa-compass"></i> Navigation</h4>
+          <div class="action-list">
+            <span class="action-tag">navigate</span>
+            <span class="action-tag">searchGoogle</span>
+            <span class="action-tag">refresh</span>
+            <span class="action-tag">goBack</span>
+            <span class="action-tag">goForward</span>
+          </div>
+        </div>
+        <div class="action-category reveal delay-2">
+          <h4><i class="fa-solid fa-hand-pointer"></i> Clicking</h4>
+          <div class="action-list">
+            <span class="action-tag">click</span>
+            <span class="action-tag">rightClick</span>
+            <span class="action-tag">doubleClick</span>
+            <span class="action-tag">hover</span>
+            <span class="action-tag">focus</span>
+            <span class="action-tag">blur</span>
+          </div>
+        </div>
+        <div class="action-category reveal delay-3">
+          <h4><i class="fa-solid fa-keyboard"></i> Text Input</h4>
+          <div class="action-list">
+            <span class="action-tag">type</span>
+            <span class="action-tag">clearInput</span>
+            <span class="action-tag">selectText</span>
+            <span class="action-tag">pressEnter</span>
+            <span class="action-tag">keyPress</span>
+            <span class="action-tag">typeInto</span>
+            <span class="action-tag">clearAndType</span>
+            <span class="action-tag">pasteText</span>
+          </div>
+        </div>
+        <div class="action-category reveal delay-4">
+          <h4><i class="fa-solid fa-list-check"></i> Forms</h4>
+          <div class="action-list">
+            <span class="action-tag">selectOption</span>
+            <span class="action-tag">toggleCheckbox</span>
+          </div>
+        </div>
+        <div class="action-category reveal delay-5">
+          <h4><i class="fa-solid fa-circle-info"></i> Information</h4>
+          <div class="action-list">
+            <span class="action-tag">getText</span>
+            <span class="action-tag">getAttribute</span>
+            <span class="action-tag">setAttribute</span>
+          </div>
+        </div>
+        <div class="action-category reveal delay-6">
+          <h4><i class="fa-solid fa-arrows-up-down"></i> Scrolling</h4>
+          <div class="action-list">
+            <span class="action-tag">scroll</span>
+            <span class="action-tag">scrollToElement</span>
+            <span class="action-tag">scrollToTop</span>
+            <span class="action-tag">scrollToBottom</span>
+          </div>
+        </div>
+        <div class="action-category reveal delay-1">
+          <h4><i class="fa-solid fa-window-restore"></i> Multi-Tab</h4>
+          <div class="action-list">
+            <span class="action-tag">openTab</span>
+            <span class="action-tag">closeTab</span>
+            <span class="action-tag">switchTab</span>
+            <span class="action-tag">listTabs</span>
+            <span class="action-tag">duplicateTab</span>
+            <span class="action-tag">moveTab</span>
+          </div>
+        </div>
+        <div class="action-category reveal delay-2">
+          <h4><i class="fa-solid fa-clock"></i> Waiting</h4>
+          <div class="action-list">
+            <span class="action-tag">waitForElement</span>
+            <span class="action-tag">waitForDOMStable</span>
+            <span class="action-tag">detectLoadingState</span>
+            <span class="action-tag">sleep</span>
+          </div>
+        </div>
+        <div class="action-category reveal delay-3">
+          <h4><i class="fa-solid fa-wand-magic-sparkles"></i> Special</h4>
+          <div class="action-list">
+            <span class="action-tag">moveMouse</span>
+            <span class="action-tag">solveCaptcha</span>
+            <span class="action-tag">screenshot</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img src="assets/icon48.png" alt="FSB">
+          <span>FSB</span>
+        </div>
+        <div class="footer-links">
+          <div class="footer-column">
+            <h4>Pages</h4>
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="dashboard.html">Dashboard</a>
+            <a href="privacy.html">Privacy</a>
+            <a href="support.html">Support</a>
+          </div>
+          <div class="footer-column">
+            <h4>Project</h4>
+            <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">Issues</a>
+            <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>Made by Lakshman Turlapati</p>
+        <p>FSB v0.9</p>
+      </div>
+    </div>
+  </footer>
+
+  <button class="theme-toggle-btn" aria-label="Toggle theme">
+    <i class="ph ph-sun"></i>
+  </button>
+
+  <script src="js/main.js"></script>
+  <script src="js/recreations.js"></script>
+</body>
+</html>

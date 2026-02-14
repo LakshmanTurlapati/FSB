@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support - FSB</title>
+  <meta name="description" content="Get help with FSB. FAQ, troubleshooting guides, and contact information.">
+  <link rel="icon" type="image/png" href="assets/icon48.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/support.css">
+  <script>
+  (function(){if(localStorage.getItem('fsb-showcase-theme')==='light'){document.documentElement.setAttribute('data-theme','light')}})();
+  </script>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-brand">
+        <img src="assets/icon128.png" alt="FSB Logo">
+        <span>FSB</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="about.html">About</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html" class="active">Support</a>
+      </div>
+      <div class="nav-actions">
+        <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-sm btn-github">
+          <i class="fa-brands fa-github"></i> GitHub
+        </a>
+      </div>
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+  <div class="nav-mobile">
+    <a href="index.html">Home</a>
+    <a href="about.html">About</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html" class="active">Support</a>
+    <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub</a>
+  </div>
+
+  <section class="support-page">
+    <div class="container">
+      <div class="support-header reveal">
+        <h1>Support</h1>
+        <p>Find answers to common questions, troubleshoot issues, or reach out for help.</p>
+      </div>
+
+      <!-- FAQ -->
+      <div class="faq-section">
+        <h2 class="reveal">Frequently Asked Questions</h2>
+        <div class="faq-list">
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>How do I install FSB?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>Clone the repository from <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>, open Chrome and go to <code>chrome://extensions</code>, enable Developer Mode, click "Load unpacked" and select the FSB folder. The extension icon will appear in your toolbar.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Which AI provider should I use?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>We recommend <strong>xAI Grok 4.1 Fast</strong> for the best balance of speed and accuracy. It has a 2M token context window and costs $0.20/$0.50 per million tokens. For a free option, try <strong>Gemini 2.0 Flash</strong> (experimental). For maximum quality, use <strong>Claude Opus 4.1</strong> or <strong>Grok 4.1</strong>.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>How much does it cost to use?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>FSB itself is free. You only pay for the AI provider API usage. A typical automation task uses a few thousand tokens, costing fractions of a cent with budget models. Gemini 2.0 Flash is completely free (experimental). The dashboard tracks your spending in real time.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Which browsers are supported?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>FSB supports Chrome 88+ and all Chromium-based browsers including Microsoft Edge, Brave, Opera, and Vivaldi. Firefox support is planned for a future release.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Are my API keys secure?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>Yes. API keys are encrypted using AES-GCM before being stored in Chrome's local storage. They are only decrypted in-memory when making API calls. Keys are never logged, exported, or transmitted to any server other than your chosen AI provider.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>What happens if an automation fails?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>FSB has built-in stuck detection and recovery. If it detects it is repeating actions or not making progress, it will try alternative strategies. If all recovery attempts fail, it stops gracefully and reports what happened in the chat. You can always stop automation manually at any time.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Can FSB handle CAPTCHAs?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>FSB can detect CAPTCHAs and will pause automation when one is encountered. Full CAPTCHA solver integration (supporting services like 2Captcha and CapSolver) is planned for a future release. For now, you can solve the CAPTCHA manually and then resume.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Is FSB safe to use?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>FSB includes action validation and safety checks. It only performs actions on the current tab and only when explicitly instructed. All code is open source and auditable. That said, use caution with tasks involving sensitive accounts or financial transactions -- always review what FSB is doing.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>How do I report a bug?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>Open an issue on the <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">GitHub Issues</a> page. Include the website URL, your task description, and any error messages from the FSB chat or browser console. Session logs from the Debug tab in Options can also help.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>How can I contribute?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>FSB is open source under the MIT License. Fork the repository, make your changes, and submit a pull request. Check the CLAUDE.md file for architecture details and coding guidelines. Contributions of all kinds are welcome -- code, documentation, bug reports, and feature suggestions.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Troubleshooting -->
+      <div class="troubleshooting-section">
+        <h2 class="reveal">Common Issues</h2>
+        <div class="troubleshooting-grid">
+          <div class="trouble-card reveal delay-1">
+            <div class="trouble-icon"><i class="fa-solid fa-plug-circle-xmark"></i></div>
+            <h3>API Connection Failed</h3>
+            <p>The extension cannot reach the AI provider's API endpoint.</p>
+            <div class="trouble-fix">
+              <div class="trouble-fix-label">Fix</div>
+              <p>Verify your API key in Options. Check that the correct provider and model are selected. Ensure you have internet connectivity and the provider's service is not experiencing downtime.</p>
+            </div>
+          </div>
+          <div class="trouble-card reveal delay-2">
+            <div class="trouble-icon"><i class="fa-solid fa-puzzle-piece"></i></div>
+            <h3>Extension Not Responding</h3>
+            <p>The FSB icon is grayed out or clicking it does nothing.</p>
+            <div class="trouble-fix">
+              <div class="trouble-fix-label">Fix</div>
+              <p>Go to <code>chrome://extensions</code>, find FSB, and click the refresh button. If that does not work, remove and re-load the extension. Make sure you are not on a chrome:// or edge:// page.</p>
+            </div>
+          </div>
+          <div class="trouble-card reveal delay-3">
+            <div class="trouble-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <h3>Actions Not Working</h3>
+            <p>FSB clicks or types but nothing happens on the page.</p>
+            <div class="trouble-fix">
+              <div class="trouble-fix-label">Fix</div>
+              <p>Some websites use dynamic rendering that changes element selectors. Try refreshing the page and re-running the task. Enable Debug Mode in Options to see detailed action logs. Some sites with heavy anti-bot measures may block automated interactions.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contact -->
+      <div class="contact-section reveal">
+        <h2>Need More Help?</h2>
+        <p>If you cannot find an answer here, reach out through GitHub.</p>
+        <div class="contact-links">
+          <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener" class="btn btn-primary">
+            <i class="fa-solid fa-bug"></i> Report an Issue
+          </a>
+          <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-outline">
+            <i class="fa-brands fa-github"></i> View Repository
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img src="assets/icon48.png" alt="FSB">
+          <span>FSB</span>
+        </div>
+        <div class="footer-links">
+          <div class="footer-column">
+            <h4>Pages</h4>
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="dashboard.html">Dashboard</a>
+            <a href="privacy.html">Privacy</a>
+            <a href="support.html">Support</a>
+          </div>
+          <div class="footer-column">
+            <h4>Project</h4>
+            <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">Issues</a>
+            <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>Made by Lakshman Turlapati</p>
+        <p>FSB v0.9</p>
+      </div>
+    </div>
+  </footer>
+
+  <button class="theme-toggle-btn" aria-label="Toggle theme">
+    <i class="ph ph-sun"></i>
+  </button>
+
+  <script src="js/main.js"></script>
+  <script src="js/recreations.js"></script>
+</body>
+</html>

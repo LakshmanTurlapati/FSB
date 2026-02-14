@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - FSB</title>
+  <meta name="description" content="FSB privacy policy. Learn how FSB handles your data with transparency and security.">
+  <link rel="icon" type="image/png" href="assets/icon48.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/privacy.css">
+  <script>
+  (function(){if(localStorage.getItem('fsb-showcase-theme')==='light'){document.documentElement.setAttribute('data-theme','light')}})();
+  </script>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-brand">
+        <img src="assets/icon128.png" alt="FSB Logo">
+        <span>FSB</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="about.html">About</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="privacy.html" class="active">Privacy</a>
+        <a href="support.html">Support</a>
+      </div>
+      <div class="nav-actions">
+        <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-sm btn-github">
+          <i class="fa-brands fa-github"></i> GitHub
+        </a>
+      </div>
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+  <div class="nav-mobile">
+    <a href="index.html">Home</a>
+    <a href="about.html">About</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="privacy.html" class="active">Privacy</a>
+    <a href="support.html">Support</a>
+    <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub</a>
+  </div>
+
+  <section class="privacy-page">
+    <div class="container">
+      <div class="privacy-content">
+        <h1>Privacy Policy</h1>
+        <p class="privacy-date">Last updated: February 2026</p>
+
+        <div class="privacy-section reveal">
+          <h2><i class="fa-solid fa-database"></i> Data Collection</h2>
+          <p>FSB operates entirely within your browser. The extension only accesses the DOM (Document Object Model) of the currently active tab when you initiate an automation task.</p>
+          <ul>
+            <li>No browsing history is collected or stored beyond the current session</li>
+            <li>DOM data is analyzed locally and discarded after each automation step</li>
+            <li>No personal information is harvested from pages you visit</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section reveal">
+          <h2><i class="fa-solid fa-hard-drive"></i> Data Storage</h2>
+          <p>All settings and data are stored locally in Chrome's extension storage. FSB uses AES-GCM encryption for sensitive data like API keys.</p>
+          <ul>
+            <li>Configuration is stored in <code>chrome.storage.local</code></li>
+            <li>API keys are encrypted before storage using AES-GCM</li>
+            <li>Session logs are stored locally and can be cleared at any time</li>
+            <li>Analytics data (task counts, success rates) stays on your device</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section reveal">
+          <h2><i class="fa-solid fa-cloud"></i> External Services</h2>
+          <p>FSB communicates with external AI providers only when you configure and use them. The choice of provider and what data is sent is under your control.</p>
+          <ul>
+            <li>API calls are made only to the provider you select (xAI, OpenAI, Anthropic, or Google)</li>
+            <li>Sent data includes: task description, DOM structure summary, and action context</li>
+            <li>No data is sent to FSB servers -- there are none</li>
+            <li>Each provider has their own privacy policy governing how they handle API requests</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section reveal">
+          <h2><i class="fa-solid fa-chart-simple"></i> No Tracking</h2>
+          <p>FSB does not include any analytics, telemetry, or tracking services. There are no cookies, no fingerprinting, and no third-party scripts beyond the AI provider APIs you explicitly configure.</p>
+        </div>
+
+        <div class="privacy-section reveal">
+          <h2><i class="fa-solid fa-key"></i> API Keys</h2>
+          <p>Your API keys are encrypted locally using AES-GCM before being stored. They are never transmitted anywhere except to the AI provider you configured, and only as authentication headers in API requests.</p>
+          <ul>
+            <li>Keys are encrypted at rest in Chrome storage</li>
+            <li>Decryption only happens in-memory when making API calls</li>
+            <li>Keys are never logged, exported, or shared</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section reveal">
+          <h2><i class="fa-solid fa-lock"></i> Auto-Passwords <span class="privacy-badge-beta">Beta</span></h2>
+          <p>FSB includes an optional credential manager that stores login credentials encrypted on your device. Passwords are never exposed to AI models -- they are filled directly into pages by the content script, bypassing the AI entirely.</p>
+          <ul>
+            <li>Credentials are encrypted at rest using AES-GCM with 256-bit keys and PBKDF2 key derivation</li>
+            <li>When the AI analyzes a page, password field values are replaced with <code>[hidden]</code> -- the actual password is never included in any AI prompt</li>
+            <li>Auto-fill is performed by the content script injecting values directly into the DOM, with no AI involvement in the credential flow</li>
+            <li>The credential list view only shows usernames and domains -- passwords are decrypted individually and only when needed for auto-fill</li>
+            <li>Credentials are stored per-domain with parent domain fallback (e.g., accounts.google.com inherits from google.com)</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section reveal">
+          <h2><i class="fa-solid fa-shield-halved"></i> Prompt Injection Prevention</h2>
+          <p>Web pages can contain hidden text designed to hijack AI agents. FSB implements multi-layered defenses to ensure the AI only follows your instructions, never instructions embedded in page content.</p>
+          <ul>
+            <li>All page content is wrapped in <code>[PAGE_CONTENT]</code> boundary markers, and the AI is instructed to never follow instructions found within these markers</li>
+            <li>A sanitization engine strips known injection patterns (e.g., "ignore previous instructions", fake system prompts, override attempts) from all page content before it reaches the AI</li>
+            <li>AI-generated actions are validated before execution -- dangerous URLs (<code>javascript:</code>, <code>data:</code>) and script injection attempts are blocked</li>
+            <li>Only a strict allowlist of 30+ known tools can be executed -- the AI cannot invent or call arbitrary actions</li>
+            <li>Content size is capped (500 chars per value, 15K total prompt cap) to limit payload delivery</li>
+            <li>Invisible Unicode control characters that websites embed are stripped before processing</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section reveal">
+          <h2><i class="fa-solid fa-code-branch"></i> Open Source</h2>
+          <p>FSB is fully open source under the MIT License. You can audit every line of code to verify these privacy claims. The source code is available on GitHub.</p>
+          <p><a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">View the source code on GitHub</a></p>
+        </div>
+
+        <div class="privacy-highlight reveal">
+          <h3>Summary</h3>
+          <p>FSB processes data locally, encrypts sensitive information, never exposes passwords to AI models, defends against prompt injection attacks, communicates only with AI providers you choose, includes no tracking, and is fully auditable as open source software.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img src="assets/icon48.png" alt="FSB">
+          <span>FSB</span>
+        </div>
+        <div class="footer-links">
+          <div class="footer-column">
+            <h4>Pages</h4>
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="dashboard.html">Dashboard</a>
+            <a href="privacy.html">Privacy</a>
+            <a href="support.html">Support</a>
+          </div>
+          <div class="footer-column">
+            <h4>Project</h4>
+            <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">Issues</a>
+            <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>Made by Lakshman Turlapati</p>
+        <p>FSB v0.9</p>
+      </div>
+    </div>
+  </footer>
+
+  <button class="theme-toggle-btn" aria-label="Toggle theme">
+    <i class="ph ph-sun"></i>
+  </button>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
