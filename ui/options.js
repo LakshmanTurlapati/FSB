@@ -3623,9 +3623,207 @@ async function testServerConnection() {
   }
 }
 
-// Initialize agent section when DOM is ready
+// ===== Memory Dashboard =====
+
+let memorySearchDebounce = null;
+
+function initializeMemorySection() {
+  const refreshBtn = document.getElementById('btnRefreshMemories');
+  const consolidateBtn = document.getElementById('btnConsolidateMemories');
+  const exportBtn = document.getElementById('btnExportMemories');
+  const clearBtn = document.getElementById('btnClearMemories');
+  const searchInput = document.getElementById('memorySearchInput');
+  const typeFilter = document.getElementById('memoryTypeFilter');
+
+  if (refreshBtn) refreshBtn.addEventListener('click', loadMemoryDashboard);
+  if (consolidateBtn) consolidateBtn.addEventListener('click', consolidateMemories);
+  if (exportBtn) exportBtn.addEventListener('click', exportMemories);
+  if (clearBtn) clearBtn.addEventListener('click', clearAllMemories);
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      clearTimeout(memorySearchDebounce);
+      memorySearchDebounce = setTimeout(() => searchMemories(), 300);
+    });
+  }
+
+  if (typeFilter) {
+    typeFilter.addEventListener('change', () => searchMemories());
+  }
+
+  loadMemoryDashboard();
+}
+
+async function loadMemoryDashboard() {
+  try {
+    if (typeof memoryManager === 'undefined') return;
+
+    const stats = await memoryManager.getStats();
+    updateMemoryStats(stats);
+
+    const memories = await memoryManager.getAll();
+    renderMemoryList(memories);
+  } catch (error) {
+    console.error('[Options] Failed to load memory dashboard:', error);
+  }
+}
+
+function updateMemoryStats(stats) {
+  const el = (id, val) => {
+    const e = document.getElementById(id);
+    if (e) e.textContent = val;
+  };
+
+  el('memStatTotal', stats.totalCount);
+  el('memStatEpisodic', stats.byType?.episodic || 0);
+  el('memStatSemantic', stats.byType?.semantic || 0);
+  el('memStatProcedural', stats.byType?.procedural || 0);
+
+  const kb = Math.round(stats.estimatedBytes / 1024);
+  el('memStatStorage', kb > 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`);
+  el('memStatUtilization', `${stats.utilizationPercent}%`);
+}
+
+function renderMemoryList(memories) {
+  const container = document.getElementById('memoryList');
+  const emptyState = document.getElementById('memoryEmptyState');
+  if (!container) return;
+
+  if (memories.length === 0) {
+    container.innerHTML = '';
+    if (emptyState) {
+      container.appendChild(emptyState);
+      emptyState.style.display = '';
+    }
+    return;
+  }
+
+  if (emptyState) emptyState.style.display = 'none';
+
+  // Sort by most recently accessed
+  const sorted = [...memories].sort((a, b) => b.lastAccessedAt - a.lastAccessedAt);
+
+  container.innerHTML = sorted.map(memory => {
+    const typeIcon = {
+      episodic: 'fa-clock',
+      semantic: 'fa-lightbulb',
+      procedural: 'fa-list-ol'
+    }[memory.type] || 'fa-circle';
+
+    const typeLabel = memory.type.charAt(0).toUpperCase() + memory.type.slice(1);
+    const domain = memory.metadata?.domain || 'Unknown';
+    const age = formatTimeAgo(memory.createdAt);
+    const accesses = memory.accessCount || 0;
+    const confidence = Math.round((memory.metadata?.confidence || 0) * 100);
+    const tags = (memory.metadata?.tags || []).slice(0, 3).join(', ');
+
+    return `
+      <div class="session-item memory-item" data-memory-id="${memory.id}">
+        <div class="session-item-header" style="display: flex; align-items: center; gap: 10px;">
+          <i class="fas ${typeIcon}" style="color: var(--primary); font-size: 1.1em;" title="${typeLabel}"></i>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${escapeHtml(memory.text)}
+            </div>
+            <div style="font-size: 0.82em; color: var(--text-secondary); margin-top: 2px;">
+              ${typeLabel} | ${escapeHtml(domain)} | ${age} | ${accesses} accesses | ${confidence}% conf${tags ? ' | ' + escapeHtml(tags) : ''}
+            </div>
+          </div>
+          <button class="control-btn small memory-delete-btn" data-id="${memory.id}" title="Delete memory" style="color: var(--danger, #ef4444); flex-shrink: 0;">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Attach delete handlers
+  container.querySelectorAll('.memory-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      if (confirm('Delete this memory?')) {
+        await memoryManager.delete(id);
+        loadMemoryDashboard();
+        showToast('Memory deleted', 'info');
+      }
+    });
+  });
+}
+
+async function searchMemories() {
+  if (typeof memoryManager === 'undefined') return;
+
+  const query = document.getElementById('memorySearchInput')?.value || '';
+  const type = document.getElementById('memoryTypeFilter')?.value || '';
+
+  try {
+    let results;
+    if (query.trim()) {
+      const filters = {};
+      if (type) filters.type = type;
+      results = await memoryManager.search(query, filters, { topN: 50, minScore: 0.05 });
+    } else {
+      results = await memoryManager.getAll();
+      if (type) {
+        results = results.filter(m => m.type === type);
+      }
+    }
+    renderMemoryList(results);
+  } catch (error) {
+    console.error('[Options] Memory search failed:', error);
+  }
+}
+
+async function consolidateMemories() {
+  if (typeof memoryManager === 'undefined') return;
+
+  try {
+    showToast('Consolidating memories...', 'info');
+    const result = await memoryManager.consolidate();
+    showToast(`Consolidated: ${result.merged} merged, ${result.deleted} removed, ${result.total} remaining`, 'success');
+    loadMemoryDashboard();
+  } catch (error) {
+    showToast('Consolidation failed: ' + error.message, 'error');
+  }
+}
+
+async function exportMemories() {
+  if (typeof memoryManager === 'undefined') return;
+
+  try {
+    const memories = await memoryManager.getAll();
+    const blob = new Blob([JSON.stringify(memories, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fsb-memories-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Memories exported', 'success');
+  } catch (error) {
+    showToast('Export failed: ' + error.message, 'error');
+  }
+}
+
+async function clearAllMemories() {
+  if (typeof memoryManager === 'undefined') return;
+
+  if (!confirm('Delete ALL memories? This cannot be undone.')) return;
+
+  try {
+    await memoryManager.deleteAll();
+    loadMemoryDashboard();
+    showToast('All memories cleared', 'info');
+  } catch (error) {
+    showToast('Failed to clear memories: ' + error.message, 'error');
+  }
+}
+
+// Initialize agent section and memory section when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(initializeAgentSection, 300);
+  setTimeout(initializeMemorySection, 400);
 });
 
 

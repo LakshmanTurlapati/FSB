@@ -70,6 +70,10 @@
               <i class="fas fa-sliders-h"></i>
               <span>Advanced Settings</span>
             </li>
+            <li class="nav-item" data-section="memory">
+              <i class="fas fa-brain"></i>
+              <span>Memory</span>
+            </li>
             <li class="nav-item" data-section="logs">
               <i class="fas fa-terminal"></i>
               <span>Logs & Debugging</span>
@@ -622,6 +626,82 @@
           </div>
         </section>
 
+        <!-- Memory Section -->
+        <section class="content-section" id="memory">
+          <div class="section-header">
+            <h2>Memory</h2>
+            <p>Long-term memory learned from past automation sessions</p>
+          </div>
+
+          <!-- Memory Stats Bar -->
+          <div class="agent-stats-bar" id="memoryStatsBar">
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="memStatTotal">0</span>
+              <span class="agent-stat-label">Total</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="memStatEpisodic">0</span>
+              <span class="agent-stat-label">Episodic</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="memStatSemantic">0</span>
+              <span class="agent-stat-label">Semantic</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="memStatProcedural">0</span>
+              <span class="agent-stat-label">Procedural</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="memStatStorage">0 KB</span>
+              <span class="agent-stat-label">Storage</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="memStatUtilization">0%</span>
+              <span class="agent-stat-label">Capacity</span>
+            </div>
+          </div>
+
+          <!-- Memory Controls -->
+          <div class="agent-actions-bar">
+            <div class="credentials-search-wrapper" style="flex: 1; max-width: 400px;">
+              <i class="fas fa-search"></i>
+              <input type="search" id="memorySearchInput" placeholder="Search memories..." class="form-input">
+            </div>
+            <select id="memoryTypeFilter" class="form-select small">
+              <option value="">All Types</option>
+              <option value="episodic">Episodic</option>
+              <option value="semantic">Semantic</option>
+              <option value="procedural">Procedural</option>
+            </select>
+            <button class="control-btn" id="btnRefreshMemories">
+              <i class="fas fa-sync-alt"></i>
+              Refresh
+            </button>
+            <button class="control-btn" id="btnConsolidateMemories">
+              <i class="fas fa-compress-arrows-alt"></i>
+              Consolidate
+            </button>
+            <button class="control-btn" id="btnExportMemories">
+              <i class="fas fa-download"></i>
+              Export
+            </button>
+            <button class="control-btn" id="btnClearMemories" style="color: var(--danger, #ef4444);">
+              <i class="fas fa-trash"></i>
+              Clear All
+            </button>
+          </div>
+
+          <!-- Memory List -->
+          <div class="session-list-container" id="memoryListContainer">
+            <div class="session-list" id="memoryList">
+              <div class="session-empty-state" id="memoryEmptyState">
+                <i class="fas fa-brain"></i>
+                <p>No memories stored yet. Memories are automatically extracted from completed automation sessions.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Logs Section -->
         <section class="content-section" id="logs">
           <div class="section-header">
@@ -979,6 +1059,10 @@
   <script src="../ai/ai-providers.js"></script>
   <script src="../ai/ai-integration.js"></script>
   <script src="../utils/analytics.js"></script>
+  <script src="../lib/memory/memory-schemas.js"></script>
+  <script src="../lib/memory/memory-storage.js"></script>
+  <script src="../lib/memory/memory-retriever.js"></script>
+  <script src="../lib/memory/memory-manager.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
