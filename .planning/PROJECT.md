@@ -2,61 +2,54 @@
 
 ## What This Is
 
-FSB is an AI-powered browser automation Chrome extension that executes tasks through natural language instructions. Users describe what they want done ("search for wireless mouse on Amazon, add the first result to cart") and FSB figures out the clicks, types, and navigation to make it happen. It's for everyone who browses - developers, non-technical users, anyone who wants to automate repetitive browser tasks.
+FSB is an AI-powered browser automation Chrome extension that executes tasks through natural language instructions. Users describe what they want done ("search for wireless mouse on Amazon, add the first result to cart") and FSB figures out the clicks, types, and navigation to make it happen. It uses reliable element targeting with uniqueness-scored selectors, visual feedback (orange glow highlighting), and action verification to execute precisely on the first attempt.
 
 ## Core Value
 
-**Reliable single-attempt execution.** The AI decides correctly; the mechanics must execute precisely. Every click should hit the right element, every action should succeed on the first try.
+**Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
 ## Requirements
 
 ### Validated
 
-- ✓ Chrome Extension MV3 architecture with service worker — existing
-- ✓ Multi-provider AI integration (xAI, OpenAI, Anthropic, Gemini) — existing
-- ✓ DOM analysis and element identification — existing
-- ✓ Action execution toolset (25+ browser actions) — existing
-- ✓ Session management with state tracking — existing
-- ✓ Stuck detection and recovery mechanisms — existing
-- ✓ Multi-UI (popup chat, sidepanel, options dashboard) — existing
-- ✓ Analytics and usage tracking — existing
-- ✓ Secure API key storage with encryption — existing
-- ✓ Conversation history for multi-turn tasks — existing
+- ✓ Chrome Extension MV3 architecture with service worker -- existing
+- ✓ Multi-provider AI integration (xAI, OpenAI, Anthropic, Gemini) -- existing
+- ✓ DOM analysis and element identification -- existing
+- ✓ Action execution toolset (25+ browser actions) -- existing
+- ✓ Session management with state tracking -- existing
+- ✓ Stuck detection and recovery mechanisms -- existing
+- ✓ Multi-UI (popup chat, sidepanel, options dashboard) -- existing
+- ✓ Analytics and usage tracking -- existing
+- ✓ Secure API key storage with encryption -- existing
+- ✓ Conversation history for multi-turn tasks -- existing
+- ✓ Precise element targeting with uniqueness-scored selectors -- v0.9
+- ✓ Visual feedback with orange glow highlighting -- v0.9
+- ✓ Fast execution with outcome-based dynamic delays -- v0.9
+- ✓ Reliable selectors with coordinate fallback -- v0.9
+- ✓ Quality context (3-stage filtering, 50 elements, semantic descriptions) -- v0.9
+- ✓ Action verification with state capture and effect validation -- v0.9
+- ✓ Debugging infrastructure (action recording, inspector, replay, export) -- v0.9
 
 ### Active
 
-- [ ] Precise element targeting - clicks hit the intended element on first attempt
-- [ ] Visual feedback - orange glow highlighting the element being targeted before action
-- [ ] Fast execution - minimal delays between actions, no unnecessary waiting
-- [ ] Reliable selectors - generated selectors uniquely identify elements across diverse sites
-- [ ] Quality context - AI receives focused, relevant DOM information (not noise)
-- [ ] Action verification - confirm action succeeded before moving to next step
-- [ ] Clear debugging - visibility into what's being targeted and why actions fail
+(None -- define in next milestone via `/gsd:new-milestone`)
 
 ### Out of Scope
 
-- Firefox support — requires significant Manifest V2/V3 adaptation, defer to future
-- CAPTCHA solving — third-party integration complexity, users can solve manually
-- Multi-tab automation — adds complexity, single-tab focus first
-- Offline mode — AI requires connectivity, not feasible for core functionality
+- Firefox support -- requires significant Manifest V2/V3 adaptation, defer to future
+- CAPTCHA solving -- third-party integration complexity, users can solve manually
+- Offline mode -- AI requires connectivity, not feasible for core functionality
 
 ## Context
 
-**Current state:** The extension works but is unreliable. AI decisions are generally correct, but the mechanics layer fails frequently - wrong elements clicked, selectors don't match, actions need multiple retries. Simple tasks eventually complete through trial and error.
+**Current state:** Shipped v0.9 Reliability Improvements. The mechanics layer is now precise -- selectors are uniqueness-scored, elements are verified ready before action, actions are verified after execution, and visual feedback shows exactly what's being targeted. 43,283 lines of JavaScript across content.js, background.js, ai-integration.js, and UI files.
 
-**Key technical debt from codebase analysis:**
-- `content.js` is 6502 lines - DOM traversal, action handlers, and utilities all interleaved
-- `background.js` is 4600 lines - session management, tab handling, automation loop tangled
-- Selector generation is untested and produces unreliable selectors
-- AI response parsing has 4 different strategies with regex patterns that break on edge cases
-- No visual feedback - users can't see what the extension is trying to do
-- Magic numbers throughout (maxElements=300, stuckCounter>=8, etc.)
+**Tech stack:** Chrome Extension Manifest V3, vanilla JavaScript (ES2021+), xAI Grok / OpenAI / Anthropic / Gemini APIs.
 
-**What's actually broken:**
-1. **Element targeting** - selectors generated from DOM analysis don't reliably match the intended element
-2. **Action execution** - clicks and types sometimes fail silently or hit wrong targets
-3. **Context quality** - AI gets too much noise (300 elements max) making it hard to find what matters
-4. **No visibility** - impossible to debug because there's no indication of what's being targeted
+**Known tech debt:**
+- `content.js` still large (~8000+ lines) -- modularization deferred
+- waitForActionable() dead code (~80 lines) still present
+- ElementCache maxCacheSize hardcoded to 100
 
 ## Constraints
 
@@ -69,9 +62,12 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Focus on mechanics, not AI | User confirmed AI intent is correct, execution layer is the problem | — Pending |
-| Visual feedback with orange glow | User specifically requested seeing what's being targeted | — Pending |
-| Single-attempt reliability over retry sophistication | Core value is precision, not recovery from imprecision | — Pending |
+| Focus on mechanics, not AI | User confirmed AI intent is correct, execution layer is the problem | Good -- v0.9 shipped with reliable execution |
+| Visual feedback with orange glow | User specifically requested seeing what's being targeted | Good -- Shadow DOM isolation prevents CSS conflicts |
+| Single-attempt reliability over retry sophistication | Core value is precision, not recovery from imprecision | Good -- verification + fallback selectors cover edge cases |
+| 50 element limit for AI context | Reduce noise from 300+ elements | Good -- AI makes better decisions with focused context |
+| Shadow DOM for visual overlays | Complete style isolation from page CSS | Good -- works on any website without conflicts |
+| Outcome-based dynamic delays | Replace static category delays with actual page state detection | Good -- faster execution without sacrificing reliability |
 
 ---
-*Last updated: 2026-02-03 after initialization*
+*Last updated: 2026-02-14 after v0.9 milestone*

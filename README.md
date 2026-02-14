@@ -115,7 +115,7 @@ graph TD
     A[User Interface<br/>Popup & Side Panel] --> B[Background Service<br/>Session Orchestration]
     B --> C[Content Script<br/>DOM Analysis & Actions]
     C --> D[Web Page<br/>Automated Interactions]
-    B --> E[Universal Provider<br/>xAI | OpenAI | Anthropic | Gemini]
+    B --> E["Universal Provider<br/>xAI | OpenAI | Anthropic | Gemini"]
     B --> F[Chrome Storage<br/>Settings & Analytics]
     B --> G[Site Guides<br/>Domain Intelligence]
     C --> H[Action Verification<br/>State Validation]
