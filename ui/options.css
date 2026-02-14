@@ -413,6 +413,8 @@ body {
 .form-select.small {
   width: auto;
   min-width: 150px;
+  padding: 8px 12px;
+  font-size: 0.9em;
 }
 
 .form-help {
@@ -2573,6 +2575,7 @@ body {
 
 .agent-actions-bar {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 16px;
 }
