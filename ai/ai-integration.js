@@ -67,19 +67,19 @@ const TOOL_DOCUMENTATION = {
       desc: "Open new tab with URL. ALWAYS provide URL parameter. Returns tabId for use in other actions. Set active: false to open in background",
       example: '{"tool": "openNewTab", "params": {"url": "https://youtube.com", "active": true}}'
     },
-    switchToTab: { 
-      params: {tabId: 123}, 
-      desc: "BLOCKED - Cannot switch tabs for security. Automation is restricted to the original session tab only",
-      example: 'Action will be blocked - switchToTab is not allowed'
+    switchToTab: {
+      params: {tabId: 123},
+      desc: "Switch to a session tab. Works for tabs opened during automation or discovered by smart navigation. Use listTabs to see which tabs are allowed (isAllowedTab: true).",
+      example: '{"tool": "switchToTab", "params": {"tabId": 123}}'
     },
     closeTab: { 
       params: {tabId: 123}, 
       desc: "Close tab by ID. Cannot close the current tab",
       example: '{"tool": "closeTab", "params": {"tabId": 123}}'
     },
-    listTabs: { 
-      params: {currentWindowOnly: true}, 
-      desc: "List tab titles for context only (no URLs for privacy). Shows which tab is the session tab",
+    listTabs: {
+      params: {currentWindowOnly: true},
+      desc: "List tabs with titles and control info. Shows isSessionTab, isAllowedTab, and domain for allowed tabs. Use to find tabs you can switchToTab to.",
       example: '{"tool": "listTabs", "params": {"currentWindowOnly": true}}'
     },
     getCurrentTab: { 
@@ -122,7 +122,7 @@ SEND BUTTON RULES:
   form: "Fill all required fields, then submit. If you don't see a submit button after filling fields, scroll down -- long forms often have buttons at the bottom. When completing, describe exactly what information was submitted and confirm the form was processed successfully. Example result: 'I successfully filled out the contact form with your name, email, and message, then submitted it. The page confirmed your message was received and you should expect a response within 24 hours.'",
   extraction: "Extract the requested information and provide the exact values found. Use systematic scrolling: extract visible items, scroll down, repeat until atBottom. When completing, include all the specific data extracted, not generic statements. For numerical data (prices, ratings, stats), use a ```chart block to visualize comparisons. For structured data with multiple fields, use markdown tables. Example result: 'I extracted the following product details: Price $299.99, Rating 4.8/5 stars, Stock: 15 units available, Shipping: Free 2-day delivery.'",
   navigation: "Navigate to the specified page or section. When completing, confirm what page you reached and describe what's available there. Example result: 'I successfully navigated to the Settings page where I can see options for Account Settings, Privacy Controls, Notification Preferences, and Security Settings.'",
-  multitab: "TAB CONTROL LIMITATIONS: CRITICAL - You can ONLY control the original tab where automation started. 1) openNewTab creates new tabs but automation stays on original tab, 2) switchToTab is BLOCKED for security - cannot switch to other tabs, 3) listTabs shows tab titles for context only (no URLs), 4) All DOM actions happen only on the session tab. You can see other tab names for reference but cannot control them. Example result: 'I can see there are tabs for Gmail, YouTube, and Facebook open, but I am working only in the original tab where the automation started.'",
+  multitab: "MULTI-TAB SUPPORT: The system handles smart tab selection at session start (matching task keywords to domains, reusing open tabs, preserving user content). During automation: 1) openNewTab creates new tabs and adds them to allowed tabs, 2) switchToTab works for any tab in the session's allowed list (check listTabs for isAllowedTab: true), 3) listTabs shows tab titles, domains for allowed tabs, and which tabs you can control, 4) DOM actions happen on the currently active session tab. When you need to work across tabs, use switchToTab to move between allowed tabs.",
   gaming: "CRITICAL GAME CONTROLS: For games, interactive applications, or when task involves 'play', 'control', 'win', 'move': 1) NEVER use 'type' tool for game controls - it types text, not key presses, 2) PREFER dedicated arrow tools: {\"tool\": \"arrowUp\"}, {\"tool\": \"arrowDown\"}, {\"tool\": \"arrowLeft\"}, {\"tool\": \"arrowRight\"} - much simpler than keyPress, 3) For other keys use 'keyPress': {\"tool\": \"keyPress\", \"params\": {\"key\": \"Enter\"}} {\"tool\": \"keyPress\", \"params\": {\"key\": \" \"}} for Space. 4) Focus the game canvas/element if needed before key presses. When completing, describe the game actions performed and outcomes achieved.",
   shopping: `E-COMMERCE SHOPPING INTELLIGENCE - CRITICAL RULES:
 
@@ -249,6 +249,10 @@ class AIIntegration {
 
     // Number of raw turn pairs to keep verbatim
     this.rawTurnsToKeep = 3;
+
+    // Long-term memories from past sessions (fetched once per session, injected synchronously)
+    this._longTermMemories = [];
+    this._longTermMemoriesSessionId = null;
   }
   
   // Migrate legacy settings to new format
@@ -812,9 +816,63 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       parts.push('', `PREVIOUS CONTEXT (AI-summarized from earlier turns):\n${this.compactedSummary}`);
     }
 
+    // Layer 3: Long-term memories from past sessions
+    if (this._longTermMemories && this._longTermMemories.length > 0) {
+      parts.push('', 'LONG-TERM MEMORY (learned from past sessions):');
+      this._longTermMemories.forEach(m => {
+        parts.push(`  - ${m.text}`);
+      });
+    }
+
     let context = parts.join('\n');
 
     return context;
+  }
+
+  /**
+   * Fetch long-term memories relevant to the current task and domain.
+   * Results are cached on the instance for synchronous injection via buildMemoryContext().
+   * @param {string} task - Current task description
+   * @param {Object} context - Session context (may contain domain info)
+   */
+  async _fetchLongTermMemories(task, context = {}) {
+    try {
+      // Guard: memoryManager may not be loaded (e.g., in options page context)
+      if (typeof memoryManager === 'undefined') return;
+
+      const sessionId = context?.sessionId || null;
+      // Skip if we already fetched for this session
+      if (sessionId && sessionId === this._longTermMemoriesSessionId) return;
+
+      // Extract domain from context
+      let domain = null;
+      if (context?.currentUrl) {
+        try { domain = new URL(context.currentUrl).hostname; } catch {}
+      }
+
+      const filters = {};
+      if (domain) filters.domain = domain;
+
+      const memories = await memoryManager.search(task || '', filters, {
+        topN: 5,
+        minScore: 0.4
+      });
+
+      this._longTermMemories = memories;
+      this._longTermMemoriesSessionId = sessionId;
+
+      if (memories.length > 0) {
+        automationLogger.debug('Loaded long-term memories', {
+          sessionId,
+          count: memories.length,
+          types: memories.map(m => m.type)
+        });
+      }
+    } catch (error) {
+      // Non-critical: proceed without long-term memories
+      console.warn('[AIIntegration] Failed to fetch long-term memories:', error.message);
+      this._longTermMemories = [];
+    }
   }
 
   // Generate context-aware cache key
@@ -926,6 +984,9 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       this.clearConversationHistory();
       this.conversationSessionId = sessionId;
       automationLogger.debug('New session detected, reset conversation history', { sessionId });
+
+      // Fetch long-term memories for this new session (non-blocking)
+      this._fetchLongTermMemories(task, context).catch(() => {});
     }
 
     // Generate context-aware cache key

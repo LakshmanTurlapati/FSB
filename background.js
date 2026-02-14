@@ -26,11 +26,52 @@ importScripts('agents/agent-scheduler.js');
 importScripts('agents/agent-executor.js');
 importScripts('agents/server-sync.js');
 
+// Memory layer modules
+importScripts('lib/memory/memory-schemas.js');
+importScripts('lib/memory/memory-storage.js');
+importScripts('lib/memory/memory-retriever.js');
+importScripts('lib/memory/memory-extractor.js');
+importScripts('lib/memory/memory-manager.js');
+importScripts('lib/memory/memory-consolidator.js');
+
 // Site Explorer instance
 const siteExplorer = new SiteExplorer();
 
 // Debug mode flag (controlled by options page toggle)
 let fsbDebugMode = false;
+
+/**
+ * Extract and store long-term memories from a completed session.
+ * Non-blocking, fire-and-forget. Safe to call for both successful and failed sessions.
+ * @param {string} sessionId
+ * @param {Object} session
+ */
+async function extractAndStoreMemories(sessionId, session) {
+  try {
+    // Extract domain from session URL or action history
+    let domain = null;
+    if (session.actionHistory) {
+      for (const action of session.actionHistory) {
+        if (action.params?.url) {
+          try { domain = new URL(action.params.url).hostname; } catch {}
+          if (domain) break;
+        }
+      }
+    }
+
+    const memories = await memoryManager.add(session, { domain });
+    if (memories.length > 0) {
+      debugLog('Extracted memories from session', {
+        sessionId,
+        count: memories.length,
+        types: memories.map(m => m.type)
+      });
+    }
+  } catch (error) {
+    // Non-critical: log and move on
+    console.warn('[FSB] Memory extraction failed for session', sessionId, error.message);
+  }
+}
 
 /**
  * Debug logging helper - only logs when debug mode is enabled
@@ -1951,107 +1992,185 @@ function generatePerformanceRecommendations() {
   return recommendations;
 }
 
-// Smart navigation: Let AI decide the best approach instead of hardcoding
-// The AI now has better context and tools to handle navigation
-function analyzeTaskAndGetTargetUrl(task) {
-  // Always default to Google so AI can search and navigate naturally
-  // The AI will use searchGoogle tool or navigate tool as needed
-  return 'https://google.com';
-  
-  /* Disabled hardcoded logic - AI handles this better
-  const taskLower = task.toLowerCase();
-  
-  // Email-related tasks
-  if (taskLower.includes('email') || taskLower.includes('gmail') || taskLower.includes('mail')) {
-    return 'https://gmail.com';
-  }
-  
-  // Social media tasks
-  if (taskLower.includes('twitter') || taskLower.includes('tweet')) {
-    return 'https://twitter.com';
-  }
-  if (taskLower.includes('facebook') || taskLower.includes('fb')) {
-    return 'https://facebook.com';
-  }
-  */
-  if (taskLower.includes('linkedin')) {
-    return 'https://linkedin.com';
-  }
-  if (taskLower.includes('instagram')) {
-    return 'https://instagram.com';
-  }
-  
-  // Video/Entertainment
-  if (taskLower.includes('youtube') || taskLower.includes('video') || taskLower.includes('watch')) {
-    return 'https://youtube.com';
-  }
-  if (taskLower.includes('netflix')) {
-    return 'https://netflix.com';
-  }
-  
-  // Music
-  if (taskLower.includes('spotify') || taskLower.includes('music') || taskLower.includes('song') || taskLower.includes('play')) {
-    return 'https://spotify.com';
-  }
-  
+// Domain keyword map: ordered array of [url, keywords] pairs.
+// More specific keywords come first to avoid false matches (e.g., "google docs" before "google").
+const DOMAIN_KEYWORD_MAP = [
+  // Productivity - specific Google products first
+  ['https://docs.google.com', ['google docs', 'gdocs']],
+  ['https://sheets.google.com', ['google sheets', 'gsheets', 'spreadsheet']],
+  ['https://drive.google.com', ['google drive', 'gdrive']],
+  ['https://maps.google.com', ['google maps']],
+  ['https://news.google.com', ['google news']],
+  // Email
+  ['https://gmail.com', ['gmail', 'email', 'mail', 'inbox']],
+  ['https://outlook.live.com', ['outlook', 'hotmail']],
+  // Social media
+  ['https://youtube.com', ['youtube']],
+  ['https://twitter.com', ['twitter', 'tweet', 'x.com']],
+  ['https://facebook.com', ['facebook']],
+  ['https://instagram.com', ['instagram']],
+  ['https://linkedin.com', ['linkedin']],
+  ['https://reddit.com', ['reddit', 'subreddit']],
+  ['https://tiktok.com', ['tiktok']],
   // Shopping
-  if (taskLower.includes('amazon') || taskLower.includes('shop') || taskLower.includes('buy')) {
-    return 'https://amazon.com';
+  ['https://amazon.com', ['amazon']],
+  ['https://ebay.com', ['ebay']],
+  ['https://etsy.com', ['etsy']],
+  // Entertainment
+  ['https://netflix.com', ['netflix']],
+  ['https://spotify.com', ['spotify']],
+  ['https://twitch.tv', ['twitch']],
+  // Development
+  ['https://github.com', ['github', 'repository', 'repo']],
+  ['https://stackoverflow.com', ['stackoverflow', 'stack overflow']],
+  // Communication
+  ['https://discord.com', ['discord']],
+  ['https://slack.com', ['slack']],
+  ['https://web.whatsapp.com', ['whatsapp']],
+  // Productivity - other
+  ['https://notion.so', ['notion']],
+  ['https://dropbox.com', ['dropbox']],
+  // Information
+  ['https://wikipedia.org', ['wikipedia', 'wiki']],
+  ['https://weather.com', ['weather', 'forecast']],
+  // Generic Google last (catches "google something" not matched above)
+  ['https://google.com', ['google']],
+];
+
+// Smart navigation: match task keywords to known domains
+function analyzeTaskAndGetTargetUrl(task) {
+  const taskLower = task.toLowerCase();
+  for (const [url, keywords] of DOMAIN_KEYWORD_MAP) {
+    if (keywords.some(kw => taskLower.includes(kw))) {
+      return url;
+    }
   }
-  
-  // News
-  if (taskLower.includes('news') || taskLower.includes('article')) {
-    return 'https://news.google.com';
+  return 'https://google.com';
+}
+
+// ==========================================
+// TAB DISCOVERY & SMART TAB MANAGEMENT
+// ==========================================
+
+/**
+ * Score how well a tab URL matches the target URL.
+ * exact URL = 100, same path = 75, homepage = 50, domain only = 25
+ */
+function calculateTabScore(tabUrl, targetUrl) {
+  try {
+    const tab = new URL(tabUrl);
+    const target = new URL(targetUrl);
+    const tabHost = tab.hostname.replace(/^www\./, '');
+    const targetHost = target.hostname.replace(/^www\./, '');
+    if (tabHost !== targetHost) return 0;
+    if (tab.href === target.href) return 100;
+    if (tab.pathname === target.pathname) return 75;
+    if (tab.pathname === '/' && !tab.search) return 50;
+    return 25;
+  } catch {
+    return 0;
   }
-  
-  // Development/GitHub
-  if (taskLower.includes('github') || taskLower.includes('repository') || taskLower.includes('repo')) {
-    return 'https://github.com';
+}
+
+/**
+ * Find open tabs matching the target URL's domain, scored and sorted.
+ */
+async function findMatchingTabs(targetUrl) {
+  try {
+    const allTabs = await chrome.tabs.query({ currentWindow: true });
+    const scored = allTabs
+      .map(tab => ({ tab, score: calculateTabScore(tab.url || '', targetUrl) }))
+      .filter(entry => entry.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (b.tab.lastAccessed || 0) - (a.tab.lastAccessed || 0);
+      });
+    return scored.map(entry => entry.tab);
+  } catch (error) {
+    automationLogger.debug('findMatchingTabs error', { error: error.message });
+    return [];
   }
-  
-  // Wikipedia/Information
-  if (taskLower.includes('wikipedia') || taskLower.includes('wiki') || taskLower.includes('information about') || taskLower.includes('learn about')) {
-    return 'https://wikipedia.org';
+}
+
+/**
+ * Determine if a tab has real user content worth preserving.
+ */
+function isUserContentTab(tab) {
+  if (!tab || !tab.url) return false;
+  if (isRestrictedURL(tab.url)) return false;
+  try {
+    const url = new URL(tab.url);
+    // Blank / new-tab-like pages
+    if (url.pathname === '/' && !url.search && !url.hash) {
+      const genericTitles = ['new tab', 'untitled', 'start page', 'home', 'homepage'];
+      if (!tab.title || genericTitles.includes(tab.title.toLowerCase().trim())) {
+        return false;
+      }
+      // A domain homepage with a real title (e.g. "Reddit - Dive into anything") is still user content
+    }
+  } catch {
+    return false;
   }
-  
-  // Maps/Navigation
-  if (taskLower.includes('map') || taskLower.includes('direction') || taskLower.includes('navigate to')) {
-    return 'https://maps.google.com';
+  return true;
+}
+
+/**
+ * Decide what tab action to take: navigate, switch, or create.
+ * Returns { action: 'navigate'|'switch'|'create', tabId?, url?, reason }
+ */
+async function decideTabAction(currentTabId, currentTabUrl, targetUrl, task) {
+  try {
+    const targetHost = new URL(targetUrl).hostname.replace(/^www\./, '');
+    const currentHost = currentTabUrl ? new URL(currentTabUrl).hostname.replace(/^www\./, '') : '';
+
+    // Already on the target domain - just navigate in place
+    if (currentHost === targetHost) {
+      return { action: 'navigate', tabId: currentTabId, url: targetUrl, reason: 'Already on target domain' };
+    }
+
+    const matchingTabs = await findMatchingTabs(targetUrl);
+    const currentTab = await chrome.tabs.get(currentTabId).catch(() => null);
+    const currentIsRestricted = !currentTabUrl || isRestrictedURL(currentTabUrl);
+    const currentHasContent = currentTab ? isUserContentTab(currentTab) : false;
+
+    if (currentIsRestricted) {
+      // Safe to overwrite restricted pages, but prefer existing matching tab
+      if (matchingTabs.length > 0) {
+        return { action: 'switch', tabId: matchingTabs[0].id, url: targetUrl, reason: 'Found matching tab, current is restricted' };
+      }
+      return { action: 'navigate', tabId: currentTabId, url: targetUrl, reason: 'Navigating restricted page to target' };
+    }
+
+    if (currentHasContent) {
+      // Preserve user content - switch to existing tab or open new one
+      if (matchingTabs.length > 0) {
+        return { action: 'switch', tabId: matchingTabs[0].id, url: targetUrl, reason: 'Switching to matching tab, preserving user content' };
+      }
+      return { action: 'create', url: targetUrl, reason: 'Creating new tab to preserve user content' };
+    }
+
+    // Generic page without meaningful content - navigate in place
+    if (matchingTabs.length > 0) {
+      return { action: 'switch', tabId: matchingTabs[0].id, url: targetUrl, reason: 'Found matching tab' };
+    }
+    return { action: 'navigate', tabId: currentTabId, url: targetUrl, reason: 'Navigating generic page to target' };
+  } catch (error) {
+    automationLogger.debug('decideTabAction error, falling back to navigate', { error: error.message });
+    return { action: 'navigate', tabId: currentTabId, url: targetUrl, reason: 'Fallback after error' };
   }
-  
-  // Weather
-  if (taskLower.includes('weather') || taskLower.includes('forecast')) {
-    return 'https://weather.com';
+}
+
+/**
+ * Add a tab ID to the session's allowed tabs whitelist.
+ */
+function addAllowedTab(sessionId, tabId, reason) {
+  const session = activeSessions.get(sessionId);
+  if (!session) return;
+  if (!session.allowedTabs.includes(tabId)) {
+    session.allowedTabs.push(tabId);
+    session.tabHistory.push({ tabId, reason, timestamp: Date.now() });
+    automationLogger.debug('Added allowed tab', { sessionId, tabId, reason, allowedTabs: session.allowedTabs });
   }
-  
-  // Chat/Communication
-  if (taskLower.includes('discord')) {
-    return 'https://discord.com';
-  }
-  if (taskLower.includes('slack')) {
-    return 'https://slack.com';
-  }
-  if (taskLower.includes('whatsapp')) {
-    return 'https://web.whatsapp.com';
-  }
-  
-  // Cloud Storage
-  if (taskLower.includes('drive') || taskLower.includes('google drive')) {
-    return 'https://drive.google.com';
-  }
-  if (taskLower.includes('dropbox')) {
-    return 'https://dropbox.com';
-  }
-  
-  // Productivity
-  if (taskLower.includes('docs') || taskLower.includes('document')) {
-    return 'https://docs.google.com';
-  }
-  if (taskLower.includes('sheets') || taskLower.includes('spreadsheet')) {
-    return 'https://sheets.google.com';
-  }
-  
-  // All navigation decisions now handled by AI
 }
 
 // Check if we should attempt smart navigation
@@ -3044,11 +3163,11 @@ async function handleSolveCaptcha(request, sender, sendResponse) {
 
 async function handleStartAutomation(request, sender, sendResponse) {
   const { task, tabId } = request;
-  
+
   try {
-    // Get the target tab ID
-    const targetTabId = tabId || sender.tab?.id;
-    
+    // Get the target tab ID (may be updated by smart tab management below)
+    let targetTabId = tabId || sender.tab?.id;
+
     // Get tab information to check URL
     let tabInfo;
     try {
@@ -3056,61 +3175,125 @@ async function handleStartAutomation(request, sender, sendResponse) {
     } catch (error) {
       throw new Error(`Cannot access tab ${targetTabId}. Tab may have been closed or is not accessible.`);
     }
-    
-    // Check if we need smart navigation for restricted URLs
+
+    // Track smart navigation for user feedback
+    let navigationMessage = '';
+    let navigationPerformed = false;
+    const originalUrl = tabInfo.url;
+
+    // ==========================================
+    // SMART TAB MANAGEMENT
+    // ==========================================
+    // For restricted URLs (newtab, about:blank): must navigate somewhere
+    // For non-restricted URLs: check if current tab is relevant, preserve user content
     if (isRestrictedURL(tabInfo.url)) {
       if (shouldUseSmartNavigation(tabInfo.url, task)) {
-        // Determine the best website for this task
         const targetUrl = analyzeTaskAndGetTargetUrl(task);
-        
-        automationLogger.logNavigation(null, 'smart', tabInfo.url, targetUrl, { task: task.substring(0, 100) });
-        
-        // Navigate to the target website
-        await chrome.tabs.update(targetTabId, { url: targetUrl });
-        
-        // Wait for navigation to complete
+        const decision = await decideTabAction(targetTabId, tabInfo.url, targetUrl, task);
+        automationLogger.logNavigation(null, 'smart', tabInfo.url, targetUrl, { task: task.substring(0, 100), decision: decision.action, reason: decision.reason });
+
+        if (decision.action === 'switch') {
+          // Switch to an already-open matching tab
+          try {
+            await chrome.tabs.update(decision.tabId, { active: true });
+            targetTabId = decision.tabId;
+            navigationMessage = `Switched to existing ${new URL(targetUrl).hostname} tab.`;
+          } catch (switchErr) {
+            // Tab may have been closed between discovery and switch - fall back to navigate
+            automationLogger.debug('Tab switch failed, falling back to navigate', { error: switchErr.message });
+            await chrome.tabs.update(targetTabId, { url: targetUrl });
+            navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${new URL(targetUrl).hostname}.`;
+          }
+        } else {
+          // Navigate current (restricted) tab to target
+          await chrome.tabs.update(targetTabId, { url: targetUrl });
+          navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${new URL(targetUrl).hostname}.`;
+        }
+
+        // Wait for tab to finish loading
         await new Promise((resolve) => {
-          const navigationListener = (tabId, changeInfo) => {
-            if (tabId === targetTabId && changeInfo.status === 'complete') {
-              chrome.tabs.onUpdated.removeListener(navigationListener);
+          const navListener = (updatedTabId, changeInfo) => {
+            if (updatedTabId === targetTabId && changeInfo.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(navListener);
               resolve();
             }
           };
-          chrome.tabs.onUpdated.addListener(navigationListener);
-          
-          // Timeout after 10 seconds
-          setTimeout(() => {
-            chrome.tabs.onUpdated.removeListener(navigationListener);
-            resolve();
-          }, 10000);
+          chrome.tabs.onUpdated.addListener(navListener);
+          setTimeout(() => { chrome.tabs.onUpdated.removeListener(navListener); resolve(); }, 10000);
         });
-        
-        // Update tabInfo after navigation
+
+        // Refresh tabInfo after action
         try {
           tabInfo = await chrome.tabs.get(targetTabId);
         } catch (error) {
-          throw new Error(`Tab became inaccessible after navigation to ${targetUrl}`);
+          throw new Error(`Tab became inaccessible after smart navigation to ${targetUrl}`);
         }
-        
-        automationLogger.logNavigation(null, 'smart', null, tabInfo.url, { status: 'completed' });
+        navigationPerformed = true;
       } else {
-        // For non-navigable restricted pages (settings, extensions, etc.), show error
-        const pageType = getPageTypeDescription(tabInfo.url);
-        const error = new Error(`Chrome security restrictions prevent extensions from accessing this type of page (${tabInfo.url}). Please navigate to a regular website to use automation.`);
-        error.isChromePage = true;
-        throw error;
+        // Non-navigable restricted pages (settings, extensions, etc.)
+        const chromeError = new Error(`Chrome security restrictions prevent extensions from accessing this type of page (${tabInfo.url}). Please navigate to a regular website to use automation.`);
+        chromeError.isChromePage = true;
+        throw chromeError;
       }
-    }
-    
-    // Track smart navigation for user feedback
-    let navigationMessage = '';
-    const originalUrl = tabInfo.url;
-    let navigationPerformed = false;
-    
-    if (isRestrictedURL(originalUrl) && shouldUseSmartNavigation(originalUrl, task)) {
+    } else {
+      // Non-restricted URL: check if the current tab is relevant to the task
       const targetUrl = analyzeTaskAndGetTargetUrl(task);
-      navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${new URL(targetUrl).hostname} to complete your task.`;
-      navigationPerformed = true;
+      try {
+        const currentHost = new URL(tabInfo.url).hostname.replace(/^www\./, '');
+        const targetHost = new URL(targetUrl).hostname.replace(/^www\./, '');
+
+        // Only do smart tab management if the current tab is NOT already on the target domain
+        if (currentHost !== targetHost) {
+          const decision = await decideTabAction(targetTabId, tabInfo.url, targetUrl, task);
+          automationLogger.debug('Smart tab decision for non-restricted tab', { decision, currentHost, targetHost });
+
+          if (decision.action === 'switch') {
+            try {
+              await chrome.tabs.update(decision.tabId, { active: true });
+              targetTabId = decision.tabId;
+              navigationMessage = `Switched to existing ${targetHost} tab to preserve your ${currentHost} page.`;
+              navigationPerformed = true;
+            } catch (switchErr) {
+              // Fall back to create if switch fails
+              automationLogger.debug('Switch failed, creating new tab', { error: switchErr.message });
+              const newTab = await chrome.tabs.create({ url: targetUrl, active: true });
+              targetTabId = newTab.id;
+              navigationMessage = `Opened new ${targetHost} tab to preserve your ${currentHost} page.`;
+              navigationPerformed = true;
+            }
+          } else if (decision.action === 'create') {
+            const newTab = await chrome.tabs.create({ url: targetUrl, active: true });
+            targetTabId = newTab.id;
+            navigationMessage = `Opened new ${targetHost} tab to preserve your ${currentHost} page.`;
+            navigationPerformed = true;
+          }
+          // 'navigate' action for non-restricted: do nothing extra, let AI handle from current page
+
+          if (navigationPerformed) {
+            // Wait for new/switched tab to load
+            await new Promise((resolve) => {
+              const navListener = (updatedTabId, changeInfo) => {
+                if (updatedTabId === targetTabId && changeInfo.status === 'complete') {
+                  chrome.tabs.onUpdated.removeListener(navListener);
+                  resolve();
+                }
+              };
+              chrome.tabs.onUpdated.addListener(navListener);
+              setTimeout(() => { chrome.tabs.onUpdated.removeListener(navListener); resolve(); }, 10000);
+            });
+
+            // Refresh tabInfo
+            try {
+              tabInfo = await chrome.tabs.get(targetTabId);
+            } catch (error) {
+              throw new Error(`Tab became inaccessible after smart tab action`);
+            }
+          }
+        }
+      } catch (urlErr) {
+        // URL parsing failed, skip smart tab management
+        automationLogger.debug('Smart tab URL parsing failed', { error: urlErr.message });
+      }
     }
 
     // Read settings from storage before creating session
@@ -3142,6 +3325,8 @@ async function handleStartAutomation(request, sender, sendResponse) {
       lastUrl: null,            // Last known URL
       actionSequences: [],      // Track sequences of actions to detect patterns
       sequenceRepeatCount: {},  // Count how many times each sequence repeats
+      allowedTabs: [targetTabId], // Tabs this session can control
+      tabHistory: [],             // Track tab switches for debugging
       navigationMessage,        // Store navigation message for UI
       animatedActionHighlights: storedSettings.animatedActionHighlights ?? true,
       // PERF: Cache DOM settings at session start to avoid repeated storage reads
@@ -3206,6 +3391,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
           const duration = Date.now() - session.startTime;
           automationLogger.logSessionEnd(sessionId, 'failed', 0, duration);
           automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
           cleanupSession(sessionId);
         }
 
@@ -3451,6 +3637,7 @@ async function handleStopAutomation(request, sender, sendResponse) {
     const duration = Date.now() - session.startTime;
     automationLogger.logSessionEnd(sessionId, 'stopped', session.actionHistory.length, duration);
     automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
 
     // Tell content script to clean up visual overlays
     sendSessionStatus(session.tabId || session.originalTabId, {
@@ -4359,30 +4546,52 @@ async function handleMultiTabAction(action, currentTabId) {
         break;
 
       case 'switchToTab':
-        // SECURITY: Block switching away from the original session tab
+        // Allow switching to tabs in the session's allowedTabs whitelist
         const switchRequest = { ...mockRequest };
         if (switchRequest.tabId && typeof switchRequest.tabId === 'string') {
           switchRequest.tabId = parseInt(switchRequest.tabId, 10);
         }
 
-        // Find the session to check originalTabId
+        // Find the session for this tab
         const session = Array.from(activeSessions.values()).find(s => s.tabId === currentTabId);
-        if (session && switchRequest.tabId !== session.originalTabId) {
-          automationLogger.warn('Tab switch blocked', { sessionTabId: session.originalTabId, requestedTabId: switchRequest.tabId });
+        const isAllowed = session && (
+          switchRequest.tabId === session.originalTabId ||
+          (session.allowedTabs || []).includes(switchRequest.tabId)
+        );
+
+        if (session && !isAllowed) {
+          automationLogger.warn('Tab switch blocked', { allowedTabs: session.allowedTabs, requestedTabId: switchRequest.tabId });
           resolve({
             success: false,
-            error: `Security restriction: Automation is limited to the original tab (${session.originalTabId}). Cannot switch to tab ${switchRequest.tabId}.`,
+            error: `Security restriction: Tab ${switchRequest.tabId} is not in the session's allowed tabs. Allowed: [${(session.allowedTabs || []).join(', ')}].`,
             blocked: true
           });
           return;
         }
 
-        automationLogger.debug('Tab switch allowed', { tabId: switchRequest.tabId });
-        resolve({
-          success: true,
-          message: `Already on session tab ${switchRequest.tabId}`,
-          tabId: switchRequest.tabId
-        });
+        // Perform the actual tab switch
+        chrome.tabs.update(switchRequest.tabId, { active: true })
+          .then(() => {
+            if (session) {
+              session.tabId = switchRequest.tabId;
+            }
+            return waitForContentScriptReady(switchRequest.tabId, 5000).catch(() => {});
+          })
+          .then(() => {
+            automationLogger.debug('Tab switch allowed and executed', { tabId: switchRequest.tabId });
+            resolve({
+              success: true,
+              message: `Switched to tab ${switchRequest.tabId}`,
+              tabId: switchRequest.tabId
+            });
+          })
+          .catch((switchErr) => {
+            automationLogger.warn('Tab switch failed', { tabId: switchRequest.tabId, error: switchErr.message });
+            resolve({
+              success: false,
+              error: `Failed to switch to tab ${switchRequest.tabId}: ${switchErr.message}`
+            });
+          });
         break;
 
       case 'closeTab':
@@ -4476,6 +4685,7 @@ async function startAutomationLoop(sessionId) {
 
     automationLogger.logSessionEnd(sessionId, 'max_iterations', session.actionHistory.length, duration);
     automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
 
     sendSessionStatus(session.tabId, { phase: 'ended', reason: 'max_iterations' });
     finalizeSessionMetrics(sessionId, false);
@@ -4507,6 +4717,7 @@ async function startAutomationLoop(sessionId) {
 
     automationLogger.logSessionEnd(sessionId, 'timeout', session.actionHistory.length, sessionAge);
     automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
 
     sendSessionStatus(session.tabId, { phase: 'ended', reason: 'timeout' });
     finalizeSessionMetrics(sessionId, false);
@@ -4644,6 +4855,7 @@ async function startAutomationLoop(sessionId) {
       const duration = Date.now() - session.startTime;
       automationLogger.logSessionEnd(sessionId, 'failed', session.actionHistory.length, duration);
       automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
       sendSessionStatus(session.tabId, { phase: 'ended', reason: 'error' });
       cleanupSession(sessionId);
       return;
@@ -5090,24 +5302,33 @@ async function startAutomationLoop(sessionId) {
     const repeatedFailures = detectRepeatedActionFailures(session);
     const forceAlternativeStrategy = repeatedFailures.length > 0;
     
-    // Gather multi-tab context
+    // Gather multi-tab context with allowed-tab awareness
     let tabInfo = null;
     try {
-      // Get all tabs in current window
       const allTabs = await chrome.tabs.query({ currentWindow: true });
-      // Get tabs that have active sessions
       const sessionTabs = Array.from(activeSessions.values()).map(s => s.tabId);
-      
+      const allowedTabs = session.allowedTabs || [];
+
       tabInfo = {
         currentTabId: session.tabId,
-        allTabs: allTabs.map(tab => ({
-          id: tab.id,
-          url: tab.url,
-          title: tab.title,
-          active: tab.active,
-          status: tab.status
-        })),
-        sessionTabs: sessionTabs
+        allTabs: allTabs.map(tab => {
+          const isAllowed = allowedTabs.includes(tab.id);
+          let domain;
+          if (isAllowed && tab.url) {
+            try { domain = new URL(tab.url).hostname; } catch { /* skip */ }
+          }
+          return {
+            id: tab.id,
+            url: tab.url,
+            title: tab.title,
+            active: tab.active,
+            status: tab.status,
+            isAllowedTab: isAllowed,
+            ...(domain ? { domain } : {}),
+          };
+        }),
+        sessionTabs: sessionTabs,
+        allowedTabs: allowedTabs
       };
     } catch (error) {
       automationLogger.debug('Failed to gather tab context', { sessionId, error: error.message });
@@ -5321,6 +5542,7 @@ async function startAutomationLoop(sessionId) {
 
       // Save session logs for history
       automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
 
       sendSessionStatus(session.tabId, { phase: 'ended', reason: 'error' });
       finalizeSessionMetrics(sessionId, false); // Failed
@@ -5859,6 +6081,7 @@ async function startAutomationLoop(sessionId) {
 
       automationLogger.logSessionEnd(sessionId, 'no_progress', session.actionHistory.length, Date.now() - session.startTime);
       automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
 
       sendSessionStatus(session.tabId, { phase: 'ended', reason: 'no_progress' });
       finalizeSessionMetrics(sessionId, false);
@@ -5888,6 +6111,7 @@ async function startAutomationLoop(sessionId) {
 
         // Save session logs for history
         automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
 
         // Send success message via runtime message
         chrome.runtime.sendMessage({
@@ -5934,6 +6158,7 @@ async function startAutomationLoop(sessionId) {
 
       // Save session logs for history
       automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
 
       sendSessionStatus(session.tabId, { phase: 'ended', reason: 'stuck' });
       finalizeSessionMetrics(sessionId, false); // Failed due to stuck loop
@@ -6090,6 +6315,7 @@ async function startAutomationLoop(sessionId) {
 
       // Save session logs for history
       automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
 
       sendSessionStatus(session.tabId, { phase: 'ended', reason: 'complete' });
       finalizeSessionMetrics(sessionId, true); // Successfully completed
@@ -6139,6 +6365,7 @@ async function startAutomationLoop(sessionId) {
       const duration = Date.now() - currentSession.startTime;
       automationLogger.logSessionEnd(sessionId, 'error', currentSession.actionHistory?.length || 0, duration);
       automationLogger.saveSession(sessionId, currentSession);
+      extractAndStoreMemories(sessionId, currentSession).catch(() => {});
     }
 
     // Notify UI about error (keep message simple for user)
@@ -6326,6 +6553,17 @@ async function handleOpenNewTab(request, sender, sendResponse) {
           automationLogger.debug('Content script injection skipped for new tab', { tabId: tab.id, error: error.message });
         }
       }, 1000);
+    }
+
+    // Add newly opened tab to the session's allowed tabs
+    const senderTabId = sender.tab?.id;
+    if (senderTabId) {
+      for (const [sid, sess] of activeSessions.entries()) {
+        if (sess.tabId === senderTabId || (sess.allowedTabs || []).includes(senderTabId)) {
+          addAllowedTab(sid, tab.id, 'openNewTab');
+          break;
+        }
+      }
     }
 
     sendResponse({
@@ -6649,21 +6887,32 @@ async function handleListTabs(request, sender, sendResponse) {
       session.tabId === (sender.tab?.id || currentTab?.id)
     );
     
-    const formattedTabs = tabs.map(tab => ({
-      id: tab.id,
-      title: tab.title || 'Untitled Tab',  // Only title for context
-      isSessionTab: requestingSession && tab.id === requestingSession.originalTabId,
-      isActive: tab.active,
-      // URL and other sensitive data removed for privacy
-    }));
-    
+    const allowedTabs = requestingSession ? (requestingSession.allowedTabs || []) : [];
+
+    const formattedTabs = tabs.map(tab => {
+      const isAllowed = allowedTabs.includes(tab.id);
+      let domain;
+      if (isAllowed && tab.url) {
+        try { domain = new URL(tab.url).hostname; } catch { /* skip */ }
+      }
+      return {
+        id: tab.id,
+        title: tab.title || 'Untitled Tab',
+        isSessionTab: requestingSession && tab.id === requestingSession.originalTabId,
+        isAllowedTab: isAllowed,
+        isActive: tab.active,
+        ...(domain ? { domain } : {}),
+      };
+    });
+
     sendResponse({
       success: true,
       tabs: formattedTabs,
       sessionTabId: requestingSession ? requestingSession.originalTabId : null,
+      allowedTabs: allowedTabs,
       currentTab: currentTab ? currentTab.id : null,
       totalTabs: formattedTabs.length,
-      message: 'Tab titles shown for context only. Automation is restricted to the session tab.'
+      message: 'Tabs listed. Session and allowed tabs can be controlled via switchToTab.'
     });
     
   } catch (error) {
