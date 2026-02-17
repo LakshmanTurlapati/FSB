@@ -50,6 +50,26 @@ let fsbDebugMode = false;
  */
 async function extractAndStoreMemories(sessionId, session) {
   try {
+    // Synchronously snapshot AI instance data before any await.
+    // cleanupSession may delete the AI instance after the first await,
+    // so we must capture hardFacts, sessionMemory, and compactedSummary now.
+    const ai = sessionAIInstances.get(sessionId);
+    if (ai) {
+      session._enrichedData = {
+        hardFacts: ai.hardFacts ? {
+          taskGoal: ai.hardFacts.taskGoal || '',
+          criticalActions: [...(ai.hardFacts.criticalActions || [])],
+          workingSelectors: { ...(ai.hardFacts.workingSelectors || {}) }
+        } : null,
+        sessionMemory: ai.sessionMemory ? {
+          taskGoal: ai.sessionMemory.taskGoal || '',
+          stepsCompleted: [...(ai.sessionMemory.stepsCompleted || [])],
+          failedApproaches: [...(ai.sessionMemory.failedApproaches || [])]
+        } : null,
+        compactedSummary: ai.compactedSummary || null
+      };
+    }
+
     // Extract domain from session URL or action history
     let domain = null;
     if (session.actionHistory) {
@@ -59,6 +79,11 @@ async function extractAndStoreMemories(sessionId, session) {
           if (domain) break;
         }
       }
+    }
+
+    // Fallback: use session.lastUrl when no navigate URL found in actionHistory
+    if (!domain && session.lastUrl) {
+      try { domain = new URL(session.lastUrl).hostname; } catch {}
     }
 
     const memories = await memoryManager.add(session, { domain });
@@ -3626,6 +3651,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ text });
         } catch (error) {
           sendResponse({ text: null, error: error.message });
+        }
+      })();
+      return true; // Will respond asynchronously
+
+    case 'getDOMSnapshots':
+      // Get full DOM snapshots for a session
+      (async () => {
+        try {
+          const snapshots = await automationLogger.getDOMSnapshots(request.sessionId);
+          sendResponse({ snapshots });
+        } catch (error) {
+          sendResponse({ snapshots: [], error: error.message });
+        }
+      })();
+      return true; // Will respond asynchronously
+
+    case 'exportDOMSnapshots':
+      // Export DOM snapshots in scrape-compatible format
+      (async () => {
+        try {
+          const snapshots = await automationLogger.getDOMSnapshots(request.sessionId);
+          const exported = automationLogger.exportDOMSnapshots(request.sessionId, snapshots);
+          sendResponse({ exported });
+        } catch (error) {
+          sendResponse({ exported: null, error: error.message });
         }
       })();
       return true; // Will respond asynchronously
