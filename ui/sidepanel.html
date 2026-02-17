@@ -18,6 +18,9 @@
         </div>
       </div>
       <div class="header-actions">
+        <button id="historyBtn" class="icon-btn" title="Session History">
+          <i class="fa fa-clock-rotate-left"></i>
+        </button>
         <button id="newChatBtn" class="icon-btn" title="Start New Chat">
           <i class="fa fa-plus"></i>
         </button>
@@ -26,8 +29,20 @@
         </button>
       </div>
     </header>
-    
-    
+
+    <div id="historyView" class="history-view hidden">
+      <div class="history-header">
+        <h3>Session History</h3>
+        <button id="clearAllHistoryBtn" class="history-clear-all-btn" title="Delete All Sessions">
+          <i class="fa fa-trash"></i>
+          <span>Clear All</span>
+        </button>
+      </div>
+      <div class="history-list" id="historyList">
+        <!-- Session items rendered dynamically -->
+      </div>
+    </div>
+
     <div class="chat-messages-area">
       <div id="chatMessages" class="chat-messages">
         <!-- Messages will be dynamically added here -->

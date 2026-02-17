@@ -7,7 +7,7 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
   globalThis.__FSB_AUTOMATION_LOGGER_LOADED__ = true;
   console.log('[FSB] automation-logger.js loading');
 
-  // Automation Logger for FSB v9.0.1
+  // Automation Logger for FSB v9.0.2
   // Provides structured logging for debugging automation loops
 
   class AutomationLogger {
@@ -438,6 +438,13 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
           if (sessionData.commands && sessionData.commands.length > 1) {
             existing.task = sessionData.commands.map((cmd, i) => `[${i + 1}] ${cmd}`).join(' | ');
           }
+          // Persist actionHistory for session replay (successful actions only, capped at 100)
+          if (sessionData.actionHistory) {
+            existing.actionHistory = (sessionData.actionHistory || [])
+              .filter(a => a.result?.success)
+              .slice(-100)
+              .map(a => ({ tool: a.tool, params: a.params, result: a.result, timestamp: a.timestamp }));
+          }
           sessionStorage[sessionId] = existing;
         } else {
           // NEW MODE: Create session entry
@@ -451,7 +458,12 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
             actionCount: sessionData.actionHistory?.length || 0,
             iterationCount: sessionData.iterationCount || 0,
             commandCount: sessionData.commandCount || 1,
-            logs: sessionLogs
+            logs: sessionLogs,
+            // Persist actionHistory for session replay (successful actions only, capped at 100)
+            actionHistory: (sessionData.actionHistory || [])
+              .filter(a => a.result?.success)
+              .slice(-100)
+              .map(a => ({ tool: a.tool, params: a.params, result: a.result, timestamp: a.timestamp }))
           };
           sessionStorage[sessionId] = session;
         }

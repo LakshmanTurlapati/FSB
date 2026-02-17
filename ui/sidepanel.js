@@ -1,9 +1,26 @@
-// Side Panel Script for FSB v9.0.1 - Persistent UI
+// Side Panel Script for FSB v9.0.2 - Persistent UI
 
 let currentSessionId = null;
 let conversationId = null;
 let isRunning = false;
 let stopRequested = false;
+let isHistoryViewActive = false;
+
+// Initialize or restore conversation ID for session continuity
+async function initConversationId() {
+  try {
+    const stored = await chrome.storage.session.get(['fsbSidepanelConversationId']);
+    if (stored.fsbSidepanelConversationId) {
+      conversationId = stored.fsbSidepanelConversationId;
+    } else {
+      conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      await chrome.storage.session.set({ fsbSidepanelConversationId: conversationId });
+    }
+  } catch (e) {
+    // Fallback: generate without persistence
+    conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  }
+}
 
 // Initialize or restore conversation ID for session continuity
 async function initConversationId() {
@@ -28,6 +45,7 @@ const stopBtn = document.getElementById('stopBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const chatMessages = document.getElementById('chatMessages');
+const historyBtn = document.getElementById('historyBtn');
 const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
 
@@ -95,7 +113,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Initialize side panel
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('FSB v9.0.1 side panel loaded');
+  console.log('FSB v9.0.2 side panel loaded');
 
   // Apply theme first
   applyTheme();
@@ -147,9 +165,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Set UI mode preference
   await chrome.storage.local.set({ uiMode: 'sidepanel' });
   
+  // History list event delegation for delete buttons
+  const historyListEl = document.getElementById('historyList');
+  if (historyListEl) {
+    historyListEl.addEventListener('click', async (e) => {
+      const replayBtn = e.target.closest('.history-replay-btn');
+      if (replayBtn) {
+        e.stopPropagation();
+        const sessionId = replayBtn.dataset.sessionId;
+        if (sessionId) {
+          startReplay(sessionId);
+        }
+        return;
+      }
+
+      const deleteBtn = e.target.closest('.history-delete-btn');
+      if (!deleteBtn) return;
+      e.stopPropagation();
+      const sessionId = deleteBtn.dataset.sessionId;
+      if (!sessionId) return;
+      await deleteHistorySession(sessionId);
+    });
+  }
+
+  // Clear All button
+  const clearAllHistoryBtn = document.getElementById('clearAllHistoryBtn');
+  if (clearAllHistoryBtn) {
+    clearAllHistoryBtn.addEventListener('click', clearAllHistorySessions);
+  }
+
   // Add welcome message
   addMessage('Welcome to FSB. How can I help?', 'system');
-  
+
   // Focus the input
   chatInput.focus();
 });
@@ -184,6 +231,7 @@ sendBtn.addEventListener('click', handleSendMessage);
 stopBtn.addEventListener('click', stopAutomation);
 newChatBtn.addEventListener('click', startNewChat);
 settingsBtn.addEventListener('click', openSettings);
+historyBtn.addEventListener('click', toggleHistoryView);
 
 // PERF: Debounced storage save to avoid writes on every keystroke
 let _saveTaskTimer = null;
@@ -332,6 +380,11 @@ function stopAutomation() {
 
 // Start new chat session
 function startNewChat() {
+  // Switch back to chat view if history is showing
+  if (isHistoryViewActive) {
+    showChatView();
+  }
+
   // Stop any running automation first
   if (isRunning && currentSessionId) {
     chrome.runtime.sendMessage({
@@ -397,7 +450,10 @@ function setIdleState() {
     }
     currentStatusMessage = null;
   }
-  
+
+  // Reset action message tracking
+  actionMessageQueue = [];
+
   updateSendButtonState();
 }
 
@@ -413,6 +469,70 @@ function setErrorState() {
 
 // Global reference to current status message
 let currentStatusMessage = null;
+
+// Action message tracking for auto-collapse
+let actionMessageQueue = [];
+const MAX_VISIBLE_ACTIONS = 2;
+
+function addActionMessage(text) {
+  const msgDiv = document.createElement('div');
+  msgDiv.className = 'message action-compact new';
+  msgDiv.textContent = text;
+  chatMessages.appendChild(msgDiv);
+  setTimeout(() => msgDiv.classList.remove('new'), 400);
+  actionMessageQueue.push(msgDiv);
+  collapseOldActions();
+  scrollToBottom();
+}
+
+function collapseOldActions() {
+  if (actionMessageQueue.length <= MAX_VISIBLE_ACTIONS) return;
+
+  let group = chatMessages.querySelector('.action-summary-group');
+  if (!group) {
+    group = document.createElement('div');
+    group.className = 'action-summary-group';
+    const header = document.createElement('div');
+    header.className = 'action-summary-header';
+    header.innerHTML = '<span class="action-chevron">></span><span class="action-summary-count"></span>';
+    header.addEventListener('click', () => {
+      const list = group.querySelector('.action-summary-list');
+      const chevron = group.querySelector('.action-chevron');
+      if (list.classList.contains('collapsed')) {
+        list.classList.remove('collapsed');
+        chevron.classList.add('expanded');
+      } else {
+        list.classList.add('collapsed');
+        chevron.classList.remove('expanded');
+      }
+    });
+    const list = document.createElement('div');
+    list.className = 'action-summary-list collapsed';
+    group.appendChild(header);
+    group.appendChild(list);
+    const firstAction = actionMessageQueue[0];
+    if (firstAction && firstAction.parentNode) {
+      firstAction.parentNode.insertBefore(group, firstAction);
+    } else {
+      chatMessages.appendChild(group);
+    }
+  }
+
+  const list = group.querySelector('.action-summary-list');
+  while (actionMessageQueue.length > MAX_VISIBLE_ACTIONS) {
+    const oldMsg = actionMessageQueue.shift();
+    if (oldMsg.parentNode) oldMsg.remove();
+    const collapsed = document.createElement('div');
+    collapsed.className = 'collapsed-action';
+    collapsed.textContent = oldMsg.textContent;
+    list.appendChild(collapsed);
+  }
+
+  const countEl = group.querySelector('.action-summary-count');
+  if (countEl) {
+    countEl.textContent = `${list.children.length} actions completed`;
+  }
+}
 
 // Add dynamic status message with integrated loader
 function addStatusMessage(text, type = 'ai') {
@@ -438,31 +558,55 @@ function addStatusMessage(text, type = 'ai') {
   statusText.className = 'status-text';
   statusText.textContent = text;
   
+  // Progress container (hidden until progress data arrives)
+  const progressContainer = document.createElement('div');
+  progressContainer.className = 'progress-container hidden';
+  const progressBar = document.createElement('div');
+  progressBar.className = 'progress-bar';
+  const progressFill = document.createElement('div');
+  progressFill.className = 'progress-fill';
+  progressBar.appendChild(progressFill);
+  const progressLabel = document.createElement('span');
+  progressLabel.className = 'progress-label';
+  progressContainer.appendChild(progressBar);
+  progressContainer.appendChild(progressLabel);
+
   // Assemble the message
   messageContent.appendChild(loaderDots);
   messageContent.appendChild(statusText);
   messageDiv.appendChild(messageContent);
-  
+  messageDiv.appendChild(progressContainer);
+
   chatMessages.appendChild(messageDiv);
-  
+
   // Store reference for updates
   currentStatusMessage = messageDiv;
-  
+
   // Remove the 'new' class after animation
   setTimeout(() => {
     messageDiv.classList.remove('new');
   }, 400);
-  
+
   scrollToBottom();
   return messageDiv;
 }
 
-// Update existing status message
-function updateStatusMessage(text) {
+// Update existing status message with optional progress data
+function updateStatusMessage(text, progressData) {
   if (currentStatusMessage) {
     const statusText = currentStatusMessage.querySelector('.status-text');
     if (statusText) {
       statusText.textContent = text;
+    }
+    if (progressData && progressData.iteration != null) {
+      const container = currentStatusMessage.querySelector('.progress-container');
+      const fill = currentStatusMessage.querySelector('.progress-fill');
+      const label = currentStatusMessage.querySelector('.progress-label');
+      if (container && fill && label) {
+        container.classList.remove('hidden');
+        fill.style.width = (progressData.progressPercent || 0) + '%';
+        label.textContent = `Step ${progressData.iteration}/${progressData.maxIterations || 20}`;
+      }
     }
   }
 }
@@ -552,7 +696,7 @@ function showChromepageError(text) {
 function addMessage(text, type = 'system') {
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ${type} new`;
-  
+
   // Handle different message types
   if (type === 'action') {
     // Format action messages nicely
@@ -562,28 +706,46 @@ function addMessage(text, type = 'system') {
         const formattedParams = Object.entries(parsedParams)
           .map(([key, value]) => `${key}: "${value}"`)
           .join(', ');
-        return `✓ ${tool}(${formattedParams})`;
+        return `${tool}(${formattedParams})`;
       } catch {
-        return `✓ ${tool}(${params})`;
+        return `${tool}(${params})`;
       }
     });
     messageDiv.textContent = actionText;
   } else {
     messageDiv.textContent = text;
   }
-  
+
+  // Add dismiss button for error messages
+  if (type === 'error') {
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'message-dismiss';
+    dismissBtn.textContent = 'X';
+    dismissBtn.addEventListener('click', () => {
+      messageDiv.classList.add('collapsing');
+      setTimeout(() => messageDiv.remove(), 300);
+    });
+    messageDiv.appendChild(dismissBtn);
+    // Auto-collapse error after 30 seconds
+    setTimeout(() => {
+      if (messageDiv.parentNode && !messageDiv.classList.contains('collapsing')) {
+        messageDiv.classList.add('auto-collapsed');
+      }
+    }, 30000);
+  }
+
   chatMessages.appendChild(messageDiv);
-  
+
   // Remove the 'new' class after animation
   setTimeout(() => {
     messageDiv.classList.remove('new');
   }, 400);
-  
+
   // Limit messages to prevent overflow
   while (chatMessages.children.length > 100) {
     chatMessages.removeChild(chatMessages.firstChild);
   }
-  
+
   scrollToBottom();
 }
 
@@ -620,12 +782,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         setIdleState();
+        // Refresh history list if history view is active
+        if (isHistoryViewActive) {
+          loadHistoryList();
+        }
       }
       break;
-      
+
     case 'statusUpdate':
       if (request.sessionId === currentSessionId) {
-        updateStatusMessage(request.message);
+        // Auto-switch to chat view if user is on history while automation runs
+        if (isHistoryViewActive) {
+          showChatView();
+        }
+        // Snapshot previous status as completed action message
+        const prevText = currentStatusMessage?.querySelector('.status-text')?.textContent;
+        const skipTexts = ['Starting automation...', 'Connecting to page...', 'Connected. Analyzing page...', 'Analyzing page...'];
+        if (prevText && !skipTexts.includes(prevText)) {
+          addActionMessage(prevText);
+        }
+        updateStatusMessage(request.message, {
+          iteration: request.iteration,
+          maxIterations: request.maxIterations,
+          progressPercent: request.progressPercent
+        });
       }
       break;
       
@@ -639,23 +819,33 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // Provide specific guidance for stuck scenarios
         if (request.error && request.error.includes('stuck')) {
           addMessage('The automation got stuck repeating the same actions. Here are some tips:', 'system');
-          addMessage('• Try being more specific about what you want to achieve', 'system');
-          addMessage('• Check if the page requires manual steps like CAPTCHA solving', 'system');
-          addMessage('• Ensure the page has fully loaded before starting', 'system');
+          addMessage('Try being more specific about what you want to achieve', 'system');
+          addMessage('Check if the page requires manual steps like CAPTCHA solving', 'system');
+          addMessage('Ensure the page has fully loaded before starting', 'system');
+        }
+
+        // Add retry button if task is available
+        if (request.task) {
+          const retryDiv = document.createElement('div');
+          retryDiv.className = 'message system new';
+          retryDiv.textContent = 'Would you like to try again? ';
+          const retryBtn = document.createElement('button');
+          retryBtn.className = 'retry-btn';
+          retryBtn.textContent = 'Retry';
+          retryBtn.addEventListener('click', () => {
+            retryDiv.remove();
+            chatInput.textContent = request.task;
+            handleSendMessage();
+          });
+          retryDiv.appendChild(retryBtn);
+          chatMessages.appendChild(retryDiv);
+          scrollToBottom();
         } else {
           addMessage('No worries! The side panel is still here. Try again or ask for help with something else.', 'system');
         }
       }
       break;
       
-    case 'actionExecuted':
-      if (request.sessionId === currentSessionId) {
-        // Show a more user-friendly action message
-        const actionMessage = formatActionMessage(request.tool, request.params);
-        addMessage(actionMessage, 'action');
-      }
-      break;
-
     case 'loginDetected':
       if (request.sessionId === currentSessionId) {
         // Pause the status loader
@@ -805,98 +995,6 @@ function showLoginPrompt(domain, fields) {
   }
 }
 
-// Format action messages for better user experience
-function formatActionMessage(tool, params) {
-  switch (tool) {
-    case 'click':
-      return `Clicked on element: ${params.selector}`;
-    case 'type':
-      const enterText = params.pressEnter ? ' and pressed Enter' : '';
-      return `Typed "${params.text}" into ${params.selector}${enterText}`;
-    case 'pressEnter':
-      return `Pressed Enter on ${params.selector}`;
-    case 'scroll':
-      return `Scrolled page by ${params.amount} pixels`;
-    case 'moveMouse':
-      return `Moved mouse to position (${params.x}, ${params.y})`;
-    case 'solveCaptcha':
-      return `Attempting to solve CAPTCHA`;
-    // Multi-tab actions
-    case 'openNewTab':
-      return `Opened new tab: ${params.url || 'blank page'}${params.active === false ? ' (in background)' : ''}`;
-    case 'switchToTab':
-      return `Switched to tab ID: ${params.tabId}`;
-    case 'closeTab':
-      return `Closed tab ID: ${params.tabId}`;
-    case 'listTabs':
-      return `Listed all open tabs${params.currentWindowOnly === false ? ' (all windows)' : ' (current window)'}`;
-    case 'getCurrentTab':
-      return `Retrieved current tab information`;
-    case 'waitForTabLoad':
-      return `Waiting for tab ${params.tabId} to load...`;
-    // Navigation & search
-    case 'navigate':
-      return `Navigating to ${params.url}`;
-    case 'searchGoogle':
-      return `Searching Google for: ${params.query}`;
-    case 'scrollToElement':
-      return `Scrolled to element: ${params.selector}`;
-    case 'clickSearchResult':
-      return `Clicked search result: ${params.selector}`;
-    // Waiting & detection
-    case 'waitForElement':
-      return `Waiting for element: ${params.selector}`;
-    case 'verifyMessageSent':
-      return `Verifying message was sent`;
-    case 'waitForDOMStable':
-      return `Waiting for page to stabilize...`;
-    case 'detectLoadingState':
-      return `Checking if page is loading...`;
-    // Click variants
-    case 'rightClick':
-      return `Right-clicked on element: ${params.selector}`;
-    case 'doubleClick':
-      return `Double-clicked on element: ${params.selector}`;
-    // Keyboard actions
-    case 'keyPress':
-      return `Pressed key: ${params.key}`;
-    case 'pressKeySequence':
-      return `Pressed key sequence: ${Array.isArray(params.keys) ? params.keys.join(', ') : params.keys}`;
-    case 'typeWithKeys':
-      return `Typing with key events: ${params.text}`;
-    case 'sendSpecialKey':
-      return `Pressed special key: ${params.key}`;
-    // Text & focus
-    case 'selectText':
-      return `Selected text in: ${params.selector}`;
-    case 'focus':
-      return `Focused on element: ${params.selector}`;
-    case 'blur':
-      return `Removed focus from: ${params.selector}`;
-    case 'hover':
-      return `Hovering over element: ${params.selector}`;
-    // Form controls
-    case 'selectOption':
-      return `Selected '${params.optionText || params.value}' from dropdown: ${params.selector}`;
-    case 'toggleCheckbox':
-      return `Toggled checkbox: ${params.selector}`;
-    // Data extraction
-    case 'getText':
-      return `Reading text from: ${params.selector}`;
-    case 'getAttribute':
-      return `Reading ${params.attribute} from: ${params.selector}`;
-    case 'setAttribute':
-      return `Setting ${params.attribute} on: ${params.selector}`;
-    // Input management
-    case 'clearInput':
-      return `Cleared input: ${params.selector}`;
-    // Gaming
-    case 'gameControl':
-      return `Game control: ${params.action}`;
-    default:
-      return `Executed ${tool} with params: ${JSON.stringify(params)}`;
-  }
-}
 
 // Handle keyboard shortcuts
 document.addEventListener('keydown', (e) => {
@@ -932,9 +1030,184 @@ document.addEventListener('visibilitychange', () => {
 });
 
 
+// ==========================================
+// Session History Functions
+// ==========================================
+
+function toggleHistoryView() {
+  if (isHistoryViewActive) {
+    showChatView();
+  } else {
+    showHistoryView();
+  }
+}
+
+function showHistoryView() {
+  document.querySelector('.chat-messages-area').classList.add('hidden');
+  document.querySelector('.chat-input-area').classList.add('hidden');
+  document.getElementById('historyView').classList.remove('hidden');
+  historyBtn.classList.add('active');
+  isHistoryViewActive = true;
+  loadHistoryList();
+}
+
+function showChatView() {
+  document.querySelector('.chat-messages-area').classList.remove('hidden');
+  document.querySelector('.chat-input-area').classList.remove('hidden');
+  document.getElementById('historyView').classList.add('hidden');
+  historyBtn.classList.remove('active');
+  isHistoryViewActive = false;
+}
+
+async function loadHistoryList() {
+  const historyList = document.getElementById('historyList');
+  if (!historyList) return;
+
+  try {
+    const stored = await chrome.storage.local.get(['fsbSessionIndex']);
+    const sessions = stored.fsbSessionIndex || [];
+
+    if (sessions.length === 0) {
+      historyList.innerHTML = '<div class="history-empty-state">' +
+        '<i class="fa fa-inbox"></i>' +
+        '<p>No sessions yet. Run an automation to see your history here.</p>' +
+        '</div>';
+      return;
+    }
+
+    historyList.innerHTML = sessions.map(function(session) {
+      return '<div class="history-item" data-session-id="' + escapeHtml(session.id) + '">' +
+        '<div class="history-item-info">' +
+          '<div class="history-item-task">' + escapeHtml(session.task || 'Unknown task') + '</div>' +
+          '<div class="history-item-meta">' +
+            '<span>' + formatSessionDate(session.startTime) + '</span>' +
+            '<span>' + (session.actionCount || 0) + ' actions</span>' +
+            '<span class="history-status ' + (session.status || '') + '">' + escapeHtml(session.status || 'unknown') + '</span>' +
+          '</div>' +
+        '</div>' +
+        (session.actionCount > 0 ?
+          '<button class="history-replay-btn" data-session-id="' + escapeHtml(session.id) + '" title="Replay session">' +
+            '<i class="fa fa-play"></i>' +
+          '</button>' : '') +
+        '<button class="history-delete-btn" data-session-id="' + escapeHtml(session.id) + '" title="Delete session">' +
+          '<i class="fa fa-trash"></i>' +
+        '</button>' +
+      '</div>';
+    }).join('');
+  } catch (error) {
+    console.error('Failed to load history list:', error);
+    historyList.innerHTML = '<div class="history-empty-state">' +
+      '<i class="fa fa-exclamation-triangle"></i>' +
+      '<p>Failed to load sessions.</p>' +
+      '</div>';
+  }
+}
+
+async function startReplay(sessionId) {
+  if (isRunning) {
+    addMessage('Cannot replay while another automation is running. Stop the current task first.', 'system');
+    return;
+  }
+
+  // Switch to chat view to show replay progress
+  if (isHistoryViewActive) {
+    showChatView();
+  }
+
+  addMessage('Starting replay...', 'system');
+  addStatusMessage('Preparing replay...');
+
+  try {
+    const response = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({
+        action: 'replaySession',
+        sessionId: sessionId
+      }, (resp) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(resp);
+        }
+      });
+    });
+
+    if (response && response.success) {
+      currentSessionId = response.sessionId;
+      setRunningState();
+      updateStatusMessage('Replaying: step 1/' + response.totalSteps);
+    } else {
+      completeStatusMessage(response?.error || 'Failed to start replay', 'error');
+      addMessage(response?.error || 'Failed to start replay.', 'error');
+    }
+  } catch (error) {
+    completeStatusMessage('Replay error', 'error');
+    addMessage('Failed to start replay: ' + error.message, 'error');
+  }
+}
+
+async function deleteHistorySession(sessionId) {
+  try {
+    const stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex']);
+    const sessionStorage = stored.fsbSessionLogs || {};
+    const sessionIndex = stored.fsbSessionIndex || [];
+    delete sessionStorage[sessionId];
+    const updatedIndex = sessionIndex.filter(function(s) { return s.id !== sessionId; });
+    await chrome.storage.local.set({
+      fsbSessionLogs: sessionStorage,
+      fsbSessionIndex: updatedIndex
+    });
+    loadHistoryList();
+  } catch (error) {
+    console.error('Failed to delete session:', error);
+  }
+}
+
+async function clearAllHistorySessions() {
+  if (!confirm('Delete all session history? This cannot be undone.')) return;
+  try {
+    await chrome.storage.local.remove(['fsbSessionLogs', 'fsbSessionIndex']);
+    loadHistoryList();
+  } catch (error) {
+    console.error('Failed to clear all sessions:', error);
+  }
+}
+
+function formatSessionDate(timestamp) {
+  if (!timestamp) return 'Unknown';
+  var date = new Date(timestamp);
+  var now = new Date();
+  var diffMs = now - date;
+  var diffHours = diffMs / (1000 * 60 * 60);
+  if (diffHours < 1) {
+    var mins = Math.floor(diffMs / (1000 * 60));
+    return mins + 'm ago';
+  } else if (diffHours < 24) {
+    return Math.floor(diffHours) + 'h ago';
+  } else if (diffHours < 48) {
+    return 'Yesterday';
+  }
+  return date.toLocaleDateString();
+}
+
+function formatSessionDuration(startTime, endTime) {
+  if (!startTime || !endTime) return '';
+  var durationMs = endTime - startTime;
+  var seconds = Math.floor(durationMs / 1000);
+  var minutes = Math.floor(seconds / 60);
+  var remainingSeconds = seconds % 60;
+  if (minutes > 0) return minutes + 'm ' + remainingSeconds + 's';
+  return seconds + 's';
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
 
 
-console.log('FSB v9.0.1 side panel script loaded');
+console.log('FSB v9.0.2 side panel script loaded');
 
 // ==========================================
 // /agent Slash Command Handler

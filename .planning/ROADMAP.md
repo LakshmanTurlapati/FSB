@@ -15,8 +15,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Signal Accuracy Fixes** - Fix viewport, CAPTCHA, and Shadow DOM detection so downstream data is trustworthy
 - [x] **Phase 2: DOM Serialization Pipeline** - Deliver 3-4x more page context to the AI with budget-based prompt allocation
 - [x] **Phase 3: DOM Change Detection** - Replace coarse hash with multi-signal change detection that tells the AI what changed
-- [ ] **Phase 4: Conversation Memory** - Fix compaction failures and enrich session memory so the AI remembers what it did
-- [ ] **Phase 5: Task Completion Verification** - Add system-level verification so the AI knows when the task is actually done
+- [x] **Phase 4: Conversation Memory** - Fix compaction failures and enrich session memory so the AI remembers what it did
+- [x] **Phase 5: Task Completion Verification** - Add system-level verification so the AI knows when the task is actually done
+- [x] **Phase 6: Unified Session Continuity** - Keep all logs/sessions unified within the same conversation instead of creating new sessions per command
+- [ ] **Phase 7: Session History UI** - Add conversation history panel to sidepanel with previous sessions list and delete functionality
 
 ## Phase Details
 
@@ -112,8 +114,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md -- Data flow fix: enrich slimActionResult, pass lastActionResult, rewrite updateSessionMemory and describeAction for rich action recording (MEM-02)
-- [ ] 04-02-PLAN.md -- Compaction hardening with retry + local fallback, hard facts section exempt from compaction, long-term memory injection in first-iteration prompt (MEM-01 + MEM-03 + MEM-04)
+- [x] 04-01-PLAN.md -- Data flow fix: enrich slimActionResult, pass lastActionResult, rewrite updateSessionMemory and describeAction for rich action recording (MEM-02)
+- [x] 04-02-PLAN.md -- Compaction hardening with retry + local fallback, hard facts section exempt from compaction, long-term memory injection in first-iteration prompt (MEM-01 + MEM-03 + MEM-04)
 
 **Files changed:**
 - `background.js`: `slimActionResult()` (~line 1430) -- preserve elementText (50 chars) and selectorUsed
@@ -143,7 +145,12 @@ Plans:
   4. The progress tracker uses multi-signal change data from Phase 3 to distinguish "no progress" from "progress that the old hash missed" -- reducing false hard-stop triggers
   5. When the page shows a success message, confirmation toast, or navigates to a receipt/confirmation URL, the system surfaces this evidence to the AI as a completion signal rather than waiting for the AI to notice
   6. Page intent classification (via `inferPageIntent()`) influences both DOM serialization strategy and completion detection -- a `success-confirmation` page intent triggers a completion candidate check
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [x] 05-01-PLAN.md -- classifyTask() utility, critical action registry with cooldown, enhanced progress tracking with changeSignals (CMP-03 + CMP-04)
+- [x] 05-02-PLAN.md -- detectCompletionSignals() proactive scanner, enhanced inferPageIntent() with text validation, completionSignals in DOM response (DIF-01 + DIF-02)
+- [x] 05-03-PLAN.md -- validateCompletion() dispatcher with task-type validators, multi-signal scoring, prompt injection of completion signals and critical action warnings (CMP-01 + CMP-02)
 
 **Files changed:**
 - `background.js`: Completion validation block (~line 6178-6330) -- restructure with task-type-specific validators (messaging, navigation, form, extraction, search)
@@ -156,6 +163,56 @@ Plans:
 **Pitfall mitigations:**
 - Pitfall 1 (AI self-report unreliable): Multi-signal scoring replaces sole reliance on `taskComplete` boolean.
 - Pitfall 8 (duplicate side effects): Critical action registry with cooldown prevents re-execution of send/submit/purchase.
+
+---
+
+### Phase 6: Unified Session Continuity
+
+**Goal:** Keep all logs and sessions in the same file/session as long as follow-up commands are passed in the same conversation, instead of creating a new log/session for each command
+**Depends on:** Phase 5 (completion verification determines session boundaries)
+**Success Criteria** (what must be TRUE):
+  1. Follow-up commands in the same conversation reuse the existing session -- same sessionId, same AI instance, same log entry
+  2. AI conversation history, hard facts, and working selectors survive across commands within the same conversation
+  3. Per-command counters (iterationCount, stuckCounter) reset on follow-up while cumulative state (actionHistory, AI history) is preserved
+  4. Popup restores conversationId after close/reopen so session continuity works across popup lifecycle
+  5. Sidepanel "New Chat" button starts a fresh conversation with a new conversationId
+  6. Session logs in Options page show a single unified entry per conversation, not one per command
+  7. Idle sessions auto-cleanup after 10 minutes of inactivity
+**Plans:** 2 plans
+
+Plans:
+- [x] 06-01-PLAN.md -- Session continuity engine: conversationSessions Map, reactivateSession, idleSession with deferred cleanup, AI follow-up context injection
+- [x] 06-02-PLAN.md -- UI wiring and logger: conversationId generation/persistence in popup and sidepanel, logger append mode for follow-up commands
+
+**Files changed:**
+- `background.js`: `conversationSessions` Map, `handleStartAutomation()` session reuse, `reactivateSession()`, `idleSession()` with deferred cleanup, completion paths use `idleSession()` instead of `cleanupSession()`
+- `ai/ai-integration.js`: `injectFollowUpContext()` method for follow-up conversation separator
+- `ui/popup.js`: Generate/persist `conversationId` to `chrome.storage.session`, send with `startAutomation`, preserve `currentSessionId` across completions
+- `ui/sidepanel.js`: Same as popup.js, plus new `conversationId` on `startNewChat()`
+- `utils/automation-logger.js`: `saveSession()` append mode for existing sessions, `logFollowUpCommand()` method
+
+**Pitfall mitigations:**
+- Pitfall 1 (service worker restart): `conversationSessions` persisted to `chrome.storage.session` and restored on startup
+- Pitfall 2 (memory leak): FIFO cap of 5 conversation sessions + 10-minute idle timeout
+- Pitfall 3 (stale state on reactivation): Explicit `reactivateSession()` resets per-command fields, preserves cumulative state
+- Pitfall 5 (popup close/reopen): `conversationId` persisted to `chrome.storage.session`
+- Pitfall 7 (stale AI context): Follow-up commands inject `[FOLLOW-UP COMMAND]` separator in AI conversation
+
+---
+
+### Phase 7: Session History UI
+
+**Goal:** Add conversation history panel to sidepanel with previous sessions list and delete functionality
+**Depends on:** Phase 6
+**Plans:** 1 plan
+
+Plans:
+- [ ] 07-01-PLAN.md -- Session history view toggle, session list display, delete individual/all sessions
+
+**Files changed:**
+- `ui/sidepanel.html`: History button in header-actions, history-view container
+- `ui/sidepanel.js`: View toggle, session loading from chrome.storage.local, delete functions, helper utilities
+- `ui/sidepanel.css`: History view layout, item styles, status badges, active button state, empty state, dark theme
 
 ---
 
@@ -193,12 +250,14 @@ Plans:
 
 ## Progress
 
-**Execution Order:** 1 -> 2 -> 3 -> 4 -> 5 (strict sequential, each phase's output feeds the next)
+**Execution Order:** 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 (strict sequential, each phase's output feeds the next)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
 | 1. Signal Accuracy Fixes | 1/1 | Complete | 2026-02-14 |
 | 2. DOM Serialization Pipeline | 3/3 | Complete | 2026-02-14 |
 | 3. DOM Change Detection | 2/2 | Complete | 2026-02-14 |
-| 4. Conversation Memory | 0/2 | Not started | - |
-| 5. Task Completion Verification | 0/TBD | Not started | - |
+| 4. Conversation Memory | 2/2 | Complete | 2026-02-14 |
+| 5. Task Completion Verification | 3/3 | Complete | 2026-02-15 |
+| 6. Unified Session Continuity | 2/2 | Complete | 2026-02-16 |
+| 7. Session History UI | 0/1 | Not started | - |

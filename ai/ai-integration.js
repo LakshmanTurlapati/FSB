@@ -385,28 +385,6 @@ class AIIntegration {
   }
 
   /**
-   * Format structured change information for AI prompts
-   * Renders human-readable change summary from multi-signal detection
-   * @param {Object} context - Automation context with changeSignals and domChanged
-   * @returns {string} Formatted change info string
-   */
-  formatChangeInfo(context) {
-    const cs = context?.changeSignals;
-    if (!cs) {
-      // Fallback for backward compatibility if changeSignals not present
-      return `DOM changed: ${context?.domChanged ? 'Yes' : 'No'}`;
-    }
-    if (!cs.changed) {
-      return 'DOM changed: No (page appears unchanged since your last action)';
-    }
-    let info = 'DOM changed: Yes';
-    if (cs.summary && cs.summary.length > 0) {
-      info += ' -- ' + cs.summary.join('; ');
-    }
-    return info;
-  }
-
-  /**
    * Build minimal update prompt for subsequent iterations
    * Only sends what changed since last iteration to save tokens
    * @param {Object} domState - Current DOM state

@@ -1,4 +1,4 @@
-// Background service worker for FSB v9.0.1
+// Background service worker for FSB v9.0.2
 
 // Import configuration and AI integration modules
 importScripts('config/config.js');
@@ -1624,6 +1624,290 @@ function slimActionResult(result) {
   return slim;
 }
 
+// ==========================================
+// SESSION REPLAY ENGINE
+// ==========================================
+
+/**
+ * Get appropriate inter-action delay for replay based on tool type.
+ * Navigation actions get longer delays; typing/key actions are faster.
+ * @param {string} tool - The action tool name
+ * @returns {number} Delay in milliseconds
+ */
+function getReplayDelay(tool) {
+  if (['navigate', 'searchGoogle', 'goBack', 'goForward'].includes(tool)) return 1500;
+  if (['click', 'doubleClick', 'rightClick'].includes(tool)) return 500;
+  if (['type', 'keyPress', 'pressEnter'].includes(tool)) return 300;
+  return 200;
+}
+
+/**
+ * Load a stored session's actionHistory and filter to replayable actions.
+ * @param {string} sessionId - The session ID to load from fsbSessionLogs
+ * @returns {Object|null} { session, replayableActions, originalTask, originalUrl } or null
+ */
+async function loadReplayableSession(sessionId) {
+  try {
+    const stored = await chrome.storage.local.get(['fsbSessionLogs']);
+    const sessionStorage = stored.fsbSessionLogs || {};
+    const session = sessionStorage[sessionId];
+
+    if (!session || !session.actionHistory || session.actionHistory.length === 0) {
+      return null;
+    }
+
+    const replayableTools = new Set([
+      'click', 'rightClick', 'doubleClick', 'type', 'clearInput', 'pressEnter',
+      'keyPress', 'selectOption', 'toggleCheckbox', 'navigate', 'searchGoogle',
+      'scroll', 'goBack', 'goForward', 'refresh', 'hover', 'focus', 'moveMouse',
+      'waitForElement'
+    ]);
+
+    const replayableActions = session.actionHistory
+      .filter(a => a.result?.success === true && replayableTools.has(a.tool));
+
+    if (replayableActions.length === 0) {
+      return null;
+    }
+
+    // Extract the original URL from the first navigation-like action or session logs
+    let originalUrl = null;
+    for (const action of session.actionHistory) {
+      if (action.params?.url) {
+        originalUrl = action.params.url;
+        break;
+      }
+    }
+    if (!originalUrl && session.logs && session.logs.length > 0) {
+      originalUrl = session.logs[0]?.data?.url || null;
+    }
+
+    return {
+      session,
+      replayableActions,
+      originalTask: session.task,
+      originalUrl
+    };
+  } catch (error) {
+    automationLogger.error('Failed to load replayable session', { sessionId, error: error.message });
+    return null;
+  }
+}
+
+/**
+ * Execute a replay sequence step-by-step through the existing sendMessageWithRetry path.
+ * Sends statusUpdate messages to UI during each step with progress percentage.
+ * Critical step failures (navigate, searchGoogle) abort replay; non-critical failures are skipped.
+ * @param {string} replaySessionId - The replay session ID in activeSessions
+ */
+async function executeReplaySequence(replaySessionId) {
+  const session = activeSessions.get(replaySessionId);
+  if (!session || session.status !== 'replaying') return;
+
+  const criticalTools = new Set(['navigate', 'searchGoogle']);
+
+  for (let i = session.currentStep; i < session.replaySteps.length; i++) {
+    // Check for termination (user stopped the replay)
+    const currentSession = activeSessions.get(replaySessionId);
+    if (!currentSession || currentSession.isTerminating || currentSession.status !== 'replaying') {
+      return;
+    }
+
+    session.currentStep = i;
+    const step = session.replaySteps[i];
+
+    // Prepend clearInput before type actions to prevent text accumulation
+    if (step.tool === 'type' && step.params?.selector) {
+      try {
+        await sendMessageWithRetry(session.tabId, {
+          action: 'executeAction',
+          tool: 'clearInput',
+          params: { selector: step.params.selector }
+        });
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (e) {
+        automationLogger.debug('clearInput before type failed (non-critical)', {
+          sessionId: replaySessionId, step: i, error: e?.message || String(e)
+        });
+      }
+    }
+
+    // Send progress update to UI
+    const progressPercent = Math.round(((i + 1) / session.totalSteps) * 100);
+    try {
+      chrome.runtime.sendMessage({
+        action: 'statusUpdate',
+        sessionId: replaySessionId,
+        message: getActionStatus(step.tool, step.params),
+        iteration: i + 1,
+        maxIterations: session.totalSteps,
+        progressPercent,
+        replayStep: i + 1,
+        isReplay: true
+      });
+    } catch (e) {
+      // Non-blocking: UI may not be listening
+    }
+
+    // Execute the action via the existing content script path
+    let actionResult = null;
+    try {
+      actionResult = await sendMessageWithRetry(session.tabId, {
+        action: 'executeAction',
+        tool: step.tool,
+        params: step.params,
+        visualContext: {
+          taskName: session.task,
+          stepNumber: i + 1,
+          totalSteps: session.totalSteps,
+          iterationCount: 1,
+          isReplay: true
+        }
+      });
+    } catch (e) {
+      actionResult = { success: false, error: e?.message || String(e) };
+    }
+
+    // Record result in session actionHistory
+    session.actionHistory.push({
+      timestamp: Date.now(),
+      tool: step.tool,
+      params: step.params,
+      result: slimActionResult(actionResult),
+      replayStep: i + 1
+    });
+
+    // Handle failures
+    if (!actionResult?.success) {
+      if (criticalTools.has(step.tool)) {
+        session.status = 'replay_failed';
+        automationLogger.warn('Replay aborted: critical action failed', {
+          sessionId: replaySessionId, step: i + 1, tool: step.tool, error: actionResult?.error
+        });
+        break;
+      } else {
+        automationLogger.warn('Replay step failed (non-critical, skipping)', {
+          sessionId: replaySessionId, step: i + 1, tool: step.tool, error: actionResult?.error
+        });
+        // Continue to next step
+      }
+    }
+
+    // Inter-action delay (skip if last step)
+    if (i < session.replaySteps.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, getReplayDelay(step.tool)));
+    }
+  }
+
+  // Tally results
+  const successCount = session.actionHistory.filter(a => a.result?.success).length;
+  const failedCount = session.actionHistory.filter(a => !a.result?.success).length;
+
+  if (session.status === 'replaying') {
+    session.status = 'replay_completed';
+
+    // Send completion message to UI
+    try {
+      chrome.runtime.sendMessage({
+        action: 'automationComplete',
+        sessionId: replaySessionId,
+        result: `Replay complete: ${successCount}/${session.totalSteps} steps executed successfully.${failedCount > 0 ? ` ${failedCount} steps skipped.` : ''}`
+      });
+    } catch (e) { /* UI may not be listening */ }
+  } else if (session.status === 'replay_failed') {
+    // Send error message to UI
+    try {
+      chrome.runtime.sendMessage({
+        action: 'automationError',
+        sessionId: replaySessionId,
+        error: `Replay failed at step ${session.currentStep + 1}/${session.totalSteps}. ${successCount} steps succeeded before failure.`
+      });
+    } catch (e) { /* UI may not be listening */ }
+  }
+
+  // Send session-ended status to content script
+  sendSessionStatus(session.tabId, {
+    phase: 'ended',
+    reason: session.status === 'replay_completed' ? 'completed' : 'error'
+  });
+
+  // Log session end and cleanup
+  const duration = Date.now() - session.startTime;
+  automationLogger.logSessionEnd(replaySessionId, session.status, session.actionHistory.length, duration);
+  automationLogger.saveSession(replaySessionId, session);
+  cleanupSession(replaySessionId);
+}
+
+/**
+ * Handle a replaySession message: load session data, create replay session, and kick off execution.
+ * @param {Object} request - { sessionId: string }
+ * @param {Object} sender - Chrome message sender
+ * @param {Function} sendResponse - Response callback
+ */
+async function handleReplaySession(request, sender, sendResponse) {
+  try {
+    const { sessionId } = request;
+
+    // Check if automation is already running
+    for (const [id, sess] of activeSessions) {
+      if (sess.status !== 'idle') {
+        sendResponse({ success: false, error: 'Another automation is already running' });
+        return;
+      }
+    }
+
+    // Get current active tab
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!activeTab) {
+      sendResponse({ success: false, error: 'No active tab found' });
+      return;
+    }
+
+    // Load replayable session data
+    const replayData = await loadReplayableSession(sessionId);
+    if (!replayData || replayData.replayableActions.length === 0) {
+      sendResponse({ success: false, error: 'No replayable actions found in this session' });
+      return;
+    }
+
+    // Create replay session ID
+    const replaySessionId = `replay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+    // Create replay session in activeSessions (no AI instance, no conversation session)
+    activeSessions.set(replaySessionId, {
+      task: `Replay: ${replayData.originalTask}`,
+      tabId: activeTab.id,
+      status: 'replaying',
+      startTime: Date.now(),
+      actionHistory: [],
+      isReplay: true,
+      originalSessionId: sessionId,
+      replaySteps: replayData.replayableActions,
+      currentStep: 0,
+      totalSteps: replayData.replayableActions.length
+    });
+
+    // Start keep-alive to prevent service worker from sleeping
+    startKeepAlive();
+
+    // Log session start
+    automationLogger.logSessionStart(replaySessionId, `Replay: ${replayData.originalTask}`, activeTab.id);
+
+    // Respond immediately with session info
+    sendResponse({
+      success: true,
+      sessionId: replaySessionId,
+      totalSteps: replayData.replayableActions.length
+    });
+
+    // Kick off replay execution asynchronously (do NOT await)
+    executeReplaySequence(replaySessionId);
+  } catch (error) {
+    automationLogger.error('Failed to start replay session', { error: error.message });
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
 // Enhanced message sending with automatic retry and fallback
 async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
   // Capture URL before sending - used to detect if action triggered navigation
@@ -2214,15 +2498,41 @@ const DOMAIN_KEYWORD_MAP = [
   ['https://google.com', ['google']],
 ];
 
-// Smart navigation: match task keywords to known domains
-function analyzeTaskAndGetTargetUrl(task) {
-  const taskLower = task.toLowerCase();
-  for (const [url, keywords] of DOMAIN_KEYWORD_MAP) {
-    if (keywords.some(kw => taskLower.includes(kw))) {
-      return url;
+// Extract the first logical segment of a multi-step task.
+// "Do X on Amazon, then email it" -> "Do X on Amazon"
+function getFirstTaskSegment(task) {
+  const separators = [' and then ', ', then ', ' then ', ' after that ', ' afterwards ', '. Then ', '. After that '];
+  const lowerTask = task.toLowerCase();
+  let earliestSplit = task.length;
+
+  for (const sep of separators) {
+    const pos = lowerTask.indexOf(sep.toLowerCase());
+    if (pos !== -1 && pos < earliestSplit) {
+      earliestSplit = pos;
     }
   }
-  return 'https://google.com';
+
+  return earliestSplit < task.length ? task.substring(0, earliestSplit).trim() : task;
+}
+
+// Smart navigation: match task keywords to known domains.
+// Picks the keyword whose first occurrence is earliest in the task text.
+function analyzeTaskAndGetTargetUrl(task) {
+  const taskLower = task.toLowerCase();
+  let bestUrl = null;
+  let bestPosition = Infinity;
+
+  for (const [url, keywords] of DOMAIN_KEYWORD_MAP) {
+    for (const kw of keywords) {
+      const pos = taskLower.indexOf(kw);
+      if (pos !== -1 && pos < bestPosition) {
+        bestPosition = pos;
+        bestUrl = url;
+      }
+    }
+  }
+
+  return bestUrl || 'https://google.com';
 }
 
 // ==========================================
@@ -3603,6 +3913,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })();
       return true;
 
+    case 'replaySession':
+      handleReplaySession(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
     default:
       sendResponse({ error: 'Unknown action' });
   }
@@ -3825,7 +4139,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
     // For non-restricted URLs: check if current tab is relevant, preserve user content
     if (isRestrictedURL(tabInfo.url)) {
       if (shouldUseSmartNavigation(tabInfo.url, task)) {
-        const targetUrl = analyzeTaskAndGetTargetUrl(task);
+        const targetUrl = analyzeTaskAndGetTargetUrl(getFirstTaskSegment(task));
         const decision = await decideTabAction(targetTabId, tabInfo.url, targetUrl, task);
         automationLogger.logNavigation(null, 'smart', tabInfo.url, targetUrl, { task: task.substring(0, 100), decision: decision.action, reason: decision.reason });
 
@@ -3998,7 +4312,8 @@ async function handleStartAutomation(request, sender, sendResponse) {
         chrome.runtime.sendMessage({
           action: 'automationError',
           sessionId: sessionId,
-          error: 'Could not connect to the page. Please refresh the page and try again. If the problem persists, reload the extension from chrome://extensions.'
+          error: 'Could not connect to the page. Please refresh the page and try again. If the problem persists, reload the extension from chrome://extensions.',
+          task
         }).catch(() => {});
 
         return; // Exit early - do not start the automation loop
@@ -5550,7 +5865,8 @@ async function startAutomationLoop(sessionId) {
       chrome.runtime.sendMessage({
         action: 'automationError',
         sessionId: sessionId,
-        error: `Failed to communicate with the page (${tabUrl}). The content script may not have loaded yet. Try refreshing the page. Error: ${healthError.message}`
+        error: `Failed to communicate with the page (${tabUrl}). The content script may not have loaded yet. Try refreshing the page. Error: ${healthError.message}`,
+        task: session.task
       }).catch(() => {});
 
       // Stop the session
@@ -6379,7 +6695,8 @@ async function startAutomationLoop(sessionId) {
         action: 'automationError',
         sessionId,
         error: 'AI service error - please try again',
-        message: 'Stopped due to an error'
+        message: 'Stopped due to an error',
+        task: session.task
       }).catch(() => {});
 
       return; // Stop automation loop
@@ -7179,7 +7496,8 @@ async function startAutomationLoop(sessionId) {
     chrome.runtime.sendMessage({
       action: 'automationError',
       sessionId,
-      error: userError
+      error: userError,
+      task: currentSession?.task
     });
   } finally {
     // Signal that this loop iteration has completed
@@ -7192,7 +7510,8 @@ async function startAutomationLoop(sessionId) {
       chrome.runtime.sendMessage({
         action: 'automationError',
         sessionId,
-        error: 'Automation ended.'
+        error: 'Automation ended.',
+        task: finalSession?.task
       }).catch(() => {});
     }
   }
@@ -8041,7 +8360,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 // Set up side panel behavior
 chrome.runtime.onInstalled.addListener(async () => {
-  automationLogger.logInit('extension', 'installed', { version: 'v9.0.1' });
+  automationLogger.logInit('extension', 'installed', { version: 'v9.0.2' });
 
   // Initialize analytics
   initializeAnalytics();
