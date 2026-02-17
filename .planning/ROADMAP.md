@@ -1,8 +1,8 @@
-# Roadmap: FSB Reliability Improvements
+# Roadmap: FSB v0.9.1 AI Situational Awareness
 
 ## Overview
 
-This roadmap transforms FSB from an unreliable "hit or miss" automation tool into a precise, single-attempt execution engine. The journey starts with fixing element targeting (the core broken functionality), adds visual feedback so users can see what's happening, improves context quality for better AI decisions, adds verification to confirm actions succeeded, provides debugging tools for when things go wrong, and finally optimizes execution speed. Each phase builds on the previous, creating a foundation of reliability before adding polish.
+This milestone gives the AI complete context about the page and the ability to know when its task is done. The build follows a strict data dependency chain: fix broken signals first (so downstream data is accurate), expand DOM serialization capacity (so the AI sees the full page), improve change detection (so the AI knows what changed), strengthen memory (so the AI remembers what it did), and finally add task completion verification (so the AI knows when to stop). Every phase modifies existing functions across three files -- background.js, content.js, and ai/ai-integration.js -- with no new files and no new dependencies.
 
 ## Phases
 
@@ -12,215 +12,193 @@ This roadmap transforms FSB from an unreliable "hit or miss" automation tool int
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Selector Generation** - Multiple selector strategies with reliability scoring
-- [x] **Phase 2: Element Readiness** - Verify elements are visible, interactable, and in viewport
-- [x] **Phase 3: Coordinate Fallback** - X,Y clicking when selectors fail
-- [x] **Phase 4: Visual Highlighting** - Orange glow feedback showing targeted elements
-- [x] **Phase 5: Context Quality** - Focused, semantic DOM context for AI
-- [x] **Phase 6: Action Verification** - Confirm actions succeeded before proceeding
-- [x] **Phase 7: Debugging Infrastructure** - Comprehensive logging and inspection tools
-- [x] **Phase 8: Execution Speed** - Dynamic delays and parallel processing
-- [x] **Phase 9: Verification Completeness** - Global stability gate and verification-outcome wiring (Gap Closure)
-- [ ] **Phase 10: Tech Debt Cleanup** - Dead code removal, consistency fixes, cache tuning (Gap Closure)
-- [x] **Phase 11: Control Panel Refinement** - Remove dead UI code, wire disconnected settings, fix non-functional buttons
+- [x] **Phase 1: Signal Accuracy Fixes** - Fix viewport, CAPTCHA, and Shadow DOM detection so downstream data is trustworthy
+- [x] **Phase 2: DOM Serialization Pipeline** - Deliver 3-4x more page context to the AI with budget-based prompt allocation
+- [x] **Phase 3: DOM Change Detection** - Replace coarse hash with multi-signal change detection that tells the AI what changed
+- [ ] **Phase 4: Conversation Memory** - Fix compaction failures and enrich session memory so the AI remembers what it did
+- [ ] **Phase 5: Task Completion Verification** - Add system-level verification so the AI knows when the task is actually done
 
 ## Phase Details
 
-### Phase 1: Selector Generation
-**Goal**: Generated selectors reliably identify the intended element across diverse websites
+### Phase 1: Signal Accuracy Fixes
+**Goal**: The AI receives accurate signals about viewport visibility, CAPTCHA presence, and element existence -- eliminating false data that corrupts every downstream decision
 **Depends on**: Nothing (first phase)
-**Requirements**: TARG-01, TARG-03
+**Requirements**: SIG-01, SIG-02, SIG-03
 **Success Criteria** (what must be TRUE):
-  1. Each element gets multiple selector strategies (ID, data-attributes, CSS path, XPath)
-  2. Each selector has a reliability score based on uniqueness
-  3. Selectors that match exactly one element score higher than ambiguous selectors
-  4. The system prefers high-scoring selectors when executing actions
-**Plans**: 2 plans
+  1. On Gmail split-pane layout, elements partially visible (25%+ overlap) are classified as in-viewport and appear in the AI prompt
+  2. LinkedIn pages no longer report `captchaPresent: true` -- only pages with a visible, interactive CAPTCHA challenge trigger the flag
+  3. `waitForElement` finds Shadow DOM elements that `click` can find -- no more timeouts on elements that exist
+**Plans**: 1 plan
 
 Plans:
-- [x] 01-01-PLAN.md - Add uniqueness validation utilities and enhanced filtering patterns
-- [x] 01-02-PLAN.md - Integrate validation into selector generation functions
+- [x] 01-01-PLAN.md -- Fix viewport detection, CAPTCHA detection, and waitForElement Shadow DOM resolution
 
-### Phase 2: Element Readiness
-**Goal**: Actions only execute on elements that are ready to receive them
-**Depends on**: Phase 1
-**Requirements**: TARG-04, TARG-05
+**Files changed:**
+- `content.js`: `isElementInViewport()` -- overlap-based check with 25% threshold
+- `content.js`: Page-level CAPTCHA detection (~line 10098) -- visibility-gated with dimension checks, drop `.captcha-container`/`.captcha-challenge`
+- `content.js`: Element-level CAPTCHA detection (~line 10740) -- require `data-sitekey` + size/visibility check
+- `content.js`: `waitForElement` handler (~line 6714) -- use `querySelectorWithShadow()` instead of `document.querySelector()`
+
+---
+
+### Phase 2: DOM Serialization Pipeline
+**Goal**: The AI sees 3-4x more page context through budget-based prompt allocation, priority-aware truncation, and task-adaptive content modes -- so it can identify elements it previously could not see
+**Depends on**: Phase 1 (correct viewport classification means more elements enter the budget)
+**Requirements**: DOM-01, DOM-02, DOM-03, DOM-04, DIF-03
 **Success Criteria** (what must be TRUE):
-  1. Elements outside viewport are scrolled into view before action
-  2. Hidden or invisible elements are not targeted
-  3. Disabled elements are identified and reported as non-interactable
-  4. Elements obscured by overlays (modals, popups) are detected
-**Plans**: 2 plans
-
-Plans:
-- [x] 02-01-PLAN.md - Create unified element readiness check functions
-- [x] 02-02-PLAN.md - Integrate ensureElementReady into action handlers
-
-### Phase 3: Coordinate Fallback
-**Goal**: When all selectors fail, the system falls back to coordinate-based clicking
-**Depends on**: Phase 2
-**Requirements**: TARG-02
-**Success Criteria** (what must be TRUE):
-  1. If all selectors fail to match, the system uses stored x,y coordinates
-  2. Coordinate-based clicks hit the center of where the element was observed
-  3. The fallback is logged so users know a selector-based approach failed
-**Plans**: 2 plans
-
-Plans:
-- [x] 03-01-PLAN.md - Add coordinate validation utilities and integrate into click tool failure path
-- [x] 03-02-PLAN.md - Fix unreachable coordinate fallback code (gap closure)
-
-### Phase 4: Visual Highlighting
-**Goal**: Users see exactly which element FSB is targeting before each action
-**Depends on**: Phase 3
-**Requirements**: VIS-01, VIS-02, VIS-03, VIS-04
-**Success Criteria** (what must be TRUE):
-  1. An orange glow highlights the target element before each action
-  2. The highlight persists for at least 500ms so users can observe it
-  3. A floating overlay shows current step, task name, and progress
-  4. Highlights are removed cleanly with no visual artifacts after action completes
-  5. Visual feedback works on any website without CSS conflicts
+  1. On a LinkedIn messaging page, the AI prompt contains the full compose area, recipient info, send button, and recent messages -- not just 26% of the page
+  2. Element text is long enough to distinguish between similar items: contact names show full "First Last - Title at Company" (up to 150 chars for list items)
+  3. No element is ever cut mid-field -- elements are included whole or excluded entirely, prioritized by task relevance
+  4. On a simple page (under 30 interactive elements), every element appears in the prompt; on a complex page (100+ elements), the budget scales up with heavier per-element compression
+  5. When the AI is filling a form, the prompt emphasizes input fields and labels; when reading content, it emphasizes text; when navigating, it emphasizes links
 **Plans**: 3 plans
 
 Plans:
-- [x] 04-01-PLAN.md - Create HighlightManager and ProgressOverlay classes
-- [x] 04-02-PLAN.md - Integrate visual feedback into action execution flow
-- [x] 04-03-PLAN.md - Human verification of visual feedback system
+- [x] 02-01-PLAN.md -- Raise HARD_PROMPT_CAP from 5000 to 15000 and add adaptive text limits per element type
+- [x] 02-02-PLAN.md -- Budget-partitioned buildPrompt with priority-aware formatElements and budget-aware formatHTMLContext
+- [x] 02-03-PLAN.md -- Task-adaptive content modes and dynamic element counts in buildMinimalUpdate
 
-### Phase 5: Context Quality
-**Goal**: AI receives focused, semantic DOM information instead of noise
-**Depends on**: Phase 1
-**Requirements**: CTX-01, CTX-02, CTX-03, CTX-04, CTX-05
+**Files changed:**
+- `ai/ai-integration.js`: `HARD_PROMPT_CAP` (~line 1898) -- increase from 5000 to ~15000
+- `ai/ai-integration.js`: `buildPrompt()` (~line 1318) -- restructure with tiered budget allocation (40% system, 50% page context, 10% memory)
+- `ai/ai-integration.js`: `formatElements()` (~line 2069) -- accept char budget parameter, priority-aware truncation
+- `ai/ai-integration.js`: `formatHTMLContext()` (~line 2172) -- accept char budget parameter
+- `ai/ai-integration.js`: `buildMinimalUpdate()` (~line 340) -- budget-based element selection with task-adaptive content modes
+
+**Pitfall mitigations:**
+- Pitfall 2 (format changes break AI): Increase budget first (5 min, immediate gain), then restructure format. Never change format and prompt instructions in the same step.
+- Pitfall 9 (over-aggressive filtering): Dynamic element budget based on page complexity.
+- Pitfall 12 (text truncation): Adaptive limits by element type -- 150 chars for list items, 80 chars for buttons/links.
+
+---
+
+### Phase 3: DOM Change Detection
+**Goal**: The AI receives structured change descriptors that explain what appeared, disappeared, or changed on the page -- replacing the boolean `domChanged` flag that missed real changes and triggered false stuck detections
+**Depends on**: Phase 2 (richer DOM data makes change detection meaningful -- the hash input quality depends on what elements are captured)
+**Requirements**: CHG-01, CHG-02, CHG-03, CHG-04
 **Success Criteria** (what must be TRUE):
-  1. DOM analysis returns approximately 50 relevant elements instead of 300+ raw elements
-  2. Elements have semantic descriptions like "Submit button in checkout form"
-  3. Page structure summary identifies forms, navigation, and content regions
-  4. AI sees action history showing what was attempted and results
-  5. Element relationships (button in form, link in nav) are explicitly stated
-**Plans**: 3 plans
-
-Plans:
-- [x] 05-01-PLAN.md - Create 3-stage element filtering pipeline (visibility, interactivity, relevance)
-- [x] 05-02-PLAN.md - Add relationship context to element descriptions (form, navigation, region)
-- [x] 05-03-PLAN.md - Enhance AI context with page structure summary and action history
-
-### Phase 6: Action Verification
-**Goal**: Each action is verified to have succeeded before proceeding to next step
-**Depends on**: Phase 2, Phase 3
-**Requirements**: VERIFY-01, VERIFY-02, VERIFY-03, VERIFY-04
-**Success Criteria** (what must be TRUE):
-  1. After each action, the system checks for expected state change (URL, DOM, element state)
-  2. If first selector has no effect, an alternative selector is tried
-  3. Actions with no observable effect are reported clearly
-  4. Completion is only reported after page stability (no pending requests, DOM stable)
+  1. After clicking "Send" on a compose form, the change detector reports specific signals: "compose panel removed, success message appeared" -- not just `domChanged: true`
+  2. Scrolling the page does not trigger false "everything changed" signals -- element fingerprints use structural path (not viewport-relative position)
+  3. When a success toast appears or a modal opens, the change detector flags the specific state change (content, state, or page-state signal) even if the element count is identical
+  4. The stuck detector no longer fires false positives when the AI successfully completed actions that changed content but not element types/counts
 **Plans**: 2 plans
 
 Plans:
-- [x] 06-01-PLAN.md - Create unified verification utilities (captureActionState, verifyActionEffect, waitForPageStability)
-- [x] 06-02-PLAN.md - Integrate verification into action handlers (type, selectOption, toggleCheckbox, pressEnter)
+- [x] 03-01-PLAN.md -- Structural-path element fingerprinting and multi-signal DOM hash (data layer: CHG-02 + CHG-01)
+- [x] 03-02-PLAN.md -- Structured change descriptors and multi-signal stuck detection (consumer layer: CHG-03 + CHG-04)
 
-### Phase 7: Debugging Infrastructure
-**Goal**: Clear visibility into what FSB is doing and why actions fail
-**Depends on**: Phase 4, Phase 6
-**Requirements**: DEBUG-01, DEBUG-02, DEBUG-03, DEBUG-04, DEBUG-05
+**Files changed:**
+- `background.js`: `createDOMHash()` (~line 4494) -- multi-signal hash: content sampling, interaction state signatures, page state flags
+- `background.js`: Stuck detection block (~line 5073-5123) -- use structured change signals instead of single hash comparison
+- `background.js`: Context object assembly (~line 5376-5401) -- pass `changeSignals` object alongside `domChanged`
+- `content.js`: `hashElement()` (~line 222-237) -- remove viewport-relative position, use structural path + stable attributes (id, data-testid, role, name)
+
+**Pitfall mitigations:**
+- Pitfall 6 (MutationObserver performance): Bound `pendingMutations` array, debounce processing, release node references.
+- Pitfall 7 (hash instability after scroll): Structural path fingerprinting eliminates scroll-induced invalidation.
+- Pitfall 11 (diff type-switching): Structured change descriptors provide consistent change information regardless of underlying format.
+
+---
+
+### Phase 4: Conversation Memory
+**Goal**: The AI retains meaningful operational history across iterations -- compaction never destroys critical context, every action is described with enough detail to avoid repetition, and hard facts survive indefinitely
+**Depends on**: Phase 3 (richer change detection data means richer action descriptions and better verification outcomes to remember)
+**Requirements**: MEM-01, MEM-02, MEM-03, MEM-04
 **Success Criteria** (what must be TRUE):
-  1. Every action is logged with: selector tried, element found status, coordinates, result
-  2. User can click any element to see FSB's view (selectors, attributes, interactability)
-  3. Failures show clear diagnostics: "Element not found", "Element not visible", etc.
-  4. Completed sessions can be replayed step-by-step
-  5. Logs can be exported for offline debugging
-**Plans**: 4 plans
+  1. On a 15+ iteration task, the AI at iteration 12 can reference what text it typed, which buttons it clicked, and which pages it visited -- not just "clicked element" x 10
+  2. When compaction fails (API timeout, bad response), a local extractive fallback produces a summary of at least 500 characters preserving action sequence and outcomes
+  3. The original task goal, any critical action outcomes (send/submit/purchase with verification result), and discovered working selectors are always present in the AI prompt regardless of how many compaction cycles have run
+  4. At session start on a previously-visited domain, the AI receives site-specific procedural memories (e.g., "LinkedIn compose: click message icon, type in compose box, click Send") from MemoryManager
+**Plans**: 2 plans
 
 Plans:
-- [x] 07-01-PLAN.md - Create structured action logging with diagnostic messages (DEBUG-01, DEBUG-03)
-- [x] 07-02-PLAN.md - Create element inspection mode for click-to-inspect debugging (DEBUG-02)
-- [x] 07-03-PLAN.md - Add session replay UI and human-readable log export (DEBUG-04, DEBUG-05)
-- [x] 07-04-PLAN.md - Gap closure: Complete action recording for remaining tool handlers (DEBUG-01)
+- [ ] 04-01-PLAN.md -- Data flow fix: enrich slimActionResult, pass lastActionResult, rewrite updateSessionMemory and describeAction for rich action recording (MEM-02)
+- [ ] 04-02-PLAN.md -- Compaction hardening with retry + local fallback, hard facts section exempt from compaction, long-term memory injection in first-iteration prompt (MEM-01 + MEM-03 + MEM-04)
 
-### Phase 8: Execution Speed
-**Goal**: Automation executes as fast as possible without sacrificing reliability
-**Depends on**: Phase 6
-**Requirements**: SPEED-01, SPEED-02, SPEED-03, SPEED-04, SPEED-05
+**Files changed:**
+- `background.js`: `slimActionResult()` (~line 1430) -- preserve elementText (50 chars) and selectorUsed
+- `background.js`: Context object assembly (~line 5573) -- add lastActionResult to context
+- `ai/ai-integration.js`: `updateSessionMemory()` (~line 671) -- fix logic bug, use lastActionResult instead of iterating aiResponse.actions, use _currentTask for task goal
+- `ai/ai-integration.js`: `describeAction()` (~line 739) -- include element text and selector context
+- `ai/ai-integration.js`: `triggerCompaction()` (~line 757) -- min length validation, retry on short output, local extractive fallback
+- `ai/ai-integration.js`: `_localExtractiveFallback()` -- new method for synchronous fallback extraction
+- `ai/ai-integration.js`: `buildMemoryContext()` (~line 829) -- hard facts section at top, exempt from compaction
+- `ai/ai-integration.js`: `buildPrompt()` (~line 1362) -- inject long-term memories as SITE KNOWLEDGE in first-iteration prompt
+
+**Pitfall mitigations:**
+- Pitfall 3 (compaction destroys context): Minimum context floor, local fallback, hard facts section.
+- Pitfall 8 (verification-action gap): Structured action recording with verification outcomes feeds into critical action registry (Phase 5).
+- Pitfall 10 (compaction API failure): Retry + local extractive fallback guarantees non-empty summary.
+
+---
+
+### Phase 5: Task Completion Verification
+**Goal**: The system independently verifies task completion using page signals, action chain analysis, and task-type-specific validators -- so the AI stops when the task is done and continues when it is not, regardless of AI self-report accuracy
+**Depends on**: Phase 4 (memory provides the action chain and critical action outcomes that completion verification needs; all prior phases provide the accurate DOM, change, and memory data that validators consume)
+**Requirements**: CMP-01, CMP-02, CMP-03, CMP-04, DIF-01, DIF-02
 **Success Criteria** (what must be TRUE):
-  1. Delays are dynamic based on action type (click: 200ms, navigation: wait for load)
-  2. DOM analysis begins while waiting for AI response (parallel processing)
-  3. Deterministic action sequences execute without AI roundtrip
-  4. Element lookups are cached within same page state, invalidated on DOM mutation
-  5. Ready and interactable elements proceed without unnecessary delays
-**Plans**: 3 plans
-
-Plans:
-- [x] 08-01-PLAN.md - Element caching with MutationObserver invalidation and fast-path readiness
-- [x] 08-02-PLAN.md - Dynamic outcome-based delays replacing static category delays
-- [x] 08-03-PLAN.md - Parallel DOM prefetching and deterministic action batching
-
-### Phase 9: Verification Completeness
-**Goal**: Task completion is only reported after verified page stability, and verification results inform delay optimization
-**Depends on**: Phase 6, Phase 8
-**Requirements**: VERIFY-04 (gap closure)
-**Gap Closure**: Closes gaps from v1 milestone audit
-**Success Criteria** (what must be TRUE):
-  1. When AI returns taskComplete: true, background.js waits for page stability before confirming completion
-  2. detectActionOutcome() consumes verifyActionEffect() results to choose optimal delay strategy
-  3. tools.click uses waitForPageStability instead of fixed 300ms delay
-**Plans**: 1 plans
-
-Plans:
-- [x] 09-01-PLAN.md - Add global stability gate before taskComplete and wire verification to outcome detection
-
-### Phase 10: Tech Debt Cleanup
-**Goal**: Remove dead code, extend verification coverage, and tune caching for consistency across the codebase
-**Depends on**: Phase 9
-**Requirements**: None (tech debt only)
-**Gap Closure**: Closes tech debt from v1 milestone audit
-**Success Criteria** (what must be TRUE):
-  1. waitForActionable() removed from content.js (dead code)
-  2. tools.click uses shared verification utilities (captureActionState + verifyActionEffect) instead of inline logic
-  3. ElementCache maxCacheSize adapts based on page element count
+  1. After sending a LinkedIn message, the system detects the compose window closing and success indicators without waiting for the AI to self-report -- and the session ends within 1-2 iterations of the actual send
+  2. For a form submission task, the completion validator checks for URL change, success banner, or form reset before accepting the AI's `taskComplete: true` flag
+  3. Irrevocable actions (send, submit, purchase) are recorded in a critical action registry that persists across iterations, is always included in the AI prompt, and blocks re-execution of the same action for 3 iterations
+  4. The progress tracker uses multi-signal change data from Phase 3 to distinguish "no progress" from "progress that the old hash missed" -- reducing false hard-stop triggers
+  5. When the page shows a success message, confirmation toast, or navigates to a receipt/confirmation URL, the system surfaces this evidence to the AI as a completion signal rather than waiting for the AI to notice
+  6. Page intent classification (via `inferPageIntent()`) influences both DOM serialization strategy and completion detection -- a `success-confirmation` page intent triggers a completion candidate check
 **Plans**: TBD
 
-Plans:
-- [ ] 10-01-PLAN.md - Remove dead code and extend click verification to use shared utilities
-- [ ] 10-02-PLAN.md - Add adaptive ElementCache sizing
+**Files changed:**
+- `background.js`: Completion validation block (~line 6178-6330) -- restructure with task-type-specific validators (messaging, navigation, form, extraction, search)
+- `background.js`: New utility function `classifyTask()` -- map task strings to task types for validator selection
+- `background.js`: Progress tracking (~line 6010-6060) -- integrate multi-signal change descriptors from Phase 3
+- `background.js`: Critical action registry -- record irrevocable actions with verification results, cooldown mechanism
+- `ai/ai-integration.js`: Prompt engineering -- inject completion signals and critical action warnings into AI context
+- `content.js`: Proactive completion signal detection -- scan for success messages, confirmation pages, toast notifications, form resets after each action
 
-### Phase 11: Control Panel Refinement
-**Goal**: The options page, popup, and side panel contain only functional, wired-up features with no dead code or orphaned UI elements
-**Depends on**: Phase 10
-**Requirements**: None (UI cleanup)
-**Success Criteria** (what must be TRUE):
-  1. No JS references to non-existent HTML elements (speedModeNormal, speedModeFast, apiStatusCard, quickDebugMode, quickConfirmSensitive removed)
-  2. Debug Mode toggle in options actually controls verbose logging in background.js
-  3. DOM Optimization settings in options are wired to content.js DOM analysis parameters
-  4. Pin button in popup either works correctly (pins window) or is removed
-  5. DOM Optimization Stats section shows real compression metrics or is removed
-  6. No duplicate initialization code (session history double-init fixed)
-  7. Test API button reflects actual selected provider (not hardcoded "xAI")
-**Plans**: 2 plans
+**Pitfall mitigations:**
+- Pitfall 1 (AI self-report unreliable): Multi-signal scoring replaces sole reliance on `taskComplete` boolean.
+- Pitfall 8 (duplicate side effects): Critical action registry with cooldown prevents re-execution of send/submit/purchase.
 
-Plans:
-- [x] 11-01-PLAN.md -- Remove orphaned element references, dead speedMode code, and DOM Optimization Stats placeholder
-- [x] 11-02-PLAN.md -- Wire Debug Mode toggle to background.js logging and fix Test API provider display
+---
+
+## Coverage
+
+**All 22 requirements mapped:**
+
+| Requirement | Phase | Description |
+|-------------|-------|-------------|
+| SIG-01 | 1 | Viewport overlap-based detection |
+| SIG-02 | 1 | CAPTCHA visibility gating |
+| SIG-03 | 1 | waitForElement Shadow DOM consistency |
+| DOM-01 | 2 | Raise HARD_PROMPT_CAP to ~15000 |
+| DOM-02 | 2 | Priority-aware whole-element truncation |
+| DOM-03 | 2 | Adaptive element text limits |
+| DOM-04 | 2 | Dynamic element budget by page complexity |
+| DIF-03 | 2 | Task-adaptive DOM content modes |
+| CHG-01 | 3 | Multi-signal DOM hash |
+| CHG-02 | 3 | Structural path element fingerprints |
+| CHG-03 | 3 | Structured change descriptors for AI |
+| CHG-04 | 3 | Reduce false stuck detections |
+| MEM-01 | 4 | Resilient compaction with retry and fallback |
+| MEM-02 | 4 | Structured action results in session memory |
+| MEM-03 | 4 | Hard facts section exempt from compaction |
+| MEM-04 | 4 | Long-term memory retrieval at session start |
+| CMP-01 | 5 | Task-type-specific completion validators |
+| CMP-02 | 5 | Multi-signal completion scoring |
+| CMP-03 | 5 | Critical action registry with cooldown |
+| CMP-04 | 5 | Enhanced progress tracking |
+| DIF-01 | 5 | Proactive completion signals |
+| DIF-02 | 5 | Page intent-driven context and completion |
+
+**Orphaned requirements:** None
+**Duplicate mappings:** None
 
 ## Progress
 
-**Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
+**Execution Order:** 1 -> 2 -> 3 -> 4 -> 5 (strict sequential, each phase's output feeds the next)
 
 | Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Selector Generation | 2/2 | Complete | 2026-02-03 |
-| 2. Element Readiness | 2/2 | Complete | 2026-02-03 |
-| 3. Coordinate Fallback | 2/2 | Complete | 2026-02-04 |
-| 4. Visual Highlighting | 3/3 | Complete | 2026-02-04 |
-| 5. Context Quality | 3/3 | Complete | 2026-02-04 |
-| 6. Action Verification | 2/2 | Complete | 2026-02-04 |
-| 7. Debugging Infrastructure | 4/4 | Complete | 2026-02-04 |
-| 8. Execution Speed | 3/3 | Complete | 2026-02-04 |
-| 9. Verification Completeness | 1/1 | Complete | 2026-02-04 |
-| 10. Tech Debt Cleanup | 0/2 | Pending | - |
-| 11. Control Panel Refinement | 2/2 | Complete | 2026-02-04 |
-
----
-*Roadmap created: 2026-02-03*
-*Updated: 2026-02-04 (Phase 11 complete)*
-*Total requirements: 28 | Total phases: 11*
+|-------|---------------|--------|-----------|
+| 1. Signal Accuracy Fixes | 1/1 | Complete | 2026-02-14 |
+| 2. DOM Serialization Pipeline | 3/3 | Complete | 2026-02-14 |
+| 3. DOM Change Detection | 2/2 | Complete | 2026-02-14 |
+| 4. Conversation Memory | 0/2 | Not started | - |
+| 5. Task Completion Verification | 0/TBD | Not started | - |

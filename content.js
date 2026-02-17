@@ -10291,6 +10291,115 @@ function isElementVisible(el) {
 }
 
 /**
+ * Detect completion signals from the DOM -- proactive scan for success messages,
+ * confirmation pages, toast notifications, and form resets.
+ * Called once per DOM snapshot (same frequency as detectPageContext).
+ * @returns {Object} Completion signals object
+ */
+function detectCompletionSignals() {
+  const signals = {
+    successMessages: [],
+    confirmationPage: false,
+    formReset: false,
+    toastNotification: null,
+    urlPattern: null
+  };
+
+  // 1. Success messages -- combine selector match with TEXT CONTENT analysis
+  // to avoid false positives (Pitfall 2: class="success-stories" must NOT trigger)
+  const successSelectors = [
+    '[class*="success"]', '.alert-success', '.success-message',
+    '[role="status"][class*="success"]',
+    '[role="alert"]:not([class*="error"]):not([class*="danger"])',
+    '.confirmation', '.thank-you', '.order-complete',
+    '[class*="confirm"]', '[class*="receipt"]'
+  ];
+  // Text patterns that confirm actual success (not "success stories" or "success rate")
+  const successTextPatterns = /\b(sent|submitted|confirmed|thank\s*you|order\s*placed|saved|completed|received|delivered|published|posted|signed\s*up|registered|subscribed|added\s*to\s*cart|purchased|deleted)\b/i;
+
+  for (const sel of successSelectors) {
+    try {
+      const els = document.querySelectorAll(sel);
+      for (const el of els) {
+        if (el.offsetParent === null && window.getComputedStyle(el).display === 'none') continue;
+        const text = (el.textContent || '').trim().substring(0, 150);
+        // Only count if text contains success-indicative language
+        if (text.length > 0 && successTextPatterns.test(text)) {
+          signals.successMessages.push({ selector: sel, text: text.substring(0, 100) });
+        }
+      }
+    } catch (e) { /* invalid selector, skip */ }
+  }
+  // Deduplicate by text content (same message from multiple selectors)
+  const seenTexts = new Set();
+  signals.successMessages = signals.successMessages.filter(msg => {
+    const key = msg.text.substring(0, 50);
+    if (seenTexts.has(key)) return false;
+    seenTexts.add(key);
+    return true;
+  });
+  // Cap at 3 messages
+  signals.successMessages = signals.successMessages.slice(0, 3);
+
+  // 2. Confirmation page URL patterns
+  const url = window.location.href.toLowerCase();
+  const confirmPatterns = [
+    /\/confirm/, /\/success/, /\/thank/, /\/receipt/,
+    /order[-_]?complete/, /checkout[-_]?complete/,
+    /message[-_]?sent/, /\/submitted/, /\/done/
+  ];
+  for (const pat of confirmPatterns) {
+    if (pat.test(url)) {
+      signals.confirmationPage = true;
+      signals.urlPattern = pat.source;
+      break;
+    }
+  }
+
+  // 3. Toast/snackbar detection (transient notifications)
+  const toastSelectors = [
+    '.toast:not(.hide):not(.d-none)', '.snackbar:not(.hide)',
+    '[class*="toast"][class*="show"]',
+    '[class*="snack"][class*="show"]',
+    '.Toastify__toast', '.MuiSnackbar-root',
+    '[role="alert"]:not([class*="error"]):not([class*="danger"])'
+  ];
+  for (const sel of toastSelectors) {
+    try {
+      const el = document.querySelector(sel);
+      if (el && el.offsetParent !== null) {
+        const text = (el.textContent || '').trim().substring(0, 100);
+        if (text.length > 0) {
+          signals.toastNotification = { text, selector: sel };
+          break;
+        }
+      }
+    } catch (e) { /* skip */ }
+  }
+
+  // 4. Form reset detection -- only meaningful if we track form filling
+  // Only count if forms exist and ALL visible inputs are empty
+  // (the "was it filled before?" check happens in background.js using action chain)
+  const forms = document.querySelectorAll('form');
+  for (const form of forms) {
+    const inputs = form.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select');
+    if (inputs.length > 0) {
+      const allEmpty = Array.from(inputs).every(input => {
+        if (input.tagName === 'SELECT') return input.selectedIndex <= 0;
+        const val = input.value || '';
+        return val.trim() === '';
+      });
+      if (allEmpty) {
+        signals.formReset = true;
+        break;
+      }
+    }
+  }
+
+  return signals;
+}
+
+/**
  * Infer the primary intent/purpose of the current page
  * @param {Object} pageTypes - Detected page types
  * @param {Array} primaryActions - Available primary actions
@@ -10301,7 +10410,16 @@ function inferPageIntent(pageTypes, primaryActions, pageState) {
   // Priority-based intent inference
   if (pageState.hasCaptcha) return 'captcha-challenge';
   if (pageState.hasErrors && pageTypes.form) return 'form-error-correction';
-  if (pageState.hasSuccess) return 'success-confirmation';
+  // Enhanced success-confirmation: combine hasSuccess with text content validation
+  // to reduce false positives from CSS framework classes (e.g. "success-stories")
+  if (pageState.hasSuccess) {
+    const successTextCheck = /\b(sent|submitted|confirmed|thank\s*you|completed|order\s*placed|saved|received|delivered|published)\b/i;
+    const bodyText = document.body?.innerText?.substring(0, 2000) || '';
+    if (successTextCheck.test(bodyText)) {
+      return 'success-confirmation';
+    }
+    // hasSuccess triggered but no matching text -- fall through to other intent checks
+  }
   if (pageState.isLoading) return 'waiting-for-content';
 
   if (pageTypes.login) return 'authentication';
@@ -10926,6 +11044,8 @@ function getStructuredDOM(options = {}) {
     htmlContext: relevantHTML, // Add HTML context for better AI understanding
     // NEW: Page context for semantic understanding
     pageContext: pageContext,
+    // Proactive completion signal detection (DIF-01)
+    completionSignals: detectCompletionSignals(),
     scrollPosition: {
       x: window.scrollX,
       y: window.scrollY

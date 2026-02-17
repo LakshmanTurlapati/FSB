@@ -325,6 +325,13 @@ class AIIntegration {
     this.sessionMemory = null;
     this.compactedSummary = null;
     this.pendingCompaction = null;
+    // MEM-03: Reset hard facts and selector tracking
+    this.hardFacts = {
+      taskGoal: '',
+      criticalActions: [],   // { description, selector, verified, iteration }
+      workingSelectors: {}   // { label: selector } -- max 10 entries
+    };
+    this._selectorUsageCount = {};
     if (previousLength > 0) {
       automationLogger.debug('Cleared conversation history', { previousLength });
     }
@@ -550,6 +557,33 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       }
     }
 
+    // CMP-02: Completion signal hint when page shows success evidence
+    if (context?.completionCandidate) {
+      const cc = context.completionCandidate;
+      update += '\n\n=== COMPLETION SIGNAL DETECTED ===';
+      update += '\nPage intent: ' + cc.pageIntent;
+      if (cc.signals.successMessages?.length > 0) {
+        update += '\nSuccess message: "' + cc.signals.successMessages[0].text.substring(0, 80) + '"';
+      }
+      if (cc.signals.confirmationPage) {
+        update += '\nURL indicates confirmation page';
+      }
+      if (cc.signals.toastNotification) {
+        update += '\nToast: "' + cc.signals.toastNotification.text.substring(0, 60) + '"';
+      }
+      update += '\n--> ' + cc.suggestion;
+    }
+
+    // CMP-03: Critical action warnings -- prevent AI from re-executing irrevocable actions
+    if (context?.criticalActionWarnings?.length > 0) {
+      update += '\n\n=== CRITICAL ACTIONS (do NOT re-execute) ===';
+      for (const w of context.criticalActionWarnings) {
+        update += '\n- ' + w.description;
+        if (w.verified) update += ' [VERIFIED]';
+        if (w.cooldownRemaining > 0) update += ' (blocked ' + w.cooldownRemaining + ' more iterations)';
+      }
+    }
+
     update += `\n\nContinue with the task. What's next?`;
 
     return update;
@@ -682,33 +716,90 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
 
     const mem = this.sessionMemory;
 
-    // Extract task goal from first iteration's reasoning
-    if (!mem.taskGoal && aiResponse.reasoning) {
-      const goalMatch = aiResponse.reasoning.match(/(?:task|goal|objective)[:\s]+(.{10,80})/i);
-      if (goalMatch) mem.taskGoal = goalMatch[1].trim();
+    // MEM-02: Extract task goal from _currentTask (user's original input)
+    if (!mem.taskGoal) {
+      if (this._currentTask) {
+        mem.taskGoal = this._currentTask;
+      } else if (aiResponse.reasoning) {
+        // Fallback: regex extraction from AI reasoning
+        const goalMatch = aiResponse.reasoning.match(/(?:task|goal|objective)[:\s]+(.{10,80})/i);
+        if (goalMatch) mem.taskGoal = goalMatch[1].trim();
+      }
     }
 
-    // Track completed steps from successful actions
-    if (aiResponse.actions && Array.isArray(aiResponse.actions)) {
-      for (const action of aiResponse.actions) {
-        const lastResult = context?.lastActionResult;
-        if (lastResult?.success) {
-          const stepDesc = this.describeAction(lastResult.tool, lastResult);
-          if (stepDesc && !mem.stepsCompleted.includes(stepDesc)) {
-            mem.stepsCompleted.push(stepDesc);
-            if (mem.stepsCompleted.length > 15) {
-              mem.stepsCompleted = mem.stepsCompleted.slice(-15);
-            }
+    // MEM-03: Also set hardFacts.taskGoal (only once when empty)
+    if (this.hardFacts && !this.hardFacts.taskGoal && this._currentTask) {
+      this.hardFacts.taskGoal = this._currentTask;
+    }
+
+    // MEM-02: Track completed steps from the single most-recently-completed action
+    // Uses context.lastActionResult (actionHistory entry: { tool, params, result: {slim}, iteration })
+    const lastAction = context?.lastActionResult;
+    if (lastAction && lastAction.result?.success) {
+      const actionTool = lastAction.tool || lastAction.result?.tool || 'action';
+      const stepDesc = this.describeAction(actionTool, lastAction.result);
+      if (stepDesc && !mem.stepsCompleted.includes(stepDesc)) {
+        mem.stepsCompleted.push(stepDesc);
+        if (mem.stepsCompleted.length > 15) {
+          mem.stepsCompleted = mem.stepsCompleted.slice(-15);
+        }
+      }
+
+      // MEM-03: Detect critical actions (irrevocable verb clicks)
+      if (this.hardFacts && actionTool === 'click') {
+        const elemText = lastAction.result.elementText || '';
+        if (/send|submit|purchase|order|delete|publish|post/i.test(elemText)) {
+          const criticalEntry = {
+            description: stepDesc,
+            selector: lastAction.result.selectorUsed || lastAction.result.clicked || '',
+            verified: lastAction.result.hadEffect !== false,
+            iteration: this.currentIteration || 0
+          };
+          this.hardFacts.criticalActions.push(criticalEntry);
+          // Cap at 10 entries, remove oldest
+          if (this.hardFacts.criticalActions.length > 10) {
+            this.hardFacts.criticalActions.shift();
           }
+        }
+      }
+
+      // MEM-03: Track working selectors (promote after 2+ uses with success AND hadEffect)
+      if (this.hardFacts && lastAction.result.success === true && lastAction.result.hadEffect === true && lastAction.result.selectorUsed) {
+        const sel = lastAction.result.selectorUsed;
+        if (!this._selectorUsageCount) this._selectorUsageCount = {};
+        this._selectorUsageCount[sel] = (this._selectorUsageCount[sel] || 0) + 1;
+
+        if (this._selectorUsageCount[sel] >= 2) {
+          // Promote to hardFacts.workingSelectors
+          const label = lastAction.result.elementText
+            ? lastAction.result.elementText.substring(0, 30)
+            : (actionTool || 'element');
+          const selectorKeys = Object.keys(this.hardFacts.workingSelectors);
+          if (selectorKeys.length >= 10) {
+            // Evict least-used: find selector with lowest usage count
+            let minKey = selectorKeys[0];
+            let minCount = Infinity;
+            for (const k of selectorKeys) {
+              const kSel = this.hardFacts.workingSelectors[k];
+              const kCount = this._selectorUsageCount[kSel] || 0;
+              if (kCount < minCount) { minCount = kCount; minKey = k; }
+            }
+            delete this.hardFacts.workingSelectors[minKey];
+          }
+          this.hardFacts.workingSelectors[label] = sel;
         }
       }
     }
 
-    // Track failed approaches
-    const lastResult = context?.lastActionResult;
-    if (lastResult && !lastResult.success && lastResult.error) {
-      const failDesc = `${lastResult.tool}: ${lastResult.error.substring(0, 80)}`;
-      if (!mem.failedApproaches.some(f => f.startsWith(lastResult.tool + ':'))) {
+    // MEM-02: Track failed approaches with element text context
+    if (lastAction && !lastAction.result?.success && lastAction.result?.error) {
+      const actionTool = lastAction.tool || lastAction.result?.tool || 'action';
+      const elemText = lastAction.result.elementText;
+      const errorMsg = lastAction.result.error.substring(0, 80);
+      const failDesc = elemText
+        ? `${actionTool} on '${elemText}': ${errorMsg}`
+        : `${actionTool}: ${errorMsg}`;
+      if (!mem.failedApproaches.some(f => f.startsWith(actionTool + ' on') || f.startsWith(actionTool + ':'))) {
         mem.failedApproaches.push(failDesc);
         if (mem.failedApproaches.length > 8) {
           mem.failedApproaches = mem.failedApproaches.slice(-8);
@@ -734,19 +825,27 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
   }
 
   /**
-   * Short human-readable description of what an action did
+   * Short human-readable description of what an action did.
+   * MEM-02: Enriched with element text and selector from slim result fields.
+   * @param {string} tool - Action tool name
+   * @param {Object} result - Slim action result with elementText, selectorUsed, clicked, typed, etc.
    */
   describeAction(tool, result) {
+    const text = result?.elementText;
+    const sel = (result?.selectorUsed || result?.clicked || '').substring(0, 40);
+    const selSuffix = sel ? ` (${sel})` : '';
+    const textPrefix = text ? `'${text}' ` : '';
+
     switch (tool) {
-      case 'navigate': return `navigated to ${result.result?.substring?.(0, 60) || 'page'}`;
-      case 'click': return `clicked ${result.result?.substring?.(0, 40) || 'element'}`;
-      case 'type': return `typed text (${result.result?.length || '?'} chars)`;
-      case 'searchGoogle': return `searched Google for "${result.result?.substring?.(0, 40) || '...'}"`;
-      case 'selectOption': return `selected option in dropdown`;
-      case 'scroll': return `scrolled page`;
-      case 'pressEnter': return `pressed Enter`;
-      case 'clickSearchResult': return `clicked search result`;
-      default: return `${tool} action completed`;
+      case 'navigate': return `navigated to ${(result?.navigatingTo || result?.result || 'page').substring(0, 60)}`;
+      case 'click': return `clicked ${textPrefix || 'element '}${selSuffix}`.trim();
+      case 'type': return `typed '${(result?.typed || '').substring(0, 30)}' in${selSuffix || ' input'}`;
+      case 'searchGoogle': return `searched Google for '${(result?.typed || result?.result || '').substring(0, 40)}'`;
+      case 'selectOption': return `selected option in dropdown${selSuffix}`;
+      case 'scroll': return `scrolled page ${result?.direction || 'down'}`;
+      case 'pressEnter': return `pressed Enter${selSuffix}`;
+      case 'clickSearchResult': return `clicked search result${result?.resultIndex ? ' #' + result.resultIndex : ''}`;
+      default: return `${tool} ${textPrefix}${selSuffix}`.trim() || `${tool} action completed`;
     }
   }
 
@@ -792,15 +891,70 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
     // Fire and forget -- runs parallel to next automation call
     this.pendingCompaction = (async () => {
       try {
-        if (!this.provider) return null;
+        if (!this.provider) {
+          // No provider -- use local fallback
+          this.compactedSummary = this._localExtractiveFallback(messagesToCompact).substring(0, 1500);
+          return this.compactedSummary;
+        }
 
         const requestBody = await this.provider.buildRequest(compactionPrompt, {});
         const response = await this.provider.sendRequest(requestBody, { attempt: 0 });
         const parsed = this.provider.parseResponse(response);
 
-        const summary = typeof parsed.content === 'string'
+        let summary = typeof parsed.content === 'string'
           ? parsed.content
           : (parsed.content?.reasoning || parsed.content?.result || JSON.stringify(parsed.content));
+
+        // MEM-01: Validate summary length -- retry once if too short
+        if (summary.length < 500) {
+          automationLogger.warn('Compaction summary too short, retrying with stronger prompt', {
+            sessionId: this.currentSessionId,
+            originalLength: summary.length
+          });
+
+          try {
+            const retryPrompt = {
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are a context compactor. Summarize the following browser automation conversation turns into a concise context block. Preserve: actions taken, results observed, pages visited, errors encountered, key element selectors found, and current progress toward the task. Output ONLY the summary, no preamble.'
+                },
+                {
+                  role: 'user',
+                  content: `Your summary was too short (${summary.length} chars). Produce at least 500 characters covering: 1) actions taken with element details, 2) selectors used, 3) pages visited, 4) errors encountered, 5) current progress toward the task. Be specific -- include element names, URLs, and outcomes.\n\nOriginal turns:\n\n${turnsSummary}`
+                }
+              ]
+            };
+
+            const retryBody = await this.provider.buildRequest(retryPrompt, {});
+            const retryResponse = await this.provider.sendRequest(retryBody, { attempt: 0 });
+            const retryParsed = this.provider.parseResponse(retryResponse);
+
+            const retrySummary = typeof retryParsed.content === 'string'
+              ? retryParsed.content
+              : (retryParsed.content?.reasoning || retryParsed.content?.result || JSON.stringify(retryParsed.content));
+
+            if (retrySummary.length >= 500) {
+              summary = retrySummary;
+            }
+            // If retry is still short, fall through to local fallback below
+          } catch (retryError) {
+            automationLogger.debug('Compaction retry failed', {
+              sessionId: this.currentSessionId,
+              error: retryError.message
+            });
+            // Fall through to local fallback below
+          }
+        }
+
+        // MEM-01: Final safety net -- if summary is still < 500 chars, use local fallback
+        if (summary.length < 500) {
+          automationLogger.warn('Compaction still too short after retry, using local fallback', {
+            sessionId: this.currentSessionId,
+            summaryLength: summary.length
+          });
+          summary = this._localExtractiveFallback(messagesToCompact);
+        }
 
         this.compactedSummary = summary.substring(0, 1500);
 
@@ -812,15 +966,89 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
 
         return this.compactedSummary;
       } catch (error) {
-        automationLogger.debug('Compaction failed (non-critical)', {
+        automationLogger.debug('Compaction failed, using local extractive fallback', {
           sessionId: this.currentSessionId,
           error: error.message
         });
-        return null;
+        // MEM-01: Fall back to local extraction instead of returning null
+        this.compactedSummary = this._localExtractiveFallback(messagesToCompact).substring(0, 1500);
+        return this.compactedSummary;
       } finally {
         this.pendingCompaction = null;
       }
     })();
+  }
+
+  /**
+   * Local extractive fallback for compaction.
+   * Scans raw conversation messages for URLs, actions, and errors to produce
+   * a structured summary without any API call.
+   * @param {Array} messagesToCompact - Array of conversation message objects
+   * @returns {string} Extractive summary of at least 500 characters
+   */
+  _localExtractiveFallback(messagesToCompact) {
+    const parts = ['Session progress (auto-extracted):'];
+
+    // Collect all message text content
+    const allText = (messagesToCompact || []).map(m => {
+      if (typeof m.content === 'string') return m.content;
+      try { return JSON.stringify(m.content); } catch { return ''; }
+    }).join('\n');
+
+    // Extract URLs (deduplicated, ordered)
+    const urlSet = new Set();
+    const urlRegex = /https?:\/\/[^\s"'<>]+/g;
+    let urlMatch;
+    while ((urlMatch = urlRegex.exec(allText)) !== null) {
+      urlSet.add(urlMatch[0]);
+    }
+    if (urlSet.size > 0) {
+      parts.push('Pages visited: ' + Array.from(urlSet).join(' -> '));
+    }
+
+    // Extract actions (deduplicated, last 10)
+    const actionRegex = /(?:clicked|typed|navigated|searched|scrolled|selected|pressed)[^.]{0,80}/gi;
+    const actionSet = new Set();
+    let actionMatch;
+    while ((actionMatch = actionRegex.exec(allText)) !== null) {
+      actionSet.add(actionMatch[0].trim());
+    }
+    if (actionSet.size > 0) {
+      const actions = Array.from(actionSet).slice(-10);
+      parts.push('Actions taken:');
+      actions.forEach(a => { parts.push('  - ' + a); });
+    }
+
+    // Extract errors (deduplicated, last 5)
+    const errorRegex = /(?:error|failed|not found|timeout)[^.]{0,60}/gi;
+    const errorSet = new Set();
+    let errorMatch;
+    while ((errorMatch = errorRegex.exec(allText)) !== null) {
+      errorSet.add(errorMatch[0].trim());
+    }
+    if (errorSet.size > 0) {
+      const errors = Array.from(errorSet).slice(-5);
+      parts.push('Errors encountered:');
+      errors.forEach(e => { parts.push('  - ' + e); });
+    }
+
+    let result = parts.join('\n');
+
+    // Pad to minimum 500 characters if needed by including raw message excerpts
+    if (result.length < 500) {
+      result += '\n\nRaw context excerpts:';
+      for (const m of (messagesToCompact || [])) {
+        const text = typeof m.content === 'string'
+          ? m.content
+          : (function() { try { return JSON.stringify(m.content); } catch { return ''; } })();
+        if (text) {
+          result += '\n[' + (m.role || 'unknown') + ']: ' + text.substring(0, 200);
+        }
+        if (result.length >= 600) break;
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -829,6 +1057,57 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
   buildMemoryContext() {
     // PERF: Use array + join instead of string concatenation in loop
     const parts = [];
+
+    // MEM-03: HARD FACTS section -- always rebuilt from this.hardFacts, never compacted
+    if (this.hardFacts) {
+      const hf = this.hardFacts;
+      const hfParts = [];
+      hfParts.push('=== HARD FACTS (verified, do not repeat these actions) ===');
+      if (hf.taskGoal) {
+        hfParts.push(`Original task: ${hf.taskGoal}`);
+      }
+      if (hf.criticalActions.length > 0) {
+        let actions = hf.criticalActions;
+        // Pre-check: if total hard facts will exceed 800 chars, limit actions to 5
+        if (actions.length > 5) {
+          actions = actions.slice(-5);
+        }
+        hfParts.push('Critical actions completed:');
+        actions.forEach(ca => {
+          const verifiedTag = ca.verified ? '(VERIFIED)' : '(unverified)';
+          hfParts.push(`  - [iter ${ca.iteration}] ${ca.description} ${verifiedTag}`);
+        });
+      }
+      const wsKeys = Object.keys(hf.workingSelectors);
+      if (wsKeys.length > 0) {
+        hfParts.push('Working selectors:');
+        wsKeys.forEach(label => {
+          hfParts.push(`  - ${label}: ${hf.workingSelectors[label]}`);
+        });
+      }
+      hfParts.push('=== END HARD FACTS ===');
+
+      let hardFactsStr = hfParts.join('\n');
+
+      // Cap at 800 chars: truncate working selectors first, then critical actions
+      if (hardFactsStr.length > 800) {
+        // Rebuild without working selectors
+        const hfReduced = hfParts.filter(l => {
+          // Keep all lines except working selector entries
+          return !wsKeys.some(label => l.includes(`  - ${label}: `)) && l !== 'Working selectors:';
+        });
+        hardFactsStr = hfReduced.join('\n');
+        if (hardFactsStr.length > 800) {
+          hardFactsStr = hardFactsStr.substring(0, 797) + '...';
+        }
+      }
+
+      // Only add if there is substantive content (more than just the header/footer)
+      if (hf.taskGoal || hf.criticalActions.length > 0 || wsKeys.length > 0) {
+        parts.push(hardFactsStr);
+        parts.push(''); // blank line separator
+      }
+    }
 
     // Layer 1: Structured memory (always available)
     if (this.sessionMemory) {
@@ -1935,7 +2214,63 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
 - You can safely include 3-5 related actions in a single response`;
       }
     }
-    
+
+    // MEM-04: Inject long-term memories into first-iteration prompt
+    if (isFirstIteration && this._longTermMemories && this._longTermMemories.length > 0) {
+      let siteKnowledgeParts = [];
+      let siteKnowledgeLen = 0;
+      const SITE_KNOWLEDGE_CAP = 500;
+
+      for (const m of this._longTermMemories) {
+        let entry;
+        if (m.type === 'procedural' || m.steps) {
+          entry = `How to: ${(m.text || '').substring(0, 100)}`;
+        } else if (m.type === 'semantic' || m.domain) {
+          entry = `Known: ${(m.text || '').substring(0, 100)}`;
+        } else if (m.type === 'episodic') {
+          entry = `Past: ${(m.text || '').substring(0, 100)}`;
+        } else {
+          entry = (m.text || '').substring(0, 100);
+        }
+        if (siteKnowledgeLen + entry.length + 4 > SITE_KNOWLEDGE_CAP) break;
+        siteKnowledgeParts.push(`  - ${entry}`);
+        siteKnowledgeLen += entry.length + 4;
+      }
+
+      if (siteKnowledgeParts.length > 0) {
+        userPrompt += '\n\n=== SITE KNOWLEDGE (from previous sessions on this domain) ===';
+        userPrompt += '\n' + siteKnowledgeParts.join('\n');
+        userPrompt += '\n=== END SITE KNOWLEDGE ===';
+      }
+    }
+
+    // CMP-02: Completion signal hint when page shows success evidence
+    if (context?.completionCandidate) {
+      const cc = context.completionCandidate;
+      userPrompt += '\n\n=== COMPLETION SIGNAL DETECTED ===';
+      userPrompt += '\nPage intent: ' + cc.pageIntent;
+      if (cc.signals.successMessages?.length > 0) {
+        userPrompt += '\nSuccess message: "' + cc.signals.successMessages[0].text.substring(0, 80) + '"';
+      }
+      if (cc.signals.confirmationPage) {
+        userPrompt += '\nURL indicates confirmation page';
+      }
+      if (cc.signals.toastNotification) {
+        userPrompt += '\nToast: "' + cc.signals.toastNotification.text.substring(0, 60) + '"';
+      }
+      userPrompt += '\n--> ' + cc.suggestion;
+    }
+
+    // CMP-03: Critical action warnings -- prevent AI from re-executing irrevocable actions
+    if (context?.criticalActionWarnings?.length > 0) {
+      userPrompt += '\n\n=== CRITICAL ACTIONS (do NOT re-execute) ===';
+      for (const w of context.criticalActionWarnings) {
+        userPrompt += '\n- ' + w.description;
+        if (w.verified) userPrompt += ' [VERIFIED]';
+        if (w.cooldownRemaining > 0) userPrompt += ' (blocked ' + w.cooldownRemaining + ' more iterations)';
+      }
+    }
+
     // DOM-01: Budget-partitioned prompt construction
     // The user prompt is built in sections. We measure what's been used by
     // task/context/automation sections (already appended above), then partition

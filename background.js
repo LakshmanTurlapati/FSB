@@ -1444,6 +1444,13 @@ function slimActionResult(result) {
   if (result.checked !== undefined) slim.checked = result.checked;
   if (result.failureType) slim.failureType = result.failureType;
   if (result.retryable !== undefined) slim.retryable = result.retryable;
+  // MEM-02: Preserve fields for rich action descriptions downstream
+  if (result.tool) slim.tool = result.tool;
+  if (result.elementInfo?.text) slim.elementText = result.elementInfo.text.substring(0, 50);
+  if (result.selectorUsed) slim.selectorUsed = result.selectorUsed;
+  // CMP-04: Preserve value field for getText/getAttribute -- needed by progress tracking
+  // and hard-stop extracted-text display (lines that reference result.value)
+  if (result.value !== undefined) slim.value = typeof result.value === 'string' ? result.value.substring(0, 200) : result.value;
   return slim;
 }
 
@@ -2425,6 +2432,419 @@ function simpleHash(str) {
     hash = hash & hash; // Convert to 32bit integer
   }
   return Math.abs(hash);
+}
+
+/**
+ * CMP-03: Classify a task string into one of 8 task types.
+ * Simplified port of ai-integration.js detectTaskType() for background.js use
+ * (no site guide dependency). Used by completion validators and progress tracking.
+ * @param {string} taskString - The user's task description
+ * @returns {string} One of: 'email', 'messaging', 'form', 'shopping', 'search', 'extraction', 'navigation', 'general'
+ */
+function classifyTask(taskString) {
+  if (!taskString) return 'general';
+  const t = taskString.toLowerCase();
+
+  // Email -- check before messaging to avoid 'send' matching messaging
+  if (/email|mail|gmail|outlook|compose|inbox|draft/.test(t)) return 'email';
+  // Messaging -- 'send', 'reply', 'post', 'comment' etc. (after email ruled out)
+  if (/message|send|text|chat|reply|comment|dm\b|post/.test(t)) return 'messaging';
+  // Form
+  if (/fill|form|submit|register|sign.?up|apply/.test(t)) return 'form';
+  // Shopping
+  if (/buy|purchase|order|add.?to.?cart|checkout|shop/.test(t)) return 'shopping';
+  // Search
+  if (/search|find|look.?for|what.?is|how.?to/.test(t)) return 'search';
+  // Extraction
+  if (/get|extract|price|read|check|scrape/.test(t)) return 'extraction';
+  // Navigation
+  if (/go.?to|navigate|open|visit/.test(t)) return 'navigation';
+  // Fallback
+  return 'general';
+}
+
+// CMP-03: Irrevocable verb pattern -- matches verbs whose side effects cannot be undone
+const IRREVOCABLE_VERB_PATTERN = /send|submit|purchase|order|delete|publish|post/i;
+
+/**
+ * CMP-03: Record a critical (irrevocable) action in the session registry.
+ * Called after action execution when the action is a click on an element whose
+ * text or selector matches the irrevocable verb pattern.
+ * @param {Object} session - The automation session
+ * @param {Object} action - The action object { tool, params }
+ * @param {Object} result - The slim action result
+ */
+function recordCriticalAction(session, action, result) {
+  // Initialize registry if absent
+  if (!session.criticalActionRegistry) {
+    session.criticalActionRegistry = {
+      actions: [],    // { tool, selector, elementText, iteration, verified, timestamp }
+      cooldowns: {}   // { signature: { blockedUntilIteration, reason } }
+    };
+  }
+  const registry = session.criticalActionRegistry;
+
+  const elementText = result?.elementText || result?.clicked || '';
+  const selector = action.params?.selector || '';
+
+  // Push to actions array (cap at 20, drop oldest per Pitfall 6)
+  registry.actions.push({
+    tool: action.tool,
+    selector: selector.substring(0, 80),
+    elementText: elementText.substring(0, 50),
+    iteration: session.iterationCount,
+    verified: false,
+    timestamp: Date.now()
+  });
+  if (registry.actions.length > 20) {
+    registry.actions.shift();
+  }
+
+  // Set 3-iteration cooldown on the action signature
+  const signature = createActionSignature(action);
+  registry.cooldowns[signature] = {
+    blockedUntilIteration: session.iterationCount + 3,
+    reason: `Irrevocable action "${elementText.substring(0, 30)}" needs cooldown`
+  };
+
+  automationLogger.info('Critical action recorded', {
+    sessionId: session.id,
+    tool: action.tool,
+    elementText: elementText.substring(0, 30),
+    cooldownUntil: session.iterationCount + 3
+  });
+}
+
+/**
+ * CMP-03: Check if an action is currently on cooldown (blocked from re-execution).
+ * @param {Object} session - The automation session
+ * @param {Object} action - The action to check
+ * @returns {boolean} True if the action is blocked (still cooling down)
+ */
+function isCooledDown(session, action) {
+  if (!session.criticalActionRegistry?.cooldowns) return false;
+  const signature = createActionSignature(action);
+  const cooldown = session.criticalActionRegistry.cooldowns[signature];
+  if (!cooldown) return false;
+  return session.iterationCount < cooldown.blockedUntilIteration;
+}
+
+/**
+ * CMP-03: Get a compact summary of critical actions for prompt injection.
+ * @param {Object} session - The automation session
+ * @returns {Array} Array of { description, verified, cooldownRemaining }
+ */
+function getCriticalActionSummary(session) {
+  if (!session.criticalActionRegistry?.actions?.length) return [];
+  const summary = [];
+  let charCount = 0;
+  // Iterate most recent first, stop at 300 chars
+  const actions = session.criticalActionRegistry.actions.slice().reverse();
+  for (const entry of actions) {
+    const cooldownEntry = session.criticalActionRegistry.cooldowns[
+      `${entry.tool}:${entry.selector}`
+    ];
+    const cooldownRemaining = cooldownEntry
+      ? Math.max(0, cooldownEntry.blockedUntilIteration - session.iterationCount)
+      : 0;
+    const desc = `${entry.tool} "${entry.elementText}" @iter${entry.iteration}`;
+    if (charCount + desc.length > 300) break;
+    summary.push({
+      description: desc,
+      verified: entry.verified,
+      cooldownRemaining
+    });
+    charCount += desc.length;
+  }
+  return summary;
+}
+
+// ============================================================================
+// CMP-01 + CMP-02: Multi-signal completion validation
+// Replaces ad-hoc completion checks with structured task-type validators
+// and weighted multi-signal scoring.
+// ============================================================================
+
+/**
+ * CMP-02: Detect URL patterns that indicate task completion.
+ * @param {string} url - The current page URL
+ * @param {Object} session - The automation session
+ * @returns {string|null} Matched pattern description, or null
+ */
+function detectUrlCompletionPattern(url, session) {
+  if (!url) return null;
+  // Check for success URL patterns
+  const successPattern = /\/(?:confirm|success|thank|receipt|done|complete|order-placed|submitted)/i;
+  const match = url.match(successPattern);
+  if (match) return 'success-url: ' + match[0];
+  // For navigation tasks: URL differs from start
+  if (session.startUrl && url !== session.startUrl) {
+    const startHost = new URL(session.startUrl).hostname;
+    const currentHost = new URL(url).hostname;
+    if (startHost !== currentHost) return 'navigated-away: ' + currentHost;
+  }
+  return null;
+}
+
+/**
+ * CMP-01: Check if action history shows task-appropriate completion.
+ * @param {Object} session - The automation session
+ * @param {string} taskType - Classified task type
+ * @returns {boolean}
+ */
+function checkActionChainComplete(session, taskType) {
+  const history = session.actionHistory || [];
+  if (history.length === 0) return false;
+  const recent = history.slice(-15);
+  switch (taskType) {
+    case 'messaging':
+    case 'email': {
+      // Has a successful click on a send/submit-like element
+      return recent.some(a =>
+        a.tool === 'click' && a.result?.success &&
+        /send|submit|post|reply/i.test(a.result?.elementText || a.result?.clicked || a.params?.selector || '')
+      );
+    }
+    case 'form':
+    case 'shopping': {
+      // Type actions followed by a submit click
+      const hasType = recent.some(a => a.tool === 'type' && a.result?.success);
+      const hasSubmit = recent.some(a =>
+        a.tool === 'click' && a.result?.success &&
+        /submit|confirm|place.?order|checkout|register|sign.?up|apply|continue/i.test(
+          a.result?.elementText || a.result?.clicked || a.params?.selector || ''
+        )
+      );
+      return hasType && hasSubmit;
+    }
+    case 'navigation': {
+      return session.startUrl && session.lastUrl !== session.startUrl;
+    }
+    case 'search': {
+      const hasSearch = recent.some(a =>
+        (a.tool === 'type' || a.tool === 'searchGoogle') && a.result?.success
+      );
+      const hasNavOrResult = recent.some(a =>
+        (a.tool === 'clickSearchResult' || a.tool === 'click' || a.tool === 'getText') && a.result?.success
+      );
+      return hasSearch && hasNavOrResult;
+    }
+    case 'extraction': {
+      return recent.some(a =>
+        a.tool === 'getText' && a.result?.success && a.result?.value && a.result.value.trim().length > 0
+      );
+    }
+    default:
+      return false;
+  }
+}
+
+/**
+ * CMP-02: Summarize the last 5 actions as compact evidence string.
+ * @param {Object} session - The automation session
+ * @returns {string}
+ */
+function summarizeRecentActions(session) {
+  const recent = (session.actionHistory || []).slice(-5);
+  return recent.map(a => {
+    const status = a.result?.success ? 'ok' : 'fail';
+    const target = (a.result?.elementText || a.params?.selector || '').substring(0, 25);
+    return `${a.tool}(${target}):${status}`;
+  }).join(', ');
+}
+
+/**
+ * CMP-02: Collect completion signals from all sources.
+ * @param {Object} session - The automation session
+ * @param {Object} aiResponse - The AI response with taskComplete and result
+ * @param {Object} context - The iteration context (includes completionSignals from DOM)
+ * @returns {Object} Signal bundle for scoring
+ */
+function gatherCompletionSignals(session, aiResponse, context) {
+  const taskType = classifyTask(session.task);
+  return {
+    // URL signal (0.3 weight)
+    urlMatch: detectUrlCompletionPattern(context.currentUrl, session),
+    // DOM signal (0.25 weight) -- from content.js completionSignals (Plan 02)
+    domSuccess: context.completionSignals?.successMessages?.length > 0
+      ? context.completionSignals.successMessages[0].text : null,
+    confirmationPage: context.completionSignals?.confirmationPage || false,
+    formReset: context.completionSignals?.formReset || false,
+    toast: context.completionSignals?.toastNotification?.text || null,
+    // AI self-report (0.2 weight)
+    aiComplete: aiResponse.taskComplete === true,
+    aiResult: aiResponse.result || '',
+    // Action chain (0.15 weight)
+    actionChainComplete: checkActionChainComplete(session, taskType),
+    actionChainEvidence: summarizeRecentActions(session),
+    criticalActionsVerified: (session.criticalActionRegistry?.actions || [])
+      .filter(a => a.verified).length,
+    // Page stability (0.1 weight) -- use changeSignals if available
+    pageStable: !context.changeSignals?.changed || false
+  };
+}
+
+/**
+ * CMP-02: Compute weighted completion score from gathered signals.
+ * @param {Object} signals - Signal bundle from gatherCompletionSignals
+ * @param {string} taskType - Classified task type
+ * @returns {{ score: number, evidence: string[], threshold: number }}
+ */
+function computeCompletionScore(signals, taskType) {
+  const weights = {
+    urlSignal: 0.3,
+    domSignal: 0.25,
+    aiReport: 0.2,
+    actionChain: 0.15,
+    pageStability: 0.1
+  };
+  let score = 0;
+  const evidence = [];
+
+  // URL signal
+  if (signals.urlMatch) {
+    score += weights.urlSignal;
+    evidence.push('URL: ' + signals.urlMatch);
+  }
+  // DOM signal (any of: success message, confirmation page, toast, form reset with action chain)
+  if (signals.domSuccess || signals.confirmationPage || signals.toast) {
+    score += weights.domSignal;
+    evidence.push('DOM: ' + (signals.domSuccess || signals.toast || 'confirmation page'));
+  } else if (signals.formReset && signals.actionChainComplete) {
+    // Form reset alone is weak (Pitfall: empty forms on load); combine with action chain
+    score += weights.domSignal * 0.5;
+    evidence.push('DOM: form reset + action chain');
+  }
+  // AI self-report
+  if (signals.aiComplete && signals.aiResult.length >= 10) {
+    score += weights.aiReport;
+    evidence.push('AI: task complete');
+  }
+  // Action chain
+  if (signals.actionChainComplete) {
+    score += weights.actionChain;
+    evidence.push('Actions: chain complete');
+  }
+  // Page stability
+  if (signals.pageStable) {
+    score += weights.pageStability;
+    evidence.push('Page: stable');
+  }
+
+  return { score, evidence, threshold: 0.5 };
+}
+
+// --- Task-type-specific validators (CMP-01) ---
+// Each returns { approved: boolean, score: number, evidence: string[], taskType: string }
+
+function messagingValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // Bonus: compose window closed or send button was clicked and verified
+  const sendClicked = (session.criticalActionRegistry?.actions || []).some(a =>
+    /send|submit|post|reply/i.test(a.elementText) && a.verified
+  );
+  if (sendClicked) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Messaging: send action verified');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'messaging' };
+}
+
+function formValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // Bonus: URL changed after form submission
+  if (signals.urlMatch && signals.actionChainComplete) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Form: URL changed + submit chain');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'form' };
+}
+
+function navigationValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // URL change to expected target is a strong signal for navigation
+  if (signals.urlMatch) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Navigation: URL matches target');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'navigation' };
+}
+
+function searchValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // Search tasks have a low bar -- search + results page loaded
+  if (signals.actionChainComplete) {
+    score = Math.min(1, score + 0.05);
+    evidence.push('Search: results obtained');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'search' };
+}
+
+function extractionValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // Very permissive -- getText returned content
+  if (signals.actionChainComplete && signals.aiResult.length >= 10) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Extraction: data extracted');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'extraction' };
+}
+
+function generalValidator(session, aiResponse, context, signals, scoreResult) {
+  // Score-only decision, no bonuses
+  return { approved: scoreResult.score >= 0.5, score: scoreResult.score, evidence: scoreResult.evidence, taskType: 'general' };
+}
+
+/**
+ * CMP-01: Main completion validation dispatcher.
+ * Replaces the ad-hoc isMessagingTask / critical-failures block.
+ * @param {Object} session - The automation session
+ * @param {Object} aiResponse - The AI response
+ * @param {Object} context - The iteration context
+ * @returns {{ approved: boolean, score: number, evidence: string[], taskType: string }}
+ */
+function validateCompletion(session, aiResponse, context) {
+  // Require non-empty result from AI (keep existing check: length >= 10)
+  if (!aiResponse.result || aiResponse.result.trim().length < 10) {
+    return { approved: false, score: 0, evidence: ['AI result too short or missing'], taskType: 'unknown' };
+  }
+
+  const taskType = classifyTask(session.task);
+  const signals = gatherCompletionSignals(session, aiResponse, context);
+  const scoreResult = computeCompletionScore(signals, taskType);
+
+  // Dispatch to task-type-specific validator
+  const validators = {
+    messaging: messagingValidator,
+    email: messagingValidator,
+    form: formValidator,
+    shopping: formValidator,
+    navigation: navigationValidator,
+    search: searchValidator,
+    extraction: extractionValidator,
+    general: generalValidator
+  };
+  const validator = validators[taskType] || generalValidator;
+  const result = validator(session, aiResponse, context, signals, scoreResult);
+
+  automationLogger.debug('Completion signals gathered', {
+    sessionId: session.id,
+    taskType,
+    signals: {
+      urlMatch: signals.urlMatch,
+      domSuccess: !!signals.domSuccess,
+      confirmationPage: signals.confirmationPage,
+      toast: !!signals.toast,
+      formReset: signals.formReset,
+      aiComplete: signals.aiComplete,
+      actionChainComplete: signals.actionChainComplete,
+      pageStable: signals.pageStable
+    },
+    score: result.score,
+    approved: result.approved
+  });
+
+  return result;
 }
 
 /**
@@ -5573,6 +5993,9 @@ async function startAutomationLoop(sessionId) {
     const context = {
       sessionId: sessionId, // Include sessionId for comprehensive logging
       actionHistory: session.actionHistory.slice(-10), // Last 10 actions
+      lastActionResult: session.actionHistory.length > 0
+        ? session.actionHistory[session.actionHistory.length - 1]
+        : null,
       isStuck,
       stuckCounter: session.stuckCounter,
       domChanged,             // Boolean backward compat (derived from changeResult.changed)
@@ -5596,6 +6019,26 @@ async function startAutomationLoop(sessionId) {
       // Recovery strategies when stuck (generated by generateRecoveryStrategies)
       recoveryStrategies: recoveryStrategies.length > 0 ? recoveryStrategies : undefined
     };
+
+    // DIF-02: Wire completion signals from DOM response into context
+    context.completionSignals = domResponse.structuredDOM.completionSignals || null;
+    const pageIntent = domResponse.structuredDOM.pageContext?.pageIntent;
+    if (pageIntent === 'success-confirmation') {
+      const completionSignals = domResponse.structuredDOM.completionSignals;
+      if (completionSignals && (completionSignals.successMessages?.length > 0 || completionSignals.confirmationPage)) {
+        context.completionCandidate = {
+          pageIntent,
+          signals: completionSignals,
+          suggestion: 'Page shows success state -- verify task completion and set taskComplete: true if your task objective was met'
+        };
+      }
+    }
+
+    // CMP-03: Critical action warnings for AI prompt
+    const criticalSummary = getCriticalActionSummary(session);
+    if (criticalSummary.length > 0) {
+      context.criticalActionWarnings = criticalSummary;
+    }
 
     // Check for intermediate/redirect pages that should be allowed to resolve
     // Note: With frameId: 0 targeting, we now get DOM from main frame only,
@@ -5838,6 +6281,19 @@ async function startAutomationLoop(sessionId) {
           return;
         }
 
+        // CMP-03: Skip actions that are on cooldown (irrevocable action re-execution guard)
+        if (isCooledDown(session, action)) {
+          const cooldown = session.criticalActionRegistry.cooldowns[createActionSignature(action)];
+          automationLogger.warn('Skipping cooled-down irrevocable action', {
+            sessionId,
+            tool: action.tool,
+            selector: action.params?.selector,
+            blockedUntilIteration: cooldown?.blockedUntilIteration,
+            currentIteration: session.iterationCount
+          });
+          continue;
+        }
+
         automationLogger.logActionExecution(sessionId, action.tool, 'start', { index: i + 1, total: aiResponse.actions.length, params: action.params });
         const actionStartTime = Date.now();
 
@@ -5951,6 +6407,15 @@ async function startAutomationLoop(sessionId) {
           iteration: session.iterationCount
         };
         session.actionHistory.push(actionRecord);
+
+        // CMP-03: Record critical (irrevocable) actions for cooldown enforcement
+        if (action.tool === 'click' && actionResult?.success) {
+          const clickedText = actionResult?.elementInfo?.text || actionResult?.clicked || '';
+          const selectorStr = action.params?.selector || '';
+          if (IRREVOCABLE_VERB_PATTERN.test(clickedText) || IRREVOCABLE_VERB_PATTERN.test(selectorStr)) {
+            recordCriticalAction(session, action, slimActionResult(actionResult));
+          }
+        }
 
         // Log action result
         automationLogger.logAction(sessionId, action, actionResult);
@@ -6223,13 +6688,19 @@ async function startAutomationLoop(sessionId) {
       )
     };
 
-    // Meaningful progress: only count actual page changes (DOM hash, URL, or hadEffect from click/type)
-    // getText/getAttribute are read-only and should NOT reset stuck detection
+    // CMP-04: Enhanced progress tracking using changeSignals channels (Phase 3)
+    // Only count changes that are structural, content, or pageState -- not interaction-only
     const madeProgress = (
-      (iterationStats.domChanged && iterationStats.actionsSucceeded > 0) ||
       iterationStats.urlChanged ||
+      iterationStats.hadNavigation ||
       iterationStats.hadEffect ||
-      iterationStats.hadNavigation
+      // Use changeSignals channels to distinguish meaningful changes from noise
+      (changeSignals.changed && changeSignals.channels.some(
+        ch => ['structural', 'content', 'pageState'].includes(ch)
+      ) && iterationStats.actionsSucceeded > 0) ||
+      // For extraction tasks, successful getText with content counts as progress
+      (classifyTask(session.task) === 'extraction' &&
+       iterationStats.newDataExtracted)
     );
 
     if (madeProgress) {
@@ -6237,7 +6708,12 @@ async function startAutomationLoop(sessionId) {
       automationLogger.debug('Progress made this iteration', {
         sessionId,
         consecutiveNoProgressCount: session.consecutiveNoProgressCount,
-        stats: iterationStats
+        stats: iterationStats,
+        progressSignal: iterationStats.urlChanged ? 'url_changed' :
+                        iterationStats.hadNavigation ? 'navigation' :
+                        iterationStats.hadEffect ? 'had_effect' :
+                        iterationStats.newDataExtracted ? 'extraction_progress' :
+                        'dom_change_substantive'
       });
     } else if (iterationStats.actionsFailed > 0 || !iterationStats.domChanged) {
       session.consecutiveNoProgressCount++;
@@ -6373,83 +6849,23 @@ async function startAutomationLoop(sessionId) {
       return;
     }
     
-    // COMPLETION VALIDATION: Ensure AI provides meaningful results AND critical actions succeeded
+    // COMPLETION VALIDATION: Multi-signal verification (CMP-01 + CMP-02)
     if (aiResponse.taskComplete) {
-      // Check for meaningful result
-      if (!aiResponse.result || aiResponse.result.trim().length < 10) {
-        automationLogger.warn('Completion blocked - AI must provide result summary', { sessionId });
-        aiResponse.taskComplete = false; // Override the AI's decision
-      } else {
-        // Check for recent critical action failures
-        const criticalActions = ['type', 'click'];
-        const recentActions = session.actionHistory.slice(-10); // Last 10 actions
-        const recentCriticalFailures = recentActions.filter(action => 
-          criticalActions.includes(action.tool) && !action.result?.success
-        );
-        
-        // Enhanced messaging task completion validation
-        const isMessagingTask = session.task.toLowerCase().includes('message') || 
-                               session.task.toLowerCase().includes('send') ||
-                               session.task.toLowerCase().includes('text') ||
-                               session.task.toLowerCase().includes('chat') ||
-                               session.task.toLowerCase().includes('reply') ||
-                               session.task.toLowerCase().includes('comment');
-        
-        // For messaging tasks, check if message was actually sent
-        if (isMessagingTask && recentCriticalFailures.length > 0) {
-          const typeFailures = recentCriticalFailures.filter(action => action.tool === 'type');
-          const clickSuccesses = recentActions.filter(action => 
-            action.tool === 'click' && action.result?.success
-          );
-          
-          // Allow completion if:
-          // 1. Type failed but there were successful clicks (might have sent empty/existing message)
-          // 2. Multiple attempts were made and DOM changed (likely successful)
-          // 3. AI provides detailed result indicating success
-          const shouldAllowCompletion = (
-            (typeFailures.length > 0 && clickSuccesses.length >= 2) ||  // Clicked send buttons
-            (session.stuckCounter < 3 && session.urlHistory.length > 0) || // Made progress
-            (aiResponse.result && aiResponse.result.length > 50 && 
-             aiResponse.result.toLowerCase().includes('sent')) || // AI claims success
-            (recentActions.filter(a => a.result?.success).length >= recentActions.length * 0.7) // Most actions succeeded
-          );
-          
-          if (typeFailures.length > 0 && !shouldAllowCompletion) {
-            automationLogger.warn('Completion blocked - critical type actions failed', {
-              sessionId,
-              failedActions: typeFailures.map(a => ({tool: a.tool, params: a.params, error: a.result?.error})),
-              clickSuccesses: clickSuccesses.length
-            });
-            aiResponse.taskComplete = false; // Override the AI's decision
-          } else if (typeFailures.length > 0 && shouldAllowCompletion) {
-            automationLogger.info('Allowing messaging task completion despite type failures', { sessionId });
-          }
-        } else if (recentCriticalFailures.length >= 3) {
-          // General rule: block completion if multiple critical actions failed recently
-          // But be more lenient if there are signs of success
-          const successRate = recentActions.length > 0 ? 
-            recentActions.filter(a => a.result?.success).length / recentActions.length : 0;
-          
-          // Allow completion if success rate is decent (60%+) or if AI provides detailed result
-          const hasDetailedResult = aiResponse.result && aiResponse.result.length > 30;
-          const hasDecentSuccessRate = successRate >= 0.6;
-          
-          if (!hasDetailedResult && !hasDecentSuccessRate) {
-            automationLogger.warn('Completion blocked - multiple critical actions failed', {
-              sessionId,
-              failedActions: recentCriticalFailures.map(a => ({tool: a.tool, params: a.params, error: a.result?.error})),
-              successRate,
-              hasDetailedResult
-            });
-            aiResponse.taskComplete = false; // Override the AI's decision
-          } else {
-            automationLogger.info('Allowing task completion despite failures', { sessionId, successRate, hasDetailedResult, resultLength: aiResponse.result?.length || 0 });
-          }
-        }
-
-        if (aiResponse.taskComplete) {
-          automationLogger.info('Task completion approved', { sessionId, resultPreview: aiResponse.result.substring(0, 100) });
-        }
+      const validation = validateCompletion(session, aiResponse, context);
+      automationLogger.info('Completion validation result', {
+        sessionId,
+        approved: validation.approved,
+        score: validation.score,
+        taskType: validation.taskType,
+        evidence: validation.evidence
+      });
+      if (!validation.approved) {
+        aiResponse.taskComplete = false;
+        automationLogger.warn('Completion blocked by multi-signal validation', {
+          sessionId,
+          score: validation.score,
+          evidence: validation.evidence
+        });
       }
     }
     
