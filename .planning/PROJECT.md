@@ -32,7 +32,16 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ### Active
 
-(None -- define in next milestone via `/gsd:new-milestone`)
+- [ ] Complete page awareness -- AI sees full DOM context without truncation losing critical elements
+- [ ] Task completion detection -- system-level verification that the task objective was met, not just AI self-report
+- [ ] Accurate DOM change detection -- element-level deltas instead of coarse hash comparison
+- [ ] Reliable CAPTCHA detection -- eliminate false positives on normal pages
+- [ ] Sufficient element text -- full names, labels, and content visible to AI for identification
+- [ ] Operational memory -- conversation history preserves what actions succeeded across iterations
+- [ ] Accurate viewport detection -- split-pane layouts (Gmail, LinkedIn, Slack) handled correctly
+- [ ] Consistent element finding -- waitForElement and click use the same resolution path
+- [ ] Action sequence verification -- confirm intermediate state between multi-step actions (type then send)
+- [ ] Navigation intelligence -- site-specific strategy hints to reduce wasted iterations
 
 ### Out of Scope
 
@@ -42,7 +51,19 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Context
 
-**Current state:** Shipped v0.9 Reliability Improvements. The mechanics layer is now precise -- selectors are uniqueness-scored, elements are verified ready before action, actions are verified after execution, and visual feedback shows exactly what's being targeted. 43,283 lines of JavaScript across content.js, background.js, ai-integration.js, and UI files.
+**Current state:** Shipped v0.9 Reliability Improvements. Mechanics are precise but the AI lacks situational awareness. Log analysis of a LinkedIn messaging task revealed 10 systemic issues: the AI can't detect task completion, loses 74% of DOM context to truncation, gets false CAPTCHA warnings, loses operational memory to aggressive compaction, and can't identify elements with truncated text. The next milestone focuses on giving the AI complete awareness of what's on the page and whether its actions worked. 43,283 lines of JavaScript across content.js, background.js, ai-integration.js, and UI files.
+
+## Current Milestone: v0.9.1 AI Situational Awareness
+
+**Goal:** Give the AI complete context and the ability to understand what's happening on the page -- see everything, remember what it did, and know when it's done.
+
+**Target features:**
+- Task completion detection (system-level, not just AI self-report)
+- Full DOM context delivery (no destructive truncation)
+- Accurate change detection (element-level, not just hash)
+- Operational memory preservation across iterations
+- Fix false CAPTCHA detection, broken viewport detection, waitForElement inconsistency
+- Navigation strategy hints for common sites
 
 **Tech stack:** Chrome Extension Manifest V3, vanilla JavaScript (ES2021+), xAI Grok / OpenAI / Anthropic / Gemini APIs.
 
@@ -70,4 +91,4 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | Outcome-based dynamic delays | Replace static category delays with actual page state detection | Good -- faster execution without sacrificing reliability |
 
 ---
-*Last updated: 2026-02-14 after v0.9 milestone*
+*Last updated: 2026-02-14 after v0.9.1 milestone start*

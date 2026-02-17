@@ -18,7 +18,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Conversation Memory** - Fix compaction failures and enrich session memory so the AI remembers what it did
 - [x] **Phase 5: Task Completion Verification** - Add system-level verification so the AI knows when the task is actually done
 - [x] **Phase 6: Unified Session Continuity** - Keep all logs/sessions unified within the same conversation instead of creating new sessions per command
-- [ ] **Phase 7: Session History UI** - Add conversation history panel to sidepanel with previous sessions list and delete functionality
+- [x] **Phase 7: Session History UI** - Add conversation history panel to sidepanel with previous sessions list and delete functionality
+- [x] **Phase 8: Session Replay** - Use stored memory, action history, and successful action recordings to enable session replay of previously successful automation flows
+- [x] **Phase 9: Career Page Search + Google Sheets Data Entry** - Search company career pages for job listings, extract structured data, and enter it into Google Sheets
+- [ ] **Phase 10: Memory Tab Population** - Populate the empty Memory tab in the control panel with data from session logs, conversation history, action recordings, hard facts, working selectors, and session replay data
 
 ## Phase Details
 
@@ -207,12 +210,94 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 07-01-PLAN.md -- Session history view toggle, session list display, delete individual/all sessions
+- [x] 07-01-PLAN.md -- Session history view toggle, session list display, delete individual/all sessions
 
 **Files changed:**
 - `ui/sidepanel.html`: History button in header-actions, history-view container
 - `ui/sidepanel.js`: View toggle, session loading from chrome.storage.local, delete functions, helper utilities
 - `ui/sidepanel.css`: History view layout, item styles, status badges, active button state, empty state, dark theme
+
+---
+
+### Phase 8: Session Replay
+
+**Goal:** Enable users to select a previous session from history and replay it, re-executing the same sequence of successful actions on the current page. Leverages existing automation-logger session data, actionHistory with enriched results (tool, elementText, selectorUsed), hard facts, and working selectors to reproduce previously successful automation flows.
+**Depends on:** Phase 7 (session history UI provides the session selection interface; Phase 4 memory provides enriched action recordings; Phase 6 session continuity provides unified session data)
+**Success Criteria** (what must be TRUE):
+  1. actionHistory is persisted in fsbSessionLogs when any session is saved
+  2. User sees a "Replay" button on sessions with actions in history view
+  3. Clicking "Replay" re-executes the successful actions from that session on the current tab
+  4. Replay progress is shown step-by-step in the sidepanel chat with percentage
+  5. Replay completes with a summary of steps executed successfully and steps skipped
+  6. Replay is isolated from normal automation state (no AI involvement, no token cost)
+  7. Stop button works during replay to abort
+**Plans:** 2 plans
+
+Plans:
+- [x] 08-01-PLAN.md -- Persist actionHistory in saveSession, build replay engine (handleReplaySession, executeReplaySequence, loadReplayableSession)
+- [x] 08-02-PLAN.md -- Add replay button to history items, wire UI trigger and progress display
+
+**Files changed:**
+- `utils/automation-logger.js`: `saveSession()` -- persist actionHistory (filtered to successful, capped at 100)
+- `background.js`: `handleReplaySession()`, `executeReplaySequence()`, `loadReplayableSession()`, `getReplayDelay()`, `replaySession` case in message handler
+- `ui/sidepanel.js`: `startReplay()` function, replay button in `loadHistoryList()`, replay click event delegation
+- `ui/sidepanel.css`: `.history-replay-btn` styles with dark theme variant
+
+**Pitfall mitigations:**
+- Pitfall 1 (actionHistory not persisted): saveSession now stores actionHistory alongside logs
+- Pitfall 2 (stale selectors): Relies on content.js existing selector fallback chain; non-critical failures skipped
+- Pitfall 4 (replay leaks into normal state): isReplay flag, no AI instances, no conversationSessions registration
+- Pitfall 5 (type without clearInput): clearInput prepended before every type action during replay
+- Pitfall 6 (storage quota): actionHistory capped at 100 entries per session, only successful actions stored
+
+---
+
+### Phase 9: Career Page Search + Google Sheets Data Entry
+
+**Goal:** Enable FSB to search company career pages for relevant job listings, extract structured data, and enter it into Google Sheets -- prioritizing direct company sites over third-party aggregators
+**Depends on:** Phase 5 (completion verification), Phase 4 (memory for multi-step workflows)
+**Success Criteria** (what must be TRUE):
+  1. Task "find jobs at Stripe" navigates to stripe.com/careers before trying Indeed
+  2. AI extracts 6 required fields per job: company, role, date, location, description, apply link
+  3. AI navigates to Google Sheets via Name Box (not direct cell clicks) and enters data row by row
+  4. Career guide activates on Indeed/Glassdoor/BuiltIn URLs and direct company career pages
+  5. Productivity guide activates on docs.google.com/spreadsheets URLs
+  6. careerValidator detects completion when data is entered into Sheets
+**Plans:** 2 plans
+
+Plans:
+- [x] 09-01-PLAN.md -- Site guides for career pages (career.js) and Google Sheets (productivity.js)
+- [x] 09-02-PLAN.md -- Career task prompt, classification, and completion validator
+
+**Files changed:**
+- `site-guides/career.js`: NEW -- Career & Job Search site guide with URL patterns, selectors, workflows
+- `site-guides/productivity.js`: NEW -- Productivity Tools site guide for Google Sheets/Docs
+- `background.js`: importScripts for career.js and productivity.js, career classification in classifyTask, careerValidator function and dispatch entry
+- `site-guides/index.js`: Career & Job Search and Productivity Tools keyword arrays
+- `ai/ai-integration.js`: Career task prompt in TASK_PROMPTS, guide-to-task-type mapping, career keyword detection in detectTaskType
+
+---
+
+### Phase 10: Memory Tab Population
+
+**Goal:** Populate the existing Memory tab in the control panel (options.html) with meaningful data from all available sources -- session logs, conversation history, action recordings, hard facts, working selectors, and replay data -- so the Memory section actually shows useful information instead of being empty
+**Depends on:** Phase 9 (all prior phases provide the data sources: Phase 4 memory, Phase 6 session continuity, Phase 7 history, Phase 8 replay)
+**Success Criteria** (what must be TRUE):
+  1. After completing an automation session, the Memory tab shows episodic memories (what task was done, outcome, duration)
+  2. Semantic memories capture learned facts: working selectors per domain, site navigation patterns, form field mappings
+  3. Procedural memories capture reusable workflows: multi-step action sequences that succeeded
+  4. Memory stats bar shows accurate counts by type, storage usage, and capacity
+  5. Search and type filtering work across all populated memories
+  6. Consolidate button merges duplicate/stale memories
+  7. Export button downloads all memories as JSON
+  8. Memories persist across browser restarts and are available for AI retrieval via MemoryManager
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 10 to break down)
+
+**Details:**
+The Memory tab UI and lib/memory/ module infrastructure already exist (memory-manager.js, memory-extractor.js, memory-storage.js, memory-retriever.js, memory-consolidator.js). The issue is that the extraction pipeline either isn't triggering properly or isn't producing useful memories from session data. This phase needs to: (a) verify the extraction pipeline fires on session completion, (b) ensure extractAndStoreMemories produces all three memory types from real session data, (c) wire the options.js Memory tab to actually load and display stored memories via the MemoryManager API, and (d) feed richer data into the extraction -- including hard facts, working selectors, action sequences, and site-specific patterns discovered during automation.
 
 ---
 
@@ -250,7 +335,7 @@ Plans:
 
 ## Progress
 
-**Execution Order:** 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 (strict sequential, each phase's output feeds the next)
+**Execution Order:** 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 (strict sequential, each phase's output feeds the next)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
@@ -260,4 +345,7 @@ Plans:
 | 4. Conversation Memory | 2/2 | Complete | 2026-02-14 |
 | 5. Task Completion Verification | 3/3 | Complete | 2026-02-15 |
 | 6. Unified Session Continuity | 2/2 | Complete | 2026-02-16 |
-| 7. Session History UI | 0/1 | Not started | - |
+| 7. Session History UI | 1/1 | Complete | 2026-02-15 |
+| 8. Session Replay | 2/2 | Complete | 2026-02-16 |
+| 9. Career Page Search + Sheets | 2/2 | Complete | 2026-02-16 |
+| 10. Memory Tab Population | 0/0 | Not planned | - |
