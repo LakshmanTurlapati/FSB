@@ -5,6 +5,7 @@ let conversationId = null;
 let isRunning = false;
 let stopRequested = false;
 let isHistoryViewActive = false;
+let showSidepanelProgressEnabled = false;
 
 // Initialize or restore conversation ID for session continuity
 async function initConversationId() {
@@ -111,12 +112,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+// Keep sidepanel progress setting in sync when changed from options
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.showSidepanelProgress != null) {
+    showSidepanelProgressEnabled = changes.showSidepanelProgress.newValue ?? false;
+  }
+});
+
 // Initialize side panel
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('FSB v9.0.2 side panel loaded');
 
   // Apply theme first
   applyTheme();
+
+  // Load sidepanel progress setting
+  try {
+    const stored = await chrome.storage.local.get(['showSidepanelProgress']);
+    showSidepanelProgressEnabled = stored.showSidepanelProgress ?? false;
+  } catch (e) {
+    showSidepanelProgressEnabled = false;
+  }
 
   // Initialize conversation ID for session continuity
   await initConversationId();
@@ -574,8 +590,10 @@ function addStatusMessage(text, type = 'ai') {
   // Assemble the message
   messageContent.appendChild(loaderDots);
   messageContent.appendChild(statusText);
+  if (showSidepanelProgressEnabled) {
+    messageContent.appendChild(progressContainer);
+  }
   messageDiv.appendChild(messageContent);
-  messageDiv.appendChild(progressContainer);
 
   chatMessages.appendChild(messageDiv);
 

@@ -1,4 +1,4 @@
-// Content script for FSB v9.0.1 - Guard against re-injection
+// Content script for FSB v9.0.2 - Guard against re-injection
 // Content scripts can be injected multiple times (manifest + executeScript)
 // This guard ensures we only initialize once, preventing "already declared" errors
 
@@ -710,6 +710,59 @@ class ElementCache {
 
 // Global element cache instance
 const elementCache = new ElementCache();
+
+// ============================================================================
+// COMPACT ELEMENT REFERENCES - RefMap for token-efficient AI communication
+// ============================================================================
+
+/**
+ * RefMap - Maps compact refs (e1, e2, ...) to DOM elements for AI communication
+ * Uses WeakRef to prevent memory leaks when DOM elements are garbage-collected.
+ * Each generateCompactSnapshot() call resets and rebuilds the map.
+ */
+class RefMap {
+  constructor() {
+    this.map = new Map();    // ref -> { element: WeakRef, selector, role, name }
+    this.counter = 0;
+    this.generationId = 0;
+    this.generationUrl = '';
+  }
+
+  reset() {
+    this.map.clear();
+    this.counter = 0;
+    this.generationId++;
+  }
+
+  register(element, selector, role, name) {
+    this.counter++;
+    const ref = `e${this.counter}`;
+    this.map.set(ref, {
+      element: new WeakRef(element),
+      selector,
+      role: role || 'generic',
+      name: name || ''
+    });
+    return ref;
+  }
+
+  resolve(ref) {
+    const entry = this.map.get(ref);
+    if (!entry) return null;
+    const el = entry.element.deref();
+    if (!el || !el.isConnected) return { element: null, selector: entry.selector, stale: true };
+    return { element: el, selector: entry.selector, stale: false };
+  }
+
+  getInfo(ref) {
+    const entry = this.map.get(ref);
+    return entry ? { role: entry.role, name: entry.name, selector: entry.selector } : null;
+  }
+
+  get size() { return this.map.size; }
+}
+
+const refMap = new RefMap();
 
 /**
  * Check if the document is fully ready for interaction
@@ -2698,6 +2751,33 @@ function querySelectorWithShadow(selector) {
   }
 
   return element;
+}
+
+/**
+ * Resolve a compact ref (e.g., "e1") to a DOM element.
+ * Falls back to CSS selector if the WeakRef has been garbage-collected.
+ * @param {string} ref - The compact ref string (e.g., "e1")
+ * @returns {Element|null} The resolved DOM element, or null if not found
+ */
+function resolveRef(ref) {
+  const resolved = refMap.resolve(ref);
+  if (!resolved) return null;
+  if (!resolved.stale) {
+    // Cache the element under its selector for tool reuse
+    if (resolved.selector) elementCache.set(resolved.selector, resolved.element);
+    return resolved.element;
+  }
+  // WeakRef dead or element disconnected -> fallback to CSS selector
+  if (resolved.selector) {
+    const fallback = querySelectorWithShadow(resolved.selector);
+    if (fallback) {
+      automationLogger.debug('Resolved stale ref via CSS fallback', {
+        sessionId: currentSessionId, ref, selector: resolved.selector
+      });
+    }
+    return fallback;
+  }
+  return null;
 }
 
 // Query all elements including shadow DOM
@@ -10699,6 +10779,162 @@ function getFilteredElements(options = {}) {
     .map(item => item.element);
 }
 
+// ============================================================================
+// COMPACT SNAPSHOT GENERATION - Token-efficient element representation
+// ============================================================================
+
+/**
+ * Generate a compact text snapshot of page elements for AI consumption.
+ * Each element is one line: [e1] button "Sign In"
+ * Achieves ~60-70% token reduction compared to full element formatting.
+ * @param {Object} options - Configuration options
+ * @param {number} options.maxElements - Max elements to include (default: 80)
+ * @param {boolean} options.prioritizeViewport - Prioritize viewport elements (default: true)
+ * @returns {Object} { snapshot: string, refGeneration: number, elementCount: number, metadata: {} }
+ */
+function generateCompactSnapshot(options = {}) {
+  const {
+    prioritizeViewport = true
+  } = options;
+  // Cap at 80 for compact mode regardless of caller's maxElements setting
+  // (compact format is token-efficient but 80 elements is a good balance)
+  const maxElements = Math.min(options.maxElements || 80, 80);
+
+  // Reset refMap for this generation
+  refMap.reset();
+  refMap.generationUrl = window.location.href;
+
+  // Reuse the existing 3-stage filtering pipeline
+  const elements = getFilteredElements({
+    maxElements,
+    prioritizeViewport,
+    taskType: 'general'
+  });
+
+  const lines = [];
+
+  for (const el of elements) {
+    // Compute role and accessible name using existing FSB functions
+    const role = getImplicitRole(el) || el.tagName.toLowerCase();
+    const accName = computeAccessibleName(el);
+    const name = accName?.name || '';
+
+    // Generate selectors for fallback resolution
+    const sels = generateSelectors(el);
+    const cssSelector = sels.find(s => typeof s === 'string' ? !s.startsWith('//') : !s.selector?.startsWith('//'));
+    const primarySelector = typeof cssSelector === 'string' ? cssSelector : (cssSelector?.selector || sels[0]?.selector || sels[0] || '');
+
+    // Register in refMap
+    const ref = refMap.register(el, primarySelector, role, name.substring(0, 60));
+
+    // Build compact line
+    let line = `[${ref}] ${role}`;
+
+    // Accessible name (truncated to 60 chars)
+    if (name) {
+      const truncName = name.length > 60 ? name.substring(0, 57) + '...' : name;
+      line += ` "${truncName}"`;
+    }
+
+    // Key attributes (only when useful)
+    const inputType = el.getAttribute('type');
+    if (inputType && el.tagName === 'INPUT' && inputType !== 'text') {
+      line += ` type="${inputType}"`;
+    }
+
+    const placeholder = el.getAttribute('placeholder');
+    if (placeholder) {
+      line += ` placeholder="${placeholder.substring(0, 40)}"`;
+    }
+
+    // Value for inputs (truncated)
+    if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.value) {
+      const valDisplay = el.value.length > 30 ? el.value.substring(0, 27) + '...' : el.value;
+      line += ` value="${valDisplay}"`;
+    }
+
+    // href for links (truncated)
+    if (el.tagName === 'A' && el.href) {
+      try {
+        const url = new URL(el.href);
+        const shortHref = url.pathname.length > 40 ? url.pathname.substring(0, 37) + '...' : url.pathname;
+        line += ` href="${shortHref}"`;
+      } catch {
+        // Invalid URL, skip href
+      }
+    }
+
+    // Selected option for selects
+    if (el.tagName === 'SELECT' && el.selectedOptions?.length > 0) {
+      line += ` selected="${el.selectedOptions[0].text?.substring(0, 30) || ''}"`;
+    }
+
+    // State flags
+    const states = [];
+    if (el.disabled) states.push('disabled');
+    if (el.checked) states.push('checked');
+    if (document.activeElement === el) states.push('focused');
+    if (el.readOnly) states.push('readonly');
+
+    // Off-screen detection
+    const rect = el.getBoundingClientRect();
+    const inViewport = rect.bottom >= 0 && rect.top <= window.innerHeight &&
+                       rect.right >= 0 && rect.left <= window.innerWidth;
+    if (!inViewport) states.push('offscreen');
+
+    if (states.length > 0) line += ` [${states.join(',')}]`;
+
+    // Label context for unlabeled inputs
+    if (!name && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
+      const labelEl = el.id ? document.querySelector(`label[for="${el.id}"]`) : el.closest('label');
+      if (labelEl) {
+        const labelText = labelEl.textContent?.trim().substring(0, 40);
+        if (labelText) line += ` label="${labelText}"`;
+      }
+    }
+
+    // Form association
+    if (el.form && el.form.id) {
+      line += ` in:${el.form.id}`;
+    }
+
+    lines.push(line);
+  }
+
+  const snapshot = lines.join('\n');
+
+  // Build metadata
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  const pageHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0);
+  const viewportHeight = window.innerHeight;
+  const scrollPct = pageHeight > viewportHeight ? Math.round((scrollTop / (pageHeight - viewportHeight)) * 100) : 0;
+
+  const metadata = {
+    url: window.location.href,
+    title: document.title,
+    scrollInfo: {
+      scrollPct,
+      hasMoreBelow: scrollTop + viewportHeight < pageHeight - 50,
+      atBottom: scrollTop + viewportHeight >= pageHeight - 50,
+      hasMoreAbove: scrollTop > 50,
+      atTop: scrollTop <= 50,
+      pageHeight
+    },
+    viewport: {
+      width: window.innerWidth,
+      height: viewportHeight
+    },
+    captchaPresent: !!(document.querySelector('[class*="captcha"], [id*="captcha"], iframe[src*="recaptcha"], iframe[src*="hcaptcha"]'))
+  };
+
+  return {
+    snapshot,
+    refGeneration: refMap.generationId,
+    elementCount: lines.length,
+    metadata
+  };
+}
+
 /**
  * Extracts and structures DOM information for AI processing
  * ENHANCED: Uses 3-stage filtering (visibility -> interactivity -> relevance) to return ~50 relevant elements
@@ -11213,9 +11449,24 @@ async function handleAsyncMessage(request, sendResponse) {
             compressionRatio: (result.optimization?.compressionRatio * 100).toFixed(1) + '%'
           });
         }
+        // Optionally embed compact snapshot for token-efficient AI communication
+        if (domOptions.includeCompactSnapshot) {
+          const compactStart = Date.now();
+          const compact = generateCompactSnapshot(domOptions);
+          result._compactSnapshot = compact.snapshot;
+          result._refGeneration = compact.refGeneration;
+          result._compactElementCount = compact.elementCount;
+          result._compactMetadata = compact.metadata;
+          automationLogger.logTiming(currentSessionId, 'DOM', 'generateCompactSnapshot', Date.now() - compactStart, { elements: compact.elementCount });
+        }
         sendResponse({ success: true, structuredDOM: result });
         break;
-        
+
+      case 'getCompactDOM':
+        const compactResult = generateCompactSnapshot(request.options || {});
+        sendResponse({ success: true, compactSnapshot: compactResult });
+        break;
+
       case 'executeAction':
         const { tool, params, visualContext } = request;
         automationLogger.logActionExecution(currentSessionId, tool, 'start', params);
@@ -11236,12 +11487,41 @@ async function handleAsyncMessage(request, sendResponse) {
           }
         }
 
+        // COMPACT REF RESOLUTION: If AI sent a ref, resolve it to a selector
+        // so existing tools work unchanged (zero changes to tool functions)
+        if (params && params.ref && !params.selector) {
+          const resolvedElement = resolveRef(params.ref);
+          if (resolvedElement) {
+            const refInfo = refMap.getInfo(params.ref);
+            params.selector = refInfo?.selector;
+            if (!params.selector) {
+              // Generate selector on the fly if refMap had no stored selector
+              const sels = generateSelectors(resolvedElement);
+              const cssSel = sels.find(s => typeof s === 'string' ? !s.startsWith('//') : !s.selector?.startsWith('//'));
+              params.selector = typeof cssSel === 'string' ? cssSel : (cssSel?.selector || sels[0]?.selector || sels[0] || '');
+            }
+            if (params.selector) elementCache.set(params.selector, resolvedElement);
+            automationLogger.debug('Resolved ref to selector', {
+              sessionId: currentSessionId, ref: params.ref, selector: params.selector, role: refInfo?.role
+            });
+          } else {
+            // Ref could not be resolved - return AI-friendly error
+            const refInfo = refMap.getInfo(params.ref);
+            const errorMsg = refInfo
+              ? `Element ref "${params.ref}" (${refInfo.role} "${refInfo.name}") is stale. The page has changed. Use elements from the current snapshot.`
+              : `Unknown ref "${params.ref}". Use refs from the latest page snapshot.`;
+            automationLogger.warn('Stale or unknown ref', { sessionId: currentSessionId, ref: params.ref });
+            sendResponse({ success: false, error: errorMsg, tool, refStale: true });
+            return;
+          }
+        }
+
         if (tools[tool]) {
-          // VIS-01/VIS-03: Show highlight on target element if selector present
+          // VIS-01/VIS-03: Show highlight on target element if ref or selector present
           // Wrapped in try-catch to prevent highlight failures from blocking action (VIS-05)
-          if (params && params.selector) {
+          if (params && (params.selector || params.ref)) {
             try {
-              const targetElement = querySelectorWithShadow(params.selector);
+              const targetElement = params.ref ? resolveRef(params.ref) : querySelectorWithShadow(params.selector);
               if (targetElement) {
                 if (visualContext?.animatedHighlights !== false) {
                   // Animated glow: show and persist during action (non-blocking)
@@ -12091,7 +12371,7 @@ if (document.body) {
   }
 }
 
-automationLogger.logInit('content_script', 'loaded', { version: '9.0.1', url: window.location.href });
+automationLogger.logInit('content_script', 'loaded', { version: '9.0.2', url: window.location.href });
 
 // Google-specific SPA navigation detection
 // Google uses History API for navigation within search results

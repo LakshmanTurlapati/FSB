@@ -118,6 +118,17 @@ function getGuideForTask(task, url) {
     'Gaming Platforms': [
       'steam', 'epic games', 'gog', 'humble bundle',
       'game price', 'game store', 'wishlist', 'dlc'
+    ],
+    'Career & Job Search': [
+      'career', 'job', 'jobs', 'position', 'opening',
+      'hiring', 'employment', 'indeed', 'glassdoor',
+      'linkedin jobs', 'builtin', 'job search', 'job listing'
+    ],
+    'Productivity Tools': [
+      'google sheets', 'spreadsheet', 'sheets', 'google docs',
+      'create sheet', 'new sheet', 'add to sheet', 'enter data',
+      'create document', 'new document', 'write document', 'google doc',
+      'share document', 'edit document'
     ]
   };
 

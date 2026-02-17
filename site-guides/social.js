@@ -67,24 +67,30 @@ GLOBAL NAVIGATION (stable across all LinkedIn pages):
 - My Network: //a[normalize-space(.)="My Network"]
 - Jobs: //a[normalize-space(.)="Jobs"]
 - Messaging: //a[normalize-space(.)="Messaging"]
-- Notifications: //a[normalize-space(.)="Notifications"]
+- Notifications: //a[contains(normalize-space(.),"Notifications")] (NOTE: text includes notification count like "3 new notifications" -- use contains() not exact match)
 - Learning: //a[normalize-space(.)="Learning"]
 - Me menu: .global-nav__primary-link-me-menu-trigger
 - For Business: //button[normalize-space(.)="For Business"]
 
 FEED PAGE INTERACTIONS:
 - Start a post: //button[normalize-space(.)="Start a post"]
+- Add a photo: [aria-label="Add a photo"]
+- Add a video: [aria-label="Add a video"]
 - Post text area: .ql-editor[data-placeholder]
 - Post/publish button: .share-actions__primary-action
 - Like/React: [aria-label="React Like"]
-- Comment: //button[normalize-space(.)="Comment"]
-- Repost: //button[normalize-space(.)="Repost"]
+- Comment: [aria-label="Comment"]
+- Repost: //button[normalize-space(.)="Repost"] (dropdown trigger -- expands to repost options)
 - Send via DM: [aria-label="Send in a private message"]
 - Post menu: [aria-label="Open control menu for post by <Name>"] (replace <Name>)
+- Dismiss post: [aria-label="Dismiss post by <Name>"] (replace <Name>)
 - See more text: [aria-label*="see more"]
-- Sort feed: //button[contains(normalize-space(.),"Sort by:")]
+- Sort feed: //button[contains(normalize-space(.),"Sort by:")] -- text shows "Sort by:\nTop" or "Sort by:\nRecent"
 - Reply to comment: [aria-label*="Reply to"] (pattern)
 - Load more comments: //button[normalize-space(.)="Load more comments"]
+- Reactions count: [aria-label="<Name> and N others"] (click to see who reacted)
+- Comments count: [aria-label="N comments on <Name>'s post"] (click to expand comments)
+- Reposts count: [aria-label="N reposts of <Name>'s post"] (click to see who reposted)
 
 MESSAGING -- FULL PAGE (/messaging):
 - Search conversations: #search-conversations or [name="searchTerm"]
@@ -135,6 +141,128 @@ SIDEBAR (Feed page):
 - Groups: //a[normalize-space(.)="Groups"]
 - Events: //a[normalize-space(.)="Events"]
 - Newsletters: //a[normalize-space(.)="Newsletters"]
+
+PROFILE PAGE (viewing any profile -- /in/<username>):
+- Profile header contains: name, headline, location, connection degree, mutual connections
+- Profile photo: .pv-top-card-profile-picture img, [aria-label*="profile photo"]
+- Name: .text-heading-xlarge, h1
+- Headline: .text-body-medium (first one under name)
+- Location: .text-body-small (contains city/region text)
+- Connection count: //a[contains(normalize-space(.),"connections")]
+- About section: #about ~ .display-flex, section[id="about"]
+- Experience section: #experience ~ .display-flex, section[id="experience"]
+- Education section: #education ~ .display-flex, section[id="education"]
+- Skills section: #skills ~ .display-flex, section[id="skills"]
+- Activity section: section[id="recent-activity"]
+- Recommendations section: section[id="recommendations"]
+- "See more" within sections: //button[normalize-space(.)="Show all experiences"], //button[normalize-space(.)="Show all education"]
+- More actions: //button[normalize-space(.)="More"]
+- Connect button (on profile): //button[normalize-space(.)="Connect"]
+- Follow button (on profile): //button[normalize-space(.)="Follow"]
+- Message button (on profile): //button[normalize-space(.)="Message"]
+- Pending invitation: //button[normalize-space(.)="Pending"]
+
+CONNECTION REQUEST WITH NOTE:
+- After clicking Connect, a modal may appear asking "How do you know <Name>?"
+- If "Add a note" button appears: //button[normalize-space(.)="Add a note"]
+- Click "Add a note" to expand the note text area
+- Note text area: #custom-message, textarea[name="message"]
+- Character limit: 300 characters for connection notes
+- Click "Send" to send with note: //button[normalize-space(.)="Send"]
+- Click "Send without a note" to skip: //button[normalize-space(.)="Send without a note"]
+
+PROFILE EDITING (own profile -- /in/me or your profile URL):
+- Edit intro: //button[normalize-space(.)="Edit intro"] or [aria-label="Edit intro"]
+- Edit intro modal fields:
+  - First name: input[name="firstName"], #firstName
+  - Last name: input[name="lastName"], #lastName
+  - Headline: input[name="headline"], #headline
+  - Current position: input[name="currentPosition"]
+  - Industry: input[name="industry"]
+  - Location: input[name="countryRegion"], input[name="city"]
+  - Save: //button[normalize-space(.)="Save"]
+- Add profile section: //button[normalize-space(.)="Add profile section"]
+  - Opens dropdown with: Intro, About, Experience, Education, Skills, etc.
+- Edit About: pencil/edit icon within the About section, [aria-label*="Edit about"]
+- Add Experience: //button[normalize-space(.)="Add position"], [aria-label*="Add position"]
+  - Title: input[name="title"]
+  - Company: input[name="companyName"]
+  - Employment type dropdown: select[name="employmentType"]
+  - Start date: select[name="startDateMonth"], select[name="startDateYear"]
+  - End date: select[name="endDateMonth"], select[name="endDateYear"]
+  - Current role checkbox: input[name="isCurrentRole"]
+  - Location: input[name="location"]
+  - Description: textarea[name="description"]
+  - Save: //button[normalize-space(.)="Save"]
+- Add Education: //button[normalize-space(.)="Add education"], [aria-label*="Add education"]
+  - School: input[name="school"]
+  - Degree: input[name="degree"]
+  - Field of study: input[name="fieldOfStudy"]
+  - Start year: select[name="startDateYear"]
+  - End year: select[name="endDateYear"]
+  - Save: //button[normalize-space(.)="Save"]
+- Add Skills: //button[normalize-space(.)="Add skill"], [aria-label*="Add skill"]
+  - Skill name input: input[name="skill"]
+  - Save: //button[normalize-space(.)="Save"]
+
+SEARCH RESULTS FILTERS (after searching via the search bar):
+- All results (default): no filter active
+- People filter: //button[normalize-space(.)="People"]
+- Posts filter: //button[normalize-space(.)="Posts"]
+- Companies filter: //button[normalize-space(.)="Companies"]
+- Jobs filter: //button[normalize-space(.)="Jobs"]
+- Groups filter: //button[normalize-space(.)="Groups"]
+- Events filter: //button[normalize-space(.)="Events"]
+- Schools filter: //button[normalize-space(.)="Schools"]
+- Courses filter: //button[normalize-space(.)="Courses"]
+- Services filter: //button[normalize-space(.)="Services"]
+- Sub-filters (People results): Connections (1st, 2nd, 3rd+), Locations, Current company, Industry
+  - These appear as dropdown buttons below the main filter tabs
+  - Pattern: //button[contains(normalize-space(.),"Connections of")]
+  - "All filters": //button[normalize-space(.)="All filters"]
+
+NOTIFICATIONS PAGE (/notifications):
+- Filter tabs: //button[normalize-space(.)="All"], //button[normalize-space(.)="My posts"]
+- Individual notification items: .nt-card, [data-testid="notification-card"]
+- Notification actions: [aria-label*="notification actions"], three-dot menu per notification
+- Mark as read: in notification actions menu
+- Settings: //a[normalize-space(.)="notification settings"] or gear icon
+
+COMPANY PAGES (/company/<name>):
+- Company name: h1, .org-top-card-summary__title
+- Follow button: //button[normalize-space(.)="Follow"]
+- Company tabs: //a[normalize-space(.)="About"], //a[normalize-space(.)="Posts"], //a[normalize-space(.)="Jobs"], //a[normalize-space(.)="People"]
+- About section: company description, website, industry, size, headquarters
+- Jobs tab: shows open positions at the company
+- People tab: shows employees, can search within company
+- Company website link: [aria-label*="website"], //a[contains(normalize-space(.),"Visit website")]
+
+LINKEDIN LEARNING (/learning):
+- Search courses: input[placeholder*="Search"], [aria-label*="Search for skills"]
+- Course card: .learning-card, [data-testid="learning-card"]
+- My Learning: //a[normalize-space(.)="My Learning"]
+- Course player: video element, .classroom-player
+- Course navigation: .classroom-toc-section (table of contents sidebar)
+- Next lesson: //button[normalize-space(.)="Next"]
+- Complete video: progress tracked automatically on completion
+
+SETTINGS & PRIVACY (/mypreferences):
+- Navigate via Me menu > "Settings & Privacy"
+- Account preferences: //a[normalize-space(.)="Account preferences"]
+- Sign in & security: //a[normalize-space(.)="Sign in & security"]
+- Visibility: //a[normalize-space(.)="Visibility"]
+- Communications: //a[normalize-space(.)="Communications"]
+- Data privacy: //a[normalize-space(.)="Data privacy"]
+- Advertising data: //a[normalize-space(.)="Advertising data"]
+- Setting items are standard links and toggles -- use aria-label patterns
+
+LINKEDIN ARTICLE EDITOR (/article/edit):
+- Article title: [aria-label*="article title"], .article-title-input
+- Article body: .ql-editor (same Quill editor as posts but larger)
+- Cover image: //button[normalize-space(.)="Upload a cover image"]
+- Publish: //button[normalize-space(.)="Publish"]
+- Share draft: //button[normalize-space(.)="Share"]
+- Formatting toolbar: standard Quill toolbar (bold, italic, headings, lists, links, images)
 
 YOUTUBE-SPECIFIC INTELLIGENCE:
 
@@ -232,7 +360,7 @@ UI FRAMEWORK NOTES (X/Twitter):
       navMyNetwork: '//a[normalize-space(.)="My Network"]',
       navJobs: '//a[normalize-space(.)="Jobs"]',
       navMessaging: '//a[normalize-space(.)="Messaging"]',
-      navNotifications: '//a[normalize-space(.)="Notifications"]',
+      navNotifications: '[data-fsb-id*="notification"], //a[contains(normalize-space(.),"Notifications")]',
       navLearning: '//a[normalize-space(.)="Learning"]',
       navMe: '.global-nav__primary-link-me-menu-trigger',
       navBusiness: '//button[normalize-space(.)="For Business"]',
@@ -242,13 +370,20 @@ UI FRAMEWORK NOTES (X/Twitter):
       postTextArea: '.ql-editor[data-placeholder]',
       postButton: '.share-actions__primary-action',
       feedLike: '[aria-label="React Like"]',
-      feedComment: '//button[normalize-space(.)="Comment"]',
+      feedComment: '[aria-label="Comment"], //button[normalize-space(.)="Comment"]',
       feedRepost: '//button[normalize-space(.)="Repost"]',
       feedSendDM: '[aria-label="Send in a private message"]',
       feedSeeMore: '[aria-label*="see more"]',
       feedSortBy: '//button[contains(normalize-space(.),"Sort by:")]',
       feedReplyTo: '[aria-label*="Reply to"]',
       feedLoadMoreComments: '//button[normalize-space(.)="Load more comments"]',
+      feedAddPhoto: '[aria-label="Add a photo"]',
+      feedAddVideo: '[aria-label="Add a video"]',
+      feedDismissPost: '[aria-label*="Dismiss post by"]',
+      feedReactionsCount: '[aria-label*="and"][aria-label*="others"]',
+      feedCommentsCount: '[aria-label*="comments on"]',
+      feedRepostsCount: '[aria-label*="reposts of"]',
+      feedPostMenu: '[aria-label*="Open control menu for post by"]',
 
       // Messaging - Full Page
       messageSearchConversations: '#search-conversations, [name="searchTerm"]',
@@ -289,7 +424,96 @@ UI FRAMEWORK NOTES (X/Twitter):
       sidebarSavedItems: '//a[normalize-space(.)="Saved items"]',
       sidebarGroups: '//a[normalize-space(.)="Groups"]',
       sidebarEvents: '//a[normalize-space(.)="Events"]',
-      sidebarNewsletters: '//a[normalize-space(.)="Newsletters"]'
+      sidebarNewsletters: '//a[normalize-space(.)="Newsletters"]',
+
+      // Profile Page (viewing)
+      profilePhoto: '.pv-top-card-profile-picture img, [aria-label*="profile photo"]',
+      profileName: '.text-heading-xlarge, h1',
+      profileHeadline: '.text-body-medium',
+      profileLocation: '.text-body-small',
+      profileConnectionCount: '//a[contains(normalize-space(.),"connections")]',
+      profileAbout: 'section[id="about"]',
+      profileExperience: 'section[id="experience"]',
+      profileEducation: 'section[id="education"]',
+      profileSkills: 'section[id="skills"]',
+      profileActivity: 'section[id="recent-activity"]',
+      profileRecommendations: 'section[id="recommendations"]',
+      profileConnect: '//button[normalize-space(.)="Connect"]',
+      profileFollow: '//button[normalize-space(.)="Follow"]',
+      profileMessage: '//button[normalize-space(.)="Message"]',
+      profileMore: '//button[normalize-space(.)="More"]',
+      profilePending: '//button[normalize-space(.)="Pending"]',
+      profileShowAllExperience: '//button[normalize-space(.)="Show all experiences"]',
+      profileShowAllEducation: '//button[normalize-space(.)="Show all education"]',
+
+      // Connection Request Dialog
+      connectAddNote: '//button[normalize-space(.)="Add a note"]',
+      connectNoteInput: '#custom-message, textarea[name="message"]',
+      connectSendWithNote: '//button[normalize-space(.)="Send"]',
+      connectSendWithoutNote: '//button[normalize-space(.)="Send without a note"]',
+
+      // Profile Editing
+      editIntro: '//button[normalize-space(.)="Edit intro"], [aria-label="Edit intro"]',
+      editFirstName: 'input[name="firstName"], #firstName',
+      editLastName: 'input[name="lastName"], #lastName',
+      editHeadline: 'input[name="headline"], #headline',
+      editLocation: 'input[name="countryRegion"], input[name="city"]',
+      editSave: '//button[normalize-space(.)="Save"]',
+      addProfileSection: '//button[normalize-space(.)="Add profile section"]',
+      addPosition: '[aria-label="Add Experience"], //button[normalize-space(.)="Add position"], [aria-label*="Add position"]',
+      addEducation: '//button[normalize-space(.)="Add education"], [aria-label*="Add education"]',
+      addSkill: '//button[normalize-space(.)="Add skill"], [aria-label*="Add skill"]',
+      editAbout: '[aria-label*="Edit about"]',
+      positionTitle: 'input[name="title"]',
+      positionCompany: 'input[name="companyName"]',
+      positionDescription: 'textarea[name="description"]',
+      educationSchool: 'input[name="school"]',
+      educationDegree: 'input[name="degree"]',
+      educationField: 'input[name="fieldOfStudy"]',
+
+      // Search Filters
+      searchFilterPeople: '//button[normalize-space(.)="People"]',
+      searchFilterPosts: '//button[normalize-space(.)="Posts"]',
+      searchFilterCompanies: '//button[normalize-space(.)="Companies"]',
+      searchFilterJobs: '//button[normalize-space(.)="Jobs"]',
+      searchFilterGroups: '//button[normalize-space(.)="Groups"]',
+      searchFilterEvents: '//button[normalize-space(.)="Events"]',
+      searchFilterSchools: '//button[normalize-space(.)="Schools"]',
+      searchFilterServices: '//button[normalize-space(.)="Services"]',
+      searchAllFilters: '//button[normalize-space(.)="All filters"]',
+
+      // Notifications
+      notificationsFilterAll: '//button[normalize-space(.)="All"]',
+      notificationsFilterMyPosts: '//button[normalize-space(.)="My posts"]',
+      notificationCard: '.nt-card, [data-testid="notification-card"]',
+
+      // Company Pages
+      companyName: 'h1, .org-top-card-summary__title',
+      companyFollow: '//button[normalize-space(.)="Follow"]',
+      companyTabAbout: '//a[normalize-space(.)="About"]',
+      companyTabPosts: '//a[normalize-space(.)="Posts"]',
+      companyTabJobs: '//a[normalize-space(.)="Jobs"]',
+      companyTabPeople: '//a[normalize-space(.)="People"]',
+      companyWebsite: '[aria-label*="website"], //a[contains(normalize-space(.),"Visit website")]',
+
+      // LinkedIn Learning
+      learningSearch: 'input[placeholder*="Search"], [aria-label*="Search for skills"]',
+      learningCard: '.learning-card, [data-testid="learning-card"]',
+      learningMyLearning: '//a[normalize-space(.)="My Learning"]',
+      learningNextLesson: '//button[normalize-space(.)="Next"]',
+
+      // Settings
+      settingsAccount: '//a[normalize-space(.)="Account preferences"]',
+      settingsSecurity: '//a[normalize-space(.)="Sign in & security"]',
+      settingsVisibility: '//a[normalize-space(.)="Visibility"]',
+      settingsCommunications: '//a[normalize-space(.)="Communications"]',
+      settingsPrivacy: '//a[normalize-space(.)="Data privacy"]',
+
+      // Article Editor
+      articleTitle: '[aria-label*="article title"], .article-title-input',
+      articleBody: '.ql-editor',
+      articleCoverImage: '//button[normalize-space(.)="Upload a cover image"]',
+      articlePublish: '//button[normalize-space(.)="Publish"]'
     },
     twitter: {
       searchBox: 'input[data-testid="SearchBox_Search_Input"]',
@@ -446,6 +670,96 @@ UI FRAMEWORK NOTES (X/Twitter):
       'Type the post content',
       'Click the Post button: .share-actions__primary-action',
       'Verify post was created by checking feed'
+    ],
+    viewLinkedInProfile: [
+      'Search for the person using the search box [aria-label="I\'m looking for..."]',
+      'Type the person name and press Enter',
+      'Click the "People" filter: //button[normalize-space(.)="People"]',
+      'Find the target person in results and click their name',
+      'Wait for profile page to load (check for .text-heading-xlarge name element)',
+      'Scroll down to view sections: About, Experience, Education, Skills',
+      'Use getText on section elements to extract profile information'
+    ],
+    connectWithNote: [
+      'Navigate to the target person\'s profile page',
+      'Click Connect: //button[normalize-space(.)="Connect"]',
+      'If "Add a note" button appears, click it: //button[normalize-space(.)="Add a note"]',
+      'Type the connection note in the text area (max 300 chars): #custom-message',
+      'Click Send: //button[normalize-space(.)="Send"]',
+      'Verify the button changes to "Pending"'
+    ],
+    editLinkedInProfile: [
+      'Navigate to own profile (click Me menu, then "View Profile")',
+      'Click "Edit intro": //button[normalize-space(.)="Edit intro"]',
+      'Wait for the edit modal to appear',
+      'Modify the desired fields (first name, last name, headline, location)',
+      'Click Save: //button[normalize-space(.)="Save"]',
+      'Verify changes by reading the updated profile header'
+    ],
+    addExperience: [
+      'Navigate to own profile page',
+      'Scroll to Experience section',
+      'Click "Add position": //button[normalize-space(.)="Add position"]',
+      'Fill in Title: input[name="title"]',
+      'Fill in Company: input[name="companyName"]',
+      'Select employment type from dropdown',
+      'Set start date (month and year dropdowns)',
+      'Toggle "I currently work here" if applicable',
+      'Set end date if not current',
+      'Fill in Location: input[name="location"]',
+      'Add Description: textarea[name="description"]',
+      'Click Save: //button[normalize-space(.)="Save"]'
+    ],
+    addEducation: [
+      'Navigate to own profile page',
+      'Scroll to Education section',
+      'Click "Add education": //button[normalize-space(.)="Add education"]',
+      'Fill in School: input[name="school"]',
+      'Fill in Degree: input[name="degree"]',
+      'Fill in Field of Study: input[name="fieldOfStudy"]',
+      'Set start and end years from dropdowns',
+      'Click Save: //button[normalize-space(.)="Save"]'
+    ],
+    searchWithFilters: [
+      'Click the search box [aria-label="I\'m looking for..."]',
+      'Type the search query and press Enter',
+      'Click the appropriate filter tab (People, Posts, Companies, Jobs, etc.)',
+      'Apply sub-filters if needed (Connections, Locations, Industry)',
+      'Use "All filters" for advanced filtering: //button[normalize-space(.)="All filters"]',
+      'Scroll results and interact with result items'
+    ],
+    viewCompanyPage: [
+      'Search for the company name in the search box',
+      'Click "Companies" filter: //button[normalize-space(.)="Companies"]',
+      'Click on the company name from results',
+      'Wait for company page to load (check for h1 company name)',
+      'Browse tabs: About, Posts, Jobs, People using the tab navigation',
+      'Click "Jobs" tab to see open positions: //a[normalize-space(.)="Jobs"]',
+      'Click "People" tab to see employees: //a[normalize-space(.)="People"]'
+    ],
+    checkNotifications: [
+      'Click Notifications in nav: //a[normalize-space(.)="Notifications"]',
+      'Wait for notifications page to load',
+      'Filter by tab: "All" or "My posts"',
+      'Scroll to load more notifications',
+      'Click on a notification to navigate to the relevant content'
+    ],
+    writeLinkedInArticle: [
+      'Click "Write an article on LinkedIn" from the feed sidebar',
+      'Wait for the article editor to load',
+      'Click the title area and type the article title',
+      'Click the body area (.ql-editor) and type the article content',
+      'Use the formatting toolbar for headings, bold, italic, lists',
+      'Optionally upload a cover image: //button[normalize-space(.)="Upload a cover image"]',
+      'Click Publish: //button[normalize-space(.)="Publish"]',
+      'Confirm publication in the dialog'
+    ],
+    accessSettings: [
+      'Click the Me menu: .global-nav__primary-link-me-menu-trigger',
+      'Click "Settings & Privacy" from the dropdown',
+      'Navigate to the desired settings section (Account, Security, Visibility, etc.)',
+      'Toggle or modify settings as needed',
+      'Changes save automatically or require clicking Save'
     ]
   },
 
@@ -473,7 +787,18 @@ UI FRAMEWORK NOTES (X/Twitter):
     'ID-based selectors on X/Twitter are dynamically generated (id__<random>) -- do not rely on them',
     'Prefer data-testid selectors over aria-label on X/Twitter for consistency',
     'Account menu on X/Twitter shows username text but use [data-testid="SideNav_AccountSwitcher_Button"] to target it',
-    'LinkedIn CLEARS the message input and DISABLES the Send button after a successful send -- if you see empty input + disabled Send after clicking Send, the message WAS sent, do NOT re-type or re-send'
+    'LinkedIn CLEARS the message input and DISABLES the Send button after a successful send -- if you see empty input + disabled Send after clicking Send, the message WAS sent, do NOT re-type or re-send',
+    'LinkedIn profile sections (Experience, Education, Skills) load lazily -- scroll down to trigger rendering before trying to read or interact with them',
+    'Connection request notes are limited to 300 characters -- keep notes concise',
+    'The "Connect" button may not appear on profiles of people outside your network -- LinkedIn may show "Follow" instead for public figures and influencers',
+    'Profile editing modals use form inputs that may have autofill suggestions -- wait for the modal to fully load before typing',
+    'Company pages have tab navigation (About, Posts, Jobs, People) -- each tab loads content dynamically, wait for content after clicking a tab',
+    'LinkedIn search result filters (People, Posts, Companies) are buttons at the top of search results -- they reload the page with filtered results',
+    'LinkedIn Learning videos auto-track progress -- do not need explicit "mark complete" actions',
+    'LinkedIn article editor uses the same Quill rich text editor as post composer but with additional formatting options',
+    'LinkedIn Settings & Privacy sections use toggle switches -- click the toggle to change state, changes often save automatically',
+    'LinkedIn Notifications nav link text includes the notification count (e.g., "3 new notifications Notifications") -- use contains() not exact text match for the Notifications nav selector',
+    'LinkedIn feed uses hashed class names like hlqCFDLyHXLwyvzqLMNyNEwjuUIkmaWY on links and nav elements -- these are UNSTABLE and must not be used as primary selectors. Use aria-label or XPath normalize-space patterns instead.'
   ],
 
   toolPreferences: ['click', 'type', 'scroll', 'getText', 'waitForElement', 'hover', 'focus', 'pressEnter', 'navigate', 'scrollToElement']

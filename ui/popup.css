@@ -523,3 +523,31 @@ body {
   margin-bottom: 4px;
 }
 
+/* Progress bar in status messages */
+.progress-container { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.06); }
+.progress-container.hidden { display: none; }
+.progress-bar { flex: 1; height: 4px; background: rgba(0,0,0,0.08); border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--primary-color); border-radius: 2px; transition: width 0.5s ease; width: 0%; }
+.progress-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+/* Dismissible error messages */
+.message.error { position: relative; }
+.message-dismiss { background: none; border: none; color: #c62828; cursor: pointer; opacity: 0.5; padding: 2px 4px; font-size: 14px; line-height: 1; position: absolute; top: 6px; right: 6px; }
+.message-dismiss:hover { opacity: 1; }
+.message.auto-collapsed { max-height: 24px; overflow: hidden; opacity: 0.5; transition: all 0.5s; cursor: pointer; }
+.message.auto-collapsed:hover { max-height: 200px; opacity: 1; }
+.message.collapsing { opacity: 0; max-height: 0; padding: 0; margin: 0; transition: all 0.3s; overflow: hidden; }
+.retry-btn { background: linear-gradient(135deg, #ff6b35, #ff8c42); color: white; border: none; border-radius: 16px; padding: 6px 16px; font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+.retry-btn:hover { filter: brightness(1.1); }
+
+/* Action summary collapse group */
+.action-summary-group { margin: 4px 0; }
+.action-summary-header { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; color: var(--text-muted); font-size: 12px; border-radius: 6px; }
+.action-summary-header:hover { background: rgba(0,0,0,0.04); }
+.action-chevron { font-size: 10px; transition: transform 0.2s; display: inline-block; }
+.action-chevron.expanded { transform: rotate(90deg); }
+.action-summary-list.collapsed { max-height: 0; overflow: hidden; }
+.action-summary-list:not(.collapsed) { max-height: 2000px; transition: max-height 0.3s; }
+.message.action-compact { padding: 4px 12px; font-size: 11px; margin: 2px 0; opacity: 0.8; background: #f0f8f0; color: #2e7d32; border-radius: 6px; border-left: 2px solid #4caf50; }
+.collapsed-action { opacity: 0.7; font-size: 11px; padding: 4px 12px 4px 24px; }
+

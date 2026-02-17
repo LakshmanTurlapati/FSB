@@ -1,5 +1,5 @@
 /**
- * Configuration management for FSB v9.0.1
+ * Configuration management for FSB v9.0.2
  * This file handles loading configuration from environment variables and Chrome storage
  */
 
@@ -34,6 +34,7 @@ class Config {
       maxDOMElements: 2000,
       prioritizeViewport: true,
       animatedActionHighlights: true,
+      showSidepanelProgress: false,
 
       // Credential Manager (Beta)
       enableLogin: false,

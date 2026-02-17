@@ -19,6 +19,8 @@ importScripts('site-guides/travel.js');
 importScripts('site-guides/finance.js');
 importScripts('site-guides/email.js');
 importScripts('site-guides/gaming-platforms.js');
+importScripts('site-guides/career.js');
+importScripts('site-guides/productivity.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
@@ -2933,6 +2935,8 @@ function classifyTask(taskString) {
   if (/fill|form|submit|register|sign.?up|apply/.test(t)) return 'form';
   // Shopping
   if (/buy|purchase|order|add.?to.?cart|checkout|shop/.test(t)) return 'shopping';
+  // Career -- check before search since "find jobs" would otherwise match search
+  if (/career|job|jobs|position|opening|hiring|employment/.test(t)) return 'career';
   // Search
   if (/search|find|look.?for|what.?is|how.?to/.test(t)) return 'search';
   // Extraction
@@ -3260,6 +3264,29 @@ function searchValidator(session, aiResponse, context, signals, scoreResult) {
   return { approved: score >= 0.5, score, evidence, taskType: 'search' };
 }
 
+function careerValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  const currentUrl = context.currentUrl || '';
+  const isOnSheets = /docs\.google\.com\/spreadsheets/.test(currentUrl);
+  if (isOnSheets && signals.actionChainComplete) {
+    score = Math.min(1, score + 0.15);
+    evidence.push('Career: data entered into Google Sheets');
+  }
+  const resultLower = (aiResponse.result || '').toLowerCase();
+  if (/entered.*sheet|added.*sheet|spreadsheet/.test(resultLower)) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Career: AI confirmed sheet data entry');
+  }
+  const actionHistory = session.actionHistory || [];
+  const getTextCount = actionHistory.filter(a => a.tool === 'getText').length;
+  const typeCount = actionHistory.filter(a => a.tool === 'type').length;
+  if (getTextCount >= 3 && typeCount >= 6) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Career: extraction+entry actions detected');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'career' };
+}
+
 function extractionValidator(session, aiResponse, context, signals, scoreResult) {
   let { score, evidence } = scoreResult;
   // Very permissive -- getText returned content
@@ -3301,6 +3328,7 @@ function validateCompletion(session, aiResponse, context) {
     shopping: formValidator,
     navigation: navigationValidator,
     search: searchValidator,
+    career: careerValidator,
     extraction: extractionValidator,
     general: generalValidator
   };
@@ -4205,6 +4233,16 @@ async function handleStartAutomation(request, sender, sendResponse) {
     );
     const userMaxIterations = parseInt(storedSettings.maxIterations) || 20;
 
+    // Pre-populate allowedTabs with all non-restricted tabs in the current window
+    // so the AI can switch to any tab the user already has open
+    const allWindowTabs = await chrome.tabs.query({ currentWindow: true });
+    const initialAllowedTabs = allWindowTabs
+      .filter(t => t.id && !isRestrictedURL(t.url))
+      .map(t => t.id);
+    if (!initialAllowedTabs.includes(targetTabId)) {
+      initialAllowedTabs.push(targetTabId);
+    }
+
     // Create new session with enhanced tracking
     const sessionId = `session_${Date.now()}`;
     const sessionData = {
@@ -4227,7 +4265,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       lastUrl: null,            // Last known URL
       actionSequences: [],      // Track sequences of actions to detect patterns
       sequenceRepeatCount: {},  // Count how many times each sequence repeats
-      allowedTabs: [targetTabId], // Tabs this session can control
+      allowedTabs: initialAllowedTabs, // All non-restricted tabs in the current window
       tabHistory: [],             // Track tab switches for debugging
       navigationMessage,        // Store navigation message for UI
       animatedActionHighlights: storedSettings.animatedActionHighlights ?? true,
@@ -5589,18 +5627,43 @@ async function handleMultiTabAction(action, currentTabId) {
 
         // Perform the actual tab switch
         chrome.tabs.update(switchRequest.tabId, { active: true })
-          .then(() => {
+          .then(async () => {
             if (session) {
               session.tabId = switchRequest.tabId;
             }
-            return waitForContentScriptReady(switchRequest.tabId, 5000).catch(() => {});
-          })
-          .then(() => {
-            automationLogger.debug('Tab switch allowed and executed', { tabId: switchRequest.tabId });
+
+            // Wait for the target tab to finish loading before checking content script
+            try {
+              const targetTab = await chrome.tabs.get(switchRequest.tabId);
+              if (targetTab.status === 'loading') {
+                await new Promise((resolveLoad) => {
+                  const onUpdated = (tabId, changeInfo) => {
+                    if (tabId === switchRequest.tabId && changeInfo.status === 'complete') {
+                      chrome.tabs.onUpdated.removeListener(onUpdated);
+                      resolveLoad();
+                    }
+                  };
+                  chrome.tabs.onUpdated.addListener(onUpdated);
+                  // Safety timeout to avoid hanging indefinitely
+                  setTimeout(() => {
+                    chrome.tabs.onUpdated.removeListener(onUpdated);
+                    resolveLoad();
+                  }, 5000);
+                });
+              }
+            } catch (tabErr) {
+              automationLogger.debug('Could not check target tab status', { tabId: switchRequest.tabId, error: tabErr.message });
+            }
+
+            const contentScriptReady = await waitForContentScriptReady(switchRequest.tabId, 5000).catch(() => false);
+            automationLogger.debug('Tab switch allowed and executed', { tabId: switchRequest.tabId, contentScriptReady });
             resolve({
               success: true,
-              message: `Switched to tab ${switchRequest.tabId}`,
-              tabId: switchRequest.tabId
+              message: contentScriptReady
+                ? `Switched to tab ${switchRequest.tabId}`
+                : `Switched to tab ${switchRequest.tabId} (content script not yet ready -- DOM will be fetched on next iteration)`,
+              tabId: switchRequest.tabId,
+              contentScriptReady
             });
           })
           .catch((switchErr) => {
@@ -6430,7 +6493,7 @@ async function startAutomationLoop(sessionId) {
         allTabs: allTabs.map(tab => {
           const isAllowed = allowedTabs.includes(tab.id);
           let domain;
-          if (isAllowed && tab.url) {
+          if (tab.url) {
             try { domain = new URL(tab.url).hostname; } catch { /* skip */ }
           }
           return {
@@ -6930,7 +6993,7 @@ async function startAutomationLoop(sessionId) {
         // Fix: Invalidate stale DOM prefetch after navigation-triggering actions
         // Navigate returns instantly (window.location.href = url) but the page hasn't loaded yet.
         // Without this, the next iteration consumes a prefetch captured from the OLD page.
-        const navigationTools = ['navigate', 'searchGoogle', 'goBack', 'goForward'];
+        const navigationTools = ['navigate', 'searchGoogle', 'goBack', 'goForward', 'switchToTab'];
         if (navigationTools.includes(action.tool) || actionResult?.navigationTriggered) {
           pendingDOMPrefetch = null;
           automationLogger.debug('Invalidated stale DOM prefetch after navigation action', {
@@ -8015,7 +8078,7 @@ async function handleListTabs(request, sender, sendResponse) {
     const formattedTabs = tabs.map(tab => {
       const isAllowed = allowedTabs.includes(tab.id);
       let domain;
-      if (isAllowed && tab.url) {
+      if (tab.url) {
         try { domain = new URL(tab.url).hostname; } catch { /* skip */ }
       }
       return {

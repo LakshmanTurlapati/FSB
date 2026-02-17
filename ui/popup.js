@@ -1,4 +1,4 @@
-// Modern Chat Interface Script for FSB v9.0.1
+// Modern Chat Interface Script for FSB v9.0.2
 
 let currentSessionId = null;
 let conversationId = null;
@@ -397,7 +397,10 @@ function setIdleState() {
     }
     currentStatusMessage = null;
   }
-  
+
+  // Reset action message tracking
+  actionMessageQueue = [];
+
   updateSendButtonState();
 }
 
@@ -413,6 +416,74 @@ function setErrorState() {
 
 // Global reference to current status message
 let currentStatusMessage = null;
+
+// Action message tracking for auto-collapse
+let actionMessageQueue = [];
+const MAX_VISIBLE_ACTIONS = 2;
+
+function addActionMessage(text) {
+  const msgDiv = document.createElement('div');
+  msgDiv.className = 'message action-compact new';
+  msgDiv.textContent = text;
+  chatMessages.appendChild(msgDiv);
+  setTimeout(() => msgDiv.classList.remove('new'), 400);
+  actionMessageQueue.push(msgDiv);
+  collapseOldActions();
+  scrollToBottom();
+}
+
+function collapseOldActions() {
+  if (actionMessageQueue.length <= MAX_VISIBLE_ACTIONS) return;
+
+  // Find or create the summary group
+  let group = chatMessages.querySelector('.action-summary-group');
+  if (!group) {
+    group = document.createElement('div');
+    group.className = 'action-summary-group';
+    const header = document.createElement('div');
+    header.className = 'action-summary-header';
+    header.innerHTML = '<span class="action-chevron">></span><span class="action-summary-count"></span>';
+    header.addEventListener('click', () => {
+      const list = group.querySelector('.action-summary-list');
+      const chevron = group.querySelector('.action-chevron');
+      if (list.classList.contains('collapsed')) {
+        list.classList.remove('collapsed');
+        chevron.classList.add('expanded');
+      } else {
+        list.classList.add('collapsed');
+        chevron.classList.remove('expanded');
+      }
+    });
+    const list = document.createElement('div');
+    list.className = 'action-summary-list collapsed';
+    group.appendChild(header);
+    group.appendChild(list);
+    // Insert before the first action message
+    const firstAction = actionMessageQueue[0];
+    if (firstAction && firstAction.parentNode) {
+      firstAction.parentNode.insertBefore(group, firstAction);
+    } else {
+      chatMessages.appendChild(group);
+    }
+  }
+
+  const list = group.querySelector('.action-summary-list');
+  // Move older action messages into the summary group
+  while (actionMessageQueue.length > MAX_VISIBLE_ACTIONS) {
+    const oldMsg = actionMessageQueue.shift();
+    if (oldMsg.parentNode) oldMsg.remove();
+    const collapsed = document.createElement('div');
+    collapsed.className = 'collapsed-action';
+    collapsed.textContent = oldMsg.textContent;
+    list.appendChild(collapsed);
+  }
+
+  // Update count label
+  const countEl = group.querySelector('.action-summary-count');
+  if (countEl) {
+    countEl.textContent = `${list.children.length} actions completed`;
+  }
+}
 
 // Add dynamic status message with integrated loader
 function addStatusMessage(text, type = 'ai') {
@@ -438,31 +509,55 @@ function addStatusMessage(text, type = 'ai') {
   statusText.className = 'status-text';
   statusText.textContent = text;
   
+  // Progress container (hidden until progress data arrives)
+  const progressContainer = document.createElement('div');
+  progressContainer.className = 'progress-container hidden';
+  const progressBar = document.createElement('div');
+  progressBar.className = 'progress-bar';
+  const progressFill = document.createElement('div');
+  progressFill.className = 'progress-fill';
+  progressBar.appendChild(progressFill);
+  const progressLabel = document.createElement('span');
+  progressLabel.className = 'progress-label';
+  progressContainer.appendChild(progressBar);
+  progressContainer.appendChild(progressLabel);
+
   // Assemble the message
   messageContent.appendChild(loaderDots);
   messageContent.appendChild(statusText);
   messageDiv.appendChild(messageContent);
-  
+  messageDiv.appendChild(progressContainer);
+
   chatMessages.appendChild(messageDiv);
-  
+
   // Store reference for updates
   currentStatusMessage = messageDiv;
-  
+
   // Remove the 'new' class after animation
   setTimeout(() => {
     messageDiv.classList.remove('new');
   }, 400);
-  
+
   scrollToBottom();
   return messageDiv;
 }
 
-// Update existing status message
-function updateStatusMessage(text) {
+// Update existing status message with optional progress data
+function updateStatusMessage(text, progressData) {
   if (currentStatusMessage) {
     const statusText = currentStatusMessage.querySelector('.status-text');
     if (statusText) {
       statusText.textContent = text;
+    }
+    if (progressData && progressData.iteration != null) {
+      const container = currentStatusMessage.querySelector('.progress-container');
+      const fill = currentStatusMessage.querySelector('.progress-fill');
+      const label = currentStatusMessage.querySelector('.progress-label');
+      if (container && fill && label) {
+        container.classList.remove('hidden');
+        fill.style.width = (progressData.progressPercent || 0) + '%';
+        label.textContent = `Step ${progressData.iteration}/${progressData.maxIterations || 20}`;
+      }
     }
   }
 }
@@ -570,7 +665,7 @@ function showChromepageError(text) {
 function addMessage(text, type = 'system') {
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ${type} new`;
-  
+
   // Handle different message types
   if (type === 'action') {
     // Format action messages nicely
@@ -580,28 +675,46 @@ function addMessage(text, type = 'system') {
         const formattedParams = Object.entries(parsedParams)
           .map(([key, value]) => `${key}: "${value}"`)
           .join(', ');
-        return `✓ ${tool}(${formattedParams})`;
+        return `${tool}(${formattedParams})`;
       } catch {
-        return `✓ ${tool}(${params})`;
+        return `${tool}(${params})`;
       }
     });
     messageDiv.textContent = actionText;
   } else {
     messageDiv.textContent = text;
   }
-  
+
+  // Add dismiss button for error messages
+  if (type === 'error') {
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'message-dismiss';
+    dismissBtn.textContent = 'X';
+    dismissBtn.addEventListener('click', () => {
+      messageDiv.classList.add('collapsing');
+      setTimeout(() => messageDiv.remove(), 300);
+    });
+    messageDiv.appendChild(dismissBtn);
+    // Auto-collapse error after 30 seconds
+    setTimeout(() => {
+      if (messageDiv.parentNode && !messageDiv.classList.contains('collapsing')) {
+        messageDiv.classList.add('auto-collapsed');
+      }
+    }, 30000);
+  }
+
   chatMessages.appendChild(messageDiv);
-  
+
   // Remove the 'new' class after animation
   setTimeout(() => {
     messageDiv.classList.remove('new');
   }, 400);
-  
+
   // Limit messages to prevent overflow
   while (chatMessages.children.length > 100) {
     chatMessages.removeChild(chatMessages.firstChild);
   }
-  
+
   scrollToBottom();
 }
 
@@ -682,8 +795,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
     case 'statusUpdate':
       if (request.sessionId === currentSessionId && !stopRequested) {
-        // Update the status message bubble instead of typing indicator
-        updateStatusMessage(request.message);
+        // Snapshot previous status as completed action message
+        const prevText = currentStatusMessage?.querySelector('.status-text')?.textContent;
+        const skipTexts = ['Starting automation...', 'Connecting to page...', 'Connected. Analyzing page...', 'Analyzing page...'];
+        if (prevText && !skipTexts.includes(prevText)) {
+          addActionMessage(prevText);
+        }
+        updateStatusMessage(request.message, {
+          iteration: request.iteration,
+          maxIterations: request.maxIterations,
+          progressPercent: request.progressPercent
+        });
       }
       break;
       
@@ -692,112 +814,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.sessionId === currentSessionId) {
         setErrorState();
         completeStatusMessage(`Error: ${request.error}`, 'error');
-        addMessage('Let me know if you\'d like to try again or need help with something else.', 'system');
+        // Add retry button if task is available
+        if (request.task) {
+          const retryDiv = document.createElement('div');
+          retryDiv.className = 'message system new';
+          retryDiv.textContent = 'Would you like to try again? ';
+          const retryBtn = document.createElement('button');
+          retryBtn.className = 'retry-btn';
+          retryBtn.textContent = 'Retry';
+          retryBtn.addEventListener('click', () => {
+            retryDiv.remove();
+            chatInput.textContent = request.task;
+            handleSendMessage();
+          });
+          retryDiv.appendChild(retryBtn);
+          chatMessages.appendChild(retryDiv);
+          scrollToBottom();
+        } else {
+          addMessage('Let me know if you\'d like to try again or need help with something else.', 'system');
+        }
       }
       break;
       
-    case 'actionExecuted':
-      if (request.sessionId === currentSessionId && !stopRequested) {
-        // Show a more user-friendly action message
-        const actionMessage = formatActionMessage(request.tool, request.params);
-        addMessage(actionMessage, 'action');
-      }
-      break;
   }
 });
-
-// Format action messages for better user experience
-function formatActionMessage(tool, params) {
-  switch (tool) {
-    case 'click':
-      return `Clicked on element: ${params.selector}`;
-    case 'type':
-      const enterText = params.pressEnter ? ' and pressed Enter' : '';
-      return `Typed "${params.text}" into ${params.selector}${enterText}`;
-    case 'pressEnter':
-      return `Pressed Enter on ${params.selector}`;
-    case 'scroll':
-      return `Scrolled page by ${params.amount} pixels`;
-    case 'moveMouse':
-      return `Moved mouse to position (${params.x}, ${params.y})`;
-    case 'solveCaptcha':
-      return `Attempting to solve CAPTCHA`;
-    // Multi-tab actions
-    case 'openNewTab':
-      return `Opened new tab: ${params.url || 'blank page'}${params.active === false ? ' (in background)' : ''}`;
-    case 'switchToTab':
-      return `Switched to tab ID: ${params.tabId}`;
-    case 'closeTab':
-      return `Closed tab ID: ${params.tabId}`;
-    case 'listTabs':
-      return `Listed all open tabs${params.currentWindowOnly === false ? ' (all windows)' : ' (current window)'}`;
-    case 'getCurrentTab':
-      return `Retrieved current tab information`;
-    case 'waitForTabLoad':
-      return `Waiting for tab ${params.tabId} to load...`;
-    // Navigation & search
-    case 'navigate':
-      return `Navigating to ${params.url}`;
-    case 'searchGoogle':
-      return `Searching Google for: ${params.query}`;
-    case 'scrollToElement':
-      return `Scrolled to element: ${params.selector}`;
-    case 'clickSearchResult':
-      return `Clicked search result: ${params.selector}`;
-    // Waiting & detection
-    case 'waitForElement':
-      return `Waiting for element: ${params.selector}`;
-    case 'verifyMessageSent':
-      return `Verifying message was sent`;
-    case 'waitForDOMStable':
-      return `Waiting for page to stabilize...`;
-    case 'detectLoadingState':
-      return `Checking if page is loading...`;
-    // Click variants
-    case 'rightClick':
-      return `Right-clicked on element: ${params.selector}`;
-    case 'doubleClick':
-      return `Double-clicked on element: ${params.selector}`;
-    // Keyboard actions
-    case 'keyPress':
-      return `Pressed key: ${params.key}`;
-    case 'pressKeySequence':
-      return `Pressed key sequence: ${Array.isArray(params.keys) ? params.keys.join(', ') : params.keys}`;
-    case 'typeWithKeys':
-      return `Typing with key events: ${params.text}`;
-    case 'sendSpecialKey':
-      return `Pressed special key: ${params.key}`;
-    // Text & focus
-    case 'selectText':
-      return `Selected text in: ${params.selector}`;
-    case 'focus':
-      return `Focused on element: ${params.selector}`;
-    case 'blur':
-      return `Removed focus from: ${params.selector}`;
-    case 'hover':
-      return `Hovering over element: ${params.selector}`;
-    // Form controls
-    case 'selectOption':
-      return `Selected '${params.optionText || params.value}' from dropdown: ${params.selector}`;
-    case 'toggleCheckbox':
-      return `Toggled checkbox: ${params.selector}`;
-    // Data extraction
-    case 'getText':
-      return `Reading text from: ${params.selector}`;
-    case 'getAttribute':
-      return `Reading ${params.attribute} from: ${params.selector}`;
-    case 'setAttribute':
-      return `Setting ${params.attribute} on: ${params.selector}`;
-    // Input management
-    case 'clearInput':
-      return `Cleared input: ${params.selector}`;
-    // Gaming
-    case 'gameControl':
-      return `Game control: ${params.action}`;
-    default:
-      return `Executed ${tool} with params: ${JSON.stringify(params)}`;
-  }
-}
 
 // Handle keyboard shortcuts
 document.addEventListener('keydown', (e) => {
@@ -824,7 +864,7 @@ chatInput.addEventListener('input', adjustInputHeight);
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => e.preventDefault());
 
-console.log('FSB v9.0.1 chat interface loaded');
+console.log('FSB v9.0.2 chat interface loaded');
 
 // ==========================================
 // /agent Slash Command Handler

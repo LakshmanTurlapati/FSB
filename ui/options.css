@@ -1297,7 +1297,13 @@ body {
   transform: translateX(calc(100% + var(--space-xl)));
   transition: transform var(--transition-base);
   min-width: 300px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
+.toast-text { flex: 1; }
+.toast-dismiss { background: none; border: none; cursor: pointer; opacity: 0.6; padding: 4px; font-size: 14px; font-weight: 600; color: inherit; }
+.toast-dismiss:hover { opacity: 1; }
 
 .status-toast.show {
   transform: translateX(0);

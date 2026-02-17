@@ -1,4 +1,4 @@
-// FSB v9.0.1 - Modern Dashboard Control Panel Script
+// FSB v9.0.2 - Modern Dashboard Control Panel Script
 
 // Default settings
 const defaultSettings = {
@@ -18,6 +18,7 @@ const defaultSettings = {
   maxDOMElements: 2000,
   prioritizeViewport: true,
   animatedActionHighlights: true,
+  showSidepanelProgress: false,
   // Credential Manager (Beta)
   enableLogin: false,
   // CAPTCHA Solver
@@ -148,6 +149,7 @@ function cacheElements() {
   elements.maxDOMElementsDisplay = document.getElementById('maxDOMElementsDisplay');
   elements.prioritizeViewport = document.getElementById('prioritizeViewport');
   elements.animatedActionHighlights = document.getElementById('animatedActionHighlights');
+  elements.showSidepanelProgress = document.getElementById('showSidepanelProgress');
 
   // Credentials (Beta)
   elements.enableLogin = document.getElementById('enableLogin');
@@ -219,6 +221,7 @@ function setupEventListeners() {
     elements.maxDOMElements,
     elements.prioritizeViewport,
     elements.animatedActionHighlights,
+    elements.showSidepanelProgress,
     elements.enableLogin,
     elements.captchaSolverEnabled,
     elements.captchaApiKey
@@ -558,6 +561,9 @@ function loadSettings() {
     if (elements.animatedActionHighlights) {
       elements.animatedActionHighlights.checked = settings.animatedActionHighlights ?? true;
     }
+    if (elements.showSidepanelProgress) {
+      elements.showSidepanelProgress.checked = settings.showSidepanelProgress ?? false;
+    }
 
     // Credential Manager
     if (elements.enableLogin) {
@@ -593,6 +599,7 @@ function saveSettings() {
     maxDOMElements: parseInt(elements.maxDOMElements?.value) || 2000,
     prioritizeViewport: elements.prioritizeViewport?.checked ?? true,
     animatedActionHighlights: elements.animatedActionHighlights?.checked ?? true,
+    showSidepanelProgress: elements.showSidepanelProgress?.checked ?? false,
     enableLogin: elements.enableLogin?.checked ?? false,
     captchaSolverEnabled: elements.captchaSolverEnabled?.checked ?? false,
     captchaApiKey: elements.captchaApiKey?.value || ''
@@ -967,16 +974,38 @@ function filterLogs() {
   updateLogsDisplay();
 }
 
+let _toastTimer = null;
 function showToast(message, type = 'info') {
   if (!elements.statusToast) return;
-  
-  elements.statusToast.textContent = message;
+
+  // Duration varies by severity
+  const durations = { success: 2000, info: 3000, warning: 4000, error: 6000 };
+  const duration = durations[type] || 3000;
+
+  // Clear any pending dismiss timer
+  if (_toastTimer) clearTimeout(_toastTimer);
+
+  // Build toast content with dismiss button
+  elements.statusToast.innerHTML = '';
+  const textSpan = document.createElement('span');
+  textSpan.className = 'toast-text';
+  textSpan.textContent = message;
+  const dismissBtn = document.createElement('button');
+  dismissBtn.className = 'toast-dismiss';
+  dismissBtn.textContent = 'X';
+  dismissBtn.addEventListener('click', () => {
+    if (_toastTimer) clearTimeout(_toastTimer);
+    elements.statusToast.classList.remove('show');
+  });
+  elements.statusToast.appendChild(textSpan);
+  elements.statusToast.appendChild(dismissBtn);
+
   elements.statusToast.className = `status-toast ${type}`;
   elements.statusToast.classList.add('show');
-  
-  setTimeout(() => {
+
+  _toastTimer = setTimeout(() => {
     elements.statusToast.classList.remove('show');
-  }, 3000);
+  }, duration);
 }
 
 function handleKeyboardShortcuts(e) {

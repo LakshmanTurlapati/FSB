@@ -17,25 +17,25 @@ const EMAIL_GUIDE = {
 
   guidance: `EMAIL PLATFORM AUTOMATION INTELLIGENCE:
 
+NOTE: Use element refs from the page snapshot (e.g., {"ref": "e1"}) to target elements. The CSS selectors below are for element identification only.
+
 COMPOSE WORKFLOW (Gmail):
 1. Click the Compose button to open a new email window.
-2. TO FIELD: Click the To field and type the recipient email address.
+2. TO FIELD: Click the To field (look for textbox "To recipients" in snapshot) and type the recipient email address.
    - CRITICAL: After typing an email address, the automation will automatically press Tab to convert it into a recipient "chip".
    - Wait for the chip to appear before proceeding to Subject.
    - Do NOT manually add pressEnter or Tab -- the type tool handles this.
-3. SUBJECT: Click the Subject field (input[name="subjectbox"]) and type the subject.
-4. BODY: Click the message body area ([aria-label="Message Body"] or [aria-label*="Message Body"]) and type the email content.
-5. SEND: Click the Send button using the selector from DOM analysis.
-   - WARNING: Gmail's Send button aria-label contains invisible Unicode characters (e.g., U+202A, U+202C). The DOM analysis provides CLEAN selectors with these stripped.
-   - Use the DOM-provided selector. Do NOT construct your own [aria-label*="Send"] selector.
+3. SUBJECT: Click the Subject field (look for textbox "Subject" in snapshot) and type the subject.
+4. BODY: Click the message body area (look for textbox "Message Body" in snapshot) and type the email content.
+5. SEND: Click the Send button using its ref from the snapshot.
+   - WARNING: Gmail's Send button aria-label contains invisible Unicode characters. The snapshot provides CLEAN refs.
    - If clicking fails, use keyPress with key: "Enter" and ctrlKey: true as fallback.
 6. VERIFY: Confirm the compose window closed after sending.
 
 SEND BUTTON UNICODE ISSUE:
 - Gmail's Send button has aria-label like "Send (Cmd+Enter)" but with invisible LRE/PDF chars embedded.
-- The DOM analysis strips these chars automatically, so the selector you receive will work.
-- If you see a Send button but your click selector fails, use Ctrl+Enter (keyPress tool) immediately.
-- Do NOT try to re-construct the aria-label selector manually.
+- The snapshot strips these chars automatically, so the ref you receive will work.
+- If you see a Send button but your click fails, use Ctrl+Enter (keyPress tool) immediately.
 
 RECIPIENT FIELD VALIDATION:
 - After typing an email in the To/CC/BCC field, Gmail converts it to a "chip" element.
@@ -97,7 +97,7 @@ READING EMAILS:
       'Wait for recipient chip to appear (automatic Tab confirmation)',
       'Click Subject field and type subject line',
       'Click Message Body and type email content',
-      'Click Send button (use DOM-provided selector)',
+      'Click Send button (use ref from snapshot)',
       'If Send fails, use keyPress with key: "Enter", ctrlKey: true',
       'Verify compose window is closed'
     ],
@@ -123,12 +123,12 @@ READING EMAILS:
   },
 
   warnings: [
-    'Gmail Send button aria-label contains invisible Unicode bidirectional chars -- always use DOM-provided selectors, never construct your own',
+    'Gmail Send button aria-label contains invisible Unicode bidirectional chars -- always use the ref from the snapshot, never construct your own selector',
     'Gmail recipient fields (To/CC/BCC) require Tab key after typing to create a "chip" -- the type tool handles this automatically',
     'After Tab confirmation in Gmail To field, the typed text is replaced by a chip element -- this is normal, not a failure',
     'If Send button click fails in Gmail, immediately try Ctrl+Enter (keyPress tool with ctrlKey: true) as fallback',
     'Gmail compose window elements are dynamically created -- use waitForElement if elements are not immediately available',
-    'Outlook web uses different selectors than Gmail -- check the URL to determine which platform you are on',
+    'Outlook web has different elements than Gmail -- check the URL to determine which platform you are on',
     'Some email operations require the user to be logged in -- if login wall appears, report to user'
   ],
 

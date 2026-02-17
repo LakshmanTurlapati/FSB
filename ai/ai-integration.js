@@ -125,7 +125,7 @@ SEND BUTTON RULES:
   form: "Fill all required fields, then submit. If you don't see a submit button after filling fields, scroll down -- long forms often have buttons at the bottom. When completing, describe exactly what information was submitted and confirm the form was processed successfully. Example result: 'I successfully filled out the contact form with your name, email, and message, then submitted it. The page confirmed your message was received and you should expect a response within 24 hours.'",
   extraction: "Extract the requested information and provide the exact values found. Use systematic scrolling: extract visible items, scroll down, repeat until atBottom. When completing, include all the specific data extracted, not generic statements. For numerical data (prices, ratings, stats), use a ```chart block to visualize comparisons. For structured data with multiple fields, use markdown tables. Example result: 'I extracted the following product details: Price $299.99, Rating 4.8/5 stars, Stock: 15 units available, Shipping: Free 2-day delivery.'",
   navigation: "Navigate to the specified page or section. When completing, confirm what page you reached and describe what's available there. Example result: 'I successfully navigated to the Settings page where I can see options for Account Settings, Privacy Controls, Notification Preferences, and Security Settings.'",
-  multitab: "MULTI-TAB SUPPORT: The system handles smart tab selection at session start (matching task keywords to domains, reusing open tabs, preserving user content). During automation: 1) openNewTab creates new tabs and adds them to allowed tabs, 2) switchToTab works for any tab in the session's allowed list (check listTabs for isAllowedTab: true), 3) listTabs shows tab titles, domains for allowed tabs, and which tabs you can control, 4) DOM actions happen on the currently active session tab. When you need to work across tabs, use switchToTab to move between allowed tabs.",
+  multitab: "MULTI-TAB SUPPORT: You have access to all tabs in the current browser window. Before searching or opening new tabs, check the MULTI-TAB CONTEXT for tabs that already match your destination and use switchToTab to reuse them. During automation: 1) openNewTab creates new tabs and adds them to allowed tabs, 2) switchToTab works for any tab in the session's allowed list (check listTabs for isAllowedTab: true), 3) listTabs shows tab titles, domains for allowed tabs, and which tabs you can control, 4) DOM actions happen on the currently active session tab. When you need to work across tabs, use switchToTab to move between allowed tabs.",
   gaming: "CRITICAL GAME CONTROLS: For games, interactive applications, or when task involves 'play', 'control', 'win', 'move': 1) NEVER use 'type' tool for game controls - it types text, not key presses, 2) PREFER dedicated arrow tools: {\"tool\": \"arrowUp\"}, {\"tool\": \"arrowDown\"}, {\"tool\": \"arrowLeft\"}, {\"tool\": \"arrowRight\"} - much simpler than keyPress, 3) For other keys use 'keyPress': {\"tool\": \"keyPress\", \"params\": {\"key\": \"Enter\"}} {\"tool\": \"keyPress\", \"params\": {\"key\": \" \"}} for Space. 4) Focus the game canvas/element if needed before key presses. When completing, describe the game actions performed and outcomes achieved.",
   shopping: `E-COMMERCE SHOPPING INTELLIGENCE - CRITICAL RULES:
 
@@ -164,6 +164,76 @@ NEVER BLINDLY CLICK THE FIRST RESULT! You must analyze product listings intellig
 Example reasoning: "I see 12 product listings. The first is a sponsored PS5 controller for $49.99. The third result is 'PlayStation 5 Console - God of War Bundle' priced at $499.99 with 4.7 stars and 15,234 reviews, sold by Amazon. This matches the user's request for a PS5, so I will click on this product."
 
 When completing, provide: product selected, price, rating, seller, and why you chose it over other options. When comparing multiple products, include a \`\`\`chart block with a bar chart of prices or ratings for visual comparison, and a markdown table with product details.`,
+  career: `CAREER JOB SEARCH & DATA ENTRY WORKFLOW:
+
+This is a multi-phase task. Follow these phases IN ORDER:
+
+PHASE 1 -- NAVIGATE TO CAREER PAGE:
+- ALWAYS try the company's direct career page FIRST: Google search "[company name] careers" or "[company name] jobs"
+- Click the OFFICIAL company careers link from search results (NOT Indeed/Glassdoor mirrors)
+- If the company has no career page or no relevant listings, THEN fall back to Indeed or Glassdoor
+
+PHASE 2 -- SEARCH FOR RELEVANT JOBS:
+- Use any search/filter functionality on the careers page
+- Enter the role keyword if the user specified one (e.g., "software engineer")
+- Apply location filters if specified
+- Scroll through results to find matching positions
+
+PHASE 3 -- EXTRACT JOB DATA:
+- For each relevant job (3-5 max unless user specifies otherwise), extract ALL 6 fields:
+  1. Company Name
+  2. Role/Title (exact job title)
+  3. Date Posted (or "Not listed")
+  4. Location (city/state, Remote, or Hybrid)
+  5. Description Summary (1-2 sentences)
+  6. Apply Link (the URL to apply)
+- Use getText on title, location, and date elements
+- Use getAttribute with "href" on apply buttons/links
+- Summarize description from key responsibilities paragraph
+
+PHASE 4 -- NAVIGATE TO GOOGLE SHEETS:
+- If user provided a sheet URL, navigate to it
+- If user wants a new sheet, navigate to https://sheets.google.com and create a blank spreadsheet
+- Wait for the sheet to load (Name Box #t-name-box must be visible)
+
+PHASE 5 -- SET UP HEADERS:
+- Click the Name Box (#t-name-box), type "A1", press Enter
+- Type "Company", press Tab
+- Type "Role", press Tab
+- Type "Date Posted", press Tab
+- Type "Location", press Tab
+- Type "Description", press Tab
+- Type "Apply Link", press Enter
+- Headers are set. Cursor is now on row 2.
+
+PHASE 6 -- ENTER ROW DATA:
+- Click Name Box, type "A2", press Enter (to start at first data row)
+- Type company name, Tab, role title, Tab, date, Tab, location, Tab, description, Tab, apply link, Enter
+- Repeat for each job listing (A3, A4, etc.)
+
+RELEVANCE RULES:
+- If user says "find jobs at [company]" with no role, extract 3-5 diverse listings
+- If user specifies a role, only extract matching roles
+- Skip internships unless explicitly requested
+- Skip clearly unrelated roles
+
+FALLBACK STRATEGIES:
+- If company career page has no search: scroll through all listings manually
+- If no results on company site: try Indeed search for "[company] [role]"
+- If job board requires login: note the limitation and try an alternative board
+
+COMPLETION CRITERIA:
+- All extracted job data must be entered into Google Sheets
+- Each row must have all 6 fields filled
+- Verify by reading back at least one row using getText
+- Report: number of jobs found, number entered into sheet, sheet URL
+
+EXAMPLE TASKS:
+1. "Find software engineer jobs at Stripe and add them to a new Google Sheet"
+   -> Google "Stripe careers" -> stripe.com/jobs -> search "software engineer" -> extract 3-5 jobs -> create new sheet -> enter data
+
+2. "Search for product manager openings at Google and enter into [sheet URL]"
+   -> Google "Google careers" -> careers.google.com -> search "product manager" -> extract jobs -> navigate to sheet URL -> enter data`,
   general: "Complete the task step by step. For reading/summarizing tasks: navigate to the source, click to open the specific item (email, article, post), then extract and report the content. For action tasks: perform each step and verify the outcome. When completing, provide a detailed summary with specific data found or actions taken."
 };
 
@@ -1956,6 +2026,10 @@ ${this._buildTaskGuidance(taskType, siteGuide, currentUrl)}`;
       userPrompt += `\n\nComplete each step in order. Mark taskComplete: true only after ALL steps are finished.`;
     }
 
+    if (taskType === 'multitab') {
+      userPrompt += `\nIMPORTANT: This task involves multiple websites. Before navigating or searching, check the MULTI-TAB CONTEXT below for tabs that already match your destination -- use switchToTab to reuse them instead of searching Google or opening new tabs. Complete all work on the current site before moving to the next.`;
+    }
+
     // EASY WIN #7: Add explicit verification requirements (reduces errors by 30%)
     userPrompt += `\n\nVERIFICATION REQUIREMENT:
 After EVERY action, you MUST verify:
@@ -2067,6 +2141,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
             }
           });
         }
+        userPrompt += `\nUse switchToTab with any tab ID above instead of searching or navigating when a tab already matches your destination.`;
       }
       
       // Add action history with enhanced failure analysis
@@ -3674,7 +3749,9 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         'Travel & Booking': 'form',
         'Finance & Trading': 'extraction',
         'Email Platforms': 'email',
-        'Gaming Platforms': 'extraction'
+        'Gaming Platforms': 'extraction',
+        'Career & Job Search': 'career',
+        'Productivity Tools': 'general'
       };
       const guideTaskType = guideToTaskType[siteGuide.name];
       // Guide provides a default, but explicit keywords can still override
@@ -3688,10 +3765,37 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
             /demo.*play|asteroids|snake|pong|tetris/.test(taskLower)) {
           return 'gaming';
         }
+        if (/\b(career|job|jobs|position|opening|hiring|employment)\b/.test(taskLower)) return 'career';
         if (taskLower.includes('search') || taskLower.includes('find')) return 'search';
         if (taskLower.includes('fill') || taskLower.includes('submit')) return 'form';
         return guideTaskType;
       }
+    }
+
+    // Multi-site detection: sequential separator + 2+ distinct domain keywords
+    const sequentialSeparators = [' and then ', ', then ', ' then ', ' after that ', ' afterwards '];
+    const hasSequentialSep = sequentialSeparators.some(sep => taskLower.includes(sep));
+    if (hasSequentialSep) {
+      const domainKeywords = [
+        'gmail', 'email', 'mail', 'outlook', 'amazon', 'ebay', 'etsy',
+        'youtube', 'twitter', 'facebook', 'instagram', 'linkedin', 'reddit',
+        'github', 'stackoverflow', 'google docs', 'google sheets', 'google drive',
+        'netflix', 'spotify', 'twitch', 'discord', 'slack', 'whatsapp',
+        'notion', 'dropbox', 'wikipedia'
+      ];
+      const matched = domainKeywords.filter(kw => taskLower.includes(kw));
+      if (matched.length >= 2) {
+        return 'multitab';
+      }
+    }
+
+    // Output-destination detection: gathering info AND outputting to a known app
+    const outputDestinations = ['google docs', 'google sheets', 'google drive', 'google slides', 'notion', 'spreadsheet', 'my doc', 'my sheet'];
+    const gatherActions = ['find', 'search', 'research', 'get', 'look up', 'check', 'go to', 'visit'];
+    const hasOutputDest = outputDestinations.some(kw => taskLower.includes(kw));
+    const hasGatherAction = gatherActions.some(kw => taskLower.includes(kw));
+    if (hasOutputDest && hasGatherAction) {
+      return 'multitab';
     }
 
     // Email detection - check before shopping/form to avoid "send" matching "submit"
@@ -3728,6 +3832,8 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
                taskLower.includes('start game') || taskLower.includes('use keys') || taskLower.includes('wasd') ||
                taskLower.includes('spacebar') || /demo.*play|asteroids|snake|pong|tetris/.test(taskLower)) {
       return 'gaming';
+    } else if (/\b(career|job|jobs|position|opening|hiring|employment)\b/.test(taskLower)) {
+      return 'career';
     } else if (taskLower.includes('search') || taskLower.includes('find') || taskLower.includes('look for')) {
       return 'search';
     } else if (taskLower.includes('fill') || taskLower.includes('form') || taskLower.includes('submit')) {
@@ -3794,6 +3900,10 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         return ['arrowUp', 'arrowDown', 'arrowLeft', 'arrowRight', 'keyPress', 'gameControl', 'pressKeySequence', 'sendSpecialKey', 'typeWithKeys', 'focus', 'click', 'waitForElement'];
       case 'shopping':
         return ['navigate', 'click', 'type', 'scroll', 'scrollToBottom', 'getText', 'waitForElement', 'hover', 'selectOption'];
+      case 'multitab':
+        return ['navigate', 'click', 'type', 'scroll', 'scrollToBottom', 'getText',
+                'waitForElement', 'pressEnter', 'keyPress', 'hover', 'selectOption',
+                'openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'getCurrentTab', 'waitForTabLoad'];
       default:
         return Object.keys(TOOL_DOCUMENTATION).flatMap(category =>
           Object.keys(TOOL_DOCUMENTATION[category])
@@ -3892,6 +4002,31 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         params: {ref: "e1"},
         desc: "Read current content from a code editor (Monaco, CodeMirror, ACE). Returns the full code with indentation preserved. Use AFTER typing code to verify it was entered correctly.",
         example: '{"tool": "getEditorContent", "params": {}}'
+      },
+      // Multi-tab tools
+      openNewTab: {
+        params: {url: "https://...", active: true},
+        desc: "Open new tab with URL. Returns tabId. Set active: false for background"
+      },
+      switchToTab: {
+        params: {tabId: 123},
+        desc: "Switch to a session tab. Use listTabs to find allowed tabs"
+      },
+      closeTab: {
+        params: {tabId: 123},
+        desc: "Close a tab by ID"
+      },
+      listTabs: {
+        params: {currentWindowOnly: true},
+        desc: "List tabs with titles, domains, and which tabs you can switch to"
+      },
+      getCurrentTab: {
+        params: {},
+        desc: "Get current active tab info"
+      },
+      waitForTabLoad: {
+        params: {timeout: 10000},
+        desc: "Wait for tab to finish loading"
       }
     };
     

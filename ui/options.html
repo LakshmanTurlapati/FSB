@@ -375,7 +375,7 @@
                 </div>
               </div>
               <div class="settings-card-content">
-                <div class="toggle-grid single">
+                <div class="toggle-grid">
                   <label class="modern-toggle">
                     <input type="checkbox" id="animatedActionHighlights" checked>
                     <span class="toggle-track">
@@ -384,6 +384,16 @@
                     <div class="toggle-content">
                       <span class="toggle-label">Animated Action Highlights</span>
                       <span class="toggle-desc">Show a pulsing glow around elements while actions are being performed</span>
+                    </div>
+                  </label>
+                  <label class="modern-toggle">
+                    <input type="checkbox" id="showSidepanelProgress">
+                    <span class="toggle-track">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                    <div class="toggle-content">
+                      <span class="toggle-label">Sidepanel Step Progress</span>
+                      <span class="toggle-desc">Show step progress bar in the side panel during automation</span>
                     </div>
                   </label>
                 </div>
@@ -1063,6 +1073,7 @@
   <script src="../lib/memory/memory-storage.js"></script>
   <script src="../lib/memory/memory-retriever.js"></script>
   <script src="../lib/memory/memory-manager.js"></script>
+  <script src="../lib/memory/memory-consolidator.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
