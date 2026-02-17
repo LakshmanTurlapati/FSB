@@ -331,6 +331,28 @@ class AIIntegration {
   }
 
   /**
+   * Format structured change information for AI prompts
+   * Renders human-readable change summary from multi-signal detection
+   * @param {Object} context - Automation context with changeSignals and domChanged
+   * @returns {string} Formatted change info string
+   */
+  formatChangeInfo(context) {
+    const cs = context?.changeSignals;
+    if (!cs) {
+      // Fallback for backward compatibility if changeSignals not present
+      return `DOM changed: ${context?.domChanged ? 'Yes' : 'No'}`;
+    }
+    if (!cs.changed) {
+      return 'DOM changed: No (page appears unchanged since your last action)';
+    }
+    let info = 'DOM changed: Yes';
+    if (cs.summary && cs.summary.length > 0) {
+      info += ' -- ' + cs.summary.join('; ');
+    }
+    return info;
+  }
+
+  /**
    * Build minimal update prompt for subsequent iterations
    * Only sends what changed since last iteration to save tokens
    * @param {Object} domState - Current DOM state
@@ -342,7 +364,7 @@ class AIIntegration {
 
 URL: ${domState.url || 'Unknown'}
 Title: ${domState.title || 'Unknown'}
-DOM changed: ${context?.domChanged ? 'Yes' : 'No'}
+${this.formatChangeInfo(context)}
 Scroll: Y=${domState.scrollPosition?.y || 0} | ${domState.scrollInfo?.scrollPercentage || 0}% down | Page: ${domState.scrollInfo?.pageHeight || '?'}px
 ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see it' : 'At bottom of page'}`;
 
@@ -373,6 +395,13 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       update += `\n\nWARNING: Automation appears STUCK (${context.stuckCounter} iterations without progress)`;
       update += `\nTry a DIFFERENT approach than before.`;
     }
+
+    // DIF-03: Detect task type for content-adaptive formatting
+    const taskType = this.detectTaskType(
+      context?.task || this._currentTask || '',
+      context?.currentUrl || domState.url || null
+    );
+    const contentMode = this.getContentMode(taskType);
 
     // --- ELEMENT VISIBILITY FIX ---
     // Get elements from whatever source is available:
@@ -410,7 +439,18 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       return false;
     };
 
-    const MAX_MINIMAL_ELEMENTS = 25;
+    // DOM-04: Dynamic element count based on page complexity
+    const totalAvailable = availableElements.length;
+    let maxElements;
+    if (totalAvailable <= 30) {
+      maxElements = totalAvailable; // Simple page: show everything
+    } else if (totalAvailable <= 60) {
+      maxElements = Math.min(totalAvailable, 50); // Medium: show up to 50
+    } else {
+      // Complex: scale to 50-150 with compression
+      maxElements = Math.min(totalAvailable, Math.max(50, Math.floor(totalAvailable * 0.5)));
+      maxElements = Math.min(maxElements, 150);
+    }
 
     if (availableElements.length > 0) {
       // Check if modal is open -- prioritize modal elements
@@ -428,7 +468,7 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
         const interactiveModal = modalCandidates.filter(isInteractive);
         const interactiveOther = availableElements.filter(isInteractive)
           .filter(el => !interactiveModal.includes(el));
-        elementsToShow = [...interactiveModal, ...interactiveOther].slice(0, MAX_MINIMAL_ELEMENTS);
+        elementsToShow = [...interactiveModal, ...interactiveOther].slice(0, maxElements);
 
         update += `\n\nMODAL/DIALOG DETECTED - INTERACT WITH MODAL FIRST`;
       } else {
@@ -436,12 +476,14 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
         const interactive = availableElements.filter(isInteractive);
         const inViewport = availableElements
           .filter(el => el.position?.inViewport && !interactive.includes(el));
-        elementsToShow = [...interactive, ...inViewport].slice(0, MAX_MINIMAL_ELEMENTS);
+        elementsToShow = [...interactive, ...inViewport].slice(0, maxElements);
       }
 
       if (elementsToShow.length > 0) {
-        update += `\n\n[PAGE_CONTENT]\nVISIBLE INTERACTIVE ELEMENTS (${elementsToShow.length} of ${domState._totalElements || availableElements.length} total):`;
-        update += `\n${this.formatElements(elementsToShow)}`;
+        update += `\n\n[PAGE_CONTENT]\nPAGE ELEMENTS (${elementsToShow.length} of ${domState._totalElements || availableElements.length} total, mode: ${contentMode}):`;
+        // DIF-03: Task-adaptive element formatting with budget
+        const elementBudget = 8000; // Budget for multi-turn element section
+        update += `\n${this.formatElements(elementsToShow, elementBudget, taskType)}`;
         update += `\n[/PAGE_CONTENT]`;
       } else {
         update += `\n\nWARNING: No interactive elements found on page. The page may still be loading, or you may need to scroll.`;
@@ -977,6 +1019,8 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
     // Stash context fields for session memory extraction in updateConversationHistory
     this._lastActionResult = context?.lastActionResult || null;
     this._currentUrl = context?.currentUrl || null;
+    // DIF-03: Stash task string for buildMinimalUpdate task-type detection
+    this._currentTask = task || '';
 
     // Reset conversation history if this is a new session
     const sessionId = context?.sessionId;
@@ -1668,7 +1712,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       }
       
       // Add DOM and URL change status
-      userPrompt += `\nDOM changed since last action: ${context.domChanged ? 'Yes' : 'No'}`;
+      userPrompt += `\n${this.formatChangeInfo(context)}`;
       if (context.urlChanged) {
         const prevUrl = context.urlHistory?.length > 1
           ? context.urlHistory[context.urlHistory.length - 2]?.url
@@ -1892,50 +1936,72 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       }
     }
     
-    // PROMPT SIZE LIMITS: Cap element count and HTML context when stuck to prevent 49K+ prompts
+    // DOM-01: Budget-partitioned prompt construction
+    // The user prompt is built in sections. We measure what's been used by
+    // task/context/automation sections (already appended above), then partition
+    // the remaining budget across page elements and HTML context.
+    const HARD_PROMPT_CAP = 15000; // DOM-01: Raised from 5K to 15K for 3x page visibility
     const MAX_ELEMENTS_STUCK = 20;  // Only top 20 relevant elements when stuck
     const MAX_HTML_CONTEXT_STUCK = 5000; // 5K chars max for HTML context when stuck
-    const HARD_PROMPT_CAP = 5000; // PERF: Reduced from 15K to 5K -- structured element data is the primary AI input
+
+    // Measure chars already consumed by task description, verification, page state,
+    // semantic context, and automation context (all appended above)
+    const preContentChars = userPrompt.length;
+    const closingLine = '\n\nWhat actions should I take to complete the task?';
+    const remainingBudget = HARD_PROMPT_CAP - preContentChars - closingLine.length;
+
+    // Partition remaining budget: 80% elements, 20% HTML context
+    const elementBudget = Math.floor(remainingBudget * 0.80);
+    const htmlBudget = Math.floor(remainingBudget * 0.20);
+
+    automationLogger.debug('Budget allocation', {
+      sessionId: this.currentSessionId,
+      preContentChars,
+      remainingBudget,
+      elementBudget,
+      htmlBudget
+    });
 
     // Handle delta updates differently
     if (domState._isDelta && domState.type === 'delta') {
-      userPrompt += `\n\n[PAGE_CONTENT]\nDOM CHANGES SINCE LAST ACTION:`;
+      // Build delta content into a temporary string for budget tracking
+      let deltaContent = `\n\n[PAGE_CONTENT]\nDOM CHANGES SINCE LAST ACTION:`;
 
       // Show what changed
       if (domState.changes) {
         if (domState.changes.added?.length > 0) {
           const addedElements = isStuck ? domState.changes.added.slice(0, MAX_ELEMENTS_STUCK) : domState.changes.added;
-          userPrompt += `\n\nNEWLY ADDED ELEMENTS (${addedElements.length}${isStuck && domState.changes.added.length > MAX_ELEMENTS_STUCK ? ` of ${domState.changes.added.length}` : ''}):`;
-          userPrompt += `\n${this.formatDeltaElements(addedElements)}`;
+          deltaContent += `\n\nNEWLY ADDED ELEMENTS (${addedElements.length}${isStuck && domState.changes.added.length > MAX_ELEMENTS_STUCK ? ` of ${domState.changes.added.length}` : ''}):`;
+          deltaContent += `\n${this.formatDeltaElements(addedElements)}`;
         }
 
         if (domState.changes.removed?.length > 0) {
           const removedElements = isStuck ? domState.changes.removed.slice(0, 5) : domState.changes.removed;
-          userPrompt += `\n\nREMOVED ELEMENTS (${removedElements.length}):`;
+          deltaContent += `\n\nREMOVED ELEMENTS (${removedElements.length}):`;
           removedElements.forEach(el => {
-            userPrompt += `\n- ${el.elementId} (${el.selector}) was at (${el._wasAt?.x}, ${el._wasAt?.y})`;
+            deltaContent += `\n- ${el.elementId} (${el.selector}) was at (${el._wasAt?.x}, ${el._wasAt?.y})`;
           });
         }
 
         if (domState.changes.modified?.length > 0) {
           const modifiedElements = isStuck ? domState.changes.modified.slice(0, MAX_ELEMENTS_STUCK) : domState.changes.modified;
-          userPrompt += `\n\nMODIFIED ELEMENTS (${modifiedElements.length}):`;
-          userPrompt += `\n${this.formatDeltaElements(modifiedElements, true)}`;
+          deltaContent += `\n\nMODIFIED ELEMENTS (${modifiedElements.length}):`;
+          deltaContent += `\n${this.formatDeltaElements(modifiedElements, true)}`;
         }
       }
 
       // Include reference to important unchanged elements (limit when stuck)
       if (domState.context?.unchanged?.length > 0) {
         const unchangedElements = isStuck ? domState.context.unchanged.slice(0, 10) : domState.context.unchanged;
-        userPrompt += `\n\nKEY REFERENCE ELEMENTS (unchanged but important):`;
-        userPrompt += `\n${this.formatDeltaElements(unchangedElements)}`;
+        deltaContent += `\n\nKEY REFERENCE ELEMENTS (unchanged but important):`;
+        deltaContent += `\n${this.formatDeltaElements(unchangedElements)}`;
       }
 
       // Add change summary
       if (domState.context?.metadata) {
         const meta = domState.context.metadata;
-        userPrompt += `\n\nCHANGE SUMMARY: ${meta.changeRatio > 0.5 ? 'Major' : meta.changeRatio > 0.2 ? 'Moderate' : 'Minor'} changes detected`;
-        userPrompt += ` (${meta.addedCount} added, ${meta.removedCount} removed, ${meta.modifiedCount} modified)`;
+        deltaContent += `\n\nCHANGE SUMMARY: ${meta.changeRatio > 0.5 ? 'Major' : meta.changeRatio > 0.2 ? 'Moderate' : 'Minor'} changes detected`;
+        deltaContent += ` (${meta.addedCount} added, ${meta.removedCount} removed, ${meta.modifiedCount} modified)`;
       }
 
       // Include viewport elements in delta path so the AI always has page context.
@@ -1943,48 +2009,60 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       if (domState.viewportElements && domState.viewportElements.length > 0) {
         const vpLimit = isStuck ? MAX_ELEMENTS_STUCK : domState.viewportElements.length;
         const vpElements = domState.viewportElements.slice(0, vpLimit);
-        userPrompt += `\n\nCURRENT VIEWPORT ELEMENTS (${vpElements.length} of ${domState._totalElements || '?'} total):`;
-        userPrompt += `\n${this.formatElements(vpElements)}`;
+        deltaContent += `\n\nCURRENT VIEWPORT ELEMENTS (${vpElements.length} of ${domState._totalElements || '?'} total):`;
+        deltaContent += `\n${this.formatElements(vpElements)}`;
       }
-      userPrompt += `\n[/PAGE_CONTENT]`;
+      deltaContent += `\n[/PAGE_CONTENT]`;
+
+      // Budget guard for delta path: truncate at last complete line if over budget
+      if (deltaContent.length > elementBudget && elementBudget > 0) {
+        const truncateAt = deltaContent.lastIndexOf('\n', elementBudget);
+        if (truncateAt > 0) {
+          deltaContent = deltaContent.substring(0, truncateAt);
+          deltaContent += '\n... (delta content truncated by budget)\n[/PAGE_CONTENT]';
+        }
+      }
+
+      userPrompt += deltaContent;
     } else {
-      // Full DOM snapshot (initial or fallback)
-      // When stuck, limit to top interactive elements to keep prompt small
+      // Full DOM snapshot -- budget-aware element formatting
       let elements = domState.elements || [];
       if (isStuck && elements.length > MAX_ELEMENTS_STUCK) {
-        // Prioritize interactive elements (buttons, links, inputs) that are in viewport
         elements = elements
           .filter(el => ['button', 'a', 'input', 'select', 'textarea'].includes(el.type) || el.position?.inViewport)
           .slice(0, MAX_ELEMENTS_STUCK);
-        userPrompt += `\n\n[PAGE_CONTENT]\nSTRUCTURED ELEMENTS (top ${elements.length} of ${domState.elements.length} - focused for recovery):
-${this.formatElements(elements)}\n[/PAGE_CONTENT]`;
+        userPrompt += `\n\n[PAGE_CONTENT]\nSTRUCTURED ELEMENTS (top ${elements.length} of ${domState.elements.length} - focused for recovery):\n`;
+        userPrompt += this.formatElements(elements, elementBudget, taskType);
+        userPrompt += `\n[/PAGE_CONTENT]`;
       } else {
-        userPrompt += `\n\n[PAGE_CONTENT]\nSTRUCTURED ELEMENTS (with positions and metadata):
-${this.formatElements(elements)}\n[/PAGE_CONTENT]`;
+        userPrompt += `\n\n[PAGE_CONTENT]\nSTRUCTURED ELEMENTS (with positions and metadata):\n`;
+        userPrompt += this.formatElements(elements, elementBudget, taskType);
+        userPrompt += `\n[/PAGE_CONTENT]`;
       }
     }
 
-    // HTML context - cap size when stuck to prevent prompt explosion
-    // Note: formatHTMLContext already wraps content in [PAGE_CONTENT] markers
-    let htmlContextStr = this.formatHTMLContext(domState.htmlContext);
+    // HTML context -- budget-aware
+    let htmlContextStr = this.formatHTMLContext(domState.htmlContext, htmlBudget);
     if (isStuck && htmlContextStr.length > MAX_HTML_CONTEXT_STUCK) {
       htmlContextStr = htmlContextStr.substring(0, MAX_HTML_CONTEXT_STUCK) + '\n... (truncated for stuck recovery)\n[/PAGE_CONTENT]';
     }
 
-    userPrompt += `\n\nHTML CONTEXT (actual markup for better understanding):
-${htmlContextStr}
+    userPrompt += `\n\nHTML CONTEXT (actual markup for better understanding):\n${htmlContextStr}`;
 
-What actions should I take to complete the task?`;
+    // Append closing line
+    userPrompt += closingLine;
 
-    // HARD CAP: Truncate user prompt if it exceeds the limit
-    if (userPrompt.length > HARD_PROMPT_CAP) {
-      automationLogger.warn('User prompt exceeded hard cap, truncating', {
+    // Safety fallback: if budget math was wrong, truncate gracefully
+    if (userPrompt.length > HARD_PROMPT_CAP + 500) {
+      automationLogger.warn('User prompt exceeded budget despite partitioning', {
         sessionId: this.currentSessionId,
-        originalLength: userPrompt.length,
-        cap: HARD_PROMPT_CAP,
-        isStuck
+        actualLength: userPrompt.length,
+        cap: HARD_PROMPT_CAP
       });
-      userPrompt = userPrompt.substring(0, HARD_PROMPT_CAP) + '\n\n[Prompt truncated for performance. Focus on the task and available elements above.]';
+      // Truncate at last complete line before cap
+      const truncateAt = userPrompt.lastIndexOf('\n', HARD_PROMPT_CAP);
+      userPrompt = userPrompt.substring(0, truncateAt > 0 ? truncateAt : HARD_PROMPT_CAP);
+      userPrompt += '\n\n[Prompt truncated for performance. Focus on the task and available elements above.]';
     }
 
     const finalPrompt = { systemPrompt, userPrompt };
@@ -2065,39 +2143,140 @@ What actions should I take to complete the task?`;
     return cleaned;
   }
 
-  // Format elements for AI context with enhanced information
-  formatElements(elements) {
+  // DOM-03: Adaptive text limits by element type
+  getTextLimit(element, compressionLevel = 'none') {
+    const baseLimits = {
+      listItem: 150,  // "First Last - Title at Company"
+      button: 80,
+      a: 80,
+      input: 80,
+      textarea: 100,
+      select: 80,
+      default: 100
+    };
+
+    // Detect list items: actual li elements, or links inside list containers
+    const isListItem = element.type === 'li' ||
+      (element.type === 'a' && element.relationshipContext?.includes('list')) ||
+      (element.type === 'div' && element.relationshipContext?.includes('list'));
+
+    const baseLimit = isListItem ? baseLimits.listItem :
+      (baseLimits[element.type] || baseLimits.default);
+
+    const multipliers = { none: 1.0, moderate: 0.8, heavy: 0.5 };
+    return Math.round(baseLimit * (multipliers[compressionLevel] || 1.0));
+  }
+
+  // DIF-03 + DOM-02: Task-aware element prioritization
+  prioritizeForTask(elements, taskType) {
+    return elements.map(el => {
+      let score = 0;
+      const isInteractive = ['button', 'a', 'input', 'select', 'textarea'].includes(el.type);
+      const isInViewport = el.position?.inViewport;
+
+      // Base: viewport + interactivity
+      if (isInViewport) score += 10;
+      if (isInteractive) score += 5;
+      if (el.isNew) score += 8;
+
+      // Task-specific boosts
+      switch (taskType) {
+        case 'form':
+        case 'email':
+          if (['input', 'textarea', 'select'].includes(el.type)) score += 20;
+          if (el.labelText || el.placeholder) score += 5;
+          if (el.formId) score += 3;
+          break;
+        case 'extraction':
+          if (el.text && el.text.length > 50) score += 15;
+          break;
+        case 'search':
+        case 'navigation':
+          if (el.type === 'a') score += 15;
+          if (el.href) score += 10;
+          break;
+        case 'shopping':
+          if (el.text && /\$[\d.,]+/.test(el.text)) score += 10;
+          if (el.type === 'button') score += 5;
+          break;
+      }
+
+      return { element: el, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map(item => item.element);
+  }
+
+  // DIF-03: Map task type to content mode for element selection and prioritization
+  getContentMode(taskType) {
+    switch (taskType) {
+      case 'form':
+      case 'email':
+        return 'input_fields';
+      case 'extraction':
+        return 'text_only';
+      case 'search':
+      case 'navigation':
+      case 'shopping':
+      case 'general':
+      case 'gaming':
+      case 'multitab':
+      default:
+        return 'full';
+    }
+  }
+
+  // DOM-02 + DOM-04: Budget-aware element formatting with priority and compression
+  formatElements(elements, charBudget = Infinity, taskType = 'general') {
     if (!Array.isArray(elements)) {
       automationLogger.warn('formatElements received non-array', { sessionId: this.currentSessionId, type: typeof elements });
       return 'No elements available';
     }
-    
-    return elements.map(el => {
+
+    // DOM-04: Dynamic compression based on page complexity
+    const complexity = elements.length;
+    const compressionLevel = complexity <= 30 ? 'none' : complexity <= 60 ? 'moderate' : 'heavy';
+
+    // DIF-03: Task-adaptive priority ordering (only when budget is finite)
+    const ordered = charBudget < Infinity ? this.prioritizeForTask(elements, taskType) : elements;
+
+    const SEPARATOR = '\\n';
+    const lines = [];
+    let usedChars = 0;
+
+    for (const el of ordered) {
+      const textLimit = this.getTextLimit(el, compressionLevel);
       let desc = `[${el.elementId}] ${el.type}`;
       if (el.isNew) desc += ` [NEW]`;
 
-      // Add human-readable description if available
-      if (el.description) {
+      // Human-readable description (skip in heavy compression)
+      if (el.description && compressionLevel !== 'heavy') {
         desc += ` - ${this.sanitizePageContent(el.description)}`;
       }
 
-      // Add identifiers
+      // Identifiers
       if (el.id) desc += ` #${el.id}`;
-      if (el.class) desc += ` .${el.class.split(' ').slice(0, 2).join('.')}`;
-
-      // Add text content (sanitize untrusted page text)
-      if (el.text) {
-        const sanitizedText = this.sanitizePageContent(el.text);
-        desc += ` "${sanitizedText.substring(0, 150)}${sanitizedText.length > 150 ? '...' : ''}"`;
+      if (el.class && compressionLevel === 'none') {
+        desc += ` .${el.class.split(' ').slice(0, 2).join('.')}`;
       }
 
-      // Add element-specific details
+      // Text content with adaptive limit (DOM-03)
+      if (el.text) {
+        const sanitizedText = this.sanitizePageContent(el.text);
+        desc += ` "${sanitizedText.substring(0, textLimit)}${sanitizedText.length > textLimit ? '...' : ''}"`;
+      }
+
+      // Element-specific details (skip some in heavy compression)
       if (el.inputType) desc += ` type="${el.inputType}"`;
-      if (el.placeholder) desc += ` placeholder="${this.sanitizePageContent(el.placeholder)}"`;
-      if (el.href) desc += ` href="${this.sanitizePageContent(el.href)}"`;
+      if (el.placeholder && compressionLevel !== 'heavy') {
+        desc += ` placeholder="${this.sanitizePageContent(el.placeholder)}"`;
+      }
+      if (el.href && compressionLevel !== 'heavy') {
+        desc += ` href="${this.sanitizePageContent(el.href)}"`;
+      }
       if (el.labelText) desc += ` label="${this.sanitizePageContent(el.labelText)}"`;
-      
-      // Add state information
+
+      // State information
       const states = [];
       if (el.interactionState?.disabled) states.push('disabled');
       if (el.interactionState?.readonly) states.push('readonly');
@@ -2105,24 +2284,38 @@ What actions should I take to complete the task?`;
       if (el.interactionState?.focused) states.push('focused');
       if (!el.position?.inViewport) states.push('off-screen');
       if (states.length > 0) desc += ` [${states.join(',')}]`;
-      
-      // Add position
-      if (el.position) {
+
+      // Position (skip in heavy compression)
+      if (el.position && compressionLevel !== 'heavy') {
         desc += ` at (${el.position.x}, ${el.position.y})`;
       }
-      
-      // Add form association
+
+      // Form association
       if (el.formId) desc += ` in ${el.formId}`;
-      
-      // Add primary selector -- prefer CSS over XPath for querySelector compatibility
+
+      // Primary selector -- ALWAYS included (critical for AI action execution)
       if (el.selectors && el.selectors.length > 0) {
         const cssSelector = el.selectors.find(s => !s.startsWith('//'));
         const primarySelector = cssSelector || el.selectors[0];
         desc += ` selector: "${primarySelector}"`;
       }
-      
-      return desc;
-    }).join('\\n');
+
+      // DOM-02: Never cut mid-element -- include whole or exclude
+      if (usedChars + desc.length + SEPARATOR.length > charBudget) {
+        break;
+      }
+
+      lines.push(desc);
+      usedChars += desc.length + SEPARATOR.length;
+    }
+
+    // Report excluded elements
+    if (lines.length < ordered.length) {
+      const remaining = ordered.length - lines.length;
+      lines.push(`... ${remaining} more elements excluded by budget`);
+    }
+
+    return lines.join(SEPARATOR);
   }
   
   // Format delta elements (compressed format for changes)
@@ -2168,64 +2361,112 @@ What actions should I take to complete the task?`;
     }).join('\\n');
   }
   
-  // Format HTML context for AI understanding
-  formatHTMLContext(htmlContext) {
+  // Format HTML context for AI understanding (budget-aware)
+  formatHTMLContext(htmlContext, charBudget = Infinity) {
     if (!htmlContext || typeof htmlContext !== 'object') {
       return 'No HTML context available';
     }
-    
+
     let formatted = '[PAGE_CONTENT]\n';
+    let usedChars = formatted.length;
 
     // Add comprehensive page structure context
     if (htmlContext.pageStructure) {
       const struct = htmlContext.pageStructure;
+
+      // PAGE INFORMATION -- always included (small and essential)
       formatted += `PAGE INFORMATION:\n`;
       formatted += `- Title: ${this.sanitizePageContent(struct.title)}\n`;
       formatted += `- URL: ${struct.url}\n`;
       formatted += `- Domain: ${struct.domain}\n`;
       formatted += `- Path: ${struct.pathname}\n`;
+      usedChars = formatted.length;
 
-      // Meta information
+      // Meta information -- budget gated
       if (struct.meta) {
-        formatted += `\nMETA DATA:\n`;
-        if (struct.meta.description) formatted += `- Description: ${this.sanitizePageContent(struct.meta.description)}\n`;
-        if (struct.meta.ogTitle) formatted += `- OG Title: ${this.sanitizePageContent(struct.meta.ogTitle)}\n`;
+        const metaSection = this._buildHTMLSection(() => {
+          let s = `\nMETA DATA:\n`;
+          if (struct.meta.description) s += `- Description: ${this.sanitizePageContent(struct.meta.description)}\n`;
+          if (struct.meta.ogTitle) s += `- OG Title: ${this.sanitizePageContent(struct.meta.ogTitle)}\n`;
+          return s;
+        });
+        if (usedChars + metaSection.length <= charBudget) {
+          formatted += metaSection;
+          usedChars = formatted.length;
+        } else {
+          formatted += '\n... (HTML context truncated by budget)\n';
+          formatted += '[/PAGE_CONTENT]';
+          return formatted;
+        }
       }
 
-      // Forms with detailed structure
+      // Forms with detailed structure -- budget gated
       if (struct.forms && struct.forms.length > 0) {
-        formatted += `\nFORMS (${struct.forms.length} found):\n`;
-        struct.forms.forEach((form, i) => {
-          formatted += `  Form "${form.id}": ${form.method} -> ${this.sanitizePageContent(form.action)}\n`;
-          if (form.fields && form.fields.length > 0) {
-            formatted += `  Fields:\n`;
-            form.fields.forEach(field => {
-              formatted += `    - ${field.type} "${this.sanitizePageContent(field.name || field.id)}" ${field.placeholder ? `placeholder="${this.sanitizePageContent(field.placeholder)}"` : ''} ${field.required ? '[required]' : ''}\n`;
-            });
-          }
-          formatted += `  HTML: ${this.sanitizePageContent(form.html)}\n\n`;
+        const formsSection = this._buildHTMLSection(() => {
+          let s = `\nFORMS (${struct.forms.length} found):\n`;
+          struct.forms.forEach((form, i) => {
+            s += `  Form "${form.id}": ${form.method} -> ${this.sanitizePageContent(form.action)}\n`;
+            if (form.fields && form.fields.length > 0) {
+              s += `  Fields:\n`;
+              form.fields.forEach(field => {
+                s += `    - ${field.type} "${this.sanitizePageContent(field.name || field.id)}" ${field.placeholder ? `placeholder="${this.sanitizePageContent(field.placeholder)}"` : ''} ${field.required ? '[required]' : ''}\n`;
+              });
+            }
+            s += `  HTML: ${this.sanitizePageContent(form.html)}\n\n`;
+          });
+          return s;
         });
+        if (usedChars + formsSection.length <= charBudget) {
+          formatted += formsSection;
+          usedChars = formatted.length;
+        } else {
+          formatted += '\n... (HTML context truncated by budget)\n';
+          formatted += '[/PAGE_CONTENT]';
+          return formatted;
+        }
       }
 
-      // Navigation structure
+      // Navigation structure -- budget gated
       if (struct.navigation && struct.navigation.length > 0) {
-        formatted += `\nNAVIGATION AREAS:\n`;
-        struct.navigation.forEach(nav => {
-          formatted += `  - ${nav.ariaLabel || 'Navigation'} (${nav.linksCount} links)\n`;
-          if (nav.links && nav.links.length > 0) {
-            nav.links.forEach(link => {
-              formatted += `    - "${this.sanitizePageContent(link.text)}" -> ${this.sanitizePageContent(link.href)}\n`;
-            });
-          }
+        const navSection = this._buildHTMLSection(() => {
+          let s = `\nNAVIGATION AREAS:\n`;
+          struct.navigation.forEach(nav => {
+            s += `  - ${nav.ariaLabel || 'Navigation'} (${nav.linksCount} links)\n`;
+            if (nav.links && nav.links.length > 0) {
+              nav.links.forEach(link => {
+                s += `    - "${this.sanitizePageContent(link.text)}" -> ${this.sanitizePageContent(link.href)}\n`;
+              });
+            }
+          });
+          return s;
         });
+        if (usedChars + navSection.length <= charBudget) {
+          formatted += navSection;
+          usedChars = formatted.length;
+        } else {
+          formatted += '\n... (HTML context truncated by budget)\n';
+          formatted += '[/PAGE_CONTENT]';
+          return formatted;
+        }
       }
 
-      // Page headings for structure
+      // Page headings for structure -- budget gated
       if (struct.headings && struct.headings.length > 0) {
-        formatted += `\nPAGE STRUCTURE (Headings):\n`;
-        struct.headings.forEach(h => {
-          formatted += `  ${h.level}: ${this.sanitizePageContent(h.text)}${h.id ? ` #${h.id}` : ''}\n`;
+        const headingsSection = this._buildHTMLSection(() => {
+          let s = `\nPAGE STRUCTURE (Headings):\n`;
+          struct.headings.forEach(h => {
+            s += `  ${h.level}: ${this.sanitizePageContent(h.text)}${h.id ? ` #${h.id}` : ''}\n`;
+          });
+          return s;
         });
+        if (usedChars + headingsSection.length <= charBudget) {
+          formatted += headingsSection;
+          usedChars = formatted.length;
+        } else {
+          formatted += '\n... (HTML context truncated by budget)\n';
+          formatted += '[/PAGE_CONTENT]';
+          return formatted;
+        }
       }
 
       // Active element
@@ -2234,29 +2475,51 @@ What actions should I take to complete the task?`;
       }
 
       formatted += '\n';
+      usedChars = formatted.length;
     }
 
-    // Add relevant interactive elements with their HTML
+    // Add relevant interactive elements with their HTML -- budget gated
     if (htmlContext.relevantElements && htmlContext.relevantElements.length > 0) {
-      formatted += `INTERACTIVE ELEMENTS WITH HTML MARKUP:\n`;
-      formatted += `(Found ${htmlContext.totalElementsFound} total, showing ${htmlContext.relevantElements.length})\n\n`;
+      const elemHeader = `INTERACTIVE ELEMENTS WITH HTML MARKUP:\n` +
+        `(Found ${htmlContext.totalElementsFound} total, showing ${htmlContext.relevantElements.length})\n\n`;
 
-      htmlContext.relevantElements.forEach((element, i) => {
-        formatted += `${i + 1}. ${element.tag.toUpperCase()}`;
-        if (element.position) {
-          formatted += ` at (${element.position.x}, ${element.position.y})`;
+      if (usedChars + elemHeader.length <= charBudget) {
+        formatted += elemHeader;
+        usedChars = formatted.length;
+
+        for (const element of htmlContext.relevantElements) {
+          let entry = `${htmlContext.relevantElements.indexOf(element) + 1}. ${element.tag.toUpperCase()}`;
+          if (element.position) {
+            entry += ` at (${element.position.x}, ${element.position.y})`;
+          }
+          entry += '\n';
+          entry += `   Selector: ${element.selector}\n`;
+          if (element.text) {
+            entry += `   Text: "${this.sanitizePageContent(element.text)}"\n`;
+          }
+          entry += `   HTML: ${this.sanitizePageContent(element.html)}\n\n`;
+
+          if (usedChars + entry.length > charBudget) {
+            formatted += '... (remaining elements truncated by budget)\n';
+            break;
+          }
+          formatted += entry;
+          usedChars = formatted.length;
         }
-        formatted += '\n';
-        formatted += `   Selector: ${element.selector}\n`;
-        if (element.text) {
-          formatted += `   Text: "${this.sanitizePageContent(element.text)}"\n`;
-        }
-        formatted += `   HTML: ${this.sanitizePageContent(element.html)}\n\n`;
-      });
+      }
     }
 
     formatted += '[/PAGE_CONTENT]';
     return formatted;
+  }
+
+  // Helper: build an HTML context section string via callback
+  _buildHTMLSection(builderFn) {
+    try {
+      return builderFn();
+    } catch (e) {
+      return '';
+    }
   }
 
   /**

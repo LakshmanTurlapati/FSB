@@ -3317,7 +3317,8 @@ async function handleStartAutomation(request, sender, sendResponse) {
       stateHistory: [],         // Track DOM state changes
       failedAttempts: {},       // Track failed actions by type
       failedActionDetails: {},  // Track detailed failures by action signature
-      lastDOMHash: null,        // Hash of last DOM state to detect changes
+      lastDOMHash: null,        // Hash of last DOM state to detect changes (backward compat)
+      lastDOMSignals: null,     // Multi-channel DOM signals for fine-grained change detection
       stuckCounter: 0,          // Counter for detecting stuck state
       consecutiveNoProgressCount: 0, // Counter for iterations with no meaningful progress (doesn't reset on URL change)
       iterationCount: 0,        // Total iterations
@@ -4488,41 +4489,145 @@ async function fillCredentialsOnPageDirect(tabId, { usernameSelector, passwordSe
   }
 }
 
-// PERF: Simplified DOM hash for stuck detection
-// Uses lightweight signature: element count + top 5 element types + title + URL path
-// Skips position data (scroll-dependent) to avoid false "changed" detection
-function createDOMHash(domState) {
+// Fast DJB2-style string hash for signal channel generation
+function quickHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return hash;
+}
+
+// Multi-signal DOM change detection
+// Returns 4 independent signal channels + raw data for downstream descriptor generation
+// Each channel detects a different class of change the old single-hash missed
+function createDOMSignals(domState) {
   const elements = domState.elements || [];
 
-  // Count elements by type (only interactive/structural types matter for stuck detection)
+  // --- Structural signal: element type distribution ---
   const typeCounts = {};
   for (const el of elements) {
     const t = el.type;
     if (t) typeCounts[t] = (typeCounts[t] || 0) + 1;
   }
-
-  // Top 5 element types by count
   const topTypes = Object.entries(typeCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([type, count]) => `${type}:${count}`)
     .join(',');
+  const structural = quickHash(topTypes);
 
-  // Extract URL path without query params (query changes shouldn't affect stuck detection)
+  // --- Content signal: text/value from interactive elements ---
+  const interactiveRoles = new Set(['alert', 'status', 'dialog', 'alertdialog']);
+  const contentElements = elements
+    .filter(el => el.isInput || el.isButton || (el.attributes?.role && interactiveRoles.has(el.attributes.role)))
+    .sort((a, b) => (a.elementId || '').localeCompare(b.elementId || ''))
+    .slice(0, 15);
+  const contentParts = [];
+  for (const el of contentElements) {
+    if (el.isInput) {
+      const label = el.attributes?.name || el.id || '';
+      const val = (el.value || el.text || '').substring(0, 20);
+      // Skip purely numeric values (timestamps, counters)
+      if (val && !/^\d+$/.test(val)) {
+        contentParts.push(`${label}:${val}`);
+      }
+    } else {
+      const txt = (el.text || '').substring(0, 30);
+      if (txt && !/^\d+$/.test(txt)) {
+        contentParts.push(txt);
+      }
+    }
+  }
+  const content = quickHash(contentParts.join('|'));
+
+  // --- Interaction signal: disabled/checked/readonly state ---
+  // Explicitly EXCLUDES focused state (focus changes every iteration from AI actions)
+  const interactionElements = elements
+    .filter(el => el.isInput || el.isButton)
+    .slice(0, 20);
+  const interactionParts = [];
+  for (const el of interactionElements) {
+    const label = el.id || el.type || '';
+    const flags = [];
+    if (el.interactionState?.disabled) flags.push('D');
+    if (el.interactionState?.checked) flags.push('C');
+    if (el.interactionState?.readonly) flags.push('R');
+    if (flags.length > 0) {
+      interactionParts.push(`${label}:${flags.join('')}`);
+    }
+  }
+  const interaction = quickHash(interactionParts.join('|'));
+
+  // --- Page state signal: URL, title, element count, modals, alerts ---
   let urlPath = '';
   try {
     urlPath = new URL(domState.url || '').pathname;
   } catch { urlPath = domState.url || ''; }
+  const hasModal = elements.some(el => {
+    const r = el.attributes?.role;
+    return r === 'dialog' || r === 'alertdialog';
+  });
+  const hasAlert = elements.some(el => {
+    const r = el.attributes?.role;
+    return r === 'alert' || r === 'status';
+  });
+  const pageStateFlags = {
+    urlPath,
+    title: domState.title || '',
+    elementCount: elements.length,
+    hasModal,
+    hasAlert,
+    captchaPresent: domState.captchaPresent || false
+  };
+  const pageState = quickHash(JSON.stringify(pageStateFlags));
 
-  const key = `${urlPath}|${domState.title || ''}|${elements.length}|${topTypes}`;
+  return {
+    structural,
+    content,
+    interaction,
+    pageState,
+    _raw: { topTypes, elementCount: elements.length, pageStateFlags }
+  };
+}
 
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    const char = key.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
+// Compare two signal objects channel by channel
+// Returns { changed: boolean, channels: string[], summary: string }
+function compareSignals(current, previous) {
+  if (!previous) {
+    return { changed: true, channels: ['initial'], summary: 'First DOM snapshot' };
   }
-  return hash.toString();
+  const changedChannels = [];
+  if (current.structural !== previous.structural) changedChannels.push('structural');
+  if (current.content !== previous.content) changedChannels.push('content');
+  if (current.interaction !== previous.interaction) changedChannels.push('interaction');
+  if (current.pageState !== previous.pageState) changedChannels.push('pageState');
+  return {
+    changed: changedChannels.length > 0,
+    channels: changedChannels,
+    summary: changedChannels.length > 0
+      ? `Changed: ${changedChannels.join(', ')}`
+      : 'No changes detected'
+  };
+}
+
+// Parse topTypes string into a Map for diffing (e.g., "button:12,input:8" -> Map{button=>12, input=>8})
+function parseTopTypes(topTypesStr) {
+  const map = new Map();
+  if (!topTypesStr) return map;
+  for (const entry of topTypesStr.split(',')) {
+    const [type, count] = entry.split(':');
+    if (type && count) map.set(type.trim(), parseInt(count, 10));
+  }
+  return map;
+}
+
+// COMPAT: Backward-compatible wrapper -- returns a single hash string
+// Used by automationLogger.logIteration() and stateHistory.domHash
+function createDOMHash(domState) {
+  const signals = createDOMSignals(domState);
+  return '' + signals.structural + signals.content + signals.interaction + signals.pageState;
 }
 
 /**
@@ -5053,6 +5158,7 @@ async function startAutomationLoop(sessionId) {
 
     // Create hash of current DOM state
     const currentDOMHash = createDOMHash(domResponse.structuredDOM);
+    const currentDOMSignals = createDOMSignals(domResponse.structuredDOM);
     const currentUrl = domResponse.structuredDOM.url;
     
     // Track URL changes
@@ -5070,61 +5176,151 @@ async function startAutomationLoop(sessionId) {
     }
     session.lastUrl = currentUrl;
     
-    // Check if DOM has changed since last iteration
-    let domChanged = true;
-    if (session.lastDOMHash) {
-      domChanged = currentDOMHash !== session.lastDOMHash;
-      if (!domChanged && !urlChanged) {
-        // Smart stuck detection - consider recent action types
-        const recentActions = session.actionHistory.slice(-3);
-        const isTypingSequence = recentActions.length > 0 && 
-          recentActions.every(action => ['type', 'clearInput', 'selectText', 'focus', 'blur', 'pressEnter', 'keyPress'].includes(action.tool));
-        
-        // Don't increment stuck counter for typing sequences unless they're problematic
-        if (isTypingSequence) {
-          // Check if it's the same typing action repeated
-          const lastAction = recentActions[recentActions.length - 1];
-          const sameTypeRepeats = recentActions.filter(action =>
-            action.tool === lastAction?.tool &&
-            JSON.stringify(action.params) === JSON.stringify(lastAction?.params)
-          ).length;
+    // Multi-signal change detection: compare current signals against previous
+    const changeResult = compareSignals(currentDOMSignals, session.lastDOMSignals);
 
-          // ENHANCED: Also check if ALL recent type actions are failing
-          // This catches the case where form filling types to different fields but all fail
-          const recentTypeActions = session.actionHistory.slice(-5).filter(a => a.tool === 'type');
-          const allTypingFailed = recentTypeActions.length >= 3 &&
-                                  recentTypeActions.every(a => !a.result?.success);
+    // Build structured change descriptor with human-readable summary
+    const changeSignals = {
+      changed: changeResult.changed,
+      channels: changeResult.channels,
+      summary: []
+    };
 
-          // ENHANCED: Check if clicking same area repeatedly (might be trying to activate inputs)
-          const recentClicks = session.actionHistory.slice(-5).filter(a => a.tool === 'click');
-          const clicksNearSameArea = recentClicks.length >= 3 && areClicksNearby(recentClicks);
+    if (changeResult.channels.length === 1 && changeResult.channels[0] === 'initial') {
+      changeSignals.summary = ['First DOM snapshot -- no comparison available'];
+    } else {
+      // Structural channel: diff topTypes to report WHICH element types appeared/disappeared
+      if (changeResult.channels.includes('structural')) {
+        const prevTopTypes = parseTopTypes(session.lastDOMSignals?._raw?.topTypes);
+        const currTopTypes = parseTopTypes(currentDOMSignals._raw.topTypes);
+        let structuralItems = [];
 
-          if (sameTypeRepeats >= 2) {
-            session.stuckCounter++;
-            automationLogger.debug('Stuck: Repetitive typing detected', { sessionId, stuckCounter: session.stuckCounter });
-          } else if (allTypingFailed) {
-            session.stuckCounter++;
-            automationLogger.debug('Stuck: All recent type actions failed', { sessionId, stuckCounter: session.stuckCounter });
-          } else if (clicksNearSameArea) {
-            session.stuckCounter++;
-            automationLogger.debug('Stuck: Clicking same area repeatedly', { sessionId, stuckCounter: session.stuckCounter });
-          } else {
-            automationLogger.debug('Typing sequence in progress - not counting as stuck', { sessionId });
+        // Types in current but not previous
+        for (const [type, count] of currTopTypes) {
+          if (!prevTopTypes.has(type)) {
+            structuralItems.push(`${type} elements appeared`);
           }
-        } else {
-          session.stuckCounter++;
-          automationLogger.debug('Stuck: DOM and URL unchanged', { sessionId, stuckCounter: session.stuckCounter });
         }
-        
-        if (session.stuckCounter > 0) {
-          automationLogger.logStuckDetection(sessionId, session.stuckCounter, session.actionHistory);
+        // Types in previous but not current
+        for (const [type, count] of prevTopTypes) {
+          if (!currTopTypes.has(type)) {
+            structuralItems.push(`${type} elements removed`);
+          }
         }
-      } else {
-        session.stuckCounter = 0; // Reset counter on change
+        // Types with count changes
+        for (const [type, count] of currTopTypes) {
+          if (prevTopTypes.has(type) && prevTopTypes.get(type) !== count) {
+            const countDelta = count - prevTopTypes.get(type);
+            structuralItems.push(`${Math.abs(countDelta)} ${type} elements ${countDelta > 0 ? 'added' : 'removed'}`);
+          }
+        }
+        // Edge case: hashes differ but topTypes maps are identical
+        if (structuralItems.length === 0) {
+          structuralItems.push('element structure changed');
+        }
+
+        // Append overall element count delta to last structural item
+        const prevCount = session.lastDOMSignals?._raw?.elementCount || 0;
+        const currCount = currentDOMSignals._raw.elementCount;
+        if (prevCount !== currCount) {
+          const countDelta = currCount - prevCount;
+          structuralItems[structuralItems.length - 1] += ` (${Math.abs(countDelta)} elements net ${countDelta > 0 ? 'added' : 'removed'})`;
+        }
+
+        changeSignals.summary.push(...structuralItems);
+      }
+
+      // Content channel
+      if (changeResult.channels.includes('content')) {
+        changeSignals.summary.push('page content changed (text or input values)');
+      }
+
+      // Interaction channel
+      if (changeResult.channels.includes('interaction')) {
+        changeSignals.summary.push('element states changed (disabled, checked, or readonly)');
+      }
+
+      // Page state channel: report specific changes
+      if (changeResult.channels.includes('pageState')) {
+        const prevFlags = session.lastDOMSignals?._raw?.pageStateFlags;
+        const currFlags = currentDOMSignals._raw.pageStateFlags;
+        if (prevFlags) {
+          if (!prevFlags.hasModal && currFlags.hasModal) changeSignals.summary.push('modal/dialog opened');
+          if (prevFlags.hasModal && !currFlags.hasModal) changeSignals.summary.push('modal/dialog closed');
+          if (!prevFlags.hasAlert && currFlags.hasAlert) changeSignals.summary.push('alert/status message appeared');
+          if (prevFlags.hasAlert && !currFlags.hasAlert) changeSignals.summary.push('alert/status message removed');
+          if (prevFlags.title !== currFlags.title) changeSignals.summary.push(`title changed to "${currFlags.title.substring(0, 60)}"`);
+        }
       }
     }
+
+    // Derive domChanged from changeResult for backward compatibility and reuse
+    let domChanged = changeResult.changed;
+
+    // Multi-signal stuck detection
+    if (!changeResult.changed && !urlChanged) {
+      // No signal changes detected -- apply stuck detection logic
+
+      // Safety net: typing-sequence special-case (catches edge cases where content
+      // sampling misses the change, e.g., typing into fields not in the sampled set)
+      const recentActions = session.actionHistory.slice(-3);
+      const isTypingSequence = recentActions.length > 0 &&
+        recentActions.every(action => ['type', 'clearInput', 'selectText', 'focus', 'blur', 'pressEnter', 'keyPress'].includes(action.tool));
+
+      if (isTypingSequence) {
+        const lastAction = recentActions[recentActions.length - 1];
+        const sameTypeRepeats = recentActions.filter(action =>
+          action.tool === lastAction?.tool &&
+          JSON.stringify(action.params) === JSON.stringify(lastAction?.params)
+        ).length;
+
+        const recentTypeActions = session.actionHistory.slice(-5).filter(a => a.tool === 'type');
+        const allTypingFailed = recentTypeActions.length >= 3 &&
+                                recentTypeActions.every(a => !a.result?.success);
+
+        const recentClicks = session.actionHistory.slice(-5).filter(a => a.tool === 'click');
+        const clicksNearSameArea = recentClicks.length >= 3 && areClicksNearby(recentClicks);
+
+        if (sameTypeRepeats >= 2) {
+          session.stuckCounter++;
+          automationLogger.debug('Stuck: Repetitive typing detected', { sessionId, stuckCounter: session.stuckCounter });
+        } else if (allTypingFailed) {
+          session.stuckCounter++;
+          automationLogger.debug('Stuck: All recent type actions failed', { sessionId, stuckCounter: session.stuckCounter });
+        } else if (clicksNearSameArea) {
+          session.stuckCounter++;
+          automationLogger.debug('Stuck: Clicking same area repeatedly', { sessionId, stuckCounter: session.stuckCounter });
+        } else {
+          automationLogger.debug('Typing sequence in progress - not counting as stuck', { sessionId });
+        }
+      } else {
+        session.stuckCounter++;
+        automationLogger.debug('Stuck: DOM and URL unchanged', { sessionId, stuckCounter: session.stuckCounter });
+      }
+
+      if (session.stuckCounter > 0) {
+        automationLogger.logStuckDetection(sessionId, session.stuckCounter, session.actionHistory);
+      }
+    } else if (changeResult.changed) {
+      // Channel-aware stuck counter management
+      const substantiveChannels = changeResult.channels.filter(ch => ch !== 'interaction');
+      if (substantiveChannels.length > 0) {
+        // Structural, content, or pageState changed -- definite progress
+        session.stuckCounter = 0;
+        automationLogger.debug('Stuck counter reset: substantive DOM change', { sessionId, channels: changeResult.channels });
+      } else {
+        // Only interaction changed (focus moved, element state toggled) -- reduce penalty
+        session.stuckCounter = Math.max(0, session.stuckCounter - 1);
+        automationLogger.debug('Stuck counter reduced: interaction-only change', { sessionId, stuckCounter: session.stuckCounter });
+      }
+    } else {
+      // URL changed -- reset stuck counter
+      session.stuckCounter = 0;
+    }
+
     session.lastDOMHash = currentDOMHash;
-    
+    session.lastDOMSignals = currentDOMSignals;
+
     // Log iteration details
     automationLogger.logIteration(sessionId, session.iterationCount, currentDOMHash, session.stuckCounter);
     
@@ -5379,7 +5575,8 @@ async function startAutomationLoop(sessionId) {
       actionHistory: session.actionHistory.slice(-10), // Last 10 actions
       isStuck,
       stuckCounter: session.stuckCounter,
-      domChanged,
+      domChanged,             // Boolean backward compat (derived from changeResult.changed)
+      changeSignals,          // Structured: { changed, channels, summary }
       urlChanged,
       failedAttempts: session.failedAttempts,
       failedActionDetails: repeatedFailures, // Specific actions that keep failing
@@ -5439,6 +5636,7 @@ async function startAutomationLoop(sessionId) {
         // Reset state for the new page
         session.lastUrl = newTabInfo.url;
         session.lastDOMHash = null;
+        session.lastDOMSignals = null;
         session.stuckCounter = 0;
 
         // Continue to next iteration with the new page
@@ -6013,7 +6211,7 @@ async function startAutomationLoop(sessionId) {
     const iterationStats = {
       actionsSucceeded: iterationActions.filter(a => a.result?.success).length,
       actionsFailed: iterationActions.filter(a => !a.result?.success).length,
-      domChanged: session.lastDOMHash !== null && createDOMHash(domResponse.structuredDOM) !== session.lastDOMHash,
+      domChanged: domChanged,
       urlChanged: currentUrl !== session.lastUrl,
       // getText/getAttribute are read-only operations - tracked for logging but NOT counted as progress
       newDataExtracted: iterationActions.some(a =>

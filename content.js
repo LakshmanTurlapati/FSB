@@ -220,9 +220,18 @@ class DOMStateManager {
    * Generate a unique hash for element identification
    */
   hashElement(element) {
-    // Create hash from stable element properties
-    const text = element.text ? element.text.substring(0, 20) : '';
-    const hashStr = `${element.type}|${element.id || ''}|${element.class || ''}|${text}|${element.position?.x || 0},${element.position?.y || 0}`;
+    // Structural-path fingerprint: uses DOM identity fields, NOT position or class
+    // Position is scroll-dependent; class is framework-toggled (e.g. React, Tailwind)
+    const type = element.type || '';
+    const stableId = element.id || '';
+    const testId = element.attributes?.['data-testid'] || '';
+    const role = element.attributes?.role || '';
+    const name = element.attributes?.name || '';
+    const parentTag = element.context?.parentContext?.tag || '';
+    const parentRole = element.context?.parentContext?.role || '';
+    const formId = element.formId || '';
+    const text = element.text ? element.text.substring(0, 30) : '';
+    const hashStr = `${type}|${stableId}|${testId}|${role}|${name}|${parentTag}:${parentRole}|${formId}|${text}`;
     
     // Simple string hash that handles Unicode
     let hash = 0;
@@ -261,12 +270,10 @@ class DOMStateManager {
   hasElementChanged(current, previous) {
     // Check text changes
     if (current.text !== previous.text) return true;
-    
-    // Check position changes (significant moves only)
-    const posChange = Math.abs((current.position?.x || 0) - (previous.position?.x || 0)) > 10 ||
-                     Math.abs((current.position?.y || 0) - (previous.position?.y || 0)) > 10;
-    if (posChange) return true;
-    
+
+    // Position check removed: scroll causes viewport-relative position changes
+    // that are not meaningful DOM mutations. Structural identity is handled by hashElement.
+
     // Check visibility changes
     if (current.visibility?.display !== previous.visibility?.display) return true;
     
@@ -6717,7 +6724,7 @@ const tools = {
     
     return new Promise((resolve) => {
       const checkInterval = setInterval(() => {
-        const element = document.querySelector(selector);
+        const element = querySelectorWithShadow(selector);
         if (element || Date.now() - startTime > timeout) {
           clearInterval(checkInterval);
           resolve({
@@ -8443,9 +8450,19 @@ const tools = {
   }
 };
 
-// Create a hash for an element to detect changes
+// Create a structural-path fingerprint for an element to detect changes
+// Uses DOM identity fields, NOT position (scroll-dependent) or class (framework-toggled)
 function hashElement(element) {
-  return `${element.type}-${element.id}-${element.class}-${element.text}-${element.position.x}-${element.position.y}`;
+  const type = element.type || '';
+  const stableId = element.id || '';
+  const testId = element.attributes?.['data-testid'] || '';
+  const role = element.attributes?.role || '';
+  const name = element.attributes?.name || '';
+  const parentTag = element.context?.parentContext?.tag || '';
+  const parentRole = element.context?.parentContext?.role || '';
+  const formId = element.formId || '';
+  const text = element.text ? element.text.substring(0, 30) : '';
+  return `${type}|${stableId}|${testId}|${role}|${name}|${parentTag}:${parentRole}|${formId}|${text}`;
 }
 
 // Check if element is in viewport
@@ -8465,12 +8482,18 @@ function isInViewport(element) {
 
 // Check if element rect is in viewport
 function isElementInViewport(rect) {
-  return (
-    rect.top >= 0 &&
-    rect.left >= 0 &&
-    rect.bottom <= window.innerHeight &&
-    rect.right <= window.innerWidth
-  );
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const overlapLeft = Math.max(rect.left, 0);
+  const overlapTop = Math.max(rect.top, 0);
+  const overlapRight = Math.min(rect.right, vw);
+  const overlapBottom = Math.min(rect.bottom, vh);
+  const overlapWidth = Math.max(0, overlapRight - overlapLeft);
+  const overlapHeight = Math.max(0, overlapBottom - overlapTop);
+  const overlapArea = overlapWidth * overlapHeight;
+  const elementArea = rect.width * rect.height;
+  if (elementArea <= 0) return false;
+  return (overlapArea / elementArea) >= 0.25;
 }
 
 // Slugify text for element ID generation
@@ -10095,9 +10118,19 @@ function detectPageContext() {
       return false;
     })(),
 
-    hasCaptcha: document.querySelector(
-      '.g-recaptcha, .h-captcha, .cf-turnstile, .captcha-container, .captcha-challenge, iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="challenges.cloudflare.com"]'
-    ) !== null,
+    hasCaptcha: (() => {
+      const captchaContainers = document.querySelectorAll(
+        '[data-sitekey], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="challenges.cloudflare.com"]'
+      );
+      for (const el of captchaContainers) {
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 30 || rect.height < 30) continue;
+        return true;
+      }
+      return false;
+    })(),
 
     errorMessages: extractErrorMessages(),
 
@@ -10737,12 +10770,14 @@ function getStructuredDOM(options = {}) {
         elementData.isImage = true;
       }
 
-      // Check for CAPTCHA - safely handle className
-      const classNames = node.className ? String(node.className) : '';
-      if (classNames.includes('g-recaptcha') || classNames.includes('recaptcha') ||
-          classNames.includes('h-captcha') || classNames.includes('hcaptcha') ||
-          classNames.includes('cf-turnstile') || classNames.includes('turnstile')) {
-        elementData.isCaptcha = true;
+      // Check for CAPTCHA - require data-sitekey attribute with visibility/size verification
+      if (node.hasAttribute('data-sitekey')) {
+        const style = window.getComputedStyle(node);
+        const captchaRect = node.getBoundingClientRect();
+        if (style.display !== 'none' && style.visibility !== 'hidden' &&
+            style.opacity !== '0' && captchaRect.width >= 30 && captchaRect.height >= 30) {
+          elementData.isCaptcha = true;
+        }
       }
 
       // Add ALL attributes
