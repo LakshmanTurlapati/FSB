@@ -102,6 +102,15 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
       });
     }
 
+    logFollowUpCommand(sessionId, task, commandCount) {
+      this.info('Follow-up command in conversation', {
+        sessionId,
+        task,
+        commandCount,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     logPrompt(sessionId, systemPrompt, userPrompt, iteration) {
       this.debug('AI Prompt', {
         sessionId, iteration, logType: 'prompt',
@@ -407,24 +416,51 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
       try {
         const sessionLogs = this.getSessionLogs(sessionId);
         if (sessionLogs.length === 0) return false;
-        const session = {
-          id: sessionId,
-          task: sessionData.task || 'Unknown task',
-          startTime: sessionData.startTime || Date.now(),
-          endTime: Date.now(),
-          status: sessionData.status || 'completed',
-          tabId: sessionData.tabId || null,
-          actionCount: sessionData.actionHistory?.length || 0,
-          iterationCount: sessionData.iterationCount || 0,
-          logs: sessionLogs
-        };
+
         const stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex']);
         const sessionStorage = stored.fsbSessionLogs || {};
         const sessionIndex = stored.fsbSessionIndex || [];
-        sessionStorage[sessionId] = session;
+
+        if (sessionStorage[sessionId]) {
+          // APPEND MODE: Update existing session entry
+          const existing = sessionStorage[sessionId];
+          // Merge logs: add only new logs (those with timestamps after existing endTime)
+          const newLogs = sessionLogs.filter(log => log.timestamp > existing.endTime);
+          if (newLogs.length > 0) {
+            existing.logs = (existing.logs || []).concat(newLogs);
+          }
+          existing.endTime = Date.now();
+          existing.status = sessionData.status || existing.status;
+          existing.actionCount = sessionData.actionHistory?.length || existing.actionCount;
+          existing.iterationCount = sessionData.iterationCount || existing.iterationCount;
+          existing.commandCount = sessionData.commandCount || existing.commandCount || 1;
+          // Update task to show the latest command
+          if (sessionData.commands && sessionData.commands.length > 1) {
+            existing.task = sessionData.commands.map((cmd, i) => `[${i + 1}] ${cmd}`).join(' | ');
+          }
+          sessionStorage[sessionId] = existing;
+        } else {
+          // NEW MODE: Create session entry
+          const session = {
+            id: sessionId,
+            task: sessionData.task || 'Unknown task',
+            startTime: sessionData.startTime || Date.now(),
+            endTime: Date.now(),
+            status: sessionData.status || 'completed',
+            tabId: sessionData.tabId || null,
+            actionCount: sessionData.actionHistory?.length || 0,
+            iterationCount: sessionData.iterationCount || 0,
+            commandCount: sessionData.commandCount || 1,
+            logs: sessionLogs
+          };
+          sessionStorage[sessionId] = session;
+        }
+
+        // Update index
+        const savedSession = sessionStorage[sessionId];
         const indexEntry = {
-          id: sessionId, task: session.task, startTime: session.startTime,
-          endTime: session.endTime, status: session.status, actionCount: session.actionCount
+          id: sessionId, task: savedSession.task, startTime: savedSession.startTime,
+          endTime: savedSession.endTime, status: savedSession.status, actionCount: savedSession.actionCount
         };
         const existingIndex = sessionIndex.findIndex(s => s.id === sessionId);
         if (existingIndex !== -1) sessionIndex[existingIndex] = indexEntry;
@@ -435,7 +471,7 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
           sessionIndex.length = 50;
         }
         await chrome.storage.local.set({ fsbSessionLogs: sessionStorage, fsbSessionIndex: sessionIndex });
-        console.log(`[FSB Logger] Session ${sessionId} saved with ${sessionLogs.length} logs`);
+        console.log(`[FSB Logger] Session ${sessionId} saved with ${savedSession.logs?.length || 0} total logs`);
         return true;
       } catch (error) {
         console.error('[FSB Logger] Failed to save session:', error);

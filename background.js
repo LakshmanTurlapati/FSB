@@ -115,26 +115,65 @@ function simplifyStatus(msg, maxLen = 60) {
  * @returns {string} Short status string for UI display
  */
 function getActionStatus(tool, params) {
+  const label = (p) => shorten(p?.text || p?.ariaLabel || p?.placeholder || p?.selector, 25);
   switch (tool) {
-    case 'click':          return 'Clicking button';
-    case 'type':           return 'Entering text';
+    case 'click': {
+      const t = label(params);
+      return t ? `Clicking "${t}"` : 'Clicking element';
+    }
+    case 'type': {
+      const val = shorten(params?.text, 25);
+      const field = params?.placeholder ? ` into ${shorten(params.placeholder, 20)}` : '';
+      return val ? `Typing "${val}"${field}` : 'Entering text';
+    }
     case 'pressEnter':     return 'Submitting';
-    case 'navigate':       return 'Opening page';
+    case 'navigate': {
+      const url = params?.url;
+      if (url) {
+        try { return `Opening ${shorten(new URL(url).hostname + new URL(url).pathname, 25)}`; }
+        catch { return `Opening ${shorten(url, 25)}`; }
+      }
+      return 'Opening page';
+    }
     case 'searchGoogle':   return `Looking up "${shorten(params?.query)}"`;
     case 'scroll':         return 'Scrolling';
     case 'getText':        return 'Reading content';
     case 'getAttribute':   return 'Inspecting page';
-    case 'selectOption':   return 'Selecting option';
-    case 'toggleCheckbox': return 'Toggling checkbox';
-    case 'hover':          return 'Hovering';
-    case 'focus':          return 'Focusing field';
-    case 'clearInput':     return 'Clearing field';
-    case 'waitForElement': return 'Waiting for page';
+    case 'selectOption': {
+      const opt = shorten(params?.optionText || params?.value, 25);
+      return opt ? `Selecting "${opt}"` : 'Selecting option';
+    }
+    case 'toggleCheckbox': {
+      const cb = shorten(params?.label || params?.ariaLabel || params?.text, 25);
+      return cb ? `Toggling "${cb}"` : 'Toggling checkbox';
+    }
+    case 'hover': {
+      const h = label(params);
+      return h ? `Hovering over "${h}"` : 'Hovering';
+    }
+    case 'focus': {
+      const f = shorten(params?.placeholder || params?.ariaLabel || params?.selector, 25);
+      return f ? `Focusing "${f}"` : 'Focusing field';
+    }
+    case 'clearInput': {
+      const c = shorten(params?.placeholder || params?.ariaLabel || params?.selector, 25);
+      return c ? `Clearing "${c}"` : 'Clearing field';
+    }
+    case 'waitForElement': {
+      const w = shorten(params?.selector, 25);
+      return w ? `Waiting for ${w}` : 'Waiting for element';
+    }
+    case 'doubleClick': {
+      const d = label(params);
+      return d ? `Double-clicking "${d}"` : 'Double-clicking';
+    }
+    case 'rightClick': {
+      const r = label(params);
+      return r ? `Right-clicking "${r}"` : 'Right-clicking';
+    }
     case 'goBack':         return 'Going back';
     case 'goForward':      return 'Going forward';
     case 'refresh':        return 'Refreshing';
-    case 'doubleClick':    return 'Double-clicking';
-    case 'rightClick':     return 'Right-clicking';
     case 'moveMouse':      return 'Moving cursor';
     case 'keyPress':       return `Pressing ${params?.key || 'key'}`;
     case 'selectText':     return 'Selecting text';
@@ -605,6 +644,14 @@ async function cleanupSession(sessionId) {
   // Also remove from persistent storage
   removePersistedSession(sessionId);
 
+  // Clean up conversation session entries that reference this session
+  for (const [convId, entry] of conversationSessions) {
+    if (entry.sessionId === sessionId) {
+      conversationSessions.delete(convId);
+    }
+  }
+  persistConversationSessions();
+
   // Clean up AI instance and its conversation history
   if (sessionAIInstances.has(sessionId)) {
     const ai = sessionAIInstances.get(sessionId);
@@ -630,12 +677,129 @@ function isSessionTerminating(sessionId) {
   return !session || session.isTerminating || session.status !== 'running';
 }
 
+/**
+ * Reactivate an idle session for a follow-up command.
+ * Resets per-command counters while preserving cumulative state (actionHistory, AI history).
+ * @param {Object} session - The session object from activeSessions
+ * @param {string} newTask - The new follow-up task/command
+ */
+function reactivateSession(session, newTask) {
+  // Reset per-command fields
+  session.status = 'running';
+  session.task = newTask;
+  session.iterationCount = 0;
+  session.stuckCounter = 0;
+  session.consecutiveNoProgressCount = 0;
+  session.lastDOMHash = null;
+  session.lastDOMSignals = null;
+  session.actionSequences = [];
+  session.sequenceRepeatCount = {};
+  session.startTime = Date.now();
+  session.isTerminating = false;
+
+  // Track command count and command history
+  session.commandCount = (session.commandCount || 1) + 1;
+  session.commands = session.commands || [];
+  session.commands.push(newTask);
+
+  // Clear idle timeout if one was scheduled
+  if (session.idleTimeout) {
+    clearTimeout(session.idleTimeout);
+    session.idleTimeout = null;
+  }
+
+  // Preserved (not touched): actionHistory, stateHistory, tabId, allowedTabs,
+  // domSettings, conversationId, animatedActionHighlights, and the AI instance
+  // in sessionAIInstances retains its full conversation history.
+}
+
+/**
+ * Transition a session to idle status instead of fully cleaning it up.
+ * The session remains in activeSessions with status 'idle' so it can be reactivated
+ * by a follow-up command. A deferred cleanup timer will fully clean up after IDLE_SESSION_TIMEOUT.
+ * @param {string} sessionId - The session ID to idle
+ */
+function idleSession(sessionId) {
+  const session = activeSessions.get(sessionId);
+  if (!session) return;
+
+  session.status = 'idle';
+
+  // Schedule deferred cleanup -- if no follow-up comes within the timeout, clean up fully
+  session.idleTimeout = setTimeout(() => {
+    if (session.status === 'idle') {
+      automationLogger.debug('Idle session timeout, cleaning up', { sessionId });
+      cleanupSession(sessionId);
+      if (session.conversationId) {
+        conversationSessions.delete(session.conversationId);
+        persistConversationSessions();
+      }
+    }
+  }, IDLE_SESSION_TIMEOUT);
+
+  // Persist the idle status so it survives service worker restarts
+  persistSession(sessionId, session);
+  persistConversationSessions();
+
+  automationLogger.info('Session transitioned to idle', {
+    sessionId,
+    conversationId: session.conversationId || null,
+    commandCount: session.commandCount || 1,
+    actionHistoryLength: session.actionHistory?.length || 0
+  });
+
+  // Keep-alive stays running while idle sessions exist (activeSessions.size > 0)
+  // The existing stopKeepAlive() check in cleanupSession handles stopping when size === 0
+}
+
+/**
+ * Persist conversationSessions Map to chrome.storage.session for service worker restart survival.
+ */
+async function persistConversationSessions() {
+  try {
+    await chrome.storage.session.set({
+      fsbConversationSessions: Object.fromEntries(conversationSessions)
+    });
+    automationLogger.debug('Conversation sessions persisted', { count: conversationSessions.size });
+  } catch (error) {
+    automationLogger.warn('Failed to persist conversation sessions', { error: error.message });
+  }
+}
+
+/**
+ * Restore conversationSessions Map from chrome.storage.session after service worker restart.
+ * Validates that referenced sessions still exist in activeSessions.
+ */
+async function restoreConversationSessions() {
+  try {
+    const stored = await chrome.storage.session.get('fsbConversationSessions');
+    const data = stored?.fsbConversationSessions;
+    if (data && typeof data === 'object') {
+      for (const [convId, entry] of Object.entries(data)) {
+        // Only restore if the referenced session still exists
+        if (entry?.sessionId && activeSessions.has(entry.sessionId)) {
+          conversationSessions.set(convId, entry);
+        }
+      }
+      automationLogger.debug('Conversation sessions restored', { count: conversationSessions.size });
+    }
+  } catch (error) {
+    automationLogger.warn('Failed to restore conversation sessions', { error: error.message });
+  }
+}
+
 // Store for active automation sessions
 let activeSessions = new Map();
 
 // Store for AI integration instances per session (for multi-turn conversations)
 // This allows conversation history to persist across iterations within a session
 let sessionAIInstances = new Map();
+
+// Session continuity: maps conversationId to { sessionId, lastActiveTime }
+// Enables follow-up commands in the same conversation to reuse the existing session and AI instance
+let conversationSessions = new Map();
+const IDLE_SESSION_TIMEOUT = 10 * 60 * 1000; // 10 minutes before idle sessions are cleaned up
+const MAX_CONVERSATION_SESSIONS = 5; // FIFO cap using enforceMapLimit
 
 // PERF: Max Map sizes to prevent unbounded growth
 const MAX_CONTENT_SCRIPT_ENTRIES = 200;
@@ -708,13 +872,15 @@ async function prefetchDOM(tabId, options = {}) {
 // Persists essential session data to chrome.storage.session
 async function persistSession(sessionId, session) {
   try {
-    // Only persist essential fields needed for stop button to work
+    // Only persist essential fields needed for stop button and session continuity to work
     const persistableSession = {
       sessionId: sessionId,
       task: session.task,
       tabId: session.tabId,
       status: session.status,
       startTime: session.startTime,
+      conversationId: session.conversationId || null,
+      commandCount: session.commandCount || 1,
       // Don't persist: loopPromise, pendingTimeout, DOM hashes, etc. (non-serializable or transient)
     };
 
@@ -747,27 +913,31 @@ async function restoreSessionsFromStorage() {
     for (const key of sessionKeys) {
       const persistedSession = allStorage[key];
       if (persistedSession && persistedSession.sessionId) {
-        // Check if session is still supposed to be running
-        if (persistedSession.status === 'running') {
-          // Restore to activeSessions map so stop button works
+        // Check if session is still supposed to be running or idle (idle sessions can be reactivated)
+        if (persistedSession.status === 'running' || persistedSession.status === 'idle') {
+          // Restore to activeSessions map so stop button works (and idle sessions can be reactivated)
           // Mark as 'recoverable' so we know it was restored (can't resume automation loop)
           activeSessions.set(persistedSession.sessionId, {
             ...persistedSession,
             isRestored: true,  // Flag to indicate this was restored, automation loop is not running
-            status: 'running', // Keep as running so stop button works
+            // Keep original status -- 'running' for stop button, 'idle' for reactivation
           });
           automationLogger.info('Restored session from storage', {
             sessionId: persistedSession.sessionId,
+            status: persistedSession.status,
             task: persistedSession.task?.substring(0, 50)
           });
         } else {
-          // Clean up non-running sessions from storage
+          // Clean up non-running/non-idle sessions from storage
           await removePersistedSession(persistedSession.sessionId);
         }
       }
     }
 
-    automationLogger.logServiceWorker('sessions_restored', { count: activeSessions.size });
+    // Restore conversation session mappings after sessions are restored
+    await restoreConversationSessions();
+
+    automationLogger.logServiceWorker('sessions_restored', { count: activeSessions.size, conversationSessions: conversationSessions.size });
   } catch (error) {
     automationLogger.warn('Failed to restore sessions from storage', { error: error.message });
   }
@@ -3582,11 +3752,58 @@ async function handleSolveCaptcha(request, sender, sendResponse) {
 }
 
 async function handleStartAutomation(request, sender, sendResponse) {
-  const { task, tabId } = request;
+  const { task, tabId, conversationId } = request;
 
   try {
     // Get the target tab ID (may be updated by smart tab management below)
     let targetTabId = tabId || sender.tab?.id;
+
+    // Check for existing conversation session for follow-up reuse
+    if (conversationId && conversationSessions.has(conversationId)) {
+      const convEntry = conversationSessions.get(conversationId);
+      const existingSession = activeSessions.get(convEntry.sessionId);
+      if (existingSession && existingSession.status === 'idle') {
+        // Reactivate the existing session
+        reactivateSession(existingSession, task);
+        const sessionId = convEntry.sessionId;
+        convEntry.lastActiveTime = Date.now();
+
+        // Inject follow-up context into AI
+        const ai = sessionAIInstances.get(sessionId);
+        if (ai && typeof ai.injectFollowUpContext === 'function') {
+          ai.injectFollowUpContext(task);
+        }
+
+        // Log the follow-up command for session tracking
+        automationLogger.logFollowUpCommand(sessionId, task, existingSession.commandCount);
+
+        automationLogger.info('Reactivating conversation session', {
+          sessionId, conversationId, commandCount: existingSession.commandCount
+        });
+
+        // Persist updated session
+        persistSession(sessionId, existingSession);
+
+        sendResponse({
+          success: true,
+          sessionId,
+          message: 'Continuing conversation session',
+          continued: true
+        });
+
+        startKeepAlive();
+
+        // Reset DOM state for fresh analysis
+        try {
+          await chrome.tabs.sendMessage(existingSession.tabId, { action: 'resetDOMState', sessionId });
+        } catch (e) {
+          automationLogger.debug('Could not reset DOM state for follow-up', { sessionId, error: e.message });
+        }
+
+        startAutomationLoop(sessionId);
+        return;
+      }
+    }
 
     // Get tab information to check URL
     let tabInfo;
@@ -3656,64 +3873,14 @@ async function handleStartAutomation(request, sender, sendResponse) {
         throw chromeError;
       }
     } else {
-      // Non-restricted URL: check if the current tab is relevant to the task
-      const targetUrl = analyzeTaskAndGetTargetUrl(task);
-      try {
-        const currentHost = new URL(tabInfo.url).hostname.replace(/^www\./, '');
-        const targetHost = new URL(targetUrl).hostname.replace(/^www\./, '');
-
-        // Only do smart tab management if the current tab is NOT already on the target domain
-        if (currentHost !== targetHost) {
-          const decision = await decideTabAction(targetTabId, tabInfo.url, targetUrl, task);
-          automationLogger.debug('Smart tab decision for non-restricted tab', { decision, currentHost, targetHost });
-
-          if (decision.action === 'switch') {
-            try {
-              await chrome.tabs.update(decision.tabId, { active: true });
-              targetTabId = decision.tabId;
-              navigationMessage = `Switched to existing ${targetHost} tab to preserve your ${currentHost} page.`;
-              navigationPerformed = true;
-            } catch (switchErr) {
-              // Fall back to create if switch fails
-              automationLogger.debug('Switch failed, creating new tab', { error: switchErr.message });
-              const newTab = await chrome.tabs.create({ url: targetUrl, active: true });
-              targetTabId = newTab.id;
-              navigationMessage = `Opened new ${targetHost} tab to preserve your ${currentHost} page.`;
-              navigationPerformed = true;
-            }
-          } else if (decision.action === 'create') {
-            const newTab = await chrome.tabs.create({ url: targetUrl, active: true });
-            targetTabId = newTab.id;
-            navigationMessage = `Opened new ${targetHost} tab to preserve your ${currentHost} page.`;
-            navigationPerformed = true;
-          }
-          // 'navigate' action for non-restricted: do nothing extra, let AI handle from current page
-
-          if (navigationPerformed) {
-            // Wait for new/switched tab to load
-            await new Promise((resolve) => {
-              const navListener = (updatedTabId, changeInfo) => {
-                if (updatedTabId === targetTabId && changeInfo.status === 'complete') {
-                  chrome.tabs.onUpdated.removeListener(navListener);
-                  resolve();
-                }
-              };
-              chrome.tabs.onUpdated.addListener(navListener);
-              setTimeout(() => { chrome.tabs.onUpdated.removeListener(navListener); resolve(); }, 10000);
-            });
-
-            // Refresh tabInfo
-            try {
-              tabInfo = await chrome.tabs.get(targetTabId);
-            } catch (error) {
-              throw new Error(`Tab became inaccessible after smart tab action`);
-            }
-          }
-        }
-      } catch (urlErr) {
-        // URL parsing failed, skip smart tab management
-        automationLogger.debug('Smart tab URL parsing failed', { error: urlErr.message });
-      }
+      // Non-restricted URL: let the AI agent decide tab management.
+      // The AI receives MULTI-TAB CONTEXT with all open tabs and has
+      // listTabs/switchToTab/navigate tools to handle tab switching itself.
+      // This avoids the hardcoded DOMAIN_KEYWORD_MAP which can't cover all sites.
+      automationLogger.debug('Non-restricted URL, deferring tab decision to AI agent', {
+        currentUrl: tabInfo.url,
+        task: task.substring(0, 100)
+      });
     }
 
     // Read settings from storage before creating session
@@ -3750,6 +3917,10 @@ async function handleStartAutomation(request, sender, sendResponse) {
       tabHistory: [],             // Track tab switches for debugging
       navigationMessage,        // Store navigation message for UI
       animatedActionHighlights: storedSettings.animatedActionHighlights ?? true,
+      // Session continuity fields
+      conversationId: conversationId || null,
+      commandCount: 1,
+      commands: [task],
       // PERF: Cache DOM settings at session start to avoid repeated storage reads
       domSettings: {
         domOptimization: storedSettings.domOptimization !== false,
@@ -3757,14 +3928,21 @@ async function handleStartAutomation(request, sender, sendResponse) {
         prioritizeViewport: storedSettings.prioritizeViewport !== false
       }
     };
-    
+
     activeSessions.set(sessionId, sessionData);
     // Persist session to storage so stop button works after service worker restart
     persistSession(sessionId, sessionData);
 
+    // Register in conversation sessions for follow-up reuse
+    if (conversationId) {
+      conversationSessions.set(conversationId, { sessionId, lastActiveTime: Date.now() });
+      enforceMapLimit(conversationSessions, MAX_CONVERSATION_SESSIONS);
+      persistConversationSessions();
+    }
+
     automationLogger.logSessionStart(sessionId, task, sessionData.tabId);
     initializeSessionMetrics(sessionId);
-    automationLogger.info('Created new session', { sessionId, tabId: sessionData.tabId, activeSessions: activeSessions.size });
+    automationLogger.info('Created new session', { sessionId, tabId: sessionData.tabId, activeSessions: activeSessions.size, conversationId: conversationId || null });
 
     // Content script injection is now handled by the automation loop
     // to prevent double injection and race conditions
@@ -5186,7 +5364,7 @@ async function startAutomationLoop(sessionId) {
     iteration: session.iterationCount,
     maxIterations: session.maxIterations || 20,
     animatedHighlights: session.animatedActionHighlights,
-    statusText: session.lastActionStatusText || null,
+    statusText: null,  // Don't carry over previous action text; let content.js show "Analyzing page..."
     ...calculateProgress(session),
     taskSummary: session.taskSummary || null
   });
@@ -5214,7 +5392,7 @@ async function startAutomationLoop(sessionId) {
 
     sendSessionStatus(session.tabId, { phase: 'ended', reason: 'max_iterations' });
     finalizeSessionMetrics(sessionId, false);
-    cleanupSession(sessionId);
+    idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
     chrome.runtime.sendMessage({
       action: 'automationComplete',
@@ -5246,7 +5424,7 @@ async function startAutomationLoop(sessionId) {
 
     sendSessionStatus(session.tabId, { phase: 'ended', reason: 'timeout' });
     finalizeSessionMetrics(sessionId, false);
-    cleanupSession(sessionId);
+    idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
     chrome.runtime.sendMessage({
       action: 'automationComplete',
@@ -5465,7 +5643,8 @@ async function startAutomationLoop(sessionId) {
           options: {
             useIncrementalDiff: domOptimizationEnabled,
             maxElements: settings.maxDOMElements || 2000,
-            prioritizeViewport: settings.prioritizeViewport !== false
+            prioritizeViewport: settings.prioritizeViewport !== false,
+            includeCompactSnapshot: true
           }
         };
 
@@ -5544,7 +5723,8 @@ async function startAutomationLoop(sessionId) {
             options: {
               useIncrementalDiff: false,
               maxElements: settings.maxDOMElements || 2000,
-              prioritizeViewport: settings.prioritizeViewport !== false
+              prioritizeViewport: settings.prioritizeViewport !== false,
+              includeCompactSnapshot: true
             }
           });
         } else {
@@ -5804,10 +5984,14 @@ async function startAutomationLoop(sessionId) {
           animatedHighlights: session.animatedActionHighlights
         });
 
+        const signinProgress = calculateProgress(session);
         chrome.runtime.sendMessage({
           action: 'statusUpdate',
           sessionId,
-          message: 'Signing in...'
+          message: 'Signing in...',
+          iteration: session.iterationCount,
+          maxIterations: session.maxIterations || 20,
+          progressPercent: signinProgress.progressPercent
         }).catch(() => {});
 
         const loginFields = extractLoginFields(domResponse.structuredDOM);
@@ -6114,7 +6298,7 @@ async function startAutomationLoop(sessionId) {
       iteration: session.iterationCount,
       maxIterations: session.maxIterations || 20,
       animatedHighlights: session.animatedActionHighlights,
-      statusText: session.lastActionStatusText || null,
+      statusText: null,  // Don't carry over previous action text; let content.js show "Planning next step..."
       ...calculateProgress(session),
       taskSummary: session.taskSummary || null
     });
@@ -6130,7 +6314,8 @@ async function startAutomationLoop(sessionId) {
     // Key: prefetch starts AFTER AI call begins, so DOM reflects current state changes
     pendingDOMPrefetch = prefetchDOM(session.tabId, {
       maxElements: settings.maxDOMElements || 2000,
-      prioritizeViewport: settings.prioritizeViewport !== false
+      prioritizeViewport: settings.prioritizeViewport !== false,
+      includeCompactSnapshot: true
     });
 
     // FIX 1A: Race AI response against a stop signal so stop button works during API calls
@@ -6210,7 +6395,7 @@ async function startAutomationLoop(sessionId) {
         maxIterations: session.maxIterations || 20,
         actionCount: aiResponse.actions.length,
         animatedHighlights: session.animatedActionHighlights,
-        statusText: session.lastActionStatusText || null,
+        statusText: getActionStatus(aiResponse.actions[0].tool, aiResponse.actions[0].params),
         ...calculateProgress(session),
         taskSummary: session.taskSummary || null
       });
@@ -6262,7 +6447,8 @@ async function startAutomationLoop(sessionId) {
             pendingDOMPrefetch = null;
             pendingDOMPrefetch = prefetchDOM(session.tabId, {
               maxElements: settings.maxDOMElements || 2000,
-              prioritizeViewport: settings.prioritizeViewport !== false
+              prioritizeViewport: settings.prioritizeViewport !== false,
+              includeCompactSnapshot: true
             });
           }
         }
@@ -6304,11 +6490,15 @@ async function startAutomationLoop(sessionId) {
           total: aiResponse.actions.length
         });
 
-        // Send action-specific status update to UI
+        // Send action-specific status update to UI with progress data
+        const actionProgress = calculateProgress(session);
         chrome.runtime.sendMessage({
           action: 'statusUpdate',
           sessionId,
-          message: getActionStatus(action.tool, action.params)
+          message: getActionStatus(action.tool, action.params),
+          iteration: session.iterationCount,
+          maxIterations: session.maxIterations || 20,
+          progressPercent: actionProgress.progressPercent
         }).catch(() => {
           // Ignore errors if no listeners
         });
@@ -6759,7 +6949,7 @@ async function startAutomationLoop(sessionId) {
 
       sendSessionStatus(session.tabId, { phase: 'ended', reason: 'no_progress' });
       finalizeSessionMetrics(sessionId, false);
-      cleanupSession(sessionId);
+      idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
       chrome.runtime.sendMessage({
         action: 'automationComplete',
@@ -6795,10 +6985,10 @@ async function startAutomationLoop(sessionId) {
           navigatedTo: currentUrl
         });
 
-        // Clean up session
+        // Transition to idle for follow-up continuation
         sendSessionStatus(session.tabId, { phase: 'ended', reason: 'complete' });
         finalizeSessionMetrics(sessionId, true); // Successfully completed
-        cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
+        idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
         return;
       }
     }
@@ -6836,7 +7026,7 @@ async function startAutomationLoop(sessionId) {
 
       sendSessionStatus(session.tabId, { phase: 'ended', reason: 'stuck' });
       finalizeSessionMetrics(sessionId, false); // Failed due to stuck loop
-      cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
+      idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
       // Send completion with partial results instead of error
       chrome.runtime.sendMessage({
@@ -6933,7 +7123,7 @@ async function startAutomationLoop(sessionId) {
 
       sendSessionStatus(session.tabId, { phase: 'ended', reason: 'complete' });
       finalizeSessionMetrics(sessionId, true); // Successfully completed
-      cleanupSession(sessionId); // EASY WIN #10: Use cleanup helper
+      idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
       // Notify popup
       chrome.runtime.sendMessage({

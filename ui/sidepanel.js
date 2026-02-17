@@ -1,8 +1,25 @@
 // Side Panel Script for FSB v9.0.1 - Persistent UI
 
 let currentSessionId = null;
+let conversationId = null;
 let isRunning = false;
 let stopRequested = false;
+
+// Initialize or restore conversation ID for session continuity
+async function initConversationId() {
+  try {
+    const stored = await chrome.storage.session.get(['fsbSidepanelConversationId']);
+    if (stored.fsbSidepanelConversationId) {
+      conversationId = stored.fsbSidepanelConversationId;
+    } else {
+      conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      await chrome.storage.session.set({ fsbSidepanelConversationId: conversationId });
+    }
+  } catch (e) {
+    // Fallback: generate without persistence
+    conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  }
+}
 
 // DOM elements - adapted for side panel
 const chatInput = document.getElementById('chatInput');
@@ -79,10 +96,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Initialize side panel
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('FSB v9.0.1 side panel loaded');
-  
+
   // Apply theme first
   applyTheme();
-  
+
+  // Initialize conversation ID for session continuity
+  await initConversationId();
+
   // Initialize analytics
   initializeSidepanelAnalytics();
   
@@ -234,17 +254,18 @@ async function handleSendMessage() {
     chrome.runtime.sendMessage({
       action: 'startAutomation',
       task: message,
-      tabId: tab.id
+      tabId: tab.id,
+      conversationId: conversationId
     }, (response) => {
       if (chrome.runtime.lastError) {
         addMessage(`Error communicating with background script: ${chrome.runtime.lastError.message}`, 'error');
         return;
       }
-      
+
       if (response && response.success) {
         currentSessionId = response.sessionId;
         setRunningState();
-        addStatusMessage('Starting automation...');
+        addStatusMessage(response.continued ? 'Continuing...' : 'Starting automation...');
       } else {
         const errorMsg = response ? response.error : 'Unknown error';
         if (response && response.isChromePage) {
@@ -318,11 +339,15 @@ function startNewChat() {
       sessionId: currentSessionId
     });
   }
-  
+
   // Reset session state
   currentSessionId = null;
   stopRequested = false;
-  
+
+  // Generate new conversationId for new chat
+  conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  chrome.storage.session.set({ fsbSidepanelConversationId: conversationId }).catch(() => {});
+
   // Clear chat messages
   chatMessages.innerHTML = '';
   

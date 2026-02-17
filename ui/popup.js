@@ -1,8 +1,25 @@
 // Modern Chat Interface Script for FSB v9.0.1
 
 let currentSessionId = null;
+let conversationId = null;
 let isRunning = false;
 let stopRequested = false;
+
+// Initialize or restore conversation ID for session continuity
+async function initConversationId() {
+  try {
+    const stored = await chrome.storage.session.get(['fsbPopupConversationId']);
+    if (stored.fsbPopupConversationId) {
+      conversationId = stored.fsbPopupConversationId;
+    } else {
+      conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      await chrome.storage.session.set({ fsbPopupConversationId: conversationId });
+    }
+  } catch (e) {
+    // Fallback: generate without persistence
+    conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  }
+}
 
 // DOM elements - updated for new chat interface
 const chatInput = document.getElementById('chatInput');
@@ -81,7 +98,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 document.addEventListener('DOMContentLoaded', async () => {
   // Apply theme first
   applyTheme();
-  
+
+  // Initialize conversation ID for session continuity
+  await initConversationId();
+
   // Initialize analytics
   initializePopupAnalytics();
   
@@ -232,12 +252,13 @@ async function handleSendMessage() {
     chrome.runtime.sendMessage({
       action: 'startAutomation',
       task: message,
-      tabId: tab.id
+      tabId: tab.id,
+      conversationId: conversationId
     }, (response) => {
       if (response.success) {
         currentSessionId = response.sessionId;
         setRunningState();
-        addStatusMessage('Starting automation...');
+        addStatusMessage(response.continued ? 'Continuing...' : 'Starting automation...');
       } else {
         if (response.isChromePage) {
           // Show Chrome page error as plain text, not in a bubble
