@@ -125,7 +125,36 @@ SEND BUTTON RULES:
   form: "Fill all required fields, then submit. If you don't see a submit button after filling fields, scroll down -- long forms often have buttons at the bottom. When completing, describe exactly what information was submitted and confirm the form was processed successfully. Example result: 'I successfully filled out the contact form with your name, email, and message, then submitted it. The page confirmed your message was received and you should expect a response within 24 hours.'",
   extraction: "Extract the requested information and provide the exact values found. Use systematic scrolling: extract visible items, scroll down, repeat until atBottom. When completing, include all the specific data extracted, not generic statements. For numerical data (prices, ratings, stats), use a ```chart block to visualize comparisons. For structured data with multiple fields, use markdown tables. Example result: 'I extracted the following product details: Price $299.99, Rating 4.8/5 stars, Stock: 15 units available, Shipping: Free 2-day delivery.'",
   navigation: "Navigate to the specified page or section. When completing, confirm what page you reached and describe what's available there. Example result: 'I successfully navigated to the Settings page where I can see options for Account Settings, Privacy Controls, Notification Preferences, and Security Settings.'",
-  multitab: "MULTI-TAB SUPPORT: You have access to all tabs in the current browser window. Before searching or opening new tabs, check the MULTI-TAB CONTEXT for tabs that already match your destination and use switchToTab to reuse them. During automation: 1) openNewTab creates new tabs and adds them to allowed tabs, 2) switchToTab works for any tab in the session's allowed list (check listTabs for isAllowedTab: true), 3) listTabs shows tab titles, domains for allowed tabs, and which tabs you can control, 4) DOM actions happen on the currently active session tab. When you need to work across tabs, use switchToTab to move between allowed tabs.",
+  multitab: `MULTI-SITE & MULTI-TAB WORKFLOW SUPPORT:
+
+TAB MANAGEMENT: You have access to all tabs in the current browser window. Before searching or opening new tabs, check the MULTI-TAB CONTEXT for tabs that already match your destination and use switchToTab to reuse them. During automation: 1) openNewTab creates new tabs and adds them to allowed tabs, 2) switchToTab works for any tab in the session's allowed list (check listTabs for isAllowedTab: true), 3) listTabs shows tab titles, domains for allowed tabs, and which tabs you can control, 4) DOM actions happen on the currently active session tab.
+
+CROSS-SITE DATA WORKFLOW (search/extract -> write/document):
+When the task involves gathering information from one site and writing it to another (e.g., "search X for [topic] and write a summary in Google Docs"):
+
+PHASE 1 - GATHER: Search/browse the source site. Extract ALL relevant content using getText. Store the key findings in your reasoning -- you MUST remember this data across site transitions.
+
+PHASE 2 - NAVIGATE: Once you have gathered sufficient information, navigate to the destination (Google Docs, Google Sheets, Notion, etc.). Use the navigate tool with the destination URL.
+
+PHASE 3 - WRITE: Write the gathered content into the destination document.
+
+WRITING TO GOOGLE DOCS:
+- Google Docs uses CANVAS-BASED TEXT RENDERING. The editable surface is a hidden contenteditable div behind a canvas.
+- To write: Click the document body area (look for elements with class containing "kix-page-column" or the main document editing area) to place the cursor.
+- Then use the type tool to insert your text. The type tool automatically detects Google Docs and uses CDP (Chrome DevTools Protocol) to send keystrokes directly, bypassing DOM input methods.
+- FORMATTED TEXT: When writing content to Google Docs, USE MARKDOWN FORMATTING in the text you pass to the type tool. The extension automatically converts markdown to rich HTML and pastes it with proper formatting (headings, bold, italic, lists, links, tables). Use standard markdown: # Heading 1, ## Heading 2, **bold**, *italic*, - bullet items, 1. numbered items, [link text](url), | table | rows |, etc.
+- TABLES: Use standard markdown table syntax with pipes. Include a header row, separator row (|---|---|), and data rows. The extension converts these to properly formatted HTML tables when pasting into Google Docs.
+- IMPORTANT: Send ALL of your formatted content in a SINGLE type tool call. Do NOT send it line-by-line or paragraph-by-paragraph -- send the entire document as one markdown-formatted string. The extension handles converting and pasting it all at once. Multiple type calls would create formatting breaks.
+- If the type tool fails, use typeWithKeys which sends real keystrokes via the browser debugger API -- this works even when standard typing cannot.
+- For a NEW document: navigate to https://docs.google.com, click "Blank" to create a new doc, wait for the editor to load, then click the document body and type.
+- DOCUMENT NAMING (MANDATORY STEP): After inserting the body content, you MUST name the document before marking the task as complete. Click the document title field (the textbox at the top with aria-label "Rename" or value "Untitled document") and type a concise, descriptive title. For example, if you summarized Elon Musk's latest post, name it "Elon Musk X Post Summary - Feb 2026". The task is NOT complete until the document has a proper name -- never leave it as "Untitled document". This is a two-step process: (1) type the body content, (2) click the title and type the name.
+
+WRITING TO GOOGLE SHEETS:
+- Google Sheets uses a CANVAS-BASED GRID. You CANNOT click individual cells.
+- Use the Name Box (top-left, showing cell reference like "A1") to navigate: click it, type cell reference (e.g., "A1"), press Enter.
+- Then type the cell value. Press Tab to move right, Enter to move down.
+
+IMPORTANT: When transitioning between sites, include ALL gathered data in your reasoning field so it persists across iterations. Do NOT lose the information you extracted from the source site.`,
   gaming: "CRITICAL GAME CONTROLS: For games, interactive applications, or when task involves 'play', 'control', 'win', 'move': 1) NEVER use 'type' tool for game controls - it types text, not key presses, 2) PREFER dedicated arrow tools: {\"tool\": \"arrowUp\"}, {\"tool\": \"arrowDown\"}, {\"tool\": \"arrowLeft\"}, {\"tool\": \"arrowRight\"} - much simpler than keyPress, 3) For other keys use 'keyPress': {\"tool\": \"keyPress\", \"params\": {\"key\": \"Enter\"}} {\"tool\": \"keyPress\", \"params\": {\"key\": \" \"}} for Space. 4) Focus the game canvas/element if needed before key presses. When completing, describe the game actions performed and outcomes achieved.",
   shopping: `E-COMMERCE SHOPPING INTELLIGENCE - CRITICAL RULES:
 
@@ -1417,8 +1446,8 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
     // Generate context-aware cache key
     const cacheKey = this.generateCacheKey(task, domState, context);
 
-    // Check cache first (but not if we're stuck or in later iterations)
-    if (!context?.isStuck && (!context?.iterationCount || context.iterationCount < 3)) {
+    // Check cache first (but not if we're stuck -- dynamic TTL handles staleness)
+    if (!context?.isStuck) {
       const cachedResponse = this.getCachedResponse(cacheKey);
       if (cachedResponse) {
         automationLogger.logCache(this.currentSessionId, 'hit', cacheKey, { source: 'getAutomationActions' });
@@ -1494,6 +1523,10 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
           // PERF: Reject oldest queued request if queue is full
           if (this.requestQueue.length >= this.requestQueueMaxSize) {
             const dropped = this.requestQueue.shift();
+            automationLogger.warn('Request queue full, dropping oldest request', {
+              sessionId: this.currentSessionId,
+              queueSize: this.requestQueue.length
+            });
             dropped.reject(new Error('Request queue full - dropped oldest request'));
           }
           this.requestQueue.push({
@@ -1538,6 +1571,15 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       } catch (error) {
         lastError = error;
         const attemptDuration = Date.now() - attemptStart;
+
+        // Don't retry rate limits -- provider already retried internally
+        if (error.isRateLimited) {
+          automationLogger.warn('Rate limit exhausted at provider level, skipping retries', {
+            sessionId: this.currentSessionId,
+            error: error.message
+          });
+          return this.createFallbackResponse(task, error);
+        }
 
         // Track timeout specifically
         if (error.message.includes('timed out') || error.message.includes('timeout')) {
@@ -1620,14 +1662,18 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
     if (this.isProcessing || this.requestQueue.length === 0) {
       return;
     }
-    
+
     this.isProcessing = true;
-    
+
     // Track performance metrics for adaptive delays
     let recentErrors = 0;
     let avgResponseTime = 0;
     let responseCount = 0;
-    
+
+    // Circuit breaker: stop calling API after consecutive failures
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 3;
+
     while (this.requestQueue.length > 0) {
       const request = this.requestQueue.shift();
       const startTime = Date.now();
@@ -1657,11 +1703,27 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
         avgResponseTime = (avgResponseTime * responseCount + responseTime) / (responseCount + 1);
         responseCount++;
         recentErrors = Math.max(0, recentErrors - 1); // Decay error count on success
+        consecutiveErrors = 0; // Reset circuit breaker on success
 
         request.resolve(parsed);
       } catch (error) {
         request.reject(error);
         recentErrors++;
+        consecutiveErrors++;
+
+        // Circuit breaker: drain remaining queue without API calls
+        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS && this.requestQueue.length > 0) {
+          automationLogger.warn('Queue circuit breaker triggered, draining remaining requests', {
+            sessionId: this.currentSessionId,
+            consecutiveErrors,
+            droppedCount: this.requestQueue.length
+          });
+          while (this.requestQueue.length > 0) {
+            const dropped = this.requestQueue.shift();
+            dropped.reject(new Error('Queue drained: provider unavailable after ' + MAX_CONSECUTIVE_ERRORS + ' consecutive failures'));
+          }
+          break;
+        }
       }
       
       // Adaptive delay calculation - optimized for lower latency
@@ -1787,12 +1849,35 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
     automationLogger.debug('Detected task type', { sessionId: this.currentSessionId, taskType, siteGuide: siteGuide?.name || 'none' });
 
     // PERFORMANCE OPTIMIZATION: Use tiered system prompts
-    // First iteration OR stuck: Use full prompt with all instructions
-    // Subsequent iterations: Use minimal continuation prompt to save tokens
+    // First iteration OR stuck OR domain changed: Use full prompt with all instructions
+    // Subsequent iterations on same domain: Use minimal continuation prompt to save tokens
+
+    // FIX: Detect domain transitions to re-apply full prompt with correct site guide
+    // When navigating from x.com to docs.google.com, the AI needs the Productivity Tools
+    // guide, not the minimal continuation prompt that has no site-specific knowledge.
+    let isDomainChanged = false;
+    if (currentUrl && context?.previousUrl) {
+      try {
+        const currentDomain = new URL(currentUrl).hostname.replace(/^www\./, '');
+        const prevDomain = new URL(context.previousUrl).hostname.replace(/^www\./, '');
+        isDomainChanged = currentDomain !== prevDomain;
+        if (isDomainChanged) {
+          automationLogger.debug('Domain transition detected', {
+            sessionId: this.currentSessionId,
+            from: prevDomain,
+            to: currentDomain,
+            siteGuide: siteGuide?.name || 'none'
+          });
+        }
+      } catch (e) {
+        // URL parsing failed, treat as no change
+      }
+    }
+
     let systemPrompt;
 
-    if (isFirstIteration || isStuck) {
-      automationLogger.debug('Using FULL system prompt', { sessionId: this.currentSessionId, reason: isFirstIteration ? 'first_iteration' : 'stuck' });
+    if (isFirstIteration || isStuck || isDomainChanged) {
+      automationLogger.debug('Using FULL system prompt', { sessionId: this.currentSessionId, reason: isFirstIteration ? 'first_iteration' : (isDomainChanged ? 'domain_changed' : 'stuck') });
       // Core system prompt - concise and focused with reasoning framework
       systemPrompt = `You are a browser automation agent. Analyze the DOM and complete the given task.
 
@@ -3758,6 +3843,16 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       // (e.g., user says "search" on Amazon -> use 'shopping' not 'search')
       if (guideTaskType) {
         // Check for strong keyword overrides that should win over the guide default
+        // FIX: Cross-site workflow detection -- if task mentions an output destination
+        // (Google Docs, Sheets, Notion, etc.) AND a gather action (search, find, etc.),
+        // this is a multi-site workflow regardless of the current site guide
+        const outputDestinations = ['google doc', 'google sheet', 'google drive', 'google slide', 'notion', 'spreadsheet', 'my doc', 'my sheet'];
+        const gatherActions = ['find', 'search', 'research', 'look up', 'check', 'summarize', 'compile'];
+        const hasOutputDest = outputDestinations.some(kw => taskLower.includes(kw));
+        const hasGatherAction = gatherActions.some(kw => taskLower.includes(kw));
+        if (hasOutputDest && hasGatherAction) {
+          return 'multitab';
+        }
         if (taskLower.includes('new tab') || taskLower.includes('open tab') || taskLower.includes('switch tab')) {
           return 'multitab';
         }
@@ -3790,7 +3885,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
     }
 
     // Output-destination detection: gathering info AND outputting to a known app
-    const outputDestinations = ['google docs', 'google sheets', 'google drive', 'google slides', 'notion', 'spreadsheet', 'my doc', 'my sheet'];
+    const outputDestinations = ['google doc', 'google sheet', 'google drive', 'google slide', 'notion', 'spreadsheet', 'my doc', 'my sheet'];
     const gatherActions = ['find', 'search', 'research', 'get', 'look up', 'check', 'go to', 'visit'];
     const hasOutputDest = outputDestinations.some(kw => taskLower.includes(kw));
     const hasGatherAction = gatherActions.some(kw => taskLower.includes(kw));

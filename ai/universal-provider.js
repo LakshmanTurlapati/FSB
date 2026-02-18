@@ -426,7 +426,9 @@ class UniversalProvider {
           });
         } else {
           const errorText = await response.text().catch(() => 'Rate limit exceeded');
-          throw new Error(`${this.provider} API rate limit exceeded after ${MAX_RATE_LIMIT_RETRIES} retries: ${errorText}`);
+          const error = new Error(`${this.provider} API rate limit exceeded after ${MAX_RATE_LIMIT_RETRIES} retries: ${errorText}`);
+          error.isRateLimited = true;
+          throw error;
         }
       }
 
