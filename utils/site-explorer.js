@@ -25,7 +25,7 @@ class SiteExplorer {
    * @param {Object} options - Crawl options
    * @returns {Object} - { success, researchId }
    */
-  async start(url, { maxDepth = 3, maxPages = 25, callerTabId = null } = {}) {
+  async start(url, { maxDepth = 3, maxPages = 25, callerTabId = null, autoSaveToMemory = false } = {}) {
     if (this.running) {
       return { success: false, error: 'Explorer is already running' };
     }
@@ -49,6 +49,7 @@ class SiteExplorer {
       this.pagesCollected = [];
       this.currentUrl = null;
       this.callerTabId = callerTabId;
+      this.autoSaveToMemory = autoSaveToMemory;
 
       console.log(`[SiteExplorer] Starting crawl of ${this.domain} (depth=${this.maxDepth}, pages=${this.maxPages})`);
 
@@ -166,6 +167,15 @@ class SiteExplorer {
       this.status = 'completed';
       this.running = false;
       await this.saveResearch('completed');
+
+      // Auto-convert crawl results to site map memory if requested
+      if (this.autoSaveToMemory) {
+        try {
+          await this.autoConvertToMemory();
+        } catch (err) {
+          console.warn('[SiteExplorer] Auto memory save failed:', err.message);
+        }
+      }
 
       // Close the crawler tab
       if (this.tabId) {
@@ -651,6 +661,64 @@ class SiteExplorer {
       } catch (e) {
         // Caller tab may have been closed
       }
+    }
+  }
+
+  /**
+   * Convert crawl results to a site map memory and save it.
+   * Optionally triggers AI refinement if the autoRefineSiteMaps toggle is ON.
+   * Broadcasts a siteMapSaved message so the side panel can react.
+   */
+  async autoConvertToMemory() {
+    // Build a research-like object from current crawl data
+    const research = {
+      id: this.researchId,
+      domain: this.domain,
+      pages: this.pagesCollected,
+      startTime: this.startTime
+    };
+
+    // Tier 1: local conversion
+    if (typeof convertToSiteMap !== 'function') {
+      console.warn('[SiteExplorer] convertToSiteMap not available, skipping auto-save');
+      return;
+    }
+    let sitePattern = convertToSiteMap(research);
+    if (!sitePattern) {
+      console.warn('[SiteExplorer] convertToSiteMap returned null');
+      return;
+    }
+
+    // Check autoRefineSiteMaps toggle -- if ON, run Tier 2 refinement
+    const settings = await new Promise(resolve => {
+      chrome.storage.local.get(['autoRefineSiteMaps'], resolve);
+    });
+    if (settings.autoRefineSiteMaps !== false && typeof refineSiteMapWithAI === 'function') {
+      try {
+        sitePattern = await refineSiteMapWithAI(sitePattern, research);
+      } catch (refineErr) {
+        console.warn('[SiteExplorer] AI refinement during auto-save failed:', refineErr.message);
+      }
+    }
+
+    // Create and save the memory
+    if (typeof createSiteMapMemory !== 'function' || typeof memoryManager === 'undefined') {
+      console.warn('[SiteExplorer] Memory system not available for auto-save');
+      return;
+    }
+
+    const memory = createSiteMapMemory(this.domain, sitePattern);
+    await memoryManager.add(memory);
+    console.log('[SiteExplorer] Auto-saved site map memory for', this.domain);
+
+    // Broadcast so the side panel can react
+    try {
+      chrome.runtime.sendMessage({
+        type: 'siteMapSaved',
+        data: { domain: this.domain, refined: sitePattern.refined || false }
+      }).catch(() => {});
+    } catch (e) {
+      // Side panel may not be open
     }
   }
 

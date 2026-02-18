@@ -36,6 +36,10 @@ importScripts('lib/memory/memory-extractor.js');
 importScripts('lib/memory/memory-manager.js');
 importScripts('lib/memory/memory-consolidator.js');
 
+// Site map intelligence modules (Tier 1 converter + Tier 2 refiner)
+importScripts('lib/memory/sitemap-converter.js');
+importScripts('lib/memory/sitemap-refiner.js');
+
 // Site map intelligence - bundled map cache
 const bundledSiteMapCache = new Map();
 
@@ -3977,7 +3981,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           const result = await siteExplorer.start(request.url, {
             maxDepth: request.maxDepth || 3,
             maxPages: request.maxPages || 25,
-            callerTabId: sender.tab?.id || null
+            callerTabId: sender.tab?.id || null,
+            autoSaveToMemory: request.autoSaveToMemory || false
           });
           sendResponse(result);
         } catch (error) {
