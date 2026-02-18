@@ -68,6 +68,32 @@ async function loadBundledSiteMap(domain) {
   return null;
 }
 
+/**
+ * Check whether a site map exists for a given domain (bundled or memory).
+ * Returns { exists: boolean, source: 'bundled' | 'memory' | null }
+ */
+async function hasSiteMapForDomain(domain) {
+  // Check pre-bundled maps
+  const bundled = await loadBundledSiteMap(domain);
+  if (bundled) return { exists: true, source: 'bundled' };
+
+  // Check memory system
+  if (typeof memoryManager !== 'undefined') {
+    try {
+      const allMemories = await memoryManager.getAll();
+      const match = allMemories.find(m =>
+        m.typeData?.category === 'site_map' &&
+        m.metadata?.domain === domain
+      );
+      if (match) return { exists: true, source: 'memory' };
+    } catch (e) {
+      // Memory lookup failed, treat as not found
+    }
+  }
+
+  return { exists: false, source: null };
+}
+
 // Site Explorer instance
 const siteExplorer = new SiteExplorer();
 
@@ -3970,6 +3996,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ success: false });
         } catch (error) {
           sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    // SM-17: Check if a site map exists for a domain
+    case 'checkSiteMap':
+      (async () => {
+        try {
+          const result = await hasSiteMapForDomain(request.domain);
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ exists: false, source: null, error: error.message });
         }
       })();
       return true;
