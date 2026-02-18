@@ -1,0 +1,16 @@
+{
+  "_comment": "Pre-bundled site map template. Copy and fill in for each site.",
+  "domain": "example.com",
+  "source": "bundled",
+  "refined": true,
+  "pages": {
+    "/": { "title": "Home", "elementCount": 0, "formCount": 0, "linkCount": 0 }
+  },
+  "navigation": [
+    { "label": "Home", "path": "/" }
+  ],
+  "forms": [],
+  "keySelectors": {},
+  "workflows": [],
+  "tips": []
+}
