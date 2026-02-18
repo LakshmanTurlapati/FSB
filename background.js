@@ -36,6 +36,34 @@ importScripts('lib/memory/memory-extractor.js');
 importScripts('lib/memory/memory-manager.js');
 importScripts('lib/memory/memory-consolidator.js');
 
+// Site map intelligence - bundled map cache
+const bundledSiteMapCache = new Map();
+
+async function loadBundledSiteMap(domain) {
+  if (bundledSiteMapCache.has(domain)) {
+    return bundledSiteMapCache.get(domain);
+  }
+
+  const lookupDomain = domain.replace(/^www\./, '');
+
+  for (const d of [lookupDomain, domain]) {
+    try {
+      const url = chrome.runtime.getURL(`site-maps/${d}.json`);
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        bundledSiteMapCache.set(domain, data);
+        return data;
+      }
+    } catch (e) {
+      // File not found, continue
+    }
+  }
+
+  bundledSiteMapCache.set(domain, null);
+  return null;
+}
+
 // Site Explorer instance
 const siteExplorer = new SiteExplorer();
 
@@ -3889,6 +3917,53 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         try {
           const result = await secureConfig.updateCredential(request.domain, request.updates);
           sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    // SM-22: Site map retrieval for AI context injection
+    case 'getSiteMap':
+      (async () => {
+        try {
+          const domain = request.domain;
+          if (!domain) {
+            sendResponse({ success: false, error: 'No domain provided' });
+            return;
+          }
+
+          // Priority 1: Pre-bundled map
+          const bundled = await loadBundledSiteMap(domain);
+          if (bundled) {
+            sendResponse({ success: true, siteMap: bundled, source: 'bundled' });
+            return;
+          }
+
+          // Priority 2: Memory-stored map (refined preferred)
+          if (typeof memoryManager !== 'undefined') {
+            try {
+              const allMemories = await memoryManager.getAll();
+              const siteMapMemories = allMemories.filter(m =>
+                m.typeData?.category === 'site_map' &&
+                m.metadata?.domain === domain
+              );
+              if (siteMapMemories.length > 0) {
+                const refined = siteMapMemories.find(m => m.typeData?.sitePattern?.refined);
+                const best = refined || siteMapMemories[0];
+                sendResponse({
+                  success: true,
+                  siteMap: best.typeData.sitePattern,
+                  source: refined ? 'memory_refined' : 'memory_basic'
+                });
+                return;
+              }
+            } catch (e) {
+              debugLog('getSiteMap memory lookup failed:', e.message);
+            }
+          }
+
+          sendResponse({ success: false });
         } catch (error) {
           sendResponse({ success: false, error: error.message });
         }

@@ -98,6 +98,72 @@ const TOOL_DOCUMENTATION = {
   }
 };
 
+/**
+ * Format a site map into a compact prompt section for AI context injection.
+ * Budget: ~500-800 chars to fit within memory allocation.
+ */
+function formatSiteKnowledge(siteMap, domain) {
+  if (!siteMap) return '';
+
+  const lines = [`SITE KNOWLEDGE (${domain}):`];
+
+  // Pages summary (compact)
+  if (siteMap.pages) {
+    const pageEntries = Object.entries(siteMap.pages);
+    const pageList = pageEntries.slice(0, 15).map(([path, info]) => {
+      const parts = [path];
+      if (info.title) parts.push(info.title);
+      if (info.formCount > 0) parts.push(`${info.formCount} forms`);
+      return parts.join(' - ');
+    }).join(', ');
+    if (pageList) lines.push(`Pages: ${pageList}`);
+  }
+
+  // Navigation links
+  if (siteMap.navigation && siteMap.navigation.length > 0) {
+    const navItems = siteMap.navigation.slice(0, 10).map(n => n.label).join(', ');
+    lines.push(`Navigation: ${navItems}`);
+  }
+
+  // Workflows (from AI refinement - Tier 2)
+  if (siteMap.workflows && siteMap.workflows.length > 0) {
+    lines.push('Workflows: ' + siteMap.workflows.slice(0, 5).join('; '));
+  }
+
+  // Tips (from AI refinement - Tier 2)
+  if (siteMap.tips && siteMap.tips.length > 0) {
+    lines.push('Tips: ' + siteMap.tips.slice(0, 5).join('; '));
+  }
+
+  // Navigation strategy (from AI refinement)
+  if (siteMap.navigationStrategy) {
+    lines.push('Nav strategy: ' + siteMap.navigationStrategy);
+  }
+
+  // Key selectors (compact)
+  if (siteMap.keySelectors) {
+    const selectorEntries = Object.entries(siteMap.keySelectors);
+    if (selectorEntries.length > 0) {
+      const selectorSummary = selectorEntries.slice(0, 5).map(([page, sels]) => {
+        const selList = Array.isArray(sels) ? sels.slice(0, 3).join(', ') : sels;
+        return `${page}: ${selList}`;
+      }).join('; ');
+      lines.push(`Key selectors: ${selectorSummary}`);
+    }
+  }
+
+  // Cap total length at 800 chars
+  let result = lines.join('\n');
+  if (result.length > 800) {
+    result = result.substring(0, 797) + '...';
+  }
+  return result;
+}
+
+if (typeof self !== 'undefined') {
+  self.formatSiteKnowledge = formatSiteKnowledge;
+}
+
 // Task-specific prompt templates
 const TASK_PROMPTS = {
   search: "CRITICAL: For search tasks you MUST: 1) Type query, then look for submit button (button[type='submit'], buttons with 'Search'/'Submit'/'Go'/'Find' text, or search/submit classes). If found, click button. If no button, use pressEnter: true, 2) Wait for results to load, 3) Extract the actual answer from the page, 4) ONLY mark taskComplete: true after you have the answer. If you don't see relevant results, scroll down to see more. When completing, provide the specific information found, not just 'found the answer'. Example result: 'I found the current weather in New York is 72°F with clear skies and 15% humidity.'",
@@ -357,6 +423,12 @@ class AIIntegration {
     // Long-term memories from past sessions (fetched once per session, injected synchronously)
     this._longTermMemories = [];
     this._longTermMemoriesSessionId = null;
+
+    // SM-22: Site map knowledge cache for synchronous injection in buildPrompt
+    this._lastSiteKnowledgeDomain = null;
+    this._cachedSiteMap = null;
+    this._cachedSiteMapDomain = null;
+    this._cachedSiteMapSource = null;
   }
   
   // Migrate legacy settings to new format
@@ -436,6 +508,11 @@ class AIIntegration {
       workingSelectors: {}   // { label: selector } -- max 10 entries
     };
     this._selectorUsageCount = {};
+    // SM-22: Reset site map knowledge cache
+    this._lastSiteKnowledgeDomain = null;
+    this._cachedSiteMap = null;
+    this._cachedSiteMapDomain = null;
+    this._cachedSiteMapSource = null;
     if (previousLength > 0) {
       automationLogger.debug('Cleared conversation history', { previousLength });
     }
@@ -1327,6 +1404,44 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
     }
   }
 
+  /**
+   * SM-22: Fetch site map for the current domain if needed (first iteration or domain change).
+   * Results cached on instance for synchronous injection in buildPrompt().
+   */
+  async _fetchSiteMap(context) {
+    if (!context?.currentUrl) return;
+
+    let currentDomain;
+    try {
+      currentDomain = new URL(context.currentUrl).hostname;
+    } catch {
+      return;
+    }
+
+    // Skip if same domain already fetched
+    if (currentDomain === this._cachedSiteMapDomain) return;
+
+    try {
+      const mapResult = await chrome.runtime.sendMessage({
+        action: 'getSiteMap',
+        domain: currentDomain
+      });
+      if (mapResult && mapResult.success && mapResult.siteMap) {
+        this._cachedSiteMap = mapResult.siteMap;
+        this._cachedSiteMapDomain = currentDomain;
+        this._cachedSiteMapSource = mapResult.source;
+      } else {
+        this._cachedSiteMap = null;
+        this._cachedSiteMapDomain = currentDomain;
+        this._cachedSiteMapSource = null;
+      }
+    } catch (e) {
+      // Non-critical: proceed without site map
+      this._cachedSiteMap = null;
+      this._cachedSiteMapDomain = currentDomain;
+    }
+  }
+
   // Generate context-aware cache key
   generateCacheKey(task, domState, context = null) {
     // Base key components
@@ -1439,8 +1554,21 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       this.conversationSessionId = sessionId;
       automationLogger.debug('New session detected, reset conversation history', { sessionId });
 
-      // Fetch long-term memories for this new session (non-blocking)
-      this._fetchLongTermMemories(task, context).catch(() => {});
+      // Fetch long-term memories and site map for this new session
+      await Promise.all([
+        this._fetchLongTermMemories(task, context).catch(() => {}),
+        this._fetchSiteMap(context).catch(() => {})
+      ]);
+    }
+
+    // SM-22: Refresh site map on domain change (even within same session)
+    if (context?.currentUrl) {
+      try {
+        const currentDomain = new URL(context.currentUrl).hostname;
+        if (currentDomain !== this._cachedSiteMapDomain) {
+          await this._fetchSiteMap(context).catch(() => {});
+        }
+      } catch {}
     }
 
     // Generate context-aware cache key
@@ -2406,6 +2534,21 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
 - If a click shows "No changes detected", try a different element or approach
 - If typing shows "Text NOT entered correctly", the field may need special handling
 - You can safely include 3-5 related actions in a single response`;
+      }
+    }
+
+    // SM-22: Inject pre-fetched site map knowledge on first iteration or domain change
+    if ((isFirstIteration || isDomainChanged) && this._cachedSiteMap && this._cachedSiteMapDomain) {
+      const siteKnowledgeStr = formatSiteKnowledge(this._cachedSiteMap, this._cachedSiteMapDomain);
+      if (siteKnowledgeStr) {
+        userPrompt += '\n\n=== ' + siteKnowledgeStr + '\n=== END SITE KNOWLEDGE ===';
+        this._lastSiteKnowledgeDomain = this._cachedSiteMapDomain;
+        automationLogger.debug('Injected site map knowledge', {
+          sessionId: this.currentSessionId,
+          domain: this._cachedSiteMapDomain,
+          source: this._cachedSiteMapSource,
+          length: siteKnowledgeStr.length
+        });
       }
     }
 
