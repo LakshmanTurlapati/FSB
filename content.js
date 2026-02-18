@@ -28,7 +28,8 @@ if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
     getSessionLogs: function() { return []; },
     saveSession: function() { return Promise.resolve(false); },
     persistLogs: function() {},
-    recordAction: function() {}
+    recordAction: function() {},
+    logActionExecution: function() {}
   };
 
   if (!window.automationLogger) {
@@ -114,13 +115,28 @@ function findElementByNormalizedAriaLabel(selectorStr) {
  * @param {Element} el - DOM element to check
  * @returns {boolean} True if element is part of the FSB overlay
  */
+const FSB_HOST_IDS = new Set([
+  'fsb-progress-host',
+  'fsb-viewport-glow-host',
+  'fsb-action-glow-host',
+  'fsb-inspector-overlay',
+  'fsb-inspector-panel',
+  'fsb-inspector-indicator'
+]);
+
 function isFsbElement(el) {
   if (!el) return false;
-  if (el.id === 'fsb-progress-host') return true;
+  if (FSB_HOST_IDS.has(el.id)) return true;
   if (el.hasAttribute?.('data-fsb-id')) return true;
-  if (el.closest?.('#fsb-progress-host')) return true;
+  // Walk up to check if any ancestor is an FSB host
+  if (el.closest) {
+    for (const id of FSB_HOST_IDS) {
+      if (el.closest(`#${id}`)) return true;
+    }
+  }
+  // Check shadow DOM boundary - element may be inside a shadow root whose host is FSB
   const root = el.getRootNode?.();
-  if (root && root !== document && root.host?.id === 'fsb-progress-host') return true;
+  if (root && root !== document && root.host && FSB_HOST_IDS.has(root.host.id)) return true;
   return false;
 }
 
@@ -1008,11 +1024,78 @@ class HighlightManager {
 const highlightManager = new HighlightManager();
 
 /**
+ * promoteToTopLayer - Promote an element to the browser's top layer using the Popover API.
+ *
+ * The top layer renders ABOVE all z-index stacking contexts, solving the problem
+ * where complex web apps (Google Docs, Sheets, etc.) create parent stacking contexts
+ * that trap z-index resolution and cause page elements to render above our overlays.
+ *
+ * Uses popover="manual" which:
+ * - Promotes element to the top layer (above ALL z-index)
+ * - Does NOT make the rest of the page inert (unlike dialog.showModal())
+ * - Does NOT light-dismiss (won't close on outside click)
+ * - Allows multiple popovers simultaneously
+ * - Works with Shadow DOM and CSS animations inside
+ *
+ * Falls back to z-index approach if the Popover API is not available.
+ *
+ * @param {HTMLElement} element - The element to promote
+ * @returns {boolean} true if promoted to top layer, false if falling back to z-index
+ */
+function promoteToTopLayer(element) {
+  if (!element) return false;
+
+  // Check if Popover API is supported
+  if (typeof element.showPopover === 'function') {
+    try {
+      element.setAttribute('popover', 'manual');
+
+      // The element must be connected to the document before showPopover()
+      if (!element.isConnected) {
+        document.documentElement.appendChild(element);
+      }
+
+      element.showPopover();
+      return true;
+    } catch (e) {
+      // Fallback: if popover fails for any reason, rely on z-index
+      console.warn('[FSB] Top-layer promotion failed, falling back to z-index:', e.message);
+      element.removeAttribute('popover');
+      return false;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * demoteFromTopLayer - Remove an element from the browser's top layer.
+ *
+ * Calls hidePopover() before removing the element from the DOM to
+ * cleanly exit the top layer.
+ *
+ * @param {HTMLElement} element - The element to demote
+ */
+function demoteFromTopLayer(element) {
+  if (!element) return;
+
+  if (typeof element.hidePopover === 'function' && element.hasAttribute('popover')) {
+    try {
+      element.hidePopover();
+    } catch (e) {
+      // Element may already be hidden or disconnected - safe to ignore
+    }
+  }
+}
+
+/**
  * ProgressOverlay - Floating progress indicator using Shadow DOM
  *
  * Uses Shadow DOM for complete style isolation from host page.
  * Shows task name, step number, step text, and progress bar.
  * Positioned in top-right corner with maximum z-index.
+ * Promoted to the browser's top layer via Popover API for guaranteed
+ * rendering above all page content (including complex apps like Google Docs).
  */
 class ProgressOverlay {
   constructor() {
@@ -1031,14 +1114,20 @@ class ProgressOverlay {
     this.host = document.createElement('div');
     this.host.id = 'fsb-progress-host';
     // Reset all inherited styles and position at top of stacking context
+    // z-index is kept as fallback for browsers without Popover API support
     this.host.style.cssText = `
       all: initial !important;
       display: block !important;
       position: fixed !important;
-      z-index: 2147483647 !important;
+      inset: auto !important;
       top: 16px !important;
       right: 16px !important;
+      z-index: 2147483647 !important;
       pointer-events: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      background: none !important;
     `;
 
     // Create shadow root for complete style isolation
@@ -1182,7 +1271,15 @@ class ProgressOverlay {
     logoImg.src = chrome.runtime.getURL('Assets/icon48.png');
 
     this.shadow.appendChild(this.container);
-    document.documentElement.appendChild(this.host);
+
+    // Promote to top layer via Popover API for guaranteed rendering above all page content.
+    // This bypasses stacking context issues on complex sites like Google Docs.
+    // Falls back to z-index approach if Popover API is unavailable.
+    this._inTopLayer = promoteToTopLayer(this.host);
+    if (!this._inTopLayer) {
+      // Fallback: append to documentElement with z-index
+      document.documentElement.appendChild(this.host);
+    }
   }
 
   /**
@@ -1221,8 +1318,14 @@ class ProgressOverlay {
    */
   show() {
     if (this.host && this.host.parentNode) {
-      // Re-append to ensure we're last in DOM (wins z-index ties)
-      document.documentElement.appendChild(this.host);
+      if (this._inTopLayer) {
+        // Re-promote to top layer to ensure we're on top of any newly opened popovers
+        try { this.host.hidePopover(); } catch (e) { /* ignore */ }
+        try { this.host.showPopover(); } catch (e) { /* ignore */ }
+      } else {
+        // Fallback: Re-append to ensure we're last in DOM (wins z-index ties)
+        document.documentElement.appendChild(this.host);
+      }
     }
     if (this.container) {
       this.container.classList.remove('hidden');
@@ -1243,10 +1346,12 @@ class ProgressOverlay {
    */
   destroy() {
     if (this.host) {
+      demoteFromTopLayer(this.host);
       this.host.remove();
       this.host = null;
       this.shadow = null;
       this.container = null;
+      this._inTopLayer = false;
     }
   }
 }
@@ -1256,6 +1361,9 @@ const progressOverlay = new ProgressOverlay();
 
 // Persist the last action-specific status text so thinking phases can reuse it
 let lastActionStatusText = null;
+
+// Watchdog timer: auto-cleanup overlays if background stops communicating
+let _overlayWatchdogTimer = null;
 
 /**
  * ViewportGlow - Full-viewport border glow indicating AI activity state
@@ -1285,6 +1393,16 @@ class ViewportGlow {
       if (root) root.classList.add(`state-${state}`);
       this._startAnimation();
       return;
+    }
+    if (this.host.parentNode) {
+      if (this._inTopLayer) {
+        // Re-promote to top layer to ensure we're on top of any newly opened popovers
+        try { this.host.hidePopover(); } catch (e) { /* ignore */ }
+        try { this.host.showPopover(); } catch (e) { /* ignore */ }
+      } else {
+        // Fallback: Re-append to ensure we're last in DOM (wins z-index ties)
+        document.documentElement.appendChild(this.host);
+      }
     }
     this.setState(state);
   }
@@ -1442,7 +1560,8 @@ class ViewportGlow {
   _create() {
     this.host = document.createElement('div');
     this.host.id = 'fsb-viewport-glow-host';
-    this.host.style.cssText = 'all:initial!important;position:fixed!important;inset:0!important;z-index:2147483644!important;pointer-events:none!important;';
+    // z-index kept as fallback; top-layer via Popover API is the primary mechanism
+    this.host.style.cssText = 'all:initial!important;position:fixed!important;inset:0!important;z-index:2147483647!important;pointer-events:none!important;margin:0!important;padding:0!important;border:none!important;background:none!important;';
 
     this.shadow = this.host.attachShadow({ mode: 'closed' });
 
@@ -1532,17 +1651,23 @@ class ViewportGlow {
       left: root.querySelector('.bar-left')
     };
 
-    document.body.appendChild(this.host);
+    // Promote to top layer via Popover API for guaranteed rendering above all page content
+    this._inTopLayer = promoteToTopLayer(this.host);
+    if (!this._inTopLayer) {
+      document.documentElement.appendChild(this.host);
+    }
   }
 
   destroy() {
     this._stopAnimation();
     if (this.host) {
+      demoteFromTopLayer(this.host);
       this.host.remove();
       this.host = null;
       this.shadow = null;
       this.state = null;
       this._bars = null;
+      this._inTopLayer = false;
     }
   }
 }
@@ -1615,7 +1740,8 @@ class ActionGlowOverlay {
     // Create host element
     this.host = document.createElement('div');
     this.host.id = 'fsb-action-glow-host';
-    this.host.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;';
+    // z-index kept as fallback; top-layer via Popover API is the primary mechanism
+    this.host.style.cssText = 'all:initial!important;position:fixed!important;inset:auto!important;top:0!important;left:0!important;width:0!important;height:0!important;z-index:2147483647!important;pointer-events:none!important;margin:0!important;padding:0!important;border:none!important;background:none!important;';
 
     // Attach Shadow DOM
     this.shadow = this.host.attachShadow({ mode: 'closed' });
@@ -1671,8 +1797,11 @@ class ActionGlowOverlay {
     // Position over element
     this._updatePosition();
 
-    // Append to DOM
-    document.body.appendChild(this.host);
+    // Promote to top layer via Popover API for guaranteed rendering above all page content
+    this._inTopLayer = promoteToTopLayer(this.host);
+    if (!this._inTopLayer) {
+      document.documentElement.appendChild(this.host);
+    }
 
     // Trigger fade-in on next frame
     requestAnimationFrame(() => {
@@ -1712,7 +1841,7 @@ class ActionGlowOverlay {
   _startTracking() {
     const track = () => {
       // PERF: Stop tracking if host element was removed from DOM (prevents RAF leak)
-      if (!this.host || !document.body.contains(this.host)) {
+      if (!this.host || !document.documentElement.contains(this.host)) {
         this.trackingId = null;
         return;
       }
@@ -1741,24 +1870,28 @@ class ActionGlowOverlay {
     // Wait for fade-out transition then clean up
     setTimeout(() => {
       if (this.host) {
+        demoteFromTopLayer(this.host);
         this.host.remove();
       }
       this.host = null;
       this.shadow = null;
       this.overlay = null;
       this.targetElement = null;
+      this._inTopLayer = false;
     }, 250);
   }
 
   destroy() {
     this._stopTracking();
     if (this.host) {
+      demoteFromTopLayer(this.host);
       this.host.remove();
     }
     this.host = null;
     this.shadow = null;
     this.overlay = null;
     this.targetElement = null;
+    this._inTopLayer = false;
   }
 }
 
@@ -1798,9 +1931,9 @@ class ElementInspector {
     this.isActive = false;
     document.removeEventListener('mousemove', this.handleMouseMove, true);
     document.removeEventListener('click', this.handleClick, true);
-    if (this.hoverOverlay) { this.hoverOverlay.remove(); this.hoverOverlay = null; }
-    if (this.inspectionPanel) { this.inspectionPanel.remove(); this.inspectionPanel = null; }
-    if (this.activeIndicator) { this.activeIndicator.remove(); this.activeIndicator = null; }
+    if (this.hoverOverlay) { demoteFromTopLayer(this.hoverOverlay); this.hoverOverlay.remove(); this.hoverOverlay = null; this._hoverInTopLayer = false; }
+    if (this.inspectionPanel) { demoteFromTopLayer(this.inspectionPanel); this.inspectionPanel.remove(); this.inspectionPanel = null; this._panelInTopLayer = false; }
+    if (this.activeIndicator) { demoteFromTopLayer(this.activeIndicator); this.activeIndicator.remove(); this.activeIndicator = null; this._indicatorInTopLayer = false; }
     this.currentElement = null;
   }
 
@@ -1808,15 +1941,22 @@ class ElementInspector {
     if (this.hoverOverlay) return;
     this.hoverOverlay = document.createElement('div');
     this.hoverOverlay.id = 'fsb-inspector-overlay';
-    this.hoverOverlay.style.cssText = 'all:initial!important;position:fixed!important;pointer-events:none!important;z-index:2147483645!important;border:2px dashed #FF8C00!important;background:rgba(255,165,0,0.1)!important;display:none!important;box-sizing:border-box!important;';
-    document.body.appendChild(this.hoverOverlay);
+    // z-index kept as fallback; top-layer via Popover API is the primary mechanism
+    // Use visibility:hidden instead of display:none for popover compatibility
+    this.hoverOverlay.style.cssText = 'all:initial!important;position:fixed!important;pointer-events:none!important;z-index:2147483647!important;border:2px dashed #FF8C00!important;background:rgba(255,165,0,0.1)!important;visibility:hidden!important;box-sizing:border-box!important;margin:0!important;padding:0!important;inset:auto!important;';
+    this._hoverInTopLayer = promoteToTopLayer(this.hoverOverlay);
+    if (!this._hoverInTopLayer) {
+      document.documentElement.appendChild(this.hoverOverlay);
+    }
   }
 
   createInspectionPanel() {
     if (this.inspectionPanel) return;
     this.inspectionPanel = document.createElement('div');
     this.inspectionPanel.id = 'fsb-inspector-panel';
-    this.inspectionPanel.style.cssText = 'all:initial!important;position:fixed!important;bottom:20px!important;right:20px!important;z-index:2147483647!important;display:none!important;';
+    // z-index kept as fallback; top-layer via Popover API is the primary mechanism
+    // Use visibility:hidden instead of display:none for popover compatibility
+    this.inspectionPanel.style.cssText = 'all:initial!important;position:fixed!important;inset:auto!important;bottom:20px!important;right:20px!important;z-index:2147483647!important;visibility:hidden!important;margin:0!important;padding:0!important;border:none!important;background:none!important;';
     const shadow = this.inspectionPanel.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
     style.textContent = ':host{all:initial!important}*{box-sizing:border-box;margin:0;padding:0}.panel{width:350px;max-height:400px;overflow-y:auto;background:#fff;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);font-family:system-ui,-apple-system,sans-serif;font-size:12px;color:#333}.header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#FF8C00;color:#fff;border-radius:8px 8px 0 0;font-weight:600}.header-tag{font-size:14px}.badge{display:inline-block;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-size:10px;margin-left:4px}.close-btn{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:0 4px;line-height:1}.close-btn:hover{opacity:0.8}.section{padding:12px 16px;border-bottom:1px solid #eee}.section:last-child{border-bottom:none}.section-title{font-weight:600;color:#666;margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px}.selector-list{list-style:none}.selector-item{display:flex;align-items:flex-start;margin-bottom:6px;gap:8px}.selector-index{background:#f0f0f0;color:#666;padding:2px 6px;border-radius:3px;font-size:10px;min-width:20px;text-align:center}.selector-value{font-family:Monaco,Menlo,monospace;font-size:11px;word-break:break-all;color:#0066cc}.attr-list{display:grid;grid-template-columns:auto 1fr;gap:4px 12px}.attr-key{font-weight:500;color:#666}.attr-value{font-family:Monaco,Menlo,monospace;font-size:11px;color:#333;word-break:break-all}.check-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}.check-item{display:flex;align-items:center;gap:6px}.check-pass{color:#22c55e}.check-fail{color:#ef4444}.position-info{font-family:Monaco,Menlo,monospace;font-size:11px;color:#666}.text-preview{font-style:italic;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}';
@@ -1825,16 +1965,23 @@ class ElementInspector {
     container.className = 'panel';
     container.innerHTML = '<div class="section">Click an element to inspect</div>';
     shadow.appendChild(container);
-    document.body.appendChild(this.inspectionPanel);
+    this._panelInTopLayer = promoteToTopLayer(this.inspectionPanel);
+    if (!this._panelInTopLayer) {
+      document.documentElement.appendChild(this.inspectionPanel);
+    }
   }
 
   createActiveIndicator() {
     if (this.activeIndicator) return;
     this.activeIndicator = document.createElement('div');
     this.activeIndicator.id = 'fsb-inspector-indicator';
-    this.activeIndicator.style.cssText = 'all:initial!important;position:fixed!important;top:10px!important;left:50%!important;transform:translateX(-50%)!important;z-index:2147483647!important;background:#FF8C00!important;color:#fff!important;padding:6px 16px!important;border-radius:20px!important;font-family:system-ui,-apple-system,sans-serif!important;font-size:12px!important;font-weight:600!important;box-shadow:0 2px 10px rgba(0,0,0,0.3)!important;pointer-events:none!important;';
+    // z-index kept as fallback; top-layer via Popover API is the primary mechanism
+    this.activeIndicator.style.cssText = 'all:initial!important;position:fixed!important;inset:auto!important;top:10px!important;left:50%!important;transform:translateX(-50%)!important;z-index:2147483647!important;background:#FF8C00!important;color:#fff!important;padding:6px 16px!important;border-radius:20px!important;font-family:system-ui,-apple-system,sans-serif!important;font-size:12px!important;font-weight:600!important;box-shadow:0 2px 10px rgba(0,0,0,0.3)!important;pointer-events:none!important;margin:0!important;border:none!important;';
     this.activeIndicator.textContent = 'FSB Inspector Mode (Ctrl+Shift+E to exit)';
-    document.body.appendChild(this.activeIndicator);
+    this._indicatorInTopLayer = promoteToTopLayer(this.activeIndicator);
+    if (!this._indicatorInTopLayer) {
+      document.documentElement.appendChild(this.activeIndicator);
+    }
   }
 
   handleMouseMove(e) {
@@ -1867,7 +2014,7 @@ class ElementInspector {
     this.hoverOverlay.style.setProperty('left', rect.left + 'px', 'important');
     this.hoverOverlay.style.setProperty('width', rect.width + 'px', 'important');
     this.hoverOverlay.style.setProperty('height', rect.height + 'px', 'important');
-    this.hoverOverlay.style.setProperty('display', 'block', 'important');
+    this.hoverOverlay.style.setProperty('visibility', 'visible', 'important');
   }
 
   getElementInspection(element) {
@@ -1933,8 +2080,8 @@ class ElementInspector {
     if (inspection.text) textHtml = '<div class="section"><div class="section-title">Text Content</div><div class="text-preview">' + this.escapeHtml(inspection.text) + '</div></div>';
     container.innerHTML = '<div class="header"><div>' + headerContent + '</div><button class="close-btn" id="fsb-close-panel">x</button></div><div class="section"><div class="section-title">Selectors FSB Would Try</div>' + selectorsHtml + '</div>' + (hasAttrs ? '<div class="section"><div class="section-title">Attributes</div>' + attrsHtml + '</div>' : '') + '<div class="section"><div class="section-title">Interactability</div>' + interactHtml + '</div><div class="section"><div class="section-title">Position</div>' + positionHtml + '</div>' + textHtml;
     const closeBtn = shadow.querySelector('#fsb-close-panel');
-    if (closeBtn) closeBtn.addEventListener('click', () => { this.inspectionPanel.style.setProperty('display', 'none', 'important'); });
-    this.inspectionPanel.style.setProperty('display', 'block', 'important');
+    if (closeBtn) closeBtn.addEventListener('click', () => { this.inspectionPanel.style.setProperty('visibility', 'hidden', 'important'); });
+    this.inspectionPanel.style.setProperty('visibility', 'visible', 'important');
   }
 
   escapeHtml(text) {
@@ -1960,6 +2107,11 @@ document.addEventListener('keydown', (e) => {
 // PERF: Also disconnect MutationObservers to prevent orphaned observers on BFCache navigation
 window.addEventListener('beforeunload', () => {
   try {
+    // Clear the overlay watchdog timer on page unload
+    if (_overlayWatchdogTimer) {
+      clearTimeout(_overlayWatchdogTimer);
+      _overlayWatchdogTimer = null;
+    }
     viewportGlow.destroy();
     actionGlowOverlay.destroy();
     highlightManager.cleanup();
@@ -2171,6 +2323,364 @@ async function collectChildFramesDom(timeout = 3000) {
   automationLogger.logDOMOperation(currentSessionId, 'iframes_collected', { successful: successfulFrames.length, total: iframes.length });
 
   return results;
+}
+
+/**
+ * Detect canvas-based editors (Google Docs, Sheets, Slides, etc.)
+ * These editors render text on a <canvas> element with a hidden contenteditable div behind it.
+ * Standard DOM-based input detection and verification does not work for these editors.
+ * @returns {boolean} True if the current page is a canvas-based editor
+ */
+function isCanvasBasedEditor() {
+  const host = window.location.hostname;
+  if (host === 'docs.google.com') return true;
+  // Check for Google Docs kix classes or the text event target iframe
+  if (document.querySelector('.kix-appview-editor, .kix-page, .docs-texteventtarget-iframe')) return true;
+  // Check for Google Sheets waffle classes
+  if (document.querySelector('.waffle-comments-provider, .waffle-selection-handle')) return true;
+  return false;
+}
+
+/**
+ * Detect whether a string contains markdown formatting that should be rendered.
+ * Looks for headings, bold, italic, lists, links, etc.
+ * @param {string} text - The text to check
+ * @returns {boolean} True if the text contains markdown formatting
+ */
+function hasMarkdownFormatting(text) {
+  if (!text || typeof text !== 'string') return false;
+  // Check for common markdown patterns
+  const patterns = [
+    /^#{1,6}\s+/m,           // Headings: # Heading
+    /\*\*[^*]+\*\*/,         // Bold: **text**
+    /\*[^*]+\*/,             // Italic: *text*
+    /__[^_]+__/,             // Bold: __text__
+    /_[^_]+_/,               // Italic: _text_
+    /^\s*[-*+]\s+/m,         // Unordered lists: - item, * item, + item
+    /^\s*\d+\.\s+/m,         // Ordered lists: 1. item
+    /\[([^\]]+)\]\(([^)]+)\)/, // Links: [text](url)
+    /`[^`]+`/,               // Inline code: `code`
+    /^>\s+/m,                // Blockquotes: > text
+    /^---$/m,                // Horizontal rules
+    /~~[^~]+~~/              // Strikethrough: ~~text~~
+  ];
+  // Require at least 2 pattern matches to avoid false positives on casual asterisk use
+  let matchCount = 0;
+  for (const pattern of patterns) {
+    if (pattern.test(text)) {
+      matchCount++;
+      if (matchCount >= 2) return true;
+    }
+  }
+  // Single heading at start is enough (clear intent to format)
+  if (/^#{1,6}\s+/m.test(text)) return true;
+  // Single bold pattern with substantial content is enough
+  if (/\*\*[^*]{3,}\*\*/.test(text)) return true;
+  return false;
+}
+
+/**
+ * Convert markdown text to clean HTML suitable for pasting into Google Docs.
+ * Supports: headings, bold, italic, strikethrough, links, ordered/unordered lists,
+ * blockquotes, inline code, horizontal rules, and paragraphs.
+ * @param {string} markdown - The markdown text to convert
+ * @returns {string} HTML string
+ */
+function markdownToHTML(markdown) {
+  if (!markdown || typeof markdown !== 'string') return '';
+
+  let html = markdown;
+
+  // Normalize line endings
+  html = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Split into lines for block-level processing
+  const lines = html.split('\n');
+  const outputBlocks = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Empty line -- paragraph separator
+    if (trimmed === '') {
+      i++;
+      continue;
+    }
+
+    // Horizontal rule
+    if (/^(---|\*\*\*|___)$/.test(trimmed)) {
+      outputBlocks.push('<hr>');
+      i++;
+      continue;
+    }
+
+    // Headings
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const text = applyInlineFormatting(headingMatch[2]);
+      outputBlocks.push(`<h${level}>${text}</h${level}>`);
+      i++;
+      continue;
+    }
+
+    // Blockquote
+    if (trimmed.startsWith('>')) {
+      const quoteLines = [];
+      while (i < lines.length && lines[i].trim().startsWith('>')) {
+        quoteLines.push(lines[i].trim().replace(/^>\s*/, ''));
+        i++;
+      }
+      const quoteContent = applyInlineFormatting(quoteLines.join('<br>'));
+      outputBlocks.push(`<blockquote>${quoteContent}</blockquote>`);
+      continue;
+    }
+
+    // Unordered list
+    if (/^\s*[-*+]\s+/.test(line)) {
+      const listItems = [];
+      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+        const itemText = lines[i].replace(/^\s*[-*+]\s+/, '');
+        listItems.push(`<li>${applyInlineFormatting(itemText)}</li>`);
+        i++;
+      }
+      outputBlocks.push(`<ul>${listItems.join('')}</ul>`);
+      continue;
+    }
+
+    // Ordered list
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const listItems = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+        const itemText = lines[i].replace(/^\s*\d+\.\s+/, '');
+        listItems.push(`<li>${applyInlineFormatting(itemText)}</li>`);
+        i++;
+      }
+      outputBlocks.push(`<ol>${listItems.join('')}</ol>`);
+      continue;
+    }
+
+    // Table (markdown pipe table)
+    if (/^\|.+\|$/.test(trimmed)) {
+      const tableRows = [];
+      while (i < lines.length && /^\|.+\|$/.test(lines[i].trim())) {
+        tableRows.push(lines[i].trim());
+        i++;
+      }
+      if (tableRows.length >= 2) {
+        // First row is header, second row is separator (|---|---|), rest are body
+        const parseRow = (row) => row.split('|').slice(1, -1).map(cell => cell.trim());
+        const headerCells = parseRow(tableRows[0]);
+        const isSeparator = (row) => /^\|[\s\-:|]+\|$/.test(row);
+        let bodyStartIdx = 1;
+        if (tableRows.length > 1 && isSeparator(tableRows[1])) {
+          bodyStartIdx = 2; // skip separator row
+        }
+        let tableHTML = '<table style="border-collapse:collapse;width:100%">';
+        // Header
+        tableHTML += '<thead><tr>';
+        for (const cell of headerCells) {
+          tableHTML += `<th style="border:1px solid #ccc;padding:6px 12px;background:#f0f0f0;font-weight:bold">${applyInlineFormatting(cell)}</th>`;
+        }
+        tableHTML += '</tr></thead>';
+        // Body rows
+        if (bodyStartIdx < tableRows.length) {
+          tableHTML += '<tbody>';
+          for (let r = bodyStartIdx; r < tableRows.length; r++) {
+            const cells = parseRow(tableRows[r]);
+            tableHTML += '<tr>';
+            for (let c = 0; c < headerCells.length; c++) {
+              tableHTML += `<td style="border:1px solid #ccc;padding:6px 12px">${applyInlineFormatting(cells[c] || '')}</td>`;
+            }
+            tableHTML += '</tr>';
+          }
+          tableHTML += '</tbody>';
+        }
+        tableHTML += '</table>';
+        outputBlocks.push(tableHTML);
+      } else {
+        // Single pipe line -- treat as paragraph
+        outputBlocks.push(`<p>${applyInlineFormatting(tableRows[0])}</p>`);
+      }
+      continue;
+    }
+
+    // Regular paragraph -- collect consecutive non-empty, non-block lines
+    const paraLines = [];
+    while (i < lines.length) {
+      const pLine = lines[i];
+      const pTrimmed = pLine.trim();
+      if (pTrimmed === '') break;
+      if (/^#{1,6}\s+/.test(pTrimmed)) break;
+      if (/^(---|\*\*\*|___)$/.test(pTrimmed)) break;
+      if (pTrimmed.startsWith('>')) break;
+      if (/^\s*[-*+]\s+/.test(pLine)) break;
+      if (/^\s*\d+\.\s+/.test(pLine)) break;
+      if (/^\|.+\|$/.test(pTrimmed)) break; // table row
+      paraLines.push(pTrimmed);
+      i++;
+    }
+    if (paraLines.length > 0) {
+      const paraText = applyInlineFormatting(paraLines.join('<br>'));
+      outputBlocks.push(`<p>${paraText}</p>`);
+    }
+  }
+
+  return outputBlocks.join('\n');
+}
+
+/**
+ * Apply inline markdown formatting (bold, italic, code, links, strikethrough).
+ * @param {string} text - Text with potential inline markdown
+ * @returns {string} Text with inline HTML formatting applied
+ */
+function applyInlineFormatting(text) {
+  // Inline code (must come first to prevent other formatting inside code spans)
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Bold + italic (***text*** or ___text___)
+  text = text.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
+  text = text.replace(/___([^_]+)___/g, '<strong><em>$1</em></strong>');
+  // Bold (**text** or __text__)
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+  // Italic (*text* or _text_)
+  text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  text = text.replace(/_([^_]+)_/g, '<em>$1</em>');
+  // Strikethrough (~~text~~)
+  text = text.replace(/~~([^~]+)~~/g, '<s>$1</s>');
+  // Links [text](url)
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  return text;
+}
+
+/**
+ * Write HTML to the system clipboard and simulate paste (Ctrl+V / Cmd+V) via CDP.
+ * Used for inserting formatted text into canvas-based editors like Google Docs.
+ * @param {string} html - The HTML content to paste
+ * @param {string} plainText - Fallback plain text version
+ * @returns {Promise<{success: boolean, method: string, error?: string}>}
+ */
+async function clipboardPasteHTML(html, plainText) {
+  try {
+    // Step 1: Write HTML and plain text to clipboard using the Clipboard API
+    const htmlBlob = new Blob([html], { type: 'text/html' });
+    const textBlob = new Blob([plainText], { type: 'text/plain' });
+    const clipboardItem = new ClipboardItem({
+      'text/html': htmlBlob,
+      'text/plain': textBlob
+    });
+
+    try {
+      await navigator.clipboard.write([clipboardItem]);
+    } catch (clipErr) {
+      automationLogger.warn('clipboardPasteHTML: clipboard.write() failed', { error: clipErr.message });
+      return { success: false, method: 'clipboard_paste_html', error: 'Clipboard write failed: ' + clipErr.message };
+    }
+
+    automationLogger.debug('clipboardPasteHTML: clipboard written', { htmlLength: html.length, plainTextLength: plainText.length });
+
+    // Small delay to let clipboard settle
+    await new Promise(r => setTimeout(r, 150));
+
+    // Step 2: Capture a DOM snapshot before paste for verification
+    // Google Docs uses a canvas, but the accessible text content lives in .kix-page elements
+    const getDocTextLength = () => {
+      const pageElements = document.querySelectorAll('.kix-paragraphrenderer');
+      let totalLen = 0;
+      for (const el of pageElements) {
+        totalLen += (el.textContent || '').length;
+      }
+      return totalLen;
+    };
+    const textLenBefore = getDocTextLength();
+
+    // Step 3: Simulate Ctrl+V (or Cmd+V on Mac) via CDP keyboard emulator
+    const isMac = navigator.userAgent?.includes('Macintosh') || navigator.platform?.includes('Mac');
+    const pasteResult = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({
+        action: 'keyboardDebuggerAction',
+        method: 'pressKey',
+        key: 'v',
+        modifiers: {
+          ctrl: !isMac,
+          meta: isMac,
+          shift: false,
+          alt: false
+        }
+      }, (response) => {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else if (response && response.success) resolve(response);
+        else reject(new Error(response?.error || 'Paste key simulation failed'));
+      });
+    });
+
+    automationLogger.debug('clipboardPasteHTML: paste key dispatched', { pasteResult: pasteResult.success });
+
+    // Step 4: Wait for Google Docs to process the paste and verify
+    await new Promise(r => setTimeout(r, 800));
+
+    const textLenAfter = getDocTextLength();
+    const textInserted = textLenAfter > textLenBefore;
+
+    automationLogger.debug('clipboardPasteHTML: verification', {
+      textLenBefore,
+      textLenAfter,
+      textInserted,
+      expectedMinChars: Math.min(plainText.length, 10)
+    });
+
+    if (!textInserted) {
+      // Paste key was dispatched but no text appeared -- this means the paste didn't work.
+      // This could happen if the cursor wasn't in the editor or the key event wasn't
+      // interpreted as a paste shortcut.
+      automationLogger.warn('clipboardPasteHTML: paste key succeeded but no text appeared in editor');
+      return {
+        success: false,
+        method: 'clipboard_paste_html',
+        error: 'Paste dispatched but no text appeared in editor (cursor may not be in editable area)',
+        textLenBefore,
+        textLenAfter
+      };
+    }
+
+    return { success: true, method: 'clipboard_paste_html', textLenBefore, textLenAfter };
+  } catch (error) {
+    automationLogger.warn('clipboardPasteHTML failed', { error: error.message });
+    return { success: false, method: 'clipboard_paste_html', error: error.message };
+  }
+}
+
+/**
+ * Strip markdown formatting to produce clean plain text.
+ * Used as fallback content and for the text/plain clipboard entry.
+ * @param {string} markdown - Markdown text
+ * @returns {string} Clean plain text
+ */
+function stripMarkdown(markdown) {
+  if (!markdown) return '';
+  let text = markdown;
+  // Remove heading markers
+  text = text.replace(/^#{1,6}\s+/gm, '');
+  // Remove bold/italic markers
+  text = text.replace(/\*\*\*([^*]+)\*\*\*/g, '$1');
+  text = text.replace(/\*\*([^*]+)\*\*/g, '$1');
+  text = text.replace(/\*([^*]+)\*/g, '$1');
+  text = text.replace(/___([^_]+)___/g, '$1');
+  text = text.replace(/__([^_]+)__/g, '$1');
+  text = text.replace(/_([^_]+)_/g, '$1');
+  // Remove strikethrough
+  text = text.replace(/~~([^~]+)~~/g, '$1');
+  // Convert links to just text
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  // Remove inline code backticks
+  text = text.replace(/`([^`]+)`/g, '$1');
+  // Remove blockquote markers
+  text = text.replace(/^>\s*/gm, '');
+  // Remove horizontal rules
+  text = text.replace(/^(---|\*\*\*|___)$/gm, '');
+  return text.trim();
 }
 
 /**
@@ -5279,13 +5789,18 @@ const tools = {
       const isCheckableElement = element.type === 'radio' || element.type === 'checkbox' ||
         element.getAttribute('role') === 'radio' || element.getAttribute('role') === 'checkbox' ||
         element.getAttribute('role') === 'switch';
-      const hadEffect = isCheckableElement
-        ? (verification.changes?.checkedChanged || verification.changes?.ariaExpandedChanged || verification.verified)
-        : isAnchorElement
-          ? (verification.changes?.urlChanged || verification.changes?.contentChanged ||
-             verification.changes?.elementCountChanged || verification.changes?.ariaExpandedChanged ||
-             verification.changes?.relatedVisibilityChanged || loadingDetected || false)
-          : (verification.verified || loadingDetected);
+      // Canvas-based editors (Google Docs, Sheets, Slides) handle clicks internally;
+      // DOM verification is not possible so treat clicks as successful
+      const isCanvasTarget = isCanvasBasedEditor() || element.tagName === 'CANVAS';
+      const hadEffect = isCanvasTarget
+        ? true
+        : isCheckableElement
+          ? (verification.changes?.checkedChanged || verification.changes?.ariaExpandedChanged || verification.verified)
+          : isAnchorElement
+            ? (verification.changes?.urlChanged || verification.changes?.contentChanged ||
+               verification.changes?.elementCountChanged || verification.changes?.ariaExpandedChanged ||
+               verification.changes?.relatedVisibilityChanged || loadingDetected || false)
+            : (verification.verified || loadingDetected);
 
       // CRITICAL FIX: Return success=false when click has no effect
       // This prevents AI from continuing after failed clicks
@@ -5647,6 +6162,146 @@ const tools = {
 
       const codeEditorInfo = detectCodeEditor(element);
       const isCodeEditorInput = isInput && codeEditorInfo.isCodeEditor;
+
+      // Canvas-based editor bypass: skip element gate and use CDP directly.
+      // NOTE: Do NOT gate on !isContentEditable here. Google Docs' .kix-appview-editor
+      // has contenteditable="true" but is a canvas-based editor that needs CDP insertion.
+      // The isCanvasBasedEditor() check is specific enough (Google Docs/Sheets/Slides).
+      const canvasEditor = isCanvasBasedEditor();
+      if (canvasEditor && !isInput) {
+        automationLogger.logActionExecution(currentSessionId, 'type', 'canvas_editor_cdp_direct', { hostname: window.location.hostname });
+
+        // --- FORMATTED PASTE PATH ---
+        // If the text contains markdown formatting AND we are on Google Docs (not Sheets),
+        // convert to HTML and paste via clipboard for rich formatting.
+        const isGoogleDocs = window.location.hostname === 'docs.google.com' &&
+                             window.location.pathname.startsWith('/document/');
+        const textHasFormatting = hasMarkdownFormatting(params.text);
+
+        if (isGoogleDocs && textHasFormatting) {
+          automationLogger.logActionExecution(currentSessionId, 'type', 'gdocs_formatted_paste_attempt', {
+            textLength: params.text.length,
+            hasFormatting: true
+          });
+          try {
+            // Ensure cursor is placed inside the editable area of Google Docs.
+            // Clicking .kix-appview-editor (the outer container) may not place a text cursor.
+            // We need to click inside the actual page content area.
+            const cursorTarget = document.querySelector('.kix-page-content-wrapper') ||
+                                 document.querySelector('.kix-paginateddocumentplugin') ||
+                                 document.querySelector('.kix-page') ||
+                                 document.querySelector('.kix-appview-editor');
+            if (cursorTarget) {
+              cursorTarget.focus();
+              cursorTarget.click();
+              automationLogger.debug('gdocs_formatted_paste: focused cursor target', { tagName: cursorTarget.tagName, className: cursorTarget.className?.substring?.(0, 60) });
+              await new Promise(r => setTimeout(r, 200));
+            }
+
+            // If clearFirst, select all and delete before pasting
+            if (params.clearFirst) {
+              const isMac = navigator.userAgent?.includes('Macintosh') || navigator.platform?.includes('Mac');
+              await new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({
+                  action: 'keyboardDebuggerAction',
+                  method: 'pressKey',
+                  key: 'a',
+                  modifiers: { ctrl: !isMac, meta: isMac, shift: false, alt: false }
+                }, (response) => {
+                  if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+                  else resolve(response);
+                });
+              });
+              await new Promise(r => setTimeout(r, 200));
+              await new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({
+                  action: 'keyboardDebuggerAction',
+                  method: 'pressKey',
+                  key: 'Backspace',
+                  modifiers: { ctrl: false, meta: false, shift: false, alt: false }
+                }, (response) => {
+                  if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+                  else resolve(response);
+                });
+              });
+              await new Promise(r => setTimeout(r, 200));
+            }
+
+            const html = markdownToHTML(params.text);
+            const plainText = stripMarkdown(params.text);
+            const pasteResult = await clipboardPasteHTML(html, plainText);
+
+            if (pasteResult.success) {
+              automationLogger.logActionExecution(currentSessionId, 'type', 'gdocs_formatted_paste_verified', {
+                textLenBefore: pasteResult.textLenBefore,
+                textLenAfter: pasteResult.textLenAfter
+              });
+              if (params.pressEnter) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+                document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+              }
+              return {
+                success: true,
+                typed: params.text,
+                method: 'gdocs_formatted_clipboard_paste',
+                pressedEnter: !!params.pressEnter,
+                note: 'Google Docs -- markdown converted to HTML, pasted via clipboard for rich formatting'
+              };
+            }
+            // If clipboard paste failed (verified -- no text appeared), fall through to plain CDP insertText
+            automationLogger.warn('Formatted paste failed (verified), falling back to plain CDP insertText', {
+              error: pasteResult.error,
+              textLenBefore: pasteResult.textLenBefore,
+              textLenAfter: pasteResult.textLenAfter
+            });
+          } catch (fmtError) {
+            automationLogger.debug('Formatted paste error, falling back to plain CDP insertText', { error: fmtError.message });
+          }
+        }
+        // --- END FORMATTED PASTE PATH ---
+
+        // When falling through from a formatted paste attempt, strip markdown so the
+        // user gets clean plain text via CDP insertText instead of raw markdown syntax.
+        const cdpText = (isGoogleDocs && textHasFormatting) ? stripMarkdown(params.text) : params.text;
+
+        try {
+          const cdpResult = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({
+              action: 'cdpInsertText',
+              text: cdpText,
+              clearFirst: !!params.clearFirst
+            }, (response) => {
+              if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+              else if (response && response.success) resolve(response);
+              else reject(new Error(response?.error || 'CDP insertion failed'));
+            });
+          });
+          // Trust CDP on canvas editors -- no DOM validation possible
+          if (params.pressEnter) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+            document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+          }
+          return {
+            success: true,
+            typed: params.text,
+            method: 'canvas_editor_cdp',
+            pressedEnter: !!params.pressEnter,
+            note: 'Canvas-based editor -- CDP insertion used, DOM validation skipped'
+          };
+        } catch (cdpError) {
+          automationLogger.debug('Canvas editor CDP failed, trying typeWithKeys', { error: cdpError.message });
+          // Fallback to typeWithKeys which also uses CDP keystrokes
+          try {
+            const twkResult = await tools.typeWithKeys({ text: params.text, clearFirst: false });
+            if (twkResult.success) return { ...twkResult, note: 'canvas_editor_typeWithKeys_fallback' };
+          } catch (twkError) {
+            automationLogger.debug('Canvas editor typeWithKeys also failed', { error: twkError.message });
+          }
+          return { success: false, error: 'Canvas-based editor: CDP and typeWithKeys both failed', typed: params.text };
+        }
+      }
 
       if (!isInput && !isContentEditable) {
         lastAttemptError = 'Element is not an input field';
@@ -6186,17 +6841,20 @@ const tools = {
 
           // Verify CDP insertion worked
           await new Promise(resolve => setTimeout(resolve, 200));
-          const cdpFinalCheck = isInput ? (element.value || '') : (element.textContent || element.value || '');
-          const cdpSuccess = cdpFinalCheck.includes(params.text) || cdpFinalCheck.trim() === params.text.trim();
+          // Canvas-based editors render text on canvas -- DOM validation impossible, trust CDP
+          const cdpCanvasEditor = isCanvasBasedEditor();
+          const cdpFinalCheck = cdpCanvasEditor ? '' : (isInput ? (element.value || '') : (element.textContent || element.value || ''));
+          const cdpSuccess = cdpCanvasEditor || cdpFinalCheck.includes(params.text) || cdpFinalCheck.trim() === params.text.trim();
 
           if (cdpSuccess) {
-            automationLogger.logActionExecution(currentSessionId, 'type', 'cdp_fallback_success', {});
+            automationLogger.logActionExecution(currentSessionId, 'type', cdpCanvasEditor ? 'cdp_fallback_canvas_success' : 'cdp_fallback_success', {});
             return {
               success: true,
               typed: params.text,
-              method: 'cdp_fallback',
+              method: cdpCanvasEditor ? 'cdp_fallback_canvas' : 'cdp_fallback',
               pressedEnter: !!params.pressEnter,
               clickedFirst: !shouldSkipClick,
+              note: cdpCanvasEditor ? 'Canvas-based editor -- DOM validation skipped, CDP trusted' : undefined,
               elementInfo: {
                 tag: element.tagName,
                 type: isInput ? element.type : 'contenteditable',
@@ -6371,6 +7029,69 @@ const tools = {
       lastAttemptError = error.message || 'Unknown error occurred in type function';
     }
     } // End selector loop
+
+    // Canvas editor CDP fallback: when all selectors fail but we're on a canvas editor
+    // (Google Docs/Sheets), skip element requirement and use CDP directly.
+    if (isCanvasBasedEditor()) {
+      automationLogger.logActionExecution(currentSessionId, 'type', 'canvas_fallback_attempt', {
+        hostname: window.location.hostname,
+        reason: 'all selectors exhausted'
+      });
+      try {
+        // Click on the page body to place cursor in Google Docs
+        const canvasTarget = document.querySelector('.kix-page-column') || document.querySelector('.kix-appview-editor');
+        if (canvasTarget) {
+          canvasTarget.click();
+          await new Promise(r => setTimeout(r, 200));
+          // Google Docs routes focus through a hidden iframe textarea -- ensure it's focused
+          const eventTargetIframe = document.querySelector('.docs-texteventtarget-iframe');
+          if (eventTargetIframe && eventTargetIframe.contentDocument) {
+            try {
+              const innerEditable = eventTargetIframe.contentDocument.querySelector('[contenteditable="true"]');
+              if (innerEditable) innerEditable.focus();
+            } catch (e) {
+              // Cross-origin iframe -- click on canvas already placed focus via Docs' own handler
+            }
+          }
+          await new Promise(r => setTimeout(r, 200));
+        }
+        // Use CDP to insert text directly
+        const cdpResult = await new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({
+            action: 'cdpInsertText',
+            text: params.text,
+            clearFirst: !!params.clearFirst
+          }, (response) => {
+            if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+            else if (response && response.success) resolve(response);
+            else reject(new Error(response?.error || 'CDP insertion failed'));
+          });
+        });
+        // Handle pressEnter if requested
+        if (params.pressEnter) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+          document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+        }
+        return {
+          success: true,
+          typed: params.text,
+          method: 'canvas_editor_cdp_fallback',
+          pressedEnter: !!params.pressEnter,
+          note: 'Canvas editor fallback -- no element found, CDP insertion used directly'
+        };
+      } catch (cdpFallbackErr) {
+        automationLogger.debug('Canvas editor CDP fallback failed', { error: cdpFallbackErr.message });
+        // Try typeWithKeys as last resort
+        try {
+          const twkResult = await tools.typeWithKeys({ text: params.text, clearFirst: false });
+          if (twkResult.success) return { ...twkResult, note: 'canvas_editor_fallback_typeWithKeys' };
+        } catch (twkErr) {
+          automationLogger.debug('Canvas editor fallback typeWithKeys also failed', { error: twkErr.message });
+        }
+        lastAttemptError = `Canvas editor CDP fallback failed: ${cdpFallbackErr.message}`;
+      }
+    }
 
     // Record failure - all selectors exhausted
     actionRecorder.record(null, 'type', params, {
@@ -9209,6 +9930,25 @@ function inferElementPurpose(element) {
 
   const combined = `${text} ${ariaLabel} ${className} ${name} ${id} ${placeholder}`;
 
+  // FSB-injected canvas editor elements (Google Docs/Sheets)
+  if (element.dataset && element.dataset.fsbRole) {
+    const fsbRole = element.dataset.fsbRole;
+    if (fsbRole === 'document-body' || fsbRole === 'document-title') {
+      return { role: 'content-editor', intent: 'edit', danger: false, sensitive: false, priority: 'high' };
+    }
+    return { role: 'editor-container', intent: 'edit', danger: false, sensitive: false, priority: 'medium' };
+  }
+
+  // Contenteditable elements (Google Docs, Notion, Medium, rich text editors)
+  if (element.getAttribute('contenteditable') === 'true' || element.isContentEditable) {
+    const rect = element.getBoundingClientRect();
+    const isLargeEditor = rect.width > 200 && rect.height > 100;
+    if (isLargeEditor || /editor|page|content|body|compose|write|kix|ql-editor|ProseMirror/i.test(className + id + role)) {
+      return { role: 'content-editor', intent: 'edit', danger: false, sensitive: false, priority: 'high' };
+    }
+    return { role: 'inline-editor', intent: 'edit', danger: false, sensitive: false, priority: 'medium' };
+  }
+
   // Button/action classification
   if (element.tagName === 'BUTTON' || element.tagName === 'A' || type === 'submit' || role === 'button') {
     // Primary submit actions
@@ -10715,6 +11455,9 @@ function calculateElementScore(element, taskType, prioritizeViewport) {
   if (tag === 'A') score += 2;
   if (tag === 'TEXTAREA') score += 3;
 
+  // Contenteditable editor bonus (higher than TEXTAREA to ensure editors survive cutoff)
+  if (element.getAttribute('contenteditable') === 'true' || element.isContentEditable) score += 4;
+
   // Has accessible name bonus
   if (element.getAttribute('aria-label') || element.textContent?.trim()) score += 2;
 
@@ -10723,6 +11466,14 @@ function calculateElementScore(element, taskType, prioritizeViewport) {
 
   // Has data-testid (test-friendly, likely important)
   if (element.hasAttribute('data-testid')) score += 3;
+
+  // FSB-injected canvas editor elements (Google Docs/Sheets) -- must survive filtering
+  // These are the only way the AI can interact with canvas-based editors
+  if (element.dataset.fsbRole) {
+    score += 15;
+    // Document body gets extra priority -- it's the primary interaction target
+    if (element.dataset.fsbRole === 'document-body') score += 5;
+  }
 
   return score;
 }
@@ -10752,10 +11503,45 @@ function getFilteredElements(options = {}) {
     'label, [contenteditable="true"], summary, details'
   );
 
+  // Stage 1b: Inject canvas-based editor elements (Google Docs/Sheets)
+  // These are plain divs without interactive attributes, so querySelectorAll misses them.
+  // We inject them with clear role labels so the AI can identify them.
+  const candidateArray = Array.from(candidates);
+  if (isCanvasBasedEditor()) {
+    const canvasEditorSelectors = [
+      { selector: '.kix-page-column', role: 'document-body', label: 'Document body (canvas editor - click to place cursor, then use type tool)' },
+      { selector: '.kix-appview-editor', role: 'editor-container', label: 'Editor container' },
+      { selector: '.docs-title-input', role: 'document-title', label: 'Document title field' }
+    ];
+    for (const { selector, role, label } of canvasEditorSelectors) {
+      const el = document.querySelector(selector);
+      if (el && !candidateArray.includes(el)) {
+        el.dataset.fsbRole = role;
+        el.dataset.fsbLabel = label;
+        candidateArray.push(el);
+      }
+    }
+  }
+
   // Stage 2: Filter by visibility
-  const visible = Array.from(candidates).filter(el => {
+  const visible = candidateArray.filter(el => {
     const rect = el.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return false;
+    if (rect.width === 0 || rect.height === 0) {
+      // Bypass for contenteditable -- editor surfaces may report zero
+      // dimensions on the container while children have valid rects
+      if (el.getAttribute('contenteditable') === 'true' || el.isContentEditable) {
+        const firstChild = el.firstElementChild;
+        if (firstChild) {
+          const childRect = firstChild.getBoundingClientRect();
+          if (childRect.width > 0 && childRect.height > 0) return true;
+        }
+        // Still include it -- contenteditable with zero size is still an editor
+        return true;
+      }
+      // Bypass for FSB-injected canvas editor elements (Google Docs)
+      if (el.dataset.fsbRole) return true;
+      return false;
+    }
 
     const styles = getComputedStyle(el);
     if (styles.display === 'none') return false;
@@ -10773,10 +11559,25 @@ function getFilteredElements(options = {}) {
   }));
 
   // Sort by score descending, take top maxElements
-  return scored
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxElements)
-    .map(item => item.element);
+  scored.sort((a, b) => b.score - a.score);
+  const topElements = scored.slice(0, maxElements);
+
+  // Ensure contenteditable editors aren't crowded out by toolbar buttons
+  const hasContentEditable = topElements.some(
+    item => item.element.getAttribute('contenteditable') === 'true' || item.element.isContentEditable
+  );
+  if (!hasContentEditable) {
+    // Find best contenteditable from full visible list
+    const bestEditable = scored.find(
+      item => item.element.getAttribute('contenteditable') === 'true' || item.element.isContentEditable
+    );
+    if (bestEditable) {
+      // Replace lowest-scoring element in the result set
+      topElements[topElements.length - 1] = bestEditable;
+    }
+  }
+
+  return topElements.map(item => item.element);
 }
 
 // ============================================================================
@@ -10851,6 +11652,26 @@ function generateCompactSnapshot(options = {}) {
     if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.value) {
       const valDisplay = el.value.length > 30 ? el.value.substring(0, 27) + '...' : el.value;
       line += ` value="${valDisplay}"`;
+    }
+
+    // Contenteditable indicator for rich text editors
+    if (el.getAttribute('contenteditable') === 'true' || el.isContentEditable) {
+      line += ' [editable]';
+      const textContent = el.textContent?.trim();
+      if (textContent) {
+        const preview = textContent.length > 40 ? textContent.substring(0, 37) + '...' : textContent;
+        line += ` content="${preview}"`;
+      } else {
+        line += ' [empty]';
+      }
+    }
+
+    // FSB-injected canvas editor role labels (Google Docs/Sheets)
+    if (el.dataset.fsbRole) {
+      line += ` [${el.dataset.fsbRole}]`;
+      if (el.dataset.fsbLabel) {
+        line += ` "${el.dataset.fsbLabel}"`;
+      }
     }
 
     // href for links (truncated)
@@ -12035,6 +12856,11 @@ function handleBackgroundMessage(request, sender, sendResponse) {
                 estimatedTimeRemaining, taskSummary } = request;
 
         if (phase === 'ended') {
+          // Clear the overlay watchdog since session has properly ended
+          if (_overlayWatchdogTimer) {
+            clearTimeout(_overlayWatchdogTimer);
+            _overlayWatchdogTimer = null;
+          }
           viewportGlow.destroy();
           progressOverlay.destroy();
           actionGlowOverlay.destroy();
@@ -12073,6 +12899,22 @@ function handleBackgroundMessage(request, sender, sendResponse) {
             eta: estimatedTimeRemaining
           });
           progressOverlay.show();
+
+          // Overlay watchdog: if no session status update arrives within 60s,
+          // assume the session is dead and clean up orphaned overlays.
+          if (_overlayWatchdogTimer) {
+            clearTimeout(_overlayWatchdogTimer);
+          }
+          _overlayWatchdogTimer = setTimeout(() => {
+            _overlayWatchdogTimer = null;
+            console.warn('[FSB] Overlay watchdog: no session status for 60s, cleaning up orphaned overlays');
+            try {
+              viewportGlow.destroy();
+              progressOverlay.destroy();
+              actionGlowOverlay.destroy();
+              lastActionStatusText = null;
+            } catch (e) { /* non-blocking */ }
+          }, 60000);
         }
         sendResponse({ success: true });
       } catch (e) {
@@ -12439,6 +13281,18 @@ function establishBackgroundConnection() {
         error: lastError?.message,
         reconnectAttempts
       });
+
+      // Clean up any lingering overlays when the background connection is lost.
+      // This handles edge cases where the service worker goes to sleep or the
+      // extension is updated while overlays are displayed.
+      try {
+        viewportGlow.destroy();
+        progressOverlay.destroy();
+        actionGlowOverlay.destroy();
+        lastActionStatusText = null;
+      } catch (cleanupErr) {
+        // Non-blocking -- overlays may already be gone
+      }
 
       // Attempt to reconnect with exponential backoff
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
