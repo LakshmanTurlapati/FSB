@@ -112,6 +112,95 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+// -- Reconnaissance integration --
+let pendingReconTask = null;
+
+/**
+ * Start a reconnaissance crawl from the side panel.
+ * Uses a lighter crawl (depth 2, max 15 pages) for speed.
+ */
+async function startReconFromSidepanel(url, originalTask) {
+  pendingReconTask = originalTask;
+  const domain = new URL(url).hostname;
+
+  addMessage('Starting reconnaissance on ' + domain + '...', 'system');
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'startExplorer',
+      url: url,
+      maxDepth: 2,
+      maxPages: 15,
+      autoSaveToMemory: true
+    });
+
+    if (!response || !response.success) {
+      addMessage('Reconnaissance failed to start: ' + (response?.error || 'Unknown error'), 'system');
+      pendingReconTask = null;
+    }
+  } catch (error) {
+    addMessage('Reconnaissance failed: ' + error.message, 'system');
+    pendingReconTask = null;
+  }
+}
+
+/**
+ * Handle progress updates from Site Explorer during reconnaissance.
+ */
+function handleReconProgress(data) {
+  if (data.status === 'crawling') {
+    let progressMsg = document.getElementById('recon-progress-msg');
+    if (!progressMsg) {
+      progressMsg = document.createElement('div');
+      progressMsg.id = 'recon-progress-msg';
+      progressMsg.className = 'message system recon-progress';
+      chatMessages.appendChild(progressMsg);
+    }
+    const percent = data.maxPages > 0 ? Math.round((data.pagesCollected / data.maxPages) * 100) : 0;
+    progressMsg.textContent = 'Reconnaissance: ' + data.pagesCollected + '/' + data.maxPages + ' pages (' + percent + '%)';
+    scrollToBottom();
+  }
+}
+
+/**
+ * Handle reconnaissance completion -- offer retry with original task.
+ */
+function handleReconComplete(data) {
+  const progressMsg = document.getElementById('recon-progress-msg');
+  if (progressMsg) progressMsg.remove();
+
+  addMessage('Reconnaissance complete! Site map saved for ' + (data?.domain || 'this site') + '.', 'system');
+
+  // Offer retry with the original task
+  if (pendingReconTask) {
+    const retryDiv = document.createElement('div');
+    retryDiv.className = 'message system new';
+    retryDiv.textContent = 'Site map ready. Retry your task? ';
+    const retryBtn = document.createElement('button');
+    retryBtn.className = 'retry-btn';
+    retryBtn.textContent = 'Retry with Site Map';
+    retryBtn.addEventListener('click', () => {
+      retryDiv.remove();
+      chatInput.textContent = pendingReconTask;
+      pendingReconTask = null;
+      handleSendMessage();
+    });
+    retryDiv.appendChild(retryBtn);
+    chatMessages.appendChild(retryDiv);
+    scrollToBottom();
+  }
+}
+
+// Listen for explorer status and site map saved messages
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'explorerStatusUpdate') {
+    handleReconProgress(message.data);
+  }
+  if (message.type === 'siteMapSaved') {
+    handleReconComplete(message.data);
+  }
+});
+
 // Keep sidepanel progress setting in sync when changed from options
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.showSidepanelProgress != null) {
