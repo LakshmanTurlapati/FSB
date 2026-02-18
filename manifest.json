@@ -41,7 +41,7 @@
   "options_page": "ui/options.html",
   "web_accessible_resources": [
     {
-      "resources": ["Assets/icon48.png"],
+      "resources": ["Assets/icon48.png", "site-maps/*.json"],
       "matches": ["<all_urls>"]
     }
   ]

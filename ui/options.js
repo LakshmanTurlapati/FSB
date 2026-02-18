@@ -23,7 +23,8 @@ const defaultSettings = {
   enableLogin: false,
   // CAPTCHA Solver
   captchaSolverEnabled: false,
-  captchaApiKey: ''
+  captchaApiKey: '',
+  autoRefineSiteMaps: true
 };
 
 // Available models - sourced from config.js (loaded before this script) with custom provider added
@@ -92,20 +93,6 @@ function initializeDashboard() {
       console.log('Options page: Analytics initialized, setting up dashboard...');
       analytics.initializeChart();
       analytics.updateDashboard();
-
-      // Set up periodic refresh every 30 seconds
-      setInterval(() => {
-        if (analytics && analytics.initialized) {
-          console.log('Options: Periodic analytics refresh');
-          analytics.loadStoredData().then(() => {
-            const timeRange = document.getElementById('chartTimeRange')?.value || '24h';
-            analytics.updateDashboardWithTimeRange(timeRange);
-            if (analytics.chart) {
-              analytics.updateChart(timeRange);
-            }
-          });
-        }
-      }, 30000);
     }).catch(error => {
       console.error('Options page: Analytics initialization failed:', error);
     });
@@ -150,6 +137,7 @@ function cacheElements() {
   elements.prioritizeViewport = document.getElementById('prioritizeViewport');
   elements.animatedActionHighlights = document.getElementById('animatedActionHighlights');
   elements.showSidepanelProgress = document.getElementById('showSidepanelProgress');
+  elements.autoRefineSiteMaps = document.getElementById('autoRefineSiteMaps');
 
   // Credentials (Beta)
   elements.enableLogin = document.getElementById('enableLogin');
@@ -379,8 +367,7 @@ function setupEventListeners() {
     }
   });
   
-  // PERF: Debounced storage change listener to avoid duplicate analytics refreshes
-  // (the 30-second setInterval above already refreshes periodically)
+  // PERF: Debounced storage change listener for reactive analytics updates
   let _analyticsRefreshTimer = null;
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local') {
@@ -578,6 +565,10 @@ function loadSettings() {
     }
     if (elements.captchaApiKey) elements.captchaApiKey.value = settings.captchaApiKey || '';
 
+    if (elements.autoRefineSiteMaps) {
+      elements.autoRefineSiteMaps.checked = settings.autoRefineSiteMaps ?? true;
+    }
+
     addLog('info', 'Settings loaded successfully');
   });
 }
@@ -602,7 +593,8 @@ function saveSettings() {
     showSidepanelProgress: elements.showSidepanelProgress?.checked ?? false,
     enableLogin: elements.enableLogin?.checked ?? false,
     captchaSolverEnabled: elements.captchaSolverEnabled?.checked ?? false,
-    captchaApiKey: elements.captchaApiKey?.value || ''
+    captchaApiKey: elements.captchaApiKey?.value || '',
+    autoRefineSiteMaps: elements.autoRefineSiteMaps?.checked ?? true
   };
   
   chrome.storage.local.set(settings, () => {
@@ -2755,6 +2747,7 @@ function initializeSiteExplorer() {
         if (action === 'view') viewResearch(researchId);
         else if (action === 'download') downloadResearch(researchId);
         else if (action === 'delete') deleteResearch(researchId);
+        else if (action === 'saveMemory') saveResearchToMemory(researchId);
       } else {
         viewResearch(researchId);
       }
@@ -2906,6 +2899,9 @@ async function loadResearchList() {
           <button class="session-action-btn download" data-action="download" title="Download JSON">
             <i class="fas fa-download"></i>
           </button>
+          <button class="session-action-btn save-memory" data-action="saveMemory" title="Save as site map memory">
+            <i class="fas fa-brain"></i>
+          </button>
           <button class="session-action-btn delete" data-action="delete" title="Delete">
             <i class="fas fa-trash"></i>
           </button>
@@ -3042,6 +3038,70 @@ async function deleteResearch(researchId) {
   } catch (error) {
     console.error('Failed to delete research:', error);
     showToast('Failed to delete research', 'error');
+  }
+}
+
+async function saveResearchToMemory(researchId) {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getResearchData', researchId });
+    if (!response || !response.success || !response.data) {
+      showToast('Research data not found', 'error');
+      return;
+    }
+
+    const research = response.data;
+    const sitePattern = convertToSiteMap(research);
+    if (!sitePattern) {
+      showToast('Failed to convert research to site map', 'error');
+      return;
+    }
+
+    const domain = research.domain || 'unknown';
+    const memory = createSiteMapMemory(domain, sitePattern);
+    const saved = await memoryStorage.add(memory);
+
+    if (!saved) {
+      showToast('Failed to save memory', 'error');
+      return;
+    }
+
+    // Update button to show saved state
+    const item = elements.researchList?.querySelector(`.session-item[data-research-id="${researchId}"]`);
+    if (item) {
+      const btn = item.querySelector('[data-action="saveMemory"]');
+      if (btn) {
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        btn.title = 'Saved to memory';
+        btn.disabled = true;
+        btn.classList.add('saved');
+      }
+    }
+
+    // Tier 2: AI refinement if toggle is ON
+    const settings = await chrome.storage.local.get(['autoRefineSiteMaps']);
+    if (settings.autoRefineSiteMaps !== false && typeof refineSiteMapWithAI === 'function') {
+      showToast('Refining site map with AI...', 'info');
+      try {
+        const refined = await refineSiteMapWithAI(sitePattern, research);
+        memory.typeData.sitePattern = refined;
+        memory.metadata.confidence = 0.95;
+        memory.text = `Site map for ${domain}: ${refined.pageCount || 0} pages, ${refined.formCount || 0} forms (AI enhanced)`;
+        memory.updatedAt = Date.now();
+        await memoryStorage.update(memory.id, memory);
+        showToast('Site map saved and refined for ' + domain, 'success');
+        addLog('info', 'Saved and AI-refined site map for ' + domain);
+      } catch (err) {
+        console.warn('AI refinement failed, keeping Tier 1 result:', err.message);
+        showToast('Site map saved for ' + domain + ' (AI refinement skipped)', 'info');
+        addLog('info', 'Saved site map for ' + domain + ' (refinement skipped: ' + err.message + ')');
+      }
+    } else {
+      showToast('Site map saved to memory for ' + domain, 'success');
+      addLog('info', 'Saved site map memory for ' + domain);
+    }
+  } catch (error) {
+    console.error('Failed to save research to memory:', error);
+    showToast('Failed to save to memory: ' + error.message, 'error');
   }
 }
 
@@ -3746,18 +3806,28 @@ function renderMemoryList(memories) {
     const confidence = Math.round((memory.metadata?.confidence || 0) * 100);
     const tags = (memory.metadata?.tags || []).slice(0, 3).join(', ');
 
+    const isSiteMap = memory.typeData?.category === 'site_map';
+    const isRefined = memory.typeData?.sitePattern?.refined === true;
+    const badgeHtml = isSiteMap
+      ? `<span class="memory-badge ${isRefined ? 'ai-enhanced' : 'basic'}">${isRefined ? 'AI Enhanced' : 'Basic'}</span>`
+      : '';
+    const refineBtn = isSiteMap && !isRefined
+      ? `<button class="control-btn small refine-btn" data-id="${memory.id}" data-recon-id="${memory.typeData?.sitePattern?.reconId || ''}" title="Refine with AI" style="flex-shrink: 0;"><i class="fas fa-magic"></i></button>`
+      : '';
+
     return `
       <div class="session-item memory-item" data-memory-id="${memory.id}">
         <div class="session-item-header" style="display: flex; align-items: center; gap: 10px;">
           <i class="fas ${typeIcon}" style="color: var(--primary); font-size: 1.1em;" title="${typeLabel}"></i>
           <div style="flex: 1; min-width: 0;">
             <div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              ${escapeHtml(memory.text)}
+              ${escapeHtml(memory.text)} ${badgeHtml}
             </div>
             <div style="font-size: 0.82em; color: var(--text-secondary); margin-top: 2px;">
               ${typeLabel} | ${escapeHtml(domain)} | ${age} | ${accesses} accesses | ${confidence}% conf${tags ? ' | ' + escapeHtml(tags) : ''}
             </div>
           </div>
+          ${refineBtn}
           <button class="control-btn small memory-delete-btn" data-id="${memory.id}" title="Delete memory" style="color: var(--danger, #ef4444); flex-shrink: 0;">
             <i class="fas fa-trash"></i>
           </button>
@@ -3778,6 +3848,57 @@ function renderMemoryList(memories) {
       }
     });
   });
+
+  // Attach refine-with-AI handlers
+  container.querySelectorAll('.refine-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const memoryId = btn.dataset.id;
+      const reconId = btn.dataset.reconId;
+      await refineMemoryWithAI(memoryId, reconId);
+    });
+  });
+}
+
+async function refineMemoryWithAI(memoryId, reconId) {
+  if (typeof refineSiteMapWithAI !== 'function') {
+    showToast('AI refiner not available', 'error');
+    return;
+  }
+
+  // Get the memory
+  const memories = await memoryManager.getAll();
+  const memory = memories.find(m => m.id === memoryId);
+  if (!memory || memory.typeData?.category !== 'site_map') {
+    showToast('Memory not found or not a site map', 'error');
+    return;
+  }
+
+  // Get research data if available
+  let researchData = null;
+  if (reconId) {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'getResearchData', researchId: reconId });
+      if (response?.success) researchData = response.data;
+    } catch (e) {
+      // Research data not available
+    }
+  }
+
+  showToast('Refining site map with AI...', 'info');
+  try {
+    const refined = await refineSiteMapWithAI(memory.typeData.sitePattern, researchData);
+    memory.typeData.sitePattern = refined;
+    memory.metadata.confidence = 0.95;
+    memory.text = memory.text.replace(/\)$/, ' (AI enhanced)').replace(/ \(AI enhanced\) \(AI enhanced\)/, ' (AI enhanced)');
+    if (!memory.text.includes('(AI enhanced)')) memory.text += ' (AI enhanced)';
+    memory.updatedAt = Date.now();
+    await memoryStorage.update(memory.id, memory);
+    showToast('Site map refined successfully', 'success');
+    loadMemoryDashboard();
+  } catch (err) {
+    showToast('AI refinement failed: ' + err.message, 'error');
+  }
 }
 
 async function searchMemories() {
