@@ -187,17 +187,26 @@ function isPrintableKey(key) {
 class KeyboardEmulator {
   constructor() {
     this.debuggerAttached = false;
+    this.attachedTabId = null;
     this.attachPromise = null;
   }
 
   /**
-   * Attach Chrome Debugger to the current tab
+   * Attach Chrome Debugger to the specified tab.
+   * If already attached to a different tab, detach first.
    * @param {number} tabId - Tab ID to attach debugger to
    * @returns {Promise<boolean>} Success status
    */
   async attachDebugger(tabId) {
-    if (this.debuggerAttached) {
+    // If already attached to THIS tab, reuse
+    if (this.debuggerAttached && this.attachedTabId === tabId) {
       return true;
+    }
+
+    // If attached to a DIFFERENT tab, detach first
+    if (this.debuggerAttached && this.attachedTabId !== null && this.attachedTabId !== tabId) {
+      console.log(`[FSB KeyboardEmulator] Detaching from tab ${this.attachedTabId} before attaching to tab ${tabId}`);
+      await this.detachDebugger(this.attachedTabId);
     }
 
     if (this.attachPromise) {
@@ -208,11 +217,13 @@ class KeyboardEmulator {
       try {
         await chrome.debugger.attach({ tabId }, '1.3');
         this.debuggerAttached = true;
-        console.log('[FSB KeyboardEmulator] Debugger attached successfully');
+        this.attachedTabId = tabId;
+        console.log(`[FSB KeyboardEmulator] Debugger attached to tab ${tabId}`);
         resolve(true);
       } catch (error) {
         console.error('[FSB KeyboardEmulator] Failed to attach debugger:', error);
         this.debuggerAttached = false;
+        this.attachedTabId = null;
         resolve(false);
       }
     });
@@ -221,20 +232,32 @@ class KeyboardEmulator {
   }
 
   /**
-   * Detach Chrome Debugger from the current tab
-   * @param {number} tabId - Tab ID to detach debugger from
+   * Detach Chrome Debugger from the specified tab (or the currently attached tab)
+   * @param {number} [tabId] - Tab ID to detach debugger from. If omitted, detaches from currently attached tab.
    */
   async detachDebugger(tabId) {
-    if (!this.debuggerAttached) return;
+    const targetTabId = tabId || this.attachedTabId;
+    if (!this.debuggerAttached || !targetTabId) return;
 
     try {
-      await chrome.debugger.detach({ tabId });
-      this.debuggerAttached = false;
-      this.attachPromise = null;
-      console.log('[FSB KeyboardEmulator] Debugger detached successfully');
+      await chrome.debugger.detach({ tabId: targetTabId });
+      console.log(`[FSB KeyboardEmulator] Debugger detached from tab ${targetTabId}`);
     } catch (error) {
-      console.error('[FSB KeyboardEmulator] Failed to detach debugger:', error);
+      // Debugger may already be detached (e.g., tab navigated or closed)
+      console.log('[FSB KeyboardEmulator] Detach cleanup (may already be detached):', error.message);
     }
+    this.debuggerAttached = false;
+    this.attachedTabId = null;
+    this.attachPromise = null;
+  }
+
+  /**
+   * Check if the debugger is currently attached to a specific tab
+   * @param {number} tabId - Tab ID to check
+   * @returns {boolean} True if debugger is attached to this tab
+   */
+  isAttachedTo(tabId) {
+    return this.debuggerAttached && this.attachedTabId === tabId;
   }
 
   /**
@@ -282,8 +305,12 @@ class KeyboardEmulator {
         code: keyData.code
       };
 
-      // Add text parameter only for printable keys
-      if ((type === 'char' || type === 'keyDown') && isPrintableKey(keyData.key)) {
+      // Add text parameter only for printable keys WITHOUT modifier shortcuts.
+      // When Ctrl/Meta/Alt modifiers are active, the key event is a shortcut (e.g. Cmd+V = paste),
+      // NOT a character insertion. Including 'text' causes Chrome to treat it as character input
+      // instead of firing the shortcut action.
+      const hasShortcutModifier = modifiers.ctrl || modifiers.control || modifiers.meta || modifiers.cmd || modifiers.command || modifiers.alt;
+      if ((type === 'char' || type === 'keyDown') && isPrintableKey(keyData.key) && !hasShortcutModifier) {
         params.text = keyData.key;
       }
 
