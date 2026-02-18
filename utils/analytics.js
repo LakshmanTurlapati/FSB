@@ -383,8 +383,8 @@ class FSBAnalytics {
         {
           label: 'Output Tokens',
           data: outputData,
-          borderColor: '#4f46e5',
-          backgroundColor: 'rgba(79, 70, 229, 0.1)',
+          borderColor: '#404040',
+          backgroundColor: 'rgba(64, 64, 64, 0.1)',
           tension: 0.4,
           fill: true
         }

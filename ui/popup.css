@@ -195,7 +195,7 @@ body {
 /* User Messages (Right-aligned) */
 .message.user {
   align-self: flex-end;
-  background: linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%);
+  background: #ff6b35;
   color: white;
   border-bottom-right-radius: 6px;
   box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
@@ -242,7 +242,7 @@ body {
 
 /* Status message with integrated loader */
 .message.status-message {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  background: #f0f9ff;
   border-left: 4px solid var(--primary-color);
   position: relative;
   overflow: hidden;
@@ -290,7 +290,7 @@ body {
 }
 
 .message.completed {
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  background: #ecfdf5;
   border-left: 4px solid #10b981;
 }
 
@@ -301,12 +301,12 @@ body {
 
 /* Dark theme adjustments */
 [data-theme="dark"] .message.status-message {
-  background: linear-gradient(135deg, #262626 0%, #404040 100%);
+  background: #2d2d2d;
   border-left-color: var(--primary-color);
 }
 
 [data-theme="dark"] .message.completed {
-  background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
+  background: #064e3b;
   border-left-color: #10b981;
 }
 
@@ -381,7 +381,7 @@ body {
 }
 
 .send-btn {
-  background: linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%);
+  background: #ff6b35;
   color: white;
 }
 
@@ -537,7 +537,7 @@ body {
 .message.auto-collapsed { max-height: 24px; overflow: hidden; opacity: 0.5; transition: all 0.5s; cursor: pointer; }
 .message.auto-collapsed:hover { max-height: 200px; opacity: 1; }
 .message.collapsing { opacity: 0; max-height: 0; padding: 0; margin: 0; transition: all 0.3s; overflow: hidden; }
-.retry-btn { background: linear-gradient(135deg, #ff6b35, #ff8c42); color: white; border: none; border-radius: 16px; padding: 6px 16px; font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+.retry-btn { background: #ff6b35; color: white; border: none; border-radius: 16px; padding: 6px 16px; font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 8px; }
 .retry-btn:hover { filter: brightness(1.1); }
 
 /* Action summary collapse group */
