@@ -171,6 +171,109 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
         pageState: domState?.pageContext?.pageState || null,
         pageTypes: domState?.pageContext?.pageTypes || null
       });
+
+      // Store full DOM snapshot separately for scrape data
+      this._storeDOMSnapshot(sessionId, iteration, domState);
+    }
+
+    _storeDOMSnapshot(sessionId, iteration, domState) {
+      if (!domState || !sessionId) return;
+
+      // Skip delta payloads -- they don't contain full element arrays
+      if (domState._isDelta && domState.type === 'delta') return;
+
+      const elements = domState.elements || [];
+      if (elements.length === 0) return;
+
+      const url = domState.url || '';
+
+      // Initialize in-memory snapshot accumulator
+      if (!this._domSnapshots) this._domSnapshots = {};
+      if (!this._domSnapshots[sessionId]) this._domSnapshots[sessionId] = [];
+
+      // Deduplicate by URL: only store one snapshot per unique URL per session
+      const existingIndex = this._domSnapshots[sessionId].findIndex(s => s.url === url);
+      if (existingIndex !== -1) {
+        // Replace with newer snapshot for same URL
+        this._domSnapshots[sessionId].splice(existingIndex, 1);
+      }
+
+      // Clean elements: strip truly useless fields, cap text length
+      const cleanedElements = elements.map(el => {
+        const cleaned = { ...el };
+        // Remove fields useless for scraping
+        delete cleaned.visualProperties;
+        delete cleaned.isNew;
+        delete cleaned.cluster;
+        // Cap text to 500 chars (up from 50 in truncated logs, but not unlimited)
+        if (cleaned.text && cleaned.text.length > 500) {
+          cleaned.text = cleaned.text.substring(0, 500);
+        }
+        return cleaned;
+      });
+
+      const snapshot = {
+        url,
+        title: domState.title || '',
+        timestamp: Date.now(),
+        iteration,
+        elementCount: cleanedElements.length,
+        elements: cleanedElements,
+        htmlContext: domState.htmlContext || null,
+        pageContext: domState.pageContext || null,
+        scrollPosition: domState.scrollPosition || null,
+        viewport: domState.viewport || null
+      };
+
+      this._domSnapshots[sessionId].push(snapshot);
+
+      // Cap snapshots per session to prevent unbounded memory growth
+      const MAX_SNAPSHOTS_PER_SESSION = 30;
+      if (this._domSnapshots[sessionId].length > MAX_SNAPSHOTS_PER_SESSION) {
+        this._domSnapshots[sessionId].shift(); // Drop oldest
+      }
+    }
+
+    async getDOMSnapshots(sessionId) {
+      // First check in-memory accumulator
+      if (this._domSnapshots && this._domSnapshots[sessionId]) {
+        return this._domSnapshots[sessionId];
+      }
+      // Guard against invalidated extension context
+      if (!chrome.runtime?.id) return [];
+      // Then check persisted storage
+      try {
+        const stored = await chrome.storage.local.get('fsbDOMSnapshots');
+        const allSnapshots = stored.fsbDOMSnapshots || {};
+        return allSnapshots[sessionId] || [];
+      } catch (error) {
+        if (chrome.runtime?.id) {
+          console.error('[FSB Logger] Failed to load DOM snapshots:', error);
+        }
+        return [];
+      }
+    }
+
+    exportDOMSnapshots(sessionId, snapshots) {
+      if (!snapshots || snapshots.length === 0) return null;
+      return {
+        version: '1.0',
+        sessionId,
+        exportedAt: new Date().toISOString(),
+        pageCount: snapshots.length,
+        pages: snapshots.map(snap => ({
+          url: snap.url,
+          title: snap.title,
+          capturedAt: new Date(snap.timestamp).toISOString(),
+          iteration: snap.iteration,
+          elementCount: snap.elementCount,
+          elements: snap.elements,
+          htmlContext: snap.htmlContext,
+          pageContext: snap.pageContext,
+          scrollPosition: snap.scrollPosition,
+          viewport: snap.viewport
+        }))
+      };
     }
 
     logContentMessage(sessionId, direction, messageType, payload = null, result = null) {
@@ -378,20 +481,30 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
     }
 
     async persistLogs() {
+      // Guard against invalidated extension context (service worker killed mid-timer)
+      if (!chrome.runtime?.id) return;
       try {
         const recentLogs = this.logs.slice(-100);
         await chrome.storage.local.set({ automationLogs: recentLogs });
       } catch (error) {
-        console.error('Failed to persist logs:', error);
+        // Only log if context is still valid (avoid noisy errors during shutdown)
+        if (chrome.runtime?.id) {
+          console.error('Failed to persist logs:', error);
+        }
       }
     }
 
     async loadLogs() {
+      // Guard against invalidated extension context (service worker killed or extension reloaded)
+      if (!chrome.runtime?.id) return;
       try {
         const stored = await chrome.storage.local.get('automationLogs');
         if (stored.automationLogs) this.logs = stored.automationLogs;
       } catch (error) {
-        console.error('Failed to load logs:', error);
+        // Only log if context is still valid (avoid noisy errors during shutdown)
+        if (chrome.runtime?.id) {
+          console.error('Failed to load logs:', error);
+        }
       }
     }
 
@@ -413,6 +526,8 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
     }
 
     async saveSession(sessionId, sessionData = {}) {
+      // Guard against invalidated extension context
+      if (!chrome.runtime?.id) return false;
       try {
         const sessionLogs = this.getSessionLogs(sessionId);
         if (sessionLogs.length === 0) return false;
@@ -470,9 +585,12 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
 
         // Update index
         const savedSession = sessionStorage[sessionId];
+        const snapshotCount = (this._domSnapshots && this._domSnapshots[sessionId])
+          ? this._domSnapshots[sessionId].length : 0;
         const indexEntry = {
           id: sessionId, task: savedSession.task, startTime: savedSession.startTime,
-          endTime: savedSession.endTime, status: savedSession.status, actionCount: savedSession.actionCount
+          endTime: savedSession.endTime, status: savedSession.status, actionCount: savedSession.actionCount,
+          domSnapshotCount: snapshotCount
         };
         const existingIndex = sessionIndex.findIndex(s => s.id === sessionId);
         if (existingIndex !== -1) sessionIndex[existingIndex] = indexEntry;
@@ -483,25 +601,79 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
           sessionIndex.length = 50;
         }
         await chrome.storage.local.set({ fsbSessionLogs: sessionStorage, fsbSessionIndex: sessionIndex });
-        console.log(`[FSB Logger] Session ${sessionId} saved with ${savedSession.logs?.length || 0} total logs`);
+
+        // Persist DOM snapshots to dedicated storage key
+        await this._persistDOMSnapshots(sessionId, sessionIndex);
+
+        console.log(`[FSB Logger] Session ${sessionId} saved with ${savedSession.logs?.length || 0} total logs, ${snapshotCount} DOM snapshots`);
         return true;
       } catch (error) {
-        console.error('[FSB Logger] Failed to save session:', error);
+        if (chrome.runtime?.id) {
+          console.error('[FSB Logger] Failed to save session:', error);
+        }
         return false;
       }
     }
 
+    async _persistDOMSnapshots(sessionId, sessionIndex) {
+      // Guard against invalidated extension context
+      if (!chrome.runtime?.id) return;
+      try {
+        const snapshots = (this._domSnapshots && this._domSnapshots[sessionId])
+          ? this._domSnapshots[sessionId] : [];
+        if (snapshots.length === 0) return;
+
+        const stored = await chrome.storage.local.get('fsbDOMSnapshots');
+        const allSnapshots = stored.fsbDOMSnapshots || {};
+
+        // Store snapshots for this session
+        allSnapshots[sessionId] = snapshots;
+
+        // Cleanup: cap at 20 sessions of snapshots (FIFO -- oldest deleted first)
+        const snapshotSessionIds = Object.keys(allSnapshots);
+        if (snapshotSessionIds.length > 20) {
+          // Use session index order to determine age; sessions not in index are oldest
+          const indexIds = new Set((sessionIndex || []).map(s => s.id));
+          // Sort: sessions in index come last (newest), sessions not in index first (oldest)
+          const sorted = snapshotSessionIds.sort((a, b) => {
+            const aInIndex = indexIds.has(a);
+            const bInIndex = indexIds.has(b);
+            if (aInIndex && !bInIndex) return 1;
+            if (!aInIndex && bInIndex) return -1;
+            return 0;
+          });
+          const toRemove = sorted.slice(0, snapshotSessionIds.length - 20);
+          toRemove.forEach(id => delete allSnapshots[id]);
+        }
+
+        await chrome.storage.local.set({ fsbDOMSnapshots: allSnapshots });
+
+        // Clear in-memory snapshots for this session after persisting
+        delete this._domSnapshots[sessionId];
+      } catch (error) {
+        if (chrome.runtime?.id) {
+          console.error('[FSB Logger] Failed to persist DOM snapshots:', error);
+        }
+      }
+    }
+
     async loadSession(sessionId) {
+      // Guard against invalidated extension context
+      if (!chrome.runtime?.id) return null;
       try {
         const stored = await chrome.storage.local.get(['fsbSessionLogs']);
         return (stored.fsbSessionLogs || {})[sessionId] || null;
       } catch (error) {
-        console.error('[FSB Logger] Failed to load session:', error);
+        if (chrome.runtime?.id) {
+          console.error('[FSB Logger] Failed to load session:', error);
+        }
         return null;
       }
     }
 
     async listSessions() {
+      // Guard against invalidated extension context
+      if (!chrome.runtime?.id) return [];
       try {
         const stored = await chrome.storage.local.get(['fsbSessionIndex']);
         return stored.fsbSessionIndex || [];
@@ -511,13 +683,21 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
     }
 
     async deleteSession(sessionId) {
+      // Guard against invalidated extension context
+      if (!chrome.runtime?.id) return false;
       try {
-        const stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex']);
+        const stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex', 'fsbDOMSnapshots']);
         const sessionStorage = stored.fsbSessionLogs || {};
         const sessionIndex = stored.fsbSessionIndex || [];
+        const allSnapshots = stored.fsbDOMSnapshots || {};
         delete sessionStorage[sessionId];
+        delete allSnapshots[sessionId];
         const updatedIndex = sessionIndex.filter(s => s.id !== sessionId);
-        await chrome.storage.local.set({ fsbSessionLogs: sessionStorage, fsbSessionIndex: updatedIndex });
+        await chrome.storage.local.set({
+          fsbSessionLogs: sessionStorage,
+          fsbSessionIndex: updatedIndex,
+          fsbDOMSnapshots: allSnapshots
+        });
         return true;
       } catch (error) {
         return false;
@@ -551,8 +731,11 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
     }
 
     async clearAllSessions() {
+      // Guard against invalidated extension context
+      if (!chrome.runtime?.id) return false;
       try {
-        await chrome.storage.local.remove(['fsbSessionLogs', 'fsbSessionIndex']);
+        await chrome.storage.local.remove(['fsbSessionLogs', 'fsbSessionIndex', 'fsbDOMSnapshots']);
+        this._domSnapshots = {};
         return true;
       } catch (error) {
         return false;
