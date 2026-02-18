@@ -226,18 +226,48 @@ function shorten(text, max = 30) {
 }
 
 /**
+ * Send phase:'ended' to ALL tabs that may have an active session overlay.
+ * This covers the current tab AND the previous tab (if a tab switch occurred
+ * and previousTabId is still set). Clears previousTabId after cleanup.
+ *
+ * Use this instead of calling sendSessionStatus(session.tabId, { phase: 'ended', ... })
+ * directly, to avoid leaving stale overlays on tabs the session previously occupied.
+ *
+ * @param {Object} session - The session object from activeSessions
+ * @param {string} reason - The reason string (e.g. 'complete', 'stopped', 'error', 'timeout', ...)
+ */
+async function endSessionOverlays(session, reason) {
+  const tabId = session.tabId || session.originalTabId;
+  await sendSessionStatus(tabId, { phase: 'ended', reason });
+
+  if (session.previousTabId && session.previousTabId !== tabId) {
+    await sendSessionStatus(session.previousTabId, { phase: 'ended', reason: 'tab_switch' });
+    session.previousTabId = null;
+  }
+}
+
+/**
  * Send session status to content script for visual feedback (viewport glow + progress overlay).
- * Non-blocking -- silently ignores failures (tab may be navigating).
+ * Targets the main frame only (frameId: 0) to avoid iframe interference.
+ * Retries once with content-script re-injection on failure.
  * @param {number} tabId - Target tab ID
  * @param {Object} statusData - Status fields: phase, taskName, iteration, maxIterations, reason, animatedHighlights
  */
 async function sendSessionStatus(tabId, statusData) {
+  const payload = { action: 'sessionStatus', ...statusData };
   try {
-    await chrome.tabs.sendMessage(tabId, {
-      action: 'sessionStatus',
-      ...statusData
-    });
-  } catch (e) { /* non-blocking -- tab may be navigating */ }
+    await chrome.tabs.sendMessage(tabId, payload, { frameId: 0 });
+  } catch (firstErr) {
+    // First attempt failed -- try re-injecting the content script and retry once
+    try {
+      await ensureContentScriptInjected(tabId, 1);
+      await chrome.tabs.sendMessage(tabId, payload, { frameId: 0 });
+    } catch (retryErr) {
+      automationLogger.debug('sendSessionStatus delivery failed', {
+        tabId, phase: statusData.phase, error: retryErr.message
+      });
+    }
+  }
 }
 
 /**
@@ -660,6 +690,15 @@ async function cleanupSession(sessionId) {
       clearTimeout(session._loginHandler.timeout);
       session._loginHandler = null;
     }
+
+    // Defense-in-depth: always send overlay cleanup to content script.
+    // Some code paths call cleanupSession without endSessionOverlays;
+    // sending 'ended' again is harmless if overlays were already destroyed.
+    try {
+      await endSessionOverlays(session, 'cleanup');
+    } catch (e) {
+      automationLogger.debug('endSessionOverlays during cleanup failed (non-blocking)', { sessionId, error: e?.message });
+    }
   }
 
   // PERF: Flush any pending debounced log writes before session cleanup
@@ -689,9 +728,12 @@ async function cleanupSession(sessionId) {
     automationLogger.debug('Cleaned up AI instance for session', { sessionId });
   }
 
-  // Stop keep-alive if no more active sessions
-  if (activeSessions.size === 0) {
-    automationLogger.logServiceWorker('session_count', { count: 0, action: 'stopping_keepalive' });
+  // Stop keep-alive if no actively-running sessions remain
+  const hasActiveSession = [...activeSessions.values()].some(s =>
+    s.status === 'running' || s.status === 'replaying'
+  );
+  if (!hasActiveSession) {
+    automationLogger.logServiceWorker('session_count', { count: activeSessions.size, action: 'stopping_keepalive', reason: 'no_running_sessions' });
     stopKeepAlive();
   } else {
     automationLogger.logServiceWorker('session_count', { count: activeSessions.size, action: 'keeping_alive' });
@@ -975,6 +1017,38 @@ async function restoreSessionsFromStorage() {
 restoreSessionsFromStorage().catch(err => {
   console.warn('FSB: Failed to restore sessions on wake:', err);
 });
+
+// Periodic cleanup of stale sessions (every 5 minutes)
+setInterval(async () => {
+  const now = Date.now();
+  const STALE_THRESHOLD = 30 * 60 * 1000; // 30 minutes
+  for (const [sessionId, session] of activeSessions) {
+    // Remove idle sessions older than 30 minutes
+    if (session.status === 'idle' && now - (session.startTime || 0) > STALE_THRESHOLD) {
+      automationLogger.info('Removing stale idle session', { sessionId, ageMs: now - (session.startTime || 0) });
+      activeSessions.delete(sessionId);
+      sessionAIInstances.delete(sessionId);
+      removePersistedSession(sessionId);
+      continue;
+    }
+    // Remove sessions whose tab no longer exists
+    if (session.tabId) {
+      try {
+        await chrome.tabs.get(session.tabId);
+      } catch {
+        automationLogger.info('Removing session for closed tab', { sessionId, tabId: session.tabId });
+        activeSessions.delete(sessionId);
+        sessionAIInstances.delete(sessionId);
+        removePersistedSession(sessionId);
+      }
+    }
+  }
+  // Stop keep-alive if no running sessions remain
+  const hasActiveSession = [...activeSessions.values()].some(s =>
+    s.status === 'running' || s.status === 'replaying'
+  );
+  if (!hasActiveSession) stopKeepAlive();
+}, 5 * 60 * 1000);
 
 // Track content script ready status per tab
 let contentScriptReadyStatus = new Map();
@@ -1852,11 +1926,8 @@ async function executeReplaySequence(replaySessionId) {
     } catch (e) { /* UI may not be listening */ }
   }
 
-  // Send session-ended status to content script
-  sendSessionStatus(session.tabId, {
-    phase: 'ended',
-    reason: session.status === 'replay_completed' ? 'completed' : 'error'
-  });
+  // Send session-ended status to content script (covers previousTabId if set)
+  await endSessionOverlays(session, session.status === 'replay_completed' ? 'completed' : 'error');
 
   // Log session end and cleanup
   const duration = Date.now() - session.startTime;
@@ -2942,16 +3013,41 @@ function simpleHash(str) {
 }
 
 /**
- * CMP-03: Classify a task string into one of 8 task types.
+ * CMP-03: Classify a task string into one of the supported task types.
  * Simplified port of ai-integration.js detectTaskType() for background.js use
  * (no site guide dependency). Used by completion validators and progress tracking.
  * @param {string} taskString - The user's task description
- * @returns {string} One of: 'email', 'messaging', 'form', 'shopping', 'search', 'extraction', 'navigation', 'general'
+ * @returns {string} One of: 'multitab', 'gaming', 'email', 'messaging', 'form', 'shopping', 'career', 'search', 'extraction', 'navigation', 'general'
  */
 function classifyTask(taskString) {
   if (!taskString) return 'general';
   const t = taskString.toLowerCase();
 
+  // Multitab / cross-site workflows -- MUST check before messaging/search/extraction
+  // to avoid partial keyword matches (e.g. "post" matching messaging, "check" matching extraction)
+  const outputDestinations = ['google doc', 'google sheet', 'google drive', 'google slide', 'notion', 'spreadsheet', 'my doc', 'my sheet'];
+  const gatherActions = ['find', 'search', 'research', 'get', 'look up', 'check', 'go to', 'visit', 'summarize', 'compile'];
+  const hasOutputDest = outputDestinations.some(kw => t.includes(kw));
+  const hasGatherAction = gatherActions.some(kw => t.includes(kw));
+  if (hasOutputDest && hasGatherAction) return 'multitab';
+  // Sequential cross-site tasks (e.g. "go to X then Y")
+  const sequentialSeparators = [' and then ', ', then ', ' then ', ' after that ', ' afterwards '];
+  const hasSequentialSep = sequentialSeparators.some(sep => t.includes(sep));
+  if (hasSequentialSep) {
+    const domainKeywords = [
+      'gmail', 'email', 'mail', 'outlook', 'amazon', 'ebay', 'etsy',
+      'youtube', 'twitter', 'facebook', 'instagram', 'linkedin', 'reddit',
+      'github', 'stackoverflow', 'google docs', 'google sheets', 'google drive',
+      'netflix', 'spotify', 'twitch', 'discord', 'slack', 'whatsapp',
+      'notion', 'dropbox', 'wikipedia'
+    ];
+    const matched = domainKeywords.filter(kw => t.includes(kw));
+    if (matched.length >= 2) return 'multitab';
+  }
+  // Explicit tab keywords
+  if (/new tab|open tab|switch tab|multiple tab|other tab|different tab|compare|both sites|cross-reference/.test(t)) return 'multitab';
+  // Gaming
+  if (/play|game|start game|asteroids|snake|pong|tetris/.test(t) && !/play.*video|play.*music|play.*song|playlist/.test(t)) return 'gaming';
   // Email -- check before messaging to avoid 'send' matching messaging
   if (/email|mail|gmail|outlook|compose|inbox|draft/.test(t)) return 'email';
   // Messaging -- 'send', 'reply', 'post', 'comment' etc. (after email ruled out)
@@ -3143,6 +3239,19 @@ function checkActionChainComplete(session, taskType) {
         a.tool === 'getText' && a.result?.success && a.result?.value && a.result.value.trim().length > 0
       );
     }
+    case 'multitab': {
+      // Cross-site workflows: navigated to 2+ distinct domains AND performed data actions (getText/type)
+      const urlEntries = (session.urlHistory || []).map(e => e.url || e);
+      if (session.lastUrl) urlEntries.push(session.lastUrl);
+      const uniqueHosts = new Set();
+      for (const u of urlEntries) {
+        try { uniqueHosts.add(new URL(u).hostname); } catch (_) { /* skip invalid */ }
+      }
+      const hasDataAction = recent.some(a =>
+        (a.tool === 'getText' || a.tool === 'type') && a.result?.success
+      );
+      return uniqueHosts.size >= 2 && hasDataAction;
+    }
     default:
       return false;
   }
@@ -3180,9 +3289,10 @@ function gatherCompletionSignals(session, aiResponse, context) {
     confirmationPage: context.completionSignals?.confirmationPage || false,
     formReset: context.completionSignals?.formReset || false,
     toast: context.completionSignals?.toastNotification?.text || null,
-    // AI self-report (0.2 weight)
+    // AI self-report (0.2 weight, boosted when actions empty)
     aiComplete: aiResponse.taskComplete === true,
     aiResult: aiResponse.result || '',
+    aiActionsEmpty: aiResponse.taskComplete === true && (!aiResponse.actions || aiResponse.actions.length === 0),
     // Action chain (0.15 weight)
     actionChainComplete: checkActionChainComplete(session, taskType),
     actionChainEvidence: summarizeRecentActions(session),
@@ -3228,6 +3338,12 @@ function computeCompletionScore(signals, taskType) {
   if (signals.aiComplete && signals.aiResult.length >= 10) {
     score += weights.aiReport;
     evidence.push('AI: task complete');
+    // Boost: AI says complete AND submitted zero actions -- strongest completion indicator.
+    // The AI has nothing left to do. This warrants extra weight (+0.15).
+    if (signals.aiActionsEmpty) {
+      score += 0.15;
+      evidence.push('AI: no remaining actions');
+    }
   }
   // Action chain
   if (signals.actionChainComplete) {
@@ -3322,6 +3438,30 @@ function extractionValidator(session, aiResponse, context, signals, scoreResult)
   return { approved: score >= 0.5, score, evidence, taskType: 'extraction' };
 }
 
+function multitabValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // Cross-site workflows often lack URL/DOM success signals (e.g. typing in Google Docs).
+  // Bonus: visited 2+ distinct hosts AND performed data actions (getText + type)
+  const urlEntries = (session.urlHistory || []).map(e => e.url || e);
+  if (session.lastUrl) urlEntries.push(session.lastUrl);
+  const uniqueHosts = new Set();
+  for (const u of urlEntries) {
+    try { uniqueHosts.add(new URL(u).hostname); } catch (_) { /* skip */ }
+  }
+  const history = session.actionHistory || [];
+  const hasGetText = history.some(a => a.tool === 'getText' && a.result?.success);
+  const hasType = history.some(a => a.tool === 'type' && a.result?.success);
+  if (uniqueHosts.size >= 2 && (hasGetText || hasType)) {
+    score = Math.min(1, score + 0.15);
+    evidence.push('Multitab: cross-site data workflow (' + uniqueHosts.size + ' hosts)');
+  }
+  if (hasGetText && hasType) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Multitab: extract+write pattern');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'multitab' };
+}
+
 function generalValidator(session, aiResponse, context, signals, scoreResult) {
   // Score-only decision, no bonuses
   return { approved: scoreResult.score >= 0.5, score: scoreResult.score, evidence: scoreResult.evidence, taskType: 'general' };
@@ -3355,6 +3495,8 @@ function validateCompletion(session, aiResponse, context) {
     search: searchValidator,
     career: careerValidator,
     extraction: extractionValidator,
+    multitab: multitabValidator,
+    gaming: generalValidator,
     general: generalValidator
   };
   const validator = validators[taskType] || generalValidator;
@@ -3498,11 +3640,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'getStatus':
       // Return sessionIds so UI can recover after service worker restart
       const sessionIds = Array.from(activeSessions.keys());
+      const firstSession = sessionIds.length > 0 ? activeSessions.get(sessionIds[0]) : null;
       sendResponse({
         status: 'ready',
         activeSessions: activeSessions.size,
         sessionIds: sessionIds,
-        currentSessionId: sessionIds[0] || null  // First active session for UI recovery
+        currentSessionId: sessionIds[0] || null,  // First active session for UI recovery
+        currentTask: firstSession?.task || null,
+        currentStartTime: firstSession?.startTime || null,
+        currentIterationCount: firstSession?.iterationCount || 0,
+        currentMaxIterations: firstSession?.maxIterations || 20,
+        currentActionCount: firstSession?.actionHistory?.length || 0
       });
       break;
       
@@ -4641,11 +4789,8 @@ async function handleStopAutomation(request, sender, sendResponse) {
     automationLogger.saveSession(sessionId, session);
       extractAndStoreMemories(sessionId, session).catch(() => {});
 
-    // Tell content script to clean up visual overlays
-    sendSessionStatus(session.tabId || session.originalTabId, {
-      phase: 'ended',
-      reason: 'stopped'
-    });
+    // Tell content script to clean up visual overlays (covers previousTabId if set)
+    await endSessionOverlays(session, 'stopped');
 
     finalizeSessionMetrics(sessionId, false); // Stopped, not completed
     await cleanupSession(sessionId); // Await to ensure full cleanup before responding
@@ -5652,77 +5797,101 @@ async function handleMultiTabAction(action, currentTabId) {
         break;
 
       case 'switchToTab':
-        // Allow switching to tabs in the session's allowedTabs whitelist
-        const switchRequest = { ...mockRequest };
-        if (switchRequest.tabId && typeof switchRequest.tabId === 'string') {
-          switchRequest.tabId = parseInt(switchRequest.tabId, 10);
-        }
+        (async () => {
+          // Allow switching to tabs in the session's allowedTabs whitelist
+          const switchRequest = { ...mockRequest };
+          if (switchRequest.tabId && typeof switchRequest.tabId === 'string') {
+            switchRequest.tabId = parseInt(switchRequest.tabId, 10);
+          }
 
-        // Find the session for this tab
-        const session = Array.from(activeSessions.values()).find(s => s.tabId === currentTabId);
-        const isAllowed = session && (
-          switchRequest.tabId === session.originalTabId ||
-          (session.allowedTabs || []).includes(switchRequest.tabId)
-        );
+          // Find the session for this tab
+          const session = Array.from(activeSessions.values()).find(s => s.tabId === currentTabId);
+          const isAllowed = session && (
+            switchRequest.tabId === session.originalTabId ||
+            (session.allowedTabs || []).includes(switchRequest.tabId)
+          );
 
-        if (session && !isAllowed) {
-          automationLogger.warn('Tab switch blocked', { allowedTabs: session.allowedTabs, requestedTabId: switchRequest.tabId });
-          resolve({
-            success: false,
-            error: `Security restriction: Tab ${switchRequest.tabId} is not in the session's allowed tabs. Allowed: [${(session.allowedTabs || []).join(', ')}].`,
-            blocked: true
-          });
-          return;
-        }
-
-        // Perform the actual tab switch
-        chrome.tabs.update(switchRequest.tabId, { active: true })
-          .then(async () => {
-            if (session) {
-              session.tabId = switchRequest.tabId;
-            }
-
-            // Wait for the target tab to finish loading before checking content script
-            try {
-              const targetTab = await chrome.tabs.get(switchRequest.tabId);
-              if (targetTab.status === 'loading') {
-                await new Promise((resolveLoad) => {
-                  const onUpdated = (tabId, changeInfo) => {
-                    if (tabId === switchRequest.tabId && changeInfo.status === 'complete') {
-                      chrome.tabs.onUpdated.removeListener(onUpdated);
-                      resolveLoad();
-                    }
-                  };
-                  chrome.tabs.onUpdated.addListener(onUpdated);
-                  // Safety timeout to avoid hanging indefinitely
-                  setTimeout(() => {
-                    chrome.tabs.onUpdated.removeListener(onUpdated);
-                    resolveLoad();
-                  }, 5000);
-                });
-              }
-            } catch (tabErr) {
-              automationLogger.debug('Could not check target tab status', { tabId: switchRequest.tabId, error: tabErr.message });
-            }
-
-            const contentScriptReady = await waitForContentScriptReady(switchRequest.tabId, 5000).catch(() => false);
-            automationLogger.debug('Tab switch allowed and executed', { tabId: switchRequest.tabId, contentScriptReady });
+          if (session && !isAllowed) {
+            automationLogger.warn('Tab switch blocked', { allowedTabs: session.allowedTabs, requestedTabId: switchRequest.tabId });
             resolve({
-              success: true,
-              message: contentScriptReady
-                ? `Switched to tab ${switchRequest.tabId}`
-                : `Switched to tab ${switchRequest.tabId} (content script not yet ready -- DOM will be fetched on next iteration)`,
-              tabId: switchRequest.tabId,
-              contentScriptReady
+              success: false,
+              error: `Security restriction: Tab ${switchRequest.tabId} is not in the session's allowed tabs. Allowed: [${(session.allowedTabs || []).join(', ')}].`,
+              blocked: true
             });
-          })
-          .catch((switchErr) => {
+            return;
+          }
+
+          // Clean up overlays on the old tab BEFORE switching (while it is still the active foreground tab)
+          if (session && session.tabId && session.tabId !== switchRequest.tabId) {
+            await sendSessionStatus(session.tabId, { phase: 'ended', reason: 'tab_switch' });
+          }
+
+          // Perform the actual tab switch
+          try {
+            await chrome.tabs.update(switchRequest.tabId, { active: true });
+          } catch (switchErr) {
             automationLogger.warn('Tab switch failed', { tabId: switchRequest.tabId, error: switchErr.message });
             resolve({
               success: false,
               error: `Failed to switch to tab ${switchRequest.tabId}: ${switchErr.message}`
             });
+            return;
+          }
+
+          if (session) {
+            session.previousTabId = session.tabId;
+            session.tabId = switchRequest.tabId;
+          }
+
+          // Wait for the target tab to finish loading before checking content script
+          try {
+            const targetTab = await chrome.tabs.get(switchRequest.tabId);
+            if (targetTab.status === 'loading') {
+              await new Promise((resolveLoad) => {
+                const onUpdated = (tabId, changeInfo) => {
+                  if (tabId === switchRequest.tabId && changeInfo.status === 'complete') {
+                    chrome.tabs.onUpdated.removeListener(onUpdated);
+                    resolveLoad();
+                  }
+                };
+                chrome.tabs.onUpdated.addListener(onUpdated);
+                // Safety timeout to avoid hanging indefinitely
+                setTimeout(() => {
+                  chrome.tabs.onUpdated.removeListener(onUpdated);
+                  resolveLoad();
+                }, 5000);
+              });
+            }
+          } catch (tabErr) {
+            automationLogger.debug('Could not check target tab status', { tabId: switchRequest.tabId, error: tabErr.message });
+          }
+
+          const contentScriptReady = await waitForContentScriptReady(switchRequest.tabId, 5000).catch(() => false);
+          automationLogger.debug('Tab switch allowed and executed', { tabId: switchRequest.tabId, contentScriptReady });
+
+          // Immediately show overlay on the new tab so it appears right after the switch,
+          // rather than waiting for the next automation iteration (800ms+ later).
+          if (contentScriptReady && session) {
+            await sendSessionStatus(switchRequest.tabId, {
+              phase: 'acting',
+              taskName: session.task,
+              iteration: session.iterationCount,
+              maxIterations: session.maxIterations || 20,
+              statusText: 'Switched tab -- preparing next step...',
+              animatedHighlights: session.animatedActionHighlights,
+              taskSummary: session.taskSummary || null
+            });
+          }
+
+          resolve({
+            success: true,
+            message: contentScriptReady
+              ? `Switched to tab ${switchRequest.tabId}`
+              : `Switched to tab ${switchRequest.tabId} (content script not yet ready -- DOM will be fetched on next iteration)`,
+            tabId: switchRequest.tabId,
+            contentScriptReady
           });
+        })();
         break;
 
       case 'closeTab':
@@ -5797,6 +5966,12 @@ async function startAutomationLoop(sessionId) {
     taskSummary: session.taskSummary || null
   });
 
+  // Fallback: clean up overlays on previous tab if a tab switch occurred
+  if (session.previousTabId && session.previousTabId !== session.tabId) {
+    sendSessionStatus(session.previousTabId, { phase: 'ended', reason: 'tab_switch' });
+    session.previousTabId = null;
+  }
+
   // === SAFETY NET: Absolute iteration cap and session time limit ===
   const ABSOLUTE_MAX_ITERATIONS = session.maxIterations || 20;
   const MAX_SESSION_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -5818,7 +5993,7 @@ async function startAutomationLoop(sessionId) {
     automationLogger.saveSession(sessionId, session);
       extractAndStoreMemories(sessionId, session).catch(() => {});
 
-    sendSessionStatus(session.tabId, { phase: 'ended', reason: 'max_iterations' });
+    endSessionOverlays(session, 'max_iterations');
     finalizeSessionMetrics(sessionId, false);
     idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
@@ -5850,7 +6025,7 @@ async function startAutomationLoop(sessionId) {
     automationLogger.saveSession(sessionId, session);
       extractAndStoreMemories(sessionId, session).catch(() => {});
 
-    sendSessionStatus(session.tabId, { phase: 'ended', reason: 'timeout' });
+    endSessionOverlays(session, 'timeout');
     finalizeSessionMetrics(sessionId, false);
     idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
@@ -5901,9 +6076,9 @@ async function startAutomationLoop(sessionId) {
   });
 
   try {
-    // SECURITY: Only inject content script into the original session tab
-    if (session.tabId !== session.originalTabId) {
-      throw new Error(`Security violation: Attempted to inject content script into unauthorized tab ${session.tabId}. Session is restricted to tab ${session.originalTabId}.`);
+    // SECURITY: Only inject content script into authorized tabs (original tab or allowedTabs whitelist)
+    if (session.tabId !== session.originalTabId && !(session.allowedTabs || []).includes(session.tabId)) {
+      throw new Error(`Security violation: Attempted to inject content script into unauthorized tab ${session.tabId}. Session allowed tabs: [${session.originalTabId}, ${(session.allowedTabs || []).join(', ')}].`);
     }
 
     // Content script is now injected via manifest.json content_scripts
@@ -5920,13 +6095,23 @@ async function startAutomationLoop(sessionId) {
 
       for (let attempt = 1; attempt <= maxHealthRetries; attempt++) {
         healthCheckAttempts = attempt;
+
+        // Early exit: check if tab still exists before retrying
+        try {
+          await chrome.tabs.get(session.tabId);
+        } catch {
+          automationLogger.warn('Tab no longer exists, aborting health check', { sessionId, tabId: session.tabId });
+          healthOk = false;
+          break;
+        }
+
         // FIX: Log the health check attempt WITHOUT claiming success yet
         // Previously logged success:true before the check ran, making comm logs misleading
-        automationLogger.logComm(sessionId, 'health', 'healthCheck_attempt', true, { tabId: session.originalTabId, attempt, maxRetries: maxHealthRetries });
-        healthOk = await checkContentScriptHealth(session.originalTabId);
+        automationLogger.logComm(sessionId, 'health', 'healthCheck_attempt', true, { tabId: session.tabId, attempt, maxRetries: maxHealthRetries });
+        healthOk = await checkContentScriptHealth(session.tabId);
 
         // Log the ACTUAL result of the health check
-        automationLogger.logComm(sessionId, 'health', 'healthCheck', healthOk, { tabId: session.originalTabId, attempt, status: healthOk ? 'healthy' : 'failed' });
+        automationLogger.logComm(sessionId, 'health', 'healthCheck', healthOk, { tabId: session.tabId, attempt, status: healthOk ? 'healthy' : 'failed' });
 
         if (healthOk) {
           break;
@@ -5935,12 +6120,12 @@ async function startAutomationLoop(sessionId) {
         if (attempt < maxHealthRetries) {
           // Try re-injecting content script on later attempts
           if (attempt >= 3) {
-            automationLogger.logRecovery(sessionId, 'health_fail', 're-inject', 'attempt', { tabId: session.originalTabId, attempt });
+            automationLogger.logRecovery(sessionId, 'health_fail', 're-inject', 'attempt', { tabId: session.tabId, attempt });
             try {
-              await ensureContentScriptInjected(session.originalTabId);
+              await ensureContentScriptInjected(session.tabId);
               wasReinjected = true;
             } catch (e) {
-              automationLogger.logRecovery(sessionId, 'health_fail', 're-inject', 'failed', { tabId: session.originalTabId, error: e.message });
+              automationLogger.logRecovery(sessionId, 'health_fail', 're-inject', 'failed', { tabId: session.tabId, error: e.message });
             }
           }
           await new Promise(resolve => setTimeout(resolve, healthRetryDelay * attempt));
@@ -5963,14 +6148,14 @@ async function startAutomationLoop(sessionId) {
         });
       }
 
-      automationLogger.logComm(sessionId, 'health', 'verified', true, { tabId: session.originalTabId, recoveryDurationMs: recoveryDuration });
+      automationLogger.logComm(sessionId, 'health', 'verified', true, { tabId: session.tabId, recoveryDurationMs: recoveryDuration });
     } catch (healthError) {
-      automationLogger.logComm(sessionId, 'health', 'healthCheck', false, { tabId: session.originalTabId, error: healthError.message });
+      automationLogger.logComm(sessionId, 'health', 'healthCheck', false, { tabId: session.tabId, error: healthError.message });
 
       // Get tab URL for error message
       let tabUrl = 'unknown';
       try {
-        const tab = await chrome.tabs.get(session.originalTabId);
+        const tab = await chrome.tabs.get(session.tabId);
         tabUrl = tab.url;
       } catch (e) {}
 
@@ -5988,7 +6173,7 @@ async function startAutomationLoop(sessionId) {
       automationLogger.logSessionEnd(sessionId, 'failed', session.actionHistory.length, duration);
       automationLogger.saveSession(sessionId, session);
       extractAndStoreMemories(sessionId, session).catch(() => {});
-      sendSessionStatus(session.tabId, { phase: 'ended', reason: 'error' });
+      endSessionOverlays(session, 'error');
       cleanupSession(sessionId);
       return;
     }
@@ -6192,6 +6377,7 @@ async function startAutomationLoop(sessionId) {
     
     // Track URL changes
     let urlChanged = false;
+    const previousUrl = session.lastUrl || null; // Capture before overwriting
     if (session.lastUrl) {
       urlChanged = currentUrl !== session.lastUrl;
       if (urlChanged) {
@@ -6420,7 +6606,8 @@ async function startAutomationLoop(sessionId) {
           message: 'Signing in...',
           iteration: session.iterationCount,
           maxIterations: session.maxIterations || 20,
-          progressPercent: signinProgress.progressPercent
+          progressPercent: signinProgress.progressPercent,
+          estimatedTimeRemaining: signinProgress.estimatedTimeRemaining
         }).catch(() => {});
 
         const loginFields = extractLoginFields(domResponse.structuredDOM);
@@ -6620,6 +6807,7 @@ async function startAutomationLoop(sessionId) {
       iterationCount: session.iterationCount,
       urlHistory: session.urlHistory.slice(-5), // Last 5 URL changes
       currentUrl: currentUrl,
+      previousUrl: previousUrl, // FIX: Track previous URL for domain transition detection in prompt tier selection
       // NEW: Progress tracking for AI awareness
       progress: progressContext,
       // Add sequence repetition info
@@ -6799,7 +6987,7 @@ async function startAutomationLoop(sessionId) {
       automationLogger.saveSession(sessionId, session);
       extractAndStoreMemories(sessionId, session).catch(() => {});
 
-      sendSessionStatus(session.tabId, { phase: 'ended', reason: 'error' });
+      endSessionOverlays(session, 'error');
       finalizeSessionMetrics(sessionId, false); // Failed
       cleanupSession(sessionId);
 
@@ -6928,7 +7116,8 @@ async function startAutomationLoop(sessionId) {
           message: getActionStatus(action.tool, action.params),
           iteration: session.iterationCount,
           maxIterations: session.maxIterations || 20,
-          progressPercent: actionProgress.progressPercent
+          progressPercent: actionProgress.progressPercent,
+          estimatedTimeRemaining: actionProgress.estimatedTimeRemaining
         }).catch(() => {
           // Ignore errors if no listeners
         });
@@ -6936,22 +7125,27 @@ async function startAutomationLoop(sessionId) {
         // Store last action status on session so it persists across navigations
         session.lastActionStatusText = getActionStatus(action.tool, action.params);
 
+        // Multi-tab actions are handled directly by background script
+        const multiTabActions = ['openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab'];
+
         // Send per-action status to content script viewport overlay
-        sendSessionStatus(session.tabId, {
-          phase: 'acting',
-          taskName: session.task,
-          iteration: session.iterationCount,
-          maxIterations: session.maxIterations || 20,
-          statusText: getActionStatus(action.tool, action.params),
-          animatedHighlights: session.animatedActionHighlights,
-          ...calculateProgress(session),
-          taskSummary: session.taskSummary || null
-        });
+        // Skip for multi-tab actions -- they change session.tabId mid-flight,
+        // and sending 'acting' to the old tab right before switchToTab would
+        // re-create overlays that we are about to clean up.
+        if (!multiTabActions.includes(action.tool)) {
+          sendSessionStatus(session.tabId, {
+            phase: 'acting',
+            taskName: session.task,
+            iteration: session.iterationCount,
+            maxIterations: session.maxIterations || 20,
+            statusText: getActionStatus(action.tool, action.params),
+            animatedHighlights: session.animatedActionHighlights,
+            ...calculateProgress(session),
+            taskSummary: session.taskSummary || null
+          });
+        }
 
         let actionResult;
-        
-        // Multi-tab actions should be handled directly by background script
-        const multiTabActions = ['openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab'];
         
         if (multiTabActions.includes(action.tool)) {
           // Handle multi-tab actions directly in background script
@@ -7377,7 +7571,7 @@ async function startAutomationLoop(sessionId) {
       automationLogger.saveSession(sessionId, session);
       extractAndStoreMemories(sessionId, session).catch(() => {});
 
-      sendSessionStatus(session.tabId, { phase: 'ended', reason: 'no_progress' });
+      endSessionOverlays(session, 'no_progress');
       finalizeSessionMetrics(sessionId, false);
       idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
@@ -7416,7 +7610,7 @@ async function startAutomationLoop(sessionId) {
         });
 
         // Transition to idle for follow-up continuation
-        sendSessionStatus(session.tabId, { phase: 'ended', reason: 'complete' });
+        endSessionOverlays(session, 'complete');
         finalizeSessionMetrics(sessionId, true); // Successfully completed
         idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
         return;
@@ -7454,7 +7648,7 @@ async function startAutomationLoop(sessionId) {
       automationLogger.saveSession(sessionId, session);
       extractAndStoreMemories(sessionId, session).catch(() => {});
 
-      sendSessionStatus(session.tabId, { phase: 'ended', reason: 'stuck' });
+      endSessionOverlays(session, 'stuck');
       finalizeSessionMetrics(sessionId, false); // Failed due to stuck loop
       idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
@@ -7551,7 +7745,7 @@ async function startAutomationLoop(sessionId) {
       automationLogger.saveSession(sessionId, session);
       extractAndStoreMemories(sessionId, session).catch(() => {});
 
-      sendSessionStatus(session.tabId, { phase: 'ended', reason: 'complete' });
+      endSessionOverlays(session, 'complete');
       finalizeSessionMetrics(sessionId, true); // Successfully completed
       idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
@@ -7600,6 +7794,10 @@ async function startAutomationLoop(sessionId) {
       automationLogger.logSessionEnd(sessionId, 'error', currentSession.actionHistory?.length || 0, duration);
       automationLogger.saveSession(sessionId, currentSession);
       extractAndStoreMemories(sessionId, currentSession).catch(() => {});
+
+      // Clean up visual overlays on error (was previously missing, leaving orphaned overlays)
+      endSessionOverlays(currentSession, 'error');
+      cleanupSession(sessionId);
     }
 
     // Notify UI about error (keep message simple for user)
@@ -7918,8 +8116,28 @@ async function handleCDPInsertText(request, sender, sendResponse) {
   try {
     automationLogger.logActionExecution(null, 'cdpInsertText', 'start', { tabId, textLength: text.length });
 
-    // Attach debugger to the tab
-    await chrome.debugger.attach({ tabId }, '1.3');
+    // If KeyboardEmulator has the debugger attached to this tab, detach it first
+    if (keyboardEmulator && keyboardEmulator.isAttachedTo(tabId)) {
+      automationLogger.debug('cdpInsertText: detaching KeyboardEmulator debugger before attaching', { tabId });
+      await keyboardEmulator.detachDebugger(tabId);
+    }
+
+    // Try to attach debugger; if "already attached" error, force-detach and retry
+    try {
+      await chrome.debugger.attach({ tabId }, '1.3');
+    } catch (attachErr) {
+      if (attachErr.message && attachErr.message.includes('Another debugger is already attached')) {
+        automationLogger.debug('cdpInsertText: stale debugger detected, force-detaching and retrying', { tabId });
+        try {
+          await chrome.debugger.detach({ tabId });
+        } catch (forceDetachErr) {
+          // Ignore -- may fail if the "other debugger" is not ours
+        }
+        await chrome.debugger.attach({ tabId }, '1.3');
+      } else {
+        throw attachErr;
+      }
+    }
     debuggerAttached = true;
 
     // If clearFirst is requested, select all and delete
@@ -8286,17 +8504,17 @@ function initializeKeyboardEmulator() {
  * @param {Function} sendResponse - Response callback
  */
 async function handleKeyboardDebuggerAction(request, sender, sendResponse) {
+  const emulator = initializeKeyboardEmulator();
+  let tabId;
+
   try {
     const { method, key, keys, text, specialKey, modifiers = {}, delay = 50 } = request;
-    const tabId = sender.tab.id;
+    tabId = sender.tab.id;
 
     automationLogger.logActionExecution(null, `keyboard_${method}`, 'start', { tabId, key, specialKey });
-    
-    // Initialize keyboard emulator
-    const emulator = initializeKeyboardEmulator();
-    
+
     let result;
-    
+
     switch (method) {
       case 'pressKey':
         if (!key) {
@@ -8304,31 +8522,34 @@ async function handleKeyboardDebuggerAction(request, sender, sendResponse) {
         }
         result = await emulator.pressKey(tabId, key, modifiers);
         break;
-        
+
       case 'pressKeySequence':
         if (!keys || !Array.isArray(keys)) {
           throw new Error('Keys array is required for pressKeySequence');
         }
         result = await emulator.pressKeySequence(tabId, keys, modifiers, delay);
         break;
-        
+
       case 'typeText':
         if (!text || typeof text !== 'string') {
           throw new Error('Text parameter is required for typeText');
         }
         result = await emulator.typeText(tabId, text, delay);
         break;
-        
+
       case 'sendSpecialKey':
         if (!specialKey || typeof specialKey !== 'string') {
           throw new Error('SpecialKey parameter is required for sendSpecialKey');
         }
         result = await emulator.sendSpecialKey(tabId, specialKey);
         break;
-        
+
       default:
         throw new Error(`Unknown keyboard emulator method: ${method}`);
     }
+
+    // Detach debugger after each operation to avoid blocking other CDP callers
+    await emulator.detachDebugger(tabId);
 
     automationLogger.logActionExecution(null, `keyboard_${method}`, 'complete', { tabId, success: result.success });
 
@@ -8340,6 +8561,14 @@ async function handleKeyboardDebuggerAction(request, sender, sendResponse) {
     });
 
   } catch (error) {
+    // Ensure debugger is detached even on error
+    if (tabId) {
+      try {
+        await emulator.detachDebugger(tabId);
+      } catch (detachErr) {
+        // Ignore detach errors during cleanup
+      }
+    }
     automationLogger.logActionExecution(null, `keyboard_${request.method}`, 'complete', { success: false, error: error.message });
     sendResponse({
       success: false,
@@ -8353,7 +8582,7 @@ async function handleKeyboardDebuggerAction(request, sender, sendResponse) {
  * Clean up keyboard emulator resources when tab is closed
  */
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
-  if (keyboardEmulator && keyboardEmulator.debuggerAttached) {
+  if (keyboardEmulator && keyboardEmulator.isAttachedTo(tabId)) {
     try {
       await keyboardEmulator.detachDebugger(tabId);
       automationLogger.debug('Cleaned up keyboard emulator for closed tab', { tabId });
