@@ -225,7 +225,6 @@ body {
   background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
   border-left: 4px solid var(--primary-color);
   position: relative;
-  overflow: hidden;
 }
 
 .message.status-message .message-content {
@@ -760,7 +759,6 @@ body {
 .action-chevron.expanded { transform: rotate(90deg); }
 .action-summary-list.collapsed { max-height: 0; overflow: hidden; }
 .action-summary-list:not(.collapsed) { max-height: 2000px; transition: max-height 0.3s; }
-.message.action-compact { padding: 4px 12px; font-size: 11px; margin: 2px 0; opacity: 0.8; background: #f0f8f0; color: #2e7d32; border-radius: 6px; border-left: 2px solid #4caf50; }
 .collapsed-action { opacity: 0.7; font-size: 11px; padding: 4px 12px 4px 24px; }
 
 /* ==========================================
@@ -865,6 +863,7 @@ body {
   background: var(--bg-secondary);
   border: 1px solid transparent;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .history-item:hover {

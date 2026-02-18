@@ -196,11 +196,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const deleteBtn = e.target.closest('.history-delete-btn');
-      if (!deleteBtn) return;
-      e.stopPropagation();
-      const sessionId = deleteBtn.dataset.sessionId;
-      if (!sessionId) return;
-      await deleteHistorySession(sessionId);
+      if (deleteBtn) {
+        e.stopPropagation();
+        const sessionId = deleteBtn.dataset.sessionId;
+        if (sessionId) {
+          await deleteHistorySession(sessionId);
+        }
+        return;
+      }
+
+      const historyItem = e.target.closest('.history-item');
+      if (historyItem) {
+        const sessionId = historyItem.dataset.sessionId;
+        if (sessionId) {
+          loadSessionView(sessionId);
+        }
+      }
     });
   }
 
@@ -467,8 +478,8 @@ function setIdleState() {
     currentStatusMessage = null;
   }
 
-  // Reset action message tracking
-  actionMessageQueue = [];
+  // Reset action debug group reference
+  currentActionGroup = null;
 
   updateSendButtonState();
 }
@@ -486,75 +497,69 @@ function setErrorState() {
 // Global reference to current status message
 let currentStatusMessage = null;
 
-// Action message tracking for auto-collapse
-let actionMessageQueue = [];
-const MAX_VISIBLE_ACTIONS = 2;
+// Collapsible debug panel for action steps (lives inside the status message)
+let currentActionGroup = null;
 
-function addActionMessage(text) {
-  const msgDiv = document.createElement('div');
-  msgDiv.className = 'message action-compact new';
-  msgDiv.textContent = text;
-  chatMessages.appendChild(msgDiv);
-  setTimeout(() => msgDiv.classList.remove('new'), 400);
-  actionMessageQueue.push(msgDiv);
-  collapseOldActions();
-  scrollToBottom();
+function ensureActionGroup() {
+  if (currentActionGroup) return currentActionGroup;
+  if (!currentStatusMessage) return null;
+
+  const group = document.createElement('div');
+  group.className = 'action-summary-group';
+  const header = document.createElement('div');
+  header.className = 'action-summary-header';
+  header.innerHTML = '<span class="action-chevron">></span><span class="action-summary-count">0 actions completed</span>';
+  header.addEventListener('click', () => {
+    const list = group.querySelector('.action-summary-list');
+    const chevron = group.querySelector('.action-chevron');
+    if (list.classList.contains('collapsed')) {
+      list.classList.remove('collapsed');
+      chevron.classList.add('expanded');
+    } else {
+      list.classList.add('collapsed');
+      chevron.classList.remove('expanded');
+    }
+  });
+  const list = document.createElement('div');
+  list.className = 'action-summary-list collapsed';
+  group.appendChild(header);
+  group.appendChild(list);
+
+  // Place directly on the status message div (outside .message-content flex row)
+  currentStatusMessage.appendChild(group);
+
+  currentActionGroup = group;
+  return group;
 }
 
-function collapseOldActions() {
-  if (actionMessageQueue.length <= MAX_VISIBLE_ACTIONS) return;
+function addActionMessage(text) {
+  if (!showSidepanelProgressEnabled) return;
 
-  let group = chatMessages.querySelector('.action-summary-group');
-  if (!group) {
-    group = document.createElement('div');
-    group.className = 'action-summary-group';
-    const header = document.createElement('div');
-    header.className = 'action-summary-header';
-    header.innerHTML = '<span class="action-chevron">></span><span class="action-summary-count"></span>';
-    header.addEventListener('click', () => {
-      const list = group.querySelector('.action-summary-list');
-      const chevron = group.querySelector('.action-chevron');
-      if (list.classList.contains('collapsed')) {
-        list.classList.remove('collapsed');
-        chevron.classList.add('expanded');
-      } else {
-        list.classList.add('collapsed');
-        chevron.classList.remove('expanded');
-      }
-    });
-    const list = document.createElement('div');
-    list.className = 'action-summary-list collapsed';
-    group.appendChild(header);
-    group.appendChild(list);
-    const firstAction = actionMessageQueue[0];
-    if (firstAction && firstAction.parentNode) {
-      firstAction.parentNode.insertBefore(group, firstAction);
-    } else {
-      chatMessages.appendChild(group);
-    }
-  }
+  const group = ensureActionGroup();
+  if (!group) return;
 
+  // Append new action entry into the list
   const list = group.querySelector('.action-summary-list');
-  while (actionMessageQueue.length > MAX_VISIBLE_ACTIONS) {
-    const oldMsg = actionMessageQueue.shift();
-    if (oldMsg.parentNode) oldMsg.remove();
-    const collapsed = document.createElement('div');
-    collapsed.className = 'collapsed-action';
-    collapsed.textContent = oldMsg.textContent;
-    list.appendChild(collapsed);
-  }
+  const entry = document.createElement('div');
+  entry.className = 'collapsed-action';
+  entry.textContent = text;
+  list.appendChild(entry);
 
+  // Update count label
   const countEl = group.querySelector('.action-summary-count');
   if (countEl) {
-    countEl.textContent = `${list.children.length} actions completed`;
+    countEl.textContent = `${list.children.length} action${list.children.length === 1 ? '' : 's'} completed`;
   }
+
+  scrollToBottom();
 }
 
 // Add dynamic status message with integrated loader
 function addStatusMessage(text, type = 'ai') {
-  // Remove any existing status message
+  // Remove any existing status message (and its embedded action group)
   if (currentStatusMessage) {
     currentStatusMessage.remove();
+    currentActionGroup = null;
   }
   
   const messageDiv = document.createElement('div');
@@ -623,7 +628,7 @@ function updateStatusMessage(text, progressData) {
       if (container && fill && label) {
         container.classList.remove('hidden');
         fill.style.width = (progressData.progressPercent || 0) + '%';
-        label.textContent = `Step ${progressData.iteration}/${progressData.maxIterations || 20}`;
+        label.textContent = `${(progressData.progressPercent || 0)}%`;
       }
     }
   }
@@ -635,6 +640,7 @@ function completeStatusMessage(text, type = 'ai') {
   if (currentStatusMessage) {
     currentStatusMessage.remove();
     currentStatusMessage = null;
+    currentActionGroup = null;
 
     if (type === 'partial') {
       addCompletionMessage(text, 'ai', true);
@@ -1152,7 +1158,7 @@ async function startReplay(sessionId) {
     if (response && response.success) {
       currentSessionId = response.sessionId;
       setRunningState();
-      updateStatusMessage('Replaying: step 1/' + response.totalSteps);
+      updateStatusMessage('Replaying...');
     } else {
       completeStatusMessage(response?.error || 'Failed to start replay', 'error');
       addMessage(response?.error || 'Failed to start replay.', 'error');
@@ -1177,6 +1183,60 @@ async function deleteHistorySession(sessionId) {
     loadHistoryList();
   } catch (error) {
     console.error('Failed to delete session:', error);
+  }
+}
+
+async function loadSessionView(sessionId) {
+  try {
+    const stored = await chrome.storage.local.get(['fsbSessionLogs']);
+    const sessionStorage = stored.fsbSessionLogs || {};
+    const session = sessionStorage[sessionId];
+
+    if (!session) {
+      addMessage('Session data not found.', 'error');
+      return;
+    }
+
+    // Switch to chat view and clear existing messages
+    showChatView();
+    chatMessages.innerHTML = '';
+
+    // Show the original task as a user message
+    addMessage(session.task || 'Unknown task', 'user');
+
+    // Show action history entries
+    var actions = session.actionHistory || [];
+    if (actions.length > 0) {
+      addMessage('Session had ' + actions.length + ' action(s):', 'system');
+      for (var i = 0; i < actions.length; i++) {
+        var action = actions[i];
+        var tool = action.tool || 'unknown';
+        var success = action.result?.success !== false;
+        var params = '';
+        if (action.params) {
+          try {
+            params = '(' + Object.entries(action.params)
+              .map(function(entry) { return entry[0] + ': "' + String(entry[1]).substring(0, 60) + '"'; })
+              .join(', ') + ')';
+          } catch (e) {
+            params = '';
+          }
+        }
+        var label = (success ? '[OK] ' : '[FAIL] ') + tool + params;
+        addMessage(label, 'action');
+      }
+    } else {
+      addMessage('No actions were recorded in this session.', 'system');
+    }
+
+    // Show session status footer
+    var status = session.status || 'unknown';
+    var endTime = session.endTime ? new Date(session.endTime).toLocaleString() : 'N/A';
+    addMessage('Session ' + status + ' at ' + endTime, 'system');
+
+  } catch (error) {
+    console.error('Failed to load session view:', error);
+    addMessage('Failed to load session: ' + error.message, 'error');
   }
 }
 
