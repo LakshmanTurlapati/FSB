@@ -867,9 +867,47 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         } else {
           addMessage('No worries! The side panel is still here. Try again or ask for help with something else.', 'system');
         }
+
+        // Check if reconnaissance could help (stuck errors on unmapped sites)
+        if (request.error && request.error.includes('stuck')) {
+          try {
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            const currentUrl = tabs[0]?.url;
+            if (currentUrl && currentUrl.startsWith('http')) {
+              const domain = new URL(currentUrl).hostname;
+              const siteMapCheck = await chrome.runtime.sendMessage({
+                action: 'checkSiteMap',
+                domain
+              });
+
+              if (!siteMapCheck || !siteMapCheck.exists) {
+                const reconDiv = document.createElement('div');
+                reconDiv.className = 'message system new recon-suggestion';
+                const textSpan = document.createElement('span');
+                textSpan.className = 'recon-suggestion-text';
+                textSpan.textContent = 'This site does not have a map yet. Reconnaissance can help FSB learn the site structure for better performance.';
+                reconDiv.appendChild(textSpan);
+
+                const reconBtn = document.createElement('button');
+                reconBtn.className = 'recon-btn';
+                reconBtn.id = 'reconFromSidepanel';
+                reconBtn.textContent = 'Run Reconnaissance';
+                reconBtn.addEventListener('click', () => {
+                  startReconFromSidepanel(currentUrl, request.task);
+                });
+                reconDiv.appendChild(reconBtn);
+
+                chatMessages.appendChild(reconDiv);
+                scrollToBottom();
+              }
+            }
+          } catch (e) {
+            console.warn('Recon suggestion check failed:', e.message);
+          }
+        }
       }
       break;
-      
+
     case 'loginDetected':
       if (request.sessionId === currentSessionId) {
         // Pause the status loader
