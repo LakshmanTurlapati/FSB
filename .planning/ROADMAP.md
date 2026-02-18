@@ -1,4 +1,4 @@
-# Roadmap: FSB v0.9.1 AI Situational Awareness
+# Roadmap: FSB v9.0.2 AI Situational Awareness
 
 ## Overview
 
@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Session History UI** - Add conversation history panel to sidepanel with previous sessions list and delete functionality
 - [x] **Phase 8: Session Replay** - Use stored memory, action history, and successful action recordings to enable session replay of previously successful automation flows
 - [x] **Phase 9: Career Page Search + Google Sheets Data Entry** - Search company career pages for job listings, extract structured data, and enter it into Google Sheets
-- [ ] **Phase 10: Memory Tab Population** - Populate the empty Memory tab in the control panel with data from session logs, conversation history, action recordings, hard facts, working selectors, and session replay data
+- [x] **Phase 10: Memory Tab Population** - Populate the empty Memory tab in the control panel with data from session logs, conversation history, action recordings, hard facts, working selectors, and session replay data
 
 ## Phase Details
 
@@ -291,10 +291,11 @@ Plans:
   6. Consolidate button merges duplicate/stale memories
   7. Export button downloads all memories as JSON
   8. Memories persist across browser restarts and are available for AI retrieval via MemoryManager
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 10 to break down)
+- [x] 10-01-PLAN.md -- Fix data pipeline: enrich extractAndStoreMemories with AI instance snapshot, add local fallback extractor, enhance AI extraction prompt
+- [x] 10-02-PLAN.md -- Harden against duplicate extraction on follow-ups, verify Memory tab UI rendering
 
 **Details:**
 The Memory tab UI and lib/memory/ module infrastructure already exist (memory-manager.js, memory-extractor.js, memory-storage.js, memory-retriever.js, memory-consolidator.js). The issue is that the extraction pipeline either isn't triggering properly or isn't producing useful memories from session data. This phase needs to: (a) verify the extraction pipeline fires on session completion, (b) ensure extractAndStoreMemories produces all three memory types from real session data, (c) wire the options.js Memory tab to actually load and display stored memories via the MemoryManager API, and (d) feed richer data into the extraction -- including hard facts, working selectors, action sequences, and site-specific patterns discovered during automation.
@@ -348,4 +349,4 @@ The Memory tab UI and lib/memory/ module infrastructure already exist (memory-ma
 | 7. Session History UI | 1/1 | Complete | 2026-02-15 |
 | 8. Session Replay | 2/2 | Complete | 2026-02-16 |
 | 9. Career Page Search + Sheets | 2/2 | Complete | 2026-02-16 |
-| 10. Memory Tab Population | 0/0 | Not planned | - |
+| 10. Memory Tab Population | 2/2 | Complete | 2026-02-17 |

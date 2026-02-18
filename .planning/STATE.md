@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-14)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 8 - Session Replay (COMPLETE)
+**Current focus:** Phase 10 - Memory Tab Population (COMPLETE)
 
 ## Current Position
 
-Phase: 9 of 10 (Career Page Search + Sheets complete, Memory Tab Population next)
+Phase: 10 of 10 (Memory Tab Population)
 Plan: 2 of 2 in current phase
-Status: Phase 9 complete, Phase 10 not yet planned
-Last activity: 2026-02-16 -- Phase 10 added to roadmap
+Status: Phase complete
+Last activity: 2026-02-17 -- Completed 10-02-PLAN.md
 
 Progress: [####################] 100%
 
@@ -23,10 +23,10 @@ Progress: [####################] 100%
 - Average duration: 2.9 min
 - Total execution time: 1.2 hours
 
-**v0.9.1 Velocity:**
-- Total plans completed: 15
+**v9.0.2 Velocity:**
+- Total plans completed: 17
 - Average duration: 3.0 min
-- Total execution time: 51.2 min
+- Total execution time: 55.2 min
 
 ## Accumulated Context
 
@@ -98,10 +98,16 @@ Recent decisions affecting current work:
 - RPL-UI-01: Replay button only shown for sessions with actionCount > 0
 - RPL-UI-02: Green color (#4CAF50) for replay button, distinct from red delete button
 - RPL-UI-03: Existing statusUpdate/automationComplete/stop handlers reused for replay without modification
+- MEM-TAB-01-01: Synchronous AI instance snapshot before any await in extractAndStoreMemories
+- MEM-TAB-01-02: Local fallback produces 1-3 memories (episodic always, semantic if selectors, procedural if completed)
+- MEM-TAB-01-03: session.lastUrl as domain fallback when no navigate URLs in actionHistory
+- MEM-TAB-02-01: _lastExtractionActionIndex on session object tracks extraction progress across follow-up commands
+- MEM-TAB-02-02: Skip extraction entirely when actionStartIndex > 0 and no new actions exist
+- MEM-TAB-02-03: newActions used for procedural steps and AI prompt; episodic memory still summarizes full session
 
 ### Key Investigation Findings (from LinkedIn log analysis)
 
-10 systemic issues identified, all mapped to v0.9.1 requirements:
+10 systemic issues identified, all mapped to v9.0.2 requirements:
 1. ~~No task completion detection beyond AI self-report -> CMP-01/CMP-02~~ FIXED in 05-01 + 05-02 + 05-03 (AI prompt completion requirements + DOM completion signals + multi-signal validators + prompt injection)
 2. ~~domHash says "no change" after successful actions -> CHG-01/CHG-04~~ FIXED in 03-01 + 03-02 (multi-signal detection + structured descriptors + channel-aware stuck detection)
 3. ~~False CAPTCHA detection on every LinkedIn page -> SIG-02~~ FIXED in 01-01
@@ -130,6 +136,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-16
-Stopped at: Completed 08-02-PLAN.md (Phase 8 complete, all phases done)
+Last session: 2026-02-17
+Stopped at: Completed 10-02-PLAN.md (Duplicate prevention and Memory tab verification)
 Resume file: None

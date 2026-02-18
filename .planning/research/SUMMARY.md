@@ -1,13 +1,13 @@
 # Project Research Summary
 
-**Project:** FSB v0.9.1 -- AI Situational Awareness Milestone
+**Project:** FSB v9.0.2 -- AI Situational Awareness Milestone
 **Domain:** Chrome Extension AI Browser Automation (awareness, completion detection, DOM context, memory)
 **Researched:** 2026-02-14
 **Confidence:** HIGH
 
 ## Executive Summary
 
-FSB v0.9.1 is a working browser automation extension with 10 systemic awareness failures identified from a real LinkedIn session log. The root causes cluster into five domains: (1) the AI receives only 26% of the DOM due to a 5K character hard cap and flat serialization, (2) the DOM change detector uses a coarse hash that misses content and state changes, (3) conversation memory compacts to as few as 27 characters losing all operational context, (4) task completion relies on AI self-report with no independent verification, and (5) CAPTCHA detection produces false positives on every LinkedIn page. All four research dimensions agree on one fundamental conclusion: **DOM serialization quality is the upstream bottleneck** -- the AI cannot reason about what it cannot see, and every downstream system (memory, completion, stuck detection) degrades when the input is truncated or inaccurate.
+FSB v9.0.2 is a working browser automation extension with 10 systemic awareness failures identified from a real LinkedIn session log. The root causes cluster into five domains: (1) the AI receives only 26% of the DOM due to a 5K character hard cap and flat serialization, (2) the DOM change detector uses a coarse hash that misses content and state changes, (3) conversation memory compacts to as few as 27 characters losing all operational context, (4) task completion relies on AI self-report with no independent verification, and (5) CAPTCHA detection produces false positives on every LinkedIn page. All four research dimensions agree on one fundamental conclusion: **DOM serialization quality is the upstream bottleneck** -- the AI cannot reason about what it cannot see, and every downstream system (memory, completion, stuck detection) degrades when the input is truncated or inaccurate.
 
 The recommended approach is a five-phase build that fixes signal accuracy first (CAPTCHA, viewport, Shadow DOM -- trivial isolated fixes), then expands DOM serialization capacity (raise the 5K cap to 15K with budget-based allocation across prompt sections), then improves change detection (multi-signal hash replacing the coarse URL+count hash), then strengthens memory (fix compaction failures, enrich session memory extraction), and finally adds task-type-specific completion verification as the capstone. This ordering follows the data dependency chain: each phase's output feeds the next phase's input. All changes are modifications to existing functions in three core files (`background.js`, `content.js`, `ai/ai-integration.js`) -- no new files, no new dependencies, no build system changes.
 

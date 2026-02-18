@@ -6,7 +6,7 @@
 
 ## Summary
 
-Phase 5 adds system-level task completion verification to FSB so the extension independently knows when a task is done, rather than relying solely on the AI's `taskComplete: true` flag. This is the final phase of the v0.9.1 AI Situational Awareness milestone.
+Phase 5 adds system-level task completion verification to FSB so the extension independently knows when a task is done, rather than relying solely on the AI's `taskComplete: true` flag. This is the final phase of the v9.0.2 AI Situational Awareness milestone.
 
 The current codebase already has primitive completion validation (background.js ~line 6383-6461) that checks for meaningful result text and recent critical action failures, but it is ad-hoc and messaging-task-specific. Phase 5 replaces this with a structured system: task-type-specific validators, multi-signal completion scoring (URL + DOM + AI + action chain + stability), a critical action registry with cooldown, enhanced progress tracking using Phase 3 change descriptors, and proactive completion signal detection in content.js.
 

@@ -318,7 +318,7 @@ AF fixes (especially CAPTCHA false positives) are independent and can be done an
 
 ## MVP Recommendation
 
-For the v0.9.1 milestone ("AI Situational Awareness"), prioritize in this order:
+For the v9.0.2 milestone ("AI Situational Awareness"), prioritize in this order:
 
 ### Must Have (Phase 1 - Foundation)
 1. **TS-4: Semantic Change Detection** -- Fix the domHash granularity, add change summaries. This is the root cause of the "didn't know it was done" problem and the "domHash says no change" problem from the session log. Low-medium complexity, high impact.

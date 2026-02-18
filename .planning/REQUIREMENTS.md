@@ -1,4 +1,4 @@
-# Requirements: v0.9.1 AI Situational Awareness
+# Requirements: v9.0.2 AI Situational Awareness
 
 **Created:** 2026-02-14
 **Milestone goal:** Give the AI complete context and the ability to understand what's happening on the page -- see everything, remember what it did, and know when it's done.
