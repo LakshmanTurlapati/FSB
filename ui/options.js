@@ -3778,6 +3778,15 @@ function renderMemoryList(memories) {
   const emptyState = document.getElementById('memoryEmptyState');
   if (!container) return;
 
+  // Clean up any active graphs before re-render
+  const activeGraphs = container.parentElement
+    ? container.parentElement.querySelectorAll('.site-graph-container')
+    : container.querySelectorAll('.site-graph-container');
+  activeGraphs.forEach(gc => {
+    if (typeof SiteGraph !== 'undefined') SiteGraph.destroy(gc);
+    gc.remove();
+  });
+
   if (memories.length === 0) {
     container.innerHTML = '';
     if (emptyState) {
@@ -3815,8 +3824,13 @@ function renderMemoryList(memories) {
       ? `<button class="control-btn small refine-btn" data-id="${memory.id}" data-recon-id="${memory.typeData?.sitePattern?.reconId || ''}" title="Refine with AI" style="flex-shrink: 0;"><i class="fas fa-magic"></i></button>`
       : '';
 
+    const graphAttr = isSiteMap ? ' data-has-graph="true"' : '';
+    const chevronHtml = isSiteMap
+      ? '<i class="fas fa-chevron-right graph-toggle-icon" title="Toggle site graph"></i>'
+      : '';
+
     return `
-      <div class="session-item memory-item" data-memory-id="${memory.id}">
+      <div class="session-item memory-item" data-memory-id="${memory.id}"${graphAttr}>
         <div class="session-item-header" style="display: flex; align-items: center; gap: 10px;">
           <i class="fas ${typeIcon}" style="color: var(--primary); font-size: 1.1em;" title="${typeLabel}"></i>
           <div style="flex: 1; min-width: 0;">
@@ -3828,6 +3842,7 @@ function renderMemoryList(memories) {
             </div>
           </div>
           ${refineBtn}
+          ${chevronHtml}
           <button class="control-btn small memory-delete-btn" data-id="${memory.id}" title="Delete memory" style="color: var(--danger, #ef4444); flex-shrink: 0;">
             <i class="fas fa-trash"></i>
           </button>
@@ -3858,6 +3873,123 @@ function renderMemoryList(memories) {
       await refineMemoryWithAI(memoryId, reconId);
     });
   });
+
+  // Attach click-to-expand graph handlers on site_map memory items
+  container.querySelectorAll('.memory-item[data-has-graph="true"]').forEach(item => {
+    item.addEventListener('click', (e) => {
+      // Don't trigger on button clicks
+      if (e.target.closest('.control-btn')) return;
+      toggleMemoryGraph(item);
+    });
+    item.style.cursor = 'pointer';
+  });
+}
+
+/* ── Site Graph expand/collapse for memory items ── */
+
+function toggleMemoryGraph(memoryItem) {
+  const memoryId = memoryItem.dataset.memoryId;
+
+  // If already expanded, collapse
+  if (memoryItem.classList.contains('graph-expanded')) {
+    collapseMemoryGraph(memoryItem);
+    return;
+  }
+
+  // Collapse any other expanded graph first
+  const existingExpanded = document.querySelector('.memory-item.graph-expanded');
+  if (existingExpanded) {
+    collapseMemoryGraph(existingExpanded);
+  }
+
+  // Expand the clicked item
+  expandMemoryGraph(memoryItem, memoryId);
+}
+
+async function expandMemoryGraph(memoryItem, memoryId) {
+  if (typeof SiteGraph === 'undefined') {
+    showToast('Graph engine not available', 'error');
+    return;
+  }
+
+  // Get memory data
+  let memory;
+  try {
+    const memories = await memoryManager.getAll();
+    memory = memories.find(m => m.id === memoryId);
+  } catch (err) {
+    showToast('Failed to load memory data', 'error');
+    return;
+  }
+  if (!memory) {
+    showToast('Memory not found', 'error');
+    return;
+  }
+
+  const sitePattern = memory.typeData?.sitePattern;
+  if (!sitePattern) {
+    showToast('No site pattern data in this memory', 'error');
+    return;
+  }
+
+  // Transform data for the graph
+  const graphData = SiteGraph.transformData(sitePattern);
+  if (!graphData.nodes || graphData.nodes.length === 0) {
+    showToast('No pages found in site map', 'info');
+    return;
+  }
+
+  // Mark item as expanded
+  memoryItem.classList.add('graph-expanded');
+
+  // Create wrapper container
+  const wrapper = document.createElement('div');
+  wrapper.className = 'site-graph-container';
+
+  // Build legend based on data present
+  const hasPages = graphData.nodes.some(n => n.type === 'page');
+  const hasForms = graphData.nodes.some(n => n.type === 'form');
+  const hasNavLinks = graphData.links.some(l => l.type === 'navigation');
+  const hasFormLinks = graphData.links.some(l => l.type === 'form');
+  const hasWorkflowLinks = graphData.links.some(l => l.type === 'workflow');
+
+  let legendItems = '';
+  if (hasPages) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--primary-color, #ff6b35);"></span> Page</span>';
+  if (hasForms) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--warning-color, #d97706); border-radius: 2px; transform: rotate(45deg);"></span> Form</span>';
+  if (hasNavLinks) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--info-color, #0891b2);"></span> Navigation</span>';
+  if (hasFormLinks) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--warning-color, #d97706);"></span> Form link</span>';
+  if (hasWorkflowLinks) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--success-color, #059669); border: 1px dashed var(--success-color, #059669); background: transparent;"></span> Workflow</span>';
+
+  if (legendItems) {
+    const legend = document.createElement('div');
+    legend.className = 'site-graph-legend';
+    legend.innerHTML = legendItems;
+    wrapper.appendChild(legend);
+  }
+
+  // Insert wrapper after the memory item
+  memoryItem.after(wrapper);
+
+  // Delay render until container is in DOM and visible (Pitfall 6 avoidance)
+  requestAnimationFrame(() => {
+    const rect = wrapper.getBoundingClientRect();
+    const width = Math.max(rect.width - 16, 300); // account for padding
+    SiteGraph.render(wrapper, graphData, { width, height: 380, memoryId });
+  });
+
+  // Scroll into view
+  memoryItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function collapseMemoryGraph(memoryItem) {
+  memoryItem.classList.remove('graph-expanded');
+
+  // Find the graph container that follows this memory item
+  const nextSibling = memoryItem.nextElementSibling;
+  if (nextSibling && nextSibling.classList.contains('site-graph-container')) {
+    if (typeof SiteGraph !== 'undefined') SiteGraph.destroy(nextSibling);
+    nextSibling.remove();
+  }
 }
 
 async function refineMemoryWithAI(memoryId, reconId) {
