@@ -721,6 +721,93 @@
               </div>
             </div>
           </div>
+
+          <!-- Site Explorer -->
+          <div class="explorer-section" style="margin-top: 2rem;">
+            <div class="section-header">
+              <h3>Site Explorer</h3>
+              <p>Crawl a website to map its interactive structure, navigation, and selectors</p>
+            </div>
+
+            <div class="explorer-card">
+              <div class="explorer-input-row">
+                <div class="explorer-url-wrapper">
+                  <i class="fas fa-globe explorer-url-icon"></i>
+                  <input type="text" id="explorerUrl" class="explorer-url-input" placeholder="https://example.com" />
+                </div>
+                <button class="control-btn explorer-go-btn" id="explorerGoBtn">
+                  <i class="fas fa-search"></i>
+                  Go
+                </button>
+                <button class="control-btn explorer-stop-btn" id="explorerStopBtn" style="display: none;">
+                  <i class="fas fa-stop"></i>
+                  Stop
+                </button>
+              </div>
+
+              <div class="explorer-options-row">
+                <label class="explorer-option">
+                  <span>Max Depth</span>
+                  <select id="explorerMaxDepth" class="form-select small">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3" selected>3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                  </select>
+                </label>
+                <label class="explorer-option">
+                  <span>Max Pages</span>
+                  <select id="explorerMaxPages" class="form-select small">
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="explorer-progress" id="explorerProgress" style="display: none;">
+                <div class="explorer-progress-bar">
+                  <div class="explorer-progress-fill" id="explorerProgressFill" style="width: 0%;"></div>
+                </div>
+                <div class="explorer-progress-info">
+                  <span id="explorerProgressText">Starting...</span>
+                  <span id="explorerProgressCount">0 / 0 pages</span>
+                </div>
+                <div class="explorer-current-url" id="explorerCurrentUrl"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Research Results -->
+          <div class="research-section" style="margin-top: 2rem;">
+            <div class="section-header">
+              <h3>Research Results</h3>
+              <p>View and download site reconnaissance data, or save as site map memories</p>
+            </div>
+
+            <div class="session-controls">
+              <button class="control-btn" id="refreshResearch">
+                <i class="fas fa-sync-alt"></i>
+                Refresh
+              </button>
+              <button class="control-btn" id="clearAllResearch">
+                <i class="fas fa-trash"></i>
+                Clear All
+              </button>
+            </div>
+
+            <div class="session-list-container" id="researchListContainer">
+              <div class="session-list" id="researchList">
+                <div class="session-empty-state">
+                  <i class="fas fa-flask"></i>
+                  <p>No research results yet. Use Site Explorer above to crawl a website.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </section>
 
         <!-- Logs Section -->
@@ -820,92 +907,6 @@
             <div class="debug-output" id="debugOutput" style="display: none;">
               <h4>Debug Output:</h4>
               <pre id="debugContent"></pre>
-            </div>
-          </div>
-
-          <!-- Site Explorer -->
-          <div class="explorer-section" style="margin-top: 2rem;">
-            <div class="section-header">
-              <h3>Site Explorer</h3>
-              <p>Crawl a website to map its interactive structure, navigation, and selectors</p>
-            </div>
-
-            <div class="explorer-card">
-              <div class="explorer-input-row">
-                <div class="explorer-url-wrapper">
-                  <i class="fas fa-globe explorer-url-icon"></i>
-                  <input type="text" id="explorerUrl" class="explorer-url-input" placeholder="https://example.com" />
-                </div>
-                <button class="control-btn explorer-go-btn" id="explorerGoBtn">
-                  <i class="fas fa-search"></i>
-                  Go
-                </button>
-                <button class="control-btn explorer-stop-btn" id="explorerStopBtn" style="display: none;">
-                  <i class="fas fa-stop"></i>
-                  Stop
-                </button>
-              </div>
-
-              <div class="explorer-options-row">
-                <label class="explorer-option">
-                  <span>Max Depth</span>
-                  <select id="explorerMaxDepth" class="form-select small">
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3" selected>3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                  </select>
-                </label>
-                <label class="explorer-option">
-                  <span>Max Pages</span>
-                  <select id="explorerMaxPages" class="form-select small">
-                    <option value="5">5</option>
-                    <option value="10">10</option>
-                    <option value="25" selected>25</option>
-                    <option value="50">50</option>
-                  </select>
-                </label>
-              </div>
-
-              <div class="explorer-progress" id="explorerProgress" style="display: none;">
-                <div class="explorer-progress-bar">
-                  <div class="explorer-progress-fill" id="explorerProgressFill" style="width: 0%;"></div>
-                </div>
-                <div class="explorer-progress-info">
-                  <span id="explorerProgressText">Starting...</span>
-                  <span id="explorerProgressCount">0 / 0 pages</span>
-                </div>
-                <div class="explorer-current-url" id="explorerCurrentUrl"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Research Results -->
-          <div class="research-section" style="margin-top: 2rem;">
-            <div class="section-header">
-              <h3>Research Results</h3>
-              <p>View and download site reconnaissance data</p>
-            </div>
-
-            <div class="session-controls">
-              <button class="control-btn" id="refreshResearch">
-                <i class="fas fa-sync-alt"></i>
-                Refresh
-              </button>
-              <button class="control-btn" id="clearAllResearch">
-                <i class="fas fa-trash"></i>
-                Clear All
-              </button>
-            </div>
-
-            <div class="session-list-container" id="researchListContainer">
-              <div class="session-list" id="researchList">
-                <div class="session-empty-state">
-                  <i class="fas fa-flask"></i>
-                  <p>No research results yet. Use Site Explorer above to crawl a website.</p>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -1088,6 +1089,11 @@
   <script src="../lib/memory/memory-extractor.js"></script>
   <script src="../lib/memory/memory-manager.js"></script>
   <script src="../lib/memory/memory-consolidator.js"></script>
+  <script src="../lib/visualization/d3-dispatch.min.js"></script>
+  <script src="../lib/visualization/d3-timer.min.js"></script>
+  <script src="../lib/visualization/d3-quadtree.min.js"></script>
+  <script src="../lib/visualization/d3-force.min.js"></script>
+  <script src="../lib/visualization/site-graph.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

@@ -3042,3 +3042,133 @@ textarea.form-input {
   background: rgba(99, 102, 241, 0.2);
   color: #818cf8;
 }
+.refine-btn {
+  background: rgba(99, 102, 241, 0.08);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  transition: background 0.15s, border-color 0.15s;
+}
+.refine-btn:hover {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: #6366f1;
+}
+[data-theme="dark"] .refine-btn {
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  border-color: rgba(99, 102, 241, 0.3);
+}
+[data-theme="dark"] .refine-btn:hover {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: #818cf8;
+}
+
+/* ── Site Graph Visualization ── */
+.site-graph-container {
+  margin-bottom: var(--space-sm);
+  overflow: hidden;
+  animation: slideDown 200ms ease-out;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  padding: 8px;
+  position: relative;
+}
+.site-graph-svg {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  cursor: grab;
+}
+.site-graph-svg:active {
+  cursor: grabbing;
+}
+.site-graph-svg .graph-node {
+  cursor: grab;
+  transition: opacity 0.15s;
+}
+.site-graph-svg .graph-node:hover {
+  opacity: 0.85;
+}
+.site-graph-svg .graph-label {
+  font-size: 10px;
+  fill: var(--text-secondary);
+  text-anchor: middle;
+  pointer-events: none;
+  user-select: none;
+}
+.site-graph-svg .graph-link {
+  stroke-width: 1.5;
+  opacity: 0.6;
+}
+.site-graph-svg .graph-link.navigation {
+  stroke: var(--info-color, #0891b2);
+}
+.site-graph-svg .graph-link.form {
+  stroke: var(--warning-color, #d97706);
+}
+.site-graph-svg .graph-link.workflow {
+  stroke: var(--success-color, #059669);
+  stroke-dasharray: 5,3;
+}
+.site-graph-tooltip {
+  position: absolute;
+  z-index: 1000;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 0.82em;
+  line-height: 1.4;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  max-width: 280px;
+  display: none;
+}
+.site-graph-tooltip.visible {
+  display: block;
+}
+.site-graph-legend {
+  display: flex;
+  gap: 12px;
+  padding: 6px 8px;
+  font-size: 0.78em;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+.site-graph-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.site-graph-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.memory-item.graph-expanded {
+  border-color: var(--primary-color);
+  background: var(--bg-accent, var(--primary-light));
+}
+.memory-item .graph-toggle-icon {
+  margin-left: auto;
+  font-size: 0.8em;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+.memory-item.graph-expanded .graph-toggle-icon {
+  transform: rotate(90deg);
+  color: var(--primary-color);
+}
+
+/* Dark theme overrides for graph */
+[data-theme="dark"] .site-graph-container {
+  border-color: var(--border-color);
+}
+[data-theme="dark"] .site-graph-svg {
+  background: var(--bg-secondary);
+}
+[data-theme="dark"] .site-graph-tooltip {
+  background: var(--bg-tertiary, #1a1a1a);
+  border-color: var(--border-color);
+}
