@@ -6120,7 +6120,8 @@ async function startAutomationLoop(sessionId) {
       sessionId,
       result: finalResult,
       partial: true,
-      reason: 'max_iterations'
+      reason: 'max_iterations',
+      task: session.task
     }).catch(() => {});
 
     loopResolve?.();
@@ -6152,7 +6153,8 @@ async function startAutomationLoop(sessionId) {
       sessionId,
       result: finalResult,
       partial: true,
-      reason: 'timeout'
+      reason: 'timeout',
+      task: session.task
     }).catch(() => {});
 
     loopResolve?.();
@@ -7698,7 +7700,8 @@ async function startAutomationLoop(sessionId) {
         sessionId,
         result: finalResult,
         partial: true,
-        reason: 'no_progress'
+        reason: 'no_progress',
+        task: session.task
       });
 
       return;
@@ -7775,7 +7778,8 @@ async function startAutomationLoop(sessionId) {
         action: 'automationComplete',
         sessionId,
         result: finalResult,
-        partial: true
+        partial: true,
+        task: session.task
       });
 
       return;
