@@ -3083,17 +3083,22 @@ async function saveResearchToMemory(researchId) {
       showToast('Refining site map with AI...', 'info');
       try {
         const refined = await refineSiteMapWithAI(sitePattern, research);
-        memory.typeData.sitePattern = refined;
-        memory.metadata.confidence = 0.95;
-        memory.text = `Site map for ${domain}: ${refined.pageCount || 0} pages, ${refined.formCount || 0} forms (AI enhanced)`;
-        memory.updatedAt = Date.now();
-        await memoryStorage.update(memory.id, memory);
-        showToast('Site map saved and refined for ' + domain, 'success');
-        addLog('info', 'Saved and AI-refined site map for ' + domain);
+        if (refined && refined.refined === true) {
+          memory.typeData.sitePattern = refined;
+          memory.metadata.confidence = 0.95;
+          memory.text = `Site map for ${domain}: ${refined.pageCount || 0} pages, ${refined.formCount || 0} forms (AI enhanced)`;
+          memory.updatedAt = Date.now();
+          await memoryStorage.update(memory.id, memory);
+          showToast('Site map saved and refined for ' + domain, 'success');
+          addLog('info', 'Saved and AI-refined site map for ' + domain);
+        } else {
+          showToast('Site map saved for ' + domain + ' (refinement returned no data)', 'info');
+          addLog('info', 'Saved site map for ' + domain + ' (refinement returned no data)');
+        }
       } catch (err) {
         console.warn('AI refinement failed, keeping Tier 1 result:', err.message);
-        showToast('Site map saved for ' + domain + ' (AI refinement skipped)', 'info');
-        addLog('info', 'Saved site map for ' + domain + ' (refinement skipped: ' + err.message + ')');
+        showToast('Site map saved (AI refinement failed: ' + err.message + ')', 'info');
+        addLog('info', 'Saved site map for ' + domain + ' (refinement failed: ' + err.message + ')');
       }
     } else {
       showToast('Site map saved to memory for ' + domain, 'success');
@@ -3821,7 +3826,7 @@ function renderMemoryList(memories) {
       ? `<span class="memory-badge ${isRefined ? 'ai-enhanced' : 'basic'}">${isRefined ? 'AI Enhanced' : 'Basic'}</span>`
       : '';
     const refineBtn = isSiteMap && !isRefined
-      ? `<button class="control-btn small refine-btn" data-id="${memory.id}" data-recon-id="${memory.typeData?.sitePattern?.reconId || ''}" title="Refine with AI" style="flex-shrink: 0;"><i class="fas fa-magic"></i></button>`
+      ? `<button class="refine-btn-prominent" data-id="${memory.id}" data-recon-id="${memory.typeData?.sitePattern?.reconId || ''}" title="Refine with AI"><i class="fas fa-magic"></i> Refine with AI</button>`
       : '';
 
     const graphAttr = isSiteMap ? ' data-has-graph="true"' : '';
@@ -3865,7 +3870,7 @@ function renderMemoryList(memories) {
   });
 
   // Attach refine-with-AI handlers
-  container.querySelectorAll('.refine-btn').forEach(btn => {
+  container.querySelectorAll('.refine-btn-prominent').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const memoryId = btn.dataset.id;
@@ -3878,7 +3883,7 @@ function renderMemoryList(memories) {
   container.querySelectorAll('.memory-item[data-has-graph="true"]').forEach(item => {
     item.addEventListener('click', (e) => {
       // Don't trigger on button clicks
-      if (e.target.closest('.control-btn')) return;
+      if (e.target.closest('.control-btn') || e.target.closest('.refine-btn-prominent')) return;
       toggleMemoryGraph(item);
     });
     item.style.cursor = 'pointer';
@@ -3949,16 +3954,14 @@ async function expandMemoryGraph(memoryItem, memoryId) {
   // Build legend based on data present
   const hasPages = graphData.nodes.some(n => n.type === 'page');
   const hasForms = graphData.nodes.some(n => n.type === 'form');
-  const hasNavLinks = graphData.links.some(l => l.type === 'navigation');
-  const hasFormLinks = graphData.links.some(l => l.type === 'form');
+  const hasElements = graphData.nodes.some(n => n.type === 'element');
   const hasWorkflowLinks = graphData.links.some(l => l.type === 'workflow');
 
   let legendItems = '';
-  if (hasPages) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--primary-color, #ff6b35);"></span> Page</span>';
-  if (hasForms) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--warning-color, #d97706); border-radius: 2px; transform: rotate(45deg);"></span> Form</span>';
-  if (hasNavLinks) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--info-color, #0891b2);"></span> Navigation</span>';
-  if (hasFormLinks) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--warning-color, #d97706);"></span> Form link</span>';
-  if (hasWorkflowLinks) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--success-color, #059669); border: 1px dashed var(--success-color, #059669); background: transparent;"></span> Workflow</span>';
+  if (hasPages) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: #4285f4; opacity: 0.7;"></span> Page</span>';
+  if (hasForms) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: #d97706; opacity: 0.7;"></span> Form</span>';
+  if (hasElements) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--text-muted, #737373); opacity: 0.5; border: 1px dashed var(--text-muted, #737373); background: transparent;"></span> Element</span>';
+  if (hasWorkflowLinks) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: transparent; border: 1.5px dashed var(--success-color, #059669);"></span> Workflow</span>';
 
   if (legendItems) {
     const legend = document.createElement('div');
@@ -3967,15 +3970,53 @@ async function expandMemoryGraph(memoryItem, memoryId) {
     wrapper.appendChild(legend);
   }
 
+  // Detail toggle toolbar
+  const savedLevel = localStorage.getItem('fsbGraphDetailLevel') || 'simple';
+  const toolbar = document.createElement('div');
+  toolbar.className = 'site-graph-toolbar';
+  const toggle = document.createElement('div');
+  toggle.className = 'site-graph-detail-toggle';
+  toggle.innerHTML =
+    '<button class="detail-btn' + (savedLevel === 'simple' ? ' active' : '') + '" data-level="simple">Simple</button>' +
+    '<button class="detail-btn' + (savedLevel === 'full' ? ' active' : '') + '" data-level="full">Full</button>';
+  toolbar.appendChild(toggle);
+  wrapper.appendChild(toolbar);
+
   // Insert wrapper after the memory item
   memoryItem.after(wrapper);
 
-  // Delay render until container is in DOM and visible (Pitfall 6 avoidance)
-  requestAnimationFrame(() => {
-    const rect = wrapper.getBoundingClientRect();
-    const width = Math.max(rect.width - 16, 300); // account for padding
-    SiteGraph.render(wrapper, graphData, { width, height: 380, memoryId });
+  // Current detail level state
+  let currentDetailLevel = savedLevel;
+
+  function renderGraph() {
+    requestAnimationFrame(() => {
+      const rect = wrapper.getBoundingClientRect();
+      const width = Math.max(rect.width - 16, 300);
+      SiteGraph.render(wrapper, graphData, { width, height: 440, memoryId, detailLevel: currentDetailLevel });
+    });
+  }
+
+  // Toggle click handler
+  toggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('.detail-btn');
+    if (!btn) return;
+    const level = btn.dataset.level;
+    if (level === currentDetailLevel) return;
+
+    currentDetailLevel = level;
+    localStorage.setItem('fsbGraphDetailLevel', level);
+
+    // Update active state
+    toggle.querySelectorAll('.detail-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Re-render with new detail level
+    SiteGraph.destroy(wrapper);
+    renderGraph();
   });
+
+  // Initial render
+  renderGraph();
 
   // Scroll into view
   memoryItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
