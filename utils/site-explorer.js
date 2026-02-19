@@ -694,21 +694,25 @@ class SiteExplorer {
       chrome.storage.local.get(['autoRefineSiteMaps'], resolve);
     });
     if (settings.autoRefineSiteMaps !== false && typeof refineSiteMapWithAI === 'function') {
+      console.log('[SiteExplorer] Starting AI refinement for', this.domain);
       try {
         sitePattern = await refineSiteMapWithAI(sitePattern, research);
+        console.log('[SiteExplorer] AI refinement completed, refined=' + (sitePattern.refined || false));
       } catch (refineErr) {
-        console.warn('[SiteExplorer] AI refinement during auto-save failed:', refineErr.message);
+        console.warn('[SiteExplorer] AI refinement failed:', refineErr.message);
       }
     }
 
     // Create and save the memory
-    if (typeof createSiteMapMemory !== 'function' || typeof memoryManager === 'undefined') {
+    // Use memoryStorage.add() directly -- memoryManager.add() expects a session object
+    // and runs it through the extractor, which would fail on a pre-built memory.
+    if (typeof createSiteMapMemory !== 'function' || typeof memoryStorage === 'undefined') {
       console.warn('[SiteExplorer] Memory system not available for auto-save');
       return;
     }
 
     const memory = createSiteMapMemory(this.domain, sitePattern);
-    await memoryManager.add(memory);
+    await memoryStorage.add(memory);
     console.log('[SiteExplorer] Auto-saved site map memory for', this.domain);
 
     // Broadcast so the side panel can react
