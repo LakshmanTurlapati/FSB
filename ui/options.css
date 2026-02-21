@@ -3308,3 +3308,215 @@ textarea.form-input {
 [data-theme="dark"] .site-graph-detail-toggle {
   border-color: var(--border-color);
 }
+
+/* ── Memory Detail Panels ── */
+
+.memory-detail-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  padding: 16px 20px;
+  margin: 0 0 8px 0;
+  font-size: 0.9em;
+  animation: detailSlideDown 0.2s ease-out;
+}
+
+@keyframes detailSlideDown {
+  from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+  to { opacity: 1; max-height: 600px; padding-top: 16px; padding-bottom: 16px; }
+}
+
+.memory-detail-panel .detail-panel-inner {
+  position: relative;
+}
+
+.memory-detail-panel .detail-section {
+  margin-bottom: 12px;
+}
+
+.memory-detail-panel .detail-section:last-child {
+  margin-bottom: 0;
+}
+
+.memory-detail-panel .detail-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-size: 0.75em;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.memory-detail-panel .detail-value {
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.memory-detail-panel .detail-value a {
+  color: var(--primary-color);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.memory-detail-panel .detail-value a:hover {
+  text-decoration: underline;
+}
+
+.memory-detail-panel .detail-muted {
+  color: var(--text-muted, #999);
+  font-style: italic;
+}
+
+.memory-detail-panel .detail-list {
+  list-style: disc inside;
+  padding-left: 8px;
+  margin: 4px 0 0 0;
+  line-height: 1.6;
+}
+
+.memory-detail-panel .detail-list-ordered {
+  list-style: decimal inside;
+}
+
+.memory-detail-panel .detail-list li {
+  color: var(--text-primary);
+  padding: 2px 0;
+}
+
+.memory-detail-panel .detail-code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  background: var(--bg-accent, rgba(255, 107, 53, 0.08));
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.88em;
+  word-break: break-all;
+}
+
+.memory-detail-panel .detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.memory-detail-panel .detail-grid .detail-section {
+  margin-bottom: 0;
+}
+
+/* Selector table for semantic details */
+.memory-detail-panel .detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 4px;
+}
+
+.memory-detail-panel .detail-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.memory-detail-panel .detail-table td:first-child {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.memory-detail-panel .detail-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* AI Analysis section */
+.memory-detail-panel .ai-analysis-section {
+  border-top: 1px solid var(--border-color);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.memory-detail-panel .ai-analysis-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary-color);
+  font-weight: 600;
+  font-size: 0.9em;
+  margin-bottom: 10px;
+}
+
+.memory-detail-panel .ai-analysis-header i {
+  font-size: 0.95em;
+}
+
+/* Outcome color classes */
+.outcome-success {
+  color: var(--success-color, #059669);
+  font-weight: 600;
+}
+
+.outcome-failure {
+  color: var(--danger, #ef4444);
+  font-weight: 600;
+}
+
+.outcome-partial {
+  color: var(--warning-color, #d97706);
+  font-weight: 600;
+}
+
+.outcome-unknown {
+  color: var(--text-muted, #999);
+  font-weight: 600;
+}
+
+/* Enrichment badge */
+.enriched-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-accent, rgba(255, 107, 53, 0.08));
+  color: var(--primary-color);
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.78em;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.enriched-badge i {
+  font-size: 0.9em;
+}
+
+/* Detail toggle icon for all expandable items */
+.memory-item .detail-toggle-icon {
+  margin-left: auto;
+  font-size: 0.8em;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.memory-item.detail-expanded .detail-toggle-icon {
+  transform: rotate(90deg);
+  color: var(--primary-color);
+}
+
+.memory-item.graph-expanded .detail-toggle-icon {
+  transform: rotate(90deg);
+  color: var(--primary-color);
+}
+
+/* Expanded memory item highlight */
+.memory-item.detail-expanded {
+  border-color: var(--primary-color);
+  background: var(--bg-accent, var(--primary-light));
+  border-radius: 8px 8px 0 0;
+}
+
+/* Dark theme overrides for detail panels */
+[data-theme="dark"] .memory-detail-panel {
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .memory-detail-panel .detail-code {
+  background: rgba(255, 255, 255, 0.06);
+}
