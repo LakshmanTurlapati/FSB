@@ -93,6 +93,7 @@ function initializeDashboard() {
       console.log('Options page: Analytics initialized, setting up dashboard...');
       analytics.initializeChart();
       analytics.updateDashboard();
+      loadDashboardCostBreakdown();
     }).catch(error => {
       console.error('Options page: Analytics initialization failed:', error);
     });
@@ -330,6 +331,7 @@ function setupEventListeners() {
         const timeRange = e.target.value;
         analytics.updateChart(timeRange);
         analytics.updateDashboardWithTimeRange(timeRange);
+        loadDashboardCostBreakdown();
       }
     });
   }
@@ -383,6 +385,7 @@ function setupEventListeners() {
           if (analytics && analytics.initialized) {
             analytics.loadStoredData().then(() => {
               analytics.updateDashboard();
+              loadDashboardCostBreakdown();
               if (analytics.chart) {
                 const timeRange = document.getElementById('chartTimeRange')?.value || '24h';
                 analytics.updateChart(timeRange);
@@ -1081,6 +1084,7 @@ async function testTokenTracking() {
       const timeRange = document.getElementById('chartTimeRange')?.value || '24h';
       analytics.updateChart(timeRange);
       analytics.updateDashboardWithTimeRange(timeRange);
+      loadDashboardCostBreakdown();
     }
   } catch (error) {
     showDebugOutput(`Error: ${error.message}`);
@@ -1104,6 +1108,7 @@ async function clearAnalyticsData() {
         analytics.usageData = [];
         analytics.currentModel = 'grok-4-1-fast';
         analytics.updateDashboard();
+        loadDashboardCostBreakdown();
         analytics.updateChart('24h');
       }
       showDebugOutput('Analytics data cleared successfully');
@@ -3846,8 +3851,58 @@ async function loadMemoryDashboard() {
 
     const memories = await memoryManager.getAll();
     renderMemoryList(memories);
+
+    // Refresh memory cost panel alongside memory data
+    loadMemoryCostPanel();
   } catch (error) {
     console.error('[Options] Failed to load memory dashboard:', error);
+  }
+}
+
+// Load cost breakdown by source for the Dashboard hero section
+function loadDashboardCostBreakdown() {
+  if (!analytics || !analytics.initialized) return;
+
+  const automationStats = analytics.getStatsBySource('30d', 'automation');
+  const memoryStats = analytics.getStatsBySource('30d', 'memory');
+  const sitemapStats = analytics.getStatsBySource('30d', 'sitemap');
+
+  const fmt = (v) => '$' + (v || 0).toFixed(2);
+
+  const elAuto = document.getElementById('costAutomation');
+  const elMem = document.getElementById('costMemory');
+  const elSite = document.getElementById('costSitemap');
+
+  if (elAuto) elAuto.textContent = fmt(automationStats.totalCost);
+  if (elMem) elMem.textContent = fmt(memoryStats.totalCost);
+  if (elSite) elSite.textContent = fmt(sitemapStats.totalCost);
+}
+
+// Load memory-specific cost panel in the Memory tab
+function loadMemoryCostPanel() {
+  if (!analytics || !analytics.initialized) return;
+
+  const memStats = analytics.getStatsBySource('30d', 'memory');
+  const sitemapStats = analytics.getStatsBySource('30d', 'sitemap');
+  const totalCost = (memStats.totalCost || 0) + (sitemapStats.totalCost || 0);
+  const totalRequests = (memStats.totalRequests || 0) + (sitemapStats.totalRequests || 0);
+  const totalTokens = (memStats.totalTokens || 0) + (sitemapStats.totalTokens || 0);
+
+  const elCost = document.getElementById('memCostTotal');
+  const elReqs = document.getElementById('memCostRequests');
+  const elTokens = document.getElementById('memCostTokens');
+
+  if (elCost) elCost.textContent = '$' + totalCost.toFixed(4);
+  if (elReqs) elReqs.textContent = totalRequests.toLocaleString();
+  if (elTokens) {
+    // Format tokens: 12345 -> "12.3K", 1234567 -> "1.2M"
+    if (totalTokens >= 1000000) {
+      elTokens.textContent = (totalTokens / 1000000).toFixed(1) + 'M';
+    } else if (totalTokens >= 1000) {
+      elTokens.textContent = (totalTokens / 1000).toFixed(1) + 'K';
+    } else {
+      elTokens.textContent = totalTokens.toLocaleString();
+    }
   }
 }
 
