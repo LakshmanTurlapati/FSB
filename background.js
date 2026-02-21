@@ -35,6 +35,7 @@ importScripts('lib/memory/memory-retriever.js');
 importScripts('lib/memory/memory-extractor.js');
 importScripts('lib/memory/memory-manager.js');
 importScripts('lib/memory/memory-consolidator.js');
+importScripts('lib/memory/cross-site-patterns.js');
 
 // Site map intelligence modules (Tier 1 converter + Tier 2 refiner)
 importScripts('lib/memory/sitemap-converter.js');
