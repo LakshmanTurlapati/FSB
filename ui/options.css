@@ -3691,289 +3691,150 @@ textarea.form-input {
   color: var(--primary-color);
 }
 
-/* Category container */
-.guide-category {
-  margin-bottom: 4px;
-}
-
-.guide-category-header {
+/* Category divider labels */
+.guide-category-divider {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md, 8px);
-  cursor: pointer;
-  user-select: none;
-  transition: background var(--transition-fast);
-}
-
-.guide-category-header:hover {
-  background: var(--bg-tertiary);
-}
-
-.guide-category-chevron {
-  font-size: 0.75em;
-  color: var(--text-muted);
-  transition: transform 0.2s ease;
-  flex-shrink: 0;
-  width: 14px;
-  text-align: center;
-}
-
-.guide-category.collapsed .guide-category-chevron {
-  transform: rotate(-90deg);
-}
-
-.guide-category.collapsed .guide-category-sites {
-  display: none;
-}
-
-.guide-category-icon {
-  font-size: 1em;
-  color: var(--primary-color);
-  width: 20px;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.guide-category-name {
+  gap: 8px;
+  padding: 8px 14px 4px;
   font-weight: 600;
-  color: var(--text-primary);
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 8px;
+}
+
+.guide-category-divider:first-child {
+  margin-top: 0;
+}
+
+.guide-category-divider i {
+  color: var(--primary-color);
   font-size: 0.95em;
 }
 
 .guide-category-count {
-  font-size: 0.8em;
+  font-size: 0.85em;
   color: var(--text-muted);
   font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
-/* Site items */
-.guide-category-sites {
-  padding-left: 0;
-}
-
-.guide-item {
-  display: flex;
-  align-items: center;
-  padding: 8px 14px 8px 48px;
-  border: 1px solid transparent;
-  border-top: none;
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
-}
-
-.guide-item:hover {
-  background: var(--bg-secondary);
-}
-
-.guide-item:last-child {
-  border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
-}
-
-.guide-item.guide-expanded {
-  background: var(--bg-accent, var(--primary-light));
-  border-color: var(--primary-color);
-  border-radius: var(--radius-sm, 4px) var(--radius-sm, 4px) 0 0;
-}
-
-.guide-item-content {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-}
-
-.guide-item-name {
-  font-weight: 500;
-  color: var(--text-primary);
-  font-size: 0.9em;
-}
-
-.guide-item-badge {
-  font-size: 0.7em;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  font-weight: 500;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.guide-item .detail-toggle-icon {
+/* Guide items reuse .session-item styling from memory list */
+.guide-memory-item .detail-toggle-icon {
   margin-left: auto;
-  font-size: 0.75em;
+  font-size: 0.8em;
   color: var(--text-muted);
   transition: transform 0.2s;
   flex-shrink: 0;
 }
 
-.guide-item.guide-expanded .detail-toggle-icon {
+.guide-memory-item.detail-expanded .detail-toggle-icon,
+.guide-memory-item.graph-expanded .detail-toggle-icon {
   transform: rotate(90deg);
   color: var(--primary-color);
 }
 
-/* Detail panel */
-.guide-detail-panel {
-  background: var(--bg-primary);
-  border: 1px solid var(--primary-color);
-  border-top: none;
-  border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
-  padding: 12px 16px;
-  margin-bottom: 4px;
+.guide-memory-item.detail-expanded,
+.guide-memory-item.graph-expanded {
+  border-color: var(--primary-color);
+  background: var(--bg-accent, var(--primary-light));
+  border-radius: 8px 8px 0 0;
 }
 
-/* Sub-sections within detail panel */
-.guide-subsection {
-  border-top: 1px solid var(--border-color);
-  padding-top: 8px;
-  margin-top: 8px;
-}
+/* ==========================================
+   Knowledge Graph -- Consolidated 3D Mind Map
+   ========================================== */
 
-.guide-subsection:first-child {
-  border-top: none;
-  padding-top: 0;
-  margin-top: 0;
-}
-
-.guide-subsection.collapsed .guide-subsection-content {
-  display: none;
-}
-
-.guide-subsection-header {
+.knowledge-graph-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  padding: 4px 0;
-  user-select: none;
-  font-weight: 600;
-  font-size: 0.9em;
-  color: var(--text-secondary);
-}
-
-.guide-subsection-header:hover {
-  color: var(--primary-color);
-}
-
-.guide-subsection-chevron {
-  transition: transform 0.2s ease;
-  font-size: 0.7em;
-  width: 12px;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.guide-subsection:not(.collapsed) .guide-subsection-chevron {
-  transform: rotate(90deg);
-}
-
-.guide-subsection-content {
-  padding: 8px 0 4px;
-}
-
-/* Guidance pre-formatted text */
-.guide-guidance-pre {
-  font-family: var(--font-mono, 'SF Mono', Consolas, monospace);
-  font-size: 0.82em;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm, 4px);
-  padding: 10px 12px;
-  max-height: 300px;
-  overflow-y: auto;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-/* Selector table inside guide detail panel */
-.guide-detail-panel .detail-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 4px;
-}
-
-.guide-detail-panel .detail-table td {
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border-color);
-  vertical-align: top;
-}
-
-.guide-detail-panel .detail-table td:first-child {
-  white-space: nowrap;
-  width: 1%;
-}
-
-.guide-detail-panel .detail-table tr:last-child td {
-  border-bottom: none;
-}
-
-.guide-detail-panel .detail-code {
-  font-family: var(--font-mono, 'SF Mono', Consolas, monospace);
-  background: var(--bg-accent, rgba(255, 107, 53, 0.08));
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.85em;
-  word-break: break-all;
-}
-
-[data-theme="dark"] .guide-detail-panel .detail-code {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-/* Workflow display */
-.guide-workflow {
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 10px;
 }
 
-.guide-workflow:last-child {
-  margin-bottom: 0;
+.knowledge-graph-container {
+  width: 100%;
+  height: 700px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  position: relative;
+  background: var(--bg-primary);
 }
 
-.guide-workflow .detail-label {
-  font-weight: 600;
+.knowledge-graph-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.knowledge-graph-canvas:active {
+  cursor: grabbing;
+}
+
+.knowledge-graph-tooltip {
+  position: absolute;
+  display: none;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.82em;
+  line-height: 1.5;
+  color: var(--text-primary);
+  pointer-events: none;
+  z-index: 1000;
+  max-width: 300px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.knowledge-graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 10px 4px 4px;
+  font-size: 0.8em;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  font-size: 0.75em;
-  letter-spacing: 0.05em;
-  margin-bottom: 4px;
 }
 
-.guide-workflow ol {
-  list-style: decimal inside;
-  padding-left: 8px;
-  margin: 4px 0 0 0;
-  line-height: 1.6;
+.knowledge-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
-.guide-workflow ol li {
-  color: var(--text-primary);
-  padding: 2px 0;
-  font-size: 0.9em;
+.knowledge-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
-/* Warnings list */
-.guide-warnings-list {
-  list-style: disc inside;
-  padding-left: 8px;
-  margin: 4px 0 0 0;
-  line-height: 1.6;
+/* Dark theme overrides for knowledge graph */
+[data-theme="dark"] .knowledge-graph-container {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
 }
 
-.guide-warnings-list li {
-  color: var(--text-primary);
-  padding: 2px 0;
-  font-size: 0.9em;
+[data-theme="dark"] .knowledge-graph-tooltip {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
-/* Search filter hidden class */
-.guide-hidden {
-  display: none !important;
+/* Responsive */
+@media (max-width: 768px) {
+  .knowledge-graph-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .knowledge-graph-container {
+    height: 480px;
+  }
 }

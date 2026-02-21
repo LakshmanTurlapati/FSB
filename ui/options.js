@@ -4074,10 +4074,13 @@ async function toggleMemoryDetail(memoryItem) {
     return;
   }
 
-  // Site map memories show detail panel AND graph visualization below it
-  // (no longer skipping to graph-only)
+  // Site map memories show the mind map graph visualization
+  if (memory.typeData?.category === 'site_map') {
+    toggleMemoryGraph(memoryItem);
+    return;
+  }
 
-  // Build and insert the detail panel
+  // Build and insert the detail panel for non-sitemap memories
   const panelHtml = renderMemoryDetailPanel(memory);
   const panelDiv = document.createElement('div');
   panelDiv.className = 'memory-detail-panel';

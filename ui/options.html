@@ -704,6 +704,18 @@
               <span class="agent-stat-value" id="memStatUtilization">0%</span>
               <span class="agent-stat-label">Capacity</span>
             </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="memCostTotal">$0.00</span>
+              <span class="agent-stat-label">Cost (30d)</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="memCostRequests">0</span>
+              <span class="agent-stat-label">Requests</span>
+            </div>
+            <div class="agent-stat">
+              <span class="agent-stat-value" id="memCostTokens">0</span>
+              <span class="agent-stat-label">Tokens</span>
+            </div>
           </div>
 
           <!-- Memory Controls -->
@@ -736,29 +748,6 @@
             </div>
           </div>
 
-          <!-- Memory AI Cost Card -->
-          <div class="memory-cost-card" id="memoryCostCard">
-            <div class="cost-card-header">
-              <i class="fas fa-coins"></i>
-              <span>Memory Costs</span>
-              <span class="cost-card-period">Last 30 days</span>
-            </div>
-            <div class="cost-card-metrics">
-              <div class="cost-card-metric">
-                <span class="cost-card-value" id="memCostTotal">$0.00</span>
-                <span class="cost-card-label">Total Cost</span>
-              </div>
-              <div class="cost-card-metric">
-                <span class="cost-card-value" id="memCostRequests">0</span>
-                <span class="cost-card-label">Requests</span>
-              </div>
-              <div class="cost-card-metric">
-                <span class="cost-card-value" id="memCostTokens">0</span>
-                <span class="cost-card-label">Tokens Used</span>
-              </div>
-            </div>
-          </div>
-
           <!-- Memory List -->
           <div class="session-list-container" id="memoryListContainer">
             <div class="session-list" id="memoryList">
@@ -766,19 +755,6 @@
                 <i class="fas fa-brain"></i>
                 <p>No memories stored yet. Memories are automatically extracted from completed automation sessions.</p>
               </div>
-            </div>
-          </div>
-
-          <!-- Built-in Site Guides Viewer -->
-          <div class="site-guides-section" id="siteGuidesSection">
-            <div class="site-guides-header">
-              <h3>
-                <i class="fas fa-book"></i>
-                Built-in Site Guides -- <span id="siteGuideCount">0</span> sites covered
-              </h3>
-            </div>
-            <div class="site-guides-list" id="siteGuidesList">
-              <!-- Rendered by site-guides-viewer.js -->
             </div>
           </div>
 
@@ -865,6 +841,43 @@
                   <p>No research results yet. Use Site Explorer above to crawl a website.</p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- FSB Intelligence -- Consolidated 3D Mind Map -->
+          <div class="site-guides-section" id="siteGuidesSection">
+            <div class="site-guides-header" style="text-align: center;">
+              <h3 style="justify-content: center;">
+                <i class="fas fa-brain"></i>
+                FSB Intelligence
+              </h3>
+            </div>
+
+            <div class="knowledge-graph-toolbar">
+              <div class="credentials-search-wrapper" style="flex: 1; max-width: 280px;">
+                <i class="fas fa-search"></i>
+                <input type="search" id="knowledgeGraphSearch" placeholder="Highlight nodes..." class="form-input">
+              </div>
+              <div class="site-graph-detail-toggle" id="knowledgeDetailToggle">
+                <button class="detail-btn active" data-level="simple">Overview</button>
+                <button class="detail-btn" data-level="full">Full Detail</button>
+              </div>
+            </div>
+
+            <div class="knowledge-graph-container" id="knowledgeGraphContainer">
+              <!-- Canvas rendered by knowledge-graph.js -->
+            </div>
+
+            <div class="knowledge-graph-legend" id="knowledgeGraphLegend">
+              <span class="knowledge-legend-item"><span class="knowledge-legend-dot" style="background: #4285f4;"></span> E-Commerce</span>
+              <span class="knowledge-legend-item"><span class="knowledge-legend-dot" style="background: #34a853;"></span> Social</span>
+              <span class="knowledge-legend-item"><span class="knowledge-legend-dot" style="background: #ea4335;"></span> Finance</span>
+              <span class="knowledge-legend-item"><span class="knowledge-legend-dot" style="background: #fbbc04;"></span> Travel</span>
+              <span class="knowledge-legend-item"><span class="knowledge-legend-dot" style="background: #8b5cf6;"></span> Email</span>
+              <span class="knowledge-legend-item"><span class="knowledge-legend-dot" style="background: #06b6d4;"></span> Coding</span>
+              <span class="knowledge-legend-item"><span class="knowledge-legend-dot" style="background: #ec4899;"></span> Career</span>
+              <span class="knowledge-legend-item"><span class="knowledge-legend-dot" style="background: #f97316;"></span> Gaming</span>
+              <span class="knowledge-legend-item"><span class="knowledge-legend-dot" style="background: #14b8a6;"></span> Productivity</span>
             </div>
           </div>
 
@@ -1155,6 +1168,7 @@
   <script src="../lib/visualization/d3-quadtree.min.js"></script>
   <script src="../lib/visualization/d3-force.min.js"></script>
   <script src="../lib/visualization/site-graph.js"></script>
+  <script src="../lib/visualization/knowledge-graph.js"></script>
   <!-- Site guide data (registry + shared + per-site) -->
   <script src="../site-guides/index.js"></script>
   <script src="../site-guides/ecommerce/_shared.js"></script>
