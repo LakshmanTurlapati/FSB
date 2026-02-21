@@ -3924,24 +3924,42 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       return TASK_PROMPTS[taskType] || TASK_PROMPTS.general;
     }
 
-    let guidance = `SITE-SPECIFIC GUIDANCE (${siteGuide.name}):\nNOTE: CSS selectors and XPath patterns mentioned below are for element IDENTIFICATION only. To interact with these elements, find the matching element by role/name in the page snapshot and use its ref (e.g., {"ref": "e5"}).\n\n${siteGuide.guidance}`;
+    // Build category-level guidance if this is a per-site guide with a category
+    let categoryGuidanceText = '';
+    if (siteGuide.site && siteGuide.category && typeof getCategoryGuidance === 'function') {
+      const catMeta = getCategoryGuidance(siteGuide.category);
+      if (catMeta && catMeta.guidance) {
+        categoryGuidanceText = `CATEGORY GUIDANCE (${siteGuide.category}):\n${catMeta.guidance}\n\n`;
+      }
+    }
+
+    let guidance = `${categoryGuidanceText}SITE-SPECIFIC GUIDANCE (${siteGuide.site || siteGuide.name}):\nNOTE: CSS selectors and XPath patterns mentioned below are for element IDENTIFICATION only. To interact with these elements, find the matching element by role/name in the page snapshot and use its ref (e.g., {"ref": "e5"}).\n\n${siteGuide.guidance}`;
 
     // Add known CSS selectors for the current domain
     if (siteGuide.selectors && currentUrl) {
-      const domain = (typeof extractDomain === 'function') ? extractDomain(currentUrl) : null;
-      if (domain) {
-        // Try exact match first, then partial match
-        let siteSelectors = siteGuide.selectors[domain];
-        if (!siteSelectors) {
-          // Partial match: "finance.yahoo" matches key "finance.yahoo"
-          const matchKey = Object.keys(siteGuide.selectors).find(key =>
-            domain.includes(key) || key.includes(domain)
-          );
-          if (matchKey) siteSelectors = siteGuide.selectors[matchKey];
+      let siteSelectors;
+
+      if (siteGuide.site) {
+        // New per-site format: selectors are flat on the guide object
+        siteSelectors = siteGuide.selectors;
+      } else {
+        // Old category format: selectors nested under domain key
+        const domain = (typeof extractDomain === 'function') ? extractDomain(currentUrl) : null;
+        if (domain) {
+          // Try exact match first, then partial match
+          siteSelectors = siteGuide.selectors[domain];
+          if (!siteSelectors) {
+            // Partial match: "finance.yahoo" matches key "finance.yahoo"
+            const matchKey = Object.keys(siteGuide.selectors).find(key =>
+              domain.includes(key) || key.includes(domain)
+            );
+            if (matchKey) siteSelectors = siteGuide.selectors[matchKey];
+          }
         }
-        if (siteSelectors) {
-          guidance += `\n\nKNOWN ELEMENT IDENTIFIERS FOR THIS SITE (use refs from snapshot to target these elements):\n${(typeof formatSelectors === 'function') ? formatSelectors(siteSelectors) : JSON.stringify(siteSelectors, null, 2)}`;
-        }
+      }
+
+      if (siteSelectors) {
+        guidance += `\n\nKNOWN ELEMENT IDENTIFIERS FOR THIS SITE (use refs from snapshot to target these elements):\n${(typeof formatSelectors === 'function') ? formatSelectors(siteSelectors) : JSON.stringify(siteSelectors, null, 2)}`;
       }
     }
 
@@ -3981,7 +3999,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         'Career & Job Search': 'career',
         'Productivity Tools': 'general'
       };
-      const guideTaskType = guideToTaskType[siteGuide.name];
+      const guideTaskType = guideToTaskType[siteGuide.category || siteGuide.name];
       // Guide provides a default, but explicit keywords can still override
       // (e.g., user says "search" on Amazon -> use 'shopping' not 'search')
       if (guideTaskType) {

@@ -188,7 +188,7 @@ function getGuideForTask(task, url) {
   for (const [categoryName, keywords] of Object.entries(categoryKeywords)) {
     const matchCount = keywords.filter(kw => taskLower.includes(kw)).length;
     if (matchCount >= 2 && matchCount > bestMatchCount) {
-      const guide = SITE_GUIDES_REGISTRY.find(g => g.name === categoryName);
+      const guide = SITE_GUIDES_REGISTRY.find(g => g.name === categoryName || g.category === categoryName);
       if (guide) {
         bestMatch = guide;
         bestMatchCount = matchCount;
