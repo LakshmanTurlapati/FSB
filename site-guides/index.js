@@ -10,15 +10,64 @@
 // Global registry of all loaded guides
 const SITE_GUIDES_REGISTRY = [];
 
+// Category-level metadata and shared guidance storage
+const CATEGORY_GUIDANCE = {};
+
 /**
  * Register a site guide into the registry.
  * Called by each guide module on load.
- * @param {Object} guide - The guide object with name, patterns, guidance, etc.
+ * Supports both old category format (guide.name + guide.patterns) and
+ * new per-site format (guide.site + guide.category + guide.patterns).
+ * @param {Object} guide - The guide object with name/site, patterns, guidance, etc.
  */
 function registerSiteGuide(guide) {
-  if (guide && guide.name && guide.patterns && guide.guidance) {
+  if (guide && guide.patterns && (guide.name || guide.site)) {
     SITE_GUIDES_REGISTRY.push(guide);
   }
+}
+
+/**
+ * Register category-level metadata (icon, shared guidance, warnings).
+ * Called by each category _shared.js file.
+ * @param {Object} meta - Category metadata with category, icon, guidance, warnings
+ */
+function registerCategoryGuidance(meta) {
+  if (meta && meta.category) {
+    CATEGORY_GUIDANCE[meta.category] = meta;
+  }
+}
+
+/**
+ * Get all per-site guides grouped by category name.
+ * Only includes guides that have a .site property (per-site format).
+ * @returns {Object} Object keyed by category name, values are arrays of per-site guides
+ */
+function getSiteGuidesByCategory() {
+  const grouped = {};
+  for (const guide of SITE_GUIDES_REGISTRY) {
+    if (!guide.site) continue;
+    const cat = guide.category || 'Other';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(guide);
+  }
+  return grouped;
+}
+
+/**
+ * Get category metadata (icon, shared guidance, warnings).
+ * @param {string} category - The category name
+ * @returns {Object|null} Category metadata or null
+ */
+function getCategoryGuidance(category) {
+  return CATEGORY_GUIDANCE[category] || null;
+}
+
+/**
+ * Get the total count of per-site guides (guides with .site property).
+ * @returns {number} Count of per-site guides
+ */
+function getTotalSiteCount() {
+  return SITE_GUIDES_REGISTRY.filter(g => g.site).length;
 }
 
 /**
