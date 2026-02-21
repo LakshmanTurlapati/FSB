@@ -3783,7 +3783,7 @@ function renderMemoryList(memories) {
   const emptyState = document.getElementById('memoryEmptyState');
   if (!container) return;
 
-  // Clean up any active graphs before re-render
+  // Clean up any active graphs and detail panels before re-render
   const activeGraphs = container.parentElement
     ? container.parentElement.querySelectorAll('.site-graph-container')
     : container.querySelectorAll('.site-graph-container');
@@ -3791,6 +3791,10 @@ function renderMemoryList(memories) {
     if (typeof SiteGraph !== 'undefined') SiteGraph.destroy(gc);
     gc.remove();
   });
+  const activeDetails = container.parentElement
+    ? container.parentElement.querySelectorAll('.memory-detail-panel')
+    : container.querySelectorAll('.memory-detail-panel');
+  activeDetails.forEach(dp => dp.remove());
 
   if (memories.length === 0) {
     container.innerHTML = '';
@@ -3830,12 +3834,10 @@ function renderMemoryList(memories) {
       : '';
 
     const graphAttr = isSiteMap ? ' data-has-graph="true"' : '';
-    const chevronHtml = isSiteMap
-      ? '<i class="fas fa-chevron-right graph-toggle-icon" title="Toggle site graph"></i>'
-      : '';
+    const chevronHtml = '<i class="fas fa-chevron-right detail-toggle-icon" title="Toggle details"></i>';
 
     return `
-      <div class="session-item memory-item" data-memory-id="${memory.id}"${graphAttr}>
+      <div class="session-item memory-item" data-memory-id="${memory.id}" data-expandable="true"${graphAttr} style="cursor: pointer;">
         <div class="session-item-header" style="display: flex; align-items: center; gap: 10px;">
           <i class="fas ${typeIcon}" style="color: var(--primary); font-size: 1.1em;" title="${typeLabel}"></i>
           <div style="flex: 1; min-width: 0;">
@@ -3879,15 +3881,358 @@ function renderMemoryList(memories) {
     });
   });
 
-  // Attach click-to-expand graph handlers on site_map memory items
-  container.querySelectorAll('.memory-item[data-has-graph="true"]').forEach(item => {
+  // Attach click-to-expand handlers on all memory items
+  container.querySelectorAll('.memory-item[data-expandable="true"]').forEach(item => {
     item.addEventListener('click', (e) => {
       // Don't trigger on button clicks
       if (e.target.closest('.control-btn') || e.target.closest('.refine-btn-prominent')) return;
-      toggleMemoryGraph(item);
+      toggleMemoryDetail(item);
     });
-    item.style.cursor = 'pointer';
   });
+}
+
+/* ── Memory Detail Panel expand/collapse (all memory types) ── */
+
+async function toggleMemoryDetail(memoryItem) {
+  const memoryId = memoryItem.dataset.memoryId;
+
+  // If already expanded (detail or graph), collapse
+  if (memoryItem.classList.contains('detail-expanded')) {
+    collapseMemoryDetail(memoryItem);
+    return;
+  }
+  if (memoryItem.classList.contains('graph-expanded')) {
+    collapseMemoryGraph(memoryItem);
+    return;
+  }
+
+  // Collapse any other currently expanded detail panel (accordion)
+  const existingDetail = document.querySelector('.memory-item.detail-expanded');
+  if (existingDetail) {
+    collapseMemoryDetail(existingDetail);
+  }
+
+  // Also collapse any existing graph-expanded item (mutually exclusive)
+  const existingGraph = document.querySelector('.memory-item.graph-expanded');
+  if (existingGraph) {
+    collapseMemoryGraph(existingGraph);
+  }
+
+  // Fetch full memory data
+  let memory;
+  try {
+    const memories = await memoryManager.getAll();
+    memory = memories.find(m => m.id === memoryId);
+  } catch (err) {
+    showToast('Failed to load memory data', 'error');
+    return;
+  }
+  if (!memory) {
+    showToast('Memory not found', 'error');
+    return;
+  }
+
+  // Site map memories delegate to the existing graph visualization
+  if (memory.typeData?.category === 'site_map') {
+    toggleMemoryGraph(memoryItem);
+    return;
+  }
+
+  // Build and insert the detail panel
+  const panelHtml = renderMemoryDetailPanel(memory);
+  const panelDiv = document.createElement('div');
+  panelDiv.className = 'memory-detail-panel';
+  panelDiv.innerHTML = panelHtml;
+  memoryItem.classList.add('detail-expanded');
+  memoryItem.after(panelDiv);
+
+  // Scroll into view
+  memoryItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function collapseMemoryDetail(memoryItem) {
+  memoryItem.classList.remove('detail-expanded');
+  const nextSibling = memoryItem.nextElementSibling;
+  if (nextSibling && nextSibling.classList.contains('memory-detail-panel')) {
+    nextSibling.remove();
+  }
+}
+
+function renderMemoryDetailPanel(memory) {
+  let content = '';
+
+  switch (memory.type) {
+    case 'episodic':
+      content = renderEpisodicDetail(memory);
+      break;
+    case 'semantic':
+      content = renderSemanticDetail(memory);
+      break;
+    case 'procedural':
+      content = renderProceduralDetail(memory);
+      break;
+    default:
+      content = `<div class="detail-section"><div class="detail-value">${escapeHtml(memory.text)}</div></div>`;
+  }
+
+  const enrichedBadge = memory.metadata?.aiEnriched
+    ? '<span class="enriched-badge"><i class="fas fa-brain"></i> AI Enriched</span>'
+    : '';
+
+  const aiSection = renderAIAnalysisSection(memory.aiAnalysis);
+
+  return `
+    <div class="detail-panel-inner">
+      ${enrichedBadge}
+      ${content}
+      ${aiSection}
+    </div>
+  `;
+}
+
+function renderEpisodicDetail(memory) {
+  const td = memory.typeData || {};
+  const outcomeClass = {
+    success: 'outcome-success',
+    failure: 'outcome-failure',
+    partial: 'outcome-partial'
+  }[td.outcome] || 'outcome-unknown';
+
+  const outcomeLabel = (td.outcome || 'unknown').charAt(0).toUpperCase() + (td.outcome || 'unknown').slice(1);
+
+  // Format duration
+  let durationStr = 'N/A';
+  if (td.duration && td.duration > 0) {
+    const totalSec = Math.round(td.duration / 1000);
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  }
+
+  const stepsHtml = (td.stepsCompleted && td.stepsCompleted.length > 0)
+    ? `<ul class="detail-list">${td.stepsCompleted.map(s => `<li>${escapeHtml(String(s))}</li>`).join('')}</ul>`
+    : '<span class="detail-muted">None recorded</span>';
+
+  const failuresHtml = (td.failures && td.failures.length > 0)
+    ? `<ul class="detail-list">${td.failures.map(f => `<li>${escapeHtml(String(f))}</li>`).join('')}</ul>`
+    : '<span class="detail-muted">None</span>';
+
+  const finalUrlHtml = td.finalUrl
+    ? `<div class="detail-section">
+        <div class="detail-label">Final URL</div>
+        <div class="detail-value"><a href="${escapeHtml(td.finalUrl)}" target="_blank" rel="noopener">${escapeHtml(td.finalUrl)}</a></div>
+      </div>`
+    : '';
+
+  return `
+    <div class="detail-grid">
+      <div class="detail-section">
+        <div class="detail-label">Task</div>
+        <div class="detail-value">${escapeHtml(td.task || 'N/A')}</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Outcome</div>
+        <div class="detail-value"><span class="${outcomeClass}">${outcomeLabel}</span></div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Duration</div>
+        <div class="detail-value">${durationStr}</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Iterations</div>
+        <div class="detail-value">${td.iterationCount || 0}</div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-label">Steps Completed</div>
+      ${stepsHtml}
+    </div>
+    <div class="detail-section">
+      <div class="detail-label">Failures</div>
+      ${failuresHtml}
+    </div>
+    ${finalUrlHtml}
+  `;
+}
+
+function renderSemanticDetail(memory) {
+  const td = memory.typeData || {};
+  const categoryLabels = {
+    site_map: 'Site Map',
+    selector: 'Selector',
+    site_pattern: 'Site Pattern',
+    general: 'General',
+    cross_site_pattern: 'Cross-Site Pattern',
+    user_preference: 'User Preference'
+  };
+  const categoryLabel = categoryLabels[td.category] || (td.category || 'General');
+
+  let categoryContent = '';
+
+  if (td.category === 'selector' && td.selectorInfo) {
+    // Render selector info as key-value table
+    const rows = Object.entries(td.selectorInfo)
+      .map(([key, val]) => `<tr><td class="detail-code">${escapeHtml(key)}</td><td>${escapeHtml(String(val))}</td></tr>`)
+      .join('');
+    categoryContent = `
+      <div class="detail-section">
+        <div class="detail-label">Selector Info</div>
+        <table class="detail-table">
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  } else if (td.category === 'site_pattern' && td.sitePattern) {
+    const sp = td.sitePattern;
+    categoryContent = `
+      <div class="detail-section">
+        <div class="detail-label">Site Pattern</div>
+        <div class="detail-grid">
+          <div class="detail-section">
+            <div class="detail-label">Pages</div>
+            <div class="detail-value">${sp.pageCount || 0}</div>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">Forms</div>
+            <div class="detail-value">${sp.formCount || 0}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (td.category === 'cross_site_pattern' && td.sitePattern) {
+    const sp = td.sitePattern;
+    const domainsHtml = (sp.domains && sp.domains.length > 0)
+      ? `<ul class="detail-list">${sp.domains.map(d => `<li>${escapeHtml(d)}</li>`).join('')}</ul>`
+      : '<span class="detail-muted">None</span>';
+    const formTypesHtml = (sp.commonFormTypes && sp.commonFormTypes.length > 0)
+      ? `<ul class="detail-list">${sp.commonFormTypes.map(f => `<li>${escapeHtml(String(f))}</li>`).join('')}</ul>`
+      : '<span class="detail-muted">None</span>';
+    const sharedPatternsHtml = (sp.sharedSelectorPatterns && sp.sharedSelectorPatterns.length > 0)
+      ? `<ul class="detail-list">${sp.sharedSelectorPatterns.map(p => `<li class="detail-code">${escapeHtml(String(p))}</li>`).join('')}</ul>`
+      : '<span class="detail-muted">None</span>';
+    categoryContent = `
+      <div class="detail-section">
+        <div class="detail-label">Domains Analyzed</div>
+        ${domainsHtml}
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Common Form Types</div>
+        ${formTypesHtml}
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Shared Selector Patterns</div>
+        ${sharedPatternsHtml}
+      </div>
+    `;
+  } else {
+    // General or unknown category -- show the memory text prominently
+    categoryContent = `
+      <div class="detail-section">
+        <div class="detail-value" style="font-size: 1.05em;">${escapeHtml(memory.text)}</div>
+      </div>
+    `;
+  }
+
+  const validatedHtml = td.validatedAt
+    ? `<div class="detail-section">
+        <div class="detail-label">Validated At</div>
+        <div class="detail-value">${new Date(td.validatedAt).toLocaleString()}</div>
+      </div>`
+    : '';
+
+  return `
+    <div class="detail-grid">
+      <div class="detail-section">
+        <div class="detail-label">Category</div>
+        <div class="detail-value">${categoryLabel}</div>
+      </div>
+    </div>
+    ${categoryContent}
+    ${validatedHtml}
+  `;
+}
+
+function renderProceduralDetail(memory) {
+  const td = memory.typeData || {};
+
+  const stepsHtml = (td.steps && td.steps.length > 0)
+    ? `<ol class="detail-list detail-list-ordered">${td.steps.map(s => `<li>${escapeHtml(String(s))}</li>`).join('')}</ol>`
+    : '<span class="detail-muted">No steps recorded</span>';
+
+  const selectorsHtml = (td.selectors && td.selectors.length > 0)
+    ? `<ul class="detail-list">${td.selectors.map(s => `<li><code class="detail-code">${escapeHtml(String(s))}</code></li>`).join('')}</ul>`
+    : '<span class="detail-muted">None</span>';
+
+  // Success rate color
+  const rate = (td.successRate ?? 1) * 100;
+  const rateClass = rate >= 80 ? 'outcome-success' : rate >= 50 ? 'outcome-partial' : 'outcome-failure';
+
+  const targetUrlHtml = td.targetUrl
+    ? `<div class="detail-section">
+        <div class="detail-label">Target URL</div>
+        <div class="detail-value"><a href="${escapeHtml(td.targetUrl)}" target="_blank" rel="noopener">${escapeHtml(td.targetUrl)}</a></div>
+      </div>`
+    : '';
+
+  return `
+    <div class="detail-grid">
+      <div class="detail-section">
+        <div class="detail-label">Success Rate</div>
+        <div class="detail-value"><span class="${rateClass}">${Math.round(rate)}%</span></div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Total Runs</div>
+        <div class="detail-value">${td.totalRuns || 0}</div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-label">Steps</div>
+      ${stepsHtml}
+    </div>
+    <div class="detail-section">
+      <div class="detail-label">Selectors Used</div>
+      ${selectorsHtml}
+    </div>
+    ${targetUrlHtml}
+  `;
+}
+
+function renderAIAnalysisSection(aiAnalysis) {
+  if (!aiAnalysis || typeof aiAnalysis !== 'object') return '';
+
+  const entries = Object.entries(aiAnalysis);
+  if (entries.length === 0) return '';
+
+  const renderValue = (val) => {
+    if (Array.isArray(val)) {
+      if (val.length === 0) return '<span class="detail-muted">None</span>';
+      return `<ul class="detail-list">${val.map(v => `<li>${escapeHtml(String(v))}</li>`).join('')}</ul>`;
+    }
+    if (typeof val === 'object' && val !== null) {
+      const subEntries = Object.entries(val)
+        .map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</li>`)
+        .join('');
+      return `<ul class="detail-list">${subEntries}</ul>`;
+    }
+    return `<p class="detail-value">${escapeHtml(String(val))}</p>`;
+  };
+
+  const sections = entries.map(([key, val]) => {
+    const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
+    return `
+      <div class="detail-section">
+        <div class="detail-label">${escapeHtml(label)}</div>
+        ${renderValue(val)}
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="ai-analysis-section">
+      <div class="ai-analysis-header"><i class="fas fa-brain"></i> AI Analysis</div>
+      ${sections}
+    </div>
+  `;
 }
 
 /* ── Site Graph expand/collapse for memory items ── */
@@ -3957,8 +4302,11 @@ async function expandMemoryGraph(memoryItem, memoryId) {
   const hasElements = graphData.nodes.some(n => n.type === 'element');
   const hasWorkflowLinks = graphData.links.some(l => l.type === 'workflow');
 
+  const hasDiscovered = graphData.nodes.some(n => n.discovered);
+
   let legendItems = '';
   if (hasPages) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: #4285f4; opacity: 0.7;"></span> Page</span>';
+  if (hasDiscovered) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: transparent; border: 1.5px dashed #4285f4; opacity: 0.5;"></span> Discovered</span>';
   if (hasForms) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: #d97706; opacity: 0.7;"></span> Form</span>';
   if (hasElements) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--text-muted, #737373); opacity: 0.5; border: 1px dashed var(--text-muted, #737373); background: transparent;"></span> Element</span>';
   if (hasWorkflowLinks) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: transparent; border: 1.5px dashed var(--success-color, #059669);"></span> Workflow</span>';
@@ -3992,7 +4340,10 @@ async function expandMemoryGraph(memoryItem, memoryId) {
     requestAnimationFrame(() => {
       const rect = wrapper.getBoundingClientRect();
       const width = Math.max(rect.width - 16, 300);
-      SiteGraph.render(wrapper, graphData, { width, height: 440, memoryId, detailLevel: currentDetailLevel });
+      // Scale height based on node count for larger graphs
+      const nodeCount = graphData.nodes.length;
+      const graphHeight = nodeCount > 40 ? 600 : nodeCount > 20 ? 520 : 440;
+      SiteGraph.render(wrapper, graphData, { width, height: graphHeight, memoryId, detailLevel: currentDetailLevel });
     });
   }
 
