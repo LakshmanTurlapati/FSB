@@ -3520,3 +3520,71 @@ textarea.form-input {
 [data-theme="dark"] .memory-detail-panel .detail-code {
   background: rgba(255, 255, 255, 0.06);
 }
+
+/* Auto-analyze toggle in Memory section header */
+.auto-analyze-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.auto-analyze-toggle .toggle-label {
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.auto-analyze-toggle .modern-toggle {
+  padding: 6px 10px;
+  margin: 0;
+}
+
+/* Overflow menu for memory actions */
+.memory-overflow-menu {
+  position: relative;
+}
+
+.overflow-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background: var(--card-bg, #1a1a2e);
+  border: 1px solid var(--border-color, #2a2a3e);
+  border-radius: 8px;
+  padding: 4px 0;
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+}
+
+.overflow-dropdown.visible {
+  display: block;
+}
+
+.overflow-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 0.9em;
+  cursor: pointer;
+  text-align: left;
+}
+
+.overflow-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.overflow-item.danger {
+  color: var(--danger, #ef4444);
+}
+
+.overflow-item.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
