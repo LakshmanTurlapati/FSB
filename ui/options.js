@@ -369,6 +369,9 @@ function setupEventListeners() {
   
   // PERF: Debounced storage change listener for reactive analytics updates
   let _analyticsRefreshTimer = null;
+  // Memory auto-refresh on storage changes
+  let _memoryRefreshTimer = null;
+  let _memoryRefreshInProgress = false;
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local') {
       if (changes.fsbUsageData || changes.fsbCurrentModel) {
@@ -387,6 +390,25 @@ function setupEventListeners() {
             });
           }
         }, 2000);
+      }
+
+      // Auto-refresh Memory tab when fsb_memories changes
+      if (changes.fsb_memories) {
+        // Only refresh if memory section is currently visible
+        if (dashboardState.currentSection !== 'memory') return;
+
+        // Prevent refresh loops: skip if a refresh is already in progress
+        if (_memoryRefreshInProgress) return;
+
+        clearTimeout(_memoryRefreshTimer);
+        _memoryRefreshTimer = setTimeout(async () => {
+          _memoryRefreshInProgress = true;
+          try {
+            await _smartMemoryRefresh();
+          } finally {
+            _memoryRefreshInProgress = false;
+          }
+        }, 1000); // 1 second debounce to batch rapid updates
       }
     }
   });
@@ -2681,6 +2703,7 @@ function initializeCredentialManager() {
   }
 
   // Load credentials when switching to passwords section (override inside init to ensure DOM is ready)
+  // Also refresh memory data when switching to memory section (catches stale data)
   const origSwitchSection = switchSection;
   switchSection = function(sectionId) {
     origSwitchSection(sectionId);
@@ -2689,6 +2712,10 @@ function initializeCredentialManager() {
       if (enableLogin?.checked) {
         loadCredentials();
       }
+    }
+    // Refresh memory tab when switching to it (picks up changes made while off-screen)
+    if (sectionId === 'memory') {
+      loadMemoryDashboard();
     }
   };
 }
@@ -3773,6 +3800,41 @@ function initializeMemorySection() {
   }
 
   loadMemoryDashboard();
+}
+
+/**
+ * Smart memory refresh that preserves expanded panel state and scroll position.
+ * Called by the chrome.storage.onChanged listener when fsb_memories changes.
+ */
+async function _smartMemoryRefresh() {
+  // Save expanded panel state before re-rendering
+  const expandedDetail = document.querySelector('.memory-item.detail-expanded');
+  const expandedGraph = document.querySelector('.memory-item.graph-expanded');
+  const expandedMemoryId = (expandedDetail || expandedGraph)?.dataset?.memoryId || null;
+  const expandedType = expandedDetail ? 'detail' : (expandedGraph ? 'graph' : null);
+
+  // Save scroll position
+  const scrollContainer = document.getElementById('memoryListContainer');
+  const scrollTop = scrollContainer?.scrollTop || 0;
+
+  // Reload data (this re-renders the memory list)
+  await loadMemoryDashboard();
+
+  // Restore expanded state if an item was expanded
+  if (expandedMemoryId) {
+    const restoredItem = document.querySelector(`.memory-item[data-memory-id="${expandedMemoryId}"]`);
+    if (restoredItem) {
+      // Small delay to let the DOM settle after re-render
+      setTimeout(() => {
+        toggleMemoryDetail(restoredItem);
+      }, 100);
+    }
+  }
+
+  // Restore scroll position
+  if (scrollContainer) {
+    scrollContainer.scrollTop = scrollTop;
+  }
 }
 
 async function loadMemoryDashboard() {
