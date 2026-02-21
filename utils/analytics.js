@@ -144,17 +144,18 @@ class FSBAnalytics {
   }
 
   // Track AI request usage
-  async trackUsage(model, inputTokens, outputTokens, success = true) {
+  async trackUsage(model, inputTokens, outputTokens, success = true, source = 'automation') {
     try {
       // Ensure initialization is complete
       await this.ensureInitialized();
-      
+
       const entry = {
         timestamp: Date.now(),
         model: model,
         inputTokens: inputTokens || 0,
         outputTokens: outputTokens || 0,
         success: success,
+        source: source,
         cost: this.calculateCost(model, inputTokens, outputTokens)
       };
 
@@ -315,6 +316,44 @@ class FSBAnalytics {
     };
 
     return stats;
+  }
+
+  // Get usage statistics filtered by source ('automation', 'memory', 'sitemap')
+  // Entries without a source field are treated as 'automation' for backward compatibility.
+  getStatsBySource(timeRange = '24h', source = 'automation') {
+    const now = Date.now();
+    let startTime;
+
+    switch (timeRange) {
+      case '24h':
+        startTime = now - (24 * 60 * 60 * 1000);
+        break;
+      case '7d':
+        startTime = now - (7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startTime = now - (30 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startTime = now - (24 * 60 * 60 * 1000);
+    }
+
+    let totalRequests = 0;
+    let totalTokens = 0;
+    let totalCost = 0;
+
+    for (const entry of this.usageData) {
+      if (entry.timestamp >= startTime) {
+        const entrySource = entry.source || 'automation';
+        if (entrySource === source) {
+          totalRequests++;
+          totalTokens += (entry.inputTokens || 0) + (entry.outputTokens || 0);
+          totalCost += entry.cost || 0;
+        }
+      }
+    }
+
+    return { totalCost, totalRequests, totalTokens };
   }
 
   // Get chart data for different time ranges

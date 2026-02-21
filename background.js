@@ -2933,26 +2933,27 @@ class BackgroundAnalytics {
     return inputCost + outputCost;
   }
   
-  async trackUsage(model, inputTokens, outputTokens, success = true) {
+  async trackUsage(model, inputTokens, outputTokens, success = true, source = 'automation') {
     try {
       // Ensure initialization is complete
       if (!this.initialized) {
         await this.initPromise;
       }
-      
+
       const entry = {
         timestamp: Date.now(),
         model: model,
         inputTokens: inputTokens || 0,
         outputTokens: outputTokens || 0,
         success: success,
+        source: source,
         cost: this.calculateCost(model, inputTokens, outputTokens)
       };
 
       this.usageData.push(entry);
       this.currentModel = model;
 
-      automationLogger.logAPI(null, 'analytics', 'track', { model, inputTokens, outputTokens, success, cost: entry.cost });
+      automationLogger.logAPI(null, 'analytics', 'track', { model, inputTokens, outputTokens, success, source, cost: entry.cost });
 
       // Clean old data (keep only last 30 days)
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
