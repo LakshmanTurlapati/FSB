@@ -3468,23 +3468,6 @@ textarea.form-input {
   font-weight: 600;
 }
 
-/* Enrichment badge */
-.enriched-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--bg-accent, rgba(255, 107, 53, 0.08));
-  color: var(--primary-color);
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 0.78em;
-  font-weight: 600;
-  margin-bottom: 10px;
-}
-
-.enriched-badge i {
-  font-size: 0.9em;
-}
 
 /* Detail toggle icon for all expandable items */
 .memory-item .detail-toggle-icon {

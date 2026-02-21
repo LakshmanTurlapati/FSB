@@ -3871,11 +3871,9 @@ function loadDashboardCostBreakdown() {
 
   const elAuto = document.getElementById('costAutomation');
   const elMem = document.getElementById('costMemory');
-  const elSite = document.getElementById('costSitemap');
 
   if (elAuto) elAuto.textContent = fmt(automationStats.totalCost);
-  if (elMem) elMem.textContent = fmt(memoryStats.totalCost);
-  if (elSite) elSite.textContent = fmt(sitemapStats.totalCost);
+  if (elMem) elMem.textContent = fmt((memoryStats.totalCost || 0) + (sitemapStats.totalCost || 0));
 }
 
 // Load memory-specific cost panel in the Memory tab
@@ -3971,10 +3969,10 @@ function renderMemoryList(memories) {
     const isSiteMap = memory.typeData?.category === 'site_map';
     const isRefined = memory.typeData?.sitePattern?.refined === true;
     const badgeHtml = isSiteMap
-      ? `<span class="memory-badge ${isRefined ? 'ai-enhanced' : 'basic'}">${isRefined ? 'AI Enhanced' : 'Basic'}</span>`
+      ? `<span class="memory-badge ${isRefined ? 'refined' : 'basic'}">${isRefined ? 'Refined' : 'Basic'}</span>`
       : '';
     const refineBtn = isSiteMap && !isRefined
-      ? `<button class="refine-btn-prominent" data-id="${memory.id}" data-recon-id="${memory.typeData?.sitePattern?.reconId || ''}" title="Refine with AI"><i class="fas fa-magic"></i> Refine with AI</button>`
+      ? `<button class="refine-btn-prominent" data-id="${memory.id}" data-recon-id="${memory.typeData?.sitePattern?.reconId || ''}" title="Refine sitemap"><i class="fas fa-magic"></i> Refine</button>`
       : '';
 
     const graphAttr = isSiteMap ? ' data-has-graph="true"' : '';
@@ -4076,11 +4074,8 @@ async function toggleMemoryDetail(memoryItem) {
     return;
   }
 
-  // Site map memories delegate to the existing graph visualization
-  if (memory.typeData?.category === 'site_map') {
-    toggleMemoryGraph(memoryItem);
-    return;
-  }
+  // Site map memories show detail panel AND graph visualization below it
+  // (no longer skipping to graph-only)
 
   // Build and insert the detail panel
   const panelHtml = renderMemoryDetailPanel(memory);
@@ -4119,15 +4114,10 @@ function renderMemoryDetailPanel(memory) {
       content = `<div class="detail-section"><div class="detail-value">${escapeHtml(memory.text)}</div></div>`;
   }
 
-  const enrichedBadge = memory.metadata?.aiEnriched
-    ? '<span class="enriched-badge"><i class="fas fa-brain"></i> AI Enriched</span>'
-    : '';
-
   const aiSection = renderAIAnalysisSection(memory.aiAnalysis);
 
   return `
     <div class="detail-panel-inner">
-      ${enrichedBadge}
       ${content}
       ${aiSection}
     </div>
@@ -4213,7 +4203,80 @@ function renderSemanticDetail(memory) {
 
   let categoryContent = '';
 
-  if (td.category === 'selector' && td.selectorInfo) {
+  if (td.category === 'site_map' && td.sitePattern) {
+    // Read-only sitemap detail for nerds
+    const sp = td.sitePattern;
+    const pageCount = sp.pageCount || Object.keys(sp.pages || {}).length || 0;
+    const formCount = sp.formCount || Object.keys(sp.forms || {}).length || 0;
+    const navCount = Object.keys(sp.navigation || {}).length;
+    const selectorCount = Object.keys(sp.keySelectors || {}).length;
+    const linkCount = (sp.pageLinks || []).length;
+    const crawledAt = sp.crawledAt ? new Date(sp.crawledAt).toLocaleString() : 'Unknown';
+
+    // Build pages list (top 15)
+    const pageEntries = Object.entries(sp.pages || {}).slice(0, 15);
+    const pagesHtml = pageEntries.length > 0
+      ? `<ul class="detail-list">${pageEntries.map(([path, info]) => {
+          const title = info.title ? ` -- ${escapeHtml(info.title)}` : '';
+          return `<li><span class="detail-code">${escapeHtml(path)}</span>${title}</li>`;
+        }).join('')}</ul>${Object.keys(sp.pages || {}).length > 15 ? `<div class="detail-muted">...and ${Object.keys(sp.pages).length - 15} more</div>` : ''}`
+      : '<span class="detail-muted">None</span>';
+
+    // Build forms list
+    const formEntries = Object.entries(sp.forms || {});
+    const formsHtml = formEntries.length > 0
+      ? `<ul class="detail-list">${formEntries.map(([path, formList]) => {
+          const count = Array.isArray(formList) ? formList.length : 1;
+          return `<li><span class="detail-code">${escapeHtml(path)}</span> (${count} form${count !== 1 ? 's' : ''})</li>`;
+        }).join('')}</ul>`
+      : '<span class="detail-muted">None</span>';
+
+    // Build navigation summary
+    const navEntries = Object.entries(sp.navigation || {});
+    const navHtml = navEntries.length > 0
+      ? `<ul class="detail-list">${navEntries.slice(0, 10).map(([path, navItems]) => {
+          const count = Array.isArray(navItems) ? navItems.length : 0;
+          return `<li><span class="detail-code">${escapeHtml(path)}</span> (${count} nav item${count !== 1 ? 's' : ''})</li>`;
+        }).join('')}</ul>`
+      : '<span class="detail-muted">None</span>';
+
+    categoryContent = `
+      <div class="detail-grid" style="grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px;">
+        <div class="detail-section">
+          <div class="detail-label">Pages</div>
+          <div class="detail-value" style="font-size: 1.2em; font-weight: 700;">${pageCount}</div>
+        </div>
+        <div class="detail-section">
+          <div class="detail-label">Forms</div>
+          <div class="detail-value" style="font-size: 1.2em; font-weight: 700;">${formCount}</div>
+        </div>
+        <div class="detail-section">
+          <div class="detail-label">Nav Sections</div>
+          <div class="detail-value" style="font-size: 1.2em; font-weight: 700;">${navCount}</div>
+        </div>
+        <div class="detail-section">
+          <div class="detail-label">Links</div>
+          <div class="detail-value" style="font-size: 1.2em; font-weight: 700;">${linkCount}</div>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Crawled</div>
+        <div class="detail-value">${crawledAt}${sp.refined ? ' (refined)' : ''}</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Pages Discovered</div>
+        ${pagesHtml}
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Forms Found</div>
+        ${formsHtml}
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Navigation</div>
+        ${navHtml}
+      </div>
+    `;
+  } else if (td.category === 'selector' && td.selectorInfo) {
     // Render selector info as key-value table
     const rows = Object.entries(td.selectorInfo)
       .map(([key, val]) => `<tr><td class="detail-code">${escapeHtml(key)}</td><td>${escapeHtml(String(val))}</td></tr>`)
@@ -4373,7 +4436,7 @@ function renderAIAnalysisSection(aiAnalysis) {
 
   return `
     <div class="ai-analysis-section">
-      <div class="ai-analysis-header"><i class="fas fa-brain"></i> AI Analysis</div>
+      <div class="ai-analysis-header"><i class="fas fa-brain"></i> Analysis</div>
       ${sections}
     </div>
   `;
