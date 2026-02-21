@@ -649,9 +649,22 @@
 
         <!-- Memory Section -->
         <section class="content-section" id="memory">
-          <div class="section-header">
-            <h2>Memory</h2>
-            <p>Long-term memory learned from past automation sessions</p>
+          <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <h2>Memory</h2>
+              <p>Long-term memory learned from past automation sessions</p>
+            </div>
+            <div class="auto-analyze-toggle">
+              <label class="modern-toggle compact" title="When enabled, new memories are automatically analyzed by AI for deeper insights">
+                <input type="checkbox" id="autoAnalyzeToggle" checked>
+                <span class="toggle-track">
+                  <span class="toggle-thumb"></span>
+                </span>
+                <div class="toggle-content">
+                  <span class="toggle-label">Auto-Analyze</span>
+                </div>
+              </label>
+            </div>
           </div>
 
           <!-- Memory Stats Bar -->
@@ -694,22 +707,22 @@
               <option value="semantic">Semantic</option>
               <option value="procedural">Procedural</option>
             </select>
-            <button class="control-btn" id="btnRefreshMemories">
-              <i class="fas fa-sync-alt"></i>
-              Refresh
-            </button>
-            <button class="control-btn" id="btnConsolidateMemories">
-              <i class="fas fa-compress-arrows-alt"></i>
-              Consolidate
-            </button>
-            <button class="control-btn" id="btnExportMemories">
-              <i class="fas fa-download"></i>
-              Export
-            </button>
-            <button class="control-btn" id="btnClearMemories" style="color: var(--danger, #ef4444);">
-              <i class="fas fa-trash"></i>
-              Clear All
-            </button>
+            <div class="memory-overflow-menu">
+              <button class="control-btn" id="btnMemoryOverflow" title="More actions">
+                <i class="fas fa-ellipsis-v"></i>
+              </button>
+              <div class="overflow-dropdown" id="memoryOverflowDropdown">
+                <button class="overflow-item" id="btnConsolidateMemories">
+                  <i class="fas fa-compress-arrows-alt"></i> Consolidate
+                </button>
+                <button class="overflow-item" id="btnExportMemories">
+                  <i class="fas fa-download"></i> Export
+                </button>
+                <button class="overflow-item danger" id="btnClearMemories">
+                  <i class="fas fa-trash"></i> Clear All
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Memory List -->

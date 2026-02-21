@@ -3722,14 +3722,12 @@ async function testServerConnection() {
 let memorySearchDebounce = null;
 
 function initializeMemorySection() {
-  const refreshBtn = document.getElementById('btnRefreshMemories');
   const consolidateBtn = document.getElementById('btnConsolidateMemories');
   const exportBtn = document.getElementById('btnExportMemories');
   const clearBtn = document.getElementById('btnClearMemories');
   const searchInput = document.getElementById('memorySearchInput');
   const typeFilter = document.getElementById('memoryTypeFilter');
 
-  if (refreshBtn) refreshBtn.addEventListener('click', loadMemoryDashboard);
   if (consolidateBtn) consolidateBtn.addEventListener('click', consolidateMemories);
   if (exportBtn) exportBtn.addEventListener('click', exportMemories);
   if (clearBtn) clearBtn.addEventListener('click', clearAllMemories);
@@ -3743,6 +3741,35 @@ function initializeMemorySection() {
 
   if (typeFilter) {
     typeFilter.addEventListener('change', () => searchMemories());
+  }
+
+  // Auto-analyze toggle: load saved state and persist on change
+  const autoAnalyzeToggle = document.getElementById('autoAnalyzeToggle');
+  if (autoAnalyzeToggle) {
+    chrome.storage.local.get('autoAnalyzeMemories', (result) => {
+      autoAnalyzeToggle.checked = result.autoAnalyzeMemories !== false; // default true
+    });
+    autoAnalyzeToggle.addEventListener('change', () => {
+      chrome.storage.local.set({ autoAnalyzeMemories: autoAnalyzeToggle.checked });
+      showToast(autoAnalyzeToggle.checked ? 'Auto-analyze enabled' : 'Auto-analyze disabled', 'info');
+    });
+  }
+
+  // Overflow menu toggle
+  const overflowBtn = document.getElementById('btnMemoryOverflow');
+  const overflowDropdown = document.getElementById('memoryOverflowDropdown');
+  if (overflowBtn && overflowDropdown) {
+    overflowBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      overflowDropdown.classList.toggle('visible');
+    });
+    document.addEventListener('click', () => {
+      overflowDropdown.classList.remove('visible');
+    });
+    // Prevent dropdown from closing when clicking inside it
+    overflowDropdown.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
   }
 
   loadMemoryDashboard();
