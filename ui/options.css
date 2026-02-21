@@ -3661,3 +3661,319 @@ textarea.form-input {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+/* ==========================================
+   Site Guides Viewer (Memory Tab)
+   ========================================== */
+
+.site-guides-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.site-guides-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.site-guides-header h3 i {
+  color: var(--primary-color);
+}
+
+#siteGuideCount {
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+/* Category container */
+.guide-category {
+  margin-bottom: 4px;
+}
+
+.guide-category-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--transition-fast);
+}
+
+.guide-category-header:hover {
+  background: var(--bg-tertiary);
+}
+
+.guide-category-chevron {
+  font-size: 0.75em;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
+
+.guide-category.collapsed .guide-category-chevron {
+  transform: rotate(-90deg);
+}
+
+.guide-category.collapsed .guide-category-sites {
+  display: none;
+}
+
+.guide-category-icon {
+  font-size: 1em;
+  color: var(--primary-color);
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.guide-category-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95em;
+}
+
+.guide-category-count {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Site items */
+.guide-category-sites {
+  padding-left: 0;
+}
+
+.guide-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px 8px 48px;
+  border: 1px solid transparent;
+  border-top: none;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.guide-item:hover {
+  background: var(--bg-secondary);
+}
+
+.guide-item:last-child {
+  border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
+}
+
+.guide-item.guide-expanded {
+  background: var(--bg-accent, var(--primary-light));
+  border-color: var(--primary-color);
+  border-radius: var(--radius-sm, 4px) var(--radius-sm, 4px) 0 0;
+}
+
+.guide-item-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.guide-item-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9em;
+}
+
+.guide-item-badge {
+  font-size: 0.7em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.guide-item .detail-toggle-icon {
+  margin-left: auto;
+  font-size: 0.75em;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.guide-item.guide-expanded .detail-toggle-icon {
+  transform: rotate(90deg);
+  color: var(--primary-color);
+}
+
+/* Detail panel */
+.guide-detail-panel {
+  background: var(--bg-primary);
+  border: 1px solid var(--primary-color);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
+  padding: 12px 16px;
+  margin-bottom: 4px;
+}
+
+/* Sub-sections within detail panel */
+.guide-subsection {
+  border-top: 1px solid var(--border-color);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.guide-subsection:first-child {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.guide-subsection.collapsed .guide-subsection-content {
+  display: none;
+}
+
+.guide-subsection-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+  font-weight: 600;
+  font-size: 0.9em;
+  color: var(--text-secondary);
+}
+
+.guide-subsection-header:hover {
+  color: var(--primary-color);
+}
+
+.guide-subsection-chevron {
+  transition: transform 0.2s ease;
+  font-size: 0.7em;
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.guide-subsection:not(.collapsed) .guide-subsection-chevron {
+  transform: rotate(90deg);
+}
+
+.guide-subsection-content {
+  padding: 8px 0 4px;
+}
+
+/* Guidance pre-formatted text */
+.guide-guidance-pre {
+  font-family: var(--font-mono, 'SF Mono', Consolas, monospace);
+  font-size: 0.82em;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm, 4px);
+  padding: 10px 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Selector table inside guide detail panel */
+.guide-detail-panel .detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 4px;
+}
+
+.guide-detail-panel .detail-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.guide-detail-panel .detail-table td:first-child {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.guide-detail-panel .detail-table tr:last-child td {
+  border-bottom: none;
+}
+
+.guide-detail-panel .detail-code {
+  font-family: var(--font-mono, 'SF Mono', Consolas, monospace);
+  background: var(--bg-accent, rgba(255, 107, 53, 0.08));
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  word-break: break-all;
+}
+
+[data-theme="dark"] .guide-detail-panel .detail-code {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Workflow display */
+.guide-workflow {
+  margin-bottom: 10px;
+}
+
+.guide-workflow:last-child {
+  margin-bottom: 0;
+}
+
+.guide-workflow .detail-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-size: 0.75em;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.guide-workflow ol {
+  list-style: decimal inside;
+  padding-left: 8px;
+  margin: 4px 0 0 0;
+  line-height: 1.6;
+}
+
+.guide-workflow ol li {
+  color: var(--text-primary);
+  padding: 2px 0;
+  font-size: 0.9em;
+}
+
+/* Warnings list */
+.guide-warnings-list {
+  list-style: disc inside;
+  padding-left: 8px;
+  margin: 4px 0 0 0;
+  line-height: 1.6;
+}
+
+.guide-warnings-list li {
+  color: var(--text-primary);
+  padding: 2px 0;
+  font-size: 0.9em;
+}
+
+/* Search filter hidden class */
+.guide-hidden {
+  display: none !important;
+}
