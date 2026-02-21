@@ -115,8 +115,23 @@
                 <div class="metric-label">Success Rate</div>
               </div>
             </div>
+            <!-- Cost Breakdown -->
+            <div class="cost-breakdown" id="dashboardCostBreakdown">
+              <div class="cost-item">
+                <span class="cost-label">Automation</span>
+                <span class="cost-value" id="costAutomation">$0.00</span>
+              </div>
+              <div class="cost-item">
+                <span class="cost-label">Memory AI</span>
+                <span class="cost-value" id="costMemory">$0.00</span>
+              </div>
+              <div class="cost-item">
+                <span class="cost-label">Sitemap</span>
+                <span class="cost-value" id="costSitemap">$0.00</span>
+              </div>
+            </div>
           </div>
-          
+
           <!-- Usage Chart Section -->
           <div class="chart-section">
             <div class="chart-header">
@@ -721,6 +736,29 @@
                 <button class="overflow-item danger" id="btnClearMemories">
                   <i class="fas fa-trash"></i> Clear All
                 </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Memory AI Cost Card -->
+          <div class="memory-cost-card" id="memoryCostCard">
+            <div class="cost-card-header">
+              <i class="fas fa-coins"></i>
+              <span>Memory AI Costs</span>
+              <span class="cost-card-period">Last 30 days</span>
+            </div>
+            <div class="cost-card-metrics">
+              <div class="cost-card-metric">
+                <span class="cost-card-value" id="memCostTotal">$0.00</span>
+                <span class="cost-card-label">Total Cost</span>
+              </div>
+              <div class="cost-card-metric">
+                <span class="cost-card-value" id="memCostRequests">0</span>
+                <span class="cost-card-label">AI Requests</span>
+              </div>
+              <div class="cost-card-metric">
+                <span class="cost-card-value" id="memCostTokens">0</span>
+                <span class="cost-card-label">Tokens Used</span>
               </div>
             </div>
           </div>
