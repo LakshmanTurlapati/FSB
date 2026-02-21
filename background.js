@@ -12,15 +12,78 @@ importScripts('utils/site-explorer.js');
 
 // Site-specific AI guidance modules
 importScripts('site-guides/index.js');
-importScripts('site-guides/ecommerce.js');
-importScripts('site-guides/social.js');
-importScripts('site-guides/coding.js');
-importScripts('site-guides/travel.js');
-importScripts('site-guides/finance.js');
-importScripts('site-guides/email.js');
-importScripts('site-guides/gaming-platforms.js');
-importScripts('site-guides/career.js');
-importScripts('site-guides/productivity.js');
+
+// Category shared guidance
+importScripts('site-guides/ecommerce/_shared.js');
+importScripts('site-guides/social/_shared.js');
+importScripts('site-guides/finance/_shared.js');
+importScripts('site-guides/travel/_shared.js');
+importScripts('site-guides/email/_shared.js');
+importScripts('site-guides/coding/_shared.js');
+importScripts('site-guides/career/_shared.js');
+importScripts('site-guides/gaming/_shared.js');
+importScripts('site-guides/productivity/_shared.js');
+
+// Per-site guides: E-Commerce
+importScripts('site-guides/ecommerce/amazon.js');
+importScripts('site-guides/ecommerce/ebay.js');
+importScripts('site-guides/ecommerce/walmart.js');
+importScripts('site-guides/ecommerce/target.js');
+importScripts('site-guides/ecommerce/bestbuy.js');
+
+// Per-site guides: Social Media
+importScripts('site-guides/social/linkedin.js');
+importScripts('site-guides/social/twitter.js');
+importScripts('site-guides/social/facebook.js');
+importScripts('site-guides/social/reddit.js');
+importScripts('site-guides/social/instagram.js');
+importScripts('site-guides/social/youtube.js');
+
+// Per-site guides: Finance
+importScripts('site-guides/finance/yahoo-finance.js');
+importScripts('site-guides/finance/google-finance.js');
+importScripts('site-guides/finance/tradingview.js');
+importScripts('site-guides/finance/robinhood.js');
+importScripts('site-guides/finance/coinbase.js');
+importScripts('site-guides/finance/finviz.js');
+
+// Per-site guides: Travel
+importScripts('site-guides/travel/booking.js');
+importScripts('site-guides/travel/expedia.js');
+importScripts('site-guides/travel/airbnb.js');
+importScripts('site-guides/travel/kayak.js');
+importScripts('site-guides/travel/southwest.js');
+importScripts('site-guides/travel/united.js');
+importScripts('site-guides/travel/google-travel.js');
+
+// Per-site guides: Email
+importScripts('site-guides/email/gmail.js');
+importScripts('site-guides/email/outlook.js');
+importScripts('site-guides/email/yahoo-mail.js');
+
+// Per-site guides: Coding
+importScripts('site-guides/coding/leetcode.js');
+importScripts('site-guides/coding/hackerrank.js');
+importScripts('site-guides/coding/github.js');
+importScripts('site-guides/coding/codeforces.js');
+importScripts('site-guides/coding/geeksforgeeks.js');
+importScripts('site-guides/coding/stackoverflow.js');
+
+// Per-site guides: Career
+importScripts('site-guides/career/indeed.js');
+importScripts('site-guides/career/glassdoor.js');
+importScripts('site-guides/career/builtin.js');
+importScripts('site-guides/career/generic.js');
+
+// Per-site guides: Gaming
+importScripts('site-guides/gaming/steam.js');
+importScripts('site-guides/gaming/epic-games.js');
+importScripts('site-guides/gaming/gog.js');
+importScripts('site-guides/gaming/humble-bundle.js');
+
+// Per-site guides: Productivity
+importScripts('site-guides/productivity/google-sheets.js');
+importScripts('site-guides/productivity/google-docs.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
