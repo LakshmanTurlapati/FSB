@@ -43,6 +43,24 @@ importScripts('lib/memory/sitemap-refiner.js');
 // Site map intelligence - bundled map cache
 const bundledSiteMapCache = new Map();
 
+// Content script module files in dependency order.
+// Used by all file-based chrome.scripting.executeScript injection points.
+// Order matters: init.js sets up the window.FSB namespace, utils.js provides
+// shared helpers, then domain modules, then messaging/lifecycle which depend on all above.
+const CONTENT_SCRIPT_FILES = [
+  'utils/automation-logger.js',
+  'content/init.js',
+  'content/utils.js',
+  'content/dom-state.js',
+  'content/selectors.js',
+  'content/visual-feedback.js',
+  'content/accessibility.js',
+  'content/actions.js',
+  'content/dom-analysis.js',
+  'content/messaging.js',
+  'content/lifecycle.js'
+];
+
 async function loadBundledSiteMap(domain) {
   if (bundledSiteMapCache.has(domain)) {
     return bundledSiteMapCache.get(domain);
@@ -963,7 +981,7 @@ async function prefetchDOM(tabId, options = {}) {
   try {
     const domOptions = {
       useIncrementalDiff: true,
-      prefetch: true, // Hint to content.js this is speculative
+      prefetch: true, // Hint to content script this is speculative
       ...options
     };
 
@@ -1627,15 +1645,14 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
         }
       }
 
-      // Inject content script - target only main frame to avoid iframe issues
-      // CRITICAL: Must inject automation-logger.js BEFORE content.js because content.js
-      // depends on the automationLogger global defined in automation-logger.js.
-      // Without it, content.js crashes at initialization and never registers its
-      // onMessage listener, causing all health checks and readiness signals to fail.
+      // Inject content script modules - target only main frame to avoid iframe issues
+      // Files are loaded in dependency order from CONTENT_SCRIPT_FILES constant:
+      // automation-logger first, then init.js (namespace), then domain modules,
+      // then messaging/lifecycle last (they depend on all above).
       automationLogger.logComm(null, 'send', 'inject', true, { tabId, attempt });
       await chrome.scripting.executeScript({
         target: { tabId, frameIds: [0] },  // frameIds: [0] = main frame only
-        files: ['utils/automation-logger.js', 'content.js'],
+        files: CONTENT_SCRIPT_FILES,
         world: 'ISOLATED',  // Explicitly specify isolated world
         injectImmediately: true  // Don't wait for document_idle
       });
@@ -3341,7 +3358,7 @@ function gatherCompletionSignals(session, aiResponse, context) {
   return {
     // URL signal (0.3 weight)
     urlMatch: detectUrlCompletionPattern(context.currentUrl, session),
-    // DOM signal (0.25 weight) -- from content.js completionSignals (Plan 02)
+    // DOM signal (0.25 weight) -- from content script completionSignals (Plan 02)
     domSuccess: context.completionSignals?.successMessages?.length > 0
       ? context.completionSignals.successMessages[0].text : null,
     confirmationPage: context.completionSignals?.confirmationPage || false,
@@ -6079,7 +6096,7 @@ async function startAutomationLoop(sessionId) {
     iteration: session.iterationCount,
     maxIterations: session.maxIterations || 20,
     animatedHighlights: session.animatedActionHighlights,
-    statusText: null,  // Don't carry over previous action text; let content.js show "Analyzing page..."
+    statusText: null,  // Don't carry over previous action text; let content script show "Analyzing page..."
     ...calculateProgress(session),
     taskSummary: session.taskSummary || null
   });
@@ -7035,7 +7052,7 @@ async function startAutomationLoop(sessionId) {
       iteration: session.iterationCount,
       maxIterations: session.maxIterations || 20,
       animatedHighlights: session.animatedActionHighlights,
-      statusText: null,  // Don't carry over previous action text; let content.js show "Planning next step..."
+      statusText: null,  // Don't carry over previous action text; let content script show "Planning next step..."
       ...calculateProgress(session),
       taskSummary: session.taskSummary || null
     });
@@ -8103,7 +8120,7 @@ async function handleOpenNewTab(request, sender, sendResponse) {
         try {
           await chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            files: ['content.js']
+            files: CONTENT_SCRIPT_FILES
           });
         } catch (error) {
           automationLogger.debug('Content script injection skipped for new tab', { tabId: tab.id, error: error.message });
