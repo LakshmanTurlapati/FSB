@@ -769,6 +769,19 @@
             </div>
           </div>
 
+          <!-- Built-in Site Guides Viewer -->
+          <div class="site-guides-section" id="siteGuidesSection">
+            <div class="site-guides-header">
+              <h3>
+                <i class="fas fa-book"></i>
+                Built-in Site Guides -- <span id="siteGuideCount">0</span> sites covered
+              </h3>
+            </div>
+            <div class="site-guides-list" id="siteGuidesList">
+              <!-- Rendered by site-guides-viewer.js -->
+            </div>
+          </div>
+
           <!-- Site Explorer -->
           <div class="explorer-section" style="margin-top: 2rem;">
             <div class="section-header">
@@ -1142,6 +1155,62 @@
   <script src="../lib/visualization/d3-quadtree.min.js"></script>
   <script src="../lib/visualization/d3-force.min.js"></script>
   <script src="../lib/visualization/site-graph.js"></script>
+  <!-- Site guide data (registry + shared + per-site) -->
+  <script src="../site-guides/index.js"></script>
+  <script src="../site-guides/ecommerce/_shared.js"></script>
+  <script src="../site-guides/social/_shared.js"></script>
+  <script src="../site-guides/finance/_shared.js"></script>
+  <script src="../site-guides/travel/_shared.js"></script>
+  <script src="../site-guides/email/_shared.js"></script>
+  <script src="../site-guides/coding/_shared.js"></script>
+  <script src="../site-guides/career/_shared.js"></script>
+  <script src="../site-guides/gaming/_shared.js"></script>
+  <script src="../site-guides/productivity/_shared.js"></script>
+  <script src="../site-guides/ecommerce/amazon.js"></script>
+  <script src="../site-guides/ecommerce/ebay.js"></script>
+  <script src="../site-guides/ecommerce/walmart.js"></script>
+  <script src="../site-guides/ecommerce/target.js"></script>
+  <script src="../site-guides/ecommerce/bestbuy.js"></script>
+  <script src="../site-guides/social/linkedin.js"></script>
+  <script src="../site-guides/social/twitter.js"></script>
+  <script src="../site-guides/social/facebook.js"></script>
+  <script src="../site-guides/social/reddit.js"></script>
+  <script src="../site-guides/social/instagram.js"></script>
+  <script src="../site-guides/social/youtube.js"></script>
+  <script src="../site-guides/finance/yahoo-finance.js"></script>
+  <script src="../site-guides/finance/google-finance.js"></script>
+  <script src="../site-guides/finance/tradingview.js"></script>
+  <script src="../site-guides/finance/robinhood.js"></script>
+  <script src="../site-guides/finance/coinbase.js"></script>
+  <script src="../site-guides/finance/finviz.js"></script>
+  <script src="../site-guides/travel/booking.js"></script>
+  <script src="../site-guides/travel/expedia.js"></script>
+  <script src="../site-guides/travel/airbnb.js"></script>
+  <script src="../site-guides/travel/kayak.js"></script>
+  <script src="../site-guides/travel/southwest.js"></script>
+  <script src="../site-guides/travel/united.js"></script>
+  <script src="../site-guides/travel/google-travel.js"></script>
+  <script src="../site-guides/email/gmail.js"></script>
+  <script src="../site-guides/email/outlook.js"></script>
+  <script src="../site-guides/email/yahoo-mail.js"></script>
+  <script src="../site-guides/coding/leetcode.js"></script>
+  <script src="../site-guides/coding/hackerrank.js"></script>
+  <script src="../site-guides/coding/github.js"></script>
+  <script src="../site-guides/coding/codeforces.js"></script>
+  <script src="../site-guides/coding/geeksforgeeks.js"></script>
+  <script src="../site-guides/coding/stackoverflow.js"></script>
+  <script src="../site-guides/career/indeed.js"></script>
+  <script src="../site-guides/career/glassdoor.js"></script>
+  <script src="../site-guides/career/builtin.js"></script>
+  <script src="../site-guides/career/generic.js"></script>
+  <script src="../site-guides/gaming/steam.js"></script>
+  <script src="../site-guides/gaming/epic-games.js"></script>
+  <script src="../site-guides/gaming/gog.js"></script>
+  <script src="../site-guides/gaming/humble-bundle.js"></script>
+  <script src="../site-guides/productivity/google-sheets.js"></script>
+  <script src="../site-guides/productivity/google-docs.js"></script>
+  <!-- Site guides viewer (must be after all guide scripts) -->
+  <script src="site-guides-viewer.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
