@@ -1,814 +1,823 @@
-# Architecture Research: AI Situational Awareness Integration
+# Architecture Research: content.js Modularization
 
-**Domain:** Browser automation Chrome Extension (MV3) -- AI awareness improvements
-**Researched:** 2026-02-14
-**Overall Confidence:** HIGH (based on direct source code analysis of the running system)
+**Domain:** Chrome Extension content script decomposition (Manifest V3, no build system)
+**Researched:** 2026-02-21
+**Overall Confidence:** HIGH (based on direct analysis of all 13,429 lines of content.js)
 
 ---
 
 ## Executive Summary
 
-FSB's automation loop is a well-structured but tightly coupled system spanning three files: `background.js` (orchestration), `content.js` (DOM/actions), and `ai/ai-integration.js` (prompt building/conversation management). The 10 systemic awareness issues identified from log analysis fall into five architectural domains: (1) DOM serialization pipeline, (2) conversation memory management, (3) task completion detection, (4) signal accuracy (CAPTCHA, viewport), and (5) DOM change detection granularity. Each domain has clear integration points, and importantly, most fixes are **modifications to existing functions** rather than new components. The build order is constrained by a critical dependency: DOM serialization quality is upstream of everything else -- the AI cannot reason about what it cannot see.
+content.js is a 13,429-line monolith containing 8 classes, 100+ functions, and 25+ global
+singletons/state variables, all wrapped in a single re-injection guard (`if
+(window.__FSB_CONTENT_SCRIPT_LOADED__)`). The file has clear natural seams: DOM analysis,
+action tools, visual overlays, element readiness/verification, selector generation, and
+message routing. These seams are already visible in the code through section separator
+comments (`// ====...`) and logical clustering of functions.
+
+**The core constraint:** All content script files listed in the manifest `js` array share
+the same execution context (window-level scope) and are injected in declared order. There
+is no ES module support for content scripts without a build system. This means
+modularization must use the global scope intentionally: earlier files define objects/classes
+that later files consume.
+
+**Recommended approach:** Split content.js into 7 files loaded via manifest.json
+`content_scripts.js` array. Each file owns a specific domain. A thin shared-state file
+loads first and provides the global coordination points (logger reference, session ID,
+element cache, refMap). The existing `tools` object and `handleBackgroundMessage` function
+become the integration seams that stitch modules together.
 
 ---
 
-## Current Architecture: Detailed Component Map
+## Current Structure Analysis
 
-### The Automation Loop (background.js:4642-6395)
+### File Anatomy (by line range)
 
-The core loop is the `startAutomationLoop()` function. Each iteration follows this flow:
+Based on direct code analysis, content.js breaks into these logical regions:
+
+| Line Range | Lines | Domain | Key Contents |
+|------------|-------|--------|--------------|
+| 1-38 | 38 | **Bootstrap** | Re-injection guard, logger fallback |
+| 39-162 | 123 | **Utilities** | `getClassName`, `stripUnicodeControl`, `findElementByNormalizedAriaLabel`, `isFsbElement`, `shallowEqual` |
+| 163-607 | 444 | **DOMStateManager** | `DOMStateManager` class, mutation tracking, delta compression |
+| 614-781 | 167 | **ElementCache + RefMap** | `ElementCache` class (WeakRef + MutationObserver), `RefMap` class (compact AI refs) |
+| 788-875 | 87 | **Document Readiness** | `checkDocumentReady`, `getElementIndexes`, `invalidateElementIndexes` |
+| 906-2104 | 1198 | **Visual Overlays** | `HighlightManager`, `ProgressOverlay`, `ViewportGlow`, `ActionGlowOverlay`, `ElementInspector`, `promoteToTopLayer`/`demoteFromTopLayer` (all Shadow DOM) |
+| 2105-2330 | 225 | **Lifecycle + Iframe** | `beforeunload` cleanup, iframe detection, `frameContext`, `getFrameAwareSelector`, `collectChildFramesDom`, cross-frame messaging |
+| 2334-2905 | 571 | **Text Processing** | Markdown detection/conversion, `clipboardPasteHTML`, `stripMarkdown`, `isUniversalMessageInput`, `generateMessagingSelectors`, `findAlternativeSelectors` |
+| 2906-3175 | 269 | **Selector Generation (basic)** | `generateSelector` (first version), `isClickable`, `sanitizeSelector` |
+| 3177-3340 | 163 | **Shadow DOM Queries** | `querySelectorWithShadow`, `resolveRef`, `querySelectorAllWithShadow` |
+| 3344-3630 | 286 | **Accessibility** | `getInputRole`, `getImplicitRole`, `computeAccessibleName`, `getARIARelationships`, `isElementActionable` |
+| 3631-4590 | 959 | **Element Readiness** | `checkElementVisibility`, `checkElementEnabled`, `checkElementStable`, `checkElementReceivesEvents`, `checkElementEditable`, `scrollIntoViewIfNeeded`, `performQuickReadinessCheck`, `smartEnsureReady`, `ensureElementReady`, `waitForActionable` |
+| 4590-4750 | 160 | **Coordinate Fallback** | `validateCoordinates`, `ensureCoordinatesVisible`, `clickAtCoordinates` |
+| 4754-5543 | 789 | **Action Verification** | `captureActionState`, `EXPECTED_EFFECTS`, `detectChanges`, `verifyActionEffect`, `generateDiagnostic`, `captureElementDetails`, `ActionRecorder`, `detectActionOutcome`, `waitForPageStability` |
+| 5546-9252 | 3706 | **Tools Object** | `const tools = { ... }` containing all 31 action handlers (scroll, click, type, pressEnter, navigate, etc.) |
+| 9254-9470 | 216 | **Element Hashing/Viewport** | `hashElement`, `isInViewport`, `isElementInViewport`, `slugify`, `generateSemanticElementId` |
+| 9370-9600 | 230 | **Optimized Serializer** | `OptimizedDOMSerializer` class, `validateSelectorUniqueness`, `validateXPathUniqueness`, `isAutoGeneratedId`, `filterDynamicClasses` |
+| 9609-9900 | 291 | **Selector Generation (advanced)** | `generateSelectors` (multi-strategy), `generateSelectorsForAction` |
+| 9904-10530 | 626 | **Element Analysis** | `isInShadowDOM`, `inferElementPurpose`, `getRelationshipContext`, `generateElementDescription`, `getColorName`, `getElementCluster`, `getVisualProperties`, `getShadowPath`, `generateBasicSelector`, `prioritizeElements` |
+| 10561-10750 | 189 | **DOM Diffing + HTML** | `diffDOM`, `extractRelevantHTML`, duplicate `generateSelector` |
+| 10759-11230 | 471 | **Page Context** | `detectPageContext`, `detectSearchNoResults`, `extractErrorMessages`, `isElementVisible`, `detectCompletionSignals`, `inferPageIntent` |
+| 11274-11415 | 141 | **E-commerce** | `extractEcommerceProducts` |
+| 11425-11757 | 332 | **Filtered Elements + Compact Snapshot** | `calculateElementScore`, `getFilteredElements`, `generateCompactSnapshot` |
+| 11772-12245 | 473 | **getStructuredDOM** | Main DOM extraction orchestrator |
+| 12248-12463 | 215 | **Async Message Handler** | `handleAsyncMessage` (getDOM, getCompactDOM, executeAction routing) |
+| 12465-12800 | 335 | **Site Explorer** | `collectExplorerData` and 7 explorer helper functions, `executeDirectLogin` |
+| 12804-13108 | 304 | **Message Router** | `handleBackgroundMessage` (sync switch/case), `chrome.runtime.onMessage.addListener` |
+| 13110-13250 | 140 | **DOM Change Observer** | Global MutationObserver for `domChanged` notifications to background |
+| 13252-13429 | 177 | **Background Connection** | `establishBackgroundConnection`, port management, reconnect logic, SPA navigation detection |
+
+### Global State Inventory
+
+These are the shared mutable state items that every module potentially depends on:
+
+| Variable | Type | Used By | Notes |
+|----------|------|---------|-------|
+| `automationLogger` | Object | Everything | Fallback logger from window scope |
+| `currentSessionId` | String/null | All logging, message handlers | Set by incoming messages |
+| `domStateManager` | DOMStateManager | DOM analysis, message handlers | Singleton |
+| `elementCache` | ElementCache | Selector queries, tools | Singleton with MutationObserver |
+| `refMap` | RefMap | Compact snapshot, message handler (ref resolution) | Singleton, reset per snapshot |
+| `highlightManager` | HighlightManager | Tools (via message handler), cleanup | Singleton |
+| `progressOverlay` | ProgressOverlay | Message handler (sessionStatus, executeAction) | Singleton |
+| `viewportGlow` | ViewportGlow | Message handler (sessionStatus, executeAction) | Singleton |
+| `actionGlowOverlay` | ActionGlowOverlay | Message handler (executeAction) | Singleton |
+| `elementInspector` | ElementInspector | Message handler, keyboard shortcut | Singleton |
+| `actionRecorder` | ActionRecorder | Tools (click, type, etc.) | Singleton |
+| `previousDOMState` | Map/null | `diffDOM`, message handler (resetDOMState) | Mutable map |
+| `domStateCache` | Map | Message handler (resetDOMState) | Mutable map |
+| `tools` | Object | Message handler (executeAction), internal cross-calls | The big tools registry |
+| `frameContext` | Object | Message handler, DOM extraction | Iframe detection state |
+| `isInIframe` | Boolean | Multiple functions | Computed once |
+| `EXPECTED_EFFECTS` | Object | `verifyActionEffect` | Constant |
+| `DIAGNOSTIC_MESSAGES` | Object | `generateDiagnostic` | Constant |
+| `FSB_HOST_IDS` | Set | `isFsbElement` | Constant |
+| `observer` | MutationObserver | Global DOM change detection | Created at module level |
+| `backgroundPort` | Port/null | `establishBackgroundConnection` | Connection state |
+| `lastActionStatusText` | String/null | sessionStatus handler | UI state |
+| `_overlayWatchdogTimer` | Timer/null | sessionStatus handler | Timer state |
+
+### Dependency Graph (Current)
 
 ```
-startAutomationLoop(sessionId)          [background.js:4642]
-  |
-  +-> Health check content script       [background.js:4780-4837]
-  |
-  +-> Request DOM state                 [background.js sends 'getStructuredDOM' message]
-  |     |
-  |     +-> content.js receives         [content.js:11040-11062]
-  |     |     +-> getStructuredDOM()    [content.js:10564-11012]
-  |     |           +-> getFilteredElements()  [content.js:10508-10549]
-  |     |           +-> extractRelevantHTML()   [content.js:9749-9920]
-  |     |           +-> detectPageContext()     [content.js:~10020-10132]
-  |     |
-  |     +-> Returns domResponse.structuredDOM
-  |
-  +-> createDOMHash()                   [background.js:4494-4526]
-  +-> Stuck detection logic             [background.js:5073-5148]
-  +-> Build context object              [background.js:5376-5401]
-  |
-  +-> callAIAPI(task, structuredDOM, settings, context)  [background.js:6405-6477]
-  |     |
-  |     +-> ai.getAutomationActions()   [ai-integration.js:972]
-  |           |
-  |           +-> First iteration: buildPrompt()          [ai-integration.js:1318]
-  |           +-> Multi-turn: buildMinimalUpdate()        [ai-integration.js:340]
-  |           +-> provider.sendRequest() -> parseResponse()
-  |           +-> updateConversationHistory()             [ai-integration.js:569]
-  |           +-> updateSessionMemory()                   [ai-integration.js:629]
-  |
-  +-> Execute actions (loop over aiResponse.actions)
-  |     |
-  |     +-> sendMessageWithRetry() to content.js          [background.js:1451]
-  |     +-> content.js action handlers                    [content.js:5003+ for click, etc.]
-  |     +-> slimActionResult() and store in actionHistory [background.js:1428-1448]
-  |
-  +-> Task completion validation        [background.js:6178-6330]
-  +-> Progress tracking                 [background.js:6010-6060]
-  +-> Schedule next iteration           [background.js:6332-6382]
+                    automationLogger (from window)
+                    currentSessionId
+                           |
+    +----------+-----------+-----------+----------+
+    |          |           |           |          |
+DOMState   ElementCache  RefMap   tools{}   Message Handler
+Manager    (+ observer)            |              |
+    |          |           |       |              |
+    |     querySelectorWithShadow  |    handleAsyncMessage
+    |     (used by most tools)     |    handleBackgroundMessage
+    |          |                   |              |
+    +--> generateSelectors <-------+     (dispatches to tools{})
+    |                                            |
+    +--> getStructuredDOM <------- generateCompactSnapshot
+    |     (uses getFilteredElements,             |
+    |      extractRelevantHTML,                  |
+    |      inferElementPurpose, etc.)            |
+    |                                            |
+    +--> Visual Overlays (HighlightManager,      |
+         ProgressOverlay, ViewportGlow,          |
+         ActionGlowOverlay, ElementInspector)    |
+              (used by message handler           |
+               for sessionStatus + executeAction)|
 ```
-
-### Data Flow Sizes (from log analysis context)
-
-| Data Point | Current Size | Impact |
-|------------|-------------|--------|
-| DOM state (full, iter 1) | ~50 elements, variable JSON size | Main AI input |
-| DOM state (delta, iter 2+) | 30 viewport elements + delta | Reduced but still truncated |
-| User prompt (full) | HARD_PROMPT_CAP = 5000 chars | 74% of DOM data lost to truncation |
-| System prompt (full) | ~4000-5000 chars | Sent only on iter 1 and stuck |
-| System prompt (minimal) | MINIMAL_CONTINUATION_PROMPT | Multi-turn continuation |
-| Conversation history | 4 turn pairs max (rawTurnsToKeep=3 + compacted) | Older turns compacted |
-| Action history in prompt | Last 3-5 actions | Compact, but drops context |
-| domHash key | `{path}\|{title}\|{elementCount}\|{top5types}` | Very coarse |
 
 ---
 
-## Issue-by-Issue Integration Analysis
+## Proposed Module Boundaries
 
-### Issue 1: DOM Serialization Truncation (HARD_PROMPT_CAP = 5000)
+### Module 1: `content-shared.js` (Foundation Layer)
 
-**Current Location:** `ai-integration.js:1898` (HARD_PROMPT_CAP=5000) and `ai-integration.js:1980-1987` (truncation logic)
+**Purpose:** Bootstrap, re-injection guard, shared state declarations, utility functions.
 
-**What happens:** The `buildPrompt()` function assembles the user prompt in this order:
-1. Task description + verification requirements (~200 chars)
-2. Page state (URL, title, scroll, CAPTCHA) (~200 chars)
-3. Semantic context via `formatSemanticContext()` (~500-1500 chars)
-4. Automation context (stuck, DOM changed, iteration, action history) (~500-2000 chars)
-5. Structured elements via `formatElements()` (~variable, often 3000+ chars)
-6. HTML context via `formatHTMLContext()` (~variable, often 2000+ chars)
-7. Final question (~50 chars)
+**Lines migrated:** ~300 lines (lines 1-162, plus state declarations scattered throughout)
 
-With HARD_PROMPT_CAP at 5000 chars, steps 5 and 6 (the actual page content the AI needs) are frequently truncated. The prompt truncation is a **blind substring cut** -- it does not prioritize keeping elements over context text.
+**Owns:**
+- Re-injection guard (`window.__FSB_CONTENT_SCRIPT_LOADED__`)
+- `automationLogger` fallback setup
+- `currentSessionId` declaration
+- `getClassName(element)`
+- `stripUnicodeControl(str)`
+- `findElementByNormalizedAriaLabel(selectorStr)`
+- `shallowEqual(a, b)`
+- `FSB_HOST_IDS` set
+- `isFsbElement(el)`
+- `isInIframe`, `frameId`, `frameContext` declarations
+- `previousDOMState`, `domStateCache` declarations
+- `lastActionStatusText`, `_overlayWatchdogTimer` declarations
+- `lastNotificationTime`, `accumulatedChanges`, `significantChangeTimeout` declarations
+- `backgroundPort`, `reconnectAttempts`, `MAX_RECONNECT_ATTEMPTS` declarations
 
-**Where the fix belongs:** `ai-integration.js:buildPrompt()` (line 1318) and the HARD_PROMPT_CAP constant (line 1898)
+**Exports to global scope:**
+- All of the above (via `var`/`let`/`const` at top level inside the guard)
 
-**Recommended approach -- Tiered prompt budgeting:**
-```
-Total budget: ~15000 chars (increase from 5000)
-  - Fixed header (task, page state, verification): ~500 chars (reserved)
-  - Automation context (history, stuck, etc.): ~1500 chars (reserved)
-  - Structured elements: ~8000 chars (primary budget, flexible)
-  - HTML context: ~3000 chars (secondary budget, flexible)
-  - Semantic context: ~2000 chars (tertiary, only if budget remains)
-```
+**Dependencies:** None (this is the root)
 
-The key insight is that **structured elements must be allocated first** because they are the AI's primary decision input. Everything else is supporting context. The current code builds the prompt sequentially and truncates from the end, which means elements often get cut.
-
-**Specific function changes needed:**
-- `buildPrompt()` (ai-integration.js:1318): Restructure to allocate budget to sections
-- `formatElements()` (ai-integration.js:2069): Accept a char budget parameter
-- `formatHTMLContext()` (ai-integration.js:2172): Accept a char budget parameter
-- HARD_PROMPT_CAP (ai-integration.js:1898): Increase to 15000 or make configurable
-
-**Multi-turn path:** `buildMinimalUpdate()` (ai-integration.js:340) has its own element cap at `MAX_MINIMAL_ELEMENTS = 25` (line 413). This is a separate but related concern -- the multi-turn path should also use budget-based allocation.
-
-**Dependencies:** None. This is upstream of all other issues.
+**Why this boundary:** Every other module needs the logger, session ID, and utility functions.
+Centralizing shared state declarations here prevents ordering issues and makes the
+dependency on shared mutable state explicit. The re-injection guard wraps everything.
 
 ---
 
-### Issue 2: domHash Change Detection Too Coarse
+### Module 2: `content-cache.js` (Caching + Element References)
 
-**Current Location:** `background.js:4494-4526` (`createDOMHash()`)
+**Purpose:** Element caching, DOM state management, compact reference mapping.
 
-**What happens:** The hash is computed as:
-```javascript
-const key = `${urlPath}|${title}|${elements.length}|${topTypes}`;
-// topTypes = top 5 element types by count, e.g., "button:12,a:8,input:5,select:3,div:2"
-```
+**Lines migrated:** ~700 lines (lines 163-875)
 
-This misses:
-- Text content changes (e.g., success message appearing)
-- Element state changes (e.g., button becoming disabled)
-- Element position changes (e.g., modal appearing)
-- New elements of the same type (e.g., adding another `<a>` tag does not change count enough)
+**Owns:**
+- `DOMStateManager` class + `domStateManager` singleton
+- `ElementCache` class + `elementCache` singleton
+- `RefMap` class + `refMap` singleton
+- `checkDocumentReady()` function
+- `getElementIndexes()` / `invalidateElementIndexes()` functions
 
-The hash is used at `background.js:5075-5076` to set `domChanged` boolean, which flows into:
-1. Stuck detection (background.js:5077-5123)
-2. Context object passed to AI (background.js:5382)
-3. Progress tracking (background.js:6016)
+**Exports to global scope:**
+- `domStateManager`, `elementCache`, `refMap`
+- `checkDocumentReady`, `getElementIndexes`, `invalidateElementIndexes`
 
-**Where the fix belongs:** `background.js:createDOMHash()` (line 4494)
+**Dependencies:**
+- `content-shared.js` (automationLogger, currentSessionId, getClassName)
 
-**Recommended approach -- Multi-signal hash:**
-```javascript
-function createDOMHash(domState) {
-  const elements = domState.elements || [];
-
-  // Signal 1: Structural (existing) -- element type distribution
-  const typeCounts = {};
-  for (const el of elements) {
-    if (el.type) typeCounts[el.type] = (typeCounts[el.type] || 0) + 1;
-  }
-  const topTypes = Object.entries(typeCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([type, count]) => `${type}:${count}`)
-    .join(',');
-
-  // Signal 2: Content -- hash of visible text (first 200 chars per element, top 10)
-  const contentSample = elements
-    .slice(0, 10)
-    .map(el => (el.text || '').substring(0, 50))
-    .join('|');
-
-  // Signal 3: State -- interaction states of first 15 elements
-  const stateSignature = elements
-    .slice(0, 15)
-    .map(el => {
-      const s = el.interactionState || {};
-      return (s.disabled ? 'D' : '') + (s.checked ? 'C' : '') + (s.focused ? 'F' : '');
-    })
-    .join('');
-
-  // Signal 4: Page state indicators
-  const pageState = domState.pageContext?.pageState || {};
-  const stateFlags = [
-    pageState.hasErrors ? 'E' : '',
-    pageState.hasSuccess ? 'S' : '',
-    pageState.isLoading ? 'L' : '',
-    pageState.hasModal ? 'M' : '',
-    pageState.hasCaptcha ? 'X' : ''
-  ].join('');
-
-  let urlPath = '';
-  try { urlPath = new URL(domState.url || '').pathname; } catch { urlPath = domState.url || ''; }
-
-  const key = `${urlPath}|${domState.title || ''}|${elements.length}|${topTypes}|${contentSample}|${stateSignature}|${stateFlags}`;
-
-  // Simple hash function (existing)
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = ((hash << 5) - hash) + key.charCodeAt(i);
-    hash = hash & hash;
-  }
-  return hash.toString();
-}
-```
-
-Additionally, return a **structured change descriptor** alongside the boolean:
-```javascript
-// Instead of just: domChanged = currentDOMHash !== session.lastDOMHash
-// Also compute: changeSignals = { structural: boolean, content: boolean, state: boolean, page: boolean }
-```
-
-This gives the AI specific change signals rather than a single yes/no.
-
-**Specific function changes needed:**
-- `createDOMHash()` (background.js:4494): Add content, state, and page-state signals
-- Stuck detection block (background.js:5073-5123): Use structured change descriptor
-- Context object (background.js:5382): Pass `changeSignals` alongside `domChanged`
-- `buildMinimalUpdate()` (ai-integration.js:340): Use change signals for richer status
-
-**Dependencies:** Depends on DOM serialization (Issue 1) because the hash input quality depends on what elements are captured.
+**Why this boundary:** These three classes are tightly related: they all manage cached
+representations of DOM state. `DOMStateManager` tracks DOM deltas, `ElementCache` caches
+selector lookups with mutation-based invalidation, and `RefMap` maps compact AI references
+to live elements. They share the pattern of "maintain a representation that stays in sync
+with DOM mutations." No other code depends on their internals -- only their public APIs.
 
 ---
 
-### Issue 3: Conversation Memory Compacted to 27 Chars
+### Module 3: `content-overlays.js` (Visual Feedback Layer)
 
-**Current Location:** `ai-integration.js` conversation management system:
-- `conversationHistory` array (line 234)
-- `maxConversationTurns = 4` (line 236)
-- `rawTurnsToKeep = 3` (line 251)
-- `compactionThreshold = 4` (line 248)
-- `trimConversationHistory()` (line 520)
-- `triggerCompaction()` (line 715)
-- `updateSessionMemory()` (line 629)
-- `buildMemoryContext()` (line 787)
+**Purpose:** All Shadow DOM visual overlays and the element inspector.
 
-**What happens:** The memory system has THREE layers:
-1. **Raw conversation history** -- last 3 turn pairs kept verbatim
-2. **Compacted summary** -- AI-generated summary of older turns (capped at 1500 chars, line 763)
-3. **Session memory** -- structured facts extracted locally each turn (steps completed, failed approaches, pages visited)
+**Lines migrated:** ~1,400 lines (lines 906-2104, plus `promoteToTopLayer`/`demoteFromTopLayer` from 1045-1089)
 
-The "27 chars" issue from logs likely occurs when:
-- Compaction triggers but fails (non-blocking async, line 773 catches silently)
-- Session memory is sparse (task goal regex fails, no successful actions yet)
-- `buildMemoryContext()` produces a minimal string because both layers are empty/sparse
+**Owns:**
+- `promoteToTopLayer(element)` / `demoteFromTopLayer(element)` utility
+- `HighlightManager` class + `highlightManager` singleton
+- `ProgressOverlay` class + `progressOverlay` singleton
+- `ViewportGlow` class + `viewportGlow` singleton
+- `ActionGlowOverlay` class + `actionGlowOverlay` singleton
+- `ElementInspector` class + `elementInspector` singleton
+- Keyboard shortcut handler (Ctrl+Shift+E for inspector toggle)
+- `beforeunload` cleanup handler
 
-**Root cause analysis:**
-- `triggerCompaction()` (line 715) fires-and-forgets -- if the AI call fails, `compactedSummary` stays null
-- `updateSessionMemory()` (line 629) relies on fragile regex extraction: `aiResponse.reasoning.match(/(?:task|goal|objective)[:\s]+(.{10,80})/i)` (line 645)
-- Steps tracking only logs on `lastResult?.success` (line 653), missing attempted-but-failed actions
-- `describeAction()` (line 697) produces very short strings: "clicked element" (15 chars)
+**Exports to global scope:**
+- `highlightManager`, `progressOverlay`, `viewportGlow`, `actionGlowOverlay`, `elementInspector`
+- `promoteToTopLayer`, `demoteFromTopLayer`
 
-**Where the fix belongs:** `ai-integration.js` -- the entire memory subsystem
+**Dependencies:**
+- `content-shared.js` (automationLogger, currentSessionId, FSB_HOST_IDS, isFsbElement)
+- `content-cache.js` (domStateManager, elementCache -- only for beforeunload cleanup)
+- `content-selectors.js` (generateSelectors -- used by ElementInspector click handler)
 
-**Recommended approach -- Strengthen all three layers:**
+**Note on circular dependency with selectors:** `ElementInspector.handleClick` calls
+`generateSelectors()` to display selectors for inspected elements. This creates a
+dependency on `content-selectors.js`. Two solutions:
+1. Load `content-selectors.js` before `content-overlays.js` (preferred)
+2. Lazy-reference `generateSelectors` at call time (it will exist by then since all
+   scripts share scope and inspector is only used interactively after page load)
 
-Layer 1 (Raw history): No change needed, 3 turn pairs is reasonable.
-
-Layer 2 (Compaction): Make it resilient:
-- Track compaction failures and retry on next trim cycle
-- If compaction repeatedly fails, fall back to local extractive summary (no API call)
-- Increase summary cap from 1500 to 2500 chars
-
-Layer 3 (Session memory): Make it comprehensive:
-- Extract task goal from the original task string, not from AI reasoning regex
-- Track ALL actions (not just successful ones) with success/fail status
-- Include element context: "clicked 'Submit' button on checkout form" not just "clicked element"
-- Add explicit data extraction tracking: when getText succeeds, store a summary of what was found
-- Include URL transitions: "navigated from search results to product page"
-
-**Specific function changes needed:**
-- `updateSessionMemory()` (ai-integration.js:629): Richer extraction, track all actions
-- `describeAction()` (ai-integration.js:697): Include target element context from params
-- `triggerCompaction()` (ai-integration.js:715): Retry on failure, local fallback
-- `buildMemoryContext()` (ai-integration.js:787): More structured output
-- `buildMinimalUpdate()` (ai-integration.js:340): Include memory context in multi-turn updates
-- Context building (background.js:5376-5401): Pass richer action metadata including element descriptions
-
-**Dependencies:** Benefits from Issue 1 (better DOM data means richer action descriptions) but can be built independently.
+**Why this boundary:** All 5 overlay classes share common patterns: Shadow DOM creation,
+style isolation, z-index/popover management, and lifecycle (create/show/hide/destroy).
+They have zero dependencies on DOM analysis or action execution. They are pure visual
+output. The inspector is included here because it is fundamentally a visual overlay with
+event handlers.
 
 ---
 
-### Issue 4: False CAPTCHA Detection
+### Module 4: `content-selectors.js` (Selector Generation + Shadow DOM Queries)
 
-**Current Location:** Two detection sites:
+**Purpose:** All selector generation strategies, shadow DOM query utilities, and
+accessibility helpers.
 
-**Site A -- Element-level detection** (content.js:10740-10746):
-```javascript
-const classNames = node.className ? String(node.className) : '';
-if (classNames.includes('g-recaptcha') || classNames.includes('recaptcha') ||
-    classNames.includes('h-captcha') || classNames.includes('hcaptcha') ||
-    classNames.includes('cf-turnstile') || classNames.includes('turnstile')) {
-  elementData.isCaptcha = true;
-}
-```
+**Lines migrated:** ~1,200 lines (lines 2906-3175, 3177-3340, 3344-3630, 9254-9470, 9476-9600, 9609-9920)
 
-**Site B -- Page-level detection** (content.js:10098-10100):
-```javascript
-hasCaptcha: document.querySelector(
-  '.g-recaptcha, .h-captcha, .cf-turnstile, .captcha-container, .captcha-challenge, iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="challenges.cloudflare.com"]'
-) !== null,
-```
+**Owns:**
+- `sanitizeSelector(selector)`
+- `querySelectorWithShadow(selector)` (the primary element lookup function)
+- `resolveRef(ref)`
+- `querySelectorAllWithShadow(selector)`
+- `getInputRole(input)` / `getImplicitRole(node)` / `computeAccessibleName(node)` / `getARIARelationships(node)`
+- `isElementActionable(node)`
+- `isClickable(element)`
+- `hashElement(element)` / `isInViewport(element)` / `isElementInViewport(rect)`
+- `slugify(text)` / `generateSemanticElementId(element, index)`
+- `validateSelectorUniqueness(selector)` / `validateXPathUniqueness(xpath)`
+- `isAutoGeneratedId(id)` / `filterDynamicClasses(classString)`
+- `generateSelectors(element)` (multi-strategy, the main one)
+- `generateSelectorsForAction(element, actionType)`
+- `isInShadowDOM(element)` / `getShadowPath(element)`
+- `generateBasicSelector(element)`
 
-**Site C -- Aggregation** (content.js:10921):
-```javascript
-captchaPresent: elements.some(el => el.isCaptcha) || pageContext.pageState.hasCaptcha,
-```
+**Exports to global scope:**
+- All of the above functions
 
-**What happens:** False positives occur because:
-1. `.captcha-container` and `.captcha-challenge` are generic class patterns that match non-CAPTCHA elements
-2. Some sites have hidden/invisible CAPTCHA challenge iframes (Cloudflare silent challenges, reCAPTCHA v3 background tokens) that are present in DOM but not actually blocking user interaction
-3. `elements.some(el => el.isCaptcha)` checks ALL filtered elements, including off-screen ones
-4. The `captchaPresent` flag causes `buildMinimalUpdate()` to inject a CAPTCHA warning (ai-integration.js:367-369), which can cause the AI to incorrectly call `solveCaptcha` or stall
+**Dependencies:**
+- `content-shared.js` (automationLogger, currentSessionId, getClassName, stripUnicodeControl, findElementByNormalizedAriaLabel)
+- `content-cache.js` (elementCache -- used by `querySelectorWithShadow` for cache lookups)
 
-**Where the fix belongs:** `content.js` (detection logic) and optionally `background.js` (filtering)
-
-**Recommended approach -- Visibility-gated CAPTCHA detection:**
-
-```javascript
-// Site B fix: Add visibility/interactivity check
-hasCaptcha: (() => {
-  const captchaSelectors = [
-    '.g-recaptcha', '.h-captcha', '.cf-turnstile',
-    'iframe[src*="recaptcha"]', 'iframe[src*="hcaptcha"]',
-    'iframe[src*="challenges.cloudflare.com"]'
-  ];
-  // Remove overly generic selectors: .captcha-container, .captcha-challenge
-
-  for (const sel of captchaSelectors) {
-    const el = document.querySelector(sel);
-    if (!el) continue;
-
-    const rect = el.getBoundingClientRect();
-    // Must be visible (not zero-size, not hidden)
-    if (rect.width < 10 || rect.height < 10) continue;
-
-    const styles = getComputedStyle(el);
-    if (styles.display === 'none' || styles.visibility === 'hidden') continue;
-    if (parseFloat(styles.opacity) < 0.1) continue;
-
-    // Must be in viewport (user-blocking CAPTCHAs are always visible)
-    if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
-
-    return true;
-  }
-  return false;
-})(),
-```
-
-**Specific function changes needed:**
-- Page-level detection (content.js:10098-10100): Replace with visibility-gated check
-- Element-level detection (content.js:10740-10746): Add size/visibility check
-- Remove `.captcha-container` and `.captcha-challenge` from selectors (too generic)
-- Optionally: background.js could validate CAPTCHA presence by sending a `verifyCaptchaPresence` message before triggering solveCaptcha
-
-**Dependencies:** None. Can be built independently.
+**Why this boundary:** Selector generation is a cohesive domain: given a DOM element,
+produce one or more selectors that can re-find it. Shadow DOM query traversal is the
+inverse operation: given a selector, find the element. These two operations are
+inseparable. Accessibility helpers (`getImplicitRole`, `computeAccessibleName`) are
+included because they are used exclusively by selector generation and element description
+functions, not by action execution.
 
 ---
 
-### Issue 5: All Elements Marked Off-Screen on Split-Pane Layouts
+### Module 5: `content-readiness.js` (Element Readiness + Action Verification)
 
-**Current Location:** `content.js:8467-8474` (`isElementInViewport()`)
+**Purpose:** Pre-action readiness checks, post-action verification, coordinate fallback,
+text processing utilities.
 
-**What happens:** The function requires ALL edges to be within the viewport:
-```javascript
-function isElementInViewport(rect) {
-  return (
-    rect.top >= 0 &&
-    rect.left >= 0 &&
-    rect.bottom <= window.innerHeight &&
-    rect.right <= window.innerWidth
-  );
-}
-```
+**Lines migrated:** ~2,700 lines (lines 2334-2905, 3631-5543)
 
-This means:
-- A button at `{top: -5, left: 100, bottom: 35, right: 200}` is marked off-screen even though 87% of it is visible
-- In split-pane layouts (Gmail, VS Code web, Slack), the side panel's sidepanel iframe may report elements with negative offsets relative to the main viewport
-- Elements near viewport edges (common in sticky headers/footers) are always off-screen
+**Owns:**
+- **Text processing:** `isCanvasBasedEditor`, `hasMarkdownFormatting`, `markdownToHTML`, `applyInlineFormatting`, `clipboardPasteHTML`, `stripMarkdown`, `isUniversalMessageInput`, `generateMessagingSelectors`, `findAlternativeSelectors`
+- **Element readiness:** `checkElementVisibility`, `checkElementEnabled`, `checkElementStable`, `detectCodeEditor`, `checkElementReceivesEvents`, `checkElementEditable`, `scrollIntoViewIfNeeded`, `performQuickReadinessCheck`, `smartEnsureReady`, `ensureElementReady`, `waitForActionable`
+- **Coordinate fallback:** `validateCoordinates`, `ensureCoordinatesVisible`, `clickAtCoordinates`
+- **Action verification:** `captureActionState`, `EXPECTED_EFFECTS`, `detectChanges`, `verifyActionEffect`, `generateDiagnostic`, `DIAGNOSTIC_MESSAGES`, `captureElementDetails`, `ActionRecorder` class + `actionRecorder` singleton, `detectActionOutcome`, `waitForPageStability`
 
-The impact flows through:
-1. `getStructuredDOM()` (content.js:10790): Elements sorted into offscreen collection
-2. `viewportOnlyMode = true` (content.js:10570): Off-screen elements excluded entirely
-3. `formatElements()` (ai-integration.js:2106): `[off-screen]` state label
-4. AI prompt: Off-screen elements deprioritized or excluded
+**Exports to global scope:**
+- All of the above functions, classes, constants, and singletons
 
-**Where the fix belongs:** `content.js:isElementInViewport()` (line 8467)
+**Dependencies:**
+- `content-shared.js` (automationLogger, currentSessionId, getClassName)
+- `content-cache.js` (elementCache -- used by waitForActionable)
+- `content-selectors.js` (querySelectorWithShadow, generateSelectors -- used by readiness checks)
 
-**Recommended approach -- Partial visibility with overlap ratio:**
-
-```javascript
-function isElementInViewport(rect, minOverlapRatio = 0.25) {
-  // Element must have non-zero size
-  if (rect.width <= 0 || rect.height <= 0) return false;
-
-  // Calculate overlap with viewport
-  const overlapLeft = Math.max(0, rect.left);
-  const overlapTop = Math.max(0, rect.top);
-  const overlapRight = Math.min(window.innerWidth, rect.right);
-  const overlapBottom = Math.min(window.innerHeight, rect.bottom);
-
-  const overlapWidth = Math.max(0, overlapRight - overlapLeft);
-  const overlapHeight = Math.max(0, overlapBottom - overlapTop);
-  const overlapArea = overlapWidth * overlapHeight;
-
-  const elementArea = rect.width * rect.height;
-
-  return (overlapArea / elementArea) >= minOverlapRatio;
-}
-```
-
-Also used in `getStructuredDOM()` at content.js:10593-10598 (`isInViewportRect()`) -- this is a **separate function** from `isElementInViewport()` with different logic:
-```javascript
-function isInViewportRect(rect) {
-  return rect.bottom >= viewportRect.top &&
-         rect.top <= viewportRect.bottom &&
-         rect.right >= viewportRect.left &&
-         rect.left <= viewportRect.right;
-}
-```
-This second function (line 10593) is actually correct (any overlap = in viewport). The problem is that `isElementInViewport()` (line 8467) is the one used for the `inViewport` property on each element (line 10656), which then drives the `[off-screen]` label in AI prompts.
-
-**Specific function changes needed:**
-- `isElementInViewport()` (content.js:8467): Replace with overlap-based check
-- Ensure `isInViewportRect()` (content.js:10593) and `isElementInViewport()` use consistent logic
-- Consider merging them into a single function
-
-**Dependencies:** None. Can be built independently. Benefits Issue 1 (more elements classified as viewport = more included in prompt).
+**Why this boundary:** This module answers two questions: "Is this element ready to be
+acted upon?" (pre-action) and "Did the action have the intended effect?" (post-action).
+Text processing is included because `clipboardPasteHTML`, `markdownToHTML`, and
+`isUniversalMessageInput` are consumed exclusively by the `type` tool and related typing
+tools -- they are pre-action preparation for text input. `findAlternativeSelectors` and
+`generateMessagingSelectors` are selector fallback strategies specifically for action
+recovery. The coordinate fallback (`clickAtCoordinates`) is a readiness-adjacent concern:
+"if we cannot find the element by selector, fall back to coordinates."
 
 ---
 
-### Issue 6: waitForElement Uses Different Resolution Path Than click
+### Module 6: `content-tools.js` (Action Tool Registry)
 
-**Current Location:**
-- `waitForElement` handler (content.js:6714-6731): Uses `document.querySelector(selector)`
-- `click` handler (content.js:5003-5069): Uses `querySelectorWithShadow(sel)`
+**Purpose:** The `tools` object containing all 31 browser action handlers.
 
-**What happens:** When the AI calls `waitForElement` to wait for an element, then `click` to interact with it, the element resolution paths differ. `waitForElement` uses basic `document.querySelector()` which does not traverse Shadow DOM. `click` uses `querySelectorWithShadow()` which handles Shadow DOM traversal. This means:
-- An element inside a Shadow DOM that `click` can find, `waitForElement` will timeout waiting for
-- The AI then receives contradictory signals: "element not found" then "click succeeded"
+**Lines migrated:** ~3,700 lines (lines 5546-9252)
 
-**Where the fix belongs:** `content.js:waitForElement` handler (line 6714)
+**Owns:**
+- `const tools = { ... }` with all action handlers:
+  - **Scroll:** `scroll`, `scrollToTop`, `scrollToBottom`, `scrollToElement`
+  - **Click:** `click`, `clickSearchResult`
+  - **Type:** `type`, `typeWithKeys`, `pressEnter`, `keyPress`, `clearInput`
+  - **Form:** `selectOption`, `toggleCheckbox`, `selectText`
+  - **Navigation:** `navigate`, `searchGoogle`, `refresh`, `goBack`, `goForward`
+  - **Focus:** `focus`, `blur`, `hover`
+  - **Mouse:** `rightClick`, `doubleClick`, `moveMouse`
+  - **Wait:** `waitForElement`, `waitForDOMStable`, `detectLoadingState`
+  - **Read:** `getText`, `getAttribute`, `setAttribute`
+  - **Special:** `solveCaptcha`
 
-**Recommended approach:**
-```javascript
-waitForElement: async (params) => {
-  const { selector, timeout = 5000 } = params;
-  const startTime = Date.now();
+**Exports to global scope:**
+- `tools` object
 
-  return new Promise((resolve) => {
-    const checkInterval = setInterval(() => {
-      // Use same resolution as click/type/etc.
-      const element = querySelectorWithShadow(selector);
-      if (element || Date.now() - startTime > timeout) {
-        clearInterval(checkInterval);
-        resolve({
-          success: !!element,
-          found: !!element,
-          selector,
-          waitTime: Date.now() - startTime,
-          inShadowDOM: element ? isInShadowDOM(element) : false
-        });
-      }
-    }, 100);
-  });
-},
-```
+**Dependencies:**
+- `content-shared.js` (automationLogger, currentSessionId)
+- `content-cache.js` (elementCache, refMap -- for ref resolution in some tools)
+- `content-selectors.js` (querySelectorWithShadow -- used by nearly every tool for element lookup)
+- `content-readiness.js` (smartEnsureReady, ensureElementReady, captureActionState, verifyActionEffect, detectActionOutcome, actionRecorder, clipboardPasteHTML, markdownToHTML, isUniversalMessageInput, findAlternativeSelectors, waitForPageStability, clickAtCoordinates)
+- `content-overlays.js` (highlightManager -- used inside tools for visual feedback, but only via message handler, not directly from tools)
 
-**Specific function changes needed:**
-- `waitForElement` handler (content.js:6714): Use `querySelectorWithShadow()` instead of `document.querySelector()`
+**Internal cross-references within tools:**
+- `tools.typeWithKeys` is called by `tools.type` as a fallback
+- `tools.keyPress` is called by `tools.pressEnter`, and by several other tools
+- `tools.type` is called by `tools.selectOption` and `tools.toggleCheckbox` as fallback
 
-**Dependencies:** None. Trivial fix.
+**Why this boundary:** The tools object is the single largest coherent unit in the file
+(3,706 lines). It has a clear boundary: it starts with `const tools = {` and ends with
+`};`. Every entry is a self-contained async function that receives `params` and returns a
+result object. The tools object is the primary integration point -- the message handler
+dispatches to it by name (`tools[tool](params)`). Extracting it as a standalone file makes
+the action layer independently reviewable and testable.
 
 ---
 
-### Issue 7: Task Completion Detection Weaknesses
+### Module 7: `content-dom.js` (DOM Analysis + Snapshot + Message Routing)
 
-**Current Location:** `background.js:6178-6330` (completion validation) and the AI's `taskComplete: true` flag
+**Purpose:** DOM extraction pipeline, page context detection, element filtering/scoring,
+compact snapshot generation, site explorer, message handlers, and lifecycle management.
 
-**What happens:** Task completion is currently a multi-layer check:
+**Lines migrated:** ~2,300 lines (lines 9904-13429, minus what was already extracted)
 
-1. **AI decides** -- sets `taskComplete: true` in JSON response
-2. **Result length check** -- blocks if `aiResponse.result.trim().length < 10` (line 6181)
-3. **Critical action failure check** -- blocks if recent type/click actions failed (line 6186-6250)
-4. **Messaging task special case** -- more lenient for messaging with specific heuristics (line 6192-6228)
-5. **Page stability gate** -- waits for DOM stable + network quiet (line 6264-6290)
+**Owns:**
+- **Element analysis:** `inferElementPurpose`, `getRelationshipContext`, `generateElementDescription`, `getColorName`, `getElementCluster`, `getVisualProperties`
+- **DOM operations:** `prioritizeElements`, `diffDOM`, `extractRelevantHTML`, duplicate `generateSelector` (line 10759 -- should be removed in favor of selectors module)
+- **Page context:** `detectPageContext`, `detectSearchNoResults`, `extractErrorMessages`, `isElementVisible`, `detectCompletionSignals`, `inferPageIntent`
+- **E-commerce:** `extractEcommerceProducts`
+- **Filtered elements:** `calculateElementScore`, `getFilteredElements`
+- **Compact snapshot:** `generateCompactSnapshot`
+- **Optimized serializer:** `OptimizedDOMSerializer` class
+- **Main DOM function:** `getStructuredDOM`
+- **Message handlers:** `handleAsyncMessage`, `handleBackgroundMessage`
+- **Registration:** `chrome.runtime.onMessage.addListener(handleBackgroundMessage)`
+- **Site explorer:** `collectExplorerData` and 7 explorer helper functions
+- **Direct login:** `executeDirectLogin`
+- **Global observer:** `isSignificantMutation`, global MutationObserver setup
+- **Background connection:** `establishBackgroundConnection`, port management, reconnect
+- **SPA detection:** History API patching for Google
+- **Initialization:** `elementCache.initialize()`, logging
 
-Weaknesses identified:
-- The AI's decision is the primary signal, with background.js only providing negative overrides
-- No positive validation: background.js never checks if the task's goal was actually achieved
-- Messaging task detection uses keyword matching (`task.toLowerCase().includes('message')`) which is fragile
-- The critical failure check uses a fixed window of last 10 actions, not correlated with the task's objective
-- Page stability gate proceeds even if unstable (line 6282-6289: "not fully stable, proceeding anyway")
+**Exports to global scope:**
+- All of the above
 
-**Where the fix belongs:** Primarily `background.js:6178-6330`, with supporting signals from `content.js`
+**Dependencies:**
+- `content-shared.js` (all shared state)
+- `content-cache.js` (domStateManager, elementCache, refMap)
+- `content-overlays.js` (highlightManager, progressOverlay, viewportGlow, actionGlowOverlay, elementInspector)
+- `content-selectors.js` (generateSelectors, querySelectorWithShadow, computeAccessibleName, getImplicitRole, etc.)
+- `content-readiness.js` (waitForPageStability, detectActionOutcome, captureActionState)
+- `content-tools.js` (tools object -- dispatched by message handler)
 
-**Recommended approach -- Task-type-aware completion verification:**
+**Why this boundary:** This is the "orchestration" layer. It assembles DOM snapshots using
+selectors, readiness info, and element analysis. It contains the message router that
+dispatches incoming Chrome messages to the appropriate handler. It handles lifecycle
+(connection management, observer setup, cleanup). It is loaded last because it depends on
+everything else.
 
-Rather than a single monolithic check, decompose into task-type-specific validators:
+---
 
-```javascript
-// background.js: after aiResponse.taskComplete = true
+## Manifest.json Configuration
 
-async function validateCompletion(session, aiResponse) {
-  const taskType = classifyTask(session.task); // search, navigate, form, message, extract, etc.
-
-  const validators = {
-    search: () => {
-      // Did we navigate away from search results?
-      // Does the result contain specific data (not just "found it")?
-      return aiResponse.result.length > 30 &&
-             !session.lastUrl.includes('google.com/search');
-    },
-    form: () => {
-      // Was the form submitted? Check for URL change or success message
-      const pageState = session.lastDOMState?.pageContext?.pageState;
-      return pageState?.hasSuccess || session.urlChanged;
-    },
-    message: () => {
-      // Request content.js to verify message was sent
-      const verification = await sendMessageWithRetry(session.tabId, {
-        action: 'verifyMessageSent',
-        params: { messageText: extractMessageFromTask(session.task) }
-      });
-      return verification?.success;
-    },
-    extract: () => {
-      // Does the result contain extracted data?
-      return aiResponse.result.length > 50;
+```json
+{
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "automation-logger.js",
+        "content-shared.js",
+        "content-cache.js",
+        "content-selectors.js",
+        "content-readiness.js",
+        "content-overlays.js",
+        "content-tools.js",
+        "content-dom.js"
+      ],
+      "run_at": "document_idle"
     }
-  };
-
-  const validator = validators[taskType] || (() => true);
-  return validator();
+  ]
 }
 ```
 
-**Specific function changes needed:**
-- Add `classifyTask()` function (background.js or ai-integration.js): Map task strings to types
-- Restructure completion validation block (background.js:6178-6330): Use task-type validators
-- Add `verifyCompletion` content.js message handler: Page-state checks (success messages, form submission, etc.)
-- The existing `verifyMessageSent` handler (content.js:6736) is already built but underused
+**Load order rationale:**
 
-**Dependencies:** Benefits from Issue 2 (better DOM change detection improves completion signals) and Issue 3 (better memory means the AI makes better taskComplete decisions).
+1. `automation-logger.js` -- Already loaded first (sets `window.automationLogger`)
+2. `content-shared.js` -- Foundation: guard, logger fallback, utilities, all state declarations
+3. `content-cache.js` -- DOMStateManager, ElementCache, RefMap (needed by selectors)
+4. `content-selectors.js` -- querySelectorWithShadow (needed by readiness, tools, overlays)
+5. `content-readiness.js` -- smartEnsureReady, verification (needed by tools)
+6. `content-overlays.js` -- Visual classes (needed by dom/message handler). Loaded after
+   selectors because ElementInspector calls `generateSelectors()`.
+7. `content-tools.js` -- The tools object (needs selectors + readiness)
+8. `content-dom.js` -- Message handler, DOM extraction, initialization (needs everything)
+
+**Note on overlay ordering:** `content-overlays.js` could also load before
+`content-readiness.js` since its dependency on selectors is the binding constraint, not
+readiness. However, placing it after readiness keeps the "data processing" modules together
+before the "output" modules (overlays, tools, dom).
 
 ---
 
-### Issue 8: Progress Tracking and No-Progress Hard Stop
+## Dependency Graph (Post-Modularization)
 
-**Current Location:** `background.js:6010-6060` (progress tracking) and `background.js:6053-6060` (6-iteration hard stop)
-
-**What happens:**
-```javascript
-const madeProgress =
-  (iterationStats.domChanged && iterationStats.actionsSucceeded > 0) ||
-  iterationStats.urlChanged ||
-  iterationStats.hadEffect ||
-  iterationStats.hadNavigation;
+```
+automation-logger.js  (external, already separate)
+        |
+content-shared.js     (utilities, state declarations, re-injection guard)
+        |
+content-cache.js      (DOMStateManager, ElementCache, RefMap)
+        |
+content-selectors.js  (querySelectorWithShadow, generateSelectors, accessibility)
+        |
+content-readiness.js  (element readiness, verification, text processing)
+        |
+content-overlays.js   (Shadow DOM overlays, inspector)
+        |
+content-tools.js      (31 action handlers in tools{})
+        |
+content-dom.js        (DOM extraction, message routing, lifecycle)
 ```
 
-Then at line 6053:
+**Direction:** Strictly top-to-bottom. No file depends on a file loaded after it.
+No circular dependencies.
+
+The one near-exception is `content-overlays.js` referencing `generateSelectors` from
+`content-selectors.js` (loaded earlier, so OK) and `content-dom.js` referencing overlay
+singletons. This is a clean one-way dependency.
+
+---
+
+## Detailed Function-to-Module Assignment
+
+### content-shared.js
+
+```
+GUARD:     window.__FSB_CONTENT_SCRIPT_LOADED__
+STATE:     automationLogger (fallback), currentSessionId, previousDOMState,
+           domStateCache, lastActionStatusText, _overlayWatchdogTimer,
+           lastNotificationTime, accumulatedChanges, significantChangeTimeout,
+           backgroundPort, reconnectAttempts, MAX_RECONNECT_ATTEMPTS,
+           isInIframe, frameId, frameContext
+CONST:     FSB_HOST_IDS
+FUNCTIONS: getClassName, stripUnicodeControl, findElementByNormalizedAriaLabel,
+           shallowEqual, isFsbElement
+```
+
+### content-cache.js
+
+```
+CLASSES:   DOMStateManager, ElementCache, RefMap
+SINGLETONS: domStateManager, elementCache, refMap
+FUNCTIONS: checkDocumentReady, getElementIndexes, invalidateElementIndexes
+STATE:     _elementIndexes, _elementIndexTimestamp
+```
+
+### content-selectors.js
+
+```
+FUNCTIONS: sanitizeSelector, querySelectorWithShadow, resolveRef,
+           querySelectorAllWithShadow, getInputRole, getImplicitRole,
+           computeAccessibleName, getARIARelationships, isElementActionable,
+           isClickable, hashElement, isInViewport, isElementInViewport,
+           slugify, generateSemanticElementId, validateSelectorUniqueness,
+           validateXPathUniqueness, isAutoGeneratedId, filterDynamicClasses,
+           generateSelectors, generateSelectorsForAction, isInShadowDOM,
+           getShadowPath, generateBasicSelector
+```
+
+### content-readiness.js
+
+```
+FUNCTIONS: isCanvasBasedEditor, hasMarkdownFormatting, markdownToHTML,
+           applyInlineFormatting, clipboardPasteHTML, stripMarkdown,
+           isUniversalMessageInput, generateMessagingSelectors,
+           findAlternativeSelectors, checkElementVisibility,
+           checkElementEnabled, checkElementStable, detectCodeEditor,
+           checkElementReceivesEvents, checkElementEditable,
+           scrollIntoViewIfNeeded, performQuickReadinessCheck,
+           smartEnsureReady, ensureElementReady, waitForActionable,
+           validateCoordinates, ensureCoordinatesVisible, clickAtCoordinates,
+           captureActionState, detectChanges, verifyActionEffect,
+           generateDiagnostic, captureElementDetails, detectActionOutcome,
+           waitForPageStability
+CLASSES:   ActionRecorder
+SINGLETONS: actionRecorder
+CONST:     EXPECTED_EFFECTS, DIAGNOSTIC_MESSAGES
+```
+
+### content-overlays.js
+
+```
+FUNCTIONS: promoteToTopLayer, demoteFromTopLayer
+CLASSES:   HighlightManager, ProgressOverlay, ViewportGlow,
+           ActionGlowOverlay, ElementInspector
+SINGLETONS: highlightManager, progressOverlay, viewportGlow,
+            actionGlowOverlay, elementInspector
+EVENT:     Ctrl+Shift+E keyboard shortcut
+EVENT:     beforeunload cleanup handler
+```
+
+### content-tools.js
+
+```
+OBJECT:    tools (containing 31 action handler functions)
+           - scroll, scrollToTop, scrollToBottom, scrollToElement
+           - click, clickSearchResult
+           - type, typeWithKeys, pressEnter, keyPress, clearInput
+           - selectOption, toggleCheckbox, selectText
+           - navigate, searchGoogle, refresh, goBack, goForward
+           - focus, blur, hover
+           - rightClick, doubleClick, moveMouse
+           - waitForElement, waitForDOMStable, detectLoadingState
+           - getText, getAttribute, setAttribute
+           - solveCaptcha
+```
+
+### content-dom.js
+
+```
+FUNCTIONS: inferElementPurpose, getRelationshipContext,
+           generateElementDescription, getColorName, getElementCluster,
+           getVisualProperties, prioritizeElements, diffDOM,
+           extractRelevantHTML, detectPageContext, detectSearchNoResults,
+           extractErrorMessages, isElementVisible, detectCompletionSignals,
+           inferPageIntent, extractEcommerceProducts, calculateElementScore,
+           getFilteredElements, generateCompactSnapshot, getStructuredDOM,
+           handleAsyncMessage, handleBackgroundMessage,
+           collectExplorerData, explorerBuildSelector,
+           explorerExtractNavigation, explorerExtractHeadings,
+           explorerDetectLayout, explorerExtractInternalLinks,
+           explorerDetectLoadingPatterns, explorerExtractKeySelectors,
+           executeDirectLogin, isSignificantMutation,
+           getFrameAwareSelector, collectChildFramesDom,
+           establishBackgroundConnection
+CLASSES:   OptimizedDOMSerializer
+SETUP:     chrome.runtime.onMessage.addListener(handleBackgroundMessage)
+           Global MutationObserver for domChanged notifications
+           elementCache.initialize()
+           History API patching (Google SPA detection)
+           window.addEventListener('message', ...) for iframe comms
+           establishBackgroundConnection()
+```
+
+---
+
+## Re-Injection Guard Strategy
+
+The current code wraps everything in:
 ```javascript
-if (session.consecutiveNoProgressCount >= 6) {
-  // Hard stop: "No progress detected for 6 consecutive iterations"
+if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
+  // skip
+} else {
+  window.__FSB_CONTENT_SCRIPT_LOADED__ = true;
+  // ... all 13K lines ...
 }
 ```
 
-The progress definition is too narrow. DOM hash not changing (Issue 2) causes false no-progress signals. And the 6-iteration hard stop does not consider whether the task is close to completion.
+**For multi-file split, two approaches:**
 
-**Where the fix belongs:** `background.js:6010-6060`
+### Approach A: Guard in shared, IIFE in each file (RECOMMENDED)
 
-**Recommended approach:** Integrate with improved DOM hash (Issue 2) change signals and session memory (Issue 3) progress tracking.
+`content-shared.js` sets the guard. Other files check it individually:
 
-**Dependencies:** Directly depends on Issue 2 (DOM hash) and Issue 3 (memory).
+```javascript
+// content-shared.js
+if (window.__FSB_CONTENT_SCRIPT_LOADED__) { /* skip */ } else {
+  window.__FSB_CONTENT_SCRIPT_LOADED__ = true;
+  // ... shared state and utilities ...
+}
+
+// content-cache.js
+if (!window.__FSB_CONTENT_SCRIPT_LOADED__) { /* guard not set, skip */ } else
+if (window.__FSB_CACHE_LOADED__) { /* already loaded */ } else {
+  window.__FSB_CACHE_LOADED__ = true;
+  // ... cache classes ...
+}
+```
+
+**Pro:** Each file is independently guarded. Re-injection of any subset is safe.
+**Con:** Slightly more boilerplate.
+
+### Approach B: Single guard in shared, all files trust load order
+
+Only `content-shared.js` has the guard. Other files execute unconditionally. If the
+guard triggers (re-injection), Chrome won't re-execute the other files because the
+manifest-declared content scripts are only injected once per page load for static
+declarations.
+
+**Pro:** Simpler code.
+**Con:** If `chrome.scripting.executeScript` is used to programmatically re-inject,
+individual files have no protection.
+
+**Recommendation:** Use Approach A. The ~2 lines of guard per file is negligible overhead
+and provides defense-in-depth against re-injection via `chrome.scripting.executeScript`,
+which FSB does use.
 
 ---
 
-## New vs Modified Components
+## Extraction Order (Phase Sequencing)
 
-### Modified Components (No New Files)
+Extract modules in order of coupling (least coupled first). Each extraction should be
+a self-contained, testable change.
 
-| File | Function | Change Type | Issue |
-|------|----------|-------------|-------|
-| `ai-integration.js` | `buildPrompt()` :1318 | Restructure prompt budget allocation | #1 |
-| `ai-integration.js` | `formatElements()` :2069 | Add budget parameter | #1 |
-| `ai-integration.js` | `formatHTMLContext()` :2172 | Add budget parameter | #1 |
-| `ai-integration.js` | `buildMinimalUpdate()` :340 | Budget-based element selection, memory context | #1, #3 |
-| `ai-integration.js` | HARD_PROMPT_CAP :1898 | Increase from 5000 to ~15000 | #1 |
-| `ai-integration.js` | `updateSessionMemory()` :629 | Richer extraction | #3 |
-| `ai-integration.js` | `describeAction()` :697 | Include target element context | #3 |
-| `ai-integration.js` | `triggerCompaction()` :715 | Retry + local fallback | #3 |
-| `ai-integration.js` | `buildMemoryContext()` :787 | More structured output | #3 |
-| `background.js` | `createDOMHash()` :4494 | Multi-signal hash | #2 |
-| `background.js` | Stuck detection :5073-5123 | Use change signals | #2 |
-| `background.js` | Context object :5376-5401 | Pass change signals, richer metadata | #2, #3 |
-| `background.js` | Completion validation :6178-6330 | Task-type validators | #7 |
-| `background.js` | Progress tracking :6010-6060 | Integrate with new signals | #8 |
-| `content.js` | `isElementInViewport()` :8467 | Overlap-based check | #5 |
-| `content.js` | CAPTCHA detection :10098-10100 | Visibility-gated | #4 |
-| `content.js` | Element CAPTCHA :10740-10746 | Add size/visibility check | #4 |
-| `content.js` | `waitForElement` :6714 | Use querySelectorWithShadow | #6 |
+### Phase 1: `content-overlays.js` (LEAST COUPLED)
 
-### Potentially New Components
+**Rationale:** Visual overlays are pure output. They depend on shared state (logger,
+host IDs) and selector generation, but nothing depends on their internals except the
+message handler (which references them by singleton name). Extracting overlays first
+removes ~1,400 lines with zero risk to the automation loop.
 
-| Component | Purpose | Rationale |
-|-----------|---------|-----------|
-| `promptBudgetAllocator` (in ai-integration.js) | Budget allocation logic for prompt sections | Could be a method on AIIntegration or a standalone utility function. Not a separate file -- just a new method. |
-| `taskClassifier` (in background.js or ai-integration.js) | Classify task type for completion validation | Small utility function, not a separate file. |
+**Verification:** After extraction, all visual feedback (progress bar, viewport glow,
+action glow, element highlighting, inspector) should work identically. Test by running
+an automation task and visually confirming overlays appear and disappear correctly.
 
-### No New Files Needed
+### Phase 2: `content-selectors.js`
 
-All changes are modifications to existing functions in the three core files. The architecture does not need new modules or message channels. The existing `chrome.tabs.sendMessage` / `chrome.runtime.onMessage` communication pattern is sufficient for all proposed changes.
+**Rationale:** Selector generation depends only on shared utilities and element cache.
+It is consumed by tools, readiness, dom, and overlays (inspector). Extracting it next
+validates that the shared scope pattern works correctly for widely-consumed functions.
 
----
+**Verification:** Run automation tasks and confirm elements are found correctly. The
+`querySelectorWithShadow` function is the single most critical function for the entire
+system.
 
-## Suggested Build Order
+### Phase 3: `content-cache.js`
 
-### Phase 1: Foundation -- DOM Visibility and Signal Accuracy (Issues 4, 5, 6)
+**Rationale:** DOMStateManager, ElementCache, and RefMap are consumed by selectors (already
+extracted) and by the DOM module. Extracting cache after selectors means we can verify the
+two modules interact correctly through shared scope.
 
-**Rationale:** These are small, independent, zero-risk fixes that immediately improve signal quality for everything else. They have no dependencies on each other and no dependencies on other issues.
+**Verification:** Confirm element caching, mutation-based invalidation, and compact
+reference resolution work. Test with rapid DOM changes (SPA navigation).
 
-| Fix | Effort | Risk | Impact |
-|-----|--------|------|--------|
-| #5: `isElementInViewport()` overlap fix | 30 min | Very low | Correct viewport classification |
-| #4: CAPTCHA visibility gate | 45 min | Very low | Eliminate false CAPTCHA warnings |
-| #6: `waitForElement` shadow DOM | 15 min | Very low | Consistent element resolution |
+### Phase 4: `content-readiness.js`
 
-**Build order within phase:** Any order. All three can be done in parallel.
+**Rationale:** Readiness checks depend on selectors (already extracted) and are consumed by
+tools (not yet extracted). Extracting readiness before tools validates the readiness
+functions work correctly in isolation before the tools layer uses them.
 
-**Testing:** Run automation on Gmail (split-pane), a site with Cloudflare (silent turnstile), and a site with Shadow DOM components.
+**Verification:** Run click/type actions on various pages. Confirm elements pass readiness
+checks. Confirm action verification reports correct outcomes.
 
-### Phase 2: Core Pipeline -- DOM Serialization (Issue 1)
+### Phase 5: `content-tools.js`
 
-**Rationale:** This is the highest-impact single change. The AI literally cannot act on information it never receives. Every downstream improvement (better memory, better completion detection, better stuck detection) benefits from the AI receiving more complete DOM information.
+**Rationale:** The tools object depends on selectors, readiness, and cache (all extracted).
+It is the largest single extraction (~3,700 lines). With all dependencies already
+validated, this extraction is lower risk despite its size.
 
-| Fix | Effort | Risk | Impact |
-|-----|--------|------|--------|
-| #1: Prompt budget allocator | 2-3 hours | Medium | 3-4x more DOM data reaches AI |
-| #1: HARD_PROMPT_CAP increase | 5 min | Low | Immediate capacity increase |
-| #1: formatElements budget | 1 hour | Low | Elements prioritized over HTML context |
-| #1: formatHTMLContext budget | 1 hour | Low | HTML context bounded properly |
+**Verification:** Execute every tool type (click, type, scroll, navigate, etc.) and
+confirm behavior is identical. Pay special attention to internal cross-calls
+(`tools.typeWithKeys` from `tools.type`, `tools.keyPress` from `tools.pressEnter`).
 
-**Build order within phase:**
-1. Increase HARD_PROMPT_CAP first (immediate gain, 5 min)
-2. Add budget parameters to formatElements/formatHTMLContext
-3. Restructure buildPrompt() to use budget allocator
+### Phase 6: `content-shared.js` + `content-dom.js` (FINAL)
 
-**Risk mitigation:** The HARD_PROMPT_CAP increase could cause longer AI response times and higher token costs. Monitor `logTiming` for AI response time regression. Consider making the cap configurable in options.
+**Rationale:** These two are extracted together in the final phase because they are the
+bookends. `content-shared.js` is pulled out of the remaining monolith (which at this
+point only contains shared state declarations, DOM analysis, message routing, and
+lifecycle). `content-dom.js` is what remains after shared state is extracted.
 
-**Testing:** Compare prompt contents before/after on the same page. Verify AI receives structured elements that were previously truncated.
-
-### Phase 3: Intelligence -- DOM Change Detection (Issue 2)
-
-**Rationale:** With Phase 1 fixing viewport classification and Phase 2 ensuring the AI sees the DOM, we can now improve the change detection that feeds stuck detection and progress tracking. This is the bridge between "seeing the page" and "understanding what changed."
-
-| Fix | Effort | Risk | Impact |
-|-----|--------|------|--------|
-| #2: Multi-signal hash | 1-2 hours | Low | Detect content/state changes |
-| #2: Structured change descriptor | 1 hour | Low | Rich change signals for AI |
-| #2: Stuck detection integration | 1 hour | Medium | Fewer false stuck detections |
-
-**Build order within phase:**
-1. Implement multi-signal hash (standalone function change)
-2. Add structured change descriptor to context
-3. Update stuck detection to use new signals
-4. Update `buildMinimalUpdate()` to show change signals
-
-**Risk mitigation:** The new hash will produce different stuck detection behavior. Run both old and new hash in parallel for a few sessions, logging both, to verify the new one catches real stuck states while reducing false positives.
-
-**Testing:** Use a page with dynamic content (e.g., chat messages arriving, form validation messages) and verify domChanged correctly detects content changes that the old hash missed.
-
-### Phase 4: Memory -- Conversation History (Issue 3)
-
-**Rationale:** With the AI now seeing more DOM data (Phase 2) and detecting changes accurately (Phase 3), improving memory ensures the AI retains this richer context across iterations. This phase turns short-term perception improvements into long-term operational capability.
-
-| Fix | Effort | Risk | Impact |
-|-----|--------|------|--------|
-| #3: Richer session memory extraction | 2 hours | Low | Better step tracking |
-| #3: Improved describeAction | 1 hour | Low | Human-readable action descriptions |
-| #3: Compaction retry + fallback | 1 hour | Low | Resilient memory compression |
-| #3: Enhanced buildMemoryContext | 1 hour | Low | More structured context injection |
-
-**Build order within phase:**
-1. Fix `describeAction()` to include element context (quick win)
-2. Enhance `updateSessionMemory()` for comprehensive tracking
-3. Add compaction retry + local fallback
-4. Restructure `buildMemoryContext()` output
-
-**Testing:** Run a multi-step task (e.g., "search for X, go to the first result, find Y, come back and search for Z") and verify memory context at iteration 8+ contains meaningful operational history.
-
-### Phase 5: Judgment -- Task Completion and Progress (Issues 7, 8)
-
-**Rationale:** This is the capstone. With better DOM data, better change detection, and better memory, the system can now make better completion and progress decisions. Building this last means it can leverage all prior improvements.
-
-| Fix | Effort | Risk | Impact |
-|-----|--------|------|--------|
-| #7: Task classifier | 1 hour | Low | Foundation for type-specific validation |
-| #7: Type-specific completion validators | 2-3 hours | Medium | Accurate completion detection |
-| #8: Enhanced progress tracking | 1-2 hours | Medium | Fewer false hard stops |
-
-**Build order within phase:**
-1. Implement task classifier (utility function)
-2. Build completion validators per task type
-3. Integrate with progress tracking
-
-**Risk mitigation:** Completion validators could block legitimate completions (false negatives). Add a configurable "strict completion" setting, defaulting to lenient mode initially.
-
-**Testing:** Run each task type (search, form, message, extraction) and verify both successful completion and correct blocking of premature completion.
+**Verification:** Full end-to-end automation tests. All message types
+(getDOM, getCompactDOM, executeAction, sessionStatus, healthCheck, etc.) must work.
 
 ---
 
-## Build Order Summary
+## Known Issues to Address During Extraction
 
-```
-Phase 1: Signal Accuracy (Issues 4, 5, 6)  ~2 hours
-  [No dependencies]
-  |
-Phase 2: DOM Serialization (Issue 1)  ~4 hours
-  [Benefits from Phase 1: correct viewport = more elements in budget]
-  |
-Phase 3: Change Detection (Issue 2)  ~3 hours
-  [Benefits from Phase 2: better elements in hash input]
-  |
-Phase 4: Memory (Issue 3)  ~5 hours
-  [Benefits from Phase 2+3: richer data to remember]
-  |
-Phase 5: Completion/Progress (Issues 7, 8)  ~5 hours
-  [Benefits from all prior phases]
-```
+### 1. Duplicate `generateSelector` Function
 
-Total estimated effort: ~19 hours of focused development.
+There are TWO functions named `generateSelector`:
+- Line 2986: Used by the selectors module (multi-strategy, advanced)
+- Line 10759: Used by `extractRelevantHTML` (simpler version)
 
----
+**Resolution:** Keep the advanced version in `content-selectors.js`. Rename the simple
+version to `generateSimpleHTMLSelector` and place it in `content-dom.js` (where
+`extractRelevantHTML` lives). Or better: have `extractRelevantHTML` call the advanced
+`generateSelectors` function and pick the first result.
 
-## Data Flow Changes
+### 2. Text Processing Location
 
-### Current Flow (Simplified)
+`markdownToHTML`, `clipboardPasteHTML`, `isUniversalMessageInput`, etc. could arguably
+belong in either readiness or tools. They are placed in readiness because:
+- They are pre-action preparation utilities, not actions themselves
+- The `type` tool calls them but does not own them
+- Moving them to tools would make tools depend on... itself (circular)
 
-```
-content.js: getStructuredDOM()
-  -> 50 elements + HTML context + page context + CAPTCHA flag
-  -> JSON message to background.js
+### 3. The `beforeunload` Handler
 
-background.js:
-  -> createDOMHash(structuredDOM)  // coarse hash
-  -> domChanged = hash !== lastHash  // boolean
-  -> context = { domChanged, isStuck, actionHistory, ... }
+The `beforeunload` handler references overlay singletons, DOMStateManager, and
+ElementCache. It is placed in `content-overlays.js` because its primary purpose is
+overlay cleanup. The cache cleanup lines (`domStateManager.mutationObserver.disconnect()`,
+`elementCache.observer.disconnect()`) reference objects from `content-cache.js`, which
+loads before overlays, so the references are valid.
 
-ai-integration.js:
-  -> buildPrompt(task, domState, context)  // 5K char cap truncates
-  -> OR buildMinimalUpdate(domState, context)  // 25 elements max
-  -> conversationHistory  // 4 turn pairs + compacted summary
-  -> AI call -> response -> updateConversationHistory + updateSessionMemory
-```
+### 4. Global MutationObserver Setup
 
-### Proposed Flow (Changes in **bold**)
+The global `MutationObserver` at line 13148 (for `domChanged` notifications) and the
+`elementCache.initialize()` call at line 13191 are initialization code that must run
+after all modules are loaded. They belong in `content-dom.js` as the final
+initialization sequence.
 
-```
-content.js: getStructuredDOM()
-  -> 50 elements + HTML context + page context + **visibility-gated CAPTCHA flag**
-  -> **isElementInViewport() uses overlap ratio (not strict bounds)**
-  -> JSON message to background.js
+### 5. Internal Tool Cross-Calls
 
-background.js:
-  -> **createDOMHash(structuredDOM)**  // **multi-signal hash**
-  -> **changeSignals = { structural, content, state, page }**
-  -> **domChanged = any signal changed**
-  -> context = { domChanged, **changeSignals**, isStuck, actionHistory, ... }
+Several tools call other tools internally:
+- `tools.type` calls `tools.typeWithKeys` as fallback
+- `tools.selectOption` calls `tools.type` as fallback
+- `tools.pressEnter` delegates to `tools.keyPress`
+- Multiple tools reference `tools.keyPress` for keyboard shortcuts
 
-ai-integration.js:
-  -> **budgetAllocator allocates char budgets to prompt sections**
-  -> buildPrompt(task, domState, context)  // **15K cap with priority allocation**
-  -> OR buildMinimalUpdate(domState, context)  // **budget-based, includes memory context**
-  -> conversationHistory  // **resilient compaction, richer session memory**
-  -> AI call -> response -> updateConversationHistory + **enhanced updateSessionMemory**
-
-background.js (post-AI):
-  -> **Task-type-specific completion validators**
-  -> **Enhanced progress tracking using changeSignals**
-```
+These are safe because they reference `tools.xxx` which is a self-referencing object
+property lookup, not a cross-file reference. As long as all tool handlers are in the
+same `tools` object, they work regardless of file location.
 
 ---
 
-## Risk Assessment
+## Size Breakdown (Estimated)
 
-| Change | Risk Level | Mitigation |
-|--------|-----------|------------|
-| HARD_PROMPT_CAP increase | Medium | Monitor AI response times and token costs. Make configurable. |
-| Multi-signal DOM hash | Medium | Run old + new in parallel, log both, compare stuck detection accuracy |
-| Completion validators | Medium | Default to lenient mode. Add override flag for strict validation. |
-| Viewport overlap ratio | Low | Threshold of 0.25 is conservative. Easy to adjust. |
-| CAPTCHA visibility gate | Low | Only tightens detection, reduces false positives. No new false negatives risk. |
-| waitForElement fix | Very low | Purely additive: uses same resolution as all other action handlers. |
-| Memory improvements | Low | All changes are additive (more data tracked). Existing behavior preserved as fallback. |
+| Module | Lines | Percentage | Classes | Functions |
+|--------|-------|------------|---------|-----------|
+| content-shared.js | ~300 | 2% | 0 | 5 |
+| content-cache.js | ~700 | 5% | 3 | 5 |
+| content-selectors.js | ~1,200 | 9% | 0 | 25 |
+| content-readiness.js | ~2,700 | 20% | 1 | 30 |
+| content-overlays.js | ~1,400 | 10% | 5 | 2 |
+| content-tools.js | ~3,700 | 28% | 0 | 31 |
+| content-dom.js | ~3,400 | 25% | 1 | 40+ |
+| **Total** | **~13,400** | **100%** | **10** | **138+** |
 
 ---
 
-## Integration Invariants (Do Not Break)
+## Anti-Patterns to Avoid
 
-These are critical behaviors that must be preserved across all changes:
+### 1. Do NOT use ES modules
 
-1. **Action execution path must not change:** `sendMessageWithRetry()` -> content.js action handler -> slimActionResult() -> actionHistory. All action handlers in content.js must continue to work exactly as they do now.
+Content scripts in Manifest V3 do not support `import`/`export` without a build system.
+The `"type": "module"` option exists only for `background.service_worker`, not for
+content scripts. All inter-file communication must go through the shared global scope.
 
-2. **Session cleanup must still work:** `cleanupSession()` (background.js) must still clear all state including any new tracking data.
+### 2. Do NOT create a generic "utils.js"
 
-3. **Multi-turn conversation format must remain compatible:** The `provider.sendRequest()` call expects `{ messages: [...] }` format. Changes to conversation history must preserve this format.
+The temptation is to have a `content-utils.js` catchall. This creates a "junk drawer"
+module with no cohesion. Every utility function in this codebase has a clear domain
+(selector generation, readiness checking, text processing). Place each in its domain
+module.
 
-4. **Content script message handler dispatch must not change:** The `chrome.runtime.onMessage` handler in content.js dispatches on `request.action`. New message types must be added to the existing switch/if chain.
+### 3. Do NOT split the tools object across files
 
-5. **Race condition protections must be preserved:** The `isSessionTerminating()` check at loop start (background.js:4646) and the `loopResolve?.()` pattern must remain intact.
+While individual tools are independent, the `tools` object must be a single literal for
+the message handler to dispatch to it via `tools[tool](params)`. Splitting tools into
+separate objects (e.g., `scrollTools`, `clickTools`) would require the message handler to
+check multiple registries, adding complexity for no benefit.
 
-6. **SECURITY: [PAGE_CONTENT] markers must continue to wrap all untrusted page content.** The prompt injection protection in `sanitizePageContent()` must continue to be applied to all element text flowing into prompts.
+### 4. Do NOT move message handlers before tools
+
+The message handler (`handleBackgroundMessage`) dispatches to `tools[tool]`. It MUST load
+after `content-tools.js`. Similarly, `handleAsyncMessage` references `getStructuredDOM`,
+`generateCompactSnapshot`, and visual overlay singletons. It must load last.
+
+### 5. Do NOT create circular dependencies
+
+The dependency graph must be strictly acyclic. If Module A needs Module B and Module B
+needs Module A, one of them must be restructured. The proposed architecture has no
+circular dependencies.
+
+---
+
+## Validation Checklist
+
+After each extraction phase, verify:
+
+- [ ] Extension loads without console errors on about:blank
+- [ ] Extension loads without console errors on a complex page (gmail.com, google docs)
+- [ ] `chrome.runtime.onMessage` handler responds to healthCheck
+- [ ] DOM extraction (getStructuredDOM) returns valid data
+- [ ] Compact snapshot (generateCompactSnapshot) returns valid data
+- [ ] Click tool finds and clicks elements correctly
+- [ ] Type tool enters text in input fields
+- [ ] Visual overlays (progress, viewport glow) appear during automation
+- [ ] Element inspector (Ctrl+Shift+E) works correctly
+- [ ] Page navigation does not cause orphaned overlays
+- [ ] Re-injection guard prevents duplicate initialization
+- [ ] Site explorer data collection works
 
 ---
 
 ## Sources
 
-All findings are based on direct source code analysis of:
-- `/Users/lakshmanturlapati/Documents/Codes/Extensions/FSB/background.js` (7299 lines)
-- `/Users/lakshmanturlapati/Documents/Codes/Extensions/FSB/content.js` (12140 lines)
-- `/Users/lakshmanturlapati/Documents/Codes/Extensions/FSB/ai/ai-integration.js` (3549 lines)
-
-Confidence: HIGH -- all claims verified against actual source code with line number references.
+- Direct analysis of `/Users/lakshmanturlapati/Documents/Codes/Extensions/FSB/content.js` (13,429 lines)
+- Direct analysis of `/Users/lakshmanturlapati/Documents/Codes/Extensions/FSB/manifest.json`
+- [Chrome Extensions: Content Scripts](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) -- confirmed shared execution context, load order
+- [Chrome Extensions: Manifest content_scripts](https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts) -- confirmed js array ordering
+- [MDN: content_scripts](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/content_scripts) -- cross-browser reference

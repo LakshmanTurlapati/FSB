@@ -1,54 +1,58 @@
-# Requirements: v9.1 Site Intelligence
+# Requirements: v9.3 Tech Debt Cleanup
 
-**Status:** Active
-**Created:** 2026-02-18
+**Defined:** 2026-02-21
+**Core Value:** Reliable single-attempt execution
 
-## Site Map Intelligence (Phase 2)
+## v9.3 Requirements
 
-### Pre-bundled Site Maps
+### Modularization
 
-- [x] **SM-01**: Ship curated site map JSON files in `site-maps/` directory for common sites (LinkedIn, Google, Amazon, etc.)
-- [x] **SM-02**: Load pre-bundled maps on demand via `chrome.runtime.getURL()` with in-memory caching
-- [x] **SM-03**: Pre-bundled maps take priority over recon-derived maps (curated > auto-generated)
+- [ ] **MOD-01**: content.js is split into logical modules with clear boundaries (DOM analysis, action execution, element utilities, visual feedback, etc.)
+- [ ] **MOD-02**: All existing message handlers and tool functions continue to work identically after modularization
+- [ ] **MOD-03**: Modules are loaded via manifest.json content_scripts array in correct dependency order
 
-### Local Site Map Converter (Tier 1)
+### Dead Code Removal
 
-- [x] **SM-04**: `sitemap-converter.js` transforms raw recon JSON into semantic memory with `category: 'site_map'`
-- [x] **SM-05**: Extracts page tree, forms, navigation structure, key selectors, link counts -- pure data transformation, no AI
-- [x] **SM-06**: "Save to Memory" button on each research result in options page (alongside View/Download/Delete)
-- [x] **SM-07**: Memory schema extended with `site_map` category in semantic memory typeData
+- [ ] **DEAD-01**: waitForActionable() function and all references removed from content.js
+- [ ] **DEAD-02**: No remaining unreachable or unused code paths related to waitForActionable
 
-### AI Refinement Pipeline (Tier 2)
+### Configuration
 
-- [x] **SM-08**: `sitemap-refiner.js` sends Tier 1 output + raw page data to user's configured AI model
-- [x] **SM-09**: AI produces workflow detection, navigation strategies, selector preferences, page purpose, site-specific tips
-- [x] **SM-10**: Single API call per site (not per page), merges AI insights into existing memory entry
-- [x] **SM-11**: Graceful fallback -- if AI refinement fails, Tier 1 result is kept
-- [x] **SM-12**: Memory tab shows "AI Enhanced" vs "Basic" badge on site map memories
+- [ ] **CFG-01**: ElementCache maxCacheSize is configurable via options page or config.js instead of hardcoded to 100
+- [ ] **CFG-02**: Default value remains 100 for backward compatibility
 
-### Settings Toggle
+### Bug Fixes
 
-- [x] **SM-13**: `autoRefineSiteMaps` toggle in Advanced Settings Performance Optimizations grid
-- [x] **SM-14**: Toggle is ON by default -- Tier 1 + Tier 2 run automatically on every save-to-memory
-- [x] **SM-15**: When OFF, only Tier 1 (local) runs
-- [x] **SM-16**: Manual "Refine with AI" button on unrefined site map memories in Memory tab
+- [ ] **FIX-01**: memory-extractor.js UniversalProvider constructor receives correct arguments so AI extraction runs when available
+- [ ] **FIX-02**: Local fallback still works when AI extraction genuinely fails
 
-### Side Panel Reconnaissance Integration
+## Out of Scope
 
-- [x] **SM-17**: On task failure (stuck type), side panel shows "Run Reconnaissance" button alongside existing Retry
-- [x] **SM-18**: Recon suggestion only when no existing site map memory exists for current domain
-- [x] **SM-19**: Side panel triggers Site Explorer on current domain, shows compact progress in chat
-- [x] **SM-20**: On recon completion, auto-runs Tier 1 + Tier 2 (if toggle ON), saves to memory, offers retry
-- [x] **SM-21**: Background `startExplorer` accepts `autoSaveToMemory: true` flag for side panel flow
+| Feature | Reason |
+|---------|--------|
+| content.js rewrite or architecture change | Modularization only -- extract existing code into files, do not restructure logic |
+| New features or capabilities | This is cleanup only, no new functionality |
+| Performance optimization | Separate concern, defer to future milestone |
 
-### AI Context Injection
+## Traceability
 
-- [x] **SM-22**: At task start, `buildPrompt` checks for site map (pre-bundled first, then memory) matching current domain
-- [x] **SM-23**: Inject site map as "SITE KNOWLEDGE" section in AI prompt, carved from memory budget
-- [x] **SM-24**: Prompt format includes: pages, navigation, workflows, tips, key selectors
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| MOD-01 | Phase 4 | Pending |
+| MOD-02 | Phase 4 | Pending |
+| MOD-03 | Phase 4 | Pending |
+| DEAD-01 | Phase 5 | Pending |
+| DEAD-02 | Phase 5 | Pending |
+| CFG-01 | Phase 5 | Pending |
+| CFG-02 | Phase 5 | Pending |
+| FIX-01 | Phase 6 | Pending |
+| FIX-02 | Phase 6 | Pending |
 
-### Out of Scope
+**Coverage:**
+- v9.3 requirements: 9 total
+- Mapped to phases: 9
+- Unmapped: 0
 
-- Visual tree/graph rendering of site maps (defer to future)
-- Automatic recon trigger without user consent
-- Cross-domain site map merging
+---
+*Requirements defined: 2026-02-21*
+*Last updated: 2026-02-21 after roadmap creation*

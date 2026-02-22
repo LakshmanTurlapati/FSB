@@ -53,6 +53,16 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Current state:** Shipped v0.9 Reliability Improvements. Mechanics are precise but the AI lacks situational awareness. Log analysis of a LinkedIn messaging task revealed 10 systemic issues: the AI can't detect task completion, loses 74% of DOM context to truncation, gets false CAPTCHA warnings, loses operational memory to aggressive compaction, and can't identify elements with truncated text. The next milestone focuses on giving the AI complete awareness of what's on the page and whether its actions worked. 43,283 lines of JavaScript across content.js, background.js, ai-integration.js, and UI files.
 
+## Current Milestone: v9.3 Tech Debt Cleanup
+
+**Goal:** Eliminate accumulated tech debt -- modularize the 13K-line content.js, remove dead code, make hardcoded values configurable, and fix constructor bugs.
+
+**Target items:**
+- content.js modularization (~13K lines into logical modules)
+- Remove waitForActionable() dead code (~80 lines)
+- Make ElementCache maxCacheSize configurable (currently hardcoded to 100)
+- Fix memory-extractor.js UniversalProvider constructor args (local fallback always runs)
+
 ## Current State: v9.0.2 Shipped
 
 **Shipped:** 2026-02-18. AI Situational Awareness milestone complete.
@@ -73,8 +83,6 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - waitForActionable() dead code (~80 lines) still present
 - ElementCache maxCacheSize hardcoded to 100
 - memory-extractor.js UniversalProvider constructor args wrong (local fallback always runs)
-
-**Next milestone:** Not yet planned. Run `/gsd:new-milestone` to start.
 
 ## Constraints
 
@@ -100,4 +108,4 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | Formatted clipboard paste for Google Docs | Convert markdown to HTML, paste via Clipboard API + CDP | Good -- rich formatting (tables, bold, lists) in canvas editors |
 
 ---
-*Last updated: 2026-02-18 after v9.0.2 milestone shipped*
+*Last updated: 2026-02-21 after v9.3 Tech Debt Cleanup milestone started*

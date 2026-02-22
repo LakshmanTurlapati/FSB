@@ -1,449 +1,296 @@
-# Domain Pitfalls: AI Situational Awareness for Browser Automation
+# Domain Pitfalls: Content Script Modularization & Tech Debt Cleanup
 
-**Domain:** Adding awareness features (completion detection, DOM serialization, memory, detection accuracy) to an existing working browser automation Chrome extension
-**Researched:** 2026-02-14
-**Confidence:** HIGH (based on direct codebase analysis + real session logs + domain research)
+**Domain:** Splitting a 13K-line Chrome Extension content script into modules without a build system
+**Researched:** 2026-02-21
+**Confidence:** HIGH (based on Chrome official docs, Chromium issue tracker, and direct codebase analysis)
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause regressions, duplicate actions, or data loss. These must be addressed in the implementation plan.
+Mistakes that cause the extension to stop working or require reverting the entire change.
 
 ---
 
-### Pitfall 1: Completion Detection Relies Solely on AI Self-Report
+### Pitfall 1: Inconsistent Injection File Arrays Across background.js
 
-**What goes wrong:** The AI says `taskComplete: true` based on its interpretation of the page state, but the task is not actually done. Current FSB has this exact problem: a LinkedIn message was sent successfully, but the AI did not recognize completion and sent it again. The existing validation in `background.js` lines 6178-6256 only checks for result string length (>10 chars) and recent action failure rates -- it never independently verifies the actual outcome.
+**What goes wrong:** After splitting content.js into multiple files, some `chrome.scripting.executeScript` calls in background.js include the full file list while others include only a subset. The extension loads correctly on the first injection but breaks on re-injection or new-tab injection because critical modules are missing.
 
-**Why it happens:** The AI operates on a DOM snapshot that is stale by the time it responds. It cannot see the real-time effect of its own actions. The current `capturePageState()` in `action-verification.js` compares before/after states for individual actions, but this data never feeds back into the completion decision. The AI's `taskComplete` flag is pure self-assessment with no grounding.
+**Why it happens:** FSB has 3 separate injection points in background.js:
+- Line 1636-1641: Primary injection in `ensureContentScriptInjected` (injects `['utils/automation-logger.js', 'content.js']`)
+- Line 8104-8106: New tab injection via setTimeout (injects only `['content.js']` -- already missing the logger)
+- Line 6204: Comment says "Content script is now injected via manifest.json content_scripts" (misleading -- it is actually programmatic)
+
+After modularization, 9+ files need to be injected. If even one call site uses a stale file list, content scripts load partially: the namespace exists but tools or the message handler are missing. The extension appears to work (healthCheck responds) but automation fails silently.
 
 **Consequences:**
-- Duplicate messages sent (observed in LinkedIn session)
-- False completions: AI claims done when nothing happened (e.g., send button click missed)
-- False incompletes: AI keeps iterating when the task succeeded 3 iterations ago
-- Users lose trust in the automation
+- Automation works on initial page load but fails after navigation
+- New tabs opened by automation have no tool registration
+- Error appears only as "Unknown tool" or null reference, not as a clear "file missing" error
+- Extremely difficult to debug because the failure depends on WHICH injection path was taken
 
 **Prevention:**
-1. Build a completion verification layer that runs AFTER the AI claims `taskComplete: true` but BEFORE reporting success to the user.
-2. Define task-type-specific success signals: messaging tasks check for "sent" confirmation elements; navigation tasks verify URL; form tasks check for success banners or URL change.
-3. Use the existing `comparePageStates()` infrastructure in `action-verification.js` -- it already tracks URL changes, new elements, and content changes. Wire this into the completion gate.
-4. For messaging tasks specifically: track the DOM state of the message compose area. If it disappears or resets after the send action, that is a strong completion signal independent of AI judgment.
+1. Create a single `CONTENT_SCRIPT_FILES` constant at the top of background.js that ALL injection points reference
+2. Add a module count verification in the message handler: on `healthCheck`, report how many modules loaded (e.g., `FSB.tools ? 'tools:ok' : 'tools:missing'`)
+3. Search background.js for ALL occurrences of `executeScript` and `content.js` before merging
+4. Add a comment at each injection site: `// SYNC: Uses CONTENT_SCRIPT_FILES -- do not hardcode file list`
 
-**Warning signs (detect early):**
-- AI marks `taskComplete` on the same iteration it performed the final action, without waiting to see the effect
-- `stuckCounter` reaches 4+ after a successful action (the repeated-success detector in lines 6101-6129 fires, meaning the AI kept going past a real completion)
-- Action history shows the same action (e.g., `click` on send button) repeated 2+ times with success
+**Detection:** After modularization, grep background.js for any remaining hardcoded `'content.js'` references. There should be zero.
 
-**Severity:** CRITICAL -- This is the #1 user-visible problem from the session log.
-**Feature area:** Task completion detection
+**Severity:** CRITICAL -- silent partial failure, hard to reproduce
 
 ---
 
-### Pitfall 2: DOM Serialization Changes Break the AI's Learned Understanding
+### Pitfall 2: Breaking the Re-Injection Guard with Multi-File Split
 
-**What goes wrong:** Changing the DOM payload format (element structure, field names, compression scheme, or truncation limits) silently invalidates the AI's ability to interpret the page. The AI was trained/prompted on a specific format. If you change `elementId` to `id`, rename `inViewport` to `visible`, change how selectors are formatted, or alter truncation lengths, the system prompt and continuation prompt still reference the old format. The AI generates actions against element identifiers that no longer exist in the payload.
+**What goes wrong:** The current re-injection guard wraps ALL 13,429 lines in a single `if/else` block. When splitting into multiple files, if the guard logic is not carefully replicated, re-injection either (a) double-initializes modules (duplicate event listeners, duplicate MutationObservers) or (b) skips initialization of new modules added after the first injection.
 
-**Why it happens:** FSB has multiple layers of DOM processing, each with its own format:
-- `content.js` line ~10570: Raw DOM traversal produces element objects with fields like `elementId`, `type`, `text`, `selectors`, `position.inViewport`
-- `DOMStateManager.generateOptimizedPayload()` in content.js lines 407-496: Transforms to delta/compact_full format with different field names (`compressed.inViewport`, `compressed.interactive`)
-- `AIIntegration.buildMinimalUpdate()` in ai-integration.js lines 340-513: Further reformats elements for the prompt with `formatElements()` and custom string building
-- `AIIntegration.formatElements()`: Yet another transform into a string representation
+**Why it happens:** The guard `window.__FSB_CONTENT_SCRIPT_LOADED__` is set in the first file. When `chrome.scripting.executeScript` is called again on the same tab (which FSB does -- see line 8104), the guard fires and skips initialization. But if new module files were added between injections, those modules also see the guard and skip. The result: modules that were NOT present in the first injection never initialize.
 
-Any change in one layer propagates unpredictably. The `compact_full` path (line 462-475) filters to `el.position?.inViewport` only and caps at 100 elements. The `delta` path includes added/removed/modified/unchanged. The AI sees completely different data depending on which path won the size comparison (line 489).
+The more dangerous case: if individual module files do NOT have guards and re-injection occurs, Chrome runtime listeners stack up. `chrome.runtime.onMessage.addListener(handleBackgroundMessage)` is called twice, meaning every message gets processed twice, causing duplicate actions.
 
 **Consequences:**
-- AI generates CSS selectors that reference elements not in its current view
-- AI cannot find elements it could previously find (the 74% DOM truncation problem from the session log)
-- Silent degradation: automation runs but accuracy drops from 85% to 30%
-- Debugging is extremely difficult because the prompt the AI actually receives differs from the raw DOM
+- Duplicate message handlers cause every action to execute twice (double clicks, double typing)
+- Or modules fail to initialize on tabs where content script was already partially loaded
+- MutationObserver attached twice causes performance degradation and duplicate `domChanged` notifications
 
 **Prevention:**
-1. Create a canonical DOM format specification document that all layers must conform to. Any change to this format requires updating the system prompt and continuation prompt simultaneously.
-2. Add a "DOM format version" field to every payload. The system prompt should reference which version it expects.
-3. When changing truncation limits or element budgets, A/B test with real tasks before deploying. The current 50-element budget with viewport-only mode (line 10571) caused the 74% truncation problem.
-4. Log the EXACT prompt sent to the AI (including formatted elements) at debug level, so you can see what the AI actually saw when it made a bad decision.
-5. Never change both the DOM format AND the prompt in the same commit. Change one, verify, then change the other.
+1. Use the recommended pattern: global guard in namespace file + per-module guards checking namespace properties
+2. Each module file checks `if (FSB.moduleName) return;` before registering
+3. The message handler specifically guards against double-registration: `if (FSB._messageHandlerRegistered) return;`
+4. Test re-injection explicitly: load extension, navigate, verify automation still works after re-injection
 
-**Warning signs (detect early):**
-- AI starts referencing `elementId` values that do not appear in the current DOM payload
-- Selector-based action failures increase after a DOM format change
-- The AI says "I cannot find any interactive elements" on pages that clearly have them
-- `compact_full` path starts winning over `delta` path consistently (indicates delta format is bloated)
+**Detection:** Open a tab, run automation, navigate to a new page (triggers re-injection), check console for "[FSB Content] automation-logger.js already loaded" messages. If multiple modules log "already loaded," guards are working.
 
-**Severity:** CRITICAL -- Format changes affect every single AI interaction.
-**Feature area:** DOM serialization / element visibility
+**Severity:** CRITICAL -- duplicate event handlers cause double actions, which is worse than no automation
 
 ---
 
-### Pitfall 3: Conversation History Compaction Destroys Critical Context
+### Pitfall 3: File Loading Order Mismatch Causes Undefined References
 
-**What goes wrong:** The conversation history compaction system (ai-integration.js lines 520-561, 715-781) aggressively truncates older turns, and the compacted summary loses task-critical details. The session log showed conversation history compacted to 27 characters -- the AI literally forgot what it had already done.
+**What goes wrong:** Module B references a function from Module A, but Module B is listed before Module A in the files array. Since content scripts execute sequentially, Module B runs first and the function is `undefined`. This causes a ReferenceError that crashes Module B's initialization, preventing its exports from registering on the namespace.
 
-**Why it happens:** Multiple compounding factors in the current implementation:
-1. `maxConversationTurns` is set to 4 (line 236), meaning only 4 turn pairs are kept raw. For a 20-iteration task, 80% of history is either compacted or lost.
-2. `compactionThreshold` is also 4 (line 248), triggering compaction early.
-3. The compaction prompt (lines 730-748) sends message content truncated to 500 chars each (`m.content.substring(0, 500)`). DOM snapshots and detailed action results are already thousands of characters -- truncating to 500 chars destroys them.
-4. `compactedSummary` is capped at 1500 chars (line 763). For a complex task, 1500 chars cannot capture which elements were interacted with, what text was typed, what URLs were visited.
-5. The `sessionMemory` object (lines 631-692) caps `stepsCompleted` at 15, `failedApproaches` at 8, `pagesVisited` at 10. These are reasonable individually but collectively may not capture a complex task.
-6. When compaction has not yet completed (async) and trim runs, it falls back to the old behavior of just keeping last N messages with NO summary (lines 552-559). This is the 27-character scenario.
+**Why it happens:** The dependency order is not enforced by any tooling. It is purely a matter of the array order in background.js (or manifest.json). During development, someone reorders the array for organizational reasons, or adds a new module at the wrong position, and the dependency chain breaks.
+
+Unlike ES modules where the dependency graph is explicit via `import` statements, classic scripts have implicit dependencies through global scope references. Nothing warns you at "compile time" that a dependency is unmet.
 
 **Consequences:**
-- AI repeats actions it already performed successfully (the LinkedIn duplicate message)
-- AI forgets what text it typed, what buttons it clicked, what page it was on
-- AI loses track of multi-step task progress (e.g., "fill form" -- forgets which fields are done)
-- Compaction API call fails silently, fallback trim runs, nearly all context is lost
+- Module fails silently (IIFE catches the error internally)
+- Downstream modules that depend on the failed module also fail
+- Cascading failure: one wrong ordering can break the entire content script
+- Error shows as `Cannot read properties of null (reading 'checkVisibility')` -- no indication which FILE caused the issue
 
 **Prevention:**
-1. Never trim conversation history without a completed compaction OR a populated sessionMemory. The current fallback (lines 552-559) that trims without any summary is the root cause. Guard this: if no compaction and no sessionMemory, keep more raw turns even if it means a larger prompt.
-2. Increase the compaction summary limit from 1500 to at least 3000 chars. The cost is ~1000 extra tokens per request, which is negligible compared to the cost of the AI repeating 3-5 iterations.
-3. Make the sessionMemory.stepsCompleted entries more descriptive. Currently `describeAction()` (lines 697-709) produces generic text like "clicked element" -- it should include the selector or element text so the AI knows WHICH element was clicked.
-4. Add a "hard facts" section to the memory context that is NEVER compacted: the original task, the target URL, critical element selectors already discovered, and whether the final action (send/submit/save) was executed.
-5. Log when compaction fallback triggers (the path at lines 552-559). This is a degraded state that should be visible in debug logs.
+1. Document dependencies in each module file's header comment
+2. Each module should check its dependencies and log a clear error: `if (!FSB.elements) console.error('[FSB dom-serializer] FATAL: element-utils not loaded. Check file ordering in CONTENT_SCRIPT_FILES');`
+3. Add the dependency graph as a comment next to the `CONTENT_SCRIPT_FILES` constant
+4. Consider a simple load-order validation: the namespace file assigns a load sequence number, each module increments it and verifies the expected sequence
 
-**Warning signs (detect early):**
-- `compactedSummary` length is under 200 chars (means compaction returned almost nothing)
-- `pendingCompaction` is null but `conversationHistory.length` exceeds `maxConversationTurns * 2 + 1` (compaction failed silently)
-- AI reasoning says "I need to check what has been done" or "Let me start by..." on iteration 8+
-- AI re-types text that was already successfully entered
+**Detection:** Check browser console on page load for any ReferenceError or "not loaded" messages from content script files.
 
-**Severity:** CRITICAL -- Memory loss causes all other awareness features to fail.
-**Feature area:** Memory preservation / conversation management
-
----
-
-### Pitfall 4: False CAPTCHA Detection on Sites That Use CAPTCHA-Like Selectors
-
-**What goes wrong:** The CAPTCHA detection in content.js (lines 10098-10100) uses CSS class name matching:
-```
-'.g-recaptcha, .h-captcha, .cf-turnstile, .captcha-container, .captcha-challenge, iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="challenges.cloudflare.com"]'
-```
-LinkedIn (and many other sites) load the reCAPTCHA JavaScript library preemptively for bot detection scoring, which injects an iframe with `src*="recaptcha"` even when no visible CAPTCHA challenge is presented. The element-level detection (lines 10740-10746) also matches on class substrings like `classNames.includes('recaptcha')`, which catches analytics/scoring elements.
-
-**Why it happens:** reCAPTCHA v3 (invisible scoring) and LinkedIn's security infrastructure load CAPTCHA-related DOM elements for risk assessment without ever showing a visual challenge. The current detection makes no distinction between "CAPTCHA infrastructure loaded" and "CAPTCHA challenge presented to user." The `captchaPresent` flag (line 10921) propagates to the AI prompt, which then wastes iterations trying to solve a non-existent CAPTCHA.
-
-**Consequences:**
-- Every LinkedIn page (and many other sites) falsely reports `captchaPresent: true`
-- AI prompt includes "WARNING: CAPTCHA detected on page" on every iteration
-- AI may attempt `solveCaptcha` tool on pages with no actual challenge, wasting 180 seconds (the CAPTCHA action timeout at line 11117)
-- The false signal adds noise to every AI decision
-
-**Prevention:**
-1. Distinguish between CAPTCHA infrastructure (reCAPTCHA v3 scoring script) and CAPTCHA challenge (visible widget with checkbox or image grid). Check visibility: `iframe[src*="recaptcha"]` is not a CAPTCHA challenge if the iframe has zero dimensions or is hidden.
-2. For iframe-based detection, verify the iframe is visible AND has meaningful dimensions (width > 50px, height > 50px). reCAPTCHA v3 scoring iframes are typically 0x0 or 1x1 pixels.
-3. For class-based detection (`.g-recaptcha`), verify the element has a `data-sitekey` attribute AND is visible. The reCAPTCHA v3 execute() call does not create visible `.g-recaptcha` elements.
-4. Add a confirmation step: after initial detection, verify with the `solveCaptcha` tool's own detection logic (lines 6493-6543) which already checks for sitekey extraction. If sitekey extraction fails, it is not a solvable CAPTCHA.
-5. Cache the CAPTCHA detection result per-page (per URL) to avoid re-detecting every iteration.
-
-**Warning signs (detect early):**
-- `captchaPresent: true` on every page of a site (should be rare, not universal)
-- `solveCaptcha` tool returns "No supported CAPTCHA found" after detection said one existed
-- AI reasoning mentions CAPTCHA on pages that clearly have no visual challenge
-
-**Severity:** CRITICAL -- False signal on every LinkedIn page pollutes every AI decision.
-**Feature area:** CAPTCHA detection accuracy
+**Severity:** CRITICAL -- cascading failure breaks all automation
 
 ---
 
 ## Moderate Pitfalls
 
-Mistakes that cause degraded performance, wasted iterations, or incorrect behavior in specific scenarios.
+Mistakes that cause bugs or regressions in specific scenarios but do not break the extension entirely.
 
 ---
 
-### Pitfall 5: Viewport Detection Fails on Split-Pane and Non-Standard Layouts
+### Pitfall 4: `const`/`let` Declarations Are Not Window Properties
 
-**What goes wrong:** The `isInViewportRect()` function (content.js line 10593-10598) checks:
-```javascript
-rect.bottom >= viewportRect.top &&    // 0
-rect.top <= viewportRect.bottom &&    // window.innerHeight
-rect.right >= viewportRect.left &&    // 0
-rect.left <= viewportRect.right       // window.innerWidth
-```
-This treats the full browser viewport as the visible area. But on split-pane layouts (LinkedIn messaging, Gmail with preview pane, Outlook), the FSB side panel itself occupies part of the viewport. Elements in the "main content" pane that are technically within `window.innerWidth` may be behind the side panel. Conversely, `window.innerWidth` reports the FULL window width including the side panel, so `viewportRect.right` is too large, and ALL elements in the left pane appear "in viewport" even if some are scrolled out of the pane's own scroll container.
+**What goes wrong:** After splitting, a developer expects that `const tools = { ... }` in `tools.js` is accessible as `window.tools` in `message-handler.js`. It is not. Top-level `const` and `let` declarations are accessible in the shared scope (via bare name `tools`) but are NOT properties of `window`. Code that checks `window.tools` or `typeof window.tools` will see `undefined`.
 
-**Why it happens:** `getBoundingClientRect()` returns coordinates relative to the browser viewport, not relative to a scroll container. On pages with multiple scroll containers (LinkedIn messaging has left panel + right panel, each independently scrollable), an element can be within the browser viewport but scrolled out of view within its container. The viewport check only considers `window.innerHeight` and `window.innerWidth`, not the element's containing scrollable ancestor.
+**Why it happens:** In JavaScript's strict mode and in Chrome's content script isolated world:
+- `var` declarations at the top level create properties on `window` (or the global object)
+- `const` and `let` declarations at the top level are in the script's scope but NOT on `window`
+- `function` declarations are hoisted and available globally
 
-Additionally, Chrome has documented bugs where `getBoundingClientRect()` returns incorrect values in extension content scripts, particularly related to scrollbar handling and zoom levels.
+The current content.js uses `const tools = { ... }` (line 5546), which works because everything is in the same file. After splitting, if `message-handler.js` references `tools` by bare name, it works because they share the same scope. But if anyone writes `window.tools` or destructures from `window`, it fails.
 
 **Consequences:**
-- Session log showed "all elements marked off-screen on split-pane layouts"
-- AI sees 0 interactive elements because everything is classified as "off-screen"
-- Or conversely, AI sees elements from a scrolled-out pane section as "in viewport" and tries to click them, failing because they are not actually visible
-- `compact_full` payload (line 462-466) filters by `el.position?.inViewport`, so if viewport detection is wrong, the ENTIRE payload is wrong
+- Subtle bug: code works when referencing `tools` directly but fails when using `window.tools`
+- DevTools console cannot access `const`/`let` variables from content scripts (they are not on `window`)
+- Any dynamic property lookup like `window[moduleName]` fails for `const`/`let` declarations
 
 **Prevention:**
-1. For viewport detection, check not just the browser viewport but also whether the element is within its nearest scrollable ancestor's visible area. Use `element.offsetParent` and check overflow properties on ancestor elements.
-2. Add scroll container awareness: detect major scroll containers on the page (elements with `overflow: auto/scroll` and actual scrollable content), and track each element's visibility within its container.
-3. Use `IntersectionObserver` as a more reliable alternative to manual `getBoundingClientRect()` comparisons. `IntersectionObserver` handles scroll containers and CSS transforms correctly.
-4. For the FSB side panel specifically: detect if the extension's own side panel is open and adjust the effective viewport width accordingly. The side panel width can be queried from the extension API.
-5. As a fallback, when 0 viewport elements are detected but total elements > 0, switch to a "relaxed viewport" mode that includes elements from the main content area regardless of precise viewport calculations.
+1. When using the `window.FSB` namespace pattern, attach all exports to the namespace object, not as bare `const`/`let` declarations
+2. For the transition period, if a module needs to be accessible from DevTools, explicitly assign: `window.FSB.tools = tools;`
+3. Do NOT mix patterns: either everything goes through `window.FSB` or everything is bare declarations. The namespace approach is recommended.
 
-**Warning signs (detect early):**
-- 0 viewport elements but total element count > 50
-- All or nearly all elements have `inViewport: false`
-- AI says "No interactive elements found" on pages that clearly have interactive content
-- The `viewportElements.length` vs `offscreenElements.length` ratio is abnormally low (< 0.1)
+**Detection:** Try accessing module exports from DevTools console. If `window.FSB.tools` works but `window.tools` does not, the namespace pattern is correctly isolating things.
 
-**Severity:** MODERATE (CRITICAL on specific sites like LinkedIn messaging, Gmail split view)
-**Feature area:** Viewport detection / DOM serialization
+**Severity:** MODERATE -- causes debugging confusion and breaks any code using `window.xxx` access patterns
 
 ---
 
-### Pitfall 6: MutationObserver Performance Regression on Heavy Pages
+### Pitfall 5: Dead Code Removal Breaks Undiscovered Internal Callers
 
-**What goes wrong:** Adding fine-grained DOM change detection via MutationObserver creates performance problems on complex pages. The current `DOMStateManager` in content.js (lines 147-581) observes `document.body` with `{ childList: true, attributes: true, subtree: true }`. On pages like Gmail, LinkedIn, or Twitter, this can fire thousands of mutation callbacks per second during normal page operation (animations, live updates, ad rotations).
+**What goes wrong:** A function appears to have zero callers (grep finds nothing), so it is removed during the modularization cleanup. Later, it turns out the function was called dynamically (via string-based lookup, computed property access, or by the AI's action response specifying a tool name).
 
-**Why it happens:** The `recordMutation()` method (lines 208-217) stores every mutation in `pendingMutations` array including `Array.from(mutation.addedNodes)` and `Array.from(mutation.removedNodes)`. On a Gmail inbox with 50 emails loading, this creates thousands of mutation records, each holding references to DOM nodes. The pending mutations are only cleared when `updateState()` runs (line 399), which only happens during `computeDiff()` calls. Between DOM snapshots, mutations accumulate without bound.
+**Why it happens:** FSB uses dynamic dispatch for tools: `tools[action.tool](params)`. The tool name comes from the AI response, not from a static call site in the code. Grepping for `tools.scrollToElement` finds zero results because it is called as `tools["scrollToElement"]` at runtime via the `action.tool` string.
 
-The current `attributeFilter` optimization (lines 195-201) helps but still tracks 20+ attributes across the entire subtree. On a page with 5000 elements, a CSS animation that changes `style` or `class` on multiple elements triggers cascading mutation callbacks.
+Similarly, some functions may be called from `background.js` via message passing. The function name appears only in the background script's message object, not as a direct call in the content script.
 
 **Consequences:**
-- Content script becomes sluggish, causing action execution delays
-- Memory grows unbounded between DOM snapshots as mutation records accumulate
-- `pendingMutations` array holds strong references to DOM nodes, preventing garbage collection
-- On very heavy pages, the browser may show jank or the content script may crash
+- Removing a "dead" tool function causes runtime errors when the AI tries to use that tool
+- Removing a message handler case breaks a specific background-to-content communication path
+- The failure only appears when the AI happens to choose that specific tool/action
 
 **Prevention:**
-1. Add a maximum size to `pendingMutations` (e.g., 500). When exceeded, flush old entries or switch to a "high-churn" mode that only tracks whether mutations occurred (boolean), not what specifically changed.
-2. Debounce mutation processing. Instead of recording every individual mutation, batch them: record that mutations occurred in a time window, and only enumerate details when a DOM snapshot is requested.
-3. Do not store `addedNodes` and `removedNodes` as arrays in the mutation record. These hold strong references to DOM nodes. Instead, extract only the information needed (tag name, id, class) and release the node references.
-4. Consider lazy initialization: only start the MutationObserver when an automation session is active, and disconnect it when the session ends. Currently the observer is initialized at content script load time.
-5. For the `DOMStateManager.hashElement()` function (lines 222-237): the hash includes `position.x` and `position.y` which change on scroll. This means scrolling invalidates the entire element cache, causing all elements to appear as "new" after every scroll. Use position relative to the document, not the viewport.
+1. NEVER remove tool functions from the `tools` object during modularization. All tools are "live" because the AI can invoke any of them.
+2. For non-tool functions, verify callers in ALL files (content.js, background.js, ai-integration.js), not just the file being modified
+3. Mark suspected dead code as `// SUSPECTED_DEAD_CODE: no callers found [date]` and leave it for one release cycle before removing
+4. Check message handler switch/case entries -- each `case` label represents a function that background.js calls
 
-**Warning signs (detect early):**
-- `pendingMutations.length` exceeds 1000 between snapshots
-- DOM snapshot takes > 500ms (the perf target is 200-500ms per CLAUDE.md)
-- Memory usage climbs steadily during a session without plateau
-- Scrolling causes massive `diff.added` counts because hash invalidation
+**Detection:** Run the extension with debug logging enabled. Any "Unknown tool" errors in the console indicate a removed function that was not actually dead.
 
-**Severity:** MODERATE -- affects heavy pages, may cause timeout failures
-**Feature area:** Change detection / DOM diffing
+**Severity:** MODERATE -- breaks specific automation scenarios that depend on the removed code
 
 ---
 
-### Pitfall 7: Element Hash Instability Causes False "New Element" Detection
+### Pitfall 6: Shadow DOM Overlay Initialization Timing
 
-**What goes wrong:** The `hashElement()` function in content.js (lines 222-237) creates hashes from:
-```javascript
-`${element.type}|${element.id || ''}|${element.class || ''}|${text}|${element.position?.x || 0},${element.position?.y || 0}`
-```
-Position (`x`, `y`) is included in the hash. When the user scrolls, every element's position changes (because `getBoundingClientRect()` returns viewport-relative coordinates). This means after any scroll action, the `computeDiff()` function (lines 285-355) will see every element as "new" because no hash matches the previous state. The entire DOM appears to have changed.
+**What goes wrong:** Visual overlay classes (HighlightManager, ProgressOverlay, ViewportGlow, etc.) create Shadow DOM elements during construction or on first `.show()` call. If the visual feedback module loads before `document.body` exists (e.g., when `injectImmediately: true` is used), Shadow DOM host creation fails silently because `document.body.appendChild()` throws.
 
-**Why it happens:** Position is included in the hash presumably to distinguish between multiple elements of the same type/class (e.g., multiple `<button>` elements with class "btn"). But viewport-relative position is the wrong dimension -- it changes on scroll, page resize, and even dynamic content insertion above the element.
+**Why it happens:** FSB uses `injectImmediately: true` in the primary injection (line 1640). This injects scripts before `document_idle`, potentially before `document.body` is available. The current monolithic content.js handles this with deferred initialization patterns, but when split into modules, the timing between module load and DOM readiness may change.
 
-The `isInViewport()` function (lines 8452-8463) also uses `scrollY`/`scrollX` in its calculation, coupling viewport membership to scroll position -- which is correct for viewport detection but compounds the hash instability problem.
+The overlay singletons are created at module load time (`const progressOverlay = new ProgressOverlay()`). If the constructor tries to create a Shadow DOM host element immediately, it needs `document.body`. If `document.body` is null at module load time, the singleton is in a broken state.
 
 **Consequences:**
-- After every scroll action, the delta diff shows all elements as "added" and all previous elements as "removed"
-- The `compact_full` path wins every size comparison after scroll because delta is enormous
-- AI receives a "full DOM changed" signal when nothing actually changed except scroll position
-- Token waste: full DOM payloads are larger than necessary deltas
-- AI may interpret massive DOM changes as "page navigated" and reset its understanding
+- No visual feedback during automation (no progress bar, no glow effects)
+- Error buried in console: "Cannot read properties of null (reading 'appendChild')"
+- Automation itself works, but user sees no visual indication of progress
 
 **Prevention:**
-1. Remove position from the element hash entirely. Use a combination of: `type`, `id`, `class`, `text` (first 20 chars), `nth-child index`, and parent element info. This produces stable hashes across scrolls.
-2. If position is needed for disambiguation, use document-relative position (`element.offsetTop`, `element.offsetLeft` relative to `document.body`) instead of viewport-relative position from `getBoundingClientRect()`.
-3. Add a "scroll-aware" mode to `computeDiff()` that detects when the primary change is scroll position (URL unchanged, element types unchanged) and skips full re-diffing.
-4. Track scroll events separately from DOM mutations. A scroll does not mean DOM changed.
+1. All overlay classes should use lazy initialization: create the Shadow DOM host on first `.show()` call, not in the constructor
+2. The existing `ProgressOverlay` already does this (creates host in `_createHost()`), but verify all 5 overlay classes follow this pattern
+3. Add a `document.body` existence check before any DOM insertion: `if (!document.body) return;`
+4. Test with `injectImmediately: true` on a slow-loading page
 
-**Warning signs (detect early):**
-- `diff.metadata.changeRatio` > 0.8 after a scroll action (nearly everything "changed")
-- `diff.added.length` approximately equals `diff.removed.length` approximately equals `diff.metadata.totalElements` (total churn)
-- `compact_full` path wins consistently after scroll actions
+**Detection:** Load the extension on about:blank, then navigate to a real page and trigger automation. Visual overlays should appear. If they do not, check console for DOM-related errors.
 
-**Severity:** MODERATE -- causes token waste and AI confusion after scroll, but does not break automation entirely
-**Feature area:** Change detection / DOM diffing
+**Severity:** MODERATE -- visual feedback broken, automation still works
 
 ---
 
-### Pitfall 8: Verification-Action Gap Allows Duplicate Side Effects
+### Pitfall 7: Duplicate `generateSelector` Function Causes Wrong Selector Usage
 
-**What goes wrong:** There is no verification step between performing a critical action (send message, submit form, confirm purchase) and proceeding to the next iteration. The AI types text, clicks send, and then in the NEXT iteration receives a new DOM snapshot. If the send was successful but the DOM snapshot is stale or ambiguous, the AI may try to send again. The current `action-verification.js` module verifies click effects but does not feed this verification into a "do not repeat" mechanism.
+**What goes wrong:** There are two functions named `generateSelector` in content.js -- one at line 2986 (advanced multi-strategy) and one at line 10759 (simpler version for `extractRelevantHTML`). After splitting into modules, one shadows the other depending on load order. Callers that expected the advanced version get the simple one, or vice versa.
 
-**Why it happens:** The automation loop in background.js executes actions, calls `smartWaitAfterAction()`, and then proceeds to the next iteration where the AI re-analyzes the page. The verification result from `verifyClickEffect()` is available but is not stored in a way the AI can reference. The `sessionMemory.stepsCompleted` tracks actions but in generic terms ("clicked element") that don't help the AI know "the send button was already clicked and the message was delivered."
+**Why it happens:** In a single file, JavaScript allows two `function` declarations with the same name. The second one wins (overwrites the first). After splitting into separate files, the behavior depends on which file loads last. If both files define `function generateSelector()`, the last-loaded one wins globally.
 
-The `MINIMAL_CONTINUATION_PROMPT` (line 184) includes rule #10: "Do NOT retry actions that already showed SUCCESS." But this relies on the action history being in the conversation context, which may have been compacted away (Pitfall 3).
+With the IIFE + namespace pattern, this is less of a problem (each IIFE has its own scope), but if backward-compatibility aliases are used (`window.generateSelector = ...`), one will overwrite the other.
 
 **Consequences:**
-- Duplicate messages sent on LinkedIn, Twitter, email
-- Duplicate form submissions (potentially ordering items twice)
-- Duplicate comments posted
-- Users experience the worst possible outcome: the AI "worked" but did something harmful
+- `extractRelevantHTML` uses the wrong selector generation strategy, producing incorrect selectors
+- Or DOM snapshot generation uses the simplified version, reducing selector quality
+- Subtle accuracy degradation that is hard to trace to a duplicate function name
 
 **Prevention:**
-1. Implement a "critical action registry" that records irrevocable actions (send, submit, purchase, delete, post) with their verification results. This registry persists across iterations and is ALWAYS included in the AI prompt, exempt from compaction.
-2. After a send/submit/post action succeeds, inject a hard constraint into the next prompt: "CRITICAL: [send message] action was executed successfully at [timestamp]. Do NOT repeat this action. Verify completion and mark taskComplete if appropriate."
-3. Use the `comparePageStates()` result after critical actions to detect success signals (compose window closing, success toast appearing, URL changing to sent/outbox). If these signals are detected, auto-mark the task as potentially complete rather than waiting for the AI to decide.
-4. Add a "cooldown" mechanism for critical actions: once a send/submit/click action succeeds on a specific selector, that selector is blocked from being targeted again for 3 iterations.
+1. Rename the simple version to `generateSimpleSelectorForHTML()` or `generateInlineSelector()` during extraction
+2. Search for ALL callers of `generateSelector` to determine which version each caller actually needs
+3. In the namespace, export only the authoritative version as `FSB.elements.generateSelector`
+4. Place the other in its consuming module as a private function inside the IIFE
 
-**Warning signs (detect early):**
-- Action history shows the same `click` on the same selector succeeding 2+ times
-- AI reasoning on iteration N+1 says "I need to send the message" when the send action succeeded on iteration N
-- `sessionMemory.stepsCompleted` contains duplicate entries
+**Detection:** After modularization, search all files for `generateSelector` -- there should be exactly one public version on the namespace.
 
-**Severity:** MODERATE (but user impact is HIGH for messaging/purchasing tasks)
-**Feature area:** Task completion detection / verification pattern
+**Severity:** MODERATE -- causes subtle selector quality issues
 
 ---
 
 ## Minor Pitfalls
 
-Mistakes that cause inefficiency or minor bugs but are recoverable.
+Mistakes that cause inconvenience or minor issues but are straightforward to fix.
 
 ---
 
-### Pitfall 9: Over-Aggressive Element Filtering Hides Necessary Elements
+### Pitfall 8: Large Git Diff Makes Code Review Difficult
 
-**What goes wrong:** The current element budget is 50 elements with viewport-only mode (content.js line 10571). On complex pages, this filters out elements the AI needs. The 3-stage pipeline (`getFilteredElements()`) applies relevance scoring based on inferred task type, but task type inference (lines 10600-10611) uses simple URL pattern matching that can misclassify pages.
+**What goes wrong:** Extracting 3,700 lines from content.js into tools.js and deleting them from content.js produces a diff that shows 3,700 deletions and 3,700 additions. Git does not recognize this as a "move" -- it looks like entirely new code and entirely deleted code. Reviewers cannot verify that the code was moved without modification.
 
-**Why it happens:** The budget was set for token efficiency, but 50 elements is often insufficient for pages with navigation menus, form fields, and action buttons. On a LinkedIn messaging page, the message compose area, recipient list, conversation list, and navigation may have 100+ interactive elements. Filtering to 50 may exclude the specific "Send" button the AI needs.
+**Why it happens:** Git tracks file-level renames but cannot track code moved between files. A function moved from content.js to content/tools.js appears as deleted code in one file and added code in another. With 7+ modules being extracted, the total diff is ~13,000 lines changed.
 
 **Consequences:**
-- AI cannot find elements that are on the page but filtered out of the payload
-- AI reports "No interactive elements found" or uses `scroll` to search for elements that exist but were budget-cut
-- Wastes iterations as AI searches for elements that were available but excluded
+- Code review becomes impractical
+- Accidental modifications introduced during the move are not caught
+- Git blame loses history for all moved code
 
 **Prevention:**
-1. Make the element budget dynamic based on page complexity. Simple pages (< 30 interactive elements) get full coverage. Complex pages get a higher budget (100-150) with heavier compression per element.
-2. Ensure the filtering pipeline never excludes elements that match the current task's keywords. If the task mentions "send," the send button must survive filtering regardless of budget.
-3. Add a "missed element recovery" path: if the AI says it cannot find an element, re-run DOM collection with a higher budget or full-page mode for the next iteration.
-4. Log which elements were filtered out at debug level, so filtering-related failures can be diagnosed.
+1. Extract ONE module per commit. Each commit moves a specific section with minimal other changes.
+2. In the commit message, explicitly state: "Moved lines X-Y from content.js to content/module.js. No logic changes."
+3. Use `git diff --no-index content.js.backup content/module.js` to verify the moved code matches
+4. Make functional changes (renaming, refactoring) in SEPARATE commits from the move commits
 
-**Warning signs (detect early):**
-- AI uses `waitForElement` for elements that exist on the page but were filtered
-- `optimization.totalElements` is much larger than `optimization.sentElements` (high filter ratio)
-- Task failure rate increases after lowering element budget
+**Detection:** Review each extraction commit by checking that `wc -l` of the new file plus the reduction in content.js match.
 
-**Severity:** MINOR -- causes wasted iterations, recoverable by scrolling/retrying
-**Feature area:** DOM serialization / element visibility
+**Severity:** MINOR -- review quality problem, not a runtime issue
 
 ---
 
-### Pitfall 10: Compaction API Call Failure Degrades Silently
+### Pitfall 9: DevTools Debugging Difficulty with Multi-File Content Scripts
 
-**What goes wrong:** The conversation compaction (ai-integration.js lines 750-781) is a fire-and-forget async API call. If the AI provider is slow, rate-limited, or the model returns an unusable response, `compactedSummary` stays null. The trim logic (lines 534-559) then falls through to the old behavior of keeping only `maxConversationTurns * 2` messages with no context. There is no retry, no alert, no fallback content.
+**What goes wrong:** After splitting into 9+ files, debugging in Chrome DevTools becomes harder. The Sources panel shows many small files instead of one searchable file. Breakpoints set in the wrong file do not trigger. Stack traces span multiple files, making it harder to follow execution flow.
 
-**Why it happens:** Compaction runs in parallel with the main automation API call to avoid latency. This is good architecture. But the error handling (lines 772-780) catches the error, logs it as "non-critical," sets `pendingCompaction = null`, and moves on. The next `trimConversationHistory()` call sees no compactedSummary and no pendingCompaction, so it either keeps the status quo (if sessionMemory exists) or hard-trims (if it doesn't).
+**Why it happens:** Chrome DevTools lists each injected content script file separately under the extension's source tree. With 9 files, the developer must remember which module contains the function they want to debug.
 
 **Consequences:**
-- Context quality degrades unpredictably based on whether a parallel API call succeeded
-- Hard to reproduce in testing because it depends on API latency/availability
-- The 27-character compaction scenario from the session log was likely this failure mode
+- Slower debugging workflow
+- Confusion about which file contains a specific function
 
 **Prevention:**
-1. If compaction fails, fall back to a local compaction strategy: concatenate the first 100 chars of each dropped message into a "raw summary" string. This is worse than AI-compacted but infinitely better than nothing.
-2. Add a compaction health metric: track success/failure rate. If compaction fails 3+ times in a session, switch to keeping more raw turns (increase `rawTurnsToKeep` to 5 or 6) as a defensive measure.
-3. Add a minimum viable context guarantee: the trim function should NEVER reduce total context below a floor (e.g., system prompt + 2000 chars of context + last 2 raw turns). If compaction failed, keep more raw turns to stay above the floor.
+1. Use consistent naming: prefix all module functions' error messages with the module name: `[FSB tools]`, `[FSB elements]`
+2. In DevTools, use the "Search in all files" feature (Ctrl+Shift+F) to find functions across modules
+3. Keep the file count reasonable (7-10 files, not 20+)
 
-**Warning signs (detect early):**
-- `compactedSummary` is null after 5+ iterations
-- `pendingCompaction` resolves to null (compaction attempted but returned nothing useful)
-- `conversationHistory.length` drops sharply between consecutive iterations
+**Detection:** N/A -- this is a workflow issue, not a bug
 
-**Severity:** MINOR -- degraded context, not a crash, but compounds with Pitfalls 3 and 8
-**Feature area:** Memory preservation
+**Severity:** MINOR -- developer experience issue
 
 ---
 
-### Pitfall 11: DOM Diff Type-Switching Confuses the AI's Mental Model
+### Pitfall 10: Forgotten Config Extraction Leaves Magic Numbers
 
-**What goes wrong:** The `generateOptimizedPayload()` method (content.js lines 407-496) dynamically chooses between `delta` format (changes only) and `compact_full` format (viewport elements snapshot) based on payload size comparison. This means the AI receives `type: 'delta'` on one iteration and `type: 'compact_full'` on the next. The data structure is completely different between these two formats: delta has `changes.added`, `changes.removed`, `changes.modified`; compact_full has flat `elements` array. The AI prompt does not explain this switching or tell the AI how to interpret each format.
+**What goes wrong:** During modularization, hardcoded values that should be configurable are left scattered across module files instead of being centralized. After the split, there are now 9 files to search instead of 1 when trying to find and update a timeout value or a retry count.
 
-**Why it happens:** The optimization is sound from a bandwidth perspective -- use the smaller payload. But the AI is not informed about the format semantics. The `buildMinimalUpdate()` method (ai-integration.js lines 340-513) handles this partially by extracting elements from either format (lines 382-394), but the AI never sees the raw delta metadata about what specifically changed. It just sees a list of elements without knowing which are new vs modified vs unchanged.
-
-**Consequences:**
-- AI cannot distinguish between "this element just appeared" and "this element was always there"
-- Delta information (which elements changed) is computed but never reaches the AI's reasoning
-- The AI may think a page completely changed when it received a compact_full after a delta
-
-**Prevention:**
-1. If sending delta format, annotate elements in the prompt with their change status: [NEW], [MODIFIED], [UNCHANGED]. The current code marks `el.isNew` but does not consistently propagate this to the prompt.
-2. If switching from delta to compact_full, include a note in the prompt: "Full page snapshot (replacing previous delta view)."
-3. Consider standardizing on one format: compact_full is simpler for the AI to interpret and the size difference is often marginal. The delta optimization saves tokens but adds complexity that may not be worth the AI confusion cost.
-4. The `_isDelta` flag and `changes` object are already passed through (line 387-393) -- ensure `buildMinimalUpdate()` always extracts and presents elements consistently regardless of underlying format.
-
-**Warning signs (detect early):**
-- AI reasoning references element states that don't match the current DOM format
-- AI says elements "disappeared" when they just weren't included in a compact_full snapshot
-- Frequent format switching (delta one iteration, compact_full the next, delta again)
-
-**Severity:** MINOR -- causes occasional AI confusion but not systematic failure
-**Feature area:** DOM serialization / change detection
-
----
-
-### Pitfall 12: Text Truncation Below Identification Threshold
-
-**What goes wrong:** Element text is truncated to 50 chars in heavy compression mode (content.js line 511: `el.text.substring(0, heavyCompression ? 50 : this.config.textTruncateLength)`) and 100 chars in normal mode (DOMStateManager config line 169: `textTruncateLength: 100`). For contact names, product titles, article headlines, and conversation thread labels, 50-100 characters may not be enough to distinguish between similar items. The session log noted "Element text truncated to ~50 chars (can't identify people/items)."
-
-**Why it happens:** Truncation is necessary for payload size. But the threshold was set generically rather than based on the information content of different element types. A navigation link needs only 20 chars ("Home", "Settings"). A contact name needs 30-50 chars ("Lakshman Turlapati - Software..."). A product title might need 80-120 chars to be unique.
+**Why it happens:** The focus during modularization is on moving code, not on improving it. Hardcoded values like `_ELEMENT_INDEX_TTL = 2000` (line 874), `MAX_RECONNECT_ATTEMPTS = 5` (line 13255), and mutation debounce timings are moved as-is into their respective modules.
 
 **Consequences:**
-- AI cannot distinguish between "John Smith - Software Engineer at Google" and "John Smith - Software Engineer at Microsoft" if both are truncated to "John Smith - Software Engineer a..."
-- AI clicks the wrong conversation, wrong product, wrong contact
-- Particularly bad for list-heavy pages (email inbox, search results, contact lists)
+- Tuning performance requires editing multiple files
+- Related constants are spread across modules
+- No single place to see all configurable values
 
 **Prevention:**
-1. Use adaptive truncation: elements in lists (detected by repeated parent structure or aria-list roles) get longer text allowances (150-200 chars). Single-instance elements (buttons, headers) can be shorter (50 chars).
-2. For elements that the AI needs to click from a list, include a distinguishing suffix even after truncation (e.g., the element's position index in the list: "[3/10] John Smith - Software Engi...").
-3. Truncate from the middle rather than the end for long strings: "Lakshman...at Google" preserves both the person's name and their affiliation.
-4. Set minimum text length per element type in the filterAndCompressElements function rather than using a single global threshold.
+1. Create a `_config.js` file (loaded second, after namespace) that centralizes all hardcoded values
+2. During each module extraction, identify magic numbers and move them to config
+3. Reference config values as `FSB.config.ELEMENT_INDEX_TTL` instead of inline constants
 
-**Warning signs (detect early):**
-- AI clicks the wrong item from a list (e.g., wrong contact, wrong email)
-- Multiple elements in the payload have identical truncated text
-- AI reasoning shows uncertainty about which element to interact with
+**Detection:** After modularization, grep for numeric literals and string constants that appear to be tunable settings.
 
-**Severity:** MINOR -- causes wrong-target clicks, recoverable but annoying
-**Feature area:** DOM serialization / element visibility
+**Severity:** MINOR -- maintainability issue, not a runtime bug
 
 ---
 
 ## Phase-Specific Warnings
 
-| Phase Topic | Likely Pitfall | Mitigation | Severity |
-|---|---|---|---|
-| Task completion detection | #1: AI self-report is unreliable, #8: No verification-action bridge | Build independent verification layer + critical action registry | CRITICAL |
-| DOM serialization changes | #2: Format changes break AI, #7: Hash instability after scroll | Canonical format spec, remove position from hash | CRITICAL |
-| Change detection overhaul | #6: MutationObserver perf regression, #11: Format switching confuses AI | Bounded mutation buffer, consistent format presentation | MODERATE |
-| Memory preservation | #3: Compaction destroys context, #10: Compaction API failure | Minimum context floor, local fallback compaction | CRITICAL |
-| CAPTCHA detection fix | #4: False positives on reCAPTCHA v3 scoring | Visibility check + dimension check on CAPTCHA elements | CRITICAL |
-| Viewport detection fix | #5: Split-pane layouts, #9: Budget too aggressive | Scroll container awareness, dynamic element budget | MODERATE |
-| Text truncation improvements | #12: Cannot distinguish list items | Adaptive truncation by element type and context | MINOR |
-
----
-
-## Integration Risk: Changing Multiple Systems Simultaneously
-
-The highest-risk scenario for this milestone is changing DOM serialization, conversation memory, AND completion detection at the same time. Each of these systems feeds into the others:
-
-- DOM serialization provides the data the AI reasons about
-- Conversation memory preserves the AI's reasoning across iterations
-- Completion detection depends on both to make accurate judgments
-
-**If DOM format changes break the AI's interpretation, completion detection will produce false positives/negatives, and the broken iterations will be compacted into memory, polluting future iterations.**
-
-Mitigation: Change one system at a time. Validate each change with real-world tasks (LinkedIn messaging, Gmail compose, Google search) before proceeding to the next. The order should be:
-
-1. Fix CAPTCHA detection (isolated, no downstream effects)
-2. Fix viewport detection (isolated change in one function)
-3. Fix DOM serialization/truncation (affects AI input, validate thoroughly)
-4. Fix memory/compaction (affects AI context, validate with long tasks)
-5. Add completion detection (depends on all above being stable)
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Namespace bootstrap creation | #2: Guard logic must work for both initial load and re-injection | Test re-injection explicitly after creating namespace file |
+| DOM state module extraction | #3: Other modules reference DOMStateManager singleton by bare name | Verify all callers work after extraction, add namespace alias |
+| Visual feedback extraction | #6: Shadow DOM timing with injectImmediately | Verify lazy initialization pattern in all 5 overlay classes |
+| Element utils extraction | #7: Duplicate generateSelector function | Rename the simpler version before extracting |
+| Tools extraction | #5: Dynamic dispatch makes tools appear "dead" | Never remove any tool function |
+| Message handler extraction | #1: All injection points must use updated file list | Create CONTENT_SCRIPT_FILES constant first |
+| Dead code removal | #5: Dynamic callers not found by grep | Mark as suspected-dead for one release before removing |
+| Config extraction | #10: Magic numbers left in modules | Extract to FSB.config during each module move |
 
 ---
 
 ## Sources
 
-- FSB codebase analysis: `content.js`, `background.js`, `ai/ai-integration.js`, `utils/action-verification.js`, `utils/dom-state-manager.js`
-- FSB session log analysis: `.planning/STATE.md` (10 systemic issues from LinkedIn session)
-- [MDN: getBoundingClientRect()](https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect) -- viewport-relative coordinate behavior
-- [Chrome Bug 1171408](https://bugs.chromium.org/p/chromium/issues/detail?id=1171408) -- getBoundingClientRect incorrect values in extensions
-- [MutationObserver memory leak discussion (WHATWG)](https://github.com/whatwg/dom/issues/482) -- observer memory management
-- [Mozilla MutationObserver performance issue](https://github.com/mozilla/contain-facebook/issues/884) -- real-world extension performance
-- [Redis: Context Window Overflow](https://redis.io/blog/context-window-overflow/) -- LLM context degradation patterns
-- [JetBrains Research: Efficient Context Management](https://blog.jetbrains.com/research/2025/12/efficient-context-management/) -- observation masking vs summarization
-- [Paddo.dev: Agent Browser Context Efficiency](https://paddo.dev/blog/agent-browser-context-efficiency/) -- DOM observation token waste
-- [BrowserStack: Automate Failure Detection](https://www.browserstack.com/guide/automate-failure-detection-in-qa-workflow) -- false positive reduction
-- [Browser-Use Agent Benchmark](https://browser-use.com/posts/ai-browser-agent-benchmark) -- completion evaluation pitfalls
+- Direct analysis of `content.js` (13,429 lines) -- function dependencies, re-injection guard, duplicate definitions
+- Direct analysis of `background.js` -- 3 injection points identified at lines 1636, 6204, 8104
+- [Chrome Content Scripts Documentation](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) -- isolated world scope behavior
+- [Chromium Issue #41017694](https://issues.chromium.org/issues/41017694) -- content script global variable collision behavior
+- [Chrome Manifest content_scripts Reference](https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts) -- file ordering guarantees

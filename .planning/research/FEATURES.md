@@ -1,365 +1,495 @@
-# Feature Landscape: AI Situational Awareness for Browser Automation
+# Feature Landscape: Tech Debt Cleanup for FSB Chrome Extension
 
-**Domain:** AI browser agent situational awareness (task completion, DOM context, change detection, memory, CAPTCHA)
-**Researched:** 2026-02-14
-**Overall Confidence:** MEDIUM-HIGH
+**Domain:** Chrome Extension tech debt cleanup -- content script decomposition, configuration patterns, dead code removal, constructor bug fixes
+**Researched:** 2026-02-21
+**Overall Confidence:** HIGH
+**Scope:** Specific to FSB v9.0.2, a 13,429-line content.js monolith in a Manifest V3 Chrome Extension
 
 ---
 
 ## Table Stakes
 
-Features users (and the AI agent) expect. Missing = the agent feels broken or unreliable. These are problems every serious AI browser agent has solved.
-
-### TS-1: Explicit Task Completion Signal (the "done" Action Pattern)
-
-**Why Expected:** Every production AI browser agent (browser-use, Agent-E, OpenAI CUA, Vercel agent-browser) uses an explicit "done" action rather than relying on the AI to set a boolean flag in its response. The current FSB approach -- where the LLM sets `taskComplete: true` in the same JSON as its actions -- creates a dual-path problem: the AI can mark completion without performing a verification action, or complete while still having pending actions.
-
-**How Others Do It:**
-- **browser-use:** The agent must call a `done(text, success)` tool as its LAST action. If the ultimate task is complete, `success=true`. The agent loop checks `model_output.is_done` after each step. On the final allowed step, the system forces completion via `DoneAgentOutput` constraint. [Source: DeepWiki browser-use agent system]
-- **Agent-E:** Returns natural language description of outcome from each skill execution, with the orchestrating agent deciding completion.
-- **OpenAI CUA:** Uses `computer_call` tool pattern where completion is a distinct tool invocation, not a flag.
-- **General pattern:** The naive "stop when no tool calls" approach fails because agents finish prematurely, so frameworks force explicit completion by requiring the agent to call a done tool. [Source: browser-use GitHub]
-
-**What FSB Has Today:**
-- `taskComplete: boolean` flag in AI response JSON
-- Background.js validates: blocks completion if result is <10 chars, checks for recent critical action failures
-- No verification step between the AI deciding "done" and the session ending
-
-**Gap:** FSB relies on the AI self-reporting completion. The LinkedIn session log proved this fails: the AI sent a message successfully but continued iterating because it had no confirmation signal from the page.
-
-**Complexity:** Medium
-**Dependencies:** Existing action execution system, AI prompt engineering
-**Recommendation:** Convert task completion into a two-phase pattern: (1) AI calls a `markComplete` tool with a result summary, (2) system performs automated verification checks (URL changed? confirmation text visible? success indicators present?) before actually ending the session. This is how browser-use does it and it works.
+Features that constitute proper, non-controversial tech debt cleanup. Skipping any of these means the cleanup is incomplete or creates new risks.
 
 ---
 
-### TS-2: Accessibility Tree-Based DOM Serialization
+### TS-1: Dead Code Removal with Verification (waitForActionable)
 
-**Why Expected:** Raw HTML DOM is far too verbose for LLM context windows. Every leading AI browser agent uses the accessibility tree as their primary page representation. This is the single most impactful architectural choice in the entire browser agent ecosystem.
+**Why Expected:** Dead code increases cognitive load, confuses contributors, bloats file size, and creates false confidence that functionality exists. In a 13K-line file, every line that serves no purpose actively harms maintainability. `waitForActionable()` (lines 4425-4572, ~148 lines) is defined but never called anywhere in the codebase -- verified via grep across all project files. It returns only from its own definition.
 
-**How Others Do It:**
-- **browser-use:** Five-stage pipeline: (1) raw CDP extraction of DOM tree + Accessibility tree + DOM Snapshot in parallel, (2) merge into `EnhancedDOMTreeNode`, (3) simplify by removing non-interactive elements (script, style, meta), (4) multi-filter by paint order and bounding boxes to eliminate occluded/contained nodes, (5) assign sequential indices and build `selector_map`. The output is `SerializedDOMState` with `llm_representation` (compact string) and `selector_map` (index-to-selector lookup). [Source: DeepWiki browser-use, HIGH confidence]
-- **Agent-E:** Uses DOM Accessibility Tree instead of regular HTML DOM, since "the accessibility tree is geared toward helping screen readers, which is closer to the mission of web automation." Injects `mmid` attribute on every DOM element for stable identification. Three content modes: `text_only` (for info retrieval), `input_fields` (for form filling), `all_content` (comprehensive). The LLM requests the mode it needs per sub-task. [Source: Emergence AI blog, MEDIUM confidence]
-- **Vercel agent-browser:** "Snapshot + Refs" system returns compact references like `@e1: button 'Sign In'` instead of DOM subtrees. Claims 93% less context than Playwright MCP. [Source: paddo.dev blog, MEDIUM confidence]
-- **WebVoyager:** Text-only mode uses accessibility tree from WebArena. Primary mode uses annotated screenshots with Set-of-Mark visual overlays. [Source: arxiv WebVoyager paper]
-- **Architecture survey paper:** "A simple form field requiring 100+ lines of HTML compresses to 2-3 lines via accessibility snapshots, reducing token consumption while preserving semantic structure (roles, labels, focus state, descriptions)." [Source: arxiv 2511.19477]
+**Verification Protocol:**
 
-**What FSB Has Today:**
-- Custom recursive DOM traversal in content.js building element objects with elementId, type, text, selectors, position, attributes
-- 3-stage filtering: viewport priority, importance filtering, ~50 element budget
-- Text truncated to ~50 chars per element
-- Prompt truncated to 5K chars total (74% DOM lost in LinkedIn session)
-- No accessibility tree usage at all
+The standard for safe dead code removal in JavaScript without a type system or build tooling is a three-step process:
 
-**Gap:** FSB uses raw DOM traversal and custom heuristic filtering. This means: (a) the output format is verbose (full element objects instead of compact semantic descriptions), (b) important semantic information is lost (ARIA roles, states, relationships), (c) the filtering is by position/importance heuristics rather than by semantic relevance, (d) 74% of DOM is truncated away, proving the format is too verbose.
+1. **Static analysis (grep/search):** Search the entire codebase for all references to the function name. For `waitForActionable`, the only match is its own definition at content.js:4425. Zero call sites. Confidence: HIGH.
 
-**Complexity:** High (requires Chrome DevTools Protocol or `chrome.debugger` API for accessibility tree access, or fallback to `document.querySelectorAll('[role], [aria-label]')`)
-**Dependencies:** Content script architecture, AI prompt format
-**Recommendation:** Use Chrome's accessibility tree as the primary representation. FSB is a Chrome extension and has access to `chrome.debugger` API for CDP. Even without CDP, the `aria-*` attributes and semantic HTML can be harvested more efficiently than raw DOM. The accessibility tree naturally filters to interactive/meaningful elements, eliminating the need for heuristic budgeting.
+2. **Dynamic call path analysis:** Consider whether the function could be invoked indirectly -- via `eval()`, string-based dispatch, `window[funcName]()`, or message handler routing. In content.js, the message handler (`chrome.runtime.onMessage`) dispatches based on `request.action` strings that map to `tools.*` or specific named handlers. `waitForActionable` is a standalone function, not a property of `tools`, not referenced in any message handler case, and not exported to `window`. It cannot be reached dynamically.
 
----
+3. **Replacement audit:** Confirm that the functionality `waitForActionable` provided is covered elsewhere. It is: `smartEnsureReady()` (line 4290) and `ensureElementReady()` (line 4317) both handle the same use case (wait for element to be visible, enabled, and stable) with simpler APIs. `waitForActionable` appears to be an older implementation that was superseded.
 
-### TS-3: Step-Level Goal Evaluation
+**What to Do:**
+- Remove lines 4425-4572 entirely
+- Run a final grep to confirm no references remain
+- No behavioral change expected; confirm with manual testing of a basic automation task
 
-**Why Expected:** The AI needs to know whether its PREVIOUS action succeeded before deciding the next one. Without this, the agent blindly chains actions and cannot self-correct.
+**Complexity:** Low
+**Risk:** Very Low (function is unreachable)
 
-**How Others Do It:**
-- **browser-use:** Uses `evaluation_previous_goal` assessment after each step. The agent evaluates whether the last action achieved its intended effect before planning the next action. This is done through the LLM examining the new page state against what was expected. [Source: arxiv 2511.19477, DeepWiki]
-- **Architecture paper:** Agents follow Observe-Reason-Act-Reflect cycle. The "Reflect" step evaluates the answer compared to expectations. On failure, the loop sends this to a Reasoning Engine for a remedial plan. [Source: WebSearch, MEDIUM confidence]
-- **General pattern:** "Memory-driven evaluation" where agents document outcomes via a `memory` parameter on each tool call, summarizing what happened. [Source: arxiv 2511.19477]
-
-**What FSB Has Today:**
-- `action-verification.js` captures pre/post page state and compares (URL, title, body text, element count, input values, visible elements)
-- `verifyClickEffect`, `verifyTypeEffect`, `verifyNavigationEffect` functions exist
-- Results are passed back but the AI only sees them as action results, not as structured step evaluation
-
-**Gap:** FSB has the mechanical verification but lacks the cognitive loop. The verification results are not structured as "your previous goal [X] succeeded/failed because [Y]" -- they are raw state diffs. The AI needs a synthesized verdict, not raw data.
-
-**Complexity:** Medium
-**Dependencies:** Existing action-verification.js, AI prompt format
-**Recommendation:** Add a structured step evaluation that synthesizes verification results into a natural language verdict: "Previous action: click Send button. Result: SUCCESS - compose window closed, URL unchanged, 3 elements removed (compose UI). The message appears to have been sent." This verdict becomes part of the next iteration's context.
+**Sources:**
+- Codebase grep: `waitForActionable` appears only at content.js:4425 (definition)
+- [Knip - dead code detection tool](https://knip.dev/) and [Dead Code Checker](https://github.com/denisoed/dead-code-checker) document this same three-step verification approach
+- [HackerNoon: Remove Dead Code](https://hackernoon.com/refactoring-021-remove-dead-code) -- "removing dead code as you refactor improves maintainability with no risk of new problems"
 
 ---
 
-### TS-4: Semantic Change Detection (Beyond domHash)
+### TS-2: Fix UniversalProvider Constructor Args in memory-extractor.js
 
-**Why Expected:** The AI needs to know WHAT changed on the page, not just whether something changed. A coarse hash that says "changed" or "not changed" is insufficient for an AI agent to reason about causality.
+**Why Expected:** This is a runtime bug, not just style debt. The code will throw or produce undefined behavior when the memory extraction code path is exercised.
 
-**How Others Do It:**
-- **browser-use:** `_assign_interactive_indices_and_mark_new_nodes()` marks newly-appeared interactive elements during serialization. The LLM can see which elements are new (appeared since last step) vs. stable. Index tracking between serializations provides structural change awareness. [Source: DeepWiki browser-use]
-- **Architecture paper:** Element references include version identifiers. When the execution layer receives a tool call, it verifies the requested version matches current state. Stale references produce descriptive errors. "Each element reference includes a version identifier...when the execution layer receives a tool call, it verifies that the requested version matches the current state." [Source: arxiv 2511.19477]
-- **Playwright:** Discourages `networkidle` waiting. Instead uses auto-waiting on actionability (element visible, enabled, stable) and encourages web assertions over polling. [Source: Playwright docs]
-- **General MutationObserver patterns:** MutationObserver fires on microtask queue, is ~88x faster than polling. Delivers mutations in batches. Best practice: limit callback logic, restrict observation scope. [Source: Chrome DevTools blog, macarthur.me]
+**The Bug (memory-extractor.js line 273):**
+```javascript
+// WRONG -- passes 3 positional args
+const provider = new UniversalProvider(cfg.modelProvider, cfg.modelName, {
+  apiKey: cfg.apiKey,
+  geminiApiKey: cfg.geminiApiKey,
+  ...
+});
+```
 
-**What FSB Has Today:**
-- `domHash` computed per iteration in background.js; if hash matches previous, stuckCounter increments
-- `DOMStateManager` class with `computeDiff()` that tracks added/removed/modified elements
-- `waitForDOMStable` using MutationObserver (already implemented)
-- `comparePageStates` comparing URL, title, body text, element count, input values
+**UniversalProvider's actual constructor (universal-provider.js line 121-133):**
+```javascript
+class UniversalProvider {
+  constructor(settings) {         // Takes a SINGLE settings object
+    this.settings = settings;
+    this.model = settings.modelName;
+    this.provider = settings.modelProvider || 'xai';
+    ...
+  }
+}
+```
 
-**Gap:** The domHash is too coarse -- it reports "no change" after successful actions (as seen in the LinkedIn session log). The DOMStateManager has good diff logic but its output is structural (lists of element objects), not semantic ("a confirmation dialog appeared" or "the message input was cleared"). The AI gets the raw diff data but cannot easily reason about what it means.
+**What happens:** `settings` receives the string `cfg.modelProvider` (e.g., "xai"). Then `settings.modelName` is `undefined`, `settings.modelProvider` is `undefined` (strings don't have these properties). The second and third arguments are silently ignored. The provider will attempt to use model `undefined` against provider `xai` (default fallback), which will produce API errors or silent failures.
 
-**Complexity:** Medium
-**Dependencies:** DOMStateManager, content script, AI prompt format
-**Recommendation:** Two improvements: (1) Make domHash more granular -- hash interactive elements separately from decorative ones, or use multiple hashes (interactive elements hash, text content hash, structure hash). (2) Synthesize diff results into natural language change summaries: "Changes since last action: 1 modal appeared ('Message sent successfully'), 2 input fields cleared, compose panel removed."
+**Correct pattern (from background.js line 425):**
+```javascript
+const provider = new UniversalProvider(settings);  // settings is the full config object
+```
+
+**What to Do:**
+```javascript
+// FIX: pass a single settings object
+const provider = new UniversalProvider({
+  modelProvider: cfg.modelProvider,
+  modelName: cfg.modelName,
+  apiKey: cfg.apiKey,
+  geminiApiKey: cfg.geminiApiKey,
+  openaiApiKey: cfg.openaiApiKey,
+  anthropicApiKey: cfg.anthropicApiKey,
+  customEndpoint: cfg.customEndpoint,
+  customApiKey: cfg.customApiKey
+});
+```
+
+Or more concisely, since `cfg` already has all the needed keys:
+```javascript
+const provider = new UniversalProvider(cfg);
+```
+
+**Complexity:** Low (one-line fix)
+**Risk:** Low (fixes a bug; improves behavior)
+
+**Sources:**
+- universal-provider.js line 121-133: constructor signature is `constructor(settings)` (single object)
+- background.js line 425: `new UniversalProvider(settings)` -- correct usage
+- ai-providers.js line 19: `return new UniversalProvider(settings)` -- correct usage
+- memory-extractor.js line 273: `new UniversalProvider(cfg.modelProvider, cfg.modelName, {...})` -- incorrect, three positional args
 
 ---
 
-### TS-5: Structured Memory with Tiered Retention
+### TS-3: Make ElementCache maxCacheSize Configurable
 
-**Why Expected:** Multi-step browser tasks regularly exceed 10-15 iterations. Without memory management, either the context window overflows (expensive, slow) or critical context is lost (agent forgets what it did).
+**Why Expected:** Hardcoded magic numbers are a classic tech debt indicator. `maxCacheSize = 100` (content.js line 619) is a tuning parameter that may need adjustment based on page complexity. Some sites FSB automates have 2000+ interactive elements; a cache of 100 with FIFO eviction means constant cache churn on complex pages. Conversely, on simple pages, 100 may waste memory.
 
-**How Others Do It:**
-- **browser-use:** Two parallel hierarchies: (1) Agent State (serializable): `MessageManagerState`, `ActionLoopDetector`, `AgentHistoryList` with complete execution trace. (2) Browser State (transient): cached `BrowserStateSummary`, CDP session pool. `MessageManager.create_state_messages()` reconstructs prompts from task + browser state + history + available actions. [Source: DeepWiki browser-use]
-- **Architecture paper (Three-Tier Memory):** (1) Single Snapshot Retention -- only latest accessibility tree in context, previous discarded. (2) Intelligent Trimming -- lightweight model (Gemini 2.5 Flash Lite) filters large snapshots to 500-1,000 tokens. (3) Conversation History Compression -- older steps summarized, recent 40-50 steps retain full detail. Cost impact: without compression 43K+ tokens for 15 actions; with compression ~12,600 tokens. [Source: arxiv 2511.19477, HIGH confidence]
-- **Agent memory research (2026):** Three memory types are now standard: Episodic (past session summaries), Semantic (learned facts about sites/patterns), Procedural (successful action sequences). Episodic-to-semantic consolidation allows agents to learn generalizable knowledge from specific experiences. [Source: arxiv 2512.13564, MarkTechPost, machinelearningmastery.com]
-- **Strands Agents framework:** Two strategies: Sliding Window (trim oldest messages) and Summarization (summarize older messages instead of discarding). `reduce_context` method called on context window overflow. [Source: Strands Agents docs]
+**Configuration Pattern Decision -- chrome.storage vs. Config Object vs. Constructor Parameter:**
 
-**What FSB Has Today:**
-- `conversationHistory` array with `maxConversationTurns = 4` (reduced from 8)
-- `sessionMemory`: structured facts extracted locally each turn (task goal, steps completed, current phase, failed approaches, key findings, pages visited)
-- `compactedSummary`: AI-generated summary of older turns (max 1500 chars)
-- `buildMemoryContext()`: combines structured memory + compacted summary + long-term memories
-- `trimConversationHistory()`: keeps system + memory context + last N raw turn pairs
-- `lib/memory/` module: episodic, semantic, procedural memory types for cross-session learning
+For this specific value, the right answer is: **pass it as a constructor parameter with a default, sourced from the existing `config.js` defaults object.** Here is why:
 
-**Gap:** The LinkedIn session showed compacted summary was 27 chars -- the compaction process itself is failing or producing trivially short summaries. The `sessionMemory` extraction is regex-based (`reasoning.match()`) which is fragile. The memory architecture is designed but the session-level memory (within a single task) is too aggressive in discarding context. The long-term memory module exists but is not yet integrated into the active session loop.
+| Pattern | Pros | Cons | Verdict |
+|---------|------|------|---------|
+| chrome.storage.local | User-configurable at runtime, persists across sessions | Async-only access; ElementCache is constructed synchronously at content script load; would need to defer cache construction or use a sentinel value until async config loads | Overkill for this |
+| Config object (config.js defaults) | Already exists; single source of truth for tuning knobs; synchronous access from content script if injected before content.js | Content scripts don't currently import config.js (it is used in background/options contexts) | Close, but requires injection ordering |
+| Constructor parameter with default | Simple; testable; no external dependency; the caller can source the value however it wants | Not user-configurable from options page without additional plumbing | Best for now |
+| Hardcoded constant at top of file | Visible; easy to find; better than buried in constructor | Still hardcoded, just relocated | Acceptable intermediate step |
 
-**Complexity:** Medium (session memory improvements), Low (compaction fixes)
-**Dependencies:** AI integration module, existing memory module
-**Recommendation:** Fix compaction to produce meaningful summaries (minimum length validation, retry on short output). Improve sessionMemory extraction to use structured action results instead of regex on reasoning text. Integrate long-term memory retrieval at session start. The three-tier approach (latest snapshot only + structured step log + compacted older context) from the architecture paper is proven and FSB's architecture is already 60% there.
+**Recommendation:** Use a named constant at the top of the relevant module, with a clear comment, and accept it as a constructor parameter:
+
+```javascript
+const DEFAULT_ELEMENT_CACHE_SIZE = 100;
+
+class ElementCache {
+  constructor(maxSize = DEFAULT_ELEMENT_CACHE_SIZE) {
+    this.cache = new Map();
+    this.stateVersion = 0;
+    this.observer = null;
+    this.maxCacheSize = maxSize;
+  }
+}
+```
+
+If the value should be user-configurable from the options page, add `elementCacheSize` to the `config.js` defaults and read it via chrome.storage in the initialization path that creates the ElementCache instance. But this is a performance tuning parameter, not a user-facing setting -- most users would not understand "element cache size." Keep it as a developer constant for now.
+
+**Why NOT chrome.storage for this specific value:**
+- chrome.storage is async; ElementCache is constructed synchronously at script load time
+- The content script would need to defer cache construction until after an async storage read, which changes initialization ordering and adds complexity
+- This is an internal performance knob, not a user preference
+
+**When TO use chrome.storage:** For values that users configure through the options page (API keys, model selection, maxIterations, debugMode -- which FSB already does correctly via config.js + options.js).
+
+**Complexity:** Low
+**Risk:** Very Low
+
+**Sources:**
+- [Chrome Storage API docs](https://developer.chrome.com/docs/extensions/reference/api/storage) -- async-only access, 10MB local limit
+- content.js line 619: `this.maxCacheSize = 100` -- current hardcoded value
+- config.js: demonstrates the existing chrome.storage pattern for user-facing settings
+
+---
+
+### TS-4: Content Script Decomposition -- Module Boundary Identification
+
+**Why Expected:** A 13,429-line single file is well past the point where maintenance, review, and navigation become painful. The Chrome Extension Manifest V3 `content_scripts.js` array allows multiple files injected in order, with all files sharing the same isolated world (meaning later files can access variables/functions defined by earlier files).
+
+**Current Logical Sections in content.js (identified from section comments and function clustering):**
+
+| Section | Lines (approx) | Functions/Classes | Description |
+|---------|----------------|-------------------|-------------|
+| Guard + Logging Setup | 1-38 | Re-injection guard, logger fallback | Script initialization |
+| Utility Functions | 39-162 | getClassName, stripUnicodeControl, findElementByNormalizedAriaLabel, shallowEqual, isFsbElement | Low-level helpers |
+| DOMStateManager | 163-608 | class DOMStateManager | DOM diffing and state tracking |
+| ElementCache + RefMap | 609-890 | class ElementCache, class RefMap, checkDocumentReady, getElementIndexes | Caching infrastructure |
+| Visual Feedback | 895-2129 | class HighlightManager, class ProgressOverlay, class ViewportGlow, class ActionGlowOverlay, class ElementInspector | All UI overlay code |
+| IFrame Support | 2130-2327 | getFrameAwareSelector, collectChildFramesDom | Cross-frame DOM access |
+| Rich Text / Markdown | 2328-2900 | isCanvasBasedEditor, hasMarkdownFormatting, markdownToHTML, clipboardPasteHTML, isUniversalMessageInput, generateMessagingSelectors | Text handling for contenteditable |
+| Selector Generation | 2900-3334 | findAlternativeSelectors, generateSelector, isClickable, sanitizeSelector, querySelectorWithShadow, resolveRef | CSS selector utilities |
+| Accessibility Tree | 3335-4573 | getInputRole, getImplicitRole, computeAccessibleName, isElementActionable, checkElementVisibility, checkElementEnabled, checkElementStable, smartEnsureReady, ensureElementReady, waitForActionable (DEAD) | Accessibility inspection |
+| Coordinate Fallback | 4578-4752 | validateCoordinates, ensureCoordinatesVisible, clickAtCoordinates | Coordinate-based clicking |
+| Action Verification | 4754-5543 | captureActionState, EXPECTED_EFFECTS, detectChanges, verifyActionEffect, ActionRecorder, waitForPageStability | Pre/post action state comparison |
+| Tool Functions (tools object) | 5544-9252 | tools.scroll, tools.click, tools.type, tools.keyPress, etc. (~25+ tools) | The core action execution engine |
+| DOM Serialization | 9253-9530 | hashElement, isInViewport, slugify, generateSemanticElementId, class OptimizedDOMSerializer, validateSelectorUniqueness, validateXPathUniqueness | Element serialization |
+| Advanced Selectors | 9530-10760 | AUTO_GENERATED_ID_PATTERN, filterDynamicClasses, generateSelectors, generateSelectorsForAction, inferElementPurpose, getRelationshipContext, generateElementDescription | Advanced selector strategies |
+| Page Context Detection | 10760-11582 | detectPageContext, detectSearchNoResults, extractErrorMessages, isElementVisible, detectCompletionSignals, inferPageIntent, prioritizeElements, diffDOM, extractRelevantHTML | Page intelligence |
+| Compact Snapshot | 11583-12050 | generateCompactSnapshot | Token-efficient DOM representation |
+| Message Handler | 12050-12464 | chrome.runtime.onMessage listener, handleAsyncActions | Chrome messaging bridge |
+| Site Explorer | 12465-12693 | collectExplorerData, explorerExtract*, explorerDetect* | Site reconnaissance |
+| DOM Analysis Entry Point | 12693-13380 | analyzeDOMForAutomation (the main entry called by background) | Orchestrates DOM analysis |
+| Error Handlers | 13382-13430 | window error/rejection listeners, re-injection guard close | Cleanup |
+
+**Recommended Module Boundaries for Splitting:**
+
+The Chrome content script `js` array executes files in order, and all files share the same execution context (variables are global within the isolated world). This means the split is purely organizational -- no import/export needed. Files listed earlier in the manifest are available to files listed later.
+
+**Proposed file structure:**
+
+```
+content/
+  00-guard.js            -- Re-injection guard open, logger setup (~38 lines)
+  01-utils.js            -- getClassName, stripUnicodeControl, shallowEqual, isFsbElement (~125 lines)
+  02-cache.js            -- ElementCache, RefMap, checkDocumentReady, getElementIndexes (~280 lines)
+  03-visual-feedback.js  -- HighlightManager, ProgressOverlay, ViewportGlow, ActionGlowOverlay, ElementInspector (~1235 lines)
+  04-selectors.js        -- generateSelector, querySelectorWithShadow, sanitizeSelector, findAlternativeSelectors, generateMessagingSelectors, advanced selector generation (~1600 lines)
+  05-accessibility.js    -- Accessibility tree functions, element readiness checks, visibility, stability (~1240 lines)
+  06-coordinates.js      -- Coordinate fallback utilities (~175 lines)
+  07-verification.js     -- Action state capture, verification, diagnostics, ActionRecorder (~790 lines)
+  08-tools.js            -- The tools object with all 25+ action functions (~3710 lines)
+  09-dom-analysis.js     -- DOM serialization, page context, compact snapshot, e-commerce extraction (~2830 lines)
+  10-iframe.js           -- IFrame support, cross-frame DOM (~200 lines)
+  11-rich-text.js        -- Markdown, clipboard paste, contenteditable utilities (~575 lines)
+  12-message-handler.js  -- chrome.runtime.onMessage, handleAsyncActions (~415 lines)
+  13-site-explorer.js    -- Site explorer data collection (~230 lines)
+  14-init.js             -- analyzeDOMForAutomation entry point, error handlers, guard close (~750 lines)
+```
+
+**manifest.json update:**
+```json
+"content_scripts": [{
+  "js": [
+    "utils/automation-logger.js",
+    "content/00-guard.js",
+    "content/01-utils.js",
+    "content/02-cache.js",
+    "content/03-visual-feedback.js",
+    "content/04-selectors.js",
+    "content/05-accessibility.js",
+    "content/06-coordinates.js",
+    "content/07-verification.js",
+    "content/08-tools.js",
+    "content/09-dom-analysis.js",
+    "content/10-iframe.js",
+    "content/11-rich-text.js",
+    "content/12-message-handler.js",
+    "content/13-site-explorer.js",
+    "content/14-init.js"
+  ],
+  "matches": ["<all_urls>"]
+}]
+```
+
+**Key ordering constraints (dependency graph):**
+```
+00-guard.js          -- must be first (opens re-injection guard)
+01-utils.js          -- no deps (foundational)
+02-cache.js          -- depends on 01 (uses getClassName)
+03-visual-feedback.js-- depends on 01 (uses isFsbElement)
+04-selectors.js      -- depends on 01, 02 (uses getClassName, elementCache)
+05-accessibility.js  -- depends on 04 (uses querySelectorWithShadow, generateSelector)
+06-coordinates.js    -- depends on 04 (uses querySelectorWithShadow)
+07-verification.js   -- depends on 04, 05 (uses selector utilities, actionability checks)
+08-tools.js          -- depends on 02, 03, 04, 05, 06, 07 (uses everything above)
+09-dom-analysis.js   -- depends on 01, 02, 04, 05 (uses selectors, cache, utils)
+10-iframe.js         -- depends on 04 (uses selectors)
+11-rich-text.js      -- depends on 04 (uses selectors)
+12-message-handler.js-- depends on 03, 08, 09, 13 (dispatches to tools, DOM analysis)
+13-site-explorer.js  -- standalone (only uses basic DOM APIs)
+14-init.js           -- must be last (closes re-injection guard, sets up error handlers)
+```
+
+**Complexity:** High (mechanical but requires careful extraction and testing)
+**Risk:** Medium -- the extraction is safe because all files share the same global scope within the content script isolated world. The main risk is accidentally splitting in the middle of a closure or missing a dependency.
+
+**Sources:**
+- [Chrome Content Scripts docs](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) -- "Files are injected in the order they appear in this array" and share the same isolated world
+- [Chrome Manifest content_scripts reference](https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts) -- js array specification
+
+---
+
+### TS-5: Duplicate Code Elimination
+
+**Why Expected:** The codebase has at least one confirmed duplicate: `getClassName()` is defined in content.js (line 49) and an equivalent `getClassNameSafe()` exists in utils/action-verification.js (line 7). Both do the same thing (handle SVGAnimatedString). Duplicated utility functions diverge over time and create confusion about which version to use.
+
+**Identified duplicates:**
+1. `getClassName()` (content.js:49) vs `getClassNameSafe()` (action-verification.js:7) -- identical logic
+2. `generateSelector()` defined twice in content.js itself (line 2986 and line 10759) -- the second one at line 10759 is a simpler version. This is likely a naming collision where the second definition shadows the first within the same file scope.
+
+**What to Do:**
+- Consolidate to a single canonical `getClassName()` in the utilities module
+- Resolve the dual `generateSelector` definitions -- rename the simpler one (e.g., `generateBasicSelector` which already exists at line 10526) or remove it if it duplicates `generateBasicSelector`
+
+**Complexity:** Low
+**Risk:** Low (but requires verifying which callers use which version)
 
 ---
 
 ## Differentiators
 
-Features that would set FSB apart from other AI browser agents. Not expected, but competitively valuable.
-
-### D-1: Task-Adaptive DOM Content Modes
-
-**Value Proposition:** Most browser agents send the same DOM representation regardless of what the task needs. Agent-E's three content modes (text_only, input_fields, all_content) show that adapting the DOM representation to the current sub-task dramatically reduces token usage while improving accuracy.
-
-**How It Would Work:** When the AI is reading/extracting information, send only text content and headings (no input fields, no button details). When filling forms, send input fields with their labels and current values. When navigating, send links and navigation elements. FSB already has task type detection (`search`, `form`, `extraction`, `navigation`, `email`, `shopping`) in `TASK_PROMPTS` -- extend this to control DOM serialization mode.
-
-**Complexity:** Medium
-**Dependencies:** Content script DOM extraction, task type detection in ai-integration.js
-**Competitive Edge:** Most open-source browser agents (browser-use included) send the same full DOM representation every iteration. Agent-E does this but is Python-based and heavyweight. FSB doing this as a lightweight Chrome extension would be distinctive.
+Features that make this cleanup especially valuable beyond basic hygiene. These transform a tedious chore into a genuine improvement in developer velocity and code quality.
 
 ---
 
-### D-2: Confidence-Scored Completion with Verification Actions
+### D-1: Establish Clear Module Contracts at Split Boundaries
 
-**Value Proposition:** Instead of binary "done or not done," the AI reports a confidence score AND the system runs automated verification checks. If confidence is below a threshold, the system asks the AI to perform an explicit verification action before completing.
+**Value Proposition:** Splitting content.js into 14 files is mechanical. The real value comes from defining what each module is responsible for and what it exposes. If the split just moves code around without clarifying contracts, the next developer still has to read all 14 files to understand how things work.
 
-**How It Would Work:**
-1. AI reports `{ "complete": true, "confidence": 0.85, "evidence": "compose window closed" }`
-2. System checks: Did URL change? Did expected elements appear/disappear? Is there a confirmation message?
-3. If system-side checks corroborate AI's assessment: complete.
-4. If discrepancy (AI says done but system sees no change): inject verification prompt asking AI to confirm by checking a specific indicator.
+**What to Do:**
+- Each file gets a header comment block declaring:
+  - Purpose (one sentence)
+  - Dependencies (which other content/ files it needs)
+  - Exports (what globals it defines for downstream files)
+  - Does NOT depend on (explicit exclusions to prevent coupling creep)
 
-**Complexity:** Medium
-**Dependencies:** Action verification system, step evaluation
-**Competitive Edge:** No open-source browser agent currently does confidence-scored completion with system-side corroboration. browser-use uses LLM judges for evaluation benchmarks but not during live execution.
+Example:
+```javascript
+/**
+ * content/04-selectors.js -- CSS selector generation and querying
+ *
+ * Dependencies: 01-utils.js (getClassName, stripUnicodeControl), 02-cache.js (elementCache)
+ * Provides: generateSelector, querySelectorWithShadow, querySelectorAllWithShadow,
+ *           sanitizeSelector, findAlternativeSelectors, resolveRef
+ * Does NOT use: tools object, HighlightManager, chrome.runtime messaging
+ */
+```
 
----
-
-### D-3: Page Intent Classification for Context Optimization
-
-**Value Proposition:** FSB already has `inferPageIntent()` that classifies pages as `captcha-challenge`, `form-error-correction`, `success-confirmation`, `authentication`, `search-results-review`, etc. Extending this to drive both DOM serialization strategy and completion detection would create an integrated awareness system that no other extension-based agent has.
-
-**How It Would Work:**
-- `success-confirmation` intent triggers completion candidate check
-- `form-error-correction` intent highlights error messages in DOM context
-- `search-results-review` intent serializes result cards with emphasis on links
-- `captcha-challenge` intent triggers CAPTCHA-specific handling (not false alarm)
-- Page intent changes between iterations become part of the change summary
-
-**Complexity:** Low-Medium (extends existing functionality)
-**Dependencies:** Existing `inferPageIntent()`, DOM serialization, completion detection
-**Competitive Edge:** Uniquely FSB -- no other agent ties page classification to DOM representation and completion logic in a unified way.
+**Complexity:** Low (documentation, done during the split)
+**Risk:** None
 
 ---
 
-### D-4: Hierarchical Change Summaries
+### D-2: Named Constants for All Magic Numbers
 
-**Value Proposition:** Instead of raw DOM diffs, provide the AI with human-readable change summaries organized by significance level. This is what the architecture paper recommends but no open-source implementation does well.
+**Value Proposition:** Beyond `maxCacheSize`, content.js is full of magic numbers that are tuning parameters or thresholds. Extracting them to named constants at the top of each module makes the codebase self-documenting and tunable.
 
-**How It Would Work:**
-- **Critical changes:** "A modal appeared saying 'Message sent successfully'" or "Page navigated to confirmation page"
-- **Significant changes:** "3 input fields were cleared, compose panel removed from DOM"
-- **Minor changes:** "2 animation classes toggled, timestamp updated"
-- The AI sees: `"Changes: [CRITICAL] Confirmation dialog appeared with text 'Your message has been sent'. [SIGNIFICANT] Message compose area removed. [MINOR] 4 cosmetic updates."`
+**Identified magic numbers worth extracting:**
 
-**Complexity:** Medium-High
-**Dependencies:** DOMStateManager diff output, natural language synthesis (can be template-based, does not need AI)
-**Competitive Edge:** Every agent I researched either sends raw diffs or no diff information. Hierarchical natural language summaries would be a genuine innovation.
+| Current Location | Value | Proposed Name | Context |
+|-----------------|-------|---------------|---------|
+| ElementCache constructor (L619) | 100 | DEFAULT_ELEMENT_CACHE_SIZE | Max cached selectors |
+| ElementCache MutationObserver (L630) | 20 | MUTATION_THRESHOLD_FOR_INVALIDATION | Mutations before full cache clear |
+| waitForActionable (L4437) | 300 | DOM_STABLE_THRESHOLD_MS | Time with no mutations = stable |
+| waitForActionable (L4478) | 500 | FAST_FAIL_STABLE_MS | DOM stable + no loading = fail fast |
+| tools.scroll (L5557) | 300 | SCROLL_SETTLE_MS | Wait after scroll |
+| click coordinate fallback | Various | CLICK_RETRY_DELAY_MS | Wait between click attempts |
+| generateCompactSnapshot (L11592) | 80 | DEFAULT_MAX_SNAPSHOT_ELEMENTS | Max elements in AI snapshot |
+| extractEcommerceProducts (L11339) | 20 | MAX_ECOMMERCE_PRODUCTS | Product extraction limit |
+| HTML truncation | 1000 | MAX_HTML_CONTEXT_LENGTH | HTML context for AI |
 
----
-
-### D-5: Proactive Completion Signals from Page Semantics
-
-**Value Proposition:** Instead of waiting for the AI to decide it is done, the system proactively detects completion signals from the page itself and injects them into context.
-
-**Signals to detect:**
-- Confirmation messages: "sent", "submitted", "saved", "added to cart", "order placed", "success", "thank you"
-- Redirect to confirmation/receipt pages (URL patterns: `/confirm`, `/success`, `/thank-you`, `/receipt`)
-- Success indicators: green checkmarks, success alert classes (`.alert-success`, `.notification-success`)
-- Toast/snackbar notifications appearing
-- Form reset (all fields cleared after submission)
-- Navigation away from the task page (e.g., back to inbox after sending email)
-
-**How It Would Work:** After each action, scan for completion signals and inject: `"COMPLETION SIGNAL DETECTED: Page shows success message 'Your message has been sent to John'. Consider whether the task is complete."` The AI still makes the final decision, but the system surfaces evidence.
-
-**Complexity:** Medium
-**Dependencies:** Action verification, page state analysis
-**Competitive Edge:** This directly solves the LinkedIn session problem where the AI sent a message but didn't know it was done. No other extension-based agent has explicit completion signal detection at the content script level.
+**Complexity:** Low-Medium (find-and-replace with testing)
+**Risk:** Very Low
 
 ---
 
-### D-6: Selective Vision Augmentation
+### D-3: Consistent Error Handling Patterns Across Modules
 
-**Value Proposition:** For pages where the accessibility tree or DOM text is insufficient (canvas elements, complex charts, image-heavy layouts), capture a screenshot and send it alongside the text representation. This is the hybrid approach recommended by the architecture paper.
+**Value Proposition:** After splitting, each module should follow the same error handling pattern. Currently, error handling is inconsistent -- some functions return `{ success: false, error: ... }`, some throw, some silently swallow errors, some log and continue. Standardizing during the split prevents the modules from developing divergent conventions.
 
-**How It Would Work:**
-- Detect when the page has significant non-DOM content (canvas, SVG charts, image galleries)
-- Use `chrome.tabs.captureVisibleTab()` to capture screenshot
-- Send screenshot + text DOM to a multimodal model (GPT-4o, Gemini 2.5, Grok with vision)
-- Only use vision when text representation is clearly insufficient
+**Recommended Pattern for content script modules:**
+- Tool functions (in tools object): Always return `{ success: boolean, error?: string, ... }` -- never throw
+- Utility functions: Throw on programmer errors (bad arguments), return null/false on expected failures (element not found)
+- Classes: Throw in constructor on invalid config, return values in methods
 
-**Complexity:** High
-**Dependencies:** Multi-modal model support, screenshot capture, model routing
-**Competitive Edge:** WebVoyager uses vision-only; browser-use uses text-only with optional vision. FSB could intelligently switch between modes based on page content, which is what the architecture paper recommends as optimal.
+**Complexity:** Medium (requires auditing error handling in each module)
+**Risk:** Low
+
+---
+
+### D-4: Add JSDoc @fileoverview and Function-Level Type Hints
+
+**Value Proposition:** When splitting into 14 files, adding `@fileoverview` and consistent `@param`/`@returns` JSDoc enables IDE navigation and autocomplete. The existing codebase has partial JSDoc (some functions documented, many not). Completing it during the split means the new modular structure is immediately navigable.
+
+**Complexity:** Medium (documentation pass on each new module)
+**Risk:** None
 
 ---
 
 ## Anti-Features
 
-Things to deliberately NOT build. Common mistakes in this domain that waste effort or make things worse.
-
-### AF-1: Full Accessibility Tree Dump
-
-**Why Avoid:** Sending the complete accessibility tree to the LLM is almost as bad as sending raw DOM. On complex pages, the accessibility tree can still be thousands of nodes and 15,000+ tokens. [Source: paddo.dev, Vercel agent-browser]
-
-**What to Do Instead:** Filter the accessibility tree to interactive and semantically meaningful elements. Use Agent-E's approach of content-mode-adaptive filtering. The goal is 500-1,500 tokens of DOM context per step, not 15,000.
+Things to deliberately NOT do during this cleanup. These are common mistakes that turn a focused tech debt sprint into a scope-creeping rewrite.
 
 ---
 
-### AF-2: Vision-Only Page Understanding
+### AF-1: Do NOT Introduce a Build System / Bundler
 
-**Why Avoid:** WebVoyager's vision-only approach requires multimodal models (expensive, slower) and struggles with text-heavy pages where the information is in the DOM, not visible on screen. SeeAct's reliance on visual grounding with cross-encoder models adds latency. Screenshot-based approaches also struggle with off-screen content and scrolling. [Source: arxiv WebVoyager paper, deepsense.ai evaluation]
+**Why Avoid:** The temptation when splitting files is to add webpack/rollup/esbuild to bundle them back together. This is wrong for this cleanup because:
 
-**What to Do Instead:** Text-first, vision-supplement approach. Use DOM/accessibility tree as primary representation (fast, cheap, comprehensive). Add vision only for specific scenarios where DOM is insufficient (captchas, charts, image recognition tasks).
+- Chrome Manifest V3 natively supports multiple content script files in order -- no bundler needed
+- Adding a build step changes the development workflow for all contributors
+- Build tooling introduces its own maintenance burden (config files, dependency updates, sourcemap debugging)
+- The current zero-build-step workflow is a feature, not a limitation, for a Chrome Extension
 
----
+**What to Do Instead:** Use the manifest.json `js` array for file ordering. Each file is plain JavaScript that runs in the content script isolated world. No imports, no exports, no build step.
 
-### AF-3: Continuous DOM Polling for Change Detection
-
-**Why Avoid:** Polling `document.body.innerHTML` or re-serializing the entire DOM at fixed intervals (e.g., every 100ms) is extremely expensive. FSB's action-verification.js already correctly uses MutationObserver, which is ~88x more efficient than polling. Do not regress to polling patterns. [Source: Chrome DevTools blog, macarthur.me]
-
-**What to Do Instead:** MutationObserver for real-time change tracking (already implemented). Post-action snapshot comparison (already implemented). Targeted re-serialization only of changed subtrees.
-
----
-
-### AF-4: CAPTCHA Auto-Solve as Default Behavior
-
-**Why Avoid:** CAPTCHA solving services (2Captcha, CapSolver) cost money per solve, are slow (10-30 seconds), and solving CAPTCHAs that were not actually blocking the task wastes time and money. The current false positive problem (every LinkedIn page triggers CAPTCHA warning) would make auto-solve disastrously expensive. Additionally, automatically bypassing CAPTCHAs has legal and ethical implications on many sites. [Source: Skyvern blog, capsolver docs]
-
-**What to Do Instead:** Fix CAPTCHA detection accuracy first. Only trigger solve when a CAPTCHA is confirmed to be blocking task progress (visible, interactive, on-task-path). Make solving opt-in per task, not automatic.
+**Exception:** If the team later wants TypeScript, a bundler becomes necessary. But that is a separate decision, not part of this cleanup.
 
 ---
 
-### AF-5: Unbounded Conversation History
+### AF-2: Do NOT Refactor the tools Object API
 
-**Why Avoid:** Keeping all conversation turns raw leads to linear token growth. The architecture paper showed 15 actions accumulating 43,000+ tokens without compression, vs 12,600 with compression. At $0.20-$3.00 per million input tokens, this directly impacts cost and speed. Some models have context limits that would be exceeded. [Source: arxiv 2511.19477]
+**Why Avoid:** The `tools` object (lines 5544-9252, ~3700 lines) is the core action execution engine. Every tool function has a contract with the AI prompt engineering layer (the AI generates action names matching tool keys) and with the message handler. Changing tool function signatures, renaming tools, or restructuring the tools object would require coordinated changes in:
 
-**What to Do Instead:** The three-tier approach: (1) only latest page snapshot in context, (2) structured step log (not raw conversation), (3) summarized older context. FSB already has this architecture -- fix the compaction quality, do not remove the compaction.
+- ai-integration.js (prompt templates reference tool names)
+- background.js (action dispatch)
+- The AI's learned behavior (models have been tuned against current tool names)
+
+The tools object should be extracted to its own file AS-IS. Refactoring its API is a separate, much larger effort.
 
 ---
 
-### AF-6: Building a Custom LLM Evaluator for Task Completion
+### AF-3: Do NOT Convert to ES Modules / import-export
 
-**Why Avoid:** browser-use's benchmark system uses GPT-4o/Gemini as judges for their test suite, but this is for offline evaluation, not live task execution. Running a second LLM call to evaluate whether the first LLM's task is complete doubles API costs and latency. [Source: browser-use benchmark post]
+**Why Avoid:** Chrome content scripts do not natively support static ES module `import`/`export`. Dynamic `import()` works but requires files to be listed in `web_accessible_resources`, which exposes them to web pages. This changes the security model.
 
-**What to Do Instead:** Use deterministic heuristics and page signals for completion detection during live execution. The system can check for confirmation messages, URL changes, form resets, and other observable signals without calling an LLM. Reserve LLM-based evaluation for post-session quality metrics, not in-loop decisions.
+More importantly, the current codebase relies on all content script files sharing a single global scope in the isolated world. Converting to modules would mean every cross-file reference needs explicit imports, which is a massive mechanical change unrelated to the cleanup goals.
+
+**What to Do Instead:** Continue using the shared global scope pattern. Prefix module-internal functions with underscore or use revealing module pattern (IIFE) if encapsulation is needed later.
+
+---
+
+### AF-4: Do NOT Add chrome.storage Reads to Content Script Initialization
+
+**Why Avoid:** It is tempting to read configuration from `chrome.storage` at content script load time to configure values like `maxCacheSize`. But `chrome.storage` is async-only, and content scripts execute their initialization synchronously. Adding async storage reads to initialization creates:
+
+- Race conditions (script runs before config loads)
+- Complexity (need to defer all initialization behind an async boundary)
+- Performance cost (extra storage read on every page load)
+
+**What to Do Instead:** For content script tuning parameters, use hardcoded named constants (see D-2). If values truly need to be configurable at runtime, have the background script send them via `chrome.runtime.sendMessage` after loading config, and update the content script's state in response. This is already the pattern FSB uses for session management.
+
+---
+
+### AF-5: Do NOT Attempt to Split the DOMStateManager Class Out of content.js
+
+**Why Avoid:** There is already a `utils/dom-state-manager.js` file that defines a `DOMStateManager` class. Content.js also defines its own `DOMStateManager` class (lines 163-608, ~445 lines) with different implementation details. Attempting to reconcile or merge these during cleanup is scope creep -- it requires understanding which version is loaded when, which methods differ, and whether both are needed.
+
+**What to Do Instead:** During the split, move the content.js `DOMStateManager` to its own content script file. Add a TODO comment noting the duplication with `utils/dom-state-manager.js`. Reconciliation is a separate task.
+
+---
+
+### AF-6: Do NOT Optimize ElementCache Eviction Strategy
+
+**Why Avoid:** The current FIFO eviction (remove first inserted key when cache is full) is simple and correct. It is tempting to implement LRU, LFU, or score-based eviction. But cache eviction strategy is a performance optimization question that requires profiling data, not a tech debt cleanup item. Without evidence that the eviction strategy is causing cache misses that impact automation success, changing it is premature optimization.
+
+**What to Do Instead:** Make `maxCacheSize` configurable (TS-3) so it CAN be tuned. Leave eviction strategy for a future performance-focused milestone with profiling data.
 
 ---
 
 ## Feature Dependencies
 
 ```
-TS-2 (Accessibility Tree DOM)
-  |
-  +---> D-1 (Task-Adaptive Content Modes) -- requires the tree to filter
-  |
-  +---> D-4 (Hierarchical Change Summaries) -- needs semantic elements for meaningful diffs
-  |
-  +---> D-6 (Selective Vision) -- needs text baseline to know when vision is needed
-
-TS-3 (Step Evaluation) + TS-4 (Semantic Change Detection)
-  |
-  +---> TS-1 (Task Completion) -- completion depends on knowing if actions worked
-  |
-  +---> D-2 (Confidence-Scored Completion) -- confidence requires evidence from verification
-  |
-  +---> D-5 (Proactive Completion Signals) -- extends change detection to detect success patterns
-
-TS-5 (Structured Memory)
-  |
-  +---> Standalone, but improves all other features by preserving context
-  |
-  +---> D-3 (Page Intent) benefits from memory of previous page intents in the session
-
-TS-1 (Task Completion) depends on TS-3 and TS-4
-D-3 (Page Intent Classification) is low-dependency (extends existing code)
-AF fixes (especially CAPTCHA false positives) are independent and can be done anytime
+TS-1 (dead code removal)     --> standalone, do first
+TS-2 (constructor bug fix)   --> standalone, do anytime
+TS-3 (configurable cache)    --> standalone, trivial
+TS-5 (duplicate elimination) --> should be done BEFORE or DURING TS-4
+TS-4 (content script split)  --> depends on TS-1, TS-3, TS-5 being done first
+                                 (remove dead code and fix duplicates before splitting)
+D-1 (module contracts)       --> done during TS-4
+D-2 (named constants)        --> done during TS-4
+D-3 (error handling)         --> done during or after TS-4
+D-4 (JSDoc completion)       --> done during or after TS-4
 ```
+
+**Critical ordering insight:** Do TS-1, TS-2, TS-3, TS-5 BEFORE TS-4. It is much easier to remove dead code and fix bugs in a single file than to do it after splitting into 14 files. The split should operate on clean code.
 
 ---
 
 ## MVP Recommendation
 
-For the v9.0.2 milestone ("AI Situational Awareness"), prioritize in this order:
+For a focused tech debt cleanup milestone:
 
-### Must Have (Phase 1 - Foundation)
-1. **TS-4: Semantic Change Detection** -- Fix the domHash granularity, add change summaries. This is the root cause of the "didn't know it was done" problem and the "domHash says no change" problem from the session log. Low-medium complexity, high impact.
-2. **TS-3: Step-Level Goal Evaluation** -- Synthesize action verification into structured verdicts. The mechanical verification already exists; this is about formatting it for the AI. Medium complexity, high impact.
-3. **TS-5: Structured Memory (Fixes)** -- Fix compaction to not produce 27-char summaries. Improve sessionMemory extraction. This is mostly bug fixes to existing architecture. Low complexity, high impact.
-4. **CAPTCHA False Positive Fix** (from AF-4) -- The CSS class-name matching approach produces false positives on any page that happens to have elements with "captcha" in class names even when no CAPTCHA is actually present/blocking. Tighten detection to require: (a) visible CAPTCHA iframe or challenge element, (b) element is actually blocking interaction, (c) CAPTCHA is the type that requires user action (not invisible reCAPTCHA v3 which scores silently). Low complexity, high impact.
+**Must do (table stakes):**
+1. TS-1: Remove `waitForActionable` dead code (low effort, immediate value)
+2. TS-2: Fix `UniversalProvider` constructor args in memory-extractor.js (bug fix, one line)
+3. TS-3: Make `ElementCache.maxCacheSize` a named constant and constructor parameter (low effort)
+4. TS-5: Eliminate duplicate `getClassName`/`getClassNameSafe` and resolve dual `generateSelector` (low effort)
+5. TS-4: Split content.js into modules following the proposed boundary map (high effort, high value)
 
-### Should Have (Phase 2 - Intelligence)
-5. **TS-1: Explicit Completion Signal** -- Convert taskComplete boolean to a verification-backed completion flow. Depends on TS-3 and TS-4 being in place. Medium complexity, high impact.
-6. **D-5: Proactive Completion Signals** -- Detect success messages, confirmation pages, form resets. Medium complexity, medium-high impact.
-7. **D-3: Page Intent for Context** -- Extend existing inferPageIntent to drive DOM serialization and completion hints. Low-medium complexity, medium impact.
+**Should do during split (differentiators):**
+6. D-1: Module contract headers in each new file
+7. D-2: Named constants for magic numbers (at least in the modules being split)
 
-### Nice to Have (Phase 3 - Optimization)
-8. **TS-2: Accessibility Tree DOM** -- Major refactor of DOM serialization. High complexity, very high long-term impact, but the system works (imperfectly) without it. This is a significant architectural change.
-9. **D-1: Task-Adaptive Content Modes** -- Depends on TS-2. Medium complexity, medium impact.
-10. **D-4: Hierarchical Change Summaries** -- Polish feature. Medium-high complexity, medium impact.
+**Defer to later:**
+- D-3: Error handling standardization (can be done incrementally)
+- D-4: Full JSDoc completion (can be done incrementally)
 
-### Defer to Future Milestone
-- **D-2: Confidence-Scored Completion** -- Valuable but can be added after the basic completion flow works
-- **D-6: Selective Vision** -- Requires multimodal model integration, complex routing logic
+---
+
+## Confidence Assessment
+
+| Item | Confidence | Rationale |
+|------|------------|-----------|
+| TS-1: waitForActionable is dead | HIGH | grep confirms zero call sites; replacement functions exist |
+| TS-2: Constructor bug | HIGH | Direct code inspection; constructor signature verified |
+| TS-3: Config pattern recommendation | HIGH | Chrome Storage API docs confirm async-only; constructor param is correct pattern |
+| TS-4: Module boundary map | HIGH | Section comments and function analysis from actual codebase; Chrome docs confirm shared scope |
+| TS-5: Duplicates identified | HIGH | Direct code inspection |
+| D-1 through D-4 | HIGH | Standard engineering practices, no uncertainty |
+| AF-1 through AF-6 | HIGH | Based on Chrome Extension architecture constraints (verified with official docs) |
 
 ---
 
 ## Sources
 
-### HIGH Confidence (Context7 / Official Documentation / Authoritative Technical Sources)
-- [DeepWiki: browser-use Agent System](https://deepwiki.com/browser-use/browser-use/2.1-agent-system) -- Detailed architecture of browser-use's agent loop, DOM serialization, and memory management
-- [Building Browser Agents: Architecture, Security, and Practical Solutions (arxiv)](https://arxiv.org/html/2511.19477v1) -- Comprehensive architecture paper covering accessibility tree serialization, three-tier memory, element versioning, and security patterns
-- [Chrome DevTools: Mutation Observers](https://developer.chrome.com/blog/detect-dom-changes-with-mutation-observers) -- Official Chrome documentation on MutationObserver performance
-- [Playwright waitForLoadState](https://playwright.dev/docs/api/class-page) -- Official Playwright docs on page load state detection
-
-### MEDIUM Confidence (WebSearch Verified with Multiple Sources)
-- [Agent-Browser Context Efficiency](https://paddo.dev/blog/agent-browser-context-efficiency/) -- Token usage comparison between DOM serialization approaches
-- [browser-use GitHub](https://github.com/browser-use/browser-use) -- Open source repository confirming "done" action pattern
-- [Agent-E GitHub](https://github.com/EmergenceAI/Agent-E) -- DOM distillation and mmid injection approach
-- [Emergence AI: Distilling the Web](https://www.emergence.ai/blog/distilling-the-web-for-multi-agent-automation) -- Agent-E's three content type modes
-- [WebVoyager Paper (arxiv)](https://arxiv.org/html/2401.13919v4) -- Set-of-Mark visual approach and text-only accessibility tree mode
-- [Skyvern: CAPTCHA Bypass Methods](https://www.skyvern.com/blog/best-way-to-bypass-captcha-for-ai-browser-automation-september-2025/) -- CAPTCHA detection and solving landscape
-- [Memory in the Age of AI Agents (arxiv)](https://arxiv.org/abs/2512.13564) -- Comprehensive survey of agent memory architectures
-- [browser-use Benchmark](https://browser-use.com/posts/ai-browser-agent-benchmark) -- Task completion evaluation methodology
-
-### LOW Confidence (Single Source / Unverified)
-- [reCAPTCHA v3 false positive rates](https://friendlycaptcha.com/insights/recaptcha-v3/) -- Claims about false positive rates from a competitor
-- [Agent-browser 93% context saving](https://medium.com/@richardhightower/agent-browser-ai-first-browser-automation-that-saves-93-of-your-context-window-7a2c52562f8c) -- Self-reported metric from Vercel team
+- [Chrome Content Scripts documentation](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) -- execution order, isolated world, shared scope
+- [Chrome Manifest content_scripts reference](https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts) -- js array specification
+- [Chrome Storage API](https://developer.chrome.com/docs/extensions/reference/api/storage) -- async access, storage limits, content script access
+- [Knip dead code detection](https://knip.dev/) -- dead code detection methodology
+- [HackerNoon: Remove Dead Code](https://hackernoon.com/refactoring-021-remove-dead-code) -- safe removal practices
+- [Chrome Extension File Structure Guide (2025)](https://www.extensionradar.com/blog/chrome-extension-file-structure) -- organization best practices
+- Direct codebase analysis of FSB v9.0.2 content.js (13,429 lines), config.js, manifest.json, memory-extractor.js, universal-provider.js, background.js, action-verification.js

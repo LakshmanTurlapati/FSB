@@ -2,20 +2,39 @@
 
 <div align="center">
 
-<img src="Assets/fsb.png" alt="FSB Logo" width="200" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Assets/fsb_logo_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="Assets/fsb_logo_light.png" />
+  <img src="Assets/fsb_logo_light.png" alt="FSB - Full Self-Browsing" width="200" />
+</picture>
 
-[![Version](https://img.shields.io/badge/version-9.0.2-blue.svg)](https://github.com/lakshmanturlapati/FSB/releases)
-[![Status](https://img.shields.io/badge/status-production--ready-green.svg)](https://github.com/lakshmanturlapati/FSB)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Chrome Extension](https://img.shields.io/badge/platform-Chrome%20Extension-yellow.svg)](https://developer.chrome.com/docs/extensions/)
-[![Multi-Model AI](https://img.shields.io/badge/AI-xAI%20%7C%20OpenAI%20%7C%20Anthropic%20%7C%20Gemini-purple.svg)](https://github.com/lakshmanturlapati/FSB)
-[![Open Source](https://img.shields.io/badge/open%20source-FSB-red.svg)](https://github.com/lakshmanturlapati/FSB)
+<!-- Row 1: Identity badges -->
+![FSB](https://img.shields.io/badge/FSB-Full_Self--Browsing-000000?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-9.0.2-0078D4?style=for-the-badge)
+![Manifest V3](https://img.shields.io/badge/Manifest_V3-Chrome-34A853?style=for-the-badge&logo=googlechrome&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-F5C518?style=for-the-badge)
+
+<!-- Row 2: Dynamic GitHub stats -->
+![Stars](https://img.shields.io/github/stars/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Stars)
+![Forks](https://img.shields.io/github/forks/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Forks)
+![Issues](https://img.shields.io/github/issues/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Issues)
+![Last Commit](https://img.shields.io/github/last-commit/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Last%20Commit)
+![Repo Size](https://img.shields.io/github/repo-size/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Repo%20Size)
+
+<!-- Row 3: Project stats + provider brands -->
+![AI Models](https://img.shields.io/badge/AI_Models-21-8B5CF6?style=flat-square)
+![Browser Actions](https://img.shields.io/badge/Browser_Actions-47-F97316?style=flat-square)
+![Site Guides](https://img.shields.io/badge/Site_Guides-9_Categories-22C55E?style=flat-square)
+![xAI](https://img.shields.io/badge/xAI-Grok-000000?style=flat-square&logo=x&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-GPT-412991?style=flat-square&logo=openai&logoColor=white)
+![Anthropic](https://img.shields.io/badge/Anthropic-Claude-D4A574?style=flat-square&logo=anthropic&logoColor=white)
+![Gemini](https://img.shields.io/badge/Google-Gemini-4285F4?style=flat-square&logo=googlegemini&logoColor=white)
 
 **An intelligent, open-source browser automation assistant powered by multiple AI models**
 
 *Inspired by Project Mariner, built for everyone*
 
-[Quick Start](#quick-start) | [Architecture](#documentation) | [Configuration](#configuration) | [AI Integration](#multi-model-ai-integration) | [Contributing](#contributing)
+[Quick Start](#quick-start) | [Architecture](#architecture-overview) | [AI Providers](#multi-model-ai-integration) | [Memory](#long-term-memory-system) | [Contributing](#contributing)
 
 </div>
 
@@ -28,6 +47,76 @@
 FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers** -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models.
 
 ### Key Features
+
+<table>
+<tr>
+<td width="50%">
+
+**Multi-Model AI Engine**
+<br/>Four providers -- xAI, OpenAI, Anthropic, Gemini -- with 21 models and a universal model-agnostic architecture
+<br/><sub>Automatic parameter discovery and self-healing across all providers</sub>
+
+</td>
+<td width="50%">
+
+**Natural Language Control**
+<br/>Describe tasks in plain English -- no scripting required. Smart task type detection optimizes prompts automatically
+<br/><sub>Search, form fill, extraction, and navigation task types</sub>
+
+</td>
+</tr>
+<tr>
+<td>
+
+**47 Browser Actions**
+<br/>Click, type, scroll, navigate, multi-tab control, form handling, keyboard emulation, and more
+<br/><sub>Post-action verification confirms each step succeeded</sub>
+
+</td>
+<td>
+
+**Long-Term Memory**
+<br/>Episodic, semantic, and procedural memory with AI-enriched extraction and cross-session consolidation
+<br/><sub>Cross-site pattern detection for recurring UI elements</sub>
+
+</td>
+</tr>
+<tr>
+<td>
+
+**Site Intelligence**
+<br/>9 domain-specific guide categories covering e-commerce, finance, social, travel, coding, email, career, gaming, and productivity
+<br/><sub>Reduces token usage by 30-40% with focused context</sub>
+
+</td>
+<td>
+
+**Background Agents**
+<br/>Scheduled automation with chrome.alarms -- hourly, daily, weekly, or custom. Full run history and session replay
+<br/><sub>Optional Node.js and Python server backends</sub>
+
+</td>
+</tr>
+<tr>
+<td>
+
+**Visual Feedback**
+<br/>Viewport glow indicators, element-level action highlights, and progress overlay with step counting
+<br/><sub>Blue (thinking), amber (acting), green (complete), red (error)</sub>
+
+</td>
+<td>
+
+**Secure by Design**
+<br/>AES-GCM encrypted API key storage, DOMPurify XSS protection, tab isolation, and automatic session cleanup
+<br/><sub>No plain-text credentials -- ever</sub>
+
+</td>
+</tr>
+</table>
+
+<details>
+<summary><b>All features (detailed list)</b></summary>
 
 - **Multi-Model AI Support**: Four fully integrated providers -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models
 - **Universal Provider Architecture**: Model-agnostic engine that works with any OpenAI-compatible API, with automatic parameter discovery and self-healing
@@ -52,6 +141,8 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 - **Smart Recovery**: Automatic stuck detection with DOM hashing, action pattern analysis, and adaptive behavior
 - **Multiple UI Modes**: Popup chat and persistent side panel interfaces
 
+</details>
+
 ### Use Cases
 
 - **Web Testing**: Automate repetitive testing workflows
@@ -70,6 +161,8 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 ---
 
 ## Quick Start
+
+> **Get running in under 2 minutes** -- Clone, load in Chrome, configure one API key, and start automating.
 
 ### Prerequisites
 
@@ -118,19 +211,63 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 FSB follows a modular architecture designed for reliability and extensibility:
 
 ```mermaid
-graph TD
-    A[User Interface<br/>Popup & Side Panel] --> B[Background Service<br/>Session Orchestration]
-    B --> C[Content Scripts<br/>10 Modular Files]
-    C --> D[Web Page<br/>Automated Interactions]
-    B --> E["Universal Provider<br/>xAI | OpenAI | Anthropic | Gemini"]
-    B --> F[Chrome Storage<br/>Settings & Analytics]
-    B --> G[Site Guides<br/>9 Domain Categories]
-    C --> H[Action Verification<br/>State Validation]
-    B --> I[Memory System<br/>Episodic / Semantic / Procedural]
-    I --> J[Cross-Site Patterns<br/>Recurring UI Detection]
-    I --> K[Site Visualization<br/>D3.js + 3D Canvas]
-    B --> L[Background Agents<br/>Scheduled Tasks]
-    L --> M["Server Backends<br/>Node.js | Python"]
+graph TB
+    subgraph UI["UI Layer"]
+        P["Popup Chat"]
+        SP["Side Panel"]
+        OPT["Options Dashboard"]
+    end
+
+    subgraph Core["Core Engine"]
+        BG["Background Worker<br/>Session Orchestration"]
+        CFG["Config Manager<br/>AES-GCM Encryption"]
+        AN["Analytics<br/>Dual Cost Tracking"]
+    end
+
+    subgraph Intelligence["Intelligence Layer"]
+        UP["Universal Provider<br/>21 Models, 4 Providers"]
+        AI["AI Integration<br/>Prompt Engineering"]
+        SG["Site Guides<br/>9 Domain Categories"]
+        MEM["Memory System<br/>Episodic / Semantic / Procedural"]
+        XP["Cross-Site Patterns<br/>UI Pattern Detection"]
+        VIZ["Visualization<br/>D3.js + 3D Canvas"]
+        AGT["Background Agents<br/>Scheduled Tasks"]
+    end
+
+    subgraph Content["Content Scripts"]
+        DOM["DOM Analysis<br/>Incremental Diffing"]
+        ACT["Actions Engine<br/>47 Browser Actions"]
+        SEL["Selector Generator<br/>Multi-Strategy CSS"]
+        VF["Visual Feedback<br/>Glow + Highlights"]
+        AV["Action Verification<br/>State Validation"]
+    end
+
+    subgraph External["External Services"]
+        XAI["xAI Grok API"]
+        OAI["OpenAI GPT API"]
+        ANT["Anthropic Claude API"]
+        GEM["Google Gemini API"]
+        SRV["Server Backends<br/>Node.js / Python"]
+    end
+
+    UI --> Core
+    Core --> Intelligence
+    Core --> Content
+    Intelligence --> External
+    AGT --> SRV
+    Content --> |"Web Page<br/>Automated Interactions"| ACT
+
+    classDef uiStyle fill:#DBEAFE,stroke:#2563EB,color:#1E40AF
+    classDef coreStyle fill:#DCFCE7,stroke:#16A34A,color:#166534
+    classDef intelStyle fill:#F3E8FF,stroke:#9333EA,color:#6B21A8
+    classDef contentStyle fill:#FFF7ED,stroke:#EA580C,color:#9A3412
+    classDef extStyle fill:#FEE2E2,stroke:#DC2626,color:#991B1B
+
+    class P,SP,OPT uiStyle
+    class BG,CFG,AN coreStyle
+    class UP,AI,SG,MEM,XP,VIZ,AGT intelStyle
+    class DOM,ACT,SEL,VF,AV contentStyle
+    class XAI,OAI,ANT,GEM,SRV extStyle
 ```
 
 **Architecture Components:**
@@ -179,6 +316,9 @@ graph TD
 
 ### Core Components
 
+<details>
+<summary><b>View core component file map</b></summary>
+
 | Path | Description |
 |------|-------------|
 | `background.js` | Service worker -- session orchestration and AI communication |
@@ -216,6 +356,8 @@ graph TD
 | `server/` | Optional Node.js backend for agent data |
 | `server-py/` | Optional Python/Flask backend for agent data |
 
+</details>
+
 ### Task Flow
 
 1. **Input**: User describes task in natural language
@@ -227,6 +369,46 @@ graph TD
 7. **Iteration**: Process repeats until task completion, stuck detection triggers recovery, or timeout
 8. **Memory Extraction**: Episodic, semantic, and procedural memories are extracted and AI-enriched
 9. **Feedback**: User receives real-time updates and final results in the chat interface
+
+### Automation Lifecycle
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as Chat UI
+    participant BG as Background Worker
+    participant AI as AI Provider
+    participant CS as Content Scripts
+    participant WP as Web Page
+    participant MEM as Memory System
+
+    U->>UI: Describe task in natural language
+    UI->>BG: Send task request
+    BG->>MEM: Retrieve relevant memories
+    MEM-->>BG: Site knowledge, past workflows, selectors
+
+    loop Until task complete or timeout
+        BG->>CS: Request DOM snapshot
+        CS->>WP: Analyze page structure
+        WP-->>CS: DOM elements, forms, navigation
+        CS-->>BG: Structured page data
+
+        BG->>AI: Send context + task + memories
+        AI-->>BG: Action plan (tool calls)
+
+        BG->>CS: Execute actions
+        CS->>WP: Click, type, scroll, navigate
+        WP-->>CS: Action result
+
+        CS->>CS: Verify action succeeded
+        CS-->>BG: Verification result
+        BG->>UI: Progress update
+    end
+
+    BG->>MEM: Extract and store new memories
+    BG->>UI: Final results
+    UI->>U: Display completion summary
+```
 
 ---
 
@@ -244,6 +426,9 @@ Access settings through the extension popup or options page:
 - **DOM Optimization**: Configure element limits and viewport prioritization
 
 ### Supported Models
+
+<details>
+<summary><b>View all 21 models with pricing</b></summary>
 
 #### xAI Grok
 | Model | Description | Cost (per 1M tokens) |
@@ -282,6 +467,8 @@ Access settings through the extension popup or options page:
 | gemini-2.0-flash | Fast and efficient (FREE) | $0.00 / $0.00 |
 | gemini-2.0-flash-exp | Free experimental | $0.00 / $0.00 |
 
+</details>
+
 #### Cost Tiers
 
 - **Free**: Gemini 2.0 Flash (experimental)
@@ -310,6 +497,9 @@ Configure all settings through the extension's built-in options page:
 ## Development
 
 ### Project Structure
+
+<details>
+<summary><b>View full project structure</b></summary>
 
 ```
 FSB/
@@ -408,6 +598,8 @@ FSB/
   package.json                  # Project metadata
 ```
 
+</details>
+
 ### Building and Testing
 
 ```bash
@@ -440,6 +632,15 @@ No build step or npm install is required -- FSB runs directly as a Chrome extens
 ---
 
 ## Multi-Model AI Integration
+
+<div align="center">
+
+![xAI Grok](https://img.shields.io/badge/xAI_Grok-6_Models-000000?style=for-the-badge&logo=x&logoColor=white)
+![OpenAI GPT](https://img.shields.io/badge/OpenAI_GPT-4_Models-412991?style=for-the-badge&logo=openai&logoColor=white)
+![Anthropic Claude](https://img.shields.io/badge/Anthropic_Claude-6_Models-D4A574?style=for-the-badge&logo=anthropic&logoColor=white)
+![Google Gemini](https://img.shields.io/badge/Google_Gemini-5_Models-4285F4?style=for-the-badge&logo=googlegemini&logoColor=white)
+
+</div>
 
 FSB supports four AI providers through a universal, model-agnostic architecture. Each provider has unique strengths for browser automation.
 
@@ -485,7 +686,8 @@ FSB's universal provider eliminates the need for provider-specific code:
 
 ### Comprehensive Action Library
 
-FSB provides 47 browser actions organized by category:
+<details>
+<summary><b>View all 47 browser actions by category</b></summary>
 
 **Navigation**
 - `navigate` -- Go to a URL
@@ -546,6 +748,8 @@ FSB provides 47 browser actions organized by category:
 - `solveCaptcha` -- CAPTCHA solving integration
 - `moveMouse` -- Move the mouse to coordinates
 - `verifyMessageSent` -- Verify a message was successfully sent
+
+</details>
 
 ---
 
@@ -799,5 +1003,7 @@ Every contributor helps make FSB better! Contributors are recognized in our ackn
 **Star this repository if FSB helps you automate your browsing!**
 
 *FSB - Full Self-Browsing: Making AI-powered automation accessible to everyone*
+
+[Back to top](#fsb-v902---full-self-browsing)
 
 </div>
