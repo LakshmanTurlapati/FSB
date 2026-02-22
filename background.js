@@ -3853,6 +3853,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             url: request.url || sender.url,
             frameId: frameId
           });
+          chrome.action.setBadgeText({ text: '' });
           debugLog('[FSB Background] Tab marked as ready:', tabId);
           automationLogger.logInit('content_script', 'ready', { tabId, frameId, readyState: request.readyState, retry: request.retry || false });
         } else {
@@ -3916,6 +3917,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         lineno: request.lineno,
         colno: request.colno
       });
+      chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
+      chrome.action.setBadgeText({ text: '!' });
       sendResponse({ success: true });
       break;
 
