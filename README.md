@@ -34,7 +34,7 @@
 
 *Inspired by Project Mariner, built for everyone*
 
-[Quick Start](#quick-start) | [Architecture](#architecture-overview) | [AI Providers](#multi-model-ai-integration) | [Memory](#long-term-memory-system) | [Contributing](#contributing)
+[See FSB](#see-fsb) | [Quick Start](#quick-start) | [Architecture](#architecture-overview) | [AI Providers](#multi-model-ai-integration) | [Memory](#long-term-memory-system) | [Contributing](#contributing)
 
 </div>
 
@@ -160,6 +160,23 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 
 ---
 
+## See FSB
+
+<div align="center">
+
+### Chat Interface
+<img src="Assets/demo-chat.svg" alt="FSB Chat Interface" width="800" />
+
+### Browser Automation
+<img src="Assets/demo-browser.svg" alt="FSB Automating Google Search" width="900" />
+
+### Analytics Dashboard
+<img src="Assets/demo-dashboard.svg" alt="FSB Analytics Dashboard" width="900" />
+
+</div>
+
+---
+
 ## Quick Start
 
 > **Get running in under 2 minutes** -- Clone, load in Chrome, configure one API key, and start automating.
@@ -257,17 +274,6 @@ graph TB
     AGT --> SRV
     Content --> |"Web Page<br/>Automated Interactions"| ACT
 
-    classDef uiStyle fill:#DBEAFE,stroke:#2563EB,color:#1E40AF
-    classDef coreStyle fill:#DCFCE7,stroke:#16A34A,color:#166534
-    classDef intelStyle fill:#F3E8FF,stroke:#9333EA,color:#6B21A8
-    classDef contentStyle fill:#FFF7ED,stroke:#EA580C,color:#9A3412
-    classDef extStyle fill:#FEE2E2,stroke:#DC2626,color:#991B1B
-
-    class P,SP,OPT uiStyle
-    class BG,CFG,AN coreStyle
-    class UP,AI,SG,MEM,XP,VIZ,AGT intelStyle
-    class DOM,ACT,SEL,VF,AV contentStyle
-    class XAI,OAI,ANT,GEM,SRV extStyle
 ```
 
 **Architecture Components:**

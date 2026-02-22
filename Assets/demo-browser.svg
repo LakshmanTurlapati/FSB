@@ -1,0 +1,202 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520">
+  <defs>
+    <linearGradient id="userBubbleGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b35"/>
+      <stop offset="100%" style="stop-color:#ff8c42"/>
+    </linearGradient>
+    <filter id="shadow2">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-opacity="0.3"/>
+    </filter>
+    <filter id="targetGlow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feFlood flood-color="#ff6b35" flood-opacity="0.4" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <style>
+    .br-outer { fill: #1a1a1a; }
+    .br-titlebar { fill: #2a2a2a; }
+    .br-addressbar-bg { fill: #1e1e1e; }
+    .br-content { fill: #ffffff; }
+    .br-panel-bg { fill: #1e1e1e; }
+    .br-panel-header { fill: #262626; }
+    .br-text { fill: #fafafa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .br-text-dim { fill: #9ca3af; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .br-text-dark { fill: #1f2937; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .br-text-blue { fill: #1a73e8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .br-text-green { fill: #188038; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .br-text-snippet { fill: #4d5156; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .br-text-ai { fill: #90caf9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .br-text-action { fill: #81c784; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .br-text-white { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .br-text-progress { fill: #ff8c42; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .br-separator { stroke: #374151; }
+    .br-content-sep { stroke: #e5e7eb; }
+    .br-address-text { fill: #9ca3af; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+    .br-searchbar { fill: #f1f3f4; }
+    .br-target-border { stroke: #ff6b35; fill: none; }
+    .br-viewport-glow { stroke: #ff6b35; fill: none; }
+    .br-bubble-ai { fill: rgba(33,150,243,0.12); }
+    .br-bubble-action { fill: rgba(76,175,80,0.1); }
+    .br-border-ai { fill: #2196f3; }
+    .br-border-action { fill: #4caf50; }
+    .br-status-dot { fill: #10b981; }
+    .br-progress-bg { fill: #374151; }
+    .br-progress-fill { fill: #ff6b35; }
+
+    @media (prefers-color-scheme: light) {
+      .br-outer { fill: #e5e7eb; }
+      .br-titlebar { fill: #f3f4f6; }
+      .br-addressbar-bg { fill: #e5e7eb; }
+      .br-panel-bg { fill: #f9fafb; }
+      .br-panel-header { fill: #ffffff; }
+      .br-text { fill: #111827; }
+      .br-text-dim { fill: #6b7280; }
+      .br-text-ai { fill: #1565c0; }
+      .br-text-action { fill: #2e7d32; }
+      .br-separator { stroke: #d1d5db; }
+      .br-address-text { fill: #4b5563; }
+      .br-bubble-ai { fill: rgba(33,150,243,0.06); }
+      .br-bubble-action { fill: rgba(76,175,80,0.06); }
+      .br-progress-bg { fill: #d1d5db; }
+    }
+  </style>
+
+  <!-- Outer frame with viewport glow -->
+  <rect width="900" height="520" rx="12" ry="12" class="br-outer" filter="url(#shadow2)"/>
+  <rect x="2" y="2" width="896" height="516" rx="11" ry="11" class="br-viewport-glow" stroke-width="2" stroke-opacity="0.6"/>
+
+  <!-- Title bar (macOS style) -->
+  <rect x="4" y="4" width="892" height="36" rx="10" ry="10" class="br-titlebar"/>
+  <rect x="4" y="28" width="892" height="12" class="br-titlebar"/>
+
+  <!-- Traffic lights -->
+  <circle cx="24" cy="22" r="6" fill="#ff5f57"/>
+  <circle cx="44" cy="22" r="6" fill="#febc2e"/>
+  <circle cx="64" cy="22" r="6" fill="#28c840"/>
+
+  <!-- Tab -->
+  <rect x="90" y="8" width="200" height="28" rx="6" ry="6" fill="#1e1e1e"/>
+  <text x="110" y="27" class="br-text" font-size="11">Google Search</text>
+
+  <!-- Address bar -->
+  <rect x="4" y="40" width="892" height="32" class="br-addressbar-bg"/>
+  <!-- Lock icon -->
+  <rect x="18" y="50" width="10" height="8" rx="2" fill="none" stroke="#10b981" stroke-width="1.2"/>
+  <path d="M20 50 v-3 a3 3 0 0 1 6 0 v3" fill="none" stroke="#10b981" stroke-width="1.2"/>
+  <text x="34" y="61" class="br-address-text" font-size="12">google.com/search?q=iphone+reviews</text>
+
+  <!-- Separator below address bar -->
+  <line x1="4" y1="72" x2="896" y2="72" class="br-separator" stroke-width="1"/>
+
+  <!-- Main content area (left ~60%) -->
+  <rect x="4" y="72" width="540" height="444" class="br-content"/>
+  <rect x="4" y="504" width="12" height="12" rx="10" ry="10" class="br-content"/>
+
+  <!-- Google logo (simplified) -->
+  <text x="40" y="112" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="700">
+    <tspan fill="#4285f4">G</tspan><tspan fill="#ea4335">o</tspan><tspan fill="#fbbc05">o</tspan><tspan fill="#4285f4">g</tspan><tspan fill="#34a853">l</tspan><tspan fill="#ea4335">e</tspan>
+  </text>
+
+  <!-- Search bar -->
+  <rect x="40" y="124" width="480" height="36" rx="18" ry="18" class="br-searchbar" stroke="#dfe1e5" stroke-width="1"/>
+  <text x="60" y="147" class="br-text-dark" font-size="13">iphone reviews</text>
+  <!-- Search icon -->
+  <circle cx="496" cy="142" r="7" fill="none" stroke="#4285f4" stroke-width="1.5"/>
+  <line x1="501" y1="147" x2="505" y2="151" stroke="#4285f4" stroke-width="1.5"/>
+
+  <!-- Results count -->
+  <text x="40" y="184" class="br-text-snippet" font-size="11">About 2,340,000,000 results (0.42 seconds)</text>
+
+  <!-- Search result 1 -->
+  <text x="40" y="214" class="br-text-green" font-size="11">https://www.techradar.com > phones > reviews</text>
+  <text x="40" y="232" class="br-text-blue" font-size="15" font-weight="500">iPhone 16 Pro Max Review - TechRadar</text>
+  <text x="40" y="250" class="br-text-snippet" font-size="12">The best iPhone yet with improved cameras, faster chip, and</text>
+  <text x="40" y="265" class="br-text-snippet" font-size="12">all-day battery life. Full review with benchmarks...</text>
+
+  <!-- Search result 2 (highlighted - FSB targeting this one) -->
+  <rect x="30" y="280" width="504" height="82" rx="8" ry="8" class="br-target-border" stroke-width="2" filter="url(#targetGlow)"/>
+  <text x="40" y="302" class="br-text-green" font-size="11">https://www.tomsguide.com > reviews > iphone</text>
+  <text x="40" y="320" class="br-text-blue" font-size="15" font-weight="500">iPhone 16 Review: The Best Phone for Most People</text>
+  <text x="40" y="338" class="br-text-snippet" font-size="12">Our comprehensive review of the iPhone 16 covers</text>
+  <text x="40" y="353" class="br-text-snippet" font-size="12">design, performance, camera quality, and value...</text>
+
+  <!-- FSB targeting indicator label -->
+  <rect x="440" y="282" width="88" height="20" rx="10" fill="#ff6b35" opacity="0.9"/>
+  <text x="454" y="296" class="br-text-white" font-size="10" font-weight="600">FSB Target</text>
+
+  <!-- Search result 3 -->
+  <text x="40" y="390" class="br-text-green" font-size="11">https://www.theverge.com > 2025 > iphone-review</text>
+  <text x="40" y="408" class="br-text-blue" font-size="15" font-weight="500">The Verge iPhone 16 Pro Review</text>
+  <text x="40" y="426" class="br-text-snippet" font-size="12">Apple's pro-tier iPhone gets meaningful upgrades in</text>
+  <text x="40" y="441" class="br-text-snippet" font-size="12">photography, performance, and display quality...</text>
+
+  <!-- Vertical separator between content and panel -->
+  <line x1="544" y1="72" x2="544" y2="520" class="br-separator" stroke-width="1"/>
+
+  <!-- FSB Side Panel (right ~40%) -->
+  <rect x="544" y="72" width="352" height="444" class="br-panel-bg"/>
+  <rect x="884" y="504" width="12" height="12" rx="10" ry="10" class="br-panel-bg"/>
+
+  <!-- Panel header -->
+  <rect x="544" y="72" width="352" height="44" class="br-panel-header"/>
+  <text x="564" y="99" class="br-text" font-size="16" font-weight="700">FSB</text>
+  <circle cx="602" cy="94" r="4" class="br-status-dot"/>
+  <text x="612" y="99" class="br-text-dim" font-size="12">Active</text>
+
+  <!-- Separator below panel header -->
+  <line x1="544" y1="116" x2="896" y2="116" class="br-separator" stroke-width="1"/>
+
+  <!-- Panel message 1: User message (compact, right-aligned) -->
+  <rect x="636" y="130" width="240" height="34" rx="14" ry="14" fill="url(#userBubbleGrad2)"/>
+  <text x="652" y="152" class="br-text-white" font-size="12">Search for iPhone reviews</text>
+
+  <!-- Panel message 2: AI message -->
+  <rect x="560" y="178" width="310" height="44" rx="8" ry="8" class="br-bubble-ai"/>
+  <rect x="560" y="178" width="3" height="44" rx="1.5" class="br-border-ai"/>
+  <text x="574" y="196" class="br-text-ai" font-size="12">Navigated to Google. Searching</text>
+  <text x="574" y="212" class="br-text-ai" font-size="12">for "iphone reviews"...</text>
+
+  <!-- Panel message 3: Action message -->
+  <rect x="560" y="236" width="310" height="44" rx="8" ry="8" class="br-bubble-action"/>
+  <rect x="560" y="236" width="3" height="44" rx="1.5" class="br-border-action"/>
+  <text x="574" y="254" class="br-text-action" font-size="12">Found 10 results. Clicking on</text>
+  <text x="574" y="270" class="br-text-action" font-size="12">Tom's Guide review...</text>
+
+  <!-- Animated dots indicator -->
+  <circle cx="574" cy="300" r="3" fill="#ff8c42" opacity="0.4"/>
+  <circle cx="584" cy="300" r="3" fill="#ff8c42" opacity="0.7"/>
+  <circle cx="594" cy="300" r="3" fill="#ff8c42" opacity="1.0"/>
+
+  <!-- Progress section -->
+  <line x1="556" y1="320" x2="884" y2="320" class="br-separator" stroke-width="0.5"/>
+
+  <!-- Step counter -->
+  <text x="564" y="345" class="br-text-progress" font-size="13" font-weight="600">Step 3 of 5</text>
+  <text x="564" y="362" class="br-text-dim" font-size="11">Clicking search result...</text>
+
+  <!-- Progress bar -->
+  <rect x="564" y="376" width="300" height="6" rx="3" ry="3" class="br-progress-bg"/>
+  <rect x="564" y="376" width="180" height="6" rx="3" ry="3" class="br-progress-fill"/>
+
+  <!-- Action log (compact) -->
+  <line x1="556" y1="400" x2="884" y2="400" class="br-separator" stroke-width="0.5"/>
+  <text x="564" y="420" class="br-text-dim" font-size="10" font-weight="600">ACTION LOG</text>
+
+  <circle cx="572" cy="438" r="3" fill="#10b981"/>
+  <text x="582" y="442" class="br-text-dim" font-size="11">navigate google.com</text>
+
+  <circle cx="572" cy="458" r="3" fill="#10b981"/>
+  <text x="582" y="462" class="br-text-dim" font-size="11">type "iphone reviews"</text>
+
+  <circle cx="572" cy="478" r="3" fill="#ff8c42"/>
+  <text x="582" y="482" class="br-text-dim" font-size="11">click result #2</text>
+
+  <circle cx="572" cy="498" r="3" fill="#374151"/>
+  <text x="582" y="502" class="br-text-dim" font-size="11">extract page content</text>
+</svg>
