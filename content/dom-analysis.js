@@ -2470,4 +2470,5 @@
   FSB.generateCompactSnapshot = generateCompactSnapshot;
   FSB.getStructuredDOM = getStructuredDOM;
 
+  window.FSB._modules['dom-analysis'] = { loaded: true, timestamp: Date.now() };
 })();

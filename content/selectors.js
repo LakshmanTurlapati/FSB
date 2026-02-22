@@ -951,4 +951,6 @@
   FSB.isInShadowDOM = isInShadowDOM;
   FSB.AUTO_GENERATED_ID_PATTERN = AUTO_GENERATED_ID_PATTERN;
   FSB.DYNAMIC_CLASS_PATTERNS = DYNAMIC_CLASS_PATTERNS;
+
+  window.FSB._modules['selectors'] = { loaded: true, timestamp: Date.now() };
 })();

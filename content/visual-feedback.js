@@ -1269,4 +1269,5 @@
   // Shared mutable state
   FSB.lastActionStatusText = lastActionStatusText;
 
+  window.FSB._modules['visual-feedback'] = { loaded: true, timestamp: Date.now() };
 })();

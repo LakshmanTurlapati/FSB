@@ -3646,4 +3646,6 @@ const tools = {
   FSB.detectActionOutcome = detectActionOutcome;
   FSB.waitForPageStability = waitForPageStability;
   FSB.tools = tools;
+
+  window.FSB._modules['actions'] = { loaded: true, timestamp: Date.now() };
 })();

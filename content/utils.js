@@ -137,4 +137,6 @@
   FSB.FSB_HOST_IDS = FSB_HOST_IDS;
   FSB.isFsbElement = isFsbElement;
   FSB.shallowEqual = shallowEqual;
+
+  window.FSB._modules['utils'] = { loaded: true, timestamp: Date.now() };
 })();

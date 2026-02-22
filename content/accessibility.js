@@ -1276,4 +1276,5 @@
   // Dead code kept for now (Phase 5 will evaluate)
   FSB.waitForActionable = waitForActionable;
 
+  window.FSB._modules['accessibility'] = { loaded: true, timestamp: Date.now() };
 })();

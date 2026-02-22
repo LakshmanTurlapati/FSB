@@ -752,4 +752,6 @@
   FSB.domStateCache = domStateCache;
   FSB.getElementIndexes = getElementIndexes;
   FSB.invalidateElementIndexes = invalidateElementIndexes;
+
+  window.FSB._modules['dom-state'] = { loaded: true, timestamp: Date.now() };
 })();

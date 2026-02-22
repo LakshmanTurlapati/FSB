@@ -13,6 +13,9 @@ if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
   // Create namespace
   window.FSB = {};
 
+  // Module tracking for debugging injection issues
+  window.FSB._modules = {};
+
   // Logger setup (automation-logger.js should already be loaded before this file)
   window.FSB.logger = window.automationLogger || {
     log: function() {},
@@ -96,4 +99,6 @@ if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
       window.FSB.logger.error('Error in rejection handler', { sessionId: window.FSB.sessionId, error: e.message });
     }
   });
+
+  window.FSB._modules['init'] = { loaded: true, timestamp: Date.now() };
 }

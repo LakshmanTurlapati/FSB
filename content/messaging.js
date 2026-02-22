@@ -1224,4 +1224,5 @@
   FSB.handleAsyncMessage = handleAsyncMessage;
   FSB.handleBackgroundMessage = handleBackgroundMessage;
 
+  window.FSB._modules['messaging'] = { loaded: true, timestamp: Date.now() };
 })();

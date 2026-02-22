@@ -623,4 +623,5 @@
   FSB.executeDirectLogin = executeDirectLogin;
   FSB.establishBackgroundConnection = establishBackgroundConnection;
 
+  window.FSB._modules['lifecycle'] = { loaded: true, timestamp: Date.now() };
 })();
