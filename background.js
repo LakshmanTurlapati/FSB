@@ -9288,9 +9288,10 @@ async function startAutomationLoop(sessionId) {
             loopResolve?.();
             return; // Don't mark complete yet -- formatting will run
           }
-          // formattingPhase is true but formattingComplete is false -- should not happen (formatting sets it)
-          // Fall through to normal completion as safety valve
-          automationLogger.warn('Sheets formatting phase ended without formattingComplete flag', { sessionId });
+          // formattingPhase is true and formattingComplete is false -- formatting just finished
+          // Set formattingComplete so the state machine is clean
+          session.sheetsData.formattingComplete = true;
+          automationLogger.info('Sheets formatting pass completed', { sessionId });
         }
         // formattingComplete is true -- both data entry and formatting done
         automationLogger.info('Sheets data entry and formatting completed', {
