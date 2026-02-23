@@ -358,6 +358,63 @@ function extractCompanyFromTask(taskString) {
 }
 
 /**
+ * Extract multiple company names from a natural language task string.
+ * Handles comma and "and"-separated company lists.
+ * e.g., "find DevOps jobs at Microsoft, Amazon, and Google" -> ["Microsoft", "Amazon", "Google"]
+ * Returns null if fewer than 2 valid companies are found (single-company tasks
+ * should fall through to extractCompanyFromTask instead).
+ * @param {string} taskString - The user's task description
+ * @returns {string[]|null} Array of validated company names, or null
+ */
+function extractCompaniesFromTask(taskString) {
+  if (!taskString) return null;
+  const task = taskString.trim();
+  if (!task) return null;
+
+  // Extract the "at [company list]" portion from the end of the task string
+  const atMatch = task.match(/\bat\s+(.+?)$/i);
+  if (!atMatch) return null;
+
+  const companyPortion = atMatch[1];
+
+  // Split on comma-and, comma, or standalone "and"
+  const candidates = companyPortion
+    .split(/,\s*(?:and\s+)?|\s+and\s+/i)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+
+  // Words that are NOT company names
+  const nonCompanyWords = [
+    'find', 'search', 'look', 'get', 'show', 'list', 'browse', 'check', 'view',
+    'software', 'engineering', 'tech', 'remote', 'senior', 'junior', 'lead',
+    'jobs', 'job', 'careers', 'career', 'openings', 'opening', 'positions',
+    'position', 'roles', 'role', 'internships', 'internship', 'hiring',
+    'the', 'this', 'that', 'their', 'a', 'an', 'all', 'any', 'some',
+    'new', 'best', 'top', 'open', 'available'
+  ];
+
+  // Filter out non-company words and validate against known guides/aliases
+  const validCompanies = candidates.filter(candidate => {
+    // Check if it's a non-company word
+    if (nonCompanyWords.includes(candidate.toLowerCase())) return false;
+
+    // Check if ALL words in the candidate are non-company words (multi-word phrases)
+    const words = candidate.toLowerCase().split(/\s+/);
+    if (words.every(w => nonCompanyWords.includes(w))) return false;
+
+    // Validate: must resolve via getGuideByCompanyName or COMPANY_ALIASES
+    const nameLower = candidate.toLowerCase().trim();
+    if (COMPANY_ALIASES[nameLower]) return true;
+    if (getGuideByCompanyName(candidate)) return true;
+
+    return false;
+  });
+
+  // Return array only if 2+ valid companies found
+  return validCompanies.length >= 2 ? validCompanies : null;
+}
+
+/**
  * Format a selectors object into a readable string for prompt injection.
  * @param {Object} selectors - Key-value pairs of selector names and CSS selectors
  * @returns {string} Formatted selector list

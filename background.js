@@ -6247,6 +6247,94 @@ async function handleMultiTabAction(action, currentTabId) {
 }
 
 /**
+ * Handle background-only data actions (storeJobData, getStoredJobs).
+ * These are NOT multi-tab actions but are handled in the background script
+ * because they interact with chrome.storage.local directly.
+ * @param {Object} action - The action to execute with .tool and .params
+ * @param {Object} session - The active session object
+ * @returns {Promise<Object>} Action result
+ */
+async function handleBackgroundAction(action, session) {
+  const { tool, params } = action;
+
+  switch (tool) {
+    case 'storeJobData': {
+      const company = params?.company;
+      const jobs = params?.jobs;
+      if (!company || !Array.isArray(jobs)) {
+        return { success: false, error: 'storeJobData requires company (string) and jobs (array) params' };
+      }
+
+      // Read existing accumulator
+      const stored = await chrome.storage.local.get('fsbJobAccumulator');
+      let accumulator = stored.fsbJobAccumulator || null;
+
+      // Create new accumulator if none exists
+      if (!accumulator) {
+        accumulator = {
+          sessionId: session?.sessionId || null,
+          searchQuery: session?.task || '',
+          companies: {},
+          totalJobs: 0,
+          startedAt: Date.now()
+        };
+      }
+
+      // Annotate each job with metadata
+      const annotatedJobs = jobs.map(job => ({
+        ...job,
+        company: company,
+        extractedAt: Date.now()
+      }));
+
+      // Add/update company entry
+      accumulator.companies[company] = {
+        status: 'completed',
+        jobs: annotatedJobs,
+        error: null
+      };
+
+      // Recalculate total jobs across all companies
+      accumulator.totalJobs = Object.values(accumulator.companies)
+        .reduce((sum, entry) => sum + (entry.jobs ? entry.jobs.length : 0), 0);
+
+      // Write back to storage
+      await chrome.storage.local.set({ fsbJobAccumulator: accumulator });
+
+      return {
+        success: true,
+        message: `Stored ${annotatedJobs.length} jobs for ${company}`,
+        totalAccumulated: accumulator.totalJobs
+      };
+    }
+
+    case 'getStoredJobs': {
+      const stored = await chrome.storage.local.get('fsbJobAccumulator');
+      const accumulator = stored.fsbJobAccumulator;
+
+      if (!accumulator || !accumulator.companies) {
+        return { success: true, jobs: [], totalJobs: 0, companies: [], searchQuery: '' };
+      }
+
+      // Flatten all jobs across all companies
+      const allJobs = Object.values(accumulator.companies)
+        .flatMap(entry => entry.jobs || []);
+
+      return {
+        success: true,
+        jobs: allJobs,
+        totalJobs: allJobs.length,
+        companies: Object.keys(accumulator.companies),
+        searchQuery: accumulator.searchQuery || ''
+      };
+    }
+
+    default:
+      return { success: false, error: `Unknown background action: ${tool}` };
+  }
+}
+
+/**
  * Main automation loop that executes AI-generated actions iteratively
  * @param {string} sessionId - The unique session identifier
  * @returns {Promise<void>}
@@ -7441,11 +7529,16 @@ async function startAutomationLoop(sessionId) {
 
         // Multi-tab actions are handled directly by background script
         const multiTabActions = ['openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab'];
+        // Background-handled data tools (storage operations, not DOM actions)
+        const backgroundDataTools = ['storeJobData', 'getStoredJobs'];
+        // Combined list for background dispatch check
+        const backgroundHandledTools = [...multiTabActions, ...backgroundDataTools];
 
         // Send per-action status to content script viewport overlay
         // Skip for multi-tab actions -- they change session.tabId mid-flight,
         // and sending 'acting' to the old tab right before switchToTab would
         // re-create overlays that we are about to clean up.
+        // Data tools DO get overlay status updates (they don't change tabs).
         if (!multiTabActions.includes(action.tool)) {
           sendSessionStatus(session.tabId, {
             phase: 'acting',
@@ -7460,7 +7553,7 @@ async function startAutomationLoop(sessionId) {
         }
 
         let actionResult;
-        
+
         if (multiTabActions.includes(action.tool)) {
           // Handle multi-tab actions directly in background script
           automationLogger.logActionExecution(sessionId, action.tool, 'routing', { handler: 'background' });
@@ -7472,6 +7565,20 @@ async function startAutomationLoop(sessionId) {
             actionResult = {
               success: false,
               error: `Multi-tab action failed: ${error.message}`,
+              tool: action.tool
+            };
+          }
+        } else if (backgroundDataTools.includes(action.tool)) {
+          // Handle data storage actions in background script (chrome.storage.local)
+          automationLogger.logActionExecution(sessionId, action.tool, 'routing', { handler: 'background-data' });
+          try {
+            actionResult = await handleBackgroundAction(action, session);
+            automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: actionResult?.success });
+          } catch (error) {
+            automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: false, error: error.message });
+            actionResult = {
+              success: false,
+              error: `Background data action failed: ${error.message}`,
               tool: action.tool
             };
           }

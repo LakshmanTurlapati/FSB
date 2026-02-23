@@ -64,6 +64,18 @@ const TOOL_DOCUMENTATION = {
       example: '{"tool": "solveCaptcha", "params": {}}'
     }
   },
+  data: {
+    storeJobData: {
+      params: {company: "Company Name", jobs: [{title: "...", location: "...", applyLink: "...", datePosted: "...", description: "..."}]},
+      desc: "Store extracted job data for a company. Call this AFTER extracting jobs and BEFORE marking taskComplete. Jobs are persisted to storage for accumulation across companies.",
+      example: '{"tool": "storeJobData", "params": {"company": "Microsoft", "jobs": [{"title": "DevOps Engineer", "location": "Redmond, WA", "applyLink": "https://...", "datePosted": "2026-02-20", "description": "Lead cloud infrastructure..."}]}}'
+    },
+    getStoredJobs: {
+      params: {},
+      desc: "Retrieve all previously stored job data from the accumulation buffer. Returns jobs from all companies searched so far.",
+      example: '{"tool": "getStoredJobs", "params": {}}'
+    }
+  },
   multitab: {
     openNewTab: {
       params: {url: "https://...", active: true},
