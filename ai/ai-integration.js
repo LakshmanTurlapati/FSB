@@ -2235,11 +2235,38 @@ ${this._buildTaskGuidance(taskType, siteGuide, currentUrl, task)}`;
       systemPrompt = MINIMAL_CONTINUATION_PROMPT;
     }
 
+    // Multi-site career search context injection
+    // When the orchestrator is running a multi-company search, inject directives
+    // telling the AI which company to search and to persist data via storeJobData
+    if (context?.multiSite) {
+      const ms = context.multiSite;
+      const multiSiteDirective = `
+
+MULTI-SITE SEARCH CONTEXT:
+You are searching company ${ms.currentIndex + 1} of ${ms.totalCompanies}: ${ms.currentCompany}
+Search ONLY "${ms.currentCompany}" -- do not search for other companies.
+Previous companies completed: ${ms.completedCompanies.join(', ') || 'none'}
+
+CRITICAL DATA PERSISTENCE RULE:
+After extracting jobs from ${ms.currentCompany}, you MUST call storeJobData with the extracted data BEFORE marking taskComplete: true.
+Format: {"tool": "storeJobData", "params": {"company": "${ms.currentCompany}", "jobs": [{"title": "...", "location": "...", "applyLink": "...", "datePosted": "...", "description": "..."}]}}
+Do NOT only report jobs in the result text -- they MUST be stored via storeJobData.
+If no jobs found or error encountered, still mark taskComplete: true with the error report in result.`;
+
+      systemPrompt += multiSiteDirective;
+      automationLogger.debug('Multi-site directive injected into system prompt', {
+        sessionId: this.currentSessionId,
+        company: ms.currentCompany,
+        index: ms.currentIndex,
+        total: ms.totalCompanies
+      });
+    }
+
     // Validate domState structure
     if (!domState || typeof domState !== 'object') {
       throw new Error('Invalid DOM state provided to AI integration');
     }
-    
+
     // Build user prompt with context
     // EASY WIN #6 & #7: Add task decomposition and verification requirements
     let userPrompt = `Task: ${task}`;
@@ -3925,7 +3952,10 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       'waitForDOMStable', 'detectLoadingState', 'verifyMessageSent',
 
       // Code editor verification
-      'getEditorContent'
+      'getEditorContent',
+
+      // Data persistence tools (background-handled)
+      'storeJobData', 'getStoredJobs'
     ].includes(tool);
   }
   
@@ -4190,7 +4220,13 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
   getRelevantTools(taskType, siteGuide = null) {
     // If a site guide specifies tool preferences, use those
     if (siteGuide && siteGuide.toolPreferences && siteGuide.toolPreferences.length > 0) {
-      return siteGuide.toolPreferences;
+      const tools = [...siteGuide.toolPreferences];
+      // Career tasks always need data tools for job accumulation (storeJobData/getStoredJobs)
+      if (taskType === 'career') {
+        if (!tools.includes('storeJobData')) tools.push('storeJobData');
+        if (!tools.includes('getStoredJobs')) tools.push('getStoredJobs');
+      }
+      return tools;
     }
 
     switch (taskType) {
@@ -4335,9 +4371,18 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       waitForTabLoad: {
         params: {timeout: 10000},
         desc: "Wait for tab to finish loading"
+      },
+      // Data persistence tools (background-handled)
+      storeJobData: {
+        params: {company: "Company Name", jobs: [{title: "...", location: "...", applyLink: "...", datePosted: "...", description: "..."}]},
+        desc: "Store extracted job data for a company. Call AFTER extracting jobs and BEFORE taskComplete"
+      },
+      getStoredJobs: {
+        params: {},
+        desc: "Retrieve all previously stored job data from the accumulation buffer"
       }
     };
-    
+
     relevantTools.forEach(tool => {
       if (allTools[tool]) {
         documentation += `- ${tool}: ${allTools[tool].desc}. Params: ${JSON.stringify(allTools[tool].params)}\n`;
