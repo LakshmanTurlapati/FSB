@@ -259,52 +259,71 @@ NEVER BLINDLY CLICK THE FIRST RESULT! You must analyze product listings intellig
 Example reasoning: "I see 12 product listings. The first is a sponsored PS5 controller for $49.99. The third result is 'PlayStation 5 Console - God of War Bundle' priced at $499.99 with 4.7 stars and 15,234 reviews, sold by Amazon. This matches the user's request for a PS5, so I will click on this product."
 
 When completing, provide: product selected, price, rating, seller, and why you chose it over other options. When comparing multiple products, include a \`\`\`chart block with a bar chart of prices or ratings for visual comparison, and a markdown table with product details.`,
-  career: `CAREER JOB SEARCH & DATA ENTRY WORKFLOW:
+  career: `CAREER JOB SEARCH WORKFLOW:
 
-This is a multi-phase task. Follow these phases IN ORDER:
+This is a search-and-extract task. Follow these phases IN ORDER:
+
+PHASE 0 -- COOKIE BANNER DISMISSAL:
+- Before interacting with ANY page element, check for cookie consent or privacy overlays
+- Look for and click buttons with text: "Accept", "Accept All", "I Accept", "Got it", "OK", "Agree", "Close"
+- If no cookie banner is visible, proceed immediately to Phase 1
+- Spend at most ONE action on cookie dismissal
 
 PHASE 1 -- NAVIGATE TO CAREER PAGE:
-- ALWAYS try the company's direct career page FIRST: Google search "[company name] careers" or "[company name] jobs"
-- Click the OFFICIAL company careers link from search results (NOT Indeed/Glassdoor mirrors)
-- If the company has no career page or no relevant listings, THEN fall back to Indeed or Glassdoor
+- If a DIRECT CAREER URL is provided in the site guidance below, navigate to it IMMEDIATELY (do NOT Google search)
+- If no direct URL: Google search "[company name] careers" or "[company name] jobs"
+- Click the OFFICIAL company careers link from search results (NOT Indeed/Glassdoor mirrors unless no company page exists)
+- After navigation, dismiss any cookie banners that appear
 
 PHASE 2 -- SEARCH FOR RELEVANT JOBS:
-- Use any search/filter functionality on the careers page
+- Use search/filter functionality on the careers page
 - Enter the role keyword if the user specified one (e.g., "software engineer")
 - Apply location filters if specified
-- Scroll through results to find matching positions
+- Wait for results to load
+- If the career page has no search box, scroll through all listings manually
 
 PHASE 3 -- EXTRACT JOB DATA:
-- For each relevant job (3-5 max unless user specifies otherwise), extract ALL 6 fields:
-  1. Company Name
-  2. Role/Title (exact job title)
-  3. Date Posted (or "Not listed")
-  4. Location (city/state, Remote, or Hybrid)
-  5. Description Summary (1-2 sentences)
-  6. Apply Link (the URL to apply)
+- For each relevant job (3-5 max unless user specifies otherwise), extract ALL available fields:
+  1. Company Name (required)
+  2. Role/Title -- exact job title as listed (required)
+  3. Apply Link -- the URL to apply (required) -- use getAttribute with "href" on apply buttons/links
+  4. Date Posted -- when listed (best-effort, "Not listed" if unavailable)
+  5. Location -- city/state, Remote, or Hybrid (best-effort)
+  6. Description Summary -- 1-2 sentence summary (best-effort)
 - Use getText on title, location, and date elements
 - Use getAttribute with "href" on apply buttons/links
-- Summarize description from key responsibilities paragraph
+- APPLY LINK FALLBACK: If getAttribute on the apply button returns empty, "#", or a relative path, try the parent <a> element's href instead. If still unavailable, report "Apply: [not available -- visit careerUrl to apply]" (do NOT leave the field blank or report a non-URL value)
+- After search results load, STOP searching and START extracting. Do NOT refine the search unless zero results are returned.
 
-PHASE 4 -- NAVIGATE TO GOOGLE SHEETS:
-- If user provided a sheet URL, navigate to it
-- If user wants a new sheet, navigate to https://sheets.google.com and create a blank spreadsheet
-- Wait for the sheet to load (Name Box #t-name-box must be visible)
+STRUCTURED OUTPUT FORMAT (use this in your result field):
+When task is complete, provide job data in this EXACT format:
 
-PHASE 5 -- SET UP HEADERS:
-- Click the Name Box (#t-name-box), type "A1", press Enter
-- Type "Company", press Tab
-- Type "Role", press Tab
-- Type "Date Posted", press Tab
-- Type "Location", press Tab
-- Type "Description", press Tab
-- Type "Apply Link", press Enter
-- Headers are set. Cursor is now on row 2.
+JOBS FOUND: [number]
+---
+1. [Job Title]
+   Company: [Company Name]
+   Location: [City, State / Remote / Hybrid]
+   Date: [Date posted or "Not listed"]
+   Description: [1-2 sentence summary]
+   Apply: [URL or "not available -- visit careerUrl to apply"]
+---
+2. [Job Title]
+   ...
 
-PHASE 6 -- ENTER ROW DATA:
-- Click Name Box, type "A2", press Enter (to start at first data row)
-- Type company name, Tab, role title, Tab, date, Tab, location, Tab, description, Tab, apply link, Enter
-- Repeat for each job listing (A3, A4, etc.)
+ERROR REPORTING (use these formats when applicable):
+- No results: "NO RESULTS: [Company] career page returned 0 results for '[search term]'"
+- Auth wall: "AUTH REQUIRED: [Company] requires login to view listings. Career page: [URL]"
+- Page error: "PAGE ERROR: Could not access [Company] career page. Site may be unavailable."
+- Unknown company: "NO GUIDE: No career intelligence for [Company]. Searching Google for '[Company] careers'..."
+
+VAGUE QUERY HANDLING:
+- If user says something broad like "find tech internships" or "DevOps positions" without naming a company:
+  - Interpret the broad term into concrete search keywords:
+    "tech internships" -> search "software engineer intern" or "technology intern"
+    "DevOps positions" -> search "DevOps engineer" or "site reliability engineer"
+    "finance roles" -> search "financial analyst" or "finance associate"
+  - If no company is named, search Google for the interpreted terms and extract from the first relevant career page
+  - Report what you interpreted: "Interpreted 'tech internships' as 'software engineer intern'"
 
 RELEVANCE RULES:
 - If user says "find jobs at [company]" with no role, extract 3-5 diverse listings
@@ -312,23 +331,11 @@ RELEVANCE RULES:
 - Skip internships unless explicitly requested
 - Skip clearly unrelated roles
 
-FALLBACK STRATEGIES:
-- If company career page has no search: scroll through all listings manually
-- If no results on company site: try Indeed search for "[company] [role]"
-- If job board requires login: note the limitation and try an alternative board
-
-COMPLETION CRITERIA:
-- All extracted job data must be entered into Google Sheets
-- Each row must have all 6 fields filled
-- Verify by reading back at least one row using getText
-- Report: number of jobs found, number entered into sheet, sheet URL
-
-EXAMPLE TASKS:
-1. "Find software engineer jobs at Stripe and add them to a new Google Sheet"
-   -> Google "Stripe careers" -> stripe.com/jobs -> search "software engineer" -> extract 3-5 jobs -> create new sheet -> enter data
-
-2. "Search for product manager openings at Google and enter into [sheet URL]"
-   -> Google "Google careers" -> careers.google.com -> search "product manager" -> extract jobs -> navigate to sheet URL -> enter data`,
+COMPLETION:
+- Report extracted jobs using the STRUCTURED OUTPUT FORMAT above
+- Do NOT navigate to Google Sheets or any spreadsheet
+- Do NOT attempt to enter data anywhere -- just report the extracted jobs
+- Verify by reading back at least one job title using getText before marking complete`,
   general: "Complete the task step by step. For reading/summarizing tasks: navigate to the source, click to open the specific item (email, article, post), then extract and report the content. For action tasks: perform each step and verify the outcome. When completing, provide a detailed summary with specific data found or actions taken."
 };
 
@@ -4548,6 +4555,10 @@ REMINDER: Output ONLY the JSON object, nothing else.`;
           }).catch((error) => {
             automationLogger.error('Direct tracking failed', { sessionId: this.currentSessionId, error: error.message });
           });
+          // Accumulate cost on the active session for history display
+          if (typeof accumulateSessionCost !== 'undefined' && this.currentSessionId) {
+            accumulateSessionCost(this.currentSessionId, modelName, inputTokens, outputTokens);
+          }
         } catch (error) {
           automationLogger.error('Failed to initialize analytics', { sessionId: this.currentSessionId, error: error.message });
         }
