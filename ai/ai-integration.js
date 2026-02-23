@@ -2298,6 +2298,18 @@ WRITING PROCEDURE:
       - If correct: click the Name Box, type the next empty row's first cell, and continue writing
 5. After every row, the cursor should be in column A of the next row.
 
+EXISTING SHEET DETECTION (if switching to an existing Sheets tab):
+If the sheet already has data:
+1. Click Name Box, type "A1", press Enter
+2. Read formula bar -- if A1 has content, this is an existing sheet
+3. Tab through columns to read existing headers via formula bar
+4. Map existing headers to your column order (fuzzy match: "Role" = Title, "Firm" = Company, "Link" = Apply Link, etc.)
+5. Press Ctrl+End to find the last row with data
+6. Read the Name Box to get the last cell reference
+7. Navigate to the first empty row below existing data
+8. Write data matching the EXISTING column order (not the default order)
+9. Do NOT rewrite headers -- append data only
+
 HYPERLINK FORMULA FORMAT:
 For the Apply Link column, type: =HYPERLINK("actual_url_here","Apply")
 - This creates a clickable "Apply" link in the cell
@@ -4139,6 +4151,15 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
   // Detect task type from user input, with optional URL and site guide signals
   detectTaskType(task, currentUrl = null, siteGuide = null) {
     const taskLower = task.toLowerCase();
+
+    // Early detection: Sheets data entry rewritten task from startSheetsDataEntry
+    // The orchestrator rewrites the task to "Write N job listings to Google Sheets..."
+    // "write" is NOT in gatherActions arrays (which contain: find, search, research, get, look up, check, go to, visit),
+    // so the hasOutputDest && hasGatherAction check would fail without this early return.
+    // Sheets entry requires multitab tools (switchToTab, openNewTab, listTabs, waitForTabLoad).
+    if (taskLower.includes('job listings to google sheets')) {
+      return 'multitab';
+    }
 
     // If a site guide matched, use its category as a signal for task type mapping
     if (siteGuide) {
