@@ -2314,7 +2314,7 @@ FINAL VERIFICATION (two-pass, pass 2 -- after ALL rows written):
 3. Click Name Box, type "A2", press Enter -- verify the first job title matches
 4. Click Name Box, type "F2", press Enter -- verify the HYPERLINK formula is present
 5. If any cell is wrong: click Name Box, navigate to the wrong cell, retype the correct value
-6. After verification, rename the sheet (click the title at the top, type a descriptive name like "Job Search - ${sd.searchQuery || 'Results'} - ${new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}")
+6. After verification, rename the sheet (click the title at the top, type a descriptive name: "${sd.sheetTitle || 'Job Search Results'}")
 
 MISSING DATA: Use "N/A" for any field that has no value. Never leave a cell blank.
 

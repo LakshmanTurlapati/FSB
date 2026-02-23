@@ -7010,6 +7010,21 @@ function parseCustomColumns(task) {
 }
 
 /**
+ * Build a descriptive sheet title from session context.
+ * Generates names like "Job Search - SWE Internships - Feb 2026".
+ * @param {Object} session - The session object
+ * @returns {string} Formatted sheet title
+ */
+function buildSheetTitle(session) {
+  const query = session.sheetsData?.searchQuery || '';
+  const date = new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  if (query) {
+    return `Job Search - ${query} - ${date}`;
+  }
+  return `Job Search Results - ${date}`;
+}
+
+/**
  * Core Sheets data entry orchestrator.
  * Reads accumulated job data, determines sheet target, builds session state,
  * rewrites the task for Sheets entry, and restarts the automation loop.
@@ -7073,6 +7088,9 @@ async function startSheetsDataEntry(sessionId, session) {
     rowsWritten: 0,
     startedAt: Date.now()
   };
+
+  // 5b. Generate sheet title from context
+  session.sheetsData.sheetTitle = buildSheetTitle(session);
 
   // 6. Rewrite session task for Sheets-specific entry
   session.task = `Write ${rowCount} job listings to Google Sheets. Navigate to the sheet, write headers (${customColumns.join(', ')}) in row 1, then write all data rows. Use Name Box + Tab/Enter pattern. Verify each row after writing.`;
@@ -9173,6 +9191,20 @@ async function startAutomationLoop(sessionId) {
         // Use the finalized multi-site result if available
         if (session.multiSiteResult) {
           aiResponse.result = session.multiSiteResult;
+        }
+      }
+
+      // Sheets data entry completion handler (Phase 12)
+      if (session.sheetsData) {
+        automationLogger.info('Sheets data entry completed', {
+          sessionId,
+          totalRows: session.sheetsData.totalRows,
+          rowsWritten: session.sheetsData.rowsWritten,
+          duration: Date.now() - session.sheetsData.startedAt
+        });
+        // Update the result to include Sheets context
+        if (aiResponse.result) {
+          aiResponse.result = `Wrote ${session.sheetsData.totalRows} job listings to Google Sheets. ${aiResponse.result}`;
         }
       }
 
