@@ -7145,6 +7145,84 @@ async function startSheetsDataEntry(sessionId, session) {
 }
 
 /**
+ * Sheets formatting orchestrator (Phase 13).
+ * Launches a formatting pass after data entry completes.
+ * Follows the same session-chaining pattern as startSheetsDataEntry.
+ * @param {string} sessionId
+ * @param {Object} session
+ */
+async function startSheetsFormatting(sessionId, session) {
+  automationLogger.info('Starting Sheets formatting pass', { sessionId });
+
+  const sd = session.sheetsData;
+
+  // Edge case: no data was written -- skip formatting entirely
+  if (!sd || sd.totalRows === 0) {
+    automationLogger.info('No data rows to format -- skipping formatting', { sessionId });
+    sd.formattingComplete = true;
+    sd.formattingPhase = true;
+    return; // Will fall through to normal completion on next check
+  }
+
+  const lastCol = String.fromCharCode(64 + sd.columns.length); // A=65, columns.length gives letter
+  const dataRange = `A1:${lastCol}${sd.totalRows + 1}`;
+
+  // Mark formatting phase active
+  sd.formattingPhase = true;
+  sd.formattingStep = 'starting';
+  sd.dataRange = dataRange;
+  sd.lastCol = lastCol;
+
+  // Rewrite session task for formatting
+  session.task = `Format the Google Sheet with professional styling. The sheet has ${sd.totalRows} data rows plus 1 header row (row 1), columns A through ${lastCol}. Data range: ${dataRange}. Apply: bold header row, center-aligned headers, dark background with white text, bottom border, freeze row 1, alternating row colors (white/light gray), blue text for Apply Link column, and auto-size all columns.`;
+
+  // Reset iteration state (same pattern as startSheetsDataEntry)
+  session.iterationCount = 0;
+  session.stuckCounter = 0;
+  session.consecutiveNoProgressCount = 0;
+  session.actionHistory = [];
+  session.stateHistory = [];
+  session.lastDOMHash = null;
+  session.lastDOMSignals = null;
+  session.domHashes = [];
+  session.actionSequences = [];
+  session.sequenceRepeatCount = {};
+  session.failedAttempts = {};
+  session.failedActionDetails = {};
+  session.urlHistory = [];
+  session.lastUrl = null;
+  session.status = 'running';
+
+  // Formatting needs fewer iterations than data entry (keyboard shortcuts are fast)
+  session.maxIterations = 25;
+
+  // Update task summary for progress overlay
+  session.taskSummary = 'Formatting sheet...';
+
+  // Send progress overlay update
+  sendSessionStatus(session.tabId, {
+    phase: 'sheets-formatting',
+    step: 'Applying professional formatting',
+    status: 'Formatting sheet...',
+    taskName: session.task,
+    iteration: 0,
+    maxIterations: session.maxIterations,
+    taskSummary: session.taskSummary
+  });
+
+  // Persist and launch
+  persistSession(sessionId, session);
+  setTimeout(() => startAutomationLoop(sessionId), 500);
+
+  automationLogger.info('Sheets formatting session launched', {
+    sessionId,
+    dataRange,
+    columns: sd.columns,
+    maxIterations: session.maxIterations
+  });
+}
+
+/**
  * Handle background-only data actions (storeJobData, getStoredJobs).
  * These are NOT multi-tab actions but are handled in the background script
  * because they interact with chrome.storage.local directly.
@@ -9194,17 +9272,34 @@ async function startAutomationLoop(sessionId) {
         }
       }
 
-      // Sheets data entry completion handler (Phase 12)
+      // Sheets data entry completion handler (Phase 12) + formatting trigger (Phase 13)
       if (session.sheetsData) {
-        automationLogger.info('Sheets data entry completed', {
+        if (!session.sheetsData.formattingComplete) {
+          // Data entry just finished OR formatting just finished -- check which
+          if (!session.sheetsData.formattingPhase) {
+            // Data entry completed -- launch formatting pass
+            automationLogger.info('Sheets data entry completed, launching formatting pass', {
+              sessionId,
+              totalRows: session.sheetsData.totalRows,
+              rowsWritten: session.sheetsData.rowsWritten,
+              duration: Date.now() - session.sheetsData.startedAt
+            });
+            await startSheetsFormatting(sessionId, session);
+            loopResolve?.();
+            return; // Don't mark complete yet -- formatting will run
+          }
+          // formattingPhase is true but formattingComplete is false -- should not happen (formatting sets it)
+          // Fall through to normal completion as safety valve
+          automationLogger.warn('Sheets formatting phase ended without formattingComplete flag', { sessionId });
+        }
+        // formattingComplete is true -- both data entry and formatting done
+        automationLogger.info('Sheets data entry and formatting completed', {
           sessionId,
           totalRows: session.sheetsData.totalRows,
-          rowsWritten: session.sheetsData.rowsWritten,
           duration: Date.now() - session.sheetsData.startedAt
         });
-        // Update the result to include Sheets context
         if (aiResponse.result) {
-          aiResponse.result = `Wrote ${session.sheetsData.totalRows} job listings to Google Sheets. ${aiResponse.result}`;
+          aiResponse.result = `Wrote ${session.sheetsData.totalRows} job listings to Google Sheets with professional formatting. ${aiResponse.result}`;
         }
       }
 
