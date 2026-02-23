@@ -29,6 +29,14 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Quality context (3-stage filtering, 50 elements, semantic descriptions) -- v0.9
 - ✓ Action verification with state capture and effect validation -- v0.9
 - ✓ Debugging infrastructure (action recording, inspector, replay, export) -- v0.9
+- ✓ Content script modularization (10 modules with dependency ordering) -- v9.3
+- ✓ Configurable ElementCache with live storage updates -- v9.3
+- ✓ AI memory extraction with correct provider instantiation -- v9.3
+- ✓ AI enrichment for all memory types (episodic/semantic/procedural) -- v9.3
+- ✓ Cross-site pattern learning from sitemaps -- v9.3
+- ✓ Memory detail panels with type-specific renderers -- v9.3
+- ✓ Memory cost tracking (dashboard + Memory tab) -- v9.3
+- ✓ Per-site guide files (43 sites, 9 categories) -- v9.3
 
 ### Active
 
@@ -53,36 +61,42 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Current state:** Shipped v0.9 Reliability Improvements. Mechanics are precise but the AI lacks situational awareness. Log analysis of a LinkedIn messaging task revealed 10 systemic issues: the AI can't detect task completion, loses 74% of DOM context to truncation, gets false CAPTCHA warnings, loses operational memory to aggressive compaction, and can't identify elements with truncated text. The next milestone focuses on giving the AI complete awareness of what's on the page and whether its actions worked. 43,283 lines of JavaScript across content.js, background.js, ai-integration.js, and UI files.
 
-## Current Milestone: v9.3 Tech Debt Cleanup
+## Current Milestone: v9.4 Career Search Automation
 
-**Goal:** Eliminate accumulated tech debt -- modularize the 13K-line content.js, remove dead code, make hardcoded values configurable, and fix constructor bugs.
+**Goal:** Turn crowd session logs into site intelligence (sitemaps + site guides) for 30+ career websites and Google Sheets, enabling FSB to autonomously search career sites for job listings matching user criteria and produce beautifully formatted Google Sheets with results (company, title, date posted, apply link, job description, with styled headers and highlighting).
 
-**Target items:**
-- content.js modularization (~13K lines into logical modules)
-- Remove waitForActionable() dead code (~80 lines)
-- Make ElementCache maxCacheSize configurable (currently hardcoded to 100)
-- Fix memory-extractor.js UniversalProvider constructor args (local fallback always runs)
+**Target features:**
+- Parse crowd session logs into sitemaps and site guides for each career site
+- Parse Google Sheets session logs into site guide for Sheets formatting (headers, colors, bold, column sizing)
+- End-to-end career search workflow: user prompt -> navigate career sites -> extract job data -> create formatted Google Sheet
+- AI uses sitemap intelligence to navigate each career site efficiently (knows where search boxes, filters, job listings, and pagination are)
+- Google Sheets output: company name, job title, date posted, apply link, job description, with formatted headers, bolding, and relevant highlighting
 
-## Current State: v9.0.2 Shipped
+**Session logs available (in /logs/):**
+- Career sites: Microsoft, Amazon, Meta, Apple, Google, Boeing, Goldman Sachs, Tesla, NVIDIA, JP Morgan, Visa, Walmart, Target, Deloitte, Bank of America, Home Depot, J&J, Mastercard, McKesson, Mr Cooper, TI, UnitedHealth, CVS Health, Lowe's, OpenAI, AT&T, Capital One, Costco, IBM, Lockheed Martin, Morgan Stanley, Oracle, Pfizer, Verizon, Qatar Airways
+- Google Docs/Sheets: docs.google.com session
+- Google Search: google.com sessions (for discovering career pages)
 
-**Shipped:** 2026-02-18. AI Situational Awareness milestone complete.
+## Current State: v9.3 Shipped
 
-**What shipped:**
-- 3x DOM context (15K prompt budget), multi-signal completion verification, structured change detection
-- Resilient conversation memory with hard facts, long-term retrieval
-- Session continuity, history UI, action replay
-- Career page search + Google Sheets data entry
-- Memory tab with episodic/semantic/procedural memories
-- Google Docs formatted clipboard paste with markdown-to-HTML conversion
+**Shipped:** 2026-02-23. Tech Debt Cleanup milestone complete.
+
+**What shipped in v9.3:**
+- content.js modularized into 10 logical modules with FSB._modules tracking
+- Dead code removed (waitForActionable, orphaned files, unused UI helpers)
+- ElementCache configurable via Options page (preset dropdown, live updates, default 200)
+- UniversalProvider constructor fixed for AI memory extraction
+- Memory Intelligence Overhaul: AI enrichment for all memory types, cross-site pattern learning, detail panels, auto-refresh, cost tracking
+- Site Guides Viewer: 43 per-site files across 9 categories, browsable in Memory tab
+
+**Previous milestones:** v9.0.2 (AI Situational Awareness), v0.9 (Reliability Improvements)
 
 **Tech stack:** Chrome Extension Manifest V3, vanilla JavaScript (ES2021+), xAI Grok / OpenAI / Anthropic / Gemini APIs.
-**Codebase:** ~32,578 LOC across core JS files. content.js (~13K), background.js (~8.7K), ai-integration.js (~4.4K).
+**Codebase:** ~100 files changed in v9.3 (21,950 additions, 18,960 deletions). content.js split into content/ modules.
 
 **Known tech debt:**
-- content.js still large (~13K lines) -- modularization deferred
-- waitForActionable() dead code (~80 lines) still present
-- ElementCache maxCacheSize hardcoded to 100
-- memory-extractor.js UniversalProvider constructor args wrong (local fallback always runs)
+- Site Guides Viewer design mismatch (displays as accordion, should match memory-style list with mind maps)
+- 53 script tags for per-site guide files in options.html (could be bundled)
 
 ## Constraints
 
@@ -104,8 +118,12 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | 15K prompt budget with 40/50/10 split | Balance system prompt, page context, and memory | Good -- 3x more context, AI identifies elements it previously missed |
 | Multi-signal completion scoring | Replace unreliable AI self-report with weighted signals | Good -- system stops reliably within 1-2 iterations of actual completion |
 | Data dependency chain for phases | Signals -> DOM -> changes -> memory -> completion | Good -- each phase's output feeds the next, no circular dependencies |
-| Local fallback for memory extraction | No AI dependency for memory population | Good -- memory tab always populates even when AI extraction fails |
+| Local fallback for memory extraction | No AI dependency for memory population | Revisit -- removed in v9.3, AI-only with badge error indicator |
+| window.FSB namespace for modules | Module communication without ES modules or bare globals | Good -- clean namespace, works with programmatic injection |
+| Store-first-enrich-second for memory AI | Enrichment never blocks storage | Good -- memory always saved, AI analysis added asynchronously |
+| Pure heuristic cross-site patterns | No AI API costs during consolidation | Good -- keyword-based classification sufficient |
+| AI-only extraction (no local fallback) | Surface configuration errors visibly | Good -- forces correct provider setup |
 | Formatted clipboard paste for Google Docs | Convert markdown to HTML, paste via Clipboard API + CDP | Good -- rich formatting (tables, bold, lists) in canvas editors |
 
 ---
-*Last updated: 2026-02-21 after v9.3 Tech Debt Cleanup milestone started*
+*Last updated: 2026-02-23 after v9.4 Career Search Automation milestone started*

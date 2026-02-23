@@ -1,823 +1,636 @@
-# Architecture Research: content.js Modularization
+# Architecture: Career Search Automation Pipeline
 
-**Domain:** Chrome Extension content script decomposition (Manifest V3, no build system)
-**Researched:** 2026-02-21
-**Overall Confidence:** HIGH (based on direct analysis of all 13,429 lines of content.js)
+**Domain:** Session log -> sitemap -> site guide -> AI automation pipeline for career search + Google Sheets
+**Researched:** 2026-02-23
+**Overall Confidence:** HIGH (based on direct analysis of all pipeline components in the codebase)
 
 ---
 
 ## Executive Summary
 
-content.js is a 13,429-line monolith containing 8 classes, 100+ functions, and 25+ global
-singletons/state variables, all wrapped in a single re-injection guard (`if
-(window.__FSB_CONTENT_SCRIPT_LOADED__)`). The file has clear natural seams: DOM analysis,
-action tools, visual overlays, element readiness/verification, selector generation, and
-message routing. These seams are already visible in the code through section separator
-comments (`// ====...`) and logical clustering of functions.
+FSB already has every major subsystem needed for career search automation. The architecture question is not "what needs to be built from scratch" but "how do the existing subsystems connect for this specific workflow." The answer is a pipeline with 5 stages, each mapping directly to existing code:
 
-**The core constraint:** All content script files listed in the manifest `js` array share
-the same execution context (window-level scope) and are injected in declared order. There
-is no ES module support for content scripts without a build system. This means
-modularization must use the global scope intentionally: earlier files define objects/classes
-that later files consume.
+1. **PARSE** -- Session logs (JSON in `/logs/`) already match the format `convertToSiteMap()` expects
+2. **STORE** -- `createSiteMapMemory()` and `memoryStorage.add()` already persist sitemaps
+3. **GUIDE** -- Site guides already exist for career category (4 files) and Google Sheets
+4. **EXECUTE** -- Multi-tab tools (`openNewTab`, `switchToTab`, `listTabs`) and the `career` + `multitab` task types already exist
+5. **FORMAT** -- The Google Sheets site guide already documents the canvas-based Name Box workflow
 
-**Recommended approach:** Split content.js into 7 files loaded via manifest.json
-`content_scripts.js` array. Each file owns a specific domain. A thin shared-state file
-loads first and provides the global coordination points (logger reference, session ID,
-element cache, refMap). The existing `tools` object and `handleBackgroundMessage` function
-become the integration seams that stitch modules together.
+The primary gap is a **batch orchestration layer** -- the ability to run the career search workflow across N companies in sequence, accumulating extracted data and writing it to a single Sheets document. FSB's current session model handles one task at a time. The AI handles multi-step reasoning within a session, but there is no built-in mechanism for "repeat this workflow for each item in a list."
 
 ---
 
-## Current Structure Analysis
+## Current Architecture (Relevant Subsystems)
 
-### File Anatomy (by line range)
+### 1. Session Log Format (Input)
 
-Based on direct code analysis, content.js breaks into these logical regions:
-
-| Line Range | Lines | Domain | Key Contents |
-|------------|-------|--------|--------------|
-| 1-38 | 38 | **Bootstrap** | Re-injection guard, logger fallback |
-| 39-162 | 123 | **Utilities** | `getClassName`, `stripUnicodeControl`, `findElementByNormalizedAriaLabel`, `isFsbElement`, `shallowEqual` |
-| 163-607 | 444 | **DOMStateManager** | `DOMStateManager` class, mutation tracking, delta compression |
-| 614-781 | 167 | **ElementCache + RefMap** | `ElementCache` class (WeakRef + MutationObserver), `RefMap` class (compact AI refs) |
-| 788-875 | 87 | **Document Readiness** | `checkDocumentReady`, `getElementIndexes`, `invalidateElementIndexes` |
-| 906-2104 | 1198 | **Visual Overlays** | `HighlightManager`, `ProgressOverlay`, `ViewportGlow`, `ActionGlowOverlay`, `ElementInspector`, `promoteToTopLayer`/`demoteFromTopLayer` (all Shadow DOM) |
-| 2105-2330 | 225 | **Lifecycle + Iframe** | `beforeunload` cleanup, iframe detection, `frameContext`, `getFrameAwareSelector`, `collectChildFramesDom`, cross-frame messaging |
-| 2334-2905 | 571 | **Text Processing** | Markdown detection/conversion, `clipboardPasteHTML`, `stripMarkdown`, `isUniversalMessageInput`, `generateMessagingSelectors`, `findAlternativeSelectors` |
-| 2906-3175 | 269 | **Selector Generation (basic)** | `generateSelector` (first version), `isClickable`, `sanitizeSelector` |
-| 3177-3340 | 163 | **Shadow DOM Queries** | `querySelectorWithShadow`, `resolveRef`, `querySelectorAllWithShadow` |
-| 3344-3630 | 286 | **Accessibility** | `getInputRole`, `getImplicitRole`, `computeAccessibleName`, `getARIARelationships`, `isElementActionable` |
-| 3631-4590 | 959 | **Element Readiness** | `checkElementVisibility`, `checkElementEnabled`, `checkElementStable`, `checkElementReceivesEvents`, `checkElementEditable`, `scrollIntoViewIfNeeded`, `performQuickReadinessCheck`, `smartEnsureReady`, `ensureElementReady`, `waitForActionable` |
-| 4590-4750 | 160 | **Coordinate Fallback** | `validateCoordinates`, `ensureCoordinatesVisible`, `clickAtCoordinates` |
-| 4754-5543 | 789 | **Action Verification** | `captureActionState`, `EXPECTED_EFFECTS`, `detectChanges`, `verifyActionEffect`, `generateDiagnostic`, `captureElementDetails`, `ActionRecorder`, `detectActionOutcome`, `waitForPageStability` |
-| 5546-9252 | 3706 | **Tools Object** | `const tools = { ... }` containing all 31 action handlers (scroll, click, type, pressEnter, navigate, etc.) |
-| 9254-9470 | 216 | **Element Hashing/Viewport** | `hashElement`, `isInViewport`, `isElementInViewport`, `slugify`, `generateSemanticElementId` |
-| 9370-9600 | 230 | **Optimized Serializer** | `OptimizedDOMSerializer` class, `validateSelectorUniqueness`, `validateXPathUniqueness`, `isAutoGeneratedId`, `filterDynamicClasses` |
-| 9609-9900 | 291 | **Selector Generation (advanced)** | `generateSelectors` (multi-strategy), `generateSelectorsForAction` |
-| 9904-10530 | 626 | **Element Analysis** | `isInShadowDOM`, `inferElementPurpose`, `getRelationshipContext`, `generateElementDescription`, `getColorName`, `getElementCluster`, `getVisualProperties`, `getShadowPath`, `generateBasicSelector`, `prioritizeElements` |
-| 10561-10750 | 189 | **DOM Diffing + HTML** | `diffDOM`, `extractRelevantHTML`, duplicate `generateSelector` |
-| 10759-11230 | 471 | **Page Context** | `detectPageContext`, `detectSearchNoResults`, `extractErrorMessages`, `isElementVisible`, `detectCompletionSignals`, `inferPageIntent` |
-| 11274-11415 | 141 | **E-commerce** | `extractEcommerceProducts` |
-| 11425-11757 | 332 | **Filtered Elements + Compact Snapshot** | `calculateElementScore`, `getFilteredElements`, `generateCompactSnapshot` |
-| 11772-12245 | 473 | **getStructuredDOM** | Main DOM extraction orchestrator |
-| 12248-12463 | 215 | **Async Message Handler** | `handleAsyncMessage` (getDOM, getCompactDOM, executeAction routing) |
-| 12465-12800 | 335 | **Site Explorer** | `collectExplorerData` and 7 explorer helper functions, `executeDirectLogin` |
-| 12804-13108 | 304 | **Message Router** | `handleBackgroundMessage` (sync switch/case), `chrome.runtime.onMessage.addListener` |
-| 13110-13250 | 140 | **DOM Change Observer** | Global MutationObserver for `domChanged` notifications to background |
-| 13252-13429 | 177 | **Background Connection** | `establishBackgroundConnection`, port management, reconnect logic, SPA navigation detection |
-
-### Global State Inventory
-
-These are the shared mutable state items that every module potentially depends on:
-
-| Variable | Type | Used By | Notes |
-|----------|------|---------|-------|
-| `automationLogger` | Object | Everything | Fallback logger from window scope |
-| `currentSessionId` | String/null | All logging, message handlers | Set by incoming messages |
-| `domStateManager` | DOMStateManager | DOM analysis, message handlers | Singleton |
-| `elementCache` | ElementCache | Selector queries, tools | Singleton with MutationObserver |
-| `refMap` | RefMap | Compact snapshot, message handler (ref resolution) | Singleton, reset per snapshot |
-| `highlightManager` | HighlightManager | Tools (via message handler), cleanup | Singleton |
-| `progressOverlay` | ProgressOverlay | Message handler (sessionStatus, executeAction) | Singleton |
-| `viewportGlow` | ViewportGlow | Message handler (sessionStatus, executeAction) | Singleton |
-| `actionGlowOverlay` | ActionGlowOverlay | Message handler (executeAction) | Singleton |
-| `elementInspector` | ElementInspector | Message handler, keyboard shortcut | Singleton |
-| `actionRecorder` | ActionRecorder | Tools (click, type, etc.) | Singleton |
-| `previousDOMState` | Map/null | `diffDOM`, message handler (resetDOMState) | Mutable map |
-| `domStateCache` | Map | Message handler (resetDOMState) | Mutable map |
-| `tools` | Object | Message handler (executeAction), internal cross-calls | The big tools registry |
-| `frameContext` | Object | Message handler, DOM extraction | Iframe detection state |
-| `isInIframe` | Boolean | Multiple functions | Computed once |
-| `EXPECTED_EFFECTS` | Object | `verifyActionEffect` | Constant |
-| `DIAGNOSTIC_MESSAGES` | Object | `generateDiagnostic` | Constant |
-| `FSB_HOST_IDS` | Set | `isFsbElement` | Constant |
-| `observer` | MutationObserver | Global DOM change detection | Created at module level |
-| `backgroundPort` | Port/null | `establishBackgroundConnection` | Connection state |
-| `lastActionStatusText` | String/null | sessionStatus handler | UI state |
-| `_overlayWatchdogTimer` | Timer/null | sessionStatus handler | Timer state |
-
-### Dependency Graph (Current)
+Session logs in `/logs/` are produced by `SiteExplorer` (BFS crawler). Each JSON file contains:
 
 ```
-                    automationLogger (from window)
-                    currentSessionId
-                           |
-    +----------+-----------+-----------+----------+
-    |          |           |           |          |
-DOMState   ElementCache  RefMap   tools{}   Message Handler
-Manager    (+ observer)            |              |
-    |          |           |       |              |
-    |     querySelectorWithShadow  |    handleAsyncMessage
-    |     (used by most tools)     |    handleBackgroundMessage
-    |          |                   |              |
-    +--> generateSelectors <-------+     (dispatches to tools{})
-    |                                            |
-    +--> getStructuredDOM <------- generateCompactSnapshot
-    |     (uses getFilteredElements,             |
-    |      extractRelevantHTML,                  |
-    |      inferElementPurpose, etc.)            |
-    |                                            |
-    +--> Visual Overlays (HighlightManager,      |
-         ProgressOverlay, ViewportGlow,          |
-         ActionGlowOverlay, ElementInspector)    |
-              (used by message handler           |
-               for sessionStatus + executeAction)|
-```
-
----
-
-## Proposed Module Boundaries
-
-### Module 1: `content-shared.js` (Foundation Layer)
-
-**Purpose:** Bootstrap, re-injection guard, shared state declarations, utility functions.
-
-**Lines migrated:** ~300 lines (lines 1-162, plus state declarations scattered throughout)
-
-**Owns:**
-- Re-injection guard (`window.__FSB_CONTENT_SCRIPT_LOADED__`)
-- `automationLogger` fallback setup
-- `currentSessionId` declaration
-- `getClassName(element)`
-- `stripUnicodeControl(str)`
-- `findElementByNormalizedAriaLabel(selectorStr)`
-- `shallowEqual(a, b)`
-- `FSB_HOST_IDS` set
-- `isFsbElement(el)`
-- `isInIframe`, `frameId`, `frameContext` declarations
-- `previousDOMState`, `domStateCache` declarations
-- `lastActionStatusText`, `_overlayWatchdogTimer` declarations
-- `lastNotificationTime`, `accumulatedChanges`, `significantChangeTimeout` declarations
-- `backgroundPort`, `reconnectAttempts`, `MAX_RECONNECT_ATTEMPTS` declarations
-
-**Exports to global scope:**
-- All of the above (via `var`/`let`/`const` at top level inside the guard)
-
-**Dependencies:** None (this is the root)
-
-**Why this boundary:** Every other module needs the logger, session ID, and utility functions.
-Centralizing shared state declarations here prevents ordering issues and makes the
-dependency on shared mutable state explicit. The re-injection guard wraps everything.
-
----
-
-### Module 2: `content-cache.js` (Caching + Element References)
-
-**Purpose:** Element caching, DOM state management, compact reference mapping.
-
-**Lines migrated:** ~700 lines (lines 163-875)
-
-**Owns:**
-- `DOMStateManager` class + `domStateManager` singleton
-- `ElementCache` class + `elementCache` singleton
-- `RefMap` class + `refMap` singleton
-- `checkDocumentReady()` function
-- `getElementIndexes()` / `invalidateElementIndexes()` functions
-
-**Exports to global scope:**
-- `domStateManager`, `elementCache`, `refMap`
-- `checkDocumentReady`, `getElementIndexes`, `invalidateElementIndexes`
-
-**Dependencies:**
-- `content-shared.js` (automationLogger, currentSessionId, getClassName)
-
-**Why this boundary:** These three classes are tightly related: they all manage cached
-representations of DOM state. `DOMStateManager` tracks DOM deltas, `ElementCache` caches
-selector lookups with mutation-based invalidation, and `RefMap` maps compact AI references
-to live elements. They share the pattern of "maintain a representation that stays in sync
-with DOM mutations." No other code depends on their internals -- only their public APIs.
-
----
-
-### Module 3: `content-overlays.js` (Visual Feedback Layer)
-
-**Purpose:** All Shadow DOM visual overlays and the element inspector.
-
-**Lines migrated:** ~1,400 lines (lines 906-2104, plus `promoteToTopLayer`/`demoteFromTopLayer` from 1045-1089)
-
-**Owns:**
-- `promoteToTopLayer(element)` / `demoteFromTopLayer(element)` utility
-- `HighlightManager` class + `highlightManager` singleton
-- `ProgressOverlay` class + `progressOverlay` singleton
-- `ViewportGlow` class + `viewportGlow` singleton
-- `ActionGlowOverlay` class + `actionGlowOverlay` singleton
-- `ElementInspector` class + `elementInspector` singleton
-- Keyboard shortcut handler (Ctrl+Shift+E for inspector toggle)
-- `beforeunload` cleanup handler
-
-**Exports to global scope:**
-- `highlightManager`, `progressOverlay`, `viewportGlow`, `actionGlowOverlay`, `elementInspector`
-- `promoteToTopLayer`, `demoteFromTopLayer`
-
-**Dependencies:**
-- `content-shared.js` (automationLogger, currentSessionId, FSB_HOST_IDS, isFsbElement)
-- `content-cache.js` (domStateManager, elementCache -- only for beforeunload cleanup)
-- `content-selectors.js` (generateSelectors -- used by ElementInspector click handler)
-
-**Note on circular dependency with selectors:** `ElementInspector.handleClick` calls
-`generateSelectors()` to display selectors for inspected elements. This creates a
-dependency on `content-selectors.js`. Two solutions:
-1. Load `content-selectors.js` before `content-overlays.js` (preferred)
-2. Lazy-reference `generateSelectors` at call time (it will exist by then since all
-   scripts share scope and inspector is only used interactively after page load)
-
-**Why this boundary:** All 5 overlay classes share common patterns: Shadow DOM creation,
-style isolation, z-index/popover management, and lifecycle (create/show/hide/destroy).
-They have zero dependencies on DOM analysis or action execution. They are pure visual
-output. The inspector is included here because it is fundamentally a visual overlay with
-event handlers.
-
----
-
-### Module 4: `content-selectors.js` (Selector Generation + Shadow DOM Queries)
-
-**Purpose:** All selector generation strategies, shadow DOM query utilities, and
-accessibility helpers.
-
-**Lines migrated:** ~1,200 lines (lines 2906-3175, 3177-3340, 3344-3630, 9254-9470, 9476-9600, 9609-9920)
-
-**Owns:**
-- `sanitizeSelector(selector)`
-- `querySelectorWithShadow(selector)` (the primary element lookup function)
-- `resolveRef(ref)`
-- `querySelectorAllWithShadow(selector)`
-- `getInputRole(input)` / `getImplicitRole(node)` / `computeAccessibleName(node)` / `getARIARelationships(node)`
-- `isElementActionable(node)`
-- `isClickable(element)`
-- `hashElement(element)` / `isInViewport(element)` / `isElementInViewport(rect)`
-- `slugify(text)` / `generateSemanticElementId(element, index)`
-- `validateSelectorUniqueness(selector)` / `validateXPathUniqueness(xpath)`
-- `isAutoGeneratedId(id)` / `filterDynamicClasses(classString)`
-- `generateSelectors(element)` (multi-strategy, the main one)
-- `generateSelectorsForAction(element, actionType)`
-- `isInShadowDOM(element)` / `getShadowPath(element)`
-- `generateBasicSelector(element)`
-
-**Exports to global scope:**
-- All of the above functions
-
-**Dependencies:**
-- `content-shared.js` (automationLogger, currentSessionId, getClassName, stripUnicodeControl, findElementByNormalizedAriaLabel)
-- `content-cache.js` (elementCache -- used by `querySelectorWithShadow` for cache lookups)
-
-**Why this boundary:** Selector generation is a cohesive domain: given a DOM element,
-produce one or more selectors that can re-find it. Shadow DOM query traversal is the
-inverse operation: given a selector, find the element. These two operations are
-inseparable. Accessibility helpers (`getImplicitRole`, `computeAccessibleName`) are
-included because they are used exclusively by selector generation and element description
-functions, not by action execution.
-
----
-
-### Module 5: `content-readiness.js` (Element Readiness + Action Verification)
-
-**Purpose:** Pre-action readiness checks, post-action verification, coordinate fallback,
-text processing utilities.
-
-**Lines migrated:** ~2,700 lines (lines 2334-2905, 3631-5543)
-
-**Owns:**
-- **Text processing:** `isCanvasBasedEditor`, `hasMarkdownFormatting`, `markdownToHTML`, `applyInlineFormatting`, `clipboardPasteHTML`, `stripMarkdown`, `isUniversalMessageInput`, `generateMessagingSelectors`, `findAlternativeSelectors`
-- **Element readiness:** `checkElementVisibility`, `checkElementEnabled`, `checkElementStable`, `detectCodeEditor`, `checkElementReceivesEvents`, `checkElementEditable`, `scrollIntoViewIfNeeded`, `performQuickReadinessCheck`, `smartEnsureReady`, `ensureElementReady`, `waitForActionable`
-- **Coordinate fallback:** `validateCoordinates`, `ensureCoordinatesVisible`, `clickAtCoordinates`
-- **Action verification:** `captureActionState`, `EXPECTED_EFFECTS`, `detectChanges`, `verifyActionEffect`, `generateDiagnostic`, `DIAGNOSTIC_MESSAGES`, `captureElementDetails`, `ActionRecorder` class + `actionRecorder` singleton, `detectActionOutcome`, `waitForPageStability`
-
-**Exports to global scope:**
-- All of the above functions, classes, constants, and singletons
-
-**Dependencies:**
-- `content-shared.js` (automationLogger, currentSessionId, getClassName)
-- `content-cache.js` (elementCache -- used by waitForActionable)
-- `content-selectors.js` (querySelectorWithShadow, generateSelectors -- used by readiness checks)
-
-**Why this boundary:** This module answers two questions: "Is this element ready to be
-acted upon?" (pre-action) and "Did the action have the intended effect?" (post-action).
-Text processing is included because `clipboardPasteHTML`, `markdownToHTML`, and
-`isUniversalMessageInput` are consumed exclusively by the `type` tool and related typing
-tools -- they are pre-action preparation for text input. `findAlternativeSelectors` and
-`generateMessagingSelectors` are selector fallback strategies specifically for action
-recovery. The coordinate fallback (`clickAtCoordinates`) is a readiness-adjacent concern:
-"if we cannot find the element by selector, fall back to coordinates."
-
----
-
-### Module 6: `content-tools.js` (Action Tool Registry)
-
-**Purpose:** The `tools` object containing all 31 browser action handlers.
-
-**Lines migrated:** ~3,700 lines (lines 5546-9252)
-
-**Owns:**
-- `const tools = { ... }` with all action handlers:
-  - **Scroll:** `scroll`, `scrollToTop`, `scrollToBottom`, `scrollToElement`
-  - **Click:** `click`, `clickSearchResult`
-  - **Type:** `type`, `typeWithKeys`, `pressEnter`, `keyPress`, `clearInput`
-  - **Form:** `selectOption`, `toggleCheckbox`, `selectText`
-  - **Navigation:** `navigate`, `searchGoogle`, `refresh`, `goBack`, `goForward`
-  - **Focus:** `focus`, `blur`, `hover`
-  - **Mouse:** `rightClick`, `doubleClick`, `moveMouse`
-  - **Wait:** `waitForElement`, `waitForDOMStable`, `detectLoadingState`
-  - **Read:** `getText`, `getAttribute`, `setAttribute`
-  - **Special:** `solveCaptcha`
-
-**Exports to global scope:**
-- `tools` object
-
-**Dependencies:**
-- `content-shared.js` (automationLogger, currentSessionId)
-- `content-cache.js` (elementCache, refMap -- for ref resolution in some tools)
-- `content-selectors.js` (querySelectorWithShadow -- used by nearly every tool for element lookup)
-- `content-readiness.js` (smartEnsureReady, ensureElementReady, captureActionState, verifyActionEffect, detectActionOutcome, actionRecorder, clipboardPasteHTML, markdownToHTML, isUniversalMessageInput, findAlternativeSelectors, waitForPageStability, clickAtCoordinates)
-- `content-overlays.js` (highlightManager -- used inside tools for visual feedback, but only via message handler, not directly from tools)
-
-**Internal cross-references within tools:**
-- `tools.typeWithKeys` is called by `tools.type` as a fallback
-- `tools.keyPress` is called by `tools.pressEnter`, and by several other tools
-- `tools.type` is called by `tools.selectOption` and `tools.toggleCheckbox` as fallback
-
-**Why this boundary:** The tools object is the single largest coherent unit in the file
-(3,706 lines). It has a clear boundary: it starts with `const tools = {` and ends with
-`};`. Every entry is a self-contained async function that receives `params` and returns a
-result object. The tools object is the primary integration point -- the message handler
-dispatches to it by name (`tools[tool](params)`). Extracting it as a standalone file makes
-the action layer independently reviewable and testable.
-
----
-
-### Module 7: `content-dom.js` (DOM Analysis + Snapshot + Message Routing)
-
-**Purpose:** DOM extraction pipeline, page context detection, element filtering/scoring,
-compact snapshot generation, site explorer, message handlers, and lifecycle management.
-
-**Lines migrated:** ~2,300 lines (lines 9904-13429, minus what was already extracted)
-
-**Owns:**
-- **Element analysis:** `inferElementPurpose`, `getRelationshipContext`, `generateElementDescription`, `getColorName`, `getElementCluster`, `getVisualProperties`
-- **DOM operations:** `prioritizeElements`, `diffDOM`, `extractRelevantHTML`, duplicate `generateSelector` (line 10759 -- should be removed in favor of selectors module)
-- **Page context:** `detectPageContext`, `detectSearchNoResults`, `extractErrorMessages`, `isElementVisible`, `detectCompletionSignals`, `inferPageIntent`
-- **E-commerce:** `extractEcommerceProducts`
-- **Filtered elements:** `calculateElementScore`, `getFilteredElements`
-- **Compact snapshot:** `generateCompactSnapshot`
-- **Optimized serializer:** `OptimizedDOMSerializer` class
-- **Main DOM function:** `getStructuredDOM`
-- **Message handlers:** `handleAsyncMessage`, `handleBackgroundMessage`
-- **Registration:** `chrome.runtime.onMessage.addListener(handleBackgroundMessage)`
-- **Site explorer:** `collectExplorerData` and 7 explorer helper functions
-- **Direct login:** `executeDirectLogin`
-- **Global observer:** `isSignificantMutation`, global MutationObserver setup
-- **Background connection:** `establishBackgroundConnection`, port management, reconnect
-- **SPA detection:** History API patching for Google
-- **Initialization:** `elementCache.initialize()`, logging
-
-**Exports to global scope:**
-- All of the above
-
-**Dependencies:**
-- `content-shared.js` (all shared state)
-- `content-cache.js` (domStateManager, elementCache, refMap)
-- `content-overlays.js` (highlightManager, progressOverlay, viewportGlow, actionGlowOverlay, elementInspector)
-- `content-selectors.js` (generateSelectors, querySelectorWithShadow, computeAccessibleName, getImplicitRole, etc.)
-- `content-readiness.js` (waitForPageStability, detectActionOutcome, captureActionState)
-- `content-tools.js` (tools object -- dispatched by message handler)
-
-**Why this boundary:** This is the "orchestration" layer. It assembles DOM snapshots using
-selectors, readiness info, and element analysis. It contains the message router that
-dispatches incoming Chrome messages to the appropriate handler. It handles lifecycle
-(connection management, observer setup, cleanup). It is loaded last because it depends on
-everything else.
-
----
-
-## Manifest.json Configuration
-
-```json
 {
-  "content_scripts": [
+  "domain": "www.amazon.jobs",
+  "id": "research_1771837691120",
+  "pages": [
     {
-      "matches": ["<all_urls>"],
-      "js": [
-        "automation-logger.js",
-        "content-shared.js",
-        "content-cache.js",
-        "content-selectors.js",
-        "content-readiness.js",
-        "content-overlays.js",
-        "content-tools.js",
-        "content-dom.js"
+      "depth": 0,
+      "url": "https://www.amazon.jobs/",
+      "title": "Amazon Jobs",
+      "forms": [],
+      "headings": [],
+      "interactiveElements": [
+        {
+          "type": "input",
+          "id": "search_typeahead-homepage",
+          "class": "form-control tt-input",
+          "selectors": ["[role=\"combobox\"]...", "#search-button"],
+          "text": "..."
+        }
       ],
-      "run_at": "document_idle"
+      "internalLinks": [...],
+      "navigation": [...]
     }
   ]
 }
 ```
 
-**Load order rationale:**
+**Key observation:** This is the exact format `convertToSiteMap()` in `lib/memory/sitemap-converter.js` already consumes. The converter extracts pages, navigation, forms, keySelectors, and pageElements from this structure.
 
-1. `automation-logger.js` -- Already loaded first (sets `window.automationLogger`)
-2. `content-shared.js` -- Foundation: guard, logger fallback, utilities, all state declarations
-3. `content-cache.js` -- DOMStateManager, ElementCache, RefMap (needed by selectors)
-4. `content-selectors.js` -- querySelectorWithShadow (needed by readiness, tools, overlays)
-5. `content-readiness.js` -- smartEnsureReady, verification (needed by tools)
-6. `content-overlays.js` -- Visual classes (needed by dom/message handler). Loaded after
-   selectors because ElementInspector calls `generateSelectors()`.
-7. `content-tools.js` -- The tools object (needs selectors + readiness)
-8. `content-dom.js` -- Message handler, DOM extraction, initialization (needs everything)
+### 2. Sitemap Conversion Pipeline (PARSE -> STORE)
 
-**Note on overlay ordering:** `content-overlays.js` could also load before
-`content-readiness.js` since its dependency on selectors is the binding constraint, not
-readiness. However, placing it after readiness keeps the "data processing" modules together
-before the "output" modules (overlays, tools, dom).
-
----
-
-## Dependency Graph (Post-Modularization)
+The existing pipeline is two-tier:
 
 ```
-automation-logger.js  (external, already separate)
-        |
-content-shared.js     (utilities, state declarations, re-injection guard)
-        |
-content-cache.js      (DOMStateManager, ElementCache, RefMap)
-        |
-content-selectors.js  (querySelectorWithShadow, generateSelectors, accessibility)
-        |
-content-readiness.js  (element readiness, verification, text processing)
-        |
-content-overlays.js   (Shadow DOM overlays, inspector)
-        |
-content-tools.js      (31 action handlers in tools{})
-        |
-content-dom.js        (DOM extraction, message routing, lifecycle)
+Session Log (JSON)
+       |
+       v
+convertToSiteMap(research)          -- Tier 1: local extraction (lib/memory/sitemap-converter.js)
+       |
+       v
+sitePattern object (pages, navigation, forms, keySelectors, pageElements, pageLinks)
+       |
+       v
+refineSiteMapWithAI(sitePattern)    -- Tier 2: AI enrichment (lib/memory/sitemap-refiner.js)
+       |                               Adds: workflows, tips, pagePurposes, selectorPreferences,
+       |                                     navigationStrategy
+       v
+createSiteMapMemory(domain, sitePattern)  -- Wraps in memory schema (lib/memory/memory-schemas.js)
+       |
+       v
+memoryStorage.add(memory)           -- Persists to chrome.storage.local (lib/memory/memory-storage.js)
 ```
 
-**Direction:** Strictly top-to-bottom. No file depends on a file loaded after it.
-No circular dependencies.
+**Entry points that already trigger this pipeline:**
+- `SiteExplorer.autoConvertToMemory()` -- called when a crawl completes with `autoSaveToMemory: true`
+- `ui/options.js` line 3249 -- manual conversion button in the Options page UI
 
-The one near-exception is `content-overlays.js` referencing `generateSelectors` from
-`content-selectors.js` (loaded earlier, so OK) and `content-dom.js` referencing overlay
-singletons. This is a clean one-way dependency.
+**The gap:** Neither entry point is designed for batch processing of pre-existing session logs from `/logs/`. The Options page UI converts one research entry at a time from `fsbResearchData` in chrome.storage, not from files on disk. The logs in `/logs/` are standalone JSON files that were exported from the crawler but may not be in `fsbResearchData`.
 
----
+### 3. Site Guide System (GUIDE)
 
-## Detailed Function-to-Module Assignment
-
-### content-shared.js
+Site guides register at extension load time via `importScripts()` in `background.js`:
 
 ```
-GUARD:     window.__FSB_CONTENT_SCRIPT_LOADED__
-STATE:     automationLogger (fallback), currentSessionId, previousDOMState,
-           domStateCache, lastActionStatusText, _overlayWatchdogTimer,
-           lastNotificationTime, accumulatedChanges, significantChangeTimeout,
-           backgroundPort, reconnectAttempts, MAX_RECONNECT_ATTEMPTS,
-           isInIframe, frameId, frameContext
-CONST:     FSB_HOST_IDS
-FUNCTIONS: getClassName, stripUnicodeControl, findElementByNormalizedAriaLabel,
-           shallowEqual, isFsbElement
+background.js
+  |-- importScripts('site-guides/index.js')           -- Registry: registerSiteGuide(), getGuideForUrl()
+  |-- importScripts('site-guides/career/_shared.js')   -- Category guidance: strategy, data fields, warnings
+  |-- importScripts('site-guides/career/indeed.js')    -- Indeed-specific selectors, workflows
+  |-- importScripts('site-guides/career/glassdoor.js') -- Glassdoor-specific selectors, workflows
+  |-- importScripts('site-guides/career/builtin.js')   -- BuiltIn-specific selectors, workflows
+  |-- importScripts('site-guides/career/generic.js')   -- Generic ATS patterns (Lever, Greenhouse, Workday)
+  |-- importScripts('site-guides/productivity/google-sheets.js') -- Sheets Name Box workflow
 ```
 
-### content-cache.js
+**Guide matching flow during automation:**
 
 ```
-CLASSES:   DOMStateManager, ElementCache, RefMap
-SINGLETONS: domStateManager, elementCache, refMap
-FUNCTIONS: checkDocumentReady, getElementIndexes, invalidateElementIndexes
-STATE:     _elementIndexes, _elementIndexTimestamp
+ai-integration.js:1975  getGuideForTask(task, currentUrl)
+       |
+       v
+site-guides/index.js:109  getGuideForUrl(url) -- tests URL against guide.patterns[]
+       |                                          e.g., /indeed\.com/i, /glassdoor\.(com|co\.\w+)/i
+       v                                          /\/careers\/?/i, /\/jobs\/?/i (generic.js)
+(matched guide) --> ai-integration.js:3921  _buildTaskGuidance(taskType, siteGuide, currentUrl)
+       |
+       v
+Prompt injection:
+  - Category guidance (e.g., "CAREER & JOB SEARCH INTELLIGENCE: STRATEGY PRIORITY...")
+  - Site-specific guidance (e.g., "INDEED-SPECIFIC INTELLIGENCE: SEARCH...")
+  - Known selectors (e.g., "searchBox: #text-input-what, .yosegi-InlineWhatWhere...")
+  - Workflows (e.g., "searchJobs: Navigate to indeed.com -> Enter keywords -> ...")
+  - Warnings (e.g., "Sponsored listings appear first -- skip unless...")
 ```
 
-### content-selectors.js
+**Coverage assessment for career sites:**
+
+| Site | Has Guide? | Guide Type | Patterns Matched |
+|------|-----------|------------|-----------------|
+| indeed.com | Yes | Per-site | `/indeed\.com/i` |
+| glassdoor.com | Yes | Per-site | `/glassdoor\.(com\|co\.\w+)/i` |
+| builtin.com | Yes | Per-site | `/builtin\.com/i` |
+| amazon.jobs | No (matched by generic) | Generic ATS | `/\/jobs\/?/i` |
+| careers.microsoft.com | No (matched by generic) | Generic ATS | `/\/careers\/?/i` |
+| linkedin.com/jobs | Yes (social guide) | Per-site | `/linkedin\.com/i` |
+| myworkdayjobs.com | No (matched by generic) | Generic ATS | `/myworkdayjobs\.com/i` |
+| lever.co | No (matched by generic) | Generic ATS | `/lever\.co/i` |
+| greenhouse.io | No (matched by generic) | Generic ATS | `/greenhouse\.io/i` |
+| Any URL with /careers/ | Matched by generic | Generic ATS | `/\/careers\/?/i` |
+
+**The generic.js guide is the critical fallback.** It matches any URL containing `/careers/`, `/jobs/`, or known ATS domain patterns. This means most of the 35+ session logs will match the generic guide without needing per-site guides. However, per-site guides with precise selectors significantly improve automation success rates.
+
+### 4. Site Map Knowledge Injection (GUIDE, parallel channel)
+
+In addition to site guides (hardcoded), the AI also receives site map knowledge (dynamically generated from crawl data):
 
 ```
-FUNCTIONS: sanitizeSelector, querySelectorWithShadow, resolveRef,
-           querySelectorAllWithShadow, getInputRole, getImplicitRole,
-           computeAccessibleName, getARIARelationships, isElementActionable,
-           isClickable, hashElement, isInViewport, isElementInViewport,
-           slugify, generateSemanticElementId, validateSelectorUniqueness,
-           validateXPathUniqueness, isAutoGeneratedId, filterDynamicClasses,
-           generateSelectors, generateSelectorsForAction, isInShadowDOM,
-           getShadowPath, generateBasicSelector
+ai-integration.js:1411  _fetchSiteMap(context)
+       |
+       v
+background.js:4053  'getSiteMap' message handler
+       |-- Priority 1: loadBundledSiteMap(domain) -- checks site-maps/{domain}.json
+       |-- Priority 2: memoryManager.getAll() -- finds site_map memories by domain
+       v
+ai-integration.js:2541  formatSiteKnowledge(siteMap, domain)
+       |
+       v
+Injected into user prompt:
+  "=== SITE KNOWLEDGE (careers.microsoft.com):
+   Pages: /careers - Microsoft Careers, /careers/search - Job Search (2 forms)...
+   Navigation: Job Search -> /careers/search, Students -> /careers/students...
+   Workflows: Job search: /careers -> use search form -> click result -> /careers/view/{id}
+   Tips: AJAX loading on search results, multi-step application forms...
+   Nav strategy: Start at /careers, use search form for filtering
+   Key selectors: /careers/search: input[name=q], .job-card, .job-title..."
 ```
 
-### content-readiness.js
+**This is the bridge between session logs and AI prompt.** When session logs are converted to sitemaps and stored in memory, the AI automatically receives site-specific navigation intelligence even without a hardcoded site guide.
 
-```
-FUNCTIONS: isCanvasBasedEditor, hasMarkdownFormatting, markdownToHTML,
-           applyInlineFormatting, clipboardPasteHTML, stripMarkdown,
-           isUniversalMessageInput, generateMessagingSelectors,
-           findAlternativeSelectors, checkElementVisibility,
-           checkElementEnabled, checkElementStable, detectCodeEditor,
-           checkElementReceivesEvents, checkElementEditable,
-           scrollIntoViewIfNeeded, performQuickReadinessCheck,
-           smartEnsureReady, ensureElementReady, waitForActionable,
-           validateCoordinates, ensureCoordinatesVisible, clickAtCoordinates,
-           captureActionState, detectChanges, verifyActionEffect,
-           generateDiagnostic, captureElementDetails, detectActionOutcome,
-           waitForPageStability
-CLASSES:   ActionRecorder
-SINGLETONS: actionRecorder
-CONST:     EXPECTED_EFFECTS, DIAGNOSTIC_MESSAGES
-```
+### 5. Multi-Tab Orchestration (EXECUTE)
 
-### content-overlays.js
+FSB already supports multi-tab workflows through these mechanisms:
 
-```
-FUNCTIONS: promoteToTopLayer, demoteFromTopLayer
-CLASSES:   HighlightManager, ProgressOverlay, ViewportGlow,
-           ActionGlowOverlay, ElementInspector
-SINGLETONS: highlightManager, progressOverlay, viewportGlow,
-            actionGlowOverlay, elementInspector
-EVENT:     Ctrl+Shift+E keyboard shortcut
-EVENT:     beforeunload cleanup handler
-```
-
-### content-tools.js
-
-```
-OBJECT:    tools (containing 31 action handler functions)
-           - scroll, scrollToTop, scrollToBottom, scrollToElement
-           - click, clickSearchResult
-           - type, typeWithKeys, pressEnter, keyPress, clearInput
-           - selectOption, toggleCheckbox, selectText
-           - navigate, searchGoogle, refresh, goBack, goForward
-           - focus, blur, hover
-           - rightClick, doubleClick, moveMouse
-           - waitForElement, waitForDOMStable, detectLoadingState
-           - getText, getAttribute, setAttribute
-           - solveCaptcha
-```
-
-### content-dom.js
-
-```
-FUNCTIONS: inferElementPurpose, getRelationshipContext,
-           generateElementDescription, getColorName, getElementCluster,
-           getVisualProperties, prioritizeElements, diffDOM,
-           extractRelevantHTML, detectPageContext, detectSearchNoResults,
-           extractErrorMessages, isElementVisible, detectCompletionSignals,
-           inferPageIntent, extractEcommerceProducts, calculateElementScore,
-           getFilteredElements, generateCompactSnapshot, getStructuredDOM,
-           handleAsyncMessage, handleBackgroundMessage,
-           collectExplorerData, explorerBuildSelector,
-           explorerExtractNavigation, explorerExtractHeadings,
-           explorerDetectLayout, explorerExtractInternalLinks,
-           explorerDetectLoadingPatterns, explorerExtractKeySelectors,
-           executeDirectLogin, isSignificantMutation,
-           getFrameAwareSelector, collectChildFramesDom,
-           establishBackgroundConnection
-CLASSES:   OptimizedDOMSerializer
-SETUP:     chrome.runtime.onMessage.addListener(handleBackgroundMessage)
-           Global MutationObserver for domChanged notifications
-           elementCache.initialize()
-           History API patching (Google SPA detection)
-           window.addEventListener('message', ...) for iframe comms
-           establishBackgroundConnection()
-```
-
----
-
-## Re-Injection Guard Strategy
-
-The current code wraps everything in:
+**Task type detection:**
 ```javascript
-if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
-  // skip
-} else {
-  window.__FSB_CONTENT_SCRIPT_LOADED__ = true;
-  // ... all 13K lines ...
-}
+// ai-integration.js:4009-4016
+const outputDestinations = ['google doc', 'google sheet', 'spreadsheet', ...];
+const gatherActions = ['find', 'search', 'research', 'look up', ...];
+if (hasOutputDest && hasGatherAction) return 'multitab';
 ```
 
-**For multi-file split, two approaches:**
+A task like "find software engineer jobs at Microsoft and add them to a Google Sheet" triggers `multitab` task type.
 
-### Approach A: Guard in shared, IIFE in each file (RECOMMENDED)
+**Tab management tools available to AI:**
+- `openNewTab({url, active})` -- opens new tab, returns tabId, adds to `session.allowedTabs`
+- `switchToTab({tabId})` -- switches to allowed tab, updates `session.tabId`
+- `listTabs({currentWindowOnly})` -- lists all tabs with isAllowedTab flag
+- `closeTab({tabId})` -- closes non-current tab
+- `waitForTabLoad({tabId, timeout})` -- waits for tab to finish loading
+- `getCurrentTab()` -- gets current tab info
 
-`content-shared.js` sets the guard. Other files check it individually:
+**Security model:**
+- `session.allowedTabs` is pre-populated with all non-restricted tabs in the current window
+- Tabs opened by `openNewTab` are automatically added to `allowedTabs`
+- `switchToTab` enforces whitelist -- blocks switching to unauthorized tabs
+- Content script injection is restricted to authorized tabs only
+
+**Tab context in AI prompt:**
+```javascript
+// background.js:6945-6975
+tabInfo = {
+  currentTabId: session.tabId,
+  allTabs: allTabs.map(tab => ({
+    id: tab.id, url: tab.url, title: tab.title,
+    active: tab.active, status: tab.status,
+    isAllowedTab: allowedTabs.includes(tab.id),
+    domain: new URL(tab.url).hostname
+  })),
+  sessionTabs, allowedTabs
+};
+```
+
+**The `career` task prompt already includes multi-tab phases:**
+```
+PHASE 4 -- NAVIGATE TO GOOGLE SHEETS
+PHASE 5 -- SET UP HEADERS (Company, Role, Date Posted, Location, Description, Apply Link)
+PHASE 6 -- ENTER ROW DATA (Tab-separated entry via Name Box)
+```
+
+### 6. Google Sheets Interaction (FORMAT)
+
+The Sheets site guide (`site-guides/productivity/google-sheets.js`) documents the canvas-based interaction model:
+
+```
+1. Click Name Box (#t-name-box) -- the cell reference input at top-left
+2. Type cell reference (e.g., "A1") and press Enter
+3. Type cell value
+4. Press Tab (next column) or Enter (next row)
+```
+
+**Key workflows already defined:**
+- `createNewSheet` -- navigate to sheets.google.com, click Blank template
+- `navigateToExistingSheet` -- navigate to URL, wait for Name Box
+- `setupHeaderRow` -- A1, type "Company", Tab, type "Role", Tab, ...
+- `enterRowData` -- Click Name Box, type "A2", Enter, type value, Tab, ...
+- `navigateToCell` -- Click Name Box, type reference, Enter
+
+**Critical warning in guide:**
+> Google Sheets cells are rendered on a CANVAS -- you CANNOT click individual cells via DOM selectors. Always use the Name Box for cell navigation.
+
+---
+
+## Integration Architecture for Career Search
+
+### Data Flow (End-to-End)
+
+```
+SESSION LOGS (/logs/*.json)
+       |
+       | [NEW: Batch log parser]
+       v
+convertToSiteMap(research) x N     -- existing Tier 1 converter
+       |
+       v
+refineSiteMapWithAI(sitePattern)    -- existing Tier 2 AI refiner (optional, costs API tokens)
+       |
+       v
+createSiteMapMemory(domain, sitePattern)  -- existing memory creator
+       |
+       v
+memoryStorage.add(memory) x N      -- stored in chrome.storage.local
+       |
+       | [At automation time, automatic lookup:]
+       v
+User prompt: "Find software engineer jobs at Microsoft, Apple, Amazon and add to Google Sheet"
+       |
+       v
+detectTaskType() -> 'career' (has career keywords) or 'multitab' (has output destination)
+       |
+       | Note: Task type becomes 'multitab' because it mentions Google Sheet + gather action
+       v
+For each company, the AI:
+  1. Navigates to company career page (guided by site guide + site map knowledge)
+  2. Searches for matching jobs (guided by selectors from site guide or site map)
+  3. Extracts job data (Company, Role, Date, Location, Description, Apply Link)
+  4. Switches to Google Sheets tab
+  5. Enters data row (guided by Sheets site guide Name Box workflow)
+  6. Switches back to next company
+       |
+       v
+Google Sheet with job listings
+```
+
+### Component Map (Existing vs New)
+
+| Component | Status | File(s) | Changes Needed |
+|-----------|--------|---------|----------------|
+| Session log parser | EXISTING | `lib/memory/sitemap-converter.js` | Minor: add batch entry point |
+| Sitemap refiner | EXISTING | `lib/memory/sitemap-refiner.js` | None |
+| Memory storage | EXISTING | `lib/memory/memory-storage.js`, `memory-schemas.js` | None |
+| Site map retrieval | EXISTING | `background.js:4053` (`getSiteMap`) | None |
+| Site map injection | EXISTING | `ai-integration.js:2541` (`formatSiteKnowledge`) | None |
+| Career category guide | EXISTING | `site-guides/career/_shared.js` | Minor: refine strategy |
+| Generic ATS guide | EXISTING | `site-guides/career/generic.js` | Minor: add more ATS patterns from logs |
+| Indeed/Glassdoor/BuiltIn guides | EXISTING | `site-guides/career/{site}.js` | None |
+| Google Sheets guide | EXISTING | `site-guides/productivity/google-sheets.js` | None |
+| Multi-tab tools | EXISTING | `background.js:6002` (`handleMultiTabAction`) | None |
+| Multi-tab context | EXISTING | `background.js:6945` (tab context gathering) | None |
+| Career task prompt | EXISTING | `ai-integration.js:262` (`TASK_PROMPTS.career`) | Moderate: enhance for batch |
+| Multitab task prompt | EXISTING | `ai-integration.js:194` (`TASK_PROMPTS.multitab`) | Minor: career-specific tips |
+| Task type detection | EXISTING | `ai-integration.js:3986` (`detectTaskType`) | None |
+| **NEW: Batch log import** | NEW | TBD: `utils/log-importer.js` or Options page | Reads `/logs/` JSON, runs batch convert |
+| **NEW: Per-company site guides** | NEW | `site-guides/career/{company}.js` | Generated from session logs |
+| **NEW: Site guide generator** | NEW | TBD: `utils/guide-generator.js` | Converts sitePattern to registerSiteGuide format |
+
+### Integration Points (Where New Code Touches Existing)
+
+#### Integration Point 1: Log Import -> Sitemap Pipeline
+
+**Where:** New utility that reads session log JSON and feeds it through existing `convertToSiteMap()` + `createSiteMapMemory()` pipeline.
+
+**Existing code path:** `SiteExplorer.autoConvertToMemory()` (utils/site-explorer.js:709-764) already does exactly this for live crawl results. The new code replicates this logic for pre-existing JSON files.
+
+**Implementation options:**
+
+**Option A: Build-time script (RECOMMENDED for initial setup)**
+A Node.js script that reads `/logs/*.json`, runs `convertToSiteMap()`, and produces output artifacts:
+- Site map JSON files in `site-maps/{domain}.json` (bundled, highest priority in `loadBundledSiteMap`)
+- Site guide JS files in `site-guides/career/{company}.js` (registered at load time)
+
+Advantages: No runtime cost, guides are available immediately, works offline.
+Disadvantage: Requires running the script when logs change.
+
+**Option B: Options page UI (for ongoing use)**
+Add a "Batch Import" button to the Options page that reads session logs from `fsbResearchData` storage and batch-converts them to site map memories.
+
+**Option C: Background script import handler**
+A message handler in `background.js` that accepts JSON content and runs the pipeline.
+
+**Recommendation:** Use Option A for the 35+ existing logs (one-time setup), then Option B for ongoing imports from new crawls.
+
+#### Integration Point 2: Site Guide Generation from Sitemaps
+
+**Where:** Convert sitemap data (pages, selectors, forms, workflows) into `registerSiteGuide()` format.
+
+**Existing format target:**
+```javascript
+registerSiteGuide({
+  site: 'Amazon Jobs',
+  category: 'Career & Job Search',
+  patterns: [/amazon\.jobs/i, /www\.amazon\.jobs/i],
+  guidance: `AMAZON JOBS-SPECIFIC INTELLIGENCE:...`,
+  selectors: {
+    searchBox: '[role="combobox"][aria-labelledby="search_typeahead-homepage-label"]',
+    searchButton: '#search-button',
+    locationInput: '[role="combobox"][aria-labelledby="location-typeahead-homepage-label"]'
+  },
+  workflows: {
+    searchJobs: ['Navigate to amazon.jobs', 'Enter keywords in search box', ...],
+    extractJobData: ['Get job title from listing', ...]
+  },
+  warnings: ['Amazon Jobs uses typeahead search -- wait for suggestions before pressing Enter'],
+  toolPreferences: ['navigate', 'type', 'click', 'scroll', 'getText', 'getAttribute', ...]
+});
+```
+
+**Generation logic:** Extract from session log interactive elements:
+- Input elements with search-related ids/classes -> `selectors.searchBox`
+- Button elements near search inputs -> `selectors.searchButton`
+- Elements with location-related attributes -> `selectors.locationInput`
+- Job-card-like containers -> `selectors.jobCards`
+- Apply links/buttons -> `selectors.applyButton`
+
+This can be done with heuristics (pattern matching on element attributes) or by feeding the session log through AI refinement (existing `refineSiteMapWithAI` already produces workflows and tips).
+
+#### Integration Point 3: Career Task Prompt Enhancement
+
+**Where:** `ai-integration.js` line 262, `TASK_PROMPTS.career`
+
+The current career prompt defines 6 phases (Navigate, Search, Extract, Navigate to Sheets, Set Up Headers, Enter Row Data). For batch multi-company workflows, the prompt needs:
+
+**Additions needed:**
+- Batch iteration instructions ("Process each company in the user's list one by one")
+- Data accumulation strategy ("Remember extracted data across tab switches")
+- Row tracking ("Keep track of which row you are on in the spreadsheet -- A2, A3, A4, etc.")
+- Error recovery per company ("If a company's career page has no results, skip and move to the next")
+- Completion criteria ("Mark complete only after ALL companies have been processed")
+
+**No structural changes to the prompt system.** This is content modification within the existing `TASK_PROMPTS.career` string.
+
+#### Integration Point 4: background.js Import Registration
+
+**Where:** `background.js` lines 73-77 (site guide importScripts for career category)
+
+New per-company site guides need to be registered via `importScripts()`:
 
 ```javascript
-// content-shared.js
-if (window.__FSB_CONTENT_SCRIPT_LOADED__) { /* skip */ } else {
-  window.__FSB_CONTENT_SCRIPT_LOADED__ = true;
-  // ... shared state and utilities ...
-}
-
-// content-cache.js
-if (!window.__FSB_CONTENT_SCRIPT_LOADED__) { /* guard not set, skip */ } else
-if (window.__FSB_CACHE_LOADED__) { /* already loaded */ } else {
-  window.__FSB_CACHE_LOADED__ = true;
-  // ... cache classes ...
-}
+// Per-site guides: Career (generated from session logs)
+importScripts('site-guides/career/amazon-jobs.js');
+importScripts('site-guides/career/microsoft-careers.js');
+importScripts('site-guides/career/apple-careers.js');
+// ... etc for each company with a session log
 ```
 
-**Pro:** Each file is independently guarded. Re-injection of any subset is safe.
-**Con:** Slightly more boilerplate.
+**Alternative:** Use bundled site maps instead of site guides. Site maps are loaded dynamically from `site-maps/{domain}.json` by `loadBundledSiteMap()` and injected into the prompt by `formatSiteKnowledge()`. This avoids modifying background.js for each new company.
 
-### Approach B: Single guard in shared, all files trust load order
+**Recommendation:** Use BOTH channels:
+- **Bundled site maps** for navigation intelligence (pages, links, forms) -- generated from session logs
+- **Per-company site guides** only for the most important companies with hand-tuned selectors
 
-Only `content-shared.js` has the guard. Other files execute unconditionally. If the
-guard triggers (re-injection), Chrome won't re-execute the other files because the
-manifest-declared content scripts are only injected once per page load for static
-declarations.
-
-**Pro:** Simpler code.
-**Con:** If `chrome.scripting.executeScript` is used to programmatically re-inject,
-individual files have no protection.
-
-**Recommendation:** Use Approach A. The ~2 lines of guard per file is negligible overhead
-and provides defense-in-depth against re-injection via `chrome.scripting.executeScript`,
-which FSB does use.
+This is the existing pattern: the generic.js guide provides fallback coverage, per-site guides provide precision for high-priority sites, and site maps provide domain-specific navigation context.
 
 ---
 
-## Extraction Order (Phase Sequencing)
+## Multi-Tab Workflow Architecture
 
-Extract modules in order of coupling (least coupled first). Each extraction should be
-a self-contained, testable change.
+### Single-Session Multi-Tab (Current Model)
 
-### Phase 1: `content-overlays.js` (LEAST COUPLED)
+FSB already handles multi-tab within a single session. The AI decides when to open/switch tabs.
 
-**Rationale:** Visual overlays are pure output. They depend on shared state (logger,
-host IDs) and selector generation, but nothing depends on their internals except the
-message handler (which references them by singleton name). Extracting overlays first
-removes ~1,400 lines with zero risk to the automation loop.
+```
+Session Start (user sends task)
+  |
+  v
+AI iteration 1: Navigate to careers.microsoft.com
+AI iteration 2: Search for "software engineer"
+AI iteration 3: Extract job data from result 1
+AI iteration 4: Extract job data from result 2
+AI iteration 5: openNewTab({url: "https://sheets.google.com"})
+  |-- background.js adds new tabId to session.allowedTabs
+AI iteration 6: Create blank spreadsheet
+AI iteration 7: Set up header row (A1: Company, B1: Role, ...)
+AI iteration 8: Enter data row 1 (A2: Microsoft, B2: Software Engineer, ...)
+AI iteration 9: Enter data row 2 (A3: Microsoft, B3: Senior SWE, ...)
+  |
+  v
+For next company:
+AI iteration 10: switchToTab(originalTabId) -- back to career site
+AI iteration 11: Navigate to careers.apple.com
+...
+AI iteration 15: switchToTab(sheetsTabId) -- back to Sheets
+AI iteration 16: Enter data row 3 (A4: Apple, ...)
+...
+```
 
-**Verification:** After extraction, all visual feedback (progress bar, viewport glow,
-action glow, element highlighting, inspector) should work identically. Test by running
-an automation task and visually confirming overlays appear and disappear correctly.
+**This model works for 2-3 companies** within the default 20 iteration limit. For larger batches (10+ companies), iterations may be exhausted.
 
-### Phase 2: `content-selectors.js`
+### Batch Strategy Options
 
-**Rationale:** Selector generation depends only on shared utilities and element cache.
-It is consumed by tools, readiness, dom, and overlays (inspector). Extracting it next
-validates that the shared scope pattern works correctly for widely-consumed functions.
+**Option A: Increase max iterations for career tasks**
+Set `session.maxIterations` to 50-100 for career batch tasks. Simple, but uses more API tokens per session.
 
-**Verification:** Run automation tasks and confirm elements are found correctly. The
-`querySelectorWithShadow` function is the single most critical function for the entire
-system.
+**Option B: Session continuity (existing feature)**
+FSB already supports session continuity (`conversationId`, `commandCount`). User sends follow-up commands to the same session:
+- "Find jobs at Microsoft, Apple, Amazon and add to this Google Sheet"
+- (session completes first batch or runs out of iterations)
+- "Continue -- add Google, Meta, Netflix to the same sheet"
 
-### Phase 3: `content-cache.js`
+**Option C: Task decomposition in the career prompt**
+The career prompt already decomposes into phases. Enhance it to produce a plan:
+1. AI produces a company list from the user's request
+2. AI processes one company at a time
+3. After each company, AI updates Sheets and moves to the next
+4. If iterations are low, AI reports progress and marks partial completion
 
-**Rationale:** DOMStateManager, ElementCache, and RefMap are consumed by selectors (already
-extracted) and by the DOM module. Extracting cache after selectors means we can verify the
-two modules interact correctly through shared scope.
+**Recommendation:** Option C (task decomposition) is the most natural fit. The AI already reasons about multi-step workflows. The career prompt just needs clear instructions about batch iteration patterns.
 
-**Verification:** Confirm element caching, mutation-based invalidation, and compact
-reference resolution work. Test with rapid DOM changes (SPA navigation).
+### Tab Lifecycle for Career Search
 
-### Phase 4: `content-readiness.js`
+```
+Tab 1 (Original): User's starting tab
+  |
+  v
+AI opens Tab 2: Career site (e.g., careers.microsoft.com)
+  |-- Searches, extracts data
+  |-- AI stores extracted data in its reasoning/memory
+  v
+AI opens Tab 3: Google Sheets (or navigates Tab 1 to Sheets)
+  |-- Creates/opens spreadsheet
+  |-- Enters header row
+  |-- Enters data rows from extracted data
+  v
+AI switches to Tab 2: Navigate to next career site
+  |-- Or navigates within Tab 2 to next company
+  |-- Extracts more data
+  v
+AI switches to Tab 3: Enter additional rows
+  |-- Continues from last row (e.g., A5, A6, ...)
+  v
+Repeat until all companies processed
+```
 
-**Rationale:** Readiness checks depend on selectors (already extracted) and are consumed by
-tools (not yet extracted). Extracting readiness before tools validates the readiness
-functions work correctly in isolation before the tools layer uses them.
-
-**Verification:** Run click/type actions on various pages. Confirm elements pass readiness
-checks. Confirm action verification reports correct outcomes.
-
-### Phase 5: `content-tools.js`
-
-**Rationale:** The tools object depends on selectors, readiness, and cache (all extracted).
-It is the largest single extraction (~3,700 lines). With all dependencies already
-validated, this extraction is lower risk despite its size.
-
-**Verification:** Execute every tool type (click, type, scroll, navigate, etc.) and
-confirm behavior is identical. Pay special attention to internal cross-calls
-(`tools.typeWithKeys` from `tools.type`, `tools.keyPress` from `tools.pressEnter`).
-
-### Phase 6: `content-shared.js` + `content-dom.js` (FINAL)
-
-**Rationale:** These two are extracted together in the final phase because they are the
-bookends. `content-shared.js` is pulled out of the remaining monolith (which at this
-point only contains shared state declarations, DOM analysis, message routing, and
-lifecycle). `content-dom.js` is what remains after shared state is extracted.
-
-**Verification:** Full end-to-end automation tests. All message types
-(getDOM, getCompactDOM, executeAction, sessionStatus, healthCheck, etc.) must work.
-
----
-
-## Known Issues to Address During Extraction
-
-### 1. Duplicate `generateSelector` Function
-
-There are TWO functions named `generateSelector`:
-- Line 2986: Used by the selectors module (multi-strategy, advanced)
-- Line 10759: Used by `extractRelevantHTML` (simpler version)
-
-**Resolution:** Keep the advanced version in `content-selectors.js`. Rename the simple
-version to `generateSimpleHTMLSelector` and place it in `content-dom.js` (where
-`extractRelevantHTML` lives). Or better: have `extractRelevantHTML` call the advanced
-`generateSelectors` function and pick the first result.
-
-### 2. Text Processing Location
-
-`markdownToHTML`, `clipboardPasteHTML`, `isUniversalMessageInput`, etc. could arguably
-belong in either readiness or tools. They are placed in readiness because:
-- They are pre-action preparation utilities, not actions themselves
-- The `type` tool calls them but does not own them
-- Moving them to tools would make tools depend on... itself (circular)
-
-### 3. The `beforeunload` Handler
-
-The `beforeunload` handler references overlay singletons, DOMStateManager, and
-ElementCache. It is placed in `content-overlays.js` because its primary purpose is
-overlay cleanup. The cache cleanup lines (`domStateManager.mutationObserver.disconnect()`,
-`elementCache.observer.disconnect()`) reference objects from `content-cache.js`, which
-loads before overlays, so the references are valid.
-
-### 4. Global MutationObserver Setup
-
-The global `MutationObserver` at line 13148 (for `domChanged` notifications) and the
-`elementCache.initialize()` call at line 13191 are initialization code that must run
-after all modules are loaded. They belong in `content-dom.js` as the final
-initialization sequence.
-
-### 5. Internal Tool Cross-Calls
-
-Several tools call other tools internally:
-- `tools.type` calls `tools.typeWithKeys` as fallback
-- `tools.selectOption` calls `tools.type` as fallback
-- `tools.pressEnter` delegates to `tools.keyPress`
-- Multiple tools reference `tools.keyPress` for keyboard shortcuts
-
-These are safe because they reference `tools.xxx` which is a self-referencing object
-property lookup, not a cross-file reference. As long as all tool handlers are in the
-same `tools` object, they work regardless of file location.
+**Key concern:** The AI must track the current row number across tab switches. The career prompt should emphasize row tracking: "After entering data, note the next empty row number in your reasoning before switching tabs."
 
 ---
 
-## Size Breakdown (Estimated)
+## Suggested Build Order
 
-| Module | Lines | Percentage | Classes | Functions |
-|--------|-------|------------|---------|-----------|
-| content-shared.js | ~300 | 2% | 0 | 5 |
-| content-cache.js | ~700 | 5% | 3 | 5 |
-| content-selectors.js | ~1,200 | 9% | 0 | 25 |
-| content-readiness.js | ~2,700 | 20% | 1 | 30 |
-| content-overlays.js | ~1,400 | 10% | 5 | 2 |
-| content-tools.js | ~3,700 | 28% | 0 | 31 |
-| content-dom.js | ~3,400 | 25% | 1 | 40+ |
-| **Total** | **~13,400** | **100%** | **10** | **138+** |
+Based on dependency analysis and risk assessment:
+
+### Phase 1: Log-to-Sitemap Pipeline (Foundation)
+
+**What:** Build-time script that processes `/logs/*.json` into bundled site maps.
+
+**Why first:** This produces the artifacts that all subsequent phases consume. Without site maps, the AI has no site-specific knowledge for the 35+ career domains.
+
+**Touches:**
+- NEW: `scripts/import-logs.js` or similar build script
+- EXISTING: `lib/memory/sitemap-converter.js` (reuse `convertToSiteMap`)
+- EXISTING: `site-maps/` directory (output bundled JSON)
+
+**Validation:** After running, `loadBundledSiteMap('careers.microsoft.com')` returns structured sitemap data.
+
+### Phase 2: Site Guide Generation (Optional Precision Layer)
+
+**What:** Generate per-company site guide files from session log data.
+
+**Why second:** Per-company guides provide selector-level precision beyond what sitemaps offer. This improves automation success rate for the most important career sites.
+
+**Touches:**
+- NEW: `scripts/generate-guides.js` or similar
+- NEW: `site-guides/career/{company}.js` (generated files)
+- EXISTING: `background.js` (add importScripts for new guides)
+- EXISTING: `site-guides/career/generic.js` (may update fallback patterns)
+
+**Validation:** `getGuideForUrl('https://careers.microsoft.com/search')` returns the Microsoft-specific guide with selectors.
+
+### Phase 3: Career Prompt Enhancement (AI Behavior)
+
+**What:** Enhance `TASK_PROMPTS.career` for batch multi-company workflows with row tracking, error recovery per company, and iteration management.
+
+**Why third:** With site maps and guides in place, the AI has the navigation intelligence. Now it needs behavioral instructions for batch processing.
+
+**Touches:**
+- EXISTING: `ai-integration.js` (TASK_PROMPTS.career, TASK_PROMPTS.multitab)
+- EXISTING: `site-guides/career/_shared.js` (may refine category guidance)
+
+**Validation:** Run a career search task for 3 companies with Sheets output. Verify AI processes each company in sequence, enters data correctly, and tracks row numbers.
+
+### Phase 4: End-to-End Workflow Testing and Refinement
+
+**What:** Test the full pipeline with real career sites, refine selectors and prompts based on success/failure patterns.
+
+**Why last:** Only meaningful after all prior phases are in place.
+
+**Touches:**
+- EXISTING: Various site guides and prompt text (iterative refinement)
+- EXISTING: `site-guides/career/generic.js` (add ATS patterns discovered during testing)
+
+---
+
+## Patterns to Follow
+
+### Pattern 1: Dual-Channel Knowledge (Site Guide + Site Map)
+
+The existing architecture provides two parallel knowledge channels to the AI:
+
+1. **Site guides** (hardcoded in JS, loaded at extension start): Provide expert-crafted guidance text, curated selectors, step-by-step workflows, and warnings. These are HIGH-QUALITY but STATIC.
+
+2. **Site maps** (stored in memory or bundled JSON, loaded per-domain at runtime): Provide crawl-derived page structure, navigation links, form fields, and AI-generated workflows/tips. These are BROAD but may have STALE selectors.
+
+For career search, use BOTH:
+- Site guides for behavioral instructions (how to search, what to extract, what to avoid)
+- Site maps for structural intelligence (what pages exist, what interactive elements are on each page)
+
+### Pattern 2: Generic Fallback with Specific Overrides
+
+The `generic.js` career guide matches any URL with `/careers/`, `/jobs/`, or known ATS patterns. This provides baseline competence for ALL career sites. Per-company guides override with precise selectors when available.
+
+**This is the correct pattern for scaling to 35+ companies.** Do not write per-company guides for all 35. Instead:
+- Generic guide handles 80% of sites adequately
+- Per-company guides for the top 5-10 most complex sites (Workday, custom ATS)
+- Site maps fill the gap with domain-specific page structure
+
+### Pattern 3: AI-Driven Tab Management
+
+FSB does NOT hardcode tab switching logic. The AI receives tab context (all open tabs with IDs, URLs, and allowed status) and decides when to open, switch, or close tabs. This is the correct pattern for career search.
+
+Do not build a "tab orchestrator" that programmatically opens career sites in tabs. Let the AI reason about when to switch. The career prompt guides this reasoning with phase instructions.
+
+### Pattern 4: Name Box Navigation for Sheets
+
+All cell navigation in Google Sheets MUST go through the Name Box (`#t-name-box`). The canvas-based grid does not expose individual cells as DOM elements. This is already documented in the Sheets site guide and must be respected in the career prompt's data entry phase.
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### 1. Do NOT use ES modules
+### Anti-Pattern 1: Building a Custom Orchestration Layer
 
-Content scripts in Manifest V3 do not support `import`/`export` without a build system.
-The `"type": "module"` option exists only for `background.service_worker`, not for
-content scripts. All inter-file communication must go through the shared global scope.
+**What:** Creating a new "batch job runner" or "workflow engine" that manages the career search pipeline outside of the AI session.
 
-### 2. Do NOT create a generic "utils.js"
+**Why bad:** FSB's architecture delegates all decision-making to the AI within a session. The AI already handles multi-step, multi-tab workflows. Adding a separate orchestration layer creates a parallel control flow that conflicts with the AI's reasoning.
 
-The temptation is to have a `content-utils.js` catchall. This creates a "junk drawer"
-module with no cohesion. Every utility function in this codebase has a clear domain
-(selector generation, readiness checking, text processing). Place each in its domain
-module.
+**Instead:** Enhance the career task prompt to include batch processing instructions. The AI handles iteration, error recovery, and tab management within its existing reasoning loop.
 
-### 3. Do NOT split the tools object across files
+### Anti-Pattern 2: One Site Guide Per Session Log
 
-While individual tools are independent, the `tools` object must be a single literal for
-the message handler to dispatch to it via `tools[tool](params)`. Splitting tools into
-separate objects (e.g., `scrollTools`, `clickTools`) would require the message handler to
-check multiple registries, adding complexity for no benefit.
+**What:** Generating a separate site guide file for each of the 35+ session logs.
 
-### 4. Do NOT move message handlers before tools
+**Why bad:** 35+ site guide files bloat `background.js` with importScripts, increase extension load time, and most guides would be nearly identical (same generic patterns). The site guide registry is searched linearly for URL pattern matching -- more guides = slower matching.
 
-The message handler (`handleBackgroundMessage`) dispatches to `tools[tool]`. It MUST load
-after `content-tools.js`. Similarly, `handleAsyncMessage` references `getStructuredDOM`,
-`generateCompactSnapshot`, and visual overlay singletons. It must load last.
+**Instead:** Use bundled site maps for most companies (loaded on-demand, not at startup) and site guides only for the 5-10 most complex sites.
 
-### 5. Do NOT create circular dependencies
+### Anti-Pattern 3: Hardcoding Company Lists in Prompts
 
-The dependency graph must be strictly acyclic. If Module A needs Module B and Module B
-needs Module A, one of them must be restructured. The proposed architecture has no
-circular dependencies.
+**What:** Embedding specific company names, URLs, or career page structures in the task prompts.
+
+**Why bad:** Fragile, doesn't scale, and the prompt grows with each company.
+
+**Instead:** The user specifies companies in their task. The AI uses site guides and site maps to navigate each one. The career prompt provides the behavioral framework, not the company-specific details.
+
+### Anti-Pattern 4: Scraping Data in Content Script
+
+**What:** Building custom scraping logic in content scripts that extracts job data into a structured format before the AI sees it.
+
+**Why bad:** Every career site has a different layout. Custom scraping logic for 35+ sites is an enormous maintenance burden. The AI's ability to understand page content through DOM analysis is the entire point of FSB.
+
+**Instead:** Let the AI use `getText` and `getAttribute` tools to extract data, guided by site-specific selectors from guides/sitemaps. The AI interprets what it sees, not a scraping pipeline.
 
 ---
 
-## Validation Checklist
+## Scalability Considerations
 
-After each extraction phase, verify:
-
-- [ ] Extension loads without console errors on about:blank
-- [ ] Extension loads without console errors on a complex page (gmail.com, google docs)
-- [ ] `chrome.runtime.onMessage` handler responds to healthCheck
-- [ ] DOM extraction (getStructuredDOM) returns valid data
-- [ ] Compact snapshot (generateCompactSnapshot) returns valid data
-- [ ] Click tool finds and clicks elements correctly
-- [ ] Type tool enters text in input fields
-- [ ] Visual overlays (progress, viewport glow) appear during automation
-- [ ] Element inspector (Ctrl+Shift+E) works correctly
-- [ ] Page navigation does not cause orphaned overlays
-- [ ] Re-injection guard prevents duplicate initialization
-- [ ] Site explorer data collection works
+| Concern | At 5 companies | At 20 companies | At 50+ companies |
+|---------|----------------|-----------------|-------------------|
+| Iterations | 20-30 (fits in one session) | 60-100 (needs high iteration limit or continuity) | 150+ (needs session continuity or batching) |
+| Site maps | Load from memory, ~50ms each | Same, may need memory cleanup | Consider LRU eviction or lazy loading |
+| Tab count | 2-3 tabs (career + Sheets) | 2-3 tabs (reuse career tab) | Same (AI reuses tabs) |
+| Sheets rows | 15-25 rows | 60-100 rows | 150+ rows (Sheets handles this fine) |
+| API tokens | ~5K-10K per company | ~100K-200K total | Significant cost -- need token budget awareness |
+| Success rate | High (can hand-tune) | Moderate (generic guide limits) | Depends on site complexity and ATS variety |
 
 ---
 
 ## Sources
 
-- Direct analysis of `/Users/lakshmanturlapati/Documents/Codes/Extensions/FSB/content.js` (13,429 lines)
-- Direct analysis of `/Users/lakshmanturlapati/Documents/Codes/Extensions/FSB/manifest.json`
-- [Chrome Extensions: Content Scripts](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) -- confirmed shared execution context, load order
-- [Chrome Extensions: Manifest content_scripts](https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts) -- confirmed js array ordering
-- [MDN: content_scripts](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/content_scripts) -- cross-browser reference
+- Direct analysis of `background.js` (session management, multi-tab handling, site map retrieval)
+- Direct analysis of `ai/ai-integration.js` (task type detection, prompt building, site guide injection, site map injection)
+- Direct analysis of `site-guides/index.js` (guide registry, URL pattern matching, `getGuideForUrl()`)
+- Direct analysis of `site-guides/career/*.js` (4 existing career guides + shared category guidance)
+- Direct analysis of `site-guides/productivity/google-sheets.js` (Sheets interaction model)
+- Direct analysis of `lib/memory/sitemap-converter.js` (Tier 1 conversion from session logs)
+- Direct analysis of `lib/memory/sitemap-refiner.js` (Tier 2 AI enrichment)
+- Direct analysis of `lib/memory/memory-schemas.js` (createSiteMapMemory factory)
+- Direct analysis of `lib/memory/memory-manager.js` (memory add/search/consolidate)
+- Direct analysis of `utils/site-explorer.js` (autoConvertToMemory pipeline)
+- Direct analysis of `/logs/fsb-research-www.amazon.jobs-2026-02-23.json` (session log format)
+- Direct analysis of `manifest.json` (permissions, web_accessible_resources for site-maps)

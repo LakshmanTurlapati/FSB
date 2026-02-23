@@ -2,41 +2,31 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-21)
+See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v9.3 Tech Debt Cleanup - Phase 8 (Site Guides Viewer)
+**Current focus:** v9.4 Career Search Automation - Phase 12: Google Sheets Data Entry
 
 ## Current Position
 
-Phase: 8 of 8 (Site Guides Viewer)
-Plan: 5 of 5
-Status: Phase complete
-Last activity: 2026-02-21 - Completed 08-05-PLAN.md
+Phase: 12 of 13 (Google Sheets Data Entry)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-02-23 -- Phase 11 verified and complete
 
-Progress: [==========] 100% (phase 8)
+Progress: [######....] 60% (10/~15 plans across 5 phases)
 
 ## Performance Metrics
 
-**v0.9 Velocity:**
-- Total plans completed: 24
-- Average duration: 2.9 min
-- Total execution time: 1.2 hours
-
-**v9.0.2 Velocity:**
-- Total plans completed: 21
-- Average duration: 3.0 min
-- Total execution time: ~63 min
-
-**v9.1 Velocity:**
-- Total plans completed: 6
-- Average duration: 3.4 min
-- Total execution time: ~23.6 min
-
 **v9.3 Velocity:**
-- Total plans completed: 7
+- Total plans completed: 17
 - Average duration: 2.5 min
-- Total execution time: ~17.2 min
+- Total execution time: ~26.0 min
+
+**v9.4 Velocity:**
+- Total plans completed: 10
+- Average duration: 2.5 min
+- Total execution time: ~27.9 min
 
 ## Accumulated Context
 
@@ -45,44 +35,51 @@ Progress: [==========] 100% (phase 8)
 Full decision log in PROJECT.md Key Decisions table.
 
 Recent decisions:
-- v9.3: Use window.FSB namespace pattern for module communication (not ES modules, not bare globals)
-- v9.3: Programmatic injection via chrome.scripting.executeScript (not manifest content_scripts)
-- v9.3: Dead code removal after modularization (module boundaries make dead code obvious)
-- v9.3: Shadow DOM + Popover API for visual overlays (top-layer rendering, z-index fallback)
-- v9.3: Playwright-style actionability model for element readiness checks
-- v9.3: Fast-path readiness bypass (performQuickReadinessCheck) for obvious cases
-- 07-01: Store-first-enrich-second pattern for memory AI analysis (enrichment is additive, never blocks storage)
-- 07-01: Update both BackgroundAnalytics and FSBAnalytics for source field (shared fsbUsageData storage)
-- 07-02: Pure heuristic cross-site pattern analysis (no AI calls, keyword-based classification)
-- 07-02: typeof guard for optional module loading in consolidate() (graceful degradation)
-- 07-03: Unified toggleMemoryDetail entry point delegates to toggleMemoryGraph for site_map memories
-- 07-03: detail-toggle-icon on all items replaces graph-only chevron
-- 07-04: Use existing modern-toggle pattern for auto-analyze toggle (not new toggle-switch/toggle-slider)
-- 07-04: stopPropagation on overflow dropdown content prevents premature close
-- 07-05: Debounced onChanged listener for fsb_memories with in-progress guard and active-section check
-- 07-06: 30-day cost window for both Dashboard and Memory cost panels with source-based filtering
-- 07-07: cross-site-patterns.js must be in both background.js importScripts and options.html script tags
-- 08-01: Dual-format registry accepts both old category format and new per-site format simultaneously
-- 08-01: Per-site files use flat selectors (not nested under domain key)
-- 08-01: FontAwesome 6.6.0 class names (fa-list-check for productivity, fa-cart-shopping for ecommerce)
-- 08-05: IIFE pattern for viewer JS to avoid global namespace pollution
-- 08-05: Separate input listener for filterSiteGuides (does not modify existing searchMemories debounce)
+- 11-02: Multi-site orchestration wraps existing automation loop -- does not replace it
+- 11-02: Completion interception handles all exit paths: taskComplete, repeatedSuccess, no_progress, stuck
+- 11-02: Auth-walled companies deferred to end; login detection uses tab-URL heuristic
+- 11-02: storeJobData fallback parsing catches AI forgetting to call the tool
+- 11-02: Per-company iteration cap set to 15 (min of user setting and 15)
+- 11-02: Career task toolPreferences augmented to always include data tools
+- 11-01: backgroundDataTools separate from multiTabActions -- data tools get overlay status updates, multi-tab tools do not
+- 11-01: extractCompaniesFromTask validates candidates against COMPANY_ALIASES and getGuideByCompanyName
+- 11-01: checkAccumulatorRelevance uses 50% keyword overlap threshold for keep vs clear
+- 10-03: Career prompt reduced from 6 phases to 4 (Phase 0-3) -- removed Google Sheets phases 4-6 entirely
+- 10-03: Company name extraction runs for ALL career tasks regardless of siteGuide state (keyword-fallback may return wrong company)
+- 10-03: careerUrl directive injected in both code paths (null siteGuide and present siteGuide)
+- 10-03: Apply link fallback: try parent a element href before reporting not available
+- 10-01: 38 alias entries in COMPANY_ALIASES verified against actual .site values (corrected 4 from research)
+- 10-01: extractCompanyFromTask uses last-occurrence "at" matching and first-word filtering for "for" pattern
+- 10-01: Cookie banner dismissal added as first-priority instruction in category guidance
+- 10-02: getText threshold lowered from 3 to 2 (search+extract needs fewer extractions than full Sheets workflow)
+- 10-02: Error reports (NO RESULTS, AUTH REQUIRED) treated as valid completions with +0.15 bonus (SEARCH-05)
+- 10-02: Career URL patterns use 12 common patterns covering ATS platforms and major job boards
+- 10-02: Job title detection uses common role keyword regex rather than exact title matching
+- 09-03: Import order: ATS bases -> third-party boards -> company guides (alpha) -> generic.js (last)
+- 09-03: generic.js confidence set to MEDIUM (fallback, not targeted)
+- 09-03: Workday-specific content removed from generic.js -- now references dedicated workday.js
+- 09-03: All 4 existing guides converted to machine-optimized minimal format (no JSDoc headers)
+- v9.4: Phase ordering follows strict dependency chain (pipeline -> single-site -> multi-site -> Sheets entry -> Sheets formatting)
+- v9.4: "Collect all, then write" tab pattern -- accumulate job data across all sites before opening Sheets once
+- 09-02: Workday/Greenhouse confidence HIGH (log-verified), Lever/iCIMS/Taleo confidence MEDIUM (general knowledge)
+- 09-02: Lever guide omits searchBox and pagination (platform lacks these features)
+- 09-01: Keyword heuristic categorization for 9 career element categories (searchBox through cookieDismiss)
+- 09-01: Selector stability 3-tier classification (STABLE/MODERATE/UNSTABLE) with XPath sub-classification
+- 09-01: Confidence scoring: coverage (4+ categories) x stability ratio (50%+) = HIGH
 
 ### Pending Todos
 
 1. Smart multi-tab management with context-aware navigation (area: general) - `.planning/todos/pending/2026-02-14-smart-multi-tab-management.md`
 
-### Roadmap Evolution
-
-- Phase 7 added: Memory Intelligence Overhaul (7 plans)
-- Phase 8 added: Site Guides Viewer (expose 9 built-in site guides as read-only browsable content in Memory tab)
-
 ### Blockers/Concerns
 
-None currently.
+- Site Guides Viewer design mismatch (deferred from v9.3, does not block v9.4)
+- Google Sheets toolbar aria-labels must be inspected live during Phase 13 (color formatting selectors change with product updates)
+- Workday/Greenhouse/Lever ATS selector precision needs live validation (15+ companies use these platforms)
+- Phase 10 verifier flagged "internship/internships" keyword gap -- fixed by orchestrator (commit 027b4ef)
 
 ## Session Continuity
 
-Last session: 2026-02-21
-Stopped at: Completed 08-05-PLAN.md (Phase 8 complete)
+Last session: 2026-02-23
+Stopped at: Phase 11 complete, ready for Phase 12 planning
 Resume file: None

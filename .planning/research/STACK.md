@@ -1,598 +1,581 @@
-# Technology Stack: Content Script Modularization
+# Technology Stack: Career Search Automation + Google Sheets Formatting
 
-**Project:** FSB v9.0.2 - Tech Debt Cleanup / Content Script Split
-**Researched:** 2026-02-21
-**Mode:** Ecosystem (Stack dimension)
-**Constraint:** Vanilla JS, no build system, no transpilation, Chrome Extension MV3
+**Project:** FSB v9.4 - Career Search Automation
+**Researched:** 2026-02-23
+**Mode:** Ecosystem (Stack dimension for subsequent milestone)
+**Constraint:** Vanilla JS, no build system, no external libraries, Chrome Extension MV3
 **Overall confidence:** HIGH
 
 ---
 
 ## Executive Summary
 
-FSB's `content.js` is 13,429 lines in a single file. All code lives inside a re-injection guard (`if/else` block from line 5 to line 13430). The file contains 7 distinct functional domains: DOM state management, visual feedback (Shadow DOM overlays), element utilities, accessibility/ARIA helpers, action verification, the tools registry (25+ browser actions), DOM serialization/snapshot, and the message handler. These domains have clear boundaries but share a flat scope with ~30 top-level `function` declarations, ~10 `class` definitions, ~15 `const`/`let` module-level variables, and one massive `const tools = {}` object.
+FSB v9.4 requires NO new external dependencies. The existing stack (vanilla JS, Chrome Extension MV3, importScripts service worker, per-site guide system, memory layer, keyboard/debugger API tooling) already contains every building block needed. The work is purely new vanilla JavaScript modules that transform existing data (JSON session logs) into existing formats (site guide JS files) and orchestrate existing tools (type, keyPress, click, navigate) in new patterns (career search workflow, Google Sheets formatting).
 
-The recommended modularization approach is **manifest-declared multi-file content scripts** with a **shared namespace object** pattern. No build system is needed. Chrome's content script injection guarantees sequential file execution within the same isolated world scope, meaning top-level `var`, `const`, `let`, `function`, and `class` declarations in earlier files are directly accessible to later files.
+Three capability gaps exist, all solvable with new vanilla JS code:
 
-Key finding: The current programmatic injection via `chrome.scripting.executeScript({ files: [...] })` already supports multi-file arrays with the same shared-scope guarantee as manifest-declared `content_scripts`. The migration can happen incrementally -- extract one module at a time, add it to the `files` array before `content.js`, and verify.
+1. **Session Log Parser** -- Transform the 38 JSON research logs (6,800+ lines each for deep sites, ~800 for Sheets) into the `registerSiteGuide({...})` format already consumed by the AI prompt system. The logs already contain the exact data needed: interactive elements with selectors, internal links with URLs, page titles, form metadata, and navigation structure. This is a mechanical transformation, not a research problem.
 
----
+2. **Career-Specific Data Schema** -- The existing site guide format lacks a `jobSchema` field for structured job data extraction. A lightweight extension to the guide format (adding `jobSchema`, `searchWorkflow`, `paginationPattern`) gives the AI the intelligence to extract structured data across heterogeneous career sites.
 
-## 1. Content Script Loading Mechanics (Verified)
+3. **Google Sheets Formatting via Keyboard Shortcuts** -- FSB already types into Sheets via Name Box navigation and CDP text insertion. Formatting (bold headers, cell colors, column widths) requires keyboard shortcuts (Ctrl+B, Ctrl+Shift+1-6) and toolbar button clicks (fill color, font color pickers). The existing `keyPress` tool with `ctrlKey`/`shiftKey` modifiers and the `click` tool already handle this. The missing piece is a Sheets-specific site guide with formatting workflows.
 
-### How Files Share Scope
-
-**Confidence: HIGH** (Verified against Chrome official documentation)
-
-Chrome Extension content scripts -- whether declared in `manifest.json` or injected via `chrome.scripting.executeScript` -- all execute in the same **isolated world** per frame per extension. This means:
-
-1. **All files in a `content_scripts[].js` array share the same global scope.** Variables declared with `var`, `const`, `let`, `function`, or `class` at the top level of file A are accessible to file B if file A appears earlier in the array.
-
-2. **All files in a `chrome.scripting.executeScript({ files: [...] })` call share the same scope.** The behavior is identical to manifest-declared scripts.
-
-3. **Files execute sequentially in array order.** This is guaranteed by Chrome. File [0] finishes before file [1] begins.
-
-4. **The isolated world persists across injection calls for the same tab/frame.** If you call `executeScript` twice on the same tab, the second call's scripts can access variables from the first call (they share the same isolated world).
-
-**Source:** [Chrome Content Scripts Documentation](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts), [Chrome Manifest content_scripts Reference](https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts)
-
-### Current Injection Pattern
-
-FSB currently injects content scripts programmatically:
-
-```javascript
-// background.js line 1636-1641
-await chrome.scripting.executeScript({
-  target: { tabId, frameIds: [0] },
-  files: ['utils/automation-logger.js', 'content.js'],
-  world: 'ISOLATED',
-  injectImmediately: true
-});
-```
-
-This pattern already demonstrates multi-file injection with ordering dependency (`automation-logger.js` must load before `content.js`). The modularization simply extends this pattern to more files.
-
-### ES Modules: NOT Available
-
-**Confidence: HIGH** (Verified against Chrome docs and Chromium issue tracker)
-
-ES modules (`import`/`export`) are **not supported** in content scripts. Chrome does not support `type="module"` for content script injection. The `chrome.scripting.executeScript` API has no module support parameter. Dynamic `import()` requires files to be listed in `web_accessible_resources` and runs in the page's MAIN world, breaking isolated world access to `chrome.runtime` APIs.
-
-**Do not attempt ES modules.** All modularization must use classic script patterns.
+**Key decision: Do NOT add any libraries, APIs, or build tools.** Every capability needed is achievable with the existing toolset plus new vanilla JS modules.
 
 ---
 
-## 2. Recommended Architecture: Shared Namespace Object
+## 1. Session Log Parsing (New Module)
 
-### Pattern: `window.FSB` Namespace
+### What Exists
 
-Use a single namespace object on `window` (or just as a top-level `const` since all files share scope). Each module file contributes its exports to this namespace.
+**Confidence: HIGH** (Verified by reading actual log files and existing converter)
 
-**Why `window.FSB` over bare top-level declarations:**
-
-| Approach | Pros | Cons |
-|----------|------|------|
-| Bare top-level functions (current) | Simple, no boilerplate | No module boundaries, name collision risk, hard to trace origins, can't test individual modules |
-| `window.FSB` namespace | Clear ownership, discoverable API, debug-friendly (`window.FSB` in console), explicit dependencies | Slightly more verbose |
-| IIFE per file | True encapsulation, private state | Complex, requires explicit export of every function, breaks existing call patterns |
-
-**Recommendation: Use `window.FSB` namespace** because:
-- It works across both manifest-declared and programmatically-injected scripts
-- It survives the re-injection guard pattern (accessible via `window`)
-- It is inspectable in DevTools console
-- It makes module boundaries explicit without requiring code inside each function to change
-- It matches the existing `window.__FSB_CONTENT_SCRIPT_LOADED__` and `window.automationLogger` patterns already in use
-
-### Proposed File Structure
-
-```
-content/
-  _namespace.js          # Creates window.FSB = {} and re-injection guard
-  dom-state.js           # DOMStateManager, ElementCache, RefMap classes
-  visual-feedback.js     # HighlightManager, ProgressOverlay, ViewportGlow, ActionGlowOverlay, ElementInspector
-  element-utils.js       # Selector generation, element visibility, editable checks, ARIA helpers
-  action-verification.js # captureActionState, verifyActionEffect, ActionRecorder, diagnostics
-  tools.js               # The 25+ tool functions (scroll, click, type, etc.)
-  dom-serializer.js      # getStructuredDOM, generateCompactSnapshot, DOM diffing
-  explorer.js            # Site explorer data collection functions
-  message-handler.js     # handleBackgroundMessage, MutationObserver, connection management
-```
-
-### File Loading Order (Critical)
-
-The dependency graph determines load order. Based on code analysis:
-
-```
-_namespace.js           # No dependencies (creates FSB namespace)
-   |
-dom-state.js            # Depends on: namespace, automationLogger
-   |
-visual-feedback.js      # Depends on: namespace, isFsbElement, automationLogger
-   |
-element-utils.js        # Depends on: namespace, getClassName, stripUnicodeControl, automationLogger
-   |
-action-verification.js  # Depends on: namespace, element-utils functions, automationLogger
-   |
-tools.js                # Depends on: namespace, element-utils, dom-state, visual-feedback, action-verification
-   |
-dom-serializer.js       # Depends on: namespace, element-utils, dom-state, tools
-   |
-explorer.js             # Depends on: namespace, element-utils
-   |
-message-handler.js      # Depends on: ALL of the above (dispatches to tools, serializer, etc.)
-```
-
-### Manifest/Injection Array
+The 38 session logs in `/Logs/` follow a consistent JSON schema:
 
 ```javascript
-// background.js - updated executeScript call
-await chrome.scripting.executeScript({
-  target: { tabId, frameIds: [0] },
-  files: [
-    'utils/automation-logger.js',
-    'content/_namespace.js',
-    'content/dom-state.js',
-    'content/visual-feedback.js',
-    'content/element-utils.js',
-    'content/action-verification.js',
-    'content/tools.js',
-    'content/dom-serializer.js',
-    'content/explorer.js',
-    'content/message-handler.js'
+{
+  "domain": "careers.microsoft.com",
+  "id": "research_1771837697366",
+  "startTime": 1771837697366,
+  "endTime": 1771837890302,
+  "startUrl": "https://careers.microsoft.com/",
+  "status": "completed",
+  "pages": [
+    {
+      "depth": 0,
+      "url": "https://careers.microsoft.com/",
+      "title": "Home | Microsoft Careers",
+      "timestamp": 1771837704278,
+      "interactiveElements": [
+        {
+          "type": "button|input|a|div",
+          "text": "Find jobs",
+          "id": "find-jobs-btn",
+          "class": "find-jobs-btn",
+          "elementId": "button_find_jobs_btn_...",
+          "selectors": ["#find-jobs-btn", "//button[...]"]
+        }
+      ],
+      "internalLinks": [
+        { "text": "Careers", "url": "https://careers.microsoft.com/v2/global/en/home.html" }
+      ],
+      "forms": [],
+      "headings": [],
+      "keySelectors": [],
+      "navigation": [],
+      "layout": {}
+    }
   ],
-  world: 'ISOLATED',
-  injectImmediately: true
+  "summary": {
+    "totalPages": 25,
+    "totalElements": 464,
+    "totalForms": 0,
+    "totalLinks": 363,
+    "crawlDuration": 192936,
+    "uniqueUrls": 25
+  }
+}
+```
+
+The existing `sitemap-converter.js` (`convertToSiteMap()`) already transforms this schema into a sitemap memory object. The existing `sitemap-refiner.js` (`refineSiteMapWithAI()`) already enriches sitemaps with AI-generated workflows and tips.
+
+### What Needs to Be Built
+
+A new module: `session-log-parser.js` (or integrated into existing sitemap pipeline).
+
+**Purpose:** Convert session log JSON into `registerSiteGuide({...})` format JS files.
+
+**The transformation is mechanical:**
+
+| Session Log Field | Site Guide Field | Transformation |
+|---|---|---|
+| `domain` | `site` name | Extract readable name from domain |
+| `domain` | `patterns` | Generate regex from domain |
+| `interactiveElements[].selectors` | `selectors` | Classify by role (searchBox, jobCards, etc.) |
+| `interactiveElements[].type + .text` | Element classification | `input` with search-related text -> `searchBox` |
+| `internalLinks` | `workflows` | Derive navigation paths |
+| `pages[].title + .url` | `guidance` text | Describe page structure |
+| AI enrichment (existing refiner) | `workflows`, `warnings`, `tips` | Same Tier 2 pattern |
+
+### Recommended Approach
+
+Use a **two-tier approach matching the existing sitemap pipeline:**
+
+**Tier 1 (Pure heuristic, no AI cost):** Parse JSON, classify interactive elements by heuristics:
+- Inputs with `placeholder*="search"`, `name*="keyword"`, `name*="search"`, `name*="q"`, `name*="k"` -> `searchBox`
+- Inputs with `placeholder*="location"`, `name*="l"`, `name*="location"` -> `locationBox`
+- Buttons with text matching `"search"`, `"find jobs"`, `"apply"` -> `searchButton`, `applyButton`
+- Links containing `/jobs/`, `/careers/`, `/apply/` -> navigation workflow steps
+- Elements with class/text containing `"job-card"`, `"job-listing"`, `"position"`, `"opening"` -> `jobCards`
+
+**Tier 2 (AI enrichment, existing pattern):** Send the Tier 1 output to the AI refiner (already built in `sitemap-refiner.js`) with a career-specific prompt variant to generate:
+- Verified search workflow steps
+- Pagination detection
+- Job listing element identification
+- Warning about dynamic loading, iframes, login walls
+
+### Technology Stack: None New
+
+| Component | Technology | Rationale |
+|---|---|---|
+| Parsing | Vanilla JS `JSON.parse()` | Logs are already valid JSON |
+| Heuristic classification | Vanilla JS string matching | Regex/includes on element attributes |
+| File generation | String templates | Generate `registerSiteGuide({...})` JS source |
+| AI enrichment | Existing `UniversalProvider` | Same pattern as `sitemap-refiner.js` |
+| Storage | `chrome.storage.local` or file output | Existing memory storage pattern |
+
+### NOT Needed
+
+- **No JSON Schema validator** -- Log format is controlled by FSB's own Site Explorer; it never varies
+- **No streaming JSON parser** -- Largest log is ~7K lines (~500KB), well within memory
+- **No AST/code generation library** -- Site guide JS files are simple string templates
+- **No natural language processing** -- Element classification is pattern matching on known attributes
+
+---
+
+## 2. Career-Specific Data Structures (Schema Extension)
+
+### What Exists
+
+**Confidence: HIGH** (Verified by reading existing site guide files)
+
+Current site guide format:
+
+```javascript
+registerSiteGuide({
+  site: 'Indeed',
+  category: 'Career & Job Search',
+  patterns: [/indeed\.com/i],
+  guidance: `...free-text AI instructions...`,
+  selectors: {
+    searchBox: '...',
+    jobCards: '...',
+    jobTitle: '...',
+    // ...
+  },
+  workflows: {
+    searchJobs: ['Step 1', 'Step 2', ...],
+    extractJobData: ['Step 1', 'Step 2', ...]
+  },
+  warnings: ['...'],
+  toolPreferences: ['navigate', 'type', 'click', ...]
 });
 ```
 
----
+The `_shared.js` for the Career category already defines the 6 required fields:
+1. Company Name
+2. Role/Title
+3. Date Posted
+4. Location
+5. Description Summary
+6. Apply Link
 
-## 3. Implementation Pattern: File Template
+### What Needs to Be Added
 
-### Namespace Bootstrap (`_namespace.js`)
-
-```javascript
-// content/_namespace.js - MUST be loaded first
-// Creates the FSB namespace and re-injection guard
-
-if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
-  // Already loaded - skip re-injection
-} else {
-  window.__FSB_CONTENT_SCRIPT_LOADED__ = true;
-
-  // Central namespace for all content script modules
-  window.FSB = {
-    version: '9.0.2',
-    // Module registrations (populated by subsequent files)
-    domState: null,
-    visual: null,
-    elements: null,
-    verification: null,
-    tools: null,
-    serializer: null,
-    explorer: null,
-    // Shared state
-    currentSessionId: null
-  };
-
-  // Get automationLogger from window or create fallback
-  window.FSB.logger = window.automationLogger || {
-    log: function() {},
-    error: function(msg, data) { console.error('[FSB Fallback]', msg, data || ''); },
-    // ... (existing fallback pattern)
-  };
-}
-```
-
-### Module File Template (e.g., `dom-state.js`)
+Extend the site guide schema with career-specific structured fields. These are consumed by the AI prompt system via `_buildTaskGuidance()` in `ai-integration.js`.
 
 ```javascript
-// content/dom-state.js - DOM state management
-// Dependencies: _namespace.js, automation-logger.js
+registerSiteGuide({
+  // ...existing fields...
 
-(function(FSB) {
-  'use strict';
+  // NEW: Structured job listing schema for data extraction
+  jobSchema: {
+    title: { selectors: ['.jobTitle a', '.jcs-JobTitle'], attribute: 'textContent' },
+    company: { selectors: ['.companyName'], attribute: 'textContent' },
+    location: { selectors: ['.companyLocation'], attribute: 'textContent' },
+    datePosted: { selectors: ['.date'], attribute: 'textContent' },
+    description: { selectors: ['.job-description p:first-child'], attribute: 'textContent', maxLength: 200 },
+    applyLink: { selectors: ['.jobsearch-IndeedApplyButton a', 'a[href*="apply"]'], attribute: 'href' }
+  },
 
-  // Guard: skip if namespace not ready or already loaded
-  if (!FSB || FSB.domState) return;
+  // NEW: Explicit search workflow with parameter slots
+  searchWorkflow: {
+    steps: [
+      { action: 'navigate', target: 'https://www.amazon.jobs/' },
+      { action: 'type', selector: 'searchBox', value: '{query}' },
+      { action: 'type', selector: 'locationBox', value: '{location}' },
+      { action: 'click', selector: 'searchButton' },
+      { action: 'waitForElement', selector: 'jobCards' }
+    ],
+    parameters: ['query', 'location']
+  },
 
-  const logger = FSB.logger;
-
-  class DOMStateManager {
-    // ... (moved from content.js lines 163-606)
+  // NEW: Pagination pattern for multi-page results
+  paginationPattern: {
+    type: 'click',  // 'click' | 'scroll' | 'url-param'
+    nextSelector: '.pagination-next, [aria-label="Next"]',
+    hasMoreIndicator: '.pagination-next:not([disabled])',
+    maxPages: 3
   }
-
-  class ElementCache {
-    // ... (moved from content.js lines 614-727)
-  }
-
-  class RefMap {
-    // ... (moved from content.js lines 739-780)
-  }
-
-  // Export to namespace
-  FSB.domState = {
-    DOMStateManager,
-    ElementCache,
-    RefMap,
-    manager: new DOMStateManager(),
-    cache: new ElementCache(),
-    refMap: new RefMap()
-  };
-
-})(window.FSB);
-```
-
-### Why IIFE Wrapper Inside Namespace Pattern
-
-Each module file uses an IIFE `(function(FSB) { ... })(window.FSB)` for two reasons:
-
-1. **Private scope for module internals.** Helper functions, constants, and variables that should not leak to other modules stay private inside the IIFE.
-
-2. **Fail-safe guard.** If a file loads out of order or `window.FSB` is undefined, the IIFE receives `undefined` and the guard `if (!FSB)` prevents crashes.
-
-3. **Existing functions remain callable.** Functions that other modules need are placed on the namespace object. Functions that are only used within the module stay private inside the IIFE.
-
----
-
-## 4. Handling Cross-Module Dependencies
-
-### Problem: Current Flat Scope
-
-Currently all ~100 functions are siblings in the same scope. Any function can call any other function. After splitting, a function in `tools.js` that calls `checkElementVisibility()` (defined in `element-utils.js`) needs to find it somewhere.
-
-### Solution: Three Tiers of Access
-
-**Tier 1: Namespace exports** (cross-module public API)
-Functions that other modules call. These go on `window.FSB.moduleName.functionName`.
-
-```javascript
-// In element-utils.js
-FSB.elements = {
-  checkVisibility: checkElementVisibility,
-  generateSelector: generateSelector,
-  sanitizeSelector: sanitizeSelector,
-  // ...
-};
-
-// In tools.js
-const visibility = FSB.elements.checkVisibility(element);
-```
-
-**Tier 2: Top-level convenience aliases** (backward compatibility)
-For the transition period, critical functions can also be assigned to the global scope so existing code that calls them by name still works. This is a temporary bridge, not a permanent pattern.
-
-```javascript
-// In element-utils.js (temporary backward compat)
-window.checkElementVisibility = checkElementVisibility;
-window.generateSelector = generateSelector;
-```
-
-**Tier 3: IIFE-private** (module internals)
-Helper functions, constants, and variables that no other module needs. These stay inside the IIFE and are not exported.
-
-### Dependency Direction Rule
-
-Dependencies must flow **downward** in the file loading order. If `tools.js` depends on `element-utils.js`, `element-utils.js` must load first. Circular dependencies between files are forbidden.
-
-If two modules need each other, they must be merged or the shared parts extracted to a third module that loads before both.
-
----
-
-## 5. The Re-Injection Guard Pattern
-
-### Current Pattern (Must Preserve)
-
-```javascript
-if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
-  // skip
-} else {
-  window.__FSB_CONTENT_SCRIPT_LOADED__ = true;
-  // ... 13,400 lines ...
-}
-```
-
-### Multi-File Guard Strategy
-
-**Option A: Single global guard + per-module guards (RECOMMENDED)**
-
-The namespace file (`_namespace.js`) owns the global guard. Each subsequent module has its own guard checking if it has already registered on the namespace.
-
-```javascript
-// _namespace.js
-if (window.__FSB_CONTENT_SCRIPT_LOADED__) { /* skip */ }
-else { window.__FSB_CONTENT_SCRIPT_LOADED__ = true; window.FSB = { ... }; }
-
-// dom-state.js
-(function(FSB) {
-  if (!FSB || FSB.domState) return;  // per-module guard
-  // ...
-  FSB.domState = { ... };
-})(window.FSB);
-```
-
-This works because:
-- If the entire set of files is re-injected, `_namespace.js` skips (global guard), and since `window.FSB` already has `domState`, each module also skips
-- If only one module file is somehow re-injected, its own guard prevents double-registration
-
-**Option B: Each file has full guard (NOT recommended)**
-Verbose, duplicates the flag-checking logic, and makes it harder to reason about initialization order.
-
----
-
-## 6. Handling the `tools` Object
-
-### Current State
-
-The `tools` object (lines 5546-9252) is a single object literal with ~3,700 lines containing 25+ tool functions. It is referenced by the message handler to dispatch `executeAction` requests.
-
-### Recommended Split: Tool Registration Pattern
-
-Instead of one monolithic object, use a registration pattern:
-
-```javascript
-// In _namespace.js
-window.FSB.tools = {};
-
-// In tools.js (or multiple tool files if desired)
-(function(FSB) {
-  if (!FSB) return;
-
-  // Scroll tools
-  FSB.tools.scroll = async (params) => { ... };
-  FSB.tools.scrollToTop = async () => { ... };
-  FSB.tools.scrollToBottom = async () => { ... };
-
-  // Click tools
-  FSB.tools.click = async (params) => { ... };
-  FSB.tools.rightClick = async (params) => { ... };
-  FSB.tools.doubleClick = async (params) => { ... };
-
-  // ... etc.
-})(window.FSB);
-```
-
-The message handler then does:
-
-```javascript
-// In message-handler.js
-const toolFn = FSB.tools[request.tool];
-if (!toolFn) { sendResponse({ error: 'Unknown tool' }); return; }
-const result = await toolFn(request.params);
-```
-
-This is identical to the current pattern (`tools[action.tool]`) but uses the namespace instead of a local variable.
-
-### Optional: Further Tool Splitting
-
-If desired, tools can be split into sub-files:
-
-```
-content/tools/
-  scroll-tools.js
-  click-tools.js
-  input-tools.js
-  navigation-tools.js
-  query-tools.js
-```
-
-Each file registers its tools on `FSB.tools`. The message handler does not care which file registered the tool -- it just looks up by name. This is a later optimization, not needed for the initial split.
-
----
-
-## 7. Message Handler Refactoring
-
-### Current Pattern
-
-The `handleBackgroundMessage` function (lines 12804-13105) is a large switch/if-else that dispatches to various functions. It references:
-- `tools` object (for `executeAction`)
-- `getStructuredDOM()` (for `getDOM`)
-- `checkDocumentReady()` (for `healthCheck`)
-- `progressOverlay` (for status updates)
-- Various DOM analysis functions
-
-### After Modularization
-
-```javascript
-// In message-handler.js
-(function(FSB) {
-  if (!FSB || FSB._messageHandlerRegistered) return;
-  FSB._messageHandlerRegistered = true;
-
-  function handleBackgroundMessage(request, sender, sendResponse) {
-    if (request.sessionId) {
-      FSB.currentSessionId = request.sessionId;
-    }
-
-    FSB.logger.logComm(FSB.currentSessionId, 'receive', request.action, true, {});
-
-    if (request.action === 'executeAction') {
-      handleAsyncMessage(request, sendResponse);
-      return true;
-    }
-
-    if (request.action === 'getDOM') {
-      const dom = FSB.serializer.getStructuredDOM(request.options);
-      sendResponse(dom);
-      return true;
-    }
-
-    // ... etc., all references go through FSB namespace
-  }
-
-  chrome.runtime.onMessage.addListener(handleBackgroundMessage);
-
-  // MutationObserver, connection management, etc.
-  // ...
-})(window.FSB);
-```
-
----
-
-## 8. Migration Strategy: Incremental Extraction
-
-### Do NOT rewrite all at once.
-
-Extract one module at a time, in this order:
-
-| Step | Module | Lines | Risk | Verification |
-|------|--------|-------|------|-------------|
-| 1 | `_namespace.js` | ~40 | LOW | Extension loads, guard works, `window.FSB` exists |
-| 2 | `dom-state.js` | ~620 | LOW | `DOMStateManager`, `ElementCache`, `RefMap` work |
-| 3 | `visual-feedback.js` | ~1,000 | MEDIUM | Overlays, highlights, glow effects render correctly |
-| 4 | `element-utils.js` | ~2,200 | MEDIUM | Selector generation, visibility checks, ARIA helpers work |
-| 5 | `action-verification.js` | ~730 | LOW | Action state capture and verification work |
-| 6 | `tools.js` | ~3,700 | HIGH | All 25+ tools execute correctly (most critical) |
-| 7 | `dom-serializer.js` | ~2,200 | MEDIUM | `getStructuredDOM`, `generateCompactSnapshot` return correct data |
-| 8 | `explorer.js` | ~200 | LOW | Site explorer data collection works |
-| 9 | `message-handler.js` | ~630 | HIGH | All message types handled, MutationObserver works |
-
-**After each step:** Test the full automation flow. Load extension, run a task, verify no regressions.
-
-### Step-by-Step Process for Each Module
-
-1. Create the new file in `content/`
-2. Copy the relevant functions/classes from `content.js` into the IIFE
-3. Add namespace exports
-4. Update `background.js` `executeScript` calls to include the new file before `content.js`
-5. Delete the moved code from `content.js`
-6. Test
-
-The key insight: during migration, the remaining `content.js` and the new module files coexist in the same scope. Functions that have been moved to `FSB.elements.checkVisibility` can still be called as bare `checkElementVisibility()` if you add the Tier 2 backward-compat aliases. This lets you migrate callers gradually.
-
----
-
-## 9. Updating Background Script Injection Points
-
-### All Injection Sites (Must Update)
-
-There are **3 injection points** in `background.js` that need updating:
-
-| Line | Context | Current Files | Action |
-|------|---------|---------------|--------|
-| 1636-1641 | Primary injection (ensureContentScriptInjected) | `['utils/automation-logger.js', 'content.js']` | Replace with full file array |
-| 8104-8106 | New tab injection (setTimeout fallback) | `['content.js']` | Replace with full file array (include logger) |
-| 6204 | Comment-only reference | N/A (comment says "manifest.json content_scripts" but is wrong) | Update comment |
-
-**Recommendation:** Create a constant array in `background.js`:
-
-```javascript
-const CONTENT_SCRIPT_FILES = [
-  'utils/automation-logger.js',
-  'content/_namespace.js',
-  'content/dom-state.js',
-  'content/visual-feedback.js',
-  'content/element-utils.js',
-  'content/action-verification.js',
-  'content/tools.js',
-  'content/dom-serializer.js',
-  'content/explorer.js',
-  'content/message-handler.js'
-];
-
-// Then at each injection point:
-await chrome.scripting.executeScript({
-  target: { tabId, frameIds: [0] },
-  files: CONTENT_SCRIPT_FILES,
-  world: 'ISOLATED',
-  injectImmediately: true
 });
 ```
 
-This ensures all injection points stay in sync.
+### Why This Structure
+
+| Field | Purpose | How AI Uses It |
+|---|---|---|
+| `jobSchema` | Tells AI exactly which selectors to use for each data field | AI extracts structured data instead of guessing element roles |
+| `searchWorkflow` | Pre-defined step sequence with `{parameter}` slots | AI fills in user's query/location and executes without improvising |
+| `paginationPattern` | How to get more results | AI knows whether to click "Next", scroll, or modify URL |
+
+### Integration Point
+
+The existing `_buildTaskGuidance()` method in `ai-integration.js` (lines 3921-3983) already formats site guide data into the system prompt. It concatenates `guidance`, `selectors`, `workflows`, and `warnings`. Adding `jobSchema`, `searchWorkflow`, and `paginationPattern` requires a small extension to this method -- serialize these new fields into the prompt text when present.
+
+### Technology Stack: None New
+
+This is a schema convention change (adding optional fields to the site guide object), not a technology change. No new dependencies.
 
 ---
 
-## 10. Alternatives Considered
+## 3. Google Sheets Formatting via Browser Automation
 
-| Approach | Verdict | Why Not |
-|----------|---------|---------|
-| **Webpack/Rollup bundler** | REJECTED | Project constraint is no build system. Adds toolchain complexity, npm dependency management, build step to dev workflow. |
-| **Dynamic `import()`** | REJECTED | Requires `web_accessible_resources`, runs in MAIN world (loses isolated world access to `chrome.runtime`), blocked by some site CSPs. |
-| **Single file with regions/folding** | REJECTED | Does not reduce cognitive load, does not enable independent testing, does not reduce git merge conflicts. 13K lines is objectively too large. |
-| **Manifest `content_scripts` instead of programmatic** | DEFERRED | Would simplify injection but loses programmatic control (frameIds targeting, injectImmediately, conditional injection). Current programmatic approach is fine. |
-| **Web Workers for heavy computation** | REJECTED for this milestone | Workers cannot access DOM. All content script functions need DOM access. Not applicable to modularization. |
+### What Exists
+
+**Confidence: HIGH** (Verified by reading actions.js and google-sheets.js site guide)
+
+FSB already supports Google Sheets interaction:
+- **Name Box navigation:** Click `#t-name-box`, type cell reference (e.g., "A1"), press Enter
+- **Cell data entry:** Type value, press Tab (next column) or Enter (next row)
+- **Canvas-based editor detection:** `FSB.isCanvasBasedEditor()` returns true on `docs.google.com`
+- **CDP text insertion:** Direct text input bypassing DOM for canvas editors
+- **keyPress tool with modifiers:** `keyPress({ key, ctrlKey, shiftKey, altKey, metaKey })` via Chrome Debugger API
+- **Click tool:** Works on toolbar buttons (they are standard DOM elements with aria-labels)
+
+### What Formatting Requires
+
+Google Sheets formatting is achievable through two mechanisms FSB already has:
+
+**Mechanism 1: Keyboard Shortcuts (preferred -- reliable, no DOM lookup needed)**
+
+| Formatting | Shortcut (Windows/ChromeOS) | Shortcut (Mac) | FSB Tool Call |
+|---|---|---|---|
+| Bold | Ctrl+B | Cmd+B | `keyPress({ key: 'b', ctrlKey: true })` |
+| Italic | Ctrl+I | Cmd+I | `keyPress({ key: 'i', ctrlKey: true })` |
+| Underline | Ctrl+U | Cmd+U | `keyPress({ key: 'u', ctrlKey: true })` |
+| Strikethrough | Alt+Shift+5 | Cmd+Shift+X | `keyPress({ key: '5', altKey: true, shiftKey: true })` |
+| Number format | Ctrl+Shift+1 through 6 | Cmd+Shift+1-6 | `keyPress({ key: '1', ctrlKey: true, shiftKey: true })` |
+| Clear formatting | Ctrl+\ | Cmd+\ | `keyPress({ key: '\\', ctrlKey: true })` |
+| Select all in row | Shift+Space | Shift+Space | `keyPress({ key: ' ', shiftKey: true })` |
+| Select entire column | Ctrl+Space | Ctrl+Space | `keyPress({ key: ' ', ctrlKey: true })` |
+| Select range | Shift+Arrow | Shift+Arrow | `keyPress({ key: 'ArrowRight', shiftKey: true })` |
+
+**Sources:** [Google Sheets Keyboard Shortcuts](https://support.google.com/docs/answer/181110)
+
+**Mechanism 2: Toolbar Button Clicks (for colors and advanced formatting)**
+
+Google Sheets toolbar buttons are standard DOM elements (not canvas) with `aria-label` attributes. These are clickable via FSB's existing `click` tool.
+
+| Formatting | Toolbar Element | Approach |
+|---|---|---|
+| Fill color | Button with aria-label containing "Fill color" | Click button to open picker, then click color swatch |
+| Font color | Button with aria-label containing "Text color" or "Font color" | Click button to open picker, then click color swatch |
+| Font size | Dropdown with current font size value | Click to open, type size or click option |
+| Merge cells | Button with aria-label "Merge cells" | Select range first, then click |
+| Borders | Button with aria-label "Borders" | Click to open border picker |
+| Text alignment | Buttons with aria-label "Left align", "Center align", "Right align" | Direct click |
+| Column resize | Double-click column border in header | Use existing doubleClick tool |
+
+**Confidence on aria-labels: MEDIUM** -- These are discoverable at runtime by FSB's DOM analysis, but exact labels may vary by locale and Google Sheets version. The site guide should document the known labels, with the AI falling back to visual inspection of the toolbar if labels change.
+
+**Mechanism 3: Format Menu Navigation (fallback for colors)**
+
+For fill/font color when toolbar buttons are hard to target:
+1. Click Format menu (`#docs-format-menu`)
+2. Navigate to relevant submenu item
+3. Select color from the color picker dialog
+
+### Recommended Formatting Workflow
+
+For the career search output (formatted table with headers):
+
+```
+1. Navigate to cell A1 via Name Box
+2. Type header row: "Company" [Tab] "Role" [Tab] "Date Posted" [Tab] "Location" [Tab] "Description" [Tab] "Apply Link" [Enter]
+3. Select header row: Click A1, then Shift+Ctrl+Right to select through F1
+4. Apply bold: Ctrl+B
+5. Apply fill color: Click Fill Color toolbar button, select header color
+6. Enter data rows: Type value [Tab] value [Tab] ... [Enter] per row
+7. Auto-resize columns: Select all (Ctrl+A), then Format menu -> Column width -> Fit to data
+```
+
+### What Needs to Be Built
+
+A Sheets-specific formatting workflow section in the Google Sheets site guide, plus a small enhancement to the `_buildTaskGuidance()` prompt builder to include formatting instructions when the task involves data output to Sheets.
+
+**No new tools needed.** The existing `keyPress`, `click`, `type`, and `navigate` tools cover all required operations.
+
+### Technology Stack: None New
+
+| Capability | Existing Tool | New Code Needed |
+|---|---|---|
+| Cell navigation | Name Box click + type + Enter | None |
+| Data entry | CDP type + Tab/Enter keyPress | None |
+| Bold/italic/underline | keyPress with modifiers | None (already supports ctrlKey, shiftKey) |
+| Fill color | click on toolbar button | Site guide with toolbar selectors |
+| Column resize | Format menu navigation | Site guide workflow steps |
+| Range selection | Shift+Arrow/Click keyPress | None |
 
 ---
 
-## 11. Important Caveats and Edge Cases
+## 4. Job Data Extraction and Structured Output
 
-### `const`/`let` vs `var` Across Files
+### What Exists
 
-All three declaration types work across files in the same content script scope:
-- `var` declarations are hoisted and globally accessible (attached to the global object in non-strict mode)
-- `const` and `let` declarations are block-scoped but at the top level of a script, they are accessible to subsequent scripts in the same execution context
-- `function` declarations are hoisted and globally accessible
+The AI already extracts text from pages via `getText` and `getAttribute` tools. The memory system already stores structured data. The career category `_shared.js` already defines the 6 required fields.
 
-**However**, inside an IIFE wrapper, `const`/`let`/`var` are scoped to the IIFE. Only values explicitly attached to `window.FSB` (or `window`) are accessible to other files. This is the desired behavior -- it prevents accidental leaks.
+### What Needs to Be Built
 
-### Re-Injection with Partial File Sets
+A **job data accumulator** pattern -- the AI needs to collect data across multiple career sites and hold it in working memory until ready to output to Google Sheets.
 
-Line 8104-8106 in `background.js` injects only `['content.js']` without `automation-logger.js`. After modularization, ALL files must be injected together. Using the `CONTENT_SCRIPT_FILES` constant prevents this bug.
+**Option A: AI Conversation Memory (Recommended)**
 
-### Error in One File Breaks Subsequent Files
+The AI already maintains conversation history across iterations. The structured prompt can instruct the AI to accumulate job data in a consistent format within its conversation context:
 
-If `dom-state.js` throws an error during top-level execution, `visual-feedback.js` and all subsequent files may still load (Chrome injects all files in the array) but they will find `FSB.domState` as `null`. Each module's guard `if (!FSB || FSB.domState)` handles this gracefully by skipping initialization.
+```
+After extracting jobs from each site, record them in this format in your response:
+JOB_DATA: {"company": "...", "title": "...", "datePosted": "...", "location": "...", "description": "...", "applyLink": "..."}
+```
 
-For the message handler (last to load), a missing dependency should be reported:
+The AI's conversation history preserves this across tab switches and site navigations. When it reaches the Sheets output phase, it has all accumulated data in context.
+
+**Pros:** No new storage mechanism needed, uses existing conversation flow
+**Cons:** Limited by context window, data could be lost if conversation is compacted
+
+**Option B: chrome.storage.local Accumulator**
+
+Store extracted job data in a dedicated `chrome.storage.local` key during the session:
 
 ```javascript
-// In message-handler.js
-if (!FSB.tools || !FSB.serializer) {
-  console.error('[FSB] Critical modules failed to load. tools:', !!FSB.tools, 'serializer:', !!FSB.serializer);
+// In background.js or a new career-session.js module
+async function addJobData(sessionId, jobData) {
+  const key = `career_jobs_${sessionId}`;
+  const existing = await chrome.storage.local.get(key);
+  const jobs = existing[key] || [];
+  jobs.push(jobData);
+  await chrome.storage.local.set({ [key]: jobs });
 }
 ```
 
-### Performance: Many Small Files vs One Large File
+**Pros:** Survives context compaction, can accumulate unlimited jobs, inspectable
+**Cons:** Requires a new tool for the AI to call, adds implementation complexity
 
-Chrome's `executeScript` with a `files` array fetches all files from the extension package (local disk, not network). The overhead of loading 10 files vs 1 file is negligible (sub-millisecond per file). The parsing cost is identical since the same total code is parsed. There is no measurable performance regression from splitting.
+**Recommendation: Option B (storage accumulator).** The end-to-end workflow involves visiting 30+ career sites, extracting 3-5 jobs each, then outputting 90-150 rows to Sheets. This exceeds comfortable conversation context. A storage accumulator is more robust and enables progress tracking.
 
----
+### New Tool Needed
 
-## 12. Dead Code Identification Strategy
-
-While splitting, use the extraction process to identify dead code:
-
-1. **Track function references.** When moving a function to a module, search the entire codebase for callers. If no callers exist outside the function's own file, it may be dead.
-
-2. **The `tools` object is the source of truth for action tools.** Any tool function not in the `tools` object is dead code (unless called internally by another tool).
-
-3. **`generateSelector` is defined twice** (lines 2986 and 10759). One is likely dead or a legacy version.
-
-4. **Explorer functions** (`explorerBuildSelector`, `explorerExtractNavigation`, etc.) appear to be used only by `collectExplorerData`. If site explorer is disabled, these are candidates for conditional loading.
-
----
-
-## 13. Hardcoded Values to Extract
-
-During modularization, extract these hardcoded values to a config module:
+One new tool for the content script `tools` object:
 
 ```javascript
-// content/_config.js (load after _namespace.js)
-window.FSB.config = {
-  ELEMENT_INDEX_TTL: 2000,        // line 874
-  MAX_RECONNECT_ATTEMPTS: 5,      // line 13255
-  MUTATION_DEBOUNCE_MS: 300,      // inferred from observer code
-  VERSION: '9.0.2',               // repeated in multiple places
-  // Shadow DOM host IDs
-  HOST_IDS: new Set([
-    'fsb-highlight-host',
-    'fsb-progress-host',
-    'fsb-glow-host',
-    'fsb-action-glow-host',
-    'fsb-inspector-host'
-  ])
-};
+// Add to content/actions.js tools object
+storeJobData: async (params) => {
+  const { company, title, datePosted, location, description, applyLink } = params;
+  const response = await chrome.runtime.sendMessage({
+    action: 'storeCareerData',
+    data: { company, title, datePosted, location, description, applyLink }
+  });
+  return { success: response.success, totalJobs: response.totalJobs };
+},
+
+getStoredJobs: async (params) => {
+  const response = await chrome.runtime.sendMessage({
+    action: 'getCareerData'
+  });
+  return { success: true, jobs: response.jobs, totalJobs: response.jobs.length };
+}
 ```
+
+Plus a message handler in `background.js`:
+
+```javascript
+case 'storeCareerData':
+  // Append to session-scoped storage
+  break;
+case 'getCareerData':
+  // Return all accumulated jobs for current session
+  break;
+```
+
+### Technology Stack: None New
+
+This uses `chrome.storage.local` (already a permission) and the existing message passing architecture.
+
+---
+
+## 5. Multi-Tab Orchestration
+
+### What Exists
+
+**Confidence: HIGH** (Verified in background.js and actions.js)
+
+FSB already has:
+- `openNewTab` tool -- opens URLs in new tabs
+- `switchToTab` tool -- switches between open tabs
+- Tab tracking in background.js via `chrome.tabs` API
+- `webNavigation` permission for detecting tab navigations
+
+### What Needs to Be Built
+
+The career search workflow requires visiting 30+ career sites sequentially. Two approaches:
+
+**Approach A: Single-Tab Sequential (Recommended)**
+
+Navigate to each career site in the same tab, extract data, then navigate to the next site. Finally, open Google Sheets and output all data.
+
+**Pros:** Simple, matches existing FSB single-tab automation model, no tab management complexity
+**Cons:** Slower (sequential navigation), AI must track progress
+
+**Approach B: Multi-Tab Parallel**
+
+Open multiple tabs, extract data in parallel.
+
+**Pros:** Faster
+**Cons:** Significantly more complex orchestration, AI context doesn't span tabs, harder to debug
+
+**Recommendation: Approach A (single-tab sequential).** Multi-tab parallelism is a future optimization. The v9.4 goal is end-to-end functionality, not speed. The storage accumulator (Section 4) decouples extraction from output, so the AI can extract from all sites first, then switch to Sheets for output.
+
+---
+
+## 6. Site Guide Generation Pipeline
+
+### Overview
+
+The end-to-end pipeline for turning session logs into site guides:
+
+```
+Session Logs (JSON)                  Site Guides (JS)
+     |                                    ^
+     v                                    |
+[Tier 1: Heuristic Parser]          [File Generator]
+     |                                    ^
+     v                                    |
+[Intermediate Structure]    ---->   [Tier 2: AI Enrichment]
+```
+
+### Module Architecture
+
+| Module | Location | Purpose | New/Existing |
+|---|---|---|---|
+| `session-log-parser.js` | `lib/career/` or `lib/memory/` | Tier 1 heuristic parsing of JSON logs | NEW |
+| `career-guide-generator.js` | `lib/career/` | Generate `registerSiteGuide()` JS source files | NEW |
+| `sitemap-refiner.js` | `lib/memory/` | AI enrichment (Tier 2) | EXISTING (may need career-specific prompt variant) |
+| `site-guides/index.js` | `site-guides/` | Registry and URL matching | EXISTING (no changes needed) |
+| `background.js` | root | importScripts for new career site guides | EXISTING (add new importScripts lines) |
+
+### File Output Location
+
+New career site guides go in `site-guides/career/`:
+
+```
+site-guides/career/
+  _shared.js          (existing -- category-level guidance)
+  generic.js          (existing -- ATS platform patterns)
+  indeed.js           (existing)
+  glassdoor.js        (existing)
+  builtin.js          (existing)
+  microsoft.js        (NEW -- generated from session log)
+  amazon-jobs.js      (NEW -- generated from session log)
+  meta.js             (NEW -- generated from session log)
+  apple.js            (NEW -- generated from session log)
+  boeing.js           (NEW -- generated from session log)
+  ... (30+ more)
+```
+
+Each generated file follows the exact same `registerSiteGuide({...})` pattern as existing files. They are loaded via `importScripts()` in `background.js`, same as the 43 existing guides.
+
+### Session Log Inventory
+
+38 research logs available covering:
+
+**FAANG/Big Tech (7):** Microsoft, Amazon, Meta, Apple, Google, NVIDIA, Tesla
+**Finance (7):** Goldman Sachs, JP Morgan, Visa, Bank of America, Mastercard, Morgan Stanley, Capital One
+**Enterprise/Defense (5):** Boeing, Lockheed Martin, IBM, Oracle, Deloitte
+**Telecom (3):** AT&T, Verizon, Qatar Airways
+**Retail (5):** Walmart, Target, Home Depot, Costco, Lowe's
+**Healthcare/Other (7):** CVS Health, UnitedHealth, Pfizer, J&J, McKesson, Mr Cooper, TI
+**AI (1):** OpenAI
+**Productivity (1):** Google Docs/Sheets (for Sheets formatting intelligence)
+**Search (3):** Google.com (for career page discovery workflow)
+
+---
+
+## 7. Complete Stack Summary
+
+### No New Dependencies
+
+| Category | Technology | Version | Status | Notes |
+|---|---|---|---|---|
+| Runtime | Chrome Extension MV3 | Chrome 88+ | EXISTING | No changes |
+| Language | Vanilla JavaScript ES2021+ | N/A | EXISTING | No changes |
+| AI Integration | UniversalProvider | N/A | EXISTING | May add career-specific prompt |
+| Storage | chrome.storage.local | MV3 API | EXISTING | Add career data accumulator |
+| Keyboard | Chrome Debugger API (CDP) | N/A | EXISTING | Already supports key modifiers |
+| DOM Analysis | FSB DOM analyzer | N/A | EXISTING | No changes |
+| Action Tools | tools object in actions.js | N/A | EXISTING | Add 2 new tools (storeJobData, getStoredJobs) |
+| Site Guides | registerSiteGuide() system | N/A | EXISTING | Add 30+ new career site files |
+| Sitemap Pipeline | sitemap-converter + refiner | N/A | EXISTING | Reuse for session log processing |
+
+### New Vanilla JS Modules
+
+| Module | Purpose | Est. Lines | Complexity |
+|---|---|---|---|
+| `lib/career/session-log-parser.js` | Parse JSON logs, classify elements | 200-300 | LOW -- string matching |
+| `lib/career/career-guide-generator.js` | Generate site guide JS source files | 150-250 | LOW -- template strings |
+| `lib/career/career-data-store.js` | Accumulate extracted job data in storage | 80-120 | LOW -- CRUD on chrome.storage |
+| 30+ `site-guides/career/*.js` files | Per-site career intelligence | 50-80 each | LOW -- generated output |
+| Enhanced `google-sheets.js` | Add formatting workflows | +50-80 lines | LOW -- extend existing |
+
+### Tools Addition to actions.js
+
+| Tool | Purpose | Params |
+|---|---|---|
+| `storeJobData` | Save extracted job to session accumulator | `{ company, title, datePosted, location, description, applyLink }` |
+| `getStoredJobs` | Retrieve all accumulated jobs for Sheets output | `{}` |
+
+### Background.js Changes
+
+| Change | Purpose |
+|---|---|
+| Add `importScripts()` for new career guides | Load 30+ generated site guides |
+| Add message handlers for `storeCareerData` / `getCareerData` | Support job data accumulation |
+
+---
+
+## 8. Alternatives Considered and Rejected
+
+| Alternative | Why Rejected |
+|---|---|
+| **Google Sheets API** | FSB automates the browser, not APIs. Using the Sheets API would require OAuth, API keys, and a different architecture. The browser automation approach is consistent with FSB's design philosophy. |
+| **Puppeteer/Playwright** | FSB is a Chrome Extension with content scripts, not a Node.js automation tool. These libraries run outside the browser and cannot be used in an extension context. |
+| **JSON Schema validation library (ajv)** | Session logs are produced by FSB's own code in a fixed format. Adding a validation library for a controlled schema is unnecessary complexity. Simple runtime checks suffice. |
+| **Template engine (handlebars, ejs)** | Site guide files are simple JS with a function call wrapping an object literal. ES template literals handle this without external dependencies. |
+| **Build system (webpack, esbuild)** | FSB's constraint is no build system. 30+ new site guide files loaded via `importScripts()` follow the same pattern as the existing 43 files. |
+| **IndexedDB** | `chrome.storage.local` with `unlimitedStorage` permission (already granted) is simpler and sufficient for the expected data volume (150 jobs with 6 fields each is <100KB). |
+| **Web Workers for parallel parsing** | 38 log files parse in <100ms sequentially. Parallelism adds complexity with no perceptible benefit. |
+| **Clipboard API for Sheets data paste** | Could paste a full table at once, but formatting (bold headers, colors) requires per-cell control. Sequential Name Box entry + keyboard shortcuts gives full formatting control. |
+
+---
+
+## 9. Risk Assessment
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|
+| Google Sheets toolbar aria-labels change | LOW | MEDIUM | Site guide uses known labels; AI falls back to visual toolbar inspection |
+| Career site redesigns invalidate selectors | MEDIUM | LOW | Session logs can be re-crawled; generic fallback patterns in `_shared.js` cover common ATS platforms |
+| 30+ importScripts calls slow service worker startup | LOW | LOW | Each file is 50-80 lines (~3KB). 30 files = ~90KB total, negligible vs existing 43 files |
+| Job data accumulator exceeds storage | LOW | LOW | 150 jobs at ~500 bytes each = ~75KB, well within 10MB+ limit |
+| AI context window insufficient for multi-site workflow | MEDIUM | MEDIUM | Storage accumulator decouples extraction from output; AI doesn't need to hold all data in context |
+| Google Sheets canvas blocks formatting keyboard shortcuts | LOW | HIGH | Verified: keyboard shortcuts work in Sheets (they are handled by Sheets' JS, not the canvas). CDP keyPress dispatches events that Sheets responds to. |
 
 ---
 
 ## Sources
 
-- [Chrome Content Scripts Documentation](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) -- HIGH confidence, official
-- [Chrome Manifest content_scripts Reference](https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts) -- HIGH confidence, official
-- [Chrome scripting API Reference](https://developer.chrome.com/docs/extensions/reference/api/scripting) -- HIGH confidence, official
-- [Chromium Issue #41017694: Content script global variables stomp on each other](https://issues.chromium.org/issues/41017694) -- HIGH confidence, official bug tracker
-- [ESM Module Import Support in Content Scripts](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/uz5-maxDJFA) -- MEDIUM confidence, official Chromium Extensions group
-- [Multiple Content Scripts in Manifest](https://riptutorial.com/google-chrome-extension/example/9651/multiple-content-scripts-in-the-manifest) -- MEDIUM confidence, community tutorial
-- Codebase analysis of `content.js` (13,429 lines), `background.js` (injection points), `utils/automation-logger.js` (existing multi-file pattern) -- HIGH confidence, direct inspection
+- Session log format: Verified by reading `/Logs/fsb-research-careers.microsoft.com-2026-02-23.json` (6,892 lines)
+- Site guide format: Verified by reading `/site-guides/career/generic.js`, `/site-guides/career/indeed.js`, `/site-guides/productivity/google-sheets.js`
+- Site guide consumption: Verified by reading `_buildTaskGuidance()` in `/ai/ai-integration.js` (lines 3921-3983)
+- Sitemap pipeline: Verified by reading `/lib/memory/sitemap-converter.js` and `/lib/memory/sitemap-refiner.js`
+- Canvas editor detection: Verified by reading `isCanvasBasedEditor()` in `/content/messaging.js` (line 217)
+- keyPress tool: Verified by reading `/content/actions.js` (line 3134) -- supports `ctrlKey`, `shiftKey`, `altKey`, `metaKey` modifiers via Chrome Debugger API
+- Google Sheets keyboard shortcuts: [Google Docs Editors Help](https://support.google.com/docs/answer/181110)
+- Manifest permissions: Verified by reading `/manifest.json` -- already has `debugger`, `clipboardWrite`, `storage`, `unlimitedStorage`

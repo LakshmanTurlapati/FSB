@@ -1,495 +1,581 @@
-# Feature Landscape: Tech Debt Cleanup for FSB Chrome Extension
+# Feature Research: Career Search Automation + Google Sheets Output
 
-**Domain:** Chrome Extension tech debt cleanup -- content script decomposition, configuration patterns, dead code removal, constructor bug fixes
-**Researched:** 2026-02-21
-**Overall Confidence:** HIGH
-**Scope:** Specific to FSB v9.0.2, a 13,429-line content.js monolith in a Manifest V3 Chrome Extension
-
----
-
-## Table Stakes
-
-Features that constitute proper, non-controversial tech debt cleanup. Skipping any of these means the cleanup is incomplete or creates new risks.
+**Domain:** Career search automation with structured spreadsheet output
+**Researched:** 2026-02-23
+**Confidence:** HIGH
+**Scope:** Adding career search automation to FSB Chrome Extension (v9.4) -- multi-company job search, data extraction, and formatted Google Sheets output
 
 ---
 
-### TS-1: Dead Code Removal with Verification (waitForActionable)
+## Existing Capabilities (What FSB Already Has)
 
-**Why Expected:** Dead code increases cognitive load, confuses contributors, bloats file size, and creates false confidence that functionality exists. In a 13K-line file, every line that serves no purpose actively harms maintainability. `waitForActionable()` (lines 4425-4572, ~148 lines) is defined but never called anywhere in the codebase -- verified via grep across all project files. It returns only from its own definition.
+Before mapping new features, these are the building blocks already in place. Every new feature below either extends these or fills a gap between them.
 
-**Verification Protocol:**
+| Capability | Status | Location |
+|-----------|--------|----------|
+| AI-powered browser automation (25+ tools) | Shipped | content/actions.js |
+| Career site guides (Indeed, Glassdoor, BuiltIn, generic ATS) | Shipped | site-guides/career/ |
+| Career category shared guidance (6-field extraction, strategy priority) | Shipped | site-guides/career/_shared.js |
+| Google Sheets site guide (Name Box navigation, Tab/Enter data entry) | Shipped | site-guides/productivity/google-sheets.js |
+| Google Docs formatted paste (bold, tables, lists via Clipboard API) | Shipped | content/rich-text.js |
+| Multi-tab tools (openNewTab, switchToTab, closeTab, listTabs) | Shipped | content/actions.js, background.js |
+| Task type detection (career, multitab) | Shipped | ai-integration.js, background.js |
+| Career-specific prompt template (6-phase workflow) | Shipped | ai-integration.js TASK_PROMPTS.career |
+| Site guide URL pattern matching | Shipped | site-guides/index.js |
+| Crowd session logs for 34 career sites + Google Docs | Available | /logs/ directory |
+| Memory system (sitemaps per domain, cross-site patterns) | Shipped | lib/memory/ |
+| Multitab completion validator | Shipped | background.js multitabValidator |
+| Conversation history across iterations | Shipped | background.js sessionAIInstances |
 
-The standard for safe dead code removal in JavaScript without a type system or build tooling is a three-step process:
-
-1. **Static analysis (grep/search):** Search the entire codebase for all references to the function name. For `waitForActionable`, the only match is its own definition at content.js:4425. Zero call sites. Confidence: HIGH.
-
-2. **Dynamic call path analysis:** Consider whether the function could be invoked indirectly -- via `eval()`, string-based dispatch, `window[funcName]()`, or message handler routing. In content.js, the message handler (`chrome.runtime.onMessage`) dispatches based on `request.action` strings that map to `tools.*` or specific named handlers. `waitForActionable` is a standalone function, not a property of `tools`, not referenced in any message handler case, and not exported to `window`. It cannot be reached dynamically.
-
-3. **Replacement audit:** Confirm that the functionality `waitForActionable` provided is covered elsewhere. It is: `smartEnsureReady()` (line 4290) and `ensureElementReady()` (line 4317) both handle the same use case (wait for element to be visible, enabled, and stable) with simpler APIs. `waitForActionable` appears to be an older implementation that was superseded.
-
-**What to Do:**
-- Remove lines 4425-4572 entirely
-- Run a final grep to confirm no references remain
-- No behavioral change expected; confirm with manual testing of a basic automation task
-
-**Complexity:** Low
-**Risk:** Very Low (function is unreachable)
-
-**Sources:**
-- Codebase grep: `waitForActionable` appears only at content.js:4425 (definition)
-- [Knip - dead code detection tool](https://knip.dev/) and [Dead Code Checker](https://github.com/denisoed/dead-code-checker) document this same three-step verification approach
-- [HackerNoon: Remove Dead Code](https://hackernoon.com/refactoring-021-remove-dead-code) -- "removing dead code as you refactor improves maintainability with no risk of new problems"
+**Key gap:** FSB can search ONE career site and enter data into ONE Google Sheet in a single session. It does NOT have structured multi-company orchestration, data accumulation across sites, or Google Sheets formatting (bold, colors, column sizing).
 
 ---
 
-### TS-2: Fix UniversalProvider Constructor Args in memory-extractor.js
+## Table Stakes (Users Expect These)
 
-**Why Expected:** This is a runtime bug, not just style debt. The code will throw or produce undefined behavior when the memory extraction code path is exercised.
-
-**The Bug (memory-extractor.js line 273):**
-```javascript
-// WRONG -- passes 3 positional args
-const provider = new UniversalProvider(cfg.modelProvider, cfg.modelName, {
-  apiKey: cfg.apiKey,
-  geminiApiKey: cfg.geminiApiKey,
-  ...
-});
-```
-
-**UniversalProvider's actual constructor (universal-provider.js line 121-133):**
-```javascript
-class UniversalProvider {
-  constructor(settings) {         // Takes a SINGLE settings object
-    this.settings = settings;
-    this.model = settings.modelName;
-    this.provider = settings.modelProvider || 'xai';
-    ...
-  }
-}
-```
-
-**What happens:** `settings` receives the string `cfg.modelProvider` (e.g., "xai"). Then `settings.modelName` is `undefined`, `settings.modelProvider` is `undefined` (strings don't have these properties). The second and third arguments are silently ignored. The provider will attempt to use model `undefined` against provider `xai` (default fallback), which will produce API errors or silent failures.
-
-**Correct pattern (from background.js line 425):**
-```javascript
-const provider = new UniversalProvider(settings);  // settings is the full config object
-```
-
-**What to Do:**
-```javascript
-// FIX: pass a single settings object
-const provider = new UniversalProvider({
-  modelProvider: cfg.modelProvider,
-  modelName: cfg.modelName,
-  apiKey: cfg.apiKey,
-  geminiApiKey: cfg.geminiApiKey,
-  openaiApiKey: cfg.openaiApiKey,
-  anthropicApiKey: cfg.anthropicApiKey,
-  customEndpoint: cfg.customEndpoint,
-  customApiKey: cfg.customApiKey
-});
-```
-
-Or more concisely, since `cfg` already has all the needed keys:
-```javascript
-const provider = new UniversalProvider(cfg);
-```
-
-**Complexity:** Low (one-line fix)
-**Risk:** Low (fixes a bug; improves behavior)
-
-**Sources:**
-- universal-provider.js line 121-133: constructor signature is `constructor(settings)` (single object)
-- background.js line 425: `new UniversalProvider(settings)` -- correct usage
-- ai-providers.js line 19: `return new UniversalProvider(settings)` -- correct usage
-- memory-extractor.js line 273: `new UniversalProvider(cfg.modelProvider, cfg.modelName, {...})` -- incorrect, three positional args
+Features users assume exist when they say "find me internships and put them in a spreadsheet." Missing any of these makes the product feel broken.
 
 ---
 
-### TS-3: Make ElementCache maxCacheSize Configurable
+### TS-1: Single-Company Career Search with Data Extraction
 
-**Why Expected:** Hardcoded magic numbers are a classic tech debt indicator. `maxCacheSize = 100` (content.js line 619) is a tuning parameter that may need adjustment based on page complexity. Some sites FSB automates have 2000+ interactive elements; a cache of 100 with FIFO eviction means constant cache churn on complex pages. Conversely, on simple pages, 100 may waste memory.
+**Why Expected:** This is the atomic unit of the workflow. If FSB cannot reliably navigate one career site, find matching jobs, and extract the 6 required fields (company, title, date, location, description, apply link), nothing else matters.
 
-**Configuration Pattern Decision -- chrome.storage vs. Config Object vs. Constructor Parameter:**
+**Complexity:** MEDIUM -- The AI prompt template (TASK_PROMPTS.career) and career site guides already define this workflow. The challenge is reliability across the 30+ different ATS platforms (Workday, Lever, Greenhouse, Ashby, iCIMS, custom builds). Each has different DOM structures, search mechanisms, and listing formats.
 
-For this specific value, the right answer is: **pass it as a constructor parameter with a default, sourced from the existing `config.js` defaults object.** Here is why:
+**Dependencies on Existing FSB:**
+- Career site guides (generic.js, indeed.js, glassdoor.js, builtin.js) -- already shipped
+- Career shared guidance (_shared.js 6-field extraction) -- already shipped
+- getText, getAttribute, click, type, scroll tools -- already shipped
 
-| Pattern | Pros | Cons | Verdict |
-|---------|------|------|---------|
-| chrome.storage.local | User-configurable at runtime, persists across sessions | Async-only access; ElementCache is constructed synchronously at content script load; would need to defer cache construction or use a sentinel value until async config loads | Overkill for this |
-| Config object (config.js defaults) | Already exists; single source of truth for tuning knobs; synchronous access from content script if injected before content.js | Content scripts don't currently import config.js (it is used in background/options contexts) | Close, but requires injection ordering |
-| Constructor parameter with default | Simple; testable; no external dependency; the caller can source the value however it wants | Not user-configurable from options page without additional plumbing | Best for now |
-| Hardcoded constant at top of file | Visible; easy to find; better than buried in constructor | Still hardcoded, just relocated | Acceptable intermediate step |
+**Needs New Site Guide Data:** YES -- The 34 crowd session logs need to be parsed into per-company site guides with selectors for each company's career page (search box, job cards, job title, location, date, apply link). The generic.js guide covers common ATS patterns, but company-specific selectors increase reliability. For example, Microsoft's career page uses `#find-jobs-btn` and `[aria-label="Search jobs"]` (visible in the session log), while Amazon uses `#search-typeahead-homepage` and `#search-button`.
 
-**Recommendation:** Use a named constant at the top of the relevant module, with a clear comment, and accept it as a constructor parameter:
-
-```javascript
-const DEFAULT_ELEMENT_CACHE_SIZE = 100;
-
-class ElementCache {
-  constructor(maxSize = DEFAULT_ELEMENT_CACHE_SIZE) {
-    this.cache = new Map();
-    this.stateVersion = 0;
-    this.observer = null;
-    this.maxCacheSize = maxSize;
-  }
-}
-```
-
-If the value should be user-configurable from the options page, add `elementCacheSize` to the `config.js` defaults and read it via chrome.storage in the initialization path that creates the ElementCache instance. But this is a performance tuning parameter, not a user-facing setting -- most users would not understand "element cache size." Keep it as a developer constant for now.
-
-**Why NOT chrome.storage for this specific value:**
-- chrome.storage is async; ElementCache is constructed synchronously at script load time
-- The content script would need to defer cache construction until after an async storage read, which changes initialization ordering and adds complexity
-- This is an internal performance knob, not a user preference
-
-**When TO use chrome.storage:** For values that users configure through the options page (API keys, model selection, maxIterations, debugMode -- which FSB already does correctly via config.js + options.js).
-
-**Complexity:** Low
-**Risk:** Very Low
-
-**Sources:**
-- [Chrome Storage API docs](https://developer.chrome.com/docs/extensions/reference/api/storage) -- async-only access, 10MB local limit
-- content.js line 619: `this.maxCacheSize = 100` -- current hardcoded value
-- config.js: demonstrates the existing chrome.storage pattern for user-facing settings
+**What "done" looks like:**
+- User says "find software engineering internships at Microsoft"
+- FSB navigates to careers.microsoft.com (via Google search)
+- FSB uses the search box to enter "software engineering internship"
+- FSB extracts 3-5 matching listings with all 6 fields
+- FSB reports the findings to the user
 
 ---
 
-### TS-4: Content Script Decomposition -- Module Boundary Identification
+### TS-2: Multi-Company Sequential Search
 
-**Why Expected:** A 13,429-line single file is well past the point where maintenance, review, and navigation become painful. The Chrome Extension Manifest V3 `content_scripts.js` array allows multiple files injected in order, with all files sharing the same isolated world (meaning later files can access variables/functions defined by earlier files).
+**Why Expected:** The core value proposition is "find me jobs at Microsoft, Amazon, AND Google." Users name 2-10 companies in a single prompt. If FSB can only handle one company, users just do it manually.
 
-**Current Logical Sections in content.js (identified from section comments and function clustering):**
+**Complexity:** HIGH -- This requires FSB to orchestrate a sequential workflow: search company A, accumulate data, search company B, accumulate more data, etc. The AI needs to maintain state across company transitions -- remembering which companies it has already searched, which it has not, and what data it has collected so far.
 
-| Section | Lines (approx) | Functions/Classes | Description |
-|---------|----------------|-------------------|-------------|
-| Guard + Logging Setup | 1-38 | Re-injection guard, logger fallback | Script initialization |
-| Utility Functions | 39-162 | getClassName, stripUnicodeControl, findElementByNormalizedAriaLabel, shallowEqual, isFsbElement | Low-level helpers |
-| DOMStateManager | 163-608 | class DOMStateManager | DOM diffing and state tracking |
-| ElementCache + RefMap | 609-890 | class ElementCache, class RefMap, checkDocumentReady, getElementIndexes | Caching infrastructure |
-| Visual Feedback | 895-2129 | class HighlightManager, class ProgressOverlay, class ViewportGlow, class ActionGlowOverlay, class ElementInspector | All UI overlay code |
-| IFrame Support | 2130-2327 | getFrameAwareSelector, collectChildFramesDom | Cross-frame DOM access |
-| Rich Text / Markdown | 2328-2900 | isCanvasBasedEditor, hasMarkdownFormatting, markdownToHTML, clipboardPasteHTML, isUniversalMessageInput, generateMessagingSelectors | Text handling for contenteditable |
-| Selector Generation | 2900-3334 | findAlternativeSelectors, generateSelector, isClickable, sanitizeSelector, querySelectorWithShadow, resolveRef | CSS selector utilities |
-| Accessibility Tree | 3335-4573 | getInputRole, getImplicitRole, computeAccessibleName, isElementActionable, checkElementVisibility, checkElementEnabled, checkElementStable, smartEnsureReady, ensureElementReady, waitForActionable (DEAD) | Accessibility inspection |
-| Coordinate Fallback | 4578-4752 | validateCoordinates, ensureCoordinatesVisible, clickAtCoordinates | Coordinate-based clicking |
-| Action Verification | 4754-5543 | captureActionState, EXPECTED_EFFECTS, detectChanges, verifyActionEffect, ActionRecorder, waitForPageStability | Pre/post action state comparison |
-| Tool Functions (tools object) | 5544-9252 | tools.scroll, tools.click, tools.type, tools.keyPress, etc. (~25+ tools) | The core action execution engine |
-| DOM Serialization | 9253-9530 | hashElement, isInViewport, slugify, generateSemanticElementId, class OptimizedDOMSerializer, validateSelectorUniqueness, validateXPathUniqueness | Element serialization |
-| Advanced Selectors | 9530-10760 | AUTO_GENERATED_ID_PATTERN, filterDynamicClasses, generateSelectors, generateSelectorsForAction, inferElementPurpose, getRelationshipContext, generateElementDescription | Advanced selector strategies |
-| Page Context Detection | 10760-11582 | detectPageContext, detectSearchNoResults, extractErrorMessages, isElementVisible, detectCompletionSignals, inferPageIntent, prioritizeElements, diffDOM, extractRelevantHTML | Page intelligence |
-| Compact Snapshot | 11583-12050 | generateCompactSnapshot | Token-efficient DOM representation |
-| Message Handler | 12050-12464 | chrome.runtime.onMessage listener, handleAsyncActions | Chrome messaging bridge |
-| Site Explorer | 12465-12693 | collectExplorerData, explorerExtract*, explorerDetect* | Site reconnaissance |
-| DOM Analysis Entry Point | 12693-13380 | analyzeDOMForAutomation (the main entry called by background) | Orchestrates DOM analysis |
-| Error Handlers | 13382-13430 | window error/rejection listeners, re-injection guard close | Cleanup |
+**Dependencies on Existing FSB:**
+- Multi-tab tools (openNewTab, switchToTab) -- already shipped
+- Multitab task detection (classifyTask returns 'multitab') -- already shipped
+- Conversation history preservation -- already shipped
 
-**Recommended Module Boundaries for Splitting:**
+**Key challenge:** The AI's conversation history currently preserves intent across iterations, but there is no structured data accumulation mechanism. After extracting jobs from Microsoft, the AI needs to remember the extracted data while it searches Amazon. The conversation memory can hold this if the AI formats it as structured text in its responses, but it is fragile -- context window limits may truncate earlier findings.
 
-The Chrome content script `js` array executes files in order, and all files share the same execution context (variables are global within the isolated world). This means the split is purely organizational -- no import/export needed. Files listed earlier in the manifest are available to files listed later.
+**Needs New Site Guide Data:** YES -- Each company needs its own site guide or the AI needs to rely on the generic ATS guide + sitemaps generated from crowd session logs.
 
-**Proposed file structure:**
-
-```
-content/
-  00-guard.js            -- Re-injection guard open, logger setup (~38 lines)
-  01-utils.js            -- getClassName, stripUnicodeControl, shallowEqual, isFsbElement (~125 lines)
-  02-cache.js            -- ElementCache, RefMap, checkDocumentReady, getElementIndexes (~280 lines)
-  03-visual-feedback.js  -- HighlightManager, ProgressOverlay, ViewportGlow, ActionGlowOverlay, ElementInspector (~1235 lines)
-  04-selectors.js        -- generateSelector, querySelectorWithShadow, sanitizeSelector, findAlternativeSelectors, generateMessagingSelectors, advanced selector generation (~1600 lines)
-  05-accessibility.js    -- Accessibility tree functions, element readiness checks, visibility, stability (~1240 lines)
-  06-coordinates.js      -- Coordinate fallback utilities (~175 lines)
-  07-verification.js     -- Action state capture, verification, diagnostics, ActionRecorder (~790 lines)
-  08-tools.js            -- The tools object with all 25+ action functions (~3710 lines)
-  09-dom-analysis.js     -- DOM serialization, page context, compact snapshot, e-commerce extraction (~2830 lines)
-  10-iframe.js           -- IFrame support, cross-frame DOM (~200 lines)
-  11-rich-text.js        -- Markdown, clipboard paste, contenteditable utilities (~575 lines)
-  12-message-handler.js  -- chrome.runtime.onMessage, handleAsyncActions (~415 lines)
-  13-site-explorer.js    -- Site explorer data collection (~230 lines)
-  14-init.js             -- analyzeDOMForAutomation entry point, error handlers, guard close (~750 lines)
-```
-
-**manifest.json update:**
-```json
-"content_scripts": [{
-  "js": [
-    "utils/automation-logger.js",
-    "content/00-guard.js",
-    "content/01-utils.js",
-    "content/02-cache.js",
-    "content/03-visual-feedback.js",
-    "content/04-selectors.js",
-    "content/05-accessibility.js",
-    "content/06-coordinates.js",
-    "content/07-verification.js",
-    "content/08-tools.js",
-    "content/09-dom-analysis.js",
-    "content/10-iframe.js",
-    "content/11-rich-text.js",
-    "content/12-message-handler.js",
-    "content/13-site-explorer.js",
-    "content/14-init.js"
-  ],
-  "matches": ["<all_urls>"]
-}]
-```
-
-**Key ordering constraints (dependency graph):**
-```
-00-guard.js          -- must be first (opens re-injection guard)
-01-utils.js          -- no deps (foundational)
-02-cache.js          -- depends on 01 (uses getClassName)
-03-visual-feedback.js-- depends on 01 (uses isFsbElement)
-04-selectors.js      -- depends on 01, 02 (uses getClassName, elementCache)
-05-accessibility.js  -- depends on 04 (uses querySelectorWithShadow, generateSelector)
-06-coordinates.js    -- depends on 04 (uses querySelectorWithShadow)
-07-verification.js   -- depends on 04, 05 (uses selector utilities, actionability checks)
-08-tools.js          -- depends on 02, 03, 04, 05, 06, 07 (uses everything above)
-09-dom-analysis.js   -- depends on 01, 02, 04, 05 (uses selectors, cache, utils)
-10-iframe.js         -- depends on 04 (uses selectors)
-11-rich-text.js      -- depends on 04 (uses selectors)
-12-message-handler.js-- depends on 03, 08, 09, 13 (dispatches to tools, DOM analysis)
-13-site-explorer.js  -- standalone (only uses basic DOM APIs)
-14-init.js           -- must be last (closes re-injection guard, sets up error handlers)
-```
-
-**Complexity:** High (mechanical but requires careful extraction and testing)
-**Risk:** Medium -- the extraction is safe because all files share the same global scope within the content script isolated world. The main risk is accidentally splitting in the middle of a closure or missing a dependency.
-
-**Sources:**
-- [Chrome Content Scripts docs](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) -- "Files are injected in the order they appear in this array" and share the same isolated world
-- [Chrome Manifest content_scripts reference](https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts) -- js array specification
+**What "done" looks like:**
+- User says "find software engineering internships at Microsoft, Amazon, and Google"
+- FSB searches Microsoft careers, extracts 3-5 jobs
+- FSB opens a new tab (or navigates) to Amazon careers, extracts 3-5 jobs
+- FSB opens a new tab to Google careers, extracts 3-5 jobs
+- All extracted data is preserved and available for the next phase (Sheets entry)
 
 ---
 
-### TS-5: Duplicate Code Elimination
+### TS-3: Google Sheets Data Entry (Basic)
 
-**Why Expected:** The codebase has at least one confirmed duplicate: `getClassName()` is defined in content.js (line 49) and an equivalent `getClassNameSafe()` exists in utils/action-verification.js (line 7). Both do the same thing (handle SVGAnimatedString). Duplicated utility functions diverge over time and create confusion about which version to use.
+**Why Expected:** "Put them in a spreadsheet" is the explicit user request. If the data stays in chat but never appears in a Sheet, the task is not done.
 
-**Identified duplicates:**
-1. `getClassName()` (content.js:49) vs `getClassNameSafe()` (action-verification.js:7) -- identical logic
-2. `generateSelector()` defined twice in content.js itself (line 2986 and line 10759) -- the second one at line 10759 is a simpler version. This is likely a naming collision where the second definition shadows the first within the same file scope.
+**Complexity:** MEDIUM -- The Google Sheets site guide already defines the Name Box navigation pattern (click #t-name-box, type cell reference, Enter, type value, Tab). The TASK_PROMPTS.career prompt already has Phase 4-6 covering Sheet creation, header setup, and row data entry. The challenge is reliability: Google Sheets is canvas-based, and the Name Box is the only reliable entry point. Tab/Enter sequencing must be exact -- one missed Tab shifts all subsequent columns.
 
-**What to Do:**
-- Consolidate to a single canonical `getClassName()` in the utilities module
-- Resolve the dual `generateSelector` definitions -- rename the simpler one (e.g., `generateBasicSelector` which already exists at line 10526) or remove it if it duplicates `generateBasicSelector`
+**Dependencies on Existing FSB:**
+- Google Sheets site guide (google-sheets.js) -- already shipped
+- Name Box navigation workflow -- already defined
+- type, keyPress, click tools -- already shipped
 
-**Complexity:** Low
-**Risk:** Low (but requires verifying which callers use which version)
+**Needs New Site Guide Data:** The existing Google Sheets site guide covers basic data entry. May need enhancement for:
+- Creating a new blank spreadsheet from sheets.google.com home
+- Handling the "Blank spreadsheet" template button
+- Dealing with Google account authentication walls
 
----
-
-## Differentiators
-
-Features that make this cleanup especially valuable beyond basic hygiene. These transform a tedious chore into a genuine improvement in developer velocity and code quality.
-
----
-
-### D-1: Establish Clear Module Contracts at Split Boundaries
-
-**Value Proposition:** Splitting content.js into 14 files is mechanical. The real value comes from defining what each module is responsible for and what it exposes. If the split just moves code around without clarifying contracts, the next developer still has to read all 14 files to understand how things work.
-
-**What to Do:**
-- Each file gets a header comment block declaring:
-  - Purpose (one sentence)
-  - Dependencies (which other content/ files it needs)
-  - Exports (what globals it defines for downstream files)
-  - Does NOT depend on (explicit exclusions to prevent coupling creep)
-
-Example:
-```javascript
-/**
- * content/04-selectors.js -- CSS selector generation and querying
- *
- * Dependencies: 01-utils.js (getClassName, stripUnicodeControl), 02-cache.js (elementCache)
- * Provides: generateSelector, querySelectorWithShadow, querySelectorAllWithShadow,
- *           sanitizeSelector, findAlternativeSelectors, resolveRef
- * Does NOT use: tools object, HighlightManager, chrome.runtime messaging
- */
-```
-
-**Complexity:** Low (documentation, done during the split)
-**Risk:** None
+**What "done" looks like:**
+- FSB navigates to sheets.google.com or a provided Sheet URL
+- Creates a new blank spreadsheet (if needed)
+- Sets up header row: Company | Role | Date Posted | Location | Description | Apply Link
+- Enters all extracted job data, one row per job
+- All 6 columns populated for each row
 
 ---
 
-### D-2: Named Constants for All Magic Numbers
+### TS-4: Vague Query Interpretation
 
-**Value Proposition:** Beyond `maxCacheSize`, content.js is full of magic numbers that are tuning parameters or thresholds. Extracting them to named constants at the top of each module makes the codebase self-documenting and tunable.
+**Why Expected:** Users are often vague. "Find me tech internships" does not specify a company, a role exactly, or a location. FSB needs to handle ambiguity gracefully rather than failing or asking for clarification on every detail.
 
-**Identified magic numbers worth extracting:**
+**Complexity:** LOW -- The AI is inherently good at interpreting vague queries. The existing career shared guidance already handles this: "If user says 'find jobs at [company]' with no role specified, extract the first 3-5 listings." The AI just needs good prompt engineering to map vague terms to search queries. "Tech internships" becomes a search for "software engineering intern" or "technology intern" on career pages.
 
-| Current Location | Value | Proposed Name | Context |
-|-----------------|-------|---------------|---------|
-| ElementCache constructor (L619) | 100 | DEFAULT_ELEMENT_CACHE_SIZE | Max cached selectors |
-| ElementCache MutationObserver (L630) | 20 | MUTATION_THRESHOLD_FOR_INVALIDATION | Mutations before full cache clear |
-| waitForActionable (L4437) | 300 | DOM_STABLE_THRESHOLD_MS | Time with no mutations = stable |
-| waitForActionable (L4478) | 500 | FAST_FAIL_STABLE_MS | DOM stable + no loading = fail fast |
-| tools.scroll (L5557) | 300 | SCROLL_SETTLE_MS | Wait after scroll |
-| click coordinate fallback | Various | CLICK_RETRY_DELAY_MS | Wait between click attempts |
-| generateCompactSnapshot (L11592) | 80 | DEFAULT_MAX_SNAPSHOT_ELEMENTS | Max elements in AI snapshot |
-| extractEcommerceProducts (L11339) | 20 | MAX_ECOMMERCE_PRODUCTS | Product extraction limit |
-| HTML truncation | 1000 | MAX_HTML_CONTEXT_LENGTH | HTML context for AI |
+**Dependencies on Existing FSB:**
+- AI natural language understanding -- inherent in the LLM
+- Career shared guidance relevance rules -- already shipped
 
-**Complexity:** Low-Medium (find-and-replace with testing)
-**Risk:** Very Low
+**Needs New Site Guide Data:** No
+
+**What "done" looks like:**
+- "Find me tech internships" -> AI searches for "software engineering intern" or similar on career pages
+- "Find me jobs at big tech companies" -> AI interprets as Microsoft, Google, Amazon, Apple, Meta
+- "Look for DevOps positions" -> AI searches multiple companies for "DevOps Engineer"
 
 ---
 
-### D-3: Consistent Error Handling Patterns Across Modules
+### TS-5: Deduplication Awareness
 
-**Value Proposition:** After splitting, each module should follow the same error handling pattern. Currently, error handling is inconsistent -- some functions return `{ success: false, error: ... }`, some throw, some silently swallow errors, some log and continue. Standardizing during the split prevents the modules from developing divergent conventions.
+**Why Expected:** The same job may appear on a company's direct career page AND on Indeed or Glassdoor. If a user searches both, they do not want duplicate rows in their spreadsheet.
 
-**Recommended Pattern for content script modules:**
-- Tool functions (in tools object): Always return `{ success: boolean, error?: string, ... }` -- never throw
-- Utility functions: Throw on programmer errors (bad arguments), return null/false on expected failures (element not found)
-- Classes: Throw in constructor on invalid config, return values in methods
+**Complexity:** LOW -- The AI can compare job titles, company names, and locations before adding a row. This is a prompt engineering task, not an architecture task. The existing career shared guidance already prioritizes direct company pages over job boards: "ALWAYS try the company's direct career page FIRST."
 
-**Complexity:** Medium (requires auditing error handling in each module)
-**Risk:** Low
+**Dependencies on Existing FSB:**
+- Career shared guidance strategy priority -- already shipped
 
----
+**Needs New Site Guide Data:** No
 
-### D-4: Add JSDoc @fileoverview and Function-Level Type Hints
-
-**Value Proposition:** When splitting into 14 files, adding `@fileoverview` and consistent `@param`/`@returns` JSDoc enables IDE navigation and autocomplete. The existing codebase has partial JSDoc (some functions documented, many not). Completing it during the split means the new modular structure is immediately navigable.
-
-**Complexity:** Medium (documentation pass on each new module)
-**Risk:** None
+**What "done" looks like:**
+- If the same "Software Engineer II" at Microsoft appears on both careers.microsoft.com and Indeed, FSB enters it once
+- AI compares new extraction against already-collected data before adding
 
 ---
 
-## Anti-Features
+### TS-6: Error Reporting When No Results Found
 
-Things to deliberately NOT do during this cleanup. These are common mistakes that turn a focused tech debt sprint into a scope-creeping rewrite.
+**Why Expected:** If Microsoft has no "quantum computing intern" openings, the user needs to know. Silent failure (empty spreadsheet with no explanation) is the worst outcome.
 
----
+**Complexity:** LOW -- The AI already has fallback strategies in the career prompt: "If no results on company site: try Indeed search." The addition is explicit reporting: "No matching positions found at [company] for [role]. Tried direct career page and Indeed."
 
-### AF-1: Do NOT Introduce a Build System / Bundler
+**Dependencies on Existing FSB:**
+- Career prompt fallback strategies -- already shipped
+- Chat UI for progress reporting -- already shipped
 
-**Why Avoid:** The temptation when splitting files is to add webpack/rollup/esbuild to bundle them back together. This is wrong for this cleanup because:
+**Needs New Site Guide Data:** No
 
-- Chrome Manifest V3 natively supports multiple content script files in order -- no bundler needed
-- Adding a build step changes the development workflow for all contributors
-- Build tooling introduces its own maintenance burden (config files, dependency updates, sourcemap debugging)
-- The current zero-build-step workflow is a feature, not a limitation, for a Chrome Extension
-
-**What to Do Instead:** Use the manifest.json `js` array for file ordering. Each file is plain JavaScript that runs in the content script isolated world. No imports, no exports, no build step.
-
-**Exception:** If the team later wants TypeScript, a bundler becomes necessary. But that is a separate decision, not part of this cleanup.
+**What "done" looks like:**
+- FSB reports in the chat: "Found 4 jobs at Microsoft, 0 at Boeing (no quantum computing intern roles listed), 3 at Google"
+- Empty companies are noted but do not produce empty rows in the Sheet
 
 ---
 
-### AF-2: Do NOT Refactor the tools Object API
+## Differentiators (What Makes This Amazing vs. Just Functional)
 
-**Why Avoid:** The `tools` object (lines 5544-9252, ~3700 lines) is the core action execution engine. Every tool function has a contract with the AI prompt engineering layer (the AI generates action names matching tool keys) and with the message handler. Changing tool function signatures, renaming tools, or restructuring the tools object would require coordinated changes in:
-
-- ai-integration.js (prompt templates reference tool names)
-- background.js (action dispatch)
-- The AI's learned behavior (models have been tuned against current tool names)
-
-The tools object should be extracted to its own file AS-IS. Refactoring its API is a separate, much larger effort.
+Features that transform "it works" into "this is incredible." Not expected, but once experienced, users would not go back.
 
 ---
 
-### AF-3: Do NOT Convert to ES Modules / import-export
+### D-1: Formatted Google Sheets Output (Bold Headers, Colored Header Row, Auto-Sized Columns)
 
-**Why Avoid:** Chrome content scripts do not natively support static ES module `import`/`export`. Dynamic `import()` works but requires files to be listed in `web_accessible_resources`, which exposes them to web pages. This changes the security model.
+**Value Proposition:** The difference between a wall of text dumped into a Sheet and a professional-looking tracker. Users share these Sheets with friends, career counselors, and advisors. Formatting communicates care and professionalism.
 
-More importantly, the current codebase relies on all content script files sharing a single global scope in the isolated world. Converting to modules would mean every cross-file reference needs explicit imports, which is a massive mechanical change unrelated to the cleanup goals.
+**Complexity:** HIGH -- Google Sheets formatting cannot be done via the Sheets API (FSB is a browser extension, not a server-side app). All formatting must happen through keyboard shortcuts and toolbar interactions:
+- **Bold headers:** Select row 1, press Ctrl+B. Requires selecting the row first (click row number "1" on the left gutter).
+- **Header background color:** Select row 1, click the fill color toolbar button, pick a color from the palette. This involves clicking a dropdown widget, which is a DOM interaction on Google Sheets' toolbar -- possible but fragile.
+- **Freeze header row:** View menu -> Freeze -> 1 row. Menu navigation via DOM clicks.
+- **Auto-size columns:** Select all (Ctrl+A), then right-click column header -> "Resize columns" -> "Fit to data." Alternatively, double-click column border in the header row -- this is a positional click on a thin border, unreliable via automation.
 
-**What to Do Instead:** Continue using the shared global scope pattern. Prefix module-internal functions with underscore or use revealing module pattern (IIFE) if encapsulation is needed later.
+The Google Sheets site guide needs significant enhancement to cover formatting workflows (toolbar button selectors, menu navigation paths, color picker interaction).
 
----
+**Dependencies on Existing FSB:**
+- Google Sheets site guide -- needs formatting workflow additions
+- click, keyPress tools -- already shipped
+- Google Docs formatted paste (Clipboard API) -- relevant precedent but Sheets uses different approach
 
-### AF-4: Do NOT Add chrome.storage Reads to Content Script Initialization
-
-**Why Avoid:** It is tempting to read configuration from `chrome.storage` at content script load time to configure values like `maxCacheSize`. But `chrome.storage` is async-only, and content scripts execute their initialization synchronously. Adding async storage reads to initialization creates:
-
-- Race conditions (script runs before config loads)
-- Complexity (need to defer all initialization behind an async boundary)
-- Performance cost (extra storage read on every page load)
-
-**What to Do Instead:** For content script tuning parameters, use hardcoded named constants (see D-2). If values truly need to be configurable at runtime, have the background script send them via `chrome.runtime.sendMessage` after loading config, and update the content script's state in response. This is already the pattern FSB uses for session management.
-
----
-
-### AF-5: Do NOT Attempt to Split the DOMStateManager Class Out of content.js
-
-**Why Avoid:** There is already a `utils/dom-state-manager.js` file that defines a `DOMStateManager` class. Content.js also defines its own `DOMStateManager` class (lines 163-608, ~445 lines) with different implementation details. Attempting to reconcile or merge these during cleanup is scope creep -- it requires understanding which version is loaded when, which methods differ, and whether both are needed.
-
-**What to Do Instead:** During the split, move the content.js `DOMStateManager` to its own content script file. Add a TODO comment noting the duplication with `utils/dom-state-manager.js`. Reconciliation is a separate task.
+**Needs New Site Guide Data:** YES -- Need selectors for Google Sheets toolbar: bold button, fill color button, color picker palette, View menu freeze option, Format menu. The crowd session log for docs.google.com shows the docs home page but may not have the Sheets editor toolbar elements.
 
 ---
 
-### AF-6: Do NOT Optimize ElementCache Eviction Strategy
+### D-2: Structured Data Accumulator (Cross-Site State Management)
 
-**Why Avoid:** The current FIFO eviction (remove first inserted key when cache is full) is simple and correct. It is tempting to implement LRU, LFU, or score-based eviction. But cache eviction strategy is a performance optimization question that requires profiling data, not a tech debt cleanup item. Without evidence that the eviction strategy is causing cache misses that impact automation success, changing it is premature optimization.
+**Value Proposition:** Currently the AI relies on conversation history to remember extracted data across company transitions. This is fragile: if the context window fills up, earlier data gets truncated. A structured data accumulator would hold extracted job data in a reliable in-memory structure that persists across the entire multi-company workflow.
 
-**What to Do Instead:** Make `maxCacheSize` configurable (TS-3) so it CAN be tuned. Leave eviction strategy for a future performance-focused milestone with profiling data.
+**Complexity:** MEDIUM -- This could be implemented as a session-level data store in background.js that the AI writes to after each company search and reads from when entering Sheets data. The AI would use a new tool like `storeJobData` and `getCollectedJobData`.
+
+**Dependencies on Existing FSB:**
+- Session management (background.js sessions) -- already shipped
+- Tool library extensibility -- already designed for new tools
+
+**Needs New Site Guide Data:** No
+
+**What it enables:**
+- After searching 10 companies, all 30-50 job listings are reliably stored
+- No data loss from context window truncation
+- Sheet entry phase reads from the accumulator, not from conversation memory
+- Can report totals: "Collected 47 jobs across 10 companies"
+
+---
+
+### D-3: Progress Reporting During Multi-Company Search
+
+**Value Proposition:** Searching 10 career sites takes 5-15 minutes. Without progress feedback, users think FSB is stuck. Progress reporting transforms anxiety into confidence.
+
+**Complexity:** LOW -- FSB already has a chat UI and a progress overlay system. Adding messages like "Searching Microsoft... (1/5)" or "Found 3 jobs at Amazon, moving to Google (3/5)" is a prompt engineering enhancement plus minor UI work.
+
+**Dependencies on Existing FSB:**
+- Chat UI message display -- already shipped
+- Progress overlay (ProgressOverlay class) -- already shipped
+
+**Needs New Site Guide Data:** No
+
+---
+
+### D-4: Salary Information Extraction (When Available)
+
+**Value Proposition:** Many career pages now show salary ranges (especially in states with pay transparency laws -- Colorado, New York, California, Washington). Users building comparison spreadsheets want salary data. An extra "Salary Range" column elevates the output significantly.
+
+**Complexity:** LOW -- This is an extension of the 6-field extraction to 7 fields. The AI already extracts text from job listings; adding salary detection is a prompt instruction. The Google Sheets header row gets one more column.
+
+**Dependencies on Existing FSB:**
+- Career data extraction workflow -- already shipped
+- getText tool -- already shipped
+
+**Needs New Site Guide Data:** Site guides may need salary-related selectors for sites that display salary prominently (Glassdoor already has salary estimates as a feature).
+
+---
+
+### D-5: Apply Link Validation
+
+**Value Proposition:** Dead or expired job links frustrate users. If FSB can verify that apply links actually lead to application pages (not 404s or expired listings), the output is more trustworthy.
+
+**Complexity:** MEDIUM -- Would require FSB to briefly navigate to each apply link, check for error indicators (404 pages, "this position has been filled" messages), and note validity. This adds time to the workflow but significantly improves output quality.
+
+**Dependencies on Existing FSB:**
+- Navigation tools -- already shipped
+- Page context detection (error message detection) -- already shipped in content/dom-analysis.js
+
+**Needs New Site Guide Data:** No
+
+---
+
+### D-6: Smart Company Name Resolution
+
+**Value Proposition:** Users say "Boeing" but the career site is jobs.boeing.com. Users say "Goldman" but it is goldmansachs.com/careers. Users say "J&J" but it is careers.jnj.com. Reliable company-to-career-URL mapping prevents wasted time on wrong sites.
+
+**Complexity:** LOW -- This is largely handled by the existing strategy of Googling "[company name] careers." The crowd session logs provide a verified mapping of 34 company names to career URLs. This mapping can be embedded in site guides so the AI does not need to Google every time.
+
+**Dependencies on Existing FSB:**
+- Google search workflow -- already shipped
+- Career site guides -- existing + new from session logs
+
+**Needs New Site Guide Data:** YES -- Embed direct career URLs in per-company site guides. For example: Microsoft -> careers.microsoft.com, Amazon -> www.amazon.jobs, Meta -> www.metacareers.com.
+
+---
+
+### D-7: Sheet Title and Tab Naming
+
+**Value Proposition:** Instead of "Untitled spreadsheet," the Sheet gets a meaningful name like "Job Search - Software Engineering - Feb 2026." Small touch, big difference in organization.
+
+**Complexity:** LOW -- Click the title area in Google Sheets (which is a regular input field, unlike the canvas), type the title. Already feasible with existing tools.
+
+**Dependencies on Existing FSB:**
+- Google Sheets site guide -- needs title selector addition
+- type, click tools -- already shipped
+
+**Needs New Site Guide Data:** Minimal -- add the sheet title input selector.
+
+---
+
+## Anti-Features (Things to Deliberately NOT Build)
+
+Features that seem useful but create serious problems for FSB's use case. These are deliberate scope exclusions with rationale.
+
+---
+
+### AF-1: Auto-Apply to Jobs
+
+**Why Requested:** "Find jobs AND apply for me" is a natural extension. Auto-apply tools (LazyApply, Simplify, LoopCV) are a hot market segment.
+
+**Why Problematic:**
+- **Legal and ethical risk:** Submitting applications on behalf of users without their explicit per-application approval crosses a line. Employers increasingly penalize auto-applied candidates.
+- **Quality destruction:** Mass auto-apply generates low-quality applications. Employers detect and filter these.
+- **Authentication walls:** Most application forms require login, personal info, resume upload, and custom responses. FSB cannot fill these reliably.
+- **Irreversibility:** Applying cannot be undone. A bug that applies to the wrong job has real consequences.
+- **Scope explosion:** Application forms vary wildly (Workday multi-step, Lever single-page, Greenhouse with custom questions). Supporting even 10 ATS platforms is a major engineering effort.
+
+**What to Do Instead:** FSB provides the "Apply Link" column so users can click and apply themselves. The value is in discovery and organization, not submission.
+
+---
+
+### AF-2: Scraping Behind Login Walls
+
+**Why Requested:** LinkedIn Jobs, some Glassdoor listings, and enterprise Workday portals require authentication for full job descriptions.
+
+**Why Problematic:**
+- **TOS violations:** Automated access to authenticated sessions is explicitly prohibited by LinkedIn, Glassdoor, and most job boards.
+- **Account risk:** Users' accounts could be flagged or banned for automated behavior.
+- **Session security:** FSB would need to operate within authenticated sessions, creating security surface area.
+- **Credential handling:** FSB should never store, manage, or interact with user credentials beyond what is needed for its own API keys.
+
+**What to Do Instead:** Stick to public career pages (direct company sites are almost always public). If a job board requires login, note the limitation in the chat and skip that source. The career shared guidance already warns: "Indeed may require login to apply -- note when auth walls appear."
+
+---
+
+### AF-3: Real-Time Job Monitoring / Alerts
+
+**Why Requested:** "Notify me when new software engineering jobs are posted at Google." Continuous monitoring sounds like a natural extension.
+
+**Why Problematic:**
+- **Chrome Extension lifecycle:** Manifest V3 service workers are terminated after 5 minutes of inactivity. Continuous background polling is architecturally impossible without a separate server.
+- **Rate limiting:** Repeatedly hitting career sites would trigger anti-bot measures.
+- **Scope creep:** This transforms FSB from a task automation tool into a job board aggregator, which is a fundamentally different product.
+
+**What to Do Instead:** Users can run the career search task periodically ("Find me new SWE jobs at Google this week"). Each run produces a fresh Sheet. Manual triggers, not automated monitoring.
+
+---
+
+### AF-4: Resume/Cover Letter Generation
+
+**Why Requested:** Tools like Teal, Huntr, and Jobright offer AI-generated resumes tailored to each job listing.
+
+**Why Problematic:**
+- **Different product:** Resume generation is a document creation task, not a browser automation task. It requires different AI capabilities (writing quality, formatting, PDF generation).
+- **Quality bar:** Bad auto-generated resumes harm users' job prospects. This is high-stakes output that requires careful human review.
+- **Scope explosion:** Resume formatting, ATS keyword optimization, template selection -- each is a feature unto itself.
+
+**What to Do Instead:** FSB extracts job descriptions so users can feed them into dedicated resume tools. The "Description" column gives users the raw material for manual tailoring.
+
+---
+
+### AF-5: Excessive Data Extraction Per Job (Full Job Description)
+
+**Why Requested:** Users might want the complete multi-paragraph job description in the spreadsheet.
+
+**Why Problematic:**
+- **Spreadsheet readability:** Full job descriptions (500-2000 words each) in a cell make the Sheet unusable. Cells become walls of text that break the tabular format.
+- **Extraction time:** Reading and copying full descriptions multiplies the time per job by 3-5x.
+- **Context window pressure:** Storing full descriptions for 30+ jobs would exceed the AI's context limits.
+
+**What to Do Instead:** Extract a 1-2 sentence summary of key responsibilities (as the current prompt specifies). The apply link lets users read the full description when they want it.
+
+---
+
+### AF-6: Comparison Scoring or Ranking
+
+**Why Requested:** "Rank these jobs by relevance" or "score each job match on a 1-10 scale."
+
+**Why Problematic:**
+- **Subjective:** Job fit depends on resume, experience, preferences, and career goals that FSB does not know.
+- **False confidence:** An AI-generated "fit score" of 8/10 might mislead users into not reading the job description.
+- **Liability:** If FSB ranks a poor-fit job highly and the user applies based on the score, it creates a negative experience.
+
+**What to Do Instead:** Present all matching jobs in the Sheet and let users sort, filter, and evaluate themselves. The structured format (company, title, location, salary) already enables human comparison.
 
 ---
 
 ## Feature Dependencies
 
 ```
-TS-1 (dead code removal)     --> standalone, do first
-TS-2 (constructor bug fix)   --> standalone, do anytime
-TS-3 (configurable cache)    --> standalone, trivial
-TS-5 (duplicate elimination) --> should be done BEFORE or DURING TS-4
-TS-4 (content script split)  --> depends on TS-1, TS-3, TS-5 being done first
-                                 (remove dead code and fix duplicates before splitting)
-D-1 (module contracts)       --> done during TS-4
-D-2 (named constants)        --> done during TS-4
-D-3 (error handling)         --> done during or after TS-4
-D-4 (JSDoc completion)       --> done during or after TS-4
+TS-1 (Single-Company Search)
+    |
+    +-- TS-2 (Multi-Company Sequential) -- requires TS-1 working reliably
+    |       |
+    |       +-- D-2 (Data Accumulator) -- enhances TS-2 reliability
+    |       |
+    |       +-- D-3 (Progress Reporting) -- enhances TS-2 UX
+    |
+    +-- TS-3 (Google Sheets Data Entry) -- independent of TS-2, can work with TS-1 alone
+    |       |
+    |       +-- D-1 (Formatted Output) -- enhances TS-3 with styling
+    |       |
+    |       +-- D-7 (Sheet Title) -- enhances TS-3 with naming
+    |
+    +-- TS-4 (Vague Query) -- enhances TS-1, no hard dependency
+    |
+    +-- TS-5 (Deduplication) -- needed once TS-2 exists (multi-source risk)
+    |
+    +-- TS-6 (Error Reporting) -- enhances TS-1 and TS-2
+    |
+    +-- D-4 (Salary Extraction) -- extends TS-1 extraction, minor addition
+    |
+    +-- D-5 (Apply Link Validation) -- independent, applies after TS-1
+    |
+    +-- D-6 (Company Name Resolution) -- enhances TS-1 navigation phase
+
+Site Guide Parsing (prerequisite for all):
+    Session logs -> Per-company site guides -> Sitemaps
+    (This is the data pipeline that feeds TS-1 reliability)
 ```
 
-**Critical ordering insight:** Do TS-1, TS-2, TS-3, TS-5 BEFORE TS-4. It is much easier to remove dead code and fix bugs in a single file than to do it after splitting into 14 files. The split should operate on clean code.
+### Dependency Notes
+
+- **TS-2 requires TS-1:** Cannot search multiple companies if single-company search is unreliable.
+- **TS-3 is parallel to TS-2:** Sheets entry can be tested with data from one company. Does not require multi-company to work first.
+- **D-1 requires TS-3:** Cannot format a Sheet that has no data in it yet.
+- **D-2 enhances TS-2:** Without the accumulator, multi-company data relies on conversation memory (fragile but functional).
+- **Site guide parsing is the critical prerequisite:** The 34 crowd session logs must be converted into usable site guides before any career search feature works reliably at scale.
 
 ---
 
-## MVP Recommendation
+## MVP Definition
 
-For a focused tech debt cleanup milestone:
+### Launch With (v9.4 Core)
 
-**Must do (table stakes):**
-1. TS-1: Remove `waitForActionable` dead code (low effort, immediate value)
-2. TS-2: Fix `UniversalProvider` constructor args in memory-extractor.js (bug fix, one line)
-3. TS-3: Make `ElementCache.maxCacheSize` a named constant and constructor parameter (low effort)
-4. TS-5: Eliminate duplicate `getClassName`/`getClassNameSafe` and resolve dual `generateSelector` (low effort)
-5. TS-4: Split content.js into modules following the proposed boundary map (high effort, high value)
+The minimum that satisfies "find me internships and put them in a spreadsheet":
 
-**Should do during split (differentiators):**
-6. D-1: Module contract headers in each new file
-7. D-2: Named constants for magic numbers (at least in the modules being split)
+- [ ] **Site guide parsing pipeline** -- Convert 34 crowd session logs into per-company site guides with selectors (search box, job cards, title, location, date, apply link, pagination). Without this, the AI is flying blind on most company career pages.
+- [ ] **TS-1: Single-company search** -- Navigate one career site, search, extract 3-5 jobs with 6 fields. This must work on at least 20 of the 34 companies.
+- [ ] **TS-2: Multi-company sequential search** -- Handle prompts naming 2-10 companies. Visit each sequentially, accumulate data in conversation memory.
+- [ ] **TS-3: Google Sheets basic data entry** -- Create Sheet, set up headers, enter rows with Tab/Enter pattern.
+- [ ] **TS-4: Vague query handling** -- Interpret "tech internships" and "DevOps positions" correctly.
+- [ ] **TS-6: Error reporting** -- Report which companies had no results.
 
-**Defer to later:**
-- D-3: Error handling standardization (can be done incrementally)
-- D-4: Full JSDoc completion (can be done incrementally)
+### Add After Core Works (v9.4.x)
+
+- [ ] **D-1: Formatted output** -- Bold headers, colored header row, frozen header. Add once basic data entry is reliable.
+- [ ] **D-2: Data accumulator** -- Structured data store for multi-company workflows. Add if conversation memory proves too fragile.
+- [ ] **D-3: Progress reporting** -- "Searching Microsoft... (2/5)". Add for UX polish.
+- [ ] **D-6: Company name resolution** -- Embed direct career URLs in site guides. Add to reduce Google search overhead.
+- [ ] **D-7: Sheet title naming** -- "Job Search - SWE Internships - Feb 2026". Quick UX win.
+- [ ] **TS-5: Deduplication** -- Add once multi-source search is common.
+
+### Future Consideration (v9.5+)
+
+- [ ] **D-4: Salary extraction** -- Needs per-site salary selector identification
+- [ ] **D-5: Apply link validation** -- Adds significant time per job, defer until speed is acceptable
+
+---
+
+## Feature Prioritization Matrix
+
+| Feature | User Value | Implementation Cost | Priority | Phase |
+|---------|-----------|--------------------:|----------|-------|
+| Site guide parsing (34 sites) | HIGH | HIGH | P0 | Data pipeline |
+| TS-1: Single-company search | HIGH | MEDIUM | P1 | Core |
+| TS-2: Multi-company sequential | HIGH | HIGH | P1 | Core |
+| TS-3: Sheets basic data entry | HIGH | MEDIUM | P1 | Core |
+| TS-4: Vague query handling | MEDIUM | LOW | P1 | Core |
+| TS-6: Error reporting | MEDIUM | LOW | P1 | Core |
+| D-1: Formatted output | MEDIUM | HIGH | P2 | Polish |
+| D-2: Data accumulator | HIGH | MEDIUM | P2 | Reliability |
+| D-3: Progress reporting | MEDIUM | LOW | P2 | Polish |
+| D-6: Company name resolution | MEDIUM | LOW | P2 | Optimization |
+| D-7: Sheet title naming | LOW | LOW | P2 | Polish |
+| TS-5: Deduplication | LOW | LOW | P2 | Data quality |
+| D-4: Salary extraction | LOW | LOW | P3 | Future |
+| D-5: Apply link validation | LOW | MEDIUM | P3 | Future |
+
+**Priority key:**
+- P0: Prerequisite -- must exist before any feature works
+- P1: Must have for launch -- the core "find jobs, put in Sheet" workflow
+- P2: Should have -- reliability, UX polish, and optimization
+- P3: Nice to have -- future enhancement
+
+---
+
+## Competitor Feature Analysis
+
+| Feature | JobPilot | Teal | Simplify | FSB (Our Approach) |
+|---------|----------|------|----------|-------------------|
+| Multi-site search | No (single-board autofill) | No (manual entry) | No (autofill only) | YES -- navigate actual career sites |
+| Job tracking spreadsheet | Yes (built-in tracker) | Yes (built-in tracker) | No | YES -- real Google Sheet user owns |
+| Data extraction | Basic (title, company) | Saves job details | Auto-populates from listing | Full 6-field extraction via DOM |
+| Formatting | Built-in UI styling | Built-in UI styling | N/A | Google Sheets native formatting |
+| Direct company career pages | No (job boards only) | No (job boards only) | No (job boards only) | YES -- prioritizes direct career pages |
+| Auto-apply | No | No | Yes (autofill) | NO -- deliberately excluded |
+| Resume tailoring | No | Yes | Yes | NO -- out of scope |
+| Price | $9-29/mo | Free/Premium | Free/Premium | Free (user's own AI API key) |
+
+**FSB's differentiator vs. competitors:** FSB navigates actual company career pages (not just job board aggregators) and produces a real Google Sheet that the user owns and controls. Competitors are either (a) job board extensions that only work on Indeed/LinkedIn, or (b) application trackers that require manual data entry. FSB automates the full pipeline: discovery + extraction + organization.
+
+---
+
+## User Workflow Scenarios
+
+### Scenario 1: Specific Multi-Company Search
+**Input:** "Find all software engineering internships at Microsoft, Amazon, and Google and put them in a Google Sheet"
+**Expected behavior:**
+1. FSB navigates to careers.microsoft.com, searches "software engineering intern," extracts 3-5 matches
+2. FSB navigates to www.amazon.jobs, searches same, extracts 3-5 matches
+3. FSB navigates to careers.google.com, searches same, extracts 3-5 matches
+4. FSB creates a new Google Sheet titled "SWE Internships - Feb 2026"
+5. Sets up header row: Company | Role | Date Posted | Location | Description | Apply Link
+6. Enters all extracted jobs (9-15 rows)
+7. Reports: "Found 4 at Microsoft, 5 at Amazon, 3 at Google. 12 jobs entered into Google Sheet."
+
+### Scenario 2: Vague Query
+**Input:** "Find me tech internships"
+**Expected behavior:**
+1. FSB interprets "tech internships" broadly -- searches for "technology intern" or "software intern"
+2. AI decides which companies to search (top tech employers or asks user to specify)
+3. Searches 3-5 career sites
+4. Extracts matching positions
+5. Enters into a new Google Sheet
+
+### Scenario 3: Single Company, Specific Role
+**Input:** "Find DevOps Engineer positions at Boeing"
+**Expected behavior:**
+1. FSB navigates to jobs.boeing.com (via Google search or site guide URL)
+2. Searches "DevOps Engineer"
+3. Extracts all matching positions (may be 0-10)
+4. If 0 results: reports "No DevOps Engineer positions found at Boeing"
+5. If results found: enters into Sheet or reports in chat
+
+### Scenario 4: Existing Sheet
+**Input:** "Find data science jobs at Goldman Sachs and add to [Google Sheets URL]"
+**Expected behavior:**
+1. FSB navigates to Goldman Sachs careers
+2. Searches "data science"
+3. Extracts matches
+4. Navigates to the provided Sheet URL
+5. Finds the next empty row (does not overwrite existing data)
+6. Enters new data starting from that row
 
 ---
 
 ## Confidence Assessment
 
-| Item | Confidence | Rationale |
-|------|------------|-----------|
-| TS-1: waitForActionable is dead | HIGH | grep confirms zero call sites; replacement functions exist |
-| TS-2: Constructor bug | HIGH | Direct code inspection; constructor signature verified |
-| TS-3: Config pattern recommendation | HIGH | Chrome Storage API docs confirm async-only; constructor param is correct pattern |
-| TS-4: Module boundary map | HIGH | Section comments and function analysis from actual codebase; Chrome docs confirm shared scope |
-| TS-5: Duplicates identified | HIGH | Direct code inspection |
-| D-1 through D-4 | HIGH | Standard engineering practices, no uncertainty |
-| AF-1 through AF-6 | HIGH | Based on Chrome Extension architecture constraints (verified with official docs) |
+| Area | Confidence | Rationale |
+|------|-----------|-----------|
+| Table stakes features | HIGH | Based on direct codebase analysis, existing prompt templates, site guides, and tools. Clear what exists and what gaps remain. |
+| Differentiator feasibility | MEDIUM | Google Sheets formatting via browser automation is feasible (toolbar buttons exist in DOM) but untested at this level of detail. Bold and freeze should work. Color picker interaction is uncertain. |
+| Anti-features rationale | HIGH | Based on competitive landscape research, Chrome Extension MV3 architecture constraints, and FSB design principles. Auto-apply exclusion is well-supported by industry evidence. |
+| Complexity estimates | MEDIUM | Based on existing codebase understanding but not validated against actual implementation. Multi-company orchestration complexity may be higher than estimated if conversation memory proves insufficient. |
+| Competitor analysis | MEDIUM | Based on WebSearch results. Competitor features may have changed since search results were generated. Core competitive positioning is sound. |
 
 ---
 
 ## Sources
 
-- [Chrome Content Scripts documentation](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) -- execution order, isolated world, shared scope
-- [Chrome Manifest content_scripts reference](https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts) -- js array specification
-- [Chrome Storage API](https://developer.chrome.com/docs/extensions/reference/api/storage) -- async access, storage limits, content script access
-- [Knip dead code detection](https://knip.dev/) -- dead code detection methodology
-- [HackerNoon: Remove Dead Code](https://hackernoon.com/refactoring-021-remove-dead-code) -- safe removal practices
-- [Chrome Extension File Structure Guide (2025)](https://www.extensionradar.com/blog/chrome-extension-file-structure) -- organization best practices
-- Direct codebase analysis of FSB v9.0.2 content.js (13,429 lines), config.js, manifest.json, memory-extractor.js, universal-provider.js, background.js, action-verification.js
+**Codebase analysis (HIGH confidence):**
+- ai-integration.js TASK_PROMPTS.career (lines 262-331): Existing 6-phase career workflow
+- site-guides/career/_shared.js: Career category shared guidance with 6-field extraction, strategy priority
+- site-guides/career/generic.js: Generic ATS platform guide with selectors and workflows
+- site-guides/career/indeed.js, glassdoor.js, builtin.js: Per-site career guides
+- site-guides/productivity/google-sheets.js: Google Sheets Name Box navigation and data entry workflows
+- background.js classifyTask(): Multitab and career task type detection
+- content/actions.js: openNewTab, switchToTab multi-tab tools
+- /logs/ directory: 34 crowd session logs with DOM snapshots
+
+**Competitive landscape (MEDIUM confidence):**
+- [12 Best AI Job Search Tools in 2026](https://jobcopilot.com/best-ai-job-search-tools/)
+- [15 Best Chrome Extensions for Job Seekers in 2026](https://www.jobpilotapp.com/blog/best-chrome-extensions-job-seekers)
+- [Best Job Searching Tools 2026](https://www.frontlinesourcegroup.com/blog-2026-job-search-tools.html)
+- [7 Best AI Job Search Tools 2026](https://www.flashfirejobs.com/blog/ai-job-search-tools)
+- [6 Best Tools for Automating Your Job Search](https://scale.jobs/blog/6-best-tools-for-automating-your-job-search)
+- [AI Auto-Apply Tools vs Traditional Job Search 2026](https://careerattraction.com/ai-auto-apply-tools-vs-traditional-job-search-in-2026/)
+
+**Job search spreadsheet expectations (MEDIUM confidence):**
+- [How to Use a Job Search Spreadsheet - Teal](https://www.tealhq.com/post/job-search-tracking-spreadsheet)
+- [Job Search Spreadsheet Guide - Indeed](https://www.indeed.com/career-advice/finding-a-job/job-search-spreadsheet)
+- [Free Job Application Tracker Spreadsheet](https://spreadsheetpoint.com/templates/job-tracker-spreadsheet/)
+- [Job Application Tracker Templates - BeamJobs](https://www.beamjobs.com/career-blog/job-application-tracker-google-sheets)
+- [Free Job Application Tracker Google Sheets 2026](https://clickup.com/blog/job-search-google-sheets-templates/)
+
+**Google Sheets formatting (MEDIUM confidence):**
+- [Basic Formatting - Google Sheets API](https://developers.google.com/sheets/api/samples/formatting)
+- [Keyboard shortcuts for Google Sheets](https://support.google.com/docs/answer/181110)
+- [Google Sheets Shortcuts - Zapier](https://zapier.com/blog/google-sheets-shortcuts/)
+
+**Job data extraction challenges (MEDIUM confidence):**
+- [Web Scraping Job Postings Guide - Octoparse](https://www.octoparse.com/blog/web-scraping-job-postings)
+- [Ultimate Guide to Web Scraping Job Boards - Bardeen](https://www.bardeen.ai/answers/how-to-web-scrape-employer-job-boards)
+- [Job Scraping Explained 2025 - JobsPikr](https://www.jobspikr.com/blog/guide-to-job-scraping/)
+
+---
+*Feature research for: Career Search Automation + Google Sheets Output*
+*Researched: 2026-02-23*
+*Milestone: v9.4*
