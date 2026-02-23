@@ -200,6 +200,163 @@ function getGuideForTask(task, url) {
   return null;
 }
 
+// Company name aliases mapping to exact .site values in career guides.
+// Each alias target MUST exactly match a registered career guide .site value.
+const COMPANY_ALIASES = {
+  'jpmorgan': 'JPMorgan Chase',
+  'jp morgan': 'JPMorgan Chase',
+  'jp morgan chase': 'JPMorgan Chase',
+  'jpm': 'JPMorgan Chase',
+  'bofa': 'Bank of America',
+  'boa': 'Bank of America',
+  'bank of america': 'Bank of America',
+  'cap one': 'Capital One',
+  'meta': 'Meta',
+  'facebook': 'Meta',
+  'cvs': 'CVS Health',
+  'jnj': 'Johnson & Johnson',
+  'j&j': 'Johnson & Johnson',
+  'johnson & johnson': 'Johnson & Johnson',
+  'johnson and johnson': 'Johnson & Johnson',
+  'lm': 'Lockheed Martin',
+  'lockheed': 'Lockheed Martin',
+  'uhg': 'UnitedHealth Group',
+  'unitedhealth': 'UnitedHealth Group',
+  'amex': 'American Express',
+  'american express': 'American Express',
+  'ti': 'Texas Instruments',
+  'texas instruments': 'Texas Instruments',
+  'mr cooper': 'Mr. Cooper',
+  'mrcooper': 'Mr. Cooper',
+  'gs': 'Goldman Sachs',
+  'goldman': 'Goldman Sachs',
+  'ms': 'Morgan Stanley',
+  'morgan stanley': 'Morgan Stanley',
+  'goog': 'Google Careers',
+  'google': 'Google Careers',
+  'openai': 'OpenAI',
+  'att': 'AT&T',
+  'at&t': 'AT&T',
+  'homedepot': 'Home Depot',
+  'home depot': 'Home Depot',
+  'lowes': "Lowe's",
+  "lowe's": "Lowe's"
+};
+
+/**
+ * Look up a career site guide by company name or alias.
+ * Supports exact alias match, direct .site match, and partial match.
+ * Only returns guides in the 'Career & Job Search' category.
+ * @param {string} companyName - The company name or alias to look up
+ * @returns {Object|null} The matched career guide or null
+ */
+function getGuideByCompanyName(companyName) {
+  if (!companyName) return null;
+  const nameLower = companyName.toLowerCase().trim();
+  if (!nameLower) return null;
+
+  // 1. Check alias map first
+  const aliasTarget = COMPANY_ALIASES[nameLower];
+  if (aliasTarget) {
+    const aliasGuide = SITE_GUIDES_REGISTRY.find(
+      g => g.category === 'Career & Job Search' && g.site === aliasTarget
+    );
+    if (aliasGuide) return aliasGuide;
+  }
+
+  // 2. Direct .site name match (case-insensitive)
+  const directMatch = SITE_GUIDES_REGISTRY.find(
+    g => g.category === 'Career & Job Search' &&
+      g.site && g.site.toLowerCase() === nameLower
+  );
+  if (directMatch) return directMatch;
+
+  // 3. Partial match (company name contained in guide site name or vice versa)
+  const partialMatch = SITE_GUIDES_REGISTRY.find(
+    g => g.category === 'Career & Job Search' &&
+      g.site && (
+        g.site.toLowerCase().includes(nameLower) ||
+        nameLower.includes(g.site.toLowerCase())
+      )
+  );
+  return partialMatch || null;
+}
+
+/**
+ * Extract a company name from a natural language task string.
+ * Matches patterns like "at [Company]", "jobs at [Company]", "[Company] careers".
+ * Handles multi-word company names by capturing until end of string or a stopword.
+ * @param {string} taskString - The user's task description
+ * @returns {string|null} The extracted company name or null
+ */
+function extractCompanyFromTask(taskString) {
+  if (!taskString) return null;
+  const task = taskString.trim();
+  if (!task) return null;
+
+  // Words that are NOT company names (job-related nouns, verbs, adjectives)
+  const nonCompanyWords = [
+    'find', 'search', 'look', 'get', 'show', 'list', 'browse', 'check', 'view',
+    'software', 'engineering', 'tech', 'remote', 'senior', 'junior', 'lead',
+    'jobs', 'job', 'careers', 'career', 'openings', 'opening', 'positions',
+    'position', 'roles', 'role', 'internships', 'internship', 'hiring',
+    'the', 'this', 'that', 'their', 'a', 'an', 'all', 'any', 'some',
+    'new', 'best', 'top', 'open', 'available'
+  ];
+
+  // Pattern 1 (primary): "at [Company]" -- most reliable indicator
+  // Matches the LAST occurrence of "at" followed by a capitalized word
+  // to handle "search for openings at Goldman Sachs"
+  const atMatches = [...task.matchAll(/\bat\s+([A-Z][\w&.\-']+(?:\s+[A-Z&][\w&.\-']*)*)/gi)];
+  if (atMatches.length > 0) {
+    // Use the last "at [X]" match -- it's most likely the company
+    const lastMatch = atMatches[atMatches.length - 1];
+    const candidate = lastMatch[1].trim();
+    if (!nonCompanyWords.includes(candidate.toLowerCase())) {
+      return candidate;
+    }
+  }
+
+  // Pattern 2: "[Company] careers" / "[Company] jobs" / "[Company] openings"
+  // Capture the word(s) immediately before the job-related suffix.
+  // Use a greedy match but then filter out non-company words from the result.
+  const suffixPattern = /(?:^|\s)([A-Z][\w&.\-']+(?:\s+[A-Z&][\w&.\-']*)*)\s+(?:careers?|jobs?|openings?|positions?|hiring|employment)/i;
+  const suffixMatch = task.match(suffixPattern);
+  if (suffixMatch && suffixMatch[1]) {
+    // Clean: if the captured group contains prepositions, take only the last segment
+    const parts = suffixMatch[1].split(/\s+(?:for|at|on|in)\s+/i);
+    const candidate = parts[parts.length - 1].trim();
+    if (candidate && !nonCompanyWords.includes(candidate.toLowerCase())) {
+      return candidate;
+    }
+  }
+
+  // Pattern 3: "for [Company]" -- only when "for" precedes a non-job-word
+  // Does not require end-of-string to handle "for Microsoft in Texas"
+  const forPattern = /\bfor\s+([A-Z][\w&.\-']+(?:\s+[A-Z&][\w&.\-']*)*)/i;
+  const forMatch = task.match(forPattern);
+  if (forMatch && forMatch[1]) {
+    const firstWord = forMatch[1].split(/\s+/)[0].toLowerCase();
+    if (!nonCompanyWords.includes(firstWord)) {
+      return forMatch[1].trim();
+    }
+  }
+
+  // Pattern 4: "on [Company]" (e.g., "search on Indeed")
+  // Take only the first word(s) that look like a company name, stop at prepositions
+  const onPattern = /\bon\s+([A-Z][\w&.\-']+(?:\s+[A-Z&][\w&.\-']*)*)/i;
+  const onMatch = task.match(onPattern);
+  if (onMatch && onMatch[1]) {
+    // Strip trailing preposition-led phrases: "Indeed for software" -> "Indeed"
+    const cleaned = onMatch[1].replace(/\s+(?:for|at|in|to|with)\s+.*/i, '').trim();
+    if (cleaned && !nonCompanyWords.includes(cleaned.toLowerCase())) {
+      return cleaned;
+    }
+  }
+
+  return null;
+}
+
 /**
  * Format a selectors object into a readable string for prompt injection.
  * @param {Object} selectors - Key-value pairs of selector names and CSS selectors
