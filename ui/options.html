@@ -332,6 +332,24 @@
                   <input type="hidden" id="maxDOMElements" value="2000">
                   <div class="setting-hint">Balance between coverage and speed</div>
                 </div>
+                <div class="setting-item">
+                  <div class="setting-label">
+                    <span>Element Cache Size</span>
+                    <span class="setting-value-display" id="elementCacheSizeDisplay">200</span>
+                  </div>
+                  <select id="elementCacheSizePreset" class="form-select">
+                    <option value="50">50 (Minimal - simple pages)</option>
+                    <option value="100">100 (Light - standard pages)</option>
+                    <option value="200" selected>200 (Standard - recommended)</option>
+                    <option value="500">500 (Heavy - complex SPAs)</option>
+                    <option value="custom">Custom...</option>
+                  </select>
+                  <input type="number" id="elementCacheSizeCustom" class="form-input"
+                         min="10" max="1000" style="display: none; margin-top: 8px;"
+                         placeholder="Enter value (10-1000)">
+                  <input type="hidden" id="elementCacheSize" value="200">
+                  <div class="setting-hint">Cached element lookups for faster repeated queries. Higher = faster on complex pages, more memory.</div>
+                </div>
               </div>
             </div>
 

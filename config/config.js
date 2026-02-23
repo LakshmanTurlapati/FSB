@@ -32,6 +32,7 @@ class Config {
       // DOM Optimization settings
       domOptimization: true,
       maxDOMElements: 2000,
+      elementCacheSize: 200,
       prioritizeViewport: true,
       animatedActionHighlights: true,
       showSidepanelProgress: false,

@@ -16,6 +16,7 @@ const defaultSettings = {
   // DOM Optimization settings
   domOptimization: true,
   maxDOMElements: 2000,
+  elementCacheSize: 200,
   prioritizeViewport: true,
   animatedActionHighlights: true,
   showSidepanelProgress: false,
@@ -135,6 +136,10 @@ function cacheElements() {
   elements.maxDOMElements = document.getElementById('maxDOMElements');
   elements.maxDOMElementsSlider = document.getElementById('maxDOMElementsSlider');
   elements.maxDOMElementsDisplay = document.getElementById('maxDOMElementsDisplay');
+  elements.elementCacheSize = document.getElementById('elementCacheSize');
+  elements.elementCacheSizePreset = document.getElementById('elementCacheSizePreset');
+  elements.elementCacheSizeCustom = document.getElementById('elementCacheSizeCustom');
+  elements.elementCacheSizeDisplay = document.getElementById('elementCacheSizeDisplay');
   elements.prioritizeViewport = document.getElementById('prioritizeViewport');
   elements.animatedActionHighlights = document.getElementById('animatedActionHighlights');
   elements.showSidepanelProgress = document.getElementById('showSidepanelProgress');
@@ -208,6 +213,7 @@ function setupEventListeners() {
     elements.debugMode,
     elements.domOptimization,
     elements.maxDOMElements,
+    elements.elementCacheSize,
     elements.prioritizeViewport,
     elements.animatedActionHighlights,
     elements.showSidepanelProgress,
@@ -242,7 +248,40 @@ function setupEventListeners() {
       markUnsavedChanges();
     });
   }
-  
+
+  // Element Cache Size preset dropdown
+  if (elements.elementCacheSizePreset) {
+    elements.elementCacheSizePreset.addEventListener('change', (e) => {
+      const value = e.target.value;
+      if (value === 'custom') {
+        elements.elementCacheSizeCustom.style.display = 'block';
+        elements.elementCacheSizeCustom.focus();
+      } else {
+        elements.elementCacheSizeCustom.style.display = 'none';
+        elements.elementCacheSize.value = value;
+        if (elements.elementCacheSizeDisplay) {
+          elements.elementCacheSizeDisplay.textContent = value;
+        }
+      }
+      markUnsavedChanges();
+    });
+  }
+
+  // Element Cache Size custom input
+  if (elements.elementCacheSizeCustom) {
+    elements.elementCacheSizeCustom.addEventListener('input', (e) => {
+      let value = parseInt(e.target.value);
+      if (Number.isFinite(value)) {
+        value = Math.max(10, Math.min(1000, value));
+        elements.elementCacheSize.value = value;
+        if (elements.elementCacheSizeDisplay) {
+          elements.elementCacheSizeDisplay.textContent = value;
+        }
+      }
+      markUnsavedChanges();
+    });
+  }
+
   // Model provider change
   if (elements.modelProvider) {
     elements.modelProvider.addEventListener('change', (e) => {
@@ -567,6 +606,25 @@ function loadSettings() {
     if (elements.maxDOMElements) elements.maxDOMElements.value = maxDOM;
     if (elements.maxDOMElementsSlider) elements.maxDOMElementsSlider.value = maxDOM;
     if (elements.maxDOMElementsDisplay) elements.maxDOMElementsDisplay.textContent = maxDOM;
+
+    // Element Cache Size
+    const cacheSize = settings.elementCacheSize || 200;
+    if (elements.elementCacheSize) elements.elementCacheSize.value = cacheSize;
+    if (elements.elementCacheSizeDisplay) elements.elementCacheSizeDisplay.textContent = cacheSize;
+    if (elements.elementCacheSizePreset) {
+      const presetOption = elements.elementCacheSizePreset.querySelector(`option[value="${cacheSize}"]`);
+      if (presetOption && cacheSize !== 'custom') {
+        elements.elementCacheSizePreset.value = cacheSize;
+        if (elements.elementCacheSizeCustom) elements.elementCacheSizeCustom.style.display = 'none';
+      } else {
+        elements.elementCacheSizePreset.value = 'custom';
+        if (elements.elementCacheSizeCustom) {
+          elements.elementCacheSizeCustom.style.display = 'block';
+          elements.elementCacheSizeCustom.value = cacheSize;
+        }
+      }
+    }
+
     if (elements.prioritizeViewport) {
       elements.prioritizeViewport.checked = settings.prioritizeViewport ?? true;
     }
@@ -613,6 +671,7 @@ function saveSettings() {
     // DOM Optimization settings
     domOptimization: elements.domOptimization?.checked ?? true,
     maxDOMElements: parseInt(elements.maxDOMElements?.value) || 2000,
+    elementCacheSize: parseInt(elements.elementCacheSize?.value) || 200,
     prioritizeViewport: elements.prioritizeViewport?.checked ?? true,
     animatedActionHighlights: elements.animatedActionHighlights?.checked ?? true,
     showSidepanelProgress: elements.showSidepanelProgress?.checked ?? false,
