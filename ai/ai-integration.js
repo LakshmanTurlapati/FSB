@@ -2216,7 +2216,7 @@ Task Type: ${taskType}
 AVAILABLE TOOLS:
 ${this.getToolsDocumentation(taskType, siteGuide)}
 
-${this._buildTaskGuidance(taskType, siteGuide, currentUrl)}`;
+${this._buildTaskGuidance(taskType, siteGuide, currentUrl, task)}`;
     } else {
       // PERFORMANCE: Use minimal prompt for continuation iterations
       automationLogger.debug('Using MINIMAL system prompt', { sessionId: this.currentSessionId, reason: 'continuation_iteration' });
@@ -3920,15 +3920,43 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
   /**
    * Build task-specific guidance text for the system prompt.
    * Uses site guide when available, falls back to TASK_PROMPTS.
+   * For career tasks, always attempts company name extraction to inject
+   * company-specific guide and careerUrl for direct navigation.
    * @param {string} taskType - Detected task type
    * @param {Object|null} siteGuide - Matched site guide or null
    * @param {string|null} currentUrl - Current page URL
+   * @param {string|null} task - Original task string for company name extraction
    * @returns {string} Guidance text to append to system prompt
    */
-  _buildTaskGuidance(taskType, siteGuide, currentUrl) {
+  _buildTaskGuidance(taskType, siteGuide, currentUrl, task = null) {
+    // Career tasks: always attempt company name extraction for guide injection
+    // The keyword-fallback siteGuide from getGuideForTask may match a generic
+    // career guide rather than the specific company the user asked about.
+    if (taskType === 'career' && task) {
+      if (typeof extractCompanyFromTask === 'function') {
+        const companyName = extractCompanyFromTask(task);
+        if (companyName && typeof getGuideByCompanyName === 'function') {
+          const companyGuide = getGuideByCompanyName(companyName);
+          if (companyGuide) {
+            // Override siteGuide if company-specific guide differs from keyword-fallback
+            if (!siteGuide || (siteGuide.site !== companyGuide.site)) {
+              siteGuide = companyGuide;
+            }
+          }
+        }
+      }
+    }
+
+    // Prepend careerUrl directive for career tasks when guide has a direct URL
+    let careerUrlDirective = '';
+    if (taskType === 'career' && siteGuide && siteGuide.careerUrl) {
+      careerUrlDirective = `\n\nDIRECT CAREER URL: Navigate directly to ${siteGuide.careerUrl} -- do NOT Google search for this company's career page.`;
+    }
+
     if (!siteGuide) {
       // No site guide matched -- use existing TASK_PROMPTS
-      return TASK_PROMPTS[taskType] || TASK_PROMPTS.general;
+      const basePrompt = TASK_PROMPTS[taskType] || TASK_PROMPTS.general;
+      return basePrompt + careerUrlDirective;
     }
 
     // Build category-level guidance if this is a per-site guide with a category
@@ -3984,6 +4012,11 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
     // Add warnings
     if (siteGuide.warnings && siteGuide.warnings.length > 0) {
       guidance += '\n\nWARNINGS:\n' + siteGuide.warnings.map(w => `- ${w}`).join('\n');
+    }
+
+    // Append careerUrl directive for career tasks (after all site-specific guidance)
+    if (careerUrlDirective) {
+      guidance += careerUrlDirective;
     }
 
     return guidance;
