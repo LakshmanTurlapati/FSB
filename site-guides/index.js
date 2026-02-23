@@ -170,7 +170,7 @@ function getGuideForTask(task, url) {
     ],
     'Career & Job Search': [
       'career', 'job', 'jobs', 'position', 'opening',
-      'hiring', 'employment', 'indeed', 'glassdoor',
+      'hiring', 'employment', 'internship', 'internships', 'indeed', 'glassdoor',
       'linkedin jobs', 'builtin', 'job search', 'job listing'
     ],
     'Productivity Tools': [

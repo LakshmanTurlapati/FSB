@@ -4061,7 +4061,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
             /demo.*play|asteroids|snake|pong|tetris/.test(taskLower)) {
           return 'gaming';
         }
-        if (/\b(career|job|jobs|position|opening|hiring|employment)\b/.test(taskLower)) return 'career';
+        if (/\b(career|job|jobs|position|opening|hiring|employment|internship|internships)\b/.test(taskLower)) return 'career';
         if (taskLower.includes('search') || taskLower.includes('find')) return 'search';
         if (taskLower.includes('fill') || taskLower.includes('submit')) return 'form';
         return guideTaskType;
@@ -4128,7 +4128,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
                taskLower.includes('start game') || taskLower.includes('use keys') || taskLower.includes('wasd') ||
                taskLower.includes('spacebar') || /demo.*play|asteroids|snake|pong|tetris/.test(taskLower)) {
       return 'gaming';
-    } else if (/\b(career|job|jobs|position|opening|hiring|employment)\b/.test(taskLower)) {
+    } else if (/\b(career|job|jobs|position|opening|hiring|employment|internship|internships)\b/.test(taskLower)) {
       return 'career';
     } else if (taskLower.includes('search') || taskLower.includes('find') || taskLower.includes('look for')) {
       return 'search';
