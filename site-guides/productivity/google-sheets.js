@@ -155,6 +155,45 @@ DATA ENTRY BEST PRACTICES:
       'Read the Name Box to see the last cell reference (e.g., "F25")',
       'The next empty row is one below -- navigate there via Name Box',
       'Begin data entry matching the existing column order'
+    ],
+    formatHeaderRow: [
+      'Press Escape to exit any cell edit mode',
+      'Click the Name Box (#t-name-box), type "A1", press Enter to navigate to row 1',
+      'Press Shift+Space to select the entire row 1',
+      'Press Ctrl+B (or Cmd+B on Mac) to bold the header row',
+      'Press Ctrl+Shift+E (or Cmd+Shift+E on Mac) to center-align the header text',
+      'Press Shift+Alt+3 (bottom border shortcut) to add a thin bottom border below the header'
+    ],
+    freezeHeaderRow: [
+      'Click the View menu (#docs-view-menu)',
+      'Click "Freeze" in the dropdown menu',
+      'Click "1 row" to freeze the header row',
+      'A thick horizontal line should appear below row 1',
+      'Alternative: press Alt+/ (Option+/ on Mac) to open the tool finder, type "Freeze", select "1 row"'
+    ],
+    applyAlternatingColors: [
+      'Click the Name Box, type the full data range (e.g., "A1:F26"), press Enter to select the range',
+      'Click the Format menu (#docs-format-menu)',
+      'Click "Alternating colors" to open the sidebar panel',
+      'In the sidebar: ensure the "Header" checkbox is checked',
+      'Set Header color to dark charcoal (#333333)',
+      'Set Color 1 to white (#FFFFFF)',
+      'Set Color 2 to light gray (#F3F3F3)',
+      'Click "Done" to apply the alternating colors',
+      'Fallback: if custom colors are hard to set, select the closest dark preset theme from the default styles'
+    ],
+    autoSizeColumns: [
+      'Click the cell/row/column selector button (top-left corner of the grid, intersection of row and column headers) to select all cells',
+      'Right-click on any column header letter to open the context menu',
+      'Click "Resize columns" (or similar text like "Resize columns A-F")',
+      'Select "Fit to data" option in the resize dialog',
+      'Click "OK" to apply',
+      'Alternative: double-click the border between column headers to auto-fit individual columns'
+    ],
+    applyLinkColumnBlueText: [
+      'Click the Name Box, type the Apply Link column data range (e.g., "F2:F26"), press Enter to select',
+      'Apply blue text color (#1155CC) to signal clickability',
+      'Use the text color toolbar button or Alt+/ tool finder typing "Text color"'
     ]
   },
   warnings: [
@@ -171,7 +210,12 @@ DATA ENTRY BEST PRACTICES:
     'After clicking the Name Box, ALWAYS press Ctrl+A (Select All) before typing a new cell reference. This ensures the existing reference text is fully replaced, not appended to.',
     'For cell values that start with =, +, -, or @, prefix with a single space to prevent Sheets from interpreting the value as a formula. This is critical for Description fields.',
     'The formula bar (#t-formula-bar-input) shows the raw content of the currently selected cell. For HYPERLINK cells, it shows the formula, not the display text. Use this to verify formulas are correct.',
-    'To rename the spreadsheet, you must first exit cell edit mode by pressing Escape. Then click the title element at the top of the page.'
+    'To rename the spreadsheet, you must first exit cell edit mode by pressing Escape. Then click the title element at the top of the page.',
+    'FORMATTING: Always press Escape before applying formatting shortcuts to ensure you are not in cell edit mode. Shortcuts like Ctrl+B do not work correctly in edit mode.',
+    'FORMATTING: Use Shift+Space to select an entire row (must NOT be in cell edit mode). Click the row number on the left margin as an alternative.',
+    'FORMATTING: The Alt+/ (Option+/ on Mac) tool finder searches all menu items by name. Use it when you cannot find a menu item or when toolbar button selectors are unreliable.',
+    'FORMATTING: For alternating colors, select the data range FIRST, then open Format > Alternating colors. If the range is wrong, close the sidebar, reselect, and try again.',
+    'FORMATTING: Column auto-size via right-click > Resize > "Fit to data" works on all selected columns at once. Select all columns first for best results.'
   ],
-  toolPreferences: ['navigate', 'click', 'type', 'keyPress', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable', 'openNewTab', 'switchToTab', 'listTabs']
+  toolPreferences: ['navigate', 'click', 'rightClick', 'type', 'keyPress', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable', 'openNewTab', 'switchToTab', 'listTabs']
 });
