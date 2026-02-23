@@ -9,9 +9,9 @@ registerSiteGuide({
   ],
   guidance: `PFIZER CAREER NAVIGATION:\nStart: https://www.pfizer.com/about/careers\nATS: workday`,
   selectors: {
-    searchBox: '.header__search.hide-element-text, #edit-keywords, [name="keywords"], //button[normalize-space(.)="Search"], #edit-search-api-fulltext, [aria-label="Search Input Box"]',
-    locationFilter: 'input[type="text"][placeholder="Region"], input[type="text"][placeholder="Site\\ Location"], #edit-workday-wrapper-region_input, #edit-workday-wrapper-location_input',
-    departmentFilter: 'input[type="text"][placeholder="Job\\ Category"], #edit-workday-wrapper-category_input',
+    searchBox: '#edit-keywords, [name="keywords"], //button[normalize-space(.)="Search"], #edit-search-api-fulltext, [aria-label="Search Input Box"], .header__search.hide-element-text',
+    locationFilter: '#edit-workday-wrapper-region_input, #edit-workday-wrapper-location_input, input[type="text"][placeholder="Region"], input[type="text"][placeholder="Site\\ Location"]',
+    departmentFilter: '#edit-workday-wrapper-category_input, input[type="text"][placeholder="Job\\ Category"]',
     jobCards: '//a[normalize-space(.)="Careers"], [data-fsb-id="a_careers_header"], [data-fsb-id="a_careers_main_content"]'
   },
   workflows: {

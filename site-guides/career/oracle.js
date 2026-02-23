@@ -9,13 +9,13 @@ registerSiteGuide({
   ],
   guidance: `ORACLE CAREER NAVIGATION:\nStart: https://www.oracle.com/corporate/careers/`,
   selectors: {
-    searchBox: '.u30searchbttn, input[type="submit"], .vjs-big-play-button, #u30searchBtn, [aria-label="Open Search Field"], //a[normalize-space(.)="Search jobs at Oracle"]',
-    locationFilter: '.flag-focus, //a[normalize-space(.)="Country"], //a[normalize-space(.)="United States"], [data-fsb-id="a_united_states"], //a[normalize-space(.)="Find phone numbers for your re"], [data-fsb-id="a_find_phone_numbers_f_rc59"]',
+    searchBox: '#u30searchBtn, [aria-label="Open Search Field"], //a[normalize-space(.)="Search jobs at Oracle"], [data-fsb-id="a_search_jobs_at_oracl_rh09"], [aria-label="Search Oracle.com"], [role="combobox"]',
+    locationFilter: '//a[normalize-space(.)="Country"], //a[normalize-space(.)="United States"], [data-fsb-id="a_united_states"], //a[normalize-space(.)="Find phone numbers for your re"], [data-fsb-id="a_find_phone_numbers_f_rc59"], .flag-focus',
     departmentFilter: '//a[normalize-space(.)="Save your seat for business in"], [data-fsb-id="a_save_your_seat_for_b_rc63"], #product-grouping, [name="product-grouping"], [aria-controls="rc30skillbridge"], [aria-selected="true"]',
-    jobCards: '.vjs-big-play-button, [aria-label="oracle careers create future with us"], [aria-controls="ct12-submenu-2"], [role="button"], //a[normalize-space(.)="Careers at Oracle"], [data-fsb-id="a_careers_at_oracle_option"]',
+    jobCards: '[aria-label="oracle careers create future with us"], [aria-controls="ct12-submenu-2"], [role="button"], //a[normalize-space(.)="Careers at Oracle"], [data-fsb-id="a_careers_at_oracle_option"], //a[normalize-space(.)="Careers"]',
     jobTitle: '#u30btitle, [aria-label="Oracle Home"], [aria-label="Home"]',
     applyButton: '//a[normalize-space(.)="Apply now"], [data-fsb-id="a_apply_now_rc30datacenter"], [data-fsb-id="a_apply_now_rc59"]',
-    pagination: '.rh08-arrow.rh08-nextarrow, .rh08-arrow.rh08-prevarrow, [aria-label="next slide"], [aria-label="previous slide"], #cloudAccountButton, //a[normalize-space(.)="Next"]'
+    pagination: '[aria-label="next slide"], [aria-label="previous slide"], #cloudAccountButton, //a[normalize-space(.)="Next"], .rh08-arrow.rh08-nextarrow, .rh08-arrow.rh08-prevarrow'
   },
   workflows: {
     searchJobs: [

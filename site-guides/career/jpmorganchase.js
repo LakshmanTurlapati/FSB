@@ -9,11 +9,11 @@ registerSiteGuide({
   ],
   guidance: `JPMORGAN CHASE CAREER NAVIGATION:\nStart: https://www.jpmorganchase.com/careers`,
   selectors: {
-    searchBox: '.search-icon, .hyper-link.anchor-9, .hyper-link, [data-fsb-id="button_cws_primary_nav"], [data-fsb-id="a_research_research_cmp_secondary_n"], [aria-label="JPMorganChase Institute Research Topics "]',
-    locationFilter: '.hyper-link.anchor-9, [aria-label="Global locations"]',
-    departmentFilter: '.primary-link, .hyper-link.anchor-9, //a[normalize-space(.)="Join our team"], [aria-label="Join our team open in new window"], //a[normalize-space(.)="How we do business"], [data-fsb-id="a_business_growth_and__cmp_primary_foo"]',
-    jobCards: '.primary-link, .header-link, .hyper-link.anchor-9, .hyper-link, //a[normalize-space(.)="Careers and skills"], //a[normalize-space(.)="Careers"]',
-    pagination: '.iconAnchor.small, .hyper-link.anchor-9, [aria-label="Company Logo and link to home page"], [data-fsb-id="a_company_logo_and_link_to_home__cws_primary_nav"], [aria-label="Next Slide"], [aria-label="Previous Slide"]'
+    searchBox: '[data-fsb-id="button_cws_primary_nav"], [data-fsb-id="a_research_research_cmp_secondary_n"], [aria-label="JPMorganChase Institute Research Topics "], .search-icon, .hyper-link.anchor-9, .hyper-link',
+    locationFilter: '[aria-label="Global locations"], .hyper-link.anchor-9',
+    departmentFilter: '//a[normalize-space(.)="Join our team"], [aria-label="Join our team open in new window"], //a[normalize-space(.)="How we do business"], [data-fsb-id="a_business_growth_and__cmp_primary_foo"], [aria-label="Business growth"], .primary-link',
+    jobCards: '//a[normalize-space(.)="Careers and skills"], //a[normalize-space(.)="Careers"], [data-fsb-id="a_careers_careers_cmp_secondary_n"], [aria-label="Careers and skills"], [aria-label="Careers"], //a[normalize-space(.)="Learn more"]',
+    pagination: '[aria-label="Company Logo and link to home page"], [data-fsb-id="a_company_logo_and_link_to_home__cws_primary_nav"], [aria-label="Next Slide"], [aria-label="Previous Slide"], [aria-label="opens gold suppliers page"], .iconAnchor.small'
   },
   workflows: {
     searchJobs: [

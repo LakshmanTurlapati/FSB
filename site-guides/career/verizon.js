@@ -9,12 +9,12 @@ registerSiteGuide({
   ],
   guidance: `VERIZON CAREER NAVIGATION:\nStart: https://www.verizon.com/about/careers/`,
   selectors: {
-    searchBox: '.pl-1.mb-0, .Button__Button-dtMRoO.styled__SearchButton-kUSFql, .vz-text-link, #js-main-search-field, [aria-label="job titles, skills and keywords"], #js-quick-job-search',
-    locationFilter: '.pl-1.mb-0, .u-colorPrimary.u-marginTop--md20, .u-fontText.u-text--xs12, [aria-controls="radix-_R_aladlfkeivb_"], [role="combobox"], //button[normalize-space(.)="Locations"]',
-    departmentFilter: '.vz-text-link, //button[normalize-space(.)="Life at Verizon"], [aria-controls="radix-_R_3eceivb_-content-radix-_R_4receivb_"], //button[normalize-space(.)="Career Paths"], [aria-controls="radix-_R_3eceivb_-content-radix-_R_6receivb_"], #gnav20-eyebrow-link-Business',
-    jobCards: '.inline-flex.items-center, .ring-transparent.focus-visible\\:outline, .block.text-black, .data-\\[active\\=true\\]\\:focus\\:bg-accent.data-\\[active\\=true\\]\\:hover\\:bg-accent, .gnav20-bubble-position, //a[normalize-space(.)="Go to saved jobs0"]',
+    searchBox: '#js-main-search-field, [aria-label="job titles, skills and keywords"], #js-quick-job-search, //button[normalize-space(.)="Explore Jobs"], //label[normalize-space(.)="Search Jobs"], #gnav20-search-icon',
+    locationFilter: '[aria-controls="radix-_R_aladlfkeivb_"], [role="combobox"], //button[normalize-space(.)="Locations"], [aria-controls="radix-_R_3eceivb_-content-radix-_R_8receivb_"], //label[normalize-space(.)="Location:"], [aria-label="Get it fast | Enter your location"]',
+    departmentFilter: '//button[normalize-space(.)="Life at Verizon"], [aria-controls="radix-_R_3eceivb_-content-radix-_R_4receivb_"], //button[normalize-space(.)="Career Paths"], [aria-controls="radix-_R_3eceivb_-content-radix-_R_6receivb_"], #gnav20-eyebrow-link-Business, [aria-label="Verizon Business Services HomePage"]',
+    jobCards: '//a[normalize-space(.)="Go to saved jobs0"], //a[normalize-space(.)="Verizon Careers"], //a[normalize-space(.)="Careers"], //a[normalize-space(.)="Jobs"], #gnav20-eyebrow-link-Careers, [aria-label="Verizon Careers Services HomePage"]',
     jobTitle: '#acc-item-1859-label, [aria-controls="acc-item-1859"], #acc-item-31-label, [aria-controls="acc-item-31"]',
-    pagination: '.gnav20-slide-arrow.gnav20-slide-arrow-next, .gnav20-slide-arrow.gnav20-slide-arrow-prev, .slick-next.slick-arrow, #gnav20-eyebrow-link-About-Us, [aria-label="Verizon About Us Services HomePage"], [aria-label="next promo message 2 of 2"]'
+    pagination: '#gnav20-eyebrow-link-About-Us, [aria-label="Verizon About Us Services HomePage"], [aria-label="next promo message 2 of 2"], #gnav20-eyebrow-link-Personal, [aria-label="Verizon Personal Services HomePage"], [aria-label="previous promo message 2 of 2"]'
   },
   workflows: {
     searchJobs: [

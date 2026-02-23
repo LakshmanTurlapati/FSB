@@ -9,10 +9,10 @@ registerSiteGuide({
   ],
   guidance: `MCKESSON CAREER NAVIGATION:\nStart: https://careers.mckesson.com/`,
   selectors: {
-    searchBox: '.search-form__saved-jobs-link, .filter-button, .recently-viewed-job-list__search-jobs-link, #search-radius-cfd8b105c2, [name="r"], #search-keyword-cfd8b105c2',
+    searchBox: '#search-radius-cfd8b105c2, [name="r"], #search-keyword-cfd8b105c2, [name="k"], [aria-controls="search-location-cfd8b105c2-mindreader"], [role="combobox"][aria-describedby="search-error-1 autocomplete-message-search-location-cfd8b105c2"]',
     locationFilter: '#country-toggle, //button[normalize-space(.)="Country"], #region-toggle, //button[normalize-space(.)="State/Province"], #city-toggle, //button[normalize-space(.)="City"]',
-    departmentFilter: '.hub-filter__select, .hub-filter__label, .filter-button, #data-content-feed-7a40ddbcb5-facet-custom_fields_jobfunction, //label[normalize-space(.)="Functional Area"], #category-toggle',
-    jobCards: '.hub-filter__select, .hub-item__link, .search-results__job-title-link, //button[normalize-space(.)="Career Opportunities"], [aria-controls="career-opportunities-menu"], #data-content-feed-7a40ddbcb5-pillar-2',
+    departmentFilter: '#data-content-feed-7a40ddbcb5-facet-custom_fields_jobfunction, //label[normalize-space(.)="Functional Area"], #category-toggle, //button[normalize-space(.)="Category"], #custom_fields\\.jobfunction-toggle, //button[normalize-space(.)="Job Function"]',
+    jobCards: '//button[normalize-space(.)="Career Opportunities"], [aria-controls="career-opportunities-menu"], #data-content-feed-7a40ddbcb5-pillar-2, [data-fsb-id="a_a_transportation_sup_content"], [data-fsb-id="a_consolidated_mail_ou_search_results"], //a[normalize-space(.)="Customer Care Supervisor"]',
     pagination: '//a[normalize-space(.)="Homepage"], [data-fsb-id="a_homepage_content"]'
   },
   workflows: {

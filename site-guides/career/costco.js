@@ -9,12 +9,12 @@ registerSiteGuide({
   ],
   guidance: `COSTCO CAREER NAVIGATION:\nStart: https://www.costco.com/jobs.html`,
   selectors: {
-    searchBox: 'input[type="text"][placeholder="Search"], .btn.search-ico-button, .hidden-xs.hidden-sm, #search-field, [aria-label="Search"], //a[normalize-space(.)="What\'s New"]',
-    locationFilter: '.MuiFormLabel-root.MuiInputLabel-root, //button[normalize-space(.)="19707"], [aria-label=" ZIP Code 19707, current delivery location"], #Home_Ancillary_10, //a[normalize-space(.)="Locations"], #country-select',
+    searchBox: '#search-field, [aria-label="Search"], //a[normalize-space(.)="What\'s New"], [aria-label="Search Costco"], [role="combobox"][aria-describedby="typeahead-search-field-description"], [data-testid="SearchButton"]',
+    locationFilter: '//button[normalize-space(.)="19707"], [aria-label=" ZIP Code 19707, current delivery location"], #Home_Ancillary_10, //a[normalize-space(.)="Locations"], #country-select, [aria-expanded="false"]',
     departmentFilter: '#Home_Ancillary_3, //a[normalize-space(.)="Business Delivery"], #show_more_category, [data-testid="Button"], #attributes\\.category_info, //button[normalize-space(.)="Category"]',
-    jobCards: '.btn-block.eco-job-cta-apply, .eco-job-nav-buttons.eco-job-nav-dark-blue, .eco-job-nav-buttons.eco-job-nav-blue, //a[normalize-space(.)="Costco Career FAQs"], //a[normalize-space(.)="Why Costco"], [aria-label="Learn more about why costco is a great place to work"]',
-    applyButton: '.btn-block.eco-job-cta-apply, //a[normalize-space(.)="Apply Now"]',
-    pagination: '.hidden-xs.hidden-sm, //a[normalize-space(.)="Costco Next"], [aria-label="Next promo"], [data-testid="NextButton"], [aria-label="Previous promo"], [data-testid="PrevButton"]'
+    jobCards: '//a[normalize-space(.)="Costco Career FAQs"], //a[normalize-space(.)="Why Costco"], [aria-label="Learn more about why costco is a great place to work"], //a[normalize-space(.)="Careers"], [aria-label="Learn more about our careers"], //a[normalize-space(.)="Our Values"]',
+    applyButton: '//a[normalize-space(.)="Apply Now"], .btn-block.eco-job-cta-apply',
+    pagination: '//a[normalize-space(.)="Costco Next"], [aria-label="Next promo"], [data-testid="NextButton"], [aria-label="Previous promo"], [data-testid="PrevButton"], #mapFocus'
   },
   workflows: {
     searchJobs: [

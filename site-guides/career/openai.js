@@ -9,11 +9,11 @@ registerSiteGuide({
   ],
   guidance: `OPENAI CAREER NAVIGATION:\nStart: https://openai.com/careers`,
   selectors: {
-    searchBox: '.transition.duration-200, .transition.ease-curve-a, .transition.duration-short, [aria-label="Open Search"], [aria-label="Close Search"], //a[normalize-space(.)="Research Index"]',
+    searchBox: '[aria-label="Open Search"], [aria-label="Close Search"], //a[normalize-space(.)="Research Index"], //a[normalize-space(.)="Research Overview"], //a[normalize-space(.)="Research Residency"], #\\31 VETmSyUHHLzJufUMpS9VS',
     locationFilter: '[aria-label="logo HP Electric Blue keyline RGB, intuit logo, state farm logo, thermofisher-black@2x, Logo > Oracle grayscale, uber, BBVA logo SVG, cisco-black@2x, t-mobile wordmark"], [role="group"]',
-    departmentFilter: '.group.relative, .mt-xs.bg-primary-4, .transition.duration-short, .transition.ease-curve-a, [data-fsb-id="div_main"], #WzE4sz68FtsmgR3O7Ckjt',
-    jobCards: '.transition.ease-curve-a, .transition.duration-short, //a[normalize-space(.)="Careers"], //a[normalize-space(.)="View open roles"]',
-    pagination: '.text-primary-100.bg-primary-4, [aria-label="Play audio of page text"]'
+    departmentFilter: '[data-fsb-id="div_main"], #WzE4sz68FtsmgR3O7Ckjt, [aria-label="Deepening our collaboration with the U.S. Department of Energy - Global Affairs - Dec 18, 2025"], [data-fsb-id="div_gap_lg"], [data-fsb-id="div_container"], [aria-label="Open modal"]',
+    jobCards: '//a[normalize-space(.)="Careers"], //a[normalize-space(.)="View open roles"], .transition.ease-curve-a, .transition.duration-short',
+    pagination: '[aria-label="Play audio of page text"], .text-primary-100.bg-primary-4'
   },
   workflows: {
     searchJobs: [

@@ -9,10 +9,10 @@ registerSiteGuide({
   ],
   guidance: `HOME DEPOT CAREER NAVIGATION:\nStart: https://careers.homedepot.com/`,
   selectors: {
-    searchBox: '.fusion-button.button-flat, input[type="text"][placeholder="Example\\:35X"], .searchlnk.gu-wht1, .location-search-type-label, .search-results-title, #cws_quickjobsearch_keywords',
-    locationFilter: '.control-label, .fusion-modal-text-link.locationtype-info, .radius-label.location-radius-control, .growunder.gu-org1, #zip, [name="zip"]',
-    departmentFilter: '.sf-label-checkbox, #sf-input-9f3ba36895cbd6d1e71071ca1abe04aa, [name="_sft_portfolio_category\\[\\]"], #sf-input-10bbeeaa27ef44e58de1323749c31b16, #sf-input-7de761dfc38ef23758399d423383a729, [data-fsb-id="label_storescashiers_sales_presentation"]',
-    jobCards: '.awb-menu__main-a.awb-menu__main-a_regular, .alert-link, .capjob, .fusion-button.button-flat, .leaflet-container.leaflet-retina, .growunder.gu-wht1',
+    searchBox: '#cws_quickjobsearch_keywords, [aria-label="Keyword"], #cws_quickjobsearch_location, [name="location"], //a[normalize-space(.)="Search FOR HOURLY ROLES"], //a[normalize-space(.)="SEARCH REMOTE ROLES"]',
+    locationFilter: '#zip, [name="zip"], //label[normalize-space(.)="Zip*"], //a[normalize-space(.)="Privacy & Security Statement"], [aria-label="Privacy & Security Statement opens in new tab"], //a[normalize-space(.)="Associate Privacy Statement"]',
+    departmentFilter: '#sf-input-9f3ba36895cbd6d1e71071ca1abe04aa, [name="_sft_portfolio_category\\[\\]"], #sf-input-10bbeeaa27ef44e58de1323749c31b16, #sf-input-7de761dfc38ef23758399d423383a729, [data-fsb-id="label_storescashiers_sales_presentation"], //label[normalize-space(.)="Job Category"]',
+    jobCards: '//a[normalize-space(.)="NOW HIRING FOR HOURLY JOBSSear"], [data-fsb-id="a_now_hiring_for_hourl_content"], //a[normalize-space(.)="Shop Jobs"], //a[normalize-space(.)="careers.homedepot.com"], //a[normalize-space(.)="careerdepot.homedepot.com"], //a[normalize-space(.)="sales specialist"]',
     applyButton: '//a[normalize-space(.)="Apply"], [aria-label="Apply opens in new tab"]',
     pagination: '//a[normalize-space(.)="homepage"], [data-fsb-id="a_homepage_content"]'
   },

@@ -10,7 +10,7 @@ registerSiteGuide({
   guidance: `VISA CAREER NAVIGATION:\nStart: https://usa.visa.com/careers.html`,
   selectors: {
     searchBox: '//a[normalize-space(.)="Job Search"], [aria-label="Job Search (Open in new window)"]',
-    jobCards: '.vs-mb-1.vs-btn, [aria-label="Find open job roles,(Open in new window, External Link)"], //a[normalize-space(.)="U.S. Careers"], [aria-label="U.S. Careers"], //a[normalize-space(.)="Students + Early Careers"], [aria-label="Students + Early Careers (Open in new window)"]'
+    jobCards: '[aria-label="Find open job roles,(Open in new window, External Link)"], //a[normalize-space(.)="U.S. Careers"], [aria-label="U.S. Careers"], //a[normalize-space(.)="Students + Early Careers"], [aria-label="Students + Early Careers (Open in new window)"], //a[normalize-space(.)="Careers at Visa"]'
   },
   workflows: {
     searchJobs: [

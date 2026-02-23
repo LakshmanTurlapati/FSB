@@ -9,8 +9,8 @@ registerSiteGuide({
   ],
   guidance: `JOHNSON & JOHNSON CAREER NAVIGATION:\nStart: https://careers.jnj.com/`,
   selectors: {
-    searchBox: '.SearchOverlay-search-button, input[type="search"][placeholder="Search\\ jobs"], .visually-hidden, #js-quick-job-search, //button[normalize-space(.)="Search"], //button[normalize-space(.)="Search J&J.com"]',
-    locationFilter: '.visually-hidden, #ql-country, [name="country"], //button[normalize-space(.)="English USA"], [aria-label="English USA - Open modal to change region"], //label[normalize-space(.)="Country / Territory:"]',
+    searchBox: '#js-quick-job-search, //button[normalize-space(.)="Search"], //button[normalize-space(.)="Search J&J.com"], #ql-search, //label[normalize-space(.)="Keywords:"], .SearchOverlay-search-button',
+    locationFilter: '#ql-country, [name="country"], //button[normalize-space(.)="English USA"], [aria-label="English USA - Open modal to change region"], //label[normalize-space(.)="Country / Territory:"], .visually-hidden',
     departmentFilter: '[aria-expanded="false"], [aria-label="Open Sub Navigation for  Healthcare areas"]',
     jobCards: '[aria-expanded="false"], [aria-label="Open Sub Navigation for Careers"], #js-saved-jobs-page, [data-fsb-id="a_js_saved_jobs_page_global_site_nav"]'
   },

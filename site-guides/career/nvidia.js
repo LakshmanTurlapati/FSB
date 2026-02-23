@@ -9,10 +9,10 @@ registerSiteGuide({
   ],
   guidance: `NVIDIA CAREER NAVIGATION:\nStart: https://www.nvidia.com/en-us/about-nvidia/careers/`,
   selectors: {
-    searchBox: '.menu-level-1, .nv-menu-button.menu-level-1, [aria-label="Search NVIDIA"], #nv-search-box, [role="none"], //a[normalize-space(.)="What\'s New"]',
+    searchBox: '[aria-label="Search NVIDIA"], #nv-search-box, [role="none"], //a[normalize-space(.)="What\'s New"], [data-fsb-id="a_whats_new_menuitem"], //label[normalize-space(.)="What\'s New"]',
     locationFilter: '[aria-expanded="false"], [aria-label="Country Selector"]',
-    departmentFilter: '.subnav-category, #sub-btn0, #sub-btn1, //a[normalize-space(.)="Meet our Teams"]',
-    jobCards: '.sub-brand-link.dropdown-toggle, .breadcrumb-page-link.cta, #career-hero-cta, //a[normalize-space(.)="Find Your Next Job"], //a[normalize-space(.)="Careers"], #sub-btn1',
+    departmentFilter: '#sub-btn0, #sub-btn1, //a[normalize-space(.)="Meet our Teams"], .subnav-category',
+    jobCards: '#career-hero-cta, //a[normalize-space(.)="Find Your Next Job"], //a[normalize-space(.)="Careers"], #sub-btn1, .sub-brand-link.dropdown-toggle, .breadcrumb-page-link.cta',
     jobTitle: '[aria-expanded="false"], [role="menuitem"]',
     pagination: '//a[normalize-space(.)="Next Steps"], [data-fsb-id="a_next_steps"], //button[normalize-space(.)="Next"], [aria-label="Next"], //button[normalize-space(.)="Previous"], [aria-label="Previous"]'
   },

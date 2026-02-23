@@ -9,10 +9,10 @@ registerSiteGuide({
   ],
   guidance: `AT&T CAREER NAVIGATION:\nStart: https://www.att.jobs/`,
   selectors: {
-    searchBox: '.navigation__search-toggle, .add-keyword.fs-col-span-2, .fs-col-span-12.fs-col-span-m-3, //button[normalize-space(.)="Search Jobs"], #search-keyword-77da3e4899, [name="k"]',
+    searchBox: '//button[normalize-space(.)="Search Jobs"], #search-keyword-77da3e4899, [name="k"], [aria-controls="search-location-77da3e4899-mindreader"], [role="combobox"][aria-describedby="search-error-2 autocomplete-message-search-location-77da3e4899"], #search-submit-77da3e4899',
     locationFilter: '#country-toggle, //button[normalize-space(.)="Country"], #region-toggle, //button[normalize-space(.)="State"], #city-toggle, //button[normalize-space(.)="City"]',
-    departmentFilter: '.section7__link, .video-button, #category-toggle, //button[normalize-space(.)="Category"], //a[normalize-space(.)="Business Development and Strat"], [data-fsb-id="a_business_development_search_results_"]',
-    jobCards: '.utility-nav__link, .callout__wrapping-link.section26__link, //button[normalize-space(.)="Careers"], [aria-controls="nav-content-1"], //button[normalize-space(.)="Early Careers"], [aria-controls="nav-content-2"]'
+    departmentFilter: '#category-toggle, //button[normalize-space(.)="Category"], //a[normalize-space(.)="Business Development and Strat"], [data-fsb-id="a_business_development_search_results_"], //a[normalize-space(.)="Business Sales"], [aria-label="Employee Group Conference 2023 (Video)"]',
+    jobCards: '//button[normalize-space(.)="Careers"], [aria-controls="nav-content-1"], //button[normalize-space(.)="Early Careers"], [aria-controls="nav-content-2"], //a[normalize-space(.)="Saved Jobs"], //a[normalize-space(.)="Early Careers"]'
   },
   workflows: {
     searchJobs: [

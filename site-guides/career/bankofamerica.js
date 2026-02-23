@@ -9,10 +9,10 @@ registerSiteGuide({
   ],
   guidance: `BANK OF AMERICA CAREER NAVIGATION:\nStart: https://careers.bankofamerica.com/`,
   selectors: {
-    searchBox: 'input[type="text"][placeholder="Keyword\\ or\\ requisition\\ \\#"], .keyword__magnifier, input[type="image"], //button[normalize-space(.)="Search jobs"], [aria-controls="subnav-0"], #standalone_for-students',
+    searchBox: '//button[normalize-space(.)="Search jobs"], [aria-controls="subnav-0"], #standalone_for-students, [aria-label="For students - Job Search"], #menu-item-What\\ we\\ do, //a[normalize-space(.)="What we do"]',
     locationFilter: '#Regions-tab1-tabpanel-1, [role="tabpanel"][aria-labelledby="tab1"], #locat, //button[normalize-space(.)="Location"]',
-    departmentFilter: '.header__utility-link.t-track-utility-link, [aria-label="Small business opens in a new window"], [aria-label="Businesses & institutions opens in a new window"], #standalone_for-professionals, //a[normalize-space(.)="For professionals"], #crprt',
-    jobCards: '.t-track-main-logo, .job-search-tile__url.t-track-search-select-position, .t-track-body-copy-link, [aria-label="Bank of America Careers Homepage"], #standalone_find-your-opportunity, //a[normalize-space(.)="Find your opportunity"]'
+    departmentFilter: '[aria-label="Small business opens in a new window"], [aria-label="Businesses & institutions opens in a new window"], #standalone_for-professionals, //a[normalize-space(.)="For professionals"], #crprt, [aria-controls="prgrms-crprt-tabpanel-2"]',
+    jobCards: '[aria-label="Bank of America Careers Homepage"], #standalone_find-your-opportunity, //a[normalize-space(.)="Find your opportunity"], #prgrms-bnkng-tabpanel-1, [role="tabpanel"][aria-labelledby="bnkng"], [data-fsb-id="a_real_estate_syndicat_maincontentstar"]'
   },
   workflows: {
     searchJobs: [

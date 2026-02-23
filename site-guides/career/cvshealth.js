@@ -9,10 +9,10 @@ registerSiteGuide({
   ],
   guidance: `CVS HEALTH CAREER NAVIGATION:\nStart: https://jobs.cvshealth.com/\nATS: workday`,
   selectors: {
-    searchBox: '.phw-visually-hidden, .phw-btn.phw-g-btn-link, .phw-btn.phw-g-btn-primary, [aria-controls="typehead-listbox"], [role="combobox"], [aria-controls="gllocationListbox"]',
-    locationFilter: '.phw-visually-hidden, .phw-component-v1-meta-default.phw-posn-relative, //label[normalize-space(.)="location"], [aria-controls="loc-listbox"], [aria-owns="loc-listbox"], //label[normalize-space(.)="Location"]',
+    searchBox: '[aria-controls="typehead-listbox"], [role="combobox"], [aria-controls="gllocationListbox"], #ph-search-backdrop, [aria-label="Search"], //a[normalize-space(.)="Search Jobs"]',
+    locationFilter: '//label[normalize-space(.)="location"], [aria-controls="loc-listbox"], [aria-owns="loc-listbox"], //label[normalize-space(.)="Location"], .phw-visually-hidden, .phw-component-v1-meta-default.phw-posn-relative',
     departmentFilter: '[aria-controls="CategoryBody"], [aria-label="Category"], #facetInput_0, [aria-label="category"], #category_phs_Clinical1260, [aria-label="Clinical(1260jobs)"]',
-    jobCards: '.phw-btn.phw-g-menu-list-link, .phw-btn.phw-g-btn-link, .phw-btn.phw-s-find-jobs, .phw-g-job-title-link.phw-word-break, .phw-check-label._fct-label-text_mwltb_119, //button[normalize-space(.)="Careers"]',
+    jobCards: '//button[normalize-space(.)="Careers"], //a[normalize-space(.)="Saved jobs(0)"], [aria-label="0 saved jobs"], [aria-label="Save Shift Supervisor  to job cart"], //label[normalize-space(.)="Clinical (1260)jobs"], [role="text"]',
     pagination: '//a[normalize-space(.)="Candidate Home"], [aria-label="Link to WorkDay sign in page"]'
   },
   workflows: {

@@ -9,11 +9,11 @@ registerSiteGuide({
   ],
   guidance: `TEXAS INSTRUMENTS CAREER NAVIGATION:\nStart: https://careers.ti.com/`,
   selectors: {
-    searchBox: '.search-box-compact__button.text-color-secondary, .oj-helper-hidden-accessible, .search-context-button.search-context-button--selected, .search-context-button, .search-filters__pill.search-filters__pill--contains-selected-items, .search-jobs__clear-filters.text-color-secondary',
-    locationFilter: '.oj-helper-hidden-accessible, //label[normalize-space(.)="City, state, country"]',
-    jobCards: '.categories-list__button, .favourite-star.job-tile__favorited, .search-results-sorting__section.text-color-primary, .job-list-item__link, [aria-label="All Jobs 359"], [aria-controls="sortMenu"]',
+    searchBox: '[aria-controls="suggestions-keywords"], [aria-label="Find jobs and events"], //button[normalize-space(.)="Near Location"], [aria-label="You\'ve selected the Near Location search mode."], [aria-label="Search for Jobs and Events"], [aria-controls="suggestions-locations"]',
+    locationFilter: '//label[normalize-space(.)="City, state, country"], .oj-helper-hidden-accessible',
+    jobCards: '[aria-label="All Jobs 359"], [aria-controls="sortMenu"], [aria-label="Sort By Posting Date"], [aria-label="Add Job to My Job Selections"], //label[normalize-space(.)="Posting Date"], [data-fsb-id="a_main"]',
     applyButton: '//button[normalize-space(.)="Next"], [aria-label="Next"], //button[normalize-space(.)="Cancel"], [aria-label="Cancel"]',
-    pagination: '.app-header__logo.app-header__logo--desktop, [aria-label="Go to Home Page"]'
+    pagination: '[aria-label="Go to Home Page"], .app-header__logo.app-header__logo--desktop'
   },
   workflows: {
     searchJobs: [

@@ -9,10 +9,10 @@ registerSiteGuide({
   ],
   guidance: `TARGET CAREER NAVIGATION:\nStart: https://jobs.target.com/`,
   selectors: {
-    searchBox: '.global-header--search-toggle.button, .recommended-keywords--submit.form-search-submit--button, .job-search-quick-form--button-submit.button, .recommended-keywords--label.sr-only, #site-header-search-toggle, #query-input-1771837359594',
-    locationFilter: '.form-input-clear.button, .sr-only, //button[normalize-space(.)="Clear location"], #location-autocomplete-input-1771837359594, [aria-controls="location-autocomplete-flyout-location-1771837359594"], //label[normalize-space(.)="City or Zip Code"]',
-    departmentFilter: '.link-cta, [data-fsb-id="a_go_to_workday_team_m_section"]',
-    jobCards: '.job-save-modal-trigger.button-text-link, //button[normalize-space(.)="Saved jobs (0)"], //a[normalize-space(.)="Careers"], [aria-expanded="false"]'
+    searchBox: '#site-header-search-toggle, #query-input-1771837359594, [aria-controls="recommended-keywords-flyout-query-1771837359594"], //button[normalize-space(.)="Search jobs"], //label[normalize-space(.)="Job title, skill, or keyword"], .global-header--search-toggle.button',
+    locationFilter: '//button[normalize-space(.)="Clear location"], #location-autocomplete-input-1771837359594, [aria-controls="location-autocomplete-flyout-location-1771837359594"], //label[normalize-space(.)="City or Zip Code"], .form-input-clear.button, .sr-only',
+    departmentFilter: '[data-fsb-id="a_go_to_workday_team_m_section"], .link-cta',
+    jobCards: '//button[normalize-space(.)="Saved jobs (0)"], //a[normalize-space(.)="Careers"], [aria-expanded="false"], .job-save-modal-trigger.button-text-link'
   },
   workflows: {
     searchJobs: [

@@ -9,10 +9,10 @@ registerSiteGuide({
   ],
   guidance: `MR. COOPER CAREER NAVIGATION:\nStart: https://careers.mrcooper.com/`,
   selectors: {
-    locationFilter: '.form-control, #country, #country-label, //label[normalize-space(.)="Country*"]',
-    departmentFilter: '.drop-down.india-team, //button[normalize-space(.)="India"], //a[normalize-space(.)="OUR TEAMS"], [data-fsb-id="a_our_teams_nav"], //button[normalize-space(.)="OUR TEAMS"], [aria-expanded="false"]',
-    jobCards: '.form-control, //a[normalize-space(.)="Browse JObs"], [role="link"], //a[normalize-space(.)="Explore Rocket Careers"], [aria-label="Explore Rocket Careers"], [data-fsb-id="a_explore_rocket_careers_ppc_section"]',
-    pagination: '.form-control, .col-12.col-sm-12, #previousWorker, #previousWorker-label'
+    locationFilter: '#country, #country-label, //label[normalize-space(.)="Country*"], .form-control',
+    departmentFilter: '//button[normalize-space(.)="India"], //a[normalize-space(.)="OUR TEAMS"], [data-fsb-id="a_our_teams_nav"], //button[normalize-space(.)="OUR TEAMS"], [aria-expanded="false"], //a[normalize-space(.)="Our Teams"]',
+    jobCards: '//a[normalize-space(.)="Browse JObs"], [role="link"], //a[normalize-space(.)="Explore Rocket Careers"], [aria-label="Explore Rocket Careers"], [data-fsb-id="a_explore_rocket_careers_ppc_section"], //a[normalize-space(.)="BROWSE JOBS"]',
+    pagination: '#previousWorker, #previousWorker-label, .form-control, .col-12.col-sm-12'
   },
   workflows: {
     searchJobs: [

@@ -9,10 +9,10 @@ registerSiteGuide({
   ],
   guidance: `MASTERCARD CAREER NAVIGATION:\nStart: https://careers.mastercard.com/`,
   selectors: {
-    searchBox: '.sr-only, [aria-controls="typehead-listbox"], [aria-owns="typehead-listbox"], #ph-search-backdrop, [aria-label="Search"], //label[normalize-space(.)="Search job title"]',
-    locationFilter: '.sr-only, [aria-controls="gllocationListbox"], [aria-owns="gllocationListbox"], //label[normalize-space(.)="Location"]',
-    departmentFilter: '.phs-job-cart-area, [aria-label="0 Saved jobs"], //a[normalize-space(.)="five specialized service areas"], [aria-label="consulting specializations"]',
-    jobCards: '.action-link, [aria-label="View jobs"], [role="link"], //button[normalize-space(.)="Browse jobs"], [aria-expanded="false"], //a[normalize-space(.)="Jump to AI jobs"]',
+    searchBox: '[aria-controls="typehead-listbox"], [aria-owns="typehead-listbox"], #ph-search-backdrop, [aria-label="Search"], //label[normalize-space(.)="Search job title"], //a[normalize-space(.)="​​​​​​​See what we\'re made of"]',
+    locationFilter: '[aria-controls="gllocationListbox"], [aria-owns="gllocationListbox"], //label[normalize-space(.)="Location"], .sr-only',
+    departmentFilter: '[aria-label="0 Saved jobs"], //a[normalize-space(.)="five specialized service areas"], [aria-label="consulting specializations"], .phs-job-cart-area',
+    jobCards: '[aria-label="View jobs"], [role="link"], //button[normalize-space(.)="Browse jobs"], [aria-expanded="false"], //a[normalize-space(.)="Jump to AI jobs"], [aria-label="Jump to AI jobs"]',
     applyButton: '//a[normalize-space(.)="Apply to student opportunities"], [aria-label="Apply to student opportunities"]'
   },
   workflows: {

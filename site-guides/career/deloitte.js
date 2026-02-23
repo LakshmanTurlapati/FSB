@@ -9,10 +9,10 @@ registerSiteGuide({
   ],
   guidance: `DELOITTE CAREER NAVIGATION:\nStart: https://www.deloitte.com/global/en/careers.html\nATS: workday`,
   selectors: {
-    searchBox: '.cmp-header__primary-nav-link, #search-button, [aria-label="Search"], //a[normalize-space(.)="Search Deloitte jobs"], [data-fsb-id="a_search_deloitte_jobs_main"], //a[normalize-space(.)="What we do"]',
-    departmentFilter: '.cmp-promo-tracking, //a[normalize-space(.)="Deloitte Private global report"], [data-fsb-id="a_deloitte_private_glo_main"], [data-fsb-id="a_climate_governance_i_main"], [data-fsb-id="a_gartner_critical_cap_main"], [data-fsb-id="a_gartner_magic_quadra_main"]',
-    jobCards: '.cmp-header__primary-nav-link, //a[normalize-space(.)="Careers"], //a[normalize-space(.)="See Deloitte Jobs"], [role="button"], #guideContainer-rootPanel-guidedropdownlist_232306899___widget, [aria-label="Topic*"]',
-    applyButton: '.cmp-floating-filter__btn, //button[normalize-space(.)="Apply"]',
+    searchBox: '#search-button, [aria-label="Search"], //a[normalize-space(.)="Search Deloitte jobs"], [data-fsb-id="a_search_deloitte_jobs_main"], //a[normalize-space(.)="What we do"], //a[normalize-space(.)="What we believe in"]',
+    departmentFilter: '//a[normalize-space(.)="Deloitte Private global report"], [data-fsb-id="a_deloitte_private_glo_main"], [data-fsb-id="a_climate_governance_i_main"], [data-fsb-id="a_gartner_critical_cap_main"], [data-fsb-id="a_gartner_magic_quadra_main"], .cmp-promo-tracking',
+    jobCards: '//a[normalize-space(.)="Careers"], //a[normalize-space(.)="See Deloitte Jobs"], [role="button"], #guideContainer-rootPanel-guidedropdownlist_232306899___widget, [aria-label="Topic*"], .cmp-header__primary-nav-link',
+    applyButton: '//button[normalize-space(.)="Apply"], .cmp-floating-filter__btn',
     pagination: '//a[normalize-space(.)="Submit RFP"], [aria-label="Submit RFP"], //a[normalize-space(.)="Contact Us"], [aria-label="Contact Us"]'
   },
   workflows: {

@@ -9,13 +9,13 @@ registerSiteGuide({
   ],
   guidance: `CAPITAL ONE CAREER NAVIGATION:\nStart: https://www.capitalonecareers.com/`,
   selectors: {
-    searchBox: '.search-button, .footer-top__link, .link-directional, .hub-item__link, //button[normalize-space(.)="Search Jobs"], [aria-expanded="true"]',
-    locationFilter: '.footer-top__link, //button[normalize-space(.)="Locations"], [aria-expanded="false"], //a[normalize-space(.)="United States"], #city-toggle, //a[normalize-space(.)="60303514304\n\n                 "]',
-    departmentFilter: '.footer-top__link, .hub-item__link, //a[normalize-space(.)="Teams"], #category-toggle, //button[normalize-space(.)="Teams"], [data-fsb-id="a_a_tech_career_built__content"]',
-    jobCards: '.navigation__link, .search-results-intro__button, .link-directional, .in-page-nav__link, .footer-top__link, //button[normalize-space(.)="Explore Jobs"]',
+    searchBox: '//button[normalize-space(.)="Search Jobs"], [aria-expanded="true"], [aria-controls="search-location-ab25abfe04-mindreader"], [role="combobox"][aria-describedby="search-error-1 autocomplete-message-search-location-ab25abfe04"], #search-keyword-ab25abfe04, [name="k"]',
+    locationFilter: '//button[normalize-space(.)="Locations"], [aria-expanded="false"], //a[normalize-space(.)="United States"], #city-toggle, //a[normalize-space(.)="60303514304\n\n                 "], [data-fsb-id="a_60303514304_02232026_search_results_"]',
+    departmentFilter: '//a[normalize-space(.)="Teams"], #category-toggle, //button[normalize-space(.)="Teams"], [data-fsb-id="a_a_tech_career_built__content"], //a[normalize-space(.)="91213338320\n\n                 "], [data-fsb-id="a_91213338320_01302026_search_results_"]',
+    jobCards: '//button[normalize-space(.)="Explore Jobs"], [aria-expanded="false"], //a[normalize-space(.)="Careers Blog"], //button[normalize-space(.)="Set Job Alert"], [aria-label="Save Job"], [role="button"]',
     jobTitle: '#disclosure-btn-1, [aria-controls="disclosure-content-1"]',
-    applyButton: '.disclosure--toggle-all, //label[normalize-space(.)="You’re interested in"], [data-fsb-id="label_youre_interested_in_search_jobs"], #nav-anchor-apply, //a[normalize-space(.)="Applying 101"], [data-fsb-id="button_expand_allcollapse_a_fs_12"]',
-    pagination: '.slick-next.slick-arrow, .slick-prev.slick-arrow, .in-page-nav__link, //button[normalize-space(.)="Next"], //button[normalize-space(.)="Previous"], //a[normalize-space(.)="Benefits"]'
+    applyButton: '//label[normalize-space(.)="You’re interested in"], [data-fsb-id="label_youre_interested_in_search_jobs"], #nav-anchor-apply, //a[normalize-space(.)="Applying 101"], [data-fsb-id="button_expand_allcollapse_a_fs_12"], .disclosure--toggle-all',
+    pagination: '//button[normalize-space(.)="Next"], //button[normalize-space(.)="Previous"], //a[normalize-space(.)="Benefits"], //a[normalize-space(.)="Capital One 101"], //a[normalize-space(.)="Culture"], //a[normalize-space(.)="Diversity & Inclusion"]'
   },
   workflows: {
     searchJobs: [

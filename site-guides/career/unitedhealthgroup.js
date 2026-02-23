@@ -9,10 +9,10 @@ registerSiteGuide({
   ],
   guidance: `UNITEDHEALTH GROUP CAREER NAVIGATION:\nStart: https://careers.unitedhealthgroup.com/`,
   selectors: {
-    searchBox: '.ojp-nav__search-icon--desktop, input[type="text"][placeholder="Search\\ by\\ keyword\\,\\ location\\ or\\ career\\ area"], [aria-controls="search-container"], #careers-job-search-input, #cws_jobsearch_parent_category, [name="parent_category"]',
-    locationFilter: '.header-component-language-placeholder, .radius-label.location-radius-control, //a[normalize-space(.)="Country"], #geotooltip, [aria-label="Use your current location"], //label[normalize-space(.)="Location"]',
+    searchBox: '[aria-controls="search-container"], #careers-job-search-input, #cws_jobsearch_parent_category, [name="parent_category"], [aria-label="Choose Business"], [role="combobox"][aria-describedby="search-help_1"]',
+    locationFilter: '//a[normalize-space(.)="Country"], #geotooltip, [aria-label="Use your current location"], //label[normalize-space(.)="Location"], [data-fsb-id="label_location_cws_search_form"], //label[normalize-space(.)="within"]',
     departmentFilter: '//label[normalize-space(.)="Choose Business"], [data-fsb-id="label_choose_business_cws_search_form"], //label[normalize-space(.)="Job Category"], [data-fsb-id="label_job_category_cws_search_form"]',
-    jobCards: '.ojp-nav__link, .ojp-utility-nav__link, .job.clearfix, .ejd-social-share.ejd-social-banner, #careers-job-search-btn, //a[normalize-space(.)="Search jobs"]',
+    jobCards: '#careers-job-search-btn, //a[normalize-space(.)="Search jobs"], //a[normalize-space(.)="Careers"], //a[normalize-space(.)="Career events"], //a[normalize-space(.)="Job Seeker Resources"], [aria-label="Job Seeker Resources opens in new tab"]',
     applyButton: '//a[normalize-space(.)="External Candidate Application"], [aria-label="Apply opens in new tab"], //a[normalize-space(.)="Apply"]',
     pagination: '//a[normalize-space(.)="homepage"], [data-fsb-id="a_homepage_content"]'
   },
