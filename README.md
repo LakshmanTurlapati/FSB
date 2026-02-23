@@ -3,9 +3,9 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Assets/fsb_logo_dark.png" />
-  <source media="(prefers-color-scheme: light)" srcset="Assets/fsb_logo_light.png" />
-  <img src="Assets/fsb_logo_light.png" alt="FSB - Full Self-Browsing" width="200" />
+  <source media="(prefers-color-scheme: dark)" srcset="assets/fsb_logo_dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="assets/fsb_logo_light.png" />
+  <img src="assets/fsb_logo_light.png" alt="FSB - Full Self-Browsing" width="200" />
 </picture>
 
 <!-- Row 1: Identity badges -->
@@ -501,7 +501,7 @@ FSB/
     ai-integration.js           # Prompt engineering and response parsing
     ai-providers.js             # Provider configurations and model registry
     universal-provider.js       # Model-agnostic AI provider
-  Assets/                       # Icons and images
+  assets/                       # Icons and images
   config/                       # Configuration management
     config.js                   # Model validation and settings
     init-config.js              # First-run setup and migration

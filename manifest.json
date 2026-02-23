@@ -24,15 +24,15 @@
     "service_worker": "background.js"
   },
   "icons": {
-    "16": "Assets/icon16.png",
-    "48": "Assets/icon48.png",
-    "128": "Assets/icon128.png"
+    "16": "assets/icon16.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
   },
   "action": {
     "default_icon": {
-      "16": "Assets/icon16.png",
-      "48": "Assets/icon48.png",
-      "128": "Assets/icon128.png"
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
     }
   },
   "side_panel": {
@@ -41,7 +41,7 @@
   "options_page": "ui/options.html",
   "web_accessible_resources": [
     {
-      "resources": ["Assets/icon48.png", "site-maps/*.json"],
+      "resources": ["assets/icon48.png", "site-maps/*.json"],
       "matches": ["<all_urls>"]
     }
   ]
