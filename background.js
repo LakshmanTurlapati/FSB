@@ -1138,6 +1138,19 @@ async function persistSession(sessionId, session) {
       // Don't persist: loopPromise, pendingTimeout, DOM hashes, etc. (non-serializable or transient)
     };
 
+    // Persist multi-site orchestration state for service worker restart recovery
+    if (session.multiSite) {
+      persistableSession.multiSite = {
+        originalTask: session.multiSite.originalTask,
+        companyList: session.multiSite.companyList,
+        currentIndex: session.multiSite.currentIndex,
+        deferredCompanies: session.multiSite.deferredCompanies,
+        failures: session.multiSite.failures,
+        searchQuery: session.multiSite.searchQuery,
+        startedAt: session.multiSite.startedAt
+      };
+    }
+
     const key = `session_${sessionId}`;
     await chrome.storage.session.set({ [key]: persistableSession });
     automationLogger.debug('Session persisted to storage', { sessionId });
@@ -4788,6 +4801,41 @@ async function handleStartAutomation(request, sender, sendResponse) {
     };
 
     activeSessions.set(sessionId, sessionData);
+
+    // Multi-site orchestration: detect multi-company career task
+    if (typeof extractCompaniesFromTask === 'function') {
+      const companies = extractCompaniesFromTask(sessionData.task);
+      if (companies && companies.length >= 2) {
+        // Initialize multi-site orchestration state
+        sessionData.multiSite = {
+          originalTask: sessionData.task,
+          companyList: companies,
+          currentIndex: 0,
+          deferredCompanies: [],  // Auth-walled companies to retry last
+          failures: [],           // {company, reason, error} for final summary
+          searchQuery: extractSearchQuery(sessionData.task),
+          startedAt: Date.now()
+        };
+
+        // Check accumulator relevance and clear if different search
+        await initMultiSiteAccumulator(sessionData);
+
+        // Rewrite task to single-company for first iteration
+        sessionData.task = buildSingleCompanyTask(sessionData.multiSite.originalTask, companies[0]);
+        sessionData.taskSummary = `Job search: 1/${companies.length} companies`;
+        // Cap iterations per company for multi-site sessions
+        sessionData.maxIterations = Math.min(sessionData.maxIterations || 20, 15);
+
+        automationLogger.info('Multi-site orchestration initialized', {
+          sessionId,
+          companies: companies,
+          searchQuery: sessionData.multiSite.searchQuery,
+          firstCompany: companies[0],
+          rewrittenTask: sessionData.task
+        });
+      }
+    }
+
     // Persist session to storage so stop button works after service worker restart
     persistSession(sessionId, sessionData);
 
@@ -4874,13 +4922,13 @@ async function handleStartAutomation(request, sender, sendResponse) {
     // Send session status to content script for visual feedback
     sendSessionStatus(targetTabId, {
       phase: 'analyzing',
-      taskName: task,
+      taskName: sessionData.task, // Use potentially rewritten task (multi-site: single-company)
       iteration: 0,
-      maxIterations: userMaxIterations,
+      maxIterations: sessionData.maxIterations || userMaxIterations,
       animatedHighlights: sessionData.animatedActionHighlights,
       progressPercent: 0,
       estimatedTimeRemaining: null,
-      taskSummary: null
+      taskSummary: sessionData.taskSummary || null
     });
 
     // Non-blocking task summarization (runs in parallel, does not delay start)
@@ -6346,6 +6394,462 @@ function checkAccumulatorRelevance(existingAccumulator, newTaskString) {
   return overlapRatio >= 0.5 ? 'keep' : 'clear';
 }
 
+// ============================================================================
+// Multi-Site Orchestrator
+// Sequences company searches, handles failures/auth walls, dedup, final report
+// ============================================================================
+
+/**
+ * Extract role/search keywords from a task string.
+ * Takes words before "at" in the string, filters out common verbs.
+ * Example: "find DevOps engineer jobs at Microsoft, Amazon" -> "devops engineer jobs"
+ * @param {string} taskStr - The user's task description
+ * @returns {string} Lowercase space-joined role keywords
+ */
+function extractSearchQuery(taskStr) {
+  if (!taskStr) return '';
+  const beforeAt = taskStr.replace(/\bat\s+.+$/i, '').trim().toLowerCase();
+  const excludeVerbs = [
+    'find', 'search', 'look', 'get', 'show', 'list', 'browse', 'check', 'view',
+    'at', 'for', 'in', 'on', 'and', 'or', 'the', 'a', 'an', 'to', 'with'
+  ];
+  return beforeAt
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !excludeVerbs.includes(w))
+    .join(' ');
+}
+
+/**
+ * Rewrite a multi-company task to target a single company.
+ * Replaces the "at [company list]" portion with "at [companyName]".
+ * Example: "find DevOps jobs at Microsoft, Amazon, and Google" + "Amazon"
+ *       -> "find DevOps jobs at Amazon"
+ * @param {string} originalTask - The original multi-company task
+ * @param {string} companyName - The single company to target
+ * @returns {string} Rewritten single-company task
+ */
+function buildSingleCompanyTask(originalTask, companyName) {
+  // Replace "at [company list]" at end of string with "at [companyName]"
+  const rewritten = originalTask.replace(/\bat\s+.+$/i, `at ${companyName}`);
+  // If regex didn't match (unusual), just append
+  if (rewritten === originalTask) {
+    return `${originalTask} at ${companyName}`;
+  }
+  return rewritten;
+}
+
+/**
+ * Initialize or validate the multi-site job accumulator in chrome.storage.local.
+ * Checks relevance of existing data -- clears if different search, keeps if same.
+ * @param {Object} session - The session object with multiSite state
+ */
+async function initMultiSiteAccumulator(session) {
+  try {
+    const stored = await chrome.storage.local.get('fsbJobAccumulator');
+    const existing = stored.fsbJobAccumulator || null;
+    const relevance = checkAccumulatorRelevance(existing, session.multiSite.originalTask);
+
+    if (relevance === 'clear' || !existing) {
+      // Fresh accumulator for new search
+      const freshAccumulator = {
+        sessionId: session.sessionId || null,
+        searchQuery: session.multiSite.searchQuery,
+        startedAt: Date.now(),
+        companies: {},
+        totalJobs: 0,
+        completedAt: null
+      };
+      await chrome.storage.local.set({ fsbJobAccumulator: freshAccumulator });
+      automationLogger.info('Multi-site accumulator initialized (fresh)', {
+        searchQuery: session.multiSite.searchQuery,
+        reason: existing ? 'different_search' : 'no_existing'
+      });
+    } else {
+      // Keep existing data, update session reference
+      existing.sessionId = session.sessionId || existing.sessionId;
+      existing.startedAt = Date.now();
+      await chrome.storage.local.set({ fsbJobAccumulator: existing });
+      automationLogger.info('Multi-site accumulator retained (relevant data)', {
+        searchQuery: session.multiSite.searchQuery,
+        existingCompanies: Object.keys(existing.companies).length,
+        existingJobs: existing.totalJobs
+      });
+    }
+  } catch (error) {
+    automationLogger.warn('Failed to initialize multi-site accumulator', { error: error.message });
+  }
+}
+
+/**
+ * Handle multi-site completion interception when a single-company search finishes.
+ * Advances to next company, defers auth-walled companies, or finalizes search.
+ * @param {string} sessionId - The session ID
+ * @param {Object} session - The session object with multiSite state
+ * @param {Object} aiResponse - The AI response that triggered taskComplete
+ * @returns {Promise<boolean>} true if handled (more companies to go), false if all done
+ */
+async function handleMultiSiteCompletion(sessionId, session, aiResponse) {
+  const ms = session.multiSite;
+  const currentCompany = ms.companyList[ms.currentIndex];
+  const resultText = (aiResponse.result || '').toString();
+
+  automationLogger.info('Multi-site completion for company', {
+    sessionId,
+    company: currentCompany,
+    index: ms.currentIndex,
+    total: ms.companyList.length,
+    resultPreview: resultText.substring(0, 150)
+  });
+
+  // Check for auth wall
+  if (/AUTH\s*REQUIRED/i.test(resultText)) {
+    ms.deferredCompanies.push({ name: currentCompany, reason: resultText.substring(0, 200) });
+    // Update accumulator with auth status
+    try {
+      const stored = await chrome.storage.local.get('fsbJobAccumulator');
+      const acc = stored.fsbJobAccumulator;
+      if (acc) {
+        acc.companies[currentCompany] = {
+          status: 'auth_required',
+          jobs: [],
+          error: 'Authentication required'
+        };
+        await chrome.storage.local.set({ fsbJobAccumulator: acc });
+      }
+    } catch (e) {
+      automationLogger.warn('Failed to update accumulator for auth deferral', { error: e.message });
+    }
+    automationLogger.info('Company deferred due to auth wall', { sessionId, company: currentCompany });
+  }
+  // Check for page error / failure
+  else if (/PAGE\s*ERROR|SITE\s*UNAVAILABLE|Could not access/i.test(resultText)) {
+    ms.failures.push({ company: currentCompany, reason: 'site_error', error: resultText.substring(0, 200) });
+    automationLogger.warn('Company search failed', { sessionId, company: currentCompany, reason: 'site_error' });
+  }
+
+  // Validate storeJobData was called (fallback parsing)
+  const storeJobCalled = session.actionHistory.some(a => a.tool === 'storeJobData' && a.result?.success);
+  if (!storeJobCalled && !/AUTH\s*REQUIRED/i.test(resultText) && !/PAGE\s*ERROR/i.test(resultText)) {
+    // Check if result text contains job data that wasn't stored
+    const jobsFoundMatch = resultText.match(/JOBS?\s*FOUND:?\s*(\d+)/i);
+    if (jobsFoundMatch || /\|\s*Title\s*\|/i.test(resultText) || /^\d+\.\s+\*\*/m.test(resultText)) {
+      automationLogger.warn('AI did not call storeJobData -- attempting fallback parse', {
+        sessionId,
+        company: currentCompany
+      });
+      // Attempt to parse structured job data from result text
+      try {
+        const fallbackJobs = parseJobsFromResultText(resultText, currentCompany);
+        if (fallbackJobs.length > 0) {
+          await handleBackgroundAction({
+            tool: 'storeJobData',
+            params: { company: currentCompany, jobs: fallbackJobs }
+          }, session);
+          automationLogger.info('Fallback storeJobData succeeded', {
+            sessionId,
+            company: currentCompany,
+            jobCount: fallbackJobs.length
+          });
+        }
+      } catch (parseErr) {
+        automationLogger.warn('Fallback job parsing failed', { error: parseErr.message });
+      }
+    }
+  }
+
+  // Advance to next company
+  ms.currentIndex++;
+
+  // Check if more primary companies remain
+  if (ms.currentIndex < ms.companyList.length) {
+    const nextCompany = ms.companyList[ms.currentIndex];
+    return await launchNextCompanySearch(sessionId, session, nextCompany);
+  }
+
+  // No more primary companies -- check deferred (auth-walled) companies
+  if (ms.deferredCompanies.length > 0) {
+    automationLogger.info('Processing deferred auth-walled companies', {
+      sessionId,
+      count: ms.deferredCompanies.length,
+      companies: ms.deferredCompanies.map(d => d.name)
+    });
+
+    // For each deferred company, check if user might have logged in
+    // (heuristic: any tab on the company's domain that is NOT a login page)
+    for (const deferred of ms.deferredCompanies) {
+      const loginDetected = await checkUserLoginStatus(deferred.name);
+      if (loginDetected) {
+        // User may have logged in -- retry this company
+        automationLogger.info('Login detected for deferred company, retrying', {
+          sessionId,
+          company: deferred.name
+        });
+        // Add to end of company list and reset index to process it
+        ms.companyList.push(deferred.name);
+        return await launchNextCompanySearch(sessionId, session, deferred.name);
+      } else {
+        // User did not authenticate -- mark as failure
+        ms.failures.push({
+          company: deferred.name,
+          reason: 'auth_required',
+          error: 'Authentication required but user did not log in'
+        });
+        // Update accumulator
+        try {
+          const stored = await chrome.storage.local.get('fsbJobAccumulator');
+          const acc = stored.fsbJobAccumulator;
+          if (acc && acc.companies[deferred.name]) {
+            acc.companies[deferred.name].error = 'User did not authenticate';
+            await chrome.storage.local.set({ fsbJobAccumulator: acc });
+          }
+        } catch (e) {
+          automationLogger.warn('Failed to update accumulator for deferred failure', { error: e.message });
+        }
+      }
+    }
+  }
+
+  // All companies processed -- finalize
+  await finalizeMultiSiteSearch(sessionId, session);
+  return false; // Let normal completion flow run with finalized data
+}
+
+/**
+ * Launch the next company search by resetting session state and restarting the loop.
+ * @param {string} sessionId - The session ID
+ * @param {Object} session - The session object
+ * @param {string} companyName - The next company to search
+ * @returns {Promise<boolean>} Always returns true (handled)
+ */
+async function launchNextCompanySearch(sessionId, session, companyName) {
+  const ms = session.multiSite;
+  const totalCompanies = ms.companyList.length;
+
+  // Reset session state for next company
+  session.task = buildSingleCompanyTask(ms.originalTask, companyName);
+  session.iterationCount = 0;
+  session.stuckCounter = 0;
+  session.consecutiveNoProgressCount = 0;
+  session.actionHistory = [];
+  session.stateHistory = [];
+  session.lastDOMHash = null;
+  session.lastDOMSignals = null;
+  session.domHashes = [];
+  session.actionSequences = [];
+  session.sequenceRepeatCount = {};
+  session.failedAttempts = {};
+  session.failedActionDetails = {};
+  session.urlHistory = [];
+  session.lastUrl = null;
+  session.status = 'running';
+
+  // Cap iterations per company to prevent one company consuming all iterations
+  session.maxIterations = Math.min(session.maxIterations || 20, 15);
+
+  session.taskSummary = `Job search: ${ms.currentIndex + 1}/${totalCompanies} companies`;
+
+  automationLogger.info('Launching next company search', {
+    sessionId,
+    company: companyName,
+    index: ms.currentIndex,
+    total: totalCompanies,
+    taskSummary: session.taskSummary
+  });
+
+  // Send ProgressOverlay update
+  sendSessionStatus(session.tabId, {
+    phase: 'analyzing',
+    taskName: `Searching ${companyName}`,
+    iteration: 0,
+    maxIterations: session.maxIterations || 15,
+    animatedHighlights: session.animatedActionHighlights,
+    taskSummary: session.taskSummary
+  });
+
+  // Persist updated session state
+  persistSession(sessionId, session);
+
+  // Small delay for page transition before restarting loop
+  setTimeout(() => startAutomationLoop(sessionId), 500);
+  return true;
+}
+
+/**
+ * Check if user has logged into a company's domain by examining open tabs.
+ * Heuristic: look for tabs on the company's domain that are NOT login/auth pages.
+ * @param {string} companyName - The company name to check
+ * @returns {Promise<boolean>} true if login appears detected
+ */
+async function checkUserLoginStatus(companyName) {
+  try {
+    const tabs = await chrome.tabs.query({});
+    const companyLower = companyName.toLowerCase().replace(/\s+/g, '');
+    const loginPatterns = ['/login', '/signin', '/auth', '/sso', '/sign-in', '/sign_in', '/account/begin'];
+
+    for (const tab of tabs) {
+      if (!tab.url) continue;
+      const urlLower = tab.url.toLowerCase();
+      // Check if tab is on this company's domain
+      const isCompanyDomain = urlLower.includes(companyLower) ||
+        urlLower.includes(companyLower.replace(/\s+/g, '-'));
+      if (isCompanyDomain) {
+        // Check if it's NOT a login page
+        const isLoginPage = loginPatterns.some(p => urlLower.includes(p));
+        if (!isLoginPage) {
+          return true; // Found a non-login page on company domain
+        }
+      }
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Parse job data from AI result text as a fallback when storeJobData was not called.
+ * Handles common formats: numbered lists with bold titles, markdown tables.
+ * @param {string} resultText - The AI's result text
+ * @param {string} company - The company name for annotation
+ * @returns {Array} Array of job objects
+ */
+function parseJobsFromResultText(resultText, company) {
+  const jobs = [];
+
+  // Try to parse numbered list format: "1. **Title** - Location"
+  const numberedPattern = /^\d+\.\s+\*\*(.+?)\*\*\s*[-:]\s*(.+)/gm;
+  let match;
+  while ((match = numberedPattern.exec(resultText)) !== null) {
+    const title = match[1].trim();
+    const rest = match[2].trim();
+    // Try to extract location from the rest
+    const locationMatch = rest.match(/^([^|]+?)(?:\s*\|\s*|\s*[-:]\s*Apply|\s*$)/);
+    jobs.push({
+      title,
+      location: locationMatch ? locationMatch[1].trim() : '',
+      applyLink: 'not available',
+      datePosted: '',
+      description: rest.substring(0, 200)
+    });
+  }
+
+  // Try markdown table format if no numbered results
+  if (jobs.length === 0) {
+    const rows = resultText.split('\n').filter(line => line.includes('|') && !line.includes('---'));
+    // Skip header row
+    const dataRows = rows.slice(1);
+    for (const row of dataRows) {
+      const cells = row.split('|').map(c => c.trim()).filter(c => c.length > 0);
+      if (cells.length >= 2) {
+        jobs.push({
+          title: cells[0] || '',
+          location: cells[1] || '',
+          applyLink: cells.find(c => c.startsWith('http')) || 'not available',
+          datePosted: '',
+          description: cells.slice(2).join(' ').substring(0, 200)
+        });
+      }
+    }
+  }
+
+  return jobs;
+}
+
+/**
+ * Finalize the multi-site search: run dedup, build final summary, update accumulator.
+ * Called after all companies (including deferred) have been processed.
+ * @param {string} sessionId - The session ID
+ * @param {Object} session - The session object with multiSite state
+ */
+async function finalizeMultiSiteSearch(sessionId, session) {
+  const ms = session.multiSite;
+
+  automationLogger.info('Finalizing multi-site search', {
+    sessionId,
+    totalCompanies: ms.companyList.length,
+    failures: ms.failures.length,
+    deferred: ms.deferredCompanies.length
+  });
+
+  try {
+    // Read accumulator
+    const stored = await chrome.storage.local.get('fsbJobAccumulator');
+    const accumulator = stored.fsbJobAccumulator || { companies: {}, totalJobs: 0 };
+
+    // Flatten all jobs across all companies
+    const allJobs = Object.values(accumulator.companies)
+      .filter(entry => entry.status === 'completed' && Array.isArray(entry.jobs))
+      .flatMap(entry => entry.jobs);
+
+    // Run dedup
+    const dedupedJobs = deduplicateJobs(allJobs);
+    const removedDuplicates = allJobs.length - dedupedJobs.length;
+
+    // Update accumulator
+    accumulator.dedupedJobCount = dedupedJobs.length;
+    accumulator.duplicatesRemoved = removedDuplicates;
+    accumulator.completedAt = Date.now();
+    accumulator.totalJobs = dedupedJobs.length;
+    await chrome.storage.local.set({ fsbJobAccumulator: accumulator });
+
+    automationLogger.info('Multi-site dedup complete', {
+      sessionId,
+      totalBeforeDedup: allJobs.length,
+      totalAfterDedup: dedupedJobs.length,
+      duplicatesRemoved: removedDuplicates
+    });
+
+    // Build final result summary
+    let finalResult = '';
+
+    if (dedupedJobs.length === 0) {
+      // No jobs found -- distinguish between all-failures vs no-results
+      const allFailed = ms.failures.length === ms.companyList.length;
+      if (allFailed) {
+        finalResult = `Could not search any of the requested companies. `;
+      } else {
+        finalResult = `No jobs matching your search were found across the companies searched. `;
+      }
+    } else {
+      // Build concise summary per locked decision (not full data table unless user asked for listing)
+      const companiesWithJobs = Object.entries(accumulator.companies)
+        .filter(([, entry]) => entry.status === 'completed' && entry.jobs?.length > 0)
+        .map(([name, entry]) => `${name} (${entry.jobs.length})`);
+
+      finalResult = `Found ${dedupedJobs.length} job${dedupedJobs.length !== 1 ? 's' : ''} across ${companiesWithJobs.length} compan${companiesWithJobs.length !== 1 ? 'ies' : 'y'}: ${companiesWithJobs.join(', ')}. `;
+
+      if (removedDuplicates > 0) {
+        finalResult += `${removedDuplicates} duplicate${removedDuplicates !== 1 ? 's' : ''} removed. `;
+      }
+    }
+
+    // Append failure summary per locked decision
+    if (ms.failures.length > 0) {
+      const failureLines = ms.failures.map(f => {
+        if (f.reason === 'auth_required') {
+          return `${f.company}: authentication required`;
+        }
+        return `${f.company}: ${f.reason === 'site_error' ? 'site unavailable' : f.reason}`;
+      });
+      finalResult += `Failures: ${failureLines.join('; ')}.`;
+    }
+
+    // Store final result on session for the completion handler
+    session.multiSiteResult = finalResult.trim();
+    session.task = ms.originalTask; // Restore original task for final reporting
+    session.taskSummary = `Job search: ${ms.companyList.length}/${ms.companyList.length} companies (complete)`;
+
+    // Persist final state
+    persistSession(sessionId, session);
+  } catch (error) {
+    automationLogger.error('Failed to finalize multi-site search', {
+      sessionId,
+      error: error.message
+    });
+    session.multiSiteResult = 'Multi-site search completed but summary generation failed. Check stored job data.';
+  }
+}
+
 /**
  * Handle background-only data actions (storeJobData, getStoredJobs).
  * These are NOT multi-tab actions but are handled in the background script
@@ -7343,6 +7847,16 @@ async function startAutomationLoop(sessionId) {
       context.criticalActionWarnings = criticalSummary;
     }
 
+    // Inject multi-site context for career prompt augmentation
+    if (session.multiSite) {
+      context.multiSite = {
+        currentCompany: session.multiSite.companyList[session.multiSite.currentIndex],
+        currentIndex: session.multiSite.currentIndex,
+        totalCompanies: session.multiSite.companyList.length,
+        completedCompanies: session.multiSite.companyList.slice(0, session.multiSite.currentIndex)
+      };
+    }
+
     // Check for intermediate/redirect pages that should be allowed to resolve
     // Note: With frameId: 0 targeting, we now get DOM from main frame only,
     // so this only triggers when the main page itself is an intermediate page
@@ -8067,6 +8581,44 @@ async function startAutomationLoop(sessionId) {
         iterationCount: session.iterationCount,
         lastIterationStats: iterationStats
       });
+
+      // Multi-site orchestration: treat no_progress as a company failure and advance
+      if (session.multiSite) {
+        const currentCompany = session.multiSite.companyList[session.multiSite.currentIndex];
+        automationLogger.info('Multi-site: no_progress for company, advancing', {
+          sessionId,
+          company: currentCompany
+        });
+        session.multiSite.failures.push({
+          company: currentCompany,
+          reason: 'no_progress',
+          error: 'Page not responding after 6 consecutive iterations'
+        });
+        const fakeAiResponse = { result: `PAGE ERROR: ${currentCompany} - no progress`, taskComplete: true };
+        const handled = await handleMultiSiteCompletion(sessionId, session, fakeAiResponse);
+        if (handled) {
+          loopResolve?.();
+          return;
+        }
+        // All companies done -- fall through to finalized completion
+        if (session.multiSiteResult) {
+          session.status = 'completed';
+          const duration = Date.now() - session.startTime;
+          automationLogger.logSessionEnd(sessionId, 'completed', session.actionHistory.length, duration);
+          automationLogger.saveSession(sessionId, session);
+          extractAndStoreMemories(sessionId, session).catch(() => {});
+          endSessionOverlays(session, 'complete');
+          finalizeSessionMetrics(sessionId, true);
+          idleSession(sessionId);
+          chrome.runtime.sendMessage({
+            action: 'automationComplete',
+            sessionId,
+            result: session.multiSiteResult
+          });
+          return;
+        }
+      }
+
       session.status = 'no_progress';
 
       // Provide a concise summary for the user
@@ -8114,6 +8666,21 @@ async function startAutomationLoop(sessionId) {
       const repeatedResult = detectRepeatedSuccess(session);
       if (repeatedResult) {
         automationLogger.info('Found repeated valid result', { sessionId, stuckCounter: session.stuckCounter, result: repeatedResult.substring(0, 100) });
+
+        // Multi-site orchestration: intercept repeated-success completion too
+        if (session.multiSite) {
+          const fakeAiResponse = { result: repeatedResult, taskComplete: true };
+          const handled = await handleMultiSiteCompletion(sessionId, session, fakeAiResponse);
+          if (handled) {
+            loopResolve?.();
+            return;
+          }
+          if (session.multiSiteResult) {
+            // Override with multi-site finalized result
+            // Fall through to normal completion with the multi-site result
+          }
+        }
+
         // Complete the task with the repeated result
         session.status = 'completed';
         const duration = Date.now() - session.startTime;
@@ -8121,13 +8688,13 @@ async function startAutomationLoop(sessionId) {
 
         // Save session logs for history
         automationLogger.saveSession(sessionId, session);
-      extractAndStoreMemories(sessionId, session).catch(() => {});
+        extractAndStoreMemories(sessionId, session).catch(() => {});
 
         // Send success message via runtime message
         chrome.runtime.sendMessage({
           action: 'automationComplete',
           sessionId,
-          result: repeatedResult,
+          result: session.multiSiteResult || repeatedResult,
           navigatedTo: currentUrl
         });
 
@@ -8143,8 +8710,46 @@ async function startAutomationLoop(sessionId) {
     if (session.stuckCounter >= 8) {
 
       automationLogger.error('Automation appears stuck', { sessionId, stuckCounter: session.stuckCounter });
+
+      // Multi-site orchestration: treat stuck as a company failure and advance
+      if (session.multiSite) {
+        const currentCompany = session.multiSite.companyList[session.multiSite.currentIndex];
+        automationLogger.info('Multi-site: stuck for company, advancing', {
+          sessionId,
+          company: currentCompany
+        });
+        session.multiSite.failures.push({
+          company: currentCompany,
+          reason: 'stuck',
+          error: 'Automation got stuck after 8 stuck iterations'
+        });
+        const fakeAiResponse = { result: `PAGE ERROR: ${currentCompany} - stuck`, taskComplete: true };
+        const handled = await handleMultiSiteCompletion(sessionId, session, fakeAiResponse);
+        if (handled) {
+          loopResolve?.();
+          return;
+        }
+        // All companies done -- fall through to finalized completion
+        if (session.multiSiteResult) {
+          session.status = 'completed';
+          const duration = Date.now() - session.startTime;
+          automationLogger.logSessionEnd(sessionId, 'completed', session.actionHistory.length, duration);
+          automationLogger.saveSession(sessionId, session);
+          extractAndStoreMemories(sessionId, session).catch(() => {});
+          endSessionOverlays(session, 'complete');
+          finalizeSessionMetrics(sessionId, true);
+          idleSession(sessionId);
+          chrome.runtime.sendMessage({
+            action: 'automationComplete',
+            sessionId,
+            result: session.multiSiteResult
+          });
+          return;
+        }
+      }
+
       session.status = 'stuck';
-      
+
       // Provide a concise summary for the user
       let finalResult = 'Got stuck trying to complete your task. ';
 
@@ -8248,6 +8853,21 @@ async function startAutomationLoop(sessionId) {
           sessionId,
           error: stabilityError.message
         });
+      }
+
+      // Multi-site orchestration: intercept completion to advance to next company
+      if (session.multiSite) {
+        const handled = await handleMultiSiteCompletion(sessionId, session, aiResponse);
+        if (handled) {
+          // Multi-site handler took over -- do NOT proceed with normal completion
+          loopResolve?.();
+          return;
+        }
+        // If handled === false, all companies done -- fall through to normal completion
+        // Use the finalized multi-site result if available
+        if (session.multiSiteResult) {
+          aiResponse.result = session.multiSiteResult;
+        }
       }
 
       // NOW mark complete (existing logic below this point stays unchanged)
