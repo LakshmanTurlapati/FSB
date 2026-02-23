@@ -9,6 +9,7 @@ importScripts('utils/automation-logger.js');
 importScripts('utils/analytics.js');
 importScripts('utils/keyboard-emulator.js');
 importScripts('utils/site-explorer.js');
+importScripts('utils/crawler-manager.js');
 
 // Site-specific AI guidance modules
 importScripts('site-guides/index.js');
@@ -69,10 +70,54 @@ importScripts('site-guides/coding/codeforces.js');
 importScripts('site-guides/coding/geeksforgeeks.js');
 importScripts('site-guides/coding/stackoverflow.js');
 
-// Per-site guides: Career
+// Per-site guides: Career -- ATS base guides (load first)
+importScripts('site-guides/career/workday.js');
+importScripts('site-guides/career/greenhouse.js');
+importScripts('site-guides/career/lever.js');
+importScripts('site-guides/career/icims.js');
+importScripts('site-guides/career/taleo.js');
+// Third-party job boards
 importScripts('site-guides/career/indeed.js');
 importScripts('site-guides/career/glassdoor.js');
 importScripts('site-guides/career/builtin.js');
+// Per-company career guides (generated from research logs)
+importScripts('site-guides/career/amazon.js');
+importScripts('site-guides/career/amex.js');
+importScripts('site-guides/career/apple.js');
+importScripts('site-guides/career/att.js');
+importScripts('site-guides/career/bankofamerica.js');
+importScripts('site-guides/career/boeing.js');
+importScripts('site-guides/career/capitalone.js');
+importScripts('site-guides/career/citi.js');
+importScripts('site-guides/career/costco.js');
+importScripts('site-guides/career/cvshealth.js');
+importScripts('site-guides/career/deloitte.js');
+importScripts('site-guides/career/goldmansachs.js');
+importScripts('site-guides/career/google-careers.js');
+importScripts('site-guides/career/homedepot.js');
+importScripts('site-guides/career/ibm.js');
+importScripts('site-guides/career/jnj.js');
+importScripts('site-guides/career/jpmorganchase.js');
+importScripts('site-guides/career/lockheedmartin.js');
+importScripts('site-guides/career/lowes.js');
+importScripts('site-guides/career/mastercard.js');
+importScripts('site-guides/career/mckesson.js');
+importScripts('site-guides/career/meta.js');
+importScripts('site-guides/career/microsoft.js');
+importScripts('site-guides/career/morganstanley.js');
+importScripts('site-guides/career/mrcooper.js');
+importScripts('site-guides/career/nvidia.js');
+importScripts('site-guides/career/openai.js');
+importScripts('site-guides/career/oracle.js');
+importScripts('site-guides/career/pfizer.js');
+importScripts('site-guides/career/target.js');
+importScripts('site-guides/career/tesla.js');
+importScripts('site-guides/career/ti.js');
+importScripts('site-guides/career/unitedhealthgroup.js');
+importScripts('site-guides/career/verizon.js');
+importScripts('site-guides/career/visa.js');
+importScripts('site-guides/career/walmart.js');
+// Generic ATS fallback (MUST be last -- matches broad /careers/ and /jobs/ patterns)
 importScripts('site-guides/career/generic.js');
 
 // Per-site guides: Gaming
@@ -176,8 +221,8 @@ async function hasSiteMapForDomain(domain) {
   return { exists: false, source: null };
 }
 
-// Site Explorer instance
-const siteExplorer = new SiteExplorer();
+// Crawler Manager - orchestrates multiple concurrent SiteExplorer instances
+const crawlerManager = new CrawlerManager();
 
 // Debug mode flag (controlled by options page toggle)
 let fsbDebugMode = false;
@@ -2640,6 +2685,16 @@ function finalizeSessionMetrics(sessionId, successful = false) {
   });
 }
 
+function accumulateSessionCost(sessionId, model, inputTokens, outputTokens) {
+  const session = activeSessions.get(sessionId);
+  if (!session) return;
+  const analytics = initializeAnalytics();
+  const cost = analytics.calculateCost(model, inputTokens, outputTokens);
+  session.totalCost = (session.totalCost || 0) + cost;
+  session.totalInputTokens = (session.totalInputTokens || 0) + (inputTokens || 0);
+  session.totalOutputTokens = (session.totalOutputTokens || 0) + (outputTokens || 0);
+}
+
 function getPerformanceReport() {
   const global = performanceMetrics.globalStats;
   const actionSuccessRate = global.totalActions > 0 ? (global.successfulActions / global.totalActions * 100) : 0;
@@ -4101,7 +4156,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'startExplorer':
       (async () => {
         try {
-          const result = await siteExplorer.start(request.url, {
+          const result = await crawlerManager.start(request.url, {
             maxDepth: request.maxDepth || 3,
             maxPages: request.maxPages || 25,
             callerTabId: sender.tab?.id || null,
@@ -4117,7 +4172,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'stopExplorer':
       (async () => {
         try {
-          const result = await siteExplorer.stop();
+          const result = await crawlerManager.stop(request.crawlerId || null);
           sendResponse(result);
         } catch (error) {
           sendResponse({ success: false, error: error.message });
@@ -4126,7 +4181,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
 
     case 'getExplorerStatus':
-      sendResponse(siteExplorer.getStatus());
+      sendResponse(crawlerManager.getStatus(request.crawlerId || null));
       break;
 
     case 'getResearchList':
@@ -4679,7 +4734,11 @@ async function handleStartAutomation(request, sender, sendResponse) {
         domOptimization: storedSettings.domOptimization !== false,
         maxDOMElements: storedSettings.maxDOMElements || 2000,
         prioritizeViewport: storedSettings.prioritizeViewport !== false
-      }
+      },
+      // Cost tracking fields
+      totalCost: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0
     };
 
     activeSessions.set(sessionId, sessionData);
@@ -4855,7 +4914,11 @@ async function executeAutomationTask(tabId, task, options = {}) {
           domOptimization: true,
           maxDOMElements: 2000,
           prioritizeViewport: true
-        }
+        },
+        // Cost tracking fields
+        totalCost: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0
       };
 
       activeSessions.set(sessionId, sessionData);
