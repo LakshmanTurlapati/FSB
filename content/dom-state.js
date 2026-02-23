@@ -459,12 +459,14 @@
    * Uses WeakRef for automatic cleanup when elements are garbage collected
    * SPEED-04: Reduces repeated DOM queries within same page state
    */
+  const DEFAULT_ELEMENT_CACHE_SIZE = 200;
+
   class ElementCache {
-    constructor() {
+    constructor(maxCacheSize = DEFAULT_ELEMENT_CACHE_SIZE) {
       this.cache = new Map(); // selector -> { ref: WeakRef(element), version: number, timestamp: number }
       this.stateVersion = 0;
       this.observer = null;
-      this.maxCacheSize = 100;
+      this.maxCacheSize = maxCacheSize;
     }
 
     /**
@@ -573,7 +575,32 @@
   }
 
   // Global element cache singleton
-  const elementCache = new ElementCache();
+  const elementCache = new ElementCache(DEFAULT_ELEMENT_CACHE_SIZE);
+
+  // Read elementCacheSize from storage at init and listen for live updates
+  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+    chrome.storage.local.get(['elementCacheSize'], (result) => {
+      if (result.elementCacheSize && Number.isFinite(result.elementCacheSize)) {
+        const newSize = Math.max(10, Math.min(1000, result.elementCacheSize));
+        if (newSize !== elementCache.maxCacheSize) {
+          elementCache.maxCacheSize = newSize;
+          if (elementCache.cache.size > newSize) {
+            elementCache.invalidate();
+          }
+        }
+      }
+    });
+
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.elementCacheSize) {
+        const newSize = Math.max(10, Math.min(1000, changes.elementCacheSize.newValue || DEFAULT_ELEMENT_CACHE_SIZE));
+        elementCache.maxCacheSize = newSize;
+        if (elementCache.cache.size > newSize) {
+          elementCache.invalidate();
+        }
+      }
+    });
+  }
 
   // ============================================================================
   // COMPACT ELEMENT REFERENCES - RefMap for token-efficient AI communication
