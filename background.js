@@ -6247,6 +6247,106 @@ async function handleMultiTabAction(action, currentTabId) {
 }
 
 /**
+ * Normalize a job apply URL for deduplication comparison.
+ * Removes common tracking parameters and trailing slashes.
+ * @param {string} url - The raw apply URL
+ * @returns {string} Normalized URL string
+ */
+function normalizeApplyUrl(url) {
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    const trackingParams = [
+      'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+      'source', 'ref', 'src', 'returnUrl', 'from'
+    ];
+    for (const param of trackingParams) {
+      parsed.searchParams.delete(param);
+    }
+    // Remove trailing slashes from pathname
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+    return parsed.toString();
+  } catch (e) {
+    // URL parsing failed -- return raw string
+    return url;
+  }
+}
+
+/**
+ * Deduplicate jobs by normalized apply link.
+ * Per locked decision: duplicate = same apply link (URL match), silently drop duplicates.
+ * Jobs without apply links or with "not available" apply links are NEVER duplicates.
+ * First occurrence wins for jobs with valid apply links.
+ * @param {Array} jobs - Array of job objects
+ * @returns {Array} Deduplicated array of job objects
+ */
+function deduplicateJobs(jobs) {
+  if (!Array.isArray(jobs) || jobs.length === 0) return jobs || [];
+
+  const seen = new Map();
+  const result = [];
+
+  for (const job of jobs) {
+    const link = job.applyLink;
+
+    // Jobs without apply links or with "not available" are never duplicates
+    if (!link || link.toLowerCase().includes('not available')) {
+      result.push(job);
+      continue;
+    }
+
+    const normalized = normalizeApplyUrl(link);
+    if (!seen.has(normalized)) {
+      seen.set(normalized, true);
+      result.push(job);
+    }
+    // Else: silently drop duplicate
+  }
+
+  return result;
+}
+
+/**
+ * Check whether an existing job accumulator is relevant to a new task.
+ * Per locked decision: if old data has same role keywords, keep it; if different role, clear.
+ * Compares role keywords between the new task and the existing accumulator's searchQuery.
+ * @param {Object|null} existingAccumulator - The existing fsbJobAccumulator from storage
+ * @param {string} newTaskString - The new task description
+ * @returns {string} 'keep' if old data is relevant, 'clear' if it should be discarded
+ */
+function checkAccumulatorRelevance(existingAccumulator, newTaskString) {
+  if (!existingAccumulator || !existingAccumulator.searchQuery) return 'clear';
+  if (!newTaskString) return 'clear';
+
+  // Common verbs to exclude from keyword extraction
+  const excludeWords = [
+    'find', 'search', 'look', 'get', 'show', 'list', 'browse', 'check', 'view',
+    'at', 'for', 'in', 'on', 'and', 'or', 'the', 'a', 'an', 'to', 'with'
+  ];
+
+  // Extract role keywords: words before "at" in the task string, excluding common verbs
+  function extractRoleKeywords(taskStr) {
+    // Get the portion before "at [companies]"
+    const beforeAt = taskStr.replace(/\bat\s+.+$/i, '').trim().toLowerCase();
+    return beforeAt
+      .split(/\s+/)
+      .filter(w => w.length > 1 && !excludeWords.includes(w));
+  }
+
+  const newKeywords = extractRoleKeywords(newTaskString);
+  const oldKeywords = extractRoleKeywords(existingAccumulator.searchQuery);
+
+  if (newKeywords.length === 0 || oldKeywords.length === 0) return 'clear';
+
+  // Calculate overlap percentage based on new keywords
+  const oldSet = new Set(oldKeywords);
+  const overlapCount = newKeywords.filter(kw => oldSet.has(kw)).length;
+  const overlapRatio = overlapCount / newKeywords.length;
+
+  return overlapRatio >= 0.5 ? 'keep' : 'clear';
+}
+
+/**
  * Handle background-only data actions (storeJobData, getStoredJobs).
  * These are NOT multi-tab actions but are handled in the background script
  * because they interact with chrome.storage.local directly.
