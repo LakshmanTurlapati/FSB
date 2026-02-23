@@ -6611,7 +6611,18 @@ async function handleMultiSiteCompletion(sessionId, session, aiResponse) {
 
   // All companies processed -- finalize
   await finalizeMultiSiteSearch(sessionId, session);
-  return false; // Let normal completion flow run with finalized data
+
+  // Check if the original task implies Sheets output (Phase 12)
+  if (detectSheetsIntent(session.multiSite.originalTask)
+      && session.multiSiteResult
+      && !session.multiSiteResult.startsWith('Could not')
+      && !session.multiSiteResult.startsWith('No jobs')) {
+    // Launch Sheets data entry session instead of completing
+    await startSheetsDataEntry(sessionId, session);
+    return true; // Handled -- automation loop will restart for Sheets entry
+  } else {
+    return false; // Let normal completion flow run with finalized data
+  }
 }
 
 /**
@@ -6848,6 +6859,271 @@ async function finalizeMultiSiteSearch(sessionId, session) {
     });
     session.multiSiteResult = 'Multi-site search completed but summary generation failed. Check stored job data.';
   }
+}
+
+// ============================================================================
+// Phase 12: Google Sheets Data Entry Orchestrator
+// ============================================================================
+
+/**
+ * Read accumulated job data from chrome.storage.local fsbJobAccumulator.
+ * Flattens all jobs from completed companies into a single array.
+ * @returns {Promise<{jobs: Array, totalJobs: number, searchQuery: string, companies: string[]}>}
+ */
+async function getAccumulatedJobData() {
+  const stored = await chrome.storage.local.get('fsbJobAccumulator');
+  const accumulator = stored.fsbJobAccumulator;
+
+  if (!accumulator || !accumulator.companies) {
+    return { jobs: [], totalJobs: 0, searchQuery: '', companies: [] };
+  }
+
+  const allJobs = Object.values(accumulator.companies)
+    .filter(entry => entry.status === 'completed' && Array.isArray(entry.jobs))
+    .flatMap(entry => entry.jobs);
+
+  return {
+    jobs: allJobs,
+    totalJobs: allJobs.length,
+    searchQuery: accumulator.searchQuery || '',
+    companies: Object.keys(accumulator.companies)
+  };
+}
+
+/**
+ * Convert job data array into a compact table string for AI prompt injection.
+ * Each row is formatted with pipe-delimited fields for readability.
+ * @param {Array} jobs - Array of job objects
+ * @param {string[]} columns - The columns to include in the output
+ * @returns {{formattedData: string, rowCount: number}}
+ */
+function formatJobDataForPrompt(jobs, columns) {
+  const columnToField = {
+    'Title': 'title',
+    'Company': 'company',
+    'Location': 'location',
+    'Date': 'datePosted',
+    'Description': 'description',
+    'Apply Link': 'applyLink'
+  };
+
+  const formattedRows = jobs.map((job, i) => {
+    const parts = columns.map(col => {
+      const field = columnToField[col];
+      let value = job[field] || 'N/A';
+      // Cap description at 200 chars
+      if (col === 'Description' && value.length > 200) {
+        value = value.substring(0, 200).trim() + '...';
+      }
+      return `${col}: "${value}"`;
+    });
+    return `Row ${i + 2}: ${parts.join(' | ')}`;
+  });
+
+  return {
+    formattedData: formattedRows.join('\n'),
+    rowCount: jobs.length
+  };
+}
+
+/**
+ * Check if the user's original task implies writing to a Google Sheet.
+ * Uses simple keyword matching -- not complex NLP.
+ * @param {string} task - The user's original task string
+ * @returns {boolean}
+ */
+function detectSheetsIntent(task) {
+  if (!task) return false;
+  const taskLower = task.toLowerCase();
+  const sheetsKeywords = [
+    'spreadsheet', 'sheet', 'sheets', 'google sheet', 'google sheets',
+    'write to sheet', 'put in sheet', 'add to sheet', 'create a sheet',
+    'fill sheet', 'populate sheet', 'make a spreadsheet'
+  ];
+  return sheetsKeywords.some(kw => taskLower.includes(kw));
+}
+
+/**
+ * Find an existing Google Sheets tab that is open in the browser.
+ * Matches tabs with docs.google.com/spreadsheets/d/ URL pattern (actual sheets, not home page).
+ * @returns {Promise<{tabId: number, url: string}|null>}
+ */
+async function findExistingSheetsTab() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    const sheetsTab = tabs.find(tab =>
+      tab.url && /docs\.google\.com\/spreadsheets\/d\//.test(tab.url)
+    );
+    if (sheetsTab) {
+      return { tabId: sheetsTab.id, url: sheetsTab.url };
+    }
+    return null;
+  } catch (error) {
+    automationLogger.warn('Failed to query tabs for Sheets detection', { error: error.message });
+    return null;
+  }
+}
+
+/**
+ * Parse user's task for custom column selection.
+ * If the task mentions specific columns (e.g., "only title and company"),
+ * returns a filtered subset. Otherwise returns all 6 defaults.
+ * @param {string} task - The user's original task string
+ * @returns {string[]} Array of column names to include
+ */
+function parseCustomColumns(task) {
+  const defaults = ['Title', 'Company', 'Location', 'Date', 'Description', 'Apply Link'];
+  if (!task) return defaults;
+  const taskLower = task.toLowerCase();
+
+  // Look for explicit column restriction patterns
+  const restrictionPatterns = [
+    /(?:only|just)\s+(?:the\s+)?(?:columns?\s+)?(.+?)(?:\s+(?:in|into|to|on)\s+|$)/i,
+    /columns?:\s*(.+?)(?:\s+(?:in|into|to|on)\s+|$)/i,
+    /(?:with|include)\s+only\s+(.+?)(?:\s+(?:in|into|to|on)\s+|$)/i
+  ];
+
+  const columnAliases = {
+    'Title': ['title', 'role', 'position', 'job title', 'job name'],
+    'Company': ['company', 'firm', 'employer', 'organization', 'org'],
+    'Location': ['location', 'city', 'place', 'where'],
+    'Date': ['date', 'posted', 'when', 'date posted'],
+    'Description': ['description', 'desc', 'details', 'summary', 'info'],
+    'Apply Link': ['link', 'url', 'apply', 'apply link', 'application link']
+  };
+
+  for (const pattern of restrictionPatterns) {
+    const match = taskLower.match(pattern);
+    if (match) {
+      const mentionedText = match[1];
+      const selected = [];
+      for (const [colName, aliases] of Object.entries(columnAliases)) {
+        if (aliases.some(alias => mentionedText.includes(alias))) {
+          selected.push(colName);
+        }
+      }
+      if (selected.length > 0) return selected;
+    }
+  }
+
+  return defaults;
+}
+
+/**
+ * Core Sheets data entry orchestrator.
+ * Reads accumulated job data, determines sheet target, builds session state,
+ * rewrites the task for Sheets entry, and restarts the automation loop.
+ * @param {string} sessionId - The session ID
+ * @param {Object} session - The session object
+ */
+async function startSheetsDataEntry(sessionId, session) {
+  automationLogger.info('Starting Sheets data entry orchestration', { sessionId });
+
+  // 1. Get accumulated job data
+  const jobData = await getAccumulatedJobData();
+  if (jobData.jobs.length === 0) {
+    automationLogger.warn('No accumulated job data found for Sheets entry', { sessionId });
+    return;
+  }
+  automationLogger.info('Retrieved accumulated job data for Sheets entry', {
+    sessionId,
+    totalJobs: jobData.totalJobs,
+    companies: jobData.companies.length
+  });
+
+  // 2. Parse custom columns from the original task
+  const originalTask = session.multiSite?.originalTask || session.task;
+  const customColumns = parseCustomColumns(originalTask);
+  automationLogger.info('Column selection for Sheets entry', {
+    sessionId,
+    columns: customColumns,
+    isCustom: customColumns.length < 6
+  });
+
+  // 3. Format job data for prompt injection
+  const { formattedData, rowCount } = formatJobDataForPrompt(jobData.jobs, customColumns);
+
+  // 4. Determine sheet target
+  let sheetTarget;
+
+  // Check if user's original task mentions a specific Sheets URL
+  const sheetsUrlMatch = originalTask.match(/docs\.google\.com\/spreadsheets\/d\/[a-zA-Z0-9_-]+/);
+  if (sheetsUrlMatch) {
+    sheetTarget = { type: 'url', url: 'https://' + sheetsUrlMatch[0], tabId: null };
+    automationLogger.info('Sheets target: user-provided URL', { sessionId, url: sheetTarget.url });
+  } else {
+    // Check for existing Sheets tab
+    const existingTab = await findExistingSheetsTab();
+    if (existingTab) {
+      sheetTarget = { type: 'existing', url: existingTab.url, tabId: existingTab.tabId };
+      automationLogger.info('Sheets target: existing tab', { sessionId, tabId: existingTab.tabId });
+    } else {
+      sheetTarget = { type: 'new', url: 'https://docs.google.com/spreadsheets/create', tabId: null };
+      automationLogger.info('Sheets target: new sheet', { sessionId });
+    }
+  }
+
+  // 5. Build session.sheetsData
+  session.sheetsData = {
+    jobDataPrompt: formattedData,
+    totalRows: rowCount,
+    columns: customColumns,
+    sheetTarget: sheetTarget,
+    searchQuery: jobData.searchQuery,
+    rowsWritten: 0,
+    startedAt: Date.now()
+  };
+
+  // 6. Rewrite session task for Sheets-specific entry
+  session.task = `Write ${rowCount} job listings to Google Sheets. Navigate to the sheet, write headers (${customColumns.join(', ')}) in row 1, then write all data rows. Use Name Box + Tab/Enter pattern. Verify each row after writing.`;
+
+  // 7. Reset session iteration state (same pattern as launchNextCompanySearch)
+  session.iterationCount = 0;
+  session.stuckCounter = 0;
+  session.consecutiveNoProgressCount = 0;
+  session.actionHistory = [];
+  session.stateHistory = [];
+  session.lastDOMHash = null;
+  session.lastDOMSignals = null;
+  session.domHashes = [];
+  session.actionSequences = [];
+  session.sequenceRepeatCount = {};
+  session.failedAttempts = {};
+  session.failedActionDetails = {};
+  session.urlHistory = [];
+  session.lastUrl = null;
+  session.status = 'running';
+
+  // 8. Set iteration cap proportional to job count (enough for writing + verification)
+  session.maxIterations = Math.max(jobData.jobs.length * 3, 30);
+
+  // 9. Update task summary for progress overlay
+  session.taskSummary = `Sheets data entry: 0/${rowCount} rows`;
+
+  // 10. Send initial progress overlay update
+  sendSessionStatus(session.tabId, {
+    phase: 'sheets-entry',
+    step: 'Starting Google Sheets data entry',
+    status: `Writing 0/${rowCount} rows...`,
+    taskName: session.task,
+    iteration: 0,
+    maxIterations: session.maxIterations,
+    taskSummary: session.taskSummary
+  });
+
+  // 11. Persist session state
+  persistSession(sessionId, session);
+
+  // 12. Start automation loop with transition delay
+  setTimeout(() => startAutomationLoop(sessionId), 500);
+
+  automationLogger.info('Sheets data entry session launched', {
+    sessionId,
+    totalRows: rowCount,
+    columns: customColumns,
+    sheetTarget: sheetTarget.type,
+    maxIterations: session.maxIterations
+  });
 }
 
 /**
@@ -7857,6 +8133,11 @@ async function startAutomationLoop(sessionId) {
       };
     }
 
+    // Inject Sheets data entry context for prompt augmentation (Phase 12)
+    if (session.sheetsData) {
+      context.sheetsData = session.sheetsData;
+    }
+
     // Check for intermediate/redirect pages that should be allowed to resolve
     // Note: With frameId: 0 targeting, we now get DOM from main frame only,
     // so this only triggers when the main page itself is an intermediate page
@@ -8021,6 +8302,31 @@ async function startAutomationLoop(sessionId) {
 
     // Execute actions and track results
     if (aiResponse.actions && aiResponse.actions.length > 0) {
+      // Sheets data entry progress overlay update (Phase 12)
+      // When a Sheets entry session is active, show row-writing progress instead of generic acting phase
+      if (session.sheetsData) {
+        // Approximate rows written based on iteration count (rough estimate: ~2 iterations per row)
+        session.sheetsData.rowsWritten = Math.min(
+          Math.floor(session.iterationCount / 2),
+          session.sheetsData.totalRows
+        );
+        session.taskSummary = `Sheets data entry: ${session.sheetsData.rowsWritten}/${session.sheetsData.totalRows} rows`;
+        sendSessionStatus(session.tabId, {
+          phase: 'sheets-entry',
+          step: `Writing row ${session.sheetsData.rowsWritten} of ${session.sheetsData.totalRows}`,
+          status: `Written ${session.sheetsData.rowsWritten}/${session.sheetsData.totalRows} rows...`,
+          taskName: session.task,
+          iteration: session.iterationCount,
+          maxIterations: session.maxIterations,
+          taskSummary: session.taskSummary
+        });
+
+        // Persist session every 5 iterations during Sheets entry to survive service worker restarts
+        if (session.iterationCount % 5 === 0) {
+          persistSession(sessionId, session);
+        }
+      }
+
       // Signal acting phase to content script
       sendSessionStatus(session.tabId, {
         phase: 'acting',
