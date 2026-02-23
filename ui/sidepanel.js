@@ -72,6 +72,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // -- Reconnaissance integration --
 let pendingReconTask = null;
+// Track multiple recon progress messages keyed by crawlerId
+const reconProgressMessages = new Map();
 
 /**
  * Start a reconnaissance crawl from the side panel.
@@ -104,19 +106,31 @@ async function startReconFromSidepanel(url, originalTask) {
 
 /**
  * Handle progress updates from Site Explorer during reconnaissance.
+ * Supports multiple concurrent crawlers keyed by crawlerId.
  */
 function handleReconProgress(data) {
+  const crawlerId = data.crawlerId || 'default';
+  const domain = data.domain || '?';
+
   if (data.status === 'crawling') {
-    let progressMsg = document.getElementById('recon-progress-msg');
+    let progressMsg = reconProgressMessages.get(crawlerId);
     if (!progressMsg) {
       progressMsg = document.createElement('div');
-      progressMsg.id = 'recon-progress-msg';
+      progressMsg.id = 'recon-progress-' + crawlerId;
       progressMsg.className = 'message system recon-progress';
       chatMessages.appendChild(progressMsg);
+      reconProgressMessages.set(crawlerId, progressMsg);
     }
     const percent = data.maxPages > 0 ? Math.round((data.pagesCollected / data.maxPages) * 100) : 0;
-    progressMsg.textContent = 'Reconnaissance: ' + data.pagesCollected + '/' + data.maxPages + ' pages (' + percent + '%)';
+    progressMsg.textContent = 'Recon [' + domain + ']: ' + data.pagesCollected + '/' + data.maxPages + ' pages (' + percent + '%)';
     scrollToBottom();
+  } else if (data.status === 'completed' || data.status === 'stopped' || data.status === 'error') {
+    // Remove the progress message for this crawler
+    const progressMsg = reconProgressMessages.get(crawlerId);
+    if (progressMsg) {
+      progressMsg.remove();
+      reconProgressMessages.delete(crawlerId);
+    }
   }
 }
 
@@ -124,8 +138,11 @@ function handleReconProgress(data) {
  * Handle reconnaissance completion -- offer retry with original task.
  */
 function handleReconComplete(data) {
-  const progressMsg = document.getElementById('recon-progress-msg');
-  if (progressMsg) progressMsg.remove();
+  // Clean up any remaining progress messages for this domain
+  for (const [id, el] of reconProgressMessages) {
+    el.remove();
+    reconProgressMessages.delete(id);
+  }
 
   addMessage('Reconnaissance complete! Site map saved for ' + (data?.domain || 'this site') + '.', 'system');
 
@@ -1190,12 +1207,16 @@ async function loadHistoryList() {
     }
 
     historyList.innerHTML = sessions.map(function(session) {
+      var costDisplay = session.totalCost > 0
+        ? '<span class="history-cost">$' + session.totalCost.toFixed(4) + '</span>'
+        : '';
       return '<div class="history-item" data-session-id="' + escapeHtml(session.id) + '">' +
         '<div class="history-item-info">' +
           '<div class="history-item-task">' + escapeHtml(session.task || 'Unknown task') + '</div>' +
           '<div class="history-item-meta">' +
             '<span>' + formatSessionDate(session.startTime) + '</span>' +
             '<span>' + (session.actionCount || 0) + ' actions</span>' +
+            costDisplay +
             '<span class="history-status ' + (session.status || '') + '">' + escapeHtml(session.status || 'unknown') + '</span>' +
           '</div>' +
         '</div>' +

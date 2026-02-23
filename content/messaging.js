@@ -1194,6 +1194,37 @@
         sendResponse({ active: FSB.elementInspector.isActive });
         break;
 
+      // -- Crawl progress overlay handlers (in-page overlay for SiteExplorer) --
+      case 'showCrawlOverlay':
+        try {
+          FSB.crawlProgressOverlay.create();
+          FSB.crawlProgressOverlay.update(request);
+          sendResponse({ success: true });
+        } catch (e) {
+          sendResponse({ success: false, error: e.message });
+        }
+        break;
+
+      case 'updateCrawlOverlay':
+        try {
+          if (FSB.crawlProgressOverlay.host) {
+            FSB.crawlProgressOverlay.update(request);
+          }
+          sendResponse({ success: true });
+        } catch (e) {
+          sendResponse({ success: false, error: e.message });
+        }
+        break;
+
+      case 'hideCrawlOverlay':
+        try {
+          FSB.crawlProgressOverlay.destroy();
+          sendResponse({ success: true });
+        } catch (e) {
+          sendResponse({ success: false, error: e.message });
+        }
+        break;
+
       default:
         sendResponse({ error: 'Unknown action' });
     }

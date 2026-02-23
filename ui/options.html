@@ -793,9 +793,9 @@
                   <i class="fas fa-search"></i>
                   Go
                 </button>
-                <button class="control-btn explorer-stop-btn" id="explorerStopBtn" style="display: none;">
+                <button class="control-btn explorer-stop-all-btn" id="explorerStopAllBtn" style="display: none;">
                   <i class="fas fa-stop"></i>
-                  Stop
+                  Stop All
                 </button>
               </div>
 
@@ -821,15 +821,8 @@
                 </label>
               </div>
 
-              <div class="explorer-progress" id="explorerProgress" style="display: none;">
-                <div class="explorer-progress-bar">
-                  <div class="explorer-progress-fill" id="explorerProgressFill" style="width: 0%;"></div>
-                </div>
-                <div class="explorer-progress-info">
-                  <span id="explorerProgressText">Starting...</span>
-                  <span id="explorerProgressCount">0 / 0 pages</span>
-                </div>
-                <div class="explorer-current-url" id="explorerCurrentUrl"></div>
+              <div class="explorer-crawlers-container" id="explorerCrawlers">
+                <!-- Per-crawler progress cards are created dynamically -->
               </div>
             </div>
           </div>
@@ -859,6 +852,7 @@
                   <p>No research results yet. Use Site Explorer above to crawl a website.</p>
                 </div>
               </div>
+              <div class="research-pagination" id="researchPagination"></div>
             </div>
           </div>
 
@@ -1143,7 +1137,7 @@
         <section id="branding">
           <div class="branding-section">
             <div class="branding-content">
-              <img id="footer-logo-img" src="../Assets/fsb_logo_dark_footer.png" alt="FSB - Fast Smart Browser" class="footer-logo">
+              <img id="footer-logo-img" src="../assets/fsb_logo_dark_footer.png" alt="FSB - Fast Smart Browser" class="footer-logo">
             </div>
           </div>
         </section>

@@ -293,6 +293,36 @@ body {
   color: #6ee7b7;
 }
 
+/* Dark theme overrides for message bubbles */
+[data-theme="dark"] .message.user {
+  background: #e55a2b;
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.15);
+}
+
+[data-theme="dark"] .message.system {
+  background: #2d2d2d;
+  color: #d4d4d4;
+  border-left-color: #525252;
+}
+
+[data-theme="dark"] .message.ai {
+  background: rgba(33, 150, 243, 0.1);
+  color: #90caf9;
+  border-left-color: #42a5f5;
+}
+
+[data-theme="dark"] .message.error {
+  background: rgba(244, 67, 54, 0.1);
+  color: #ef9a9a;
+  border-left-color: #e57373;
+}
+
+[data-theme="dark"] .message.action {
+  background: rgba(76, 175, 80, 0.1);
+  color: #a5d6a7;
+  border-left-color: #66bb6a;
+}
+
 /* Minimal dots-only status indicator (no bubble) */
 .message.status-dots-only {
   background: none;
@@ -745,6 +775,7 @@ body {
 .message.error { position: relative; }
 .message-dismiss { background: none; border: none; color: #c62828; cursor: pointer; opacity: 0.5; padding: 2px 4px; font-size: 14px; line-height: 1; position: absolute; top: 6px; right: 6px; }
 .message-dismiss:hover { opacity: 1; }
+[data-theme="dark"] .message-dismiss { color: #ef9a9a; }
 .message.auto-collapsed { max-height: 24px; overflow: hidden; opacity: 0.5; transition: all 0.5s; cursor: pointer; }
 .message.auto-collapsed:hover { max-height: 200px; opacity: 1; }
 .message.collapsing { opacity: 0; max-height: 0; padding: 0; margin: 0; transition: all 0.3s; overflow: hidden; }
@@ -956,8 +987,8 @@ body {
 }
 
 [data-theme="dark"] .history-status.completed {
-  background: rgba(16, 185, 129, 0.15);
-  color: #6ee7b7;
+  background: #1a2e1a;
+  color: #81c784;
 }
 
 .history-status.stopped {
@@ -966,8 +997,8 @@ body {
 }
 
 [data-theme="dark"] .history-status.stopped {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fcd34d;
+  background: #2e2515;
+  color: #e6b844;
 }
 
 .history-status.error {
@@ -976,8 +1007,8 @@ body {
 }
 
 [data-theme="dark"] .history-status.error {
-  background: rgba(239, 68, 68, 0.15);
-  color: #fca5a5;
+  background: #2e1a1a;
+  color: #e57373;
 }
 
 .history-status.stuck {
@@ -986,8 +1017,23 @@ body {
 }
 
 [data-theme="dark"] .history-status.stuck {
-  background: rgba(239, 68, 68, 0.15);
-  color: #fca5a5;
+  background: #2e1a1a;
+  color: #e57373;
+}
+
+.history-cost {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+[data-theme="dark"] .history-cost {
+  background: #1a2744;
+  color: #60a5fa;
 }
 
 /* History replay button */

@@ -2,7 +2,8 @@
 // BFS crawls a website, maps interactive structure, saves as downloadable research JSON
 
 class SiteExplorer {
-  constructor() {
+  constructor(crawlerId = null) {
+    this.crawlerId = crawlerId;  // Unique ID assigned by CrawlerManager
     this.tabId = null;
     this.urlQueue = [];        // [{url, depth}]
     this.visited = new Set();
@@ -17,6 +18,7 @@ class SiteExplorer {
     this.currentUrl = null;
     this.status = 'idle';      // idle | crawling | completed | stopped | error
     this.callerTabId = null;   // tab to switch back to after crawl
+    this.onComplete = null;    // Callback for CrawlerManager cleanup
   }
 
   /**
@@ -53,8 +55,8 @@ class SiteExplorer {
 
       console.log(`[SiteExplorer] Starting crawl of ${this.domain} (depth=${this.maxDepth}, pages=${this.maxPages})`);
 
-      // Create crawler tab and make it active so Chrome does not throttle it
-      const tab = await chrome.tabs.create({ url, active: true });
+      // Create crawler tab in background so user's active tab is undisturbed
+      const tab = await chrome.tabs.create({ url, active: false });
       this.tabId = tab.id;
 
       // Keep service worker alive during crawl
@@ -69,9 +71,13 @@ class SiteExplorer {
         console.error(`[SiteExplorer] State at error: pages=${this.pagesCollected.length}, queue=${this.urlQueue.length}, visited=${this.visited.size}`);
         this.status = 'error';
         this.running = false;
+        this._sendOverlayMessage('hideCrawlOverlay').catch(() => {});
         this.saveResearch('error').catch(() => {});
         this.switchBackToCallerTab().catch(() => {});
         this.broadcastStatus();
+        if (this.onComplete) {
+          try { this.onComplete(); } catch (e) { /* ignore */ }
+        }
       });
 
       return { success: true, researchId: this.researchId };
@@ -82,6 +88,9 @@ class SiteExplorer {
       await this.saveResearch('error');
       await this.switchBackToCallerTab();
       this.broadcastStatus();
+      if (this.onComplete) {
+        try { this.onComplete(); } catch (e) { /* ignore */ }
+      }
       return { success: false, error: error.message };
     }
   }
@@ -97,6 +106,9 @@ class SiteExplorer {
     console.log('[SiteExplorer] Stopping crawl...');
     this.running = false;
     this.status = 'stopped';
+
+    // Hide in-page overlay before closing tab
+    await this._sendOverlayMessage('hideCrawlOverlay');
 
     // Save partial results
     await this.saveResearch('stopped');
@@ -115,6 +127,12 @@ class SiteExplorer {
     await this.switchBackToCallerTab();
 
     this.broadcastStatus();
+
+    // Notify CrawlerManager for cleanup
+    if (this.onComplete) {
+      try { this.onComplete(); } catch (e) { /* ignore */ }
+    }
+
     return { success: true, pagesCollected: this.pagesCollected.length };
   }
 
@@ -166,6 +184,10 @@ class SiteExplorer {
     if (this.running) {
       this.status = 'completed';
       this.running = false;
+
+      // Hide in-page overlay before closing tab
+      await this._sendOverlayMessage('hideCrawlOverlay');
+
       await this.saveResearch('completed');
 
       // Auto-convert crawl results to site map memory if requested
@@ -192,6 +214,11 @@ class SiteExplorer {
 
       this.broadcastStatus();
       console.log(`[SiteExplorer] Crawl completed: ${this.pagesCollected.length} pages collected`);
+
+      // Notify CrawlerManager for cleanup
+      if (this.onComplete) {
+        try { this.onComplete(); } catch (e) { /* ignore */ }
+      }
     }
   }
 
@@ -220,6 +247,9 @@ class SiteExplorer {
 
     // Wait for page to settle using DOM stability detection, with fallback
     await this.waitForPageSettle(this.tabId);
+
+    // Show in-page crawl overlay after content script is ready
+    await this._sendOverlayMessage('showCrawlOverlay', this._getOverlayData());
 
     // Scroll page to trigger lazy-loaded content (LinkedIn, infinite scroll sites)
     await this.scrollForDiscovery(this.tabId);
@@ -467,9 +497,9 @@ class SiteExplorer {
       researchData[this.researchId] = research;
       researchIndex.unshift(indexEntry);
 
-      // Enforce max 20 results
-      if (researchIndex.length > 20) {
-        const removed = researchIndex.splice(20);
+      // Enforce max 100 results
+      if (researchIndex.length > 100) {
+        const removed = researchIndex.splice(100);
         for (const item of removed) {
           delete researchData[item.id];
         }
@@ -513,6 +543,7 @@ class SiteExplorer {
    */
   getStatus() {
     return {
+      crawlerId: this.crawlerId,
       status: this.status,
       researchId: this.researchId,
       domain: this.domain,
@@ -529,18 +560,24 @@ class SiteExplorer {
   }
 
   /**
-   * Broadcast status update to options page
+   * Broadcast status update to options page and update in-page overlay
    */
   broadcastStatus() {
+    const statusData = this.getStatus();
     try {
       chrome.runtime.sendMessage({
         type: 'explorerStatusUpdate',
-        data: this.getStatus()
+        data: statusData
       }).catch(() => {
         // Options page may not be open - ignore
       });
     } catch (e) {
       // Ignore broadcast errors
+    }
+
+    // Also update the in-page crawl overlay on the crawler's tab
+    if (this.tabId && this.status === 'crawling') {
+      this._sendOverlayMessage('updateCrawlOverlay', this._getOverlayData()).catch(() => {});
     }
   }
 
@@ -723,6 +760,41 @@ class SiteExplorer {
       }).catch(() => {});
     } catch (e) {
       // Side panel may not be open
+    }
+  }
+
+  /**
+   * Build overlay data object for in-page crawl progress overlay
+   * @returns {Object}
+   */
+  _getOverlayData() {
+    let pathname = '';
+    try {
+      pathname = this.currentUrl ? new URL(this.currentUrl).pathname : '';
+    } catch (e) { /* ignore */ }
+
+    return {
+      crawlerId: this.crawlerId,
+      domain: this.domain,
+      pagesCollected: this.pagesCollected.length,
+      maxPages: this.maxPages,
+      currentPath: pathname,
+      percent: this.maxPages > 0 ? Math.round((this.pagesCollected.length / this.maxPages) * 100) : 0
+    };
+  }
+
+  /**
+   * Send an overlay message to the crawler's tab content script.
+   * Non-critical: errors are silently caught.
+   * @param {string} action - Message action (showCrawlOverlay, updateCrawlOverlay, hideCrawlOverlay)
+   * @param {Object} [data] - Optional overlay data
+   */
+  async _sendOverlayMessage(action, data = {}) {
+    if (!this.tabId) return;
+    try {
+      await this.sendTabMessage(this.tabId, { action, ...data }, 3000);
+    } catch (e) {
+      // Overlay is informational only, ignore failures
     }
   }
 

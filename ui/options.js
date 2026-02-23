@@ -179,14 +179,10 @@ function cacheElements() {
   // Site Explorer
   elements.explorerUrl = document.getElementById('explorerUrl');
   elements.explorerGoBtn = document.getElementById('explorerGoBtn');
-  elements.explorerStopBtn = document.getElementById('explorerStopBtn');
+  elements.explorerStopAllBtn = document.getElementById('explorerStopAllBtn');
   elements.explorerMaxDepth = document.getElementById('explorerMaxDepth');
   elements.explorerMaxPages = document.getElementById('explorerMaxPages');
-  elements.explorerProgress = document.getElementById('explorerProgress');
-  elements.explorerProgressFill = document.getElementById('explorerProgressFill');
-  elements.explorerProgressText = document.getElementById('explorerProgressText');
-  elements.explorerProgressCount = document.getElementById('explorerProgressCount');
-  elements.explorerCurrentUrl = document.getElementById('explorerCurrentUrl');
+  elements.explorerCrawlers = document.getElementById('explorerCrawlers');
   elements.researchList = document.getElementById('researchList');
 }
 
@@ -960,8 +956,8 @@ function updateFooterLogo(theme) {
   const footerLogo = document.getElementById('footer-logo-img');
   if (footerLogo) {
     const logoSrc = theme === 'light'
-      ? '../Assets/fsb_logo_light_footer.png'
-      : '../Assets/fsb_logo_dark_footer.png';
+      ? '../assets/fsb_logo_light_footer.png'
+      : '../assets/fsb_logo_dark_footer.png';
     footerLogo.src = logoSrc;
   }
 }
@@ -2794,15 +2790,18 @@ document.addEventListener('DOMContentLoaded', () => {
 // Site Explorer Functions
 // ==========================================
 
+// Track active crawler UIs: crawlerId -> DOM element
+const activeCrawlerUIs = new Map();
+
 function initializeSiteExplorer() {
   // Go button
   if (elements.explorerGoBtn) {
     elements.explorerGoBtn.addEventListener('click', startExplorer);
   }
 
-  // Stop button
-  if (elements.explorerStopBtn) {
-    elements.explorerStopBtn.addEventListener('click', stopExplorer);
+  // Stop All button
+  if (elements.explorerStopAllBtn) {
+    elements.explorerStopAllBtn.addEventListener('click', stopAllExplorers);
   }
 
   // Enter key on URL input
@@ -2817,7 +2816,7 @@ function initializeSiteExplorer() {
   const clearAllBtn = document.getElementById('clearAllResearch');
 
   if (refreshBtn) {
-    refreshBtn.addEventListener('click', loadResearchList);
+    refreshBtn.addEventListener('click', () => loadResearchList(0));
   }
 
   if (clearAllBtn) {
@@ -2878,15 +2877,6 @@ async function startExplorer() {
   const maxDepth = parseInt(elements.explorerMaxDepth?.value || '3');
   const maxPages = parseInt(elements.explorerMaxPages?.value || '25');
 
-  // Toggle UI
-  elements.explorerGoBtn.style.display = 'none';
-  elements.explorerStopBtn.style.display = '';
-  elements.explorerProgress.style.display = '';
-  elements.explorerProgressFill.style.width = '0%';
-  elements.explorerProgressText.textContent = 'Starting crawl...';
-  elements.explorerProgressCount.textContent = '0 / ' + maxPages + ' pages';
-  elements.explorerCurrentUrl.textContent = '';
-
   try {
     const response = await chrome.runtime.sendMessage({
       action: 'startExplorer',
@@ -2897,55 +2887,116 @@ async function startExplorer() {
 
     if (!response || !response.success) {
       showToast('Failed to start explorer: ' + (response?.error || 'Unknown error'), 'error');
-      resetExplorerUI();
     } else {
       addLog('info', 'Site Explorer started for ' + testUrl);
+      // Clear input for next URL, show Stop All
+      if (elements.explorerUrl) elements.explorerUrl.value = '';
+      updateStopAllVisibility();
     }
   } catch (error) {
     showToast('Failed to start explorer: ' + error.message, 'error');
-    resetExplorerUI();
   }
 }
 
-async function stopExplorer() {
+async function stopAllExplorers() {
   try {
     await chrome.runtime.sendMessage({ action: 'stopExplorer' });
-    addLog('info', 'Site Explorer stopped');
-    showToast('Explorer stopped', 'info');
+    addLog('info', 'All Site Explorers stopped');
+    showToast('All crawlers stopped', 'info');
   } catch (error) {
-    console.error('Failed to stop explorer:', error);
+    console.error('Failed to stop explorers:', error);
   }
-  resetExplorerUI();
+  // Clean up all crawler UIs
+  activeCrawlerUIs.clear();
+  if (elements.explorerCrawlers) elements.explorerCrawlers.innerHTML = '';
+  updateStopAllVisibility();
 }
 
-function resetExplorerUI() {
-  if (elements.explorerGoBtn) elements.explorerGoBtn.style.display = '';
-  if (elements.explorerStopBtn) elements.explorerStopBtn.style.display = 'none';
-  if (elements.explorerProgress) elements.explorerProgress.style.display = 'none';
+async function stopSingleCrawler(crawlerId) {
+  try {
+    await chrome.runtime.sendMessage({ action: 'stopExplorer', crawlerId });
+    addLog('info', 'Crawler stopped: ' + crawlerId);
+  } catch (error) {
+    console.error('Failed to stop crawler:', error);
+  }
+}
+
+function updateStopAllVisibility() {
+  if (elements.explorerStopAllBtn) {
+    elements.explorerStopAllBtn.style.display = activeCrawlerUIs.size > 0 ? '' : 'none';
+  }
+}
+
+function createCrawlerCard(crawlerId, domain, maxPages) {
+  const card = document.createElement('div');
+  card.className = 'explorer-crawler-item';
+  card.dataset.crawlerId = crawlerId;
+  card.innerHTML = `
+    <div class="crawler-header">
+      <span class="crawler-domain">${escapeHtml(domain)}</span>
+      <button class="crawler-stop-btn" data-crawler-id="${crawlerId}">
+        <i class="fas fa-stop"></i> Stop
+      </button>
+    </div>
+    <div class="crawler-progress-info">
+      <span class="crawler-progress-text">Starting crawl...</span>
+      <span class="crawler-progress-count">0 / ${maxPages} pages</span>
+    </div>
+    <div class="crawler-progress-bar">
+      <div class="crawler-progress-fill" style="width: 0%;"></div>
+    </div>
+    <div class="crawler-current-url"></div>
+  `;
+
+  // Wire up stop button
+  card.querySelector('.crawler-stop-btn').addEventListener('click', () => {
+    stopSingleCrawler(crawlerId);
+  });
+
+  return card;
 }
 
 function updateExplorerProgress(data) {
-  if (!data) return;
+  if (!data || !data.crawlerId) return;
+
+  const crawlerId = data.crawlerId;
 
   if (data.status === 'crawling') {
-    // Show progress
-    if (elements.explorerProgress) elements.explorerProgress.style.display = '';
-    if (elements.explorerGoBtn) elements.explorerGoBtn.style.display = 'none';
-    if (elements.explorerStopBtn) elements.explorerStopBtn.style.display = '';
+    // Create card if it doesn't exist
+    if (!activeCrawlerUIs.has(crawlerId)) {
+      const card = createCrawlerCard(crawlerId, data.domain || '?', data.maxPages || 0);
+      activeCrawlerUIs.set(crawlerId, card);
+      if (elements.explorerCrawlers) elements.explorerCrawlers.appendChild(card);
+      updateStopAllVisibility();
+    }
 
-    const percent = data.maxPages > 0 ? Math.round((data.pagesCollected / data.maxPages) * 100) : 0;
-    if (elements.explorerProgressFill) elements.explorerProgressFill.style.width = percent + '%';
-    if (elements.explorerProgressText) elements.explorerProgressText.textContent = 'Crawling ' + (data.domain || '');
-    if (elements.explorerProgressCount) elements.explorerProgressCount.textContent = data.pagesCollected + ' / ' + data.maxPages + ' pages';
-    if (elements.explorerCurrentUrl) elements.explorerCurrentUrl.textContent = data.currentUrl || '';
+    // Update card
+    const card = activeCrawlerUIs.get(crawlerId);
+    if (card) {
+      const percent = data.maxPages > 0 ? Math.round((data.pagesCollected / data.maxPages) * 100) : 0;
+      const fill = card.querySelector('.crawler-progress-fill');
+      if (fill) fill.style.width = percent + '%';
+      const text = card.querySelector('.crawler-progress-text');
+      if (text) text.textContent = 'Crawling ' + (data.domain || '');
+      const count = card.querySelector('.crawler-progress-count');
+      if (count) count.textContent = data.pagesCollected + ' / ' + data.maxPages + ' pages';
+      const urlEl = card.querySelector('.crawler-current-url');
+      if (urlEl) urlEl.textContent = data.currentUrl || '';
+    }
   } else if (data.status === 'completed' || data.status === 'stopped' || data.status === 'error') {
-    resetExplorerUI();
+    // Remove card
+    const card = activeCrawlerUIs.get(crawlerId);
+    if (card) {
+      card.remove();
+      activeCrawlerUIs.delete(crawlerId);
+      updateStopAllVisibility();
+    }
 
     if (data.status === 'completed') {
-      showToast('Crawl completed: ' + data.pagesCollected + ' pages collected', 'success');
+      showToast('Crawl completed: ' + data.pagesCollected + ' pages from ' + (data.domain || ''), 'success');
       addLog('info', 'Site Explorer completed: ' + data.pagesCollected + ' pages from ' + data.domain);
     } else if (data.status === 'error') {
-      showToast('Crawl failed', 'error');
+      showToast('Crawl failed for ' + (data.domain || 'unknown'), 'error');
     }
 
     // Refresh research list
@@ -2953,24 +3004,43 @@ function updateExplorerProgress(data) {
   }
 }
 
-async function loadResearchList() {
+var researchPage = 0;
+var researchPageSize = 10;
+
+async function loadResearchList(page) {
   if (!elements.researchList) return;
+
+  if (typeof page === 'number') {
+    researchPage = page;
+  }
 
   try {
     const response = await chrome.runtime.sendMessage({ action: 'getResearchList' });
     const list = (response && response.list) || [];
+    const total = list.length;
 
-    if (list.length === 0) {
+    if (total === 0) {
       elements.researchList.innerHTML = `
         <div class="session-empty-state">
           <i class="fas fa-flask"></i>
           <p>No research results yet. Use Site Explorer above to crawl a website.</p>
         </div>
       `;
+      renderResearchPagination(0, researchPageSize, 0);
       return;
     }
 
-    elements.researchList.innerHTML = list.map(item => `
+    // Clamp page if out of bounds (e.g. after deletion)
+    const maxPage = Math.max(0, Math.ceil(total / researchPageSize) - 1);
+    if (researchPage > maxPage) {
+      researchPage = maxPage;
+    }
+
+    const start = researchPage * researchPageSize;
+    const end = Math.min(start + researchPageSize, total);
+    const pageItems = list.slice(start, end);
+
+    elements.researchList.innerHTML = pageItems.map(item => `
       <div class="session-item" data-research-id="${item.id}">
         <div class="session-item-info">
           <div class="session-item-task">${escapeHtml(item.domain || 'Unknown')}</div>
@@ -3000,6 +3070,8 @@ async function loadResearchList() {
       </div>
     `).join('');
 
+    renderResearchPagination(total, researchPageSize, researchPage);
+
   } catch (error) {
     console.error('Failed to load research list:', error);
     elements.researchList.innerHTML = `
@@ -3008,7 +3080,40 @@ async function loadResearchList() {
         <p>Failed to load research results: ${error.message}</p>
       </div>
     `;
+    renderResearchPagination(0, researchPageSize, 0);
   }
+}
+
+function renderResearchPagination(total, pageSize, currentPage) {
+  const container = document.getElementById('researchPagination');
+  if (!container) return;
+
+  if (total <= pageSize) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const totalPages = Math.ceil(total / pageSize);
+  const start = currentPage * pageSize + 1;
+  const end = Math.min((currentPage + 1) * pageSize, total);
+
+  let html = '';
+
+  // Prev button
+  html += `<button ${currentPage === 0 ? 'disabled' : ''} onclick="loadResearchList(${currentPage - 1})">Prev</button>`;
+
+  // Page number buttons
+  for (let i = 0; i < totalPages; i++) {
+    html += `<button class="${i === currentPage ? 'active' : ''}" onclick="loadResearchList(${i})">${i + 1}</button>`;
+  }
+
+  // Next button
+  html += `<button ${currentPage >= totalPages - 1 ? 'disabled' : ''} onclick="loadResearchList(${currentPage + 1})">Next</button>`;
+
+  // Info text
+  html += `<span class="pagination-info">${start}-${end} of ${total}</span>`;
+
+  container.innerHTML = html;
 }
 
 async function viewResearch(researchId) {
@@ -3208,7 +3313,7 @@ async function clearAllResearchResults() {
 
   try {
     await chrome.storage.local.remove(['fsbResearchData', 'fsbResearchIndex']);
-    loadResearchList();
+    loadResearchList(0);
     showToast('All research results cleared', 'success');
     addLog('info', 'All research results cleared');
   } catch (error) {

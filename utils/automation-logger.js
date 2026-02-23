@@ -549,6 +549,9 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
           existing.actionCount = sessionData.actionHistory?.length || existing.actionCount;
           existing.iterationCount = sessionData.iterationCount || existing.iterationCount;
           existing.commandCount = sessionData.commandCount || existing.commandCount || 1;
+          existing.totalCost = sessionData.totalCost || existing.totalCost || 0;
+          existing.totalInputTokens = sessionData.totalInputTokens || existing.totalInputTokens || 0;
+          existing.totalOutputTokens = sessionData.totalOutputTokens || existing.totalOutputTokens || 0;
           // Update task to show the latest command
           if (sessionData.commands && sessionData.commands.length > 1) {
             existing.task = sessionData.commands.map((cmd, i) => `[${i + 1}] ${cmd}`).join(' | ');
@@ -573,6 +576,9 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
             actionCount: sessionData.actionHistory?.length || 0,
             iterationCount: sessionData.iterationCount || 0,
             commandCount: sessionData.commandCount || 1,
+            totalCost: sessionData.totalCost || 0,
+            totalInputTokens: sessionData.totalInputTokens || 0,
+            totalOutputTokens: sessionData.totalOutputTokens || 0,
             logs: sessionLogs,
             // Persist actionHistory for session replay (successful actions only, capped at 100)
             actionHistory: (sessionData.actionHistory || [])
@@ -590,7 +596,8 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
         const indexEntry = {
           id: sessionId, task: savedSession.task, startTime: savedSession.startTime,
           endTime: savedSession.endTime, status: savedSession.status, actionCount: savedSession.actionCount,
-          domSnapshotCount: snapshotCount
+          domSnapshotCount: snapshotCount,
+          totalCost: savedSession.totalCost || 0
         };
         const existingIndex = sessionIndex.findIndex(s => s.id === sessionId);
         if (existingIndex !== -1) sessionIndex[existingIndex] = indexEntry;

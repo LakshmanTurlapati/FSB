@@ -387,7 +387,7 @@
 
       // Set logo image src using chrome.runtime.getURL for web_accessible_resources
       const logoImg = this.container.querySelector('.fsb-logo');
-      logoImg.src = chrome.runtime.getURL('Assets/icon48.png');
+      logoImg.src = chrome.runtime.getURL('assets/icon48.png');
 
       this.shadow.appendChild(this.container);
 
@@ -1220,6 +1220,220 @@
     }
   });
 
+  /**
+   * CrawlProgressOverlay - In-page progress indicator for site crawler
+   *
+   * Uses Shadow DOM for complete style isolation from host page.
+   * Shows domain, page count, progress bar, and current pathname.
+   * Positioned in bottom-right corner to avoid conflict with ProgressOverlay (top-right).
+   * Blue accent color (#38bdf8) to distinguish from automation's orange.
+   * Promoted to top layer via Popover API.
+   */
+  class CrawlProgressOverlay {
+    constructor() {
+      this.host = null;
+      this.shadow = null;
+      this.container = null;
+    }
+
+    /**
+     * Create the overlay in Shadow DOM if not already created
+     */
+    create() {
+      if (this.host) return;
+
+      this.host = document.createElement('div');
+      this.host.id = 'fsb-crawl-progress-host';
+      this.host.style.cssText = `
+      all: initial !important;
+      display: block !important;
+      position: fixed !important;
+      inset: auto !important;
+      bottom: 16px !important;
+      right: 16px !important;
+      z-index: 2147483647 !important;
+      pointer-events: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      background: none !important;
+    `;
+
+      this.shadow = this.host.attachShadow({ mode: 'open' });
+
+      const style = document.createElement('style');
+      style.textContent = `
+      :host {
+        display: block !important;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      .fsb-crawl-overlay {
+        width: 280px;
+        background: rgba(15, 23, 42, 0.92);
+        color: #ffffff;
+        padding: 12px 16px;
+        border-radius: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
+        line-height: 1.4;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(56, 189, 248, 0.3);
+        pointer-events: auto;
+        opacity: 1;
+        transition: opacity 0.2s ease-out;
+        contain: paint;
+      }
+      .fsb-crawl-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .fsb-crawl-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .fsb-crawl-logo {
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        object-fit: contain;
+      }
+      .fsb-crawl-title {
+        font-weight: 600;
+        color: #38bdf8;
+        font-size: 12px;
+      }
+      .fsb-crawl-domain {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 12px;
+        margin-bottom: 6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .fsb-crawl-count {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+      .fsb-crawl-pages {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 11px;
+      }
+      .fsb-crawl-percent {
+        background: rgba(56, 189, 248, 0.2);
+        color: #38bdf8;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .fsb-crawl-progress-bar {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        overflow: hidden;
+        margin-bottom: 6px;
+      }
+      .fsb-crawl-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+        border-radius: 2px;
+        transition: width 0.3s ease-out;
+      }
+      .fsb-crawl-path {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    `;
+      this.shadow.appendChild(style);
+
+      this.container = document.createElement('div');
+      this.container.className = 'fsb-crawl-overlay';
+      this.container.innerHTML = `
+      <div class="fsb-crawl-header">
+        <img class="fsb-crawl-logo" src="" alt="FSB">
+        <span class="fsb-crawl-title">FSB Crawling</span>
+      </div>
+      <div class="fsb-crawl-domain">--</div>
+      <div class="fsb-crawl-count">
+        <span class="fsb-crawl-pages">0 / 0 pages</span>
+        <span class="fsb-crawl-percent">0%</span>
+      </div>
+      <div class="fsb-crawl-progress-bar">
+        <div class="fsb-crawl-progress-fill" style="width: 0%"></div>
+      </div>
+      <div class="fsb-crawl-path"></div>
+    `;
+
+      // Set logo
+      const logoImg = this.container.querySelector('.fsb-crawl-logo');
+      logoImg.src = chrome.runtime.getURL('assets/icon48.png');
+
+      this.shadow.appendChild(this.container);
+
+      this._inTopLayer = promoteToTopLayer(this.host);
+      if (!this._inTopLayer) {
+        document.documentElement.appendChild(this.host);
+      }
+    }
+
+    /**
+     * Update overlay content
+     * @param {Object} data
+     * @param {string} data.domain
+     * @param {number} data.pagesCollected
+     * @param {number} data.maxPages
+     * @param {string} data.currentPath
+     * @param {number} data.percent
+     */
+    update(data) {
+      if (!this.container) return;
+
+      if (data.domain !== undefined) {
+        this.container.querySelector('.fsb-crawl-domain').textContent = 'Crawling ' + data.domain;
+      }
+      if (data.pagesCollected !== undefined && data.maxPages !== undefined) {
+        this.container.querySelector('.fsb-crawl-pages').textContent = data.pagesCollected + ' / ' + data.maxPages + ' pages';
+      }
+      if (data.percent !== undefined) {
+        const clamped = Math.min(100, Math.max(0, data.percent));
+        this.container.querySelector('.fsb-crawl-percent').textContent = clamped + '%';
+        this.container.querySelector('.fsb-crawl-progress-fill').style.width = clamped + '%';
+      }
+      if (data.currentPath !== undefined) {
+        this.container.querySelector('.fsb-crawl-path').textContent = data.currentPath || '';
+      }
+    }
+
+    /**
+     * Remove overlay from DOM completely
+     */
+    destroy() {
+      if (this.host) {
+        demoteFromTopLayer(this.host);
+        this.host.remove();
+        this.host = null;
+        this.shadow = null;
+        this.container = null;
+        this._inTopLayer = false;
+      }
+    }
+  }
+
+  // Singleton instance for crawl progress overlay
+  const crawlProgressOverlay = new CrawlProgressOverlay();
+
   // VIS-07: Clean up visual feedback on page navigation/unload
   // PERF: Also disconnect MutationObservers to prevent orphaned observers on BFCache navigation
   window.addEventListener('beforeunload', () => {
@@ -1233,6 +1447,7 @@
       actionGlowOverlay.destroy();
       highlightManager.cleanup();
       progressOverlay.destroy();
+      crawlProgressOverlay.destroy();
       elementInspector.disable();
       // Disconnect MutationObservers to prevent leaks on BFCache/re-injection
       if (FSB.domStateManager && FSB.domStateManager.mutationObserver) {
@@ -1254,6 +1469,7 @@
   FSB.ViewportGlow = ViewportGlow;
   FSB.ActionGlowOverlay = ActionGlowOverlay;
   FSB.ElementInspector = ElementInspector;
+  FSB.CrawlProgressOverlay = CrawlProgressOverlay;
 
   // Singleton instances
   FSB.highlightManager = highlightManager;
@@ -1261,6 +1477,7 @@
   FSB.viewportGlow = viewportGlow;
   FSB.actionGlowOverlay = actionGlowOverlay;
   FSB.elementInspector = elementInspector;
+  FSB.crawlProgressOverlay = crawlProgressOverlay;
 
   // Utility functions
   FSB.promoteToTopLayer = promoteToTopLayer;
