@@ -305,7 +305,7 @@ function classifySelector(selector) {
 function sortSelectorsByStability(selectors) {
   const order = { STABLE: 0, MODERATE: 1, UNSTABLE: 2 };
   return [...selectors].sort((a, b) => {
-    return (order[classifySelector(a)] || 2) - (order[classifySelector(b)] || 2);
+    return (order[classifySelector(a)] ?? 2) - (order[classifySelector(b)] ?? 2);
   });
 }
 
@@ -764,7 +764,7 @@ function handleGoogleSearchLogs(googleLogs) {
     for (const page of pages) {
       for (const elem of (page.interactiveElements || [])) {
         if (elem.type === 'textarea' || elem.type === 'input') {
-          const text = (elem.text || '').trim();
+          const text = (elem.text || '').trim().split(/\s/)[0];
           if (text.startsWith('http') && text.includes('career')) {
             careerUrl = text;
           } else if (text.startsWith('http')) {
