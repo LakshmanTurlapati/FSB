@@ -1,36 +1,13 @@
-/**
- * Site Guide: Indeed
- * Per-site guide for Indeed job search platform.
- */
-
 registerSiteGuide({
   site: 'Indeed',
   category: 'Career & Job Search',
+  confidence: 'HIGH',
+  ats: null,
+  careerUrl: 'https://www.indeed.com',
   patterns: [
     /indeed\.com/i
   ],
-  guidance: `INDEED-SPECIFIC INTELLIGENCE:
-
-SEARCH:
-- Search box has two fields: "What" (job title/keywords) and "Where" (location)
-- "What" field: #text-input-what or input[name="q"]
-- "Where" field: #text-input-where or input[name="l"]
-- Search button: button[type="submit"] or .yosegi-InlineWhatWhere-primaryButton
-- Clear the "Where" field before typing a new location (it may have a default)
-
-JOB LISTINGS:
-- Job cards use .job_seen_beacon or .resultContent or .jobsearch-ResultsList .result containers
-- Job title link: .jobTitle a or .jcs-JobTitle (click to see full description)
-- Company name: .companyName or [data-testid="company-name"]
-- Location: .companyLocation or [data-testid="text-location"]
-- Date posted: .date or [data-testid="myJobsStateDate"]
-- Apply button: .jobsearch-IndeedApplyButton or [data-testid="indeedApplyButton"]
-
-NAVIGATION:
-- Sponsored/promoted listings appear at the top -- skip unless no organic results match
-- Pagination controls at the bottom of results
-- Use scroll to load more results if the page uses infinite scrolling
-- Some job details open in a side panel rather than a new page`,
+  guidance: `INDEED NAVIGATION:\nSearch has two fields: "What" (keywords) and "Where" (location).\nClear "Where" before typing new location (may have default).\nSponsored listings appear first -- skip unless no organic results match.\nSome job details open in side panel rather than new page.`,
   selectors: {
     searchBox: '#text-input-what, input[name="q"]',
     locationBox: '#text-input-where, input[name="l"]',
@@ -40,33 +17,35 @@ NAVIGATION:
     company: '.companyName, [data-testid="company-name"]',
     location: '.companyLocation, [data-testid="text-location"]',
     datePosted: '.date, [data-testid="myJobsStateDate"]',
-    applyButton: '.jobsearch-IndeedApplyButton, [data-testid="indeedApplyButton"]'
+    applyButton: '.jobsearch-IndeedApplyButton, [data-testid="indeedApplyButton"]',
+    resultsContainer: '.jobsearch-ResultsList, #mosaic-jobResults',
+    pagination: 'nav[aria-label="pagination"], a[data-testid="pagination-page-next"], .css-1jg5dlr'
   },
   workflows: {
     searchJobs: [
       'Navigate to indeed.com',
-      'Enter the job title or keywords in the "What" field',
-      'Enter the location in the "Where" field (clear first if pre-filled)',
-      'Click the search button or press Enter',
-      'Wait for search results to load',
+      'Enter job keywords in the "What" field',
+      'Clear and enter location in the "Where" field',
+      'Click search button or press Enter',
+      'Wait for results to load',
       'Scan job cards for relevant positions',
       'Click into each relevant listing for full details'
     ],
     extractJobData: [
-      'Identify the job title from .jobTitle a or .jcs-JobTitle',
-      'Get the company name from .companyName',
-      'Get the location from .companyLocation',
-      'Check the date posted from .date element',
-      'Read the first paragraph of the job description for summary',
-      'Get the apply link from the apply button href',
-      'Verify all 6 required fields are captured'
+      'Get job title from .jobTitle a',
+      'Get company name from .companyName',
+      'Get location from .companyLocation',
+      'Get date posted from .date element',
+      'Read first paragraph of job description',
+      'Get apply link from apply button href',
+      'Verify all 6 fields captured'
     ]
   },
   warnings: [
-    'Sponsored/promoted job listings appear first -- skip unless no organic results match',
-    'Some job details open in a side panel rather than a new page -- check both layouts',
-    'Indeed may require login to apply -- note when auth walls appear',
-    'The "Where" field may have a default location -- clear it before typing a new one'
+    'Sponsored/promoted listings appear first -- skip unless no organic results match',
+    'Some job details open in side panel -- check both layouts',
+    'Indeed may require login to apply -- note auth walls',
+    'Clear "Where" field before typing new location'
   ],
   toolPreferences: ['navigate', 'searchGoogle', 'type', 'click', 'scroll', 'getText', 'getAttribute', 'waitForElement']
 });
