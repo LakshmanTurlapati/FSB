@@ -34,7 +34,7 @@
 
 *Inspired by Project Mariner, built for everyone*
 
-[See FSB](#see-fsb) | [Quick Start](#quick-start) | [Architecture](#architecture-overview) | [AI Providers](#multi-model-ai-integration) | [Memory](#long-term-memory-system) | [Contributing](#contributing)
+[Quick Start](#quick-start) | [Architecture](#architecture-overview) | [AI Providers](#multi-model-ai-integration) | [Memory](#long-term-memory-system) | [Contributing](#contributing)
 
 </div>
 
@@ -157,23 +157,6 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 - **Background Monitoring**: Schedule recurring agents to check prices, track changes, or gather data
 
 > **Tip**: Always monitor automation results and start with simple tasks to build familiarity. Your feedback helps improve accuracy!
-
----
-
-## See FSB
-
-<div align="center">
-
-### Chat Interface
-<img src="Assets/demo-chat.svg" alt="FSB Chat Interface" width="800" />
-
-### Browser Automation
-<img src="Assets/demo-browser.svg" alt="FSB Automating Google Search" width="900" />
-
-### Analytics Dashboard
-<img src="Assets/demo-dashboard.svg" alt="FSB Analytics Dashboard" width="900" />
-
-</div>
 
 ---
 
