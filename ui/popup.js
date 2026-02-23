@@ -38,32 +38,6 @@ function applyTheme() {
   document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
-// Check if URL is restricted for automation
-function isRestrictedURL(url) {
-  if (!url) return true;
-  
-  const restrictedProtocols = [
-    'chrome://',
-    'chrome-extension://',
-    'moz-extension://',
-    'edge://',
-    'about:',
-    'file://'
-  ];
-  
-  return restrictedProtocols.some(protocol => url.startsWith(protocol));
-}
-
-// Get user-friendly page type description
-function getPageTypeDescription(url) {
-  if (url.startsWith('chrome://')) return 'Chrome internal page';
-  if (url.startsWith('chrome-extension://')) return 'Chrome extension page';
-  if (url.startsWith('edge://')) return 'Edge internal page';
-  if (url.startsWith('about:')) return 'Browser internal page';
-  if (url.startsWith('file://')) return 'Local file';
-  return 'Restricted page';
-}
-
 // Listen for theme changes from options page
 window.addEventListener('storage', (e) => {
   if (e.key === 'fsb-theme') {
