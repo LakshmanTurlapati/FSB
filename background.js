@@ -3603,23 +3603,69 @@ function searchValidator(session, aiResponse, context, signals, scoreResult) {
 function careerValidator(session, aiResponse, context, signals, scoreResult) {
   let { score, evidence } = scoreResult;
   const currentUrl = context.currentUrl || '';
-  const isOnSheets = /docs\.google\.com\/spreadsheets/.test(currentUrl);
-  if (isOnSheets && signals.actionChainComplete) {
-    score = Math.min(1, score + 0.15);
-    evidence.push('Career: data entered into Google Sheets');
-  }
-  const resultLower = (aiResponse.result || '').toLowerCase();
-  if (/entered.*sheet|added.*sheet|spreadsheet/.test(resultLower)) {
+  const resultText = (aiResponse.result || '');
+  const resultLower = resultText.toLowerCase();
+
+  // Bonus: AI is on a career site URL (not Google, not Sheets)
+  const careerUrlPatterns = [
+    /careers?\./i,
+    /jobs?\./i,
+    /\/careers/i,
+    /\/jobs/i,
+    /workday\.com/i,
+    /greenhouse\.io/i,
+    /lever\.co/i,
+    /icims\.com/i,
+    /taleo/i,
+    /indeed\.com/i,
+    /glassdoor\.com/i,
+    /builtin\.com/i
+  ];
+  const isOnCareerSite = careerUrlPatterns.some(p => p.test(currentUrl));
+  if (isOnCareerSite) {
     score = Math.min(1, score + 0.1);
-    evidence.push('Career: AI confirmed sheet data entry');
+    evidence.push('Career: on career site URL');
   }
+
+  // Bonus: getText actions indicate job data extraction
   const actionHistory = session.actionHistory || [];
   const getTextCount = actionHistory.filter(a => a.tool === 'getText').length;
-  const typeCount = actionHistory.filter(a => a.tool === 'type').length;
-  if (getTextCount >= 3 && typeCount >= 6) {
+  const getAttrCount = actionHistory.filter(a => a.tool === 'getAttribute').length;
+  if (getTextCount >= 2) {
     score = Math.min(1, score + 0.1);
-    evidence.push('Career: extraction+entry actions detected');
+    evidence.push('Career: getText extraction actions (' + getTextCount + ')');
   }
+  if (getAttrCount >= 1) {
+    score = Math.min(1, score + 0.05);
+    evidence.push('Career: getAttribute actions for links (' + getAttrCount + ')');
+  }
+
+  // Bonus: AI result contains structured job data
+  const hasJobsFound = /jobs?\s*found|found\s*\d+\s*jobs?/i.test(resultText);
+  const hasApplyLink = /https?:\/\//i.test(resultText);
+  const hasJobTitle = resultText.split('\n').filter(line =>
+    /engineer|manager|analyst|developer|designer|intern|director|specialist|associate|coordinator/i.test(line)
+  ).length >= 1;
+  const hasErrorReport = /NO RESULTS|AUTH REQUIRED|PAGE ERROR|NO GUIDE|no.*results|requires.*login|auth.*wall/i.test(resultText);
+
+  if (hasJobsFound || (hasJobTitle && hasApplyLink)) {
+    score = Math.min(1, score + 0.15);
+    evidence.push('Career: structured job data in result');
+  }
+  if (hasErrorReport) {
+    // Error reports are valid completions (SEARCH-05)
+    score = Math.min(1, score + 0.15);
+    evidence.push('Career: explicit error report (valid completion)');
+  }
+
+  // Bonus: navigation + search + extraction pattern (click + type + getText)
+  const clickCount = actionHistory.filter(a => a.tool === 'click').length;
+  const typeCount = actionHistory.filter(a => a.tool === 'type').length;
+  if (clickCount >= 2 && typeCount >= 1 && getTextCount >= 2) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Career: navigate+search+extract action pattern');
+  }
+
   return { approved: score >= 0.5, score, evidence, taskType: 'career' };
 }
 
