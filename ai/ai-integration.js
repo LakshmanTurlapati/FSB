@@ -2262,6 +2262,78 @@ If no jobs found or error encountered, still mark taskComplete: true with the er
       });
     }
 
+    // Sheets data entry context injection (Phase 12)
+    // When the orchestrator is running a Sheets data entry session, inject the full
+    // job dataset and detailed writing instructions into the system prompt
+    if (context?.sheetsData) {
+      const sd = context.sheetsData;
+      const sheetsDataDirective = `
+
+GOOGLE SHEETS DATA ENTRY SESSION:
+You are writing ${sd.totalRows} job listings into a Google Sheet.
+
+SHEET TARGET: ${sd.sheetTarget.type === 'new' ? 'Create a new sheet by navigating to https://docs.google.com/spreadsheets/create' : sd.sheetTarget.type === 'existing' ? 'Switch to the existing Sheets tab using switchToTab with tabId: ' + sd.sheetTarget.tabId + '. Your FIRST action must be switchToTab.' : 'Open the provided Sheets URL: ' + sd.sheetTarget.url}
+
+COLUMN ORDER (row 1 headers): ${sd.columns.join(' | ')}
+${sd.columns.length < 6 ? `\nNOTE: The user requested only ${sd.columns.length} columns (not all 6 defaults). Write ONLY the columns listed above. Skip unlisted fields entirely.\n` : ''}
+COMPLETE JOB DATA TO WRITE:
+${sd.jobDataPrompt}
+
+WRITING PROCEDURE:
+1. Navigate to or create the Google Sheet. Wait for Name Box (#t-name-box) AND toolbar (#docs-toolbar) to be visible before proceeding.
+2. Click the Name Box, type "A1", press Enter to navigate to cell A1.
+3. Type each header from the COLUMN ORDER above in sequence, pressing Tab between each. After the last header, press Enter.
+4. You are now in cell A2. For each data row:
+   a. Type the Title value, press Tab
+   b. Type the Company value, press Tab
+   c. Type the Location value, press Tab
+   d. Type the Date value, press Tab
+   e. Type the Description value (single line, no newlines), press Tab
+   f. Type the HYPERLINK formula: =HYPERLINK("url","Apply"), press Enter (moves to next row)
+   g. ROW VERIFICATION (two-pass, pass 1): After writing each row, verify it before moving on:
+      - Click the Name Box, type the first cell of the row just written (e.g., "A2"), press Enter
+      - Read the formula bar to confirm the Title matches the expected value
+      - Press Tab to check Company, Tab for Location, etc. -- spot-check at least Title and Company
+      - If any cell is wrong: you are already on it, retype the correct value and press Tab/Enter
+      - If correct: click the Name Box, type the next empty row's first cell, and continue writing
+5. After every row, the cursor should be in column A of the next row.
+
+HYPERLINK FORMULA FORMAT:
+For the Apply Link column, type: =HYPERLINK("actual_url_here","Apply")
+- This creates a clickable "Apply" link in the cell
+- If applyLink is "N/A" or empty, type "N/A" instead of a formula
+
+SPECIAL CHARACTER SANITIZATION:
+- If a cell value starts with =, +, -, or @, prefix it with a single space to prevent Sheets from interpreting it as a formula
+- Replace any double quotes inside text values with single quotes
+- Cell values must be single-line (no newlines)
+
+FINAL VERIFICATION (two-pass, pass 2 -- after ALL rows written):
+1. Click the Name Box, type "A1", press Enter
+2. Read the formula bar text (getText on the formula bar element) to verify "Title" is in A1
+3. Click Name Box, type "A2", press Enter -- verify the first job title matches
+4. Click Name Box, type "F2", press Enter -- verify the HYPERLINK formula is present
+5. If any cell is wrong: click Name Box, navigate to the wrong cell, retype the correct value
+6. After verification, rename the sheet (click the title at the top, type a descriptive name like "Job Search - ${sd.searchQuery || 'Results'} - ${new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}")
+
+MISSING DATA: Use "N/A" for any field that has no value. Never leave a cell blank.
+
+PROGRESS: You are writing data rows sequentially. Do not skip rows. Do not reorder.
+
+COMPLETION: Mark taskComplete: true ONLY after:
+- All ${sd.totalRows} data rows are written
+- Header row is verified
+- At least the first and last data rows are spot-checked
+- Sheet has been renamed`;
+
+      systemPrompt += sheetsDataDirective;
+      automationLogger.debug('Sheets data entry directive injected', {
+        sessionId: this.currentSessionId,
+        totalRows: sd.totalRows,
+        sheetTarget: sd.sheetTarget.type
+      });
+    }
+
     // Validate domState structure
     if (!domState || typeof domState !== 'object') {
       throw new Error('Invalid DOM state provided to AI integration');
@@ -4096,6 +4168,12 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         if (hasOutputDest && hasGatherAction) {
           return 'multitab';
         }
+        // Sheets data entry: writing/entering data into Sheets (Phase 12 rewritten task)
+        const sheetsTargetsGuide = ['google sheets', 'google sheet', 'spreadsheet'];
+        const sheetsWriteActionsGuide = ['write', 'enter', 'fill', 'populate', 'put'];
+        if (sheetsTargetsGuide.some(kw => taskLower.includes(kw)) && sheetsWriteActionsGuide.some(kw => taskLower.includes(kw))) {
+          return 'multitab';
+        }
         if (taskLower.includes('new tab') || taskLower.includes('open tab') || taskLower.includes('switch tab')) {
           return 'multitab';
         }
@@ -4133,6 +4211,16 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
     const hasOutputDest = outputDestinations.some(kw => taskLower.includes(kw));
     const hasGatherAction = gatherActions.some(kw => taskLower.includes(kw));
     if (hasOutputDest && hasGatherAction) {
+      return 'multitab';
+    }
+
+    // Sheets data entry detection: writing/entering data into Sheets or spreadsheet
+    // Covers the rewritten task from startSheetsDataEntry ("Write X job listings to Google Sheets")
+    const sheetsTargets = ['google sheets', 'google sheet', 'spreadsheet'];
+    const sheetsWriteActions = ['write', 'enter', 'fill', 'populate', 'put'];
+    const hasSheetsTarget = sheetsTargets.some(kw => taskLower.includes(kw));
+    const hasSheetsWrite = sheetsWriteActions.some(kw => taskLower.includes(kw));
+    if (hasSheetsTarget && hasSheetsWrite) {
       return 'multitab';
     }
 
