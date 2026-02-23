@@ -8,6 +8,13 @@ registerCategoryGuidance({
   icon: 'fa-briefcase',
   guidance: `CAREER & JOB SEARCH INTELLIGENCE:
 
+COOKIE BANNER DISMISSAL (DO THIS FIRST):
+- Before interacting with ANY career page element, check for cookie consent or privacy banners
+- Look for buttons with text: "Accept", "Accept All", "I Accept", "Got it", "OK", "Agree", "Close"
+- Common cookie banner selectors: #onetrust-accept-btn-handler, [id*="cookie"] button, [class*="cookie-accept"]
+- Click the accept/dismiss button. If no banner is visible, proceed immediately
+- Do NOT spend more than one action on cookie dismissal. If the first click does not dismiss it, proceed with the task
+
 STRATEGY PRIORITY -- ALWAYS follow this order:
 1. DIRECT COMPANY CAREER PAGE (PRIMARY): Navigate to [company].com/careers or [company].com/jobs first.
    - Google search: "[company name] careers" or "[company name] jobs"
@@ -37,12 +44,21 @@ RELEVANCE FILTERING:
 - If user says "find jobs at [company]" with no role specified, extract the first 3-5 listings
 - If user specifies a role, only extract matching roles
 - Skip internships unless explicitly requested
-- Skip roles that are clearly unrelated to the search term`,
+- Skip roles that are clearly unrelated to the search term
+
+ERROR REPORTING (use these exact formats):
+- If search returns no results: report "NO RESULTS: [Company] career page returned 0 results for '[search term]'. Try broadening search terms or checking the career page directly at [URL]."
+- If login/auth wall blocks access: report "AUTH REQUIRED: [Company] requires login to view job listings. Career page: [URL]"
+- If career page is unreachable or broken: report "PAGE ERROR: Could not access [Company] career page at [URL]. The site may be temporarily unavailable."
+- If no site guide exists for the company: report "NO GUIDE: No career intelligence for [Company]. Attempting Google search for '[Company] careers'..."
+- NEVER silently fail. Always report what happened and suggest next steps.`,
   warnings: [
     'Sponsored/promoted job listings appear first on job boards -- skip unless no organic results match',
     'Many job boards require login to see full job descriptions or apply',
     'Do NOT construct company career URLs from guesswork -- always Google search first to find the actual careers page',
     'Job listings may have expired -- check the date posted',
-    'Some career pages are single-page apps that load dynamically -- wait for content after navigation'
+    'Some career pages are single-page apps that load dynamically -- wait for content after navigation',
+    'Cookie consent banners can block interaction with page elements -- dismiss BEFORE searching',
+    'Report all failures explicitly -- never complete silently when no jobs were extracted'
   ]
 });
