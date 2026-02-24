@@ -6667,6 +6667,19 @@ async function launchNextCompanySearch(sessionId, session, companyName) {
     taskSummary: session.taskSummary
   });
 
+  // Clear AI conversation history so the new company starts fresh (Gap 1 fix)
+  const ai = sessionAIInstances.get(sessionId);
+  if (ai && typeof ai.clearConversationHistory === 'function') {
+    ai.clearConversationHistory();
+    automationLogger.info('Cleared AI conversation for company transition', {
+      sessionId,
+      newCompany: companyName
+    });
+  }
+
+  // Reset session timer so the 5-minute timeout restarts for this company (Gap 3 fix)
+  session.startTime = Date.now();
+
   // Send ProgressOverlay update
   sendSessionStatus(session.tabId, {
     phase: 'analyzing',
@@ -7112,13 +7125,23 @@ async function startSheetsDataEntry(sessionId, session) {
   session.lastUrl = null;
   session.status = 'running';
 
-  // 8. Set iteration cap proportional to job count (enough for writing + verification)
+  // 8. Clear AI conversation history so Sheets entry starts fresh (Gap 2 fix)
+  const ai = sessionAIInstances.get(sessionId);
+  if (ai && typeof ai.clearConversationHistory === 'function') {
+    ai.clearConversationHistory();
+    automationLogger.info('Cleared AI conversation for Sheets entry transition', { sessionId });
+  }
+
+  // 9. Reset session timer for Sheets entry phase (Gap 3 fix)
+  session.startTime = Date.now();
+
+  // 10. Set iteration cap proportional to job count (enough for writing + verification)
   session.maxIterations = Math.max(jobData.jobs.length * 3, 30);
 
-  // 9. Update task summary for progress overlay
+  // 11. Update task summary for progress overlay
   session.taskSummary = `Sheets data entry: 0/${rowCount} rows`;
 
-  // 10. Send initial progress overlay update
+  // 12. Send initial progress overlay update
   sendSessionStatus(session.tabId, {
     phase: 'sheets-entry',
     step: 'Starting Google Sheets data entry',
@@ -7129,7 +7152,7 @@ async function startSheetsDataEntry(sessionId, session) {
     taskSummary: session.taskSummary
   });
 
-  // 11. Persist session state
+  // 13. Persist session state
   persistSession(sessionId, session);
 
   // 12. Start automation loop with transition delay
@@ -7192,6 +7215,16 @@ async function startSheetsFormatting(sessionId, session) {
   session.urlHistory = [];
   session.lastUrl = null;
   session.status = 'running';
+
+  // Clear AI conversation history so formatting starts fresh
+  const ai = sessionAIInstances.get(sessionId);
+  if (ai && typeof ai.clearConversationHistory === 'function') {
+    ai.clearConversationHistory();
+    automationLogger.info('Cleared AI conversation for formatting transition', { sessionId });
+  }
+
+  // Reset session timer for formatting phase (Gap 3 fix)
+  session.startTime = Date.now();
 
   // Formatting needs fewer iterations than data entry (keyboard shortcuts are fast)
   session.maxIterations = 25;
