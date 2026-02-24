@@ -386,6 +386,43 @@ RESPONSE FORMAT:
   "result": "summary if complete"
 }`;
 
+// Batch action instructions for the AI system prompt
+// Teaches the AI when and how to use batchActions for same-page multi-action sequences
+const BATCH_ACTION_INSTRUCTIONS = `
+=== ACTION BATCHING (PERFORMANCE OPTIMIZATION) ===
+
+When multiple actions target the SAME page and don't depend on each other's results:
+- Return them in a "batchActions" array instead of "actions"
+- Maximum 5-8 actions per batch
+- Actions execute sequentially with stability checks between each
+- Navigation-triggering actions (click links, navigate, searchGoogle) MUST be LAST
+- If an action fails, remaining actions are skipped
+- The existing "actions" array still works for single actions
+
+WHEN TO BATCH:
+- Filling multiple form fields: type into field1, type into field2, type into field3
+- Selecting multiple checkboxes or radio buttons
+- Click + type sequences (click input, then type)
+- Multiple data extraction calls (getText on several elements)
+- Scroll + extract patterns (scroll down, then getText)
+
+WHEN NOT TO BATCH:
+- When the next action depends on the result of the previous one
+- When any action might trigger page navigation (put it last or don't batch)
+- When you need to verify an action's effect before deciding the next step
+
+Example batch response:
+{
+  "reasoning": "Three form fields to fill on the same page, no dependencies between them",
+  "batchActions": [
+    {"tool": "type", "params": {"ref": "e3", "text": "John Doe"}},
+    {"tool": "type", "params": {"ref": "e5", "text": "john@example.com"}},
+    {"tool": "type", "params": {"ref": "e7", "text": "Software Engineer"}},
+    {"tool": "click", "params": {"ref": "e9"}}
+  ],
+  "taskComplete": false
+}`;
+
 
 /**
  * Build the Sheets formatting directive for AI prompt injection.
@@ -2306,10 +2343,13 @@ Your response must be EXACTLY this JSON format:
   "confidence": "high/medium/low - explain why this confidence level",
   "assumptions": ["List assumptions I'm making about this page or task"],
   "actions": [{"tool": "name", "params": {}}],
+  "batchActions": [{"tool": "...", "params": {...}}, ...],
   "fallbackPlan": "If this action fails, I will try...",
   "taskComplete": boolean,
   "result": "detailed summary of what was accomplished and found (required when taskComplete is true)"
 }
+
+NOTE: "batchActions" is optional. Use it instead of "actions" when batching multiple same-page actions. See ACTION BATCHING section below.
 
 OUTPUT FORMATTING GUIDANCE:
 When providing your result, use rich formatting to make data clear and actionable:
@@ -2337,6 +2377,8 @@ When providing your result, use rich formatting to make data clear and actionabl
 Only use charts/diagrams when the data genuinely benefits from visual representation. Simple answers should stay as plain text.
 
 FAILURE TO PROVIDE VALID JSON OR COMPLETE REASONING WILL RESULT IN TASK FAILURE.
+
+${BATCH_ACTION_INSTRUCTIONS}
 
 ${this.getModelSpecificInstructions()}
 
@@ -4079,6 +4121,14 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       assumptions: response.assumptions || [],
       fallbackPlan: response.fallbackPlan || ''
     };
+
+    // Extract batchActions if present (AI-declared batch of same-page actions)
+    if (response.batchActions && Array.isArray(response.batchActions) && response.batchActions.length > 0) {
+      normalized.batchActions = response.batchActions.slice(0, 8).map(action => ({
+        tool: action.tool || action.action,
+        params: action.params || action.parameters || {}
+      })).filter(action => action.tool); // Drop entries with no tool name
+    }
 
     // Log reasoning fields for comprehensive session logging
     if (typeof automationLogger !== 'undefined' && this.currentSessionId) {
