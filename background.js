@@ -300,6 +300,168 @@ function debugLog(message, data) {
   }
 }
 
+// ============================================================
+// TIMEZONE-TO-COUNTRY LOOKUP MAP
+// Static mapping of major IANA timezones to country names.
+// Used by getUserLocale() to inject locale context into AI prompts.
+// Organized by region for maintainability (~90 entries).
+// ============================================================
+const TIMEZONE_TO_COUNTRY = {
+  // Americas - United States
+  'America/New_York': 'United States',
+  'America/Chicago': 'United States',
+  'America/Denver': 'United States',
+  'America/Los_Angeles': 'United States',
+  'America/Anchorage': 'United States',
+  'Pacific/Honolulu': 'United States',
+  'America/Phoenix': 'United States',
+  'America/Indiana/Indianapolis': 'United States',
+  'America/Detroit': 'United States',
+  'America/Boise': 'United States',
+  'America/Adak': 'United States',
+
+  // Americas - Canada
+  'America/Toronto': 'Canada',
+  'America/Vancouver': 'Canada',
+  'America/Edmonton': 'Canada',
+  'America/Winnipeg': 'Canada',
+  'America/Halifax': 'Canada',
+  'America/St_Johns': 'Canada',
+
+  // Americas - Mexico
+  'America/Mexico_City': 'Mexico',
+  'America/Tijuana': 'Mexico',
+  'America/Cancun': 'Mexico',
+
+  // Americas - Brazil
+  'America/Sao_Paulo': 'Brazil',
+  'America/Manaus': 'Brazil',
+
+  // Americas - Other
+  'America/Bogota': 'Colombia',
+  'America/Lima': 'Peru',
+  'America/Santiago': 'Chile',
+  'America/Buenos_Aires': 'Argentina',
+  'America/Caracas': 'Venezuela',
+
+  // Europe
+  'Europe/London': 'United Kingdom',
+  'Europe/Paris': 'France',
+  'Europe/Berlin': 'Germany',
+  'Europe/Madrid': 'Spain',
+  'Europe/Rome': 'Italy',
+  'Europe/Amsterdam': 'Netherlands',
+  'Europe/Brussels': 'Belgium',
+  'Europe/Zurich': 'Switzerland',
+  'Europe/Stockholm': 'Sweden',
+  'Europe/Oslo': 'Norway',
+  'Europe/Copenhagen': 'Denmark',
+  'Europe/Helsinki': 'Finland',
+  'Europe/Warsaw': 'Poland',
+  'Europe/Prague': 'Czech Republic',
+  'Europe/Vienna': 'Austria',
+  'Europe/Dublin': 'Ireland',
+  'Europe/Lisbon': 'Portugal',
+  'Europe/Athens': 'Greece',
+  'Europe/Bucharest': 'Romania',
+  'Europe/Istanbul': 'Turkey',
+  'Europe/Moscow': 'Russia',
+  'Europe/Kyiv': 'Ukraine',
+
+  // Asia
+  'Asia/Tokyo': 'Japan',
+  'Asia/Shanghai': 'China',
+  'Asia/Hong_Kong': 'Hong Kong',
+  'Asia/Taipei': 'Taiwan',
+  'Asia/Seoul': 'South Korea',
+  'Asia/Kolkata': 'India',
+  'Asia/Singapore': 'Singapore',
+  'Asia/Bangkok': 'Thailand',
+  'Asia/Jakarta': 'Indonesia',
+  'Asia/Manila': 'Philippines',
+  'Asia/Ho_Chi_Minh': 'Vietnam',
+  'Asia/Kuala_Lumpur': 'Malaysia',
+  'Asia/Dubai': 'United Arab Emirates',
+  'Asia/Riyadh': 'Saudi Arabia',
+  'Asia/Karachi': 'Pakistan',
+  'Asia/Dhaka': 'Bangladesh',
+  'Asia/Colombo': 'Sri Lanka',
+  'Asia/Kathmandu': 'Nepal',
+  'Asia/Tashkent': 'Uzbekistan',
+  'Asia/Almaty': 'Kazakhstan',
+  'Asia/Tehran': 'Iran',
+  'Asia/Baghdad': 'Iraq',
+  'Asia/Jerusalem': 'Israel',
+
+  // Oceania
+  'Australia/Sydney': 'Australia',
+  'Australia/Melbourne': 'Australia',
+  'Australia/Brisbane': 'Australia',
+  'Australia/Perth': 'Australia',
+  'Australia/Adelaide': 'Australia',
+  'Pacific/Auckland': 'New Zealand',
+  'Pacific/Fiji': 'Fiji',
+
+  // Africa
+  'Africa/Cairo': 'Egypt',
+  'Africa/Lagos': 'Nigeria',
+  'Africa/Johannesburg': 'South Africa',
+  'Africa/Nairobi': 'Kenya',
+  'Africa/Casablanca': 'Morocco',
+  'Africa/Accra': 'Ghana'
+};
+
+/**
+ * Detect the user's timezone, country, and local datetime using browser APIs.
+ * Returns a locale object with a pre-formatted promptString for AI injection.
+ * Uses Intl.DateTimeFormat for timezone detection and a static lookup table
+ * for country derivation. No external dependencies.
+ *
+ * @returns {{ timezone: string, country: string, localDateTime: string, promptString: string }}
+ */
+function getUserLocale() {
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    // Validate IANA format (always contains "/") -- macOS Sonoma bug mitigation
+    if (!timezone || !timezone.includes('/')) {
+      console.warn('[FSB] Timezone detection returned non-IANA value:', timezone);
+      return {
+        timezone: timezone || 'Unknown',
+        country: 'Unknown',
+        localDateTime: new Date().toISOString(),
+        promptString: 'User timezone could not be detected.'
+      };
+    }
+
+    const country = TIMEZONE_TO_COUNTRY[timezone] || 'Unknown';
+    const localDateTime = new Date().toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+
+    return {
+      timezone,
+      country,
+      localDateTime,
+      promptString: `User is in ${country}, local time: ${localDateTime} (${timezone})`
+    };
+  } catch (e) {
+    console.warn('[FSB] getUserLocale() failed:', e.message);
+    return {
+      timezone: 'Unknown',
+      country: 'Unknown',
+      localDateTime: new Date().toISOString(),
+      promptString: 'User timezone could not be detected.'
+    };
+  }
+}
+
 /**
  * Simplify a status message for user display.
  * Truncates to a short, clean one-liner.
@@ -4797,7 +4959,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
       // Cost tracking fields
       totalCost: 0,
       totalInputTokens: 0,
-      totalOutputTokens: 0
+      totalOutputTokens: 0,
+      // Locale context: detect once at session start, reuse for all AI calls
+      userLocale: getUserLocale()
     };
 
     activeSessions.set(sessionId, sessionData);
@@ -5012,7 +5176,9 @@ async function executeAutomationTask(tabId, task, options = {}) {
         // Cost tracking fields
         totalCost: 0,
         totalInputTokens: 0,
-        totalOutputTokens: 0
+        totalOutputTokens: 0,
+        // Locale context: detect once at session start, reuse for all AI calls
+        userLocale: getUserLocale()
       };
 
       activeSessions.set(sessionId, sessionData);
@@ -7094,6 +7260,7 @@ async function startSheetsDataEntry(sessionId, session) {
   // 5. Build session.sheetsData
   session.sheetsData = {
     jobDataPrompt: formattedData,
+    rawJobs: jobData.jobs,
     totalRows: rowCount,
     columns: customColumns,
     sheetTarget: sheetTarget,
@@ -7106,7 +7273,7 @@ async function startSheetsDataEntry(sessionId, session) {
   session.sheetsData.sheetTitle = buildSheetTitle(session);
 
   // 6. Rewrite session task for Sheets-specific entry
-  session.task = `Write ${rowCount} job listings to Google Sheets. Navigate to the sheet, write headers (${customColumns.join(', ')}) in row 1, then write all data rows. Use Name Box + Tab/Enter pattern. Verify each row after writing.`;
+  session.task = `Open Google Sheets, call fillSheetData to write ${rowCount} job listings, verify the data was written correctly, then rename the sheet to "${session.sheetsData.sheetTitle || 'Job Search Results'}".`;
 
   // 7. Reset session iteration state (same pattern as launchNextCompanySearch)
   session.iterationCount = 0;
@@ -7136,7 +7303,7 @@ async function startSheetsDataEntry(sessionId, session) {
   session.startTime = Date.now();
 
   // 10. Set iteration cap proportional to job count (enough for writing + verification)
-  session.maxIterations = Math.max(jobData.jobs.length * 3, 30);
+  session.maxIterations = 15;
 
   // 11. Update task summary for progress overlay
   session.taskSummary = `Sheets data entry: 0/${rowCount} rows`;
@@ -7335,6 +7502,183 @@ async function handleBackgroundAction(action, session) {
         totalJobs: allJobs.length,
         companies: Object.keys(accumulator.companies),
         searchQuery: accumulator.searchQuery || ''
+      };
+    }
+
+    case 'fillSheetData': {
+      const sd = session.sheetsData;
+      if (!sd || !sd.rawJobs || !sd.columns) {
+        return { success: false, error: 'fillSheetData: no sheetsData with rawJobs/columns on session' };
+      }
+
+      const { rawJobs, columns } = sd;
+      const columnToField = {
+        'Title': 'title', 'Company': 'company', 'Location': 'location',
+        'Date': 'datePosted', 'Description': 'description', 'Apply Link': 'applyLink'
+      };
+
+      // Build TSV string (headers + data rows)
+      const headerRow = columns.join('\t');
+      const dataRows = rawJobs.map(job => {
+        return columns.map(col => {
+          const field = columnToField[col];
+          let value = (job[field] || 'N/A').toString();
+          // Sanitize: remove tabs, newlines, leading formula chars
+          value = value.replace(/[\t\n\r]/g, ' ');
+          if (/^[=+\-@]/.test(value)) value = "'" + value;
+          // Apply Link gets HYPERLINK formula
+          if (col === 'Apply Link' && value !== 'N/A' && value.startsWith('http')) {
+            value = `=HYPERLINK("${value.replace(/"/g, "'")}","Apply")`;
+          }
+          return value;
+        }).join('\t');
+      });
+      const tsvContent = [headerRow, ...dataRows].join('\n');
+
+      const emulator = initializeKeyboardEmulator();
+      let methodUsed = 'clipboard';
+
+      try {
+        // Primary method: Clipboard paste
+        automationLogger.info('fillSheetData: attempting clipboard paste', {
+          sessionId: session.sessionId, rows: rawJobs.length, cols: columns.length
+        });
+
+        // 1. Write TSV to clipboard via page context
+        await chrome.scripting.executeScript({
+          target: { tabId: session.tabId },
+          func: (tsv) => navigator.clipboard.writeText(tsv),
+          args: [tsvContent],
+          world: 'MAIN'
+        });
+
+        // 2. Click Name Box, type A1, press Enter to position cursor
+        await emulator.pressKey(session.tabId, 'Escape');
+        await new Promise(r => setTimeout(r, 200));
+
+        // Click the Name Box to focus it
+        const nameBoxClick = await chrome.scripting.executeScript({
+          target: { tabId: session.tabId },
+          func: () => {
+            const nameBox = document.getElementById('t-name-box');
+            if (nameBox) { nameBox.click(); nameBox.select(); return true; }
+            return false;
+          }
+        });
+
+        if (nameBoxClick && nameBoxClick[0] && nameBoxClick[0].result) {
+          await new Promise(r => setTimeout(r, 200));
+          await emulator.typeText(session.tabId, 'A1', 30);
+          await emulator.pressKey(session.tabId, 'Enter');
+          await new Promise(r => setTimeout(r, 300));
+        }
+
+        // 3. Select all existing content in case sheet has data, then paste
+        await emulator.pressKey(session.tabId, 'v', { ctrlKey: true });
+        await new Promise(r => setTimeout(r, 1500)); // Wait for Sheets to parse TSV
+
+        // Verify paste worked by checking if A1 has the first header
+        const verifyResult = await chrome.scripting.executeScript({
+          target: { tabId: session.tabId },
+          func: (expectedHeader) => {
+            const formulaBar = document.querySelector('.cell-input');
+            const nameBox = document.getElementById('t-name-box');
+            // Click A1 to check
+            if (nameBox) { nameBox.click(); nameBox.select(); }
+            return { formulaText: formulaBar ? formulaBar.textContent : null };
+          },
+          args: [columns[0]]
+        });
+
+        automationLogger.info('fillSheetData: clipboard paste completed', {
+          sessionId: session.sessionId, methodUsed
+        });
+
+      } catch (clipboardError) {
+        // Fallback: Keyboard emulator cell-by-cell
+        methodUsed = 'keyboard-emulator';
+        automationLogger.warn('fillSheetData: clipboard paste failed, falling back to keyboard emulator', {
+          sessionId: session.sessionId, error: clipboardError.message
+        });
+
+        try {
+          // Navigate to A1 first
+          await emulator.pressKey(session.tabId, 'Escape');
+          await new Promise(r => setTimeout(r, 200));
+
+          const nameBoxClick = await chrome.scripting.executeScript({
+            target: { tabId: session.tabId },
+            func: () => {
+              const nameBox = document.getElementById('t-name-box');
+              if (nameBox) { nameBox.click(); nameBox.select(); return true; }
+              return false;
+            }
+          });
+
+          if (nameBoxClick && nameBoxClick[0] && nameBoxClick[0].result) {
+            await new Promise(r => setTimeout(r, 200));
+            await emulator.typeText(session.tabId, 'A1', 30);
+            await emulator.pressKey(session.tabId, 'Enter');
+            await new Promise(r => setTimeout(r, 300));
+          }
+
+          // Type headers
+          for (let i = 0; i < columns.length; i++) {
+            await emulator.typeText(session.tabId, columns[i], 20);
+            if (i < columns.length - 1) {
+              await emulator.pressKey(session.tabId, 'Tab');
+            }
+          }
+          await emulator.pressKey(session.tabId, 'Enter');
+
+          // Type data rows
+          for (const job of rawJobs) {
+            for (let i = 0; i < columns.length; i++) {
+              const field = columnToField[columns[i]];
+              let value = (job[field] || 'N/A').toString().replace(/[\t\n\r]/g, ' ');
+              if (/^[=+\-@]/.test(value) && columns[i] !== 'Apply Link') {
+                value = "'" + value;
+              }
+              if (columns[i] === 'Apply Link' && value !== 'N/A' && value.startsWith('http')) {
+                value = `=HYPERLINK("${value.replace(/"/g, "'")}","Apply")`;
+              }
+              await emulator.typeText(session.tabId, value, 15);
+              if (i < columns.length - 1) {
+                await emulator.pressKey(session.tabId, 'Tab');
+              }
+            }
+            await emulator.pressKey(session.tabId, 'Enter');
+            await new Promise(r => setTimeout(r, 50));
+          }
+
+          automationLogger.info('fillSheetData: keyboard emulator fallback completed', {
+            sessionId: session.sessionId, rows: rawJobs.length
+          });
+
+        } catch (fallbackError) {
+          automationLogger.error('fillSheetData: both methods failed', {
+            sessionId: session.sessionId,
+            clipboardError: clipboardError.message,
+            fallbackError: fallbackError.message
+          });
+          return {
+            success: false,
+            error: `fillSheetData failed. Clipboard: ${clipboardError.message}. Keyboard: ${fallbackError.message}`
+          };
+        }
+      }
+
+      // Update session tracking
+      sd.rowsWritten = rawJobs.length;
+      session.taskSummary = `Sheets data entry: ${rawJobs.length}/${sd.totalRows} rows`;
+
+      return {
+        success: true,
+        message: `Successfully wrote ${rawJobs.length} rows x ${columns.length} columns to Google Sheet`,
+        methodUsed,
+        rowsWritten: rawJobs.length,
+        columnsWritten: columns.length,
+        headers: columns
       };
     }
 
@@ -8229,7 +8573,9 @@ async function startAutomationLoop(sessionId) {
       // Add multi-tab context
       tabInfo: tabInfo,
       // Recovery strategies when stuck (generated by generateRecoveryStrategies)
-      recoveryStrategies: recoveryStrategies.length > 0 ? recoveryStrategies : undefined
+      recoveryStrategies: recoveryStrategies.length > 0 ? recoveryStrategies : undefined,
+      // Locale context for location-aware AI decisions (detected once at session start)
+      userLocale: session.userLocale || null
     };
 
     // DIF-02: Wire completion signals from DOM response into context
@@ -8579,7 +8925,7 @@ async function startAutomationLoop(sessionId) {
         // Multi-tab actions are handled directly by background script
         const multiTabActions = ['openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab'];
         // Background-handled data tools (storage operations, not DOM actions)
-        const backgroundDataTools = ['storeJobData', 'getStoredJobs'];
+        const backgroundDataTools = ['storeJobData', 'getStoredJobs', 'fillSheetData'];
         // Combined list for background dispatch check
         const backgroundHandledTools = [...multiTabActions, ...backgroundDataTools];
 
