@@ -46,75 +46,6 @@
 
 FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers** -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models.
 
-### Key Features
-
-<table>
-<tr>
-<td width="50%">
-
-**Multi-Model AI Engine**
-<br/>Four providers -- xAI, OpenAI, Anthropic, Gemini -- with 21 models and a universal model-agnostic architecture
-<br/><sub>Automatic parameter discovery and self-healing across all providers</sub>
-
-</td>
-<td width="50%">
-
-**Natural Language Control**
-<br/>Describe tasks in plain English -- no scripting required. Smart task type detection optimizes prompts automatically
-<br/><sub>Search, form fill, extraction, and navigation task types</sub>
-
-</td>
-</tr>
-<tr>
-<td>
-
-**47 Browser Actions**
-<br/>Click, type, scroll, navigate, multi-tab control, form handling, keyboard emulation, and more
-<br/><sub>Post-action verification confirms each step succeeded</sub>
-
-</td>
-<td>
-
-**Long-Term Memory**
-<br/>Episodic, semantic, and procedural memory with AI-enriched extraction and cross-session consolidation
-<br/><sub>Cross-site pattern detection for recurring UI elements</sub>
-
-</td>
-</tr>
-<tr>
-<td>
-
-**Site Intelligence**
-<br/>9 domain-specific guide categories covering e-commerce, finance, social, travel, coding, email, career, gaming, and productivity
-<br/><sub>Reduces token usage by 30-40% with focused context</sub>
-
-</td>
-<td>
-
-**Background Agents**
-<br/>Scheduled automation with chrome.alarms -- hourly, daily, weekly, or custom. Full run history and session replay
-<br/><sub>Optional Node.js and Python server backends</sub>
-
-</td>
-</tr>
-<tr>
-<td>
-
-**Visual Feedback**
-<br/>Viewport glow indicators, element-level action highlights, and progress overlay with step counting
-<br/><sub>Blue (thinking), amber (acting), green (complete), red (error)</sub>
-
-</td>
-<td>
-
-**Secure by Design**
-<br/>AES-GCM encrypted API key storage, DOMPurify XSS protection, tab isolation, and automatic session cleanup
-<br/><sub>No plain-text credentials -- ever</sub>
-
-</td>
-</tr>
-</table>
-
 <details>
 <summary><b>All features (detailed list)</b></summary>
 
@@ -164,27 +95,36 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 
 ### FSB in Action
 
-| Task Input | Task Completed |
-|:---:|:---:|
-| ![Task input - user typed a task in the side panel](assets/screenshots/demo-task-input.png) | ![Task completed - FSB finished the automation](assets/screenshots/demo-task-result.png) |
+<table>
+<tr>
+<td width="50%" align="center">
+<img src="assets/screenshots/demo-task-input.png" alt="FSB side panel on YouTube - user entering a task" width="100%" />
+<br/><sub><b>Task Input</b></sub>
+</td>
+<td width="50%" align="center">
+<img src="assets/screenshots/demo-task-result.png" alt="FSB automating YouTube search - typing Sunflower" width="100%" />
+<br/><sub><b>Task Execution</b></sub>
+</td>
+</tr>
+</table>
 
 <details>
 <summary><strong>View more screenshots</strong> -- Options Dashboard</summary>
 
 #### Dashboard and Analytics
-![Dashboard and Analytics](assets/screenshots/dashboard-analytics.png)
+<img src="assets/screenshots/dashboard-analytics.png" alt="Options dashboard showing token usage charts and cost breakdown by model" width="100%" />
 
 #### API Configuration
-![API Configuration](assets/screenshots/api-configuration.png)
+<img src="assets/screenshots/api-configuration.png" alt="API configuration panel with provider selection and key entry" width="100%" />
 
 #### Passwords Manager
-![Passwords Manager](assets/screenshots/passwords-manager.png)
+<img src="assets/screenshots/passwords-manager.png" alt="Passwords manager for storing site credentials used during automation" width="100%" />
 
 #### Memory and Site Explorer
-![Memory and Site Explorer](assets/screenshots/memory-site-explorer.png)
+<img src="assets/screenshots/memory-site-explorer.png" alt="Memory viewer and site explorer showing crawled site structure" width="100%" />
 
 #### Intelligence Knowledge Graph
-![Intelligence Knowledge Graph](assets/screenshots/intelligence-graph.png)
+<img src="assets/screenshots/intelligence-graph.png" alt="3D knowledge graph visualizing site guide categories and supported domains" width="100%" />
 
 </details>
 
