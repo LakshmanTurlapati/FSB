@@ -5875,6 +5875,186 @@ async function executeDeterministicBatch(actions, session, tabId) {
   }
 }
 
+// Maximum actions per AI-declared batch (safety cap regardless of AI compliance)
+const MAX_BATCH_SIZE = 8;
+
+/**
+ * Execute an AI-declared batch of same-page actions sequentially.
+ * Between each action, DOM stability detection runs via MutationObserver + network monitoring.
+ * Stops immediately on failure or mid-batch navigation.
+ *
+ * @param {Array} batchActions - Array of {tool, params} from AI response batchActions field
+ * @param {Object} session - Current automation session
+ * @param {number} tabId - Tab ID for action execution
+ * @returns {Promise<Object>} Batch result with per-action details
+ */
+async function executeBatchActions(batchActions, session, tabId) {
+  const actions = batchActions.slice(0, MAX_BATCH_SIZE);
+  const batchStartTime = Date.now();
+  const results = [];
+  let failedAt = -1;
+  const skippedActions = [];
+  const sessionId = session?.sessionId;
+
+  // Multi-tab and background-handled tool lists (same as startAutomationLoop)
+  const multiTabActions = ['openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab'];
+  const backgroundDataTools = ['storeJobData', 'getStoredJobs', 'fillSheetData'];
+  const navigationTools = ['navigate', 'searchGoogle', 'goBack', 'goForward'];
+
+  automationLogger.info('Starting AI-declared batch execution', {
+    sessionId,
+    actionCount: actions.length,
+    tools: actions.map(a => a.tool)
+  });
+
+  for (let i = 0; i < actions.length; i++) {
+    const action = actions[i];
+    const actionStartTime = Date.now();
+    let actionResult;
+
+    try {
+      // Route to appropriate handler (mirrors startAutomationLoop routing logic)
+      if (multiTabActions.includes(action.tool)) {
+        actionResult = await handleMultiTabAction(action, tabId);
+      } else if (backgroundDataTools.includes(action.tool)) {
+        actionResult = await handleBackgroundAction(action, session);
+      } else {
+        actionResult = await sendMessageWithRetry(tabId, {
+          action: 'executeAction',
+          tool: action.tool,
+          params: action.params,
+          visualContext: {
+            taskName: session?.task?.substring(0, 50) || 'Automation',
+            stepNumber: i + 1,
+            totalSteps: actions.length,
+            iterationCount: session?.iterationCount || 1,
+            isBatchedAction: true,
+            animatedHighlights: session?.animatedActionHighlights ?? true
+          }
+        });
+      }
+    } catch (error) {
+      actionResult = {
+        success: false,
+        error: `Batch action ${action.tool} failed: ${error.message || error}`,
+        tool: action.tool
+      };
+    }
+
+    const actionDuration = Date.now() - actionStartTime;
+
+    // Record result
+    results.push({
+      tool: action.tool,
+      params: action.params,
+      success: actionResult?.success || false,
+      error: actionResult?.error || null,
+      duration: actionDuration
+    });
+
+    // Push to session action history (same format as single-action path)
+    if (session) {
+      session.actionHistory.push({
+        timestamp: Date.now(),
+        tool: action.tool,
+        params: action.params,
+        result: slimActionResult(actionResult),
+        iteration: session.iterationCount,
+        batched: true,
+        batchIndex: i,
+        batchTotal: actions.length
+      });
+    }
+
+    // Log timing
+    automationLogger.logTiming(sessionId, 'ACTION', `${action.tool}_aiBatch`, actionDuration, {
+      success: actionResult?.success, batchIndex: i
+    });
+
+    // STOP ON FAILURE
+    if (!actionResult?.success) {
+      automationLogger.warn('Batch action failed, stopping batch', {
+        sessionId,
+        actionIndex: i,
+        tool: action.tool,
+        error: actionResult?.error
+      });
+      failedAt = i;
+      // Track remaining as skipped
+      for (let j = i + 1; j < actions.length; j++) {
+        skippedActions.push({ tool: actions[j].tool, params: actions[j].params, reason: 'previous_action_failed' });
+      }
+      break;
+    }
+
+    // STOP ON NAVIGATION (mid-batch)
+    if (actionResult?.navigationTriggered === true && i < actions.length - 1) {
+      automationLogger.info('Navigation triggered mid-batch, stopping remaining actions', {
+        sessionId,
+        actionIndex: i,
+        tool: action.tool,
+        remainingActions: actions.length - i - 1
+      });
+      // Track remaining as skipped due to navigation
+      for (let j = i + 1; j < actions.length; j++) {
+        skippedActions.push({ tool: actions[j].tool, params: actions[j].params, reason: 'navigation_triggered' });
+      }
+      break;
+    }
+
+    // COMPLETION DETECTION between actions (skip after last action)
+    if (i < actions.length - 1) {
+      try {
+        if (navigationTools.includes(action.tool) || actionResult?.navigationTriggered) {
+          // Navigation actions: wait for page load
+          await pageLoadWatcher.waitForPageReady(tabId, { maxWait: 5000 });
+        } else {
+          // Non-navigation actions: wait for DOM + network stability
+          await sendMessageWithRetry(tabId, {
+            action: 'executeAction',
+            tool: 'waitForPageStability',
+            params: { maxWait: 5000, stableTime: 300, networkQuietTime: 200 }
+          });
+        }
+      } catch (stabilityError) {
+        // Content script may have disconnected (e.g., page navigated unexpectedly)
+        automationLogger.warn('Stability detection failed between batch actions, stopping batch', {
+          sessionId,
+          actionIndex: i,
+          error: stabilityError.message
+        });
+        // Track remaining as skipped
+        for (let j = i + 1; j < actions.length; j++) {
+          skippedActions.push({ tool: actions[j].tool, params: actions[j].params, reason: 'stability_check_failed' });
+        }
+        break;
+      }
+    }
+  }
+
+  const duration = Date.now() - batchStartTime;
+  const successCount = results.filter(r => r.success).length;
+
+  automationLogger.info('AI-declared batch execution complete', {
+    sessionId,
+    totalCount: actions.length,
+    successCount,
+    failedAt,
+    skippedCount: skippedActions.length,
+    duration
+  });
+
+  return {
+    batched: true,
+    results,
+    totalCount: actions.length,
+    successCount,
+    failedAt,
+    duration,
+    skippedActions
+  };
+}
+
 // Helper function to create smart sequence signatures that group similar actions
 function createSmartSequenceSignature(actions) {
   return actions.map(action => {
@@ -8776,7 +8956,38 @@ async function startAutomationLoop(sessionId) {
     }
 
     // Execute actions and track results
-    if (aiResponse.actions && aiResponse.actions.length > 0) {
+    // Check for AI-declared batch actions FIRST (takes precedence over regular actions)
+    if (aiResponse.batchActions && aiResponse.batchActions.length > 0) {
+      automationLogger.info('Executing AI-declared batch', {
+        sessionId,
+        actionCount: aiResponse.batchActions.length,
+        tools: aiResponse.batchActions.map(a => a.tool)
+      });
+
+      const batchResult = await executeBatchActions(aiResponse.batchActions, session, session.tabId);
+
+      automationLogger.info('Batch execution complete', {
+        sessionId,
+        successCount: batchResult.successCount,
+        totalCount: batchResult.totalCount,
+        failedAt: batchResult.failedAt,
+        duration: batchResult.duration
+      });
+
+      // If batch had failures, invalidate DOM prefetch
+      if (batchResult.failedAt >= 0) {
+        pendingDOMPrefetch = null;
+      }
+
+      // Log when both arrays present (debugging double-execution prevention)
+      if (aiResponse.actions && aiResponse.actions.length > 0) {
+        automationLogger.warn('Both batchActions and actions present -- using batchActions exclusively', {
+          sessionId,
+          batchCount: aiResponse.batchActions.length,
+          actionsCount: aiResponse.actions.length
+        });
+      }
+    } else if (aiResponse.actions && aiResponse.actions.length > 0) {
       // Sheets data entry progress overlay update (Phase 12)
       // When a Sheets entry session is active, show row-writing progress instead of generic acting phase
       if (session.sheetsData) {
