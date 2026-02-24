@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v9.4 Career Search Automation - Phase 13: Google Sheets Formatting (COMPLETE)
+**Current focus:** v9.4 Career Search Automation - E2E UAT gap fix (Sheets text entry)
 
 ## Current Position
 
-Phase: 13 of 13 (Google Sheets Formatting)
-Plan: 2 of 2 in current phase
-Status: Phase complete
-Last activity: 2026-02-23 -- Completed 13-02-PLAN.md
+Phase: 13 of 13 (all phases complete, E2E UAT in progress)
+Plan: All plans complete (15/15 including gap closure) + Sheets text entry fix
+Status: E2E UAT gap fix applied, awaiting retest
+Last activity: 2026-02-26 -- Fixed Google Sheets text entry (CDP Input.insertText -> typeWithKeys keyboard emulation)
 
-Progress: [##########] 100% (14/14 plans across 6 phases)
+Progress: [##########] 100% (15/15 plans across 5 phases)
 
 ## Performance Metrics
 
@@ -35,6 +35,8 @@ Progress: [##########] 100% (14/14 plans across 6 phases)
 Full decision log in PROJECT.md Key Decisions table.
 
 Recent decisions:
+- 11-03: clearConversationHistory called (not delete) to preserve AI instance for multi-turn within each phase
+- 11-03: session.startTime reset rather than increasing MAX_SESSION_DURATION -- keeps 5-minute per-phase budget
 - 13-02: Formatting directive replaces (not appends to) data entry directive when formattingPhase is true
 - 13-02: buildSheetsFormattingDirective placed as module-level standalone function before AIIntegration class
 - 13-02: 9 steps ordered: escape, header styling, freeze, alternating colors, header text color, auto-size, link blue text, left-align, verify
@@ -99,6 +101,6 @@ Recent decisions:
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 13-02-PLAN.md (Phase 13 complete -- all v9.4 phases done)
+Last session: 2026-02-24
+Stopped at: All v9.4 phases complete (Phase 11 gap closure verified, all 5 phases passed)
 Resume file: None

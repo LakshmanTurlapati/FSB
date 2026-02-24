@@ -70,11 +70,12 @@ Plans:
   3. The AI can call storeJobData and getStoredJobs tools during career workflows to accumulate and retrieve extracted listings
   4. Duplicate job listings across companies are eliminated before the final dataset is assembled
   5. Progress reporting shows the current company and count during multi-site workflows (e.g., "Searching Amazon... 2/3")
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
 - [x] 11-01-PLAN.md -- Data persistence tools (storeJobData/getStoredJobs), multi-company parser, deduplication
 - [x] 11-02-PLAN.md -- Multi-site orchestrator (sequential loop, completion interception, auth deferral, progress, prompt augmentation)
+- [x] 11-03-PLAN.md -- UAT gap closure: conversation reset on phase transitions + session timeout fix
 
 ### Phase 12: Google Sheets Data Entry
 **Goal**: Accumulated job data flows into a Google Sheet with correct cell positioning via Name Box navigation
@@ -114,7 +115,7 @@ Phases execute in numeric order: 9 -> 10 -> 11 -> 12 -> 13
 |-------|---------------|--------|-----------|
 | 9. Data Pipeline Foundation | 3/3 | Complete | 2026-02-23 |
 | 10. Career Search Core | 3/3 | Complete | 2026-02-23 |
-| 11. Multi-Site Orchestration | 2/2 | Complete | 2026-02-23 |
+| 11. Multi-Site Orchestration | 3/3 | Complete | 2026-02-24 |
 | 12. Google Sheets Data Entry | 2/2 | Complete | 2026-02-23 |
 | 13. Google Sheets Formatting | 2/2 | Complete | 2026-02-23 |
 
