@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 14 of 14
-Plan: 1 of 2 complete
-Status: Executing Phase 14: Execution Acceleration (plan 01 complete, plan 02 pending)
-Last activity: 2026-02-24 -- Completed 14-01 locale detection and AI prompt injection
+Plan: 2 of 2 complete
+Status: Phase 14 complete -- all Execution Acceleration plans shipped
+Last activity: 2026-02-24 -- Completed 14-02 batch action execution engine
 
-Progress: [##########] 94% (16/17 plans for Phases 9-14)
+Progress: [##########] 100% (17/17 plans for Phases 9-14)
 
 ## Performance Metrics
 
@@ -24,9 +24,9 @@ Progress: [##########] 94% (16/17 plans for Phases 9-14)
 - Total execution time: ~26.0 min
 
 **v9.4 Velocity:**
-- Total plans completed: 15
+- Total plans completed: 16
 - Average duration: 2.5 min
-- Total execution time: ~44.6 min
+- Total execution time: ~48.9 min
 
 ## Accumulated Context
 
@@ -35,6 +35,10 @@ Progress: [##########] 94% (16/17 plans for Phases 9-14)
 Full decision log in PROJECT.md Key Decisions table.
 
 Recent decisions:
+- 14-02: MAX_BATCH_SIZE = 8 enforced via slice regardless of AI compliance (safety cap)
+- 14-02: DOM stability between batch actions: waitForPageStability (300ms stable, 200ms network quiet) for non-navigation, pageLoadWatcher for navigation
+- 14-02: batchActions takes precedence over actions when both present, warning logged
+- 14-02: BATCH_ACTION_INSTRUCTIONS as module-level constant, referenced in full system prompt
 - 14-01: 85-entry static TIMEZONE_TO_COUNTRY map (no npm dependency), getUserLocale() called once at session start
 - 14-01: USER LOCALE section injected into ALL task types with optional chaining for backward compatibility
 - 14-01: Career prompt Phase 2 includes explicit location filtering instruction defaulting to user's detected country
@@ -105,5 +109,5 @@ Recent decisions:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 14-01-PLAN.md (locale detection and AI prompt injection)
+Stopped at: Completed 14-02-PLAN.md (batch action execution engine) -- Phase 14 complete
 Resume file: None
