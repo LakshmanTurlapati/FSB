@@ -1598,6 +1598,36 @@ const tools = {
       // Canvas-based editor bypass: skip element gate and use CDP directly.
       const canvasEditor = FSB.isCanvasBasedEditor();
       if (canvasEditor && !isInput) {
+        // Google Sheets: use keyboard emulator (typeWithKeys) instead of CDP Input.insertText.
+        // Google Sheets requires keyDown events to enter cell edit mode -- Input.insertText
+        // bypasses the keyboard event pipeline entirely, so text has nowhere to go.
+        const isGoogleSheets = window.location.hostname === 'docs.google.com' &&
+                               window.location.pathname.startsWith('/spreadsheets/');
+        if (isGoogleSheets) {
+          logger.logActionExecution(FSB.sessionId, 'type', 'google_sheets_keyboard_entry', { hostname: window.location.hostname, textLength: params.text?.length });
+          try {
+            // clearFirst: false -- in Sheets, typing into a selected cell naturally replaces content.
+            // Ctrl+A before typing would select all cells (catastrophic), not just cell content.
+            const twkResult = await tools.typeWithKeys({ text: params.text, clearFirst: false, delay: 20 });
+            if (twkResult.success) {
+              if (params.pressEnter) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+              }
+              return {
+                success: true,
+                typed: params.text,
+                method: 'google_sheets_keyboard',
+                pressedEnter: !!params.pressEnter,
+                note: 'Google Sheets -- keyboard emulator used for proper keyDown event processing'
+              };
+            }
+          } catch (twkError) {
+            logger.debug('Google Sheets typeWithKeys failed, falling through to CDP', { error: twkError.message });
+          }
+          // Fall through to standard CDP path as last resort
+        }
+
         logger.logActionExecution(FSB.sessionId, 'type', 'canvas_editor_cdp_direct', { hostname: window.location.hostname });
 
         // --- FORMATTED PASTE PATH ---
@@ -2353,8 +2383,38 @@ const tools = {
     }
     } // End selector loop
 
-    // Canvas editor CDP fallback: when all selectors fail but we're on a canvas editor
+    // Canvas editor fallback: when all selectors fail but we're on a canvas editor
     if (FSB.isCanvasBasedEditor()) {
+      // Google Sheets: use keyboard emulator first (same reason as above -- Input.insertText
+      // doesn't enter cell edit mode, so text goes nowhere)
+      const isGoogleSheetsFallback = window.location.hostname === 'docs.google.com' &&
+                                     window.location.pathname.startsWith('/spreadsheets/');
+      if (isGoogleSheetsFallback) {
+        logger.logActionExecution(FSB.sessionId, 'type', 'google_sheets_fallback_keyboard', {
+          hostname: window.location.hostname,
+          reason: 'all selectors exhausted, using keyboard emulator for Sheets'
+        });
+        try {
+          const twkResult = await tools.typeWithKeys({ text: params.text, clearFirst: false, delay: 20 });
+          if (twkResult.success) {
+            if (params.pressEnter) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+              await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+            }
+            return {
+              success: true,
+              typed: params.text,
+              method: 'google_sheets_keyboard_fallback',
+              pressedEnter: !!params.pressEnter,
+              note: 'Google Sheets fallback -- keyboard emulator used (all selectors exhausted)'
+            };
+          }
+        } catch (twkErr) {
+          logger.debug('Google Sheets fallback typeWithKeys failed', { error: twkErr.message });
+        }
+        // Fall through to standard canvas CDP fallback as last resort
+      }
+
       logger.logActionExecution(FSB.sessionId, 'type', 'canvas_fallback_attempt', {
         hostname: window.location.hostname,
         reason: 'all selectors exhausted'
