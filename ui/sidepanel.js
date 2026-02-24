@@ -456,7 +456,6 @@ function stopAutomation() {
         completeStatusMessage('Automation stopped', 'system');
       }
       setIdleState();
-      addMessage('Automation stopped. The side panel stays open for your next request!', 'system');
       currentSessionId = null;
       stopRequested = false;
       console.log('Side panel: Automation stopped successfully');
