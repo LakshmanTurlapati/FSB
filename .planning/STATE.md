@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v9.4 Career Search Automation - Phase 12: Google Sheets Data Entry
+**Current focus:** v9.4 Career Search Automation - Phase 13: Google Sheets Formatting (COMPLETE)
 
 ## Current Position
 
-Phase: 12 of 13 (Google Sheets Data Entry)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-23 -- Phase 11 verified and complete
+Phase: 13 of 13 (Google Sheets Formatting)
+Plan: 2 of 2 in current phase
+Status: Phase complete
+Last activity: 2026-02-23 -- Completed 13-02-PLAN.md
 
-Progress: [######....] 60% (10/~15 plans across 5 phases)
+Progress: [##########] 100% (14/14 plans across 6 phases)
 
 ## Performance Metrics
 
@@ -24,9 +24,9 @@ Progress: [######....] 60% (10/~15 plans across 5 phases)
 - Total execution time: ~26.0 min
 
 **v9.4 Velocity:**
-- Total plans completed: 10
+- Total plans completed: 14
 - Average duration: 2.5 min
-- Total execution time: ~27.9 min
+- Total execution time: ~41.1 min
 
 ## Accumulated Context
 
@@ -35,6 +35,25 @@ Progress: [######....] 60% (10/~15 plans across 5 phases)
 Full decision log in PROJECT.md Key Decisions table.
 
 Recent decisions:
+- 13-02: Formatting directive replaces (not appends to) data entry directive when formattingPhase is true
+- 13-02: buildSheetsFormattingDirective placed as module-level standalone function before AIIntegration class
+- 13-02: 9 steps ordered: escape, header styling, freeze, alternating colors, header text color, auto-size, link blue text, left-align, verify
+- 13-02: Adaptive formatting section only injected for non-new sheets
+- 13-02: Apply Link column letter dynamically computed from sd.columns.indexOf
+- 13-01: Completion handler checks formattingComplete before formattingPhase to distinguish data entry done vs formatting done
+- 13-01: maxIterations set to 25 for formatting pass (fewer operations than data entry)
+- 13-01: Edge case: totalRows === 0 sets formattingComplete and formattingPhase to true, skipping formatting
+- 13-01: rightClick added to toolPreferences for column resize context menu
+- 12-02: Append detection uses formula bar reads to discover existing headers (canvas grid unreadable)
+- 12-02: buildSheetTitle generates context-aware names from searchQuery (e.g., "Job Search - SWE Internships - Feb 2026")
+- 12-02: Early 'multitab' return for "job listings to Google Sheets" -- "write" not in gatherActions
+- 12-02: sd.sheetTitle used in directive instead of inline Date template for consistent naming
+- 12-01: Sheets entry auto-triggers after finalizeMultiSiteSearch when task implies spreadsheet output
+- 12-01: Job data injected directly into AI prompt (no getStoredJobs round-trip)
+- 12-01: Column selection parsed from user task text using keyword aliases and restriction patterns (SHEETS-02)
+- 12-01: detectTaskType returns multitab for write/enter/fill + Google Sheets/spreadsheet combinations
+- 12-01: Progress overlay approximates rows written as floor(iterationCount/2) capped at totalRows
+- 12-01: Session persisted every 5 iterations during Sheets entry to survive SW restarts
 - 11-02: Multi-site orchestration wraps existing automation loop -- does not replace it
 - 11-02: Completion interception handles all exit paths: taskComplete, repeatedSuccess, no_progress, stuck
 - 11-02: Auth-walled companies deferred to end; login detection uses tab-URL heuristic
@@ -81,5 +100,5 @@ Recent decisions:
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Phase 11 complete, ready for Phase 12 planning
+Stopped at: Completed 13-02-PLAN.md (Phase 13 complete -- all v9.4 phases done)
 Resume file: None

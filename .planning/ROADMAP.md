@@ -14,7 +14,7 @@ See `.planning/milestones/v9.3-ROADMAP.md` for full details.
 
 </details>
 
-### v9.4 Career Search Automation (In Progress)
+### v9.4 Career Search Automation (Complete)
 
 **Milestone Goal:** Autonomous career site search across 30+ companies with formatted Google Sheets output.
 
@@ -23,8 +23,8 @@ See `.planning/milestones/v9.3-ROADMAP.md` for full details.
 - [x] **Phase 9: Data Pipeline Foundation** - Parse session logs into sitemaps and site guides with confidence scoring
 - [x] **Phase 10: Career Search Core** - Single-company search navigates, extracts, and reports errors
 - [x] **Phase 11: Multi-Site Orchestration** - Sequential multi-company search with persistent data accumulation
-- [ ] **Phase 12: Google Sheets Data Entry** - Write accumulated job data to Sheets via Name Box pattern
-- [ ] **Phase 13: Google Sheets Formatting** - Bold headers, colored rows, frozen header, auto-sized columns
+- [x] **Phase 12: Google Sheets Data Entry** - Write accumulated job data to Sheets via Name Box pattern
+- [x] **Phase 13: Google Sheets Formatting** - Bold headers, colored rows, frozen header, auto-sized columns
 
 ## Phase Details
 
@@ -88,8 +88,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 12-01-PLAN.md -- Sheets data entry orchestrator (trigger, data retrieval, tab management, session launch, prompt injection)
-- [ ] 12-02-PLAN.md -- Site guide enhancement, append detection, rename, batch persist, completion handling
+- [x] 12-01-PLAN.md -- Sheets data entry orchestrator (trigger, data retrieval, tab management, session launch, prompt injection)
+- [x] 12-02-PLAN.md -- Site guide enhancement, append detection, rename, batch persist, completion handling
 
 ### Phase 13: Google Sheets Formatting
 **Goal**: The finished Google Sheet has professional formatting -- bold colored header row, frozen header, and auto-sized columns
@@ -99,10 +99,11 @@ Plans:
   1. The header row is bold (Ctrl+B / Cmd+B) with a colored background applied via the toolbar fill color dropdown
   2. The header row is frozen so it stays visible when scrolling through results
   3. Columns are auto-sized for readable output (no truncated text, no excessive whitespace)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 13-01: TBD
+- [x] 13-01-PLAN.md -- Formatting orchestrator in background.js + site guide formatting workflows
+- [x] 13-02-PLAN.md -- AI formatting prompt directive injection in ai-integration.js
 
 ## Progress
 
@@ -114,8 +115,8 @@ Phases execute in numeric order: 9 -> 10 -> 11 -> 12 -> 13
 | 9. Data Pipeline Foundation | 3/3 | Complete | 2026-02-23 |
 | 10. Career Search Core | 3/3 | Complete | 2026-02-23 |
 | 11. Multi-Site Orchestration | 2/2 | Complete | 2026-02-23 |
-| 12. Google Sheets Data Entry | 0/2 | Planned | - |
-| 13. Google Sheets Formatting | 0/TBD | Not started | - |
+| 12. Google Sheets Data Entry | 2/2 | Complete | 2026-02-23 |
+| 13. Google Sheets Formatting | 2/2 | Complete | 2026-02-23 |
 
 ---
 *Created: 2026-02-23 for milestone v9.4 Career Search Automation*

@@ -160,6 +160,36 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 
 ---
 
+## Screenshots
+
+### FSB in Action
+
+| Task Input | Task Completed |
+|:---:|:---:|
+| ![Task input - user typed a task in the side panel](assets/screenshots/demo-task-input.png) | ![Task completed - FSB finished the automation](assets/screenshots/demo-task-result.png) |
+
+<details>
+<summary><strong>View more screenshots</strong> -- Options Dashboard</summary>
+
+#### Dashboard and Analytics
+![Dashboard and Analytics](assets/screenshots/dashboard-analytics.png)
+
+#### API Configuration
+![API Configuration](assets/screenshots/api-configuration.png)
+
+#### Passwords Manager
+![Passwords Manager](assets/screenshots/passwords-manager.png)
+
+#### Memory and Site Explorer
+![Memory and Site Explorer](assets/screenshots/memory-site-explorer.png)
+
+#### Intelligence Knowledge Graph
+![Intelligence Knowledge Graph](assets/screenshots/intelligence-graph.png)
+
+</details>
+
+---
+
 ## Quick Start
 
 > **Get running in under 2 minutes** -- Clone, load in Chrome, configure one API key, and start automating.

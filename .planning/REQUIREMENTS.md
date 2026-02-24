@@ -7,31 +7,31 @@
 
 ### Data Pipeline
 
-- [ ] **PIPE-01**: 38 crowd session logs parsed into per-domain sitemaps with confidence scoring (HIGH: >10 elements, MEDIUM: 1-10, LOW: 0 elements)
-- [ ] **PIPE-02**: Per-company site guides generated with stability-classified selectors (prefer id, aria-label, role; hashed CSS selectors included but flagged as UNSTABLE)
-- [ ] **PIPE-03**: Direct career URLs embedded in site guides for all session-log companies (skip Google search overhead)
+- [x] **PIPE-01**: 38 crowd session logs parsed into per-domain sitemaps with confidence scoring (HIGH: >10 elements, MEDIUM: 1-10, LOW: 0 elements)
+- [x] **PIPE-02**: Per-company site guides generated with stability-classified selectors (prefer id, aria-label, role; hashed CSS selectors included but flagged as UNSTABLE)
+- [x] **PIPE-03**: Direct career URLs embedded in site guides for all session-log companies (skip Google search overhead)
 
 ### Career Search
 
-- [ ] **SEARCH-01**: Single-company career search navigates site, searches, extracts jobs with required fields (company, title, apply link) and best-effort fields (date, location, description)
-- [ ] **SEARCH-02**: Multi-company sequential search handles prompts naming 2-10 companies, visiting each in sequence
-- [ ] **SEARCH-03**: Vague query interpretation maps broad terms ("tech internships", "DevOps positions") to concrete search queries
-- [ ] **SEARCH-04**: Deduplication eliminates cross-site duplicate listings before writing to Sheets
-- [ ] **SEARCH-05**: Error reporting communicates which companies had no results (never silent failure)
-- [ ] **SEARCH-06**: Progress reporting shows current company and count during multi-site workflows ("Searching Microsoft... 2/5")
+- [x] **SEARCH-01**: Single-company career search navigates site, searches, extracts jobs with required fields (company, title, apply link) and best-effort fields (date, location, description)
+- [x] **SEARCH-02**: Multi-company sequential search handles prompts naming 2-10 companies, visiting each in sequence
+- [x] **SEARCH-03**: Vague query interpretation maps broad terms ("tech internships", "DevOps positions") to concrete search queries
+- [x] **SEARCH-04**: Deduplication eliminates cross-site duplicate listings before writing to Sheets
+- [x] **SEARCH-05**: Error reporting communicates which companies had no results (never silent failure)
+- [x] **SEARCH-06**: Progress reporting shows current company and count during multi-site workflows ("Searching Microsoft... 2/5")
 
 ### Data Management
 
-- [ ] **DATA-01**: Job data persisted to chrome.storage.local after each company extraction (survives service worker restarts)
-- [ ] **DATA-02**: storeJobData and getStoredJobs tools exposed for AI to use during career workflows
+- [x] **DATA-01**: Job data persisted to chrome.storage.local after each company extraction (survives service worker restarts)
+- [x] **DATA-02**: storeJobData and getStoredJobs tools exposed for AI to use during career workflows
 
 ### Google Sheets
 
-- [ ] **SHEETS-01**: Data entry via Name Box + Tab/Enter pattern into new Sheet or user-provided URL
-- [ ] **SHEETS-02**: Smart field defaults (company, title, date, location, description, apply link) with user-customizable field selection
-- [ ] **SHEETS-03**: Bold headers, colored header row, frozen header row
-- [ ] **SHEETS-04**: Sheet title naming from task context (e.g., "Job Search - SWE Internships - Feb 2026")
-- [ ] **SHEETS-05**: Column auto-sizing for readable output
+- [x] **SHEETS-01**: Data entry via Name Box + Tab/Enter pattern into new Sheet or user-provided URL
+- [x] **SHEETS-02**: Smart field defaults (company, title, date, location, description, apply link) with user-customizable field selection
+- [x] **SHEETS-03**: Bold headers, colored header row, frozen header row
+- [x] **SHEETS-04**: Sheet title naming from task context (e.g., "Job Search - SWE Internships - Feb 2026")
+- [x] **SHEETS-05**: Column auto-sizing for readable output
 
 ## Future Requirements (Deferred to Later Phases)
 
@@ -64,11 +64,11 @@
 | SEARCH-06 | Phase 11 | Complete |
 | DATA-01 | Phase 11 | Complete |
 | DATA-02 | Phase 11 | Complete |
-| SHEETS-01 | Phase 12 | Pending |
-| SHEETS-02 | Phase 12 | Pending |
-| SHEETS-03 | Phase 13 | Pending |
-| SHEETS-04 | Phase 12 | Pending |
-| SHEETS-05 | Phase 13 | Pending |
+| SHEETS-01 | Phase 12 | Complete |
+| SHEETS-02 | Phase 12 | Complete |
+| SHEETS-03 | Phase 13 | Complete |
+| SHEETS-04 | Phase 12 | Complete |
+| SHEETS-05 | Phase 13 | Complete |
 
 **Coverage:**
 - v9.4 requirements: 16 total
