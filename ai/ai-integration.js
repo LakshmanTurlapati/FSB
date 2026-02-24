@@ -74,6 +74,11 @@ const TOOL_DOCUMENTATION = {
       params: {},
       desc: "Retrieve all previously stored job data from the accumulation buffer. Returns jobs from all companies searched so far.",
       example: '{"tool": "getStoredJobs", "params": {}}'
+    },
+    fillSheetData: {
+      params: {},
+      desc: "Write all accumulated job data into the current Google Sheet. Call this AFTER navigating to the Sheet and BEFORE verifying data. This tool handles all cell writing automatically -- headers, data rows, and HYPERLINK formulas. No parameters needed (uses stored session data).",
+      example: '{"tool": "fillSheetData", "params": {}}'
     }
   },
   multitab: {
@@ -290,7 +295,7 @@ PHASE 1 -- NAVIGATE TO CAREER PAGE:
 PHASE 2 -- SEARCH FOR RELEVANT JOBS:
 - Use search/filter functionality on the careers page
 - Enter the role keyword if the user specified one (e.g., "software engineer")
-- Apply location filters if specified
+- LOCATION FILTERING: If the user specifies a country, state, or city in their prompt, use that location for filtering. If no location is mentioned, default to filtering by the user's detected country from the USER LOCALE section above. Only skip location filtering if the career site has no location filter.
 - Wait for results to load
 - If the career page has no search box, scroll through all listings manually
 
@@ -2337,6 +2342,11 @@ ${this.getModelSpecificInstructions()}
 
 Task Type: ${taskType}
 
+=== USER LOCALE ===
+${context?.userLocale?.promptString || 'User timezone could not be detected.'}
+Use this information for location-aware decisions (e.g., filtering job searches by country, using local date formats, time-sensitive actions).
+For career/job searches: If the user does not specify a location, default to jobs in ${context?.userLocale?.country || "the user's country"}.
+
 AVAILABLE TOOLS:
 ${this.getToolsDocumentation(taskType, siteGuide)}
 
@@ -2398,69 +2408,15 @@ You are writing ${sd.totalRows} job listings into a Google Sheet.
 
 SHEET TARGET: ${sd.sheetTarget.type === 'new' ? 'Create a new sheet by navigating to https://docs.google.com/spreadsheets/create' : sd.sheetTarget.type === 'existing' ? 'Switch to the existing Sheets tab using switchToTab with tabId: ' + sd.sheetTarget.tabId + '. Your FIRST action must be switchToTab.' : 'Open the provided Sheets URL: ' + sd.sheetTarget.url}
 
-COLUMN ORDER (row 1 headers): ${sd.columns.join(' | ')}
-${sd.columns.length < 6 ? `\nNOTE: The user requested only ${sd.columns.length} columns (not all 6 defaults). Write ONLY the columns listed above. Skip unlisted fields entirely.\n` : ''}
-COMPLETE JOB DATA TO WRITE:
-${sd.jobDataPrompt}
+PROCEDURE:
+1. Navigate to or create the Google Sheet. Wait for Name Box (#t-name-box) AND toolbar (#docs-toolbar) to be visible.
+2. Click the Name Box (#t-name-box), type "A1", press Enter to position cursor at cell A1.
+3. Call fillSheetData -- this writes ALL headers and ALL ${sd.totalRows} data rows automatically.
+4. VERIFY: Click Name Box, type "A1", press Enter. Read the formula bar to confirm headers are present. Then check "A2" to verify the first data row.
+5. RENAME: Click the sheet title at the top and type: "${sd.sheetTitle || 'Job Search Results'}"
+6. Mark taskComplete: true after verification and rename.
 
-WRITING PROCEDURE:
-1. Navigate to or create the Google Sheet. Wait for Name Box (#t-name-box) AND toolbar (#docs-toolbar) to be visible before proceeding.
-2. Click the Name Box, type "A1", press Enter to navigate to cell A1.
-3. Type each header from the COLUMN ORDER above in sequence, pressing Tab between each. After the last header, press Enter.
-4. You are now in cell A2. For each data row:
-   a. Type the Title value, press Tab
-   b. Type the Company value, press Tab
-   c. Type the Location value, press Tab
-   d. Type the Date value, press Tab
-   e. Type the Description value (single line, no newlines), press Tab
-   f. Type the HYPERLINK formula: =HYPERLINK("url","Apply"), press Enter (moves to next row)
-   g. ROW VERIFICATION (two-pass, pass 1): After writing each row, verify it before moving on:
-      - Click the Name Box, type the first cell of the row just written (e.g., "A2"), press Enter
-      - Read the formula bar to confirm the Title matches the expected value
-      - Press Tab to check Company, Tab for Location, etc. -- spot-check at least Title and Company
-      - If any cell is wrong: you are already on it, retype the correct value and press Tab/Enter
-      - If correct: click the Name Box, type the next empty row's first cell, and continue writing
-5. After every row, the cursor should be in column A of the next row.
-
-EXISTING SHEET DETECTION (if switching to an existing Sheets tab):
-If the sheet already has data:
-1. Click Name Box, type "A1", press Enter
-2. Read formula bar -- if A1 has content, this is an existing sheet
-3. Tab through columns to read existing headers via formula bar
-4. Map existing headers to your column order (fuzzy match: "Role" = Title, "Firm" = Company, "Link" = Apply Link, etc.)
-5. Press Ctrl+End to find the last row with data
-6. Read the Name Box to get the last cell reference
-7. Navigate to the first empty row below existing data
-8. Write data matching the EXISTING column order (not the default order)
-9. Do NOT rewrite headers -- append data only
-
-HYPERLINK FORMULA FORMAT:
-For the Apply Link column, type: =HYPERLINK("actual_url_here","Apply")
-- This creates a clickable "Apply" link in the cell
-- If applyLink is "N/A" or empty, type "N/A" instead of a formula
-
-SPECIAL CHARACTER SANITIZATION:
-- If a cell value starts with =, +, -, or @, prefix it with a single space to prevent Sheets from interpreting it as a formula
-- Replace any double quotes inside text values with single quotes
-- Cell values must be single-line (no newlines)
-
-FINAL VERIFICATION (two-pass, pass 2 -- after ALL rows written):
-1. Click the Name Box, type "A1", press Enter
-2. Read the formula bar text (getText on the formula bar element) to verify "Title" is in A1
-3. Click Name Box, type "A2", press Enter -- verify the first job title matches
-4. Click Name Box, type "F2", press Enter -- verify the HYPERLINK formula is present
-5. If any cell is wrong: click Name Box, navigate to the wrong cell, retype the correct value
-6. After verification, rename the sheet (click the title at the top, type a descriptive name: "${sd.sheetTitle || 'Job Search Results'}")
-
-MISSING DATA: Use "N/A" for any field that has no value. Never leave a cell blank.
-
-PROGRESS: You are writing data rows sequentially. Do not skip rows. Do not reorder.
-
-COMPLETION: Mark taskComplete: true ONLY after:
-- All ${sd.totalRows} data rows are written
-- Header row is verified
-- At least the first and last data rows are spot-checked
-- Sheet has been renamed`;
+IMPORTANT: Do NOT type data manually. The fillSheetData tool handles all cell writing. Your job is to navigate, call the tool, verify, and rename.`;
 
         systemPrompt += sheetsDataDirective;
         automationLogger.debug('Sheets data entry directive injected', {
@@ -4164,7 +4120,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       'getEditorContent',
 
       // Data persistence tools (background-handled)
-      'storeJobData', 'getStoredJobs'
+      'storeJobData', 'getStoredJobs', 'fillSheetData'
     ].includes(tool);
   }
   
@@ -4459,6 +4415,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       if (taskType === 'career') {
         if (!tools.includes('storeJobData')) tools.push('storeJobData');
         if (!tools.includes('getStoredJobs')) tools.push('getStoredJobs');
+        if (!tools.includes('fillSheetData')) tools.push('fillSheetData');
       }
       return tools;
     }
@@ -4614,6 +4571,10 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       getStoredJobs: {
         params: {},
         desc: "Retrieve all previously stored job data from the accumulation buffer"
+      },
+      fillSheetData: {
+        params: {},
+        desc: "Write all accumulated job data into the current Google Sheet. Handles headers, data rows, and HYPERLINK formulas automatically. No params needed."
       }
     };
 
