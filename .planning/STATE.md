@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v9.4 Career Search Automation - E2E UAT gap fix (Sheets text entry)
+**Current focus:** v9.4 Phase 14 - Execution Acceleration (batched actions + timezone context)
 
 ## Current Position
 
-Phase: 13 of 13 (all phases complete, E2E UAT in progress)
-Plan: All plans complete (15/15 including gap closure) + Sheets text entry fix
-Status: E2E UAT gap fix applied, awaiting retest
-Last activity: 2026-02-26 -- Fixed Google Sheets text entry (CDP Input.insertText -> typeWithKeys keyboard emulation)
+Phase: 14 of 14
+Plan: 1 of 2 complete
+Status: Executing Phase 14: Execution Acceleration (plan 01 complete, plan 02 pending)
+Last activity: 2026-02-24 -- Completed 14-01 locale detection and AI prompt injection
 
-Progress: [##########] 100% (15/15 plans across 5 phases)
+Progress: [##########] 94% (16/17 plans for Phases 9-14)
 
 ## Performance Metrics
 
@@ -24,9 +24,9 @@ Progress: [##########] 100% (15/15 plans across 5 phases)
 - Total execution time: ~26.0 min
 
 **v9.4 Velocity:**
-- Total plans completed: 14
+- Total plans completed: 15
 - Average duration: 2.5 min
-- Total execution time: ~41.1 min
+- Total execution time: ~44.6 min
 
 ## Accumulated Context
 
@@ -35,6 +35,9 @@ Progress: [##########] 100% (15/15 plans across 5 phases)
 Full decision log in PROJECT.md Key Decisions table.
 
 Recent decisions:
+- 14-01: 85-entry static TIMEZONE_TO_COUNTRY map (no npm dependency), getUserLocale() called once at session start
+- 14-01: USER LOCALE section injected into ALL task types with optional chaining for backward compatibility
+- 14-01: Career prompt Phase 2 includes explicit location filtering instruction defaulting to user's detected country
 - 11-03: clearConversationHistory called (not delete) to preserve AI instance for multi-turn within each phase
 - 11-03: session.startTime reset rather than increasing MAX_SESSION_DURATION -- keeps 5-minute per-phase budget
 - 13-02: Formatting directive replaces (not appends to) data entry directive when formattingPhase is true
@@ -102,5 +105,5 @@ Recent decisions:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: All v9.4 phases complete (Phase 11 gap closure verified, all 5 phases passed)
+Stopped at: Completed 14-01-PLAN.md (locale detection and AI prompt injection)
 Resume file: None

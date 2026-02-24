@@ -25,6 +25,7 @@ See `.planning/milestones/v9.3-ROADMAP.md` for full details.
 - [x] **Phase 11: Multi-Site Orchestration** - Sequential multi-company search with persistent data accumulation
 - [x] **Phase 12: Google Sheets Data Entry** - Write accumulated job data to Sheets via Name Box pattern
 - [x] **Phase 13: Google Sheets Formatting** - Bold headers, colored rows, frozen header, auto-sized columns
+- [ ] **Phase 14: Execution Acceleration** - Batched same-page action sequences with smart completion detection, plus timezone/country context for location-aware AI decisions
 
 ## Phase Details
 
@@ -106,10 +107,26 @@ Plans:
 - [x] 13-01-PLAN.md -- Formatting orchestrator in background.js + site guide formatting workflows
 - [x] 13-02-PLAN.md -- AI formatting prompt directive injection in ai-integration.js
 
+### Phase 14: Execution Acceleration
+**Goal**: The automation engine executes faster and smarter -- batching multiple same-page actions into a single AI turn with DOM-based completion detection between each, and injecting the user's timezone/country so the AI makes location-aware decisions (e.g., filtering career searches to local jobs)
+**Depends on**: Phase 13 (all existing automation must be stable before changing the execution model)
+**Requirements**: ACCEL-01, ACCEL-02, ACCEL-03, ACCEL-04, ACCEL-05
+**Success Criteria** (what must be TRUE):
+  1. The AI can return multiple sequential actions in a single response when they target the same page, and the execution engine runs them in order with DOM stability checks between each
+  2. Fixed inter-action delays are replaced by smart DOM mutation monitoring -- each action proceeds as soon as the page stabilizes
+  3. The user's timezone, local datetime, and country are passed to the AI in the system prompt so it can make location-aware decisions
+  4. Career searches default to filtering by the user's country when no explicit location is specified
+  5. Overall task completion time is measurably reduced compared to one-action-per-iteration
+**Plans**: 2 plans
+
+Plans:
+- [x] 14-01-PLAN.md -- Timezone/country locale detection and AI prompt injection
+- [ ] 14-02-PLAN.md -- Batch action execution engine with DOM-based completion detection
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 9 -> 10 -> 11 -> 12 -> 13
+Phases execute in numeric order: 9 -> 10 -> 11 -> 12 -> 13 -> 14
 
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
@@ -118,6 +135,7 @@ Phases execute in numeric order: 9 -> 10 -> 11 -> 12 -> 13
 | 11. Multi-Site Orchestration | 3/3 | Complete | 2026-02-24 |
 | 12. Google Sheets Data Entry | 2/2 | Complete | 2026-02-23 |
 | 13. Google Sheets Formatting | 2/2 | Complete | 2026-02-23 |
+| 14. Execution Acceleration | 1/2 | In Progress | - |
 
 ---
 *Created: 2026-02-23 for milestone v9.4 Career Search Automation*

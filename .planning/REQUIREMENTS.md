@@ -33,6 +33,14 @@
 - [x] **SHEETS-04**: Sheet title naming from task context (e.g., "Job Search - SWE Internships - Feb 2026")
 - [x] **SHEETS-05**: Column auto-sizing for readable output
 
+### Execution Acceleration
+
+- [ ] **ACCEL-01**: AI can return multiple sequential actions in a batchActions array, executed in order with stop-on-failure semantics
+- [ ] **ACCEL-02**: DOM-based completion detection (MutationObserver + network monitoring) replaces fixed delays between batch actions
+- [x] **ACCEL-03**: User's timezone, country, and local datetime injected into every AI system prompt for location-aware decisions
+- [x] **ACCEL-04**: Career searches default to filtering by user's detected country when no explicit location specified
+- [ ] **ACCEL-05**: Overall task completion time measurably reduced compared to one-action-per-iteration for multi-action pages
+
 ## Future Requirements (Deferred to Later Phases)
 
 - [ ] **FUT-01**: Salary information extraction when available on career pages (pay transparency data)
@@ -70,9 +78,15 @@
 | SHEETS-04 | Phase 12 | Complete |
 | SHEETS-05 | Phase 13 | Complete |
 
+| ACCEL-01 | Phase 14 | Not Started |
+| ACCEL-02 | Phase 14 | Not Started |
+| ACCEL-03 | Phase 14 | Complete |
+| ACCEL-04 | Phase 14 | Complete |
+| ACCEL-05 | Phase 14 | Not Started |
+
 **Coverage:**
-- v9.4 requirements: 16 total
-- Mapped: 16/16
+- v9.4 requirements: 21 total
+- Mapped: 21/21
 - Future requirements: 2 (deferred)
 - Unmapped: 0
 
