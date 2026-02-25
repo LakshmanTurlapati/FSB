@@ -123,6 +123,20 @@ Plans:
 - [x] 14-01-PLAN.md -- Timezone/country locale detection and AI prompt injection
 - [ ] 14-02-PLAN.md -- Batch action execution engine with DOM-based completion detection
 
+### Phase 14.1: Fix batch action behavior on Google Sheets (INSERTED)
+**Goal:** Prevent AI from batching multiple type actions on Google Sheets (canvas-based grid causes value concatenation) via prompt-level warning and execution-level URL-based safety check with graceful single-action fallback
+**Depends on:** Phase 14
+**Requirements:** FIX-BATCH-SHEETS
+**Success Criteria** (what must be TRUE):
+  1. The AI does not batch multiple type actions when on a Google Sheets URL
+  2. If the AI still batches type actions on Sheets, the execution engine catches it and falls back to single-action execution
+  3. Non-type batch actions on Sheets (getText, click, keyPress) are NOT suppressed
+  4. Existing fillSheetData clipboard path is unaffected
+**Plans:** 1 plan
+
+Plans:
+- [ ] 14.1-01-PLAN.md -- Prompt-level batch warning + URL-based suppression guard + single-action fallback
+
 ## Progress
 
 **Execution Order:**
@@ -135,7 +149,8 @@ Phases execute in numeric order: 9 -> 10 -> 11 -> 12 -> 13 -> 14
 | 11. Multi-Site Orchestration | 3/3 | Complete | 2026-02-24 |
 | 12. Google Sheets Data Entry | 2/2 | Complete | 2026-02-23 |
 | 13. Google Sheets Formatting | 2/2 | Complete | 2026-02-23 |
-| 14. Execution Acceleration | 2/2 | Complete   | 2026-02-24 |
+| 14. Execution Acceleration | 2/2 | Complete    | 2026-02-24 |
+| 14.1. Fix Batch on Sheets | 0/1 | In Progress | |
 
 ---
 *Created: 2026-02-23 for milestone v9.4 Career Search Automation*

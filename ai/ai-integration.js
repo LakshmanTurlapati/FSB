@@ -410,6 +410,8 @@ WHEN NOT TO BATCH:
 - When the next action depends on the result of the previous one
 - When any action might trigger page navigation (put it last or don't batch)
 - When you need to verify an action's effect before deciding the next step
+- GOOGLE SHEETS AND CANVAS-BASED APPS: NEVER batch multiple type actions for different spreadsheet cells. Cells are NOT independent DOM elements -- they are rendered on a canvas. Typing multiple values in a batch will concatenate them into the SAME active cell. Instead, use single actions with the Tab/Enter sequential flow: type a value, then keyPress Tab to move right (or Enter to move down). Each cell value + navigation keystroke must be a separate iteration so you can verify the result.
+- Any scenario where all type actions target the same implicit input (not distinct DOM refs)
 
 Example batch response:
 {
