@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v9.4 Phase 14 - Execution Acceleration (batched actions + timezone context)
+**Current focus:** v9.4 Phase 14.1 - Fix batch action behavior on Google Sheets (URGENT hotfix)
 
 ## Current Position
 
-Phase: 14 of 14
-Plan: 2 of 2 complete
-Status: Phase 14 complete -- all Execution Acceleration plans shipped
-Last activity: 2026-02-24 -- Completed 14-02 batch action execution engine
+Phase: 14.1 of 14.1
+Plan: 1 of 1 complete
+Status: Phase 14.1 complete -- Google Sheets batch type action fix shipped
+Last activity: 2026-02-24 -- Completed 14.1-01 fix batch action behavior on Google Sheets
 
-Progress: [##########] 100% (17/17 plans for Phases 9-14)
+Progress: [##########] 100% (18/18 plans for Phases 9-14.1)
 
 ## Performance Metrics
 
@@ -24,9 +24,9 @@ Progress: [##########] 100% (17/17 plans for Phases 9-14)
 - Total execution time: ~26.0 min
 
 **v9.4 Velocity:**
-- Total plans completed: 16
+- Total plans completed: 17
 - Average duration: 2.5 min
-- Total execution time: ~48.9 min
+- Total execution time: ~51.4 min
 
 ## Accumulated Context
 
@@ -35,6 +35,10 @@ Progress: [##########] 100% (17/17 plans for Phases 9-14)
 Full decision log in PROJECT.md Key Decisions table.
 
 Recent decisions:
+- 14.1-01: Suppression threshold set to 2+ type actions (single type on Sheets is valid)
+- 14.1-01: URL regex requires /d/ path segment to match only open Sheets documents
+- 14.1-01: batchHandled flag pattern replaces else-if chain for suppressed batch fall-through
+- 14.1-01: First action from suppressed batch preserved as single action (no wasted iteration)
 - 14-02: MAX_BATCH_SIZE = 8 enforced via slice regardless of AI compliance (safety cap)
 - 14-02: DOM stability between batch actions: waitForPageStability (300ms stable, 200ms network quiet) for non-navigation, pageLoadWatcher for navigation
 - 14-02: batchActions takes precedence over actions when both present, warning logged
@@ -99,6 +103,10 @@ Recent decisions:
 
 1. Smart multi-tab management with context-aware navigation (area: general) - `.planning/todos/pending/2026-02-14-smart-multi-tab-management.md`
 
+### Roadmap Evolution
+
+- Phase 14.1 inserted after Phase 14: Fix batch action behavior on Google Sheets (URGENT)
+
 ### Blockers/Concerns
 
 - Site Guides Viewer design mismatch (deferred from v9.3, does not block v9.4)
@@ -109,5 +117,5 @@ Recent decisions:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 14-02-PLAN.md (batch action execution engine) -- Phase 14 complete
+Stopped at: Completed 14.1-01-PLAN.md (fix batch action behavior on Google Sheets) -- Phase 14.1 complete
 Resume file: None

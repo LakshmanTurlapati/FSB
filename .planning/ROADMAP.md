@@ -123,6 +123,20 @@ Plans:
 - [x] 14-01-PLAN.md -- Timezone/country locale detection and AI prompt injection
 - [ ] 14-02-PLAN.md -- Batch action execution engine with DOM-based completion detection
 
+### Phase 14.2: Fix AI Google Sheets cell navigation and data entry confusion (INSERTED)
+**Goal:** Eliminate the AI's confusion between Name Box cell navigation and cell data entry on Google Sheets by adding explicit disambiguation prompts to the site guide, task prompt, and continuation iterations
+**Depends on:** Phase 14
+**Requirements:** FIX-SHEETS-NAV
+**Success Criteria** (what must be TRUE):
+  1. The AI navigates to cells by clicking the Name Box, typing the cell reference, pressing Enter, then typing the data value as a separate step
+  2. The AI never types cell references (like "B1") directly into cells as data values
+  3. Continuation iterations (iteration 2+) retain Sheets-specific Name Box guidance via buildMinimalUpdate injection
+  4. The fillSheetData clipboard path for career workflows is completely unaffected
+**Plans:** 1 plan
+
+Plans:
+- [ ] 14.2-01-PLAN.md -- Site guide disambiguation WARNING + expanded multitab Sheets section + continuation prompt Sheets injection
+
 ### Phase 14.1: Fix batch action behavior on Google Sheets (INSERTED)
 **Goal:** Prevent AI from batching multiple type actions on Google Sheets (canvas-based grid causes value concatenation) via prompt-level warning and execution-level URL-based safety check with graceful single-action fallback
 **Depends on:** Phase 14
@@ -132,7 +146,7 @@ Plans:
   2. If the AI still batches type actions on Sheets, the execution engine catches it and falls back to single-action execution
   3. Non-type batch actions on Sheets (getText, click, keyPress) are NOT suppressed
   4. Existing fillSheetData clipboard path is unaffected
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 14.1-01-PLAN.md -- Prompt-level batch warning + URL-based suppression guard + single-action fallback
@@ -150,7 +164,8 @@ Phases execute in numeric order: 9 -> 10 -> 11 -> 12 -> 13 -> 14
 | 12. Google Sheets Data Entry | 2/2 | Complete | 2026-02-23 |
 | 13. Google Sheets Formatting | 2/2 | Complete | 2026-02-23 |
 | 14. Execution Acceleration | 2/2 | Complete    | 2026-02-24 |
-| 14.1. Fix Batch on Sheets | 0/1 | In Progress | |
+| 14.1. Fix Batch on Sheets | 1/1 | Complete   | 2026-02-25 |
+| 14.2. Fix Sheets Nav/Entry | 0/1 | In Progress | - |
 
 ---
 *Created: 2026-02-23 for milestone v9.4 Career Search Automation*
