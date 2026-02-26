@@ -787,6 +787,17 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       update += `\nTry a DIFFERENT approach than before.`;
     }
 
+    // Sheets-specific reminder on continuation iterations
+    // The full site guide guidance is only in the first-iteration system prompt.
+    // Reinforce the critical Name Box vs cell value distinction on every continuation.
+    const currentUrl = context?.currentUrl || domState.url || '';
+    if (/docs\.google\.com\/spreadsheets\/d\/|sheets\.google\.com/i.test(currentUrl)) {
+      update += `\n\nGOOGLE SHEETS REMINDER:`;
+      update += `\n- To navigate to a cell: click Name Box (#t-name-box), type cell reference (e.g., "B1"), press Enter.`;
+      update += `\n- To enter data: type the value (keystrokes go to the active cell). Do NOT type cell references as data values.`;
+      update += `\n- Tab = move right, Enter = move down. Use Tab between columns in the same row.`;
+    }
+
     // DIF-03: Detect task type for content-adaptive formatting
     const taskType = this.detectTaskType(
       context?.task || this._currentTask || '',
