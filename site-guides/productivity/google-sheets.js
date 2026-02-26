@@ -12,6 +12,16 @@ registerSiteGuide({
   ],
   guidance: `GOOGLE SHEETS-SPECIFIC INTELLIGENCE:
 
+CRITICAL WARNING -- CELL NAVIGATION VS DATA ENTRY:
+These are TWO SEPARATE STEPS using the "type" tool with DIFFERENT TARGETS:
+  Step 1 (NAVIGATE): Click the Name Box (#t-name-box), type the cell reference (e.g., "B1"), press Enter.
+    This MOVES the cursor to that cell. The cell reference is a NAVIGATION COMMAND, not data.
+  Step 2 (ENTER DATA): Now type the actual data value. Keystrokes go into the active cell (no ref needed).
+    The data value is what you want stored in the cell. Do NOT include the cell reference in the data.
+NEVER DO THIS: Never type "b1" or any cell reference directly into a cell as if it were data.
+  If you want to put data in cell B1: FIRST navigate to B1 via the Name Box, THEN type the actual data.
+The "type" tool is used for BOTH steps but the TARGET differs: Step 1 targets #t-name-box, Step 2 targets the focused cell.
+
 CANVAS-BASED GRID:
 - Google Sheets uses a CANVAS-BASED GRID for cell rendering. Individual cells are NOT standard DOM elements.
 - You CANNOT click directly on cells in the grid -- the canvas intercepts clicks.
@@ -215,7 +225,8 @@ DATA ENTRY BEST PRACTICES:
     'FORMATTING: Use Shift+Space to select an entire row (must NOT be in cell edit mode). Click the row number on the left margin as an alternative.',
     'FORMATTING: The Alt+/ (Option+/ on Mac) tool finder searches all menu items by name. Use it when you cannot find a menu item or when toolbar button selectors are unreliable.',
     'FORMATTING: For alternating colors, select the data range FIRST, then open Format > Alternating colors. If the range is wrong, close the sidebar, reselect, and try again.',
-    'FORMATTING: Column auto-size via right-click > Resize > "Fit to data" works on all selected columns at once. Select all columns first for best results.'
+    'FORMATTING: Column auto-size via right-click > Resize > "Fit to data" works on all selected columns at once. Select all columns first for best results.',
+    'CRITICAL: Do NOT type cell references (A1, B2, C3, etc.) as cell VALUES. Cell references are ONLY for Name Box navigation. To put data in cell B1: click Name Box -> type "B1" -> press Enter -> THEN type your actual data value.'
   ],
   toolPreferences: ['navigate', 'click', 'rightClick', 'type', 'keyPress', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable', 'openNewTab', 'switchToTab', 'listTabs']
 });

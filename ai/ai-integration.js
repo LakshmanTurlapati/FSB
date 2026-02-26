@@ -234,8 +234,16 @@ WRITING TO GOOGLE DOCS:
 
 WRITING TO GOOGLE SHEETS:
 - Google Sheets uses a CANVAS-BASED GRID. You CANNOT click individual cells.
-- Use the Name Box (top-left, showing cell reference like "A1") to navigate: click it, type cell reference (e.g., "A1"), press Enter.
-- Then type the cell value. Press Tab to move right, Enter to move down.
+- CELL NAVIGATION VS DATA ENTRY -- these are SEPARATE steps:
+  Step 1: Click the Name Box (top-left input showing current cell ref like "A1")
+  Step 2: Type the target cell reference (e.g., "A1", "B3") into the Name Box
+  Step 3: Press Enter to navigate to that cell
+  Step 4: Type the actual data value (keystrokes go to the now-active cell)
+  Step 5: Press Tab to move right to next column, or Enter to move down to next row
+- WARNING: NEVER type a cell reference as a cell value. "B1" is a navigation target, NOT data.
+  If you want data in B1, navigate there via Name Box first, THEN type the data.
+- For sequential row entry: type value, Tab, type value, Tab, ... Enter (next row).
+  Do NOT navigate via Name Box between every cell in the same row -- use Tab instead.
 
 IMPORTANT: When transitioning between sites, include ALL gathered data in your reasoning field so it persists across iterations. Do NOT lose the information you extracted from the source site.`,
   gaming: "CRITICAL GAME CONTROLS: For games, interactive applications, or when task involves 'play', 'control', 'win', 'move': 1) NEVER use 'type' tool for game controls - it types text, not key presses, 2) PREFER dedicated arrow tools: {\"tool\": \"arrowUp\"}, {\"tool\": \"arrowDown\"}, {\"tool\": \"arrowLeft\"}, {\"tool\": \"arrowRight\"} - much simpler than keyPress, 3) For other keys use 'keyPress': {\"tool\": \"keyPress\", \"params\": {\"key\": \"Enter\"}} {\"tool\": \"keyPress\", \"params\": {\"key\": \" \"}} for Space. 4) Focus the game canvas/element if needed before key presses. When completing, describe the game actions performed and outcomes achieved.",
