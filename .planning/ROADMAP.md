@@ -123,6 +123,22 @@ Plans:
 - [x] 14-01-PLAN.md -- Timezone/country locale detection and AI prompt injection
 - [x] 14-02-PLAN.md -- Batch action execution engine with DOM-based completion detection
 
+### Phase 14.3: Fix Sheets cell edit mode escape and Name Box navigation sequence (INSERTED)
+
+**Goal:** Eliminate the AI's failure to exit cell edit mode before Name Box navigation on Google Sheets by adding an explicit Escape step before every Name Box navigation instruction in the site guide, TASK_PROMPTS, and continuation reminder
+**Depends on:** Phase 14
+**Requirements:** FIX-SHEETS-ESCAPE
+**Success Criteria** (what must be TRUE):
+  1. Every Name Box navigation instruction is preceded by a Press Escape step across the site guide guidance text, 9 workflow arrays, TASK_PROMPTS multitab section, and buildMinimalUpdate continuation reminder
+  2. The TASK_PROMPTS multitab section has a 6-step procedure (Steps 0-5) with Step 0 being Escape
+  3. The site guide warnings array contains a CRITICAL warning about pressing Escape before clicking the Name Box
+  4. Workflows that already have Escape (renameSheet, formatHeaderRow) are not double-Escaped
+  5. The fillSheetData clipboard path and buildSheetsFormattingDirective are completely unaffected
+**Plans:** 1 plan
+
+Plans:
+- [ ] 14.3-01-PLAN.md -- Add Escape-before-NameBox to site guide (guidance + 9 workflows + warning) and ai-integration.js (TASK_PROMPTS Step 0 + buildMinimalUpdate first bullet)
+
 ### Phase 14.2: Fix AI Google Sheets cell navigation and data entry confusion (INSERTED)
 **Goal:** Eliminate the AI's confusion between Name Box cell navigation and cell data entry on Google Sheets by adding explicit disambiguation prompts to the site guide, task prompt, and continuation iterations
 **Depends on:** Phase 14
@@ -132,7 +148,7 @@ Plans:
   2. The AI never types cell references (like "B1") directly into cells as data values
   3. Continuation iterations (iteration 2+) retain Sheets-specific Name Box guidance via buildMinimalUpdate injection
   4. The fillSheetData clipboard path for career workflows is completely unaffected
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [x] 14.2-01-PLAN.md -- Site guide disambiguation WARNING + expanded multitab Sheets section + continuation prompt Sheets injection
@@ -165,7 +181,7 @@ Phases execute in numeric order: 9 -> 10 -> 11 -> 12 -> 13 -> 14
 | 13. Google Sheets Formatting | 2/2 | Complete | 2026-02-23 |
 | 14. Execution Acceleration | 2/2 | Complete    | 2026-02-24 |
 | 14.1. Fix Batch on Sheets | 1/1 | Complete   | 2026-02-25 |
-| 14.2. Fix Sheets Nav/Entry | 1/1 | Complete | 2026-02-26 |
+| 14.2. Fix Sheets Nav/Entry | 1/1 | Complete    | 2026-02-26 |
 
 ---
 *Created: 2026-02-23 for milestone v9.4 Career Search Automation*
