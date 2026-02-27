@@ -28,6 +28,7 @@ CANVAS-BASED GRID:
 - The primary navigation method is the NAME BOX (cell reference input at top-left, showing "A1", "B2", etc.).
 
 NAME BOX NAVIGATION (PRIMARY METHOD):
+0. Press Escape to exit cell edit mode (CRITICAL -- if in edit mode, the reference will go into the active cell instead of the Name Box)
 1. Click the Name Box element (#t-name-box) showing current cell reference like "A1"
 2. The Name Box text will be selected/highlighted
 3. Type the target cell reference (e.g., "A1", "B3", "D10")
@@ -99,6 +100,7 @@ DATA ENTRY BEST PRACTICES:
       'The sheet is ready for interaction'
     ],
     setupHeaderRow: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box (#t-name-box)',
       'Type "A1" and press Enter to navigate to cell A1',
       'Type the first header text (e.g., "Company")',
@@ -108,6 +110,7 @@ DATA ENTRY BEST PRACTICES:
       'Press Enter after the last header to move to row 2'
     ],
     enterRowData: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box (#t-name-box)',
       'Type the target cell reference (e.g., "A2") and press Enter',
       'Type the first field value',
@@ -117,12 +120,14 @@ DATA ENTRY BEST PRACTICES:
       'Press Enter to move to the start of the next row'
     ],
     navigateToCell: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box (#t-name-box) to select it',
       'Type the cell reference (e.g., "C5")',
       'Press Enter to navigate to that cell',
       'The cell is now selected and ready for input or reading'
     ],
     dataEntrySequential: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box (#t-name-box) to select it',
       'Press Ctrl+A to select all text in the Name Box',
       'Type the starting cell reference (e.g., "A1") and press Enter',
@@ -133,6 +138,7 @@ DATA ENTRY BEST PRACTICES:
       'Repeat for all data rows'
     ],
     formulaBarVerification: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box (#t-name-box)',
       'Press Ctrl+A to select all existing text',
       'Type the cell reference to verify (e.g., "A2") and press Enter',
@@ -143,7 +149,7 @@ DATA ENTRY BEST PRACTICES:
       'Press Tab or Enter to confirm the correction'
     ],
     enterHyperlinkFormula: [
-      'Navigate to the target cell via Name Box',
+      'Press Escape to exit any cell edit mode, then navigate to the target cell via Name Box (click Name Box, type cell ref, press Enter)',
       'Ensure the cell is empty (if not, press Delete to clear)',
       'Type the formula: =HYPERLINK("url","Apply")',
       'Press Tab or Enter to confirm -- the cell should show "Apply" as a clickable link',
@@ -157,6 +163,7 @@ DATA ENTRY BEST PRACTICES:
       'The title bar should now show the new name'
     ],
     appendToExistingSheet: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box, type "A1", press Enter to go to the top',
       'Read the formula bar to check if A1 has a header value',
       'Press Tab to move through columns, reading each header from the formula bar',
@@ -182,6 +189,7 @@ DATA ENTRY BEST PRACTICES:
       'Alternative: press Alt+/ (Option+/ on Mac) to open the tool finder, type "Freeze", select "1 row"'
     ],
     applyAlternatingColors: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box, type the full data range (e.g., "A1:F26"), press Enter to select the range',
       'Click the Format menu (#docs-format-menu)',
       'Click "Alternating colors" to open the sidebar panel',
@@ -201,6 +209,7 @@ DATA ENTRY BEST PRACTICES:
       'Alternative: double-click the border between column headers to auto-fit individual columns'
     ],
     applyLinkColumnBlueText: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box, type the Apply Link column data range (e.g., "F2:F26"), press Enter to select',
       'Apply blue text color (#1155CC) to signal clickability',
       'Use the text color toolbar button or Alt+/ tool finder typing "Text color"'
@@ -208,6 +217,7 @@ DATA ENTRY BEST PRACTICES:
   },
   warnings: [
     'Google Sheets cells are rendered on a CANVAS -- you CANNOT click individual cells via DOM selectors. Always use the Name Box for cell navigation.',
+    'CRITICAL: Press Escape before clicking the Name Box to exit cell edit mode. If you type a cell reference while still in edit mode, the reference will be appended to the current cell\'s content instead of navigating.',
     'The Name Box is the ONLY reliable way to navigate to specific cells. It is located at the top-left of the sheet.',
     'Google Sheets auto-saves continuously -- there is no explicit save needed, but Ctrl+S can force a save.',
     'If the sheet is in VIEW-ONLY mode, data entry will not work. Check for an "Edit" or "Request access" button.',
