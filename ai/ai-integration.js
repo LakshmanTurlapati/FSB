@@ -235,6 +235,7 @@ WRITING TO GOOGLE DOCS:
 WRITING TO GOOGLE SHEETS:
 - Google Sheets uses a CANVAS-BASED GRID. You CANNOT click individual cells.
 - CELL NAVIGATION VS DATA ENTRY -- these are SEPARATE steps:
+  Step 0: Press Escape to exit cell edit mode (CRITICAL before every Name Box navigation)
   Step 1: Click the Name Box (top-left input showing current cell ref like "A1")
   Step 2: Type the target cell reference (e.g., "A1", "B3") into the Name Box
   Step 3: Press Enter to navigate to that cell
@@ -793,7 +794,8 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
     const currentUrl = context?.currentUrl || domState.url || '';
     if (/docs\.google\.com\/spreadsheets\/d\/|sheets\.google\.com/i.test(currentUrl)) {
       update += `\n\nGOOGLE SHEETS REMINDER:`;
-      update += `\n- To navigate to a cell: click Name Box (#t-name-box), type cell reference (e.g., "B1"), press Enter.`;
+      update += `\n- BEFORE navigating to a cell: press Escape to exit cell edit mode.`;
+      update += `\n- To navigate: press Escape, click Name Box (#t-name-box), type cell reference (e.g., "B1"), press Enter.`;
       update += `\n- To enter data: type the value (keystrokes go to the active cell). Do NOT type cell references as data values.`;
       update += `\n- Tab = move right, Enter = move down. Use Tab between columns in the same row.`;
     }
