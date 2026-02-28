@@ -1,94 +1,103 @@
-# Requirements: v9.4 Career Search Automation
+# Requirements: v10.0 CLI Architecture
 
-**Defined:** 2026-02-23
+**Defined:** 2026-02-27
 **Core Value:** Reliable single-attempt execution
 
-## v9.4 Requirements
+## v10.0 Requirements
 
-### Data Pipeline
+### CLI Parser
 
-- [x] **PIPE-01**: 38 crowd session logs parsed into per-domain sitemaps with confidence scoring (HIGH: >10 elements, MEDIUM: 1-10, LOW: 0 elements)
-- [x] **PIPE-02**: Per-company site guides generated with stability-classified selectors (prefer id, aria-label, role; hashed CSS selectors included but flagged as UNSTABLE)
-- [x] **PIPE-03**: Direct career URLs embedded in site guides for all session-log companies (skip Google search overhead)
+- [x] **CLI-01**: AI outputs line-based CLI commands (one command per line) instead of JSON tool calls, and the parser extracts verb, ref, and arguments from each line
+- [x] **CLI-02**: Quoted string arguments are parsed correctly including escaped quotes, URLs with special characters, and multi-word values
+- [ ] **CLI-03**: Multiple command lines in a single AI response are treated as a batch and executed sequentially with DOM stability checks between each
+- [x] **CLI-04**: Comment lines (prefixed with #) are captured as AI reasoning/analysis without being executed as actions
+- [x] **CLI-05**: The parser produces {tool, params} objects identical to the current action dispatch format so content script execution is unchanged
+- [ ] **CLI-06**: Parse failures on individual lines are isolated -- valid commands before and after a malformed line still execute
 
-### Career Search
+### YAML DOM Snapshot
 
-- [x] **SEARCH-01**: Single-company career search navigates site, searches, extracts jobs with required fields (company, title, apply link) and best-effort fields (date, location, description)
-- [x] **SEARCH-02**: Multi-company sequential search handles prompts naming 2-10 companies, visiting each in sequence
-- [x] **SEARCH-03**: Vague query interpretation maps broad terms ("tech internships", "DevOps positions") to concrete search queries
-- [x] **SEARCH-04**: Deduplication eliminates cross-site duplicate listings before writing to Sheets
-- [x] **SEARCH-05**: Error reporting communicates which companies had no results (never silent failure)
-- [x] **SEARCH-06**: Progress reporting shows current company and count during multi-site workflows ("Searching Microsoft... 2/5")
+- [ ] **YAML-01**: DOM snapshots sent to the AI use a compact text format with element refs (e1, e2, ...), element type, text content, and key attributes -- replacing the current verbose JSON structure
+- [ ] **YAML-02**: Interactive-only filtering reduces snapshot to actionable elements (buttons, inputs, links, selects) by default, with full-page mode available
+- [ ] **YAML-03**: Page metadata (URL, title, scroll position, viewport) is included as a compact header before the element list
+- [ ] **YAML-04**: Site-aware annotations from site guides (e.g., [hint:searchBox], [hint:nameBox]) are embedded inline with elements when a matching site guide exists
+- [ ] **YAML-05**: Snapshot token count is at least 40% lower than the current JSON format for equivalent page content
 
-### Data Management
+### Prompt Architecture
 
-- [x] **DATA-01**: Job data persisted to chrome.storage.local after each company extraction (survives service worker restarts)
-- [x] **DATA-02**: storeJobData and getStoredJobs tools exposed for AI to use during career workflows
+- [ ] **PROMPT-01**: System prompt is redesigned around CLI command grammar with a concise command reference replacing the current JSON tool documentation (~400 lines)
+- [ ] **PROMPT-02**: Context tiers (full prompt vs minimal continuation) are preserved but adapted for CLI format -- continuation prompts reinforce CLI syntax
+- [ ] **PROMPT-03**: Stuck recovery prompts use CLI format and guide the AI to try alternative CLI commands
+- [ ] **PROMPT-04**: All 43+ site guide files are swept for JSON format examples and updated to use CLI command examples
+- [ ] **PROMPT-05**: Task-type prompts (search, form, extraction, navigation, career, sheets) are rewritten for CLI output format
+- [ ] **PROMPT-06**: Batch action instructions reference multi-line CLI commands instead of the batchActions JSON array
+- [ ] **PROMPT-07**: The done command replaces the taskComplete JSON field -- AI outputs `done "result summary"` to signal completion
 
-### Google Sheets
+### AI Integration
 
-- [x] **SHEETS-01**: Data entry via Name Box + Tab/Enter pattern into new Sheet or user-provided URL
-- [x] **SHEETS-02**: Smart field defaults (company, title, date, location, description, apply link) with user-customizable field selection
-- [x] **SHEETS-03**: Bold headers, colored header row, frozen header row
-- [x] **SHEETS-04**: Sheet title naming from task context (e.g., "Job Search - SWE Internships - Feb 2026")
-- [x] **SHEETS-05**: Column auto-sizing for readable output
+- [ ] **INTEG-01**: ai-integration.js uses the CLI parser as the sole response parser -- no JSON fallback (CLI-only mode)
+- [ ] **INTEG-02**: Conversation history stores CLI command exchanges (not JSON) so models don't pattern-match back to JSON
+- [ ] **INTEG-03**: Conversation compaction preserves CLI format when summarizing older turns
+- [ ] **INTEG-04**: Provider-specific response cleaning (Gemini markdown wrapping, Grok conversational text) is adapted for CLI output extraction
+- [ ] **INTEG-05**: The storeJobData and fillSheetData tools accept structured data via a CLI-compatible encoding (inline JSON payload or heredoc-style block)
 
-### Execution Acceleration
+### Cross-Provider Testing
 
-- [x] **ACCEL-01**: AI can return multiple sequential actions in a batchActions array, executed in order with stop-on-failure semantics
-- [x] **ACCEL-02**: DOM-based completion detection (MutationObserver + network monitoring) replaces fixed delays between batch actions
-- [x] **ACCEL-03**: User's timezone, country, and local datetime injected into every AI system prompt for location-aware decisions
-- [x] **ACCEL-04**: Career searches default to filtering by user's detected country when no explicit location specified
-- [x] **ACCEL-05**: Overall task completion time measurably reduced compared to one-action-per-iteration for multi-action pages
+- [ ] **TEST-01**: CLI command compliance is validated across xAI Grok, OpenAI GPT-4o, Anthropic Claude, and Google Gemini with at least 3 task types per provider
+- [ ] **TEST-02**: Token reduction is measured per provider comparing CLI vs previous JSON format on identical tasks
+- [ ] **TEST-03**: Edge cases are tested: special characters in typed text, URLs as arguments, multi-line reasoning, Google Sheets workflows, career search workflows
 
-## Future Requirements (Deferred to Later Phases)
+## Future Requirements (Deferred)
 
-- [ ] **FUT-01**: Salary information extraction when available on career pages (pay transparency data)
-- [ ] **FUT-02**: Apply link validation -- verify links lead to live application pages, not 404s or expired listings
+- [ ] **FUT-01**: Progressive snapshot depth (full/focused/delta) for further token reduction in mid-task iterations
+- [ ] **FUT-02**: TOON-style tabular formatting for list data in snapshots (job listings, search results)
+- [ ] **FUT-03**: AI reasoning quality comparison between CLI comments and structured JSON fields
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Auto-apply to jobs | Legal/ethical risk, quality destruction, scope explosion into unreliable ATS form automation |
-| Scraping behind login walls | TOS violations, account risk, credential security liability |
-| Real-time job monitoring | MV3 service worker lifecycle prohibits continuous background polling |
-| Resume/cover letter generation | Different product category with different quality bar |
-| Full job description extraction | Destroys spreadsheet readability, multiplies extraction time 5-10x |
-| Comparison scoring or ranking | Subjective, creates false confidence, exposes liability |
+| JSON fallback parser | Full commitment to CLI -- no dual parser. Models must comply or get degraded experience. |
+| New browser action tools | v10.0 only changes the protocol, not the action capabilities. Existing 30+ tools unchanged. |
+| Content script refactoring | Action execution layer (actions.js, selectors.js, dom-state.js) is untouched -- CLI parser produces same {tool, params} shape. |
+| Build system or bundling | Vanilla JS with importScripts pattern is preserved. No webpack, rollup, or transpilation. |
+| UI changes | Popup, sidepanel, options page unchanged -- protocol change is invisible to user. |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PIPE-01 | Phase 9 | Complete |
-| PIPE-02 | Phase 9 | Complete |
-| PIPE-03 | Phase 9 | Complete |
-| SEARCH-01 | Phase 10 | Complete |
-| SEARCH-02 | Phase 11 | Complete |
-| SEARCH-03 | Phase 10 | Complete |
-| SEARCH-04 | Phase 11 | Complete |
-| SEARCH-05 | Phase 10 | Complete |
-| SEARCH-06 | Phase 11 | Complete |
-| DATA-01 | Phase 11 | Complete |
-| DATA-02 | Phase 11 | Complete |
-| SHEETS-01 | Phase 12 | Complete |
-| SHEETS-02 | Phase 12 | Complete |
-| SHEETS-03 | Phase 13 | Complete |
-| SHEETS-04 | Phase 12 | Complete |
-| SHEETS-05 | Phase 13 | Complete |
-
-| ACCEL-01 | Phase 14 | Not Started |
-| ACCEL-02 | Phase 14 | Not Started |
-| ACCEL-03 | Phase 14 | Complete |
-| ACCEL-04 | Phase 14 | Complete |
-| ACCEL-05 | Phase 14 | Not Started |
+| CLI-01 | Phase 15 | Complete |
+| CLI-02 | Phase 15 | Complete |
+| CLI-03 | Phase 15 | Pending |
+| CLI-04 | Phase 15 | Complete |
+| CLI-05 | Phase 15 | Complete |
+| CLI-06 | Phase 15 | Pending |
+| YAML-01 | Phase 16 | Pending |
+| YAML-02 | Phase 16 | Pending |
+| YAML-03 | Phase 16 | Pending |
+| YAML-04 | Phase 16 | Pending |
+| YAML-05 | Phase 16 | Pending |
+| PROMPT-01 | Phase 17 | Pending |
+| PROMPT-02 | Phase 17 | Pending |
+| PROMPT-03 | Phase 17 | Pending |
+| PROMPT-04 | Phase 17 | Pending |
+| PROMPT-05 | Phase 17 | Pending |
+| PROMPT-06 | Phase 17 | Pending |
+| PROMPT-07 | Phase 17 | Pending |
+| INTEG-01 | Phase 18 | Pending |
+| INTEG-02 | Phase 18 | Pending |
+| INTEG-03 | Phase 18 | Pending |
+| INTEG-04 | Phase 18 | Pending |
+| INTEG-05 | Phase 18 | Pending |
+| TEST-01 | Phase 19 | Pending |
+| TEST-02 | Phase 19 | Pending |
+| TEST-03 | Phase 19 | Pending |
 
 **Coverage:**
-- v9.4 requirements: 21 total
-- Mapped: 21/21
-- Future requirements: 2 (deferred)
+- v10.0 requirements: 26 total
+- Mapped: 26/26 (100%)
+- Future requirements: 3 (deferred)
 - Unmapped: 0
 
 ---
-*Defined: 2026-02-23 for milestone v9.4 Career Search Automation*
+*Defined: 2026-02-27 for milestone v10.0 CLI Architecture*
