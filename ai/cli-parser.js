@@ -612,3 +612,118 @@ function parseCliResponse(text) {
 
   return result;
 }
+
+// =============================================================================
+// SELF-TEST UTILITY
+// =============================================================================
+
+/**
+ * Internal validation test for the CLI parser module.
+ *
+ * NOT auto-executed. Call manually for debugging:
+ *   const { _runSelfTest } = require('./ai/cli-parser.js');
+ *   const results = _runSelfTest();
+ *   console.log(results);
+ *
+ * Tests 10 representative cases covering all 6 CLI requirements.
+ *
+ * @returns {{passed: number, failed: number, failures: string[]}}
+ */
+function _runSelfTest() {
+  let passed = 0;
+  let failed = 0;
+  const failures = [];
+
+  function assert(label, condition) {
+    if (condition) {
+      passed++;
+    } else {
+      failed++;
+      failures.push(label);
+    }
+  }
+
+  // a. Simple click
+  const a = parseCliResponse('click e5');
+  assert('a: click tool', a.actions[0].tool === 'click');
+  assert('a: click ref', a.actions[0].params.ref === 'e5');
+
+  // b. Type with quoted text
+  const b = parseCliResponse('type e12 "hello world"');
+  assert('b: type tool', b.actions[0].tool === 'type');
+  assert('b: type text', b.actions[0].params.text === 'hello world');
+
+  // c. Navigate URL with special chars
+  const c = parseCliResponse('navigate "https://example.com/path?q=test&page=2#section"');
+  assert('c: navigate tool', c.actions[0].tool === 'navigate');
+  assert('c: navigate url has ?', c.actions[0].params.url.includes('?'));
+  assert('c: navigate url has &', c.actions[0].params.url.includes('&'));
+  assert('c: navigate url has =', c.actions[0].params.url.includes('='));
+  assert('c: navigate url has #', c.actions[0].params.url.includes('#'));
+
+  // d. Reasoning line
+  const d = parseCliResponse('# This is my analysis');
+  assert('d: reasoning captured', d.reasoning.length === 1);
+  assert('d: reasoning text', d.reasoning[0] === 'This is my analysis');
+  assert('d: no actions', d.actions.length === 0);
+
+  // e. Done signal
+  const e = parseCliResponse('done "task complete"');
+  assert('e: taskComplete', e.taskComplete === true);
+  assert('e: result', e.result === 'task complete');
+
+  // f. Fail signal
+  const f = parseCliResponse('fail "cannot proceed"');
+  assert('f: taskComplete', f.taskComplete === true);
+  assert('f: taskFailed', f.taskFailed === true);
+  assert('f: result', f.result === 'cannot proceed');
+
+  // g. Error isolation (CLI-06)
+  const g = parseCliResponse('click e5\nbogus line here\ntype e3 "test"');
+  assert('g: two valid actions', g.actions.length === 2);
+  assert('g: one error', g.errors.length === 1);
+  assert('g: first action click', g.actions[0].tool === 'click');
+  assert('g: second action type', g.actions[1].tool === 'type');
+
+  // h. Case insensitivity
+  const h = parseCliResponse('CLICK e5');
+  assert('h: case insensitive tool', h.actions[0].tool === 'click');
+
+  // i. Alias resolution
+  const i_r = parseCliResponse('goto "https://google.com"');
+  assert('i: alias resolves', i_r.actions[0].tool === 'navigate');
+
+  // j. Code fence stripping
+  const j = parseCliResponse('```bash\nclick e5\n```');
+  assert('j: code fence stripped', j.actions.length === 1);
+  assert('j: action is click', j.actions[0].tool === 'click');
+
+  return { passed, failed, failures };
+}
+
+// =============================================================================
+// MODULE EXPORTS
+// =============================================================================
+
+// Export for service worker (background.js via importScripts)
+if (typeof self !== 'undefined') {
+  self.parseCliResponse = parseCliResponse;
+  self.CLI_PARSER_VERSION = '1.0.0';
+  self._runCliParserSelfTest = _runSelfTest;
+}
+
+// Export for testing / Node.js
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    parseCliResponse,
+    tokenizeLine,
+    mapCommand,
+    COMMAND_REGISTRY,
+    preprocessResponse,
+    _runSelfTest
+  };
+}
+
+// CLI Parser Module v1.0.0 -- FSB v10.0
+// Loaded via: importScripts('ai/cli-parser.js') in background.js
+// Public API: parseCliResponse(text) -> {actions, reasoning, errors, taskComplete, result}
