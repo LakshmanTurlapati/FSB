@@ -9,10 +9,10 @@
 
 - [x] **CLI-01**: AI outputs line-based CLI commands (one command per line) instead of JSON tool calls, and the parser extracts verb, ref, and arguments from each line
 - [x] **CLI-02**: Quoted string arguments are parsed correctly including escaped quotes, URLs with special characters, and multi-word values
-- [ ] **CLI-03**: Multiple command lines in a single AI response are treated as a batch and executed sequentially with DOM stability checks between each
+- [x] **CLI-03**: Multiple command lines in a single AI response are treated as a batch and executed sequentially with DOM stability checks between each
 - [x] **CLI-04**: Comment lines (prefixed with #) are captured as AI reasoning/analysis without being executed as actions
 - [x] **CLI-05**: The parser produces {tool, params} objects identical to the current action dispatch format so content script execution is unchanged
-- [ ] **CLI-06**: Parse failures on individual lines are isolated -- valid commands before and after a malformed line still execute
+- [x] **CLI-06**: Parse failures on individual lines are isolated -- valid commands before and after a malformed line still execute
 
 ### YAML DOM Snapshot
 
@@ -68,10 +68,10 @@
 |-------------|-------|--------|
 | CLI-01 | Phase 15 | Complete |
 | CLI-02 | Phase 15 | Complete |
-| CLI-03 | Phase 15 | Pending |
+| CLI-03 | Phase 15 | Complete |
 | CLI-04 | Phase 15 | Complete |
 | CLI-05 | Phase 15 | Complete |
-| CLI-06 | Phase 15 | Pending |
+| CLI-06 | Phase 15 | Complete |
 | YAML-01 | Phase 16 | Pending |
 | YAML-02 | Phase 16 | Pending |
 | YAML-03 | Phase 16 | Pending |

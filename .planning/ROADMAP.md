@@ -20,7 +20,7 @@ See `.planning/milestones/v9.4-ROADMAP.md` for full details.
 
 ## Phases
 
-- [ ] **Phase 15: CLI Parser Module** - Build the line-based command parser that converts AI text output into executable {tool, params} objects
+- [x] **Phase 15: CLI Parser Module** - Build the line-based command parser that converts AI text output into executable {tool, params} objects (completed 2026-02-28)
 - [ ] **Phase 16: YAML DOM Snapshot** - Formalize compact element-ref snapshot format with interactive filtering, page metadata, and site-aware annotations
 - [ ] **Phase 17: Prompt Architecture Rewrite** - Redesign system prompt, task prompts, stuck recovery, and all 43+ site guides for CLI command grammar
 - [ ] **Phase 18: AI Integration Wiring** - Wire CLI parser and prompts into ai-integration.js as the sole response path with conversation history adaptation
@@ -96,7 +96,7 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
-| 15. CLI Parser Module | 1/2 | In Progress|  |
+| 15. CLI Parser Module | 2/2 | Complete   | 2026-02-28 |
 | 16. YAML DOM Snapshot | 0/TBD | Not started | - |
 | 17. Prompt Architecture Rewrite | 0/TBD | Not started | - |
 | 18. AI Integration Wiring | 0/TBD | Not started | - |
