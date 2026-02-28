@@ -292,3 +292,162 @@ function coerceValue(value, type) {
       return value;
   }
 }
+
+// =============================================================================
+// LAYER 3: COMMAND MAPPER
+// =============================================================================
+
+/**
+ * Modifier flag name mapping for keyPress commands.
+ * Short CLI flags (--ctrl) map to full param names (ctrlKey).
+ * @type {Object.<string, string>}
+ */
+const MODIFIER_FLAG_MAP = {
+  ctrl: 'ctrlKey',
+  shift: 'shiftKey',
+  alt: 'altKey',
+  meta: 'metaKey',
+};
+
+/**
+ * Maps tokenized CLI output to a {tool, params} action object using
+ * COMMAND_REGISTRY schemas.
+ *
+ * Handles:
+ * - Positional argument assignment based on arg schema order
+ * - Ref vs CSS selector discrimination for 'ref' type args
+ * - Type coercion (number, json, string)
+ * - Flag merging with special handling for keyPress modifiers
+ * - selectOption --by-value / --by-index flags
+ * - toggleCheckbox --checked / --unchecked flags
+ * - Signal commands (done, fail) returning {signal, message}
+ * - pressKeySequence comma-separated key splitting
+ * - Scroll shorthand defaults
+ *
+ * @param {{verb: string, tokens: string[], flags: Object}} tokenized - Output from tokenizeLine()
+ * @returns {{tool: string, params: Object}|{signal: string, message: string|null}|{error: string}}
+ */
+function mapCommand(tokenized) {
+  const verb = tokenized.verb.toLowerCase();
+  const def = COMMAND_REGISTRY[verb];
+
+  if (!def) {
+    return { error: `Unknown command: ${tokenized.verb}` };
+  }
+
+  // Start params with defaults (e.g., scroll direction shorthands)
+  const params = Object.assign({}, def.defaults || {});
+
+  // Assign positional tokens based on arg schema
+  let tokenIndex = 0;
+  for (let i = 0; i < def.args.length; i++) {
+    const argDef = def.args[i];
+
+    // JSON type: join ALL remaining positional tokens (JSON may have been split)
+    if (argDef.type === 'json') {
+      if (tokenIndex < tokenized.tokens.length) {
+        const jsonStr = tokenized.tokens.slice(tokenIndex).join(' ');
+        tokenIndex = tokenized.tokens.length; // Consume all remaining
+        try {
+          params[argDef.name] = coerceValue(jsonStr, 'json');
+        } catch (e) {
+          return { error: `Invalid JSON for argument "${argDef.name}": ${e.message}` };
+        }
+      } else if (!argDef.optional) {
+        return { error: `Missing required argument: ${argDef.name} for command: ${tokenized.verb}` };
+      }
+      continue;
+    }
+
+    // No more positional tokens available
+    if (tokenIndex >= tokenized.tokens.length) {
+      if (!argDef.optional) {
+        return { error: `Missing required argument: ${argDef.name} for command: ${tokenized.verb}` };
+      }
+      continue;
+    }
+
+    const token = tokenized.tokens[tokenIndex];
+    tokenIndex++;
+
+    // Handle ref type: classify as ref or selector
+    if (argDef.type === 'ref') {
+      const classified = coerceValue(token, 'ref');
+      if (classified.ref) {
+        params.ref = classified.ref;
+      } else {
+        params.selector = classified.selector;
+      }
+      continue;
+    }
+
+    // Handle number type
+    if (argDef.type === 'number') {
+      try {
+        params[argDef.name] = coerceValue(token, 'number');
+      } catch (e) {
+        return { error: `Invalid value for argument "${argDef.name}": ${e.message}` };
+      }
+      continue;
+    }
+
+    // Handle string type (default)
+    params[argDef.name] = token;
+  }
+
+  // Merge flags into params with special handling
+  for (const [flagName, flagValue] of Object.entries(tokenized.flags)) {
+    // keyPress modifier key flags: --ctrl -> ctrlKey, --shift -> shiftKey, etc.
+    if (MODIFIER_FLAG_MAP[flagName] && def.tool === 'keyPress') {
+      params[MODIFIER_FLAG_MAP[flagName]] = true;
+      continue;
+    }
+
+    // selectOption: --by-value flag renames the second positional arg to 'value'
+    if (flagName === 'by-value' && def.tool === 'selectOption') {
+      // The positional arg was already assigned to params.value by schema name,
+      // so this flag is a no-op (value is the default schema name).
+      // However, if the schema used 'text' as default, we would rename here.
+      continue;
+    }
+
+    // selectOption: --by-index flag renames and coerces the second positional arg
+    if (flagName === 'by-index' && def.tool === 'selectOption') {
+      // Rename: move the 'value' param to 'index' and coerce to number
+      if (params.value !== undefined) {
+        try {
+          params.index = coerceValue(params.value, 'number');
+        } catch (e) {
+          return { error: `Invalid index value for selectOption: ${e.message}` };
+        }
+        delete params.value;
+      }
+      continue;
+    }
+
+    // toggleCheckbox: --checked / --unchecked flags
+    if (flagName === 'checked' && def.tool === 'toggleCheckbox') {
+      params.checked = true;
+      continue;
+    }
+    if (flagName === 'unchecked' && def.tool === 'toggleCheckbox') {
+      params.checked = false;
+      continue;
+    }
+
+    // General flag: assign to params
+    params[flagName] = flagValue;
+  }
+
+  // pressKeySequence special handling: split comma-separated keys into array
+  if (def.tool === 'pressKeySequence' && typeof params.keys === 'string') {
+    params.keys = params.keys.split(',').map(k => k.trim());
+  }
+
+  // Signal commands: return {signal, message} instead of {tool, params}
+  if (def.signal) {
+    return { signal: def.signal, message: params.message || null };
+  }
+
+  return { tool: def.tool, params };
+}
