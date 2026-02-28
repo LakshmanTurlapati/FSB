@@ -451,3 +451,164 @@ function mapCommand(tokenized) {
 
   return { tool: def.tool, params };
 }
+
+// =============================================================================
+// LAYER 4: RESPONSE PRE-PROCESSOR
+// =============================================================================
+
+/**
+ * Strips provider-specific wrapping from raw AI text before line parsing.
+ *
+ * Handles:
+ * - Markdown code fences (Gemini pattern): ```bash, ```shell, ```text, ```cli, bare ```
+ * - Conversational preamble (Grok pattern): leading text before first recognized command
+ * - Trailing conversational text: text after last recognized command
+ *
+ * @param {string} text - Raw AI response text
+ * @returns {string} Cleaned text ready for line-by-line parsing
+ */
+function preprocessResponse(text) {
+  if (!text || typeof text !== 'string') return '';
+
+  let cleaned = text.trim();
+
+  // Strip markdown code fences (Gemini pattern)
+  cleaned = cleaned.replace(/^```(?:bash|shell|text|cli)?\s*$/gm, '');
+
+  // Split into lines for preamble/trailing stripping
+  const lines = cleaned.split('\n');
+
+  // Find the first line that is a recognized command, reasoning (#), or empty
+  const firstCmdIndex = lines.findIndex(l => {
+    const trimmed = l.trim();
+    if (!trimmed) return true; // Empty lines are part of command block
+    if (trimmed.startsWith('#')) return true; // Reasoning lines
+    const firstWord = trimmed.split(/\s+/)[0].toLowerCase();
+    return firstWord in COMMAND_REGISTRY;
+  });
+
+  // Discard lines before the first recognized line (conversational preamble)
+  let commandLines = lines;
+  if (firstCmdIndex > 0) {
+    commandLines = lines.slice(firstCmdIndex);
+  }
+
+  // Find the LAST line whose first word is in COMMAND_REGISTRY or starts with #
+  let lastCmdIndex = -1;
+  for (let i = commandLines.length - 1; i >= 0; i--) {
+    const trimmed = commandLines[i].trim();
+    if (!trimmed) continue; // Skip empty lines when searching backward
+    if (trimmed.startsWith('#')) {
+      lastCmdIndex = i;
+      break;
+    }
+    const firstWord = trimmed.split(/\s+/)[0].toLowerCase();
+    if (firstWord in COMMAND_REGISTRY) {
+      lastCmdIndex = i;
+      break;
+    }
+  }
+
+  // Discard lines after the last recognized command (trailing conversational text)
+  if (lastCmdIndex >= 0 && lastCmdIndex < commandLines.length - 1) {
+    commandLines = commandLines.slice(0, lastCmdIndex + 1);
+  }
+
+  return commandLines.join('\n').trim();
+}
+
+// =============================================================================
+// LAYER 5: RESPONSE PARSER (PUBLIC API)
+// =============================================================================
+
+/**
+ * Parses a complete AI CLI response into structured actions, reasoning, and errors.
+ *
+ * This is the public entry point for the CLI parser module. Takes raw AI text
+ * output (potentially multi-line, potentially wrapped in code fences or
+ * conversational text) and produces a structured result compatible with the
+ * existing automation loop.
+ *
+ * Per-line error isolation (CLI-06): a malformed line does NOT prevent valid
+ * commands before and after from being parsed.
+ *
+ * @param {string} text - Raw AI response text
+ * @returns {{
+ *   actions: Array<{tool: string, params: Object}>,
+ *   reasoning: string[],
+ *   errors: Array<{line: string, lineNumber: number, error: string}>,
+ *   taskComplete: boolean,
+ *   taskFailed: boolean,
+ *   result: string|null,
+ *   confidence: string,
+ *   situationAnalysis: string,
+ *   goalAssessment: string,
+ *   assumptions: Array,
+ *   fallbackPlan: string
+ * }}
+ */
+function parseCliResponse(text) {
+  const cleaned = preprocessResponse(text);
+  const lines = cleaned.split('\n');
+
+  // Initialize result with compatibility stubs for normalizeResponse shape
+  const result = {
+    actions: [],
+    reasoning: [],
+    errors: [],
+    taskComplete: false,
+    taskFailed: false,
+    result: null,
+    confidence: 'medium',
+    situationAnalysis: '',
+    goalAssessment: '',
+    assumptions: [],
+    fallbackPlan: ''
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+
+    // Skip empty / whitespace-only lines silently
+    if (!trimmed) continue;
+
+    // Capture reasoning lines (# prefix)
+    if (trimmed.startsWith('#')) {
+      result.reasoning.push(trimmed.substring(1).trim());
+      continue;
+    }
+
+    // Parse command line with per-line error isolation (CLI-06)
+    try {
+      const tokenized = tokenizeLine(trimmed);
+      const mapped = mapCommand(tokenized);
+
+      if (mapped.error) {
+        result.errors.push({ line: trimmed, lineNumber: i + 1, error: mapped.error });
+        continue;
+      }
+
+      if (mapped.signal === 'done') {
+        result.taskComplete = true;
+        result.result = mapped.message || 'Task completed';
+        continue;
+      }
+
+      if (mapped.signal === 'fail') {
+        result.taskComplete = true;
+        result.taskFailed = true;
+        result.result = mapped.message || 'Task failed';
+        continue;
+      }
+
+      result.actions.push({ tool: mapped.tool, params: mapped.params });
+    } catch (err) {
+      result.errors.push({ line: trimmed, lineNumber: i + 1, error: err.message });
+    }
+  }
+
+  // Set situationAnalysis from reasoning for compatibility
+  result.situationAnalysis = result.reasoning.join(' ');
+
+  return result;
+}
