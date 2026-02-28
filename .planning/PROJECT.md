@@ -37,19 +37,22 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Memory detail panels with type-specific renderers -- v9.3
 - ✓ Memory cost tracking (dashboard + Memory tab) -- v9.3
 - ✓ Per-site guide files (43 sites, 9 categories) -- v9.3
+- ✓ Session log parsing into site guides with confidence scoring -- v9.4
+- ✓ ATS base guides (Workday, Greenhouse, Lever, iCIMS, Taleo) -- v9.4
+- ✓ Single-company career search with error reporting -- v9.4
+- ✓ Multi-site sequential search with data persistence -- v9.4
+- ✓ Google Sheets data entry via Name Box pattern -- v9.4
+- ✓ Google Sheets formatting (headers, freeze, auto-size) -- v9.4
+- ✓ Batch action execution with DOM completion detection -- v9.4
+- ✓ Timezone/country locale injection for AI decisions -- v9.4
 
 ### Active
 
+- [ ] CLI-based AI action interface -- replace JSON tool calls with CLI-style commands for better LLM accuracy and token efficiency
+- [ ] Compact DOM snapshot format -- YAML/text element refs instead of verbose JSON structures
 - [ ] Complete page awareness -- AI sees full DOM context without truncation losing critical elements
 - [ ] Task completion detection -- system-level verification that the task objective was met, not just AI self-report
-- [ ] Accurate DOM change detection -- element-level deltas instead of coarse hash comparison
 - [ ] Reliable CAPTCHA detection -- eliminate false positives on normal pages
-- [ ] Sufficient element text -- full names, labels, and content visible to AI for identification
-- [ ] Operational memory -- conversation history preserves what actions succeeded across iterations
-- [ ] Accurate viewport detection -- split-pane layouts (Gmail, LinkedIn, Slack) handled correctly
-- [ ] Consistent element finding -- waitForElement and click use the same resolution path
-- [ ] Action sequence verification -- confirm intermediate state between multi-step actions (type then send)
-- [ ] Navigation intelligence -- site-specific strategy hints to reduce wasted iterations
 
 ### Out of Scope
 
@@ -61,42 +64,28 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Current state:** Shipped v0.9 Reliability Improvements. Mechanics are precise but the AI lacks situational awareness. Log analysis of a LinkedIn messaging task revealed 10 systemic issues: the AI can't detect task completion, loses 74% of DOM context to truncation, gets false CAPTCHA warnings, loses operational memory to aggressive compaction, and can't identify elements with truncated text. The next milestone focuses on giving the AI complete awareness of what's on the page and whether its actions worked. 43,283 lines of JavaScript across content.js, background.js, ai-integration.js, and UI files.
 
-## Current Milestone: v9.4 Career Search Automation
+## Current State: v9.4 Shipped
 
-**Goal:** Turn crowd session logs into site intelligence (sitemaps + site guides) for 30+ career websites and Google Sheets, enabling FSB to autonomously search career sites for job listings matching user criteria and produce beautifully formatted Google Sheets with results (company, title, date posted, apply link, job description, with styled headers and highlighting).
+**Shipped:** 2026-02-27. Career Search Automation milestone complete.
 
-**Target features:**
-- Parse crowd session logs into sitemaps and site guides for each career site
-- Parse Google Sheets session logs into site guide for Sheets formatting (headers, colors, bold, column sizing)
-- End-to-end career search workflow: user prompt -> navigate career sites -> extract job data -> create formatted Google Sheet
-- AI uses sitemap intelligence to navigate each career site efficiently (knows where search boxes, filters, job listings, and pagination are)
-- Google Sheets output: company name, job title, date posted, apply link, job description, with formatted headers, bolding, and relevant highlighting
+**What shipped in v9.4:**
+- Session log parser: 38 crowd logs -> per-company site guides with confidence-scored selectors
+- 5 ATS base guides (Workday, Greenhouse, Lever, iCIMS, Taleo) covering 15+ companies
+- Career search workflow: single-site and multi-site (2-10 companies) with data persistence
+- Google Sheets output: Name Box data entry, bold/colored headers, frozen row, auto-sized columns
+- Batch action execution: multiple actions per AI turn with DOM-based completion detection
+- Timezone/country locale injection for location-aware AI decisions
+- 3 hotfix phases for Google Sheets cell navigation precision
 
-**Session logs available (in /logs/):**
-- Career sites: Microsoft, Amazon, Meta, Apple, Google, Boeing, Goldman Sachs, Tesla, NVIDIA, JP Morgan, Visa, Walmart, Target, Deloitte, Bank of America, Home Depot, J&J, Mastercard, McKesson, Mr Cooper, TI, UnitedHealth, CVS Health, Lowe's, OpenAI, AT&T, Capital One, Costco, IBM, Lockheed Martin, Morgan Stanley, Oracle, Pfizer, Verizon, Qatar Airways
-- Google Docs/Sheets: docs.google.com session
-- Google Search: google.com sessions (for discovering career pages)
-
-## Current State: v9.3 Shipped
-
-**Shipped:** 2026-02-23. Tech Debt Cleanup milestone complete.
-
-**What shipped in v9.3:**
-- content.js modularized into 10 logical modules with FSB._modules tracking
-- Dead code removed (waitForActionable, orphaned files, unused UI helpers)
-- ElementCache configurable via Options page (preset dropdown, live updates, default 200)
-- UniversalProvider constructor fixed for AI memory extraction
-- Memory Intelligence Overhaul: AI enrichment for all memory types, cross-site pattern learning, detail panels, auto-refresh, cost tracking
-- Site Guides Viewer: 43 per-site files across 9 categories, browsable in Memory tab
-
-**Previous milestones:** v9.0.2 (AI Situational Awareness), v0.9 (Reliability Improvements)
+**Previous milestones:** v9.3 (Tech Debt Cleanup), v9.0.2 (AI Situational Awareness), v0.9 (Reliability Improvements)
 
 **Tech stack:** Chrome Extension Manifest V3, vanilla JavaScript (ES2021+), xAI Grok / OpenAI / Anthropic / Gemini APIs.
-**Codebase:** ~100 files changed in v9.3 (21,950 additions, 18,960 deletions). content.js split into content/ modules.
+**Codebase:** background.js (~11K lines), ai-integration.js (~5K lines), content/ modules (10 files), 43+ site guide files.
 
 **Known tech debt:**
 - Site Guides Viewer design mismatch (displays as accordion, should match memory-style list with mind maps)
 - 53 script tags for per-site guide files in options.html (could be bundled)
+- ACCEL traceability table rows not marked Complete (body checkboxes are correct)
 
 ## Constraints
 
@@ -124,6 +113,12 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | Pure heuristic cross-site patterns | No AI API costs during consolidation | Good -- keyword-based classification sufficient |
 | AI-only extraction (no local fallback) | Surface configuration errors visibly | Good -- forces correct provider setup |
 | Formatted clipboard paste for Google Docs | Convert markdown to HTML, paste via Clipboard API + CDP | Good -- rich formatting (tables, bold, lists) in canvas editors |
+| Strict phase dependency chain for v9.4 | Pipeline -> single-site -> multi-site -> Sheets entry -> formatting | Good -- each phase's output feeds the next |
+| Collect-all-then-write pattern | Accumulate jobs across all sites before opening Sheets once | Good -- avoids tab switching chaos, single Sheets session |
+| Name Box navigation for Sheets | Canvas grid is unreadable, Name Box + Tab/Enter is reliable | Good -- works consistently, avoids coordinate guessing |
+| URL-based batch suppression for Sheets | Sheets canvas concatenates rapid types, detect via URL regex | Good -- prevents data corruption with graceful fallback |
+| Escape-before-NameBox protocol | Explicit Escape step before every Name Box navigation | Good -- eliminates cell edit mode trapping |
+| Static timezone-to-country map (85 entries) | No npm dependency for locale detection | Good -- zero dependencies, covers all major timezones |
 
 ---
-*Last updated: 2026-02-23 after v9.4 Career Search Automation milestone started*
+*Last updated: 2026-02-27 after v9.4 Career Search Automation milestone shipped*

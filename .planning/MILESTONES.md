@@ -84,3 +84,32 @@
 **What's next:** Smart multi-tab management, advanced CAPTCHA integration, workflow templates
 
 ---
+
+## v9.4 Career Search Automation (Shipped: 2026-02-28)
+
+**Delivered:** Autonomous career search across 30+ company websites with formatted Google Sheets output. Parsed 38 crowd session logs into site intelligence (sitemaps + site guides), built single-site and multi-site career search workflows, and added Google Sheets data entry with professional formatting.
+
+**Phases completed:** 9-14.3 (18 plans across 9 phases in v9.4 scope)
+
+**Key accomplishments:**
+
+- Session log parser converts 38 crowd logs into per-company site guides with confidence-scored selectors and direct career URLs
+- 5 ATS base guides (Workday, Greenhouse, Lever, iCIMS, Taleo) covering 15+ companies with stability-classified selectors
+- Single-company career search: navigate site, search, extract jobs (company, title, apply link, date, location, description)
+- Multi-site orchestration: sequential 2-10 company search with chrome.storage persistence, deduplication, and progress reporting
+- Google Sheets output via Name Box + Tab/Enter pattern with bold colored headers, frozen row, auto-sized columns, and context-aware sheet naming
+- Batch action execution engine: AI returns multiple actions per turn with DOM-based completion detection between each, plus timezone/country locale injection
+
+**Stats:**
+
+- 20 commits
+- 9 phases (6 main + 3 hotfix), 18 plans
+- 21 requirements defined, 21 satisfied (100%)
+- 4 days from start to ship (2026-02-23 to 2026-02-27)
+
+**Git range:** `bd0b1ef` -> `19bad00`
+
+**Known issues:** ACCEL-01, ACCEL-02, ACCEL-05 traceability table not updated to Complete (requirements checked off in body)
+
+---
+
