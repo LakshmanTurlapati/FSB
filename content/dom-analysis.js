@@ -2003,6 +2003,213 @@
   }
 
   // ============================================================================
+  // YAML DOM SNAPSHOT
+  // ============================================================================
+
+  /**
+   * Build a YAML-style metadata header for the snapshot.
+   * Returns a multi-line string with key:value pairs describing page state.
+   * @param {RefMap} refMap - The ref map for finding the focused element's ref
+   * @returns {string} Formatted metadata header
+   */
+  function buildMetadataHeader(refMap) {
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const pageHeight = Math.max(
+      document.documentElement.scrollHeight,
+      document.body?.scrollHeight || 0
+    );
+    const viewportHeight = window.innerHeight;
+    const scrollPct = pageHeight > viewportHeight
+      ? Math.round((scrollTop / (pageHeight - viewportHeight)) * 100)
+      : 0;
+
+    const lines = [];
+    lines.push(`url: ${window.location.href}`);
+    lines.push(`title: ${document.title}`);
+    lines.push(`scroll: ${Math.round(scrollTop)}/${pageHeight} (${scrollPct}%)`);
+    lines.push(`viewport: ${window.innerWidth}x${viewportHeight}`);
+    lines.push(`state: ${document.readyState}`);
+
+    // CAPTCHA detection
+    const hasCaptcha = !!(document.querySelector(
+      '[class*="captcha"], [id*="captcha"], iframe[src*="recaptcha"], iframe[src*="hcaptcha"]'
+    ));
+    lines.push(`captcha: ${hasCaptcha}`);
+
+    // Active element -- find its ref from refMap
+    const active = document.activeElement;
+    if (active && active !== document.body && active !== document.documentElement) {
+      let activeRef = null;
+      for (const [ref, entry] of refMap.map.entries()) {
+        const el = entry.element.deref();
+        if (el && el === active) {
+          activeRef = ref;
+          break;
+        }
+      }
+      if (activeRef) {
+        lines.push(`focus: ${activeRef}`);
+      }
+    }
+
+    // Forms summary
+    const forms = document.forms;
+    if (forms.length > 0) {
+      const formSummaries = Array.from(forms).slice(0, 5).map(f => {
+        const fieldCount = f.elements.length;
+        const name = f.id || f.name || f.getAttribute('aria-label') ||
+                     f.querySelector('h1,h2,h3,legend')?.textContent?.trim() || 'unnamed';
+        return `${name} (${fieldCount} fields)`;
+      });
+      lines.push(`forms: ${forms.length} -- ${formSummaries.join(', ')}`);
+    } else {
+      lines.push('forms: 0');
+    }
+
+    // Heading outline (h1-h3, up to 10)
+    const headings = Array.from(document.querySelectorAll('h1,h2,h3')).slice(0, 10);
+    if (headings.length > 0) {
+      const outline = headings.map(h => {
+        const level = h.tagName.toLowerCase();
+        const text = h.textContent?.trim().substring(0, 40) || '';
+        return `${level} "${text}"`;
+      }).join(' > ');
+      lines.push(`headings: ${outline}`);
+    } else {
+      lines.push('headings: none');
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Classify an element into a landmark region using element.closest().
+   * Returns a region string like @dialog, @nav, @header, @footer, @aside, @main.
+   * Forms are NOT a region -- they are grouped WITHIN regions.
+   * @param {Element} el - DOM element to classify
+   * @returns {string} Region tag
+   */
+  function getRegion(el) {
+    // Priority order: most specific first
+    if (el.closest('dialog, [role="dialog"], [role="alertdialog"], [aria-modal="true"]')) return '@dialog';
+    if (el.closest('nav, [role="navigation"]')) return '@nav';
+    if (el.closest('header, [role="banner"]')) return '@header';
+    if (el.closest('footer, [role="contentinfo"]')) return '@footer';
+    if (el.closest('aside, [role="complementary"]')) return '@aside';
+    if (el.closest('main, [role="main"]')) return '@main';
+    return '@main'; // default fallback
+  }
+
+  /**
+   * Format a single element as a compact annotated line for the YAML snapshot.
+   * Example output: `  e5: button "Submit Form" .btn-primary [disabled]`
+   * @param {Element} el - DOM element
+   * @param {string} ref - Element ref (e.g., "e5")
+   * @param {Map|null} guideAnnotations - Map(element -> {key, action}) for site guide hints
+   * @param {boolean} inForm - Whether the element is inside a form group (4-space indent)
+   * @returns {string} Formatted element line
+   */
+  function buildElementLine(el, ref, guideAnnotations, inForm) {
+    const indent = inForm ? '    ' : '  ';
+    const tag = el.tagName.toLowerCase();
+
+    let line = `${indent}${ref}: ${tag}`;
+
+    // Accessible name (truncated to 60 chars)
+    const accName = computeAccessibleName(el);
+    const name = accName?.name || '';
+    if (name) {
+      const truncName = name.length > 60 ? name.substring(0, 57) + '...' : name;
+      line += ` "${truncName}"`;
+    }
+
+    // ID (only if present and not auto-generated)
+    if (el.id && !isAutoGeneratedId(el.id)) {
+      // Additional heuristic: skip if id has 8+ consecutive hex chars or starts with : or __
+      const hexRun = /[0-9a-f]{8,}/i;
+      const skipId = el.id.startsWith(':') || el.id.startsWith('__') || hexRun.test(el.id);
+      if (!skipId) {
+        line += ` #${el.id}`;
+      }
+    }
+
+    // Primary class (first meaningful class, skip utility/framework classes)
+    const rawClasses = Array.from(el.classList || []);
+    const meaningfulClass = rawClasses.find(cls => {
+      if (cls.length < 3) return false;
+      if (cls.startsWith('css-')) return false;
+      if (cls.startsWith('sc-')) return false;
+      if (cls.startsWith('chakra-')) return false;
+      if (cls.startsWith('MuiGrid')) return false;
+      return true;
+    });
+    if (meaningfulClass) {
+      line += ` .${meaningfulClass}`;
+    }
+
+    // Input type (only for INPUT elements with type != "text")
+    if (el.tagName === 'INPUT' && el.type && el.type !== 'text') {
+      line += ` type="${el.type}"`;
+    }
+
+    // Current value for inputs/textareas (truncated to 40 chars)
+    if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.value) {
+      const valDisplay = el.value.length > 40 ? el.value.substring(0, 37) + '...' : el.value;
+      line += ` val="${valDisplay}"`;
+    }
+
+    // href for links
+    if (el.tagName === 'A' && el.href) {
+      try {
+        const url = new URL(el.href);
+        if (url.origin === window.location.origin) {
+          // Same-origin: show path only
+          const pathStr = url.pathname + url.search;
+          line += ` href="${pathStr}"`;
+        } else {
+          // Cross-origin: full URL, truncated to 60 chars
+          const shortHref = el.href.length > 60 ? el.href.substring(0, 57) + '...' : el.href;
+          line += ` href="${shortHref}"`;
+        }
+      } catch {
+        // Invalid URL, skip href
+      }
+    }
+
+    // Selected option for SELECT elements
+    if (el.tagName === 'SELECT' && el.selectedOptions?.length > 0) {
+      const optText = el.selectedOptions[0].text?.substring(0, 30) || '';
+      line += ` selected="${optText}"`;
+    }
+
+    // Placeholder (only if no accessible name, truncated to 40 chars)
+    if (!name && el.placeholder) {
+      line += ` placeholder="${el.placeholder.substring(0, 40)}"`;
+    }
+
+    // Contenteditable
+    if (el.getAttribute('contenteditable') === 'true' || el.isContentEditable) {
+      line += ' [editable]';
+    }
+
+    // State flags
+    const states = [];
+    if (el.disabled) states.push('disabled');
+    if (el.checked) states.push('checked');
+    if (document.activeElement === el) states.push('focused');
+    if (el.readOnly) states.push('readonly');
+    if (states.length > 0) line += ` [${states.join(',')}]`;
+
+    // Site guide annotation
+    if (guideAnnotations && guideAnnotations.has(el)) {
+      const hint = guideAnnotations.get(el);
+      line += ` [hint:${hint.key}:${hint.action}]`;
+    }
+
+    return line;
+  }
+
+  // ============================================================================
   // STRUCTURED DOM EXTRACTION (Main entry point)
   // ============================================================================
 

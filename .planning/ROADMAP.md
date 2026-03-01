@@ -53,7 +53,10 @@ Plans:
   3. Page metadata (URL, title, scroll position, viewport size) appears as a compact header block before the element list, not buried in a JSON wrapper
   4. When a matching site guide exists for the current URL, elements are annotated inline (e.g., `e12: input "Search" [hint:searchBox]`) so the AI knows which element to target without reasoning from scratch
   5. Token count for an equivalent page snapshot is at least 40% lower than the current JSON format as measured by tiktoken or equivalent tokenizer
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 16-01-PLAN.md -- Core YAML snapshot engine: metadata header, element line formatter, region grouping, duplicate collapse, filter footer
+- [ ] 16-02-PLAN.md -- Integration wiring: messaging handler, site guide annotation matching, self-test validation
 
 ### Phase 17: Prompt Architecture Rewrite
 **Goal**: Every prompt the AI receives -- system prompt, task-type prompts, continuation prompts, stuck recovery prompts, and site guide examples -- speaks CLI command grammar exclusively, with no remnants of JSON tool-call format
@@ -96,8 +99,8 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
-| 15. CLI Parser Module | 2/2 | Complete   | 2026-02-28 |
-| 16. YAML DOM Snapshot | 0/TBD | Not started | - |
+| 15. CLI Parser Module | 2/2 | Complete    | 2026-02-28 |
+| 16. YAML DOM Snapshot | 0/2 | Not started | - |
 | 17. Prompt Architecture Rewrite | 0/TBD | Not started | - |
 | 18. AI Integration Wiring | 0/TBD | Not started | - |
 | 19. Cross-Provider Validation | 0/TBD | Not started | - |
