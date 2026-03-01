@@ -246,6 +246,7 @@ const COMMAND_REGISTRY = {
   // -- Signal commands (not dispatched as actions) --
   done:               { tool: '__done', args: [{ name: 'message', type: 'string', optional: true }], signal: 'done' },
   fail:               { tool: '__fail', args: [{ name: 'message', type: 'string', optional: true }], signal: 'fail' },
+  help:               { tool: '__help', args: [{ name: 'verb', type: 'string', optional: true }], signal: 'help' },
 };
 
 // =============================================================================
@@ -598,6 +599,12 @@ function parseCliResponse(text) {
         result.taskComplete = true;
         result.taskFailed = true;
         result.result = mapped.message || 'Task failed';
+        continue;
+      }
+
+      if (mapped.signal === 'help') {
+        result.helpRequested = true;
+        result.helpVerb = mapped.message || null;
         continue;
       }
 
