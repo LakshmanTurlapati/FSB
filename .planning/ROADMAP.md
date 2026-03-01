@@ -83,7 +83,10 @@ Plans:
   3. When conversation history is compacted (summarized for token budget), the compacted summary preserves CLI format examples so the AI maintains format compliance
   4. Provider-specific response cleaning (Gemini markdown wrapping, Grok conversational prefixes) correctly extracts CLI command lines from each provider's output quirks
   5. The storeJobData and fillSheetData tools accept structured data payloads via a CLI-compatible encoding that the parser handles correctly
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 18-01-PLAN.md -- Response parsing swap: gut UniversalProvider JSON pipeline, wire parseCliResponse as sole parser, security sanitization, CLI reformat retry
+- [ ] 18-02-PLAN.md -- Conversation history + data encoding: CLI-format history storage, compaction CLI preservation, YAML block parsing for storeJobData
 
 ### Phase 19: Cross-Provider Validation
 **Goal**: CLI command compliance is empirically validated across all four supported AI providers, with measured token reduction and edge case coverage
@@ -104,8 +107,8 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 |-------|---------------|--------|-----------|
 | 15. CLI Parser Module | 2/2 | Complete    | 2026-02-28 |
 | 16. YAML DOM Snapshot | 2/2 | Complete    | 2026-03-01 |
-| 17. Prompt Architecture Rewrite | 1/2 | In Progress | - |
-| 18. AI Integration Wiring | 0/TBD | Not started | - |
+| 17. Prompt Architecture Rewrite | 1/2 | Complete    | 2026-03-01 |
+| 18. AI Integration Wiring | 0/2 | Not started | - |
 | 19. Cross-Provider Validation | 0/TBD | Not started | - |
 
 ---
