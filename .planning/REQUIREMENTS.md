@@ -19,7 +19,7 @@
 - [x] **YAML-01**: DOM snapshots sent to the AI use a compact text format with element refs (e1, e2, ...), element type, text content, and key attributes -- replacing the current verbose JSON structure
 - [x] **YAML-02**: Interactive-only filtering reduces snapshot to actionable elements (buttons, inputs, links, selects) by default, with full-page mode available
 - [x] **YAML-03**: Page metadata (URL, title, scroll position, viewport) is included as a compact header before the element list
-- [ ] **YAML-04**: Site-aware annotations from site guides (e.g., [hint:searchBox], [hint:nameBox]) are embedded inline with elements when a matching site guide exists
+- [x] **YAML-04**: Site-aware annotations from site guides (e.g., [hint:searchBox], [hint:nameBox]) are embedded inline with elements when a matching site guide exists
 - [x] **YAML-05**: Snapshot token count is at least 40% lower than the current JSON format for equivalent page content
 
 ### Prompt Architecture
@@ -27,7 +27,7 @@
 - [ ] **PROMPT-01**: System prompt is redesigned around CLI command grammar with a concise command reference replacing the current JSON tool documentation (~400 lines)
 - [ ] **PROMPT-02**: Context tiers (full prompt vs minimal continuation) are preserved but adapted for CLI format -- continuation prompts reinforce CLI syntax
 - [ ] **PROMPT-03**: Stuck recovery prompts use CLI format and guide the AI to try alternative CLI commands
-- [ ] **PROMPT-04**: All 43+ site guide files are swept for JSON format examples and updated to use CLI command examples
+- [x] **PROMPT-04**: All 43+ site guide files are swept for JSON format examples and updated to use CLI command examples
 - [ ] **PROMPT-05**: Task-type prompts (search, form, extraction, navigation, career, sheets) are rewritten for CLI output format
 - [ ] **PROMPT-06**: Batch action instructions reference multi-line CLI commands instead of the batchActions JSON array
 - [ ] **PROMPT-07**: The done command replaces the taskComplete JSON field -- AI outputs `done "result summary"` to signal completion
@@ -75,12 +75,12 @@
 | YAML-01 | Phase 16 | Complete |
 | YAML-02 | Phase 16 | Complete |
 | YAML-03 | Phase 16 | Complete |
-| YAML-04 | Phase 16 | Pending |
+| YAML-04 | Phase 16 | Complete |
 | YAML-05 | Phase 16 | Complete |
 | PROMPT-01 | Phase 17 | Pending |
 | PROMPT-02 | Phase 17 | Pending |
 | PROMPT-03 | Phase 17 | Pending |
-| PROMPT-04 | Phase 17 | Pending |
+| PROMPT-04 | Phase 17 | Complete |
 | PROMPT-05 | Phase 17 | Pending |
 | PROMPT-06 | Phase 17 | Pending |
 | PROMPT-07 | Phase 17 | Pending |

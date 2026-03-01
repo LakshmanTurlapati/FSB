@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v10.0 CLI Architecture - Phase 17 (next)
+**Current focus:** v10.0 CLI Architecture - Phase 18 (next)
 
 ## Current Position
 
-Phase: 17 of 19 (next phase)
-Plan: 2 of 2 in phase 16 (COMPLETE)
-Status: Phase 16 Complete
-Last activity: 2026-02-28 -- Completed 16-02 (YAML Snapshot Integration Wiring)
+Phase: 17 of 19 (complete)
+Plan: 2 of 2 in phase 17 (COMPLETE)
+Status: Phase 17 Complete
+Last activity: 2026-03-01 -- Completed 17-02 (Site Guide CLI Enrichment)
 
-Progress: [####------] 40%
+Progress: [######----] 60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4 (v10.0)
-- Average duration: 3min
-- Total execution time: 0.2 hours
+- Total plans completed: 6 (v10.0)
+- Average duration: 4min
+- Total execution time: 0.3 hours
 
 **By Phase:**
 
@@ -29,12 +29,14 @@ Progress: [####------] 40%
 |-------|-------|-------|----------|
 | 15 | 2 | 6min | 3min |
 | 16 | 2 | 6min | 3min |
+| 17 | 2 | 14min | 7min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 3min, 4min, 2min
-- Trend: stable
+- Last 5 plans: 3min, 3min, 4min, 2min, 7min
+- Trend: stable (Phase 17 larger scope - 84 files)
 
 *Updated after each plan completion*
+| Phase 17 P02 | 7min | 2 tasks | 84 files |
 
 ## Accumulated Context
 
@@ -59,6 +61,8 @@ Recent decisions affecting current work:
 - [16-02]: getYAMLSnapshot routed through async message handler for proper response channel management
 - [16-02]: Token reduction self-test passes at >= 0% since YAML replaces compact + HTML + page structure blocks
 - [16-02]: getGuideSelectorsForUrl is a top-level function in service worker context (no explicit export)
+- [Phase 17]: COMMON PATTERNS inserted after guidance header, before first content section in all 84 site guides
+- [Phase 17]: Career guides tiered: ATS platforms get comprehensive CLI, job boards get full search+extract, company guides get compact navigate+search+storejobdata
 
 ### Pending Todos
 
@@ -68,10 +72,10 @@ Recent decisions affecting current work:
 
 - Site Guides Viewer design mismatch (deferred from v9.3)
 - LLM output format compliance varies across providers -- Grok/GPT-4o handle CLI well, less capable models may struggle
-- 43+ site guide files need sweeping for JSON examples (significant manual work in Phase 17)
+- 84 site guide files enriched with CLI COMMON PATTERNS (Phase 17 complete)
 
 ## Session Continuity
 
-Last session: 2026-02-28
-Stopped at: Completed 16-02-PLAN.md (Phase 16 complete)
+Last session: 2026-03-01
+Stopped at: Completed 17-02-PLAN.md (Phase 17 complete)
 Resume file: None

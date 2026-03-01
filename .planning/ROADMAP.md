@@ -68,7 +68,10 @@ Plans:
   3. Stuck recovery prompts guide the AI to try alternative CLI commands (different ref, different verb, scroll to reveal more elements) instead of the current JSON recovery format
   4. All 43+ site guide files contain CLI command examples (e.g., `click e5` instead of `{"tool":"click","params":{"ref":"e5"}}`) with zero remaining JSON format examples
   5. The `done "result summary"` command is documented in the system prompt and replaces the taskComplete JSON field for signaling task completion
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 17-01-PLAN.md -- Core prompt rewrites: system prompt CLI command table, continuation prompt, stuck recovery, task-type prompts, batch instructions, tool documentation, help command
+- [ ] 17-02-PLAN.md -- Site guide enrichment: CLI COMMON PATTERNS sections for all 84 per-site guide files
 
 ### Phase 18: AI Integration Wiring
 **Goal**: ai-integration.js uses the CLI parser as the sole response parser and stores CLI-format exchanges in conversation history, completing the end-to-end protocol swap from JSON to CLI
@@ -100,8 +103,8 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
 | 15. CLI Parser Module | 2/2 | Complete    | 2026-02-28 |
-| 16. YAML DOM Snapshot | 2/2 | Complete   | 2026-03-01 |
-| 17. Prompt Architecture Rewrite | 0/TBD | Not started | - |
+| 16. YAML DOM Snapshot | 2/2 | Complete    | 2026-03-01 |
+| 17. Prompt Architecture Rewrite | 1/2 | In Progress|  |
 | 18. AI Integration Wiring | 0/TBD | Not started | - |
 | 19. Cross-Provider Validation | 0/TBD | Not started | - |
 
