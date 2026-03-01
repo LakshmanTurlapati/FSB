@@ -239,7 +239,7 @@ const COMMAND_REGISTRY = {
   gamecontrol:        { tool: 'gameControl',        args: [{ name: 'action', type: 'string' }] },
 
   // -- Data tools (background-handled) --
-  storejobdata:       { tool: 'storeJobData',       args: [{ name: 'data', type: 'json' }] },
+  storejobdata:       { tool: 'storeJobData',       args: [{ name: 'data', type: 'json', optional: true }] },
   getstoredjobs:      { tool: 'getStoredJobs',      args: [] },
   fillsheetdata:      { tool: 'fillSheetData',      args: [] },
 
@@ -292,6 +292,95 @@ function coerceValue(value, type) {
     default:
       return value;
   }
+}
+
+// =============================================================================
+// YAML BLOCK PARSER (for storeJobData multi-line data)
+// =============================================================================
+
+/**
+ * Parses a YAML-style indented block following a storejobdata command line.
+ *
+ * Handles the storeJobData schema:
+ *   company: string
+ *   jobs: array of objects with title, location, datePosted, applyLink, description
+ *
+ * Rules:
+ * - Top-level keys at 2+ space indent: `  key: value`
+ * - Array items: `  - key: value` or `    - key: value` under a parent key
+ * - Nested fields under array items: deeper indent `key: value`
+ * - Only the FIRST colon on a line is the key-value separator (preserves URLs)
+ * - Lines with less than 2-space indent terminate the block
+ *
+ * No external YAML library -- handles only storeJobData-shaped data.
+ *
+ * @param {string[]} lines - Full lines array of the CLI response
+ * @param {number} startIndex - Index of the storejobdata command line (block starts at startIndex+1)
+ * @returns {{data: Object, linesConsumed: number}}
+ */
+function parseYAMLBlock(lines, startIndex) {
+  const data = {};
+  let consumed = 0;
+  let currentArrayKey = null;
+  let currentItem = null;
+
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    const raw = lines[i];
+
+    // Check for minimum 2-space indent (YAML block continuation)
+    if (!raw || !/^ {2,}/.test(raw)) break;
+
+    consumed++;
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+
+    // Detect indent level
+    const indent = raw.search(/\S/);
+
+    // Array item line: starts with "- "
+    if (trimmed.startsWith('- ')) {
+      const itemContent = trimmed.substring(2).trim();
+      // Parse the key: value on the same line as the dash
+      const colonIdx = itemContent.indexOf(':');
+      if (colonIdx > 0) {
+        currentItem = {};
+        const key = itemContent.substring(0, colonIdx).trim();
+        const val = itemContent.substring(colonIdx + 1).trim();
+        currentItem[key] = val;
+      } else {
+        currentItem = {};
+      }
+      // Attach to the current array key
+      if (currentArrayKey && Array.isArray(data[currentArrayKey])) {
+        data[currentArrayKey].push(currentItem);
+      }
+      continue;
+    }
+
+    // Key-value line: split on first colon only
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx > 0) {
+      const key = trimmed.substring(0, colonIdx).trim();
+      const val = trimmed.substring(colonIdx + 1).trim();
+
+      if (val === '' || val === undefined) {
+        // Key with no value -- this starts an array (e.g., "jobs:")
+        currentArrayKey = key;
+        data[key] = data[key] || [];
+        currentItem = null;
+      } else if (currentItem && currentArrayKey) {
+        // Nested field under an array item
+        currentItem[key] = val;
+      } else {
+        // Top-level scalar key-value
+        data[key] = val;
+        currentArrayKey = null;
+        currentItem = null;
+      }
+    }
+  }
+
+  return { data, linesConsumed: consumed };
 }
 
 // =============================================================================
@@ -495,6 +584,7 @@ function preprocessResponse(text) {
   }
 
   // Find the LAST line whose first word is in COMMAND_REGISTRY or starts with #
+  // Also preserve indented lines (2+ spaces) as YAML block data for storejobdata
   let lastCmdIndex = -1;
   for (let i = commandLines.length - 1; i >= 0; i--) {
     const trimmed = commandLines[i].trim();
@@ -503,9 +593,19 @@ function preprocessResponse(text) {
       lastCmdIndex = i;
       break;
     }
+    // Indented lines are YAML block data -- keep searching backward
+    if (/^ {2,}/.test(commandLines[i])) continue;
     const firstWord = trimmed.split(/\s+/)[0].toLowerCase();
     if (firstWord in COMMAND_REGISTRY) {
+      // If the last non-empty line after this is indented, include those lines too
       lastCmdIndex = i;
+      // Scan forward to find the end of any trailing YAML block
+      for (let j = i + 1; j < commandLines.length; j++) {
+        const jTrimmed = commandLines[j].trim();
+        if (!jTrimmed) { lastCmdIndex = j; continue; }
+        if (/^ {2,}/.test(commandLines[j])) { lastCmdIndex = j; continue; }
+        break;
+      }
       break;
     }
   }
@@ -608,6 +708,19 @@ function parseCliResponse(text) {
         continue;
       }
 
+      // YAML block handling for storejobdata: if storejobdata has no inline data,
+      // consume subsequent indented lines as a YAML block
+      if (mapped.tool === 'storeJobData' && !mapped.params.data) {
+        // Check if next line is indented (YAML block follows)
+        if (i + 1 < lines.length && /^ {2,}/.test(lines[i + 1])) {
+          const yamlResult = parseYAMLBlock(lines, i);
+          if (yamlResult.linesConsumed > 0 && Object.keys(yamlResult.data).length > 0) {
+            mapped.params.data = yamlResult.data;
+            i += yamlResult.linesConsumed; // Skip consumed YAML lines
+          }
+        }
+      }
+
       result.actions.push({ tool: mapped.tool, params: mapped.params });
     } catch (err) {
       result.errors.push({ line: trimmed, lineNumber: i + 1, error: err.message });
@@ -705,6 +818,59 @@ function _runSelfTest() {
   assert('j: code fence stripped', j.actions.length === 1);
   assert('j: action is click', j.actions[0].tool === 'click');
 
+  // k. YAML block: basic storejobdata with company + 1 job
+  const k = parseCliResponse(
+    'storejobdata\n' +
+    '  company: Acme Corp\n' +
+    '  jobs:\n' +
+    '    - title: Software Engineer\n' +
+    '      location: Remote\n' +
+    '      applyLink: https://acme.com/apply/123\n' +
+    '      datePosted: 2026-03-01'
+  );
+  assert('k: storejobdata action', k.actions.length === 1);
+  assert('k: storejobdata tool', k.actions[0].tool === 'storeJobData');
+  assert('k: company parsed', k.actions[0].params.data && k.actions[0].params.data.company === 'Acme Corp');
+  assert('k: jobs is array', Array.isArray(k.actions[0].params.data.jobs));
+  assert('k: job title', k.actions[0].params.data.jobs[0].title === 'Software Engineer');
+  assert('k: applyLink URL preserved', k.actions[0].params.data.jobs[0].applyLink === 'https://acme.com/apply/123');
+
+  // l. YAML block: multiple jobs with URL colons
+  const l = parseCliResponse(
+    'storejobdata\n' +
+    '  company: Google\n' +
+    '  jobs:\n' +
+    '    - title: SRE\n' +
+    '      location: Mountain View, CA\n' +
+    '      applyLink: https://careers.google.com/jobs/123?utm=source\n' +
+    '      datePosted: 2026-02-28\n' +
+    '    - title: Frontend Dev\n' +
+    '      location: New York, NY\n' +
+    '      applyLink: https://careers.google.com/jobs/456\n' +
+    '      datePosted: 2026-02-27'
+  );
+  assert('l: two jobs parsed', l.actions[0].params.data.jobs.length === 2);
+  assert('l: first job title', l.actions[0].params.data.jobs[0].title === 'SRE');
+  assert('l: second job title', l.actions[0].params.data.jobs[1].title === 'Frontend Dev');
+  assert('l: URL with query string', l.actions[0].params.data.jobs[0].applyLink.includes('?utm=source'));
+
+  // m. Mixed: CLI commands + storejobdata YAML block + more CLI commands
+  const m = parseCliResponse(
+    '# Extracted job data\n' +
+    'click e5\n' +
+    'storejobdata\n' +
+    '  company: Meta\n' +
+    '  jobs:\n' +
+    '    - title: ML Engineer\n' +
+    '      location: Menlo Park\n' +
+    'done "stored 1 job"'
+  );
+  assert('m: click + storejobdata + done', m.actions.length === 2);
+  assert('m: first is click', m.actions[0].tool === 'click');
+  assert('m: second is storeJobData', m.actions[1].tool === 'storeJobData');
+  assert('m: company is Meta', m.actions[1].params.data.company === 'Meta');
+  assert('m: task complete', m.taskComplete === true);
+
   return { passed, failed, failures };
 }
 
@@ -725,6 +891,7 @@ if (typeof module !== 'undefined' && module.exports) {
     parseCliResponse,
     tokenizeLine,
     mapCommand,
+    parseYAMLBlock,
     COMMAND_REGISTRY,
     preprocessResponse,
     _runSelfTest

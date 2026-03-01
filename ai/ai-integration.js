@@ -77,8 +77,23 @@ TAB MANAGEMENT:
 DATA:
 | Verb | Args | Description | Example |
 |------|------|-------------|---------|
-| storejobdata | {JSON} | Store extracted job data | storejobdata {"company":"X","jobs":[...]} |
-| fillsheetdata | | Write job data to Google Sheet | fillsheetdata |
+| storejobdata | {JSON} or YAML block | Store extracted job data | storejobdata {"company":"X","jobs":[...]} |
+| fillsheetdata | | Write stored job data to Google Sheet | fillsheetdata |
+
+storejobdata also accepts YAML-style multi-line blocks:
+  storejobdata
+    company: Acme Corp
+    jobs:
+      - title: Software Engineer
+        location: Remote
+        applyLink: https://acme.com/apply/123
+        datePosted: 2026-03-01
+
+fillsheetdata cell-reference YAML format (future):
+  fillsheetdata
+    A1: Software Engineer
+    B1: Google
+    C1: Mountain View, CA
 
 COMPLETION:
 | Verb | Args | Description | Example |
@@ -1250,11 +1265,11 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       messages: [
         {
           role: 'system',
-          content: 'You are a context compactor. Summarize the following browser automation conversation turns into a concise context block. Preserve: actions taken, results observed, pages visited, errors encountered, key element selectors found, and current progress toward the task. Output ONLY the summary, no preamble.'
+          content: 'You are a context compactor. Summarize the following browser automation conversation turns into a concise context block. Preserve: actions taken, results observed, pages visited, errors encountered, key element selectors found, and current progress toward the task. CRITICAL: Include 1-2 VERBATIM CLI command examples from the conversation to maintain format consistency. For example:\n# Navigated to search page\nclick e5\ntype e12 "software engineer"\nOutput ONLY the summary, no preamble.'
         },
         {
           role: 'user',
-          content: `Compact these automation turns:\n\n${turnsSummary}`
+          content: `Compact these automation turns. Include verbatim CLI command examples:\n\n${turnsSummary}`
         }
       ]
     };
@@ -1288,11 +1303,11 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
               messages: [
                 {
                   role: 'system',
-                  content: 'You are a context compactor. Summarize the following browser automation conversation turns into a concise context block. Preserve: actions taken, results observed, pages visited, errors encountered, key element selectors found, and current progress toward the task. Output ONLY the summary, no preamble.'
+                  content: 'You are a context compactor. Summarize the following browser automation conversation turns into a concise context block. Preserve: actions taken, results observed, pages visited, errors encountered, key element selectors found, and current progress toward the task. CRITICAL: Include 1-2 VERBATIM CLI command examples from the conversation to maintain format consistency. Output ONLY the summary, no preamble.'
                 },
                 {
                   role: 'user',
-                  content: `Your summary was too short (${summary.length} chars). Produce at least 500 characters covering: 1) actions taken with element details, 2) selectors used, 3) pages visited, 4) errors encountered, 5) current progress toward the task. Be specific -- include element names, URLs, and outcomes.\n\nOriginal turns:\n\n${turnsSummary}`
+                  content: `Your summary was too short (${summary.length} chars). Produce at least 500 characters covering: 1) actions taken with element details, 2) selectors used, 3) pages visited, 4) errors encountered, 5) current progress toward the task. Be specific -- include element names, URLs, outcomes, and verbatim CLI command examples.\n\nOriginal turns:\n\n${turnsSummary}`
                 }
               ]
             };
