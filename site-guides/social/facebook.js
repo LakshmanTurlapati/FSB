@@ -11,6 +11,17 @@ registerSiteGuide({
   ],
   guidance: `FACEBOOK-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # create a post
+  click e5    # create a post area
+  type e8 "post content here"
+  click e12   # Post button
+  # search for someone
+  click e15   # search box
+  type e15 "friend name"
+  enter
+  click e20   # result profile
+
 Facebook is a social networking platform for connecting with friends, family, and communities.
 
 SEARCH & NAVIGATION:

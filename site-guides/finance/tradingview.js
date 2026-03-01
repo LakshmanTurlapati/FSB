@@ -11,6 +11,14 @@ registerSiteGuide({
   ],
   guidance: `TRADINGVIEW-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # look up a symbol
+  click e5    # symbol search input
+  type e5 "TSLA"
+  click e8    # autocomplete match
+  gettext e12   # current price
+  gettext e15   # change percentage
+
 SYMBOL SEARCH:
 1. Use the search input (#header-toolbar-symbol-search input) to enter a ticker symbol
 2. Wait for autocomplete suggestions and click the correct match

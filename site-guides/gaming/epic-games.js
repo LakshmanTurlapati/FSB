@@ -11,6 +11,17 @@ registerSiteGuide({
   ],
   guidance: `EPIC GAMES STORE-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search the store
+  click e5    # search input
+  type e5 "Fortnite"
+  enter
+  click e10   # game result
+  gettext e15   # price
+  # check free games
+  scroll down
+  gettext e20   # free game title
+
 SEARCH:
 - Search: use the search icon/input in the top nav
 - Search input: input[placeholder*="Search"]

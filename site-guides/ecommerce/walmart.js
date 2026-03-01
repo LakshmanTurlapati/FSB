@@ -11,6 +11,15 @@ registerSiteGuide({
   ],
   guidance: `WALMART-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search and add to cart
+  click e5    # search box
+  type e5 "paper towels"
+  enter
+  click e12   # product result
+  click e20   # add to cart button
+  gettext e25   # cart confirmation
+
 Walmart.com offers both online-only and in-store pickup items. Always check availability.
 
 SEARCH & NAVIGATION:

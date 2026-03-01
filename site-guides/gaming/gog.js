@@ -11,6 +11,14 @@ registerSiteGuide({
   ],
   guidance: `GOG-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for a game
+  click e5    # search input
+  type e5 "Witcher 3"
+  enter
+  click e10   # game result
+  gettext e15   # price (DRM-free)
+
 SEARCH:
 - Search input: input[name="search"]
 - Type the game name and press Enter to search

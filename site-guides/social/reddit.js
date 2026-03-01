@@ -11,6 +11,18 @@ registerSiteGuide({
   ],
   guidance: `REDDIT-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for a topic
+  click e5    # search box
+  type e5 "programming memes"
+  enter
+  click e10   # subreddit or post result
+  scroll down
+  # comment on a post
+  click e15   # comment input
+  type e15 "comment text"
+  click e20   # submit button
+
 Reddit is organized into subreddits (r/subreddit) and user profiles (u/username).
 
 SEARCH & NAVIGATION:

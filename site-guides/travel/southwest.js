@@ -11,6 +11,16 @@ registerSiteGuide({
   ],
   guidance: `SOUTHWEST AIRLINES-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for flights
+  click e5    # origin input
+  type e5 "DAL"
+  click e8    # destination input
+  type e8 "HOU"
+  click e12   # departure date
+  click e15   # calendar day
+  click e20   # search button
+
 FLIGHT SEARCH:
 1. Origin: #originationAirportCode -- type airport code or city name
 2. Destination: #destinationAirportCode -- type airport code or city name

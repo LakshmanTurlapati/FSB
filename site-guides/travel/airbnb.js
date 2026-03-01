@@ -11,6 +11,16 @@ registerSiteGuide({
   ],
   guidance: `AIRBNB-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for a rental
+  click e5    # destination input
+  type e5 "Tokyo"
+  click e8    # check-in date field
+  click e12   # calendar day
+  click e15   # check-out date field
+  click e18   # calendar day
+  click e22   # search button
+
 SEARCH FORM:
 1. Destination input: #bigsearch-query-location-input
 2. Check-in date: [data-testid="structured-search-input-field-split-dates-0"]

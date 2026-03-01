@@ -11,6 +11,18 @@ registerSiteGuide({
   ],
   guidance: `GMAIL-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # compose and send an email
+  click e5    # compose button
+  type e10 "recipient@email.com"
+  type e15 "Subject line"
+  type e20 "Email body text here"
+  click e25   # send button
+  # search for an email
+  click e30   # search box
+  type e30 "from:sender@email.com"
+  enter
+
 NOTE: Use element refs from the page snapshot (e.g., {"ref": "e1"}) to target elements. The CSS selectors below are for element identification only.
 
 COMPOSE WORKFLOW:

@@ -11,6 +11,15 @@ registerSiteGuide({
   ],
   guidance: `TARGET-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search and add to cart
+  click e5    # search box
+  type e5 "throw blanket"
+  enter
+  click e12   # product result
+  click e20   # add to cart button
+  gettext e25   # cart confirmation
+
 Target.com offers both shipping and in-store pickup/same-day delivery options.
 
 SEARCH & NAVIGATION:

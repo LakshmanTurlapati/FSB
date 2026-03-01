@@ -12,6 +12,18 @@ registerSiteGuide({
   ],
   guidance: `OUTLOOK WEB-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # compose and send an email
+  click e5    # New mail button
+  type e10 "recipient@email.com"
+  type e15 "Subject line"
+  type e20 "Email body text here"
+  click e25   # Send button
+  # search for an email
+  click e30   # search box
+  type e30 "meeting notes"
+  enter
+
 COMPOSE WORKFLOW:
 1. Click "New mail" button ([aria-label="New mail"]) to open a new email.
 2. TO FIELD: Click the To field ([aria-label="To"]) and type the recipient email address.

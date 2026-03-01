@@ -11,6 +11,16 @@ registerSiteGuide({
   ],
   guidance: `FINVIZ-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # look up a stock
+  click e5    # search/quote input
+  type e5 "GOOG"
+  enter
+  gettext e10   # price
+  # use stock screener
+  click e15   # screener filter dropdown
+  click e18   # filter option
+
 STOCK SEARCH:
 - Search/quote input: #js_p_typeahead
 - Type a ticker symbol and select from autocomplete

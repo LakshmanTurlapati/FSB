@@ -11,6 +11,14 @@ registerSiteGuide({
   ],
   guidance: `GOOGLE FINANCE-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # look up a stock quote
+  click e5    # search input
+  type e5 "MSFT"
+  click e8    # autocomplete match
+  gettext e12   # current price
+  gettext e15   # price change
+
 STOCK QUOTE LOOKUP:
 1. Use the search input (.Ax4B8.ZAGvjd input) to enter a ticker symbol
 2. Wait for autocomplete suggestions and click the correct match

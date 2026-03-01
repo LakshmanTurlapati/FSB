@@ -11,6 +11,19 @@ registerSiteGuide({
   ],
   guidance: `GITHUB-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for a repository
+  click e5    # search box
+  type e5 "react state management"
+  enter
+  click e10   # repository result
+  # create an issue
+  click e15   # Issues tab
+  click e18   # New Issue button
+  type e20 "Bug: form validation fails"
+  type e22 "Steps to reproduce..."
+  click e25   # Submit new issue
+
 GLOBAL SEARCH:
 - Search bar: [aria-label="Search or jump to..."] (keyboard shortcut: / opens it)
 - Repository filter on dashboard: #dashboard-repos-filter-left or [aria-label="Find a repository..."]

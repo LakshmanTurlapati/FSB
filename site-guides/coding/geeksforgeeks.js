@@ -11,6 +11,15 @@ registerSiteGuide({
   ],
   guidance: `GEEKSFORGEEKS-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # solve a practice problem
+  click e5    # editor area
+  key "a" --ctrl   # select all
+  type e5 "solution code here"
+  click e10   # Run button
+  gettext e12   # output
+  click e15   # Submit button
+
 CODE EDITOR:
 - Editor: .ace_editor textarea (ACE editor)
 - CLEAR BEFORE TYPING: Select all existing code (Ctrl+A) before typing

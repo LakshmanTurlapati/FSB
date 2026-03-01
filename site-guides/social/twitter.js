@@ -11,6 +11,17 @@ registerSiteGuide({
   ],
   guidance: `X/TWITTER-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # compose and post
+  click e5    # compose area
+  type e5 "post content here"
+  click e10   # Post button
+  # search for a topic
+  click e15   # Explore tab
+  type e18 "trending topic"
+  enter
+  scroll down
+
 SEARCH:
 - Search query box: [aria-label="Search query"] or [role="combobox"] (on Explore page)
 - Search page input: [data-testid="SearchBox_Search_Input"]

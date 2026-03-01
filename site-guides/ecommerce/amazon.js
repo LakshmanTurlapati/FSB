@@ -11,6 +11,17 @@ registerSiteGuide({
   ],
   guidance: `AMAZON-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for a product
+  click e5    # search box
+  type e5 "wireless headphones"
+  enter
+  # select a result (skip sponsored)
+  click e12   # product result link
+  # add to cart
+  click e20   # add to cart button
+  gettext e25   # cart confirmation message
+
 NAVIGATION:
 - Search box: [aria-label="Search Amazon"] or [role="searchbox"] or #twotabsearchtextbox
 - Search submit: #nav-search-submit-button (input[type="submit"])

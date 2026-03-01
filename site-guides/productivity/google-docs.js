@@ -11,6 +11,17 @@ registerSiteGuide({
   ],
   guidance: `GOOGLE DOCS-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # edit document
+  click e5    # document body area
+  type e5 "text content"
+  key "b" --ctrl   # bold selected text
+  key "s" --ctrl   # save
+  # navigate and find
+  key "f" --ctrl   # open Find dialog
+  type e10 "search term"
+  enter
+
 CANVAS-BASED RENDERER:
 - Google Docs uses a CANVAS-BASED RENDERER for text display.
 - The visible text on screen is drawn on a canvas -- it is NOT standard DOM text.

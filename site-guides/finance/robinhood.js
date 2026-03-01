@@ -11,6 +11,16 @@ registerSiteGuide({
   ],
   guidance: `ROBINHOOD-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # look up a stock
+  click e5    # search input
+  type e5 "NVDA"
+  click e8    # autocomplete match
+  gettext e12   # current price
+  # check portfolio
+  scroll down
+  gettext e18   # position value
+
 SEARCH:
 - Search input: #downshift-0-input
 - Type a ticker symbol or company name and select from autocomplete

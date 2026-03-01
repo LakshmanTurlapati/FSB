@@ -11,6 +11,18 @@ registerSiteGuide({
   ],
   guidance: `STACK OVERFLOW-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for a question
+  click e5    # search box
+  type e5 "javascript async await error handling"
+  enter
+  click e10   # question result
+  gettext e15   # accepted answer content
+  # post an answer
+  click e20   # answer editor
+  type e20 "answer in markdown"
+  click e25   # submit button
+
 SEARCH:
 - Search box: input[name="q"]
 - Type a search query and press Enter

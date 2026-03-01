@@ -11,6 +11,16 @@ registerSiteGuide({
   ],
   guidance: `YOUTUBE-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for a video
+  click e5    # search box
+  type e5 "javascript tutorial"
+  click e8    # search button
+  click e12   # video result
+  # subscribe to channel
+  click e20   # Subscribe button
+  scroll down   # load comments
+
 SEARCH:
 - Search box: [role="combobox"] (class ytSearchboxComponentInput). Autocomplete appears as you type.
 - Search submit: [aria-label="Search"] or .ytSearchboxComponentSearchButton

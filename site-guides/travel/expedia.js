@@ -11,6 +11,17 @@ registerSiteGuide({
   ],
   guidance: `EXPEDIA-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for flights
+  click e5    # Flight tab
+  click e8    # origin field (button trigger)
+  type e10 "LAX"
+  click e12   # destination field (button trigger)
+  type e14 "JFK"
+  click e18   # date selector
+  click e22   # calendar day
+  click e25   # search button
+
 SEARCH FORM:
 - Search button: #search_button
 - Destination (Going to): [aria-label="Going to"] -- this is a BUTTON trigger, not a direct text input. Click it first, then type in the revealed input field.

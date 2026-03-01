@@ -11,6 +11,15 @@ registerSiteGuide({
   ],
   guidance: `COINBASE-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # dismiss cookie banner and search for crypto
+  click e3    # accept cookies button
+  click e5    # search button (reveals input)
+  type e8 "Bitcoin"
+  click e10   # autocomplete match
+  gettext e12   # current price
+  gettext e15   # 24h change
+
 COOKIE CONSENT (MUST HANDLE FIRST):
 - Coinbase shows a cookie consent banner on first visit that MUST be dismissed before any interaction.
 - Accept: #onetrust-accept-btn-handler

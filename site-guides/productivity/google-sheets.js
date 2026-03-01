@@ -12,6 +12,20 @@ registerSiteGuide({
   ],
   guidance: `GOOGLE SHEETS-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # navigate to cell and enter data
+  key "Escape"          # exit edit mode first
+  click e5              # Name Box
+  type e5 "A1"
+  enter                 # navigate to A1
+  type e10 "cell value" # type into active cell
+  key "Tab"             # move to next column
+  # read cell value
+  click e5              # Name Box
+  type e5 "B2"
+  enter
+  gettext e8            # formula bar content
+
 CRITICAL WARNING -- CELL NAVIGATION VS DATA ENTRY:
 These are TWO SEPARATE STEPS using the "type" tool with DIFFERENT TARGETS:
   Step 1 (NAVIGATE): Click the Name Box (#t-name-box), type the cell reference (e.g., "B1"), press Enter.
@@ -20,7 +34,7 @@ These are TWO SEPARATE STEPS using the "type" tool with DIFFERENT TARGETS:
     The data value is what you want stored in the cell. Do NOT include the cell reference in the data.
 NEVER DO THIS: Never type "b1" or any cell reference directly into a cell as if it were data.
   If you want to put data in cell B1: FIRST navigate to B1 via the Name Box, THEN type the actual data.
-The "type" tool is used for BOTH steps but the TARGET differs: Step 1 targets #t-name-box, Step 2 targets the focused cell.
+The "type" tool is used for BOTH steps but the TARGET differs: Step 1 targets #t-name-box, Step 2 targets the spreadsheet grid (NOT the Name Box). NEVER type data values into the Name Box.
 
 CANVAS-BASED GRID:
 - Google Sheets uses a CANVAS-BASED GRID for cell rendering. Individual cells are NOT standard DOM elements.
@@ -33,8 +47,8 @@ NAME BOX NAVIGATION (PRIMARY METHOD):
 2. The Name Box text will be selected/highlighted
 3. Type the target cell reference (e.g., "A1", "B3", "D10")
 4. Press Enter to navigate to that cell
-5. The cell is now selected and ready for input
-6. Type the cell value -- it will go into the formula bar and cell
+5. The cell is now selected and ready for input -- focus has returned to the grid
+6. Type the cell value (do NOT target the Name Box -- it is ONLY for cell references). Keystrokes go to the active cell.
 
 DATA ENTRY:
 - After typing a cell value, press TAB to move to the next column (right)

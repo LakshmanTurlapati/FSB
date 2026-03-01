@@ -11,6 +11,15 @@ registerSiteGuide({
   ],
   guidance: `BEST BUY-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search and add to cart
+  click e5    # search box
+  type e5 "4K monitor"
+  enter
+  click e12   # product result
+  gettext e15   # price
+  click e20   # add to cart button
+
 Best Buy specializes in electronics, computers, appliances, and tech products.
 
 SEARCH & NAVIGATION:

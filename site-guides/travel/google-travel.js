@@ -12,6 +12,16 @@ registerSiteGuide({
   ],
   guidance: `GOOGLE TRAVEL / FLIGHTS-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for flights
+  click e5    # origin input
+  type e5 "Boston"
+  click e8    # destination input
+  type e8 "Miami"
+  click e12   # departure date
+  click e15   # calendar day
+  click e20   # search button
+
 FLIGHT SEARCH:
 1. Origin: [aria-label="Where from?"] input
 2. Destination: [aria-label="Where to?"] input
