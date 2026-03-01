@@ -156,15 +156,15 @@ if (typeof self !== 'undefined') {
 
 // Task-specific prompt templates
 const TASK_PROMPTS = {
-  search: "CRITICAL: For search tasks you MUST: 1) Type query, then look for submit button (button[type='submit'], buttons with 'Search'/'Submit'/'Go'/'Find' text, or search/submit classes). If found, click button. If no button, use pressEnter: true, 2) Wait for results to load, 3) Extract the actual answer from the page, 4) ONLY mark taskComplete: true after you have the answer. If you don't see relevant results, scroll down to see more. When completing, provide the specific information found, not just 'found the answer'. Example result: 'I found the current weather in New York is 72°F with clear skies and 15% humidity.'",
+  search: "CRITICAL: For search tasks you MUST: 1) Type query, then look for submit button. If found, click it. If no button, use enter. 2) Wait for results to load, 3) Extract the actual answer from the page, 4) ONLY use done after you have the answer. If you don't see relevant results, scroll down to see more. When completing, provide the specific information found, not just 'found the answer'. Example: done \"I found the current weather in New York is 72F with clear skies and 15% humidity.\"",
   email: `EMAIL COMPOSITION WORKFLOW - CRITICAL RULES:
 
-1. OPEN COMPOSE: Use keyPress with key "c" (Gmail keyboard shortcut). Do NOT try to click the Compose button -- it is often outside the visible DOM element list and will fail. After pressing "c", use waitForElement to wait for the To field to appear (e.g., selector: [aria-label="To recipients"], [name="to"], input[type="email"]).
-2. TO FIELD: Use the type tool with the recipient email address. Do NOT click the field first -- the type tool handles focus internally. After typing, the automation handles Tab confirmation automatically.
-3. SUBJECT: Use the type tool on the Subject field. Do NOT click the field first -- the type tool handles focus.
-4. BODY: Use the type tool on the message body area. Do NOT click the field first -- the type tool handles focus. The body is a contenteditable div that may report zero dimensions -- the automation handles this correctly.
-5. SEND: Click the Send button using the selector from DOM analysis. IMPORTANT: Do NOT construct your own aria-label selectors for Send -- Gmail embeds invisible Unicode characters in aria-labels that cause selector mismatches.
-6. FALLBACK: If clicking Send fails, use keyPress with key: "Enter" and ${navigator.userAgent?.includes('Macintosh') ? 'metaKey: true (Cmd+Enter on macOS)' : 'ctrlKey: true (Ctrl+Enter)'}.
+1. OPEN COMPOSE: key "c" (Gmail keyboard shortcut). Do NOT try to click the Compose button -- it is often outside the visible DOM element list and will fail. After pressing "c", use wait "[aria-label=\\"To recipients\\"]" to wait for the To field to appear.
+2. TO FIELD: type eN "recipient@email.com" -- do NOT click the field first, the type command handles focus internally.
+3. SUBJECT: type eN "subject text" on the Subject field. Do NOT click first.
+4. BODY: type eN "message text" on the message body area. Do NOT click first.
+5. SEND: Click the Send button using the ref from the snapshot. IMPORTANT: Do NOT construct your own aria-label selectors for Send -- Gmail embeds invisible Unicode characters.
+6. FALLBACK: If clicking Send fails, use: ${navigator.userAgent?.includes('Macintosh') ? 'key "Enter" --meta (Cmd+Enter on macOS)' : 'key "Enter" --ctrl (Ctrl+Enter)'}.
 7. VERIFY: After sending, confirm the compose window has closed.
 
 KEY RULES:
@@ -219,7 +219,7 @@ WRITING TO GOOGLE SHEETS:
 - For sequential row entry: type value, Tab, type value, Tab, ... Enter (next row).
   Do NOT navigate via Name Box between every cell in the same row -- use Tab instead.
 
-IMPORTANT: When transitioning between sites, include ALL gathered data in your reasoning field so it persists across iterations. Do NOT lose the information you extracted from the source site.`,
+IMPORTANT: When transitioning between sites, include ALL gathered data in your # reasoning comments so it persists across iterations. Do NOT lose the information you extracted from the source site.`,
   gaming: "CRITICAL GAME CONTROLS: For games, interactive applications, or when task involves 'play', 'control', 'win', 'move': 1) NEVER use 'type' for game controls - it types text, not key presses, 2) PREFER dedicated arrow commands: arrowup, arrowdown, arrowleft, arrowright - much simpler than key, 3) For other keys use 'key': key \"Enter\", key \" \" for Space. 4) Focus the game canvas/element if needed before key presses: focus e5. When completing, describe the game actions performed and outcomes achieved.",
   shopping: `E-COMMERCE SHOPPING INTELLIGENCE - CRITICAL RULES:
 
@@ -465,9 +465,9 @@ b. Visually confirm:
    - Alternating row colors are visible (white/light gray pattern)
    - Columns are reasonably sized (no extreme truncation or excessive width)
 c. If any formatting is missing: go back to the relevant step and retry.
-d. If formatting looks correct: mark taskComplete: true.
+d. If formatting looks correct: use done "Formatting applied: bold headers, freeze row 1, alternating colors, auto-sized columns"
 
-COMPLETION: Mark taskComplete: true ONLY after formatting is applied and visually verified. Include a brief description of the formatting applied in the result text.
+COMPLETION: Use done "summary of formatting applied" ONLY after formatting is applied and visually verified.
 
 GENERAL RULES:
 - Always press Escape before starting any formatting step to exit edit mode.
@@ -725,10 +725,10 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
     const currentUrl = context?.currentUrl || domState.url || '';
     if (/docs\.google\.com\/spreadsheets\/d\/|sheets\.google\.com/i.test(currentUrl)) {
       update += `\n\nGOOGLE SHEETS REMINDER:`;
-      update += `\n- BEFORE navigating to a cell: press Escape to exit cell edit mode.`;
-      update += `\n- To navigate: press Escape, click Name Box (#t-name-box), type cell reference (e.g., "B1"), press Enter.`;
+      update += `\n- BEFORE navigating to a cell: key "Escape" to exit cell edit mode.`;
+      update += `\n- To navigate: key "Escape", click eN (Name Box ref), type eN "B1", enter`;
       update += `\n- To enter data: type the value (keystrokes go to the active cell). Do NOT target the Name Box for data entry -- it is ONLY for cell references.`;
-      update += `\n- Tab = move right, Enter = move down. Use Tab between columns in the same row.`;
+      update += `\n- Tab = move right, Enter = move down. Use key "Tab" between columns in the same row.`;
     }
 
     // DIF-03: Detect task type for content-adaptive formatting
@@ -906,7 +906,7 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       if (cc.signals.toastNotification) {
         update += '\nToast: "' + cc.signals.toastNotification.text.substring(0, 60) + '"';
       }
-      update += '\n--> ' + cc.suggestion;
+      update += '\n--> Output done "summary of results" if the task is complete.';
     }
 
     // CMP-03: Critical action warnings -- prevent AI from re-executing irrevocable actions
@@ -2302,10 +2302,10 @@ Search ONLY "${ms.currentCompany}" -- do not search for other companies.
 Previous companies completed: ${ms.completedCompanies.join(', ') || 'none'}
 
 CRITICAL DATA PERSISTENCE RULE:
-After extracting jobs from ${ms.currentCompany}, you MUST call storeJobData with the extracted data BEFORE marking taskComplete: true.
-Format: {"tool": "storeJobData", "params": {"company": "${ms.currentCompany}", "jobs": [{"title": "...", "location": "...", "applyLink": "...", "datePosted": "...", "description": "..."}]}}
-Do NOT only report jobs in the result text -- they MUST be stored via storeJobData.
-If no jobs found or error encountered, still mark taskComplete: true with the error report in result.`;
+After extracting jobs from ${ms.currentCompany}, you MUST call storejobdata with the extracted data BEFORE using done.
+Format: storejobdata {"company":"${ms.currentCompany}","jobs":[{"title":"...","location":"...","applyLink":"...","datePosted":"...","description":"..."}]}
+Do NOT only report jobs in the done summary -- they MUST be stored via storejobdata first.
+If no jobs found or error encountered, still use done "error report" after attempting.`;
 
       systemPrompt += multiSiteDirective;
       automationLogger.debug('Multi-site directive injected into system prompt', {
@@ -2338,17 +2338,17 @@ If no jobs found or error encountered, still mark taskComplete: true with the er
 GOOGLE SHEETS DATA ENTRY SESSION:
 You are writing ${sd.totalRows} job listings into a Google Sheet.
 
-SHEET TARGET: ${sd.sheetTarget.type === 'new' ? 'Create a new sheet by navigating to https://docs.google.com/spreadsheets/create' : sd.sheetTarget.type === 'existing' ? 'Switch to the existing Sheets tab using switchToTab with tabId: ' + sd.sheetTarget.tabId + '. Your FIRST action must be switchToTab.' : 'Open the provided Sheets URL: ' + sd.sheetTarget.url}
+SHEET TARGET: ${sd.sheetTarget.type === 'new' ? 'Create a new sheet by navigating to https://docs.google.com/spreadsheets/create' : sd.sheetTarget.type === 'existing' ? 'Switch to the existing Sheets tab using switchtab ' + sd.sheetTarget.tabId + '. Your FIRST action must be switchtab.' : 'Open the provided Sheets URL: ' + sd.sheetTarget.url}
 
 PROCEDURE:
-1. Navigate to or create the Google Sheet. Wait for Name Box (#t-name-box) AND toolbar (#docs-toolbar) to be visible.
-2. Click the Name Box (#t-name-box), type "A1", press Enter to position cursor at cell A1.
-3. Call fillSheetData -- this writes ALL headers and ALL ${sd.totalRows} data rows automatically.
-4. VERIFY: Click Name Box, type "A1", press Enter. Read the formula bar to confirm headers are present. Then check "A2" to verify the first data row.
-5. RENAME: Click the sheet title at the top and type: "${sd.sheetTitle || 'Job Search Results'}"
-6. Mark taskComplete: true after verification and rename.
+1. Navigate to or create the Google Sheet. Wait for Name Box and toolbar to be visible: wait "#t-name-box"
+2. Navigate to cell A1: click eN (Name Box ref), type eN "A1", enter
+3. Call fillsheetdata -- this writes ALL headers and ALL ${sd.totalRows} data rows automatically.
+4. VERIFY: Navigate to A1 via Name Box, use gettext to confirm headers. Check A2 for first data row.
+5. RENAME: Click the sheet title at the top and type the name: "${sd.sheetTitle || 'Job Search Results'}"
+6. Use done "Data entry complete with N rows written" after verification and rename.
 
-IMPORTANT: Do NOT type data manually. The fillSheetData tool handles all cell writing. Your job is to navigate, call the tool, verify, and rename.`;
+IMPORTANT: Do NOT type data manually. The fillsheetdata command handles all cell writing.`;
 
         systemPrompt += sheetsDataDirective;
         automationLogger.debug('Sheets data entry directive injected', {
@@ -2370,7 +2370,7 @@ IMPORTANT: Do NOT type data manually. The fillSheetData tool handles all cell wr
 
     // For information-gathering tasks, add explicit navigation enforcement
     if (this.isInformationGatheringTask(task)) {
-      userPrompt += `\n\nNAVIGATION REQUIREMENT: This is an information-gathering task. You MUST navigate to the target website to find the answer. Do NOT try to extract information from Google search result snippets. Use clickSearchResult to visit the actual page, then extract information from there.`;
+      userPrompt += `\n\nNAVIGATION REQUIREMENT: This is an information-gathering task. You MUST navigate to the target website to find the answer. Do NOT try to extract information from Google search result snippets. Use clicksearchresult to visit the actual page, then extract information from there.`;
     }
 
     // Add decomposed steps if multi-step task
@@ -2379,7 +2379,7 @@ IMPORTANT: Do NOT type data manually. The fillSheetData tool handles all cell wr
       taskDecomposition.steps.forEach(step => {
         userPrompt += `\n  ${step}`;
       });
-      userPrompt += `\n\nComplete each step in order. Mark taskComplete: true only after ALL steps are finished.`;
+      userPrompt += `\n\nComplete each step in order. Only use done when ALL steps are finished.`;
     }
 
     if (taskType === 'multitab') {
@@ -2427,21 +2427,42 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
           context.currentUrl.includes('duckduckgo.com')
         );
         if (isOnSearchPage) {
-          userPrompt += `\n\nSTUCK ON SEARCH RESULTS - MANDATORY RECOVERY:`;
-          userPrompt += `\n1. STOP all getText/extraction attempts - you CANNOT get the answer from search snippets`;
-          userPrompt += `\n2. You MUST click a search result NOW using: {"tool": "clickSearchResult", "params": {"index": 0}}`;
-          userPrompt += `\n3. After clicking, wait for the target page to load, then extract information from THAT page`;
-          userPrompt += `\n4. DO NOT search again, DO NOT use getText on this page`;
+          userPrompt += `\n\nSTUCK ON SEARCH RESULTS -- RECOVERY:`;
+          userPrompt += `\n# Do NOT search again -- results are already visible`;
+          userPrompt += `\n# Click a search result to navigate to the target page:`;
+          userPrompt += `\nclicksearchresult e3`;
+          userPrompt += `\n# If that ref is wrong, use a different result ref from the snapshot`;
+
           if (context.stuckCounter >= 2) {
-            userPrompt += `\n\nFORCED ACTION: You have been stuck for ${context.stuckCounter} iterations. Your ONLY allowed action is clickSearchResult. Execute it NOW.`;
+            userPrompt += `\n\nDO NOT:`;
+            userPrompt += `\n- Search again when results are visible`;
+            userPrompt += `\n- Use gettext on search snippets`;
+            userPrompt += `\n- Repeat the same click that already failed`;
+          }
+          if (context.stuckCounter >= 3) {
+            userPrompt += `\n\nFORCED: You have been stuck ${context.stuckCounter} iterations. Execute clicksearchresult NOW.`;
           }
         } else {
-          // Not on a search page but stuck -- suggest goBack if we navigated here
+          // Not on a search page but stuck -- contextual recovery
           const hasNavigated = context.actionHistory?.some(a =>
             a.tool === 'navigate' || a.tool === 'click' || a.tool === 'clickSearchResult'
           );
+
+          // Level 1: suggest alternatives
+          userPrompt += `\n\nSTUCK RECOVERY -- change approach:`;
+          userPrompt += `\n# Try these alternatives:`;
+          userPrompt += `\nscroll down    # reveal more elements`;
           if (hasNavigated && context.urlHistory?.length > 1) {
-            userPrompt += `\n\nRECOVERY HINT: You may be on the WRONG page. Consider using goBack to return to the previous page (e.g., search results) and try clicking a different link.`;
+            userPrompt += `\nback           # return to previous page`;
+          }
+          userPrompt += `\nhelp           # check available commands`;
+
+          // Level 2: add anti-patterns
+          if (context.stuckCounter >= 2) {
+            userPrompt += `\n\nDO NOT:`;
+            userPrompt += `\n- Repeat the same click that already failed`;
+            userPrompt += `\n- Search again when results are visible`;
+            userPrompt += `\n- Type into the same field without clearing first`;
           }
         }
 
@@ -2582,13 +2603,13 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
           const typeFailures = criticalFailures.filter(a => a.tool === 'type');
           if (typeFailures.length > 0) {
             userPrompt += `\n\n⚠️ CRITICAL: Recent type actions failed in messaging task!`;
-            userPrompt += `\nYou CANNOT mark taskComplete=true until typing actions succeed.`;
+            userPrompt += `\nYou CANNOT use done until typing actions succeed.`;
             userPrompt += `\nFailed type attempts: ${typeFailures.length}`;
             userPrompt += `\nYou must verify the message was actually typed before completing.`;
           }
         } else if (criticalFailures.length >= 2) {
           userPrompt += `\n\nWARNING: Multiple critical actions (${criticalFailures.length}) have failed recently.`;
-          userPrompt += `\nEnsure essential actions succeed before marking taskComplete=true.`;
+          userPrompt += `\nEnsure essential actions succeed before using done.`;
         }
 
         // Add iteration result summary for previous actions
@@ -2603,7 +2624,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
 
         if (criticalTotal.length > 0 && criticalSuccess.length === criticalTotal.length) {
           userPrompt += `\n\nITERATION RESULT: All ${criticalSuccess.length} critical actions (type/click) SUCCEEDED.`;
-          userPrompt += `\nIf these actions achieved the task goal, mark taskComplete: true with a detailed result.`;
+          userPrompt += `\nIf these actions achieved the task goal, use done "detailed summary of results".`;
           userPrompt += `\nDo NOT retry actions that already succeeded.`;
         }
       }
@@ -2661,12 +2682,12 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       
       // Focused stuck recovery instructions (kept concise to avoid prompt explosion)
       if (context.isStuck) {
-        userPrompt += `\n\nSTUCK RECOVERY - You MUST change approach:
-1. Try completely different selectors or methods
-2. If on a search page, click a result link to navigate away
-3. If you already extracted data (getText returned values), complete the task with that data
-4. If actions succeeded but verification is failing after 3+ attempts, assume success and complete
-5. Include all found information in a detailed result summary when completing`;
+        userPrompt += `\n\nSTUCK RECOVERY -- you MUST change approach:
+1. Try different element refs or alternative commands
+2. If on a search page, use clicksearchresult to navigate away
+3. If you already extracted data (gettext returned values), use done "summary with extracted data"
+4. If actions succeeded but verification is failing after 3+ attempts, use done with results
+5. Include all found information in your done summary`;
       }
       
       // Add verification context (condensed when stuck to save prompt space)
@@ -2738,7 +2759,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       if (cc.signals.toastNotification) {
         userPrompt += '\nToast: "' + cc.signals.toastNotification.text.substring(0, 60) + '"';
       }
-      userPrompt += '\n--> ' + cc.suggestion;
+      userPrompt += '\n--> Output done "summary of results" if the task is complete.';
     }
 
     // CMP-03: Critical action warnings -- prevent AI from re-executing irrevocable actions
@@ -3578,7 +3599,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       if (ps.noSearchResults) {
         context += `\n\nSEARCH RETURNED NO RESULTS: ${ps.noSearchResults}`;
         context += `\n  --> Your search query found nothing. Try a DIFFERENT, broader query.`;
-        context += `\n  --> Do NOT use clickSearchResult - there are no results to click.`;
+        context += `\n  --> Do NOT use clicksearchresult - there are no results to click.`;
         context += `\n  --> Remove restrictive operators like site:, exact quotes, etc.`;
       }
 
