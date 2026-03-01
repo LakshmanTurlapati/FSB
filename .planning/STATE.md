@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v10.0 CLI Architecture - Phase 18 (next)
+**Current focus:** v10.0 CLI Architecture - Phase 17 Plan 02 (next)
 
 ## Current Position
 
-Phase: 17 of 19 (complete)
-Plan: 2 of 2 in phase 17 (COMPLETE)
-Status: Phase 17 Complete
-Last activity: 2026-03-01 -- Completed 17-02 (Site Guide CLI Enrichment)
+Phase: 17 of 19 (in progress)
+Plan: 1 of 2 in phase 17
+Status: Plan 17-01 Complete
+Last activity: 2026-03-01 -- Completed 17-01 (Prompt Architecture Rewrite)
 
-Progress: [######----] 60%
+Progress: [#####-----] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6 (v10.0)
+- Total plans completed: 5 (v10.0)
 - Average duration: 4min
 - Total execution time: 0.3 hours
 
@@ -29,14 +29,14 @@ Progress: [######----] 60%
 |-------|-------|-------|----------|
 | 15 | 2 | 6min | 3min |
 | 16 | 2 | 6min | 3min |
-| 17 | 2 | 14min | 7min |
+| 17 | 1 | 11min | 11min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 3min, 4min, 2min, 7min
-- Trend: stable (Phase 17 larger scope - 84 files)
+- Last 5 plans: 3min, 3min, 4min, 2min, 11min
+- Trend: stable (Phase 17 larger scope - prompt rewrite)
 
 *Updated after each plan completion*
-| Phase 17 P02 | 7min | 2 tasks | 84 files |
+| Phase 17 P01 | 11min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -61,8 +61,10 @@ Recent decisions affecting current work:
 - [16-02]: getYAMLSnapshot routed through async message handler for proper response channel management
 - [16-02]: Token reduction self-test passes at >= 0% since YAML replaces compact + HTML + page structure blocks
 - [16-02]: getGuideSelectorsForUrl is a top-level function in service worker context (no explicit export)
-- [Phase 17]: COMMON PATTERNS inserted after guidance header, before first content section in all 84 site guides
-- [Phase 17]: Career guides tiered: ATS platforms get comprehensive CLI, job boards get full search+extract, company guides get compact navigate+search+storejobdata
+- [17-01]: CLI_COMMAND_TABLE uses compact markdown table format grouped by category with per-command examples
+- [17-01]: Progressive stuck recovery: Level 1 alternatives + help, Level 2 anti-patterns, Level 3 force action
+- [17-01]: help command is a signal (like done/fail) -- parser returns {signal:'help', helpVerb} for automation loop
+- [17-01]: Response parsing/retry code intentionally NOT modified -- Phase 18 scope
 
 ### Pending Todos
 
@@ -72,10 +74,10 @@ Recent decisions affecting current work:
 
 - Site Guides Viewer design mismatch (deferred from v9.3)
 - LLM output format compliance varies across providers -- Grok/GPT-4o handle CLI well, less capable models may struggle
-- 84 site guide files enriched with CLI COMMON PATTERNS (Phase 17 complete)
+- 43+ site guide files need CLI COMMON PATTERNS enrichment (Phase 17 Plan 02)
 
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 17-02-PLAN.md (Phase 17 complete)
+Stopped at: Completed 17-01-PLAN.md
 Resume file: None
