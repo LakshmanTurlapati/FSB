@@ -96,7 +96,11 @@ Plans:
   1. xAI Grok, OpenAI GPT-4o, Anthropic Claude, and Google Gemini each successfully complete at least 3 different task types (navigation, form fill, data extraction) using CLI commands without reverting to JSON
   2. Token usage is measured per provider on identical tasks comparing CLI format vs the previous JSON format, and the reduction is at least 40% on average
   3. Edge cases are tested and passing: special characters in typed text (quotes, angle brackets), URLs as arguments (with ?, &, =), multi-line AI reasoning with # comments, Google Sheets workflows (Name Box, formatting), and career search workflows (multi-site, storeJobData)
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 19-01-PLAN.md -- Core test infrastructure: CLIValidator module, MockDOM execution, golden responses (4 providers x 6 task types), DOM snapshots, edge case test data
+- [ ] 19-02-PLAN.md -- Token measurement: gpt-tokenizer bundle, TokenComparator module, JSON baseline reconstruction, 6 JSON baseline files
+- [ ] 19-03-PLAN.md -- UI panel + integration: options page CLI Validation section, live mode service worker handler, edge case wiring, human verification
 
 ## Progress
 
@@ -108,8 +112,8 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 | 15. CLI Parser Module | 2/2 | Complete    | 2026-02-28 |
 | 16. YAML DOM Snapshot | 2/2 | Complete    | 2026-03-01 |
 | 17. Prompt Architecture Rewrite | 1/2 | Complete    | 2026-03-01 |
-| 18. AI Integration Wiring | 2/2 | Complete   | 2026-03-01 |
-| 19. Cross-Provider Validation | 0/TBD | Not started | - |
+| 18. AI Integration Wiring | 2/2 | Complete    | 2026-03-01 |
+| 19. Cross-Provider Validation | 0/3 | Not started | - |
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*
