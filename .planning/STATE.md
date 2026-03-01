@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v10.0 CLI Architecture - Phase 16 (YAML DOM Snapshot)
+**Current focus:** v10.0 CLI Architecture - Phase 17 (next)
 
 ## Current Position
 
-Phase: 16 of 19 (YAML DOM Snapshot)
-Plan: 1 of 2 in current phase
-Status: In Progress
-Last activity: 2026-02-28 -- Completed 16-01 (Core YAML Snapshot Engine)
+Phase: 17 of 19 (next phase)
+Plan: 2 of 2 in phase 16 (COMPLETE)
+Status: Phase 16 Complete
+Last activity: 2026-02-28 -- Completed 16-02 (YAML Snapshot Integration Wiring)
 
-Progress: [###-------] 30%
+Progress: [####------] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3 (v10.0)
+- Total plans completed: 4 (v10.0)
 - Average duration: 3min
 - Total execution time: 0.2 hours
 
@@ -28,10 +28,10 @@ Progress: [###-------] 30%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 15 | 2 | 6min | 3min |
-| 16 | 1 | 4min | 4min |
+| 16 | 2 | 6min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 3min, 4min
+- Last 5 plans: 3min, 3min, 4min, 2min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -56,6 +56,9 @@ Recent decisions affecting current work:
 - [16-01]: Region order: @dialog > @nav > @header > @main > @aside > @footer
 - [16-01]: Fingerprint includes href/name/id to prevent collapsing distinct elements
 - [16-01]: XPath selectors from site guides skipped for annotation matching (CSS only)
+- [16-02]: getYAMLSnapshot routed through async message handler for proper response channel management
+- [16-02]: Token reduction self-test passes at >= 0% since YAML replaces compact + HTML + page structure blocks
+- [16-02]: getGuideSelectorsForUrl is a top-level function in service worker context (no explicit export)
 
 ### Pending Todos
 
@@ -70,5 +73,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 16-01-PLAN.md
+Stopped at: Completed 16-02-PLAN.md (Phase 16 complete)
 Resume file: None
