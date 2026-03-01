@@ -35,10 +35,10 @@
 ### AI Integration
 
 - [x] **INTEG-01**: ai-integration.js uses the CLI parser as the sole response parser -- no JSON fallback (CLI-only mode)
-- [ ] **INTEG-02**: Conversation history stores CLI command exchanges (not JSON) so models don't pattern-match back to JSON
-- [ ] **INTEG-03**: Conversation compaction preserves CLI format when summarizing older turns
+- [x] **INTEG-02**: Conversation history stores CLI command exchanges (not JSON) so models don't pattern-match back to JSON
+- [x] **INTEG-03**: Conversation compaction preserves CLI format when summarizing older turns
 - [x] **INTEG-04**: Provider-specific response cleaning (Gemini markdown wrapping, Grok conversational text) is adapted for CLI output extraction
-- [ ] **INTEG-05**: The storeJobData and fillSheetData tools accept structured data via a CLI-compatible encoding (inline JSON payload or heredoc-style block)
+- [x] **INTEG-05**: The storeJobData and fillSheetData tools accept structured data via a CLI-compatible encoding (inline JSON payload or heredoc-style block)
 
 ### Cross-Provider Testing
 
@@ -85,10 +85,10 @@
 | PROMPT-06 | Phase 17 | Complete |
 | PROMPT-07 | Phase 17 | Complete |
 | INTEG-01 | Phase 18 | Complete |
-| INTEG-02 | Phase 18 | Pending |
-| INTEG-03 | Phase 18 | Pending |
+| INTEG-02 | Phase 18 | Complete |
+| INTEG-03 | Phase 18 | Complete |
 | INTEG-04 | Phase 18 | Complete |
-| INTEG-05 | Phase 18 | Pending |
+| INTEG-05 | Phase 18 | Complete |
 | TEST-01 | Phase 19 | Pending |
 | TEST-02 | Phase 19 | Pending |
 | TEST-03 | Phase 19 | Pending |

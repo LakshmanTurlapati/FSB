@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v10.0 CLI Architecture - Phase 18 Plan 02 (next)
+**Current focus:** v10.0 CLI Architecture - Phase 18 Complete
 
 ## Current Position
 
-Phase: 18 of 19 (in progress)
-Plan: 1 of 2 in phase 18
-Status: Plan 18-01 Complete
-Last activity: 2026-03-01 -- Completed 18-01 (AI Integration Wiring - CLI Parser Pipeline Swap)
+Phase: 18 of 19 (complete)
+Plan: 2 of 2 in phase 18
+Status: Phase 18 Complete
+Last activity: 2026-03-01 -- Completed 18-02 (AI Integration Wiring - CLI Conversation History and YAML Data Encoding)
 
-Progress: [######----] 60%
+Progress: [#######---] 70%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6 (v10.0)
+- Total plans completed: 7 (v10.0)
 - Average duration: 4min
-- Total execution time: 0.4 hours
+- Total execution time: 0.5 hours
 
 **By Phase:**
 
@@ -30,14 +30,15 @@ Progress: [######----] 60%
 | 15 | 2 | 6min | 3min |
 | 16 | 2 | 6min | 3min |
 | 17 | 1 | 11min | 11min |
-| 18 | 1 | 4min | 4min |
+| 18 | 2 | 8min | 4min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 4min, 2min, 11min, 4min
+- Last 5 plans: 4min, 2min, 11min, 4min, 4min
 - Trend: stable
 
 *Updated after each plan completion*
 | Phase 18 P01 | 4min | 2 tasks | 3 files |
+| Phase 18 P02 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,11 @@ Recent decisions affecting current work:
 - [18-01]: sanitizeActions extracted as module-level function (not class method) for reusability
 - [18-01]: CLI reformat retry sends AI's original response back asking for reformatting before failing
 - [18-01]: Model-specific JSON formatting instructions deleted -- CLI format is model-agnostic
+- [18-02]: Conversation history stores raw CLI text via response._rawCliText -- no JSON.stringify
+- [18-02]: Extractive fallback scans for CLI verb patterns instead of JSON action regex
+- [18-02]: parseYAMLBlock is a simple state machine -- no external YAML library
+- [18-02]: storejobdata data arg made optional to support both inline JSON and YAML block paths
+- [18-02]: preprocessResponse preserves indented lines following recognized commands (YAML blocks)
 
 ### Pending Todos
 
@@ -84,5 +90,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 18-01-PLAN.md
+Stopped at: Completed 18-02-PLAN.md
 Resume file: None
