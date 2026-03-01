@@ -16,11 +16,11 @@
 
 ### YAML DOM Snapshot
 
-- [ ] **YAML-01**: DOM snapshots sent to the AI use a compact text format with element refs (e1, e2, ...), element type, text content, and key attributes -- replacing the current verbose JSON structure
-- [ ] **YAML-02**: Interactive-only filtering reduces snapshot to actionable elements (buttons, inputs, links, selects) by default, with full-page mode available
-- [ ] **YAML-03**: Page metadata (URL, title, scroll position, viewport) is included as a compact header before the element list
+- [x] **YAML-01**: DOM snapshots sent to the AI use a compact text format with element refs (e1, e2, ...), element type, text content, and key attributes -- replacing the current verbose JSON structure
+- [x] **YAML-02**: Interactive-only filtering reduces snapshot to actionable elements (buttons, inputs, links, selects) by default, with full-page mode available
+- [x] **YAML-03**: Page metadata (URL, title, scroll position, viewport) is included as a compact header before the element list
 - [ ] **YAML-04**: Site-aware annotations from site guides (e.g., [hint:searchBox], [hint:nameBox]) are embedded inline with elements when a matching site guide exists
-- [ ] **YAML-05**: Snapshot token count is at least 40% lower than the current JSON format for equivalent page content
+- [x] **YAML-05**: Snapshot token count is at least 40% lower than the current JSON format for equivalent page content
 
 ### Prompt Architecture
 
@@ -72,11 +72,11 @@
 | CLI-04 | Phase 15 | Complete |
 | CLI-05 | Phase 15 | Complete |
 | CLI-06 | Phase 15 | Complete |
-| YAML-01 | Phase 16 | Pending |
-| YAML-02 | Phase 16 | Pending |
-| YAML-03 | Phase 16 | Pending |
+| YAML-01 | Phase 16 | Complete |
+| YAML-02 | Phase 16 | Complete |
+| YAML-03 | Phase 16 | Complete |
 | YAML-04 | Phase 16 | Pending |
-| YAML-05 | Phase 16 | Pending |
+| YAML-05 | Phase 16 | Complete |
 | PROMPT-01 | Phase 17 | Pending |
 | PROMPT-02 | Phase 17 | Pending |
 | PROMPT-03 | Phase 17 | Pending |

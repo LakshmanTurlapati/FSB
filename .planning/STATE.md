@@ -5,32 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v10.0 CLI Architecture - Phase 15 (CLI Parser Module)
+**Current focus:** v10.0 CLI Architecture - Phase 16 (YAML DOM Snapshot)
 
 ## Current Position
 
-Phase: 15 of 19 (CLI Parser Module) -- COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase Complete
-Last activity: 2026-02-28 -- Completed 15-02 (CLI Parser Response Orchestration)
+Phase: 16 of 19 (YAML DOM Snapshot)
+Plan: 1 of 2 in current phase
+Status: In Progress
+Last activity: 2026-02-28 -- Completed 16-01 (Core YAML Snapshot Engine)
 
-Progress: [##--------] 20%
+Progress: [###-------] 30%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2 (v10.0)
+- Total plans completed: 3 (v10.0)
 - Average duration: 3min
-- Total execution time: 0.1 hours
+- Total execution time: 0.2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 15 | 2 | 6min | 3min |
+| 16 | 1 | 4min | 4min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 3min
+- Last 5 plans: 3min, 3min, 4min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -51,6 +52,10 @@ Recent decisions affecting current work:
 - [15-02]: preprocessResponse strips both leading preamble AND trailing conversational text using COMMAND_REGISTRY lookups
 - [15-02]: parseCliResponse output includes normalizeResponse compatibility stubs for smooth Phase 18 swap-in
 - [15-02]: situationAnalysis auto-populated from reasoning[] join for backward compatibility
+- [16-01]: Forms are NOT regions -- sub-grouped WITHIN landmark regions with 4-space indent
+- [16-01]: Region order: @dialog > @nav > @header > @main > @aside > @footer
+- [16-01]: Fingerprint includes href/name/id to prevent collapsing distinct elements
+- [16-01]: XPath selectors from site guides skipped for annotation matching (CSS only)
 
 ### Pending Todos
 
@@ -65,5 +70,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 15-02-PLAN.md (Phase 15 complete)
+Stopped at: Completed 16-01-PLAN.md
 Resume file: None

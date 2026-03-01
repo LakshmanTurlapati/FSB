@@ -100,7 +100,7 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
 | 15. CLI Parser Module | 2/2 | Complete    | 2026-02-28 |
-| 16. YAML DOM Snapshot | 0/2 | Not started | - |
+| 16. YAML DOM Snapshot | 1/2 | In Progress|  |
 | 17. Prompt Architecture Rewrite | 0/TBD | Not started | - |
 | 18. AI Integration Wiring | 0/TBD | Not started | - |
 | 19. Cross-Provider Validation | 0/TBD | Not started | - |
