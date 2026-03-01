@@ -2209,6 +2209,331 @@
     return line;
   }
 
+  /**
+   * Generate a fingerprint for duplicate element detection.
+   * Includes href for links and name/id for inputs to avoid collapsing distinct elements.
+   * @param {Element} el - DOM element
+   * @returns {string} Fingerprint string
+   */
+  function getElementFingerprint(el) {
+    const tag = el.tagName.toLowerCase();
+    const text = (el.textContent?.trim() || '').substring(0, 50);
+    const type = el.getAttribute('type') || '';
+    const role = el.getAttribute('role') || '';
+    const href = (el.tagName === 'A' && el.href) ? el.href : '';
+    const name = el.name || '';
+    const id = el.id || '';
+    return `${tag}|${text}|${type}|${role}|${href}|${name}|${id}`;
+  }
+
+  /**
+   * Build the filter summary footer line.
+   * Format: `--- {shown}/{total} shown | {N} links, {M} buttons, {K} inputs offscreen`
+   * @param {number} shownCount - Number of elements shown in snapshot
+   * @param {number} totalCandidates - Total candidate elements before filtering
+   * @param {Object} offscreenByType - Object like {link: 5, button: 3, input: 10}
+   * @param {boolean} capped - Whether the element cap was hit
+   * @returns {string} Footer line
+   */
+  function buildFilterFooter(shownCount, totalCandidates, offscreenByType, capped) {
+    const offscreenParts = [];
+    for (const [type, count] of Object.entries(offscreenByType)) {
+      if (count > 0) offscreenParts.push(`${count} ${type}s`);
+    }
+
+    let footer = `--- ${shownCount}/${totalCandidates}`;
+    if (capped) {
+      footer += '+ shown (capped)';
+    } else {
+      footer += ' shown';
+    }
+
+    if (offscreenParts.length > 0) {
+      footer += ` | ${offscreenParts.join(', ')} offscreen`;
+    }
+
+    return footer;
+  }
+
+  /**
+   * Build indented option lines for a SELECT element.
+   * Limits to 10 options with overflow indicator.
+   * @param {HTMLSelectElement} selectEl - SELECT element
+   * @returns {string[]} Array of formatted option lines (6-space indent)
+   */
+  function buildSelectOptions(selectEl) {
+    const options = Array.from(selectEl.options || []);
+    const lines = [];
+    const limit = 10;
+    const showOptions = options.slice(0, limit);
+
+    for (const opt of showOptions) {
+      const text = (opt.text || '').trim().substring(0, 50);
+      lines.push(`      "${text}"`);
+    }
+
+    if (options.length > limit) {
+      lines.push(`      ... and ${options.length - limit} more`);
+    }
+
+    return lines;
+  }
+
+  /**
+   * Infer the suggested action verb for a site guide annotation.
+   * @param {Element} el - DOM element
+   * @returns {string} Action verb
+   */
+  function inferActionForElement(el) {
+    const tag = el.tagName;
+    if (tag === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) return 'check';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return 'type';
+    if (tag === 'SELECT') return 'select';
+    if (tag === 'BUTTON' || el.getAttribute('role') === 'button') return 'click';
+    if (tag === 'A') return 'click';
+    if (el.getAttribute('contenteditable') === 'true' || el.isContentEditable) return 'type';
+    return 'click';
+  }
+
+  /**
+   * Build site guide annotation Map from guide selectors.
+   * Matches elements against CSS selectors and infers action verbs.
+   * @param {Object|null} guideSelectors - Object of {key: cssSelector} pairs
+   * @param {Set} elementSet - Set of elements in the snapshot for intersection check
+   * @returns {Map|null} Map(element -> {key, action}) or null
+   */
+  function buildGuideAnnotations(guideSelectors, elementSet) {
+    if (!guideSelectors || typeof guideSelectors !== 'object') return null;
+
+    const annotations = new Map();
+
+    for (const [key, selectorStr] of Object.entries(guideSelectors)) {
+      if (typeof selectorStr !== 'string') continue;
+      // Skip XPath selectors (start with / or //)
+      if (selectorStr.startsWith('/')) continue;
+
+      // Handle comma-separated selectors
+      const parts = selectorStr.split(',').map(s => s.trim());
+
+      for (const part of parts) {
+        if (!part) continue;
+        try {
+          const matched = document.querySelector(part);
+          if (matched && elementSet.has(matched) && !annotations.has(matched)) {
+            const action = inferActionForElement(matched);
+            annotations.set(matched, { key, action });
+          }
+        } catch {
+          // Invalid selector, skip
+        }
+      }
+    }
+
+    return annotations.size > 0 ? annotations : null;
+  }
+
+  /**
+   * Build a complete YAML-style DOM snapshot for AI consumption.
+   * Produces a pre-formatted text string with metadata header, region-grouped
+   * element lines, and a filter summary footer.
+   *
+   * @param {Object} options
+   * @param {string} options.mode - 'interactive' (default) or 'full'
+   * @param {Object|null} options.guideSelectors - CSS selectors from matched site guide
+   * @returns {{ snapshot: string, refGeneration: number, elementCount: number }}
+   */
+  function buildYAMLSnapshot(options = {}) {
+    const {
+      mode = 'interactive',
+      guideSelectors = null
+    } = options;
+
+    // Access cross-module singletons
+    const refMap = FSB.refMap;
+    const generateSelectors = FSB.generateSelectors;
+
+    // a. Reset refMap for this generation
+    refMap.reset();
+    refMap.generationUrl = window.location.href;
+
+    // b. Get elements using existing 3-stage filtering pipeline
+    const isInteractive = mode !== 'full';
+    const maxElements = isInteractive ? 80 : 200;
+    const elements = getFilteredElements({
+      maxElements,
+      prioritizeViewport: isInteractive,
+      taskType: 'general'
+    });
+
+    // c. For interactive mode, filter to viewport-only elements
+    const offscreenByType = {};
+    let totalCandidates = elements.length;
+    let snapshotElements;
+
+    if (isInteractive) {
+      snapshotElements = [];
+      for (const el of elements) {
+        const rect = el.getBoundingClientRect();
+        const inViewport = rect.bottom >= 0 && rect.top <= window.innerHeight &&
+                           rect.right >= 0 && rect.left <= window.innerWidth;
+        if (inViewport) {
+          snapshotElements.push(el);
+        } else {
+          // Track offscreen elements by type for footer
+          const tag = el.tagName.toLowerCase();
+          let typeKey;
+          if (tag === 'a') typeKey = 'link';
+          else if (tag === 'button' || el.getAttribute('role') === 'button') typeKey = 'button';
+          else if (tag === 'input') typeKey = 'input';
+          else if (tag === 'select') typeKey = 'select';
+          else if (tag === 'textarea') typeKey = 'textarea';
+          else typeKey = 'other';
+          offscreenByType[typeKey] = (offscreenByType[typeKey] || 0) + 1;
+        }
+      }
+    } else {
+      snapshotElements = elements;
+    }
+
+    // d. Build guide annotations if guideSelectors provided
+    const elementSet = new Set(snapshotElements);
+    const guideAnnotationsMap = buildGuideAnnotations(guideSelectors, elementSet);
+
+    // e. Build fingerprints for duplicate detection
+    const fingerprints = new Map(); // fingerprint -> { count, ref, lineIndex }
+
+    // f. Process each element: register refs, build lines, detect regions and forms
+    // Data structure: regionKey -> { formGroups: Map(formEl -> lines[]), freeLines: lines[] }
+    const REGION_ORDER = ['@dialog', '@nav', '@header', '@main', '@aside', '@footer'];
+    const regionData = new Map();
+    for (const r of REGION_ORDER) {
+      regionData.set(r, { formGroups: new Map(), freeLines: [] });
+    }
+
+    // Track all built lines for duplicate count update
+    const allLineEntries = []; // { ref, lineIndex (in region output), fingerprint, lines: string[] }
+    let elementCount = 0;
+
+    for (const el of snapshotElements) {
+      // Compute fingerprint for duplicate detection
+      const fp = getElementFingerprint(el);
+
+      if (fingerprints.has(fp)) {
+        // Duplicate: increment count, skip ref registration and line building
+        fingerprints.get(fp).count++;
+        continue;
+      }
+
+      // Register element in refMap
+      const sels = generateSelectors(el);
+      const cssSelector = sels.find(s => typeof s === 'string' ? !s.startsWith('//') : !s.selector?.startsWith('//'));
+      const primarySelector = typeof cssSelector === 'string' ? cssSelector : (cssSelector?.selector || sels[0]?.selector || sels[0] || '');
+      const role = getImplicitRole(el) || el.tagName.toLowerCase();
+      const accName = computeAccessibleName(el);
+      const nameStr = accName?.name || '';
+      const ref = refMap.register(el, primarySelector, role, nameStr.substring(0, 60));
+
+      // Determine region
+      const region = getRegion(el);
+
+      // Determine form grouping: el.form (authoritative) or el.closest('form') as fallback
+      const formEl = el.form || el.closest('form');
+      const inForm = !!formEl;
+
+      // Build element line
+      const line = buildElementLine(el, ref, guideAnnotationsMap, inForm);
+
+      // Build select options if SELECT
+      const extraLines = [];
+      if (el.tagName === 'SELECT') {
+        const optLines = buildSelectOptions(el);
+        extraLines.push(...optLines);
+      }
+
+      // Track fingerprint
+      const entryIndex = allLineEntries.length;
+      fingerprints.set(fp, { count: 1, entryIndex });
+
+      const lineBundle = [line, ...extraLines];
+      allLineEntries.push({ ref, fingerprint: fp, lines: lineBundle });
+
+      // Add to region data
+      const rd = regionData.get(region) || regionData.get('@main');
+      if (inForm) {
+        if (!rd.formGroups.has(formEl)) {
+          rd.formGroups.set(formEl, []);
+        }
+        rd.formGroups.get(formEl).push(...lineBundle);
+      } else {
+        rd.freeLines.push(...lineBundle);
+      }
+
+      elementCount++;
+    }
+
+    // g. Update lines for collapsed duplicates (fingerprint count >= 3)
+    for (const [fp, data] of fingerprints) {
+      if (data.count >= 3) {
+        const entry = allLineEntries[data.entryIndex];
+        if (entry && entry.lines.length > 0) {
+          // Append (xN) to the first line of this element's bundle
+          entry.lines[0] += ` (x${data.count})`;
+        }
+      }
+    }
+
+    // h. Group output by region with form sub-grouping
+    const outputSections = [];
+
+    for (const regionKey of REGION_ORDER) {
+      const rd = regionData.get(regionKey);
+      if (!rd) continue;
+
+      const hasFormLines = rd.formGroups.size > 0;
+      const hasFreeLines = rd.freeLines.length > 0;
+
+      if (!hasFormLines && !hasFreeLines) continue;
+
+      // Region header
+      const sectionLines = [regionKey];
+
+      // Forms first within region
+      for (const [formEl, formLines] of rd.formGroups) {
+        // Form header line
+        const formName = formEl.getAttribute('aria-label') ||
+                         formEl.querySelector('h1,h2,h3,legend')?.textContent?.trim() ||
+                         formEl.name || formEl.id || '';
+        const formId = formEl.id ? ` #${formEl.id}` : '';
+        const formNameStr = formName ? ` "${formName.substring(0, 40)}"` : '';
+        sectionLines.push(`  form${formNameStr}${formId}`);
+
+        // Form element lines (already 4-space indented from buildElementLine)
+        sectionLines.push(...formLines);
+      }
+
+      // Non-form elements (2-space indented from buildElementLine)
+      sectionLines.push(...rd.freeLines);
+
+      outputSections.push(sectionLines.join('\n'));
+    }
+
+    // i. Build metadata header (note: focus ref lookup happens inside)
+    const header = buildMetadataHeader(refMap);
+
+    // Build filter footer
+    const capped = snapshotElements.length >= maxElements;
+    const footer = buildFilterFooter(elementCount, totalCandidates, offscreenByType, capped);
+
+    // j. Assemble: metadata header + blank line + region sections + blank line + filter footer
+    const snapshot = header + '\n\n' + outputSections.join('\n\n') + '\n\n' + footer;
+
+    return {
+      snapshot,
+      refGeneration: refMap.generationId,
+      elementCount
+    };
+  }
+
   // ============================================================================
   // STRUCTURED DOM EXTRACTION (Main entry point)
   // ============================================================================
@@ -2675,6 +3000,7 @@
   FSB.calculateElementScore = calculateElementScore;
   FSB.getFilteredElements = getFilteredElements;
   FSB.generateCompactSnapshot = generateCompactSnapshot;
+  FSB.buildYAMLSnapshot = buildYAMLSnapshot;
   FSB.getStructuredDOM = getStructuredDOM;
 
   window.FSB._modules['dom-analysis'] = { loaded: true, timestamp: Date.now() };
