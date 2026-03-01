@@ -154,6 +154,43 @@ if (typeof self !== 'undefined') {
   self.formatSiteKnowledge = formatSiteKnowledge;
 }
 
+/**
+ * Standalone security sanitization for parsed actions.
+ * Extracted from the former normalizeResponse method.
+ * Blocks dangerous navigate URIs (data:, javascript:) and type actions
+ * containing script injection patterns (<script, javascript:, onerror=).
+ *
+ * @param {Array<{tool: string, params: Object}>} actions - Parsed action array
+ * @returns {Array<{tool: string, params: Object}>} Sanitized actions (dangerous ones removed)
+ */
+function sanitizeActions(actions) {
+  if (!Array.isArray(actions)) return [];
+
+  return actions.filter(action => {
+    if (!action || !action.tool) return false;
+
+    // Block navigate actions with data: or javascript: URIs
+    if (action.tool === 'navigate' && action.params?.url) {
+      const url = String(action.params.url).toLowerCase();
+      if (url.startsWith('data:') || url.startsWith('javascript:')) {
+        console.warn('[FSB] Blocked suspicious navigate action:', action.params.url.substring(0, 100));
+        return false;
+      }
+    }
+
+    // Block type actions containing script injection patterns
+    if (action.tool === 'type' && action.params?.text) {
+      const text = String(action.params.text).toLowerCase();
+      if (text.includes('<script') || text.includes('javascript:') || text.includes('onerror=')) {
+        console.warn('[FSB] Blocked suspicious type action with script content');
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
 // Task-specific prompt templates
 const TASK_PROMPTS = {
   search: "CRITICAL: For search tasks you MUST: 1) Type query, then look for submit button. If found, click it. If no button, use enter. 2) Wait for results to load, 3) Extract the actual answer from the page, 4) ONLY use done after you have the answer. If you don't see relevant results, scroll down to see more. When completing, provide the specific information found, not just 'found the answer'. Example: done \"I found the current weather in New York is 72F with clear skies and 15% humidity.\"",
@@ -1939,15 +1976,61 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
         // FSB TIMING: Log queue processing time
         automationLogger.logTiming(this.currentSessionId, 'LLM', 'queue_process', Date.now() - startTime, { model: this.model });
 
-        // If using universal provider, response is already parsed JSON
-        // Otherwise, parse the response string
-        let parsed;
-        if (this.provider && typeof response === 'object') {
-          // Universal provider returns parsed JSON object
-          parsed = this.normalizeResponse(response);
-        } else {
-          // Legacy or string response - parse it
-          parsed = this.parseResponse(response);
+        // Extract raw text from response (callAPI returns raw text via UniversalProvider)
+        const rawText = typeof response === 'string' ? response : (response?.content || String(response));
+
+        // Parse through CLI parser as sole response path
+        let parsed = parseCliResponse(rawText);
+
+        // Apply security sanitization
+        parsed.actions = sanitizeActions(parsed.actions);
+
+        // CLI reformat retry: if no valid output, ask AI to reformat
+        if (parsed.actions.length === 0 && !parsed.taskComplete && !parsed.taskFailed && !parsed.helpRequested) {
+          automationLogger.debug('CLI reformat retry - no valid commands parsed', {
+            sessionId: this.currentSessionId,
+            rawTextPreview: rawText.substring(0, 200)
+          });
+
+          try {
+            const reformatPrompt = {
+              messages: [
+                ...(request.prompt.messages || [
+                  { role: 'system', content: request.prompt.systemPrompt || '' },
+                  { role: 'user', content: request.prompt.userPrompt || '' }
+                ]),
+                {
+                  role: 'assistant',
+                  content: rawText
+                },
+                {
+                  role: 'user',
+                  content: 'Your response was not in CLI command format. Reformat as CLI commands (one per line, # for reasoning). Your response was: ' + rawText.substring(0, 500)
+                }
+              ]
+            };
+            const retryResponse = await this.callAPI(reformatPrompt, { attempt: (request.attempt || 0) + 1 });
+            const retryRawText = typeof retryResponse === 'string' ? retryResponse : (retryResponse?.content || String(retryResponse));
+            parsed = parseCliResponse(retryRawText);
+            parsed.actions = sanitizeActions(parsed.actions);
+            parsed._rawCliText = retryRawText;
+          } catch (retryError) {
+            automationLogger.debug('CLI reformat retry failed', {
+              sessionId: this.currentSessionId,
+              error: retryError.message
+            });
+            // Keep original parsed result (empty actions)
+          }
+        }
+
+        // Attach raw text for debugging
+        if (!parsed._rawCliText) {
+          parsed._rawCliText = rawText;
+        }
+
+        // batchActions compatibility shim
+        if (parsed.actions.length > 1) {
+          parsed.batchActions = parsed.actions;
         }
 
         // Cache the response
@@ -2271,7 +2354,7 @@ When providing your done summary, use rich formatting for data:
 
 ${BATCH_ACTION_INSTRUCTIONS}
 
-${this.getModelSpecificInstructions()}
+PROVIDER NOTE: Output CLI commands only, one per line. Use # for reasoning. Do NOT wrap in code fences or JSON.
 
 Task Type: ${taskType}
 
@@ -3730,7 +3813,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
           model: parsed.model
         }, true);
         
-        // parsed.content is already a JSON object from universal provider
+        // parsed.content is raw text string -- CLI parser handles interpretation in processQueue
         return parsed.content;
       } catch (error) {
         automationLogger.error('API call failed', { sessionId: this.currentSessionId, provider: this.settings.modelProvider, error: error.message });
@@ -3840,221 +3923,9 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
     }
   }
   
-  // Parse Grok-3-mini response into actions
-  parseResponse(responseText) {
-    const provider = this.currentProvider?.provider || 'unknown';
-    automationLogger.logAPI(this.currentSessionId, provider, 'parse_start', { responsePreview: responseText?.substring(0, 200) });
-
-    // Log raw response for comprehensive session logging
-    if (typeof automationLogger !== 'undefined' && this.currentSessionId) {
-      automationLogger.logRawResponse(
-        this.currentSessionId,
-        responseText,
-        false, // Will update to true if parsing succeeds
-        this.currentIteration
-      );
-    }
-
-    // Check if responseText is empty or null
-    if (!responseText || responseText.trim() === '') {
-      throw new Error('Empty response from AI');
-    }
-
-    // Try multiple parsing strategies (no fallback recovery - demand proper JSON)
-    const strategies = [
-      () => this.parseCleanJSON(responseText),
-      () => this.parseWithMarkdownBlocks(responseText),
-      () => this.parseWithJSONExtraction(responseText),
-      () => this.parseWithAdvancedCleaning(responseText)
-    ];
-
-    let lastError = null;
-    let strategyIndex = 0;
-
-    for (const strategy of strategies) {
-      try {
-        const result = strategy();
-        if (result && this.isValidParsedResponse(result)) {
-          automationLogger.logAPI(this.currentSessionId, provider, 'parse_success', { strategy: strategyIndex + 1 });
-
-          // Log successful parse
-          if (typeof automationLogger !== 'undefined' && this.currentSessionId) {
-            automationLogger.logRawResponse(
-              this.currentSessionId,
-              responseText,
-              true,
-              this.currentIteration
-            );
-          }
-
-          return result;
-        }
-      } catch (error) {
-        lastError = error;
-        automationLogger.debug(`Parse strategy ${strategyIndex + 1} failed`, { sessionId: this.currentSessionId, provider, error: error.message });
-      }
-      strategyIndex++;
-    }
-
-    // If all strategies fail, throw a clear error demanding proper JSON
-    automationLogger.error('All parse strategies failed', { sessionId: this.currentSessionId, provider, responsePreview: responseText.substring(0, 500) });
-    throw new Error(`AI must respond with valid JSON only. No fallback recovery available. Provider: ${provider}. Last error: ${lastError?.message}`);
-  }
-  
-  // Strategy 1: Try to parse clean JSON
-  parseCleanJSON(text) {
-    const trimmed = text.trim();
-    const response = JSON.parse(trimmed);
-    return this.normalizeResponse(response);
-  }
-  
-  // Strategy 2: Extract from markdown blocks
-  parseWithMarkdownBlocks(text) {
-    let jsonText = text;
-    
-    // Try JSON code block
-    if (text.includes('```json')) {
-      const match = text.match(/```json\s*([\s\S]*?)\s*```/i);
-      if (match) jsonText = match[1];
-    } else if (text.includes('```')) {
-      const match = text.match(/```\s*([\s\S]*?)\s*```/);
-      if (match) jsonText = match[1];
-    }
-    
-    return this.parseCleanJSON(jsonText);
-  }
-  
-  // Strategy 3: Extract JSON object with regex
-  parseWithJSONExtraction(text) {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON object found in response');
-    }
-    return this.parseCleanJSON(jsonMatch[0]);
-  }
-  
-  // Strategy 4: Advanced cleaning before parsing
-  parseWithAdvancedCleaning(text) {
-    let cleaned = text;
-    
-    // Remove common prefixes/suffixes
-    const cleaningPatterns = [
-      /^.*?(?=\{)/s, // Everything before first {
-      /\}[^}]*$/s,   // Everything after last }
-      /^[^{]*Here's the JSON:?\s*/i,
-      /^[^{]*Response:?\s*/i,
-      /\n\n.*$/s     // Everything after double newline
-    ];
-    
-    for (const pattern of cleaningPatterns) {
-      cleaned = cleaned.replace(pattern, '');
-    }
-    
-    // Comprehensive JSON fixes
-    cleaned = cleaned
-      .replace(/'/g, '"')                    // Single to double quotes
-      .replace(/(\w+):/g, '"$1":')          // Unquoted keys
-      .replace(/,\s*}/g, '}')               // Trailing commas in objects
-      .replace(/,\s*]/g, ']')               // Trailing commas in arrays
-      .replace(/undefined/g, 'null')        // undefined to null
-      .replace(/True/g, 'true')             // Python-style booleans
-      .replace(/False/g, 'false')           // Python-style booleans
-      .replace(/None/g, 'null')             // Python-style null
-      .replace(/:\s*"([^"]*)"([^"]*)"([^"]*)"(?=\s*[,}])/g, ': "$1\\"$2\\"$3"')  // Fix unescaped quotes
-      .replace(/"\s*\n\s*"/g, '", "')       // Fix broken strings across lines
-      .replace(/}\s*\n\s*{/g, '}, {')       // Fix missing commas between objects
-      .replace(/]\s*\n\s*\[/g, '], [')      // Fix missing commas between arrays
-      
-    return this.parseCleanJSON(cleaned);
-  }
-  
-  // No more fallback recovery - demand proper JSON responses
-  
-  
-  // Normalize response structure
-  normalizeResponse(response) {
-    // Handle nested structures
-    if (response.message?.actions) {
-      response.actions = response.message.actions;
-    }
-
-    if (response.content && typeof response.content === 'string') {
-      try {
-        const nested = JSON.parse(response.content);
-        Object.assign(response, nested);
-      } catch (e) {
-        // Ignore nested parsing errors
-      }
-    }
-
-    // Sanitize actions to mitigate prompt injection attacks
-    const sanitizedActions = (response.actions || []).filter(action => {
-      if (!action || !action.tool) return false;
-
-      // Block actions that try to exfiltrate extension data
-      if (action.tool === 'navigate' && action.params?.url) {
-        const url = String(action.params.url).toLowerCase();
-        // Block data: and javascript: URIs entirely
-        if (url.startsWith('data:') || url.startsWith('javascript:')) {
-          automationLogger.warn('Blocked suspicious navigate action', {
-            sessionId: this.currentSessionId,
-            url: action.params.url.substring(0, 100)
-          });
-          return false;
-        }
-      }
-
-      // Block type actions that contain suspicious injection patterns
-      if (action.tool === 'type' && action.params?.text) {
-        const text = String(action.params.text).toLowerCase();
-        if (text.includes('<script') || text.includes('javascript:') || text.includes('onerror=')) {
-          automationLogger.warn('Blocked suspicious type action with script content', {
-            sessionId: this.currentSessionId
-          });
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    const normalized = {
-      // Core action fields
-      actions: sanitizedActions,
-      taskComplete: response.taskComplete || false,
-      result: response.result || null,
-
-      // Enhanced reasoning fields
-      situationAnalysis: response.situationAnalysis || '',
-      goalAssessment: response.goalAssessment || '',
-      reasoning: response.reasoning || '',
-      confidence: response.confidence || 'medium',
-      assumptions: response.assumptions || [],
-      fallbackPlan: response.fallbackPlan || ''
-    };
-
-    // Extract batchActions if present (AI-declared batch of same-page actions)
-    if (response.batchActions && Array.isArray(response.batchActions) && response.batchActions.length > 0) {
-      normalized.batchActions = response.batchActions.slice(0, 8).map(action => ({
-        tool: action.tool || action.action,
-        params: action.params || action.parameters || {}
-      })).filter(action => action.tool); // Drop entries with no tool name
-    }
-
-    // Log reasoning fields for comprehensive session logging
-    if (typeof automationLogger !== 'undefined' && this.currentSessionId) {
-      automationLogger.logReasoning(this.currentSessionId, normalized, this.currentIteration);
-    }
-
-    return normalized;
-  }
-  
-  // Validate parsed response has required structure
-  isValidParsedResponse(response) {
-    return response 
-      && Array.isArray(response.actions)
-      && typeof response.taskComplete === 'boolean';
-  }
+  // JSON parsing pipeline deleted (Phase 18) -- parseCliResponse is the sole parser
+  // Methods removed: parseResponse, parseCleanJSON, parseWithMarkdownBlocks,
+  //   parseWithJSONExtraction, parseWithAdvancedCleaning, normalizeResponse, isValidParsedResponse
   
   // Check if tool name is valid
   isValidTool(tool) {
@@ -4350,22 +4221,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
     return infoKeywords.some(kw => taskLower.includes(kw));
   }
   
-  // Get model-specific instructions
-  getModelSpecificInstructions() {
-    const provider = this.settings.modelProvider || 'xai';
-    
-    switch (provider) {
-      case 'gemini':
-        return `GEMINI SPECIFIC: You MUST respond with raw JSON only. Do NOT use markdown code blocks. Do NOT add explanatory text before or after the JSON. Do NOT wrap in \`\`\`json\`\`\` tags. Start your response directly with { and end with }.`;
-      case 'openai':
-        return `OPENAI SPECIFIC: Return only the JSON object. No markdown formatting, no code blocks, no explanations.`;
-      case 'anthropic':
-        return `CLAUDE SPECIFIC: Respond with pure JSON only. No markdown, no commentary, no code blocks.`;
-      case 'xai':
-      default:
-        return `XAI/GROK SPECIFIC: Output raw JSON only. No markdown code blocks, no conversational text, no additional commentary.`;
-    }
-  }
+  // getModelSpecificInstructions deleted (Phase 18) -- CLI format is model-agnostic
   
   // Get relevant tools for task type, with optional site guide override
   getRelevantTools(taskType, siteGuide = null) {
@@ -4473,38 +4329,46 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
     return true;
   }
   
-  // Enhance prompt for retry attempts
+  // Enhance prompt for retry attempts -- CLI format reinforcement
   enhancePromptForRetry(prompt, attempt) {
     const enhancedPrompt = { ...prompt };
-    
-    // Add stronger JSON instruction
-    if (attempt === 1) {
-      enhancedPrompt.systemPrompt = enhancedPrompt.systemPrompt.replace(
-        'CRITICAL: Respond with ONLY valid JSON:',
-        'CRITICAL: Your response MUST be ONLY valid JSON. Do NOT include any text before or after the JSON object:'
-      );
-    } else if (attempt === 2) {
-      // Even stronger instruction for final attempt
-      enhancedPrompt.systemPrompt = `IMPORTANT: Previous attempts failed due to invalid JSON. 
-${enhancedPrompt.systemPrompt}
 
-REMINDER: Output ONLY the JSON object, nothing else.`;
+    if (attempt === 1) {
+      // First retry: add CLI format reminder
+      if (enhancedPrompt.systemPrompt) {
+        enhancedPrompt.systemPrompt += '\n\nRETRY NOTE: Respond with CLI commands only, one per line. Use # for reasoning. Example: click e5';
+      }
+    } else if (attempt === 2) {
+      // Final retry: stronger CLI reinforcement
+      if (enhancedPrompt.systemPrompt) {
+        enhancedPrompt.systemPrompt = `IMPORTANT: Previous attempts failed. You MUST respond with CLI commands only.\n${enhancedPrompt.systemPrompt}\n\nREMINDER: One CLI command per line. # for reasoning. Example:\n# Clicking the submit button\nclick e5`;
+      }
     }
-    
+
     return enhancedPrompt;
   }
   
   // Create fallback response on complete failure
-  // CRITICAL FIX: Do NOT mark taskComplete: true on errors - this falsely reports success
+  // Matches parseCliResponse output shape for downstream compatibility
   createFallbackResponse(task, error) {
     automationLogger.logRecovery(this.currentSessionId, 'repeated_failures', 'fallback_response', 'created', { error: error?.message });
 
     return {
       actions: [],
-      reasoning: '',
-      taskComplete: false,  // FIX: Do not mark as complete when there's an error
-      failedDueToError: true,  // NEW: Explicit error flag for UI to display
+      reasoning: [`Fallback: ${error?.message || 'Unknown error'}`],
+      errors: [{ line: '', lineNumber: 0, error: error?.message || 'Unknown error' }],
+      taskComplete: false,
+      taskFailed: true,
       result: `Task failed due to error: ${error?.message || 'Unknown error'}. The automation will stop. Please check your settings and try again.`,
+      helpRequested: false,
+      helpVerb: null,
+      confidence: 'low',
+      situationAnalysis: `Error: ${error?.message || 'Unknown error'}`,
+      goalAssessment: '',
+      assumptions: [],
+      fallbackPlan: '',
+      _rawCliText: '',
+      failedDueToError: true,
       error: true
     };
   }

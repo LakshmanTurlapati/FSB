@@ -4,6 +4,7 @@
 importScripts('config/config.js');
 importScripts('config/init-config.js');
 importScripts('config/secure-config.js');
+importScripts('ai/cli-parser.js');
 importScripts('ai/ai-integration.js');
 importScripts('utils/automation-logger.js');
 importScripts('utils/analytics.js');
@@ -3883,6 +3884,30 @@ function generalValidator(session, aiResponse, context, signals, scoreResult) {
   return { approved: scoreResult.score >= 0.5, score: scoreResult.score, evidence: scoreResult.evidence, taskType: 'general' };
 }
 
+function sheetsValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // Sheets data entry: successful type actions on a Sheets URL count as completion evidence.
+  // Canvas-based rendering prevents DOM signals, so we rely on action success.
+  const history = session.actionHistory || [];
+  const sheetsTypeActions = history.filter(a =>
+    a.tool === 'type' && a.result?.success && a.result?.hadEffect
+  );
+  if (sheetsTypeActions.length >= 1) {
+    score = Math.min(1, score + 0.20);
+    evidence.push('Sheets: ' + sheetsTypeActions.length + ' successful cell entry action(s)');
+  }
+  // Tab/Enter navigation signals data entry flow
+  const navKeys = history.filter(a =>
+    a.tool === 'keyPress' && a.result?.success &&
+    ['Tab', 'Enter'].includes(a.params?.key)
+  );
+  if (navKeys.length >= 2) {
+    score = Math.min(1, score + 0.10);
+    evidence.push('Sheets: Tab/Enter cell navigation pattern');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'sheets' };
+}
+
 /**
  * CMP-01: Main completion validation dispatcher.
  * Replaces the ad-hoc isMessagingTask / critical-failures block.
@@ -3897,7 +3922,14 @@ function validateCompletion(session, aiResponse, context) {
     return { approved: false, score: 0, evidence: ['AI result too short or missing'], taskType: 'unknown' };
   }
 
-  const taskType = classifyTask(session.task);
+  let taskType = classifyTask(session.task);
+
+  // Override for Sheets URLs: canvas editors need the sheets validator regardless of task classification
+  const sessionUrl = session.lastUrl || context?.currentUrl || '';
+  if (/docs\.google\.com\/spreadsheets\/d\//i.test(sessionUrl)) {
+    taskType = 'sheets';
+  }
+
   const signals = gatherCompletionSignals(session, aiResponse, context);
   const scoreResult = computeCompletionScore(signals, taskType);
 
@@ -3912,6 +3944,7 @@ function validateCompletion(session, aiResponse, context) {
     career: careerValidator,
     extraction: extractionValidator,
     multitab: multitabValidator,
+    sheets: sheetsValidator,
     gaming: generalValidator,
     general: generalValidator
   };
@@ -9563,6 +9596,11 @@ async function startAutomationLoop(sessionId) {
     }
 
     // === PROGRESS TRACKING: Determine if this iteration made meaningful progress ===
+    // Helper: detect canvas-based editors where DOM doesn't reflect content changes
+    function isCanvasEditorUrl(url) {
+      if (!url) return false;
+      return /docs\.google\.com\/(spreadsheets|document|presentation)\/d\//i.test(url);
+    }
     // This counter does NOT reset on URL changes like stuckCounter does
     const iterationActions = session.actionHistory.filter(a => a.iteration === session.iterationCount);
     const iterationStats = {
@@ -9586,6 +9624,11 @@ async function startAutomationLoop(sessionId) {
       iterationStats.urlChanged ||
       iterationStats.hadNavigation ||
       iterationStats.hadEffect ||
+      // Canvas-based editors (Sheets, Docs): successful type/keyPress actions count as progress
+      // because canvas rendering doesn't update DOM elements
+      (isCanvasEditorUrl(currentUrl) &&
+       iterationActions.some(a => ['type', 'keyPress'].includes(a.tool) && a.result?.success) &&
+       iterationStats.actionsSucceeded > 0) ||
       // Use changeSignals channels to distinguish meaningful changes from noise
       (changeSignals.changed && changeSignals.channels.some(
         ch => ['structural', 'content', 'pageState'].includes(ch)
@@ -9604,6 +9647,7 @@ async function startAutomationLoop(sessionId) {
         progressSignal: iterationStats.urlChanged ? 'url_changed' :
                         iterationStats.hadNavigation ? 'navigation' :
                         iterationStats.hadEffect ? 'had_effect' :
+                        isCanvasEditorUrl(currentUrl) ? 'canvas_editor_action' :
                         iterationStats.newDataExtracted ? 'extraction_progress' :
                         'dom_change_substantive'
       });
