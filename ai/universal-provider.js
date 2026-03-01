@@ -523,27 +523,26 @@ class UniversalProvider {
   }
   
   /**
-   * Parse response from any provider
+   * Parse response from any provider -- returns raw text string (not parsed JSON).
+   * CLI parser (parseCliResponse) handles all response interpretation downstream.
    */
   parseResponse(response) {
     let content, usage;
-    
+
     switch (this.provider) {
       case 'gemini':
         if (!response.candidates || response.candidates.length === 0) {
           throw new Error('No response from Gemini API');
         }
         content = response.candidates[0].content.parts[0].text;
-        
-        // Debug: Log raw Gemini response before cleaning (only in debug mode)
-        
+
         usage = {
           inputTokens: response.usageMetadata?.promptTokenCount || 0,
           outputTokens: response.usageMetadata?.candidatesTokenCount || 0,
           totalTokens: response.usageMetadata?.totalTokenCount || 0
         };
         break;
-        
+
       case 'anthropic':
         content = response.content[0].text;
         usage = {
@@ -552,21 +551,19 @@ class UniversalProvider {
           totalTokens: (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0)
         };
         break;
-        
+
       default:
         // OpenAI-compatible format (including xAI)
         if (!response.choices || response.choices.length === 0) {
           throw new Error(`No response from ${this.provider} API`);
         }
         content = response.choices[0].message.content;
-        
-        // Debug: raw xAI response logging removed for performance
-        
+
         // Handle xAI's separate reasoning token counting
         if (this.provider === 'xai' && response.usage?.completion_tokens_details?.reasoning_tokens) {
           const reasoningTokens = response.usage.completion_tokens_details.reasoning_tokens;
           const completionTokens = response.usage.completion_tokens || 0;
-          
+
           usage = {
             inputTokens: response.usage?.prompt_tokens || 0,
             outputTokens: completionTokens,
@@ -581,393 +578,14 @@ class UniversalProvider {
           };
         }
     }
-    
-    // Clean the response
-    const originalContent = content;
-    content = this.cleanResponse(content);
-    
-    // Debug: xAI cleaning effect logging removed for performance
-    
-    // Parse the cleaned JSON content
-    let parsedContent;
-    try {
-      parsedContent = JSON.parse(content);
-    } catch (error) {
-      console.error(`Failed to parse cleaned ${this.provider} response:`, error.message);
-      console.error('Cleaned content:', content.substring(0, 500));
-      throw new Error(`Invalid JSON from ${this.provider} after cleaning: ${error.message}`);
-    }
-    
+
+    // Return raw text string -- CLI parser handles all cleaning and interpretation
     return {
-      content: parsedContent,
+      content,
       usage,
       model: response.model || this.model
     };
   }
-  
-  /**
-   * Provider-aware response cleaner
-   */
-  cleanResponse(content) {
-    // Use the universal JSON parser instead of provider-specific methods
-    return this.parseJSONSafely(content);
-  }
-  
-  /**
-   * Enhanced universal JSON parser that handles various malformations
-   */
-  parseJSONSafely(content) {
-    const parseStartTime = Date.now();
-
-    // Stage 0: Quick validation for empty/null content
-    if (!content || content.trim().length === 0) {
-      console.warn('parseJSONSafely: Empty content provided');
-      return '{ "success": false, "error": "Empty response", "actions": [], "taskComplete": false }';
-    }
-
-    // Stage 1: Try raw parsing first - EXIT IMMEDIATELY if already valid
-    // This is the fast path for well-formed responses
-    try {
-      JSON.parse(content);
-      return content; // Already valid - no cleaning needed
-    } catch (e) {
-      // Continue with cleaning only if raw parse fails
-    }
-    
-    let cleaned = content;
-    
-    // Stage 2: Remove common wrappers
-    // Remove markdown code blocks
-    cleaned = cleaned.replace(/```(?:json|JSON|Json)?\s*\n?/g, '');
-    cleaned = cleaned.replace(/```\s*$/g, '');
-    
-    // Remove conversational prefixes only (not suffixes that might truncate JSON)
-    cleaned = cleaned.replace(/^[^{]*?(?=\{)/, ''); // Everything before first {
-    
-    // Stage 3: Check for and fix truncation
-    cleaned = this.fixTruncatedJSON(cleaned);
-    
-    // Stage 3.5: Fix common malformations before tokenization
-    cleaned = this.fixCommonMalformations(cleaned);
-    
-    // Stage 4: Tokenize and fix structure
-    cleaned = this.fixJSONStructure(cleaned);
-    
-    // Stage 5: Validate and return
-    try {
-      JSON.parse(cleaned);
-      return cleaned;
-    } catch (e) {
-      console.error('parseJSONSafely failed after all attempts:', e.message);
-      console.error('Failed JSON (first 200 chars):', cleaned.substring(0, 200));
-      
-      // Stage 6: Try fallback extraction
-      const fallback = this.extractJSONFallback(content);
-      if (fallback) {
-        try {
-          JSON.parse(fallback);
-          return fallback;
-        } catch (fe) {
-          // Fallback extraction also failed
-        }
-      }
-      
-      // Last resort: return a minimal valid JSON if everything fails
-      console.warn('All JSON parsing attempts failed, returning minimal fallback');
-      return '{ "success": false, "error": "JSON parsing failed", "actions": [], "taskComplete": false }';
-    }
-  }
-  
-  /**
-   * Fix common malformations in JSON
-   */
-  fixCommonMalformations(input) {
-    let fixed = input;
-    
-    // PERF: Debug logging removed from hot parsing path
-    
-    // Fix unquoted string values with special characters or units
-    // This regex looks for patterns like: "key": 29%, "key": 8 mph, etc.
-    fixed = fixed.replace(/("[^"]+"\s*:\s*)(\d+[^,\d\s}\]]+[^,}\]]*)/g, '$1"$2"');
-    
-    // Fix unquoted non-numeric values, but EXCLUDE boolean and null values
-    // Use negative lookahead to exclude true, false, null
-    fixed = fixed.replace(/("[^"]+"\s*:\s*)(?!(true|false|null)([,}\]\s]))([^"\[\{\-\d\s][^,}\]]*?)([,}\]])/g, '$1"$4"$5');
-    
-    // PERF: Post-fix logging removed from hot parsing path
-    
-    return fixed;
-  }
-  
-  /**
-   * Fix truncated JSON by adding missing closing characters
-   */
-  fixTruncatedJSON(input) {
-    if (!input.trim()) return input;
-    
-    let depth = 0;
-    let inString = false;
-    let escapeNext = false;
-    let lastStringStart = -1;
-    let bracketStack = []; // Track opening brackets/braces
-    
-    // Analyze the JSON structure
-    for (let i = 0; i < input.length; i++) {
-      const char = input[i];
-      
-      if (!escapeNext) {
-        if (char === '"' && !inString) {
-          inString = true;
-          lastStringStart = i;
-        } else if (char === '"' && inString) {
-          inString = false;
-          lastStringStart = -1;
-        } else if (char === '\\' && inString) {
-          escapeNext = true;
-        } else if (!inString) {
-          if (char === '{') {
-            bracketStack.push('}');
-            depth++;
-          } else if (char === '[') {
-            bracketStack.push(']');
-            depth++;
-          } else if (char === '}' || char === ']') {
-            if (bracketStack.length > 0 && bracketStack[bracketStack.length - 1] === char) {
-              bracketStack.pop();
-              depth--;
-            }
-          }
-        }
-      } else {
-        escapeNext = false;
-      }
-    }
-    
-    let fixed = input;
-    
-    // If we're in the middle of a string, close it
-    if (inString) {
-      // Check if the truncation happened in the middle of a value
-      // Look for common patterns like: "result": "The weather is 102°F with
-      const lastPortion = input.substring(Math.max(0, lastStringStart));
-      if (!lastPortion.includes('"')) {
-        // String was cut off, close it
-        fixed += '"';
-      }
-    }
-    
-    // Add missing closing brackets/braces intelligently
-    // If we're in an actions array, ensure it's properly closed
-    if (fixed.includes('"actions"') && !fixed.includes('"taskComplete"')) {
-      // We're truncated in the middle of the response
-      // Ensure actions array is closed
-      const hasOpenActionArray = fixed.includes('"actions": [') && 
-                                  !fixed.substring(fixed.lastIndexOf('"actions": [')).includes(']');
-      
-      if (hasOpenActionArray) {
-        // Check if we need to close an action object first
-        const lastActionStart = fixed.lastIndexOf('{"tool":');
-        if (lastActionStart > fixed.lastIndexOf('}')) {
-          // Incomplete action object
-          if (!fixed.includes('"params"', lastActionStart)) {
-            fixed += ', "params": {}';
-          }
-          if (!fixed.includes('"description"', lastActionStart)) {
-            fixed += ', "description": "Truncated action"';
-          }
-          fixed += '}'; // Close action object
-        }
-        fixed += ']'; // Close actions array
-      }
-      
-      // Add missing required fields
-      if (!fixed.includes('"taskComplete"')) {
-        fixed += ', "taskComplete": false';
-      }
-      if (!fixed.includes('"result"')) {
-        fixed += ', "result": "Response truncated - retrying"';
-      }
-    }
-    
-    // Now add remaining closing brackets/braces
-    while (bracketStack.length > 0) {
-      const closingChar = bracketStack.pop();
-      fixed += closingChar;
-    }
-    
-    // PERF: Truncation fix logging removed from hot parsing path
-    return fixed;
-  }
-  
-  /**
-   * Fix JSON structure using tokenization
-   */
-  fixJSONStructure(input) {
-    // This is a simplified tokenizer that identifies JSON elements
-    let result = '';
-    let inString = false;
-    let escapeNext = false;
-    let lastNonWhitespace = '';
-    let depth = 0;
-    
-    for (let i = 0; i < input.length; i++) {
-      const char = input[i];
-      const nextChar = input[i + 1] || '';
-      
-      // Handle string literals carefully
-      if (!escapeNext) {
-        if (char === '"' && !inString) {
-          inString = true;
-          result += char;
-        } else if (char === '"' && inString) {
-          inString = false;
-          result += char;
-        } else if (char === '\\' && inString) {
-          escapeNext = true;
-          result += char;
-        } else if (inString) {
-          // Inside string - preserve everything
-          result += char;
-        } else {
-          // Outside string - apply fixes
-          if (char === '{' || char === '[') {
-            depth++;
-            result += char;
-            lastNonWhitespace = char;
-          } else if (char === '}' || char === ']') {
-            // Remove trailing commas before closing braces/brackets
-            if (lastNonWhitespace === ',') {
-              result = result.slice(0, -1);
-            }
-            depth--;
-            result += char;
-            lastNonWhitespace = char;
-          } else if (char === ':') {
-            result += char;
-            lastNonWhitespace = char;
-          } else if (char === ',') {
-            // Don't add comma if next non-whitespace is closing brace/bracket
-            let j = i + 1;
-            while (j < input.length && /\s/.test(input[j])) j++;
-            if (input[j] === '}' || input[j] === ']') {
-              // Skip this comma
-            } else {
-              result += char;
-              lastNonWhitespace = char;
-            }
-          } else if (char === "'") {
-            // Replace single quotes with double quotes (outside strings)
-            result += '"';
-          } else if (/\s/.test(char)) {
-            result += char;
-            // Don't update lastNonWhitespace for whitespace
-          } else {
-            result += char;
-            if (!/\s/.test(char)) {
-              lastNonWhitespace = char;
-            }
-          }
-        }
-      } else {
-        // After escape character
-        escapeNext = false;
-        result += char;
-      }
-    }
-    
-    // Final fixes
-    // Ensure property names are quoted
-    result = this.ensureQuotedPropertyNames(result);
-    
-    // Fix missing commas between properties
-    result = this.fixMissingCommas(result);
-    
-    return result;
-  }
-  
-  /**
-   * Ensure all property names are quoted
-   */
-  ensureQuotedPropertyNames(input) {
-    // This regex matches unquoted property names outside of strings
-    // It's conservative to avoid breaking valid JSON
-    return input.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
-  }
-  
-  /**
-   * Fix missing commas between properties and array elements
-   */
-  fixMissingCommas(input) {
-    // Fix missing commas between properties: "}" followed by """
-    input = input.replace(/}\s*"/g, '},"');
-    
-    // Fix missing commas between array elements: "}" followed by "{"
-    input = input.replace(/}\s*{/g, '},{');
-    
-    // Fix missing commas between string values: """ followed by """
-    // But be careful not to break escaped quotes
-    input = input.replace(/(?<!\\)"\s+(?<!\\)"/g, '","');
-    
-    // Fix missing commas between ] and [
-    input = input.replace(/]\s*\[/g, '],[');
-    
-    return input;
-  }
-  
-  /**
-   * Extract JSON using fallback strategies
-   */
-  extractJSONFallback(content) {
-    // Try to extract a valid JSON object even from severely malformed content
-    const patterns = [
-      // Look for JSON-like structure
-      /\{[^{}]*"reasoning"[^{}]*"actions"[^{}]*\}/s,
-      // Look for any object with reasoning
-      /\{[^{}]*"reasoning"[^{}]*\}/s,
-      // Any JSON object
-      /\{[\s\S]*\}/
-    ];
-    
-    for (const pattern of patterns) {
-      const match = content.match(pattern);
-      if (match) {
-        let extracted = match[0];
-        
-        // Try to fix common issues in the extracted content
-        // Fix truncated strings by closing them
-        let quoteCount = (extracted.match(/"/g) || []).length;
-        if (quoteCount % 2 !== 0) {
-          // Odd number of quotes, add a closing quote
-          extracted += '"';
-        }
-        
-        // Ensure the object is closed
-        const openBraces = (extracted.match(/\{/g) || []).length;
-        const closeBraces = (extracted.match(/\}/g) || []).length;
-        if (openBraces > closeBraces) {
-          extracted += '}'.repeat(openBraces - closeBraces);
-        }
-        
-        // Try to parse the fixed version
-        try {
-          JSON.parse(extracted);
-          return extracted;
-        } catch (e) {
-          // Continue to next pattern
-        }
-      }
-    }
-    
-    // If all else fails, create a minimal valid response
-    console.warn('[FSB] Creating minimal fallback response');
-    return JSON.stringify({
-      reasoning: "Failed to parse AI response",
-      actions: [],
-      taskComplete: false,
-      error: "Response parsing failed"
-    });
-  }
-  
   
   /**
    * Test connection
