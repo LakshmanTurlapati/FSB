@@ -1016,10 +1016,9 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
    */
   updateConversationHistory(prompt, response, isFirstIteration) {
     try {
-      // Serialize response to string for storage
-      const responseContent = typeof response === 'string'
-        ? response
-        : JSON.stringify(response);
+      // Store raw CLI text as-is (no JSON.stringify). The _rawCliText field is
+      // attached by processQueue from the raw AI output before CLI parsing.
+      const responseContent = response._rawCliText || '';
 
       if (isFirstIteration) {
         // First iteration: store system + user + assistant
@@ -1353,19 +1352,32 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
 
   /**
    * Local extractive fallback for compaction.
-   * Scans raw conversation messages for URLs, actions, and errors to produce
+   * Scans raw conversation messages for CLI commands, URLs, and errors to produce
    * a structured summary without any API call.
+   * Assistant messages now contain raw CLI text (not JSON), so extraction looks
+   * for CLI command verbs and reasoning lines.
    * @param {Array} messagesToCompact - Array of conversation message objects
    * @returns {string} Extractive summary of at least 500 characters
    */
   _localExtractiveFallback(messagesToCompact) {
     const parts = ['Session progress (auto-extracted):'];
 
-    // Collect all message text content
+    // Collect all message text content (always strings now -- CLI text)
     const allText = (messagesToCompact || []).map(m => {
       if (typeof m.content === 'string') return m.content;
       try { return JSON.stringify(m.content); } catch { return ''; }
     }).join('\n');
+
+    // Known CLI verbs from COMMAND_REGISTRY for extraction
+    const cliVerbs = [
+      'click', 'type', 'navigate', 'search', 'scroll', 'select', 'enter',
+      'key', 'hover', 'focus', 'clear', 'back', 'forward', 'refresh',
+      'wait', 'waitstable', 'gettext', 'getattr', 'done', 'fail',
+      'opentab', 'switchtab', 'tabs', 'storejobdata', 'fillsheetdata',
+      'check', 'doubleclick', 'rightclick', 'goto', 'scrolldown', 'scrollup',
+      'scrolltotop', 'scrolltobottom', 'clicksearchresult', 'help'
+    ];
+    const verbPattern = new RegExp('^(' + cliVerbs.join('|') + ')\\b', 'i');
 
     // Extract URLs (deduplicated, ordered)
     const urlSet = new Set();
@@ -1378,17 +1390,42 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       parts.push('Pages visited: ' + Array.from(urlSet).join(' -> '));
     }
 
-    // Extract actions (deduplicated, last 10)
-    const actionRegex = /(?:clicked|typed|navigated|searched|scrolled|selected|pressed)[^.]{0,80}/gi;
-    const actionSet = new Set();
-    let actionMatch;
-    while ((actionMatch = actionRegex.exec(allText)) !== null) {
-      actionSet.add(actionMatch[0].trim());
+    // Extract CLI commands from assistant messages (deduplicated, last 10)
+    const cliCommands = [];
+    for (const m of (messagesToCompact || [])) {
+      if (m.role !== 'assistant') continue;
+      const text = typeof m.content === 'string' ? m.content : '';
+      const lines = text.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed && verbPattern.test(trimmed)) {
+          cliCommands.push(trimmed);
+        }
+      }
     }
-    if (actionSet.size > 0) {
-      const actions = Array.from(actionSet).slice(-10);
-      parts.push('Actions taken:');
-      actions.forEach(a => { parts.push('  - ' + a); });
+    if (cliCommands.length > 0) {
+      const cmds = cliCommands.slice(-10);
+      parts.push('CLI commands executed:');
+      cmds.forEach(c => { parts.push('  ' + c); });
+    }
+
+    // Extract reasoning from assistant messages (# lines)
+    const reasoningLines = [];
+    for (const m of (messagesToCompact || [])) {
+      if (m.role !== 'assistant') continue;
+      const text = typeof m.content === 'string' ? m.content : '';
+      const lines = text.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('#')) {
+          reasoningLines.push(trimmed.substring(1).trim());
+        }
+      }
+    }
+    if (reasoningLines.length > 0) {
+      const reasoning = reasoningLines.slice(-5);
+      parts.push('AI reasoning:');
+      reasoning.forEach(r => { parts.push('  - ' + r); });
     }
 
     // Extract errors (deduplicated, last 5)
@@ -1411,8 +1448,7 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       result += '\n\nRaw context excerpts:';
       for (const m of (messagesToCompact || [])) {
         const text = typeof m.content === 'string'
-          ? m.content
-          : (function() { try { return JSON.stringify(m.content); } catch { return ''; } })();
+          ? m.content : '';
         if (text) {
           result += '\n[' + (m.role || 'unknown') + ']: ' + text.substring(0, 200);
         }
