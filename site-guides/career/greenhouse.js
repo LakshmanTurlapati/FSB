@@ -9,6 +9,20 @@ registerSiteGuide({
   ],
   guidance: `GREENHOUSE ATS PLATFORM INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for jobs
+  click e5    # search box
+  type e5 "product manager"
+  enter
+  # browse results
+  scroll down
+  click e12   # job title link
+  # extract job data
+  gettext e15   # job title
+  gettext e18   # location
+  getattr e20 "href"   # apply link
+  storejobdata {"company":"...","role":"...","location":"...","type":"...","link":"...","source":"greenhouse"}
+
 SEARCH:
 - searchBox: input#search-input, [aria-label="Search"], input[placeholder*="Search"]
 - locationFilter: select#office-filter, [data-mapped="true"][name="office_id"], #departments-select

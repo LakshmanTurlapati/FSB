@@ -7,7 +7,20 @@ registerSiteGuide({
   patterns: [
     /glassdoor\.(com|co\.\w+)/i
   ],
-  guidance: `GLASSDOOR NAVIGATION:\nCombines job listings with company reviews and salary data.\nKeyword + location search fields.\nMay require login for full job descriptions.\nSalary estimates are Glassdoor estimates, not guaranteed.`,
+  guidance: `GLASSDOOR NAVIGATION:
+
+COMMON PATTERNS:
+  # search for jobs
+  click e5    # keyword search box
+  type e5 "UX designer"
+  click e8    # location field
+  type e8 "Austin"
+  enter
+  # extract from results
+  click e12   # job card
+  gettext e15   # job title
+  gettext e18   # company
+  storejobdata {"company":"...","role":"...","location":"...","link":"...","source":"glassdoor"}\nCombines job listings with company reviews and salary data.\nKeyword + location search fields.\nMay require login for full job descriptions.\nSalary estimates are Glassdoor estimates, not guaranteed.`,
   selectors: {
     searchBox: '#sc\\.keyword, input[name="sc.keyword"]',
     locationBox: '#sc\\.location, input[name="sc.location"]',

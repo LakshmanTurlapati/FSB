@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /jobs\.target\.com/i
   ],
-  guidance: `TARGET CAREER NAVIGATION:\nStart: https://jobs.target.com/`,
+  guidance: `TARGET CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://jobs.target.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "team leader"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Target","role":"...","location":"...","link":"...","source":"target"}\nStart: https://jobs.target.com/`,
   selectors: {
     searchBox: '#site-header-search-toggle, #query-input-1771837359594, [aria-controls="recommended-keywords-flyout-query-1771837359594"], //button[normalize-space(.)="Search jobs"], //label[normalize-space(.)="Job title, skill, or keyword"], .global-header--search-toggle.button',
     locationFilter: '//button[normalize-space(.)="Clear location"], #location-autocomplete-input-1771837359594, [aria-controls="location-autocomplete-flyout-location-1771837359594"], //label[normalize-space(.)="City or Zip Code"], .form-input-clear.button, .sr-only',

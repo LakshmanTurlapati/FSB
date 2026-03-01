@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /builtin\.com/i
   ],
-  guidance: `BUILTIN NAVIGATION:\nTech company job listings with card grid layout.\nCity-specific pages available (builtin.com/chicago, builtin.com/nyc).\nFilters: location, role type, experience level, company size.\nRemote job filtering available.`,
+  guidance: `BUILTIN NAVIGATION:
+
+COMMON PATTERNS:
+  # search for jobs
+  click e5    # search input
+  type e5 "machine learning engineer"
+  enter
+  # browse results
+  click e10   # job card
+  gettext e12   # job title
+  gettext e15   # company name
+  storejobdata {"company":"...","role":"...","location":"...","link":"...","source":"builtin"}\nTech company job listings with card grid layout.\nCity-specific pages available (builtin.com/chicago, builtin.com/nyc).\nFilters: location, role type, experience level, company size.\nRemote job filtering available.`,
   selectors: {
     searchBox: 'input[name="search"], input[placeholder*="Search"]',
     jobCards: '.job-card, [data-id="job-card"]',

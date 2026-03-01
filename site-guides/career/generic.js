@@ -21,7 +21,19 @@ registerSiteGuide({
     /icims\.com/i,
     /jobvite\.com/i
   ],
-  guidance: `GENERIC CAREER FALLBACK:\nThis guide matches when no company-specific or ATS-specific guide applies.\nFor known ATS platforms, dedicated guides exist: Workday (workday.js), Greenhouse (greenhouse.js), Lever (lever.js), iCIMS (icims.js), Taleo (taleo.js).\nWorkflow: search box -> enter keywords -> apply filters -> scan listings -> extract job data.`,
+  guidance: `GENERIC CAREER FALLBACK:
+
+COMMON PATTERNS:
+  # search for jobs on any career site
+  click e5    # search box
+  type e5 "role keywords"
+  enter
+  # extract from results
+  click e10   # job listing
+  gettext e12   # job title
+  gettext e15   # location
+  getattr e18 "href"   # apply link
+  storejobdata {"company":"...","role":"...","location":"...","link":"...","source":"..."}\nThis guide matches when no company-specific or ATS-specific guide applies.\nFor known ATS platforms, dedicated guides exist: Workday (workday.js), Greenhouse (greenhouse.js), Lever (lever.js), iCIMS (icims.js), Taleo (taleo.js).\nWorkflow: search box -> enter keywords -> apply filters -> scan listings -> extract job data.`,
   selectors: {
     searchBox: 'input[type="search"], input[placeholder*="Search"], input[name*="search"], input[name*="keyword"]',
     jobCards: '[class*="job-card"], [class*="job-listing"], [class*="position-card"], [class*="opening"]',

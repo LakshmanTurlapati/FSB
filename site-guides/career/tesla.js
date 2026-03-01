@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.tesla\.com\/careers/i
   ],
-  guidance: `TESLA CAREER NAVIGATION:\nLOW confidence guide -- use generic ATS fallback for interaction patterns.\nStart: https://www.tesla.com/careers`,
+  guidance: `TESLA CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.tesla.com/careers"
+  # search and extract
+  click e5    # search box
+  type e5 "battery engineer"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Tesla","role":"...","location":"...","link":"...","source":"tesla"}\nLOW confidence guide -- use generic ATS fallback for interaction patterns.\nStart: https://www.tesla.com/careers`,
   workflows: {
     searchJobs: [
       'Navigate to https://www.tesla.com/careers',

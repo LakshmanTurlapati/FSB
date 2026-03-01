@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.ibm\.com\/careers/i
   ],
-  guidance: `IBM CAREER NAVIGATION:\nStart: https://www.ibm.com/careers/`,
+  guidance: `IBM CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.ibm.com/careers/"
+  # search and extract
+  click e5    # search box
+  type e5 "cloud architect"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"IBM","role":"...","location":"...","link":"...","source":"ibm"}\nStart: https://www.ibm.com/careers/`,
   selectors: {
     searchBox: '#search__input-22, [role="searchbox"], #search__input__search-22, [aria-label="Search"], #ibmdocs-searchbar, #ibmdocs-searchbar-search',
     locationFilter: '//button[normalize-space(.)="Location"], [aria-controls="accordion-item-5"]',

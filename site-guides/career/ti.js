@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /careers\.ti\.com/i
   ],
-  guidance: `TEXAS INSTRUMENTS CAREER NAVIGATION:\nStart: https://careers.ti.com/`,
+  guidance: `TEXAS INSTRUMENTS CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://careers.ti.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "embedded systems engineer"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Texas Instruments","role":"...","location":"...","link":"...","source":"ti"}\nStart: https://careers.ti.com/`,
   selectors: {
     searchBox: '[aria-controls="suggestions-keywords"], [aria-label="Find jobs and events"], //button[normalize-space(.)="Near Location"], [aria-label="You\'ve selected the Near Location search mode."], [aria-label="Search for Jobs and Events"], [aria-controls="suggestions-locations"]',
     locationFilter: '//label[normalize-space(.)="City, state, country"], .oj-helper-hidden-accessible',

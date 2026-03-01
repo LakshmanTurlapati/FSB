@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /careers\.mckesson\.com/i
   ],
-  guidance: `MCKESSON CAREER NAVIGATION:\nStart: https://careers.mckesson.com/`,
+  guidance: `MCKESSON CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://careers.mckesson.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "supply chain analyst"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"McKesson","role":"...","location":"...","link":"...","source":"mckesson"}\nStart: https://careers.mckesson.com/`,
   selectors: {
     searchBox: '#search-radius-cfd8b105c2, [name="r"], #search-keyword-cfd8b105c2, [name="k"], [aria-controls="search-location-cfd8b105c2-mindreader"], [role="combobox"][aria-describedby="search-error-1 autocomplete-message-search-location-cfd8b105c2"]',
     locationFilter: '#country-toggle, //button[normalize-space(.)="Country"], #region-toggle, //button[normalize-space(.)="State/Province"], #city-toggle, //button[normalize-space(.)="City"]',

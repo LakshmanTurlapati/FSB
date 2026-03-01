@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.amazon\.jobs/i
   ],
-  guidance: `AMAZON CAREER NAVIGATION:\nStart: https://www.amazon.jobs/`,
+  guidance: `AMAZON CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.amazon.jobs/"
+  # search and extract
+  click e5    # search box
+  type e5 "solutions architect"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Amazon","role":"...","location":"...","link":"...","source":"amazon"}\nStart: https://www.amazon.jobs/`,
   selectors: {
     searchBox: '[aria-controls="search_typeahead-homepage-listbox-2stkayz"], [role="combobox"][aria-labelledby="search_typeahead-homepage-label"], #search-button, [role="button"][aria-labelledby="search-button-label"], [aria-controls="search_typeahead-homepage-listbox-wow8dle"], [aria-controls="kxuq4z-9ZAGolFYTS0-2"]',
     locationFilter: '[aria-controls="location-typeahead-homepage-listbox-iaen4ix"], [role="combobox"][aria-labelledby="location-typeahead-homepage-label"], [data-fsb-id="a_locationssee_where_a"], [aria-controls="location-typeahead-homepage-listbox-hroqq4y"], [data-fsb-id="a_facilities_maintenan_facilities_main"], [aria-controls="location-typeahead-homepage-listbox-poduhdg"]',

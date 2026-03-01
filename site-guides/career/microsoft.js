@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /careers\.microsoft\.com/i
   ],
-  guidance: `MICROSOFT CAREER NAVIGATION:\nStart: https://careers.microsoft.com/`,
+  guidance: `MICROSOFT CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://careers.microsoft.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "cloud engineer"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Microsoft","role":"...","location":"...","link":"...","source":"microsoft"}\nStart: https://careers.microsoft.com/`,
   selectors: {
     searchBox: '#search, [aria-label="Search jobs"], #find-jobs-btn, //button[normalize-space(.)="Find jobs"], #professionTabbox9, [role="button"]',
     locationFilter: '#nav-c1-Locations, //a[normalize-space(.)="Locations"], #location, #careers-customHTabs-tablinks-id1-2, [aria-label="Greater China Region"], #careers-customLeftCarousel-dotid-c1-d1',

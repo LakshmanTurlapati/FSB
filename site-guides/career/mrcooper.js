@@ -7,7 +7,17 @@ registerSiteGuide({
   patterns: [
     /careers\.mrcooper\.com/i
   ],
-  guidance: `MR. COOPER CAREER NAVIGATION:\nStart: https://careers.mrcooper.com/`,
+  guidance: `MR. COOPER CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://careers.mrcooper.com/"
+  # browse and extract
+  click e5    # browse jobs link
+  scroll down
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Mr. Cooper","role":"...","location":"...","link":"...","source":"mrcooper"}\nStart: https://careers.mrcooper.com/`,
   selectors: {
     locationFilter: '#country, #country-label, //label[normalize-space(.)="Country*"], .form-control',
     departmentFilter: '//button[normalize-space(.)="India"], //a[normalize-space(.)="OUR TEAMS"], [data-fsb-id="a_our_teams_nav"], //button[normalize-space(.)="OUR TEAMS"], [aria-expanded="false"], //a[normalize-space(.)="Our Teams"]',

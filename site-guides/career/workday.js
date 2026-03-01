@@ -9,6 +9,20 @@ registerSiteGuide({
   ],
   guidance: `WORKDAY ATS PLATFORM INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for jobs
+  click e5    # search box
+  type e5 "software engineer"
+  enter
+  # browse results
+  scroll down
+  click e12   # job card/title
+  # extract job data
+  gettext e15   # job title
+  gettext e18   # location
+  getattr e20 "href"   # apply link
+  storejobdata {"company":"...","role":"...","location":"...","type":"...","link":"...","source":"workday"}
+
 SEARCH:
 - searchBox: [data-automation-id="keywordSearchInput"], input[aria-label="Search for jobs"], [data-automation-id="searchBox"]
 - locationFilter: [data-automation-id="locationSearchInput"], button[aria-label="Search Location"], [data-automation-id="location"]

@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.nvidia\.com\/en-us/i
   ],
-  guidance: `NVIDIA CAREER NAVIGATION:\nStart: https://www.nvidia.com/en-us/about-nvidia/careers/`,
+  guidance: `NVIDIA CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.nvidia.com/en-us/about-nvidia/careers/"
+  # search and extract
+  click e5    # search box
+  type e5 "GPU architect"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"NVIDIA","role":"...","location":"...","link":"...","source":"nvidia"}\nStart: https://www.nvidia.com/en-us/about-nvidia/careers/`,
   selectors: {
     searchBox: '[aria-label="Search NVIDIA"], #nv-search-box, [role="none"], //a[normalize-space(.)="What\'s New"], [data-fsb-id="a_whats_new_menuitem"], //label[normalize-space(.)="What\'s New"]',
     locationFilter: '[aria-expanded="false"], [aria-label="Country Selector"]',

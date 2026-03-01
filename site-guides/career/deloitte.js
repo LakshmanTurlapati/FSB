@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.deloitte\.com\/global/i
   ],
-  guidance: `DELOITTE CAREER NAVIGATION:\nStart: https://www.deloitte.com/global/en/careers.html\nATS: workday`,
+  guidance: `DELOITTE CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.deloitte.com/global/en/careers.html"
+  # search and extract
+  click e5    # search jobs link
+  type e8 "consultant"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Deloitte","role":"...","location":"...","link":"...","source":"deloitte"}\nStart: https://www.deloitte.com/global/en/careers.html\nATS: workday`,
   selectors: {
     searchBox: '#search-button, [aria-label="Search"], //a[normalize-space(.)="Search Deloitte jobs"], [data-fsb-id="a_search_deloitte_jobs_main"], //a[normalize-space(.)="What we do"], //a[normalize-space(.)="What we believe in"]',
     departmentFilter: '//a[normalize-space(.)="Deloitte Private global report"], [data-fsb-id="a_deloitte_private_glo_main"], [data-fsb-id="a_climate_governance_i_main"], [data-fsb-id="a_gartner_critical_cap_main"], [data-fsb-id="a_gartner_magic_quadra_main"], .cmp-promo-tracking',

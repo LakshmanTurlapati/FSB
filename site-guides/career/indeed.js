@@ -7,7 +7,20 @@ registerSiteGuide({
   patterns: [
     /indeed\.com/i
   ],
-  guidance: `INDEED NAVIGATION:\nSearch has two fields: "What" (keywords) and "Where" (location).\nClear "Where" before typing new location (may have default).\nSponsored listings appear first -- skip unless no organic results match.\nSome job details open in side panel rather than new page.`,
+  guidance: `INDEED NAVIGATION:
+
+COMMON PATTERNS:
+  # search for jobs
+  click e5    # keyword search box
+  type e5 "frontend developer"
+  click e8    # location field
+  type e8 "San Francisco"
+  click e12   # search button
+  # extract from results
+  click e15   # job listing
+  gettext e18   # job title
+  gettext e20   # company name
+  storejobdata {"company":"...","role":"...","location":"...","link":"...","source":"indeed"}\nSearch has two fields: "What" (keywords) and "Where" (location).\nClear "Where" before typing new location (may have default).\nSponsored listings appear first -- skip unless no organic results match.\nSome job details open in side panel rather than new page.`,
   selectors: {
     searchBox: '#text-input-what, input[name="q"]',
     locationBox: '#text-input-where, input[name="l"]',

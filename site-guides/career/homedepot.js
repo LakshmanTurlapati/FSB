@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /careers\.homedepot\.com/i
   ],
-  guidance: `HOME DEPOT CAREER NAVIGATION:\nStart: https://careers.homedepot.com/`,
+  guidance: `HOME DEPOT CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://careers.homedepot.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "store associate"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Home Depot","role":"...","location":"...","link":"...","source":"homedepot"}\nStart: https://careers.homedepot.com/`,
   selectors: {
     searchBox: '#cws_quickjobsearch_keywords, [aria-label="Keyword"], #cws_quickjobsearch_location, [name="location"], //a[normalize-space(.)="Search FOR HOURLY ROLES"], //a[normalize-space(.)="SEARCH REMOTE ROLES"]',
     locationFilter: '#zip, [name="zip"], //label[normalize-space(.)="Zip*"], //a[normalize-space(.)="Privacy & Security Statement"], [aria-label="Privacy & Security Statement opens in new tab"], //a[normalize-space(.)="Associate Privacy Statement"]',

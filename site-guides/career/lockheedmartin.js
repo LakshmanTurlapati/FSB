@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.lockheedmartinjobs\.com/i
   ],
-  guidance: `LOCKHEED MARTIN CAREER NAVIGATION:\nStart: https://www.lockheedmartinjobs.com/`,
+  guidance: `LOCKHEED MARTIN CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.lockheedmartinjobs.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "systems engineer"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Lockheed Martin","role":"...","location":"...","link":"...","source":"lockheedmartin"}\nStart: https://www.lockheedmartinjobs.com/`,
   selectors: {
     searchBox: '#tb-search-widget-radius, [name="r"], #tb-search-widget-keyword, [name="k"], #tb-search-widget-location, [name="location"]',
     locationFilter: '//a[normalize-space(.)="Locations"], #navIconGlobe, [aria-controls="navMenu_2_GlobalActivity"], //label[normalize-space(.)="Location"], [data-fsb-id="label_location_tb_search_widge"], //a[normalize-space(.)="We\'re hiring! Radar, EW and Se"]',

@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /jobs\.lowes\.com/i
   ],
-  guidance: `LOWE'S CAREER NAVIGATION:\nStart: https://jobs.lowes.com/`,
+  guidance: `LOWE'S CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://jobs.lowes.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "sales associate"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Lowe's","role":"...","location":"...","link":"...","source":"lowes"}\nStart: https://jobs.lowes.com/`,
   selectors: {
     searchBox: '//a[normalize-space(.)="Search & Apply"], [aria-label="Search & Apply"]',
     locationFilter: '//button[normalize-space(.)="Where You Work"], [aria-expanded="false"]',

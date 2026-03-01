@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /careers\.jnj\.com/i
   ],
-  guidance: `JOHNSON & JOHNSON CAREER NAVIGATION:\nStart: https://careers.jnj.com/`,
+  guidance: `JOHNSON & JOHNSON CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://careers.jnj.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "research scientist"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Johnson & Johnson","role":"...","location":"...","link":"...","source":"jnj"}\nStart: https://careers.jnj.com/`,
   selectors: {
     searchBox: '#js-quick-job-search, //button[normalize-space(.)="Search"], //button[normalize-space(.)="Search J&J.com"], #ql-search, //label[normalize-space(.)="Keywords:"], .SearchOverlay-search-button',
     locationFilter: '#ql-country, [name="country"], //button[normalize-space(.)="English USA"], [aria-label="English USA - Open modal to change region"], //label[normalize-space(.)="Country / Territory:"], .visually-hidden',

@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.goldmansachs\.com\/careers/i
   ],
-  guidance: `GOLDMAN SACHS CAREER NAVIGATION:\nStart: https://www.goldmansachs.com/careers/`,
+  guidance: `GOLDMAN SACHS CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.goldmansachs.com/careers/"
+  # search and extract
+  click e5    # search box
+  type e5 "investment banking analyst"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Goldman Sachs","role":"...","location":"...","link":"...","source":"goldmansachs"}\nStart: https://www.goldmansachs.com/careers/`,
   selectors: {
     searchBox: '[name="searchValue"], //a[normalize-space(.)="What We Do"], [aria-expanded="false"], input[type="text"][placeholder="Search\\ by\\ Role\\,\\ Skill\\,\\ or\\ Business"]',
     locationFilter: '//a[normalize-space(.)="See Office Locations"], .gs-uitk-c-1ojzahj--button-root.gs-button',
