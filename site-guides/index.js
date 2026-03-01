@@ -415,6 +415,19 @@ function extractCompaniesFromTask(taskString) {
 }
 
 /**
+ * Extract the selectors object from the matched site guide for a given URL.
+ * Returns the guide's selectors (CSS/XPath mappings to page elements) or null.
+ * Used by the YAML snapshot engine for [hint:key:action] annotation matching.
+ * @param {string} url - The current page URL
+ * @returns {Object|null} The selectors object or null
+ */
+function getGuideSelectorsForUrl(url) {
+  const guide = getGuideForUrl(url);
+  if (!guide || !guide.selectors) return null;
+  return guide.selectors;
+}
+
+/**
  * Format a selectors object into a readable string for prompt injection.
  * @param {Object} selectors - Key-value pairs of selector names and CSS selectors
  * @returns {string} Formatted selector list

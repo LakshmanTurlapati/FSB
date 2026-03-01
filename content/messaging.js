@@ -761,6 +761,27 @@
           sendResponse({ success: true, compactSnapshot: compactResult });
           break;
 
+        case 'getYAMLSnapshot':
+          const yamlMode = request.options?.mode || 'interactive';
+          const yamlGuideSelectors = request.options?.guideSelectors || null;
+          const yamlStart = Date.now();
+          const yamlResult = FSB.buildYAMLSnapshot({
+            mode: yamlMode,
+            guideSelectors: yamlGuideSelectors
+          });
+          const yamlTime = Date.now() - yamlStart;
+          logger.logTiming(FSB.sessionId, 'DOM', 'buildYAMLSnapshot', yamlTime, {
+            mode: yamlMode,
+            elements: yamlResult.elementCount
+          });
+          sendResponse({
+            success: true,
+            yamlSnapshot: yamlResult.snapshot,
+            refGeneration: yamlResult.refGeneration,
+            elementCount: yamlResult.elementCount
+          });
+          break;
+
         case 'executeAction':
           const { tool, params, visualContext } = request;
           logger.logActionExecution(FSB.sessionId, tool, 'start', params);
@@ -929,7 +950,7 @@
     logger.logComm(FSB.sessionId, 'receive', request.action, true, { hasSessionId: !!request.sessionId });
 
     // Handle async operations properly
-    if (request.action === 'executeAction' || request.action === 'getDOM') {
+    if (request.action === 'executeAction' || request.action === 'getDOM' || request.action === 'getYAMLSnapshot') {
       handleAsyncMessage(request, sendResponse);
       return true; // Keep message channel open for async response
     }
