@@ -1,0 +1,24 @@
+# Golden response file: anthropic/data-extraction.txt
+# Provider: anthropic (claude-sonnet-4-5)
+# Task: Extract product names, prices, and descriptions from the table
+# DOM: test-data/dom-snapshots/data-table.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# Extract product data from each row
+gettext e14
+gettext e15
+gettext e16
+gettext e19
+gettext e20
+gettext e21
+gettext e24
+gettext e25
+gettext e26
+gettext e29
+gettext e30
+gettext e31
+gettext e34
+gettext e35
+gettext e36
+done "extracted 5 product details"

@@ -1,0 +1,44 @@
+# Golden response file: openai/career-search.txt
+# Provider: openai (gpt-4o)
+# Task: Search for engineering jobs and store results with storeJobData
+# DOM: test-data/dom-snapshots/career-page.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# Current page: Google Careers with job listings already visible
+# I can see 3 job listings in the results container
+# Job 1: Software Engineer, Frontend (e14) - Mountain View (e16)
+# Job 2: Site Reliability Engineer (e20) - New York (e22)
+# Job 3: Machine Learning Engineer (e26) - Remote (e28)
+# Each has an Apply link with URL query parameters
+
+# Extract job title text for verification
+gettext e14
+gettext e20
+gettext e26
+
+# Extract location data
+gettext e16
+gettext e22
+gettext e28
+
+# Store the complete job data structure
+storejobdata
+  company: Google
+  jobs:
+    - title: Software Engineer, Frontend
+      location: Mountain View, CA
+      datePosted: 2 days ago
+      applyLink: https://careers.google.com/jobs/123?src=online&utm_source=careers
+      description: Build user-facing products using modern web technologies including React and TypeScript
+    - title: Site Reliability Engineer
+      location: New York, NY
+      datePosted: 5 days ago
+      applyLink: https://careers.google.com/jobs/456?src=online&utm_source=careers
+      description: Ensure reliability and availability of Google services at scale
+    - title: Machine Learning Engineer
+      location: Remote
+      datePosted: 1 week ago
+      applyLink: https://careers.google.com/jobs/789?src=online&utm_source=careers
+      description: Design and implement ML models for natural language processing and computer vision
+done "stored 3 jobs from Google careers"

@@ -1,0 +1,13 @@
+# Golden response file: xai/search-click.txt
+# Provider: xai (grok-4-1-fast)
+# Task: Search for wireless mouse and click the first result
+# DOM: test-data/dom-snapshots/search-results.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# Search results are already loaded for "wireless mouse"
+# I can see results starting at e7
+# The first result is "Best Wireless Mouse 2026 - Top 10 Reviews" at e7
+# I should click it to navigate to the review page
+click e7
+done "clicked first search result for wireless mouse reviews"

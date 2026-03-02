@@ -1,0 +1,34 @@
+# Golden response file: anthropic/google-sheets.txt
+# Provider: anthropic (claude-sonnet-4-5)
+# Task: Use Name Box navigation to enter job data into cells
+# DOM: test-data/dom-snapshots/google-sheets.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# Exit any active cell editing
+key "Escape"
+# Use Name Box to navigate to A1
+click e5
+type e5 "A1"
+pressenter
+# Enter column headers
+type e13 "Company"
+key "Tab"
+type e14 "Role"
+key "Tab"
+type e15 "Location"
+key "Tab"
+type e16 "Posted"
+key "Tab"
+type e17 "URL"
+# Navigate to data row
+key "Escape"
+click e5
+type e5 "A2"
+pressenter
+type e18 "Google"
+key "Tab"
+type e19 "Frontend Engineer"
+key "Tab"
+type e20 "Mountain View, CA"
+done "filled row 1 with job data"

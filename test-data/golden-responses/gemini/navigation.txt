@@ -1,0 +1,14 @@
+# Golden response file: gemini/navigation.txt
+# Provider: gemini (gemini-2.5-flash)
+# Task: Navigate to the products page and confirm arrival
+# DOM: test-data/dom-snapshots/search-page.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+Here are the commands:
+
+```
+# Navigating to the products page
+navigate "https://example.com/products"
+done "navigated to products page"
+```

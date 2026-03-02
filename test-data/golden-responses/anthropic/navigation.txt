@@ -1,0 +1,10 @@
+# Golden response file: anthropic/navigation.txt
+# Provider: anthropic (claude-sonnet-4-5)
+# Task: Navigate to the products page and confirm arrival
+# DOM: test-data/dom-snapshots/search-page.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# Navigate directly to the products page
+navigate "https://example.com/products"
+done "navigated to products page"

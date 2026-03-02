@@ -1,0 +1,15 @@
+# Golden response file: xai/navigation.txt
+# Provider: xai (grok-4-1-fast)
+# Task: Navigate to the products page and confirm arrival
+# DOM: test-data/dom-snapshots/search-page.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+Sure, I'll navigate to the products page for you.
+
+# The user wants to visit the products page on example.com
+# I can see a Products link at e2 but navigate is more direct
+navigate "https://example.com/products"
+# Verify we arrived by checking for page content
+scroll "down"
+done "navigated to products page"

@@ -1,0 +1,41 @@
+# Golden response file: openai/google-sheets.txt
+# Provider: openai (gpt-4o)
+# Task: Use Name Box navigation to enter job data into cells
+# DOM: test-data/dom-snapshots/google-sheets.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# Step 1: Escape any active cell editing mode first
+# This ensures we are in navigation mode, not edit mode
+key "Escape"
+# Step 2: Click the Name Box (e5) to select it for cell reference entry
+# The Name Box currently shows A1
+click e5
+# Step 3: Type the target cell reference and press Enter to navigate
+type e5 "A1"
+pressenter
+# Step 4: Enter column headers in row 1
+# Type the first header - Company name
+type e13 "Company"
+# Tab to move to the next cell
+key "Tab"
+# Type Position header
+type e14 "Title"
+key "Tab"
+# Type Location header
+type e15 "Location"
+key "Tab"
+type e16 "Status"
+key "Tab"
+type e17 "Link"
+# Now navigate to A2 for data entry using Name Box
+key "Escape"
+click e5
+type e5 "A2"
+pressenter
+type e18 "Google"
+key "Tab"
+type e19 "Software Engineer"
+key "Tab"
+type e20 "Mountain View, CA"
+done "filled row 1 with job data"

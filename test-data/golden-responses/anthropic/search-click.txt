@@ -1,0 +1,10 @@
+# Golden response file: anthropic/search-click.txt
+# Provider: anthropic (claude-sonnet-4-5)
+# Task: Search for wireless mouse and click a result
+# DOM: test-data/dom-snapshots/search-results.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# Results already loaded, clicking first result link
+click e7
+done "clicked first search result for wireless mouse reviews"

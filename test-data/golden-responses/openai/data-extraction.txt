@@ -1,0 +1,32 @@
+# Golden response file: openai/data-extraction.txt
+# Provider: openai (gpt-4o)
+# Task: Extract product names, prices, and descriptions from the table
+# DOM: test-data/dom-snapshots/data-table.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# The product catalog table has 5 rows visible
+# Each row has: name (col 1), price (col 2), description (col 3), rating (col 4), availability (col 5)
+# I will extract name, price, and description for each product
+# Product 1: Wireless Mouse Pro
+gettext e14
+gettext e15
+gettext e16
+# Product 2: Mechanical Keyboard
+gettext e19
+gettext e20
+gettext e21
+# Product 3: USB-C Hub
+gettext e24
+gettext e25
+gettext e26
+# Product 4: Monitor Stand
+gettext e29
+gettext e30
+gettext e31
+# Product 5: Webcam HD
+gettext e34
+gettext e35
+gettext e36
+# All 5 products extracted successfully
+done "extracted 5 product details"

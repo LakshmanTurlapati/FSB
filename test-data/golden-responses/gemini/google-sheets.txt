@@ -1,0 +1,34 @@
+# Golden response file: gemini/google-sheets.txt
+# Provider: gemini (gemini-2.5-flash)
+# Task: Use Name Box navigation to enter job data into cells
+# DOM: test-data/dom-snapshots/google-sheets.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# Exit edit mode first
+key "Escape"
+# Click Name Box and type target cell
+click e5
+type e5 "A1"
+pressenter
+# Enter headers in row 1
+type e13 "Company"
+key "Tab"
+type e14 "Job Title"
+key "Tab"
+type e15 "Location"
+key "Tab"
+type e16 "Date"
+key "Tab"
+type e17 "Apply URL"
+# Navigate to row 2 for data
+key "Escape"
+click e5
+type e5 "A2"
+pressenter
+type e18 "Google"
+key "Tab"
+type e19 "SRE"
+key "Tab"
+type e20 "New York, NY"
+done "filled row 1 with job data"

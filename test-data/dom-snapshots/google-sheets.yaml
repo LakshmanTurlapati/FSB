@@ -1,0 +1,53 @@
+url: https://docs.google.com/spreadsheets/d/1abc123/edit
+title: Job Tracker - Google Sheets
+scroll: 0/2000 (0%)
+viewport: 1920x1080
+state: complete
+captcha: false
+forms: none
+headings: none
+
+@nav
+  e1: div "" .docs-menubar #docs-menubar
+  e2: div "File" .menu-button #docs-file-menu
+  e3: div "Edit" .menu-button #docs-edit-menu
+  e4: div "View" .menu-button
+
+@header
+  e5: input "" .jfk-textinput #name-box [type=text aria-label="Name Box" hint:nameBox value=A1]
+  e6: div "" .cell-input.formula-bar-input #formula-bar [contenteditable=true]
+  e7: button "Bold" .toolbar-btn #bold-btn [aria-label=Bold]
+  e8: button "Italic" .toolbar-btn #italic-btn [aria-label=Italic]
+  e9: button "Underline" .toolbar-btn #underline-btn
+  e10: select "" .font-size-select #font-size
+  e11: button "Undo" .toolbar-btn #undo-btn
+  e12: button "Redo" .toolbar-btn #redo-btn
+  e31: button "Share" .share-btn #share-btn
+  e30: div "All changes saved" .save-status
+
+@main
+  e34: div "A" .col-header [data-col=A]
+  e35: div "B" .col-header [data-col=B]
+  e32: div "Row 1" .row-header [data-row=1]
+  e33: div "Row 2" .row-header [data-row=2]
+  e29: div "" .grid-container #grid
+  e13: div "" .waffle-cell #cell-A1 [data-cell=A1]
+  e14: div "" .waffle-cell #cell-B1 [data-cell=B1]
+  e15: div "" .waffle-cell #cell-C1 [data-cell=C1]
+  e16: div "" .waffle-cell #cell-D1 [data-cell=D1]
+  e17: div "" .waffle-cell #cell-E1 [data-cell=E1]
+  e18: div "" .waffle-cell #cell-A2 [data-cell=A2]
+  e19: div "" .waffle-cell #cell-B2 [data-cell=B2]
+  e20: div "" .waffle-cell #cell-C2 [data-cell=C2]
+  e21: div "" .waffle-cell #cell-D2 [data-cell=D2]
+  e22: div "" .waffle-cell #cell-E2 [data-cell=E2]
+  e23: div "" .waffle-cell #cell-A3 [data-cell=A3]
+  e24: div "" .waffle-cell #cell-B3 [data-cell=B3]
+  e25: div "" .waffle-cell #cell-C3 [data-cell=C3]
+
+@footer
+  e26: div "Sheet1" .sheet-tab.active #sheet-tab-1
+  e27: div "Sheet2" .sheet-tab #sheet-tab-2
+  e28: button "+" .add-sheet-btn #add-sheet
+
+--- 35/35 shown (0 offscreen)

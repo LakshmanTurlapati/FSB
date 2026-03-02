@@ -1,0 +1,9 @@
+# Type commands with special characters that could cause parsing issues
+type e7 "Hello \"World\" - it's a test"
+type e9 "Price: $9.99 & tax = $10.79"
+type e11 "Path: C:\\Users\\test\\Documents"
+type e18 "Tags: <important> & <urgent>"
+type e7 "Equation: 100% of (x + y) = z"
+type e9 "Query: name=John&age=30&city=New+York"
+type e11 "Special: @#$%^&*()_+-=[]{}|;:',.<>?/"
+done "entered special characters"

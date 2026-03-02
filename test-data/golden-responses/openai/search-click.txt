@@ -1,0 +1,14 @@
+# Golden response file: openai/search-click.txt
+# Provider: openai (gpt-4o)
+# Task: Search for wireless mouse and click a result
+# DOM: test-data/dom-snapshots/search-results.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# I can see search results are already displayed for "wireless mouse"
+# The search box e1 contains "wireless mouse" and results are visible
+# Result links: e7 (techreviews), e10 (official store), e13 (amazon), e16 (pcmag), e19 (tomsguide), e22 (razer), e25 (rtings)
+# I should click the first relevant result
+# e7 "Best Wireless Mouse 2026 - Top 10 Reviews" looks like the most comprehensive
+click e7
+done "clicked first search result for wireless mouse reviews"

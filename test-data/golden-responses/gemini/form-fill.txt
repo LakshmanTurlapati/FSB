@@ -1,0 +1,19 @@
+# Golden response file: gemini/form-fill.txt
+# Provider: gemini (gemini-2.5-flash)
+# Task: Fill out a contact form with name, email, and message
+# DOM: test-data/dom-snapshots/form-page.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+```bash
+# Filling out the contact form
+click e7
+type e7 "Maria Garcia"
+click e9
+type e9 "maria.garcia@domain.com"
+click e18
+type e18 "We are evaluating your platform for our organization. Could you provide information about enterprise licensing and support options?"
+select e13 "general"
+click e21
+done "submitted contact form"
+```
