@@ -78,6 +78,10 @@
               <i class="fas fa-terminal"></i>
               <span>Logs & Debugging</span>
             </li>
+            <li class="nav-item debug-only-nav" data-section="cli-validation" style="display: none;">
+              <i class="fas fa-flask"></i>
+              <span>CLI Validation</span>
+            </li>
             <li class="nav-item" data-section="help">
               <i class="fas fa-question-circle"></i>
               <span>Help & Documentation</span>
@@ -997,6 +1001,74 @@
 
         </section>
 
+        <!-- CLI Validation Section (Debug Mode only) -->
+        <section class="content-section" id="cli-validation">
+          <div class="section-header">
+            <h2>CLI Validation</h2>
+            <p>Cross-provider CLI compliance testing, token measurement, and edge case validation</p>
+          </div>
+
+          <!-- Controls Bar -->
+          <div class="validation-controls">
+            <div class="control-group">
+              <label class="toggle-label">
+                <input type="checkbox" id="liveTestMode">
+                <span>Live Mode</span>
+              </label>
+              <span class="mode-badge" id="testModeBadge">Golden</span>
+            </div>
+            <div class="control-group">
+              <button class="btn-primary" id="runAllTestsBtn">
+                <i class="fas fa-play"></i> Run All Tests
+              </button>
+              <button class="btn-secondary" id="runTokenComparisonBtn">
+                <i class="fas fa-chart-bar"></i> Token Comparison
+              </button>
+              <button class="btn-secondary" id="runEdgeCasesBtn">
+                <i class="fas fa-bug"></i> Edge Cases
+              </button>
+            </div>
+            <div class="control-group">
+              <span class="test-progress" id="testProgress"></span>
+            </div>
+          </div>
+
+          <!-- Summary Cards -->
+          <div class="validation-summary" id="validationSummary" style="display: none;">
+            <div class="summary-card">
+              <div class="summary-value" id="totalTestsPassed">-</div>
+              <div class="summary-label">Tests Passed</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-value" id="totalTestsFailed">-</div>
+              <div class="summary-label">Tests Failed</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-value" id="avgTokenReduction">-</div>
+              <div class="summary-label">Avg Token Reduction</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-value" id="complianceRate">-</div>
+              <div class="summary-label">Compliance Rate</div>
+            </div>
+          </div>
+
+          <!-- Provider Results Grid -->
+          <div class="provider-results" id="providerResults" style="display: none;">
+            <!-- Populated dynamically by options.js -->
+          </div>
+
+          <!-- Token Comparison Results -->
+          <div class="token-results" id="tokenResults" style="display: none;">
+            <!-- Populated dynamically by options.js -->
+          </div>
+
+          <!-- Detailed Test Results -->
+          <div class="detailed-results" id="detailedResults" style="display: none;">
+            <!-- Populated dynamically by options.js -->
+          </div>
+        </section>
+
         <!-- Passwords Section (Beta) -->
         <section class="content-section" id="passwords">
           <div class="section-header">
@@ -1237,6 +1309,11 @@
   <script src="../site-guides/productivity/google-docs.js"></script>
   <!-- Site guides viewer (must be after all guide scripts) -->
   <script src="site-guides-viewer.js"></script>
+  <!-- CLI Validation modules (loaded before options.js) -->
+  <script src="../ai/cli-parser.js"></script>
+  <script src="../lib/gpt-tokenizer.min.js"></script>
+  <script src="../utils/cli-validator.js"></script>
+  <script src="../utils/token-comparator.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

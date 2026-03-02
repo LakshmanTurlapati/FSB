@@ -319,6 +319,13 @@ function setupEventListeners() {
     toggleCustomApiKey.addEventListener('click', () => togglePasswordVisibility('customApiKey'));
   }
 
+  // Debug Mode toggle -- show/hide CLI Validation nav item
+  if (elements.debugMode) {
+    elements.debugMode.addEventListener('change', (e) => {
+      updateCLIValidationVisibility(e.target.checked);
+    });
+  }
+
   // CAPTCHA Solver toggle visibility
   if (elements.captchaSolverEnabled) {
     elements.captchaSolverEnabled.addEventListener('change', (e) => {
@@ -593,6 +600,8 @@ function loadSettings() {
 
     // Debug mode
     if (elements.debugMode) elements.debugMode.checked = settings.debugMode;
+    // Show/hide CLI Validation nav item based on debug mode
+    updateCLIValidationVisibility(settings.debugMode);
 
     // DOM optimization settings
     if (elements.domOptimization) {
@@ -4868,12 +4877,446 @@ async function clearAllMemories() {
   }
 }
 
-// Initialize agent section and memory section when DOM is ready
+// Initialize agent section, memory section, and CLI validation when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(initializeAgentSection, 300);
   setTimeout(initializeMemorySection, 400);
+  setTimeout(initCLIValidation, 500);
 });
 
+
+// =========================================================================
+// CLI Validation Section
+// =========================================================================
+
+/**
+ * Show or hide the CLI Validation nav item based on Debug Mode state.
+ * @param {boolean} enabled - Whether debug mode is enabled
+ */
+function updateCLIValidationVisibility(enabled) {
+  const cliNavItem = document.querySelector('.debug-only-nav');
+  if (cliNavItem) {
+    cliNavItem.style.display = enabled ? '' : 'none';
+  }
+}
+
+/**
+ * Initialize CLI Validation section controls and event listeners.
+ */
+function initCLIValidation() {
+  const runAllBtn = document.getElementById('runAllTestsBtn');
+  const runTokenBtn = document.getElementById('runTokenComparisonBtn');
+  const runEdgeCasesBtn = document.getElementById('runEdgeCasesBtn');
+  const liveToggle = document.getElementById('liveTestMode');
+  const modeBadge = document.getElementById('testModeBadge');
+
+  if (!runAllBtn) return; // Section not present
+
+  // Toggle live/golden mode
+  liveToggle.addEventListener('change', () => {
+    modeBadge.textContent = liveToggle.checked ? 'Live' : 'Golden';
+    modeBadge.className = 'mode-badge ' + (liveToggle.checked ? 'mode-live' : '');
+  });
+
+  // Run All Tests button
+  runAllBtn.addEventListener('click', async () => {
+    runAllBtn.disabled = true;
+    try {
+      await runCLIValidationTests(liveToggle.checked);
+    } finally {
+      runAllBtn.disabled = false;
+    }
+  });
+
+  // Token Comparison button
+  runTokenBtn.addEventListener('click', async () => {
+    runTokenBtn.disabled = true;
+    try {
+      await runTokenComparison();
+    } finally {
+      runTokenBtn.disabled = false;
+    }
+  });
+
+  // Edge Cases button
+  runEdgeCasesBtn.addEventListener('click', async () => {
+    runEdgeCasesBtn.disabled = true;
+    try {
+      await runEdgeCaseTests();
+    } finally {
+      runEdgeCasesBtn.disabled = false;
+    }
+  });
+}
+
+/**
+ * Run CLI compliance validation tests across all providers.
+ * @param {boolean} isLive - If true, use live API calls; if false, use golden responses
+ */
+async function runCLIValidationTests(isLive) {
+  const progressEl = document.getElementById('testProgress');
+  const summaryEl = document.getElementById('validationSummary');
+  const providerResultsEl = document.getElementById('providerResults');
+  const detailedResultsEl = document.getElementById('detailedResults');
+
+  if (!window.CLIValidator || !window.DEFAULT_SUITES) {
+    showToast('CLI Validator not loaded. Ensure cli-validator.js is included.', 'error');
+    return;
+  }
+
+  const validator = new window.CLIValidator();
+  for (const suite of window.DEFAULT_SUITES) {
+    validator.registerSuite(suite);
+  }
+
+  validator.mode = isLive ? 'live' : 'golden';
+
+  if (isLive) {
+    validator.liveAPICallback = async (provider, prompt, domSnapshot) => {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'CLI_VALIDATION_LIVE_TEST',
+          provider,
+          systemPrompt: prompt,
+          userMessage: 'Complete the task based on the current page state.',
+          domSnapshot
+        });
+        if (response && response.success) {
+          return response.response;
+        }
+        throw new Error(response?.error || 'Live test call failed');
+      } catch (e) {
+        throw new Error('Live test failed: ' + e.message);
+      }
+    };
+  }
+
+  const providers = ['xai', 'openai', 'anthropic', 'gemini'];
+  const totalTests = providers.length * validator.testSuites.length;
+  let completed = 0;
+
+  validator.onProgress = (result) => {
+    completed++;
+    if (progressEl) {
+      progressEl.textContent = `Running test ${completed} of ${totalTests}...`;
+    }
+  };
+
+  if (progressEl) progressEl.textContent = 'Starting tests...';
+
+  try {
+    const results = await validator.runAll(providers);
+    const report = validator.generateReport(results);
+
+    if (progressEl) progressEl.textContent = `Complete: ${report.summary.passed} passed, ${report.summary.failed} failed`;
+
+    // Update summary cards
+    document.getElementById('totalTestsPassed').textContent = report.summary.passed;
+    document.getElementById('totalTestsFailed').textContent = report.summary.failed;
+
+    const totalTests2 = report.summary.total;
+    const compliancePct = totalTests2 > 0 ? Math.round((report.summary.passed / totalTests2) * 100) : 0;
+    document.getElementById('complianceRate').textContent = compliancePct + '%';
+
+    summaryEl.style.display = '';
+
+    // Render provider results
+    renderProviderResults(report, providerResultsEl);
+    providerResultsEl.style.display = '';
+
+    // Render detailed results (failures only)
+    renderDetailedResults(report, detailedResultsEl);
+    if (report.failures.length > 0) {
+      detailedResultsEl.style.display = '';
+    }
+  } catch (e) {
+    if (progressEl) progressEl.textContent = 'Error: ' + e.message;
+    showToast('Test run failed: ' + e.message, 'error');
+  }
+}
+
+/**
+ * Render per-provider result cards.
+ * @param {Object} report - Report from CLIValidator.generateReport
+ * @param {HTMLElement} container - The provider-results container
+ */
+function renderProviderResults(report, container) {
+  container.innerHTML = '';
+
+  for (const [provider, stats] of Object.entries(report.perProvider)) {
+    const compliancePct = stats.total > 0 ? Math.round((stats.passed / stats.total) * 100) : 0;
+    const complianceClass = compliancePct === 100 ? 'compliance-high' : compliancePct >= 50 ? 'compliance-mid' : 'compliance-low';
+
+    // Build per-task-type list for this provider
+    const taskItems = report.perTest
+      .filter(t => t.provider === provider)
+      .map(t => {
+        const badge = t.passed
+          ? '<span class="status-badge pass">PASS</span>'
+          : '<span class="status-badge fail">FAIL</span>';
+        return `<div class="provider-task-item">
+          <span class="task-name">${t.taskType}</span>
+          ${badge}
+        </div>`;
+      }).join('');
+
+    const card = document.createElement('div');
+    card.className = 'provider-card';
+    card.innerHTML = `
+      <div class="provider-card-header">
+        <h3>${provider}</h3>
+      </div>
+      <div class="provider-card-stats">
+        <div class="stat-item"><span class="stat-value">${stats.passed}</span> passed</div>
+        <div class="stat-item"><span class="stat-value">${stats.failed}</span> failed</div>
+      </div>
+      <div class="compliance-bar">
+        <div class="compliance-bar-fill ${complianceClass}" style="width: ${compliancePct}%"></div>
+      </div>
+      <div class="compliance-pct ${complianceClass}">${compliancePct}%</div>
+      <div class="provider-task-list">${taskItems}</div>
+    `;
+
+    container.appendChild(card);
+  }
+}
+
+/**
+ * Render detailed failure results with expandable diff display.
+ * @param {Object} report - Report from CLIValidator.generateReport
+ * @param {HTMLElement} container - The detailed-results container
+ */
+function renderDetailedResults(report, container) {
+  container.innerHTML = '';
+
+  if (report.failures.length === 0) {
+    container.innerHTML = '<div style="padding: 1rem; color: var(--success-color); font-weight: 500;">All tests passed -- no failures to display.</div>';
+    return;
+  }
+
+  for (const failure of report.failures) {
+    const item = document.createElement('div');
+    item.className = 'test-result-item';
+
+    const diffText = typeof failure.diff === 'string'
+      ? failure.diff.split('\n').map(line => {
+          if (line.startsWith('! ')) return `<span class="diff-line-mismatch">${escapeHtml(line)}</span>`;
+          return `<span class="diff-line-match">${escapeHtml(line)}</span>`;
+        }).join('\n')
+      : escapeHtml(String(failure.diff || 'No diff available'));
+
+    const failureTypeDisplay = failure.failureType || 'Unknown';
+
+    item.innerHTML = `
+      <div class="test-result-header" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('expanded');">
+        <span class="result-provider">${failure.provider}</span>
+        <span class="result-task">${failure.taskType}</span>
+        <span class="status-badge fail">FAIL</span>
+        <span class="result-expand"><i class="fas fa-chevron-right"></i></span>
+      </div>
+      <div class="test-result-body">
+        <div class="failure-type-label">${escapeHtml(failureTypeDisplay)}</div>
+        <div class="diff-display">${diffText}</div>
+      </div>
+    `;
+
+    container.appendChild(item);
+  }
+}
+
+/**
+ * Escape HTML special characters for safe rendering.
+ * @param {string} str - Input string
+ * @returns {string} Escaped string
+ */
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+/**
+ * Run token comparison between CLI and JSON formats.
+ */
+async function runTokenComparison() {
+  const tokenResultsEl = document.getElementById('tokenResults');
+  const avgReductionEl = document.getElementById('avgTokenReduction');
+
+  if (!window.TokenComparator) {
+    showToast('TokenComparator not loaded. Ensure token-comparator.js is included.', 'error');
+    return;
+  }
+
+  tokenResultsEl.innerHTML = '<div style="padding: 1rem; color: var(--text-muted);">Running token comparisons...</div>';
+  tokenResultsEl.style.display = '';
+
+  try {
+    const comparator = new window.TokenComparator();
+    const data = await comparator.runAllComparisons();
+
+    // Build header
+    const avgPct = data.summary.averageReduction;
+    const meetsTarget = data.summary.meetsTarget;
+    const headerColor = meetsTarget ? 'var(--success-color)' : 'var(--error-color)';
+
+    let html = `
+      <div class="token-results-header">
+        <div>
+          <div class="aggregate-value" style="color: ${headerColor}">${avgPct}%</div>
+          <div class="aggregate-label">Average Token Reduction ${meetsTarget ? '(meets 40% target)' : '(below 40% target)'}</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 0.875rem; color: var(--text-muted);">CLI: ${data.summary.totalCliTokens.toLocaleString()} | JSON: ${data.summary.totalJsonTokens.toLocaleString()}</div>
+          ${data.summary.isEstimation ? '<div style="font-size: 0.75rem; color: var(--warning-color);">Estimated (tokenizer not available)</div>' : ''}
+        </div>
+      </div>
+    `;
+
+    // Build rows
+    for (const result of data.results) {
+      if (result.error) {
+        html += `<div class="token-row"><span class="snapshot-name">${result.snapshot}</span><span style="grid-column: span 4; color: var(--error-color);">Error: ${escapeHtml(result.error)}</span></div>`;
+        continue;
+      }
+
+      const reductionPct = result.reduction.total;
+      const reductionClass = result.meetsTarget ? 'reduction-pass' : 'reduction-fail';
+      const reductionColor = result.meetsTarget ? 'var(--success-color)' : 'var(--error-color)';
+      const barWidth = Math.min(Math.abs(reductionPct), 100);
+
+      html += `
+        <div class="token-row">
+          <span class="snapshot-name">${result.snapshot || 'Unknown'}</span>
+          <span class="token-count">CLI: ${result.cliTokens.total.toLocaleString()}</span>
+          <span class="token-count">JSON: ${result.jsonTokens.total.toLocaleString()}</span>
+          <span class="reduction-pct" style="color: ${reductionColor}">${reductionPct}%</span>
+          <div class="reduction-bar"><div class="reduction-bar-fill ${reductionClass}" style="width: ${barWidth}%"></div></div>
+        </div>
+      `;
+    }
+
+    tokenResultsEl.innerHTML = html;
+
+    // Update summary card
+    if (avgReductionEl) {
+      avgReductionEl.textContent = avgPct + '%';
+    }
+
+    // Show summary
+    document.getElementById('validationSummary').style.display = '';
+  } catch (e) {
+    tokenResultsEl.innerHTML = `<div style="padding: 1rem; color: var(--error-color);">Token comparison failed: ${escapeHtml(e.message)}</div>`;
+    showToast('Token comparison failed: ' + e.message, 'error');
+  }
+}
+
+/**
+ * Run edge case parsing tests.
+ */
+async function runEdgeCaseTests() {
+  const detailedResultsEl = document.getElementById('detailedResults');
+
+  if (typeof parseCliResponse !== 'function') {
+    showToast('CLI parser not loaded. Ensure cli-parser.js is included.', 'error');
+    return;
+  }
+
+  detailedResultsEl.innerHTML = '<div style="padding: 1rem; color: var(--text-muted);">Running edge case tests...</div>';
+  detailedResultsEl.style.display = '';
+
+  const edgeCases = [
+    {
+      name: 'Special Characters',
+      file: 'special-chars.txt',
+      validate: (parsed) => {
+        if (!parsed || !parsed.actions || parsed.actions.length === 0) return { pass: false, detail: 'No actions parsed' };
+        const typeActions = parsed.actions.filter(a => a.tool === 'type');
+        if (typeActions.length < 5) return { pass: false, detail: `Expected >= 5 type commands, got ${typeActions.length}` };
+        // Check special chars preserved
+        const hasQuotes = typeActions.some(a => a.params?.text?.includes('"'));
+        const hasDollar = typeActions.some(a => a.params?.text?.includes('$'));
+        if (!hasQuotes && !hasDollar) return { pass: false, detail: 'Special characters were mangled' };
+        return { pass: true, detail: `${typeActions.length} type commands parsed with special chars preserved` };
+      }
+    },
+    {
+      name: 'URL Arguments',
+      file: 'url-arguments.txt',
+      validate: (parsed) => {
+        if (!parsed || !parsed.actions || parsed.actions.length === 0) return { pass: false, detail: 'No actions parsed' };
+        const navActions = parsed.actions.filter(a => a.tool === 'navigate');
+        if (navActions.length < 2) return { pass: false, detail: `Expected >= 2 navigate commands, got ${navActions.length}` };
+        const hasQueryParam = navActions.some(a => a.params?.url?.includes('?'));
+        if (!hasQueryParam) return { pass: false, detail: 'URL query parameters were truncated' };
+        return { pass: true, detail: `${navActions.length} navigate commands with intact URLs` };
+      }
+    },
+    {
+      name: 'YAML Block',
+      file: 'yaml-block.txt',
+      validate: (parsed) => {
+        if (!parsed || !parsed.actions || parsed.actions.length === 0) return { pass: false, detail: 'No actions parsed' };
+        const storeActions = parsed.actions.filter(a => a.tool === 'storejobdata' || a.tool === 'storeJobData');
+        if (storeActions.length === 0) return { pass: false, detail: 'No storeJobData/storejobdata actions found' };
+        const hasData = storeActions.some(a => a.params?.data && typeof a.params.data === 'object');
+        if (!hasData) return { pass: false, detail: 'storeJobData has no structured data in params' };
+        return { pass: true, detail: `${storeActions.length} storeJobData command(s) with structured YAML data` };
+      }
+    },
+    {
+      name: 'Multiline Reasoning',
+      file: 'multiline-reasoning.txt',
+      validate: (parsed) => {
+        if (!parsed) return { pass: false, detail: 'Parse returned null' };
+        const reasoningCount = (parsed.reasoning || []).length;
+        const actionCount = (parsed.actions || []).length;
+        if (reasoningCount < 5) return { pass: false, detail: `Expected >= 5 reasoning lines, got ${reasoningCount}` };
+        if (actionCount < 3) return { pass: false, detail: `Expected >= 3 actions, got ${actionCount}` };
+        return { pass: true, detail: `${reasoningCount} reasoning lines, ${actionCount} actions` };
+      }
+    }
+  ];
+
+  const results = [];
+
+  for (const edgeCase of edgeCases) {
+    try {
+      const url = chrome.runtime.getURL(`test-data/edge-cases/${edgeCase.file}`);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to load ${edgeCase.file}: ${response.status}`);
+      const text = await response.text();
+
+      // Parse through CLI parser
+      const parsed = parseCliResponse(text);
+      const result = edgeCase.validate(parsed);
+      results.push({ name: edgeCase.name, ...result });
+    } catch (e) {
+      results.push({ name: edgeCase.name, pass: false, detail: 'Error: ' + e.message });
+    }
+  }
+
+  // Render results
+  let html = '';
+  for (const r of results) {
+    const badge = r.pass
+      ? '<span class="status-badge pass">PASS</span>'
+      : '<span class="status-badge fail">FAIL</span>';
+    html += `
+      <div class="test-result-item">
+        <div class="test-result-header">
+          <span class="result-provider">${escapeHtml(r.name)}</span>
+          <span class="result-task">${escapeHtml(r.detail)}</span>
+          ${badge}
+        </div>
+      </div>
+    `;
+  }
+
+  detailedResultsEl.innerHTML = html;
+
+  const passedCount = results.filter(r => r.pass).length;
+  showToast(`Edge cases: ${passedCount}/${results.length} passed`, passedCount === results.length ? 'success' : 'warning');
+}
 
 // Export for potential use by other scripts
 if (typeof module !== 'undefined' && module.exports) {
