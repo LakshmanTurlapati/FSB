@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 ## Current Position
 
 Phase: 19 of 19 (in progress)
-Plan: 1 of 3 in phase 19 (complete)
-Status: Phase 19 Plan 01 Complete
-Last activity: 2026-03-02 -- Completed 19-01 (Cross-Provider Validation - Core Test Infrastructure)
+Plan: 2 of 3 in phase 19 (complete)
+Status: Phase 19 Plan 02 Complete
+Last activity: 2026-03-02 -- Completed 19-02 (Cross-Provider Validation - Token Measurement Infrastructure)
 
-Progress: [########--] 80%
+Progress: [#########-] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8 (v10.0)
+- Total plans completed: 9 (v10.0)
 - Average duration: 4min
-- Total execution time: 0.6 hours
+- Total execution time: 0.7 hours
 
 **By Phase:**
 
@@ -31,16 +31,17 @@ Progress: [########--] 80%
 | 16 | 2 | 6min | 3min |
 | 17 | 1 | 11min | 11min |
 | 18 | 2 | 8min | 4min |
-| 19 | 1 | 5min | 5min |
+| 19 | 2 | 10min | 5min |
 
 **Recent Trend:**
-- Last 5 plans: 2min, 11min, 4min, 4min, 5min
+- Last 5 plans: 11min, 4min, 4min, 5min, 5min
 - Trend: stable
 
 *Updated after each plan completion*
 | Phase 18 P01 | 4min | 2 tasks | 3 files |
 | Phase 18 P02 | 4min | 2 tasks | 2 files |
 | Phase 19 P01 | 5min | 2 tasks | 35 files |
+| Phase 19 P02 | 5min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,9 @@ Recent decisions affecting current work:
 - [19-01]: Golden responses include provider-specific quirks: xAI preamble, Gemini markdown wrapping
 - [19-01]: DOM snapshots use Phase 16 YAML format with metadata header, region grouping, element refs
 - [19-01]: Career search golden files all use YAML block storeJobData with 3 jobs and URL query params
+- [19-02]: Real gpt-tokenizer UMD bundle (2MB, o200k_base) used over character estimation for accurate BPE counts
+- [19-02]: JSON baselines use __USE_OLD_SYSTEM_PROMPT_TEMPLATE__ sentinel to avoid duplicating 700-line prompt
+- [19-02]: Each JSON baseline is self-contained with full verbose fields, no dependency on YAML snapshots from 19-01
 
 ### Pending Todos
 
@@ -95,5 +99,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 19-01-PLAN.md
+Stopped at: Completed 19-02-PLAN.md
 Resume file: None
