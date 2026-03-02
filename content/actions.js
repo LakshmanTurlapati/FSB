@@ -1597,6 +1597,47 @@ const tools = {
 
       // Canvas-based editor bypass: skip element gate and use CDP directly.
       const canvasEditor = FSB.isCanvasBasedEditor();
+
+      // Google Sheets Name Box guard: if AI targets the Name Box with non-cell-reference text,
+      // redirect to keyboard emulator to type into the active cell instead.
+      if (canvasEditor && isInput) {
+        const isGoogleSheets = window.location.hostname === 'docs.google.com' &&
+                               window.location.pathname.startsWith('/spreadsheets/');
+        const isNameBox = element.id === 't-name-box' ||
+                          element.getAttribute('name') === 't-name-box';
+        const textVal = (params.text || '').trim();
+        const isCellReference = /^[A-Z]{1,3}[0-9]{1,7}(:[A-Z]{1,3}[0-9]{1,7})?$/i.test(textVal);
+
+        if (isGoogleSheets && isNameBox && textVal && !isCellReference) {
+          logger.debug('Name Box guard: redirecting non-cell-reference data to active cell', {
+            text: textVal.substring(0, 30),
+            sessionId: FSB.sessionId
+          });
+          // Press Escape first to blur the Name Box and return focus to the grid
+          try { await tools.keyPress({ key: 'Escape', useDebuggerAPI: true }); } catch(e) {}
+          await new Promise(resolve => setTimeout(resolve, 100));
+          try {
+            const twkResult = await tools.typeWithKeys({ text: params.text, clearFirst: false, delay: 20 });
+            if (twkResult.success) {
+              if (params.pressEnter) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+              }
+              return {
+                success: true,
+                typed: params.text,
+                method: 'google_sheets_keyboard',
+                pressedEnter: !!params.pressEnter,
+                hadEffect: true,
+                note: 'Google Sheets Name Box guard -- data redirected to active cell via keyboard emulator'
+              };
+            }
+          } catch (e) {
+            logger.debug('Name Box guard typeWithKeys failed, falling through', { error: e.message });
+          }
+        }
+      }
+
       if (canvasEditor && !isInput) {
         // Google Sheets: use keyboard emulator (typeWithKeys) instead of CDP Input.insertText.
         // Google Sheets requires keyDown events to enter cell edit mode -- Input.insertText
@@ -1619,6 +1660,7 @@ const tools = {
                 typed: params.text,
                 method: 'google_sheets_keyboard',
                 pressedEnter: !!params.pressEnter,
+                hadEffect: true,
                 note: 'Google Sheets -- keyboard emulator used for proper keyDown event processing'
               };
             }

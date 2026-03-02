@@ -1,441 +1,818 @@
-# Feature Research: Career Search Automation + Google Sheets Output
+# Feature Landscape: CLI-Based Browser Automation Protocol for LLM Agents
 
-**Domain:** Career search automation with structured spreadsheet output
-**Researched:** 2026-02-23
+**Domain:** CLI command interface for AI-driven browser automation (replacing JSON tool calls)
+**Researched:** 2026-02-27
 **Confidence:** HIGH
-**Scope:** Adding career search automation to FSB Chrome Extension (v9.4) -- multi-company job search, data extraction, and formatted Google Sheets output
+**Scope:** What features the v10.0 CLI protocol needs, based on industry evidence from Playwright CLI, webctl, agent-browser, and the broader LLM-browser-automation ecosystem.
 
 ---
 
-## Existing Capabilities (What FSB Already Has)
+## Prior Art: What Exists in the Ecosystem
 
-Before mapping new features, these are the building blocks already in place. Every new feature below either extends these or fills a gap between them.
+Before defining features, here is what the industry has converged on. Three major projects define the CLI-for-LLM-browser-automation pattern, each launched between March 2025 and January 2026. All three independently arrived at the same core architecture: **line-based commands + ARIA accessibility tree snapshots + element refs**.
 
-| Capability | Status | Location |
-|-----------|--------|----------|
-| AI-powered browser automation (25+ tools) | Shipped | content/actions.js |
-| Career site guides (Indeed, Glassdoor, BuiltIn, generic ATS) | Shipped | site-guides/career/ |
-| Career category shared guidance (6-field extraction, strategy priority) | Shipped | site-guides/career/_shared.js |
-| Google Sheets site guide (Name Box navigation, Tab/Enter data entry) | Shipped | site-guides/productivity/google-sheets.js |
-| Google Docs formatted paste (bold, tables, lists via Clipboard API) | Shipped | content/rich-text.js |
-| Multi-tab tools (openNewTab, switchToTab, closeTab, listTabs) | Shipped | content/actions.js, background.js |
-| Task type detection (career, multitab) | Shipped | ai-integration.js, background.js |
-| Career-specific prompt template (6-phase workflow) | Shipped | ai-integration.js TASK_PROMPTS.career |
-| Site guide URL pattern matching | Shipped | site-guides/index.js |
-| Crowd session logs for 34 career sites + Google Docs | Available | /logs/ directory |
-| Memory system (sitemaps per domain, cross-site patterns) | Shipped | lib/memory/ |
-| Multitab completion validator | Shipped | background.js multitabValidator |
-| Conversation history across iterations | Shipped | background.js sessionAIInstances |
+### Playwright MCP / Playwright CLI (Microsoft)
 
-**Key gap:** FSB can search ONE career site and enter data into ONE Google Sheet in a single session. It does NOT have structured multi-company orchestration, data accumulation across sites, or Google Sheets formatting (bold, colors, column sizing).
+**Launched:** March 2025 (MCP), early 2026 (CLI)
+
+**Snapshot format:** YAML-style accessibility tree with `[ref=eN]` identifiers:
+```yaml
+- generic [ref=e1]:
+  - link "Skip to content" [ref=e4] [cursor=pointer]:
+    - /url: "#start-of-content"
+  - banner [ref=e6]:
+    - button "Platform" [ref=e17] [cursor=pointer]
+    - button "Solutions" [ref=e21] [cursor=pointer]
+  - main:
+    - heading "Welcome to Example" [level=1]
+    - textbox "What needs to be done?" [ref=e8]
+```
+
+**Command grammar:** `playwright-cli <verb> [ref] [value]`
+```
+playwright-cli open https://example.com
+playwright-cli snapshot
+playwright-cli click e21
+playwright-cli fill e8 "admin@test.com"
+playwright-cli press Enter
+playwright-cli screenshot
+playwright-cli close
+```
+
+**Token efficiency:** 27K tokens/task (CLI) vs 114K tokens/task (MCP) -- 4x reduction. On a complex enterprise UI, a single MCP snapshot is ~138K tokens; a CLI snapshot saved to disk costs the LLM 0 tokens until explicitly read.
+
+**Key insight:** CLI saves snapshots to disk as YAML files; the LLM only reads them when needed. MCP dumps the full accessibility tree inline into every tool response.
+
+### agent-browser (Vercel Labs)
+
+**Launched:** January 2026
+
+**Snapshot format:** Compact accessibility tree with `@eN` ref identifiers:
+```
+- heading "Example Domain" [ref=e1]
+- link "More information..." [ref=e2]
+- textbox "Email" [ref=e3]
+- button "Submit" [ref=e4]
+```
+
+**Command grammar:** `agent-browser <verb> <@ref|selector> [value]`
+```
+agent-browser open https://example.com
+agent-browser snapshot -i              # interactive elements only
+agent-browser snapshot -i -C           # include cursor-interactive divs
+agent-browser snapshot -s "#main"      # scope to CSS selector
+agent-browser click @e2
+agent-browser fill @e3 "hello@test.com"
+agent-browser type @e3 "hello"         # type without clearing
+agent-browser press Enter
+agent-browser select @e5 "Option A"
+agent-browser check @e6
+agent-browser get text @e1
+agent-browser get url
+agent-browser tab new https://sheets.google.com
+agent-browser tab 2                    # switch to tab 2
+agent-browser wait --load networkidle
+agent-browser close
+```
+
+**Token efficiency:** 200-400 tokens per snapshot (interactive-only) vs 3,000-5,000 tokens for full DOM. Claims 93% context reduction vs Playwright MCP.
+
+**Key insight:** The `-i` (interactive-only) flag is the biggest token saver. On a GitHub page, Playwright MCP generates 789 refs; agent-browser with `-i` generates 245 refs -- a 69% reduction.
+
+### webctl (cosinusalpha)
+
+**Launched:** June 2025
+
+**Snapshot format:** ARIA-based tree (format not fully documented but filterable).
+
+**Command grammar:** `webctl <verb> '<ARIA query>' [value]`
+```
+webctl start
+webctl navigate "https://google.com"
+webctl snapshot --interactive-only --limit 30
+webctl snapshot --within "role=main"   # scope to container
+webctl click 'role=button name="Submit"'
+webctl type 'role=textbox name~="Email"' "hello@test.com"  # ~= is substring match
+webctl select 'role=combobox name~="Country"' --label "USA"
+webctl press Enter
+webctl scroll down
+webctl wait network-idle
+webctl wait 'exists:role=button name~="Continue"'
+webctl stop
+```
+
+**Key insight:** Uses semantic ARIA queries (`role=button name~="Submit"`) instead of refs. This is more human-readable but requires the LLM to compose ARIA queries, which is more error-prone than using a ref.
+
+### Token Efficiency Summary (Verified from Multiple Sources)
+
+| Approach | Tokens per Snapshot | Tokens per Task (10 steps) | Cost per Run |
+|----------|--------------------:|---------------------------:|-------------:|
+| FSB current (JSON DOM) | ~3,000-8,000 | ~50,000-100,000 | $0.50-2.00 |
+| Playwright MCP (inline YAML) | ~12,800-138,200 | ~7.62M (cumulative) | ~$45 |
+| Playwright CLI (disk YAML) | ~2,000-5,000 (when read) | ~27,000 | <$0.50 |
+| agent-browser (compact text) | ~200-400 (interactive) | ~5,000-10,000 | <$0.10 |
+| webctl (filtered ARIA) | ~300-800 | ~8,000-15,000 | <$0.15 |
+
+**Confidence: MEDIUM** -- Token counts vary by page complexity. FSB current estimate based on existing 50-element JSON payload at ~60-160 tokens/element. Playwright MCP and CLI numbers from TestShift benchmarks (2026). agent-browser numbers from Vercel documentation.
 
 ---
 
-## Table Stakes (Users Expect These)
+## Existing FSB Capabilities (What Changes, What Stays)
 
-Features users assume exist when they say "find me internships and put them in a spreadsheet." Missing any of these makes the product feel broken.
+Before mapping new features, clarify what the CLI protocol replaces vs preserves.
+
+| Capability | Current Implementation | CLI Migration Impact |
+|-----------|----------------------|---------------------|
+| AI action output format | JSON: `{"actions": [{"tool": "click", "params": {"ref": "e5"}}]}` | REPLACED by line-based commands: `click e5` |
+| JSON parsing pipeline | 5-tier: clean JSON -> markdown -> regex -> cleaning -> NL fallback | ELIMINATED -- CLI lines need no complex parsing |
+| DOM snapshot format | JSON with elements array, htmlContext, scrollPosition, viewport | REPLACED by YAML/text accessibility tree with refs |
+| System prompt + tool docs | ~400 line system prompt with tool schemas | REPLACED by compact command reference |
+| Context tiers | Full prompt on iteration 1, minimal continuation on subsequent | PRESERVED -- context tiering is orthogonal to format |
+| Conversation history | Compacted history (3 recent, summarize older) | PRESERVED -- history compaction is orthogonal |
+| Batch actions | batchActions array for multiple same-page actions | REPLACED by multi-line commands (one per line) |
+| Stuck detection | DOM hashing + action pattern analysis + recovery prompts | PRESERVED -- stuck detection logic is orthogonal |
+| Action execution | 25+ tools in content/actions.js (click, type, scroll, etc.) | PRESERVED -- tools stay, only the AI-facing interface changes |
+| Element targeting | CSS selectors with uniqueness scoring | AUGMENTED -- refs become primary, selectors become fallback |
+
+**Key principle:** The CLI protocol changes the AI-to-extension communication layer. The content script action execution (actions.js), session management (background.js), memory system, site guides, and UI remain unchanged.
 
 ---
 
-### TS-1: Single-Company Career Search with Data Extraction
+## Table Stakes (Users/AI Expect These)
 
-**Why Expected:** This is the atomic unit of the workflow. If FSB cannot reliably navigate one career site, find matching jobs, and extract the 6 required fields (company, title, date, location, description, apply link), nothing else matters.
+Features that every CLI-based browser automation protocol must have. Missing any of these makes the CLI interface worse than the current JSON approach.
 
-**Complexity:** MEDIUM -- The AI prompt template (TASK_PROMPTS.career) and career site guides already define this workflow. The challenge is reliability across the 30+ different ATS platforms (Workday, Lever, Greenhouse, Ashby, iCIMS, custom builds). Each has different DOM structures, search mechanisms, and listing formats.
+---
+
+### TS-1: Line-Based Command Grammar
+
+**Why Expected:** This is the fundamental value proposition. LLMs generate simple text lines far more reliably than structured JSON. Every competing project (Playwright CLI, agent-browser, webctl) uses `<verb> <target> [value]` format because it matches how LLMs naturally produce output.
+
+**Complexity:** MEDIUM -- The command parser is simple (split by whitespace/quoted strings), but the command set must map 1:1 to FSB's existing 25+ action tools, plus the ref-based targeting system must integrate with FSB's existing CSS selector infrastructure.
+
+**What the grammar must look like:**
+```
+click e5
+type e12 "software engineering intern"
+press Enter
+scroll down 500
+navigate "https://careers.microsoft.com"
+select e8 "United States"
+check e15
+getText e7
+getAttribute e7 href
+wait networkIdle
+waitForElement "role=button name=Submit"
+screenshot
+```
+
+**Why this format (not webctl's ARIA query format):** LLMs generate `click e5` with near-100% reliability because it is 2 tokens. `click 'role=button name~="Submit"'` requires the LLM to correctly compose a quoted ARIA query string with the right operator (`=` vs `~=`), proper quoting, and correct role/name values. Ref-based targeting is strictly simpler for the LLM.
 
 **Dependencies on Existing FSB:**
-- Career site guides (generic.js, indeed.js, glassdoor.js, builtin.js) -- already shipped
-- Career shared guidance (_shared.js 6-field extraction) -- already shipped
-- getText, getAttribute, click, type, scroll tools -- already shipped
-
-**Needs New Site Guide Data:** YES -- The 34 crowd session logs need to be parsed into per-company site guides with selectors for each company's career page (search box, job cards, job title, location, date, apply link). The generic.js guide covers common ATS patterns, but company-specific selectors increase reliability. For example, Microsoft's career page uses `#find-jobs-btn` and `[aria-label="Search jobs"]` (visible in the session log), while Amazon uses `#search-typeahead-homepage` and `#search-button`.
+- All 25+ action tools in content/actions.js -- PRESERVED, only the dispatch interface changes
+- Element identification in dom-analysis.js -- AUGMENTED with ref assignment
+- background.js action dispatch -- REWRITTEN to parse CLI lines instead of JSON
 
 **What "done" looks like:**
-- User says "find software engineering internships at Microsoft"
-- FSB navigates to careers.microsoft.com (via Google search)
-- FSB uses the search box to enter "software engineering internship"
-- FSB extracts 3-5 matching listings with all 6 fields
-- FSB reports the findings to the user
+- AI outputs one command per line, no JSON wrapping
+- background.js parses each line into {tool, ref, value} tuple
+- Content script executes the same actions.js tools as before
+- Zero JSON parsing failures (the 5-tier pipeline becomes unnecessary)
 
 ---
 
-### TS-2: Multi-Company Sequential Search
+### TS-2: Element Ref System
 
-**Why Expected:** The core value proposition is "find me jobs at Microsoft, Amazon, AND Google." Users name 2-10 companies in a single prompt. If FSB can only handle one company, users just do it manually.
+**Why Expected:** Refs are what make the CLI grammar work. Without refs, the AI must output CSS selectors (verbose, fragile) or coordinate positions (imprecise). Every competing project assigns refs (`e5`, `@e1`, `ref=e23`) to interactive elements in the snapshot.
 
-**Complexity:** HIGH -- This requires FSB to orchestrate a sequential workflow: search company A, accumulate data, search company B, accumulate more data, etc. The AI needs to maintain state across company transitions -- remembering which companies it has already searched, which it has not, and what data it has collected so far.
+**Complexity:** MEDIUM -- FSB already assigns `elementId` values during DOM analysis (e.g., `elem_123`). The change is: (a) shorten to `eN` format for token efficiency, (b) make refs the primary targeting mechanism in snapshots, (c) maintain a ref-to-selector mapping in the content script so actions.js can resolve refs to actual DOM elements.
+
+**Design decisions:**
+- **Ref format:** `eN` (e.g., `e1`, `e5`, `e47`) -- matches Playwright CLI convention, 2-4 characters vs FSB's current `elem_button_submit_btn_...` (20-50 characters)
+- **Ref scope:** Per-snapshot (refs reset on each DOM capture, same as Playwright MCP)
+- **Ref assignment:** Only interactive elements get refs (buttons, links, inputs, selects, textareas, checkboxes, clickable divs with role). Non-interactive text/headings appear in the snapshot without refs for context but cannot be targeted.
+- **Ref resolution:** Content script maintains `Map<ref, {selector, element, coordinates}>` that is rebuilt on each DOM capture
+
+**Token savings from refs alone:**
+- Current: `"params": {"selector": "#submit-btn", "fallbackSelectors": ["[data-testid=\"submit\"]", ".btn.submit"]}` = ~30 tokens
+- CLI ref: `e5` = 1 token
+- Per-action savings: ~29 tokens x 3-5 actions/iteration x 10-20 iterations = 870-2,900 tokens saved
 
 **Dependencies on Existing FSB:**
-- Multi-tab tools (openNewTab, switchToTab) -- already shipped
-- Multitab task detection (classifyTask returns 'multitab') -- already shipped
-- Conversation history preservation -- already shipped
-
-**Key challenge:** The AI's conversation history currently preserves intent across iterations, but there is no structured data accumulation mechanism. After extracting jobs from Microsoft, the AI needs to remember the extracted data while it searches Amazon. The conversation memory can hold this if the AI formats it as structured text in its responses, but it is fragile -- context window limits may truncate earlier findings.
-
-**Needs New Site Guide Data:** YES -- Each company needs its own site guide or the AI needs to rely on the generic ATS guide + sitemaps generated from crowd session logs.
+- dom-analysis.js element extraction -- AUGMENTED with ref assignment
+- ElementCache (configurable cache) -- AUGMENTED with ref-to-element mapping
+- actions.js tool execution -- AUGMENTED with ref resolution before action
 
 **What "done" looks like:**
-- User says "find software engineering internships at Microsoft, Amazon, and Google"
-- FSB searches Microsoft careers, extracts 3-5 jobs
-- FSB opens a new tab (or navigates) to Amazon careers, extracts 3-5 jobs
-- FSB opens a new tab to Google careers, extracts 3-5 jobs
-- All extracted data is preserved and available for the next phase (Sheets entry)
+- Snapshot assigns `e1`..`eN` to interactive elements
+- AI outputs `click e5` instead of `{"tool": "click", "params": {"selector": "#submit-btn"}}`
+- Content script resolves `e5` to the DOM element and executes the click
+- If the element has moved/changed since snapshot, falls back to the stored selector
 
 ---
 
-### TS-3: Google Sheets Data Entry (Basic)
+### TS-3: Compact Accessibility Tree Snapshot
 
-**Why Expected:** "Put them in a spreadsheet" is the explicit user request. If the data stays in chat but never appears in a Sheet, the task is not done.
+**Why Expected:** The snapshot is what the AI sees to make decisions. Current FSB sends a JSON blob with elements array, htmlContext, scrollPosition, viewport, completionSignals -- roughly 3,000-8,000 tokens for 50 elements. Industry evidence shows YAML accessibility tree format with refs achieves the same actionability in 200-800 tokens for interactive elements.
 
-**Complexity:** MEDIUM -- The Google Sheets site guide already defines the Name Box navigation pattern (click #t-name-box, type cell reference, Enter, type value, Tab). The TASK_PROMPTS.career prompt already has Phase 4-6 covering Sheet creation, header setup, and row data entry. The challenge is reliability: Google Sheets is canvas-based, and the Name Box is the only reliable entry point. Tab/Enter sequencing must be exact -- one missed Tab shifts all subsequent columns.
+**Complexity:** HIGH -- This is the most impactful change. The current dom-analysis.js produces a rich JSON structure optimized for machine parsing. The new format must be optimized for LLM comprehension: hierarchical, indented, with semantic roles and text content inline.
+
+**Target snapshot format for FSB:**
+```yaml
+[page] careers.microsoft.com/search | "Job Search - Microsoft Careers"
+[scroll] 0,500 / 1920x1080
+
+- navigation "Main Nav":
+  - link "Home" [e1]
+  - link "Job Search" [e2]
+  - link "Students" [e3]
+- main:
+  - heading "Find Your Dream Job" [level=1]
+  - search:
+    - textbox "Keywords" [e4] value=""
+    - textbox "Location" [e5] value="United States"
+    - button "Search" [e6]
+  - region "Results":
+    - article "Software Engineer":
+      - link "Software Engineer - Azure" [e7]
+      - text "Redmond, WA | Posted 2 days ago"
+    - article "Senior SWE":
+      - link "Senior Software Engineer - Teams" [e8]
+      - text "Remote | Posted 1 week ago"
+    - button "Next Page" [e9]
+```
+
+**Token count estimate for this format:** ~150-300 tokens for 9 interactive elements with context. Current FSB JSON for 9 elements: ~900-1,800 tokens. Reduction: 3-6x.
+
+**What to include (based on industry analysis):**
+- ARIA role (button, link, textbox, heading, navigation, main, etc.)
+- Accessible name (visible text label)
+- Ref (for interactive elements only)
+- Value (for inputs with current values)
+- Level (for headings)
+- State (checked, disabled, pressed -- only when non-default)
+- Hierarchy (indentation shows parent-child relationships)
+
+**What to exclude (current FSB includes but wastes tokens):**
+- Element position coordinates (x, y, width, height) -- not needed for action targeting via refs
+- CSS class names -- not useful for LLM decisions
+- Multiple fallback selectors -- refs replace selectors
+- Visibility properties (display, visibility, opacity) -- only show visible elements
+- Data attributes -- rarely useful for LLM decisions
+- Element ID (unless it is semantically meaningful)
+- Form ID -- hierarchy shows form membership
 
 **Dependencies on Existing FSB:**
-- Google Sheets site guide (google-sheets.js) -- already shipped
-- Name Box navigation workflow -- already defined
-- type, keyPress, click tools -- already shipped
-
-**Needs New Site Guide Data:** The existing Google Sheets site guide covers basic data entry. May need enhancement for:
-- Creating a new blank spreadsheet from sheets.google.com home
-- Handling the "Blank spreadsheet" template button
-- Dealing with Google account authentication walls
+- dom-analysis.js `buildDOMContext()` -- REWRITTEN to produce YAML tree
+- 3-stage element filtering (50 elements) -- PRESERVED, applied before serialization
+- Page context detection -- INTEGRATED into snapshot header
+- Completion signals -- MOVED to separate section or prompt context
 
 **What "done" looks like:**
-- FSB navigates to sheets.google.com or a provided Sheet URL
-- Creates a new blank spreadsheet (if needed)
-- Sets up header row: Company | Role | Date Posted | Location | Description | Apply Link
-- Enters all extracted job data, one row per job
-- All 6 columns populated for each row
+- AI receives a ~200-800 token snapshot instead of ~3,000-8,000 tokens
+- Snapshot is human-readable (debuggable by the developer)
+- AI can identify which element to interact with from the tree structure
+- All current action capabilities are preserved (refs map to the same elements)
 
 ---
 
-### TS-4: Vague Query Interpretation
+### TS-4: Multi-Line Command Output (Batch Actions)
 
-**Why Expected:** Users are often vague. "Find me tech internships" does not specify a company, a role exactly, or a location. FSB needs to handle ambiguity gracefully rather than failing or asking for clarification on every detail.
+**Why Expected:** FSB already supports batch actions (multiple actions per AI turn). In CLI format, this becomes trivially natural: the AI outputs multiple lines, each a separate command.
 
-**Complexity:** LOW -- The AI is inherently good at interpreting vague queries. The existing career shared guidance already handles this: "If user says 'find jobs at [company]' with no role specified, extract the first 3-5 listings." The AI just needs good prompt engineering to map vague terms to search queries. "Tech internships" becomes a search for "software engineering intern" or "technology intern" on career pages.
+**Complexity:** LOW -- The parser processes lines sequentially. No special batch syntax needed.
+
+**Format:**
+```
+click e4
+type e4 "software engineering intern"
+press Enter
+wait networkIdle
+```
+
+The AI outputs 4 lines; the background.js parser splits by newline, executes sequentially with appropriate inter-action delays.
+
+**Current FSB batch format (for comparison):**
+```json
+{
+  "actions": [
+    {"tool": "click", "params": {"selector": "#search-box"}},
+    {"tool": "type", "params": {"selector": "#search-box", "text": "software engineering intern"}},
+    {"tool": "pressEnter", "params": {}},
+    {"tool": "waitForElement", "params": {"selector": ".results"}}
+  ]
+}
+```
+
+**Token savings:** 4-line CLI = ~20 tokens. Equivalent JSON = ~120 tokens. 6x reduction per batch.
 
 **Dependencies on Existing FSB:**
-- AI natural language understanding -- inherent in the LLM
-- Career shared guidance relevance rules -- already shipped
-
-**Needs New Site Guide Data:** No
+- Batch action execution in background.js -- PRESERVED, input format changes
+- DOM completion detection between batch actions -- PRESERVED
+- URL-based batch suppression (Google Sheets) -- PRESERVED
 
 **What "done" looks like:**
-- "Find me tech internships" -> AI searches for "software engineering intern" or similar on career pages
-- "Find me jobs at big tech companies" -> AI interprets as Microsoft, Google, Amazon, Apple, Meta
-- "Look for DevOps positions" -> AI searches multiple companies for "DevOps Engineer"
+- AI outputs multiple commands, one per line
+- Parser splits and executes sequentially
+- Same inter-action timing and DOM-stability checks as current batch system
 
 ---
 
-### TS-5: Deduplication Awareness
+### TS-5: Status/Observation Response Format
 
-**Why Expected:** The same job may appear on a company's direct career page AND on Indeed or Glassdoor. If a user searches both, they do not want duplicate rows in their spreadsheet.
+**Why Expected:** After executing commands, the AI needs to know what happened. Currently FSB returns JSON action results. The CLI protocol needs a compact text response format that the AI can parse to decide next steps.
 
-**Complexity:** LOW -- The AI can compare job titles, company names, and locations before adding a row. This is a prompt engineering task, not an architecture task. The existing career shared guidance already prioritizes direct company pages over job boards: "ALWAYS try the company's direct career page FIRST."
+**Complexity:** LOW -- Convert existing action results to text lines.
+
+**Format:**
+```
+OK click e5 -- clicked "Search" button
+OK type e4 "software engineering" -- typed into "Keywords" textbox
+OK press Enter
+WAIT networkIdle -- page loaded in 1200ms
+FAIL click e99 -- element not found (ref expired)
+```
+
+**Why this matters:** The AI must distinguish success, failure, and state changes. A line-based status format (`OK`, `FAIL`, `WAIT`) is easier for the LLM to parse than nested JSON result objects.
 
 **Dependencies on Existing FSB:**
-- Career shared guidance strategy priority -- already shipped
-
-**Needs New Site Guide Data:** No
-
-**What "done" looks like:**
-- If the same "Software Engineer II" at Microsoft appears on both careers.microsoft.com and Indeed, FSB enters it once
-- AI compares new extraction against already-collected data before adding
+- Action result reporting in background.js -- REFORMATTED from JSON to text lines
+- Error reporting with alternative selectors -- PRESERVED in FAIL responses
+- Action verification system -- PRESERVED, results feed into status lines
 
 ---
 
-### TS-6: Error Reporting When No Results Found
+### TS-6: Interactive-Only Filtering
 
-**Why Expected:** If Microsoft has no "quantum computing intern" openings, the user needs to know. Silent failure (empty spreadsheet with no explanation) is the worst outcome.
+**Why Expected:** The single biggest token optimization. A typical webpage has 500+ DOM elements but only 30-80 interactive ones (buttons, links, inputs, selects). Sending non-interactive elements wastes tokens on context the AI cannot act on.
 
-**Complexity:** LOW -- The AI already has fallback strategies in the career prompt: "If no results on company site: try Indeed search." The addition is explicit reporting: "No matching positions found at [company] for [role]. Tried direct career page and Indeed."
+**Complexity:** LOW -- FSB's dom-analysis.js already filters elements by interactivity during the 3-stage filtering pipeline. The change is making interactive-only the default snapshot mode and including non-interactive elements (headings, landmarks) only as contextual hierarchy markers without refs.
+
+**Industry evidence:**
+- Playwright MCP: 789 refs on GitHub page (all elements) vs agent-browser: 245 refs (interactive only) -- 69% reduction
+- Wikipedia: 16,044 tokens (all elements) vs 7,860 tokens (interactive only) -- 51% reduction
+- Hacker News: 14,547 tokens (all elements) vs 3,052 tokens (interactive only) -- 79% reduction
+
+**What "interactive" means for FSB:**
+- buttons, `[role="button"]`, `input[type="submit"]`
+- links (`<a>` with href)
+- inputs (text, email, password, search, tel, url, number)
+- textareas
+- selects and `[role="combobox"]`
+- checkboxes, radio buttons
+- elements with click handlers and `[role="tab"]`, `[role="menuitem"]`
+- elements with `tabindex >= 0` (explicitly focusable)
+
+Non-interactive elements (headings, paragraphs, landmarks, lists) appear in the tree as context but get no ref.
 
 **Dependencies on Existing FSB:**
-- Career prompt fallback strategies -- already shipped
-- Chat UI for progress reporting -- already shipped
-
-**Needs New Site Guide Data:** No
-
-**What "done" looks like:**
-- FSB reports in the chat: "Found 4 jobs at Microsoft, 0 at Boeing (no quantum computing intern roles listed), 3 at Google"
-- Empty companies are noted but do not produce empty rows in the Sheet
+- 3-stage element filtering in dom-analysis.js -- AUGMENTED (already filters, now also assigns refs only to interactive)
+- 50-element limit -- PRESERVED as upper bound for ref-bearing elements
 
 ---
 
-## Differentiators (What Makes This Amazing vs. Just Functional)
+### TS-7: Reasoning/Commentary Separation
 
-Features that transform "it works" into "this is incredible." Not expected, but once experienced, users would not go back.
+**Why Expected:** LLMs produce reasoning alongside actions. The parser must distinguish commands from commentary. If the AI outputs `I'll click the search button now` followed by `click e6`, the parser must execute `click e6` and ignore the reasoning text.
 
----
+**Complexity:** LOW -- Two approaches, both proven:
 
-### D-1: Formatted Google Sheets Output (Bold Headers, Colored Header Row, Auto-Sized Columns)
+**Approach A: Prefix-based (Playwright CLI pattern)**
+All commands start with a known verb. Lines not starting with a recognized verb are ignored.
+```
+I need to search for jobs on this page.
+click e4
+type e4 "software engineering"
+The search box is now filled. I'll submit.
+press Enter
+```
 
-**Value Proposition:** The difference between a wall of text dumped into a Sheet and a professional-looking tracker. Users share these Sheets with friends, career counselors, and advisors. Formatting communicates care and professionalism.
+**Approach B: Delimiter-based (agent-browser pattern)**
+Commands are wrapped in a delimiter block:
+```
+I'll search for jobs on this career page.
 
-**Complexity:** HIGH -- Google Sheets formatting cannot be done via the Sheets API (FSB is a browser extension, not a server-side app). All formatting must happen through keyboard shortcuts and toolbar interactions:
-- **Bold headers:** Select row 1, press Ctrl+B. Requires selecting the row first (click row number "1" on the left gutter).
-- **Header background color:** Select row 1, click the fill color toolbar button, pick a color from the palette. This involves clicking a dropdown widget, which is a DOM interaction on Google Sheets' toolbar -- possible but fragile.
-- **Freeze header row:** View menu -> Freeze -> 1 row. Menu navigation via DOM clicks.
-- **Auto-size columns:** Select all (Ctrl+A), then right-click column header -> "Resize columns" -> "Fit to data." Alternatively, double-click column border in the header row -- this is a positional click on a thin border, unreliable via automation.
+---COMMANDS---
+click e4
+type e4 "software engineering"
+press Enter
+---END---
+```
 
-The Google Sheets site guide needs significant enhancement to cover formatting workflows (toolbar button selectors, menu navigation paths, color picker interaction).
+**Recommendation: Approach A (prefix-based).** It requires zero additional tokens from the AI (no delimiters to output) and is how Playwright CLI and webctl work. The parser maintains a set of known verbs (`click`, `type`, `press`, `navigate`, `scroll`, `select`, `check`, `wait`, `getText`, `getAttribute`, `screenshot`) and only processes lines starting with those verbs.
 
 **Dependencies on Existing FSB:**
-- Google Sheets site guide -- needs formatting workflow additions
-- click, keyPress tools -- already shipped
-- Google Docs formatted paste (Clipboard API) -- relevant precedent but Sheets uses different approach
-
-**Needs New Site Guide Data:** YES -- Need selectors for Google Sheets toolbar: bold button, fill color button, color picker palette, View menu freeze option, Format menu. The crowd session log for docs.google.com shows the docs home page but may not have the Sheets editor toolbar elements.
+- AI response parsing in background.js -- REWRITTEN (simpler than current 5-tier JSON pipeline)
+- Prompt instructions about output format -- NEW (tell AI to output commands as bare lines)
 
 ---
 
-### D-2: Structured Data Accumulator (Cross-Site State Management)
+## Differentiators (What Makes FSB's CLI Better Than Generic)
 
-**Value Proposition:** Currently the AI relies on conversation history to remember extracted data across company transitions. This is fragile: if the context window fills up, earlier data gets truncated. A structured data accumulator would hold extracted job data in a reliable in-memory structure that persists across the entire multi-company workflow.
-
-**Complexity:** MEDIUM -- This could be implemented as a session-level data store in background.js that the AI writes to after each company search and reads from when entering Sheets data. The AI would use a new tool like `storeJobData` and `getCollectedJobData`.
-
-**Dependencies on Existing FSB:**
-- Session management (background.js sessions) -- already shipped
-- Tool library extensibility -- already designed for new tools
-
-**Needs New Site Guide Data:** No
-
-**What it enables:**
-- After searching 10 companies, all 30-50 job listings are reliably stored
-- No data loss from context window truncation
-- Sheet entry phase reads from the accumulator, not from conversation memory
-- Can report totals: "Collected 47 jobs across 10 companies"
+Features that go beyond what Playwright CLI / agent-browser / webctl offer. These leverage FSB's unique position as a Chrome Extension with persistent sessions, site-specific intelligence, and a chat UI.
 
 ---
 
-### D-3: Progress Reporting During Multi-Company Search
+### D-1: Scoped Snapshots with CSS Selector Regions
 
-**Value Proposition:** Searching 10 career sites takes 5-15 minutes. Without progress feedback, users think FSB is stuck. Progress reporting transforms anxiety into confidence.
+**Value Proposition:** Both webctl (`--within "role=main"`) and agent-browser (`-s "#selector"`) support scoping snapshots to a DOM subtree. FSB should support this because career pages have massive navbars, footers, and sidebars that waste tokens. Scoping to `main` or `.job-results` cuts snapshot size by 50-80%.
 
-**Complexity:** LOW -- FSB already has a chat UI and a progress overlay system. Adding messages like "Searching Microsoft... (1/5)" or "Found 3 jobs at Amazon, moving to Google (3/5)" is a prompt engineering enhancement plus minor UI work.
+**Complexity:** LOW -- FSB's DOM analysis already traverses from a root element. Adding a scope parameter (`snapshot main` or `snapshot ".results"`) filters the traversal starting point.
+
+**Command syntax:**
+```
+snapshot                     # full page, interactive only
+snapshot main                # scoped to <main> element
+snapshot ".job-results"      # scoped to CSS selector
+snapshot --full              # include non-interactive context
+```
 
 **Dependencies on Existing FSB:**
-- Chat UI message display -- already shipped
-- Progress overlay (ProgressOverlay class) -- already shipped
-
-**Needs New Site Guide Data:** No
+- dom-analysis.js traversal -- AUGMENTED with optional root element
+- Site guides -- CAN provide recommended scope selectors per site
 
 ---
 
-### D-4: Salary Information Extraction (When Available)
+### D-2: Site-Aware Snapshot Annotations
 
-**Value Proposition:** Many career pages now show salary ranges (especially in states with pay transparency laws -- Colorado, New York, California, Washington). Users building comparison spreadsheets want salary data. An extra "Salary Range" column elevates the output significantly.
+**Value Proposition:** FSB has 43+ site guides with domain-specific intelligence. Unlike generic tools (Playwright CLI, agent-browser), FSB knows that on `careers.microsoft.com`, the element `e4` is the "job search box" and `e9` is "pagination next." The snapshot can include these semantic hints.
 
-**Complexity:** LOW -- This is an extension of the 6-field extraction to 7 fields. The AI already extracts text from job listings; adding salary detection is a prompt instruction. The Google Sheets header row gets one more column.
+**Complexity:** MEDIUM -- When a site guide is active, its `selectors` map (searchBox, jobCards, applyButton) can annotate matching elements in the snapshot with role hints.
+
+**Example annotated snapshot:**
+```yaml
+[page] careers.microsoft.com/search | "Job Search"
+[guide] microsoft-careers (career)
+
+- main:
+  - search:
+    - textbox "Keywords" [e4] [hint:searchBox]
+    - textbox "Location" [e5] [hint:locationBox]
+    - button "Search" [e6] [hint:searchButton]
+  - region "Results":
+    - link "Software Engineer - Azure" [e7] [hint:jobTitle]
+    - button "Next" [e9] [hint:pagination]
+```
+
+The `[hint:searchBox]` annotation tells the AI "this is the search box for this site" -- reducing ambiguity without the AI needing to read the full site guide text.
 
 **Dependencies on Existing FSB:**
-- Career data extraction workflow -- already shipped
-- getText tool -- already shipped
-
-**Needs New Site Guide Data:** Site guides may need salary-related selectors for sites that display salary prominently (Glassdoor already has salary estimates as a feature).
+- Site guide system (selectors map) -- CONSUMED during snapshot generation
+- Site guide URL matching -- EXISTING (getGuideForUrl)
+- dom-analysis.js element extraction -- AUGMENTED with hint annotation
 
 ---
 
-### D-5: Apply Link Validation
+### D-3: Inline Memory/Context Directives
 
-**Value Proposition:** Dead or expired job links frustrate users. If FSB can verify that apply links actually lead to application pages (not 404s or expired listings), the output is more trustworthy.
+**Value Proposition:** FSB's CLI is not a standalone tool -- it runs inside a persistent automation session with conversation history, task context, and completion tracking. The AI needs to communicate status, reasoning, and memory alongside commands. CLI format can include directive lines for this.
 
-**Complexity:** MEDIUM -- Would require FSB to briefly navigate to each apply link, check for error indicators (404 pages, "this position has been filled" messages), and note validity. This adds time to the workflow but significantly improves output quality.
+**Complexity:** LOW -- Add recognized directive prefixes that the parser handles separately from action commands.
+
+**Directive format:**
+```
+# Searched Microsoft careers, found 4 matching jobs
+# STATUS: 2/5 companies complete
+# STORE: {"company": "Microsoft", "title": "SWE Intern", "location": "Redmond, WA"}
+click e7
+getText e7
+# Moving to Amazon careers next
+navigate "https://www.amazon.jobs"
+```
+
+Lines starting with `#` are directives. The parser can:
+- Log them for debugging
+- Extract structured data (`# STORE:` lines for the career data accumulator)
+- Report status to the chat UI (`# STATUS:` lines)
 
 **Dependencies on Existing FSB:**
-- Navigation tools -- already shipped
-- Page context detection (error message detection) -- already shipped in content/dom-analysis.js
-
-**Needs New Site Guide Data:** No
+- Career data accumulator (background.js) -- EXISTING from v9.4
+- Chat UI progress display -- EXISTING
+- Conversation history -- EXISTING (directives become part of history)
 
 ---
 
-### D-6: Smart Company Name Resolution
+### D-4: Completion Signal in Snapshot
 
-**Value Proposition:** Users say "Boeing" but the career site is jobs.boeing.com. Users say "Goldman" but it is goldmansachs.com/careers. Users say "J&J" but it is careers.jnj.com. Reliable company-to-career-URL mapping prevents wasted time on wrong sites.
+**Why Valuable:** FSB already has multi-signal completion scoring (URL changes, DOM changes, success indicators). In CLI format, completion signals can be part of the snapshot header so the AI has immediate awareness of task progress.
 
-**Complexity:** LOW -- This is largely handled by the existing strategy of Googling "[company name] careers." The crowd session logs provide a verified mapping of 34 company names to career URLs. This mapping can be embedded in site guides so the AI does not need to Google every time.
+**Complexity:** LOW -- Already computed in dom-analysis.js `detectCompletionSignals()`. Just needs inclusion in snapshot header.
+
+**Format:**
+```yaml
+[page] sheets.google.com/spreadsheets/d/abc123 | "Job Search Results"
+[scroll] 0,200 / 1920x1080
+[signals] url_matches_target, form_submitted, success_indicator="Saved"
+
+- main:
+  ...
+```
 
 **Dependencies on Existing FSB:**
-- Google search workflow -- already shipped
-- Career site guides -- existing + new from session logs
-
-**Needs New Site Guide Data:** YES -- Embed direct career URLs in per-company site guides. For example: Microsoft -> careers.microsoft.com, Amazon -> www.amazon.jobs, Meta -> www.metacareers.com.
+- `detectCompletionSignals()` in dom-analysis.js -- EXISTING
+- Completion scoring in background.js -- EXISTING
 
 ---
 
-### D-7: Sheet Title and Tab Naming
+### D-5: Progressive Snapshot Depth
 
-**Value Proposition:** Instead of "Untitled spreadsheet," the Sheet gets a meaningful name like "Job Search - Software Engineering - Feb 2026." Small touch, big difference in organization.
+**Value Proposition:** Not all iterations need the same level of detail. Iteration 1 (orientation) needs the full page tree. Iteration 5 (typing into a known field) only needs the focused element and immediate context. FSB's existing context tier system (full on first, minimal on subsequent) maps naturally to snapshot depth levels.
 
-**Complexity:** LOW -- Click the title area in Google Sheets (which is a regular input field, unlike the canvas), type the title. Already feasible with existing tools.
+**Complexity:** MEDIUM -- Need 2-3 snapshot depth modes:
+- **full:** Complete accessibility tree (iteration 1, after navigation)
+- **focused:** Only the active region + nearby interactive elements (mid-task iterations)
+- **minimal:** Just the changed elements since last snapshot (delta mode -- FSB already has delta DOM detection)
+
+**Format:**
+```
+snapshot              # default: full tree
+snapshot --focused    # active region only
+snapshot --delta      # only changes since last capture
+```
 
 **Dependencies on Existing FSB:**
-- Google Sheets site guide -- needs title selector addition
-- type, click tools -- already shipped
-
-**Needs New Site Guide Data:** Minimal -- add the sheet title input selector.
+- DOM state manager (delta detection) -- EXISTING
+- Context tier system in ai-integration.js -- EXISTING conceptual framework
+- dom-analysis.js optimization payload -- EXISTING (already computes deltas)
 
 ---
 
 ## Anti-Features (Things to Deliberately NOT Build)
 
-Features that seem useful but create serious problems for FSB's use case. These are deliberate scope exclusions with rationale.
+---
+
+### AF-1: ARIA Query Targeting (webctl Style)
+
+**Why Tempting:** webctl's `role=button name~="Submit"` is semantically clear and human-readable.
+
+**Why Problematic:**
+- LLMs must compose syntactically correct ARIA queries with proper quoting, operators (`=` vs `~=`), and role names. This is ~5-10 tokens per target vs 1 token for a ref.
+- ARIA queries can match multiple elements. `role=link name~="Home"` might match 3 links. Refs are unambiguous.
+- The AI must remember accessible names from the snapshot and reproduce them exactly (or with the right substring). Refs are just numbers.
+- webctl's approach works for simple pages but breaks down on complex UIs with many similar elements.
+
+**What to Do Instead:** Use refs (`e5`) as the primary targeting mechanism. The AI sees the accessible name in the snapshot next to the ref and uses the ref to target. This is the Playwright CLI and agent-browser approach, and it is strictly simpler for LLMs.
 
 ---
 
-### AF-1: Auto-Apply to Jobs
+### AF-2: Screenshot-Based Visual Targeting
 
-**Why Requested:** "Find jobs AND apply for me" is a natural extension. Auto-apply tools (LazyApply, Simplify, LoopCV) are a hot market segment.
+**Why Tempting:** Some browser agents (SeeAct, WebVoyager) use screenshots + vision models to identify click targets.
 
 **Why Problematic:**
-- **Legal and ethical risk:** Submitting applications on behalf of users without their explicit per-application approval crosses a line. Employers increasingly penalize auto-applied candidates.
-- **Quality destruction:** Mass auto-apply generates low-quality applications. Employers detect and filter these.
-- **Authentication walls:** Most application forms require login, personal info, resume upload, and custom responses. FSB cannot fill these reliably.
-- **Irreversibility:** Applying cannot be undone. A bug that applies to the wrong job has real consequences.
-- **Scope explosion:** Application forms vary wildly (Workday multi-step, Lever single-page, Greenhouse with custom questions). Supporting even 10 ATS platforms is a major engineering effort.
+- Vision tokens are 10-100x more expensive than text tokens. A screenshot is ~1,000-5,000 tokens as a vision input.
+- FSB uses text-based AI models (Grok, GPT-4o, Claude) for action planning, not dedicated vision models. Adding vision targeting changes the architecture fundamentally.
+- Accessibility tree + refs achieves the same targeting accuracy without vision overhead.
+- Screenshot-based targeting fails on canvas elements (like Google Sheets cells) where visual position does not map to interactive DOM elements.
 
-**What to Do Instead:** FSB provides the "Apply Link" column so users can click and apply themselves. The value is in discovery and organization, not submission.
+**What to Do Instead:** Use accessibility tree snapshots with refs. For elements that need visual verification (complex layouts), add an optional `screenshot` command the AI can use selectively -- but this should be rare, not the primary workflow.
 
 ---
 
-### AF-2: Scraping Behind Login Walls
+### AF-3: Full DOM HTML in Snapshots
 
-**Why Requested:** LinkedIn Jobs, some Glassdoor listings, and enterprise Workday portals require authentication for full job descriptions.
+**Why Tempting:** FSB currently includes `htmlContext` with page structure, relevant HTML fragments, and navigation. Some of this context is valuable.
 
 **Why Problematic:**
-- **TOS violations:** Automated access to authenticated sessions is explicitly prohibited by LinkedIn, Glassdoor, and most job boards.
-- **Account risk:** Users' accounts could be flagged or banned for automated behavior.
-- **Session security:** FSB would need to operate within authenticated sessions, creating security surface area.
-- **Credential handling:** FSB should never store, manage, or interact with user credentials beyond what is needed for its own API keys.
+- Raw HTML is extremely token-expensive. Even truncated to 1,000 chars, it adds ~250 tokens per snapshot of noisy markup.
+- LLMs do not parse HTML as well as they parse structured accessibility trees. Research shows ARIA tree format achieves higher task completion rates than raw HTML.
+- The accessibility tree already captures the semantically meaningful content (roles, names, hierarchy) without the syntactic noise of HTML tags, attributes, and classes.
 
-**What to Do Instead:** Stick to public career pages (direct company sites are almost always public). If a job board requires login, note the limitation in the chat and skip that source. The career shared guidance already warns: "Indeed may require login to apply -- note when auth walls appear."
+**What to Do Instead:** The accessibility tree snapshot replaces htmlContext entirely. Page structure (title, URL, headings, navigation landmarks) is already encoded in the tree hierarchy. If specific HTML attributes are needed (e.g., `href` on links, `value` on inputs), include them inline in the tree node.
 
 ---
 
-### AF-3: Real-Time Job Monitoring / Alerts
+### AF-4: Overly Complex Command Grammar
 
-**Why Requested:** "Notify me when new software engineering jobs are posted at Google." Continuous monitoring sounds like a natural extension.
+**Why Tempting:** Supporting advanced syntax like pipes (`snapshot | filter role=button`), conditionals (`if visible e5 then click e5`), or loops (`for e in buttons click e`).
 
 **Why Problematic:**
-- **Chrome Extension lifecycle:** Manifest V3 service workers are terminated after 5 minutes of inactivity. Continuous background polling is architecturally impossible without a separate server.
-- **Rate limiting:** Repeatedly hitting career sites would trigger anti-bot measures.
-- **Scope creep:** This transforms FSB from a task automation tool into a job board aggregator, which is a fundamentally different product.
+- LLMs generate simple imperative sequences far more reliably than complex control flow syntax. Every additional grammar feature is a new failure mode.
+- Playwright CLI, agent-browser, and webctl all use flat imperative commands. None supports pipes, conditionals, or loops. This is intentional.
+- FSB's automation loop already handles conditional logic (the AI reasons, then outputs commands). Adding control flow to the command grammar duplicates the AI's job.
 
-**What to Do Instead:** Users can run the career search task periodically ("Find me new SWE jobs at Google this week"). Each run produces a fresh Sheet. Manual triggers, not automated monitoring.
+**What to Do Instead:** Keep the grammar to `<verb> <ref> [value]`. Let the AI handle all decision-making in its reasoning. One iteration = one set of commands. If the AI needs to check something before acting, it requests a snapshot, reads it, then outputs commands in the next iteration.
 
 ---
 
-### AF-4: Resume/Cover Letter Generation
+### AF-5: JSON Fallback Mode
 
-**Why Requested:** Tools like Teal, Huntr, and Jobright offer AI-generated resumes tailored to each job listing.
-
-**Why Problematic:**
-- **Different product:** Resume generation is a document creation task, not a browser automation task. It requires different AI capabilities (writing quality, formatting, PDF generation).
-- **Quality bar:** Bad auto-generated resumes harm users' job prospects. This is high-stakes output that requires careful human review.
-- **Scope explosion:** Resume formatting, ATS keyword optimization, template selection -- each is a feature unto itself.
-
-**What to Do Instead:** FSB extracts job descriptions so users can feed them into dedicated resume tools. The "Description" column gives users the raw material for manual tailoring.
-
----
-
-### AF-5: Excessive Data Extraction Per Job (Full Job Description)
-
-**Why Requested:** Users might want the complete multi-paragraph job description in the spreadsheet.
+**Why Tempting:** "What if we keep the JSON parser as a fallback for backward compatibility?"
 
 **Why Problematic:**
-- **Spreadsheet readability:** Full job descriptions (500-2000 words each) in a cell make the Sheet unusable. Cells become walls of text that break the tabular format.
-- **Extraction time:** Reading and copying full descriptions multiplies the time per job by 3-5x.
-- **Context window pressure:** Storing full descriptions for 30+ jobs would exceed the AI's context limits.
+- Maintaining two parallel parsing paths (JSON and CLI) doubles the maintenance surface and creates ambiguity about which format the AI should use.
+- The JSON parsing pipeline is exactly what this milestone eliminates. Keeping it defeats the purpose.
+- If the AI occasionally outputs JSON, it means the prompt is not clear enough about the expected format. Fix the prompt, do not accommodate broken output.
 
-**What to Do Instead:** Extract a 1-2 sentence summary of key responsibilities (as the current prompt specifies). The apply link lets users read the full description when they want it.
-
----
-
-### AF-6: Comparison Scoring or Ranking
-
-**Why Requested:** "Rank these jobs by relevance" or "score each job match on a 1-10 scale."
-
-**Why Problematic:**
-- **Subjective:** Job fit depends on resume, experience, preferences, and career goals that FSB does not know.
-- **False confidence:** An AI-generated "fit score" of 8/10 might mislead users into not reading the job description.
-- **Liability:** If FSB ranks a poor-fit job highly and the user applies based on the score, it creates a negative experience.
-
-**What to Do Instead:** Present all matching jobs in the Sheet and let users sort, filter, and evaluate themselves. The structured format (company, title, location, salary) already enables human comparison.
+**What to Do Instead:** Full cutover to CLI format. Remove the 5-tier JSON parsing pipeline. If the AI outputs malformed text, the parser reports `FAIL: unrecognized command "[malformed text]"` and the AI retries with correct syntax.
 
 ---
 
 ## Feature Dependencies
 
 ```
-TS-1 (Single-Company Search)
-    |
-    +-- TS-2 (Multi-Company Sequential) -- requires TS-1 working reliably
-    |       |
-    |       +-- D-2 (Data Accumulator) -- enhances TS-2 reliability
-    |       |
-    |       +-- D-3 (Progress Reporting) -- enhances TS-2 UX
-    |
-    +-- TS-3 (Google Sheets Data Entry) -- independent of TS-2, can work with TS-1 alone
-    |       |
-    |       +-- D-1 (Formatted Output) -- enhances TS-3 with styling
-    |       |
-    |       +-- D-7 (Sheet Title) -- enhances TS-3 with naming
-    |
-    +-- TS-4 (Vague Query) -- enhances TS-1, no hard dependency
-    |
-    +-- TS-5 (Deduplication) -- needed once TS-2 exists (multi-source risk)
-    |
-    +-- TS-6 (Error Reporting) -- enhances TS-1 and TS-2
-    |
-    +-- D-4 (Salary Extraction) -- extends TS-1 extraction, minor addition
-    |
-    +-- D-5 (Apply Link Validation) -- independent, applies after TS-1
-    |
-    +-- D-6 (Company Name Resolution) -- enhances TS-1 navigation phase
+TS-2 (Element Refs) ------+
+                           |
+TS-3 (Compact Snapshot) --+---> TS-1 (CLI Grammar) -- core action dispatch
+                           |
+TS-6 (Interactive Filter) +
 
-Site Guide Parsing (prerequisite for all):
-    Session logs -> Per-company site guides -> Sitemaps
-    (This is the data pipeline that feeds TS-1 reliability)
+TS-1 (CLI Grammar)
+    |
+    +-- TS-4 (Multi-Line Batch) -- trivial extension of line parsing
+    |
+    +-- TS-5 (Status Responses) -- output format for action results
+    |
+    +-- TS-7 (Reasoning Separation) -- parser ignores non-command lines
+
+TS-3 (Compact Snapshot)
+    |
+    +-- D-1 (Scoped Snapshots) -- optional scope parameter
+    |
+    +-- D-2 (Site-Aware Annotations) -- site guide integration
+    |
+    +-- D-4 (Completion Signals) -- header metadata
+    |
+    +-- D-5 (Progressive Depth) -- snapshot mode parameter
+
+D-3 (Inline Directives) -- independent, just parser extension
 ```
 
 ### Dependency Notes
 
-- **TS-2 requires TS-1:** Cannot search multiple companies if single-company search is unreliable.
-- **TS-3 is parallel to TS-2:** Sheets entry can be tested with data from one company. Does not require multi-company to work first.
-- **D-1 requires TS-3:** Cannot format a Sheet that has no data in it yet.
-- **D-2 enhances TS-2:** Without the accumulator, multi-company data relies on conversation memory (fragile but functional).
-- **Site guide parsing is the critical prerequisite:** The 34 crowd session logs must be converted into usable site guides before any career search feature works reliably at scale.
+- **TS-2 (Refs) is prerequisite for TS-1 (Grammar) and TS-3 (Snapshot):** Without refs, the CLI grammar has no way to target elements. Without refs in the snapshot, the AI has no identifiers to use in commands.
+- **TS-3 (Snapshot) is prerequisite for TS-6 (Interactive Filter):** The filtering determines which elements appear in the snapshot and which get refs.
+- **TS-1 (Grammar) is prerequisite for TS-4, TS-5, TS-7:** These extend the parser, which must exist first.
+- **D-1 through D-5 are all enhancements to the snapshot or parser:** They can be added incrementally after the core CLI pipeline works.
 
 ---
 
-## MVP Definition
+## MVP Recommendation
 
-### Launch With (v9.4 Core)
+### Phase 1: Core CLI Pipeline (Must Have)
 
-The minimum that satisfies "find me internships and put them in a spreadsheet":
+The minimum that replaces the JSON protocol and delivers token savings:
 
-- [ ] **Site guide parsing pipeline** -- Convert 34 crowd session logs into per-company site guides with selectors (search box, job cards, title, location, date, apply link, pagination). Without this, the AI is flying blind on most company career pages.
-- [ ] **TS-1: Single-company search** -- Navigate one career site, search, extract 3-5 jobs with 6 fields. This must work on at least 20 of the 34 companies.
-- [ ] **TS-2: Multi-company sequential search** -- Handle prompts naming 2-10 companies. Visit each sequentially, accumulate data in conversation memory.
-- [ ] **TS-3: Google Sheets basic data entry** -- Create Sheet, set up headers, enter rows with Tab/Enter pattern.
-- [ ] **TS-4: Vague query handling** -- Interpret "tech internships" and "DevOps positions" correctly.
-- [ ] **TS-6: Error reporting** -- Report which companies had no results.
+- [ ] **TS-2: Element ref system** -- Assign `eN` refs during DOM analysis, maintain ref-to-element map in content script
+- [ ] **TS-3: Compact accessibility tree snapshot** -- YAML-style text format with roles, names, refs, hierarchy
+- [ ] **TS-6: Interactive-only filtering** -- Only interactive elements get refs; non-interactive shown as context
+- [ ] **TS-1: CLI command grammar** -- Parser in background.js that processes `<verb> <ref> [value]` lines
+- [ ] **TS-4: Multi-line batch** -- Parser splits AI output by newline, executes sequentially
+- [ ] **TS-5: Status responses** -- `OK`/`FAIL`/`WAIT` text responses after each command
+- [ ] **TS-7: Reasoning separation** -- Parser ignores lines not starting with recognized verbs
 
-### Add After Core Works (v9.4.x)
+### Phase 2: Intelligence Layer (Should Have)
 
-- [ ] **D-1: Formatted output** -- Bold headers, colored header row, frozen header. Add once basic data entry is reliable.
-- [ ] **D-2: Data accumulator** -- Structured data store for multi-company workflows. Add if conversation memory proves too fragile.
-- [ ] **D-3: Progress reporting** -- "Searching Microsoft... (2/5)". Add for UX polish.
-- [ ] **D-6: Company name resolution** -- Embed direct career URLs in site guides. Add to reduce Google search overhead.
-- [ ] **D-7: Sheet title naming** -- "Job Search - SWE Internships - Feb 2026". Quick UX win.
-- [ ] **TS-5: Deduplication** -- Add once multi-source search is common.
+- [ ] **D-1: Scoped snapshots** -- `snapshot main` or `snapshot ".results"` to reduce token count further
+- [ ] **D-2: Site-aware annotations** -- `[hint:searchBox]` from site guide selectors
+- [ ] **D-4: Completion signals in snapshot** -- Header metadata for task progress awareness
+- [ ] **D-3: Inline directives** -- `# STATUS:` and `# STORE:` lines for structured metadata
 
-### Future Consideration (v9.5+)
+### Phase 3: Optimization (Nice to Have)
 
-- [ ] **D-4: Salary extraction** -- Needs per-site salary selector identification
-- [ ] **D-5: Apply link validation** -- Adds significant time per job, defer until speed is acceptable
+- [ ] **D-5: Progressive snapshot depth** -- Full / focused / delta modes based on iteration context
+
+---
+
+## Command Grammar Reference (Recommended for FSB v10.0)
+
+Based on convergent patterns across Playwright CLI, agent-browser, and webctl:
+
+### Navigation
+| Command | Example | Maps to FSB Tool |
+|---------|---------|-----------------|
+| `navigate <url>` | `navigate "https://example.com"` | navigate |
+| `back` | `back` | goBack |
+| `forward` | `forward` | goForward |
+| `refresh` | `refresh` | refresh |
+
+### Element Interaction
+| Command | Example | Maps to FSB Tool |
+|---------|---------|-----------------|
+| `click <ref>` | `click e5` | click |
+| `type <ref> <text>` | `type e12 "hello world"` | type |
+| `fill <ref> <text>` | `fill e12 "hello world"` | clearInput + type |
+| `press <key>` | `press Enter` | pressEnter / keyPress |
+| `select <ref> <value>` | `select e8 "United States"` | selectOption |
+| `check <ref>` | `check e15` | toggleCheckbox (on) |
+| `uncheck <ref>` | `uncheck e15` | toggleCheckbox (off) |
+| `hover <ref>` | `hover e3` | hover |
+| `focus <ref>` | `focus e7` | focus |
+
+### Information
+| Command | Example | Maps to FSB Tool |
+|---------|---------|-----------------|
+| `snapshot` | `snapshot` | (new) captures accessibility tree |
+| `snapshot <scope>` | `snapshot main` | (new) scoped snapshot |
+| `getText <ref>` | `getText e7` | getText |
+| `getAttr <ref> <attr>` | `getAttr e7 href` | getAttribute |
+
+### Waiting
+| Command | Example | Maps to FSB Tool |
+|---------|---------|-----------------|
+| `wait <condition>` | `wait networkIdle` | waitForDOMStable |
+| `wait <ref>` | `wait e5` | waitForElement |
+| `wait <ms>` | `wait 2000` | (delay) |
+
+### Tabs
+| Command | Example | Maps to FSB Tool |
+|---------|---------|-----------------|
+| `tab new <url>` | `tab new "https://sheets.google.com"` | openNewTab |
+| `tab <n>` | `tab 2` | switchToTab |
+| `tab list` | `tab list` | listTabs |
+| `tab close` | `tab close` | closeTab |
+
+### Scrolling
+| Command | Example | Maps to FSB Tool |
+|---------|---------|-----------------|
+| `scroll down [px]` | `scroll down 500` | scroll |
+| `scroll up [px]` | `scroll up 300` | scroll |
+| `scroll to <ref>` | `scroll to e15` | scroll (to element) |
+
+### Debug
+| Command | Example | Maps to FSB Tool |
+|---------|---------|-----------------|
+| `screenshot` | `screenshot` | (capture for debugging) |
+| `done` | `done` | (mark task complete) |
+| `done <message>` | `done "Found 5 jobs"` | (mark complete with summary) |
+
+**Total: ~30 commands mapping to 25+ existing FSB action tools.**
+
+---
+
+## Snapshot Format Token Analysis
+
+### Current FSB JSON (one element, abbreviated):
+```json
+{
+  "elementId": "elem_btn_submit_123",
+  "type": "button",
+  "text": "Submit",
+  "id": "submit-btn",
+  "class": "btn btn-primary",
+  "position": {"x": 150, "y": 250, "width": 120, "height": 40, "inViewport": true},
+  "attributes": {"data-testid": "submit"},
+  "visibility": {"display": "block", "visibility": "visible", "opacity": "1"},
+  "interactionState": {"disabled": false, "focused": false},
+  "selectors": ["#submit-btn", "[data-testid=\"submit\"]", ".btn.btn-primary"],
+  "labelText": "Submit your form"
+}
+```
+**Token count:** ~120-160 tokens per element. At 50 elements: ~6,000-8,000 tokens.
+
+### Proposed CLI YAML (same element):
+```yaml
+- button "Submit" [e5]
+```
+**Token count:** ~8 tokens per element. At 50 interactive elements with hierarchy context: ~200-500 tokens.
+
+### With additional context (when needed):
+```yaml
+- button "Submit" [e5] disabled
+- textbox "Email" [e3] value="user@test.com" required
+- link "Apply Now" [e7] /url:"/apply/12345"
+```
+**Token count:** ~12-20 tokens per element with attributes. At 50 elements: ~600-1,000 tokens.
+
+### Estimated total snapshot comparison:
+
+| Component | Current FSB JSON | Proposed CLI YAML | Reduction |
+|-----------|----------------:|------------------:|----------:|
+| Page header (url, title, scroll) | ~50 tokens | ~30 tokens | 40% |
+| 50 elements (interactive) | ~6,000-8,000 | ~400-1,000 | 85-93% |
+| htmlContext (page structure) | ~500-1,500 | 0 (encoded in tree hierarchy) | 100% |
+| Completion signals | ~100-200 | ~20-40 (in header) | 80% |
+| **Total** | **~6,650-9,750** | **~450-1,070** | **85-93%** |
+
+**Confidence: HIGH** -- These estimates align with agent-browser's claimed 93% reduction and the Wikipedia/GitHub/HN benchmarks showing 51-79% reduction from interactive-only filtering alone.
+
+---
+
+## What LLMs Generate Most Reliably
+
+Based on analysis of Playwright CLI, agent-browser, and webctl usage patterns, and the structural properties of LLM text generation:
+
+### Most Reliable Patterns (use these)
+
+1. **Single-word verbs:** `click`, `type`, `press`, `scroll`, `navigate`, `wait` -- LLMs produce these as single tokens with near-zero error rate
+2. **Short alphanumeric refs:** `e5`, `e12`, `e47` -- 1-2 tokens, no special characters, no quoting needed
+3. **Quoted string values:** `type e12 "hello world"` -- LLMs handle double-quoted strings reliably
+4. **Bare keyword arguments:** `press Enter`, `scroll down 500`, `wait networkIdle` -- no flag syntax needed
+5. **One command per line:** LLMs naturally produce newline-separated output. No need for `;` or `&&` separators.
+
+### Less Reliable Patterns (avoid these)
+
+1. **Complex quoting:** `click 'role=button name~="Submit"'` -- nested quotes cause frequent errors
+2. **Flag syntax:** `--interactive-only`, `--within "role=main"` -- fine for humans, adds failure modes for LLMs
+3. **Pipe operators:** `snapshot | filter button` -- LLMs sometimes treat `|` as text, not operator
+4. **JSON in commands:** `store {"company": "Microsoft"}` -- defeats the purpose of moving away from JSON
+5. **Positional ambiguity:** `type "hello" e12` vs `type e12 "hello"` -- arg order must be consistent and unambiguous
+
+### Grammar Design Rule
+
+**The best CLI grammar for LLMs is: `<verb> <noun> [value]` where verb is a single known word, noun is a short ref, and value (if any) is a double-quoted string.**
+
+This matches natural language ordering ("click the button", "type into the field 'hello'") and produces 3-5 tokens per command.
 
 ---
 
@@ -443,139 +820,57 @@ The minimum that satisfies "find me internships and put them in a spreadsheet":
 
 | Feature | User Value | Implementation Cost | Priority | Phase |
 |---------|-----------|--------------------:|----------|-------|
-| Site guide parsing (34 sites) | HIGH | HIGH | P0 | Data pipeline |
-| TS-1: Single-company search | HIGH | MEDIUM | P1 | Core |
-| TS-2: Multi-company sequential | HIGH | HIGH | P1 | Core |
-| TS-3: Sheets basic data entry | HIGH | MEDIUM | P1 | Core |
-| TS-4: Vague query handling | MEDIUM | LOW | P1 | Core |
-| TS-6: Error reporting | MEDIUM | LOW | P1 | Core |
-| D-1: Formatted output | MEDIUM | HIGH | P2 | Polish |
-| D-2: Data accumulator | HIGH | MEDIUM | P2 | Reliability |
-| D-3: Progress reporting | MEDIUM | LOW | P2 | Polish |
-| D-6: Company name resolution | MEDIUM | LOW | P2 | Optimization |
-| D-7: Sheet title naming | LOW | LOW | P2 | Polish |
-| TS-5: Deduplication | LOW | LOW | P2 | Data quality |
-| D-4: Salary extraction | LOW | LOW | P3 | Future |
-| D-5: Apply link validation | LOW | MEDIUM | P3 | Future |
-
-**Priority key:**
-- P0: Prerequisite -- must exist before any feature works
-- P1: Must have for launch -- the core "find jobs, put in Sheet" workflow
-- P2: Should have -- reliability, UX polish, and optimization
-- P3: Nice to have -- future enhancement
-
----
-
-## Competitor Feature Analysis
-
-| Feature | JobPilot | Teal | Simplify | FSB (Our Approach) |
-|---------|----------|------|----------|-------------------|
-| Multi-site search | No (single-board autofill) | No (manual entry) | No (autofill only) | YES -- navigate actual career sites |
-| Job tracking spreadsheet | Yes (built-in tracker) | Yes (built-in tracker) | No | YES -- real Google Sheet user owns |
-| Data extraction | Basic (title, company) | Saves job details | Auto-populates from listing | Full 6-field extraction via DOM |
-| Formatting | Built-in UI styling | Built-in UI styling | N/A | Google Sheets native formatting |
-| Direct company career pages | No (job boards only) | No (job boards only) | No (job boards only) | YES -- prioritizes direct career pages |
-| Auto-apply | No | No | Yes (autofill) | NO -- deliberately excluded |
-| Resume tailoring | No | Yes | Yes | NO -- out of scope |
-| Price | $9-29/mo | Free/Premium | Free/Premium | Free (user's own AI API key) |
-
-**FSB's differentiator vs. competitors:** FSB navigates actual company career pages (not just job board aggregators) and produces a real Google Sheet that the user owns and controls. Competitors are either (a) job board extensions that only work on Indeed/LinkedIn, or (b) application trackers that require manual data entry. FSB automates the full pipeline: discovery + extraction + organization.
-
----
-
-## User Workflow Scenarios
-
-### Scenario 1: Specific Multi-Company Search
-**Input:** "Find all software engineering internships at Microsoft, Amazon, and Google and put them in a Google Sheet"
-**Expected behavior:**
-1. FSB navigates to careers.microsoft.com, searches "software engineering intern," extracts 3-5 matches
-2. FSB navigates to www.amazon.jobs, searches same, extracts 3-5 matches
-3. FSB navigates to careers.google.com, searches same, extracts 3-5 matches
-4. FSB creates a new Google Sheet titled "SWE Internships - Feb 2026"
-5. Sets up header row: Company | Role | Date Posted | Location | Description | Apply Link
-6. Enters all extracted jobs (9-15 rows)
-7. Reports: "Found 4 at Microsoft, 5 at Amazon, 3 at Google. 12 jobs entered into Google Sheet."
-
-### Scenario 2: Vague Query
-**Input:** "Find me tech internships"
-**Expected behavior:**
-1. FSB interprets "tech internships" broadly -- searches for "technology intern" or "software intern"
-2. AI decides which companies to search (top tech employers or asks user to specify)
-3. Searches 3-5 career sites
-4. Extracts matching positions
-5. Enters into a new Google Sheet
-
-### Scenario 3: Single Company, Specific Role
-**Input:** "Find DevOps Engineer positions at Boeing"
-**Expected behavior:**
-1. FSB navigates to jobs.boeing.com (via Google search or site guide URL)
-2. Searches "DevOps Engineer"
-3. Extracts all matching positions (may be 0-10)
-4. If 0 results: reports "No DevOps Engineer positions found at Boeing"
-5. If results found: enters into Sheet or reports in chat
-
-### Scenario 4: Existing Sheet
-**Input:** "Find data science jobs at Goldman Sachs and add to [Google Sheets URL]"
-**Expected behavior:**
-1. FSB navigates to Goldman Sachs careers
-2. Searches "data science"
-3. Extracts matches
-4. Navigates to the provided Sheet URL
-5. Finds the next empty row (does not overwrite existing data)
-6. Enters new data starting from that row
-
----
-
-## Confidence Assessment
-
-| Area | Confidence | Rationale |
-|------|-----------|-----------|
-| Table stakes features | HIGH | Based on direct codebase analysis, existing prompt templates, site guides, and tools. Clear what exists and what gaps remain. |
-| Differentiator feasibility | MEDIUM | Google Sheets formatting via browser automation is feasible (toolbar buttons exist in DOM) but untested at this level of detail. Bold and freeze should work. Color picker interaction is uncertain. |
-| Anti-features rationale | HIGH | Based on competitive landscape research, Chrome Extension MV3 architecture constraints, and FSB design principles. Auto-apply exclusion is well-supported by industry evidence. |
-| Complexity estimates | MEDIUM | Based on existing codebase understanding but not validated against actual implementation. Multi-company orchestration complexity may be higher than estimated if conversation memory proves insufficient. |
-| Competitor analysis | MEDIUM | Based on WebSearch results. Competitor features may have changed since search results were generated. Core competitive positioning is sound. |
+| TS-2: Element refs | HIGH (enables everything) | MEDIUM | P0 | Core |
+| TS-3: Compact snapshot | HIGH (biggest token savings) | HIGH | P0 | Core |
+| TS-6: Interactive-only filter | HIGH (token reduction) | LOW | P0 | Core |
+| TS-1: CLI grammar | HIGH (eliminates JSON failures) | MEDIUM | P0 | Core |
+| TS-4: Multi-line batch | HIGH (natural batch) | LOW | P0 | Core |
+| TS-5: Status responses | MEDIUM (AI feedback) | LOW | P0 | Core |
+| TS-7: Reasoning separation | HIGH (prevents parse errors) | LOW | P0 | Core |
+| D-1: Scoped snapshots | MEDIUM (further token savings) | LOW | P1 | Intelligence |
+| D-2: Site-aware annotations | MEDIUM (leverages site guides) | MEDIUM | P1 | Intelligence |
+| D-4: Completion signals | LOW (already exists differently) | LOW | P1 | Intelligence |
+| D-3: Inline directives | LOW (convenience) | LOW | P1 | Intelligence |
+| D-5: Progressive depth | MEDIUM (optimization) | MEDIUM | P2 | Optimization |
 
 ---
 
 ## Sources
 
+**Playwright MCP / CLI (HIGH confidence):**
+- [microsoft/playwright-mcp GitHub](https://github.com/microsoft/playwright-mcp) -- Official Playwright MCP server documentation
+- [Playwright CLI: Token-Efficient Alternative](https://testcollab.com/blog/playwright-cli) -- CLI architecture and token comparison
+- [Playwright CLI vs MCP - Better Stack](https://betterstack.com/community/guides/ai/playwright-cli-vs-mcp-browser/) -- Command syntax and token benchmarks
+- [Token War: CLI vs MCP - TestShift](https://www.test-shift.com/posts/the-token-war-playwright-cli-vs-mcp) -- Detailed token count analysis (27K vs 114K)
+- [Deep Dive into Playwright CLI - TestDino](https://testdino.com/blog/playwright-cli/) -- Command list and snapshot format
+- [ARIA Snapshot Format - Playwright Docs](https://playwright.dev/docs/aria-snapshots) -- Official YAML snapshot specification
+
+**agent-browser (HIGH confidence):**
+- [vercel-labs/agent-browser GitHub](https://github.com/vercel-labs/agent-browser) -- Official repo with full command reference
+- [agent-browser SKILL.md](https://github.com/vercel-labs/agent-browser/blob/main/skills/agent-browser/SKILL.md) -- Agent-facing command reference and workflow
+- [agent-browser.dev](https://agent-browser.dev/) -- Official docs, 200-400 tokens claim
+- [Agent-Browser 93% Context Savings](https://medium.com/@richardhightower/agent-browser-ai-first-browser-automation-that-saves-93-of-your-context-window-7a2c52562f8c) -- Context reduction benchmarks
+
+**webctl (MEDIUM confidence):**
+- [cosinusalpha/webctl GitHub](https://github.com/cosinusalpha/webctl) -- Official repo with command reference
+- [HN Discussion: webctl](https://news.ycombinator.com/item?id=46616481) -- CLI vs MCP debate, real-world usage reports
+
+**Token efficiency benchmarks (MEDIUM confidence):**
+- [MCP vs CLI Benchmark](https://gist.github.com/szymdzum/c3acad9ea58f2982548ef3a9b2cdccce) -- 77 vs 60 score, 43x token difference on Amazon page
+- [Accessibility Tree Formatting & Token Cost](https://dev.to/kuroko1t/how-accessibility-tree-formatting-affects-token-cost-in-browser-mcps-n2a) -- 51-79% reduction from format choices alone
+- [Playwright MCP Deep Dive - ZStack](https://www.zstack-cloud.com/blog/playwright-mcp-deep-dive-the-perfect-combination-of-large-language-models-and-browser-automation/) -- Snapshot serializer architecture and ref system
+
+**TOON format (LOW confidence -- informational only):**
+- [TOON Format Spec](https://toonformat.dev/) -- 40% token reduction vs JSON for tabular data
+- [TOON vs JSON vs YAML - Medium](https://medium.com/@ffkalapurackal/toon-vs-json-vs-yaml-token-efficiency-breakdown-for-llm-5d3e5dc9fb9c) -- Format comparison
+
 **Codebase analysis (HIGH confidence):**
-- ai-integration.js TASK_PROMPTS.career (lines 262-331): Existing 6-phase career workflow
-- site-guides/career/_shared.js: Career category shared guidance with 6-field extraction, strategy priority
-- site-guides/career/generic.js: Generic ATS platform guide with selectors and workflows
-- site-guides/career/indeed.js, glassdoor.js, builtin.js: Per-site career guides
-- site-guides/productivity/google-sheets.js: Google Sheets Name Box navigation and data entry workflows
-- background.js classifyTask(): Multitab and career task type detection
-- content/actions.js: openNewTab, switchToTab multi-tab tools
-- /logs/ directory: 34 crowd session logs with DOM snapshots
-
-**Competitive landscape (MEDIUM confidence):**
-- [12 Best AI Job Search Tools in 2026](https://jobcopilot.com/best-ai-job-search-tools/)
-- [15 Best Chrome Extensions for Job Seekers in 2026](https://www.jobpilotapp.com/blog/best-chrome-extensions-job-seekers)
-- [Best Job Searching Tools 2026](https://www.frontlinesourcegroup.com/blog-2026-job-search-tools.html)
-- [7 Best AI Job Search Tools 2026](https://www.flashfirejobs.com/blog/ai-job-search-tools)
-- [6 Best Tools for Automating Your Job Search](https://scale.jobs/blog/6-best-tools-for-automating-your-job-search)
-- [AI Auto-Apply Tools vs Traditional Job Search 2026](https://careerattraction.com/ai-auto-apply-tools-vs-traditional-job-search-in-2026/)
-
-**Job search spreadsheet expectations (MEDIUM confidence):**
-- [How to Use a Job Search Spreadsheet - Teal](https://www.tealhq.com/post/job-search-tracking-spreadsheet)
-- [Job Search Spreadsheet Guide - Indeed](https://www.indeed.com/career-advice/finding-a-job/job-search-spreadsheet)
-- [Free Job Application Tracker Spreadsheet](https://spreadsheetpoint.com/templates/job-tracker-spreadsheet/)
-- [Job Application Tracker Templates - BeamJobs](https://www.beamjobs.com/career-blog/job-application-tracker-google-sheets)
-- [Free Job Application Tracker Google Sheets 2026](https://clickup.com/blog/job-search-google-sheets-templates/)
-
-**Google Sheets formatting (MEDIUM confidence):**
-- [Basic Formatting - Google Sheets API](https://developers.google.com/sheets/api/samples/formatting)
-- [Keyboard shortcuts for Google Sheets](https://support.google.com/docs/answer/181110)
-- [Google Sheets Shortcuts - Zapier](https://zapier.com/blog/google-sheets-shortcuts/)
-
-**Job data extraction challenges (MEDIUM confidence):**
-- [Web Scraping Job Postings Guide - Octoparse](https://www.octoparse.com/blog/web-scraping-job-postings)
-- [Ultimate Guide to Web Scraping Job Boards - Bardeen](https://www.bardeen.ai/answers/how-to-web-scrape-employer-job-boards)
-- [Job Scraping Explained 2025 - JobsPikr](https://www.jobspikr.com/blog/guide-to-job-scraping/)
+- FSB content/dom-analysis.js -- Current DOM structure format, element filtering, delta detection
+- FSB background.js -- Current JSON action dispatch, batch execution, session management
+- FSB ai-integration.js -- Current 5-tier JSON parsing pipeline, context tiers, prompt building
+- FSB content/actions.js -- 25+ action tools that remain unchanged
 
 ---
-*Feature research for: Career Search Automation + Google Sheets Output*
-*Researched: 2026-02-23*
-*Milestone: v9.4*
+*Feature research for: CLI-Based Browser Automation Protocol*
+*Researched: 2026-02-27*
+*Milestone: v10.0 CLI Architecture*

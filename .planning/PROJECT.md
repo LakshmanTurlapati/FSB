@@ -60,9 +60,20 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - CAPTCHA solving -- third-party integration complexity, users can solve manually
 - Offline mode -- AI requires connectivity, not feasible for core functionality
 
+## Current Milestone: v10.0 CLI Architecture
+
+**Goal:** Replace FSB's JSON tool-call interface with a CLI-style command protocol, redesign DOM snapshots as compact YAML with element refs, and fully rewrite the prompt architecture -- all to dramatically improve LLM accuracy, reduce token costs ~3x, and eliminate JSON parsing failures.
+
+**Target features:**
+- CLI command protocol: AI outputs line-based commands (click e5, type e12 "hello") instead of JSON tool calls
+- YAML DOM snapshots: structured element refs with types, text, and attributes instead of verbose JSON
+- Full prompt architecture redesign: system prompt, context tiers, continuation, stuck recovery -- all CLI-native
+- Action dispatch rewrite: new CLI parser in background.js, new content script dispatch, new response handling
+- Backward-compatible migration: existing action toolset preserved, only the AI-to-extension protocol changes
+
 ## Context
 
-**Current state:** Shipped v0.9 Reliability Improvements. Mechanics are precise but the AI lacks situational awareness. Log analysis of a LinkedIn messaging task revealed 10 systemic issues: the AI can't detect task completion, loses 74% of DOM context to truncation, gets false CAPTCHA warnings, loses operational memory to aggressive compaction, and can't identify elements with truncated text. The next milestone focuses on giving the AI complete awareness of what's on the page and whether its actions worked. 43,283 lines of JavaScript across content.js, background.js, ai-integration.js, and UI files.
+**Current state:** Shipped v9.4 Career Search Automation. The core automation engine works well but the AI-to-extension communication layer has fundamental inefficiencies: verbose JSON tool-call format wastes tokens, a 5-tier JSON parsing pipeline handles malformed responses, and DOM snapshots are bloated. Industry evidence (Playwright CLI: 76% token reduction, webctl, agent-browser: 93% context reduction) shows CLI-style interfaces dramatically outperform JSON tool calls for LLM-driven browser automation. background.js (~11K lines), ai-integration.js (~5K lines), content/ modules (10 files).
 
 ## Current State: v9.4 Shipped
 
@@ -121,4 +132,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | Static timezone-to-country map (85 entries) | No npm dependency for locale detection | Good -- zero dependencies, covers all major timezones |
 
 ---
-*Last updated: 2026-02-27 after v9.4 Career Search Automation milestone shipped*
+| CLI-only mode (no JSON fallback) | Full commitment to CLI format -- models must comply | -- Pending |
+
+---
+*Last updated: 2026-02-27 after v10.0 CLI Architecture milestone started*

@@ -1,636 +1,738 @@
-# Architecture: Career Search Automation Pipeline
+# Architecture: CLI Command Protocol Integration with FSB
 
-**Domain:** Session log -> sitemap -> site guide -> AI automation pipeline for career search + Google Sheets
-**Researched:** 2026-02-23
-**Overall Confidence:** HIGH (based on direct analysis of all pipeline components in the codebase)
+**Domain:** CLI-based browser automation protocol for existing Chrome Extension (FSB v10.0)
+**Researched:** 2026-02-27
+**Overall Confidence:** HIGH (based on line-by-line codebase analysis + industry patterns from Playwright CLI, agent-browser, webctl)
 
 ---
 
 ## Executive Summary
 
-FSB already has every major subsystem needed for career search automation. The architecture question is not "what needs to be built from scratch" but "how do the existing subsystems connect for this specific workflow." The answer is a pipeline with 5 stages, each mapping directly to existing code:
+The CLI protocol replaces only the **AI-to-extension communication format** -- the shape of what the AI outputs and how `background.js` + `ai-integration.js` parse it. Everything downstream (content script actions, Chrome messaging, DOM analysis, RefMap, session management, visual feedback) stays intact. The integration is a **protocol swap in a narrow band** between the AI response and the action dispatch loop.
 
-1. **PARSE** -- Session logs (JSON in `/logs/`) already match the format `convertToSiteMap()` expects
-2. **STORE** -- `createSiteMapMemory()` and `memoryStorage.add()` already persist sitemaps
-3. **GUIDE** -- Site guides already exist for career category (4 files) and Google Sheets
-4. **EXECUTE** -- Multi-tab tools (`openNewTab`, `switchToTab`, `listTabs`) and the `career` + `multitab` task types already exist
-5. **FORMAT** -- The Google Sheets site guide already documents the canvas-based Name Box workflow
+The key finding from codebase analysis: **FSB already has 80% of the infrastructure the CLI protocol needs.** The `generateCompactSnapshot()` function in `content/dom-analysis.js` (line 1840) already produces `[e1] button "Submit"` format lines. The `RefMap` class in `content/dom-state.js` (line 614) already maps `e1->element` with WeakRef + CSS selector fallback. The `resolveRef()` function in `content/selectors.js` (line 555) already resolves refs to DOM elements. The `handleAsyncMessage` in `content/messaging.js` (line 784) already resolves `params.ref` to `params.selector` before executing any action.
 
-The primary gap is a **batch orchestration layer** -- the ability to run the career search workflow across N companies in sequence, accumulating extracted data and writing it to a single Sheets document. FSB's current session model handles one task at a time. The AI handles multi-step reasoning within a session, but there is no built-in mechanism for "repeat this workflow for each item in a list."
+What actually needs to change: the system prompt (tell AI to output CLI commands instead of JSON), the response parser (line-based instead of 4-strategy JSON fallback), and the prompt format for tool documentation. The action dispatch loop in `background.js` (lines 9270-9320) operates on `[{tool, params}]` arrays and does not care whether those came from JSON parsing or CLI parsing.
 
 ---
 
-## Current Architecture (Relevant Subsystems)
+## Current Data Flow (JSON Tool Calls)
 
-### 1. Session Log Format (Input)
-
-Session logs in `/logs/` are produced by `SiteExplorer` (BFS crawler). Each JSON file contains:
+This is the exact path a single automation iteration takes today, with file locations:
 
 ```
-{
-  "domain": "www.amazon.jobs",
-  "id": "research_1771837691120",
-  "pages": [
+1. background.js:7941  startAutomationLoop(sessionId)
+   |
+   v
+2. background.js:8256  getDOMPayload = { action: 'getDOM', options: {..., includeCompactSnapshot: true} }
+   |
+   v
+3. background.js:8269  domResponse = await sendMessageWithRetry(session.tabId, getDOMPayload)
+   |
+   |  [chrome.tabs.sendMessage -> content script]
+   v
+4. content/messaging.js:932   handleAsyncMessage(request, sendResponse)
+   |
+   v
+5. content/messaging.js:735   case 'getDOM': result = FSB.getStructuredDOM(options)
+   |                                          compact = FSB.generateCompactSnapshot(options)
+   |                                          result._compactSnapshot = compact.snapshot
+   v
+6. content/dom-analysis.js:1840  generateCompactSnapshot()
+   |  - Calls FSB.refMap.reset()           // dom-state.js:622
+   |  - For each element: refMap.register(el, selector, role, name)  // returns "e1", "e2"...
+   |  - Builds lines: "[e1] button \"Submit Form\" [focused]"
+   |  - Returns { snapshot: string, refGeneration, elementCount, metadata }
+   |
+   v
+7. background.js:8300  domResponse.structuredDOM has ._compactSnapshot
+   |
+   v
+8. background.js:10100  callAIAPI(task, structuredDOM, settings, context)
+   |
+   v
+9. ai/ai-integration.js:1735  getAutomationActions(task, domState, context)
+   |
+   v
+10. ai/ai-integration.js:1828  buildPrompt(task, domState, context)
+    |  - Builds system prompt with JSON format instructions
+    |  - Builds user prompt with compact snapshot embedded
+    |
+    v
+11. ai/ai-integration.js:888  buildMinimalUpdate() includes:
+    |  if (domState._compactSnapshot) {
+    |    update += formatCompactElements(domState._compactSnapshot, elementBudget)
+    |  }
+    |
+    v
+12. AI PROVIDER returns JSON:
     {
-      "depth": 0,
-      "url": "https://www.amazon.jobs/",
-      "title": "Amazon Jobs",
-      "forms": [],
-      "headings": [],
-      "interactiveElements": [
-        {
-          "type": "input",
-          "id": "search_typeahead-homepage",
-          "class": "form-control tt-input",
-          "selectors": ["[role=\"combobox\"]...", "#search-button"],
-          "text": "..."
-        }
-      ],
-      "internalLinks": [...],
-      "navigation": [...]
+      "situationAnalysis": "...",
+      "reasoning": "...",
+      "actions": [{"tool":"click","params":{"ref":"e5"}}],
+      "taskComplete": false
     }
-  ]
-}
+    |
+    v
+13. ai/ai-integration.js:3956  parseResponse(responseText)
+    |  - Strategy 1: parseCleanJSON
+    |  - Strategy 2: parseWithMarkdownBlocks
+    |  - Strategy 3: parseWithJSONExtraction
+    |  - Strategy 4: parseWithAdvancedCleaning
+    |
+    v
+14. ai/ai-integration.js:4087  normalizeResponse(response)
+    |  - Sanitizes actions (blocks data:/javascript: URLs, script injection)
+    |  - Extracts batchActions if present
+    |  - Returns { actions, taskComplete, reasoning, ... }
+    |
+    v
+15. background.js:9027  if (aiResponse.batchActions) -> executeBatchActions()
+    |                   else -> iterate aiResponse.actions
+    |
+    v
+16. background.js:9277  actionPayload = {
+    |    action: 'executeAction',
+    |    tool: action.tool,
+    |    params: action.params,
+    |    visualContext: {...}
+    |  }
+    v
+17. background.js:9293  actionResult = await sendMessageWithRetry(session.tabId, actionPayload)
+    |
+    |  [chrome.tabs.sendMessage -> content script]
+    v
+18. content/messaging.js:764  case 'executeAction':
+    |  - COMPACT REF RESOLUTION (line 784-808):
+    |    if (params.ref && !params.selector) {
+    |      resolvedElement = FSB.resolveRef(params.ref)  // selectors.js:555
+    |      params.selector = refInfo.selector
+    |      FSB.elementCache.set(params.selector, resolvedElement)
+    |    }
+    |
+    v
+19. content/messaging.js:846  FSB.tools[tool](params)
+    |
+    v
+20. content/actions.js  executes click/type/scroll/etc with selector or cached element
+    |
+    v
+21. Result propagates back: content -> background -> session history -> loop to step 1
 ```
-
-**Key observation:** This is the exact format `convertToSiteMap()` in `lib/memory/sitemap-converter.js` already consumes. The converter extracts pages, navigation, forms, keySelectors, and pageElements from this structure.
-
-### 2. Sitemap Conversion Pipeline (PARSE -> STORE)
-
-The existing pipeline is two-tier:
-
-```
-Session Log (JSON)
-       |
-       v
-convertToSiteMap(research)          -- Tier 1: local extraction (lib/memory/sitemap-converter.js)
-       |
-       v
-sitePattern object (pages, navigation, forms, keySelectors, pageElements, pageLinks)
-       |
-       v
-refineSiteMapWithAI(sitePattern)    -- Tier 2: AI enrichment (lib/memory/sitemap-refiner.js)
-       |                               Adds: workflows, tips, pagePurposes, selectorPreferences,
-       |                                     navigationStrategy
-       v
-createSiteMapMemory(domain, sitePattern)  -- Wraps in memory schema (lib/memory/memory-schemas.js)
-       |
-       v
-memoryStorage.add(memory)           -- Persists to chrome.storage.local (lib/memory/memory-storage.js)
-```
-
-**Entry points that already trigger this pipeline:**
-- `SiteExplorer.autoConvertToMemory()` -- called when a crawl completes with `autoSaveToMemory: true`
-- `ui/options.js` line 3249 -- manual conversion button in the Options page UI
-
-**The gap:** Neither entry point is designed for batch processing of pre-existing session logs from `/logs/`. The Options page UI converts one research entry at a time from `fsbResearchData` in chrome.storage, not from files on disk. The logs in `/logs/` are standalone JSON files that were exported from the crawler but may not be in `fsbResearchData`.
-
-### 3. Site Guide System (GUIDE)
-
-Site guides register at extension load time via `importScripts()` in `background.js`:
-
-```
-background.js
-  |-- importScripts('site-guides/index.js')           -- Registry: registerSiteGuide(), getGuideForUrl()
-  |-- importScripts('site-guides/career/_shared.js')   -- Category guidance: strategy, data fields, warnings
-  |-- importScripts('site-guides/career/indeed.js')    -- Indeed-specific selectors, workflows
-  |-- importScripts('site-guides/career/glassdoor.js') -- Glassdoor-specific selectors, workflows
-  |-- importScripts('site-guides/career/builtin.js')   -- BuiltIn-specific selectors, workflows
-  |-- importScripts('site-guides/career/generic.js')   -- Generic ATS patterns (Lever, Greenhouse, Workday)
-  |-- importScripts('site-guides/productivity/google-sheets.js') -- Sheets Name Box workflow
-```
-
-**Guide matching flow during automation:**
-
-```
-ai-integration.js:1975  getGuideForTask(task, currentUrl)
-       |
-       v
-site-guides/index.js:109  getGuideForUrl(url) -- tests URL against guide.patterns[]
-       |                                          e.g., /indeed\.com/i, /glassdoor\.(com|co\.\w+)/i
-       v                                          /\/careers\/?/i, /\/jobs\/?/i (generic.js)
-(matched guide) --> ai-integration.js:3921  _buildTaskGuidance(taskType, siteGuide, currentUrl)
-       |
-       v
-Prompt injection:
-  - Category guidance (e.g., "CAREER & JOB SEARCH INTELLIGENCE: STRATEGY PRIORITY...")
-  - Site-specific guidance (e.g., "INDEED-SPECIFIC INTELLIGENCE: SEARCH...")
-  - Known selectors (e.g., "searchBox: #text-input-what, .yosegi-InlineWhatWhere...")
-  - Workflows (e.g., "searchJobs: Navigate to indeed.com -> Enter keywords -> ...")
-  - Warnings (e.g., "Sponsored listings appear first -- skip unless...")
-```
-
-**Coverage assessment for career sites:**
-
-| Site | Has Guide? | Guide Type | Patterns Matched |
-|------|-----------|------------|-----------------|
-| indeed.com | Yes | Per-site | `/indeed\.com/i` |
-| glassdoor.com | Yes | Per-site | `/glassdoor\.(com\|co\.\w+)/i` |
-| builtin.com | Yes | Per-site | `/builtin\.com/i` |
-| amazon.jobs | No (matched by generic) | Generic ATS | `/\/jobs\/?/i` |
-| careers.microsoft.com | No (matched by generic) | Generic ATS | `/\/careers\/?/i` |
-| linkedin.com/jobs | Yes (social guide) | Per-site | `/linkedin\.com/i` |
-| myworkdayjobs.com | No (matched by generic) | Generic ATS | `/myworkdayjobs\.com/i` |
-| lever.co | No (matched by generic) | Generic ATS | `/lever\.co/i` |
-| greenhouse.io | No (matched by generic) | Generic ATS | `/greenhouse\.io/i` |
-| Any URL with /careers/ | Matched by generic | Generic ATS | `/\/careers\/?/i` |
-
-**The generic.js guide is the critical fallback.** It matches any URL containing `/careers/`, `/jobs/`, or known ATS domain patterns. This means most of the 35+ session logs will match the generic guide without needing per-site guides. However, per-site guides with precise selectors significantly improve automation success rates.
-
-### 4. Site Map Knowledge Injection (GUIDE, parallel channel)
-
-In addition to site guides (hardcoded), the AI also receives site map knowledge (dynamically generated from crawl data):
-
-```
-ai-integration.js:1411  _fetchSiteMap(context)
-       |
-       v
-background.js:4053  'getSiteMap' message handler
-       |-- Priority 1: loadBundledSiteMap(domain) -- checks site-maps/{domain}.json
-       |-- Priority 2: memoryManager.getAll() -- finds site_map memories by domain
-       v
-ai-integration.js:2541  formatSiteKnowledge(siteMap, domain)
-       |
-       v
-Injected into user prompt:
-  "=== SITE KNOWLEDGE (careers.microsoft.com):
-   Pages: /careers - Microsoft Careers, /careers/search - Job Search (2 forms)...
-   Navigation: Job Search -> /careers/search, Students -> /careers/students...
-   Workflows: Job search: /careers -> use search form -> click result -> /careers/view/{id}
-   Tips: AJAX loading on search results, multi-step application forms...
-   Nav strategy: Start at /careers, use search form for filtering
-   Key selectors: /careers/search: input[name=q], .job-card, .job-title..."
-```
-
-**This is the bridge between session logs and AI prompt.** When session logs are converted to sitemaps and stored in memory, the AI automatically receives site-specific navigation intelligence even without a hardcoded site guide.
-
-### 5. Multi-Tab Orchestration (EXECUTE)
-
-FSB already supports multi-tab workflows through these mechanisms:
-
-**Task type detection:**
-```javascript
-// ai-integration.js:4009-4016
-const outputDestinations = ['google doc', 'google sheet', 'spreadsheet', ...];
-const gatherActions = ['find', 'search', 'research', 'look up', ...];
-if (hasOutputDest && hasGatherAction) return 'multitab';
-```
-
-A task like "find software engineer jobs at Microsoft and add them to a Google Sheet" triggers `multitab` task type.
-
-**Tab management tools available to AI:**
-- `openNewTab({url, active})` -- opens new tab, returns tabId, adds to `session.allowedTabs`
-- `switchToTab({tabId})` -- switches to allowed tab, updates `session.tabId`
-- `listTabs({currentWindowOnly})` -- lists all tabs with isAllowedTab flag
-- `closeTab({tabId})` -- closes non-current tab
-- `waitForTabLoad({tabId, timeout})` -- waits for tab to finish loading
-- `getCurrentTab()` -- gets current tab info
-
-**Security model:**
-- `session.allowedTabs` is pre-populated with all non-restricted tabs in the current window
-- Tabs opened by `openNewTab` are automatically added to `allowedTabs`
-- `switchToTab` enforces whitelist -- blocks switching to unauthorized tabs
-- Content script injection is restricted to authorized tabs only
-
-**Tab context in AI prompt:**
-```javascript
-// background.js:6945-6975
-tabInfo = {
-  currentTabId: session.tabId,
-  allTabs: allTabs.map(tab => ({
-    id: tab.id, url: tab.url, title: tab.title,
-    active: tab.active, status: tab.status,
-    isAllowedTab: allowedTabs.includes(tab.id),
-    domain: new URL(tab.url).hostname
-  })),
-  sessionTabs, allowedTabs
-};
-```
-
-**The `career` task prompt already includes multi-tab phases:**
-```
-PHASE 4 -- NAVIGATE TO GOOGLE SHEETS
-PHASE 5 -- SET UP HEADERS (Company, Role, Date Posted, Location, Description, Apply Link)
-PHASE 6 -- ENTER ROW DATA (Tab-separated entry via Name Box)
-```
-
-### 6. Google Sheets Interaction (FORMAT)
-
-The Sheets site guide (`site-guides/productivity/google-sheets.js`) documents the canvas-based interaction model:
-
-```
-1. Click Name Box (#t-name-box) -- the cell reference input at top-left
-2. Type cell reference (e.g., "A1") and press Enter
-3. Type cell value
-4. Press Tab (next column) or Enter (next row)
-```
-
-**Key workflows already defined:**
-- `createNewSheet` -- navigate to sheets.google.com, click Blank template
-- `navigateToExistingSheet` -- navigate to URL, wait for Name Box
-- `setupHeaderRow` -- A1, type "Company", Tab, type "Role", Tab, ...
-- `enterRowData` -- Click Name Box, type "A2", Enter, type value, Tab, ...
-- `navigateToCell` -- Click Name Box, type reference, Enter
-
-**Critical warning in guide:**
-> Google Sheets cells are rendered on a CANVAS -- you CANNOT click individual cells via DOM selectors. Always use the Name Box for cell navigation.
 
 ---
 
-## Integration Architecture for Career Search
+## CLI Protocol Data Flow (Proposed)
 
-### Data Flow (End-to-End)
+Steps 1-7 and 15-21 are **identical**. Changes are confined to steps 8-14.
 
 ```
-SESSION LOGS (/logs/*.json)
-       |
-       | [NEW: Batch log parser]
-       v
-convertToSiteMap(research) x N     -- existing Tier 1 converter
-       |
-       v
-refineSiteMapWithAI(sitePattern)    -- existing Tier 2 AI refiner (optional, costs API tokens)
-       |
-       v
-createSiteMapMemory(domain, sitePattern)  -- existing memory creator
-       |
-       v
-memoryStorage.add(memory) x N      -- stored in chrome.storage.local
-       |
-       | [At automation time, automatic lookup:]
-       v
-User prompt: "Find software engineer jobs at Microsoft, Apple, Amazon and add to Google Sheet"
-       |
-       v
-detectTaskType() -> 'career' (has career keywords) or 'multitab' (has output destination)
-       |
-       | Note: Task type becomes 'multitab' because it mentions Google Sheet + gather action
-       v
-For each company, the AI:
-  1. Navigates to company career page (guided by site guide + site map knowledge)
-  2. Searches for matching jobs (guided by selectors from site guide or site map)
-  3. Extracts job data (Company, Role, Date, Location, Description, Apply Link)
-  4. Switches to Google Sheets tab
-  5. Enters data row (guided by Sheets site guide Name Box workflow)
-  6. Switches back to next company
-       |
-       v
-Google Sheet with job listings
+Steps 1-7: IDENTICAL (DOM fetching, compact snapshot generation, RefMap)
+
+8. background.js:10100  callAIAPI(task, structuredDOM, settings, context)
+   |
+   v
+9. ai/ai-integration.js:1735  getAutomationActions(task, domState, context)
+   |
+   v
+10. ai/ai-integration.js  buildPrompt(task, domState, context)
+    |  - NEW system prompt: tells AI to output CLI commands, not JSON
+    |  - SAME compact snapshot embedding in user prompt
+    |  - NEW tool documentation format: CLI examples instead of JSON examples
+    |
+    v
+11. SAME compact snapshot injection via formatCompactElements()
+    |
+    v
+12. AI PROVIDER returns CLI text:
+    # On Google search results page for "wireless mouse"
+    # First result matches query, clicking it
+    click e3
+    # If that fails, navigate directly
+    |
+    v
+13. ai/ai-integration.js  parseCLIResponse(responseText)  <-- NEW PARSER
+    |  - Line-by-line parsing
+    |  - '#' lines -> reasoning
+    |  - 'done' keyword -> taskComplete
+    |  - Command lines -> {tool, params} via parseCLICommand()
+    |  - No JSON parsing at all
+    |
+    v
+14. ai/ai-integration.js  normalizeResponse(response)
+    |  - SAME sanitization (input is {tool, params} regardless of parse method)
+    |  - SAME output shape: { actions, taskComplete, reasoning, ... }
+    |
+    v
+Steps 15-21: IDENTICAL (action dispatch, ref resolution, tool execution)
 ```
 
-### Component Map (Existing vs New)
+### The Change Boundary
 
-| Component | Status | File(s) | Changes Needed |
-|-----------|--------|---------|----------------|
-| Session log parser | EXISTING | `lib/memory/sitemap-converter.js` | Minor: add batch entry point |
-| Sitemap refiner | EXISTING | `lib/memory/sitemap-refiner.js` | None |
-| Memory storage | EXISTING | `lib/memory/memory-storage.js`, `memory-schemas.js` | None |
-| Site map retrieval | EXISTING | `background.js:4053` (`getSiteMap`) | None |
-| Site map injection | EXISTING | `ai-integration.js:2541` (`formatSiteKnowledge`) | None |
-| Career category guide | EXISTING | `site-guides/career/_shared.js` | Minor: refine strategy |
-| Generic ATS guide | EXISTING | `site-guides/career/generic.js` | Minor: add more ATS patterns from logs |
-| Indeed/Glassdoor/BuiltIn guides | EXISTING | `site-guides/career/{site}.js` | None |
-| Google Sheets guide | EXISTING | `site-guides/productivity/google-sheets.js` | None |
-| Multi-tab tools | EXISTING | `background.js:6002` (`handleMultiTabAction`) | None |
-| Multi-tab context | EXISTING | `background.js:6945` (tab context gathering) | None |
-| Career task prompt | EXISTING | `ai-integration.js:262` (`TASK_PROMPTS.career`) | Moderate: enhance for batch |
-| Multitab task prompt | EXISTING | `ai-integration.js:194` (`TASK_PROMPTS.multitab`) | Minor: career-specific tips |
-| Task type detection | EXISTING | `ai-integration.js:3986` (`detectTaskType`) | None |
-| **NEW: Batch log import** | NEW | TBD: `utils/log-importer.js` or Options page | Reads `/logs/` JSON, runs batch convert |
-| **NEW: Per-company site guides** | NEW | `site-guides/career/{company}.js` | Generated from session logs |
-| **NEW: Site guide generator** | NEW | TBD: `utils/guide-generator.js` | Converts sitePattern to registerSiteGuide format |
-
-### Integration Points (Where New Code Touches Existing)
-
-#### Integration Point 1: Log Import -> Sitemap Pipeline
-
-**Where:** New utility that reads session log JSON and feeds it through existing `convertToSiteMap()` + `createSiteMapMemory()` pipeline.
-
-**Existing code path:** `SiteExplorer.autoConvertToMemory()` (utils/site-explorer.js:709-764) already does exactly this for live crawl results. The new code replicates this logic for pre-existing JSON files.
-
-**Implementation options:**
-
-**Option A: Build-time script (RECOMMENDED for initial setup)**
-A Node.js script that reads `/logs/*.json`, runs `convertToSiteMap()`, and produces output artifacts:
-- Site map JSON files in `site-maps/{domain}.json` (bundled, highest priority in `loadBundledSiteMap`)
-- Site guide JS files in `site-guides/career/{company}.js` (registered at load time)
-
-Advantages: No runtime cost, guides are available immediately, works offline.
-Disadvantage: Requires running the script when logs change.
-
-**Option B: Options page UI (for ongoing use)**
-Add a "Batch Import" button to the Options page that reads session logs from `fsbResearchData` storage and batch-converts them to site map memories.
-
-**Option C: Background script import handler**
-A message handler in `background.js` that accepts JSON content and runs the pipeline.
-
-**Recommendation:** Use Option A for the 35+ existing logs (one-time setup), then Option B for ongoing imports from new crawls.
-
-#### Integration Point 2: Site Guide Generation from Sitemaps
-
-**Where:** Convert sitemap data (pages, selectors, forms, workflows) into `registerSiteGuide()` format.
-
-**Existing format target:**
-```javascript
-registerSiteGuide({
-  site: 'Amazon Jobs',
-  category: 'Career & Job Search',
-  patterns: [/amazon\.jobs/i, /www\.amazon\.jobs/i],
-  guidance: `AMAZON JOBS-SPECIFIC INTELLIGENCE:...`,
-  selectors: {
-    searchBox: '[role="combobox"][aria-labelledby="search_typeahead-homepage-label"]',
-    searchButton: '#search-button',
-    locationInput: '[role="combobox"][aria-labelledby="location-typeahead-homepage-label"]'
-  },
-  workflows: {
-    searchJobs: ['Navigate to amazon.jobs', 'Enter keywords in search box', ...],
-    extractJobData: ['Get job title from listing', ...]
-  },
-  warnings: ['Amazon Jobs uses typeahead search -- wait for suggestions before pressing Enter'],
-  toolPreferences: ['navigate', 'type', 'click', 'scroll', 'getText', 'getAttribute', ...]
-});
 ```
-
-**Generation logic:** Extract from session log interactive elements:
-- Input elements with search-related ids/classes -> `selectors.searchBox`
-- Button elements near search inputs -> `selectors.searchButton`
-- Elements with location-related attributes -> `selectors.locationInput`
-- Job-card-like containers -> `selectors.jobCards`
-- Apply links/buttons -> `selectors.applyButton`
-
-This can be done with heuristics (pattern matching on element attributes) or by feeding the session log through AI refinement (existing `refineSiteMapWithAI` already produces workflows and tips).
-
-#### Integration Point 3: Career Task Prompt Enhancement
-
-**Where:** `ai-integration.js` line 262, `TASK_PROMPTS.career`
-
-The current career prompt defines 6 phases (Navigate, Search, Extract, Navigate to Sheets, Set Up Headers, Enter Row Data). For batch multi-company workflows, the prompt needs:
-
-**Additions needed:**
-- Batch iteration instructions ("Process each company in the user's list one by one")
-- Data accumulation strategy ("Remember extracted data across tab switches")
-- Row tracking ("Keep track of which row you are on in the spreadsheet -- A2, A3, A4, etc.")
-- Error recovery per company ("If a company's career page has no results, skip and move to the next")
-- Completion criteria ("Mark complete only after ALL companies have been processed")
-
-**No structural changes to the prompt system.** This is content modification within the existing `TASK_PROMPTS.career` string.
-
-#### Integration Point 4: background.js Import Registration
-
-**Where:** `background.js` lines 73-77 (site guide importScripts for career category)
-
-New per-company site guides need to be registered via `importScripts()`:
-
-```javascript
-// Per-site guides: Career (generated from session logs)
-importScripts('site-guides/career/amazon-jobs.js');
-importScripts('site-guides/career/microsoft-careers.js');
-importScripts('site-guides/career/apple-careers.js');
-// ... etc for each company with a session log
++-----------------------------------------------------------+
+|  UNCHANGED                                                |
+|  content/dom-analysis.js  generateCompactSnapshot()       |
+|  content/dom-state.js     RefMap class                    |
+|  content/selectors.js     resolveRef()                    |
+|  content/messaging.js     handleAsyncMessage              |
+|  content/actions.js       30+ tool implementations        |
+|  background.js            startAutomationLoop()            |
+|  background.js            sendMessageWithRetry()           |
+|  background.js            action dispatch (9270-9320)      |
+|  background.js            executeBatchActions()            |
+|  background.js            session management               |
+|  background.js            stuck detection, recovery        |
++-----------------------------------------------------------+
+|  CHANGES (narrow protocol band)                           |
+|  ai/ai-integration.js     buildPrompt() system prompt     |
+|  ai/ai-integration.js     parseResponse() -> dual parser  |
+|  ai/ai-integration.js     buildMinimalUpdate() format      |
+|  ai/cli-parser.js         NEW: CLI command parser          |
+|  ai/cli-prompt.js         NEW: CLI system prompts          |
++-----------------------------------------------------------+
+|  UNCHANGED                                                |
+|  content/visual-feedback.js, lifecycle.js, accessibility.js|
+|  popup.js, sidepanel.js, options.js, config.js, analytics  |
++-----------------------------------------------------------+
 ```
-
-**Alternative:** Use bundled site maps instead of site guides. Site maps are loaded dynamically from `site-maps/{domain}.json` by `loadBundledSiteMap()` and injected into the prompt by `formatSiteKnowledge()`. This avoids modifying background.js for each new company.
-
-**Recommendation:** Use BOTH channels:
-- **Bundled site maps** for navigation intelligence (pages, links, forms) -- generated from session logs
-- **Per-company site guides** only for the most important companies with hand-tuned selectors
-
-This is the existing pattern: the generic.js guide provides fallback coverage, per-site guides provide precision for high-priority sites, and site maps provide domain-specific navigation context.
 
 ---
 
-## Multi-Tab Workflow Architecture
+## Component Boundaries
 
-### Single-Session Multi-Tab (Current Model)
-
-FSB already handles multi-tab within a single session. The AI decides when to open/switch tabs.
-
-```
-Session Start (user sends task)
-  |
-  v
-AI iteration 1: Navigate to careers.microsoft.com
-AI iteration 2: Search for "software engineer"
-AI iteration 3: Extract job data from result 1
-AI iteration 4: Extract job data from result 2
-AI iteration 5: openNewTab({url: "https://sheets.google.com"})
-  |-- background.js adds new tabId to session.allowedTabs
-AI iteration 6: Create blank spreadsheet
-AI iteration 7: Set up header row (A1: Company, B1: Role, ...)
-AI iteration 8: Enter data row 1 (A2: Microsoft, B2: Software Engineer, ...)
-AI iteration 9: Enter data row 2 (A3: Microsoft, B3: Senior SWE, ...)
-  |
-  v
-For next company:
-AI iteration 10: switchToTab(originalTabId) -- back to career site
-AI iteration 11: Navigate to careers.apple.com
-...
-AI iteration 15: switchToTab(sheetsTabId) -- back to Sheets
-AI iteration 16: Enter data row 3 (A4: Apple, ...)
-...
-```
-
-**This model works for 2-3 companies** within the default 20 iteration limit. For larger batches (10+ companies), iterations may be exhausted.
-
-### Batch Strategy Options
-
-**Option A: Increase max iterations for career tasks**
-Set `session.maxIterations` to 50-100 for career batch tasks. Simple, but uses more API tokens per session.
-
-**Option B: Session continuity (existing feature)**
-FSB already supports session continuity (`conversationId`, `commandCount`). User sends follow-up commands to the same session:
-- "Find jobs at Microsoft, Apple, Amazon and add to this Google Sheet"
-- (session completes first batch or runs out of iterations)
-- "Continue -- add Google, Meta, Netflix to the same sheet"
-
-**Option C: Task decomposition in the career prompt**
-The career prompt already decomposes into phases. Enhance it to produce a plan:
-1. AI produces a company list from the user's request
-2. AI processes one company at a time
-3. After each company, AI updates Sheets and moves to the next
-4. If iterations are low, AI reports progress and marks partial completion
-
-**Recommendation:** Option C (task decomposition) is the most natural fit. The AI already reasons about multi-step workflows. The career prompt just needs clear instructions about batch iteration patterns.
-
-### Tab Lifecycle for Career Search
-
-```
-Tab 1 (Original): User's starting tab
-  |
-  v
-AI opens Tab 2: Career site (e.g., careers.microsoft.com)
-  |-- Searches, extracts data
-  |-- AI stores extracted data in its reasoning/memory
-  v
-AI opens Tab 3: Google Sheets (or navigates Tab 1 to Sheets)
-  |-- Creates/opens spreadsheet
-  |-- Enters header row
-  |-- Enters data rows from extracted data
-  v
-AI switches to Tab 2: Navigate to next career site
-  |-- Or navigates within Tab 2 to next company
-  |-- Extracts more data
-  v
-AI switches to Tab 3: Enter additional rows
-  |-- Continues from last row (e.g., A5, A6, ...)
-  v
-Repeat until all companies processed
-```
-
-**Key concern:** The AI must track the current row number across tab switches. The career prompt should emphasize row tracking: "After entering data, note the next empty row number in your reasoning before switching tabs."
+| Component | Responsibility | Communicates With | Changes |
+|-----------|---------------|-------------------|---------|
+| `content/dom-analysis.js` | DOM traversal, element filtering, compact snapshot generation | `content/messaging.js` (called by getDOM handler) | NONE |
+| `content/dom-state.js` | RefMap (e1->element mapping), DOMStateManager, MutationObserver | `content/dom-analysis.js` (refMap.register), `content/selectors.js` (refMap.resolve) | NONE |
+| `content/selectors.js` | resolveRef(), CSS selector generation, Shadow DOM traversal | `content/messaging.js` (ref resolution), `content/actions.js` (element finding) | NONE |
+| `content/messaging.js` | Message handler, ref->selector resolution, action dispatch | `background.js` (chrome.tabs.sendMessage), `content/actions.js` (tool execution) | NONE |
+| `content/actions.js` | 30+ tool implementations (click, type, scroll, navigate, etc.) | `content/messaging.js` (called via FSB.tools[tool]) | NONE |
+| `ai/ai-integration.js` | Prompt building, API calls, response parsing, conversation history | `background.js` (called by callAIAPI), AI providers (HTTP) | MAJOR |
+| `ai/cli-parser.js` | CLI command tokenization and parsing | `ai/ai-integration.js` (called by parseResponse) | NEW |
+| `ai/cli-prompt.js` | CLI-formatted system prompts and tool documentation | `ai/ai-integration.js` (imported for buildPrompt) | NEW |
+| `background.js` | Automation loop, session management, action dispatch, stuck detection | `content/messaging.js` (sendMessageWithRetry), `ai/ai-integration.js` (callAIAPI) | MINOR (import new files) |
 
 ---
 
-## Suggested Build Order
+## RefMap Lifecycle Across CLI Protocol
 
-Based on dependency analysis and risk assessment:
+The RefMap is the critical bridge between the compact snapshot and action execution. Understanding its lifecycle is essential for CLI protocol design.
 
-### Phase 1: Log-to-Sitemap Pipeline (Foundation)
+### Current RefMap Flow (unchanged by CLI)
 
-**What:** Build-time script that processes `/logs/*.json` into bundled site maps.
+```
+1. GENERATION (content script, every iteration):
+   dom-analysis.js:1851  refMap.reset()        // Clears all refs, increments generationId
+   dom-analysis.js:1875  ref = refMap.register(element, primarySelector, role, name)
+                         // Returns "e1", "e2", ... sequentially
+                         // Stores: WeakRef(element), selector, role, name
 
-**Why first:** This produces the artifacts that all subsequent phases consume. Without site maps, the AI has no site-specific knowledge for the 35+ career domains.
+2. SNAPSHOT (content script -> background):
+   Lines like: [e1] button "Submit Form" [focused]
+   Sent as domResponse._compactSnapshot string
 
-**Touches:**
-- NEW: `scripts/import-logs.js` or similar build script
-- EXISTING: `lib/memory/sitemap-converter.js` (reuse `convertToSiteMap`)
-- EXISTING: `site-maps/` directory (output bundled JSON)
+3. AI PROMPT (background, ai-integration.js):
+   Compact snapshot embedded in user message
+   AI reads [e1], [e2], etc. and uses refs in commands
 
-**Validation:** After running, `loadBundledSiteMap('careers.microsoft.com')` returns structured sitemap data.
+4. AI RESPONSE (CLI format):
+   click e5
+   type e12 "hello world"
 
-### Phase 2: Site Guide Generation (Optional Precision Layer)
+5. PARSING (background, cli-parser.js):
+   parseCLICommand("click e5") -> { tool: "click", params: { ref: "e5" } }
 
-**What:** Generate per-company site guide files from session log data.
+6. DISPATCH (background -> content script):
+   sendMessageWithRetry(tabId, { action: 'executeAction', tool: 'click', params: { ref: 'e5' } })
 
-**Why second:** Per-company guides provide selector-level precision beyond what sitemaps offer. This improves automation success rate for the most important career sites.
+7. RESOLUTION (content script, messaging.js:784-808):
+   FSB.resolveRef('e5')
+     -> FSB.refMap.resolve('e5')
+       -> entry = map.get('e5')
+       -> el = entry.element.deref()  // WeakRef
+       -> if el && el.isConnected: return element
+       -> if stale: fallback to CSS selector
+     -> params.selector = resolved selector
+     -> FSB.elementCache.set(selector, element)
 
-**Touches:**
-- NEW: `scripts/generate-guides.js` or similar
-- NEW: `site-guides/career/{company}.js` (generated files)
-- EXISTING: `background.js` (add importScripts for new guides)
-- EXISTING: `site-guides/career/generic.js` (may update fallback patterns)
+8. EXECUTION (content script, actions.js):
+   FSB.tools.click({ selector: '#submit-btn', ref: 'e5' })
+   // Uses selector (from ref resolution) to find and click element
+```
 
-**Validation:** `getGuideForUrl('https://careers.microsoft.com/search')` returns the Microsoft-specific guide with selectors.
+### Key RefMap Properties
 
-### Phase 3: Career Prompt Enhancement (AI Behavior)
+- **Refs are per-snapshot:** Every `generateCompactSnapshot()` call resets the RefMap. Refs from a previous iteration are stale.
+- **WeakRef prevents leaks:** If the DOM element is garbage-collected, `deref()` returns undefined, triggering CSS selector fallback.
+- **CSS selector fallback:** Each registered element has a CSS selector stored alongside the WeakRef. If the WeakRef is dead but the selector still matches, the element is found.
+- **Content-script-only:** The RefMap lives entirely in the content script. Background.js never touches it. The ref string (e.g., "e5") is just a token that travels through Chrome messaging.
 
-**What:** Enhance `TASK_PROMPTS.career` for batch multi-company workflows with row tracking, error recovery per company, and iteration management.
+### What CLI Protocol Changes About RefMap: Nothing
 
-**Why third:** With site maps and guides in place, the AI has the navigation intelligence. Now it needs behavioral instructions for batch processing.
+The CLI parser produces `{ ref: "e5" }` in the params -- the exact same shape the JSON parser produces. The content script's ref resolution code (messaging.js:784-808) does not know or care whether the ref came from CLI parsing or JSON parsing.
 
-**Touches:**
-- EXISTING: `ai-integration.js` (TASK_PROMPTS.career, TASK_PROMPTS.multitab)
-- EXISTING: `site-guides/career/_shared.js` (may refine category guidance)
+---
 
-**Validation:** Run a career search task for 3 companies with Sheets output. Verify AI processes each company in sequence, enters data correctly, and tracks row numbers.
+## CLI Command Grammar
 
-### Phase 4: End-to-End Workflow Testing and Refinement
+Based on FSB's 30+ tools and validated against industry patterns (Playwright CLI, agent-browser, webctl):
 
-**What:** Test the full pipeline with real career sites, refine selectors and prompts based on success/failure patterns.
+```
+RESPONSE       := LINE*
+LINE           := COMMAND | COMMENT | DONE | EMPTY
+COMMAND        := TOOL_NAME (TARGET)? (ARGS)*
+COMMENT        := '#' TEXT                        # Reasoning, analysis
+DONE           := 'done' (QUOTED_STRING)?         # Task completion + result
+EMPTY          := ''                              # Ignored
 
-**Why last:** Only meaningful after all prior phases are in place.
+TARGET         := REF | QUOTED_STRING
+REF            := 'e' DIGITS                      # e1, e42, e137
+QUOTED_STRING  := '"' (CHAR | '\"')* '"'          # "hello world", "https://..."
+DIGITS         := [0-9]+
+UNQUOTED_WORD  := [^\s"]+                         # down, up, 500, Escape
+```
 
-**Touches:**
-- EXISTING: Various site guides and prompt text (iterative refinement)
-- EXISTING: `site-guides/career/generic.js` (add ATS patterns discovered during testing)
+### Command Mapping to Existing Tools
+
+**Element Interaction (ref-targeted):**
+```
+click e5                          -> {tool:'click', params:{ref:'e5'}}
+doubleClick e5                    -> {tool:'doubleClick', params:{ref:'e5'}}
+rightClick e5                     -> {tool:'rightClick', params:{ref:'e5'}}
+hover e7                          -> {tool:'hover', params:{ref:'e7'}}
+focus e12                         -> {tool:'focus', params:{ref:'e12'}}
+blur e12                          -> {tool:'blur', params:{ref:'e12'}}
+type e12 "hello world"            -> {tool:'type', params:{ref:'e12', text:'hello world'}}
+clearInput e12                    -> {tool:'clearInput', params:{ref:'e12'}}
+selectOption e8 "Option B"        -> {tool:'selectOption', params:{ref:'e8', value:'Option B'}}
+toggleCheckbox e3                 -> {tool:'toggleCheckbox', params:{ref:'e3'}}
+getText e5                        -> {tool:'getText', params:{ref:'e5'}}
+getAttribute e5 "href"            -> {tool:'getAttribute', params:{ref:'e5', attribute:'href'}}
+```
+
+**Keyboard Commands:**
+```
+pressEnter                        -> {tool:'pressEnter', params:{}}
+pressEnter e12                    -> {tool:'pressEnter', params:{ref:'e12'}}
+keyPress "Escape"                 -> {tool:'keyPress', params:{key:'Escape'}}
+keyPress "Tab" e12                -> {tool:'keyPress', params:{key:'Tab', ref:'e12'}}
+```
+
+**Navigation:**
+```
+navigate "https://example.com"    -> {tool:'navigate', params:{url:'https://example.com'}}
+searchGoogle "wireless mouse"     -> {tool:'searchGoogle', params:{query:'wireless mouse'}}
+clickSearchResult 0               -> {tool:'clickSearchResult', params:{index:0}}
+goBack                            -> {tool:'goBack', params:{}}
+goForward                         -> {tool:'goForward', params:{}}
+refresh                           -> {tool:'refresh', params:{}}
+```
+
+**Scrolling:**
+```
+scroll down                       -> {tool:'scroll', params:{direction:'down'}}
+scroll down 500                   -> {tool:'scroll', params:{direction:'down', amount:500}}
+scroll up                         -> {tool:'scroll', params:{direction:'up'}}
+scrollToElement ".footer"         -> {tool:'scrollToElement', params:{selector:'.footer'}}
+scrollToTop                       -> {tool:'scrollToTop', params:{}}
+scrollToBottom                    -> {tool:'scrollToBottom', params:{}}
+```
+
+**Wait Commands:**
+```
+waitForElement ".modal"           -> {tool:'waitForElement', params:{selector:'.modal'}}
+waitForDOMStable                  -> {tool:'waitForDOMStable', params:{}}
+waitForPageStability              -> {tool:'waitForPageStability', params:{}}
+```
+
+**Multi-Tab (background-handled):**
+```
+openNewTab "https://sheets.google.com"  -> {tool:'openNewTab', params:{url:'...'}}
+switchToTab 123456                      -> {tool:'switchToTab', params:{tabId:123456}}
+closeTab 123456                         -> {tool:'closeTab', params:{tabId:123456}}
+```
+
+**Data Tools (background-handled):**
+```
+storeJobData '{"company":"Acme"}'       -> {tool:'storeJobData', params:{data:{company:'Acme'}}}
+```
+
+**Completion:**
+```
+done                              -> taskComplete: true, result: ''
+done "Found 5 results"            -> taskComplete: true, result: 'Found 5 results'
+```
+
+### AI Reasoning via Comments
+
+```
+# Page: Google search results for "wireless mouse"
+# State: 10 results visible, first result is "Logitech M720"
+# Goal: Click first result to visit product page
+# Confidence: high -- result title matches query
+click e3
+# Fallback: if click fails, navigate directly using href
+```
+
+Comments replace the JSON fields: `situationAnalysis`, `goalAssessment`, `reasoning`, `confidence`, `assumptions`, `fallbackPlan`. The CLI parser extracts all `#` lines into a combined `reasoning` string.
+
+---
+
+## Detailed File-by-File Impact Assessment
+
+### Files with NO CHANGES
+
+| File | Size | Why Unchanged |
+|------|------|---------------|
+| `content/actions.js` | 158KB | Tool implementations receive `{selector, ref, text, ...}` params -- format-agnostic |
+| `content/dom-analysis.js` | 94KB | `generateCompactSnapshot()` already produces target format. `getStructuredDOM()` unchanged |
+| `content/dom-state.js` | 26KB | `RefMap` class, `DOMStateManager`, `ElementCache` -- all format-independent |
+| `content/selectors.js` | 34KB | `resolveRef()`, `generateSelectors()`, `querySelectorWithShadow()` -- unchanged |
+| `content/messaging.js` | 46KB | `handleAsyncMessage` case 'executeAction' with ref resolution -- unchanged |
+| `content/visual-feedback.js` | 56KB | Highlights, overlays, viewport glow -- triggered by actions, not format |
+| `content/accessibility.js` | 38KB | ARIA computation for elements -- DOM-level, not protocol-level |
+| `content/lifecycle.js` | 21KB | Health checks, injection management -- infrastructure |
+| `content/init.js` | 4KB | Module initialization |
+| `content/utils.js` | 6KB | Utility functions |
+| `config.js` | - | Settings management |
+| `analytics.js` | - | Usage tracking -- may want CLI-specific metrics later but no structural change |
+| `automation-logger.js` | - | Logging -- may log CLI commands but no structural change needed |
+| `popup.js/html/css` | - | UI sends `startAutomation`, receives status/results -- format-agnostic |
+| `sidepanel.js/html/css` | - | Same as popup |
+| `options.js/html/css` | - | Settings dashboard -- no automation format awareness |
+| `secure-config.js` | - | Encryption utilities |
+| `manifest.json` | - | Permissions/content_scripts -- no changes needed |
+
+### Files MODIFIED
+
+#### `ai/ai-integration.js` -- MAJOR changes (~500 lines modified/added)
+
+**Functions modified:**
+
+1. **`buildPrompt()` (line 2129)** -- System prompt content changes
+   - Current: JSON format instructions, JSON response format specification
+   - CLI: CLI format instructions, command syntax documentation
+   - The function structure stays the same (system message + user message)
+   - `formatCompactElements()` call unchanged -- already outputs line-based format
+   - Tool documentation section changes format (CLI examples instead of JSON)
+
+2. **`buildMinimalUpdate()` (line 754)** -- Minor format changes
+   - Current: Works fine as-is. Compact snapshot embedding unchanged
+   - CLI: May add "Respond with CLI commands" reminder in continuation prompt
+   - Structural change: minimal
+
+3. **`parseResponse()` (line 3956)** -- REPLACED with dual parser
+   - Current: 4-strategy JSON parsing pipeline
+   - CLI: Auto-detect format (JSON vs CLI), delegate to appropriate parser
+   - JSON strategies kept as fallback
+   - New `parseCLIResponse()` added as primary path
+
+4. **`normalizeResponse()` (line 4087)** -- MINIMAL changes
+   - Input shape changes (CLI parser output vs JSON parser output) but output shape identical
+   - Security sanitization applies equally to CLI-parsed `{tool, params}` objects
+   - `batchActions` extraction may be simplified (all CLI actions are inherently a batch)
+
+5. **`isValidParsedResponse()` (line 4164)** -- ADAPTED
+   - Validate CLI parse result has at least one action or taskComplete flag
+   - Simpler validation than JSON structure checking
+
+6. **`updateConversationHistory()` (line 1872 call site)** -- MINOR
+   - Stores assistant's raw CLI text in conversation history
+   - Structure unchanged (`{role: 'assistant', content: rawCLIText}`)
+
+7. **`getToolsDocumentation()` / tool docs** -- REWRITTEN
+   - Current: JSON examples for each tool
+   - CLI: CLI command examples for each tool
+
+**Functions UNCHANGED in ai-integration.js:**
+- `constructor()`, `migrateSettings()`, `createProvider()`
+- `clearConversationHistory()`
+- `triggerCompaction()`, `_localExtractiveFallback()`
+- `getAutomationActions()` (orchestration logic stays, just calls different parser)
+- `generateCacheKey()`, `getCachedResponse()`, `setCachedResponse()`
+- `formatCompactElements()` (already line-based)
+- `detectTaskType()` (task type detection is prompt-side, not response-side)
+- `decomposeTask()`, `getModelSpecificInstructions()`
+- Provider-related methods (sendRequest, buildRequest, etc.)
+
+#### `background.js` -- MINOR changes (~20-30 lines)
+
+1. **Import new modules** -- Add `importScripts()` for `ai/cli-parser.js` and `ai/cli-prompt.js`
+2. **Action dispatch (lines 9270-9320)** -- NO changes. Already operates on `[{tool, params}]`
+3. **`startAutomationLoop()` (line 7941)** -- NO changes. DOM fetching and action dispatch are format-agnostic
+4. **`executeBatchActions()` (line 5923)** -- NO changes. Receives `[{tool, params}]` array
+5. **`callAIAPI()` (line 10100)** -- NO changes. Calls `ai.getAutomationActions()` and gets back same shape
+6. **`sendMessageWithRetry()` (line 2369)** -- NO changes. Chrome messaging layer
+
+### Files CREATED
+
+#### `ai/cli-parser.js` -- NEW (~300-400 lines)
+
+**Purpose:** Parse CLI-format AI responses into `{actions, taskComplete, reasoning}` objects.
+
+**Key functions:**
+- `parseCLIResponse(responseText)` -- Main entry point. Splits into lines, categorizes each.
+- `parseCLICommand(line)` -- Parses a single command line into `{tool, params}`.
+- `tokenize(line)` -- Splits line on whitespace, respecting quoted strings.
+- `resolveTarget(token)` -- Determines if token is a ref (`e5`) or selector (`".btn"`).
+
+**No dependencies** on FSB internals. Pure string parsing. Can be unit tested in isolation.
+
+#### `ai/cli-prompt.js` -- NEW (~200-300 lines)
+
+**Purpose:** CLI-formatted system prompts, tool documentation, and format-specific instructions.
+
+**Contains:**
+- `CLI_SYSTEM_PROMPT` -- Core system prompt adapted for CLI output format
+- `CLI_TOOL_DOCS` -- Tool documentation with CLI command examples
+- `CLI_CONTINUATION_PROMPT` -- Minimal prompt for multi-turn iterations
+- `CLI_RESPONSE_FORMAT` -- Format specification for AI (replaces JSON format block)
+
+**No dependencies** on FSB internals. Pure string constants. Can be reviewed without running code.
 
 ---
 
 ## Patterns to Follow
 
-### Pattern 1: Dual-Channel Knowledge (Site Guide + Site Map)
+### Pattern 1: Protocol Layer Isolation
 
-The existing architecture provides two parallel knowledge channels to the AI:
+**What:** The CLI parser's output MUST match the exact `{tool, params}` shape that the existing dispatch pipeline expects. The CLI protocol is a serialization format, not a new action system.
 
-1. **Site guides** (hardcoded in JS, loaded at extension start): Provide expert-crafted guidance text, curated selectors, step-by-step workflows, and warnings. These are HIGH-QUALITY but STATIC.
+**Why:** The content script layer (10 modules, 480KB+ of code) operates on `{tool, params}` objects. Every tool in `content/actions.js` receives params like `{selector, ref, text, value, direction, amount, url, query, key}`. The CLI parser must produce these exact param names.
 
-2. **Site maps** (stored in memory or bundled JSON, loaded per-domain at runtime): Provide crawl-derived page structure, navigation links, form fields, and AI-generated workflows/tips. These are BROAD but may have STALE selectors.
+**Example:**
+```javascript
+// CLI: type e12 "hello world"
+// Must produce: {tool: 'type', params: {ref: 'e12', text: 'hello world'}}
+// NOT:          {tool: 'type', params: {target: 'e12', value: 'hello world'}}
+//               (wrong param names would break content/actions.js)
+```
 
-For career search, use BOTH:
-- Site guides for behavioral instructions (how to search, what to extract, what to avoid)
-- Site maps for structural intelligence (what pages exist, what interactive elements are on each page)
+### Pattern 2: Backward-Compatible Dual Parser
 
-### Pattern 2: Generic Fallback with Specific Overrides
+**What:** Support both JSON and CLI response formats with auto-detection.
 
-The `generic.js` career guide matches any URL with `/careers/`, `/jobs/`, or known ATS patterns. This provides baseline competence for ALL career sites. Per-company guides override with precise selectors when available.
+**When:** Permanently. Models may occasionally revert to JSON despite CLI instructions. Having both parsers means zero downtime.
 
-**This is the correct pattern for scaling to 35+ companies.** Do not write per-company guides for all 35. Instead:
-- Generic guide handles 80% of sites adequately
-- Per-company guides for the top 5-10 most complex sites (Workday, custom ATS)
-- Site maps fill the gap with domain-specific page structure
+```javascript
+parseResponse(responseText) {
+  const trimmed = responseText.trim();
 
-### Pattern 3: AI-Driven Tab Management
+  // Heuristic: if starts with { or [, try JSON first
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try { return this.parseJSONResponse(trimmed); } catch (e) { /* fall through */ }
+  }
 
-FSB does NOT hardcode tab switching logic. The AI receives tab context (all open tabs with IDs, URLs, and allowed status) and decides when to open, switch, or close tabs. This is the correct pattern for career search.
+  // CLI parsing (new default)
+  try { return this.parseCLIResponse(trimmed); } catch (e) { /* fall through */ }
 
-Do not build a "tab orchestrator" that programmatically opens career sites in tabs. Let the AI reason about when to switch. The career prompt guides this reasoning with phase instructions.
+  // Last resort: try JSON with cleaning
+  return this.parseWithAdvancedCleaning(trimmed);
+}
+```
 
-### Pattern 4: Name Box Navigation for Sheets
+### Pattern 3: Compact Snapshot Is Already Done
 
-All cell navigation in Google Sheets MUST go through the Name Box (`#t-name-box`). The canvas-based grid does not expose individual cells as DOM elements. This is already documented in the Sheets site guide and must be respected in the career prompt's data entry phase.
+**What:** The compact snapshot format (`[e1] button "Submit"`) is the "YAML snapshot" the project description mentions. Do NOT change this format or add an actual YAML dependency.
+
+**Evidence from codebase:** `generateCompactSnapshot()` at line 1840 already produces:
+```
+[e1] button "Submit Form" [focused]
+[e2] textbox "Email" placeholder="Enter email" value="user@..."
+[e3] link "Sign up" href="/signup"
+[e4] heading "Contact Us"
+[e5] checkbox "Remember me" [checked]
+```
+
+This is more token-efficient than YAML (no `key: value` overhead, no indentation) and purpose-built for AI comprehension. Adding actual YAML parsing would require a library (no build system = no npm) or a hand-written parser for zero benefit.
+
+### Pattern 4: Reasoning as Comments (Not Separate Fields)
+
+**What:** AI reasoning lives in `#` comment lines, not separate JSON fields.
+
+**Why:** JSON reasoning fields (`situationAnalysis`, `goalAssessment`, `reasoning`, `confidence`, `assumptions`, `fallbackPlan`) add ~200-300 tokens of structural overhead per response. Comment-based reasoning has zero format overhead.
+
+**How the system still gets reasoning data:**
+```javascript
+// cli-parser.js
+for (const line of lines) {
+  if (line.startsWith('#')) {
+    reasoning.push(line.substring(1).trim());
+  }
+}
+// reasoning array joined into string for normalizeResponse().reasoning field
+// All downstream code that reads aiResponse.reasoning works unchanged
+```
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Building a Custom Orchestration Layer
+### Anti-Pattern 1: Changing the Content Script Message Interface
 
-**What:** Creating a new "batch job runner" or "workflow engine" that manages the career search pipeline outside of the AI session.
+**What:** Modifying how `content/messaging.js` receives or processes `executeAction` messages.
 
-**Why bad:** FSB's architecture delegates all decision-making to the AI within a session. The AI already handles multi-step, multi-tab workflows. Adding a separate orchestration layer creates a parallel control flow that conflicts with the AI's reasoning.
+**Why bad:** The content script message handler at line 764-888 handles `{action:'executeAction', tool, params}` with ref resolution, visual feedback, timeout wrapping, and result propagation. This is 125 lines of battle-tested code. Changing the interface means retesting every one of the 30+ tools across diverse websites.
 
-**Instead:** Enhance the career task prompt to include batch processing instructions. The AI handles iteration, error recovery, and tab management within its existing reasoning loop.
+**Instead:** The CLI parser produces the exact same `{tool, params}` objects. The content script never knows the AI's response format changed.
 
-### Anti-Pattern 2: One Site Guide Per Session Log
+### Anti-Pattern 2: Building a Real YAML Parser
 
-**What:** Generating a separate site guide file for each of the 35+ session logs.
+**What:** Importing js-yaml or writing a YAML parser for DOM snapshots.
 
-**Why bad:** 35+ site guide files bloat `background.js` with importScripts, increase extension load time, and most guides would be nearly identical (same generic patterns). The site guide registry is searched linearly for URL pattern matching -- more guides = slower matching.
+**Why bad:** No build system (constraint from PROJECT.md). Cannot use npm packages. The existing line-based format is already more compact than YAML for this use case.
 
-**Instead:** Use bundled site maps for most companies (loaded on-demand, not at startup) and site guides only for the 5-10 most complex sites.
+**Instead:** Use the existing compact snapshot format. If metadata headers are needed, prepend simple `key: value` lines before element lines (parseable with a regex, no YAML library needed).
 
-### Anti-Pattern 3: Hardcoding Company Lists in Prompts
+### Anti-Pattern 3: Removing JSON Parsing Entirely
 
-**What:** Embedding specific company names, URLs, or career page structures in the task prompts.
+**What:** Deleting `parseCleanJSON`, `parseWithMarkdownBlocks`, `parseWithJSONExtraction`, `parseWithAdvancedCleaning` when adding CLI parsing.
 
-**Why bad:** Fragile, doesn't scale, and the prompt grows with each company.
+**Why bad:** Some AI models (especially less capable ones) may not follow CLI format instructions. The JSON fallback ensures FSB keeps working even when the AI outputs JSON.
 
-**Instead:** The user specifies companies in their task. The AI uses site guides and site maps to navigate each one. The career prompt provides the behavioral framework, not the company-specific details.
+**Instead:** Keep both parsers. Auto-detect format. CLI is preferred; JSON is fallback.
 
-### Anti-Pattern 4: Scraping Data in Content Script
+### Anti-Pattern 4: Changing How Actions Are Stored in Session History
 
-**What:** Building custom scraping logic in content scripts that extracts job data into a structured format before the AI sees it.
+**What:** Storing raw CLI command strings in `session.actionHistory` instead of structured `{tool, params, result}` objects.
 
-**Why bad:** Every career site has a different layout. Custom scraping logic for 35+ sites is an enormous maintenance burden. The AI's ability to understand page content through DOM analysis is the entire point of FSB.
+**Why bad:** Session management code throughout `background.js` depends on structured action records for:
+- Stuck detection via action pattern analysis (lines 8396+)
+- Action signature creation for failure tracking (line 9392)
+- Progress tracking and reporting (line 9203)
+- Memory extraction from session history
+- Completion detection via action sequence analysis
 
-**Instead:** Let the AI use `getText` and `getAttribute` tools to extract data, guided by site-specific selectors from guides/sitemaps. The AI interprets what it sees, not a scraping pipeline.
+All of these operate on `{tool, params}` objects, not raw strings.
+
+**Instead:** CLI commands are parsed into `{tool, params}` before entering session state. The CLI text only exists briefly in the parser -- everything downstream sees structured objects.
+
+### Anti-Pattern 5: Separate Batch Syntax
+
+**What:** Creating a special CLI syntax for batch actions (e.g., `batch { click e1; type e2 "hi" }`).
+
+**Why bad:** Unnecessary complexity. In CLI format, multiple commands on consecutive lines are naturally a batch. The existing `executeBatchActions()` function already handles arrays of `{tool, params}`.
+
+**Instead:** If the AI outputs multiple command lines in one response, the CLI parser puts them all in the `actions` array. Background.js routes through `executeBatchActions()` when `actions.length > 1`, same as now.
+
+---
+
+## Suggested Build Order (Dependency-Aware)
+
+### Phase 1: CLI Parser Module (zero dependencies)
+
+**Create:** `ai/cli-parser.js`
+- `parseCLIResponse()`, `parseCLICommand()`, `tokenize()`, `resolveTarget()`
+- Pure string processing. No imports from FSB modules.
+- Can be tested with sample CLI text strings in isolation.
+
+**Why first:** Everything else depends on this module. It has zero dependencies, so it can be built and validated independently.
+
+**Validation:** Feed sample CLI responses, verify output matches expected `{actions, taskComplete, reasoning}` shape.
+
+### Phase 2: CLI Prompt Constants (zero dependencies)
+
+**Create:** `ai/cli-prompt.js`
+- `CLI_SYSTEM_PROMPT`, `CLI_TOOL_DOCS`, `CLI_CONTINUATION_PROMPT`, `CLI_RESPONSE_FORMAT`
+- Pure string constants. No code logic.
+- Can be reviewed by reading the text.
+
+**Why second:** Depends on Phase 1 (must know exact CLI syntax to document in prompts). Has zero code dependencies.
+
+**Validation:** Review prompt text for accuracy against Phase 1 command grammar.
+
+### Phase 3: ai-integration.js Adaptation
+
+**Modify:** `ai/ai-integration.js`
+- Wire `parseCLIResponse()` into `parseResponse()` with dual-format auto-detection
+- Replace system prompt content in `buildPrompt()` with CLI prompt constants
+- Update tool documentation format in `getToolsDocumentation()`
+- Adapt `isValidParsedResponse()` for CLI parse output
+
+**Why third:** Depends on Phase 1 (parser) and Phase 2 (prompts). This is the integration layer.
+
+**Validation:** End-to-end test with a real AI model. Verify AI outputs CLI commands and parser handles them correctly.
+
+### Phase 4: background.js Import + Multi-Turn
+
+**Modify:** `background.js`
+- Add `importScripts('ai/cli-parser.js')` and `importScripts('ai/cli-prompt.js')`
+- Verify conversation history works with CLI-format exchanges
+- Verify compaction (`triggerCompaction()`) handles CLI text content
+
+**Why fourth:** Depends on Phase 3. The imports must exist before they can be loaded.
+
+**Validation:** Multi-iteration automation task. Verify conversation history accumulates CLI exchanges correctly.
+
+### Phase 5: End-to-End Testing + Provider Validation
+
+**Test across providers:**
+- xAI Grok 4.1 Fast (primary model)
+- GPT-4o (OpenAI)
+- Claude Sonnet 4.5 (Anthropic)
+- Gemini 2.5 Flash (Google)
+
+**Measure:**
+- Token reduction (compare JSON vs CLI token counts)
+- Parse success rate (how often CLI parsing succeeds on first try)
+- Action accuracy (does the AI output correct tool names and params in CLI format)
+- Regression testing (do existing workflows still work via JSON fallback)
+
+---
+
+## Critical Constraints Addressed
+
+### Chrome Extension Message Passing
+
+The CLI format is ONLY for AI communication (AI response text -> parser -> structured objects). Chrome extension internal messaging (`chrome.tabs.sendMessage`, `chrome.runtime.sendMessage`) always uses JSON serialization internally. This is a Chrome API requirement and cannot be changed. The CLI protocol operates above this layer.
+
+### No Build System
+
+All new files must be vanilla JavaScript loaded via `importScripts()` in the service worker. No npm packages, no transpilation, no bundling. The CLI parser is hand-written tokenizer + switch-case command mapping.
+
+### Service Worker Lifecycle
+
+`background.js` is a Manifest V3 service worker that can be terminated and restarted by Chrome. The CLI parser must be stateless (pure functions, no module-level mutable state). This is naturally achieved because parsing is a pure function: text in, structured object out.
+
+### Multi-Provider Compatibility
+
+Different AI providers may respond to CLI format instructions differently. The dual parser (CLI + JSON fallback) ensures compatibility. The system prompt must be tested across providers to verify CLI compliance.
 
 ---
 
 ## Scalability Considerations
 
-| Concern | At 5 companies | At 20 companies | At 50+ companies |
-|---------|----------------|-----------------|-------------------|
-| Iterations | 20-30 (fits in one session) | 60-100 (needs high iteration limit or continuity) | 150+ (needs session continuity or batching) |
-| Site maps | Load from memory, ~50ms each | Same, may need memory cleanup | Consider LRU eviction or lazy loading |
-| Tab count | 2-3 tabs (career + Sheets) | 2-3 tabs (reuse career tab) | Same (AI reuses tabs) |
-| Sheets rows | 15-25 rows | 60-100 rows | 150+ rows (Sheets handles this fine) |
-| API tokens | ~5K-10K per company | ~100K-200K total | Significant cost -- need token budget awareness |
-| Success rate | High (can hand-tune) | Moderate (generic guide limits) | Depends on site complexity and ATS variety |
+| Concern | Current (JSON) | CLI Protocol | Improvement |
+|---------|----------------|--------------|-------------|
+| AI response tokens | ~800-2000 per iteration (JSON overhead) | ~200-600 per iteration (CLI commands) | 60-70% reduction |
+| Parse failure rate | 5-15% (triggers 4-strategy fallback) | <1% (line-based, deterministic) | Near-zero failures |
+| Prompt tokens (system) | ~3000-4000 (JSON format docs + examples) | ~2000-3000 (CLI format docs) | ~25% reduction |
+| DOM snapshot tokens | ~2000-4000 (compact snapshot) | SAME (format unchanged) | No change |
+| Multi-turn context growth | JSON objects accumulate rapidly | CLI lines are 3-5x shorter per turn | 3x more turns in context window |
+| Total per-session cost | 100% baseline | ~50-60% of baseline | 40-50% cost reduction |
+| Parse latency | 1-5ms (JSON.parse + strategies) | <1ms (line split + regex) | Negligible improvement |
 
 ---
 
 ## Sources
 
-- Direct analysis of `background.js` (session management, multi-tab handling, site map retrieval)
-- Direct analysis of `ai/ai-integration.js` (task type detection, prompt building, site guide injection, site map injection)
-- Direct analysis of `site-guides/index.js` (guide registry, URL pattern matching, `getGuideForUrl()`)
-- Direct analysis of `site-guides/career/*.js` (4 existing career guides + shared category guidance)
-- Direct analysis of `site-guides/productivity/google-sheets.js` (Sheets interaction model)
-- Direct analysis of `lib/memory/sitemap-converter.js` (Tier 1 conversion from session logs)
-- Direct analysis of `lib/memory/sitemap-refiner.js` (Tier 2 AI enrichment)
-- Direct analysis of `lib/memory/memory-schemas.js` (createSiteMapMemory factory)
-- Direct analysis of `lib/memory/memory-manager.js` (memory add/search/consolidate)
-- Direct analysis of `utils/site-explorer.js` (autoConvertToMemory pipeline)
-- Direct analysis of `/logs/fsb-research-www.amazon.jobs-2026-02-23.json` (session log format)
-- Direct analysis of `manifest.json` (permissions, web_accessible_resources for site-maps)
+**Codebase analysis (PRIMARY -- HIGH confidence):**
+- `background.js` lines 7941-9400: startAutomationLoop, action dispatch, executeBatchActions
+- `background.js` lines 2367-2466: sendMessageWithRetry with ref handling
+- `background.js` lines 10100-10172: callAIAPI
+- `ai/ai-integration.js` lines 554-700: AIIntegration class, constructor, conversation history
+- `ai/ai-integration.js` lines 754-960: buildMinimalUpdate with compact snapshot embedding
+- `ai/ai-integration.js` lines 1735-1934: getAutomationActions with prompt building
+- `ai/ai-integration.js` lines 2129-2418: buildPrompt with system prompt construction
+- `ai/ai-integration.js` lines 3956-4161: parseResponse 4-strategy pipeline, normalizeResponse
+- `content/dom-analysis.js` lines 1840-2003: generateCompactSnapshot
+- `content/dom-state.js` lines 610-776: RefMap class with WeakRef + selector fallback
+- `content/selectors.js` lines 555-574: resolveRef
+- `content/messaging.js` lines 764-888: executeAction handler with ref resolution
+
+**Industry research (MEDIUM confidence):**
+- [Playwright CLI](https://testcollab.com/blog/playwright-cli) -- 76% token reduction (114K vs 27K), YAML snapshots on disk
+- [agent-browser](https://github.com/vercel-labs/agent-browser) -- @e1 ref format, 93% context reduction, 50+ CLI commands, snapshot+refs pattern
+- [webctl](https://github.com/cosinusalpha/webctl) -- ARIA-based queries, CLI-first browser automation, skill-based agent integration
+- [Playwright MCP](https://github.com/microsoft/playwright-mcp) -- Accessibility tree + refs (FSB already implements equivalent via compact snapshot)
