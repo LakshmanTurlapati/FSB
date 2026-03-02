@@ -1038,9 +1038,9 @@ const DEFAULT_SUITES = [
       { ref: 'e30', type: 'a', text: 'Next', attrs: { href: '?q=wireless+mouse&page=2', class: 'pagination next' } },
     ],
     expected: {
-      minActions: 2,
+      minActions: 3,
       maxActions: 8,
-      requiredTools: ['click'],
+      requiredTools: ['click', 'type'],
       forbiddenTools: [],
       noJSON: true,
       taskComplete: true,

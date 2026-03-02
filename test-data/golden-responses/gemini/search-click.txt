@@ -5,11 +5,14 @@
 # Captured: 2026-03-01
 # Prompt version: v10.0 CLI
 
-Here are the commands to click the first search result:
+Here are the commands to search and click the first result:
 
 ```
 # The search results for "wireless mouse" are already visible
-# Clicking the first result link
+# Refining search and clicking the top result
+click e1
+type e1 "wireless mouse reviews"
+click e2
 click e7
 done "clicked first search result for wireless mouse reviews"
 ```

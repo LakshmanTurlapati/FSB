@@ -8,7 +8,10 @@
 # I can see search results are already displayed for "wireless mouse"
 # The search box e1 contains "wireless mouse" and results are visible
 # Result links: e7 (techreviews), e10 (official store), e13 (amazon), e16 (pcmag), e19 (tomsguide), e22 (razer), e25 (rtings)
-# I should click the first relevant result
+# Let me refine the search query first, then click the best result
 # e7 "Best Wireless Mouse 2026 - Top 10 Reviews" looks like the most comprehensive
+click e1
+type e1 "wireless mouse reviews"
+click e2
 click e7
 done "clicked first search result for wireless mouse reviews"
