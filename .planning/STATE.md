@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
 status: completed
-stopped_at: Phase 22 context gathered
-last_updated: "2026-03-06T12:46:13.794Z"
-last_activity: 2026-03-06 -- Completed 22-01 (Markdown Snapshot Engine + Page Text Extractor)
+stopped_at: Completed 22-02-PLAN.md
+last_updated: "2026-03-06T17:01:21Z"
+last_activity: 2026-03-06 -- Completed 22-02 (CLI Command Wiring + Markdown Snapshot Integration)
 progress:
   total_phases: 8
   completed_phases: 5
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 22 Page Text Extraction for Reading Tasks - Plan 01 Complete
+**Current focus:** Phase 22 Page Text Extraction for Reading Tasks - Complete
 
 ## Current Position
 
 Phase: 22
-Plan: 1 of 1 in phase 22 (complete)
-Status: Plan 22-01 complete -- Markdown snapshot engine + page text extractor
-Last activity: 2026-03-06 -- Completed 22-01 (Markdown Snapshot Engine + Page Text Extractor)
+Plan: 2 of 2 in phase 22 (complete)
+Status: Plan 22-02 complete -- CLI command wiring and markdown snapshot integration
+Last activity: 2026-03-06 -- Completed 22-02 (CLI Command Wiring + Markdown Snapshot Integration)
 
 Progress: [##########] 100%
 
@@ -66,6 +66,7 @@ Progress: [##########] 100%
 | Phase 21 P01 | 2min | 2 tasks | 3 files |
 | Phase 21 P02 | 3min | 2 tasks | 1 files |
 | Phase 22 P01 | 3min | 2 tasks | 2 files |
+| Phase 22 P02 | 4min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,10 @@ Recent decisions affecting current work:
 - [22-01]: Interactive elements skip children in walker to prevent text duplication (Pitfall 1)
 - [22-01]: Region tracking via getRegion() during walk for document-order heading emission
 - [22-01]: 80 element limit (up from 50) fitting within 12K char budget
+- [22-02]: readpage flags merge into params directly (params.full) per existing tokenizer behavior
+- [22-02]: Markdown snapshot fetched as separate message after getDOM, consolidated single fetch point
+- [22-02]: readPage text preserved in slimActionResult up to 30K chars for inline prompt inclusion
+- [22-02]: Compact snapshot preserved as graceful fallback when markdown generation fails
 
 ### Roadmap Evolution
 
@@ -148,6 +153,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-06T13:17:09Z
-Stopped at: Completed 22-01-PLAN.md
-Resume file: .planning/phases/22-page-text-extraction-for-reading-tasks/22-01-SUMMARY.md
+Last session: 2026-03-06T17:01:21Z
+Stopped at: Completed 22-02-PLAN.md
+Resume file: .planning/phases/22-page-text-extraction-for-reading-tasks/22-02-SUMMARY.md

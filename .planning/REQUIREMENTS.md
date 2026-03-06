@@ -69,8 +69,8 @@
 - [x] **P22-03**: Page regions map to markdown heading hierarchy (`## Header`, `## Main Content`, `## Sidebar`, `## Footer`)
 - [x] **P22-04**: Page metadata appears as H1 page title + blockquote with URL, scroll position, and viewport dimensions
 - [x] **P22-05**: Snapshot respects ~12K character budget (~3K tokens) with line-boundary truncation and `[...content continues below -- scroll down and observe]` marker
-- [ ] **P22-06**: `readpage` CLI command returns full untruncated page text with markdown-lite formatting and no element refs
-- [ ] **P22-07**: `readpage --full` flag extracts entire `<body>` text; default (no flag) extracts viewport-visible text only
+- [x] **P22-06**: `readpage` CLI command returns full untruncated page text with markdown-lite formatting and no element refs
+- [x] **P22-07**: `readpage --full` flag extracts entire `<body>` text; default (no flag) extracts viewport-visible text only
 
 ## Future Requirements (Deferred)
 

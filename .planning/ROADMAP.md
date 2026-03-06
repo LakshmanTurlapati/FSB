@@ -172,7 +172,7 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
   5. Snapshot respects ~12K char budget with line-boundary truncation and scroll hint
   6. `readpage` CLI command returns full page text with markdown-lite formatting, no element refs
   7. `readpage --full` extracts entire body text; default is viewport-only
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 22-01-PLAN.md -- Markdown snapshot engine: buildMarkdownSnapshot, DOM walker, extractPageText, message handlers
