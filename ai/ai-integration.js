@@ -789,6 +789,7 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       update += `\n- To navigate: key "Escape", click eN (Name Box ref), type eN "B1", enter`;
       update += `\n- To enter data: type the value (keystrokes go to the active cell). Do NOT target the Name Box for data entry -- it is ONLY for cell references.`;
       update += `\n- Tab = move right, Enter = move down. Use key "Tab" between columns in the same row.`;
+      update += `\n- OUTPUT AT MOST 8 commands per response. Wait for DOM updates between batches.`;
     }
 
     // DIF-03: Detect task type for content-adaptive formatting
@@ -2114,6 +2115,15 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
           parsed._rawCliText = rawText;
         }
 
+        // Sheets action cap: truncate excessive actions for canvas-based grid
+        const actionUrl = request?.context?.currentUrl || '';
+        if (/docs\.google\.com\/spreadsheets/i.test(actionUrl) && parsed.actions && parsed.actions.length > 10) {
+          automationLogger.warn('Sheets action cap: truncating from ' + parsed.actions.length + ' to 10 actions', {
+            sessionId: this.currentSessionId
+          });
+          parsed.actions = parsed.actions.slice(0, 10);
+        }
+
         // batchActions compatibility shim
         if (parsed.actions.length > 1) {
           parsed.batchActions = parsed.actions;
@@ -3081,6 +3091,12 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       const truncateAt = userPrompt.lastIndexOf('\n', HARD_PROMPT_CAP);
       userPrompt = userPrompt.substring(0, truncateAt > 0 ? truncateAt : HARD_PROMPT_CAP);
       userPrompt += '\n\n[Prompt truncated for performance. Focus on the task and available elements above.]';
+    }
+
+    // Sheets action cap: limit commands per response for canvas-based grid
+    const promptUrl = context?.currentUrl || domState?.url || '';
+    if (/docs\.google\.com\/spreadsheets/i.test(promptUrl)) {
+      userPrompt += `\n\nSHEETS RULE: Output at most 8 CLI commands per response. The grid is canvas-based. Wait for DOM updates between each navigation+type cycle.`;
     }
 
     const finalPrompt = { systemPrompt, userPrompt };
