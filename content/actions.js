@@ -3637,6 +3637,30 @@ const tools = {
     return { success: false, error: 'Element not found' };
   },
 
+  readPage: (params) => {
+    try {
+      const fullMode = params.full === true;
+      const selectorArg = params.selector || null;
+      const root = selectorArg ? document.querySelector(selectorArg) : document.body;
+
+      if (selectorArg && !root) {
+        return { success: false, error: 'Selector not found: ' + selectorArg };
+      }
+
+      const text = FSB.extractPageText(root || document.body, {
+        viewportOnly: !fullMode,
+        format: 'markdown-lite'
+      });
+
+      if (!text || text.trim().length === 0) {
+        return { success: true, text: '[No readable text content on page]', charCount: 0 };
+      }
+      return { success: true, text, charCount: text.length };
+    } catch (err) {
+      return { success: false, error: 'readPage failed: ' + err.message };
+    }
+  },
+
   getEditorContent: (params) => {
     const viewLines = document.querySelector('.view-lines');
     if (viewLines) { const lines = viewLines.querySelectorAll('.view-line'); const content = Array.from(lines).map(line => line.textContent).join('\n'); return { success: true, content, method: 'monacoViewLines', lineCount: lines.length }; }

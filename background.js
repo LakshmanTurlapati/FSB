@@ -513,6 +513,7 @@ function getActionStatus(tool, params) {
     case 'searchGoogle':   return `Looking up "${shorten(params?.query)}"`;
     case 'scroll':         return 'Scrolling';
     case 'getText':        return 'Reading content';
+    case 'readPage':       return 'Reading full page text';
     case 'getAttribute':   return 'Inspecting page';
     case 'selectOption': {
       const opt = shorten(params?.optionText || params?.value, 25);
@@ -2082,6 +2083,11 @@ function slimActionResult(result) {
   // CMP-04: Preserve value field for getText/getAttribute -- needed by progress tracking
   // and hard-stop extracted-text display (lines that reference result.value)
   if (result.value !== undefined) slim.value = typeof result.value === 'string' ? result.value.substring(0, 200) : result.value;
+  // readPage: preserve text field (truncated) and charCount for AI prompt inclusion
+  if (result.text !== undefined && result.charCount !== undefined) {
+    slim.text = typeof result.text === 'string' ? result.text.substring(0, 30000) : result.text;
+    slim.charCount = result.charCount;
+  }
   return slim;
 }
 

@@ -2749,6 +2749,8 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
               return truncSel(params.selector);
             case 'getText':
               return truncSel(params.selector);
+            case 'readPage':
+              return params.selector ? truncSel(params.selector) : (params.full ? '--full' : '');
             default:
               return trunc(JSON.stringify(params), 60);
           }
@@ -2764,6 +2766,12 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
               userPrompt += ' [no visible effect]';
             } else if (action.tool === 'type' && action.result.validationPassed === false) {
               userPrompt += ` [text mismatch: got "${trunc(action.result.actualValue, 25)}"]`;
+            } else if (action.tool === 'readPage' && action.result.text) {
+              // Include readPage text inline so the AI can use it in the same turn
+              const pageText = action.result.text.length > 30000
+                ? action.result.text.substring(0, 30000) + '\n[...text truncated at 30K chars]'
+                : action.result.text;
+              userPrompt += `\nPage text (${action.result.charCount || action.result.text.length} chars):\n${pageText}`;
             }
           }
           

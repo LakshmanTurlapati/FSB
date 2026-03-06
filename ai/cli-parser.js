@@ -218,6 +218,7 @@ const COMMAND_REGISTRY = {
 
   // -- Information --
   geteditorcontent:   { tool: 'getEditorContent',   args: [] },
+  readpage:           { tool: 'readPage',            args: [{ name: 'selector', type: 'string', optional: true }] },
 
   // -- CAPTCHA --
   captcha:            { tool: 'solveCaptcha',       args: [] },
