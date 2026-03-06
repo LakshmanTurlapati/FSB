@@ -2553,6 +2553,679 @@
   }
 
   // --------------------------------------------------------------------------
+  // MARKDOWN SNAPSHOT ENGINE (Phase 22)
+  // --------------------------------------------------------------------------
+
+  // Region-to-heading mapping constant
+  const REGION_HEADING_MAP = {
+    '@dialog': '## Dialog',
+    '@nav':    '## Navigation',
+    '@header': '## Header',
+    '@main':   '## Main Content',
+    '@aside':  '## Sidebar',
+    '@footer': '## Footer'
+  };
+
+  // Block-level HTML tag set
+  const BLOCK_TAGS = new Set([
+    'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'ul', 'ol', 'li', 'table', 'tr', 'th', 'td',
+    'blockquote', 'pre', 'hr', 'br', 'figure', 'figcaption',
+    'section', 'article', 'aside', 'nav', 'header', 'footer', 'main',
+    'details', 'summary', 'dt', 'dd', 'address', 'form', 'fieldset'
+  ]);
+
+  /**
+   * Check if a tag name is a block-level element.
+   * @param {string} tag - Lowercase tag name
+   * @returns {boolean}
+   */
+  function isBlockElement(tag) {
+    return BLOCK_TAGS.has(tag);
+  }
+
+  /**
+   * Check if a DOM element is visible for snapshot walking.
+   * Skips hidden elements, FSB-injected elements, and zero-dimension elements.
+   * @param {Element} node - DOM element to check
+   * @returns {boolean}
+   */
+  function isVisibleForSnapshot(node) {
+    if (node.nodeType !== Node.ELEMENT_NODE) return true;
+
+    // Skip FSB-injected elements
+    if (isFsbElement(node)) return false;
+    if (node.id && node.id.startsWith('__fsb')) return false;
+    if (node.hasAttribute && node.hasAttribute('data-fsb')) return false;
+
+    // Skip aria-hidden
+    if (node.getAttribute('aria-hidden') === 'true') return false;
+
+    // Skip script/style/noscript/template
+    const tag = node.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'style' || tag === 'noscript' || tag === 'template' || tag === 'svg') return false;
+
+    // Check computed styles
+    try {
+      const style = window.getComputedStyle(node);
+      if (style.display === 'none') return false;
+      if (style.visibility === 'hidden') return false;
+    } catch {
+      // getComputedStyle can fail for detached nodes
+    }
+
+    // Skip zero-dimension elements (but allow zero-size inline elements like <br>)
+    if (tag !== 'br' && tag !== 'hr') {
+      try {
+        const rect = node.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0 && node.children.length === 0) return false;
+      } catch {
+        // getBoundingClientRect can fail
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Format an interactive element as an inline backtick reference.
+   * Format: `e5: button "Submit" [disabled]`
+   * @param {Element} node - DOM element
+   * @param {Object} refMap - Element ref registry
+   * @param {Map|null} guideAnnotations - Site guide annotation map
+   * @returns {string} Formatted inline ref
+   */
+  function formatInlineRef(node, refMap, guideAnnotations) {
+    // Find ref for this element
+    let ref = null;
+    for (const [r, entry] of refMap.map.entries()) {
+      const el = entry.element.deref();
+      if (el === node) {
+        ref = r;
+        break;
+      }
+    }
+    if (!ref) return '';
+
+    const tag = node.tagName.toLowerCase();
+    const role = getImplicitRole(node) || tag;
+
+    // Accessible name (truncated to 60 chars)
+    const accName = computeAccessibleName(node);
+    const name = accName?.name || '';
+    const truncName = name.length > 60 ? name.substring(0, 57) + '...' : name;
+
+    let parts = [`${ref}: ${role}`];
+    if (truncName) {
+      parts.push(`"${truncName}"`);
+    }
+
+    // Attributes
+    const attrs = [];
+    if (node.disabled) attrs.push('[disabled]');
+    if (node.required) attrs.push('[required]');
+    if (node.checked) attrs.push('[checked]');
+
+    // Guide annotations
+    if (guideAnnotations && guideAnnotations.has(node)) {
+      const annotation = guideAnnotations.get(node);
+      attrs.push(`[hint:${annotation.key}]`);
+    }
+
+    if (attrs.length > 0) {
+      parts.push(attrs.join(' '));
+    }
+
+    // Form values for inputs/selects
+    if ((tag === 'input' || tag === 'textarea') && node.value) {
+      const truncVal = node.value.length > 40 ? node.value.substring(0, 37) + '...' : node.value;
+      parts.push(`= "${truncVal}"`);
+    }
+    if (tag === 'select' && node.value) {
+      // Show selected option text
+      const selectedOption = node.options?.[node.selectedIndex];
+      const displayVal = selectedOption?.text || node.value;
+      const truncVal = displayVal.length > 40 ? displayVal.substring(0, 37) + '...' : displayVal;
+      parts.push(`= "${truncVal}"`);
+    }
+
+    // Href for links
+    if (tag === 'a' && node.href) {
+      const href = node.getAttribute('href') || '';
+      if (href && href !== '#') {
+        const truncHref = href.length > 60 ? href.substring(0, 57) + '...' : href;
+        parts.push(`href="${truncHref}"`);
+      }
+    }
+
+    return '`' + parts.join(' ') + '`';
+  }
+
+  /**
+   * Recursive DOM walker that produces markdown lines with interleaved element refs.
+   * @param {Element} root - Root element to walk
+   * @param {Set} interactiveSet - Set of interactive DOM elements
+   * @param {Object} refMap - Element ref registry
+   * @param {Map|null} guideAnnotations - Site guide annotation map
+   * @returns {Array<{region: string, text: string}>} Array of region-tagged lines
+   */
+  function walkDOMToMarkdown(root, interactiveSet, refMap, guideAnnotations) {
+    const lines = [];
+    let currentLine = '';
+    let listDepth = 0;
+    let currentRegion = '@main';
+    let inPreBlock = false;
+
+    function flushLine() {
+      if (currentLine.trim()) {
+        lines.push({ region: currentRegion, text: currentLine.trimEnd() });
+      }
+      currentLine = '';
+    }
+
+    function getListIndex(node) {
+      let index = 1;
+      let sibling = node.previousElementSibling;
+      while (sibling) {
+        if (sibling.tagName.toLowerCase() === 'li') index++;
+        sibling = sibling.previousElementSibling;
+      }
+      return index;
+    }
+
+    function visit(node) {
+      // Text nodes
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent.replace(/\s+/g, ' ').trim();
+        if (text) {
+          if (currentLine && !currentLine.endsWith(' ') && !currentLine.endsWith('\n')) {
+            currentLine += ' ';
+          }
+          currentLine += text;
+        }
+        return;
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+      // Skip hidden elements (entire subtree)
+      if (!isVisibleForSnapshot(node)) return;
+
+      const tag = node.tagName.toLowerCase();
+
+      // Skip iframes
+      if (tag === 'iframe') return;
+
+      // Update region tracking
+      const nodeRegion = getRegion(node);
+      if (nodeRegion !== currentRegion) {
+        flushLine();
+        currentRegion = nodeRegion;
+      }
+
+      // Interactive elements: emit ref inline, skip children (Pitfall 1)
+      if (interactiveSet.has(node)) {
+        const refStr = formatInlineRef(node, refMap, guideAnnotations);
+        if (refStr) {
+          if (currentLine && !currentLine.endsWith(' ')) {
+            currentLine += ' ';
+          }
+          currentLine += refStr;
+        }
+        return; // Don't recurse into interactive element children
+      }
+
+      // Image handling
+      if (tag === 'img') {
+        const alt = node.getAttribute('alt') || '';
+        currentLine += `[Image: ${alt || 'no description'}]`;
+        return;
+      }
+
+      // Block elements: flush and set prefix
+      if (isBlockElement(tag)) {
+        flushLine();
+
+        if (/^h[1-6]$/.test(tag)) {
+          const level = parseInt(tag[1]) + 1; // offset by 1 since H1 = page title
+          currentLine = '#'.repeat(Math.min(level, 6)) + ' ';
+        } else if (tag === 'li') {
+          const parent = node.parentElement?.tagName.toLowerCase();
+          const prefix = parent === 'ol' ? `${getListIndex(node)}. ` : '- ';
+          currentLine = '  '.repeat(listDepth) + prefix;
+        } else if (tag === 'blockquote') {
+          currentLine = '> ';
+        } else if (tag === 'hr') {
+          lines.push({ region: currentRegion, text: '---' });
+          return;
+        } else if (tag === 'br') {
+          flushLine();
+          return;
+        } else if (tag === 'pre') {
+          flushLine();
+          inPreBlock = true;
+          lines.push({ region: currentRegion, text: '```' });
+          // Get raw text content for pre blocks
+          const preText = node.textContent || '';
+          if (preText.trim()) {
+            for (const preLine of preText.split('\n')) {
+              lines.push({ region: currentRegion, text: preLine });
+            }
+          }
+          lines.push({ region: currentRegion, text: '```' });
+          inPreBlock = false;
+          return; // Don't recurse into pre
+        }
+      }
+
+      // Table handling
+      if (tag === 'table') {
+        flushLine();
+        const rows = node.querySelectorAll(':scope > thead > tr, :scope > tbody > tr, :scope > tr');
+        let isFirstRow = true;
+        for (const row of rows) {
+          // Check for colspan/rowspan (complex table)
+          const hasComplex = row.querySelector('[colspan], [rowspan]');
+          const cells = row.querySelectorAll(':scope > th, :scope > td');
+          if (cells.length === 0) continue;
+
+          // Cap at 8 columns
+          const maxCols = Math.min(cells.length, 8);
+          const cellTexts = [];
+          for (let i = 0; i < maxCols; i++) {
+            let cellText = cells[i].textContent.replace(/\s+/g, ' ').trim();
+            if (cellText.length > 40) cellText = cellText.substring(0, 37) + '...';
+            cellTexts.push(cellText);
+          }
+          if (cells.length > 8) cellTexts.push('...');
+
+          lines.push({ region: currentRegion, text: '| ' + cellTexts.join(' | ') + ' |' });
+          if (isFirstRow) {
+            const sep = cellTexts.map(() => '---').join(' | ');
+            lines.push({ region: currentRegion, text: '| ' + sep + ' |' });
+            isFirstRow = false;
+          }
+        }
+        return; // Don't recurse into table (already processed)
+      }
+
+      // Inline formatting open
+      if (tag === 'strong' || tag === 'b') currentLine += '**';
+      if (tag === 'em' || tag === 'i') currentLine += '*';
+      if (tag === 'code' && !inPreBlock) currentLine += '`';
+
+      // Non-interactive links
+      if (tag === 'a' && !interactiveSet.has(node)) {
+        const linkText = node.textContent.replace(/\s+/g, ' ').trim();
+        const href = node.getAttribute('href') || '';
+        if (linkText && href && href !== '#') {
+          const truncHref = href.length > 60 ? href.substring(0, 57) + '...' : href;
+          currentLine += `[${linkText}](${truncHref})`;
+        } else if (linkText) {
+          currentLine += linkText;
+        }
+        return; // Don't recurse into link children (text already captured)
+      }
+
+      // Lists: increment depth
+      if (tag === 'ul' || tag === 'ol') listDepth++;
+
+      // Recurse children
+      for (const child of node.childNodes) {
+        visit(child);
+      }
+
+      // Lists: decrement depth
+      if (tag === 'ul' || tag === 'ol') listDepth--;
+
+      // Inline formatting close
+      if (tag === 'code' && !inPreBlock) currentLine += '`';
+      if (tag === 'em' || tag === 'i') currentLine += '*';
+      if (tag === 'strong' || tag === 'b') currentLine += '**';
+
+      // Block close: flush line
+      if (isBlockElement(tag)) {
+        flushLine();
+      }
+    }
+
+    visit(root);
+    flushLine();
+    return lines;
+  }
+
+  /**
+   * Build a unified markdown snapshot of the current page.
+   * Produces a markdown document with page text and inline element refs interwoven.
+   *
+   * @param {Object} options
+   * @param {Object|null} options.guideSelectors - CSS selectors from matched site guide
+   * @param {number} options.charBudget - Character limit for output (default 12000)
+   * @param {number} options.maxElements - Max interactive elements (default 80)
+   * @returns {{ snapshot: string, refGeneration: number, elementCount: number }}
+   */
+  function buildMarkdownSnapshot(options = {}) {
+    const {
+      guideSelectors = null,
+      charBudget = 12000,
+      maxElements = 80
+    } = options;
+
+    // Access cross-module singletons
+    const refMap = FSB.refMap;
+    const generateSelectors = FSB.generateSelectors;
+
+    // a. Reset refMap for this generation
+    refMap.reset();
+    refMap.generationUrl = window.location.href;
+
+    // b. Get interactive elements via existing 3-stage filtering pipeline
+    const elements = getFilteredElements({
+      maxElements,
+      prioritizeViewport: true,
+      taskType: 'general'
+    });
+
+    // c. Build interactiveSet and register each in refMap
+    const interactiveSet = new Set();
+    let elementCount = 0;
+
+    for (const el of elements) {
+      const sels = generateSelectors(el);
+      const cssSelector = sels.find(s => typeof s === 'string' ? !s.startsWith('//') : !s.selector?.startsWith('//'));
+      const primarySelector = typeof cssSelector === 'string' ? cssSelector : (cssSelector?.selector || sels[0]?.selector || sels[0] || '');
+      const role = getImplicitRole(el) || el.tagName.toLowerCase();
+      const accName = computeAccessibleName(el);
+      const nameStr = accName?.name || '';
+      refMap.register(el, primarySelector, role, nameStr.substring(0, 60));
+      interactiveSet.add(el);
+      elementCount++;
+    }
+
+    // d. Build guide annotations
+    const guideAnnotationsMap = buildGuideAnnotations(guideSelectors, interactiveSet);
+
+    // e. Walk the DOM tree producing region-tagged lines
+    const walkedLines = walkDOMToMarkdown(document.body, interactiveSet, refMap, guideAnnotationsMap);
+
+    // f. Build metadata header as markdown
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const pageHeight = Math.max(
+      document.documentElement.scrollHeight,
+      document.body?.scrollHeight || 0
+    );
+    const viewportHeight = window.innerHeight;
+    const scrollPct = pageHeight > viewportHeight
+      ? Math.round((scrollTop / (pageHeight - viewportHeight)) * 100)
+      : 0;
+
+    const title = document.title || 'Untitled Page';
+    let metaHeader = `# ${title}\n> URL: ${window.location.href} | Scroll: ${scrollPct}% | Viewport: ${window.innerWidth}x${viewportHeight}`;
+
+    // Include focused element ref if applicable
+    const active = document.activeElement;
+    if (active && active !== document.body && active !== document.documentElement) {
+      for (const [ref, entry] of refMap.map.entries()) {
+        const el = entry.element.deref();
+        if (el && el === active) {
+          metaHeader += ` | Focus: ${ref}`;
+          break;
+        }
+      }
+    }
+
+    // g. Organize output by regions with ## headings
+    const REGION_ORDER = ['@dialog', '@nav', '@header', '@main', '@aside', '@footer'];
+    const regionLines = new Map();
+    for (const r of REGION_ORDER) {
+      regionLines.set(r, []);
+    }
+
+    for (const entry of walkedLines) {
+      const bucket = regionLines.get(entry.region) || regionLines.get('@main');
+      bucket.push(entry.text);
+    }
+
+    // Assemble output sections
+    const outputParts = [metaHeader, ''];
+
+    for (const regionKey of REGION_ORDER) {
+      const rLines = regionLines.get(regionKey);
+      if (!rLines || rLines.length === 0) continue;
+
+      const heading = REGION_HEADING_MAP[regionKey] || '## Content';
+      outputParts.push(heading);
+      outputParts.push(...rLines);
+      outputParts.push(''); // blank line between regions
+    }
+
+    // h. Post-process: collapse 3+ consecutive blank lines to 1
+    let assembled = outputParts.join('\n');
+    assembled = assembled.replace(/\n{3,}/g, '\n\n');
+    // Trim trailing whitespace per line
+    assembled = assembled.split('\n').map(l => l.trimEnd()).join('\n');
+    assembled = assembled.trim();
+
+    // i. Apply character budget: truncate at last complete line
+    let snapshot;
+    if (assembled.length <= charBudget) {
+      snapshot = assembled;
+    } else {
+      const truncMarker = '\n\n[...content continues below -- scroll down and observe]';
+      const budget = charBudget - truncMarker.length;
+      const budgetLines = assembled.substring(0, budget).split('\n');
+      // Remove last potentially incomplete line
+      budgetLines.pop();
+      snapshot = budgetLines.join('\n') + truncMarker;
+    }
+
+    return {
+      snapshot,
+      refGeneration: refMap.generationId,
+      elementCount
+    };
+  }
+
+  /**
+   * Extract page text as markdown with no element refs.
+   * Used by the readpage CLI command for content reading/summarization.
+   *
+   * @param {Element} root - Root DOM element to extract from
+   * @param {Object} options
+   * @param {boolean} options.viewportOnly - If true, only extract visible viewport text (default true)
+   * @param {string} options.format - Output format (default 'markdown-lite')
+   * @returns {string} Markdown-formatted page text
+   */
+  function extractPageText(root, options = {}) {
+    const {
+      viewportOnly = true,
+      format = 'markdown-lite'
+    } = options;
+
+    const MAX_CHARS = 50000;
+    const vpTop = viewportOnly ? window.scrollY : -Infinity;
+    const vpBottom = viewportOnly ? window.scrollY + window.innerHeight : Infinity;
+
+    const lines = [];
+    let currentLine = '';
+    let listDepth = 0;
+    let totalChars = 0;
+    let truncated = false;
+
+    function flushLine() {
+      if (currentLine.trim()) {
+        const line = currentLine.trimEnd();
+        totalChars += line.length + 1; // +1 for newline
+        if (totalChars > MAX_CHARS) {
+          truncated = true;
+          return;
+        }
+        lines.push(line);
+      }
+      currentLine = '';
+    }
+
+    function getListIndex(node) {
+      let index = 1;
+      let sibling = node.previousElementSibling;
+      while (sibling) {
+        if (sibling.tagName.toLowerCase() === 'li') index++;
+        sibling = sibling.previousElementSibling;
+      }
+      return index;
+    }
+
+    function visit(node) {
+      if (truncated) return;
+
+      // Text nodes
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent.replace(/\s+/g, ' ').trim();
+        if (text) {
+          if (currentLine && !currentLine.endsWith(' ') && !currentLine.endsWith('\n')) {
+            currentLine += ' ';
+          }
+          currentLine += text;
+        }
+        return;
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+      // Skip hidden elements
+      if (!isVisibleForSnapshot(node)) return;
+
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'iframe') return;
+
+      // Viewport filtering
+      if (viewportOnly) {
+        try {
+          const rect = node.getBoundingClientRect();
+          // Skip elements entirely above or below viewport
+          if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+        } catch {
+          // Skip if can't determine position
+        }
+      }
+
+      // Image handling (alt text only)
+      if (tag === 'img') {
+        const alt = node.getAttribute('alt') || '';
+        if (alt) currentLine += `[Image: ${alt}]`;
+        return;
+      }
+
+      // Block elements
+      if (isBlockElement(tag)) {
+        flushLine();
+
+        if (/^h[1-6]$/.test(tag)) {
+          const level = parseInt(tag[1]);
+          currentLine = '#'.repeat(level) + ' ';
+        } else if (tag === 'li') {
+          const parent = node.parentElement?.tagName.toLowerCase();
+          const prefix = parent === 'ol' ? `${getListIndex(node)}. ` : '- ';
+          currentLine = '  '.repeat(listDepth) + prefix;
+        } else if (tag === 'blockquote') {
+          currentLine = '> ';
+        } else if (tag === 'hr') {
+          lines.push('---');
+          return;
+        } else if (tag === 'br') {
+          flushLine();
+          return;
+        } else if (tag === 'pre') {
+          flushLine();
+          lines.push('```');
+          const preText = node.textContent || '';
+          if (preText.trim()) {
+            for (const preLine of preText.split('\n')) {
+              lines.push(preLine);
+            }
+          }
+          lines.push('```');
+          return;
+        }
+      }
+
+      // Table handling
+      if (tag === 'table') {
+        flushLine();
+        const rows = node.querySelectorAll(':scope > thead > tr, :scope > tbody > tr, :scope > tr');
+        let isFirstRow = true;
+        for (const row of rows) {
+          const cells = row.querySelectorAll(':scope > th, :scope > td');
+          if (cells.length === 0) continue;
+          const maxCols = Math.min(cells.length, 8);
+          const cellTexts = [];
+          for (let i = 0; i < maxCols; i++) {
+            let cellText = cells[i].textContent.replace(/\s+/g, ' ').trim();
+            if (cellText.length > 40) cellText = cellText.substring(0, 37) + '...';
+            cellTexts.push(cellText);
+          }
+          if (cells.length > 8) cellTexts.push('...');
+          lines.push('| ' + cellTexts.join(' | ') + ' |');
+          if (isFirstRow) {
+            lines.push('| ' + cellTexts.map(() => '---').join(' | ') + ' |');
+            isFirstRow = false;
+          }
+        }
+        return;
+      }
+
+      // Inline formatting
+      if (tag === 'strong' || tag === 'b') currentLine += '**';
+      if (tag === 'em' || tag === 'i') currentLine += '*';
+      if (tag === 'code') currentLine += '`';
+
+      // Links (text with URL)
+      if (tag === 'a') {
+        const linkText = node.textContent.replace(/\s+/g, ' ').trim();
+        const href = node.getAttribute('href') || '';
+        if (linkText && href && href !== '#') {
+          const truncHref = href.length > 60 ? href.substring(0, 57) + '...' : href;
+          currentLine += `[${linkText}](${truncHref})`;
+        } else if (linkText) {
+          currentLine += linkText;
+        }
+        return;
+      }
+
+      // Lists
+      if (tag === 'ul' || tag === 'ol') listDepth++;
+
+      // Recurse
+      for (const child of node.childNodes) {
+        visit(child);
+      }
+
+      if (tag === 'ul' || tag === 'ol') listDepth--;
+
+      // Inline formatting close
+      if (tag === 'code') currentLine += '`';
+      if (tag === 'em' || tag === 'i') currentLine += '*';
+      if (tag === 'strong' || tag === 'b') currentLine += '**';
+
+      if (isBlockElement(tag)) flushLine();
+    }
+
+    visit(root || document.body);
+    flushLine();
+
+    let result = lines.join('\n');
+    // Collapse 3+ blank lines
+    result = result.replace(/\n{3,}/g, '\n\n');
+    result = result.trim();
+
+    if (truncated) {
+      result += '\n\n[...text truncated at 50K chars]';
+    }
+
+    return result;
+  }
+
+  // --------------------------------------------------------------------------
   // YAML Snapshot Self-Test (console validation)
   // --------------------------------------------------------------------------
 
@@ -3144,6 +3817,8 @@
   FSB.getFilteredElements = getFilteredElements;
   FSB.generateCompactSnapshot = generateCompactSnapshot;
   FSB.buildYAMLSnapshot = buildYAMLSnapshot;
+  FSB.buildMarkdownSnapshot = buildMarkdownSnapshot;
+  FSB.extractPageText = extractPageText;
   FSB.getStructuredDOM = getStructuredDOM;
 
   window.FSB._modules['dom-analysis'] = { loaded: true, timestamp: Date.now() };
