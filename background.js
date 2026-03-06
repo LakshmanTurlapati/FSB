@@ -3976,17 +3976,19 @@ function sheetsValidator(session, aiResponse, context, signals, scoreResult) {
  * @returns {{ approved: boolean, score: number, evidence: string[], taskType: string }}
  */
 function validateCompletion(session, aiResponse, context) {
-  // Require non-empty result from AI (keep existing check: length >= 10)
-  if (!aiResponse.result || aiResponse.result.trim().length < 10) {
-    return { approved: false, score: 0, evidence: ['AI result too short or missing'], taskType: 'unknown' };
-  }
-
+  // 1. Classify task FIRST (moved up) -- needed for per-type min-length
   let taskType = classifyTask(session.task);
 
-  // Override for Sheets URLs: canvas editors need the sheets validator regardless of task classification
+  // Override for Sheets URLs: canvas editors need sheets validator regardless
   const sessionUrl = session.lastUrl || context?.currentUrl || '';
   if (/docs\.google\.com\/spreadsheets\/d\//i.test(sessionUrl)) {
     taskType = 'sheets';
+  }
+
+  // 2. Per-task-type minimum result length (Pitfall 4 fix: classify before min-length)
+  const minLength = (taskType === 'media') ? 5 : 10;
+  if (!aiResponse.result || aiResponse.result.trim().length < minLength) {
+    return { approved: false, score: 0, evidence: ['AI result too short or missing (min ' + minLength + ' for ' + taskType + ')'], taskType };
   }
 
   const signals = gatherCompletionSignals(session, aiResponse, context);
@@ -4003,12 +4005,31 @@ function validateCompletion(session, aiResponse, context) {
     career: careerValidator,
     extraction: extractionValidator,
     multitab: multitabValidator,
+    media: mediaValidator,
     sheets: sheetsValidator,
     gaming: generalValidator,
     general: generalValidator
   };
   const validator = validators[taskType] || generalValidator;
   const result = validator(session, aiResponse, context, signals, scoreResult);
+
+  // 3. Escape hatch: consecutive rejected done signals force-accept
+  if (!result.approved) {
+    session.consecutiveDoneCount = (session.consecutiveDoneCount || 0) + 1;
+    if (session.consecutiveDoneCount >= 3) {
+      result.approved = true;
+      result.evidence.push('Escape hatch: ' + session.consecutiveDoneCount + ' consecutive done signals');
+      result.escapeHatch = true;
+      automationLogger.warn('Completion escape hatch triggered', {
+        sessionId: session.id,
+        consecutiveDoneCount: session.consecutiveDoneCount,
+        originalScore: result.score,
+        taskType: result.taskType
+      });
+    }
+  } else {
+    session.consecutiveDoneCount = 0; // Reset on successful validation
+  }
 
   automationLogger.debug('Completion signals gathered', {
     sessionId: session.id,
@@ -4024,7 +4045,9 @@ function validateCompletion(session, aiResponse, context) {
       pageStable: signals.pageStable
     },
     score: result.score,
-    approved: result.approved
+    approved: result.approved,
+    escapeHatch: result.escapeHatch || false,
+    consecutiveDoneCount: session.consecutiveDoneCount || 0
   });
 
   return result;
@@ -10013,8 +10036,13 @@ async function startAutomationLoop(sessionId) {
           evidence: validation.evidence
         });
       }
+    } else {
+      // AI is not claiming completion -- reset consecutive-done stall counter
+      if (session.consecutiveDoneCount) {
+        session.consecutiveDoneCount = 0;
+      }
     }
-    
+
     // Check if task is complete (after verification enforcement)
     if (aiResponse.taskComplete) {
       // VERIFY-04: Global stability gate - enforce page stability before confirming completion
