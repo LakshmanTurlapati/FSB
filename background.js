@@ -3417,6 +3417,8 @@ function classifyTask(taskString) {
   }
   // Explicit tab keywords
   if (/new tab|open tab|switch tab|multiple tab|other tab|different tab|compare|both sites|cross-reference/.test(t)) return 'multitab';
+  // Media playback -- must precede gaming to prevent "play X on youtube" misclassification
+  if (/play|watch|listen|stream/.test(t) && /youtube|spotify|soundcloud|netflix|hulu|twitch|vimeo|apple.?music|pandora|deezer|tidal/.test(t)) return 'media';
   // Gaming
   if (/play|game|start game|asteroids|snake|pong|tetris/.test(t) && !/play.*video|play.*music|play.*song|playlist/.test(t)) return 'gaming';
   // Email -- check before messaging to avoid 'send' matching messaging
@@ -3541,14 +3543,46 @@ function getCriticalActionSummary(session) {
 // and weighted multi-signal scoring.
 // ============================================================================
 
+const TASK_URL_PATTERNS = {
+  media: [
+    /youtube\.com\/watch/i,
+    /youtu\.be\//i,
+    /spotify\.com\/track/i,
+    /spotify\.com\/album/i,
+    /music\.youtube\.com\/watch/i,
+    /soundcloud\.com\/.+\/.+/i,
+    /netflix\.com\/watch/i,
+    /twitch\.tv\/.+/i,
+    /vimeo\.com\/\d+/i
+  ],
+  shopping: [
+    /amazon\.\w+\/.*\/dp\//i,
+    /amazon\.\w+\/gp\/cart/i,
+    /ebay\.com\/itm\//i,
+    /\/cart/i,
+    /\/checkout/i
+  ],
+  extraction: [
+    /amazon\.\w+\/.*\/dp\//i,
+    /google\.com\/search/i
+  ],
+  navigation: []
+};
+
 /**
  * CMP-02: Detect URL patterns that indicate task completion.
  * @param {string} url - The current page URL
  * @param {Object} session - The automation session
+ * @param {string} [taskType] - Classified task type for task-specific URL patterns
  * @returns {string|null} Matched pattern description, or null
  */
-function detectUrlCompletionPattern(url, session) {
+function detectUrlCompletionPattern(url, session, taskType) {
   if (!url) return null;
+  // Task-type-specific URL patterns
+  if (taskType && TASK_URL_PATTERNS[taskType]) {
+    const matched = TASK_URL_PATTERNS[taskType].find(p => p.test(url));
+    if (matched) return 'task-url: ' + taskType;
+  }
   // Check for success URL patterns
   const successPattern = /\/(?:confirm|success|thank|receipt|done|complete|order-placed|submitted)/i;
   const match = url.match(successPattern);
@@ -3652,15 +3686,15 @@ function summarizeRecentActions(session) {
 function gatherCompletionSignals(session, aiResponse, context) {
   const taskType = classifyTask(session.task);
   return {
-    // URL signal (0.3 weight)
-    urlMatch: detectUrlCompletionPattern(context.currentUrl, session),
-    // DOM signal (0.25 weight) -- from content script completionSignals (Plan 02)
+    // URL signal
+    urlMatch: detectUrlCompletionPattern(context.currentUrl, session, taskType),
+    // DOM signal (0.20 weight) -- from content script completionSignals (Plan 02)
     domSuccess: context.completionSignals?.successMessages?.length > 0
       ? context.completionSignals.successMessages[0].text : null,
     confirmationPage: context.completionSignals?.confirmationPage || false,
     formReset: context.completionSignals?.formReset || false,
     toast: context.completionSignals?.toastNotification?.text || null,
-    // AI self-report (0.2 weight, boosted when actions empty)
+    // AI self-report (0.30 weight, boosted +0.20 when actions empty)
     aiComplete: aiResponse.taskComplete === true,
     aiResult: aiResponse.result || '',
     aiActionsEmpty: aiResponse.taskComplete === true && (!aiResponse.actions || aiResponse.actions.length === 0),
@@ -3682,11 +3716,11 @@ function gatherCompletionSignals(session, aiResponse, context) {
  */
 function computeCompletionScore(signals, taskType) {
   const weights = {
-    urlSignal: 0.3,
-    domSignal: 0.25,
-    aiReport: 0.2,
+    urlSignal: 0.20,
+    domSignal: 0.20,
+    aiReport: 0.30,
     actionChain: 0.15,
-    pageStability: 0.1
+    pageStability: 0.10
   };
   let score = 0;
   const evidence = [];
@@ -3710,9 +3744,9 @@ function computeCompletionScore(signals, taskType) {
     score += weights.aiReport;
     evidence.push('AI: task complete');
     // Boost: AI says complete AND submitted zero actions -- strongest completion indicator.
-    // The AI has nothing left to do. This warrants extra weight (+0.15).
+    // The AI has nothing left to do. This warrants extra weight (+0.20).
     if (signals.aiActionsEmpty) {
-      score += 0.15;
+      score += 0.20;
       evidence.push('AI: no remaining actions');
     }
   }

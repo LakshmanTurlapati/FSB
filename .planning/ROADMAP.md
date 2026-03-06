@@ -25,6 +25,7 @@ See `.planning/milestones/v9.4-ROADMAP.md` for full details.
 - [x] **Phase 17: Prompt Architecture Rewrite** - Redesign system prompt, task prompts, stuck recovery, and all 43+ site guides for CLI command grammar (completed 2026-03-01)
 - [x] **Phase 18: AI Integration Wiring** - Wire CLI parser and prompts into ai-integration.js as the sole response path with conversation history adaptation (completed 2026-03-01)
 - [x] **Phase 19: Cross-Provider Validation** - Validate CLI compliance, measure token reduction, and test edge cases across all four AI providers (completed 2026-03-02)
+- [ ] **Phase 20: Completion Validator Overhaul** - Fix over-aggressive completion validation that blocks legitimate task completion for media, extraction, and navigation tasks
 
 ## Phase Details
 
@@ -102,6 +103,32 @@ Plans:
 - [ ] 19-02-PLAN.md -- Token measurement: gpt-tokenizer bundle, TokenComparator module, JSON baseline reconstruction, 6 JSON baseline files
 - [ ] 19-03-PLAN.md -- UI panel + integration: options page CLI Validation section, live mode service worker handler, edge case wiring, human verification
 
+### Phase 20: Completion Validator Overhaul
+**Goal**: The completion validator correctly accepts legitimate task completions on the first `done` signal for common task types (media playback, data extraction, navigation) instead of forcing unnecessary extra iterations
+**Depends on**: Phase 18 (CLI integration must be in place)
+**Requirements**: CMP-01, CMP-02, CMP-03, CMP-04, CMP-05
+**Success Criteria** (what must be TRUE):
+  1. "play sunflower on youtube" completes within 1 iteration of the AI issuing `done` -- the validator accepts completion when the video is playing (YouTube watch URL + AI done signal)
+  2. "check the price of X" completes when the AI reports the price via `done "price is $599"` without requiring an explicit `getText` action -- DOM snapshot data visibility counts as extraction evidence
+  3. Task classifier correctly distinguishes media tasks ("play X on youtube/spotify") from gaming tasks -- no false gaming classification for media playback
+  4. When the AI issues `done` for 3+ consecutive iterations, an escape hatch overrides the score threshold and accepts completion -- eliminates infinite stuck loops
+  5. Completion score for AI self-report + no-remaining-actions reaches at least 0.50 (currently maxes at 0.35-0.45, always below threshold)
+**Plans**: 2 plans
+Plans:
+- [ ] 20-01-PLAN.md -- Scoring foundation: media classification, score weight rebalance, task-type URL patterns, extraction validator fix
+- [ ] 20-02-PLAN.md -- Validators + escape hatch: mediaValidator, validateCompletion rewiring, consecutive-done escape hatch
+
+**Issues identified from UAT session logs:**
+
+| Issue | Location | Impact |
+|-------|----------|--------|
+| AI self-report weight too low (0.20 + 0.15 = 0.35 max) | `computeCompletionScore` ~L3683 | Completion NEVER accepted on AI signal alone |
+| No consecutive-done escape hatch | `validateCompletion` ~L3919 | 8 wasted iterations on YouTube task |
+| "play X on youtube" classified as "gaming" | `classifyTask` ~L3393 | Wrong action chain expectations |
+| Extraction requires getText action | `checkActionChainComplete` ~L3608 | Blocks when AI reads price from DOM snapshot |
+| URL patterns miss YouTube, Amazon, etc. | `detectUrlCompletionPattern` ~L3550 | No URL signal for common sites |
+| DOM snapshot format mismatch in iteration 1 | DOM serialization | AI uses wrong ref format on first turn |
+
 ## Progress
 
 **Execution Order:**
@@ -114,6 +141,7 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 | 17. Prompt Architecture Rewrite | 1/2 | Complete    | 2026-03-01 |
 | 18. AI Integration Wiring | 2/2 | Complete    | 2026-03-01 |
 | 19. Cross-Provider Validation | 3/3 | Complete    | 2026-03-02 |
+| 20. Completion Validator Overhaul | 0/2 | Planned     | - |
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*
