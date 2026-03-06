@@ -782,6 +782,52 @@
           });
           break;
 
+        case 'getMarkdownSnapshot':
+          const mdGuideSelectors = request.options?.guideSelectors || null;
+          const mdStart = Date.now();
+          const mdResult = FSB.buildMarkdownSnapshot({
+            guideSelectors: mdGuideSelectors,
+            charBudget: request.options?.charBudget || 12000,
+            maxElements: request.options?.maxElements || 80
+          });
+          const mdTime = Date.now() - mdStart;
+          logger.logTiming(FSB.sessionId, 'DOM', 'buildMarkdownSnapshot', mdTime, {
+            elements: mdResult.elementCount
+          });
+          sendResponse({
+            success: true,
+            markdownSnapshot: mdResult.snapshot,
+            refGeneration: mdResult.refGeneration,
+            elementCount: mdResult.elementCount
+          });
+          break;
+
+        case 'readPage':
+          const rpStart = Date.now();
+          const rpSelector = request.params?.selector || null;
+          const rpFull = request.params?.flags?.full || request.params?.full || false;
+          const rpRoot = rpSelector ? document.querySelector(rpSelector) : document.body;
+          if (!rpRoot) {
+            sendResponse({ success: true, text: '[Selector not found: ' + rpSelector + ']', charCount: 0 });
+            break;
+          }
+          const rpText = FSB.extractPageText(rpRoot, {
+            viewportOnly: !rpFull,
+            format: 'markdown-lite'
+          });
+          const rpTime = Date.now() - rpStart;
+          logger.logTiming(FSB.sessionId, 'DOM', 'extractPageText', rpTime, {
+            selector: rpSelector,
+            full: rpFull,
+            charCount: rpText.length
+          });
+          sendResponse({
+            success: true,
+            text: rpText || '[No readable text content on page]',
+            charCount: rpText ? rpText.length : 0
+          });
+          break;
+
         case 'executeAction':
           const { tool, params, visualContext } = request;
           logger.logActionExecution(FSB.sessionId, tool, 'start', params);
@@ -968,7 +1014,7 @@
     logger.logComm(FSB.sessionId, 'receive', request.action, true, { hasSessionId: !!request.sessionId });
 
     // Handle async operations properly
-    if (request.action === 'executeAction' || request.action === 'getDOM' || request.action === 'getYAMLSnapshot') {
+    if (request.action === 'executeAction' || request.action === 'getDOM' || request.action === 'getYAMLSnapshot' || request.action === 'getMarkdownSnapshot' || request.action === 'readPage') {
       handleAsyncMessage(request, sendResponse);
       return true; // Keep message channel open for async response
     }
