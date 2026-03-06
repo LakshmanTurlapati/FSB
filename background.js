@@ -1266,6 +1266,22 @@ async function prefetchDOM(tabId, options = {}) {
     }, { frameId: 0 });
 
     if (response && response.success) {
+      // Also prefetch markdown snapshot
+      if (response.structuredDOM) {
+        try {
+          const mdResponse = await chrome.tabs.sendMessage(tabId, {
+            action: 'getMarkdownSnapshot',
+            options: { charBudget: 12000, maxElements: 80 }
+          }, { frameId: 0 });
+          if (mdResponse?.success && mdResponse.markdownSnapshot) {
+            response.structuredDOM._markdownSnapshot = mdResponse.markdownSnapshot;
+            response.structuredDOM._markdownElementCount = mdResponse.elementCount;
+            response.structuredDOM._markdownRefGeneration = mdResponse.refGeneration;
+          }
+        } catch (mdErr) {
+          // Non-blocking -- compact fallback will be used
+        }
+      }
       automationLogger.debug('DOM prefetch complete', {
         tabId,
         elementCount: response.structuredDOM?.elements?.length || 0
@@ -8425,6 +8441,7 @@ async function startAutomationLoop(sessionId) {
         success: domResponse?.success,
         elementCount: domResponse?.structuredDOM?.elements?.length || 0
       });
+
     } catch (messageError) {
       // Check if this is a restricted URL error
       let tabInfo;
@@ -8520,6 +8537,23 @@ async function startAutomationLoop(sessionId) {
         }
       } catch (e) {
         automationLogger.debug('SPA MutationObserver wait failed, proceeding', { sessionId, error: e.message });
+      }
+    }
+
+    // Ensure markdown snapshot is attached (may have been fetched earlier or may need fresh fetch after SPA recovery)
+    if (domResponse?.success && domResponse?.structuredDOM && !domResponse.structuredDOM._markdownSnapshot) {
+      try {
+        const mdResponse = await sendMessageWithRetry(session.tabId, {
+          action: 'getMarkdownSnapshot',
+          options: { charBudget: 12000, maxElements: 80 }
+        });
+        if (mdResponse?.success && mdResponse.markdownSnapshot) {
+          domResponse.structuredDOM._markdownSnapshot = mdResponse.markdownSnapshot;
+          domResponse.structuredDOM._markdownElementCount = mdResponse.elementCount;
+          domResponse.structuredDOM._markdownRefGeneration = mdResponse.refGeneration;
+        }
+      } catch (mdErr) {
+        automationLogger.warn('Markdown snapshot fetch failed, falling back to compact', { error: mdErr.message });
       }
     }
 
