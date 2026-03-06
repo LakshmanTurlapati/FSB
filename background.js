@@ -3927,6 +3927,22 @@ function generalValidator(session, aiResponse, context, signals, scoreResult) {
   return { approved: scoreResult.score >= 0.5, score: scoreResult.score, evidence: scoreResult.evidence, taskType: 'general' };
 }
 
+function mediaValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  const currentUrl = context.currentUrl || session.lastUrl || '';
+
+  // Task-type URL pattern match -- strong bonus for media streaming platforms
+  // Per user decision: URL match is a strong bonus (+0.30) but NOT instant-accept
+  const mediaUrlPatterns = TASK_URL_PATTERNS.media || [];
+  const urlMatches = mediaUrlPatterns.some(p => p.test(currentUrl));
+  if (urlMatches) {
+    score = Math.min(1, score + 0.30);
+    evidence.push('Media: on streaming platform URL');
+  }
+
+  return { approved: score >= 0.5, score, evidence, taskType: 'media' };
+}
+
 function sheetsValidator(session, aiResponse, context, signals, scoreResult) {
   let { score, evidence } = scoreResult;
   // Sheets data entry: successful type actions on a Sheets URL count as completion evidence.

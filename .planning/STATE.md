@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v10.0
+milestone_name: CLI Architecture
+status: completed
+stopped_at: Phase 20 context gathered
+last_updated: "2026-03-06T09:22:05.638Z"
+last_activity: 2026-03-02 -- Completed 19-03 (Cross-Provider Validation - UI Panel + Integration)
+progress:
+  total_phases: 6
+  completed_phases: 3
+  total_plans: 9
+  completed_plans: 12
+  percent: 100
+---
+
 # Project State
 
 ## Project Reference
@@ -5,14 +21,14 @@
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v10.0 CLI Architecture - Phase 19 Complete (Milestone Complete)
+**Current focus:** Phase 20 Completion Validator Overhaul - Plan 01 Complete
 
 ## Current Position
 
-Phase: 19 of 19 (complete)
-Plan: 3 of 3 in phase 19 (complete)
-Status: Phase 19 Complete -- v10.0 CLI Architecture Milestone Complete
-Last activity: 2026-03-02 -- Completed 19-03 (Cross-Provider Validation - UI Panel + Integration)
+Phase: 20
+Plan: 1 of 2 in phase 20 (complete)
+Status: Executing Phase 20 -- Plan 01 complete, Plan 02 next
+Last activity: 2026-03-06 -- Completed 20-01 (Scoring Foundation + Media Classification + Extraction Fix)
 
 Progress: [##########] 100%
 
@@ -32,9 +48,10 @@ Progress: [##########] 100%
 | 17 | 1 | 11min | 11min |
 | 18 | 2 | 8min | 4min |
 | 19 | 3 | 18min | 6min |
+| 20 | 1 | 3min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 4min, 5min, 5min, 8min
+- Last 5 plans: 4min, 5min, 5min, 8min, 3min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -43,6 +60,7 @@ Progress: [##########] 100%
 | Phase 19 P01 | 5min | 2 tasks | 35 files |
 | Phase 19 P02 | 5min | 2 tasks | 8 files |
 | Phase 19 P03 | 8min | 3 tasks | 10 files |
+| Phase 20 P01 | 3min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -90,6 +108,10 @@ Recent decisions affecting current work:
 - [19-03]: Live mode delegates to AIIntegration via service worker CLI_VALIDATION_LIVE_TEST message (no direct API calls from options page)
 - [19-03]: Golden mode runs 24 tests (4 providers x 6 task types) offline; live mode is opt-in for real provider smoke testing
 - [19-03]: 3-second rate limit guard between live test calls to prevent hitting provider rate limits
+- [20-01]: Dedicated 'media' task type added to classifyTask() before gaming check (streaming platform detection)
+- [20-01]: TASK_URL_PATTERNS module-scope constant map keyed by task type for per-type URL matching
+- [20-01]: Score weights rebalanced: AI 0.30, URL 0.20, DOM 0.20, no-actions boost 0.20 (AI done + no-actions = 0.50)
+- [20-01]: Extraction validator dual-path: getText traditional + DOM snapshot AI-reported data (+0.15 bonus)
 
 ### Pending Todos
 
@@ -103,6 +125,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-02
-Stopped at: Completed 19-03-PLAN.md -- v10.0 CLI Architecture Milestone Complete
-Resume file: None
+Last session: 2026-03-06T09:21:15Z
+Stopped at: Completed 20-01-PLAN.md
+Resume file: .planning/phases/20-completion-validator-overhaul/20-02-PLAN.md
