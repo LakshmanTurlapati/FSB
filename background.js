@@ -3881,10 +3881,19 @@ function careerValidator(session, aiResponse, context, signals, scoreResult) {
 
 function extractionValidator(session, aiResponse, context, signals, scoreResult) {
   let { score, evidence } = scoreResult;
-  // Very permissive -- getText returned content
+  // Traditional: getText returned content
   if (signals.actionChainComplete && signals.aiResult.length >= 10) {
     score = Math.min(1, score + 0.1);
-    evidence.push('Extraction: data extracted');
+    evidence.push('Extraction: data extracted via getText');
+  }
+  // NEW: AI result contains data patterns without getText (read from DOM snapshot)
+  // Covers "check the price of X" where AI reads from YAML snapshot directly
+  if (!signals.actionChainComplete && signals.aiComplete && signals.aiResult.length >= 10) {
+    const hasDataPattern = /\$[\d,.]+|\d+\.\d{2}|price|cost|total/i.test(signals.aiResult);
+    if (hasDataPattern) {
+      score = Math.min(1, score + 0.15);
+      evidence.push('Extraction: AI reported data from DOM snapshot');
+    }
   }
   return { approved: score >= 0.5, score, evidence, taskType: 'extraction' };
 }
