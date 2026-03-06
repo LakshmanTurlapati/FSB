@@ -1277,9 +1277,11 @@ async function prefetchDOM(tabId, options = {}) {
             response.structuredDOM._markdownSnapshot = mdResponse.markdownSnapshot;
             response.structuredDOM._markdownElementCount = mdResponse.elementCount;
             response.structuredDOM._markdownRefGeneration = mdResponse.refGeneration;
+          } else if (mdResponse && !mdResponse.success) {
+            automationLogger.warn('Markdown snapshot prefetch returned error', { tabId, error: mdResponse.error });
           }
         } catch (mdErr) {
-          // Non-blocking -- compact fallback will be used
+          automationLogger.warn('Markdown snapshot prefetch failed', { tabId, error: mdErr.message });
         }
       }
       automationLogger.debug('DOM prefetch complete', {
@@ -8551,6 +8553,8 @@ async function startAutomationLoop(sessionId) {
           domResponse.structuredDOM._markdownSnapshot = mdResponse.markdownSnapshot;
           domResponse.structuredDOM._markdownElementCount = mdResponse.elementCount;
           domResponse.structuredDOM._markdownRefGeneration = mdResponse.refGeneration;
+        } else if (mdResponse && !mdResponse.success) {
+          automationLogger.warn('Markdown snapshot returned error, falling back to compact', { error: mdResponse.error });
         }
       } catch (mdErr) {
         automationLogger.warn('Markdown snapshot fetch failed, falling back to compact', { error: mdErr.message });
