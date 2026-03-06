@@ -828,6 +828,24 @@
             }
           }
 
+          // REF-LESS ACTION FALLBACK: target focused element when no ref and no selector provided
+          // Supports type-without-ref (Sheets active cell) and pressEnter-without-ref
+          if (FSB.tools[tool] && (!params || (!params.selector && !params.ref))) {
+            const refLessTools = ['type', 'pressEnter', 'keyPress'];
+            if (refLessTools.includes(tool)) {
+              const focused = document.activeElement;
+              if (focused && focused !== document.body && focused !== document.documentElement) {
+                const sels = FSB.generateSelectors(focused);
+                const cssSel = sels.find(s => typeof s === 'string' ? !s.startsWith('//') : !s.selector?.startsWith('//'));
+                params.selector = typeof cssSel === 'string' ? cssSel : (cssSel?.selector || '');
+                if (params.selector) FSB.elementCache.set(params.selector, focused);
+              } else {
+                sendResponse({ success: false, error: 'No element is currently focused. Use click to focus an element first, then retry.' });
+                return;
+              }
+            }
+          }
+
           if (FSB.tools[tool]) {
             // VIS-01/VIS-03: Show highlight on target element
             if (params && (params.selector || params.ref)) {

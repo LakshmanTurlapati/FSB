@@ -868,15 +868,29 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
 
       const elementBudget = 8000; // Budget for element section
 
+      // Guard: always use compact ref format, never fall back to legacy element IDs
+      if (!domState._compactSnapshot && (domState.elements?.length > 0 || elementsToShow?.length > 0)) {
+        automationLogger.warn('Compact snapshot missing, synthesizing from elements (legacy format suppressed)', {
+          sessionId: this.currentSessionId,
+          elementCount: domState.elements?.length || elementsToShow?.length
+        });
+        const sourceElements = elementsToShow || (domState.elements || []).filter(isInteractive).slice(0, 40);
+        const compactLines = sourceElements.map((el, i) => {
+          const ref = `e${i + 1}`;
+          const text = (el.text || el.name || el.id || '').substring(0, 60);
+          const attrs = [];
+          if (el.disabled) attrs.push('[disabled]');
+          if (el.required) attrs.push('[required]');
+          return `[${ref}] ${el.type || 'unknown'} "${text}" ${attrs.join(' ')}`.trim();
+        });
+        domState._compactSnapshot = compactLines.join('\n');
+        domState._compactElementCount = compactLines.length;
+      }
+
       if (domState._compactSnapshot) {
         // Compact ref mode (preferred) - ~60-70% token reduction
         update += `\n\n[PAGE_CONTENT]\nPAGE ELEMENTS (${domState._compactElementCount || '?'} elements, ref-mode):`;
         update += `\n${this.formatCompactElements(domState._compactSnapshot, elementBudget)}`;
-        update += `\n[/PAGE_CONTENT]`;
-      } else if (elementsToShow.length > 0) {
-        // Legacy full element formatting (fallback when compact snapshot unavailable)
-        update += `\n\n[PAGE_CONTENT]\nPAGE ELEMENTS (${elementsToShow.length} of ${domState._totalElements || availableElements.length} total, mode: ${contentMode}):`;
-        update += `\n${this.formatElements(elementsToShow, elementBudget, taskType)}`;
         update += `\n[/PAGE_CONTENT]`;
       } else {
         update += `\n\nWARNING: No interactive elements found on page. The page may still be loading, or you may need to scroll.`;
@@ -2994,25 +3008,33 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       }
 
       userPrompt += deltaContent;
-    } else if (domState._compactSnapshot) {
-      // Compact ref mode (preferred) - token-efficient element representation
-      userPrompt += `\n\n[PAGE_CONTENT]\nPAGE ELEMENTS (${domState._compactElementCount || '?'} elements, ref-mode):\n`;
-      userPrompt += this.formatCompactElements(domState._compactSnapshot, elementBudget);
-      userPrompt += `\n[/PAGE_CONTENT]`;
     } else {
-      // Full DOM snapshot -- budget-aware element formatting (legacy fallback)
-      let elements = domState.elements || [];
-      if (isStuck && elements.length > MAX_ELEMENTS_STUCK) {
-        elements = elements
-          .filter(el => ['button', 'a', 'input', 'select', 'textarea'].includes(el.type) || el.position?.inViewport)
-          .slice(0, MAX_ELEMENTS_STUCK);
-        userPrompt += `\n\n[PAGE_CONTENT]\nSTRUCTURED ELEMENTS (top ${elements.length} of ${domState.elements.length} - focused for recovery):\n`;
-        userPrompt += this.formatElements(elements, elementBudget, taskType);
+      // Guard: always use compact ref format, never fall back to legacy element IDs
+      if (!domState._compactSnapshot && (domState.elements?.length > 0)) {
+        automationLogger.warn('Compact snapshot missing, synthesizing from elements (legacy format suppressed)', {
+          sessionId: this.currentSessionId,
+          elementCount: domState.elements?.length
+        });
+        const sourceElements = (domState.elements || []).filter(isInteractive).slice(0, 40);
+        const compactLines = sourceElements.map((el, i) => {
+          const ref = `e${i + 1}`;
+          const text = (el.text || el.name || el.id || '').substring(0, 60);
+          const attrs = [];
+          if (el.disabled) attrs.push('[disabled]');
+          if (el.required) attrs.push('[required]');
+          return `[${ref}] ${el.type || 'unknown'} "${text}" ${attrs.join(' ')}`.trim();
+        });
+        domState._compactSnapshot = compactLines.join('\n');
+        domState._compactElementCount = compactLines.length;
+      }
+
+      if (domState._compactSnapshot) {
+        // Compact ref mode (preferred) - token-efficient element representation
+        userPrompt += `\n\n[PAGE_CONTENT]\nPAGE ELEMENTS (${domState._compactElementCount || '?'} elements, ref-mode):\n`;
+        userPrompt += this.formatCompactElements(domState._compactSnapshot, elementBudget);
         userPrompt += `\n[/PAGE_CONTENT]`;
       } else {
-        userPrompt += `\n\n[PAGE_CONTENT]\nSTRUCTURED ELEMENTS (with positions and metadata):\n`;
-        userPrompt += this.formatElements(elements, elementBudget, taskType);
-        userPrompt += `\n[/PAGE_CONTENT]`;
+        userPrompt += `\n\nWARNING: No interactive elements found on page. The page may still be loading, or you may need to scroll.`;
       }
     }
 
@@ -4162,6 +4184,10 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         if (taskLower.includes('new tab') || taskLower.includes('open tab') || taskLower.includes('switch tab')) {
           return 'multitab';
         }
+        // Media playback -- must precede gaming to prevent "play X on youtube" misclassification
+        if (/play|watch|listen|stream/.test(taskLower) && /youtube|spotify|soundcloud|netflix|hulu|twitch|vimeo|apple.?music|pandora|deezer|tidal/.test(taskLower)) {
+          return 'media';
+        }
         if (taskLower.includes('play') || taskLower.includes('game') || taskLower.includes('start game') ||
             /demo.*play|asteroids|snake|pong|tetris/.test(taskLower)) {
           return 'gaming';
@@ -4237,6 +4263,9 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         taskLower.includes('multiple tab') || taskLower.includes('other tab') || taskLower.includes('different tab') ||
         taskLower.includes('compare') || taskLower.includes('both sites') || taskLower.includes('cross-reference')) {
       return 'multitab';
+    } else if (/play|watch|listen|stream/.test(taskLower) && /youtube|spotify|soundcloud|netflix|hulu|twitch|vimeo|apple.?music|pandora|deezer|tidal/.test(taskLower)) {
+      // Media playback -- must precede gaming to prevent "play X on youtube" misclassification
+      return 'media';
     } else if (taskLower.includes('play') || taskLower.includes('game') || taskLower.includes('win') ||
                taskLower.includes('control') || taskLower.includes('move') || taskLower.includes('press enter') ||
                taskLower.includes('arrow key') || taskLower.includes('keyboard') || taskLower.includes('key press') ||
