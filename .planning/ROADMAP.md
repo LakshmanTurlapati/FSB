@@ -25,7 +25,7 @@ See `.planning/milestones/v9.4-ROADMAP.md` for full details.
 - [x] **Phase 17: Prompt Architecture Rewrite** - Redesign system prompt, task prompts, stuck recovery, and all 43+ site guides for CLI command grammar (completed 2026-03-01)
 - [x] **Phase 18: AI Integration Wiring** - Wire CLI parser and prompts into ai-integration.js as the sole response path with conversation history adaptation (completed 2026-03-01)
 - [x] **Phase 19: Cross-Provider Validation** - Validate CLI compliance, measure token reduction, and test edge cases across all four AI providers (completed 2026-03-02)
-- [ ] **Phase 20: Completion Validator Overhaul** - Fix over-aggressive completion validation that blocks legitimate task completion for media, extraction, and navigation tasks
+- [x] **Phase 20: Completion Validator Overhaul** - Fix over-aggressive completion validation that blocks legitimate task completion for media, extraction, and navigation tasks (completed 2026-03-06)
 
 ## Phase Details
 
@@ -141,7 +141,7 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 | 17. Prompt Architecture Rewrite | 1/2 | Complete    | 2026-03-01 |
 | 18. AI Integration Wiring | 2/2 | Complete    | 2026-03-01 |
 | 19. Cross-Provider Validation | 3/3 | Complete    | 2026-03-02 |
-| 20. Completion Validator Overhaul | 1/2 | In Progress|  |
+| 20. Completion Validator Overhaul | 2/2 | Complete   | 2026-03-06 |
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*

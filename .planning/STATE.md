@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
-status: completed
-stopped_at: Phase 20 context gathered
-last_updated: "2026-03-06T09:22:05.638Z"
-last_activity: 2026-03-02 -- Completed 19-03 (Cross-Provider Validation - UI Panel + Integration)
+status: executing
+stopped_at: Completed 20-02-PLAN.md
+last_updated: "2026-03-06T09:27:08.218Z"
+last_activity: 2026-03-06 -- Completed 20-01 (Scoring Foundation + Media Classification + Extraction Fix)
 progress:
   total_phases: 6
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 12
+  completed_plans: 13
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 20 Completion Validator Overhaul - Plan 01 Complete
+**Current focus:** Phase 20 Completion Validator Overhaul - Complete
 
 ## Current Position
 
 Phase: 20
-Plan: 1 of 2 in phase 20 (complete)
-Status: Executing Phase 20 -- Plan 01 complete, Plan 02 next
-Last activity: 2026-03-06 -- Completed 20-01 (Scoring Foundation + Media Classification + Extraction Fix)
+Plan: 2 of 2 in phase 20 (complete)
+Status: Phase 20 complete -- all plans executed
+Last activity: 2026-03-06 -- Completed 20-02 (Media Validator + Escape Hatch + validateCompletion Rewire)
 
 Progress: [##########] 100%
 
@@ -61,6 +61,7 @@ Progress: [##########] 100%
 | Phase 19 P02 | 5min | 2 tasks | 8 files |
 | Phase 19 P03 | 8min | 3 tasks | 10 files |
 | Phase 20 P01 | 3min | 2 tasks | 1 files |
+| Phase 20 P02 | 3min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,9 @@ Recent decisions affecting current work:
 - [20-01]: TASK_URL_PATTERNS module-scope constant map keyed by task type for per-type URL matching
 - [20-01]: Score weights rebalanced: AI 0.30, URL 0.20, DOM 0.20, no-actions boost 0.20 (AI done + no-actions = 0.50)
 - [20-01]: Extraction validator dual-path: getText traditional + DOM snapshot AI-reported data (+0.15 bonus)
+- [Phase 20]: mediaValidator +0.30 URL bonus (strong but not instant-accept) per user decision
+- [Phase 20]: Escape hatch at 3 consecutive rejected dones with escapeHatch flag and warning log
+- [Phase 20]: Per-task-type min-length: 5 for media, 10 default (classify before min-length check)
 
 ### Pending Todos
 
@@ -125,6 +129,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-06T09:21:15Z
-Stopped at: Completed 20-01-PLAN.md
-Resume file: .planning/phases/20-completion-validator-overhaul/20-02-PLAN.md
+Last session: 2026-03-06T09:27:08.193Z
+Stopped at: Completed 20-02-PLAN.md
+Resume file: None
