@@ -175,7 +175,7 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 **Plans:** 2 plans
 
 Plans:
-- [ ] 22-01-PLAN.md -- Markdown snapshot engine: buildMarkdownSnapshot, DOM walker, extractPageText, message handlers
+- [x] 22-01-PLAN.md -- Markdown snapshot engine: buildMarkdownSnapshot, DOM walker, extractPageText, message handlers
 - [ ] 22-02-PLAN.md -- CLI + Integration wiring: readpage command, action handler, markdown snapshot in AI prompts, CLI command table
 
 ---

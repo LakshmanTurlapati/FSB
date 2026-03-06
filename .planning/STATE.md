@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
 status: completed
-stopped_at: Completed 21-02-PLAN.md
-last_updated: "2026-03-06T11:48:15.000Z"
-last_activity: 2026-03-06 -- Completed 21-02 (Stuck Recovery Trim + Sheets Action Cap)
+stopped_at: Phase 22 context gathered
+last_updated: "2026-03-06T12:46:13.794Z"
+last_activity: 2026-03-06 -- Completed 22-01 (Markdown Snapshot Engine + Page Text Extractor)
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 5
   total_plans: 11
   completed_plans: 15
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 21 Google Sheets CLI Engine Refinement - Plan 02 Complete
+**Current focus:** Phase 22 Page Text Extraction for Reading Tasks - Plan 01 Complete
 
 ## Current Position
 
-Phase: 21
-Plan: 2 of 2 in phase 21 (complete)
-Status: Plan 21-02 complete -- Stuck recovery trim + Sheets action cap
-Last activity: 2026-03-06 -- Completed 21-02 (Stuck Recovery Trim + Sheets Action Cap)
+Phase: 22
+Plan: 1 of 1 in phase 22 (complete)
+Status: Plan 22-01 complete -- Markdown snapshot engine + page text extractor
+Last activity: 2026-03-06 -- Completed 22-01 (Markdown Snapshot Engine + Page Text Extractor)
 
 Progress: [##########] 100%
 
@@ -65,6 +65,7 @@ Progress: [##########] 100%
 | Phase 20 P02 | 3min | 2 tasks | 1 files |
 | Phase 21 P01 | 2min | 2 tasks | 3 files |
 | Phase 21 P02 | 3min | 2 tasks | 1 files |
+| Phase 22 P01 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -125,10 +126,15 @@ Recent decisions affecting current work:
 - [21-02]: Stuck trim keeps system prompt + last 4 messages (2 exchanges) when history > 5
 - [21-02]: _injectFormatReminder one-time flag pattern for post-stuck CLI format reinforcement
 - [21-02]: Dual-layer Sheets action cap: prompt instructs 8, parser truncates at 10
+- [22-01]: Recursive visitor pattern over TreeWalker for natural depth tracking and subtree skipping
+- [22-01]: Interactive elements skip children in walker to prevent text duplication (Pitfall 1)
+- [22-01]: Region tracking via getRegion() during walk for document-order heading emission
+- [22-01]: 80 element limit (up from 50) fitting within 12K char budget
 
 ### Roadmap Evolution
 
 - Phase 21 added: Google Sheets CLI Engine Refinement
+- Phase 22 added: Page text extraction for reading tasks
 
 ### Pending Todos
 
@@ -142,6 +148,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-06T11:48:15Z
-Stopped at: Completed 21-02-PLAN.md
-Resume file: None
+Last session: 2026-03-06T13:17:09Z
+Stopped at: Completed 22-01-PLAN.md
+Resume file: .planning/phases/22-page-text-extraction-for-reading-tasks/22-01-SUMMARY.md

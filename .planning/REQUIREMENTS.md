@@ -64,11 +64,11 @@
 
 ### Page Text Extraction
 
-- [ ] **P22-01**: AI receives page context as a unified markdown document with page text and interactive element refs interwoven, replacing the YAML element-only listing
-- [ ] **P22-02**: Interactive elements use backtick inline notation (`` `e5: button "Submit"` ``) with attributes, site guide hints, form values, and checked/selected state
-- [ ] **P22-03**: Page regions map to markdown heading hierarchy (`## Header`, `## Main Content`, `## Sidebar`, `## Footer`)
-- [ ] **P22-04**: Page metadata appears as H1 page title + blockquote with URL, scroll position, and viewport dimensions
-- [ ] **P22-05**: Snapshot respects ~12K character budget (~3K tokens) with line-boundary truncation and `[...content continues below -- scroll down and observe]` marker
+- [x] **P22-01**: AI receives page context as a unified markdown document with page text and interactive element refs interwoven, replacing the YAML element-only listing
+- [x] **P22-02**: Interactive elements use backtick inline notation (`` `e5: button "Submit"` ``) with attributes, site guide hints, form values, and checked/selected state
+- [x] **P22-03**: Page regions map to markdown heading hierarchy (`## Header`, `## Main Content`, `## Sidebar`, `## Footer`)
+- [x] **P22-04**: Page metadata appears as H1 page title + blockquote with URL, scroll position, and viewport dimensions
+- [x] **P22-05**: Snapshot respects ~12K character budget (~3K tokens) with line-boundary truncation and `[...content continues below -- scroll down and observe]` marker
 - [ ] **P22-06**: `readpage` CLI command returns full untruncated page text with markdown-lite formatting and no element refs
 - [ ] **P22-07**: `readpage --full` flag extracts entire `<body>` text; default (no flag) extracts viewport-visible text only
 
@@ -131,11 +131,11 @@
 | P21-03 | Phase 21 | Complete |
 | P21-04 | Phase 21 | Complete |
 | P21-05 | Phase 21 | Complete |
-| P22-01 | Phase 22 | Planned |
-| P22-02 | Phase 22 | Planned |
-| P22-03 | Phase 22 | Planned |
-| P22-04 | Phase 22 | Planned |
-| P22-05 | Phase 22 | Planned |
+| P22-01 | Phase 22 | Complete |
+| P22-02 | Phase 22 | Complete |
+| P22-03 | Phase 22 | Complete |
+| P22-04 | Phase 22 | Complete |
+| P22-05 | Phase 22 | Complete |
 | P22-06 | Phase 22 | Planned |
 | P22-07 | Phase 22 | Planned |
 
