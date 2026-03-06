@@ -46,6 +46,22 @@
 - [x] **TEST-02**: Token reduction is measured per provider comparing CLI vs previous JSON format on identical tasks
 - [x] **TEST-03**: Edge cases are tested: special characters in typed text, URLs as arguments, multi-line reasoning, Google Sheets workflows, career search workflows
 
+### Completion Validator
+
+- [x] **CMP-01**: Media tasks (play video/music) complete on first `done` signal when URL matches streaming platform
+- [x] **CMP-02**: Extraction tasks complete when AI reports data via `done` without requiring explicit `getText` action
+- [x] **CMP-03**: Task classifier distinguishes media from gaming tasks correctly
+- [x] **CMP-04**: Escape hatch accepts completion after 3+ consecutive `done` signals
+- [x] **CMP-05**: AI self-report + no-remaining-actions score reaches at least 0.50
+
+### Google Sheets CLI Engine
+
+- [ ] **P21-01**: Compact element refs (e1, e2) are preserved across all iterations -- the legacy full element ID format is never used in AI prompts on iteration 2+
+- [ ] **P21-02**: `type "data"` with no ref targets the currently focused element, enabling typing into canvas-based Sheets cells
+- [ ] **P21-03**: `enter` with no ref dispatches Enter keypress on the focused element instead of failing with "selector: undefined"
+- [ ] **P21-04**: Stuck recovery trims conversation history to system prompt + last 2 exchanges instead of full reset, preserving CLI format context and injecting a format reminder
+- [ ] **P21-05**: AI responses for Sheets tasks are capped at 8-10 commands per response in both prompt instruction and parsed output to prevent hallucination bursts
+
 ## Future Requirements (Deferred)
 
 - [ ] **FUT-01**: Progressive snapshot depth (full/focused/delta) for further token reduction in mid-task iterations
@@ -61,6 +77,8 @@
 | Content script refactoring | Action execution layer (actions.js, selectors.js, dom-state.js) is untouched -- CLI parser produces same {tool, params} shape. |
 | Build system or bundling | Vanilla JS with importScripts pattern is preserved. No webpack, rollup, or transpilation. |
 | UI changes | Popup, sidepanel, options page unchanged -- protocol change is invisible to user. |
+| Google Docs support | Similar canvas issues but different interaction model -- deferred from Phase 21. |
+| Generic canvas-app detection | Framework for detecting canvas-based apps -- deferred from Phase 21. |
 
 ## Traceability
 
@@ -92,10 +110,20 @@
 | TEST-01 | Phase 19 | Complete |
 | TEST-02 | Phase 19 | Complete |
 | TEST-03 | Phase 19 | Complete |
+| CMP-01 | Phase 20 | Complete |
+| CMP-02 | Phase 20 | Complete |
+| CMP-03 | Phase 20 | Complete |
+| CMP-04 | Phase 20 | Complete |
+| CMP-05 | Phase 20 | Complete |
+| P21-01 | Phase 21 | Planned |
+| P21-02 | Phase 21 | Planned |
+| P21-03 | Phase 21 | Planned |
+| P21-04 | Phase 21 | Planned |
+| P21-05 | Phase 21 | Planned |
 
 **Coverage:**
-- v10.0 requirements: 26 total
-- Mapped: 26/26 (100%)
+- v10.0 requirements: 31 total
+- Mapped: 31/31 (100%)
 - Future requirements: 3 (deferred)
 - Unmapped: 0
 

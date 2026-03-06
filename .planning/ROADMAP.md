@@ -129,6 +129,21 @@ Plans:
 | URL patterns miss YouTube, Amazon, etc. | `detectUrlCompletionPattern` ~L3550 | No URL signal for common sites |
 | DOM snapshot format mismatch in iteration 1 | DOM serialization | AI uses wrong ref format on first turn |
 
+### Phase 21: Google Sheets CLI Engine Refinement
+**Goal**: The CLI engine works reliably on Google Sheets -- compact refs preserved across all iterations, ref-optional commands (type without ref, enter without ref) target the focused element, stuck recovery preserves CLI context instead of destroying it, and action count is capped to prevent hallucination bursts
+**Depends on**: Phase 20
+**Requirements**: P21-01, P21-02, P21-03, P21-04, P21-05
+**Success Criteria** (what must be TRUE):
+  1. Compact element refs (e1, e2, e3) appear in AI prompts on iterations 2+ -- the legacy full element ID format is never used
+  2. `type "data"` with no ref targets the currently focused element (canvas-based Sheets cells)
+  3. `enter` with no ref dispatches Enter keypress on the focused element instead of failing with "selector: undefined"
+  4. Stuck recovery trims conversation history to system prompt + last 2 exchanges instead of full reset, preserving CLI format context
+  5. AI responses for Sheets tasks are capped at 8-10 commands per response to prevent token-wasting hallucination bursts
+**Plans**: 2 plans
+Plans:
+- [ ] 21-01-PLAN.md -- Parser + content script fixes: type ref-optional, enter focused-element fallback, compact snapshot guard
+- [ ] 21-02-PLAN.md -- Stuck recovery trim + action count cap: conservative history trim, format reminder, Sheets action cap
+
 ## Progress
 
 **Execution Order:**
@@ -141,7 +156,8 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 | 17. Prompt Architecture Rewrite | 1/2 | Complete    | 2026-03-01 |
 | 18. AI Integration Wiring | 2/2 | Complete    | 2026-03-01 |
 | 19. Cross-Provider Validation | 3/3 | Complete    | 2026-03-02 |
-| 20. Completion Validator Overhaul | 2/2 | Complete   | 2026-03-06 |
+| 20. Completion Validator Overhaul | 2/2 | Complete    | 2026-03-06 |
+| 21. Google Sheets CLI Engine Refinement | 0/2 | In Progress | -- |
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*
