@@ -743,43 +743,7 @@
               compressionRatio: (result.optimization?.compressionRatio * 100).toFixed(1) + '%'
             });
           }
-          // Optionally embed compact snapshot
-          if (domOptions.includeCompactSnapshot) {
-            const compactStart = Date.now();
-            const compact = FSB.generateCompactSnapshot(domOptions);
-            result._compactSnapshot = compact.snapshot;
-            result._refGeneration = compact.refGeneration;
-            result._compactElementCount = compact.elementCount;
-            result._compactMetadata = compact.metadata;
-            logger.logTiming(FSB.sessionId, 'DOM', 'generateCompactSnapshot', Date.now() - compactStart, { elements: compact.elementCount });
-          }
           sendResponse({ success: true, structuredDOM: result });
-          break;
-
-        case 'getCompactDOM':
-          const compactResult = FSB.generateCompactSnapshot(request.options || {});
-          sendResponse({ success: true, compactSnapshot: compactResult });
-          break;
-
-        case 'getYAMLSnapshot':
-          const yamlMode = request.options?.mode || 'interactive';
-          const yamlGuideSelectors = request.options?.guideSelectors || null;
-          const yamlStart = Date.now();
-          const yamlResult = FSB.buildYAMLSnapshot({
-            mode: yamlMode,
-            guideSelectors: yamlGuideSelectors
-          });
-          const yamlTime = Date.now() - yamlStart;
-          logger.logTiming(FSB.sessionId, 'DOM', 'buildYAMLSnapshot', yamlTime, {
-            mode: yamlMode,
-            elements: yamlResult.elementCount
-          });
-          sendResponse({
-            success: true,
-            yamlSnapshot: yamlResult.snapshot,
-            refGeneration: yamlResult.refGeneration,
-            elementCount: yamlResult.elementCount
-          });
           break;
 
         case 'getMarkdownSnapshot':
@@ -1014,7 +978,7 @@
     logger.logComm(FSB.sessionId, 'receive', request.action, true, { hasSessionId: !!request.sessionId });
 
     // Handle async operations properly
-    if (request.action === 'executeAction' || request.action === 'getDOM' || request.action === 'getYAMLSnapshot' || request.action === 'getMarkdownSnapshot' || request.action === 'readPage') {
+    if (request.action === 'executeAction' || request.action === 'getDOM' || request.action === 'getMarkdownSnapshot' || request.action === 'readPage') {
       handleAsyncMessage(request, sendResponse);
       return true; // Keep message channel open for async response
     }

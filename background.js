@@ -3911,7 +3911,7 @@ function extractionValidator(session, aiResponse, context, signals, scoreResult)
     evidence.push('Extraction: data extracted via getText');
   }
   // NEW: AI result contains data patterns without getText (read from DOM snapshot)
-  // Covers "check the price of X" where AI reads from YAML snapshot directly
+  // Covers "check the price of X" where AI reads from page snapshot directly
   if (!signals.actionChainComplete && signals.aiComplete && signals.aiResult.length >= 10) {
     const hasDataPattern = /\$[\d,.]+|\d+\.\d{2}|price|cost|total/i.test(signals.aiResult);
     if (hasDataPattern) {
@@ -8423,8 +8423,7 @@ async function startAutomationLoop(sessionId) {
           options: {
             useIncrementalDiff: domOptimizationEnabled,
             maxElements: settings.maxDOMElements || 2000,
-            prioritizeViewport: settings.prioritizeViewport !== false,
-            includeCompactSnapshot: true
+            prioritizeViewport: settings.prioritizeViewport !== false
           }
         };
 
@@ -8507,8 +8506,7 @@ async function startAutomationLoop(sessionId) {
             options: {
               useIncrementalDiff: false,
               maxElements: settings.maxDOMElements || 2000,
-              prioritizeViewport: settings.prioritizeViewport !== false,
-              includeCompactSnapshot: true
+              prioritizeViewport: settings.prioritizeViewport !== false
             }
           });
 
@@ -8526,8 +8524,7 @@ async function startAutomationLoop(sessionId) {
               options: {
                 useIncrementalDiff: false,
                 maxElements: settings.maxDOMElements || 2000,
-                prioritizeViewport: settings.prioritizeViewport !== false,
-                includeCompactSnapshot: true
+                prioritizeViewport: settings.prioritizeViewport !== false
               }
             });
           }
@@ -9157,8 +9154,7 @@ async function startAutomationLoop(sessionId) {
     // Key: prefetch starts AFTER AI call begins, so DOM reflects current state changes
     pendingDOMPrefetch = prefetchDOM(session.tabId, {
       maxElements: settings.maxDOMElements || 2000,
-      prioritizeViewport: settings.prioritizeViewport !== false,
-      includeCompactSnapshot: true
+      prioritizeViewport: settings.prioritizeViewport !== false
     });
 
     // FIX 1A: Race AI response against a stop signal so stop button works during API calls
@@ -9364,8 +9360,7 @@ async function startAutomationLoop(sessionId) {
             pendingDOMPrefetch = null;
             pendingDOMPrefetch = prefetchDOM(session.tabId, {
               maxElements: settings.maxDOMElements || 2000,
-              prioritizeViewport: settings.prioritizeViewport !== false,
-              includeCompactSnapshot: true
+              prioritizeViewport: settings.prioritizeViewport !== false
             });
           }
         }

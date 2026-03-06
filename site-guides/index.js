@@ -417,7 +417,7 @@ function extractCompaniesFromTask(taskString) {
 /**
  * Extract the selectors object from the matched site guide for a given URL.
  * Returns the guide's selectors (CSS/XPath mappings to page elements) or null.
- * Used by the YAML snapshot engine for [hint:key:action] annotation matching.
+ * Used by the markdown snapshot engine for [hint:key:action] annotation matching.
  * @param {string} url - The current page URL
  * @returns {Object|null} The selectors object or null
  */
