@@ -157,7 +157,26 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 | 18. AI Integration Wiring | 2/2 | Complete    | 2026-03-01 |
 | 19. Cross-Provider Validation | 3/3 | Complete    | 2026-03-02 |
 | 20. Completion Validator Overhaul | 2/2 | Complete    | 2026-03-06 |
-| 21. Google Sheets CLI Engine Refinement | 2/2 | Complete   | 2026-03-06 |
+| 21. Google Sheets CLI Engine Refinement | 2/2 | Complete    | 2026-03-06 |
+
+### Phase 22: Page text extraction for reading tasks
+
+**Goal:** Replace the YAML DOM snapshot with a unified markdown representation where page text and interactive element refs are interwoven, and add a `readpage` CLI command for full untruncated page text extraction
+**Requirements**: P22-01, P22-02, P22-03, P22-04, P22-05, P22-06, P22-07
+**Depends on:** Phase 21
+**Success Criteria** (what must be TRUE):
+  1. AI receives page context as a markdown document with page text and backtick-wrapped element refs interwoven -- not a separate element listing
+  2. Page regions appear as `## Header`, `## Main Content`, `## Sidebar`, `## Footer` headings
+  3. Element refs use backtick inline notation: `` `e5: button "Submit"` `` with attributes, hints, form values, checked state
+  4. Page metadata is H1 title + blockquote with URL/scroll/viewport
+  5. Snapshot respects ~12K char budget with line-boundary truncation and scroll hint
+  6. `readpage` CLI command returns full page text with markdown-lite formatting, no element refs
+  7. `readpage --full` extracts entire body text; default is viewport-only
+**Plans:** 2 plans
+
+Plans:
+- [ ] 22-01-PLAN.md -- Markdown snapshot engine: buildMarkdownSnapshot, DOM walker, extractPageText, message handlers
+- [ ] 22-02-PLAN.md -- CLI + Integration wiring: readpage command, action handler, markdown snapshot in AI prompts, CLI command table
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*

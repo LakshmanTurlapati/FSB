@@ -62,6 +62,16 @@
 - [x] **P21-04**: Stuck recovery trims conversation history to system prompt + last 2 exchanges instead of full reset, preserving CLI format context and injecting a format reminder
 - [x] **P21-05**: AI responses for Sheets tasks are capped at 8-10 commands per response in both prompt instruction and parsed output to prevent hallucination bursts
 
+### Page Text Extraction
+
+- [ ] **P22-01**: AI receives page context as a unified markdown document with page text and interactive element refs interwoven, replacing the YAML element-only listing
+- [ ] **P22-02**: Interactive elements use backtick inline notation (`` `e5: button "Submit"` ``) with attributes, site guide hints, form values, and checked/selected state
+- [ ] **P22-03**: Page regions map to markdown heading hierarchy (`## Header`, `## Main Content`, `## Sidebar`, `## Footer`)
+- [ ] **P22-04**: Page metadata appears as H1 page title + blockquote with URL, scroll position, and viewport dimensions
+- [ ] **P22-05**: Snapshot respects ~12K character budget (~3K tokens) with line-boundary truncation and `[...content continues below -- scroll down and observe]` marker
+- [ ] **P22-06**: `readpage` CLI command returns full untruncated page text with markdown-lite formatting and no element refs
+- [ ] **P22-07**: `readpage --full` flag extracts entire `<body>` text; default (no flag) extracts viewport-visible text only
+
 ## Future Requirements (Deferred)
 
 - [ ] **FUT-01**: Progressive snapshot depth (full/focused/delta) for further token reduction in mid-task iterations
@@ -79,6 +89,7 @@
 | UI changes | Popup, sidepanel, options page unchanged -- protocol change is invisible to user. |
 | Google Docs support | Similar canvas issues but different interaction model -- deferred from Phase 21. |
 | Generic canvas-app detection | Framework for detecting canvas-based apps -- deferred from Phase 21. |
+| Smart content extraction (Reader Mode) | Future `readpage --smart` flag -- deferred from Phase 22. |
 
 ## Traceability
 
@@ -115,15 +126,22 @@
 | CMP-03 | Phase 20 | Complete |
 | CMP-04 | Phase 20 | Complete |
 | CMP-05 | Phase 20 | Complete |
-| P21-01 | Phase 21 | Planned |
-| P21-02 | Phase 21 | Planned |
-| P21-03 | Phase 21 | Planned |
-| P21-04 | Phase 21 | Planned |
-| P21-05 | Phase 21 | Planned |
+| P21-01 | Phase 21 | Complete |
+| P21-02 | Phase 21 | Complete |
+| P21-03 | Phase 21 | Complete |
+| P21-04 | Phase 21 | Complete |
+| P21-05 | Phase 21 | Complete |
+| P22-01 | Phase 22 | Planned |
+| P22-02 | Phase 22 | Planned |
+| P22-03 | Phase 22 | Planned |
+| P22-04 | Phase 22 | Planned |
+| P22-05 | Phase 22 | Planned |
+| P22-06 | Phase 22 | Planned |
+| P22-07 | Phase 22 | Planned |
 
 **Coverage:**
-- v10.0 requirements: 31 total
-- Mapped: 31/31 (100%)
+- v10.0 requirements: 38 total
+- Mapped: 38/38 (100%)
 - Future requirements: 3 (deferred)
 - Unmapped: 0
 
