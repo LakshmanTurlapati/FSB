@@ -59,8 +59,8 @@
 - [x] **P21-01**: Compact element refs (e1, e2) are preserved across all iterations -- the legacy full element ID format is never used in AI prompts on iteration 2+
 - [x] **P21-02**: `type "data"` with no ref targets the currently focused element, enabling typing into canvas-based Sheets cells
 - [x] **P21-03**: `enter` with no ref dispatches Enter keypress on the focused element instead of failing with "selector: undefined"
-- [ ] **P21-04**: Stuck recovery trims conversation history to system prompt + last 2 exchanges instead of full reset, preserving CLI format context and injecting a format reminder
-- [ ] **P21-05**: AI responses for Sheets tasks are capped at 8-10 commands per response in both prompt instruction and parsed output to prevent hallucination bursts
+- [x] **P21-04**: Stuck recovery trims conversation history to system prompt + last 2 exchanges instead of full reset, preserving CLI format context and injecting a format reminder
+- [x] **P21-05**: AI responses for Sheets tasks are capped at 8-10 commands per response in both prompt instruction and parsed output to prevent hallucination bursts
 
 ## Future Requirements (Deferred)
 
