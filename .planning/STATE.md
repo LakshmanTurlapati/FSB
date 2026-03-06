@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
-status: executing
-stopped_at: Completed 20-02-PLAN.md
-last_updated: "2026-03-06T09:27:08.218Z"
-last_activity: 2026-03-06 -- Completed 20-01 (Scoring Foundation + Media Classification + Extraction Fix)
+status: in-progress
+stopped_at: Completed 21-01-PLAN.md
+last_updated: "2026-03-06T11:43:24.934Z"
+last_activity: 2026-03-06 -- Completed 21-01 (CLI Foundation Fixes for Google Sheets)
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 4
-  total_plans: 9
-  completed_plans: 13
+  total_plans: 11
+  completed_plans: 15
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 20 Completion Validator Overhaul - Complete
+**Current focus:** Phase 21 Google Sheets CLI Engine Refinement - In Progress
 
 ## Current Position
 
-Phase: 20
-Plan: 2 of 2 in phase 20 (complete)
-Status: Phase 20 complete -- all plans executed
-Last activity: 2026-03-06 -- Completed 20-02 (Media Validator + Escape Hatch + validateCompletion Rewire)
+Phase: 21
+Plan: 1 of 1 in phase 21 (in progress)
+Status: Plan 21-01 complete -- CLI foundation fixes applied
+Last activity: 2026-03-06 -- Completed 21-01 (CLI Foundation Fixes for Google Sheets)
 
 Progress: [##########] 100%
 
@@ -49,9 +49,10 @@ Progress: [##########] 100%
 | 18 | 2 | 8min | 4min |
 | 19 | 3 | 18min | 6min |
 | 20 | 1 | 3min | 3min |
+| 21 | 1 | 2min | 2min |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 5min, 5min, 8min, 3min
+- Last 5 plans: 5min, 5min, 8min, 3min, 2min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -62,6 +63,7 @@ Progress: [##########] 100%
 | Phase 19 P03 | 8min | 3 tasks | 10 files |
 | Phase 20 P01 | 3min | 2 tasks | 1 files |
 | Phase 20 P02 | 3min | 2 tasks | 1 files |
+| Phase 21 P01 | 2min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -116,6 +118,13 @@ Recent decisions affecting current work:
 - [Phase 20]: mediaValidator +0.30 URL bonus (strong but not instant-accept) per user decision
 - [Phase 20]: Escape hatch at 3 consecutive rejected dones with escapeHatch flag and warning log
 - [Phase 20]: Per-task-type min-length: 5 for media, 10 default (classify before min-length check)
+- [21-01]: Disambiguation uses regex ref/selector detection to avoid misclassifying text as refs
+- [21-01]: Compact snapshot synthesis reuses isInteractive filter for element selection
+- [21-01]: Legacy fallback branches fully removed from buildContinuationPrompt
+
+### Roadmap Evolution
+
+- Phase 21 added: Google Sheets CLI Engine Refinement
 
 ### Pending Todos
 
@@ -129,6 +138,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-06T09:27:08.193Z
-Stopped at: Completed 20-02-PLAN.md
+Last session: 2026-03-06T11:42:36Z
+Stopped at: Completed 21-01-PLAN.md
 Resume file: None
