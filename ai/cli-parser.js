@@ -154,7 +154,7 @@ const COMMAND_REGISTRY = {
   rightclick:         { tool: 'rightClick',         args: [{ name: 'ref', type: 'ref' }] },
   dblclick:           { tool: 'doubleClick',        args: [{ name: 'ref', type: 'ref' }] },
   doubleclick:        { tool: 'doubleClick',        args: [{ name: 'ref', type: 'ref' }] },
-  type:               { tool: 'type',               args: [{ name: 'ref', type: 'ref' }, { name: 'text', type: 'string' }] },
+  type:               { tool: 'type',               args: [{ name: 'ref', type: 'ref', optional: true }, { name: 'text', type: 'string' }] },
   clear:              { tool: 'clearInput',         args: [{ name: 'ref', type: 'ref' }] },
   clearinput:         { tool: 'clearInput',         args: [{ name: 'ref', type: 'ref' }] },
   focus:              { tool: 'focus',              args: [{ name: 'ref', type: 'ref' }] },
@@ -483,6 +483,20 @@ function mapCommand(tokenized) {
 
     // Handle string type (default)
     params[argDef.name] = token;
+  }
+
+  // Ref-optional type disambiguation: if only one token was provided and it was consumed
+  // as ref/selector but text is missing, check if it's actually text content
+  if (def.tool === 'type' && params.text === undefined && (params.ref || params.selector)) {
+    const target = params.ref || params.selector;
+    const looksLikeRef = /^e\d+$/i.test(target);
+    const looksLikeSelector = /^[#.\[]/.test(target);
+    if (!looksLikeRef && !looksLikeSelector) {
+      // Single token doesn't look like a ref/selector -- treat as text for focused element
+      params.text = target;
+      delete params.ref;
+      delete params.selector;
+    }
   }
 
   // Merge flags into params with special handling
