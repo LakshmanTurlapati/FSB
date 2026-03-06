@@ -1804,6 +1804,24 @@
       return true;
     });
 
+    // SPA fallback: after SPA navigation, elements may exist in DOM but have
+    // zero-size rects (layout not yet complete) or transitional hidden styles.
+    // If visibility filtering dropped ALL candidates, relax the filter to include
+    // elements that are at least in the DOM and not display:none.
+    if (visible.length === 0 && candidateArray.length > 0) {
+      const relaxed = candidateArray.filter(el => {
+        try {
+          const styles = getComputedStyle(el);
+          return styles.display !== 'none';
+        } catch {
+          return false;
+        }
+      });
+      if (relaxed.length > 0) {
+        return relaxed.slice(0, maxElements).map(el => el);
+      }
+    }
+
     // Stage 3: Score by relevance and limit
     const scored = visible.map(el => ({
       element: el,

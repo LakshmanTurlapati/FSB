@@ -745,17 +745,19 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
 
     // Add last action result if available
     if (context?.lastActionResult) {
-      const result = context.lastActionResult;
+      const record = context.lastActionResult;
+      const actionResult = record.result || record;
+      const success = actionResult.success ?? record.success;
       update += `\n\nLast action result:`;
-      update += `\n- Tool: ${result.tool || 'unknown'}`;
-      update += `\n- Success: ${result.success ? 'Yes' : 'No'}`;
-      if (result.error) {
-        update += `\n- Error: ${result.error}`;
+      update += `\n- Tool: ${record.tool || actionResult.tool || 'unknown'}`;
+      update += `\n- Success: ${success ? 'Yes' : 'No'}`;
+      if (actionResult.error) {
+        update += `\n- Error: ${actionResult.error}`;
       }
-      if (result.result) {
-        const resultStr = typeof result.result === 'string'
-          ? result.result.substring(0, 200)
-          : JSON.stringify(result.result).substring(0, 200);
+      if (actionResult) {
+        const resultStr = typeof actionResult === 'string'
+          ? actionResult.substring(0, 200)
+          : JSON.stringify(actionResult).substring(0, 200);
         update += `\n- Result: ${resultStr}`;
       }
     }

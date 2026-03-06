@@ -8473,6 +8473,9 @@ async function startAutomationLoop(sessionId) {
             waitTime: waitResult.waitTime
           });
 
+          // Brief delay for SPA layout completion before DOM fetch
+          await new Promise(r => setTimeout(r, 150));
+
           // Fetch fresh DOM now that elements exist
           domResponse = await sendMessageWithRetry(session.tabId, {
             action: 'getDOM',
@@ -8483,6 +8486,26 @@ async function startAutomationLoop(sessionId) {
               includeCompactSnapshot: true
             }
           });
+
+          // If still 0 elements despite MutationObserver finding them, retry after longer delay
+          const retryElementCount = domResponse?.structuredDOM?.elements?.length || 0;
+          if (retryElementCount === 0 && waitResult.elementCount > 10) {
+            automationLogger.debug('SPA layout incomplete, retrying DOM fetch after delay', {
+              sessionId,
+              mutationObserverCount: waitResult.elementCount,
+              structuredDOMCount: retryElementCount
+            });
+            await new Promise(r => setTimeout(r, 500));
+            domResponse = await sendMessageWithRetry(session.tabId, {
+              action: 'getDOM',
+              options: {
+                useIncrementalDiff: false,
+                maxElements: settings.maxDOMElements || 2000,
+                prioritizeViewport: settings.prioritizeViewport !== false,
+                includeCompactSnapshot: true
+              }
+            });
+          }
         } else {
           automationLogger.debug('SPA wait timed out, proceeding with empty DOM', {
             sessionId,
