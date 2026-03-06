@@ -884,34 +884,7 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
         // Markdown snapshot (preferred) - interleaved text and element refs
         update += `\n\n[PAGE_CONTENT]\n${domState._markdownSnapshot}\n[/PAGE_CONTENT]`;
       } else {
-        // Fallback: compact ref format when markdown not available
-        // Guard: always use compact ref format, never fall back to legacy element IDs
-        if (!domState._compactSnapshot && (domState.elements?.length > 0 || elementsToShow?.length > 0)) {
-          automationLogger.warn('Compact snapshot missing, synthesizing from elements (legacy format suppressed)', {
-            sessionId: this.currentSessionId,
-            elementCount: domState.elements?.length || elementsToShow?.length
-          });
-          const sourceElements = elementsToShow || (domState.elements || []).filter(isInteractive).slice(0, 40);
-          const compactLines = sourceElements.map((el, i) => {
-            const ref = `e${i + 1}`;
-            const text = (el.text || el.name || el.id || '').substring(0, 60);
-            const attrs = [];
-            if (el.disabled) attrs.push('[disabled]');
-            if (el.required) attrs.push('[required]');
-            return `[${ref}] ${el.type || 'unknown'} "${text}" ${attrs.join(' ')}`.trim();
-          });
-          domState._compactSnapshot = compactLines.join('\n');
-          domState._compactElementCount = compactLines.length;
-        }
-
-        if (domState._compactSnapshot) {
-          // Compact ref mode (fallback) - ~60-70% token reduction
-          update += `\n\n[PAGE_CONTENT]\nPAGE ELEMENTS (${domState._compactElementCount || '?'} elements, ref-mode):`;
-          update += `\n${this.formatCompactElements(domState._compactSnapshot, elementBudget)}`;
-          update += `\n[/PAGE_CONTENT]`;
-        } else {
-          update += `\n\nWARNING: No interactive elements found on page. The page may still be loading, or you may need to scroll.`;
-        }
+        update += `\n\nWARNING: No page snapshot available. The page may still be loading, or you may need to scroll.`;
       }
 
       // Add delta change summary if available
@@ -925,8 +898,8 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       }
 
       // Highlight newly appeared elements for AI attention
-      // Skip when markdown or compact snapshot is active (refs would conflict with elementId format)
-      const newElements = (domState._markdownSnapshot || domState._compactSnapshot) ? [] : availableElements.filter(el => el.isNew);
+      // Skip when markdown snapshot is active (refs would conflict with elementId format)
+      const newElements = domState._markdownSnapshot ? [] : availableElements.filter(el => el.isNew);
       if (newElements.length > 0) {
         update += `\n\nNEW ELEMENTS APPEARED (${newElements.length}):`;
         newElements.slice(0, 10).forEach(el => {
@@ -3064,33 +3037,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         // Markdown snapshot (preferred) - interleaved text and element refs
         userPrompt += `\n\n[PAGE_CONTENT]\n${domState._markdownSnapshot}\n[/PAGE_CONTENT]`;
       } else {
-        // Fallback: compact ref format when markdown not available
-        if (!domState._compactSnapshot && (domState.elements?.length > 0)) {
-          automationLogger.warn('Compact snapshot missing, synthesizing from elements (legacy format suppressed)', {
-            sessionId: this.currentSessionId,
-            elementCount: domState.elements?.length
-          });
-          const sourceElements = (domState.elements || []).filter(isInteractive).slice(0, 40);
-          const compactLines = sourceElements.map((el, i) => {
-            const ref = `e${i + 1}`;
-            const text = (el.text || el.name || el.id || '').substring(0, 60);
-            const attrs = [];
-            if (el.disabled) attrs.push('[disabled]');
-            if (el.required) attrs.push('[required]');
-            return `[${ref}] ${el.type || 'unknown'} "${text}" ${attrs.join(' ')}`.trim();
-          });
-          domState._compactSnapshot = compactLines.join('\n');
-          domState._compactElementCount = compactLines.length;
-        }
-
-        if (domState._compactSnapshot) {
-          // Compact ref mode (fallback) - token-efficient element representation
-          userPrompt += `\n\n[PAGE_CONTENT]\nPAGE ELEMENTS (${domState._compactElementCount || '?'} elements, ref-mode):\n`;
-          userPrompt += this.formatCompactElements(domState._compactSnapshot, elementBudget);
-          userPrompt += `\n[/PAGE_CONTENT]`;
-        } else {
-          userPrompt += `\n\nWARNING: No interactive elements found on page. The page may still be loading, or you may need to scroll.`;
-        }
+        userPrompt += `\n\nWARNING: No page snapshot available. The page may still be loading, or you may need to scroll.`;
       }
     }
 
@@ -3375,28 +3322,6 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
     }
 
     return lines.join(SEPARATOR);
-  }
-
-  // Format compact element snapshot with budget-aware truncation (whole lines only)
-  formatCompactElements(compactSnapshot, charBudget = 8000) {
-    if (!compactSnapshot) return 'No elements available';
-    if (compactSnapshot.length <= charBudget) return compactSnapshot;
-
-    // Truncate by whole lines (never mid-element)
-    const lines = compactSnapshot.split('\n');
-    let result = '';
-    let used = 0;
-    let included = 0;
-    for (const line of lines) {
-      if (used + line.length + 1 > charBudget) {
-        result += `\n... ${lines.length - included} more elements`;
-        break;
-      }
-      result += (result ? '\n' : '') + line;
-      used += line.length + 1;
-      included++;
-    }
-    return result;
   }
 
   // Format delta elements (compressed format for changes)

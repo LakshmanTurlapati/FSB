@@ -26,6 +26,7 @@ See `.planning/milestones/v9.4-ROADMAP.md` for full details.
 - [x] **Phase 18: AI Integration Wiring** - Wire CLI parser and prompts into ai-integration.js as the sole response path with conversation history adaptation (completed 2026-03-01)
 - [x] **Phase 19: Cross-Provider Validation** - Validate CLI compliance, measure token reduction, and test edge cases across all four AI providers (completed 2026-03-02)
 - [x] **Phase 20: Completion Validator Overhaul** - Fix over-aggressive completion validation that blocks legitimate task completion for media, extraction, and navigation tasks (completed 2026-03-06)
+- [ ] **Phase 23: Markdown Snapshot Cleanup** - Remove legacy YAML/compact snapshot code, eliminate redundant HTML context, improve continuation prompt reconnaissance
 
 ## Phase Details
 
@@ -144,6 +145,22 @@ Plans:
 - [ ] 21-01-PLAN.md -- Parser + content script fixes: type ref-optional, enter focused-element fallback, compact snapshot guard
 - [ ] 21-02-PLAN.md -- Stuck recovery trim + action count cap: conservative history trim, format reminder, Sheets action cap
 
+### Phase 23: Markdown Snapshot Cleanup
+**Goal**: Remove all legacy YAML/compact snapshot code, eliminate redundant HTML context from AI prompts when markdown snapshot is present, and improve AI reconnaissance on continuation turns -- resulting in ~800 fewer lines of dead code and ~20% prompt token savings
+**Depends on**: Phase 22
+**Requirements**: P23-01, P23-02, P23-03, P23-04, P23-05, P23-06
+**Success Criteria** (what must be TRUE):
+  1. `buildYAMLSnapshot`, `generateCompactSnapshot`, `_runYAMLSnapshotSelfTest`, and all YAML-only helpers are deleted from dom-analysis.js -- no function with "YAML" or "compact" in its name exists (except shared helpers like getRegion, buildGuideAnnotations)
+  2. No message handler for `getYAMLSnapshot` or `getCompactDOM` exists in messaging.js, and no `includeCompactSnapshot` property is sent from background.js
+  3. `formatCompactElements()` and both compact fallback synthesizer blocks are removed from ai-integration.js -- `_compactSnapshot` is never referenced
+  4. When `_markdownSnapshot` is present in domState, the AI prompt does NOT include `formatHTMLContext()` output (page title, URL, forms, headings, navigation are already in the markdown)
+  5. The continuation prompt (iteration 2+) includes a brief description explaining the backtick-ref format (e.g., `` `e5: button "Submit"` ``) so the AI understands the page context format across turns
+  6. No comments in the codebase reference "YAML snapshot" or "compact snapshot" as current/active features (references in changelogs or historical notes are fine)
+**Plans**: 2 plans
+Plans:
+- [ ] 23-01-PLAN.md -- Dead code removal: YAML/compact functions from dom-analysis.js, handlers from messaging.js, includeCompactSnapshot from background.js
+- [ ] 23-02-PLAN.md -- AI integration cleanup: compact fallbacks removal, HTML context skip when markdown present, continuation prompt improvement
+
 ## Progress
 
 **Execution Order:**
@@ -158,6 +175,7 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 | 19. Cross-Provider Validation | 3/3 | Complete    | 2026-03-02 |
 | 20. Completion Validator Overhaul | 2/2 | Complete    | 2026-03-06 |
 | 21. Google Sheets CLI Engine Refinement | 2/2 | Complete    | 2026-03-06 |
+| 23. Markdown Snapshot Cleanup | 0/2 | Planning    | - |
 
 ### Phase 22: Page text extraction for reading tasks
 
