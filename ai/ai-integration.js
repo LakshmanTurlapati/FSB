@@ -771,6 +771,14 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       update += `\nTry a DIFFERENT approach than before.`;
     }
 
+    // One-time format reminder after stuck recovery trim
+    if (this._injectFormatReminder) {
+      update += `\n\nFORMAT REMINDER: Respond with CLI commands ONLY, one per line. Use # for reasoning.`;
+      update += `\nExamples: click e5 | type e12 "hello" | type "data" | enter | key "Tab" | scroll down | done "task complete"`;
+      update += `\nDo NOT output JSON, function calls, or tool_use blocks.`;
+      this._injectFormatReminder = false;
+    }
+
     // Sheets-specific reminder on continuation iterations
     // The full site guide guidance is only in the first-iteration system prompt.
     // Reinforce the critical Name Box vs cell value distinction on every continuation.
@@ -1865,13 +1873,26 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
             prompt = this.enhancePromptForRetry(prompt, attempt);
           }
 
-          // If stuck, reset conversation to force fresh context
+          // If stuck, trim conversation to preserve CLI format context (DO NOT full reset)
           if (context?.isStuck && this.conversationHistory.length > 0) {
-            automationLogger.debug('Stuck detected, resetting conversation history', {
-              sessionId: this.currentSessionId,
-              previousHistoryLength: this.conversationHistory.length
-            });
-            this.conversationHistory = [];
+            if (this.conversationHistory.length > 5) {
+              // Keep system prompt (index 0) + last 4 messages (2 user-assistant exchanges)
+              const systemMsg = this.conversationHistory[0];
+              const recentExchanges = this.conversationHistory.slice(-4);
+              automationLogger.debug('Stuck detected, trimming conversation history (preserving CLI context)', {
+                sessionId: this.currentSessionId,
+                previousLength: this.conversationHistory.length,
+                trimmedLength: 1 + recentExchanges.length
+              });
+              this.conversationHistory = [systemMsg, ...recentExchanges];
+            } else {
+              automationLogger.debug('Stuck detected, history too short to trim, keeping as-is', {
+                sessionId: this.currentSessionId,
+                historyLength: this.conversationHistory.length
+              });
+            }
+            // Inject format reminder flag -- picked up by buildMinimalUpdate
+            this._injectFormatReminder = true;
           }
         }
 
