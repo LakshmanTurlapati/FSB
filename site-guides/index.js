@@ -190,25 +190,43 @@ function getGuideForTask(task, url) {
       'hiring', 'employment', 'internship', 'internships', 'indeed', 'glassdoor',
       'linkedin jobs', 'builtin', 'job search', 'job listing'
     ],
-    'Productivity Tools': [
-      'google sheets', 'spreadsheet', 'sheets', 'google docs',
-      'create sheet', 'new sheet', 'add to sheet', 'enter data',
-      'create document', 'new document', 'write document', 'google doc',
-      'share document', 'edit document'
-    ]
+    'Productivity Tools': {
+      strong: [
+        'google sheets', 'google sheet', 'spreadsheet', 'google docs', 'google doc'
+      ],
+      weak: [
+        'sheets', 'sheet', 'create sheet', 'new sheet', 'add to sheet', 'enter data',
+        'create document', 'new document', 'write document', 'share document', 'edit document'
+      ]
+    }
   };
 
-  // Require at least 2 keyword matches to avoid false positives
-  // (e.g., "search for hotels" matching Social Media because of "share" substring)
+  // Weighted keyword matching: strong keywords (weight 2) meet threshold alone,
+  // weak keywords (weight 1) need 2+ matches. Flat arrays use weight 1 per keyword.
+  const MATCH_THRESHOLD = 2;
   let bestMatch = null;
-  let bestMatchCount = 0;
-  for (const [categoryName, keywords] of Object.entries(categoryKeywords)) {
-    const matchCount = keywords.filter(kw => taskLower.includes(kw)).length;
-    if (matchCount >= 2 && matchCount > bestMatchCount) {
+  let bestScore = 0;
+  for (const [categoryName, config] of Object.entries(categoryKeywords)) {
+    let score = 0;
+    if (config.strong) {
+      // Weighted format (e.g., Productivity Tools)
+      for (const kw of config.strong) {
+        if (taskLower.includes(kw)) score += 2;
+      }
+      for (const kw of config.weak) {
+        if (taskLower.includes(kw)) score += 1;
+      }
+    } else {
+      // Flat array format (all other categories)
+      for (const kw of config) {
+        if (taskLower.includes(kw)) score += 1;
+      }
+    }
+    if (score >= MATCH_THRESHOLD && score > bestScore) {
       const guide = SITE_GUIDES_REGISTRY.find(g => g.name === categoryName || g.category === categoryName);
       if (guide) {
         bestMatch = guide;
-        bestMatchCount = matchCount;
+        bestScore = score;
       }
     }
   }
