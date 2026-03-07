@@ -130,6 +130,23 @@ function getGuideForTask(task, url) {
     if (urlGuide) return urlGuide;
   }
 
+  // Secondary: extract URLs from task text and try URL-based match
+  if (task) {
+    const urlRegex = /https?:\/\/\S+/g;
+    const taskUrls = task.match(urlRegex);
+    if (taskUrls) {
+      for (const rawUrl of taskUrls) {
+        try {
+          const taskUrl = new URL(rawUrl).href;
+          const taskUrlGuide = getGuideForUrl(taskUrl);
+          if (taskUrlGuide) return taskUrlGuide;
+        } catch (e) {
+          // Invalid URL, skip
+        }
+      }
+    }
+  }
+
   // Fallback: task keyword matching
   if (!task) return null;
   const taskLower = task.toLowerCase();
