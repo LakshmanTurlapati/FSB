@@ -26,7 +26,7 @@ See `.planning/milestones/v9.4-ROADMAP.md` for full details.
 - [x] **Phase 18: AI Integration Wiring** - Wire CLI parser and prompts into ai-integration.js as the sole response path with conversation history adaptation (completed 2026-03-01)
 - [x] **Phase 19: Cross-Provider Validation** - Validate CLI compliance, measure token reduction, and test edge cases across all four AI providers (completed 2026-03-02)
 - [x] **Phase 20: Completion Validator Overhaul** - Fix over-aggressive completion validation that blocks legitimate task completion for media, extraction, and navigation tasks (completed 2026-03-06)
-- [ ] **Phase 23: Markdown Snapshot Cleanup** - Remove legacy YAML/compact snapshot code, eliminate redundant HTML context, improve continuation prompt reconnaissance
+- [x] **Phase 23: Markdown Snapshot Cleanup** - Remove legacy YAML/compact snapshot code, eliminate redundant HTML context, improve continuation prompt reconnaissance (completed 2026-03-06)
 
 ## Phase Details
 
@@ -175,7 +175,7 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 | 19. Cross-Provider Validation | 3/3 | Complete    | 2026-03-02 |
 | 20. Completion Validator Overhaul | 2/2 | Complete    | 2026-03-06 |
 | 21. Google Sheets CLI Engine Refinement | 2/2 | Complete    | 2026-03-06 |
-| 23. Markdown Snapshot Cleanup | 0/2 | Planning    | - |
+| 23. Markdown Snapshot Cleanup | 2/2 | Complete    | 2026-03-06 |
 
 ### Phase 22: Page text extraction for reading tasks
 
@@ -195,6 +195,23 @@ Phases execute in numeric order: 15 -> 16 -> 17 -> 18 -> 19
 Plans:
 - [x] 22-01-PLAN.md -- Markdown snapshot engine: buildMarkdownSnapshot, DOM walker, extractPageText, message handlers
 - [ ] 22-02-PLAN.md -- CLI + Integration wiring: readpage command, action handler, markdown snapshot in AI prompts, CLI command table
+
+### Phase 24: Google Sheets Workflow Recovery
+
+**Goal:** Fix broken Google Sheets automation by repairing keyword matching so the Sheets guide loads reliably, adding URL extraction from task text for instant matches, enhancing the generic prompt with canvas-page exploration guidance, and adding canvas-aware stuck recovery to prevent new-tab loops
+**Requirements**: P24-01, P24-02, P24-03, P24-04, P24-05, P24-06
+**Depends on:** Phase 23
+**Success Criteria** (what must be TRUE):
+  1. "open my google sheet" triggers the Productivity Tools site guide via weighted keyword matching (strong keyword "google sheet" scores 2, meeting threshold alone)
+  2. "fill in this sheet: https://docs.google.com/spreadsheets/d/xxx" triggers the Sheets guide via URL extraction from task text
+  3. When no site guide loads, the AI receives exploration guidance mentioning keyboard shortcuts (Tab, Enter, Escape, arrow keys) for canvas-heavy pages
+  4. When stuck on a Google Sheets URL, recovery hints suggest keyboard-based interaction instead of opening new tabs or refreshing
+  5. Site guide activation is logged with detection method (URL vs keyword) for debugging
+**Plans:** 2 plans
+
+Plans:
+- [ ] 24-01-PLAN.md -- Detection fixes: weighted keyword matching, URL extraction from task text in getGuideForTask()
+- [ ] 24-02-PLAN.md -- Safety net: enhanced generic prompt, guide activation logging, canvas-aware stuck recovery
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*

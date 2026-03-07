@@ -72,6 +72,24 @@
 - [x] **P22-06**: `readpage` CLI command returns full untruncated page text with markdown-lite formatting and no element refs
 - [x] **P22-07**: `readpage --full` flag extracts entire `<body>` text; default (no flag) extracts viewport-visible text only
 
+### Markdown Snapshot Cleanup
+
+- [x] **P23-01**: All YAML snapshot code (buildYAMLSnapshot, buildMetadataHeader, buildElementLine, getElementFingerprint, buildFilterFooter, buildSelectOptions, _runYAMLSnapshotSelfTest) and compact snapshot code (generateCompactSnapshot) are removed from dom-analysis.js with no remaining callers
+- [x] **P23-02**: All YAML/compact message handlers (getYAMLSnapshot, getCompactDOM, includeCompactSnapshot paths) are removed from messaging.js and background.js
+- [x] **P23-03**: Compact snapshot fallback paths in ai-integration.js (formatCompactElements, _compactSnapshot synthesizers) are removed -- markdown snapshot is the sole page context format
+- [x] **P23-04**: When markdown snapshot is present, formatHTMLContext() output is eliminated from AI prompts to avoid duplicate page info (title, URL, forms, headings, navigation already in markdown)
+- [x] **P23-05**: Continuation prompts (iteration 2+) include a brief description of the markdown/backtick-ref format so the AI maintains context across turns
+- [x] **P23-06**: Outdated comments referencing "YAML snapshot" or "compact snapshot" are updated throughout the codebase
+
+### Google Sheets Workflow Recovery
+
+- [ ] **P24-01**: URLs extracted from task text are matched against site guides via getGuideForUrl() -- "fill in this sheet: docs.google.com/spreadsheets/d/xxx" instantly triggers the Sheets guide
+- [ ] **P24-02**: Weighted keyword matching replaces the flat 2-match threshold -- strong signals like "google sheet" (weight 2) trigger a match alone, weak signals like "sheet" (weight 1) require corroboration
+- [ ] **P24-03**: Productivity Tools keyword list includes singular forms ("google sheet", "google doc") and compound phrases as strong keywords, scoped to Productivity Tools only
+- [ ] **P24-04**: Generic task prompt includes exploration guidance for unfamiliar pages: keyboard shortcuts (Tab, Enter, Escape, arrow keys), canvas-app awareness, "do not open new tabs"
+- [ ] **P24-05**: Canvas-aware stuck recovery detects Google Sheets/Docs/Slides URLs and suggests keyboard-based interaction (Escape, Tab, Enter, arrows) instead of "navigate to different page" or "open new tab"
+- [ ] **P24-06**: Site guide activation is logged at info level with detection method (URL vs keyword) and guide name for debugging
+
 ## Future Requirements (Deferred)
 
 - [ ] **FUT-01**: Progressive snapshot depth (full/focused/delta) for further token reduction in mid-task iterations
@@ -90,6 +108,10 @@
 | Google Docs support | Similar canvas issues but different interaction model -- deferred from Phase 21. |
 | Generic canvas-app detection | Framework for detecting canvas-based apps -- deferred from Phase 21. |
 | Smart content extraction (Reader Mode) | Future `readpage --smart` flag -- deferred from Phase 22. |
+| Token comparator YAML conversion | CLI validator and token comparator test data still uses YAML format -- convert or drop separately. |
+| Delta path markdown integration | Delta DOM updates don't include markdown snapshot -- investigate separately. |
+| Audit all 9 keyword categories | Only Productivity Tools keywords are in scope for Phase 24 -- full audit deferred. |
+| Generic canvas-app site guide template | Template for canvas-heavy apps (Figma, Google Slides, etc.) -- deferred. |
 
 ## Traceability
 
@@ -138,11 +160,23 @@
 | P22-05 | Phase 22 | Complete |
 | P22-06 | Phase 22 | Planned |
 | P22-07 | Phase 22 | Planned |
+| P23-01 | Phase 23 | Planned |
+| P23-02 | Phase 23 | Planned |
+| P23-03 | Phase 23 | Planned |
+| P23-04 | Phase 23 | Planned |
+| P23-05 | Phase 23 | Planned |
+| P23-06 | Phase 23 | Planned |
+| P24-01 | Phase 24 | Planned |
+| P24-02 | Phase 24 | Planned |
+| P24-03 | Phase 24 | Planned |
+| P24-04 | Phase 24 | Planned |
+| P24-05 | Phase 24 | Planned |
+| P24-06 | Phase 24 | Planned |
 
 **Coverage:**
-- v10.0 requirements: 38 total
-- Mapped: 38/38 (100%)
-- Future requirements: 3 (deferred)
+- v10.0 requirements: 50 total
+- Mapped: 50/50 (100%)
+- Future requirements: 5 (deferred)
 - Unmapped: 0
 
 ---

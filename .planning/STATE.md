@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
 status: completed
-stopped_at: Completed 22-02-PLAN.md
-last_updated: "2026-03-06T17:01:21Z"
-last_activity: 2026-03-06 -- Completed 22-02 (CLI Command Wiring + Markdown Snapshot Integration)
+stopped_at: Completed 23-01-PLAN.md
+last_updated: "2026-03-06T19:15:46.861Z"
+last_activity: 2026-03-06 -- Completed 23-02 (AI Integration Cleanup)
 progress:
-  total_phases: 8
-  completed_phases: 5
-  total_plans: 11
-  completed_plans: 15
+  total_phases: 9
+  completed_phases: 6
+  total_plans: 15
+  completed_plans: 18
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 22 Page Text Extraction for Reading Tasks - Complete
+**Current focus:** Phase 23 Markdown Snapshot Cleanup - Complete
 
 ## Current Position
 
-Phase: 22
-Plan: 2 of 2 in phase 22 (complete)
-Status: Plan 22-02 complete -- CLI command wiring and markdown snapshot integration
-Last activity: 2026-03-06 -- Completed 22-02 (CLI Command Wiring + Markdown Snapshot Integration)
+Phase: 23
+Plan: 2 of 2 in phase 23 (complete)
+Status: Plan 23-02 complete -- AI integration cleanup with markdown-only snapshot path
+Last activity: 2026-03-06 -- Completed 23-02 (AI Integration Cleanup)
 
 Progress: [##########] 100%
 
@@ -67,6 +67,8 @@ Progress: [##########] 100%
 | Phase 21 P02 | 3min | 2 tasks | 1 files |
 | Phase 22 P01 | 3min | 2 tasks | 2 files |
 | Phase 22 P02 | 4min | 2 tasks | 4 files |
+| Phase 23 P01 | 5min | 2 tasks | 4 files |
+| Phase 23 P02 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -135,6 +137,9 @@ Recent decisions affecting current work:
 - [22-02]: Markdown snapshot fetched as separate message after getDOM, consolidated single fetch point
 - [22-02]: readPage text preserved in slimActionResult up to 30K chars for inline prompt inclusion
 - [22-02]: Compact snapshot preserved as graceful fallback when markdown generation fails
+- [23-01]: Preserved getRegion, inferActionForElement, buildGuideAnnotations as shared helpers used by markdown engine
+- [Phase 23]: Simple warning fallback when no markdown snapshot (no synthesis attempt)
+- [Phase 23]: 100% budget to markdown when present, 80/20 split only when absent
 
 ### Roadmap Evolution
 
@@ -153,6 +158,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-06T17:01:21Z
-Stopped at: Completed 22-02-PLAN.md
-Resume file: .planning/phases/22-page-text-extraction-for-reading-tasks/22-02-SUMMARY.md
+Last session: 2026-03-06T19:01:10Z
+Stopped at: Completed 23-01-PLAN.md
+Resume file: .planning/phases/23-markdown-snapshot-cleanup/23-01-SUMMARY.md
