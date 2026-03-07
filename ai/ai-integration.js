@@ -388,7 +388,16 @@ COMPLETION:
 - Do NOT navigate to Google Sheets or any spreadsheet
 - Do NOT attempt to enter data anywhere -- just report the extracted jobs
 - Verify by reading back at least one job title using getText before marking complete`,
-  general: "Complete the task step by step. For reading/summarizing tasks: navigate to the source, click to open the specific item (email, article, post), then extract and report the content. For action tasks: perform each step and verify the outcome. When completing, provide a detailed summary with specific data found or actions taken."
+  general: `Complete the task step by step. For reading/summarizing tasks: navigate to the source, click to open the specific item (email, article, post), then extract and report the content. For action tasks: perform each step and verify the outcome.
+
+EXPLORATION STRATEGY (when page is unfamiliar):
+- Identify interactive elements (buttons, inputs, links) in the page content
+- Use keyboard shortcuts to explore: key "Tab" to cycle focus, key "Enter" to activate, key "Escape" to dismiss
+- For canvas-based apps (Google Sheets/Docs): elements may not be clickable via refs -- use keyboard navigation (Tab, Enter, arrow keys)
+- If stuck: scroll to reveal more elements, try different interaction methods before giving up
+- Do NOT open new tabs to "start fresh" -- work with the current page
+
+When completing, provide a detailed summary with specific data found or actions taken.`
 };
 
 // PERFORMANCE OPTIMIZATION: Tiered system prompts
@@ -2263,6 +2272,15 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
     // Site guide system: URL-based detection takes priority, then falls back to keyword-based
     const currentUrl = context?.currentUrl || null;
     const siteGuide = (typeof getGuideForTask === 'function') ? getGuideForTask(task, currentUrl) : null;
+    if (siteGuide) {
+      const detectionMethod = (currentUrl && siteGuide.patterns?.some(p => p.test(currentUrl))) ? 'URL' : 'keyword';
+      automationLogger.info('Site guide activated', {
+        sessionId: this.currentSessionId,
+        guide: siteGuide.site || siteGuide.name,
+        detectedVia: detectionMethod,
+        url: currentUrl
+      });
+    }
     const taskType = this.detectTaskType(task, currentUrl, siteGuide);
     automationLogger.debug('Detected task type', { sessionId: this.currentSessionId, taskType, siteGuide: siteGuide?.name || 'none' });
 
