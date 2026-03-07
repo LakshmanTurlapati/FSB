@@ -2627,26 +2627,41 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
             userPrompt += `\n\nFORCED: You have been stuck ${context.stuckCounter} iterations. Execute clicksearchresult NOW.`;
           }
         } else {
-          // Not on a search page but stuck -- contextual recovery
-          const hasNavigated = context.actionHistory?.some(a =>
-            a.tool === 'navigate' || a.tool === 'click' || a.tool === 'clickSearchResult'
-          );
+          // Canvas-specific stuck recovery (before generic)
+          const isCanvasPage = context.currentUrl &&
+            /docs\.google\.com\/(spreadsheets|document|presentation)\/d\//i.test(context.currentUrl);
 
-          // Level 1: suggest alternatives
-          userPrompt += `\n\nSTUCK RECOVERY -- change approach:`;
-          userPrompt += `\n# Try these alternatives:`;
-          userPrompt += `\nscroll down    # reveal more elements`;
-          if (hasNavigated && context.urlHistory?.length > 1) {
-            userPrompt += `\nback           # return to previous page`;
-          }
-          userPrompt += `\nhelp           # check available commands`;
+          if (isCanvasPage) {
+            userPrompt += `\n\nCANVAS APP STUCK RECOVERY:`;
+            userPrompt += `\n# This is a canvas-based app -- standard DOM clicks may not work on the content area`;
+            userPrompt += `\n# Try keyboard-based interaction:`;
+            userPrompt += `\nkey "Escape"    # exit any edit mode`;
+            userPrompt += `\nkey "Tab"       # move to next interactive element`;
+            userPrompt += `\nkey "Enter"     # activate focused element`;
+            userPrompt += `\n# Use arrow keys to navigate between cells/elements`;
+            userPrompt += `\n# Do NOT open new tabs or refresh -- stay on this page and use keyboard navigation`;
+          } else {
+            // Not on a search page but stuck -- contextual recovery
+            const hasNavigated = context.actionHistory?.some(a =>
+              a.tool === 'navigate' || a.tool === 'click' || a.tool === 'clickSearchResult'
+            );
 
-          // Level 2: add anti-patterns
-          if (context.stuckCounter >= 2) {
-            userPrompt += `\n\nDO NOT:`;
-            userPrompt += `\n- Repeat the same click that already failed`;
-            userPrompt += `\n- Search again when results are visible`;
-            userPrompt += `\n- Type into the same field without clearing first`;
+            // Level 1: suggest alternatives
+            userPrompt += `\n\nSTUCK RECOVERY -- change approach:`;
+            userPrompt += `\n# Try these alternatives:`;
+            userPrompt += `\nscroll down    # reveal more elements`;
+            if (hasNavigated && context.urlHistory?.length > 1) {
+              userPrompt += `\nback           # return to previous page`;
+            }
+            userPrompt += `\nhelp           # check available commands`;
+
+            // Level 2: add anti-patterns
+            if (context.stuckCounter >= 2) {
+              userPrompt += `\n\nDO NOT:`;
+              userPrompt += `\n- Repeat the same click that already failed`;
+              userPrompt += `\n- Search again when results are visible`;
+              userPrompt += `\n- Type into the same field without clearing first`;
+            }
           }
         }
 

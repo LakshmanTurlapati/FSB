@@ -2772,6 +2772,22 @@ function generateRecoveryStrategies(patterns, session) {
     });
   }
   
+  // Canvas-aware recovery: suggest keyboard interaction instead of page navigation
+  const sessionUrl = session.lastUrl || '';
+  if (/docs\.google\.com\/(spreadsheets|document|presentation)\/d\//i.test(sessionUrl)) {
+    strategies.push({
+      type: 'canvas_keyboard',
+      description: 'Use keyboard navigation (Escape, Tab, Enter, arrow keys) instead of clicking elements -- this is a canvas-based app',
+      priority: 'high'
+    });
+    // Override reset_state to NOT suggest navigation away
+    const resetIdx = strategies.findIndex(s => s.type === 'reset_state');
+    if (resetIdx !== -1) {
+      strategies[resetIdx].description = 'Try Escape to exit current mode, then re-attempt with keyboard navigation';
+      strategies[resetIdx].type = 'canvas_reset';
+    }
+  }
+
   if (patterns.failingOnSameElement) {
     strategies.push({
       type: 'alternative_selectors',
