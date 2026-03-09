@@ -636,6 +636,13 @@
    * @returns {Object} { passed: boolean, reason: string|null, details: object, obscuredBy?: string }
    */
   function checkElementReceivesEvents(element) {
+    // Canvas-based editors (Google Sheets/Docs/Slides) have inherently layered UIs
+    // with sidebars, panels, and overlays that cause elementFromPoint to return
+    // overlay elements instead of the target. Skip obscuration check for these apps.
+    if (FSB.isCanvasBasedEditor && FSB.isCanvasBasedEditor()) {
+      return { passed: true, reason: null, details: { checkedPoints: 0, passedPoints: 0, skipped: 'canvas-editor' } };
+    }
+
     let rect = element.getBoundingClientRect();
 
     // Helper to calculate 5 check points from a rect
@@ -933,10 +940,15 @@
                         rect.right <= window.innerWidth;
 
     // Check 5: Receives events (element at center point)
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const elementAtPoint = document.elementFromPoint(centerX, centerY);
-    checks.receivesEvents = elementAtPoint === element || element.contains(elementAtPoint);
+    // Canvas editors skip this check — their layered UI causes false obscuration failures
+    if (FSB.isCanvasBasedEditor && FSB.isCanvasBasedEditor()) {
+      checks.receivesEvents = true;
+    } else {
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const elementAtPoint = document.elementFromPoint(centerX, centerY);
+      checks.receivesEvents = elementAtPoint === element || element.contains(elementAtPoint);
+    }
 
     // Determine overall status
     const basicChecksPass = checks.hasSize && checks.notDisabled && checks.visible;

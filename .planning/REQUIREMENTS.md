@@ -83,12 +83,12 @@
 
 ### Google Sheets Workflow Recovery
 
-- [ ] **P24-01**: URLs extracted from task text are matched against site guides via getGuideForUrl() -- "fill in this sheet: docs.google.com/spreadsheets/d/xxx" instantly triggers the Sheets guide
-- [ ] **P24-02**: Weighted keyword matching replaces the flat 2-match threshold -- strong signals like "google sheet" (weight 2) trigger a match alone, weak signals like "sheet" (weight 1) require corroboration
-- [ ] **P24-03**: Productivity Tools keyword list includes singular forms ("google sheet", "google doc") and compound phrases as strong keywords, scoped to Productivity Tools only
-- [ ] **P24-04**: Generic task prompt includes exploration guidance for unfamiliar pages: keyboard shortcuts (Tab, Enter, Escape, arrow keys), canvas-app awareness, "do not open new tabs"
-- [ ] **P24-05**: Canvas-aware stuck recovery detects Google Sheets/Docs/Slides URLs and suggests keyboard-based interaction (Escape, Tab, Enter, arrows) instead of "navigate to different page" or "open new tab"
-- [ ] **P24-06**: Site guide activation is logged at info level with detection method (URL vs keyword) and guide name for debugging
+- [x] **P24-01**: URLs extracted from task text are matched against site guides via getGuideForUrl() -- "fill in this sheet: docs.google.com/spreadsheets/d/xxx" instantly triggers the Sheets guide
+- [x] **P24-02**: Weighted keyword matching replaces the flat 2-match threshold -- strong signals like "google sheet" (weight 2) trigger a match alone, weak signals like "sheet" (weight 1) require corroboration
+- [x] **P24-03**: Productivity Tools keyword list includes singular forms ("google sheet", "google doc") and compound phrases as strong keywords, scoped to Productivity Tools only
+- [x] **P24-04**: Generic task prompt includes exploration guidance for unfamiliar pages: keyboard shortcuts (Tab, Enter, Escape, arrow keys), canvas-app awareness, "do not open new tabs"
+- [x] **P24-05**: Canvas-aware stuck recovery detects Google Sheets/Docs/Slides URLs and suggests keyboard-based interaction (Escape, Tab, Enter, arrows) instead of "navigate to different page" or "open new tab"
+- [x] **P24-06**: Site guide activation is logged at info level with detection method (URL vs keyword) and guide name for debugging
 
 ## Future Requirements (Deferred)
 

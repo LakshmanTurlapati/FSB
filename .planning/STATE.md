@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
 status: completed
-stopped_at: Completed 23-01-PLAN.md
-last_updated: "2026-03-06T19:15:46.861Z"
-last_activity: 2026-03-06 -- Completed 23-02 (AI Integration Cleanup)
+stopped_at: Completed 24-02 (AI Resilience and Canvas Recovery)
+last_updated: "2026-03-07T21:32:00Z"
+last_activity: 2026-03-07 -- Completed 24-02 (AI Resilience and Canvas Recovery)
 progress:
-  total_phases: 9
-  completed_phases: 6
-  total_plans: 15
-  completed_plans: 18
+  total_phases: 10
+  completed_phases: 8
+  total_plans: 17
+  completed_plans: 21
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 23 Markdown Snapshot Cleanup - Complete
+**Current focus:** Phase 24 Google Sheets Workflow Recovery - Complete
 
 ## Current Position
 
-Phase: 23
-Plan: 2 of 2 in phase 23 (complete)
-Status: Plan 23-02 complete -- AI integration cleanup with markdown-only snapshot path
-Last activity: 2026-03-06 -- Completed 23-02 (AI Integration Cleanup)
+Phase: 24
+Plan: 2 of 2 in phase 24 (complete)
+Status: Plan 24-02 complete -- canvas-aware stuck recovery and generic prompt exploration guidance
+Last activity: 2026-03-07 -- Completed 24-02 (AI Resilience and Canvas Recovery)
 
 Progress: [##########] 100%
 
@@ -69,6 +69,8 @@ Progress: [##########] 100%
 | Phase 22 P02 | 4min | 2 tasks | 4 files |
 | Phase 23 P01 | 5min | 2 tasks | 4 files |
 | Phase 23 P02 | 2min | 2 tasks | 1 files |
+| Phase 24 P01 | 1min | 2 tasks | 1 files |
+| Phase 24 P02 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -140,11 +142,15 @@ Recent decisions affecting current work:
 - [23-01]: Preserved getRegion, inferActionForElement, buildGuideAnnotations as shared helpers used by markdown engine
 - [Phase 23]: Simple warning fallback when no markdown snapshot (no synthesis attempt)
 - [Phase 23]: 100% budget to markdown when present, 80/20 split only when absent
+- [Phase 24]: Strong keywords (weight 2) meet threshold alone; weak keywords need 2+ matches
+- [Phase 24]: Canvas URL detection regex reused from isCanvasEditorUrl() for consistency across files
+- [Phase 24]: Canvas recovery overrides reset_state to canvas_reset to avoid navigation-away suggestions
 
 ### Roadmap Evolution
 
 - Phase 21 added: Google Sheets CLI Engine Refinement
 - Phase 22 added: Page text extraction for reading tasks
+- Phase 24 added: Google Sheets Workflow Recovery
 
 ### Pending Todos
 
@@ -158,6 +164,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-06T19:01:10Z
-Stopped at: Completed 23-01-PLAN.md
-Resume file: .planning/phases/23-markdown-snapshot-cleanup/23-01-SUMMARY.md
+Last session: 2026-03-07T21:32:00Z
+Stopped at: Completed 24-02 (AI Resilience and Canvas Recovery)
+Resume file: .planning/phases/24-google-sheets-workflow-recovery/24-02-SUMMARY.md

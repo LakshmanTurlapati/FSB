@@ -207,7 +207,7 @@ Plans:
   3. When no site guide loads, the AI receives exploration guidance mentioning keyboard shortcuts (Tab, Enter, Escape, arrow keys) for canvas-heavy pages
   4. When stuck on a Google Sheets URL, recovery hints suggest keyboard-based interaction instead of opening new tabs or refreshing
   5. Site guide activation is logged with detection method (URL vs keyword) for debugging
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 24-01-PLAN.md -- Detection fixes: weighted keyword matching, URL extraction from task text in getGuideForTask()
