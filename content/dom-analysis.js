@@ -1805,6 +1805,9 @@
 
     // Stage 2: Filter by visibility
     const visible = candidateArray.filter(el => {
+      // Bypass ALL visibility checks for FSB-injected canvas editor elements
+      if (el.dataset.fsbRole) return true;
+
       const rect = el.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) {
         // Bypass for contenteditable
@@ -1816,8 +1819,6 @@
           }
           return true;
         }
-        // Bypass for FSB-injected canvas editor elements
-        if (el.dataset.fsbRole) return true;
         return false;
       }
 
@@ -2014,6 +2015,9 @@
     if (isFsbElement(node)) return false;
     if (node.id && node.id.startsWith('__fsb')) return false;
     if (node.hasAttribute && node.hasAttribute('data-fsb')) return false;
+
+    // Bypass all visibility checks for FSB-injected canvas editor elements (Sheets formula bar, etc.)
+    if (node.dataset && node.dataset.fsbRole) return true;
 
     // Skip aria-hidden
     if (node.getAttribute('aria-hidden') === 'true') return false;
@@ -2362,6 +2366,36 @@
 
     visit(root);
     flushLine();
+
+    // Post-walk: guarantee fsbRole elements appear even if parent was aria-hidden
+    const emittedText = lines.map(l => l.text).join('\n');
+    let postInjected = 0;
+    let alreadyEmitted = 0;
+    const fsbRoleElements = [];
+    for (const el of interactiveSet) {
+      if (el.dataset && el.dataset.fsbRole) {
+        fsbRoleElements.push(el);
+        const refStr = formatInlineRef(el, refMap, guideAnnotations);
+        if (refStr) {
+          if (emittedText.includes(refStr)) {
+            alreadyEmitted++;
+          } else {
+            // Insert after metadata header (index 0 is usually first content line)
+            lines.splice(postInjected, 0, { region: '@main', text: refStr });
+            postInjected++;
+          }
+        }
+      }
+    }
+    if (fsbRoleElements.length > 0) {
+      logger.logDOMOperation(FSB.sessionId, 'sheets_walker_postinject', {
+        fsbRoleCount: fsbRoleElements.length,
+        alreadyEmitted,
+        postInjected,
+        roles: fsbRoleElements.map(el => el.dataset.fsbRole)
+      });
+    }
+
     return lines;
   }
 

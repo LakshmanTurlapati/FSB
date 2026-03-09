@@ -218,8 +218,23 @@ Plans:
 - [x] 24-03-PLAN.md -- Interaction layer: canvas editor toolbar click bypass, batch suppression replacement with inter-action delay
 - [x] 24-04-PLAN.md -- Site guide update: keyboard-first navigation patterns, reliability warnings
 - [x] 24-05-PLAN.md -- Gap closure: contenteditable innerText capture in snapshot, fire-and-forget typing guidance
-- [ ] 24-06-PLAN.md -- Gap closure: Sheets Stage 1b injection, formula bar content reading, enhanced pipeline logging
-- [ ] 24-07-PLAN.md -- Gap closure: site guide update to reflect fixed formula bar snapshot behavior
+- [x] 24-06-PLAN.md -- Gap closure: Sheets Stage 1b injection, formula bar content reading, enhanced pipeline logging
+- [x] 24-07-PLAN.md -- Gap closure: site guide update to reflect fixed formula bar snapshot behavior
+
+### Phase 25: Google Sheets Snapshot Pipeline Fix
+
+**Goal:** The AI can see Google Sheets formula bar content and name box cell references in every snapshot, regardless of the formula bar's DOM visibility state (aria-hidden, display:none) or parent container filtering
+**Depends on:** Phase 24
+**Success Criteria** (what must be TRUE):
+  1. Formula bar element with its cell value (= "value") appears in the markdown snapshot when viewing any Google Sheets spreadsheet with a cell selected
+  2. Name Box element with the current cell reference (= "A1") appears in the markdown snapshot
+  3. Parent containers with aria-hidden="true" do NOT prevent the walker from visiting fsbRole children
+  4. Interactive parent elements do NOT swallow fsbRole children — formula bar is emitted as its own ref
+  5. Debug logs confirm: sheets_injection found=true, sheets_visibility_filter survived=2, sheets_snapshot_summary hasFormulaBar=true
+**Plans:** 1 plan
+
+Plans:
+- [ ] 25-01-PLAN.md -- Walker post-injection fix: guarantee fsbRole elements in snapshot via post-walk injection, debug logging
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*
