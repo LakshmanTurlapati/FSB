@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
 status: completed
-stopped_at: Completed 24-03-PLAN.md
-last_updated: "2026-03-09T08:56:46.108Z"
-last_activity: 2026-03-09 -- Completed 24-03 (Interaction Layer Fixes)
+stopped_at: Completed 24-04-PLAN.md
+last_updated: "2026-03-09T08:59:28.671Z"
+last_activity: 2026-03-09 -- Completed 24-04 (Keyboard-First Site Guide Updates)
 progress:
   total_phases: 10
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 19
-  completed_plans: 22
+  completed_plans: 23
   percent: 100
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 24 Google Sheets Workflow Recovery - Interaction layer fixes complete
+**Current focus:** Phase 24 Google Sheets Workflow Recovery - All plans complete
 
 ## Current Position
 
 Phase: 24
-Plan: 3 of 4 in phase 24
-Status: Plan 24-03 complete -- canvas toolbar click bypass and inter-action delay for Sheets
+Plan: 4 of 4 in phase 24
+Status: Plan 24-04 complete -- keyboard-first site guide updates for Sheets
 Last activity: 2026-03-09 -- Completed 24-03 (Interaction Layer Fixes)
 
 Progress: [##########] 100%
@@ -72,6 +72,7 @@ Progress: [##########] 100%
 | Phase 24 P01 | 1min | 2 tasks | 1 files |
 | Phase 24 P02 | 2min | 2 tasks | 2 files |
 | Phase 24 P03 | 2min | 2 tasks | 2 files |
+| Phase 24 P04 | 1min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -148,6 +149,7 @@ Recent decisions affecting current work:
 - [Phase 24]: Canvas recovery overrides reset_state to canvas_reset to avoid navigation-away suggestions
 - [Phase 24]: Toolbar bypass uses element.matches + element.closest against known Sheets selectors
 - [Phase 24]: 200ms inter-action delay chosen over full suppression to preserve batch keystroke ordering
+- [Phase 24]: Keyboard-first section placed before COMMON PATTERNS so AI reads it first
 
 ### Roadmap Evolution
 
@@ -167,6 +169,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-09T08:56:44.963Z
-Stopped at: Completed 24-03-PLAN.md
+Last session: 2026-03-09T08:59:28.631Z
+Stopped at: Completed 24-04-PLAN.md
 Resume file: None
