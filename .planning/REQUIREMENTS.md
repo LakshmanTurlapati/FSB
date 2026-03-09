@@ -166,12 +166,12 @@
 | P23-04 | Phase 23 | Planned |
 | P23-05 | Phase 23 | Planned |
 | P23-06 | Phase 23 | Planned |
-| P24-01 | Phase 24 | Planned |
-| P24-02 | Phase 24 | Planned |
-| P24-03 | Phase 24 | Planned |
-| P24-04 | Phase 24 | Planned |
-| P24-05 | Phase 24 | Planned |
-| P24-06 | Phase 24 | Planned |
+| P24-01 | Phase 24 | Complete |
+| P24-02 | Phase 24 | Complete |
+| P24-03 | Phase 24 | Complete |
+| P24-04 | Phase 24 | Complete |
+| P24-05 | Phase 24 | Complete |
+| P24-06 | Phase 24 | Complete |
 
 **Coverage:**
 - v10.0 requirements: 50 total

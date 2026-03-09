@@ -210,13 +210,14 @@ Plans:
   6. Click actions on Google Sheets toolbar elements (Name Box, formula bar, menus) succeed without readiness timeout
   7. Batch type+Tab+type sequences fill multiple Sheets cells instead of being suppressed
   8. Site guide emphasizes keyboard-first navigation patterns as the most reliable interaction method
-**Plans:** 4/4 plans complete
+**Plans:** 5 plans
 
 Plans:
 - [x] 24-01-PLAN.md -- Detection fixes: weighted keyword matching, URL extraction from task text in getGuideForTask()
 - [x] 24-02-PLAN.md -- Safety net: enhanced generic prompt, guide activation logging, canvas-aware stuck recovery
-- [ ] 24-03-PLAN.md -- Interaction layer: canvas editor toolbar click bypass, batch suppression replacement with inter-action delay
-- [ ] 24-04-PLAN.md -- Site guide update: keyboard-first navigation patterns, reliability warnings
+- [x] 24-03-PLAN.md -- Interaction layer: canvas editor toolbar click bypass, batch suppression replacement with inter-action delay
+- [x] 24-04-PLAN.md -- Site guide update: keyboard-first navigation patterns, reliability warnings
+- [x] 24-05-PLAN.md -- Gap closure: contenteditable innerText capture in snapshot, fire-and-forget typing guidance
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*
