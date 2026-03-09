@@ -6109,38 +6109,22 @@ async function executeBatchActions(batchActions, session, tabId) {
   const skippedActions = [];
   const sessionId = session?.sessionId;
 
-  // SAFETY: Suppress type-heavy batches on Google Sheets (canvas-based grid)
-  // Sheets cells are canvas-rendered, not DOM elements. Batching multiple type actions
-  // concatenates all values into the active cell instead of typing into separate cells.
+  // Google Sheets inter-action delay: instead of suppressing batches entirely,
+  // add delay between actions so the canvas has time to process each keystroke.
+  let sheetsInterActionDelay = 0;
   try {
     const tab = await chrome.tabs.get(tabId);
     const currentUrl = tab?.url || '';
     if (/docs\.google\.com\/spreadsheets\/d\//i.test(currentUrl)) {
-      const typeActionCount = actions.filter(a => a.tool === 'type').length;
-      if (typeActionCount >= 2) {
-        automationLogger.warn('Batch suppressed: Google Sheets canvas grid -- type actions cannot target separate cells', {
-          sessionId,
-          typeActionCount,
-          totalActions: actions.length,
-          tools: actions.map(a => a.tool)
-        });
-        return {
-          batched: false,
-          suppressed: true,
-          reason: 'google_sheets_canvas_grid',
-          actions,
-          results: [],
-          totalCount: actions.length,
-          successCount: 0,
-          failedAt: -1,
-          duration: 0,
-          skippedActions: actions
-        };
-      }
+      sheetsInterActionDelay = 200; // 200ms between actions on Sheets
+      automationLogger.info('Google Sheets batch: applying 200ms inter-action delay', {
+        sessionId,
+        actionCount: actions.length,
+        tools: actions.map(a => a.tool)
+      });
     }
   } catch (urlCheckError) {
-    // URL check is a safety measure -- don't block batch execution if it fails
-    automationLogger.debug('URL check for batch suppression failed', { error: urlCheckError.message });
+    automationLogger.debug('URL check for Sheets delay failed', { error: urlCheckError.message });
   }
 
   // Multi-tab and background-handled tool lists (same as startAutomationLoop)
@@ -6217,6 +6201,11 @@ async function executeBatchActions(batchActions, session, tabId) {
     automationLogger.logTiming(sessionId, 'ACTION', `${action.tool}_aiBatch`, actionDuration, {
       success: actionResult?.success, batchIndex: i
     });
+
+    // Google Sheets inter-action delay for canvas grid processing
+    if (sheetsInterActionDelay > 0 && i < actions.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, sheetsInterActionDelay));
+    }
 
     // STOP ON FAILURE
     if (!actionResult?.success) {
@@ -9253,40 +9242,28 @@ async function startAutomationLoop(sessionId) {
 
       const batchResult = await executeBatchActions(aiResponse.batchActions, session, session.tabId);
 
-      // If batch was suppressed (e.g., Google Sheets canvas grid), fall back to single-action
-      if (batchResult.suppressed) {
-        automationLogger.info('Batch suppressed, executing first action as single action', {
-          sessionId,
-          reason: batchResult.reason,
-          firstTool: aiResponse.batchActions[0]?.tool
-        });
-        // Convert to single-action: take only the first action
-        // The AI will get fresh DOM context next iteration and plan correctly
-        aiResponse.actions = [aiResponse.batchActions[0]];
-        // Don't set batchHandled -- fall through to regular action handler
-      } else {
-        batchHandled = true;
-        automationLogger.info('Batch execution complete', {
-          sessionId,
-          successCount: batchResult.successCount,
-          totalCount: batchResult.totalCount,
-          failedAt: batchResult.failedAt,
-          duration: batchResult.duration
-        });
+      // Batch executed (suppression replaced with inter-action delay in executeBatchActions)
+      batchHandled = true;
+      automationLogger.info('Batch execution complete', {
+        sessionId,
+        successCount: batchResult.successCount,
+        totalCount: batchResult.totalCount,
+        failedAt: batchResult.failedAt,
+        duration: batchResult.duration
+      });
 
-        // If batch had failures, invalidate DOM prefetch
-        if (batchResult.failedAt >= 0) {
-          pendingDOMPrefetch = null;
-        }
+      // If batch had failures, invalidate DOM prefetch
+      if (batchResult.failedAt >= 0) {
+        pendingDOMPrefetch = null;
+      }
 
-        // Log when both arrays present (debugging double-execution prevention)
-        if (aiResponse.actions && aiResponse.actions.length > 0) {
-          automationLogger.warn('Both batchActions and actions present -- using batchActions exclusively', {
-            sessionId,
-            batchCount: aiResponse.batchActions.length,
-            actionsCount: aiResponse.actions.length
-          });
-        }
+      // Log when both arrays present (debugging double-execution prevention)
+      if (aiResponse.actions && aiResponse.actions.length > 0) {
+        automationLogger.warn('Both batchActions and actions present -- using batchActions exclusively', {
+          sessionId,
+          batchCount: aiResponse.batchActions.length,
+          actionsCount: aiResponse.actions.length
+        });
       }
     }
 
