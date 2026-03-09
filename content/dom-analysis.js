@@ -1793,6 +1793,13 @@
             candidateArray.push(el);
           }
         }
+
+        // Log Sheets element injection results
+        logger.logDOMOperation(FSB.sessionId, 'sheets_injection', {
+          formulaBar: !!document.querySelector('#t-formula-bar-input, .cell-input'),
+          nameBox: !!document.querySelector('#t-name-box, .waffle-name-box'),
+          injectedCount: candidateArray.filter(el => el.dataset.fsbRole === 'formula-bar' || el.dataset.fsbRole === 'name-box').length
+        });
       }
     }
 
@@ -1822,6 +1829,27 @@
 
       return true;
     });
+
+    // Log when Sheets elements are filtered in or out
+    if (/spreadsheets\/d\//.test(window.location.pathname)) {
+      const sheetsRoles = ['formula-bar', 'name-box'];
+      const injected = candidateArray.filter(el => sheetsRoles.includes(el.dataset.fsbRole));
+      const survived = visible.filter(el => sheetsRoles.includes(el.dataset.fsbRole));
+      if (injected.length > 0) {
+        logger.logDOMOperation(FSB.sessionId, 'sheets_visibility_filter', {
+          injected: injected.length,
+          survived: survived.length,
+          filtered_out: injected.length - survived.length,
+          details: injected.map(el => ({
+            role: el.dataset.fsbRole,
+            survived: visible.includes(el),
+            ariaHidden: el.getAttribute('aria-hidden'),
+            display: getComputedStyle(el).display,
+            hasContent: !!(el.innerText || el.textContent || el.value || '').trim()
+          }))
+        });
+      }
+    }
 
     // SPA fallback: after SPA navigation, elements may exist in DOM but have
     // zero-size rects (layout not yet complete) or transitional hidden styles.
@@ -2101,6 +2129,14 @@
           }
         }
       }
+      logger.logDOMOperation(FSB.sessionId, 'sheets_formula_bar_capture', {
+        found: !!formulaContent,
+        source: formulaContent ? (node.innerText?.trim() ? 'innerText' : 'child/sibling') : 'none',
+        value: formulaContent ? formulaContent.substring(0, 40) : null,
+        ariaHidden: node.getAttribute('aria-hidden'),
+        contenteditable: node.getAttribute('contenteditable'),
+        isContentEditable: node.isContentEditable
+      });
       if (formulaContent) {
         const truncVal = formulaContent.length > 80 ? formulaContent.substring(0, 77) + '...' : formulaContent;
         parts.push(`= "${truncVal}"`);
@@ -2382,6 +2418,24 @@
 
     // e. Walk the DOM tree producing region-tagged lines
     const walkedLines = walkDOMToMarkdown(document.body, interactiveSet, refMap, guideAnnotationsMap);
+
+    // Log snapshot content summary for debugging
+    if (/spreadsheets\/d\//.test(window.location.pathname)) {
+      const snapshotText = walkedLines.map(l => l.text || l).join('\n');
+      const hasFormulaBar = snapshotText.includes('formula-bar') || snapshotText.includes('Formula bar');
+      const hasNameBox = snapshotText.includes('name-box') || snapshotText.includes('Name Box');
+      const formulaBarValue = snapshotText.match(/formula.*?= "([^"]+)"/i)?.[1] || null;
+      const nameBoxValue = snapshotText.match(/name.*?box.*?= "([^"]+)"/i)?.[1] || null;
+      logger.logDOMOperation(FSB.sessionId, 'sheets_snapshot_summary', {
+        totalLines: walkedLines.length,
+        totalChars: snapshotText.length,
+        hasFormulaBar,
+        hasNameBox,
+        formulaBarValue,
+        nameBoxValue,
+        interactiveElements: elementCount
+      });
+    }
 
     // f. Build metadata header as markdown
     const scrollTop = window.scrollY || document.documentElement.scrollTop;
