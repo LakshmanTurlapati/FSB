@@ -278,6 +278,9 @@
       if (fsbRole === 'document-body' || fsbRole === 'document-title') {
         return { role: 'content-editor', intent: 'edit', danger: false, sensitive: false, priority: 'high' };
       }
+      if (fsbRole === 'formula-bar' || fsbRole === 'name-box') {
+        return { role: 'toolbar-input', intent: 'edit', danger: false, sensitive: false, priority: 'high' };
+      }
       return { role: 'editor-container', intent: 'edit', danger: false, sensitive: false, priority: 'medium' };
     }
 
@@ -1775,6 +1778,22 @@
           candidateArray.push(el);
         }
       }
+
+      // Sheets-specific elements (formula bar and name box)
+      if (/spreadsheets\/d\//.test(window.location.pathname)) {
+        const sheetsSelectors = [
+          { selector: '#t-formula-bar-input, .cell-input', role: 'formula-bar', label: 'Formula bar (shows selected cell content)' },
+          { selector: '#t-name-box, .waffle-name-box', role: 'name-box', label: 'Name Box (current cell reference)' }
+        ];
+        for (const { selector, role, label } of sheetsSelectors) {
+          const el = document.querySelector(selector);
+          if (el && !candidateArray.includes(el)) {
+            el.dataset.fsbRole = role;
+            el.dataset.fsbLabel = label;
+            candidateArray.push(el);
+          }
+        }
+      }
     }
 
     // Stage 2: Filter by visibility
@@ -2058,6 +2077,44 @@
       const truncVal = displayVal.length > 40 ? displayVal.substring(0, 37) + '...' : displayVal;
       parts.push(`= "${truncVal}"`);
     }
+    // Formula bar content (Google Sheets) — read from multiple DOM sources
+    // In view mode, the contenteditable div may be hidden; content lives in a display sibling
+    if (node.dataset && node.dataset.fsbRole === 'formula-bar') {
+      let formulaContent = '';
+      // Try 1: Direct innerText/textContent of the element itself
+      formulaContent = (node.innerText || node.textContent || '').trim();
+      // Try 2: If empty, check contenteditable children
+      if (!formulaContent) {
+        const editableChild = node.querySelector('[contenteditable="true"]');
+        if (editableChild) {
+          formulaContent = (editableChild.innerText || editableChild.textContent || '').trim();
+        }
+      }
+      // Try 3: If still empty, look for the formula bar display span siblings/parent children
+      if (!formulaContent) {
+        const parent = node.parentElement;
+        if (parent) {
+          // Google Sheets often has a sibling or cousin element showing the display value
+          const displayEl = parent.querySelector('.cell-input, [aria-label*="formula"], [data-tooltip*="formula"]');
+          if (displayEl && displayEl !== node) {
+            formulaContent = (displayEl.innerText || displayEl.textContent || '').trim();
+          }
+        }
+      }
+      if (formulaContent) {
+        const truncVal = formulaContent.length > 80 ? formulaContent.substring(0, 77) + '...' : formulaContent;
+        parts.push(`= "${truncVal}"`);
+      }
+    }
+
+    // Name Box content (Google Sheets) — shows current cell reference like "A1"
+    if (node.dataset && node.dataset.fsbRole === 'name-box') {
+      const cellRef = (node.value || node.innerText || node.textContent || '').trim();
+      if (cellRef) {
+        parts.push(`= "${cellRef}"`);
+      }
+    }
+
     // Contenteditable value (formula bar, rich text editors)
     if (node.getAttribute('contenteditable') === 'true' || node.isContentEditable) {
       const editableText = node.innerText?.trim();
