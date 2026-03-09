@@ -33,6 +33,22 @@ KEYBOARD-FIRST NAVIGATION (MOST RELIABLE):
   For sequential data entry: type value, Tab (next column), type value, Tab, ..., Enter (next row).
   The key and type commands use the CDP keyboard API which bypasses all DOM readiness checks.
 
+FEEDBACK LOOP AWARENESS:
+  The cell grid is CANVAS-RENDERED -- after typing data into a cell, the DOM snapshot will NOT show
+  the typed text in the grid. The ONLY way to verify cell content is via the formula bar.
+  DO NOT assume typing failed just because the grid looks unchanged in the snapshot.
+
+  For bulk data entry, TRUST your type+Tab/Enter sequences:
+  1. Navigate to starting cell via Name Box
+  2. Type all values using type + Tab (columns) + Enter (rows) pattern
+  3. Do NOT stop to verify each cell after typing -- continue the sequence
+  4. After completing all data entry, verify a SAMPLE cell (navigate via Name Box, read formula bar)
+  5. If the formula bar shows the expected value for the sample cell, the sequence worked
+
+  The formula bar element shows the content of the currently selected cell.
+  After navigating to a cell, check the formula bar ref in the snapshot for its value
+  (shown as = "value" in the element ref).
+
 COMMON PATTERNS:
   # Name Box click pattern (also reliable with toolbar bypass):
   # navigate to cell and enter data
@@ -255,6 +271,7 @@ DATA ENTRY BEST PRACTICES:
   },
   warnings: [
     'KEYBOARD NAVIGATION IS MOST RELIABLE: The key and type (without ref) commands use the Chrome DevTools Protocol keyboard API, bypassing all DOM readiness checks. When click actions fail or time out, switch to keyboard-only navigation: Escape (exit edit mode), Ctrl+Home (go to A1), Tab (next column), Enter (next row). For sequential data entry, prefer type + Tab + type + Tab + Enter over clicking individual cells.',
+    'CANVAS FEEDBACK: The cell grid is canvas-rendered and invisible to DOM snapshots. After typing data, the grid will look unchanged. This is NORMAL. Trust your type+Tab sequences and verify via the formula bar only. Do NOT retry typing just because the grid snapshot looks empty.',
     'Google Sheets cells are rendered on a CANVAS -- you CANNOT click individual cells via DOM selectors. Always use the Name Box for cell navigation.',
     'CRITICAL: Press Escape before clicking the Name Box to exit cell edit mode. If you type a cell reference while still in edit mode, the reference will be appended to the current cell\'s content instead of navigating.',
     'The Name Box is the ONLY reliable way to navigate to specific cells. It is located at the top-left of the sheet.',
