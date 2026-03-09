@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
 status: completed
-stopped_at: Completed 24-07-PLAN.md
-last_updated: "2026-03-09T10:46:45.000Z"
-last_activity: 2026-03-09 -- Completed 24-07 (Sheets Guide Passive-Then-Active Verification)
+stopped_at: Completed 25-01-PLAN.md
+last_updated: "2026-03-09T17:06:31.251Z"
+last_activity: 2026-03-09 -- Completed 25-01 (Walker Post-Injection Fix)
 progress:
-  total_phases: 10
-  completed_phases: 8
-  total_plans: 22
-  completed_plans: 26
+  total_phases: 11
+  completed_phases: 9
+  total_plans: 23
+  completed_plans: 27
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 24 Google Sheets Workflow Recovery - All 7 plans complete
+**Current focus:** Phase 25 Google Sheets Snapshot Pipeline Fix
 
 ## Current Position
 
-Phase: 24
-Plan: 7 of 7 in phase 24
-Status: Plan 24-07 complete -- Sheets guide updated with passive-then-active formula bar verification
-Last activity: 2026-03-09 -- Completed 24-07 (Sheets Guide Passive-Then-Active Verification)
+Phase: 25
+Plan: 1 of 1 in phase 25
+Status: Plan 25-01 complete -- Walker post-injection fix for fsbRole elements
+Last activity: 2026-03-09 -- Completed 25-01 (Walker Post-Injection Fix)
 
 Progress: [##########] 100%
 
@@ -76,6 +76,7 @@ Progress: [##########] 100%
 | Phase 24 P05 | 1min | 2 tasks | 2 files |
 | Phase 24 P06 | 2min | 2 tasks | 1 files |
 | Phase 24 P07 | 1min | 1 tasks | 1 files |
+| Phase 25 P01 | 3min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -158,12 +159,14 @@ Recent decisions affecting current work:
 - [Phase 24]: Sheets-specific Stage 1b injection with fsbRole bypass for formula bar and name box
 - [24-07]: toolbar-input example shown inline in guidance so AI knows exact snapshot format
 - [24-07]: getText positioned as explicit fallback, not primary verification method
+- [Phase 25]: Post-injection after walk (Option B) chosen over modifying isVisibleForSnapshot to avoid exposing other hidden elements
 
 ### Roadmap Evolution
 
 - Phase 21 added: Google Sheets CLI Engine Refinement
 - Phase 22 added: Page text extraction for reading tasks
 - Phase 24 added: Google Sheets Workflow Recovery
+- Phase 25 added: Google Sheets Snapshot Pipeline Fix
 
 ### Pending Todos
 
@@ -177,6 +180,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-09T10:46:45.000Z
-Stopped at: Completed 24-07-PLAN.md
+Last session: 2026-03-09T17:06:31.218Z
+Stopped at: Completed 25-01-PLAN.md
 Resume file: None

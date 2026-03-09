@@ -231,7 +231,7 @@ Plans:
   3. Parent containers with aria-hidden="true" do NOT prevent the walker from visiting fsbRole children
   4. Interactive parent elements do NOT swallow fsbRole children — formula bar is emitted as its own ref
   5. Debug logs confirm: sheets_injection found=true, sheets_visibility_filter survived=2, sheets_snapshot_summary hasFormulaBar=true
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 25-01-PLAN.md -- Walker post-injection fix: guarantee fsbRole elements in snapshot via post-walk injection, debug logging
