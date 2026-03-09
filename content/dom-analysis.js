@@ -2058,6 +2058,14 @@
       const truncVal = displayVal.length > 40 ? displayVal.substring(0, 37) + '...' : displayVal;
       parts.push(`= "${truncVal}"`);
     }
+    // Contenteditable value (formula bar, rich text editors)
+    if (node.getAttribute('contenteditable') === 'true' || node.isContentEditable) {
+      const editableText = node.innerText?.trim();
+      if (editableText) {
+        const truncVal = editableText.length > 40 ? editableText.substring(0, 37) + '...' : editableText;
+        parts.push(`= "${truncVal}"`);
+      }
+    }
 
     // Href for links
     if (tag === 'a' && node.href) {
