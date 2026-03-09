@@ -46,8 +46,10 @@ FEEDBACK LOOP AWARENESS:
   5. If the formula bar shows the expected value for the sample cell, the sequence worked
 
   The formula bar element shows the content of the currently selected cell.
-  After navigating to a cell, check the formula bar ref in the snapshot for its value
-  (shown as = "value" in the element ref).
+  After navigating to a cell, the formula bar ref in the snapshot shows its value
+  as = "value" (e.g., \`e8: toolbar-input "Formula bar" [hint:formulaBar] = "Revenue"\`).
+  Check this FIRST before using getText. If the snapshot shows = "" or no value,
+  use getText on the formula bar ref as a fallback.
 
 COMMON PATTERNS:
   # Name Box click pattern (also reliable with toolbar bypass):
@@ -108,8 +110,10 @@ KEYBOARD SHORTCUTS:
 - Enter: Confirm and move down one cell
 
 FORMULA BAR VERIFICATION:
-- The formula bar (#t-formula-bar-input or .cell-input) shows the content of the currently selected cell
-- Navigate to a cell via Name Box, then use getText on the formula bar to read the cell's value
+- The formula bar appears in the snapshot as a toolbar-input ref with the cell's value (= "value")
+- FIRST check the formula bar ref in the snapshot for the cell value (passive -- no action needed)
+- If the snapshot shows no value or = "", use getText on the formula bar ref as a fallback
+- Navigate to a cell via Name Box, then check the snapshot or use getText on the formula bar
 - For HYPERLINK cells, the formula bar shows the full formula (e.g., =HYPERLINK("url","Apply"))
 - This is the ONLY reliable way to verify cell contents -- do NOT try to read from the canvas grid
 
