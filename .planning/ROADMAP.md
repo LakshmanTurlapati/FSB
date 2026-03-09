@@ -198,7 +198,7 @@ Plans:
 
 ### Phase 24: Google Sheets Workflow Recovery
 
-**Goal:** Fix broken Google Sheets automation by repairing keyword matching so the Sheets guide loads reliably, adding URL extraction from task text for instant matches, enhancing the generic prompt with canvas-page exploration guidance, and adding canvas-aware stuck recovery to prevent new-tab loops
+**Goal:** Fix broken Google Sheets automation by repairing keyword matching so the Sheets guide loads reliably, adding URL extraction from task text for instant matches, enhancing the generic prompt with canvas-page exploration guidance, adding canvas-aware stuck recovery to prevent new-tab loops, and fixing the interaction layer so click/type/batch actions work on Sheets toolbar elements
 **Requirements**: P24-01, P24-02, P24-03, P24-04, P24-05, P24-06
 **Depends on:** Phase 23
 **Success Criteria** (what must be TRUE):
@@ -207,11 +207,16 @@ Plans:
   3. When no site guide loads, the AI receives exploration guidance mentioning keyboard shortcuts (Tab, Enter, Escape, arrow keys) for canvas-heavy pages
   4. When stuck on a Google Sheets URL, recovery hints suggest keyboard-based interaction instead of opening new tabs or refreshing
   5. Site guide activation is logged with detection method (URL vs keyword) for debugging
-**Plans:** 2/2 plans complete
+  6. Click actions on Google Sheets toolbar elements (Name Box, formula bar, menus) succeed without readiness timeout
+  7. Batch type+Tab+type sequences fill multiple Sheets cells instead of being suppressed
+  8. Site guide emphasizes keyboard-first navigation patterns as the most reliable interaction method
+**Plans:** 4 plans
 
 Plans:
-- [ ] 24-01-PLAN.md -- Detection fixes: weighted keyword matching, URL extraction from task text in getGuideForTask()
-- [ ] 24-02-PLAN.md -- Safety net: enhanced generic prompt, guide activation logging, canvas-aware stuck recovery
+- [x] 24-01-PLAN.md -- Detection fixes: weighted keyword matching, URL extraction from task text in getGuideForTask()
+- [x] 24-02-PLAN.md -- Safety net: enhanced generic prompt, guide activation logging, canvas-aware stuck recovery
+- [ ] 24-03-PLAN.md -- Interaction layer: canvas editor toolbar click bypass, batch suppression replacement with inter-action delay
+- [ ] 24-04-PLAN.md -- Site guide update: keyboard-first navigation patterns, reliability warnings
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*
