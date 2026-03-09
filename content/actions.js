@@ -1098,6 +1098,76 @@ const tools = {
       };
     }
 
+    // Canvas editor toolbar bypass: skip readiness pipeline for known toolbar elements
+    // on Google Sheets/Docs/Slides where readiness checks false-fail on canvas UI
+    if (FSB.isCanvasBasedEditor && FSB.isCanvasBasedEditor()) {
+      const toolbarSelectors = '#docs-chrome, .docs-titlebar-container, #docs-toolbar, ' +
+        '.waffle-name-box, #t-name-box, .cell-input, #t-formula-bar-input, ' +
+        '[id^="docs-"], .docs-menubar, .goog-toolbar, .docs-sheet-tab-container';
+      const isToolbarElement = element.matches(toolbarSelectors) || element.closest(toolbarSelectors);
+
+      if (isToolbarElement) {
+        logger.logActionExecution(FSB.sessionId, 'click', 'canvas_toolbar_bypass', {
+          tagName: element.tagName,
+          id: element.id,
+          selector: selectorUsed
+        });
+
+        // Scroll into view if not in viewport
+        const rect = element.getBoundingClientRect();
+        const inViewport = rect.top >= 0 && rect.bottom <= window.innerHeight && rect.left >= 0 && rect.right <= window.innerWidth;
+        if (!inViewport) {
+          element.scrollIntoView({ behavior: 'instant', block: 'center' });
+          await new Promise(r => setTimeout(r, 50));
+        }
+
+        // Dispatch full mouse event sequence with coordinates from element center
+        const clickRect = element.getBoundingClientRect();
+        const centerX = clickRect.left + clickRect.width / 2;
+        const centerY = clickRect.top + clickRect.height / 2;
+        const mouseOpts = {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          clientX: centerX,
+          clientY: centerY,
+          screenX: centerX + window.screenX,
+          screenY: centerY + window.screenY
+        };
+        element.dispatchEvent(new MouseEvent('mousedown', mouseOpts));
+        element.dispatchEvent(new MouseEvent('mouseup', mouseOpts));
+        element.dispatchEvent(new MouseEvent('click', mouseOpts));
+
+        element.click();
+        element.focus();
+
+        // Wait for Sheets to process the click
+        await new Promise(r => setTimeout(r, 100));
+
+        // Record the action
+        actionRecorder.record(null, 'click', params, {
+          selectorTried,
+          selectorUsed,
+          elementFound: true,
+          elementDetails: captureElementDetails(element),
+          coordinatesUsed: null,
+          coordinateSource: null,
+          success: true,
+          hadEffect: true,
+          method: 'canvas_editor_toolbar_bypass',
+          duration: Date.now() - startTime
+        });
+
+        return {
+          success: true,
+          clicked: params.selector,
+          hadEffect: true,
+          method: 'canvas_editor_toolbar_bypass',
+          scrolled: false
+        };
+      }
+    }
+
     // SPEED-05: Use smart readiness check with fast-path for ready elements
     const readiness = await FSB.smartEnsureReady(element, 'click');
     if (!readiness.ready) {
