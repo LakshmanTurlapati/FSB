@@ -12,7 +12,29 @@ registerSiteGuide({
   ],
   guidance: `GOOGLE SHEETS-SPECIFIC INTELLIGENCE:
 
+KEYBOARD-FIRST NAVIGATION (MOST RELIABLE):
+  # For sequential data entry, keyboard navigation is more reliable than clicking:
+  key "Escape"              # exit any edit mode
+  click e5                  # click Name Box (reliable with toolbar bypass)
+  type e5 "A1"              # type starting cell reference
+  key "Enter"               # navigate to cell A1
+  type "Header 1"           # type into active cell (no ref needed)
+  key "Tab"                 # move to next column (B1)
+  type "Header 2"           # type into B1
+  key "Tab"                 # move to C1
+  type "Header 3"           # type into C1
+  key "Enter"               # move to next row (A2)
+  type "Data 1"             # type into A2
+  key "Tab"                 # move to B2
+  type "Data 2"             # type into B2
+
+  IMPORTANT: After navigating to a cell via Name Box, you do NOT need to click
+  the cell. Just type -- keystrokes go to the active cell automatically.
+  For sequential data entry: type value, Tab (next column), type value, Tab, ..., Enter (next row).
+  The key and type commands use the CDP keyboard API which bypasses all DOM readiness checks.
+
 COMMON PATTERNS:
+  # Name Box click pattern (also reliable with toolbar bypass):
   # navigate to cell and enter data
   key "Escape"          # exit edit mode first
   click e5              # Name Box
@@ -49,6 +71,8 @@ NAME BOX NAVIGATION (PRIMARY METHOD):
 4. Press Enter to navigate to that cell
 5. The cell is now selected and ready for input -- focus has returned to the grid
 6. Type the cell value (do NOT target the Name Box -- it is ONLY for cell references). Keystrokes go to the active cell.
+  KEYBOARD ALTERNATIVE: If click on Name Box fails, use Ctrl+Home to go to A1 as a starting point,
+  then use Tab/Enter to navigate to the target cell sequentially.
 
 DATA ENTRY:
 - After typing a cell value, press TAB to move to the next column (right)
