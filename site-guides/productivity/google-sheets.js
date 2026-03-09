@@ -254,6 +254,7 @@ DATA ENTRY BEST PRACTICES:
     ]
   },
   warnings: [
+    'KEYBOARD NAVIGATION IS MOST RELIABLE: The key and type (without ref) commands use the Chrome DevTools Protocol keyboard API, bypassing all DOM readiness checks. When click actions fail or time out, switch to keyboard-only navigation: Escape (exit edit mode), Ctrl+Home (go to A1), Tab (next column), Enter (next row). For sequential data entry, prefer type + Tab + type + Tab + Enter over clicking individual cells.',
     'Google Sheets cells are rendered on a CANVAS -- you CANNOT click individual cells via DOM selectors. Always use the Name Box for cell navigation.',
     'CRITICAL: Press Escape before clicking the Name Box to exit cell edit mode. If you type a cell reference while still in edit mode, the reference will be appended to the current cell\'s content instead of navigating.',
     'The Name Box is the ONLY reliable way to navigate to specific cells. It is located at the top-left of the sheet.',
