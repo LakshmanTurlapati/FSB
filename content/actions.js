@@ -1101,6 +1101,7 @@ const tools = {
     // Canvas editor toolbar bypass: skip readiness pipeline for known toolbar elements
     // on Google Sheets/Docs/Slides where readiness checks false-fail on canvas UI
     if (FSB.isCanvasBasedEditor && FSB.isCanvasBasedEditor()) {
+      // Note: these selectors must be hardcoded (runs before Stage 1b fsbRole injection)
       const toolbarSelectors = '#docs-chrome, .docs-titlebar-container, #docs-toolbar, ' +
         '.waffle-name-box, #t-name-box, .cell-input, #t-formula-bar-input, ' +
         '[id^="docs-"], .docs-menubar, .goog-toolbar, .docs-sheet-tab-container';
@@ -1673,7 +1674,8 @@ const tools = {
       if (canvasEditor && isInput) {
         const isGoogleSheets = window.location.hostname === 'docs.google.com' &&
                                window.location.pathname.startsWith('/spreadsheets/');
-        const isNameBox = element.id === 't-name-box' ||
+        const isNameBox = element.dataset?.fsbRole === 'name-box' ||
+                          element.id === 't-name-box' ||
                           element.getAttribute('name') === 't-name-box';
         const textVal = (params.text || '').trim();
         const isCellReference = /^[A-Z]{1,3}[0-9]{1,7}(:[A-Z]{1,3}[0-9]{1,7})?$/i.test(textVal);
