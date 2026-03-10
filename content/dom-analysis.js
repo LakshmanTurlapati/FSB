@@ -2539,6 +2539,58 @@
       });
     }
 
+    // First-snapshot health check: verify pipeline is working on initial Sheets snapshot
+    if (/spreadsheets\/d\//.test(window.location.pathname) && !FSB._sheetsHealthCheckDone) {
+      FSB._sheetsHealthCheckDone = true;
+
+      const healthSnapshotText = walkedLines.map(l => l.text || l).join('\n');
+
+      const checks = {
+        nameBoxPresent: healthSnapshotText.includes('name-box') || healthSnapshotText.includes('Name Box'),
+        formulaBarPresent: healthSnapshotText.includes('formula-bar') || healthSnapshotText.includes('Formula bar'),
+        nameBoxValue: healthSnapshotText.match(/name.*?box.*?= "([^"]*?)"/i)?.[1] ?? null,
+        formulaBarValue: healthSnapshotText.match(/formula.*?= "([^"]*?)"/i)?.[1] ?? null
+      };
+      checks.nameBoxValidRef = checks.nameBoxValue !== null ? SHEETS_CELL_REF_REGEX.test(checks.nameBoxValue) : null;
+
+      // Count fsbRole elements for post-inject awareness
+      let fsbRoleCount = 0;
+      for (const el of interactiveSet) {
+        if (el.dataset && el.dataset.fsbRole) fsbRoleCount++;
+      }
+      checks.fsbRoleElementCount = fsbRoleCount;
+
+      const allPass = checks.nameBoxPresent && checks.formulaBarPresent;
+
+      // One-line summary always logged to console
+      console.log(`[Sheets Health] name-box: ${checks.nameBoxPresent ? 'OK' : 'MISSING'}, formula-bar: ${checks.formulaBarPresent ? 'OK' : 'MISSING'}, fsbRole elements: ${fsbRoleCount}`);
+
+      if (allPass) {
+        logger.logDOMOperation(FSB.sessionId, 'sheets_health_check', {
+          passed: true,
+          checks
+        });
+      } else {
+        console.warn('[Sheets Health] FAILED - diagnostic dump:', checks);
+        logger.logDOMOperation(FSB.sessionId, 'sheets_health_check', {
+          passed: false,
+          checks,
+          stages: {
+            injection: fsbRoleCount > 0 ? 'pass' : 'fail',
+            visibility: checks.nameBoxPresent || checks.formulaBarPresent ? 'pass' : 'fail',
+            walker: walkedLines.length > 0 ? 'pass' : 'fail',
+            postInject: fsbRoleCount > 0 ? 'pass' : 'unknown',
+            summary: healthSnapshotText.length > 0 ? 'pass' : 'fail'
+          }
+        });
+      }
+
+      // Detailed dump in debug mode
+      if (FSB._debugMode) {
+        console.debug('[Sheets Health] Full diagnostic:', JSON.stringify(checks, null, 2));
+      }
+    }
+
     // f. Build metadata header as markdown
     const scrollTop = window.scrollY || document.documentElement.scrollTop;
     const pageHeight = Math.max(
