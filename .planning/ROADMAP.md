@@ -236,5 +236,23 @@ Plans:
 Plans:
 - [ ] 25-01-PLAN.md -- Walker post-injection fix: guarantee fsbRole elements in snapshot via post-walk injection, debug logging
 
+### Phase 26: Google Sheets Snapshot Diagnostic & Selector Resilience
+
+**Goal:** Harden the Sheets snapshot pipeline against Google DOM changes with multi-strategy selector lookup (4-5 selectors per element tried in priority order), diagnostic logging showing which selector matched, content reading improvements (empty element display, cell ref validation), and a first-snapshot health check verifying pipeline integrity
+**Requirements**: P26-01, P26-02, P26-03, P26-04, P26-05, P26-06
+**Depends on:** Phase 25
+**Success Criteria** (what must be TRUE):
+  1. Each fsbRole element (Name Box, Formula Bar) is found via multi-strategy selector lookup with 4-5 selectors tried in priority order (ID -> class -> aria -> role -> context), first match wins
+  2. All selector definitions live in google-sheets.js site guide (fsbElements property), not hardcoded in dom-analysis.js
+  3. Diagnostic log shows which selector matched with index and total (e.g., "#t-name-box [1/5]")
+  4. Empty formula bar and Name Box display = "" in snapshot so AI knows elements exist
+  5. Name Box values validated against extended cell ref regex (Sheet2!A1 patterns); invalid values shown but flagged
+  6. First Sheets snapshot triggers one-time health check with pass/fail summary per element and pipeline stage diagnostic on failure
+**Plans:** 2 plans
+
+Plans:
+- [ ] 26-01-PLAN.md -- Selector resilience: fsbElements in site guide, findElementByStrategies, Stage 1b refactor, selector match logging, actions.js fsbRole guard
+- [ ] 26-02-PLAN.md -- Content reading + health check: empty element display, cell ref validation, first-snapshot health check with pipeline diagnostic
+
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*

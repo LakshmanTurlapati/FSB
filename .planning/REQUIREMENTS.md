@@ -90,6 +90,15 @@
 - [x] **P24-05**: Canvas-aware stuck recovery detects Google Sheets/Docs/Slides URLs and suggests keyboard-based interaction (Escape, Tab, Enter, arrows) instead of "navigate to different page" or "open new tab"
 - [x] **P24-06**: Site guide activation is logged at info level with detection method (URL vs keyword) and guide name for debugging
 
+### Google Sheets Snapshot Diagnostic & Selector Resilience
+
+- [ ] **P26-01**: Each fsbRole element (Name Box, Formula Bar) is found using multi-strategy selector lookup -- an ordered array of 4-5 selectors per element tried in priority order (ID -> class -> aria-label -> role+context), first match wins
+- [ ] **P26-02**: All Sheets-specific selector definitions live in the google-sheets.js site guide (fsbElements property), not hardcoded in dom-analysis.js -- dom-analysis.js receives and iterates selector config generically
+- [ ] **P26-03**: Diagnostic logging shows which selector in the priority chain matched for each element (e.g., "#t-name-box [1/5]"), and when all selectors fail a warning is logged with no heuristic fallback
+- [ ] **P26-04**: Empty formula bar and empty Name Box display = "" in the snapshot so the AI knows the elements exist and can interact with them
+- [ ] **P26-05**: Name Box values are validated against an extended cell reference regex (handles Sheet2!A1, 'Sheet Name'!A1:B10 patterns); invalid values are still shown but flagged in diagnostic log
+- [ ] **P26-06**: First Sheets snapshot per session triggers a one-time health check that verifies element presence in markdown output AND content format validity, emitting a pass/fail summary to console and full pipeline diagnostic dump on failure
+
 ## Future Requirements (Deferred)
 
 - [ ] **FUT-01**: Progressive snapshot depth (full/focused/delta) for further token reduction in mid-task iterations
@@ -112,6 +121,7 @@
 | Delta path markdown integration | Delta DOM updates don't include markdown snapshot -- investigate separately. |
 | Audit all 9 keyword categories | Only Productivity Tools keywords are in scope for Phase 24 -- full audit deferred. |
 | Generic canvas-app site guide template | Template for canvas-heavy apps (Figma, Google Slides, etc.) -- deferred. |
+| Generic canvas-app selector resilience | Extend multi-strategy pattern to Google Docs, Slides, Figma -- deferred from Phase 26. |
 
 ## Traceability
 
@@ -172,10 +182,16 @@
 | P24-04 | Phase 24 | Complete |
 | P24-05 | Phase 24 | Complete |
 | P24-06 | Phase 24 | Complete |
+| P26-01 | Phase 26 | Planned |
+| P26-02 | Phase 26 | Planned |
+| P26-03 | Phase 26 | Planned |
+| P26-04 | Phase 26 | Planned |
+| P26-05 | Phase 26 | Planned |
+| P26-06 | Phase 26 | Planned |
 
 **Coverage:**
-- v10.0 requirements: 50 total
-- Mapped: 50/50 (100%)
+- v10.0 requirements: 56 total
+- Mapped: 56/56 (100%)
 - Future requirements: 5 (deferred)
 - Unmapped: 0
 
