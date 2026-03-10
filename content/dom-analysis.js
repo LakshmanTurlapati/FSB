@@ -1743,13 +1743,32 @@
   }
 
   /**
+   * Try an ordered list of selectors for an fsbElement, returning the first match.
+   * @param {Object} fsbElementDef - { label, selectors: [{ strategy, selector }] }
+   * @returns {{ element: Element, matchedIndex: number, matchedStrategy: string, total: number } | null}
+   */
+  function findElementByStrategies(fsbElementDef) {
+    const strategies = fsbElementDef.selectors;
+    const total = strategies.length;
+    for (let i = 0; i < total; i++) {
+      const { strategy, selector } = strategies[i];
+      const element = document.querySelector(selector);
+      if (element) {
+        return { element, matchedIndex: i, matchedStrategy: strategy, total };
+      }
+    }
+    return null;
+  }
+
+  /**
    * Get filtered elements using a 3-stage pipeline: collection -> visibility -> scoring
    */
   function getFilteredElements(options = {}) {
     const {
       maxElements = 50,
       prioritizeViewport = true,
-      taskType = 'general'
+      taskType = 'general',
+      guideSelectors = null
     } = options;
 
     // Stage 1: Get potentially relevant elements
@@ -1781,24 +1800,57 @@
 
       // Sheets-specific elements (formula bar and name box)
       if (/spreadsheets\/d\//.test(window.location.pathname)) {
-        const sheetsSelectors = [
-          { selector: '#t-formula-bar-input, .cell-input', role: 'formula-bar', label: 'Formula bar (shows selected cell content)' },
-          { selector: '#t-name-box, .waffle-name-box', role: 'name-box', label: 'Name Box (current cell reference)' }
-        ];
-        for (const { selector, role, label } of sheetsSelectors) {
-          const el = document.querySelector(selector);
-          if (el && !candidateArray.includes(el)) {
-            el.dataset.fsbRole = role;
-            el.dataset.fsbLabel = label;
-            candidateArray.push(el);
+        const fsbElements = guideSelectors?.fsbElements;
+        const selectorMatches = {};
+
+        if (fsbElements) {
+          // Use multi-strategy lookup from site guide
+          for (const [role, def] of Object.entries(fsbElements)) {
+            const result = findElementByStrategies(def);
+            if (result) {
+              const { element: el, matchedIndex, matchedStrategy, total } = result;
+              if (!candidateArray.includes(el)) {
+                el.dataset.fsbRole = role;
+                el.dataset.fsbLabel = def.label;
+                candidateArray.push(el);
+              }
+              selectorMatches[role] = `${def.selectors[matchedIndex].selector} [${matchedIndex + 1}/${total}]`;
+              logger.logDOMOperation(FSB.sessionId, 'sheets_selector_match', {
+                role,
+                matched: `${def.selectors[matchedIndex].selector} [${matchedIndex + 1}/${total}]`,
+                strategy: matchedStrategy
+              });
+            } else {
+              logger.log('warn', `[Sheets] All ${def.selectors.length} selectors failed for ${role} — element skipped`, {
+                role,
+                selectorsAttempted: def.selectors.length
+              });
+              selectorMatches[role] = 'NONE';
+            }
+          }
+        } else {
+          // Fallback: hardcoded selectors when no site guide fsbElements present
+          const sheetsSelectors = [
+            { selector: '#t-formula-bar-input, .cell-input', role: 'formula-bar', label: 'Formula bar (shows selected cell content)' },
+            { selector: '#t-name-box, .waffle-name-box', role: 'name-box', label: 'Name Box (current cell reference)' }
+          ];
+          for (const { selector, role, label } of sheetsSelectors) {
+            const el = document.querySelector(selector);
+            if (el && !candidateArray.includes(el)) {
+              el.dataset.fsbRole = role;
+              el.dataset.fsbLabel = label;
+              candidateArray.push(el);
+            }
+            selectorMatches[role] = el ? `${selector} [fallback]` : 'NONE';
           }
         }
 
-        // Log Sheets element injection results
+        // Log Sheets element injection results with strategy match info
         logger.logDOMOperation(FSB.sessionId, 'sheets_injection', {
-          formulaBar: !!document.querySelector('#t-formula-bar-input, .cell-input'),
-          nameBox: !!document.querySelector('#t-name-box, .waffle-name-box'),
-          injectedCount: candidateArray.filter(el => el.dataset.fsbRole === 'formula-bar' || el.dataset.fsbRole === 'name-box').length
+          formulaBar: selectorMatches['formula-bar'] !== 'NONE',
+          nameBox: selectorMatches['name-box'] !== 'NONE',
+          injectedCount: candidateArray.filter(el => el.dataset.fsbRole === 'formula-bar' || el.dataset.fsbRole === 'name-box').length,
+          selectorMatches
         });
       }
     }
@@ -2428,7 +2480,8 @@
     const elements = getFilteredElements({
       maxElements,
       prioritizeViewport: true,
-      taskType: 'general'
+      taskType: 'general',
+      guideSelectors
     });
 
     // c. Build interactiveSet and register each in refMap

@@ -123,6 +123,28 @@ DATA ENTRY BEST PRACTICES:
 - Always press Ctrl+A after clicking the Name Box before typing a cell reference
 - Sanitize cell values: prefix with space if starting with = + - @
 - Use =HYPERLINK("url","label") for clickable links`,
+  fsbElements: {
+    'name-box': {
+      label: 'Name Box (current cell reference)',
+      selectors: [
+        { strategy: 'id', selector: '#t-name-box' },
+        { strategy: 'class', selector: '.waffle-name-box' },
+        { strategy: 'aria', selector: 'input[aria-label*="Name Box" i]' },
+        { strategy: 'role', selector: 'input[role="combobox"][title*="ame"]' },
+        { strategy: 'context', selector: '#docs-chrome input[type="text"]:first-child' }
+      ]
+    },
+    'formula-bar': {
+      label: 'Formula bar (shows selected cell content)',
+      selectors: [
+        { strategy: 'id', selector: '#t-formula-bar-input' },
+        { strategy: 'class', selector: '.cell-input' },
+        { strategy: 'aria', selector: '[aria-label*="formula" i]' },
+        { strategy: 'role', selector: '[contenteditable="true"][role="textbox"]' },
+        { strategy: 'context', selector: '#formula_bar [contenteditable]' }
+      ]
+    }
+  },
   selectors: {
     nameBox: '#t-name-box',
     cellInput: '.cell-input, #cell-input',
