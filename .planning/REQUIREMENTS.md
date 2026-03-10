@@ -95,9 +95,9 @@
 - [x] **P26-01**: Each fsbRole element (Name Box, Formula Bar) is found using multi-strategy selector lookup -- an ordered array of 4-5 selectors per element tried in priority order (ID -> class -> aria-label -> role+context), first match wins
 - [x] **P26-02**: All Sheets-specific selector definitions live in the google-sheets.js site guide (fsbElements property), not hardcoded in dom-analysis.js -- dom-analysis.js receives and iterates selector config generically
 - [x] **P26-03**: Diagnostic logging shows which selector in the priority chain matched for each element (e.g., "#t-name-box [1/5]"), and when all selectors fail a warning is logged with no heuristic fallback
-- [ ] **P26-04**: Empty formula bar and empty Name Box display = "" in the snapshot so the AI knows the elements exist and can interact with them
-- [ ] **P26-05**: Name Box values are validated against an extended cell reference regex (handles Sheet2!A1, 'Sheet Name'!A1:B10 patterns); invalid values are still shown but flagged in diagnostic log
-- [ ] **P26-06**: First Sheets snapshot per session triggers a one-time health check that verifies element presence in markdown output AND content format validity, emitting a pass/fail summary to console and full pipeline diagnostic dump on failure
+- [x] **P26-04**: Empty formula bar and empty Name Box display = "" in the snapshot so the AI knows the elements exist and can interact with them
+- [x] **P26-05**: Name Box values are validated against an extended cell reference regex (handles Sheet2!A1, 'Sheet Name'!A1:B10 patterns); invalid values are still shown but flagged in diagnostic log
+- [x] **P26-06**: First Sheets snapshot per session triggers a one-time health check that verifies element presence in markdown output AND content format validity, emitting a pass/fail summary to console and full pipeline diagnostic dump on failure
 
 ## Future Requirements (Deferred)
 
