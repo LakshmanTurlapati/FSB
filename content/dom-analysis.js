@@ -2026,6 +2026,10 @@
   // MARKDOWN SNAPSHOT ENGINE (Phase 22)
   // --------------------------------------------------------------------------
 
+  // Extended cell reference regex for Google Sheets Name Box validation
+  // Handles: A1, A1:B10, Sheet2!A1, 'Sheet Name'!A1:B10
+  const SHEETS_CELL_REF_REGEX = /^('?[A-Za-z0-9_ ]+!'?)?[A-Z]{1,3}[0-9]{1,7}(:[A-Z]{1,3}[0-9]{1,7})?$/i;
+
   // Region-to-heading mapping constant
   const REGION_HEADING_MAP = {
     '@dialog': '## Dialog',
@@ -2196,6 +2200,8 @@
       if (formulaContent) {
         const truncVal = formulaContent.length > 80 ? formulaContent.substring(0, 77) + '...' : formulaContent;
         parts.push(`= "${truncVal}"`);
+      } else {
+        parts.push(`= ""`);
       }
     }
 
@@ -2204,6 +2210,15 @@
       const cellRef = (node.value || node.innerText || node.textContent || '').trim();
       if (cellRef) {
         parts.push(`= "${cellRef}"`);
+        // Validate cell reference format and log unusual values
+        if (!SHEETS_CELL_REF_REGEX.test(cellRef)) {
+          logger.logDOMOperation(FSB.sessionId, 'sheets_namebox_unusual_value', {
+            value: cellRef.substring(0, 40),
+            looksLikeNamedRange: /^[A-Za-z_][A-Za-z0-9_]*$/.test(cellRef)
+          });
+        }
+      } else {
+        parts.push(`= ""`);
       }
     }
 
