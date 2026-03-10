@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
-status: completed
-stopped_at: Completed 25-01-PLAN.md
-last_updated: "2026-03-09T17:06:31.251Z"
-last_activity: 2026-03-09 -- Completed 25-01 (Walker Post-Injection Fix)
+status: in-progress
+stopped_at: Completed 26-01-PLAN.md
+last_updated: "2026-03-10T08:32:12Z"
+last_activity: 2026-03-10 -- Completed 26-01 (Selector Resilience Foundation)
 progress:
   total_phases: 11
   completed_phases: 9
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 25 Google Sheets Snapshot Pipeline Fix
+**Current focus:** Phase 26 Google Sheets Snapshot Diagnostic & Selector Resilience
 
 ## Current Position
 
-Phase: 25
-Plan: 1 of 1 in phase 25
-Status: Plan 25-01 complete -- Walker post-injection fix for fsbRole elements
-Last activity: 2026-03-09 -- Completed 25-01 (Walker Post-Injection Fix)
+Phase: 26
+Plan: 1 of 2 in phase 26
+Status: Plan 26-01 complete -- Multi-strategy selector lookup for Sheets fsbRole elements
+Last activity: 2026-03-10 -- Completed 26-01 (Selector Resilience Foundation)
 
 Progress: [##########] 100%
 
@@ -77,6 +77,7 @@ Progress: [##########] 100%
 | Phase 24 P06 | 2min | 2 tasks | 1 files |
 | Phase 24 P07 | 1min | 1 tasks | 1 files |
 | Phase 25 P01 | 3min | 2 tasks | 1 files |
+| Phase 26 P01 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -160,6 +161,8 @@ Recent decisions affecting current work:
 - [24-07]: toolbar-input example shown inline in guidance so AI knows exact snapshot format
 - [24-07]: getText positioned as explicit fallback, not primary verification method
 - [Phase 25]: Post-injection after walk (Option B) chosen over modifying isVisibleForSnapshot to avoid exposing other hidden elements
+- [Phase 26]: guideSelectors threaded from buildMarkdownSnapshot through getFilteredElements to Stage 1b for fsbElements access
+- [Phase 26]: data-fsbRole check first in Name Box guard, hardcoded ID/name as fallback for pre-Stage-1b scenarios
 
 ### Roadmap Evolution
 
@@ -167,6 +170,7 @@ Recent decisions affecting current work:
 - Phase 22 added: Page text extraction for reading tasks
 - Phase 24 added: Google Sheets Workflow Recovery
 - Phase 25 added: Google Sheets Snapshot Pipeline Fix
+- Phase 26 added: Google Sheets Snapshot Diagnostic & Selector Resilience
 
 ### Pending Todos
 
@@ -180,6 +184,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-09T17:06:31.218Z
-Stopped at: Completed 25-01-PLAN.md
+Last session: 2026-03-10T08:32:12Z
+Stopped at: Completed 26-01-PLAN.md
 Resume file: None
