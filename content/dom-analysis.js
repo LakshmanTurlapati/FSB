@@ -1809,9 +1809,10 @@
             const result = findElementByStrategies(def);
             if (result) {
               const { element: el, matchedIndex, matchedStrategy, total } = result;
+              // Always set fsbRole/fsbLabel — element may already be in candidates from Stage 1
+              el.dataset.fsbRole = role;
+              el.dataset.fsbLabel = def.label;
               if (!candidateArray.includes(el)) {
-                el.dataset.fsbRole = role;
-                el.dataset.fsbLabel = def.label;
                 candidateArray.push(el);
               }
               selectorMatches[role] = `${def.selectors[matchedIndex].selector} [${matchedIndex + 1}/${total}]`;
@@ -1836,10 +1837,13 @@
           ];
           for (const { selector, role, label } of sheetsSelectors) {
             const el = document.querySelector(selector);
-            if (el && !candidateArray.includes(el)) {
+            if (el) {
+              // Always set fsbRole/fsbLabel — element may already be in candidates from Stage 1
               el.dataset.fsbRole = role;
               el.dataset.fsbLabel = label;
-              candidateArray.push(el);
+              if (!candidateArray.includes(el)) {
+                candidateArray.push(el);
+              }
             }
             selectorMatches[role] = el ? `${selector} [fallback]` : 'NONE';
           }
@@ -2546,7 +2550,7 @@
       const healthSnapshotText = walkedLines.map(l => l.text || l).join('\n');
 
       const checks = {
-        nameBoxPresent: healthSnapshotText.includes('name-box') || healthSnapshotText.includes('Name Box'),
+        nameBoxPresent: healthSnapshotText.includes('name-box') || /name\s*box/i.test(healthSnapshotText),
         formulaBarPresent: healthSnapshotText.includes('formula-bar') || healthSnapshotText.includes('Formula bar'),
         nameBoxValue: healthSnapshotText.match(/name.*?box.*?= "([^"]*?)"/i)?.[1] ?? null,
         formulaBarValue: healthSnapshotText.match(/formula.*?= "([^"]*?)"/i)?.[1] ?? null
