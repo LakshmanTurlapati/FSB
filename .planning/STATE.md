@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
 status: completed
-stopped_at: Completed 26-03-PLAN.md
-last_updated: "2026-03-11T02:38:52.000Z"
-last_activity: 2026-03-10 -- Completed 26-02 (Content Reading & Diagnostic Health Check)
+stopped_at: Completed 27-01-PLAN.md
+last_updated: "2026-03-11T07:14:04.858Z"
+last_activity: 2026-03-11 -- Completed 27-01 (Site Explorer Markdown Snapshot Integration)
 progress:
-  total_phases: 12
-  completed_phases: 10
-  total_plans: 26
-  completed_plans: 30
+  total_phases: 13
+  completed_phases: 11
+  total_plans: 27
+  completed_plans: 31
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 26 Google Sheets Snapshot Diagnostic & Selector Resilience
+**Current focus:** Phase 27 Site Explorer Markdown Snapshot Integration
 
 ## Current Position
 
-Phase: 26
-Plan: 3 of 3 in phase 26
-Status: Phase 26 complete -- guideSelectors threaded to all markdown snapshot callsites
-Last activity: 2026-03-10 -- Completed 26-03 (Thread guideSelectors to buildMarkdownSnapshot)
+Phase: 27
+Plan: 1 of 1 in phase 27
+Status: Phase 27 complete -- markdown snapshot capture and display in site explorer
+Last activity: 2026-03-11 -- Completed 27-01 (Site Explorer Markdown Snapshot Integration)
 
 Progress: [##########] 100%
 
@@ -80,6 +80,7 @@ Progress: [##########] 100%
 | Phase 26 P01 | 3min | 2 tasks | 3 files |
 | Phase 26 P02 | 2min | 2 tasks | 1 files |
 | Phase 26 P03 | 2min | 1 tasks | 1 files |
+| Phase 27 P01 | 1min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -168,6 +169,7 @@ Recent decisions affecting current work:
 - [26-02]: SHEETS_CELL_REF_REGEX module-level constant for cross-sheet cell ref validation (Sheet2!A1, 'Sheet Name'!A1:B10)
 - [26-02]: Session-gated health check via FSB._sheetsHealthCheckDone -- runs once, no per-iteration overhead
 - [Phase 26]: Resolve guideSelectors once per iteration via chrome.tabs.get + getGuideForTask before DOM fetch block
+- [Phase 27]: Direct chrome.tabs.sendMessage with frameId:0 for main-frame targeting in site explorer
 
 ### Roadmap Evolution
 
@@ -176,6 +178,7 @@ Recent decisions affecting current work:
 - Phase 24 added: Google Sheets Workflow Recovery
 - Phase 25 added: Google Sheets Snapshot Pipeline Fix
 - Phase 26 added: Google Sheets Snapshot Diagnostic & Selector Resilience
+- Phase 27 added: Site Explorer Markdown Snapshot Integration
 
 ### Pending Todos
 
@@ -189,6 +192,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-11T02:38:51.966Z
-Stopped at: Completed 26-03-PLAN.md
+Last session: 2026-03-11T07:14:04.786Z
+Stopped at: Completed 27-01-PLAN.md
 Resume file: None

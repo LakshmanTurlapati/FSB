@@ -264,10 +264,11 @@ Plans:
   2. Research detail view in options page renders the markdown snapshot in a collapsible pre block per crawled page
   3. Crawling a Google Sheets URL produces a markdown snapshot showing formula bar, name box, and toolbar elements with their values
   4. Downloaded research JSON includes the markdownSnapshot field for each crawled page
-**Plans:** 1 plan
+**Plans:** 2 plans
 
 Plans:
-- [ ] 27-01-PLAN.md -- Snapshot capture in collectPageData + research detail view rendering
+- [x] 27-01-PLAN.md -- Snapshot capture in collectPageData + research detail view rendering
+- [ ] 27-02-PLAN.md -- Gap closure: add P27-01 through P27-04 requirement definitions to REQUIREMENTS.md
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*
