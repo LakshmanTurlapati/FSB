@@ -254,5 +254,20 @@ Plans:
 - [ ] 26-01-PLAN.md -- Selector resilience: fsbElements in site guide, findElementByStrategies, Stage 1b refactor, selector match logging, actions.js fsbRole guard
 - [ ] 26-02-PLAN.md -- Content reading + health check: empty element display, cell ref validation, first-snapshot health check with pipeline diagnostic
 
+### Phase 27: Site Explorer Markdown Snapshot Integration
+
+**Goal:** Add markdown snapshot capture to the Site Explorer crawler so crawl results show the exact AI-visible page view (PAGE_CONTENT block with element refs, regions, formula bar content), enabling developers to see what the AI actually sees when automating any site
+**Depends on:** Phase 26
+**Requirements**: P27-01, P27-02, P27-03, P27-04
+**Success Criteria** (what must be TRUE):
+  1. Site Explorer's collectPageData() fetches getMarkdownSnapshot after getDOM and stores it as pageData.markdownSnapshot in crawl results
+  2. Research detail view in options page renders the markdown snapshot in a collapsible pre block per crawled page
+  3. Crawling a Google Sheets URL produces a markdown snapshot showing formula bar, name box, and toolbar elements with their values
+  4. Downloaded research JSON includes the markdownSnapshot field for each crawled page
+**Plans:** 1 plan
+
+Plans:
+- [ ] 27-01-PLAN.md -- Snapshot capture in collectPageData + research detail view rendering
+
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*
