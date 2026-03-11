@@ -248,7 +248,7 @@ Plans:
   4. Empty formula bar and Name Box display = "" in snapshot so AI knows elements exist
   5. Name Box values validated against extended cell ref regex (Sheet2!A1 patterns); invalid values shown but flagged
   6. First Sheets snapshot triggers one-time health check with pass/fail summary per element and pipeline stage diagnostic on failure
-**Plans:** 2/2 plans complete
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 26-01-PLAN.md -- Selector resilience: fsbElements in site guide, findElementByStrategies, Stage 1b refactor, selector match logging, actions.js fsbRole guard

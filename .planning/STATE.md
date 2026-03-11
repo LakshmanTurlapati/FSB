@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
-status: in-progress
-stopped_at: Completed 26-01-PLAN.md
-last_updated: "2026-03-10T08:32:12Z"
-last_activity: 2026-03-10 -- Completed 26-01 (Selector Resilience Foundation)
+status: completed
+stopped_at: Completed 26-03-PLAN.md
+last_updated: "2026-03-11T02:38:52.000Z"
+last_activity: 2026-03-10 -- Completed 26-02 (Content Reading & Diagnostic Health Check)
 progress:
-  total_phases: 11
-  completed_phases: 9
-  total_plans: 23
-  completed_plans: 27
+  total_phases: 12
+  completed_phases: 10
+  total_plans: 26
+  completed_plans: 30
   percent: 100
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 ## Current Position
 
 Phase: 26
-Plan: 2 of 2 in phase 26
-Status: Phase 26 complete -- Content reading improvements and diagnostic health check
-Last activity: 2026-03-10 -- Completed 26-02 (Content Reading & Diagnostic Health Check)
+Plan: 3 of 3 in phase 26
+Status: Phase 26 complete -- guideSelectors threaded to all markdown snapshot callsites
+Last activity: 2026-03-10 -- Completed 26-03 (Thread guideSelectors to buildMarkdownSnapshot)
 
 Progress: [##########] 100%
 
@@ -79,6 +79,7 @@ Progress: [##########] 100%
 | Phase 25 P01 | 3min | 2 tasks | 1 files |
 | Phase 26 P01 | 3min | 2 tasks | 3 files |
 | Phase 26 P02 | 2min | 2 tasks | 1 files |
+| Phase 26 P03 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -166,6 +167,7 @@ Recent decisions affecting current work:
 - [Phase 26]: data-fsbRole check first in Name Box guard, hardcoded ID/name as fallback for pre-Stage-1b scenarios
 - [26-02]: SHEETS_CELL_REF_REGEX module-level constant for cross-sheet cell ref validation (Sheet2!A1, 'Sheet Name'!A1:B10)
 - [26-02]: Session-gated health check via FSB._sheetsHealthCheckDone -- runs once, no per-iteration overhead
+- [Phase 26]: Resolve guideSelectors once per iteration via chrome.tabs.get + getGuideForTask before DOM fetch block
 
 ### Roadmap Evolution
 
@@ -187,6 +189,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-10T08:32:12Z
-Stopped at: Completed 26-02-PLAN.md
+Last session: 2026-03-11T02:38:51.966Z
+Stopped at: Completed 26-03-PLAN.md
 Resume file: None
