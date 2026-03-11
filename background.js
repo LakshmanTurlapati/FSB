@@ -6109,23 +6109,10 @@ async function executeBatchActions(batchActions, session, tabId) {
   const skippedActions = [];
   const sessionId = session?.sessionId;
 
-  // Google Sheets inter-action delay: instead of suppressing batches entirely,
-  // add delay between actions so the canvas has time to process each keystroke.
-  let sheetsInterActionDelay = 0;
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    const currentUrl = tab?.url || '';
-    if (/docs\.google\.com\/spreadsheets\/d\//i.test(currentUrl)) {
-      sheetsInterActionDelay = 200; // 200ms between actions on Sheets
-      automationLogger.info('Google Sheets batch: applying 200ms inter-action delay', {
-        sessionId,
-        actionCount: actions.length,
-        tools: actions.map(a => a.tool)
-      });
-    }
-  } catch (urlCheckError) {
-    automationLogger.debug('URL check for Sheets delay failed', { error: urlCheckError.message });
-  }
+  // NOTE: Google Sheets batch suppression was removed. The original concern was that
+  // batching multiple type actions concatenated values into one cell. The actual root cause
+  // was elementFromPoint obscuration checks timing out (fixed in commit ce1f306).
+  // With that fix, sequential batch execution works correctly on Sheets.
 
   // Multi-tab and background-handled tool lists (same as startAutomationLoop)
   const multiTabActions = ['openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab'];
@@ -6201,11 +6188,6 @@ async function executeBatchActions(batchActions, session, tabId) {
     automationLogger.logTiming(sessionId, 'ACTION', `${action.tool}_aiBatch`, actionDuration, {
       success: actionResult?.success, batchIndex: i
     });
-
-    // Google Sheets inter-action delay for canvas grid processing
-    if (sheetsInterActionDelay > 0 && i < actions.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, sheetsInterActionDelay));
-    }
 
     // STOP ON FAILURE
     if (!actionResult?.success) {
