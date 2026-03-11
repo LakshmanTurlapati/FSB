@@ -26,7 +26,6 @@ async function initConversationId() {
 // DOM elements - adapted for side panel
 const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
-const stopBtn = document.getElementById('stopBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const chatMessages = document.getElementById('chatMessages');
@@ -319,7 +318,6 @@ async function checkEncryptedConfig() {
 
 // Event listeners
 sendBtn.addEventListener('click', handleSendMessage);
-stopBtn.addEventListener('click', stopAutomation);
 newChatBtn.addEventListener('click', startNewChat);
 settingsBtn.addEventListener('click', openSettings);
 historyBtn.addEventListener('click', toggleHistoryView);
@@ -355,8 +353,9 @@ chatInput.addEventListener('paste', (e) => {
 
 // Update send button state based on input content
 function updateSendButtonState() {
+  if (isRunning) return; // Don't disable stop button based on input content
   const hasContent = chatInput.textContent.trim().length > 0;
-  sendBtn.disabled = !hasContent || isRunning;
+  sendBtn.disabled = !hasContent;
 }
 
 // Handle sending a message
@@ -517,21 +516,25 @@ function startNewChat() {
 // Update UI for running state
 function setRunningState() {
   isRunning = true;
-  sendBtn.disabled = true;
-  stopBtn.classList.remove('hidden');
+  sendBtn.className = 'stop-btn';
+  sendBtn.title = 'Stop Automation';
+  sendBtn.querySelector('i').className = 'fa fa-stop';
+  sendBtn.disabled = false;
+  sendBtn.onclick = stopAutomation;
   statusDot.classList.add('running');
   statusText.textContent = 'Working';
-  updateSendButtonState();
 }
 
 // Update UI for idle state
 function setIdleState() {
   isRunning = false;
-  sendBtn.disabled = false;
-  stopBtn.classList.add('hidden');
+  sendBtn.className = 'send-btn';
+  sendBtn.title = 'Send Message';
+  sendBtn.querySelector('i').className = 'fa fa-arrow-up';
+  sendBtn.onclick = handleSendMessage;
   statusDot.classList.remove('running', 'error');
   statusText.textContent = 'Ready';
-  
+
   // Clean up any remaining status message with loader
   if (currentStatusMessage) {
     const loaderDots = currentStatusMessage.querySelector('.typing-dots');
@@ -550,8 +553,10 @@ function setIdleState() {
 // Update UI for error state
 function setErrorState() {
   isRunning = false;
-  sendBtn.disabled = false;
-  stopBtn.classList.add('hidden');
+  sendBtn.className = 'send-btn';
+  sendBtn.title = 'Send Message';
+  sendBtn.querySelector('i').className = 'fa fa-arrow-up';
+  sendBtn.onclick = handleSendMessage;
   statusDot.classList.add('error');
   statusText.textContent = 'Error';
   updateSendButtonState();

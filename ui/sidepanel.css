@@ -443,7 +443,7 @@ body {
   transition: all 0.2s ease;
 }
 
-.stop-btn.hidden, .hidden {
+.hidden {
   display: none;
 }
 
