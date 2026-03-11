@@ -1250,7 +1250,7 @@ let pendingDOMPrefetch = null;
  * @param {Object} options - DOM fetch options
  * @returns {Promise<Object|null>} Promise resolving to DOM response, or null on failure
  */
-async function prefetchDOM(tabId, options = {}) {
+async function prefetchDOM(tabId, options = {}, guideSelectors = null) {
   try {
     const domOptions = {
       useIncrementalDiff: true,
@@ -1271,7 +1271,7 @@ async function prefetchDOM(tabId, options = {}) {
         try {
           const mdResponse = await chrome.tabs.sendMessage(tabId, {
             action: 'getMarkdownSnapshot',
-            options: { charBudget: 12000, maxElements: 80 }
+            options: { charBudget: 12000, maxElements: 80, guideSelectors }
           }, { frameId: 0 });
           if (mdResponse?.success && mdResponse.markdownSnapshot) {
             response.structuredDOM._markdownSnapshot = mdResponse.markdownSnapshot;
@@ -8349,6 +8349,20 @@ async function startAutomationLoop(sessionId) {
       return;
     }
 
+    // Resolve site guide selectors for this iteration (used by markdown snapshot's Stage 1b injection)
+    let iterationGuideSelectors = null;
+    if (typeof getGuideForTask === 'function') {
+      try {
+        const guideTab = await chrome.tabs.get(session.tabId);
+        const guide = getGuideForTask(session.task, guideTab?.url);
+        if (guide) {
+          iterationGuideSelectors = { ...guide.selectors, fsbElements: guide.fsbElements };
+        }
+      } catch (e) {
+        // Tab inaccessible, proceed without guide selectors
+      }
+    }
+
     // Get current DOM state with enhanced error handling
     // SPEED-02: Check for pending prefetch first
     let domResponse;
@@ -8549,7 +8563,7 @@ async function startAutomationLoop(sessionId) {
       try {
         const mdResponse = await sendMessageWithRetry(session.tabId, {
           action: 'getMarkdownSnapshot',
-          options: { charBudget: 12000, maxElements: 80 }
+          options: { charBudget: 12000, maxElements: 80, guideSelectors: iterationGuideSelectors }
         });
         if (mdResponse?.success && mdResponse.markdownSnapshot) {
           domResponse.structuredDOM._markdownSnapshot = mdResponse.markdownSnapshot;
@@ -9160,7 +9174,7 @@ async function startAutomationLoop(sessionId) {
     pendingDOMPrefetch = prefetchDOM(session.tabId, {
       maxElements: settings.maxDOMElements || 2000,
       prioritizeViewport: settings.prioritizeViewport !== false
-    });
+    }, iterationGuideSelectors);
 
     // FIX 1A: Race AI response against a stop signal so stop button works during API calls
     // PERF: Use event-based AbortController pattern instead of 500ms polling
@@ -9354,7 +9368,7 @@ async function startAutomationLoop(sessionId) {
             pendingDOMPrefetch = prefetchDOM(session.tabId, {
               maxElements: settings.maxDOMElements || 2000,
               prioritizeViewport: settings.prioritizeViewport !== false
-            });
+            }, iterationGuideSelectors);
           }
         }
       }
