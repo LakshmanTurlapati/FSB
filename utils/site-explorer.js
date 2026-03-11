@@ -265,6 +265,49 @@ class SiteExplorer {
       console.warn(`[SiteExplorer] getDOM failed for ${url}:`, error.message);
     }
 
+    // Get markdown snapshot with guide selectors
+    let markdownData = null;
+    let guideName = null;
+    try {
+      const guide = typeof getGuideForTask === 'function' ? getGuideForTask('', url) : null;
+      if (guide) {
+        guideName = guide.site || guide.name;
+        const guideSelectors = { ...guide.selectors, fsbElements: guide.fsbElements };
+        markdownData = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('getMarkdownSnapshot timeout')), 10000);
+          chrome.tabs.sendMessage(this.tabId, {
+            action: 'getMarkdownSnapshot',
+            options: { charBudget: 12000, maxElements: 80, guideSelectors }
+          }, { frameId: 0 }, (response) => {
+            clearTimeout(timer);
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          });
+        });
+      } else {
+        // No guide found, fetch without guideSelectors
+        markdownData = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('getMarkdownSnapshot timeout')), 10000);
+          chrome.tabs.sendMessage(this.tabId, {
+            action: 'getMarkdownSnapshot',
+            options: { charBudget: 12000, maxElements: 80 }
+          }, { frameId: 0 }, (response) => {
+            clearTimeout(timer);
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          });
+        });
+      }
+    } catch (error) {
+      console.warn(`[SiteExplorer] getMarkdownSnapshot failed for ${url}:`, error.message);
+    }
+
     // Get explorer-specific data
     let explorerData = null;
     try {
@@ -295,7 +338,10 @@ class SiteExplorer {
       headings: [],
       layout: {},
       internalLinks: [],
-      keySelectors: []
+      keySelectors: [],
+      markdownSnapshot: null,
+      markdownElementCount: 0,
+      guideName: null
     };
 
     // Merge DOM data
@@ -333,6 +379,17 @@ class SiteExplorer {
         pageData.loadingPatterns = data.loadingPatterns;
       }
     }
+
+    // Merge markdown snapshot
+    if (markdownData && markdownData.success) {
+      pageData.markdownSnapshot = markdownData.markdownSnapshot;
+      pageData.markdownElementCount = markdownData.elementCount || 0;
+      pageData.guideName = guideName;
+    } else if (guideName) {
+      // Guide detected but snapshot failed -- still show guide name
+      pageData.guideName = guideName;
+    }
+    console.info(`[SiteExplorer] Markdown snapshot: ${markdownData?.markdownSnapshot?.length || 0} chars, ${markdownData?.elementCount || 0} elements${guideName ? ', guide: ' + guideName : ''}`);
 
     // Fallback: if explorerData failed or returned no links, extract from DOM htmlContext
     if ((!pageData.internalLinks || pageData.internalLinks.length === 0) && domData && domData.success && domData.structuredDOM) {
