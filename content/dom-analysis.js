@@ -2157,8 +2157,9 @@
       parts.push(attrs.join(' '));
     }
 
-    // Form values for inputs/selects
-    if ((tag === 'input' || tag === 'textarea') && node.value) {
+    // Form values for inputs/selects (skip if fsbRole handles value display)
+    const hasFsbValueHandler = node.dataset?.fsbRole === 'name-box' || node.dataset?.fsbRole === 'formula-bar';
+    if ((tag === 'input' || tag === 'textarea') && node.value && !hasFsbValueHandler) {
       const truncVal = node.value.length > 40 ? node.value.substring(0, 37) + '...' : node.value;
       parts.push(`= "${truncVal}"`);
     }
