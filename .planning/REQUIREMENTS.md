@@ -99,6 +99,13 @@
 - [x] **P26-05**: Name Box values are validated against an extended cell reference regex (handles Sheet2!A1, 'Sheet Name'!A1:B10 patterns); invalid values are still shown but flagged in diagnostic log
 - [x] **P26-06**: First Sheets snapshot per session triggers a one-time health check that verifies element presence in markdown output AND content format validity, emitting a pass/fail summary to console and full pipeline diagnostic dump on failure
 
+### Site Explorer Snapshot
+
+- [x] **P27-01**: Site Explorer's collectPageData() fetches getMarkdownSnapshot after getDOM and stores it as pageData.markdownSnapshot in crawl results
+- [x] **P27-02**: Research detail view in options page renders the markdown snapshot in a collapsible pre block per crawled page with stats line (character count, element count) and guide name badge
+- [x] **P27-03**: Crawling a Google Sheets URL produces a markdown snapshot showing formula bar, name box, and toolbar elements with their values
+- [x] **P27-04**: Downloaded research JSON includes the markdownSnapshot field for each crawled page
+
 ## Future Requirements (Deferred)
 
 - [ ] **FUT-01**: Progressive snapshot depth (full/focused/delta) for further token reduction in mid-task iterations
@@ -188,10 +195,14 @@
 | P26-04 | Phase 26 | Planned |
 | P26-05 | Phase 26 | Planned |
 | P26-06 | Phase 26 | Planned |
+| P27-01 | Phase 27 | Complete |
+| P27-02 | Phase 27 | Complete |
+| P27-03 | Phase 27 | Complete |
+| P27-04 | Phase 27 | Complete |
 
 **Coverage:**
-- v10.0 requirements: 56 total
-- Mapped: 56/56 (100%)
+- v10.0 requirements: 60 total
+- Mapped: 60/60 (100%)
 - Future requirements: 5 (deferred)
 - Unmapped: 0
 
