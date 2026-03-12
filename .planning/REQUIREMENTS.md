@@ -106,6 +106,15 @@
 - [x] **P27-03**: Crawling a Google Sheets URL produces a markdown snapshot showing formula bar, name box, and toolbar elements with their values
 - [x] **P27-04**: Downloaded research JSON includes the markdownSnapshot field for each crawled page
 
+### Google Sheets Guide Enrichment
+
+- [ ] **P28-01**: Toolbar formatting buttons (bold, italic, text-color, fill-color, borders, merge, h-align, font-family, font-size, num-fmt-currency, num-fmt-percent, num-fmt-other, filter-toggle, functions, insert-chart) are defined as fsbElements with 5-strategy multi-selector chains in google-sheets.js
+- [ ] **P28-02**: Menu bar items (file, edit, view, insert, format, data) are defined as fsbElements with 5-strategy selectors, with data menu using aria-label as primary strategy due to dynamic Closure Library ID
+- [ ] **P28-03**: Sheet management elements (add-sheet, sheet-tab, spreadsheet-title) are defined as fsbElements with aria/class-first strategies for elements with dynamic IDs
+- [ ] **P28-04**: Selectors map is expanded with annotation keys for all new toolbar and sheet management elements so buildGuideAnnotations() produces [hint:] tags
+- [ ] **P28-05**: Input-type fsbElements (font-size) are added to the hasFsbValueHandler guard in dom-analysis.js to prevent duplicate value display in snapshots
+- [ ] **P28-06**: Health check validates minimum fsbElement count (>= 5) and injection logging reports total matched/failed counts generically instead of hardcoding name-box and formula-bar
+
 ## Future Requirements (Deferred)
 
 - [ ] **FUT-01**: Progressive snapshot depth (full/focused/delta) for further token reduction in mid-task iterations
@@ -199,10 +208,16 @@
 | P27-02 | Phase 27 | Complete |
 | P27-03 | Phase 27 | Complete |
 | P27-04 | Phase 27 | Complete |
+| P28-01 | Phase 28 | Planned |
+| P28-02 | Phase 28 | Planned |
+| P28-03 | Phase 28 | Planned |
+| P28-04 | Phase 28 | Planned |
+| P28-05 | Phase 28 | Planned |
+| P28-06 | Phase 28 | Planned |
 
 **Coverage:**
-- v10.0 requirements: 60 total
-- Mapped: 60/60 (100%)
+- v10.0 requirements: 66 total
+- Mapped: 66/66 (100%)
 - Future requirements: 5 (deferred)
 - Unmapped: 0
 

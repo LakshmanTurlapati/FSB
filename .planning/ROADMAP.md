@@ -270,5 +270,23 @@ Plans:
 - [x] 27-01-PLAN.md -- Snapshot capture in collectPageData + research detail view rendering
 - [x] 27-02-PLAN.md -- Gap closure: add P27-01 through P27-04 requirement definitions to REQUIREMENTS.md
 
+### Phase 28: Google Sheets Guide Enrichment from Crawl Data
+
+**Goal:** Use session crawl data to enrich the Google Sheets site guide with multi-strategy resilient fsbElements for toolbar buttons (bold, italic, font size, merge, borders, text/fill color, align, number format), menu bar items, sheet tabs, and spreadsheet title -- update the selectors map with stable #id-based selectors from the crawl, and update dom-analysis.js to support the expanded element set. Extends the Phase 26 multi-strategy resilience pattern to all high-value Sheets elements.
+**Requirements**: P28-01, P28-02, P28-03, P28-04, P28-05, P28-06
+**Depends on:** Phase 27
+**Success Criteria** (what must be TRUE):
+  1. 24 new fsbElements are defined in google-sheets.js covering toolbar buttons (15), menu bar items (6), and sheet management elements (3), each with 5-strategy multi-selector chains
+  2. Elements with dynamic Google Closure Library IDs (Data menu, Add Sheet, sheet tabs) use aria-label or class as primary selector strategy
+  3. Selectors map is expanded with annotation keys for all new elements so the AI sees [hint:bold], [hint:textColor], etc. in snapshots
+  4. Input-type fsbElements (font-size) have hasFsbValueHandler guard to prevent duplicate value display
+  5. Health check validates minimum fsbElement count (>= 5) beyond just name-box and formula-bar
+  6. Injection logging reports total matched/failed fsbElement counts generically
+**Plans:** 2 plans
+
+Plans:
+- [ ] 28-01-PLAN.md -- Site guide enrichment: 24 new fsbElements with 5-strategy selectors, selectors map expansion
+- [ ] 28-02-PLAN.md -- dom-analysis.js updates: hasFsbValueHandler guard, health check expansion, generic injection logging
+
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*
