@@ -415,6 +415,7 @@ DATA ENTRY BEST PRACTICES:
     menuData: '#docs-data-menu',
     menuTools: '#docs-tools-menu',
     sheetTabs: '.docs-sheet-tab',
+    sheetTab: '.docs-sheet-active-tab, .docs-sheet-tab',
     addSheet: '[aria-label="Add Sheet"], .docs-sheet-add-button, #sheet-button',
     toolbar: '#docs-toolbar',
     formulaBarInput: '#t-formula-bar-input, .cell-input',
