@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: CLI Architecture
 status: completed
-stopped_at: Completed 27-02-PLAN.md
-last_updated: "2026-03-11T07:32:46Z"
+stopped_at: Completed 28-01-PLAN.md
+last_updated: "2026-03-13T00:34:12.381Z"
 last_activity: 2026-03-11 -- Completed 27-02 (Requirements Gap Closure)
 progress:
-  total_phases: 13
+  total_phases: 14
   completed_phases: 11
-  total_plans: 27
-  completed_plans: 31
+  total_plans: 30
+  completed_plans: 33
   percent: 100
 ---
 
@@ -82,6 +82,7 @@ Progress: [##########] 100%
 | Phase 26 P03 | 2min | 1 tasks | 1 files |
 | Phase 27 P01 | 1min | 2 tasks | 2 files |
 | Phase 27 P02 | 1min | 1 tasks | 1 files |
+| Phase 28 P01 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -171,6 +172,7 @@ Recent decisions affecting current work:
 - [26-02]: Session-gated health check via FSB._sheetsHealthCheckDone -- runs once, no per-iteration overhead
 - [Phase 26]: Resolve guideSelectors once per iteration via chrome.tabs.get + getGuideForTask before DOM fetch block
 - [Phase 27]: Direct chrome.tabs.sendMessage with frameId:0 for main-frame targeting in site explorer
+- [Phase 28]: Dynamic ID elements (menu-data, add-sheet, sheet-tab) use aria/class as primary selector strategy
 
 ### Roadmap Evolution
 
@@ -180,6 +182,7 @@ Recent decisions affecting current work:
 - Phase 25 added: Google Sheets Snapshot Pipeline Fix
 - Phase 26 added: Google Sheets Snapshot Diagnostic & Selector Resilience
 - Phase 27 added: Site Explorer Markdown Snapshot Integration
+- Phase 28 added: Google Sheets Guide Enrichment from Crawl Data
 
 ### Pending Todos
 
@@ -193,6 +196,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-11T07:32:46Z
-Stopped at: Completed 27-02-PLAN.md
+Last session: 2026-03-13T00:34:12.282Z
+Stopped at: Completed 28-01-PLAN.md
 Resume file: None
