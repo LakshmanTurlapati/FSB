@@ -143,12 +143,270 @@ DATA ENTRY BEST PRACTICES:
         { strategy: 'role', selector: '[contenteditable="true"][role="textbox"]' },
         { strategy: 'context', selector: '#formula_bar [contenteditable]' }
       ]
+    },
+    // Tier 1 -- Toolbar Formatting Buttons (15 elements)
+    'bold': {
+      label: 'Bold',
+      selectors: [
+        { strategy: 'id', selector: '#t-bold' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-bold"]' },
+        { strategy: 'aria', selector: '[aria-label^="Bold"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Bold" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label^="Bold"]' }
+      ]
+    },
+    'italic': {
+      label: 'Italic',
+      selectors: [
+        { strategy: 'id', selector: '#t-italic' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-italic"]' },
+        { strategy: 'aria', selector: '[aria-label^="Italic"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Italic" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label^="Italic"]' }
+      ]
+    },
+    'text-color': {
+      label: 'Text color picker',
+      selectors: [
+        { strategy: 'id', selector: '#t-text-color' },
+        { strategy: 'class', selector: '.docs-toolbar-color-menu-button[id="t-text-color"]' },
+        { strategy: 'aria', selector: '[aria-label="Text color"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Text color" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Text color"]' }
+      ]
+    },
+    'fill-color': {
+      label: 'Fill color picker',
+      selectors: [
+        { strategy: 'id', selector: '#t-cell-color' },
+        { strategy: 'class', selector: '.docs-toolbar-color-menu-button[id="t-cell-color"]' },
+        { strategy: 'aria', selector: '[aria-label="Fill color"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Fill color" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Fill color"]' }
+      ]
+    },
+    'borders': {
+      label: 'Borders',
+      selectors: [
+        { strategy: 'id', selector: '#t-border' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-border"]' },
+        { strategy: 'aria', selector: '[aria-label="Borders"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Borders" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Borders"]' }
+      ]
+    },
+    'merge': {
+      label: 'Merge cells',
+      selectors: [
+        { strategy: 'id', selector: '#t-merge-button' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-merge-button"]' },
+        { strategy: 'aria', selector: '[aria-label="Merge cells"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Merge" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Merge cells"]' }
+      ]
+    },
+    'h-align': {
+      label: 'Horizontal align',
+      selectors: [
+        { strategy: 'id', selector: '#t-align' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-align"]' },
+        { strategy: 'aria', selector: '[aria-label="Horizontal align"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="align" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Horizontal align"]' }
+      ]
+    },
+    'font-family': {
+      label: 'Font family selector',
+      selectors: [
+        { strategy: 'id', selector: '#docs-font-family' },
+        { strategy: 'class', selector: '.docs-font-family' },
+        { strategy: 'aria', selector: '[aria-label="Font"]' },
+        { strategy: 'role', selector: '[role="listbox"][aria-label="Font"]' },
+        { strategy: 'context', selector: '#docs-toolbar #docs-font-family' }
+      ]
+    },
+    'font-size': {
+      label: 'Font size input',
+      selectors: [
+        { strategy: 'id', selector: '#fontSizeSelect' },
+        { strategy: 'class', selector: '.docs-toolbar-font-size-combo' },
+        { strategy: 'aria', selector: '[aria-label="Font size"]' },
+        { strategy: 'role', selector: 'input[aria-label="Font size"]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Font size"]' }
+      ]
+    },
+    'num-fmt-currency': {
+      label: 'Format as currency',
+      selectors: [
+        { strategy: 'id', selector: '#t-num-fmt-currency' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-num-fmt-currency"]' },
+        { strategy: 'aria', selector: '[aria-label*="currency" i]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="currency" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label*="currency" i]' }
+      ]
+    },
+    'num-fmt-percent': {
+      label: 'Format as percent',
+      selectors: [
+        { strategy: 'id', selector: '#t-num-fmt-percent' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-num-fmt-percent"]' },
+        { strategy: 'aria', selector: '[aria-label*="percent" i]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="percent" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label*="percent" i]' }
+      ]
+    },
+    'num-fmt-other': {
+      label: 'More number formats',
+      selectors: [
+        { strategy: 'id', selector: '#t-num-fmt-other' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-num-fmt-other"]' },
+        { strategy: 'aria', selector: '[aria-label*="More formats" i]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="formats" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label*="More formats" i]' }
+      ]
+    },
+    'filter-toggle': {
+      label: 'Create a filter',
+      selectors: [
+        { strategy: 'id', selector: '#t-autofilter-toggle' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-autofilter-toggle"]' },
+        { strategy: 'aria', selector: '[aria-label*="filter" i]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="filter" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label*="filter" i]' }
+      ]
+    },
+    'functions': {
+      label: 'Functions menu',
+      selectors: [
+        { strategy: 'id', selector: '#t-formula' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-formula"]' },
+        { strategy: 'aria', selector: '[aria-label="Functions"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Functions" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Functions"]' }
+      ]
+    },
+    'insert-chart': {
+      label: 'Insert chart',
+      selectors: [
+        { strategy: 'id', selector: '#t-insert-chart' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-insert-chart"]' },
+        { strategy: 'aria', selector: '[aria-label*="chart" i]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="chart" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label*="chart" i]' }
+      ]
+    },
+    // Tier 2 -- Menu Bar Items (6 elements)
+    'menu-file': {
+      label: 'File menu',
+      selectors: [
+        { strategy: 'id', selector: '#docs-file-menu' },
+        { strategy: 'class', selector: '.menu-button[id="docs-file-menu"]' },
+        { strategy: 'aria', selector: '#docs-menubar [aria-label="File"]' },
+        { strategy: 'role', selector: '[role="menuitem"]:nth-child(2)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(2)' }
+      ]
+    },
+    'menu-edit': {
+      label: 'Edit menu',
+      selectors: [
+        { strategy: 'id', selector: '#docs-edit-menu' },
+        { strategy: 'class', selector: '.menu-button[id="docs-edit-menu"]' },
+        { strategy: 'aria', selector: '#docs-menubar [aria-label="Edit"]' },
+        { strategy: 'role', selector: '[role="menuitem"]:nth-child(3)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(3)' }
+      ]
+    },
+    'menu-view': {
+      label: 'View menu',
+      selectors: [
+        { strategy: 'id', selector: '#docs-view-menu' },
+        { strategy: 'class', selector: '.menu-button[id="docs-view-menu"]' },
+        { strategy: 'aria', selector: '#docs-menubar [aria-label="View"]' },
+        { strategy: 'role', selector: '[role="menuitem"]:nth-child(4)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(4)' }
+      ]
+    },
+    'menu-insert': {
+      label: 'Insert menu',
+      selectors: [
+        { strategy: 'id', selector: '#docs-insert-menu' },
+        { strategy: 'class', selector: '.menu-button[id="docs-insert-menu"]' },
+        { strategy: 'aria', selector: '#docs-menubar [aria-label="Insert"]' },
+        { strategy: 'role', selector: '[role="menuitem"]:nth-child(5)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(5)' }
+      ]
+    },
+    'menu-format': {
+      label: 'Format menu',
+      selectors: [
+        { strategy: 'id', selector: '#docs-format-menu' },
+        { strategy: 'class', selector: '.menu-button[id="docs-format-menu"]' },
+        { strategy: 'aria', selector: '#docs-menubar [aria-label="Format"]' },
+        { strategy: 'role', selector: '[role="menuitem"]:nth-child(6)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(6)' }
+      ]
+    },
+    'menu-data': {
+      label: 'Data menu',
+      selectors: [
+        { strategy: 'aria', selector: '[aria-label="Data"]' },
+        { strategy: 'role', selector: '#docs-menubar [role="menuitem"]:nth-child(7)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(7)' },
+        { strategy: 'class', selector: '.menu-button:nth-of-type(7)' },
+        { strategy: 'id', selector: '#docs-data-menu' }
+      ]
+    },
+    // Tier 3 -- Sheet Management (3 elements)
+    'add-sheet': {
+      label: 'Add new sheet tab',
+      selectors: [
+        { strategy: 'aria', selector: '[aria-label="Add Sheet"]' },
+        { strategy: 'class', selector: '.docs-sheet-add-button' },
+        { strategy: 'role', selector: '[role="button"][aria-label="Add Sheet"]' },
+        { strategy: 'context', selector: '.docs-sheet-button.docs-sheet-add-button' },
+        { strategy: 'id', selector: '#sheet-button' }
+      ]
+    },
+    'sheet-tab': {
+      label: 'Active sheet tab',
+      selectors: [
+        { strategy: 'class', selector: '.docs-sheet-active-tab' },
+        { strategy: 'aria', selector: '.docs-sheet-tab[aria-selected="true"]' },
+        { strategy: 'role', selector: '[role="tab"][aria-selected="true"]' },
+        { strategy: 'context', selector: '.docs-sheet-tab-container .docs-sheet-tab:first-child' },
+        { strategy: 'id', selector: '.docs-sheet-tab' }
+      ]
+    },
+    'spreadsheet-title': {
+      label: 'Spreadsheet title (rename)',
+      selectors: [
+        { strategy: 'class', selector: '.docs-title-input' },
+        { strategy: 'aria', selector: 'input[aria-label*="Rename" i]' },
+        { strategy: 'role', selector: 'input[aria-label*="name" i]' },
+        { strategy: 'context', selector: '.docs-title-widget input' },
+        { strategy: 'id', selector: '#docs-title-input' }
+      ]
     }
   },
   selectors: {
     nameBox: '#t-name-box',
     cellInput: '.cell-input, #cell-input',
     formulaBar: '#t-formula-bar-input, .cell-input',
+    bold: '#t-bold',
+    italic: '#t-italic',
+    textColor: '#t-text-color',
+    fillColor: '#t-cell-color',
+    borders: '#t-border',
+    merge: '#t-merge-button',
+    hAlign: '#t-align',
+    fontFamily: '#docs-font-family',
+    fontSize: '#fontSizeSelect',
+    numFmtCurrency: '#t-num-fmt-currency',
+    numFmtPercent: '#t-num-fmt-percent',
+    numFmtOther: '#t-num-fmt-other',
+    filterToggle: '#t-autofilter-toggle',
+    functions: '#t-formula',
+    insertChart: '#t-insert-chart',
     menuFile: '#docs-file-menu',
     menuEdit: '#docs-edit-menu',
     menuView: '#docs-view-menu',
@@ -157,7 +415,7 @@ DATA ENTRY BEST PRACTICES:
     menuData: '#docs-data-menu',
     menuTools: '#docs-tools-menu',
     sheetTabs: '.docs-sheet-tab',
-    addSheet: '#sheet-button',
+    addSheet: '[aria-label="Add Sheet"], .docs-sheet-add-button, #sheet-button',
     toolbar: '#docs-toolbar',
     formulaBarInput: '#t-formula-bar-input, .cell-input',
     spreadsheetTitle: '.docs-title-input, input[aria-label*="name"], input[aria-label*="Rename"]',
