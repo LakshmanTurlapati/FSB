@@ -282,11 +282,12 @@ Plans:
   4. Input-type fsbElements (font-size) have hasFsbValueHandler guard to prevent duplicate value display
   5. Health check validates minimum fsbElement count (>= 5) beyond just name-box and formula-bar
   6. Injection logging reports total matched/failed fsbElement counts generically
-**Plans:** 2/2 plans complete
+**Plans:** 3 plans (2 complete + 1 gap closure)
 
 Plans:
 - [ ] 28-01-PLAN.md -- Site guide enrichment: 24 new fsbElements with 5-strategy selectors, selectors map expansion
 - [ ] 28-02-PLAN.md -- dom-analysis.js updates: hasFsbValueHandler guard, health check expansion, generic injection logging
+- [ ] 28-03-PLAN.md -- Gap closure: add missing sheetTab selector key to selectors map
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*
