@@ -1850,10 +1850,13 @@
         }
 
         // Log Sheets element injection results with strategy match info
+        const fsbInjectedCount = candidateArray.filter(el => el.dataset.fsbRole).length;
         logger.logDOMOperation(FSB.sessionId, 'sheets_injection', {
           formulaBar: selectorMatches['formula-bar'] !== 'NONE',
           nameBox: selectorMatches['name-box'] !== 'NONE',
-          injectedCount: candidateArray.filter(el => el.dataset.fsbRole === 'formula-bar' || el.dataset.fsbRole === 'name-box').length,
+          totalFsbElements: fsbInjectedCount,
+          matchedCount: Object.values(selectorMatches).filter(v => v !== 'NONE').length,
+          failedCount: Object.values(selectorMatches).filter(v => v === 'NONE').length,
           selectorMatches
         });
       }
@@ -1889,9 +1892,8 @@
 
     // Log when Sheets elements are filtered in or out
     if (/spreadsheets\/d\//.test(window.location.pathname)) {
-      const sheetsRoles = ['formula-bar', 'name-box'];
-      const injected = candidateArray.filter(el => sheetsRoles.includes(el.dataset.fsbRole));
-      const survived = visible.filter(el => sheetsRoles.includes(el.dataset.fsbRole));
+      const injected = candidateArray.filter(el => el.dataset.fsbRole);
+      const survived = visible.filter(el => el.dataset.fsbRole);
       if (injected.length > 0) {
         logger.logDOMOperation(FSB.sessionId, 'sheets_visibility_filter', {
           injected: injected.length,
@@ -2158,7 +2160,7 @@
     }
 
     // Form values for inputs/selects (skip if fsbRole handles value display)
-    const hasFsbValueHandler = node.dataset?.fsbRole === 'name-box' || node.dataset?.fsbRole === 'formula-bar';
+    const hasFsbValueHandler = node.dataset?.fsbRole === 'name-box' || node.dataset?.fsbRole === 'formula-bar' || node.dataset?.fsbRole === 'font-size';
     if ((tag === 'input' || tag === 'textarea') && node.value && !hasFsbValueHandler) {
       const truncVal = node.value.length > 40 ? node.value.substring(0, 37) + '...' : node.value;
       parts.push(`= "${truncVal}"`);
@@ -2565,10 +2567,11 @@
       }
       checks.fsbRoleElementCount = fsbRoleCount;
 
-      const allPass = checks.nameBoxPresent && checks.formulaBarPresent;
+      checks.minExpectedFsbElements = 5;
+      const allPass = checks.nameBoxPresent && checks.formulaBarPresent && fsbRoleCount >= checks.minExpectedFsbElements;
 
       // One-line summary always logged to console
-      console.log(`[Sheets Health] name-box: ${checks.nameBoxPresent ? 'OK' : 'MISSING'}, formula-bar: ${checks.formulaBarPresent ? 'OK' : 'MISSING'}, fsbRole elements: ${fsbRoleCount}`);
+      console.log(`[Sheets Health] name-box: ${checks.nameBoxPresent ? 'OK' : 'MISSING'}, formula-bar: ${checks.formulaBarPresent ? 'OK' : 'MISSING'}, fsbRole elements: ${fsbRoleCount} (min: 5)`);
 
       if (allPass) {
         logger.logDOMOperation(FSB.sessionId, 'sheets_health_check', {
