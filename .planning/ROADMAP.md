@@ -282,7 +282,7 @@ Plans:
   4. Input-type fsbElements (font-size) have hasFsbValueHandler guard to prevent duplicate value display
   5. Health check validates minimum fsbElement count (>= 5) beyond just name-box and formula-bar
   6. Injection logging reports total matched/failed fsbElement counts generically
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 28-01-PLAN.md -- Site guide enrichment: 24 new fsbElements with 5-strategy selectors, selectors map expansion
