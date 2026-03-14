@@ -27,7 +27,7 @@ See `.planning/milestones/v9.4-ROADMAP.md` for full details.
 - [x] **Phase 19: Cross-Provider Validation** - Validate CLI compliance, measure token reduction, and test edge cases across all four AI providers (completed 2026-03-02)
 - [x] **Phase 20: Completion Validator Overhaul** - Fix over-aggressive completion validation that blocks legitimate task completion for media, extraction, and navigation tasks (completed 2026-03-06)
 - [x] **Phase 23: Markdown Snapshot Cleanup** - Remove legacy YAML/compact snapshot code, eliminate redundant HTML context, improve continuation prompt reconnaissance (completed 2026-03-06)
-- [ ] **Phase 29: Retroactive Verification & Traceability Cleanup** - Create missing VERIFICATION.md for phases 15-18, fix stale traceability statuses in REQUIREMENTS.md
+- [x] **Phase 29: Retroactive Verification & Traceability Cleanup** - Create missing VERIFICATION.md for phases 15-18, fix stale traceability statuses in REQUIREMENTS.md (completed 2026-03-14)
 
 ## Phase Details
 
@@ -301,7 +301,7 @@ Plans:
   2. All 23 requirements (CLI-01-06, YAML-01-05, PROMPT-01-07, INTEG-01-05) have formal verification evidence
   3. REQUIREMENTS.md traceability table shows "Complete" for all satisfied requirements (no stale "Planned" entries)
   4. P25-WALKER-FIX has a traceability entry in REQUIREMENTS.md
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 29-01-PLAN.md -- Retroactive verification: Phase 15 (CLI Parser) and Phase 16 (YAML DOM Snapshot) VERIFICATION.md
