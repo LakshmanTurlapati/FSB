@@ -99,6 +99,10 @@
 - [x] **P26-05**: Name Box values are validated against an extended cell reference regex (handles Sheet2!A1, 'Sheet Name'!A1:B10 patterns); invalid values are still shown but flagged in diagnostic log
 - [x] **P26-06**: First Sheets snapshot per session triggers a one-time health check that verifies element presence in markdown output AND content format validity, emitting a pass/fail summary to console and full pipeline diagnostic dump on failure
 
+### Google Sheets Snapshot Pipeline Fix
+
+- [x] **P25-WALKER-FIX**: Post-walk injection catches fsbRole elements missed by the DOM walker due to aria-hidden parents, deduplicates against already-walked elements, and logs diagnostic counts
+
 ### Site Explorer Snapshot
 
 - [x] **P27-01**: Site Explorer's collectPageData() fetches getMarkdownSnapshot after getDOM and stores it as pageData.markdownSnapshot in crawl results
@@ -184,40 +188,41 @@
 | P22-03 | Phase 22 | Complete |
 | P22-04 | Phase 22 | Complete |
 | P22-05 | Phase 22 | Complete |
-| P22-06 | Phase 22 | Planned |
-| P22-07 | Phase 22 | Planned |
-| P23-01 | Phase 23 | Planned |
-| P23-02 | Phase 23 | Planned |
-| P23-03 | Phase 23 | Planned |
-| P23-04 | Phase 23 | Planned |
-| P23-05 | Phase 23 | Planned |
-| P23-06 | Phase 23 | Planned |
+| P22-06 | Phase 22 | Complete |
+| P22-07 | Phase 22 | Complete |
+| P23-01 | Phase 23 | Complete |
+| P23-02 | Phase 23 | Complete |
+| P23-03 | Phase 23 | Complete |
+| P23-04 | Phase 23 | Complete |
+| P23-05 | Phase 23 | Complete |
+| P23-06 | Phase 23 | Complete |
 | P24-01 | Phase 24 | Complete |
 | P24-02 | Phase 24 | Complete |
 | P24-03 | Phase 24 | Complete |
 | P24-04 | Phase 24 | Complete |
 | P24-05 | Phase 24 | Complete |
 | P24-06 | Phase 24 | Complete |
-| P26-01 | Phase 26 | Planned |
-| P26-02 | Phase 26 | Planned |
-| P26-03 | Phase 26 | Planned |
-| P26-04 | Phase 26 | Planned |
-| P26-05 | Phase 26 | Planned |
-| P26-06 | Phase 26 | Planned |
+| P26-01 | Phase 26 | Complete |
+| P26-02 | Phase 26 | Complete |
+| P26-03 | Phase 26 | Complete |
+| P26-04 | Phase 26 | Complete |
+| P26-05 | Phase 26 | Complete |
+| P26-06 | Phase 26 | Complete |
+| P25-WALKER-FIX | Phase 25 | Complete |
 | P27-01 | Phase 27 | Complete |
 | P27-02 | Phase 27 | Complete |
 | P27-03 | Phase 27 | Complete |
 | P27-04 | Phase 27 | Complete |
-| P28-01 | Phase 28 | Planned |
-| P28-02 | Phase 28 | Planned |
-| P28-03 | Phase 28 | Planned |
-| P28-04 | Phase 28 | Planned |
-| P28-05 | Phase 28 | Planned |
-| P28-06 | Phase 28 | Planned |
+| P28-01 | Phase 28 | Complete |
+| P28-02 | Phase 28 | Complete |
+| P28-03 | Phase 28 | Complete |
+| P28-04 | Phase 28 | Complete |
+| P28-05 | Phase 28 | Complete |
+| P28-06 | Phase 28 | Complete |
 
 **Coverage:**
-- v10.0 requirements: 66 total
-- Mapped: 66/66 (100%)
+- v10.0 requirements: 67 total
+- Mapped: 67/67 (100%)
 - Future requirements: 5 (deferred)
 - Unmapped: 0
 
