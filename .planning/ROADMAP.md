@@ -27,6 +27,7 @@ See `.planning/milestones/v9.4-ROADMAP.md` for full details.
 - [x] **Phase 19: Cross-Provider Validation** - Validate CLI compliance, measure token reduction, and test edge cases across all four AI providers (completed 2026-03-02)
 - [x] **Phase 20: Completion Validator Overhaul** - Fix over-aggressive completion validation that blocks legitimate task completion for media, extraction, and navigation tasks (completed 2026-03-06)
 - [x] **Phase 23: Markdown Snapshot Cleanup** - Remove legacy YAML/compact snapshot code, eliminate redundant HTML context, improve continuation prompt reconnaissance (completed 2026-03-06)
+- [ ] **Phase 29: Retroactive Verification & Traceability Cleanup** - Create missing VERIFICATION.md for phases 15-18, fix stale traceability statuses in REQUIREMENTS.md
 
 ## Phase Details
 
@@ -282,12 +283,29 @@ Plans:
   4. Input-type fsbElements (font-size) have hasFsbValueHandler guard to prevent duplicate value display
   5. Health check validates minimum fsbElement count (>= 5) beyond just name-box and formula-bar
   6. Injection logging reports total matched/failed fsbElement counts generically
-**Plans:** 3 plans (2 complete + 1 gap closure)
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 28-01-PLAN.md -- Site guide enrichment: 24 new fsbElements with 5-strategy selectors, selectors map expansion
 - [ ] 28-02-PLAN.md -- dom-analysis.js updates: hasFsbValueHandler guard, health check expansion, generic injection logging
 - [ ] 28-03-PLAN.md -- Gap closure: add missing sheetTab selector key to selectors map
+
+### Phase 29: Retroactive Verification & Traceability Cleanup
+
+**Goal:** Close milestone audit gaps by creating VERIFICATION.md for the 4 phases (15-18) that predate the verification workflow, and fix stale traceability statuses in REQUIREMENTS.md. Documentation-only phase -- no code changes.
+**Requirements**: CLI-01, CLI-02, CLI-03, CLI-04, CLI-05, CLI-06, YAML-01, YAML-02, YAML-03, YAML-04, YAML-05, PROMPT-01, PROMPT-02, PROMPT-03, PROMPT-04, PROMPT-05, PROMPT-06, PROMPT-07, INTEG-01, INTEG-02, INTEG-03, INTEG-04, INTEG-05
+**Depends on:** Phase 28 (all prior phases must be complete)
+**Gap Closure:** Closes gaps from v10.0 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. VERIFICATION.md exists for phases 15, 16, 17, and 18 with status: passed (or gaps_found if issues discovered)
+  2. All 23 requirements (CLI-01-06, YAML-01-05, PROMPT-01-07, INTEG-01-05) have formal verification evidence
+  3. REQUIREMENTS.md traceability table shows "Complete" for all satisfied requirements (no stale "Planned" entries)
+  4. P25-WALKER-FIX has a traceability entry in REQUIREMENTS.md
+**Plans:** 2 plans
+
+Plans:
+- [ ] 29-01-PLAN.md -- Retroactive verification: Phase 15 (CLI Parser) and Phase 16 (YAML DOM Snapshot) VERIFICATION.md
+- [ ] 29-02-PLAN.md -- Retroactive verification: Phase 17 (Prompt Rewrite) and Phase 18 (AI Integration) VERIFICATION.md + REQUIREMENTS.md traceability fixes
 
 ---
 *Created: 2026-02-27 for milestone v10.0 CLI Architecture*
