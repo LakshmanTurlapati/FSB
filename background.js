@@ -747,6 +747,81 @@ async function summarizeTask(taskText, settings) {
 }
 
 /**
+ * Task Complexity Estimator — parallel AI call at session start.
+ * Analyzes the task description and current URL to estimate required iterations,
+ * timeout, and action count. Runs concurrently with the first automation iteration
+ * so results are available by iteration 2 at the latest.
+ *
+ * @param {string} task - User's task description
+ * @param {string} currentUrl - The starting page URL
+ * @param {Object} settings - AI provider settings
+ * @returns {Promise<{estimatedIterations: number, estimatedTimeoutSec: number, estimatedActions: number, taskType: string}|null>}
+ */
+async function estimateTaskComplexity(task, currentUrl, settings) {
+  try {
+    if (!task || !settings) return null;
+
+    const provider = new UniversalProvider(settings);
+    const requestBody = await provider.buildRequest({
+      systemPrompt: `You are a browser automation task estimator. Given a task description and current URL, estimate the complexity.
+
+Respond with ONLY a JSON object (no markdown, no explanation):
+{"estimatedIterations": N, "estimatedTimeoutSec": N, "estimatedActions": N, "taskType": "simple|moderate|complex|multi-site"}
+
+Guidelines:
+- simple (1 site, few actions): 5-8 iterations, 120s timeout, 5-15 actions
+- moderate (1 site, data entry/reading): 8-15 iterations, 300s timeout, 15-40 actions
+- complex (multi-step workflow): 12-18 iterations, 420s timeout, 30-60 actions
+- multi-site (research across sites + output): 15-25 iterations, 600s timeout, 40-80 actions
+
+Consider: number of sites involved, data collection needs, form filling, navigation depth.`,
+      userPrompt: `Task: "${task}"\nStarting URL: ${currentUrl || 'new tab'}`
+    }, {});
+
+    // Limit tokens — we only need a small JSON response
+    if (requestBody.max_tokens) requestBody.max_tokens = 150;
+    if (requestBody.generationConfig?.maxOutputTokens) requestBody.generationConfig.maxOutputTokens = 150;
+
+    const response = await provider.sendRequest(requestBody, { timeout: 10000 });
+
+    // Extract raw text from provider-specific response format
+    let text = null;
+    const providerName = settings.modelProvider || 'xai';
+    if (providerName === 'gemini') {
+      text = response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    } else if (providerName === 'anthropic') {
+      text = response?.content?.[0]?.text;
+    } else {
+      text = response?.choices?.[0]?.message?.content;
+    }
+
+    if (!text) return null;
+
+    // Parse JSON from response (strip any markdown fences)
+    text = text.trim().replace(/^```json?\s*/i, '').replace(/\s*```$/, '');
+    const estimate = JSON.parse(text);
+
+    // Validate and clamp values to sane ranges
+    const result = {
+      estimatedIterations: Math.max(5, Math.min(30, parseInt(estimate.estimatedIterations) || 20)),
+      estimatedTimeoutSec: Math.max(60, Math.min(900, parseInt(estimate.estimatedTimeoutSec) || 300)),
+      estimatedActions: Math.max(3, Math.min(100, parseInt(estimate.estimatedActions) || 30)),
+      taskType: ['simple', 'moderate', 'complex', 'multi-site'].includes(estimate.taskType) ? estimate.taskType : 'moderate'
+    };
+
+    automationLogger.info('Task complexity estimated', {
+      task: task.substring(0, 80),
+      ...result
+    });
+
+    return result;
+  } catch (e) {
+    automationLogger.debug('Task complexity estimation failed (non-blocking)', { error: e.message });
+    return null;
+  }
+}
+
+/**
  * PageLoadWatcher - Event-driven page load detection
  * Replaces hardcoded delays with smart waiting that proceeds immediately when ready
  */
@@ -5336,6 +5411,13 @@ async function handleStartAutomation(request, sender, sendResponse) {
           s.taskSummary = summary;
         }
       });
+
+      // Non-blocking task complexity estimation (runs in parallel with first iteration)
+      // Results consumed in startAutomationLoop to set dynamic thresholds
+      const s = activeSessions.get(sessionId);
+      if (s) {
+        s._complexityEstimate = estimateTaskComplexity(task, tabInfo?.url || '', settings);
+      }
     }).catch(() => {});
 
     // Reset DOM state in content script to prevent stale state comparison between sessions
@@ -5421,6 +5503,14 @@ async function executeAutomationTask(tabId, task, options = {}) {
       initializeSessionMetrics(sessionId);
 
       startKeepAlive();
+
+      // Non-blocking task complexity estimation for background agents too
+      config.getAll().then(settings => {
+        const s = activeSessions.get(sessionId);
+        if (s) {
+          s._complexityEstimate = estimateTaskComplexity(task, '', settings);
+        }
+      }).catch(() => {});
 
       // Reset DOM state
       try {
@@ -8143,9 +8233,41 @@ async function startAutomationLoop(sessionId) {
     session.previousTabId = null;
   }
 
+  // === TASK COMPLEXITY ESTIMATOR: Resolve dynamic thresholds ===
+  // On early iterations, check if the parallel complexity estimate has landed
+  if (session._complexityEstimate && !session._complexityResolved) {
+    try {
+      // Non-blocking check: if the promise is resolved, consume it
+      const estimate = await Promise.race([
+        session._complexityEstimate,
+        new Promise(resolve => setTimeout(() => resolve(null), 0)) // instant timeout
+      ]);
+      if (estimate) {
+        session._complexityResolved = true;
+        session._taskEstimate = estimate;
+        // Override defaults with estimated values (only increase, never decrease below defaults)
+        const defaultMax = session.maxIterations || 20;
+        session.maxIterations = Math.max(defaultMax, estimate.estimatedIterations);
+        session.maxSessionDuration = Math.max(5 * 60 * 1000, estimate.estimatedTimeoutSec * 1000);
+        automationLogger.info('Applied task complexity estimate', {
+          sessionId,
+          estimatedIterations: estimate.estimatedIterations,
+          estimatedTimeoutSec: estimate.estimatedTimeoutSec,
+          estimatedActions: estimate.estimatedActions,
+          taskType: estimate.taskType,
+          effectiveMaxIterations: session.maxIterations,
+          effectiveTimeoutMs: session.maxSessionDuration
+        });
+      }
+    } catch (e) {
+      session._complexityResolved = true; // Don't retry on failure
+      automationLogger.debug('Complexity estimate resolution failed', { sessionId, error: e.message });
+    }
+  }
+
   // === SAFETY NET: Absolute iteration cap and session time limit ===
   const ABSOLUTE_MAX_ITERATIONS = session.maxIterations || 20;
-  const MAX_SESSION_DURATION = 5 * 60 * 1000; // 5 minutes
+  const MAX_SESSION_DURATION = session.maxSessionDuration || (5 * 60 * 1000); // dynamic or 5 min default
   const sessionAge = Date.now() - (session.startTime || Date.now());
 
   if (session.iterationCount > ABSOLUTE_MAX_ITERATIONS) {
