@@ -96,6 +96,20 @@ fillsheetdata cell-reference YAML format (future):
     B1: Google
     C1: Mountain View, CA
 
+GOOGLE SHEETS DATA TOOLS:
+| Verb | Args | Description | Example |
+|------|------|-------------|---------|
+| fillsheet | "startCell" "CSV data" ["sheetName"] | Fill cells + bold headers + rename sheet | fillsheet "A1" "Name,Age,City\\nJohn,25,NYC\\nJane,30,LA" "My Sheet" |
+| readsheet | "range" | Read cell values from range | readsheet "A1:C5" |
+
+fillsheet takes a starting cell, CSV data, and optional sheet name. It handles all cell navigation, typing, header bolding, and sheet renaming mechanically.
+Use \\n for row breaks in CSV. Quoted values with commas are supported: "Hello, World",foo,bar
+Headers are auto-bolded. If sheetName is provided, the spreadsheet is renamed before filling.
+ALWAYS use fillsheet for bulk data entry on Google Sheets -- do NOT type cell-by-cell manually.
+
+readsheet reads existing cell values by navigating to each cell and reading the formula bar.
+Returns CSV data. Use this BEFORE fillsheet to see what's already in the sheet.
+
 COMPLETION:
 | Verb | Args | Description | Example |
 |------|------|-------------|---------|
@@ -798,12 +812,23 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
     // Reinforce the critical Name Box vs cell value distinction on every continuation.
     const currentUrl = context?.currentUrl || domState.url || '';
     if (/docs\.google\.com\/spreadsheets\/d\/|sheets\.google\.com/i.test(currentUrl)) {
-      update += `\n\nGOOGLE SHEETS REMINDER:`;
-      update += `\n- BEFORE navigating to a cell: key "Escape" to exit cell edit mode.`;
-      update += `\n- To navigate: key "Escape", click eN (Name Box ref), type eN "B1", enter`;
-      update += `\n- To enter data: type the value (keystrokes go to the active cell). Do NOT target the Name Box for data entry -- it is ONLY for cell references.`;
-      update += `\n- Tab = move right, Enter = move down. Use key "Tab" between columns in the same row.`;
-      update += `\n- OUTPUT AT MOST 8 commands per response. Wait for DOM updates between batches.`;
+      // Check if last action was a successful fillsheet — inject strong completion signal
+      const lastAction = context?.lastActionResult;
+      const lastTool = lastAction?.tool || lastAction?.result?.tool;
+      const lastSuccess = lastAction?.result?.success ?? lastAction?.success;
+      if (lastTool === 'fillsheet' && lastSuccess) {
+        const filledCells = lastAction?.result?.cellsFilled || lastAction?.cellsFilled || 'N';
+        update += `\n\nFILLSHEET COMPLETED SUCCESSFULLY. Data has been written to the sheet (${filledCells} cells filled).`;
+        update += `\nUse done "Filled data into the sheet" to complete the task.`;
+        update += `\nDo NOT call fillsheet again — the data is already entered.`;
+      } else {
+        update += `\n\nGOOGLE SHEETS REMINDER:`;
+        update += `\n- For BULK DATA ENTRY: use fillsheet "A1" "Header1,Header2\\nVal1,Val2" ["Sheet Name"] — fills all cells + bolds headers + renames sheet.`;
+        update += `\n- To READ existing data: use readsheet "A1:C10" — returns CSV of current cell values.`;
+        update += `\n- ALWAYS prefer fillsheet over manual type+Tab sequences. It is faster and more reliable.`;
+        update += `\n- For single cell edits: key "Escape", click Name Box, type eN "B2", enter, type "value"`;
+        update += `\n- OUTPUT AT MOST 8 commands per response.`;
+      }
     }
 
     // DIF-03: Detect task type for content-adaptive formatting
@@ -1406,7 +1431,8 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       'wait', 'waitstable', 'gettext', 'getattr', 'done', 'fail',
       'opentab', 'switchtab', 'tabs', 'storejobdata', 'fillsheetdata',
       'check', 'doubleclick', 'rightclick', 'goto', 'scrolldown', 'scrollup',
-      'scrolltotop', 'scrolltobottom', 'clicksearchresult', 'help'
+      'scrolltotop', 'scrolltobottom', 'clicksearchresult', 'help',
+      'fillsheet', 'readsheet'
     ];
     const verbPattern = new RegExp('^(' + cliVerbs.join('|') + ')\\b', 'i');
 
@@ -2634,12 +2660,22 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
           if (isCanvasPage) {
             userPrompt += `\n\nCANVAS APP STUCK RECOVERY:`;
             userPrompt += `\n# This is a canvas-based app -- standard DOM clicks may not work on the content area`;
-            userPrompt += `\n# Try keyboard-based interaction:`;
-            userPrompt += `\nkey "Escape"    # exit any edit mode`;
-            userPrompt += `\nkey "Tab"       # move to next interactive element`;
-            userPrompt += `\nkey "Enter"     # activate focused element`;
-            userPrompt += `\n# Use arrow keys to navigate between cells/elements`;
-            userPrompt += `\n# Do NOT open new tabs or refresh -- stay on this page and use keyboard navigation`;
+            if (/docs\.google\.com\/spreadsheets\/d\//i.test(context.currentUrl)) {
+              userPrompt += `\n# You are on Google Sheets. USE THESE TOOLS:`;
+              userPrompt += `\n# To fill data: fillsheet "A1" "Name,Age,City\\nJohn,25,NYC\\nJane,30,LA" "Sheet Name"`;
+              userPrompt += `\n# Headers auto-bolded. Sheet auto-renamed. All cells filled mechanically.`;
+              userPrompt += `\n# To read existing data: readsheet "A1:D10"`;
+              userPrompt += `\n# These tools handle all cell navigation mechanically. DO NOT use Tab/Enter loops.`;
+              userPrompt += `\n# Example:`;
+              userPrompt += `\nfillsheet "A1" "Make,Model,Year,Color\\nToyota,Camry,2024,Blue\\nHonda,Civic,2023,Red" "Cars Data"`;
+            } else {
+              userPrompt += `\n# Try keyboard-based interaction:`;
+              userPrompt += `\nkey "Escape"    # exit any edit mode first`;
+              userPrompt += `\ntype "your value"  # type into active element`;
+              userPrompt += `\nkey "Tab"       # move to next element`;
+              userPrompt += `\nkey "Enter"     # activate focused element`;
+            }
+            userPrompt += `\n# Do NOT open new tabs or refresh -- stay on this page`;
           } else {
             // Not on a search page but stuck -- contextual recovery
             const hasNavigated = context.actionHistory?.some(a =>
@@ -4050,6 +4086,9 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
 
       // Data persistence tools (background-handled)
       'storeJobData', 'getStoredJobs', 'fillSheetData',
+
+      // Google Sheets direct tools (content-script)
+      'fillsheet', 'readsheet',
 
       // Content reading tools
       'readPage'

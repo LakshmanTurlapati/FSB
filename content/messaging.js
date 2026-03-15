@@ -885,7 +885,8 @@
             }
 
             // Timeout wrapper
-            const actionTimeout = tool === 'solveCaptcha' ? 180000 : 10000;
+            const longTimeoutTools = ['solveCaptcha', 'fillsheet', 'readsheet'];
+            const actionTimeout = longTimeoutTools.includes(tool) ? 120000 : 10000;
             const timeoutPromise = new Promise((_, reject) => {
               setTimeout(() => reject(new Error(`Action ${tool} timed out after ${actionTimeout / 1000} seconds`)), actionTimeout);
             });

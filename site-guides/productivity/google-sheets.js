@@ -12,26 +12,28 @@ registerSiteGuide({
   ],
   guidance: `GOOGLE SHEETS-SPECIFIC INTELLIGENCE:
 
-KEYBOARD-FIRST NAVIGATION (MOST RELIABLE):
-  # For sequential data entry, keyboard navigation is more reliable than clicking:
-  key "Escape"              # exit any edit mode
-  click e5                  # click Name Box (reliable with toolbar bypass)
-  type e5 "A1"              # type starting cell reference
-  key "Enter"               # navigate to cell A1
-  type "Header 1"           # type into active cell (no ref needed)
-  key "Tab"                 # move to next column (B1)
-  type "Header 2"           # type into B1
-  key "Tab"                 # move to C1
-  type "Header 3"           # type into C1
-  key "Enter"               # move to next row (A2)
-  type "Data 1"             # type into A2
-  key "Tab"                 # move to B2
-  type "Data 2"             # type into B2
+BULK DATA ENTRY (PREFERRED — USE THIS FIRST):
+  # For ANY task that involves filling multiple cells, use fillsheet:
+  fillsheet "A1" "Name,Age,City\\nJohn,25,NYC\\nJane,30,LA" "My Sheet Name"
+  # Headers auto-bolded. Sheet auto-renamed. All cells filled mechanically.
+  # The CSV uses commas for columns and \\n for rows.
+  # For values containing commas, use quotes: fillsheet "A1" "\\"Hello, World\\",foo,bar"
+  # The third argument (sheet name) is optional — omit it to keep the default name.
 
-  IMPORTANT: After navigating to a cell via Name Box, you do NOT need to click
-  the cell. Just type -- keystrokes go to the active cell automatically.
-  For sequential data entry: type value, Tab (next column), type value, Tab, ..., Enter (next row).
-  The key and type commands use the CDP keyboard API which bypasses all DOM readiness checks.
+READING EXISTING DATA:
+  # To see what's already in the sheet before adding data:
+  readsheet "A1:D10"
+  # Returns CSV of cell values. Use this to understand existing layout.
+
+SINGLE CELL EDITING (for small edits only):
+  key "Escape"              # exit any edit mode
+  click e5                  # click Name Box
+  type e5 "B2"              # type cell reference
+  key "Enter"               # navigate to cell
+  type "new value"          # type into active cell
+
+IMPORTANT: ALWAYS prefer fillsheet for bulk data entry. Do NOT use manual type+Tab sequences.
+fillsheet is faster, more reliable, and handles cell navigation automatically.
 
 FEEDBACK LOOP AWARENESS:
   The cell grid is CANVAS-RENDERED -- after typing data into a cell, the DOM snapshot will NOT show
@@ -579,5 +581,5 @@ DATA ENTRY BEST PRACTICES:
     'FORMATTING: Column auto-size via right-click > Resize > "Fit to data" works on all selected columns at once. Select all columns first for best results.',
     'CRITICAL: Do NOT type cell references (A1, B2, C3, etc.) as cell VALUES. Cell references are ONLY for Name Box navigation. To put data in cell B1: click Name Box -> type "B1" -> press Enter -> THEN type your actual data value.'
   ],
-  toolPreferences: ['navigate', 'click', 'rightClick', 'type', 'keyPress', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable', 'openNewTab', 'switchToTab', 'listTabs']
+  toolPreferences: ['navigate', 'click', 'rightClick', 'type', 'keyPress', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable', 'openNewTab', 'switchToTab', 'listTabs', 'fillsheet', 'readsheet']
 });

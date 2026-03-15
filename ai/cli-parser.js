@@ -43,7 +43,10 @@ function tokenizeLine(line) {
     const ch = line[i];
 
     if (escaped) {
-      current += ch;
+      // Convert escape sequences to their actual characters
+      if (ch === 'n') current += '\n';
+      else if (ch === 't') current += '\t';
+      else current += ch;
       escaped = false;
       continue;
     }
@@ -243,6 +246,10 @@ const COMMAND_REGISTRY = {
   storejobdata:       { tool: 'storeJobData',       args: [{ name: 'data', type: 'json', optional: true }] },
   getstoredjobs:      { tool: 'getStoredJobs',      args: [] },
   fillsheetdata:      { tool: 'fillSheetData',      args: [] },
+
+  // -- Google Sheets direct tools (content-script) --
+  fillsheet:          { tool: 'fillsheet',           args: [{ name: 'startCell', type: 'string' }, { name: 'data', type: 'string' }, { name: 'sheetName', type: 'string', optional: true }] },
+  readsheet:          { tool: 'readsheet',           args: [{ name: 'range', type: 'string' }] },
 
   // -- Signal commands (not dispatched as actions) --
   done:               { tool: '__done', args: [{ name: 'message', type: 'string', optional: true }], signal: 'done' },

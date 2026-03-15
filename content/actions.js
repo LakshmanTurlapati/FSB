@@ -1098,100 +1098,37 @@ const tools = {
       };
     }
 
-    // Canvas editor toolbar bypass: skip readiness pipeline for known toolbar elements
-    // on Google Sheets/Docs/Slides where readiness checks false-fail on canvas UI
-    if (FSB.isCanvasBasedEditor && FSB.isCanvasBasedEditor()) {
-      // Note: these selectors must be hardcoded (runs before Stage 1b fsbRole injection)
-      const toolbarSelectors = '#docs-chrome, .docs-titlebar-container, #docs-toolbar, ' +
-        '.waffle-name-box, #t-name-box, .cell-input, #t-formula-bar-input, ' +
-        '[id^="docs-"], .docs-menubar, .goog-toolbar, .docs-sheet-tab-container';
-      const isToolbarElement = element.matches(toolbarSelectors) || element.closest(toolbarSelectors);
-
-      if (isToolbarElement) {
-        logger.logActionExecution(FSB.sessionId, 'click', 'canvas_toolbar_bypass', {
-          tagName: element.tagName,
-          id: element.id,
-          selector: selectorUsed
-        });
-
-        // Scroll into view if not in viewport
-        const rect = element.getBoundingClientRect();
-        const inViewport = rect.top >= 0 && rect.bottom <= window.innerHeight && rect.left >= 0 && rect.right <= window.innerWidth;
-        if (!inViewport) {
-          element.scrollIntoView({ behavior: 'instant', block: 'center' });
-          await new Promise(r => setTimeout(r, 50));
-        }
-
-        // Dispatch full mouse event sequence with coordinates from element center
-        const clickRect = element.getBoundingClientRect();
-        const centerX = clickRect.left + clickRect.width / 2;
-        const centerY = clickRect.top + clickRect.height / 2;
-        const mouseOpts = {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-          clientX: centerX,
-          clientY: centerY,
-          screenX: centerX + window.screenX,
-          screenY: centerY + window.screenY
-        };
-        element.dispatchEvent(new MouseEvent('mousedown', mouseOpts));
-        element.dispatchEvent(new MouseEvent('mouseup', mouseOpts));
-        element.dispatchEvent(new MouseEvent('click', mouseOpts));
-
-        element.click();
-        element.focus();
-
-        // Wait for Sheets to process the click
-        await new Promise(r => setTimeout(r, 100));
-
-        // Record the action
+    // Canvas-based editors (Google Sheets/Docs/Slides): skip readiness checks entirely.
+    // Their layered canvas UI causes elementFromPoint, stability checks, and visibility
+    // checks to hang or return false positives. DOM toolbar elements (Name Box, formula bar)
+    // are always interactive despite what readiness checks report.
+    const isCanvasEditor = FSB.isCanvasBasedEditor && FSB.isCanvasBasedEditor();
+    let readiness = { ready: true, scrolled: false };
+    if (!isCanvasEditor) {
+      // SPEED-05: Use smart readiness check with fast-path for ready elements
+      readiness = await FSB.smartEnsureReady(element, 'click');
+      if (!readiness.ready) {
+        // Record failure - element not ready
         actionRecorder.record(null, 'click', params, {
           selectorTried,
-          selectorUsed,
+          selectorUsed: selectorUsed,
           elementFound: true,
           elementDetails: captureElementDetails(element),
           coordinatesUsed: null,
           coordinateSource: null,
-          success: true,
-          hadEffect: true,
-          method: 'canvas_editor_toolbar_bypass',
+          success: false,
+          error: `Element not ready: ${readiness.failureReason}`,
+          diagnostic: generateDiagnostic('notReady', { selector: selectorUsed, checks: readiness.checks }),
           duration: Date.now() - startTime
         });
-
         return {
-          success: true,
-          clicked: params.selector,
-          hadEffect: true,
-          method: 'canvas_editor_toolbar_bypass',
-          scrolled: false
+          success: false,
+          error: `Element not ready: ${readiness.failureReason}`,
+          selector: params.selector,
+          checks: readiness.checks,
+          failureDetails: readiness.failureDetails
         };
       }
-    }
-
-    // SPEED-05: Use smart readiness check with fast-path for ready elements
-    const readiness = await FSB.smartEnsureReady(element, 'click');
-    if (!readiness.ready) {
-      // Record failure - element not ready
-      actionRecorder.record(null, 'click', params, {
-        selectorTried,
-        selectorUsed: selectorUsed,
-        elementFound: true,
-        elementDetails: captureElementDetails(element),
-        coordinatesUsed: null,
-        coordinateSource: null,
-        success: false,
-        error: `Element not ready: ${readiness.failureReason}`,
-        diagnostic: generateDiagnostic('notReady', { selector: selectorUsed, checks: readiness.checks }),
-        duration: Date.now() - startTime
-      });
-      return {
-        success: false,
-        error: `Element not ready: ${readiness.failureReason}`,
-        selector: params.selector,
-        checks: readiness.checks,
-        failureDetails: readiness.failureDetails
-      };
     }
 
     // Re-fetch element after scroll (may have become stale)
@@ -3823,7 +3760,356 @@ const tools = {
   arrowUp: async (params = {}) => { return await tools.keyPress({ key: 'ArrowUp', useDebuggerAPI: true, ...params }); },
   arrowDown: async (params = {}) => { return await tools.keyPress({ key: 'ArrowDown', useDebuggerAPI: true, ...params }); },
   arrowLeft: async (params = {}) => { return await tools.keyPress({ key: 'ArrowLeft', useDebuggerAPI: true, ...params }); },
-  arrowRight: async (params = {}) => { return await tools.keyPress({ key: 'ArrowRight', useDebuggerAPI: true, ...params }); }
+  arrowRight: async (params = {}) => { return await tools.keyPress({ key: 'ArrowRight', useDebuggerAPI: true, ...params }); },
+
+  // =========================================================================
+  // GOOGLE SHEETS: fillsheet — mechanical CSV data entry
+  // AI generates data, this tool handles the cell-by-cell typing deterministically
+  // =========================================================================
+  fillsheet: async (params) => {
+    const { startCell, data, sheetName } = params;
+    if (!data || typeof data !== 'string') {
+      return { success: false, error: 'data parameter is required (CSV string)' };
+    }
+    if (!startCell || typeof startCell !== 'string') {
+      return { success: false, error: 'startCell parameter is required (e.g., "A1")' };
+    }
+
+    // Verify we're on Google Sheets
+    if (!FSB.isCanvasBasedEditor || !FSB.isCanvasBasedEditor()) {
+      return { success: false, error: 'fillsheet only works on Google Sheets (canvas-based editor not detected)' };
+    }
+
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // Parse CSV with basic quoting support
+    function parseCSV(csvText) {
+      const rows = [];
+      let current = '';
+      let inQuotes = false;
+      const chars = csvText.split('');
+      let row = [];
+
+      for (let i = 0; i < chars.length; i++) {
+        const ch = chars[i];
+        if (ch === '"' && (i === 0 || chars[i - 1] !== '\\')) {
+          inQuotes = !inQuotes;
+        } else if (ch === ',' && !inQuotes) {
+          row.push(current.trim());
+          current = '';
+        } else if (ch === '\n' && !inQuotes) {
+          row.push(current.trim());
+          if (row.length > 0 && row.some(c => c !== '')) rows.push(row);
+          row = [];
+          current = '';
+        } else if (ch === '\\' && i + 1 < chars.length && chars[i + 1] === 'n' && !inQuotes) {
+          // Handle literal \n in unquoted context as newline
+          row.push(current.trim());
+          if (row.length > 0 && row.some(c => c !== '')) rows.push(row);
+          row = [];
+          current = '';
+          i++; // skip 'n'
+        } else {
+          current += ch;
+        }
+      }
+      // Last cell
+      row.push(current.trim());
+      if (row.length > 0 && row.some(c => c !== '')) rows.push(row);
+      return rows;
+    }
+
+    const rows = parseCSV(data);
+    if (rows.length === 0) {
+      return { success: false, error: 'No data rows parsed from CSV' };
+    }
+
+    const totalCells = rows.reduce((sum, r) => sum + r.length, 0);
+    console.info(`[fillsheet] Starting: ${rows.length} rows, ${rows[0]?.length || 0} cols, ${totalCells} cells from ${startCell}`);
+
+    try {
+      // Step 1: Exit any edit mode
+      await tools.keyPress({ key: 'Escape', useDebuggerAPI: true });
+      await delay(100);
+
+      // Step 2: Navigate to start cell via Name Box
+      const nameBox = document.querySelector('#t-name-box');
+      if (!nameBox) {
+        return { success: false, error: 'Name Box (#t-name-box) not found — not on a Google Sheets page?' };
+      }
+
+      // Click Name Box
+      nameBox.focus();
+      nameBox.click();
+      await delay(100);
+
+      // Select all text in Name Box and type the cell reference
+      await tools.keyPress({ key: 'a', ctrlKey: true, useDebuggerAPI: true });
+      await delay(50);
+      await tools.typeWithKeys({ text: startCell, clearFirst: false, delay: 20 });
+      await delay(50);
+
+      // Press Enter to navigate
+      await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+      await delay(200);
+
+      // Step 2b: Rename spreadsheet if sheetName provided
+      if (sheetName) {
+        try {
+          const titleEl = document.querySelector('.docs-title-input, input[aria-label*="Rename" i]');
+          if (titleEl) {
+            titleEl.click();
+            await delay(200);
+            await tools.keyPress({ key: 'a', ctrlKey: true, useDebuggerAPI: true });
+            await delay(50);
+            await tools.typeWithKeys({ text: sheetName, clearFirst: false, delay: 20 });
+            await delay(50);
+            await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+            await delay(300);
+            // Re-navigate to start cell after rename (focus may have shifted)
+            nameBox.focus();
+            nameBox.click();
+            await delay(100);
+            await tools.keyPress({ key: 'a', ctrlKey: true, useDebuggerAPI: true });
+            await delay(50);
+            await tools.typeWithKeys({ text: startCell, clearFirst: false, delay: 20 });
+            await delay(50);
+            await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+            await delay(200);
+          }
+        } catch (nameErr) {
+          console.warn('[fillsheet] Sheet rename failed (non-fatal):', nameErr.message);
+        }
+      }
+
+      // Step 3: Type data cell by cell
+      let cellsFilled = 0;
+      let errors = [];
+
+      for (let r = 0; r < rows.length; r++) {
+        const row = rows[r];
+        for (let c = 0; c < row.length; c++) {
+          const value = row[c];
+          if (value !== '') {
+            // Sanitize: prefix with space if starts with = + - @ to prevent formula injection
+            const safeValue = /^[=+\-@]/.test(value) ? ' ' + value : value;
+            const typeResult = await tools.typeWithKeys({ text: safeValue, clearFirst: false, delay: 15 });
+            if (!typeResult.success) {
+              errors.push({ row: r, col: c, value, error: typeResult.error });
+            }
+          }
+          cellsFilled++;
+
+          // Move to next cell
+          if (c < row.length - 1) {
+            // Tab = next column
+            await tools.keyPress({ key: 'Tab', useDebuggerAPI: true });
+            await delay(30);
+          }
+        }
+        // Enter = next row (Sheets moves to column A of next row after Enter from last Tab position)
+        // First press Enter to confirm current cell, then position for next row
+        if (r < rows.length - 1) {
+          await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+          await delay(50);
+
+          // Navigate to the start column of the next row via Name Box
+          // Calculate the next row's start cell
+          const colLetter = startCell.replace(/[0-9]/g, '');
+          const startRow = parseInt(startCell.replace(/[A-Za-z]/g, ''), 10);
+          const nextCell = colLetter + (startRow + r + 1);
+          nameBox.focus();
+          nameBox.click();
+          await delay(80);
+          await tools.keyPress({ key: 'a', ctrlKey: true, useDebuggerAPI: true });
+          await delay(30);
+          await tools.typeWithKeys({ text: nextCell, clearFirst: false, delay: 20 });
+          await delay(30);
+          await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+          await delay(150);
+        }
+      }
+
+      // Final Enter to confirm last cell
+      await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+      await delay(100);
+
+      console.info(`[fillsheet] Complete: ${cellsFilled} cells filled, ${errors.length} errors`);
+
+      // Step 4: Auto-format header row (bold) if there are headers + data rows
+      if (rows.length > 1) {
+        try {
+          // Navigate back to start cell
+          nameBox.focus();
+          nameBox.click();
+          await delay(80);
+          await tools.keyPress({ key: 'a', ctrlKey: true, useDebuggerAPI: true });
+          await delay(30);
+          await tools.typeWithKeys({ text: startCell, clearFirst: false, delay: 20 });
+          await delay(30);
+          await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+          await delay(150);
+
+          // Select header row (Shift+Ctrl+Right to select to last data column)
+          await tools.keyPress({ key: 'ArrowRight', shiftKey: true, ctrlKey: true, useDebuggerAPI: true });
+          await delay(50);
+
+          // Bold the selection
+          await tools.keyPress({ key: 'b', ctrlKey: true, useDebuggerAPI: true });
+          await delay(50);
+
+          // Press Escape to deselect
+          await tools.keyPress({ key: 'Escape', useDebuggerAPI: true });
+        } catch (fmtErr) {
+          console.warn('[fillsheet] Header formatting failed (non-fatal):', fmtErr.message);
+        }
+      }
+
+      return {
+        success: errors.length === 0,
+        action: 'fillsheet',
+        startCell,
+        rows: rows.length,
+        cols: rows[0]?.length || 0,
+        cellsFilled,
+        errors: errors.length > 0 ? errors : undefined,
+        hadEffect: true
+      };
+    } catch (error) {
+      return { success: false, error: error.message, action: 'fillsheet' };
+    }
+  },
+
+  // =========================================================================
+  // GOOGLE SHEETS: readsheet — read cell range via Name Box + formula bar
+  // Returns CSV of existing data for AI to see what's already in the sheet
+  // =========================================================================
+  readsheet: async (params) => {
+    const { range } = params;
+    if (!range || typeof range !== 'string') {
+      return { success: false, error: 'range parameter is required (e.g., "A1:C5")' };
+    }
+
+    if (!FSB.isCanvasBasedEditor || !FSB.isCanvasBasedEditor()) {
+      return { success: false, error: 'readsheet only works on Google Sheets' };
+    }
+
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // Parse range like "A1:C5" into start/end
+    const rangeMatch = range.match(/^([A-Za-z]+)(\d+):([A-Za-z]+)(\d+)$/);
+    if (!rangeMatch) {
+      return { success: false, error: 'Invalid range format. Use "A1:C5" style.' };
+    }
+
+    function colToNum(col) {
+      let num = 0;
+      for (let i = 0; i < col.length; i++) {
+        num = num * 26 + (col.toUpperCase().charCodeAt(i) - 64);
+      }
+      return num;
+    }
+
+    function numToCol(num) {
+      let col = '';
+      while (num > 0) {
+        const rem = (num - 1) % 26;
+        col = String.fromCharCode(65 + rem) + col;
+        num = Math.floor((num - 1) / 26);
+      }
+      return col;
+    }
+
+    const startCol = colToNum(rangeMatch[1]);
+    const startRow = parseInt(rangeMatch[2], 10);
+    const endCol = colToNum(rangeMatch[3]);
+    const endRow = parseInt(rangeMatch[4], 10);
+
+    if (endRow - startRow > 50 || endCol - startCol > 26) {
+      return { success: false, error: 'Range too large. Max 50 rows x 26 columns.' };
+    }
+
+    const nameBox = document.querySelector('#t-name-box');
+    if (!nameBox) {
+      return { success: false, error: 'Name Box not found' };
+    }
+
+    // Find formula bar element for reading values
+    const formulaBarSelectors = ['#t-formula-bar-input', '.cell-input', '[aria-label="Formula bar"]'];
+
+    function getFormulaBarContent() {
+      for (const sel of formulaBarSelectors) {
+        const el = document.querySelector(sel);
+        if (el) {
+          // Try multiple reading strategies
+          const editable = el.querySelector('[contenteditable="true"]');
+          if (editable) {
+            const text = (editable.innerText || editable.textContent || '').trim();
+            if (text) return text;
+          }
+          const direct = (el.innerText || el.textContent || '').trim();
+          if (direct) return direct;
+          // Check parent for display siblings
+          const parent = el.parentElement;
+          if (parent) {
+            const display = parent.querySelector('.cell-input, [aria-label*="formula"]');
+            if (display && display !== el) {
+              return (display.innerText || display.textContent || '').trim();
+            }
+          }
+        }
+      }
+      return '';
+    }
+
+    try {
+      // Exit edit mode first
+      await tools.keyPress({ key: 'Escape', useDebuggerAPI: true });
+      await delay(100);
+
+      const csvRows = [];
+      const totalCells = (endRow - startRow + 1) * (endCol - startCol + 1);
+      console.info(`[readsheet] Reading ${range}: ${endRow - startRow + 1} rows x ${endCol - startCol + 1} cols = ${totalCells} cells`);
+
+      for (let r = startRow; r <= endRow; r++) {
+        const rowValues = [];
+        for (let c = startCol; c <= endCol; c++) {
+          const cellRef = numToCol(c) + r;
+
+          // Navigate to cell via Name Box
+          nameBox.focus();
+          nameBox.click();
+          await delay(60);
+          await tools.keyPress({ key: 'a', ctrlKey: true, useDebuggerAPI: true });
+          await delay(30);
+          await tools.typeWithKeys({ text: cellRef, clearFirst: false, delay: 15 });
+          await delay(30);
+          await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+          await delay(150);
+
+          // Read formula bar content
+          const value = getFormulaBarContent();
+          rowValues.push(value);
+        }
+        csvRows.push(rowValues.join(','));
+      }
+
+      const csvResult = csvRows.join('\n');
+      console.info(`[readsheet] Complete: read ${totalCells} cells`);
+
+      return {
+        success: true,
+        action: 'readsheet',
+        range,
+        rows: endRow - startRow + 1,
+        cols: endCol - startCol + 1,
+        data: csvResult,
+        hadEffect: false
+      };
+    } catch (error) {
+      return { success: false, error: error.message, action: 'readsheet' };
+    }
+  }
 };
 
   // =========================================================================

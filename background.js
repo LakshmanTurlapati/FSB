@@ -2106,6 +2106,11 @@ function slimActionResult(result) {
     slim.text = typeof result.text === 'string' ? result.text.substring(0, 30000) : result.text;
     slim.charCount = result.charCount;
   }
+  // Sheets fillsheet/readsheet: preserve data entry metrics for completion validator
+  if (result.cellsFilled !== undefined) slim.cellsFilled = result.cellsFilled;
+  if (result.rows !== undefined) slim.rows = result.rows;
+  if (result.cols !== undefined) slim.cols = result.cols;
+  if (result.data !== undefined) slim.data = typeof result.data === 'string' ? result.data.substring(0, 2000) : result.data;
   return slim;
 }
 
@@ -3985,22 +3990,37 @@ function mediaValidator(session, aiResponse, context, signals, scoreResult) {
 
 function sheetsValidator(session, aiResponse, context, signals, scoreResult) {
   let { score, evidence } = scoreResult;
-  // Sheets data entry: successful type actions on a Sheets URL count as completion evidence.
-  // Canvas-based rendering prevents DOM signals, so we rely on action success.
   const history = session.actionHistory || [];
+
+  // Check for fillsheet tool usage (strongest signal — mechanical CSV data entry)
+  const fillsheetActions = history.filter(a =>
+    a.tool === 'fillsheet' && a.result?.success
+  );
+  if (fillsheetActions.length >= 1) {
+    const totalCells = fillsheetActions.reduce((sum, a) => sum + (a.result?.cellsFilled || 0), 0);
+    score = Math.min(1, score + 0.35);
+    evidence.push('Sheets: fillsheet wrote ' + totalCells + ' cells');
+    return { approved: score >= 0.5, score, evidence, taskType: 'sheets' };
+  }
+
+  // Fallback: check manual type actions
   const sheetsTypeActions = history.filter(a =>
     a.tool === 'type' && a.result?.success && a.result?.hadEffect
   );
   if (sheetsTypeActions.length >= 1) {
     score = Math.min(1, score + 0.20);
     evidence.push('Sheets: ' + sheetsTypeActions.length + ' successful cell entry action(s)');
+  } else {
+    // Penalize: no data was typed into any cell — task cannot be complete
+    score = Math.max(0, score - 0.25);
+    evidence.push('Sheets: NO successful type/fillsheet actions — data entry not confirmed');
   }
-  // Tab/Enter navigation signals data entry flow
+  // Tab/Enter navigation only counts if data was actually typed
   const navKeys = history.filter(a =>
     a.tool === 'keyPress' && a.result?.success &&
     ['Tab', 'Enter'].includes(a.params?.key)
   );
-  if (navKeys.length >= 2) {
+  if (navKeys.length >= 2 && sheetsTypeActions.length >= 1) {
     score = Math.min(1, score + 0.10);
     evidence.push('Sheets: Tab/Enter cell navigation pattern');
   }
