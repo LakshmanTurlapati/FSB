@@ -1733,6 +1733,14 @@
     // Has data-testid
     if (element.hasAttribute('data-testid')) score += 3;
 
+    // Deprioritize sidebar/aside/nav elements — main content is more relevant for most tasks
+    // This prevents sidebar navigation links from stealing refs from main content on complex pages
+    if (element.closest('aside, [role="complementary"]')) {
+      score -= 6;
+    } else if (element.closest('nav, [role="navigation"]') && !element.closest('main, [role="main"]')) {
+      score -= 4;
+    }
+
     // FSB-injected canvas editor elements
     if (element.dataset.fsbRole) {
       score += 15;

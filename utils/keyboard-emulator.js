@@ -470,12 +470,29 @@ class KeyboardEmulator {
         results.push({ char, key, modifiers, result });
 
         if (!result.success) {
-          return {
-            success: false,
-            error: `Failed at character: ${char}`,
-            completedChars: results.length - 1,
-            results
-          };
+          // Fallback: use Input.insertText for characters not in KEY_MAPPINGS (Unicode, special symbols)
+          // This handles middle-dot ·, em-dash —, smart quotes "", etc.
+          try {
+            const attached = await this.attachDebugger(tabId);
+            if (attached) {
+              await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text: char });
+              results[results.length - 1].result = { success: true, method: 'insertText', char };
+            } else {
+              return {
+                success: false,
+                error: `Failed at character: ${char}`,
+                completedChars: results.length - 1,
+                results
+              };
+            }
+          } catch (insertErr) {
+            return {
+              success: false,
+              error: `Failed at character: ${char} (insertText fallback also failed: ${insertErr.message})`,
+              completedChars: results.length - 1,
+              results
+            };
+          }
         }
 
         if (delay > 0 && text.indexOf(char) < text.length - 1) {

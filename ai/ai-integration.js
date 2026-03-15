@@ -1137,7 +1137,8 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
         currentPhase: '',
         failedApproaches: [],
         keyFindings: [],
-        pagesVisited: []
+        pagesVisited: [],
+        openTabs: {}  // Track tabs with meaningful content: { tabId: "description" }
       };
     }
 
@@ -1240,6 +1241,40 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       mem.pagesVisited.push(currentUrl);
       if (mem.pagesVisited.length > 10) {
         mem.pagesVisited = mem.pagesVisited.slice(-10);
+      }
+    }
+
+    // Track open tabs with meaningful content (survives context compaction)
+    if (lastAction) {
+      const actionTool = lastAction.tool || lastAction.result?.tool;
+      const tabId = context?.tabId;
+
+      // Track fillsheet/readsheet — the current tab has a sheet with data
+      if ((actionTool === 'fillsheet' || actionTool === 'readsheet') && tabId && lastAction.result?.success) {
+        const cellInfo = lastAction.result?.cellsFilled ? ` (${lastAction.result.cellsFilled} cells)` : '';
+        mem.openTabs[tabId] = `Google Sheet${cellInfo} at ${(currentUrl || '').substring(0, 80)}`;
+      }
+
+      // Track openNewTab — record the new tab's purpose
+      if (actionTool === 'openNewTab' && lastAction.result?.success) {
+        const url = lastAction.params?.url || '';
+        if (url) {
+          mem.openTabs['_pending'] = `Opened tab: ${url.substring(0, 80)}`;
+        }
+      }
+
+      // Track navigate — current tab now has this URL's content
+      if (actionTool === 'navigate' && tabId && lastAction.result?.success) {
+        const navUrl = lastAction.result?.navigatingTo || lastAction.params?.url || '';
+        if (navUrl && /sheets\.google|docs\.google/i.test(navUrl)) {
+          mem.openTabs[tabId] = `Google Sheet at ${navUrl.substring(0, 80)}`;
+        }
+      }
+
+      // Cap tab entries
+      const tabKeys = Object.keys(mem.openTabs);
+      if (tabKeys.length > 8) {
+        for (const k of tabKeys.slice(0, tabKeys.length - 8)) delete mem.openTabs[k];
       }
     }
 
@@ -1594,6 +1629,15 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       }
       if (mem.pagesVisited.length > 0) {
         parts.push(`Pages visited: ${mem.pagesVisited.join(' -> ')}`);
+      }
+      // Include open tabs with meaningful content so AI remembers them after compaction
+      const tabEntries = Object.entries(mem.openTabs || {});
+      if (tabEntries.length > 0) {
+        parts.push('Open tabs with your data:');
+        tabEntries.forEach(([tabId, desc]) => {
+          parts.push(`  - Tab ${tabId}: ${desc}`);
+        });
+        parts.push('USE switchToTab to return to these tabs instead of creating new ones.');
       }
     }
 
