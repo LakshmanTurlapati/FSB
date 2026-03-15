@@ -48,6 +48,13 @@ WATCH PAGE:
 - Join channel: [aria-label="Join this channel"]
 - Captions: [aria-label="Subtitles/CC turned on"]
 
+PLAYER KEYBOARD SHORTCUTS (use keyPress instead of clicking player controls):
+- Full screen: keyPress "f" (preferred over clicking fullscreen button -- click may fail due to user-gesture requirement)
+- Play/Pause: keyPress "k"
+- Mute/Unmute: keyPress "m"
+- Captions: keyPress "c"
+- Theater mode: keyPress "t"
+
 SHORTS:
 - Shorts have a different UI with custom controls
 - Mute/unmute: [aria-label="Unmute"] / [aria-label="Mute"]
@@ -88,7 +95,9 @@ UI FRAMEWORK NOTES:
     watchVideo: [
       'Navigate to the video URL or search for it',
       'Wait for the video player to load',
-      'Video will autoplay -- report the video title and channel'
+      'Video will autoplay -- report the video title and channel',
+      'For full screen: use keyPress "f" (NOT click on fullscreen button)',
+      'For player controls: use keyboard shortcuts (k=play/pause, m=mute, c=captions, t=theater)'
     ],
     subscribeToChannel: [
       'Navigate to the channel page or a video by the channel',

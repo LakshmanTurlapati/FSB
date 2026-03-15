@@ -549,11 +549,6 @@ class FSBAnalytics {
     this.updateElement('totalRequests', stats.totalRequests.toLocaleString());
     this.updateElement('successRate', stats.successRate.toFixed(1) + '%');
     
-    // Update analytics cards
-    this.updateElement('inputTokensToday', stats.totalInputTokens.toLocaleString());
-    this.updateElement('outputTokensToday', stats.totalOutputTokens.toLocaleString());
-    this.updateElement('currentModel', this.formatModelName(this.currentModel));
-    
     // Update labels based on time range
     this.updateTimeRangeLabels(timeRange);
     
@@ -579,11 +574,6 @@ class FSBAnalytics {
     this.updateElement('totalRequests', allTimeStats.totalRequests.toLocaleString());
     this.updateElement('successRate', allTimeStats.successRate.toFixed(1) + '%');
     
-    // Update analytics cards with all-time data
-    this.updateElement('inputTokensToday', allTimeStats.totalInputTokens.toLocaleString());
-    this.updateElement('outputTokensToday', allTimeStats.totalOutputTokens.toLocaleString());
-    this.updateElement('currentModel', this.formatModelName(this.currentModel));
-    
     // Update session time
     this.updateSessionTime();
   }
@@ -593,13 +583,6 @@ class FSBAnalytics {
     const element = document.getElementById(id);
     if (element) {
       element.textContent = value;
-      console.log(`Analytics: Updated element ${id} with value: ${value}`);
-    } else {
-      // Only log warnings for critical elements, not optional ones like sessionTime
-      const optionalElements = ['sessionTime'];
-      if (!optionalElements.includes(id)) {
-        console.warn(`Analytics: Element ${id} not found in DOM`);
-      }
     }
   }
 
