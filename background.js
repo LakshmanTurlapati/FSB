@@ -770,11 +770,11 @@ Respond with ONLY a JSON object (no markdown, no explanation):
 
 Guidelines:
 - simple (1 site, few actions): 5-8 iterations, 120s timeout, 5-15 actions
-- moderate (1 site, data entry/reading): 8-15 iterations, 300s timeout, 15-40 actions
-- complex (multi-step workflow): 12-18 iterations, 420s timeout, 30-60 actions
-- multi-site (research across sites + output): 15-25 iterations, 600s timeout, 40-80 actions
+- moderate (1 site, data entry/reading): 10-18 iterations, 300s timeout, 15-40 actions
+- complex (multi-step workflow): 18-30 iterations, 480s timeout, 30-80 actions
+- multi-site (research across sites + output): 25-40 iterations, 720s timeout, 50-120 actions
 
-Consider: number of sites involved, data collection needs, form filling, navigation depth.`,
+Consider: number of sites involved, data collection needs, form filling, navigation depth, search refinements, potential retries.`,
       userPrompt: `Task: "${task}"\nStarting URL: ${currentUrl || 'new tab'}`
     }, {});
 
@@ -803,9 +803,9 @@ Consider: number of sites involved, data collection needs, form filling, navigat
 
     // Validate and clamp values to sane ranges
     const result = {
-      estimatedIterations: Math.max(5, Math.min(30, parseInt(estimate.estimatedIterations) || 20)),
-      estimatedTimeoutSec: Math.max(60, Math.min(900, parseInt(estimate.estimatedTimeoutSec) || 300)),
-      estimatedActions: Math.max(3, Math.min(100, parseInt(estimate.estimatedActions) || 30)),
+      estimatedIterations: Math.max(5, Math.min(50, parseInt(estimate.estimatedIterations) || 20)),
+      estimatedTimeoutSec: Math.max(60, Math.min(1200, parseInt(estimate.estimatedTimeoutSec) || 300)),
+      estimatedActions: Math.max(3, Math.min(150, parseInt(estimate.estimatedActions) || 30)),
       taskType: ['simple', 'moderate', 'complex', 'multi-site'].includes(estimate.taskType) ? estimate.taskType : 'moderate'
     };
 
