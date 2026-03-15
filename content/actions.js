@@ -3856,16 +3856,24 @@ const tools = {
       // Step 2b: Rename spreadsheet if sheetName provided
       if (sheetName) {
         try {
-          const titleEl = document.querySelector('.docs-title-input, input[aria-label*="Rename" i]');
+          const titleEl = document.querySelector('.docs-title-input, #docs-title-input, input[aria-label*="Rename" i], .docs-title-widget input');
           if (titleEl) {
+            // Focus then click to enter edit mode (both needed for Sheets title input)
+            titleEl.focus();
+            await delay(100);
             titleEl.click();
-            await delay(200);
-            await tools.keyPress({ key: 'a', ctrlKey: true, useDebuggerAPI: true });
-            await delay(50);
-            await tools.typeWithKeys({ text: sheetName, clearFirst: false, delay: 20 });
-            await delay(50);
-            await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
             await delay(300);
+            // Use native .select() for input elements — more reliable than Ctrl+A via Debugger API
+            if (typeof titleEl.select === 'function') {
+              titleEl.select();
+            } else {
+              await tools.keyPress({ key: 'a', ctrlKey: true, useDebuggerAPI: true });
+            }
+            await delay(100);
+            await tools.typeWithKeys({ text: sheetName, clearFirst: false, delay: 20 });
+            await delay(100);
+            await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
+            await delay(500);
             // Re-navigate to start cell after rename (focus may have shifted)
             nameBox.focus();
             nameBox.click();
