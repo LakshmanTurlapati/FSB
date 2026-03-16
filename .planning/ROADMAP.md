@@ -8,7 +8,7 @@
 - v9.4 **Career Search Automation** -- Phases 9-14.3 (shipped 2026-02-27)
 - v10.0 **CLI Architecture** -- Phases 15-29 (shipped 2026-03-15)
 - v0.9.2 **Productivity Site Intelligence** -- Phase 30 (in progress)
-- v0.9.3 **Memory Tab Overhaul** -- Phases 31-33 (planned)
+- v0.9.3 **Memory Tab Overhaul** -- Phases 31-34 (planned)
 
 ## Phases
 
@@ -133,18 +133,33 @@ Plans:
 - [ ] 33-01-PLAN.md -- Card polish, Refine button removal, full recon report detail view with collapsible sections
 - [ ] 33-02-PLAN.md -- Per-task graph visualization and FSB Intelligence knowledge graph integration
 
+### Phase 34: Memory Tab Theme Fix & Export/Import
+**Goal**: Fix all theme mismatches in Memory tab UI and add memory export/import so users can download and share Task Memories
+**Depends on**: Phase 33
+**Requirements**: THEME-01, EXPORT-01
+**Success Criteria** (what must be TRUE):
+  1. All Memory tab elements (cards, detail panels, graph containers, badges, collapsible sections, stats bar) respect the active theme — no white elements in dark mode or dark elements in light mode
+  2. Users can export all memories (or filtered subset) as a downloadable JSON file from the Memory tab
+  3. Users can import a previously exported JSON file to restore or merge memories, with duplicate detection
+**Plans**: 2 plans
+
+Plans:
+- [ ] 34-01-PLAN.md -- Theme fix: define missing CSS variables, replace hardcoded colors in CSS and JS inline styles
+- [ ] 34-02-PLAN.md -- Memory import: file picker, validation, duplicate detection, merge with toast feedback
+
 ## Progress
 
 **Execution Order:**
 v0.9.2: Phase 30
-v0.9.3: Phase 31 -> Phase 32 -> Phase 33
+v0.9.3: Phase 31 -> Phase 32 -> Phase 33 -> Phase 34
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 30. Productivity Site Intelligence | 4/4 | Complete    | 2026-03-16 |
 | 31. Task Memory Schema & Storage | 2/2 | Complete    | 2026-03-16 |
 | 32. Extraction Pipeline & Consolidation | 2/2 | Complete    | 2026-03-16 |
-| 33. Task Memory Display & Graph | 2/2 | Complete   | 2026-03-16 |
+| 33. Task Memory Display & Graph | 2/2 | Complete    | 2026-03-16 |
+| 34. Memory Tab Theme Fix & Export/Import | 1/2 | In Progress|  |
 
 | Milestone | Phases | Plans | Requirements | Status | Shipped |
 |-----------|--------|-------|-------------|--------|---------|
@@ -154,7 +169,7 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33
 | v9.4 Career Search | 9-14.3 | 18 | 21/21 | Complete | 2026-02-27 |
 | v10.0 CLI Architecture | 15-29 | 37 | 67/67 | Complete | 2026-03-15 |
 | v0.9.2 Productivity Site Intelligence | 30 | 4 | 0/17 | In progress | - |
-| v0.9.3 Memory Tab Overhaul | 31-33 | TBD | 0/9 | Planned | - |
+| v0.9.3 Memory Tab Overhaul | 31-34 | TBD | 0/9 | Planned | - |
 
 ---
-*Updated: 2026-03-16 after Phase 33 planning*
+*Updated: 2026-03-16 after Phase 34 planning*
