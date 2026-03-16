@@ -4142,7 +4142,8 @@ function renderMemoryList(memories) {
     const typeIcon = {
       episodic: 'fa-clock',
       semantic: 'fa-lightbulb',
-      procedural: 'fa-list-ol'
+      procedural: 'fa-list-ol',
+      task: 'fa-clipboard-check'
     }[memory.type] || 'fa-circle';
 
     const typeLabel = memory.type.charAt(0).toUpperCase() + memory.type.slice(1);
@@ -4151,6 +4152,27 @@ function renderMemoryList(memories) {
     const accesses = memory.accessCount || 0;
     const confidence = Math.round((memory.metadata?.confidence || 0) * 100);
     const tags = (memory.metadata?.tags || []).slice(0, 3).join(', ');
+
+    // Task Memory metadata line: Domain | Duration | Steps | Outcome badge
+    let metaLine;
+    if (memory.type === 'task') {
+      const sess = memory.typeData?.session || {};
+      const outcomeBadge = sess.outcome
+        ? `<span class="outcome-${sess.outcome === 'success' ? 'success' : sess.outcome === 'failure' ? 'failure' : sess.outcome === 'partial' ? 'partial' : 'unknown'}">${(sess.outcome || 'unknown').charAt(0).toUpperCase() + (sess.outcome || 'unknown').slice(1)}</span>`
+        : '';
+      const taskDomain = sess.domain || memory.metadata?.domain || 'Unknown';
+      let durationStr = '';
+      if (sess.duration && sess.duration > 0) {
+        const totalSec = Math.round(sess.duration / 1000);
+        const mins = Math.floor(totalSec / 60);
+        const secs = totalSec % 60;
+        durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+      }
+      const stepCount = (sess.timeline || []).length;
+      metaLine = `${escapeHtml(taskDomain)} | ${durationStr || 'N/A'} | ${stepCount} steps | ${outcomeBadge}`;
+    } else {
+      metaLine = `${typeLabel} | ${escapeHtml(domain)} | ${age} | ${accesses} accesses | ${confidence}% conf${tags ? ' | ' + escapeHtml(tags) : ''}`;
+    }
 
     const isSiteMap = memory.typeData?.category === 'site_map';
     const isRefined = memory.typeData?.sitePattern?.refined === true;
@@ -4173,7 +4195,7 @@ function renderMemoryList(memories) {
               ${escapeHtml(memory.text)} ${badgeHtml}
             </div>
             <div style="font-size: 0.82em; color: var(--text-secondary); margin-top: 2px;">
-              ${typeLabel} | ${escapeHtml(domain)} | ${age} | ${accesses} accesses | ${confidence}% conf${tags ? ' | ' + escapeHtml(tags) : ''}
+              ${metaLine}
             </div>
           </div>
           ${refineBtn}
@@ -4298,6 +4320,9 @@ function renderMemoryDetailPanel(memory) {
       break;
     case 'procedural':
       content = renderProceduralDetail(memory);
+      break;
+    case 'task':
+      content = renderTaskDetail(memory);
       break;
     default:
       content = `<div class="detail-section"><div class="detail-value">${escapeHtml(memory.text)}</div></div>`;
@@ -4590,6 +4615,123 @@ function renderProceduralDetail(memory) {
       ${selectorsHtml}
     </div>
     ${targetUrlHtml}
+  `;
+}
+
+function renderTaskDetail(memory) {
+  const sess = memory.typeData?.session || {};
+  const learned = memory.typeData?.learned || {};
+  const procedures = memory.typeData?.procedures || [];
+
+  // Outcome badge
+  const outcomeClass = {
+    success: 'outcome-success',
+    failure: 'outcome-failure',
+    partial: 'outcome-partial'
+  }[sess.outcome] || 'outcome-unknown';
+  const outcomeLabel = (sess.outcome || 'unknown').charAt(0).toUpperCase() + (sess.outcome || 'unknown').slice(1);
+
+  // Duration
+  let durationStr = 'N/A';
+  if (sess.duration && sess.duration > 0) {
+    const totalSec = Math.round(sess.duration / 1000);
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  }
+
+  // Final URL
+  const finalUrlHtml = sess.finalUrl
+    ? `<div class="detail-section">
+        <div class="detail-label">Final URL</div>
+        <div class="detail-value"><a href="${escapeHtml(sess.finalUrl)}" target="_blank" rel="noopener">${escapeHtml(sess.finalUrl)}</a></div>
+      </div>`
+    : '';
+
+  // Timeline
+  const timeline = sess.timeline || [];
+  const timelineHtml = timeline.length > 0
+    ? `<ol class="detail-list detail-list-ordered">${timeline.map(s =>
+        `<li>${escapeHtml(s.action || '')} on <code class="detail-code">${escapeHtml(s.target || '')}</code> &mdash; ${escapeHtml(s.result || '')}</li>`
+      ).join('')}</ol>`
+    : '<span class="detail-muted">No steps recorded</span>';
+
+  // Failures
+  const failuresHtml = (sess.failures && sess.failures.length > 0)
+    ? `<ul class="detail-list">${sess.failures.map(f => `<li>${escapeHtml(String(f))}</li>`).join('')}</ul>`
+    : '';
+  const failuresSection = failuresHtml
+    ? `<div class="detail-section">
+        <div class="detail-label">Failures</div>
+        ${failuresHtml}
+      </div>`
+    : '';
+
+  // Learned: selectors
+  const selectorsHtml = (learned.selectors && learned.selectors.length > 0)
+    ? learned.selectors.map(s => `<code class="detail-code">${escapeHtml(String(s))}</code>`).join(', ')
+    : '<span class="detail-muted">None</span>';
+
+  // Learned: patterns
+  const patternsHtml = (learned.patterns && learned.patterns.length > 0)
+    ? `<ul class="detail-list">${learned.patterns.map(p => `<li>${escapeHtml(String(p))}</li>`).join('')}</ul>`
+    : '<span class="detail-muted">None</span>';
+
+  const learnedSection = (learned.selectors?.length || learned.patterns?.length)
+    ? `<div class="detail-section" style="margin-top: 8px;">
+        <div class="detail-label" style="font-weight: 600; margin-bottom: 4px;">Learned</div>
+        <div class="detail-section">
+          <div class="detail-label">Selectors</div>
+          <div class="detail-value">${selectorsHtml}</div>
+        </div>
+        <div class="detail-section">
+          <div class="detail-label">Patterns</div>
+          ${patternsHtml}
+        </div>
+      </div>`
+    : '';
+
+  // Procedures
+  const proceduresHtml = procedures.length > 0
+    ? `<div class="detail-section" style="margin-top: 8px;">
+        <div class="detail-label" style="font-weight: 600; margin-bottom: 4px;">Procedures</div>
+        ${procedures.map(proc => {
+          const rate = Math.round((proc.successRate ?? 1) * 100);
+          const rateClass = rate >= 80 ? 'outcome-success' : rate >= 50 ? 'outcome-partial' : 'outcome-failure';
+          return `<div class="detail-section">
+            <div class="detail-value"><strong>${escapeHtml(proc.name || 'Unnamed')}</strong> &mdash; ${(proc.steps || []).length} steps &mdash; <span class="${rateClass}">${rate}%</span></div>
+          </div>`;
+        }).join('')}
+      </div>`
+    : '';
+
+  return `
+    <div class="detail-grid">
+      <div class="detail-section">
+        <div class="detail-label">Task</div>
+        <div class="detail-value">${escapeHtml(sess.task || 'N/A')}</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Outcome</div>
+        <div class="detail-value"><span class="${outcomeClass}">${outcomeLabel}</span></div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Duration</div>
+        <div class="detail-value">${durationStr}</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Iterations</div>
+        <div class="detail-value">${sess.iterationCount || 0}</div>
+      </div>
+    </div>
+    ${finalUrlHtml}
+    <div class="detail-section">
+      <div class="detail-label">Timeline (${timeline.length} steps)</div>
+      ${timelineHtml}
+    </div>
+    ${failuresSection}
+    ${learnedSection}
+    ${proceduresHtml}
   `;
 }
 
