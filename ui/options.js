@@ -4157,9 +4157,10 @@ function renderMemoryList(memories) {
     let metaLine;
     if (memory.type === 'task') {
       const sess = memory.typeData?.session || {};
-      const outcomeBadge = sess.outcome
-        ? `<span class="outcome-${sess.outcome === 'success' ? 'success' : sess.outcome === 'failure' ? 'failure' : sess.outcome === 'partial' ? 'partial' : 'unknown'}">${(sess.outcome || 'unknown').charAt(0).toUpperCase() + (sess.outcome || 'unknown').slice(1)}</span>`
-        : '';
+      const outcomeVal = (sess.outcome || 'unknown').toLowerCase();
+      const outcomeBadgeClass = { success: 'success', failure: 'failure', partial: 'partial' }[outcomeVal] || 'unknown';
+      const outcomeLabel = outcomeVal.charAt(0).toUpperCase() + outcomeVal.slice(1);
+      const outcomeBadge = `<span class="outcome-badge outcome-badge-${outcomeBadgeClass}">${outcomeLabel}</span>`;
       const taskDomain = sess.domain || memory.metadata?.domain || 'Unknown';
       let durationStr = '';
       if (sess.duration && sess.duration > 0) {
@@ -4169,7 +4170,7 @@ function renderMemoryList(memories) {
         durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
       }
       const stepCount = (sess.timeline || []).length;
-      metaLine = `${escapeHtml(taskDomain)} | ${durationStr || 'N/A'} | ${stepCount} steps | ${outcomeBadge}`;
+      metaLine = `<i class="fas fa-globe" style="font-size: 0.85em; opacity: 0.7;"></i> ${escapeHtml(taskDomain)} | ${durationStr || 'N/A'} | ${stepCount} steps | ${outcomeBadge}`;
     } else {
       metaLine = `${typeLabel} | ${escapeHtml(domain)} | ${age} | ${accesses} accesses | ${confidence}% conf${tags ? ' | ' + escapeHtml(tags) : ''}`;
     }
@@ -4179,26 +4180,25 @@ function renderMemoryList(memories) {
     const badgeHtml = isSiteMap
       ? `<span class="memory-badge ${isRefined ? 'refined' : 'basic'}">${isRefined ? 'Refined' : 'Basic'}</span>`
       : '';
-    const refineBtn = isSiteMap && !isRefined
-      ? `<button class="refine-btn-prominent" data-id="${memory.id}" data-recon-id="${memory.typeData?.sitePattern?.reconId || ''}" title="Refine sitemap"><i class="fas fa-magic"></i> Refine</button>`
-      : '';
 
     const graphAttr = isSiteMap ? ' data-has-graph="true"' : '';
     const chevronHtml = '<i class="fas fa-chevron-right detail-toggle-icon" title="Toggle details"></i>';
+    const textStyle = memory.type === 'task'
+      ? 'font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;'
+      : 'font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
 
     return `
       <div class="session-item memory-item" data-memory-id="${memory.id}" data-expandable="true"${graphAttr} style="cursor: pointer;">
         <div class="session-item-header" style="display: flex; align-items: center; gap: 10px;">
           <i class="fas ${typeIcon}" style="color: var(--primary); font-size: 1.1em;" title="${typeLabel}"></i>
           <div style="flex: 1; min-width: 0;">
-            <div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <div style="${textStyle}">
               ${escapeHtml(memory.text)} ${badgeHtml}
             </div>
             <div style="font-size: 0.82em; color: var(--text-secondary); margin-top: 2px;">
               ${metaLine}
             </div>
           </div>
-          ${refineBtn}
           ${chevronHtml}
           <button class="control-btn small memory-delete-btn" data-id="${memory.id}" title="Delete memory" style="color: var(--danger, #ef4444); flex-shrink: 0;">
             <i class="fas fa-trash"></i>
@@ -4221,21 +4221,11 @@ function renderMemoryList(memories) {
     });
   });
 
-  // Attach refine-with-AI handlers
-  container.querySelectorAll('.refine-btn-prominent').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const memoryId = btn.dataset.id;
-      const reconId = btn.dataset.reconId;
-      await refineMemoryWithAI(memoryId, reconId);
-    });
-  });
-
   // Attach click-to-expand handlers on all memory items
   container.querySelectorAll('.memory-item[data-expandable="true"]').forEach(item => {
     item.addEventListener('click', (e) => {
       // Don't trigger on button clicks
-      if (e.target.closest('.control-btn') || e.target.closest('.refine-btn-prominent')) return;
+      if (e.target.closest('.control-btn')) return;
       toggleMemoryDetail(item);
     });
   });
@@ -4919,47 +4909,6 @@ function collapseMemoryGraph(memoryItem) {
   if (nextSibling && nextSibling.classList.contains('site-graph-container')) {
     if (typeof SiteGraph !== 'undefined') SiteGraph.destroy(nextSibling);
     nextSibling.remove();
-  }
-}
-
-async function refineMemoryWithAI(memoryId, reconId) {
-  if (typeof refineSiteMapWithAI !== 'function') {
-    showToast('AI refiner not available', 'error');
-    return;
-  }
-
-  // Get the memory
-  const memories = await memoryManager.getAll();
-  const memory = memories.find(m => m.id === memoryId);
-  if (!memory || memory.typeData?.category !== 'site_map') {
-    showToast('Memory not found or not a site map', 'error');
-    return;
-  }
-
-  // Get research data if available
-  let researchData = null;
-  if (reconId) {
-    try {
-      const response = await chrome.runtime.sendMessage({ action: 'getResearchData', researchId: reconId });
-      if (response?.success) researchData = response.data;
-    } catch (e) {
-      // Research data not available
-    }
-  }
-
-  showToast('Refining site map with AI...', 'info');
-  try {
-    const refined = await refineSiteMapWithAI(memory.typeData.sitePattern, researchData);
-    memory.typeData.sitePattern = refined;
-    memory.metadata.confidence = 0.95;
-    memory.text = memory.text.replace(/\)$/, ' (AI enhanced)').replace(/ \(AI enhanced\) \(AI enhanced\)/, ' (AI enhanced)');
-    if (!memory.text.includes('(AI enhanced)')) memory.text += ' (AI enhanced)';
-    memory.updatedAt = Date.now();
-    await memoryStorage.update(memory.id, memory);
-    showToast('Site map refined successfully', 'success');
-    loadMemoryDashboard();
-  } catch (err) {
-    showToast('AI refinement failed: ' + err.message, 'error');
   }
 }
 

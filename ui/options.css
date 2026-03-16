@@ -3180,35 +3180,20 @@ textarea.form-input {
   color: #fbbf24;
   border-color: rgba(245, 158, 11, 0.4);
 }
-.refine-btn-prominent {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.3rem 0.65rem;
+/* Outcome badge pill styles */
+.outcome-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #fff;
-  background: #6366f1;
-  border: 1px solid #4f46e5;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  line-height: 1.4;
 }
-.refine-btn-prominent:hover {
-  background: #4f46e5;
-  border-color: #4338ca;
-  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.3);
-}
-[data-theme="dark"] .refine-btn-prominent {
-  background: #6366f1;
-  border-color: #818cf8;
-}
-[data-theme="dark"] .refine-btn-prominent:hover {
-  background: #818cf8;
-  border-color: #a5b4fc;
-}
+.outcome-badge-success { background: rgba(5, 150, 105, 0.15); color: var(--success-color, #059669); }
+.outcome-badge-failure { background: rgba(239, 68, 68, 0.15); color: var(--danger, #ef4444); }
+.outcome-badge-partial { background: rgba(217, 119, 6, 0.15); color: var(--warning-color, #d97706); }
+.outcome-badge-unknown { background: rgba(115, 115, 115, 0.15); color: var(--text-muted, #737373); }
+.outcome-badge-lg { font-size: 0.9rem; padding: 4px 14px; border-radius: 12px; }
 
 /* ── Site Graph Visualization (NotebookLM-inspired mind map) ── */
 .site-graph-container {
