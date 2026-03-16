@@ -1911,7 +1911,27 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
         // Build prompt - either full prompt (first iteration) or multi-turn (subsequent)
         let prompt;
         const isFirstIteration = this.conversationHistory.length === 0;
-        const useMultiTurn = !isFirstIteration && !context?.isStuck;
+
+        // Detect domain change — forces full prompt rebuild with correct site guide
+        let isDomainChanged = false;
+        if (!isFirstIteration && context?.currentUrl && context?.previousUrl) {
+          try {
+            const curDomain = new URL(context.currentUrl).hostname.replace(/^www\./, '');
+            const prevDomain = new URL(context.previousUrl).hostname.replace(/^www\./, '');
+            isDomainChanged = curDomain !== prevDomain;
+            if (isDomainChanged) {
+              automationLogger.info('Domain change detected — rebuilding full prompt with site guide', {
+                sessionId: this.currentSessionId,
+                from: prevDomain,
+                to: curDomain
+              });
+              // Reset conversation history so full prompt is used with new site guide
+              this.conversationHistory = [];
+            }
+          } catch (e) { /* URL parse failed, treat as no change */ }
+        }
+
+        const useMultiTurn = !isFirstIteration && !isDomainChanged && !context?.isStuck;
 
         if (useMultiTurn) {
           // MULTI-TURN: Use conversation history + minimal update
