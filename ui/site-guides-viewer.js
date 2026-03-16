@@ -27,6 +27,16 @@
       var savedLevel = localStorage.getItem('fsbKnowledgeDetailLevel') || 'simple';
       KnowledgeGraph.render(graphContainer, { detailLevel: savedLevel });
 
+      // Feed Task Memory discoveries into knowledge graph
+      if (typeof memoryManager !== 'undefined' && typeof KnowledgeGraph.setTaskMemories === 'function') {
+        memoryManager.getAll().then(function(memories) {
+          var taskMemories = memories.filter(function(m) { return m.type === 'task'; });
+          if (taskMemories.length > 0) {
+            KnowledgeGraph.setTaskMemories(taskMemories);
+          }
+        }).catch(function() { /* silently skip if no memories */ });
+      }
+
       // Activate the correct toggle button
       var toggleBtns = document.querySelectorAll('#knowledgeDetailToggle .detail-btn');
       toggleBtns.forEach(function (btn) {
