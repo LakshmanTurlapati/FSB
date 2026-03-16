@@ -4154,6 +4154,9 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       // Google Sheets direct tools (content-script)
       'fillsheet', 'readsheet',
 
+      // Mechanical tools (content-script)
+      'dragdrop', 'togglecheck',
+
       // Content reading tools
       'readPage'
     ].includes(tool);
