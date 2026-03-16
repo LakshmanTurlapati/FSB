@@ -4400,6 +4400,26 @@ const tools = {
     const getStrike = () => window.getComputedStyle(textEl).textDecorationLine?.includes('line-through') || false;
     const preStrike = getStrike();
 
+    // IDEMPOTENT: If already checked, skip — don't uncheck
+    // The AI may call togglecheck multiple times to "verify". Without this guard,
+    // repeated calls create a check→uncheck→check cycle.
+    if (preStrike) {
+      console.log(`[FSB togglecheck] Todo ${idx} already checked (strikethrough detected), skipping`);
+      return {
+        success: true,
+        action: 'togglecheck',
+        todoIndex: idx,
+        todoText: text,
+        totalTodos: todoBlocks.length,
+        skippedEmpty: allBlocks.length - todoBlocks.length,
+        alreadyChecked: true,
+        wasChecked: true,
+        nowChecked: true,
+        toggled: false,
+        method: 'skipped_already_checked'
+      };
+    }
+
     // ---- STRATEGY 1: Find and .click() the checkbox element directly ----
     let method = 'none';
 

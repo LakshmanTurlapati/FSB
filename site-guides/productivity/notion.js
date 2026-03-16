@@ -339,11 +339,13 @@ Slash commands are faster, more reliable, and work regardless of UI state.`,
     toggleTodo: [
       'CRITICAL: Notion todo checkboxes do NOT appear as element refs in the page snapshot. The checkbox is invisible to the DOM walker.',
       'Use the togglecheck command: togglecheck N  -- where N is the todo position (1 = first todo, 2 = second, etc.)',
-      'togglecheck works by: (1) clicking the todo block to focus it, (2) pressing Escape to enter block selection mode, (3) pressing Ctrl+Enter which is the official Notion shortcut to toggle a to-do checkbox.',
-      'Example: togglecheck 1 (checks/unchecks the first todo), togglecheck 2 (second todo), etc.',
-      'To toggle ALL todos: use togglecheck 1, then togglecheck 2, then togglecheck 3, etc. -- one command per line, NOT batched.',
-      'VERIFY: togglecheck returns { toggled: true/false, wasChecked, nowChecked }. If toggled is true, the checkbox state changed.',
-      'STUCK: If togglecheck says "No Notion todo blocks found", scroll down first to render the todos. If toggled is false, click elsewhere on the page first to deselect, then retry.'
+      'togglecheck only CHECKS items — it will NOT uncheck already-checked items. Safe to call repeatedly without risk of unchecking.',
+      'If a todo is already checked, togglecheck returns { alreadyChecked: true, toggled: false } — this is a success, the item is checked.',
+      'Example: togglecheck 1 (checks first todo), togglecheck 2 (checks second todo), etc.',
+      'To check ALL todos: use togglecheck 1, then togglecheck 2, then togglecheck 3, etc. -- one command per line.',
+      'VERIFY: togglecheck returns { toggled: true } when it checked an unchecked item, or { alreadyChecked: true } when item was already checked. Both mean the item IS checked.',
+      'After calling togglecheck on all items, you are DONE. Do NOT call togglecheck again to verify — the return values already confirm the state.',
+      'STUCK: If togglecheck says "No Notion todo blocks found", scroll down first to render the todos.'
     ],
     createTable: [
       'Type "/table" and press Enter to insert a simple table',
