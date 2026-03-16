@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: executing
-stopped_at: Completed 32-01-PLAN.md
-last_updated: "2026-03-16T11:51:44.805Z"
-last_activity: 2026-03-16 -- Completed 32-01 extraction pipeline rewrite for single Task Memory
+stopped_at: Phase 33 context gathered
+last_updated: "2026-03-16T12:06:15.447Z"
+last_activity: 2026-03-16 -- Completed 32-02 task-aware consolidation and unified enrichment
 progress:
   total_phases: 4
   completed_phases: 3
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 32 - Extraction Pipeline Consolidation
+**Current focus:** Phase 33 - Task Memory Display Migration
 
 ## Current Position
 
-Phase: 32 of 33 (Extraction Pipeline Consolidation)
-Plan: 2 of 3 completed in current phase
+Phase: 33 of 33 (Task Memory Display Migration)
+Plan: 1 of 2 completed in current phase
 Status: Executing
-Last activity: 2026-03-16 -- Completed 32-02 task-aware consolidation and unified enrichment
+Last activity: 2026-03-16 -- Completed 33-01 task memory display polish and recon report detail view
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: 5min
-- Total execution time: 0.35 hours
+- Total execution time: 0.43 hours
 
 **By Phase:**
 
@@ -46,6 +46,7 @@ Progress: [██████████] 100%
 | 30 | 3/4 | 17min | 6min |
 | 31 | 2/3 | 4min | 2min |
 | 32 | 2/3 | 5min | 3min |
+| 33 | 1/2 | 5min | 5min |
 
 ## Accumulated Context
 
@@ -76,6 +77,9 @@ Recent decisions:
 - 32-02: Task similarity threshold 0.7 for merge (lower than 0.85 text dedup since task descriptions are shorter)
 - 32-02: Consolidator builds merged data and returns with UPDATE -- manager stores directly, no merge logic
 - 32-02: Task enrichment gets structured context (1000 char) instead of raw JSON truncation (500 char)
+- 33-01: Removed refineMemoryWithAI entirely -- no other callers, Refine button gone from all types
+- 33-01: AI analysis integrated into collapsible sections for task type; separate block preserved for other types
+- 33-01: renderCollapsibleSection reusable helper for expandable sections with chevron toggle
 
 ### Pending Todos
 
@@ -88,6 +92,6 @@ Recent decisions:
 
 ## Session Continuity
 
-Last session: 2026-03-16T11:51:04Z
-Stopped at: Completed 32-02-PLAN.md
-Resume file: .planning/phases/32-extraction-pipeline-consolidation/32-02-SUMMARY.md
+Last session: 2026-03-16T13:21:00Z
+Stopped at: Completed 33-01-PLAN.md
+Resume file: .planning/phases/33-task-memory-display-migration/33-02-PLAN.md

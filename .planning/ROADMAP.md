@@ -144,7 +144,7 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33
 | 30. Productivity Site Intelligence | 4/4 | Complete    | 2026-03-16 |
 | 31. Task Memory Schema & Storage | 2/2 | Complete    | 2026-03-16 |
 | 32. Extraction Pipeline & Consolidation | 2/2 | Complete    | 2026-03-16 |
-| 33. Task Memory Display & Graph | 0/2 | Not started | - |
+| 33. Task Memory Display & Graph | 1/2 | In Progress|  |
 
 | Milestone | Phases | Plans | Requirements | Status | Shipped |
 |-----------|--------|-------|-------------|--------|---------|
