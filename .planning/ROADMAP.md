@@ -8,6 +8,7 @@
 - v9.4 **Career Search Automation** -- Phases 9-14.3 (shipped 2026-02-27)
 - v10.0 **CLI Architecture** -- Phases 15-29 (shipped 2026-03-15)
 - v0.9.2 **Productivity Site Intelligence** -- Phase 30 (in progress)
+- v0.9.3 **Memory Tab Overhaul** -- Phases 31-33 (planned)
 
 ## Phases
 
@@ -56,6 +57,16 @@ See `.planning/milestones/v10.0-ROADMAP.md` for full details.
 
 - [ ] **Phase 30: Productivity Site Intelligence** - Generalize fsbElements pipeline and create site guides with fsbElements, guidance, keyboard shortcuts, and workflows for Notion, Google Calendar, Trello, Google Keep, Todoist, Airtable, and Jira
 
+### v0.9.3 Memory Tab Overhaul (Planned)
+
+**Milestone Goal:** Overhaul the Memory tab so one automation produces one consolidated Task Memory (a reconnaissance report) instead of 3-5 fragmented type-based memories, with graph visualization per task.
+
+See `.planning/milestones/v0.9.3-ROADMAP.md` for full details.
+
+- [ ] **Phase 31: Task Memory Schema & Storage** - Define unified Task Memory object and backward-compatible storage layer
+- [ ] **Phase 32: Extraction Pipeline & Consolidation** - Rewrite AI extraction to produce one memory per session, session-based dedup
+- [ ] **Phase 33: Task Memory Display & Migration** - Task cards, detail view, graph visualization, and migration utility
+
 ## Phase Details
 
 ### Phase 30: Productivity Site Intelligence
@@ -76,14 +87,65 @@ Plans:
 - [ ] 30-03-PLAN.md -- Medium apps: Trello + Google Calendar site guides + drag-and-drop tool
 - [ ] 30-04-PLAN.md -- Complex apps: Notion + Jira + Airtable site guides
 
+### Phase 31: Task Memory Schema & Storage
+**Goal**: A unified Task Memory schema exists and the storage layer can persist and retrieve it alongside old-format memories
+**Depends on**: Phase 30 (v0.9.2 complete) -- parallel milestone, no code dependency
+**Requirements**: MEM-01, STOR-01
+**Success Criteria** (what must be TRUE):
+  1. A Task Memory object with `type: "task"` contains episodic data (steps timeline, outcome), semantic data (selectors discovered, site structure), and procedural data (reusable patterns) in a single document
+  2. `memory-storage.js` can save and retrieve Task Memory objects from `fsb_memories` with the new schema
+  3. Old type-based memories (episodic, semantic, procedural) still load and render correctly -- the reader is backward-compatible
+  4. The inverted index and hybrid search in `memory-retriever.js` work with Task Memory fields (domain, task description, selectors, patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 31-01: TBD
+- [ ] 31-02: TBD
+
+### Phase 32: Extraction Pipeline & Consolidation
+**Goal**: Every completed automation session produces exactly one Task Memory through a rewritten AI extraction prompt and session-based consolidation
+**Depends on**: Phase 31
+**Requirements**: MEM-02, MEM-03, CONS-01
+**Success Criteria** (what must be TRUE):
+  1. `extractAndStoreMemories` (called from 13 sites in background.js) produces exactly one Task Memory per session instead of 1-5 fragmented memories
+  2. The AI extraction prompt returns a single consolidated recon-style report containing: task description, outcome, step-by-step timeline, selectors discovered, site structure encountered, and patterns learned
+  3. The consolidator groups memories by `sourceSessionId` instead of text similarity, merging repeat runs of the same task into one memory with run history
+  4. No changes needed at the 13 call sites in background.js -- the pipeline change is internal to memory-extractor.js and memory-manager.js
+**Plans**: TBD
+
+Plans:
+- [ ] 32-01: TBD
+- [ ] 32-02: TBD
+
+### Phase 33: Task Memory Display & Migration
+**Goal**: Users see one card per task in the Memory tab with full detail drill-down, graph visualization, and can migrate old fragmented memories
+**Depends on**: Phase 32
+**Requirements**: DISP-01, DISP-02, DISP-03, STOR-02
+**Success Criteria** (what must be TRUE):
+  1. The Memory list shows one card per Task Memory with: task description, outcome badge (success/partial/failure), domain, duration, step count, and age
+  2. Clicking a card expands to a full detail view showing: task narrative, step-by-step timeline with outcomes, selectors/patterns discovered, site structure, and AI analysis
+  3. Each Task Memory detail view includes a force-directed graph showing pages visited, elements interacted with, and navigation paths taken during the task
+  4. A migration button in the Memory tab consolidates existing fragmented memories (episodic + semantic + procedural from the same session) into unified Task Memories
+  5. Old-format memories that cannot be migrated (no matching session data) remain visible and functional
+**Plans**: TBD
+
+Plans:
+- [ ] 33-01: TBD
+- [ ] 33-02: TBD
+- [ ] 33-03: TBD
+
 ## Progress
 
 **Execution Order:**
-Phase 30 is the sole phase for v0.9.2.
+v0.9.2: Phase 30
+v0.9.3: Phase 31 -> Phase 32 -> Phase 33
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 30. Productivity Site Intelligence | 0/4 | Not started | - |
+| 30. Productivity Site Intelligence | 1/4 | In Progress|  |
+| 31. Task Memory Schema & Storage | 0/TBD | Not started | - |
+| 32. Extraction Pipeline & Consolidation | 0/TBD | Not started | - |
+| 33. Task Memory Display & Migration | 0/TBD | Not started | - |
 
 | Milestone | Phases | Plans | Requirements | Status | Shipped |
 |-----------|--------|-------|-------------|--------|---------|
@@ -93,6 +155,7 @@ Phase 30 is the sole phase for v0.9.2.
 | v9.4 Career Search | 9-14.3 | 18 | 21/21 | Complete | 2026-02-27 |
 | v10.0 CLI Architecture | 15-29 | 37 | 67/67 | Complete | 2026-03-15 |
 | v0.9.2 Productivity Site Intelligence | 30 | 4 | 0/17 | In progress | - |
+| v0.9.3 Memory Tab Overhaul | 31-33 | TBD | 0/9 | Planned | - |
 
 ---
-*Updated: 2026-03-16 after phase 30 planning complete*
+*Updated: 2026-03-16 after v0.9.3 roadmap created*
