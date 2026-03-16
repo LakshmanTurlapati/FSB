@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: executing
-stopped_at: Completed 30-01-PLAN.md
-last_updated: "2026-03-16T08:55:56.145Z"
-last_activity: 2026-03-16 -- Completed 30-01 infrastructure generalization
+stopped_at: Completed 30-02-PLAN.md
+last_updated: "2026-03-16T09:02:21.000Z"
+last_activity: 2026-03-16 -- Completed 30-02 Google Keep and Todoist site guides
 progress:
-  total_phases: 1
+  total_phases: 4
   completed_phases: 0
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 4
+  completed_plans: 2
   percent: 100
 ---
 
@@ -26,24 +26,24 @@ See: .planning/PROJECT.md (updated 2026-03-16)
 ## Current Position
 
 Phase: 30 of 30 (Productivity Site Intelligence)
-Plan: 1 of 1 in current phase
+Plan: 2 of 2 completed in current wave
 Status: Executing
-Last activity: 2026-03-16 -- Completed 30-01 infrastructure generalization
+Last activity: 2026-03-16 -- Completed 30-02 Google Keep and Todoist site guides
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 8min
-- Total execution time: 0.13 hours
+- Total plans completed: 2
+- Average duration: 6min
+- Total execution time: 0.20 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 30 | 1/1 | 8min | 8min |
+| 30 | 2/2 | 12min | 6min |
 
 ## Accumulated Context
 
@@ -58,6 +58,9 @@ Recent decisions:
 - 30-01: Removed hardcoded Sheets fallback selectors -- fsbElements in google-sheets.js covers all cases
 - 30-01: Health check uses dynamic minimum threshold (30% of defined roles, min 3) instead of hardcoded 5
 - 30-01: Wrapped new importScripts in try/catch to prevent service worker errors before guide files exist
+- 30-02: aria/role-first selector strategy for Keep and Todoist (standard DOM, good ARIA support)
+- 30-02: Quick Add documented as THE primary Todoist task creation method with full natural language syntax
+- 30-02: Prominent single-key shortcut hazard warning in Todoist guidance
 
 ### Pending Todos
 
@@ -70,6 +73,6 @@ Recent decisions:
 
 ## Session Continuity
 
-Last session: 2026-03-16T08:55:12Z
-Stopped at: Completed 30-01-PLAN.md
-Resume file: .planning/phases/30-productivity-site-intelligence/30-01-SUMMARY.md
+Last session: 2026-03-16T09:02:21Z
+Stopped at: Completed 30-02-PLAN.md
+Resume file: .planning/phases/30-productivity-site-intelligence/30-02-SUMMARY.md

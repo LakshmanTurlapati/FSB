@@ -15,13 +15,13 @@ Requirements for Productivity Site Intelligence milestone. All map to a single p
 
 ### Google Keep
 
-- [ ] **KEEP-01**: Site guide with URL patterns, guidance, keyboard shortcuts, and warnings for Google Keep
-- [ ] **KEEP-02**: Workflows for create note, create checklist, pin/archive/delete notes, add labels
+- [x] **KEEP-01**: Site guide with URL patterns, guidance, keyboard shortcuts, and warnings for Google Keep
+- [x] **KEEP-02**: Workflows for create note, create checklist, pin/archive/delete notes, add labels
 
 ### Todoist
 
-- [ ] **TODO-01**: Site guide with URL patterns, guidance, keyboard shortcuts (with single-key conflict warnings), and warnings for Todoist
-- [ ] **TODO-02**: Workflows for quick-add with natural language syntax (#project @label p1 tomorrow), complete task, organize by project/label/priority
+- [x] **TODO-01**: Site guide with URL patterns, guidance, keyboard shortcuts (with single-key conflict warnings), and warnings for Todoist
+- [x] **TODO-02**: Workflows for quick-add with natural language syntax (#project @label p1 tomorrow), complete task, organize by project/label/priority
 
 ### Trello
 
@@ -78,10 +78,10 @@ Requirements for Productivity Site Intelligence milestone. All map to a single p
 | INFRA-01 | Phase 30 | Complete |
 | INFRA-02 | Phase 30 | Complete |
 | INFRA-03 | Phase 30 | Complete |
-| KEEP-01 | Phase 30 | Pending |
-| KEEP-02 | Phase 30 | Pending |
-| TODO-01 | Phase 30 | Pending |
-| TODO-02 | Phase 30 | Pending |
+| KEEP-01 | Phase 30 | Complete |
+| KEEP-02 | Phase 30 | Complete |
+| TODO-01 | Phase 30 | Complete |
+| TODO-02 | Phase 30 | Complete |
 | TREL-01 | Phase 30 | Pending |
 | TREL-02 | Phase 30 | Pending |
 | GCAL-01 | Phase 30 | Pending |
