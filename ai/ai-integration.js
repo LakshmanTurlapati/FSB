@@ -1091,6 +1091,21 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
             { role: 'assistant', content: responseContent }
           ];
         }
+      } else if (this._domainChanged && prompt.systemPrompt) {
+        // Domain change: replace system prompt with new site guide, keep recent exchanges for context
+        this._domainChanged = false;
+        const recentExchanges = this.conversationHistory.slice(1).slice(-4); // last 2 user-assistant pairs
+        this.conversationHistory = [
+          { role: 'system', content: prompt.systemPrompt },
+          ...recentExchanges,
+          { role: 'user', content: prompt.userPrompt },
+          { role: 'assistant', content: responseContent }
+        ];
+        automationLogger.debug('Domain change: replaced system prompt, kept recent exchanges', {
+          sessionId: this.currentSessionId,
+          keptExchanges: recentExchanges.length,
+          newHistoryLength: this.conversationHistory.length
+        });
       } else {
         // Subsequent iterations: append user + assistant
         if (prompt.messages && prompt.messages.length > 0) {
@@ -1913,6 +1928,7 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
         const isFirstIteration = this.conversationHistory.length === 0;
 
         // Detect domain change — forces full prompt rebuild with correct site guide
+        // Keep conversation history for multi-site context, but mark for system prompt replacement
         let isDomainChanged = false;
         if (!isFirstIteration && context?.currentUrl && context?.previousUrl) {
           try {
@@ -1925,8 +1941,8 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
                 from: prevDomain,
                 to: curDomain
               });
-              // Reset conversation history so full prompt is used with new site guide
-              this.conversationHistory = [];
+              // Flag so updateConversationHistory replaces the system message
+              this._domainChanged = true;
             }
           } catch (e) { /* URL parse failed, treat as no change */ }
         }
