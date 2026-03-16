@@ -1,643 +1,644 @@
-# Domain Pitfalls: JSON-to-CLI Protocol Migration for LLM Browser Automation
+# Domain Pitfalls: Productivity Site Intelligence for 7 Web Apps
 
-**Domain:** Migrating FSB's AI-to-extension communication from JSON tool calls to CLI-style commands with YAML DOM snapshots
-**Researched:** 2026-02-27
-**Confidence:** HIGH (based on codebase analysis of 11K+ line background.js, 5K+ line ai-integration.js, 30+ tools, 43+ site guides, 4 AI providers; corroborated by Playwright CLI, agent-browser, and webctl project documentation; academic research on LLM output format accuracy)
+**Domain:** Adding custom site intelligence (fsbElements, multi-strategy selectors, keyboard-first guidance, workflows) to Notion, Google Calendar, Trello, Google Keep, Todoist, Airtable, and Jira
+**Researched:** 2026-03-16
+**Confidence:** HIGH for integration pitfalls (based on codebase analysis); MEDIUM for per-app DOM characteristics (based on web research + known architectural patterns; exact selectors need validation via browser DevTools inspection)
+
+---
+
+## Selector Fragility Risk Ranking
+
+Before diving into pitfalls, this ranking drives which apps need the most selector strategies and which can rely on fewer fallbacks.
+
+| App | Fragility | Why | Recommended Strategies |
+|-----|-----------|-----|----------------------|
+| **Notion** | CRITICAL | React + CSS Modules produces hashed class names (e.g., `notion-scroller`, `notion-page-content` survive, but component-level classes like `r-acJ79b` change on every deploy). No stable IDs. `data-block-id` is per-block but UUIDs change per page. | 5 strategies: `data-block-id` patterns, `[contenteditable]` + structural position, `[role]` + aria, `[placeholder]` text, DOM tree depth |
+| **Airtable** | CRITICAL | React + virtual scrolling grid. Only visible rows exist in DOM. Class names are hashed CSS Modules. Cell elements are created/destroyed on scroll. Expanded record modal is a separate React tree. | 5 strategies: `[data-columnid]`/`[data-rowid]` attributes, `[role="gridcell"]` + position, aria-label text, modal `[role="dialog"]`, structural selectors |
+| **Jira** | HIGH | Atlassian Design System (AtlasKit) uses compiled CSS with hashed names. Jira is actively pushing a "new UI" in 2025-2026 that changes layout across releases. `data-testid` attributes exist but are not guaranteed stable across versions. | 5 strategies: `data-testid` patterns, `[aria-label]` text, `[role]` attributes, structural context, `[data-ds--*]` design system attributes |
+| **Todoist** | HIGH | React + CSS Modules with obfuscated IDs. The "new task view" uses particularly opaque class names. Single-key shortcuts (Q, E, A, etc.) make keyboard automation conflict-prone. | 4-5 strategies: `[data-testid]` if present, `[aria-label]`, `[role]` + structural position, `[contenteditable]` targeting, text content matching |
+| **Trello** | MODERATE | Atlassian-owned but uses older React patterns. `data-testid` attributes are present on cards, lists, and modals. Aria labels are reasonably stable. Card modals use URL-based routing (card IDs in URL). | 4 strategies: `data-testid`, `[aria-label]`, `[role]`, DOM structure. Skip class-based selectors. |
+| **Google Calendar** | MODERATE | Google Workspace app with stable `data-eventid` attributes on events. Time grid uses `[data-datekey]` attributes. Popovers have `[role="dialog"]`. More Google-DOM-stable than Sheets. | 4 strategies: `data-*` attributes, `[aria-label]`, `[role]`, structural context |
+| **Google Keep** | LOW-MODERATE | Simple card-based layout. Google DOM conventions apply. Notes have stable-ish class patterns (`.IZ65Hb-YPqjbf` style, hashed but consistent within versions). Fewer interactive elements than other apps. | 3-4 strategies: `[aria-label]`, `[role]`, structural position, class pattern fallback |
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause automation failures, data loss, or require reverting the migration.
+Mistakes that cause the fsbElements system to silently fail, break existing Google Sheets functionality, or require architectural rework.
 
 ---
 
-### Pitfall 1: Multi-Provider CLI Generation Quality Divergence
+### Pitfall 1: fsbElements Injection is Hardcoded to Google Sheets URLs
 
 **What goes wrong:**
-The AI is instructed to output CLI commands (e.g., `click e5`, `type e12 "search query"`) but different providers generate CLI text with vastly different quality. Gemini wraps output in markdown code blocks. Grok adds conversational preamble ("Sure, I'll click that button for you..."). Claude sometimes generates well-formed CLI but reverts to JSON when confused. GPT-4o invents non-existent flags. The current system already has provider-specific cleaning for JSON (`getModelSpecificInstructions()` at line 4466 of ai-integration.js), but CLI text has a different surface area of failure modes than JSON. A model that generates perfect JSON may generate broken CLI.
+The entire fsbElements multi-strategy selector system in `content/dom-analysis.js` (lines 1810-1870) is gated behind a Sheets-only URL check: `if (/spreadsheets\/d\//.test(window.location.pathname))`. Adding fsbElements to Notion, Trello, etc. guide files will have ZERO EFFECT because the injection code never runs for those URLs. The fsbElements data will sit in the guide object, passed via `guideSelectors.fsbElements`, but the content script will never iterate over it.
 
 **Why it happens:**
-LLMs are trained on massive corpora of JSON API calls, structured tool definitions, and function-calling examples. CLI commands are also well-represented in training data but as *shell commands* (bash, powershell), not as custom domain-specific CLI protocols. When FSB defines a custom CLI grammar (e.g., `type e12 "hello" --enter`), the model has no prior exposure to this exact syntax. It must follow the prompt's grammar specification, which is a weaker signal than native function-calling APIs. Research shows models generate 70-80% accurate structured output without constrained decoding, and the 20-30% failure rate compounds across multi-step sessions.
-
-Furthermore, FSB currently supports 4 providers (xAI, OpenAI, Anthropic, Gemini) with different strengths:
-- **xAI Grok 4.1 Fast** (primary): Strong instruction following, but prone to conversational preamble
-- **OpenAI GPT-4o**: Good structured output, but may invent flags/options not in the spec
-- **Anthropic Claude**: Excellent at following format specifications, but may fall back to JSON when the conversation history contains JSON examples
-- **Gemini 2.5 Flash**: Aggressive markdown wrapping (`\`\`\`bash\n...\n\`\`\``), sometimes adds explanatory comments inline
+The fsbElements system was built specifically for Google Sheets in v10.0. The URL check was a reasonable scope guard at the time. When adding new apps, the natural mistake is to add fsbElements to the site guide JS file and assume the system will pick them up -- because the `background.js` code at line 8483 already passes `fsbElements` from ANY matched guide: `iterationGuideSelectors = { ...guide.selectors, fsbElements: guide.fsbElements }`. The background side is generic; the content script side is not.
 
 **Consequences:**
-- CLI parser receives unparseable input and the automation stalls
-- Provider that worked fine with JSON now fails with CLI, breaking existing user setups
-- Different failure modes per provider make debugging unpredictable
-- Users switching providers during migration period encounter different bugs
+- All fsbElements for 7 new apps are silently ignored
+- No error messages (the code path is simply never entered)
+- Selectors in the `selectors:` object still work for `[hint:]` annotations, but the multi-strategy resilience system does not engage
+- Testing may appear to work for simple tasks (standard DOM selectors suffice) but fails on fragile elements
 
 **Prevention:**
-1. Build a CLI parser that is at least as tolerant as the current 5-strategy JSON parser (lines 3960-4081 of ai-integration.js). Specifically: strip markdown code blocks, strip conversational text before/after commands, handle extra whitespace and newlines
-2. Run a provider compatibility matrix test BEFORE shipping: send the same DOM snapshot and task to all 4 providers and compare CLI output quality. Document which providers need extra cleaning
-3. Keep provider-specific instructions (`getModelSpecificInstructions()`) and add CLI-specific variants: tell Gemini "Output raw commands, no markdown blocks"; tell Grok "No conversational text, just commands"
-4. Add a "CLI format validation" step that checks each parsed command against the known command vocabulary before dispatch. Log and report commands that parse but reference non-existent tools
-5. Consider keeping JSON as a fallback mode configurable per-provider if a provider proves unreliable with CLI
+Refactor the fsbElements injection in `dom-analysis.js` Stage 1b to be URL-agnostic. Replace the `/spreadsheets\/d\//` check with a generic check: `if (guideSelectors?.fsbElements)`. The existing `findElementByStrategies()` function is already generic. The logging and health-check sections also need generalization (they currently log Sheets-specific messages like `sheets_injection` and `sheets_selector_match`).
 
 **Detection:**
-- Automation logger shows parse failures clustering on specific providers
-- `getModelSpecificInstructions()` needs frequent updates for CLI format
-- Users report "works with Grok but not Gemini" type bugs
+Add a health check assertion: if a site guide has `fsbElements` but the snapshot contains zero elements with `data-fsbRole`, log a warning. This catches the "silently ignored" failure mode.
 
-**Phase to address:**
-CLI Parser Implementation phase -- must include multi-provider test suite as acceptance criteria
+**Phase/Task:** Must be addressed in Phase 1 (infrastructure) before any app-specific guide work begins. This is a prerequisite for all 7 guides.
 
 ---
 
-### Pitfall 2: Conversation History Format Mismatch During Migration
+### Pitfall 2: isCanvasBasedEditor() Only Detects Google Products
 
 **What goes wrong:**
-FSB maintains conversation history across iterations (line 588 of ai-integration.js: `this.conversationHistory = []`). During migration, the conversation history contains old JSON-format assistant responses mixed with new CLI-format prompts. The AI sees its previous responses in JSON format and reverts to JSON output for consistency. This is not a hypothetical risk -- it is a known behavior of instruction-following models that pattern-match on their own conversation history. The model sees `{"tool": "click", "params": {"ref": "e5"}}` in its history and generates the same format, ignoring the system prompt that now says "output CLI commands."
+The `isCanvasBasedEditor()` function in `messaging.js` (line 217) only checks for `docs.google.com` hostname and Google-specific CSS classes (`.kix-appview-editor`, `.waffle-*`). This function gates three critical behaviors:
+1. **Skip readiness checks** in `actions.js` (line 1105-1107) -- without this, clicks on overlay/popover elements may hang waiting for stability
+2. **Skip obscuration checks** in `accessibility.js` (line 642) -- without this, elements behind popovers/modals will be flagged as "obscured" and rejected
+3. **Canvas editor fallback typing** in `actions.js` (line 2438) -- when all selectors fail, CDP keyboard emulation is used as last resort
+
+Airtable uses a canvas-rendered grid view. Notion uses complex layered contenteditable blocks with overlays. These apps will hit readiness check timeouts and false obscuration failures if the bypass does not apply.
 
 **Why it happens:**
-LLMs use in-context learning. The conversation history IS the strongest signal for output format. If 5 of the last 6 assistant messages contain JSON, the model will generate JSON for the 7th message regardless of what the system prompt says. The current system manages conversation history with trimming (lines 1000-1095 of ai-integration.js) but does not transform the FORMAT of retained messages.
-
-This is particularly dangerous during:
-- **Incremental rollout:** Some iterations use CLI, others use JSON (dual mode)
-- **Stuck recovery:** When isStuck triggers a FULL system prompt (line 2203), but the history still contains JSON assistant messages from before the CLI switch
-- **Domain changes:** When `isDomainChanged` triggers a full prompt, mixing format contexts
+The function was correctly scoped for v10.0 which only had Google Sheets/Docs. The name "canvas-based editor" is misleading -- the real need is "complex layered UI where standard readiness/obscuration heuristics fail."
 
 **Consequences:**
-- AI reverts to JSON mid-session, breaking the CLI parser
-- Automation stalls because the CLI parser cannot handle JSON responses
-- The JSON fallback parser (if kept) handles it, but the response is dispatched through the wrong pipeline
-- Session logs become a mix of CLI and JSON actions, making debugging difficult
+- Airtable grid clicks timeout waiting for "DOM stability" that never arrives (virtual scroll constantly mutates)
+- Notion block editor clicks fail obscuration checks when slash command popover is open
+- Google Calendar event popover clicks fail because the popover overlays the grid
+- Actions.js enters slow retry loops instead of fast CDP fallback
 
 **Prevention:**
-1. When switching to CLI format, CLEAR the conversation history entirely or transform all retained assistant messages to CLI format. This is the single most important migration step
-2. If maintaining history across the switch, rewrite previous assistant messages: convert `{"tool": "click", "params": {"ref": "e5"}}` to `click e5` in the history before the next API call
-3. Add a format consistency check: if the system prompt says "output CLI commands" but the last 3 assistant messages in history are JSON, log a WARNING and either clear history or transform it
-4. During the migration period, consider starting each automation session with a fresh conversation history (no carried-over JSON context). This sacrifices multi-turn memory for format consistency
-5. The `MINIMAL_CONTINUATION_PROMPT` (used for continuation iterations, line 2422) must also be rewritten for CLI format -- if the full prompt is CLI but the continuation prompt still expects JSON, the format will oscillate
+Either rename and generalize `isCanvasBasedEditor()` to `isComplexLayeredUI()` that checks against a list of hostnames/URL patterns from the matched site guide, or add a `skipReadinessChecks: true` flag to site guides that need it. The second approach is cleaner -- each guide declares its own needs.
 
-**Detection:**
-- Parse failures that alternate between "valid CLI" and "valid JSON" within the same session
-- Automation logger shows `parseCleanJSON` succeeding on responses that should be CLI
-- Session action history contains a mix of `{tool, params}` objects and CLI command strings
-
-**Phase to address:**
-Prompt Architecture Redesign phase -- conversation history migration must be designed alongside the new prompt format, not as an afterthought
+**Phase/Task:** Must be addressed in Phase 1 (infrastructure) alongside Pitfall 1. Add a `flags` or `behaviors` object to the site guide schema.
 
 ---
 
-### Pitfall 3: CLI Parsing of Quoted Strings, Special Characters, and Multi-Line Values
+### Pitfall 3: Sheets-Specific Health Check and Logging Pollute Generic System
 
 **What goes wrong:**
-The `type` command requires text values that may contain quotes, newlines, special characters, URLs, and code snippets. In JSON format, these are escaped naturally (`\"`, `\\n`). In CLI format, quoting rules are ambiguous and model-dependent. Examples of problematic inputs:
+The Sheets health check at `dom-analysis.js` line 2558 (`if (!FSB._sheetsHealthCheckDone)`) and multiple `spreadsheets\/d\/` URL checks in the snapshot builder (lines 2540, 2558) assume only one app uses fsbElements. When 7 apps use fsbElements, these checks either never fire (wrong URL) or fire incorrectly.
 
-- `type e12 "He said "hello" to me"` -- nested quotes break parsing
-- `type e12 "line1\nline2\nline3"` -- newlines in type text for code editors
-- `type e12 "https://example.com/path?q=test&page=2"` -- URLs with special chars
-- `type e12 "=HYPERLINK("https://...", "Apply")"` -- Google Sheets formulas with nested quotes and parens
-- `type e12 "O'Brien & Associates"` -- apostrophes and ampersands
-- `type e12 "Price: $29.99 (20% off)"` -- currency, percentage, parentheses
-- `storeJobData --company "Johnson & Johnson" --jobs [...]` -- complex data in CLI
-
-The current JSON format handles all of these naturally because JSON has a well-defined escaping spec. CLI has no universal escaping standard.
+The logging uses Sheets-specific event names: `sheets_injection`, `sheets_selector_match`. When Notion triggers fsbElement injection, the logs will say "sheets_injection" -- misleading and confusing for debugging.
 
 **Why it happens:**
-CLI parsing is fundamentally more ambiguous than JSON parsing:
-- No universal spec for quoting (single vs double quotes, backslash escaping vs doubling)
-- Different shells handle quotes differently (POSIX vs Windows)
-- LLMs generate CLI based on whatever shell syntax they've seen most in training (usually bash)
-- The FSB CLI parser is a CUSTOM protocol, not a real shell -- it must define its own quoting rules
-- The LLM may not consistently follow the custom quoting rules, especially for edge cases
-
-Agent-browser's SKILL.md shows they use `fill @e2 "text"` with double quotes but their documentation does not address nested quotes or special characters, suggesting they treat it as a simple case.
+Natural consequence of single-app scope in v10.0.
 
 **Consequences:**
-- `type` command receives truncated or malformed text
-- Data entered into forms or spreadsheets is corrupted (missing quotes, broken URLs)
-- Google Sheets HYPERLINK formulas fail because of quote stripping
-- Code editor inputs lose newlines and indentation
-- The parser extracts wrong command arguments, executing with incorrect parameters
+- Health checks don't run for new apps, so broken selector configurations go undetected
+- Debug logs are misleading
+- `FSB._sheetsHealthCheckDone` flag means only ONE app per page load gets health-checked
 
 **Prevention:**
-1. Define an UNAMBIGUOUS quoting spec for the CLI protocol. Recommended: double-quoted strings with backslash escaping (`\"` for literal quotes, `\\n` for newlines). Document this spec in the system prompt with examples
-2. Support heredoc-style multi-line values for complex text:
-   ```
-   type e12 <<TEXT
-   Line 1
-   Line 2 with "quotes"
-   TEXT
-   ```
-3. For the `storeJobData` and `fillSheetData` commands that carry complex structured data, DO NOT try to encode them as CLI arguments. Instead, keep these as JSON payloads after a command prefix: `storeJobData {"company": "J&J", "jobs": [...]}`
-4. Build a robust tokenizer that handles: escaped quotes within strings, unmatched quotes (auto-close), URLs as bare strings without quotes, single-quote to double-quote normalization
-5. Add fuzzy parsing: if strict parsing fails, try treating everything after the element ref as the text value (works for simple `type` commands)
-6. Test with the SPECIFIC edge cases from FSB's existing workflows: Google Sheets HYPERLINK formulas, career site URLs, company names with special characters (Johnson & Johnson, AT&T, L'Oreal)
+Replace `_sheetsHealthCheckDone` with `_fsbHealthCheckDone` (or per-guide tracking). Generalize log event names to `fsb_element_injection`, `fsb_selector_match`. Make the health check trigger for ANY page with fsbElements, keyed by the matched guide's `site` name.
 
-**Detection:**
-- Type actions produce truncated text (missing everything after first internal quote)
-- Google Sheets HYPERLINK formulas entered incorrectly
-- URLs entered into search boxes are truncated at `&` or `?`
-- Automation logger shows parse errors on `type` commands specifically
-
-**Phase to address:**
-CLI Parser Implementation phase -- the tokenizer/parser is the foundation; if it cannot handle quoted strings, the entire CLI approach fails. Build comprehensive test cases BEFORE implementing commands
+**Phase/Task:** Phase 1 infrastructure refactor, same PR as Pitfalls 1 and 2.
 
 ---
 
-### Pitfall 4: Batch Actions Lose Sequential Semantics in CLI Format
+### Pitfall 4: Adding 7 Guide Files Increases options.html Script Tag Count to ~60
 
 **What goes wrong:**
-The current batch action system uses a JSON array (`batchActions: [{tool, params}, ...]`) that naturally preserves order and groups actions as a single response unit. In CLI format, batch actions become multiple lines of commands. The boundary between "these commands are a batch" and "these are separate sequential commands" becomes ambiguous. The AI may output:
-
-```
-click e3
-type e5 "John Doe"
-type e7 "john@example.com"
-click e9
-```
-
-Is this a batch (execute all before returning for DOM analysis) or sequential commands (return DOM between each)? The current JSON format distinguishes this via `batchActions` vs `actions` arrays. CLI has no equivalent structural signal.
-
-Additionally, the batch suppression logic for Google Sheets (lines 5931-5963 of background.js) detects `actions.filter(a => a.tool === 'type').length >= 2` on Sheets URLs. In CLI format, the parser must reconstruct the action list before this check can run, and the check must use the same field names.
+The project already has a known tech debt item: "53 script tags for per-site guide files in options.html." Adding 7 more productivity guide files pushes this to 60. Each guide is loaded via a separate `<script>` tag in options.html AND via `importScripts()` in the service worker. This creates:
+1. Slower options page load
+2. Larger service worker startup time (importScripts is synchronous)
+3. Manifest V3 service worker can be killed and restarted -- each restart re-imports all 60 scripts
 
 **Why it happens:**
-JSON inherently provides structure (arrays, objects, nesting). CLI is line-oriented and flat. The distinction between "batch" and "sequential" must be encoded explicitly in the CLI protocol, but there is no natural CLI convention for this. Real CLI tools use piping (`|`) or `&&` for chaining, but those have different semantics than FSB's batch concept (sequential with stability checks between each, stop on failure).
+The "no build system" constraint means no bundling. Each file is loaded individually.
 
 **Consequences:**
-- All commands treated as batch when they should be sequential (no DOM refresh between actions, stale refs used)
-- All commands treated as sequential when they should be batched (unnecessary AI API calls between related actions, slower execution)
-- Google Sheets batch suppression fails because the action format changed, leading to concatenated cell values
-- The MAX_BATCH_SIZE (8) safety cap is not enforceable without clear batch boundaries
-- `executeBatchActions()` function (line 5923 of background.js) receives wrong input format
+- Service worker restart latency increases (each importScripts call is a file read)
+- First-message-after-wake delays increase noticeably
+- May hit Chrome's service worker startup timeout on slower machines
 
 **Prevention:**
-1. Define explicit batch delimiters in the CLI protocol. Recommended approach -- use a `batch:` prefix or block syntax:
-   ```
-   batch
-     type e5 "John Doe"
-     type e7 "john@example.com"
-     click e9
-   end
-   ```
-2. Alternative: treat all multi-line output as a batch by default (matches agent-browser's command chaining pattern). Single actions are single-line output. This is simpler but less flexible
-3. Migrate `executeBatchActions()` to accept parsed CLI commands instead of `{tool, params}` objects. The parser must output a normalized internal format that both single and batch execution paths consume
-4. Port the Google Sheets batch suppression check to work with the normalized internal format, not the raw CLI text
-5. Test the Sheets batch suppression specifically: ensure `type` actions on Sheets URLs are still detected and suppressed
+This is NOT a blocker -- 60 files is still manageable. But consider two mitigations:
+1. **Lazy loading for options page**: Only load guides when the Site Guides Viewer tab is opened
+2. **Category bundling for service worker**: Combine all productivity guides into one file (`productivity-bundle.js`) that self-registers each guide. This reduces importScripts calls from 60 to ~15.
 
-**Detection:**
-- Google Sheets data entry produces concatenated values in single cells
-- Automation runs slower than expected (single actions where batches should be used)
-- Automation fails with stale refs (batches where sequential was needed)
-- Batch result logs show wrong action counts
-
-**Phase to address:**
-CLI Protocol Design phase -- batch semantics must be designed into the protocol from day one, not retrofitted
+**Phase/Task:** Optional optimization, can be deferred. Flag it if service worker restart becomes noticeably slow during testing.
 
 ---
 
-### Pitfall 5: Stuck Detection and Action History Break with Format Change
+### Pitfall 5: Keyword Matching in getGuideForTask() Does Not Cover New Apps
 
 **What goes wrong:**
-The stuck detection system (lines 2611-2670 of background.js: `analyzeStuckPatterns()`) relies on action history entries with `action.tool` and `action.params` fields. It creates signatures via `${action.tool}_${JSON.stringify(action.params)}` (line 2627). The smart sequence signature (`createSmartSequenceSignature`, line 9112) also uses `action.tool` and `action.params`. If the action history format changes (CLI string instead of `{tool, params}` object), these systems silently break:
-
-- `analyzeStuckPatterns()` sees `undefined_undefined` for all actions and never detects repetition
-- `areClicksNearby()` (line 2678) checks `action.params?.selector` which does not exist in CLI format
-- Sequence repetition detection (`sequenceRepeatCount`, line 9116) cannot create meaningful signatures
-- The typing-sequence detection (line 8483) checks `action.tool` against an array of tool names
-
-All of these failures are SILENT -- stuck detection stops working without errors, the automation just runs forever without recovery.
+The `categoryKeywords` object in `site-guides/index.js` (line 193) only has `strong` keywords for Google Sheets and Google Docs. When a user says "create a task in Todoist" or "add a card to Trello", the keyword matcher will not find a match because "todoist", "trello", "notion", etc. are not in the keyword list. The URL-based match (`getGuideForUrl`) WILL work when the user is already on the app. But for tasks initiated from a different page (e.g., "go to Notion and create a new page"), the keyword fallback fails.
 
 **Why it happens:**
-Stuck detection was built tightly coupled to the JSON response format. The action history entries are stored as-is from the AI response parsing. If the CLI parser outputs a different structure (e.g., `{command: "click", args: ["e5"]}` instead of `{tool: "click", params: {ref: "e5"}}`), every downstream consumer breaks.
-
-This is a classic "ripple effect" problem: changing the data format at the source propagates breakage through every consumer, and there are many consumers scattered across 11K lines of background.js.
+The keyword system was designed for Google Workspace only. The new apps have distinct enough names that strong keyword matching should work well.
 
 **Consequences:**
-- Stuck detection stops working, automation runs to maxIterations on every stuck scenario
-- Recovery strategies never trigger, AI continues making the same failing action
-- Session analytics report wrong action distributions
-- Action recording/replay (ActionRecorder in content/actions.js) breaks if it depends on action format
+- Site guide not loaded when task is started from a non-matching URL
+- AI operates without site-specific guidance, leading to generic (and often wrong) element targeting
+- No fsbElements injected, no workflows available
 
 **Prevention:**
-1. Define a CANONICAL internal action format that ALL systems use, regardless of whether the AI outputs JSON or CLI. The CLI parser and JSON parser both produce the same internal format:
-   ```javascript
-   { tool: "click", params: { ref: "e5" } }  // canonical format
-   ```
-2. The CLI parser's output MUST match this canonical format exactly. Do NOT create a new format like `{command, args}` -- normalize to `{tool, params}` so all downstream consumers work unchanged
-3. Write a mapping layer that converts CLI commands to canonical format:
-   - `click e5` -> `{tool: "click", params: {ref: "e5"}}`
-   - `type e12 "hello" --enter` -> `{tool: "type", params: {ref: "e12", text: "hello", pressEnter: true}}`
-   - `navigate "https://..."` -> `{tool: "navigate", params: {url: "https://..."}}`
-4. Add unit tests that verify the canonical format for every CLI command variant. These tests are the migration safety net
-5. Audit ALL consumers of `action.tool` and `action.params` in background.js. There are 30+ references -- each one must work with the canonical format
+Add each app's name and common aliases to the `categoryKeywords['Productivity Tools']` strong/weak lists:
+- Strong: `notion`, `google calendar`, `trello`, `google keep`, `todoist`, `airtable`, `jira`
+- Weak: `kanban`, `board`, `sprint`, `calendar event`, `note`, `todo`, `task board`, `database view`
 
-**Detection:**
-- Session logs show stuckCounter staying at 0 even when the automation is obviously stuck
-- maxIterations reached on tasks that previously resolved via stuck recovery
-- `analyzeStuckPatterns()` returns `severity: 'low'` for clearly repetitive action sequences
-
-**Phase to address:**
-Action Dispatch Rewrite phase -- define canonical format first, build parser to produce it, then verify all consumers. This is the highest-risk migration step
+**Phase/Task:** Phase 1, alongside guide registration. Small change, high impact.
 
 ---
 
-### Pitfall 6: Site Guides and Workflow Arrays Reference JSON Tool Names
+## App-Specific Critical Pitfalls
+
+---
+
+### Pitfall 6: Notion -- Slash Commands and Contenteditable Block Boundaries
 
 **What goes wrong:**
-FSB has 43+ site guide files that reference tool names in `toolPreferences` arrays and workflow text. For example, Workday's site guide (line 58) has `toolPreferences: ['navigate', 'type', 'click', 'scroll', 'getText', 'getAttribute', 'waitForElement', 'waitForDOMStable']`. The Google Sheets guide embeds JSON-format examples in its guidance text: `'type the cell reference (e.g., "B1")'`. The BATCH_ACTION_INSTRUCTIONS constant (lines 400-435) contains JSON example blocks. Career search directives embed JSON tool call examples (line 2439): `Format: {"tool": "storeJobData", "params": {"company": "...", ...}}`.
-
-If the prompt sends CLI format instructions but site guides and injected directives still contain JSON examples, the AI receives mixed format signals. It may follow the JSON examples in the site guide rather than the CLI format in the system prompt, especially since site guide examples are CLOSER to the actual task context than the system prompt.
+Notion's block editor uses individual `[contenteditable="true"]` divs for each block (paragraph, heading, list item, etc.). When FSB's `type` action targets a contenteditable element:
+1. **Cursor position is unpredictable** -- clicking a Notion block places the cursor at the click coordinates within that block, not at the end. If the AI says `type e5 "new text"`, the text may be inserted mid-word.
+2. **Typing "/" triggers the slash command menu** -- if the AI types a forward slash as part of data entry (e.g., "03/16/2026"), Notion intercepts it and opens a block type picker overlay, consuming the remaining keystrokes.
+3. **Block boundaries break sequential typing** -- pressing Enter in a Notion block creates a NEW block (new contenteditable div), not a newline within the block. The DOM reference the AI was targeting (e.g., `e5`) is now stale. The new block is a different element.
+4. **@ triggers mention popup** -- typing `@` opens the mention picker. The AI must dismiss it (Escape) before continuing to type.
 
 **Why it happens:**
-FSB's prompt architecture is layered:
-1. System prompt (format instructions, tool documentation)
-2. Task type guidance (`_buildTaskGuidance()`)
-3. Site guide injection (per-domain guidance with examples)
-4. Context directives (multiSite, sheetsData, formatting)
-5. Conversation history
-
-Each layer was written for JSON format. Changing only layer 1 (system prompt) while leaving layers 2-5 in JSON creates format conflicts. The AI must reconcile "Output CLI commands" (system prompt) with `Format: {"tool": "storeJobData", ...}` (context directive). Models resolve this conflict unpredictably.
+Notion's editor is designed for human interaction where "/" and "@" are intentional triggers. Automated typing that includes these characters is not anticipated.
 
 **Consequences:**
-- AI oscillates between CLI and JSON output within the same session
-- Career search workflows fail because storeJobData is called in JSON format instead of CLI
-- Google Sheets workflows produce JSON type actions that the CLI parser rejects
-- Site-specific guidance quality degrades because format instructions compete
+- Data containing "/" or "@" characters causes the editor to enter an unexpected menu state
+- Multi-line content entry fails because each Enter creates a new block with a new element ref
+- Cursor positioning errors cause text to appear in the wrong place within a block
 
 **Prevention:**
-1. Audit and rewrite ALL prompt layers to use CLI format examples:
-   - `BATCH_ACTION_INSTRUCTIONS`: Change JSON batch example to CLI batch example
-   - `multiSiteDirective` (line 2439): Change `Format: {"tool": "storeJobData", ...}` to `Format: storeJobData --company "..." --jobs ...`
-   - `sheetsDataDirective`: Change any JSON examples to CLI
-   - All 43+ site guide files: Update `guidance` text if it contains JSON format examples
-2. The `toolPreferences` arrays in site guides use tool NAMES (strings), not full JSON calls. These are format-agnostic and should work unchanged -- but verify they feed into CLI-format documentation generation
-3. The `TOOL_DOCUMENTATION` constant (lines 15-116 of ai-integration.js) contains `example` fields with JSON format. These MUST be rewritten to CLI format:
-   - `'{"tool": "clickSearchResult", "params": {"index": 0}}'` -> `'clickSearchResult --index 0'`
-4. Create a migration checklist of every location in the codebase that contains hardcoded JSON format examples. Use `grep` for `"tool":` within string literals
-5. Rewrite `getToolsDocumentation()` to output CLI command syntax instead of JSON parameter tables
+1. **Keyboard-first approach**: Use Cmd+Enter for new blocks, Shift+Enter for newlines within a block. Document this distinction in the guide's guidance text.
+2. **Character escaping**: For data entry containing `/` or `@`, guide the AI to use Shift+/ (which types `/` without triggering slash commands in most Notion contexts) or to type the full text via clipboard paste (`Cmd+V` with text in clipboard).
+3. **Block navigation warnings**: Add explicit warnings that Enter changes the active element ref, and the AI should re-request the DOM snapshot after creating new blocks.
+4. **End-of-block cursor**: Instruct AI to press End key before typing to ensure cursor is at the end of the block content.
 
-**Detection:**
-- AI response contains `{"tool":` despite CLI format instructions
-- Automation works for generic tasks but fails for career search or Sheets tasks (which have the most embedded JSON examples)
-- Regression tests pass for simple click/type but fail for complex workflows
+**Phase/Task:** Notion guide implementation phase. These must be in the `warnings` array and `guidance` text.
 
-**Phase to address:**
-Full Prompt Architecture Redesign phase -- this is a full sweep of every prompt layer, not just the system prompt. Budget 40% of the prompt redesign time for this sweep
+---
+
+### Pitfall 7: Notion -- Hashed CSS Classes and Selector Strategy
+
+**What goes wrong:**
+Notion uses CSS Modules (or a similar hashing mechanism) for component-level styles. Classes like `notion-page-content`, `notion-scroller`, `notion-frame` are stable (they are semantic, developer-chosen names). But many interactive elements have classes like `focusable-within` and layout elements have classes like `whenContentEditable` that may change. The sidebar, page list, and database views use dynamically generated class names.
+
+**Why it happens:**
+React + CSS Modules is standard practice for large SPAs. Notion does not provide `data-testid` attributes -- they are not a test-automation-friendly app.
+
+**Consequences:**
+- Selectors based on class names break on Notion deploys (Notion deploys continuously)
+- Multi-strategy selectors need to avoid class-based strategies entirely for volatile elements
+- The stable patterns are: `[contenteditable]`, `[role]`, `[placeholder]` text, `[data-block-id]` (per-block UUID), and structural selectors (`.notion-page-content [contenteditable]:first-child`)
+
+**Prevention:**
+For Notion fsbElements, prioritize in this order:
+1. `role` + `aria-label` (e.g., `[role="button"][aria-label="New page"]`)
+2. `placeholder` text (e.g., `[placeholder="Untitled"]`, `[placeholder="Type '/' for commands"]`)
+3. Structural/positional (e.g., `.notion-sidebar [role="treeitem"]`)
+4. `data-block-id` patterns for block-level targeting (UUIDs are page-specific but structurally reliable)
+5. Class-based as last resort, only for `.notion-*` prefixed classes which are historically stable
+
+**Phase/Task:** Notion guide implementation. Each fsbElement needs 4-5 strategies tested against the live DOM.
+
+---
+
+### Pitfall 8: Google Calendar -- Time Grid is NOT Canvas but Has Its Own DOM Complexity
+
+**What goes wrong:**
+Unlike Google Sheets, Google Calendar does NOT use canvas rendering for the calendar grid. The time grid is DOM-based but uses complex absolute positioning with `[data-datekey]` and `[data-eventid]` attributes. However, the event creation flow is problematic:
+1. **Quick-add popover** appears when clicking an empty time slot -- it is a floating dialog with no stable class selector, identified by `[role="dialog"]`.
+2. **Event detail popover** appears when clicking an existing event -- it is a DIFFERENT dialog type from the creation popover.
+3. **Full event editor** opens when clicking "More options" -- this navigates to a separate URL (`/calendar/r/eventedit`), which is a different SPA route.
+4. **Date/time pickers** are Google's Material Design custom components, not native inputs. They use nested `[role="listbox"]` and `[role="option"]` patterns.
+5. **Drag-to-create** and **drag-to-resize** events use mouse event sequences that cannot be reliably automated via CDP keyboard/click emulation.
+
+**Why it happens:**
+Google Calendar's UI was designed for mouse-centric interaction. The SPA routing between views (day/week/month/year) changes the DOM structure entirely.
+
+**Consequences:**
+- Trying to create events by clicking time slots produces timing-sensitive popovers that may close before the AI can fill in details
+- The full event editor URL is a different route pattern that needs its own URL pattern match
+- Date/time selection requires navigating custom pickers, not typing into inputs
+
+**Prevention:**
+1. **Keyboard-first event creation**: Use the shortcut `c` to open the new event dialog directly (bypasses time slot click timing issues). Fill in fields sequentially.
+2. **URL patterns**: Register multiple URL patterns: `/calendar/`, `/calendar/r/eventedit`, `/calendar/r/day`, `/calendar/r/week`, etc.
+3. **Popover timing**: Add explicit `waitForElement` with `[role="dialog"]` before attempting to fill in event details.
+4. **Date/time entry**: Type dates as text into the date input field (Google Calendar accepts typed dates in locale format) rather than using the picker widget.
+5. **Avoid drag operations**: Never attempt drag-to-create or drag-to-resize. Always use keyboard/form-based creation and editing.
+
+**Phase/Task:** Google Calendar guide implementation. Document the keyboard-centric workflow prominently.
+
+---
+
+### Pitfall 9: Trello -- Card Modal Overlays and Back-Navigation State
+
+**What goes wrong:**
+Trello uses a distinctive URL-routed card modal pattern:
+1. Opening a card changes the URL to `/c/[cardId]/[card-name]` but does NOT navigate to a new page -- it overlays a modal on the board view.
+2. Closing the modal (clicking outside, pressing Escape, or clicking the X) returns to the board URL.
+3. The FSB URL pattern matcher will see the card URL and may try to match a different guide pattern.
+4. The board DOM remains in the background behind the modal but is not interactive.
+5. The card modal uses `data-testid` attributes on many elements (e.g., `data-testid="card-back-name"` for the card title).
+
+**Why it happens:**
+Trello's modal-as-route pattern is a common SPA idiom but unusual for FSB which expects URL changes to mean page navigation.
+
+**Consequences:**
+- URL pattern matching may produce false transitions (board -> card URL looks like a navigation)
+- The AI may try to interact with board elements that are behind the modal overlay and fail obscuration checks
+- Pressing Escape to "exit" (a common FSB recovery action) closes the card modal unexpectedly
+
+**Prevention:**
+1. **URL patterns**: Use a broad pattern that matches both board and card URLs: `/trello\.com\/b\//` (board base) covers both states since card URLs are `/b/[boardId]/[board-name]/c/[cardId]`.
+2. **Modal awareness**: Add guidance that when a card modal is open, only interact with elements inside `[data-testid="card-back"]` or the modal container. The AI should NOT try to interact with the board behind the modal.
+3. **Escape key warning**: Add a prominent warning that Escape closes the current card modal. Use it only intentionally for modal dismissal, not as a general "reset" action.
+4. **Data-testid selectors**: Trello's `data-testid` attributes are the most reliable selectors. Build fsbElements around them.
+
+**Phase/Task:** Trello guide implementation. The URL pattern design is critical to get right.
+
+---
+
+### Pitfall 10: Airtable -- Virtual Scrolling Grid Destroys DOM Elements
+
+**What goes wrong:**
+Airtable's grid view uses React virtualized scrolling (historically `react-virtualized`, now likely a custom implementation). This means:
+1. **Only visible rows/cells exist in the DOM** -- scrolling creates new DOM elements and destroys out-of-viewport ones.
+2. **Element refs become stale instantly** -- the AI requests a snapshot showing `e5` as row 3, column B. By the time the AI responds with `click e5`, the user may have scrolled and `e5`'s underlying DOM element has been destroyed and replaced.
+3. **Cell editing opens an expanded overlay** -- clicking a cell does not make it editable in-place (unlike Sheets). It may open a popover or modal depending on field type (long text, attachments, linked records all have different expansion patterns).
+4. **Field type diversity** -- each Airtable field type (single select, multi-select, date, checkbox, rating, etc.) has a completely different editing UI. A "type" action works for text fields but not for select fields (which need click interactions with dropdown options).
+
+**Why it happens:**
+Airtable manages thousands of rows with dozens of field types. Virtual scrolling is necessary for performance but hostile to DOM-based automation.
+
+**Consequences:**
+- Stale element references are the #1 failure mode
+- A single "navigate to cell and type" workflow does not work -- each field type needs its own interaction pattern
+- The AI cannot "see" rows that are scrolled out of view
+
+**Prevention:**
+1. **Keyboard navigation**: Use Tab and arrow keys to navigate between cells rather than clicking specific element refs. Airtable supports keyboard navigation within the grid.
+2. **Expanded record modal**: For complex field types, guide the AI to click the row expander to open the expanded record view, which renders ALL fields in a stable modal form.
+3. **Field type dispatch**: The guide's `guidance` text must explain that different field types require different actions (type for text, click+select for dropdowns, click for checkboxes, etc.).
+4. **Limit grid interactions**: Prefer expanded record editing over in-grid editing for any field type beyond plain text.
+5. **Fresh snapshot per action**: Warn the AI that element refs in the grid are volatile -- request a fresh snapshot between sequential grid interactions.
+
+**Phase/Task:** Airtable guide implementation. The field type dispatch table is the most complex guidance of all 7 apps.
+
+---
+
+### Pitfall 11: Jira -- New UI Rollout Creates a Moving Target
+
+**What goes wrong:**
+Atlassian is actively rolling out a "new UI" for Jira Cloud throughout 2025-2026. This means:
+1. **Two versions coexist** -- some organizations see the old UI, others the new. Some views are new UI while others remain old.
+2. **Selector sets differ between versions** -- the old UI uses AtlasKit v11 components, the new uses updated AtlasKit with different compiled CSS class names.
+3. **Issue creation modal changed** -- the old modal had a simple form, the new has a multi-step wizard with different field layouts.
+4. **Board view drag-and-drop** -- the implementation details change between old and new UI.
+5. **Sprint planning views** -- new UI reorganized the backlog/sprint panel layout.
+
+**Why it happens:**
+Jira is a massive product undergoing a multi-year UI migration. Atlassian does not maintain backward compatibility for DOM selectors during transitions.
+
+**Consequences:**
+- A guide built against the new UI may fail for organizations still on the old UI
+- Selectors that work today may break in weeks as Atlassian continues the rollout
+- `data-testid` attributes are present in both UIs but the values may differ
+
+**Prevention:**
+1. **Target new UI only**: Build the guide for the current (2026) new UI. The old UI is being deprecated -- do not waste effort supporting both.
+2. **Use `data-testid` as primary strategy**: Atlassian uses `data-testid` extensively in their design system. These are the most stable selectors.
+3. **Fallback to aria-label**: `[aria-label="Create issue"]`, `[aria-label="Board"]`, etc. are consistent across UI versions.
+4. **Version detection**: Add a detection function in the guide that checks for new UI markers (e.g., `[data-ds--page-layout--container]` is new design system) and adjusts guidance accordingly.
+5. **Accept shorter shelf life**: Jira guides will need maintenance updates more frequently than other apps. Plan for quarterly selector validation.
+
+**Phase/Task:** Jira guide implementation. Selector validation against live Jira instance is mandatory before shipping.
+
+---
+
+### Pitfall 12: Todoist -- Extensive Single-Key Shortcuts Conflict with FSB
+
+**What goes wrong:**
+Todoist uses 20+ single-key shortcuts without modifiers: Q (Quick Add), E (complete task), A (add task), M (sidebar), H (home), T (set date), Y (priority), C (comment), L (label), V (move), S (section), D/P/N/R (sort), F or / (search). When FSB sends keystrokes via CDP's `Input.dispatchKeyEvent`, these keypresses are intercepted by Todoist's keyboard handler BEFORE reaching any focused input element.
+
+**Why it happens:**
+Todoist attaches a global `keydown` listener to the document that checks if an input/textarea is focused. If not, single keys trigger app actions. When FSB dispatches keys via CDP, the event fires on the document first.
+
+**Consequences:**
+- Typing text into a task field may trigger sidebar toggle (M), search (/), or other actions if the input loses focus for even one frame
+- The AI types "Monday" and the M opens the sidebar, "onday" goes into the now-hidden search field
+- Quick Add (Q) may fire unexpectedly during text entry
+
+**Prevention:**
+1. **Always ensure focus before typing**: The guide must instruct the AI to click the target input element and verify it has focus BEFORE typing. Never type without an element ref.
+2. **Use `type` with element ref, not bare `key` commands**: FSB's `type e5 "text"` focuses the element first. Bare `key "m"` would trigger the shortcut.
+3. **Escape sequence awareness**: Pressing Escape in Todoist dismisses modals/panels and returns focus to the task list -- where single-key shortcuts become active again. The guide must warn about this.
+4. **Quick Add pattern**: Use the keyboard shortcut Q to open Quick Add, then type into the focused input. Do NOT try to find and click the Quick Add button.
+
+**Phase/Task:** Todoist guide implementation. The warnings section must prominently cover the shortcut conflict risk.
+
+---
+
+### Pitfall 13: Google Keep -- Deceptively Simple but Card Focus is Tricky
+
+**What goes wrong:**
+Google Keep appears simple (card grid, note editing) but has subtle interaction patterns:
+1. **Card grid is not a standard grid** -- cards are positioned via CSS grid/masonry layout. Clicking a card opens it as an expanded modal overlay, not inline editing.
+2. **The expanded note overlay** captures all keyboard input. Pressing Escape closes it. There is no "save" button -- changes are auto-saved.
+3. **Checkbox lists** in Keep have their own interaction model -- checking a box moves the item to a "completed" section within the note, changing the DOM structure.
+4. **Color picker and labels** use popovers that appear at the bottom of the note overlay. They are transient and close on outside click.
+5. **Note creation** is done by clicking the "Take a note..." input at the top, which expands into a multi-field form (title + body). The expansion animation means the body field is not immediately available after clicking.
+
+**Why it happens:**
+Keep is optimized for quick capture, not structured data entry. The UI is intentionally minimal with implicit save behavior.
+
+**Consequences:**
+- Attempting to type into a card directly (without opening it) fails -- the click opens the overlay instead
+- Rapid interaction after opening a note may fail because the expansion animation has not completed
+- Checkbox interactions change DOM order, invalidating element refs
+
+**Prevention:**
+1. **Open-then-edit pattern**: Click card to open -> wait for overlay -> interact with elements inside overlay. Never try to edit cards in the grid view.
+2. **Animation delay**: After clicking "Take a note..." or opening a card, add a brief wait (300-500ms) or `waitForElement` for the note body input.
+3. **Checkbox warning**: Document that checking a checkbox moves the item DOM node. The AI should re-request the snapshot after checkbox operations.
+4. **Auto-save reliance**: Instruct the AI that there is no save action needed. Just click outside the note or press Escape to close and save.
+
+**Phase/Task:** Google Keep guide implementation. Keep is the simplest of the 7 apps, suitable for early implementation as a confidence builder.
 
 ---
 
 ## Moderate Pitfalls
 
-Mistakes that cause degraded quality, extra debugging, or partial failures.
-
 ---
 
-### Pitfall 7: Backward Compatibility Breaks During Incremental Migration
+### Pitfall 14: SPA Routing Breaks URL Pattern Matching Across Views
 
 **What goes wrong:**
-The migration is planned as "backward-compatible" (PROJECT.md line 72: "existing action toolset preserved, only the AI-to-extension protocol changes"). But the codebase has tight coupling between the protocol format and the action execution layer. Examples:
+All 7 apps are SPAs that change URLs without full page navigation:
+- **Notion**: `/[workspace-id]/[page-id]` -- each page is a different UUID path
+- **Google Calendar**: `/calendar/r/week`, `/calendar/r/day`, `/calendar/r/month` -- view changes are URL changes
+- **Trello**: `/b/[boardId]/...`, `/c/[cardId]/...` -- board vs card modal
+- **Todoist**: `/app/project/[id]`, `/app/today`, `/app/inbox` -- view-based routing
+- **Airtable**: `/[baseId]/[tableId]/[viewId]` -- base/table/view hierarchy
+- **Jira**: `/jira/software/projects/[key]/boards/[id]`, `/browse/[issue-key]` -- project/board/issue routing
 
-- `normalizeResponse()` (line 4087 of ai-integration.js) expects `response.actions` to be an array of `{tool, params}` objects with sanitization checks on `action.params?.url` and `action.params?.text`
-- `getActionStatus()` (called at line 9107) takes `action.tool` and `action.params` to generate UI status text
-- The popup and sidepanel UIs display action status based on `{tool, params}` format
-- Session persistence and replay (`loadSessionForReplay`, line 2105) stores and replays `{tool, params}` action objects
-
-If the migration changes the internal format or introduces a transitional period where both formats coexist, any of these coupling points can break.
-
-**Why it happens:**
-"Backward compatible" usually means the external interface stays the same while internals change. But FSB's "external interface" is the AI-to-extension protocol, and the "internals" (action execution, UI, analytics) were built to match that protocol format. Changing the protocol without changing every consumer creates format mismatches at consumer boundaries.
+The `getGuideForUrl()` function tests URL patterns once when the session starts. If the user navigates within the SPA (e.g., from Notion page A to page B), the URL changes but no new page load occurs. The guide remains matched (good), but if the URL changes to a fundamentally different view (e.g., Jira board -> Jira issue), the guide context may need updating.
 
 **Prevention:**
-1. Maintain the canonical `{tool, params}` internal format (see Pitfall 5). The CLI parser normalizes to this format, so ALL downstream code works unchanged
-2. Do NOT introduce a "CLI action format" internally. The only place CLI exists is: (a) the AI's output text, (b) the parser that converts it. Everything after the parser is canonical `{tool, params}`
-3. Build a feature flag (`protocolMode: 'json' | 'cli'`) that controls ONLY the prompt and parser, not the execution pipeline. This allows A/B testing and instant rollback
-4. During migration, the flag can be changed per-session or per-provider without affecting action execution
-5. Test backward compatibility explicitly: existing session recordings must replay correctly after the migration
+1. **Broad URL patterns**: Use domain-level patterns, not path-specific. E.g., `/notion\.so/` not `/notion\.so\/[a-f0-9-]+/`.
+2. **Per-iteration guide lookup**: The `background.js` already re-resolves the guide on each iteration (line 8478). This handles SPA navigation correctly as long as patterns are broad enough.
+3. **View-specific guidance within single guide**: Rather than separate guides for "Jira Board" and "Jira Issue", use one Jira guide with view-detection logic in the guidance text.
 
-**Detection:**
-- UI shows "undefined" for action status or tool name
-- Session replay fails with format errors
-- Analytics dashboard shows wrong action type distributions
-
-**Phase to address:**
-Action Dispatch Rewrite phase -- design the boundary between protocol format and internal format before writing any parser code
+**Phase/Task:** URL pattern design for each guide. Test with multiple views per app.
 
 ---
 
-### Pitfall 8: YAML DOM Snapshots Break Element Ref Resolution
+### Pitfall 15: Modal/Popover Timing -- Acting Before the UI Stabilizes
 
 **What goes wrong:**
-The current DOM snapshot format is JSON with refs like `"elementId": "elem_123"` that the AI references as `e123` in actions (with the `elem_` prefix stripped for prompts, per ai-integration.js). The migration changes DOM snapshots to YAML format. If the YAML serialization introduces subtle changes to how refs are represented, the ref resolution chain breaks:
+All 7 apps use animated modals, popovers, and dropdown menus that take 100-400ms to fully render:
+- **Notion**: Slash command menu, @ mention picker, link picker, database filter popover
+- **Google Calendar**: Event creation popover, date picker, time picker, guest suggestion dropdown
+- **Trello**: Card modal opening, label picker, member picker, due date picker
+- **Todoist**: Quick Add expansion, date picker, label picker, priority picker
+- **Airtable**: Cell expansion modal, field config modal, dropdown options
+- **Jira**: Create issue modal (particularly slow -- loads field schemas dynamically), sprint scope picker
+- **Google Keep**: Note expansion overlay, color picker, label picker
 
-1. YAML may format refs differently (unquoted `e5` vs quoted `"e5"`)
-2. YAML indentation errors make elements appear nested under the wrong parent
-3. YAML anchors/aliases may be used for deduplication, confusing the AI
-4. YAML multi-line strings may split element descriptions across lines
-5. Large YAML snapshots may exceed the AI's effective context window differently than JSON
-
-The current `resolveRef` logic in content.js maps `e5` -> element in cache. If the YAML snapshot presents refs in a way the AI does not understand, it may fabricate refs, use wrong refs, or refer to elements by description instead of ref.
-
-**Why it happens:**
-YAML is structurally more flexible than JSON, which is both its strength (more compact) and weakness (more ways to be ambiguous). YAML parsers are notoriously inconsistent across implementations. While FSB does not parse YAML (it generates YAML for the AI to read), the AI's interpretation of YAML structure affects its ref usage. Research shows YAML achieves 62% accuracy for nested data (vs JSON 50%) but this is for READING comprehension, not for GENERATING references from YAML input.
-
-**Prevention:**
-1. Use simple, flat YAML without advanced features (no anchors, no aliases, no multi-document, no flow sequences). The YAML should look like a readable list:
-   ```yaml
-   elements:
-     e1: button "Submit" .btn-primary
-     e2: input[text] "Search..." #search-box
-     e3: link "Home" /index.html [off-screen]
-   ```
-2. Test ref accuracy by sending the same page to the AI in both JSON and YAML formats and comparing which refs it selects. If YAML causes more ref errors, the YAML format needs adjustment
-3. Keep element refs in the SAME format across JSON and YAML: `e1`, `e2`, etc. Do not change to `@e1` or `elem_1` or any other format during the migration -- the AI already knows `e1` format
-4. Limit YAML snapshot size to a token budget (current: 15K prompt budget with 40/50/10 split). YAML is ~15-40% more token-efficient than JSON for the same data, so the same token budget buys more elements
-5. Add a "ref validation" step: after parsing the AI's CLI response, verify that all referenced element IDs exist in the most recent snapshot. Log warnings for fabricated refs
-
-**Detection:**
-- AI references element IDs not present in the current snapshot
-- Action failures increase after switching to YAML snapshots (elements not found)
-- AI describes elements in text instead of using refs ("click the submit button" instead of `click e5`)
-
-**Phase to address:**
-YAML DOM Snapshot phase -- run comparative tests of JSON vs YAML ref accuracy before committing to YAML
-
----
-
-### Pitfall 9: Model Instruction Drift (Reverting to JSON Over Long Sessions)
-
-**What goes wrong:**
-Even with a perfect CLI system prompt and clean conversation history, models exhibit "instruction drift" over long automation sessions (15+ iterations). The AI starts generating CLI correctly, but as the session progresses and the conversation history grows, it begins adding JSON-like structures, wrapping CLI in code blocks, or reverting entirely to JSON. This is distinct from Pitfall 2 (history contamination) -- this happens even with clean history because of the model's underlying token generation probabilities.
-
-Long FSB sessions are common: career search workflows run 20-50 iterations across 5+ sites. Google Sheets data entry can run 30+ iterations. These are well within the drift zone.
+If the AI tries to interact with elements inside these containers before they finish rendering, clicks miss their targets or type actions go to the wrong element.
 
 **Why it happens:**
-- The system prompt becomes a smaller fraction of the total context as history grows
-- Models have stronger JSON priors from training data than custom CLI priors from a single system prompt
-- Repetitive command patterns (click, type, click, type) may trigger the model to "optimize" by switching to a format it considers more natural
-- Gemini and GPT-4o are particularly prone to drift because they use longer-context attention patterns that dilute prompt authority
-- The continuation prompt (`MINIMAL_CONTINUATION_PROMPT`) may have weaker format enforcement than the full system prompt
-
-**Prevention:**
-1. Reinforce CLI format in EVERY continuation prompt, not just the initial system prompt. Add a brief format reminder: `"Output CLI commands only. No JSON."`
-2. Periodically inject format correction: every N iterations, include a "format: cli" reminder in the user message
-3. If the parser detects a JSON-formatted response that was supposed to be CLI, add the failed response to history with a correction: `"You responded in JSON. You MUST use CLI format. Example: click e5"`. Then retry
-4. Implement aggressive conversation history trimming for CLI sessions. Keep fewer messages (current maxConversationTurns may be too high for CLI format stability)
-5. Monitor format drift per-provider and add provider-specific drift countermeasures
-
-**Detection:**
-- Parse success rate declines as session iteration count increases
-- Format errors cluster in later iterations (15+) of long sessions
-- Specific providers drift more than others (track drift rate per provider)
-
-**Phase to address:**
-Prompt Architecture Redesign phase -- continuation prompt and history management are core components
-
----
-
-### Pitfall 10: Security Sanitization Bypass in CLI Format
-
-**What goes wrong:**
-The current `normalizeResponse()` function (lines 4102-4131 of ai-integration.js) sanitizes actions: it blocks `navigate` to `data:` or `javascript:` URIs, blocks `type` with `<script>` content, and strips prompt injection attempts. This sanitization works on `{tool, params}` objects with known field paths. In CLI format, the sanitization must parse CLI commands to extract the URL or text value before checking -- and if the CLI parser handles quoting differently than expected, the sanitization can be bypassed.
-
-Example bypass: `navigate "javascript:alert(1)"` might be parsed as `{tool: "navigate", params: {url: "javascript:alert(1)"}}` correctly, but `navigate javascript:alert(1)` (without quotes) might be parsed as `{tool: "navigate", params: {url: "javascript:alert(1)"}}` or might fail to parse at all (no quotes = parser confusion), causing the action to be rejected for wrong reasons rather than security reasons.
-
-**Why it happens:**
-Security sanitization is format-dependent. It was built to inspect JSON object properties. CLI parsing introduces a new attack surface:
-- Unquoted URLs may not be extracted correctly for inspection
-- Quoted strings with escape sequences may bypass string matching (`java\x73cript:`)
-- Multi-word arguments may be split incorrectly, causing the security check to see partial values
-- CLI command injection (if the parser is not careful, `click e5; navigate javascript:...` could inject a second command)
-
-**Prevention:**
-1. Apply security sanitization AFTER the CLI parser normalizes to canonical `{tool, params}` format. The same sanitization code should work on both JSON-parsed and CLI-parsed actions
-2. Add CLI-specific sanitization: check for command injection patterns (`;`, `&&`, `|` between commands)
-3. The canonical format means the security layer does not need to understand CLI syntax at all -- it only inspects `{tool, params}` objects
-4. Add a security test suite that tries CLI-format injection attacks: unquoted dangerous URLs, escaped characters, command injection
-5. URL normalization: always decode/normalize URLs extracted from CLI commands before security checks
-
-**Detection:**
-- Security sanitization logs stop catching blocked actions (sanitization is not running on CLI-parsed actions)
-- Actions execute that would have been blocked in JSON format
-- CLI parser allows `;` or `&&` to inject additional commands
-
-**Phase to address:**
-Action Dispatch Rewrite phase -- security sanitization must be tested against CLI-specific bypass vectors
-
----
-
-### Pitfall 11: Testing Coverage Gap During Migration
-
-**What goes wrong:**
-FSB has no automated test suite (vanilla JavaScript Chrome extension, no build system). Testing is manual across diverse websites. The migration changes the most critical path in the system (AI response -> parse -> dispatch -> execute) without automated regression tests. Manual testing cannot cover:
-- All 30+ tool commands in CLI format
-- All 4 AI providers
-- All 43+ site guides with their workflows
-- Edge cases in quoting, special characters, batch actions
-- Long session format drift
-- Stuck detection with new action format
-
-A manual-only testing strategy for this migration will miss regression bugs that only appear in specific provider + tool + input combinations.
-
-**Why it happens:**
-FSB is a vanilla JavaScript Chrome extension with no build system (constraint from PROJECT.md: "No build system: Direct JavaScript execution"). This makes traditional unit testing harder (no Jest, no Vitest without setup). The team has relied on manual testing across websites, which works for feature testing but fails for format migration testing.
+FSB's outcome-based dynamic delays work well for page-level transitions but may not detect modal/popover appearance within an already-loaded page.
 
 **Consequences:**
-- Regressions discovered in production by users, not in development
-- "Works on my machine" false confidence (tested with one provider, one task type)
-- Rollback needed after shipping because of untested edge case
+- Clicks on not-yet-rendered popover elements fail silently
+- Type actions go to the element behind the popover (the one that had focus before the popover appeared)
+- The AI retries, the popover has now fully rendered, the retry succeeds -- but at the cost of wasted iterations
 
 **Prevention:**
-1. Build a CLI parser test harness that runs outside the extension context (pure JavaScript, runnable in Node.js or browser console). Feed it known inputs and verify outputs:
-   ```javascript
-   // test-cli-parser.js
-   assert(parseCLI('click e5'), {tool: 'click', params: {ref: 'e5'}});
-   assert(parseCLI('type e12 "hello world" --enter'), {tool: 'type', params: {ref: 'e12', text: 'hello world', pressEnter: true}});
-   assert(parseCLI('navigate "https://example.com/path?q=test"'), {tool: 'navigate', params: {url: 'https://example.com/path?q=test'}});
-   ```
-2. Build a "format round-trip" test: take real AI responses from session logs, parse them as JSON (current), convert to CLI format, parse as CLI, verify the canonical output matches
-3. Create provider-specific test fixtures: capture one response from each provider and verify the CLI parser handles each provider's output quirks
-4. Test the FULL pipeline end-to-end on at least 3 different task types: simple navigation, career search, Google Sheets data entry
-5. Keep the JSON parser as a fallback with its own tests so it can be re-enabled instantly
+1. **`waitForElement` in workflows**: Every workflow step that triggers a modal/popover should include a `waitForElement` step targeting the container (e.g., `[role="dialog"]`, `[role="menu"]`, `[role="listbox"]`).
+2. **Guidance text**: Explicitly tell the AI to wait for specific elements after triggering popovers. E.g., "After pressing /, wait for the block type menu to appear before typing the block type name."
+3. **Popover fsbElements**: Define fsbElements for common popover containers with role-based selectors that the AI can use as "readiness signals."
 
-**Detection:**
-- Post-migration bug reports that could have been caught with unit tests
-- "It used to work" regression reports for specific tool commands or providers
-- Debugging time spent on format parsing issues rather than feature issues
+**Phase/Task:** Each app's guide implementation. Include waitForElement steps in all workflows that trigger popovers.
 
-**Phase to address:**
-CLI Parser Implementation phase -- build tests BEFORE building the parser (TDD approach)
+---
+
+### Pitfall 16: Drag-and-Drop Cannot Be Reliably Automated
+
+**What goes wrong:**
+Several apps rely heavily on drag-and-drop:
+- **Trello**: Card reordering, moving cards between lists
+- **Jira**: Sprint board card movement, backlog prioritization
+- **Google Calendar**: Event rescheduling (drag to different time/day), event resizing
+- **Airtable**: Row reordering, kanban card movement
+- **Notion**: Block reordering, database row reordering
+
+FSB's CDP-based automation can dispatch mouse events (mousedown, mousemove, mouseup) but drag-and-drop requires:
+1. Precise coordinate sequences (start point, intermediate points, end point)
+2. HTML5 Drag and Drop API events (dragstart, drag, dragover, dragenter, drop, dragend) OR pointer event sequences
+3. Framework-specific drag libraries (react-beautiful-dnd, react-dnd, @hello-pangea/dnd) that listen for specific event sequences and may reject synthetic events
+
+**Why it happens:**
+Drag-and-drop libraries are designed to work with real user gesture sequences. Synthetic events dispatched by CDP may not carry the correct `dataTransfer` objects or may fire in the wrong sequence.
+
+**Consequences:**
+- Attempting to drag a Trello card between lists via automation will fail silently -- the card snaps back to its original position
+- Jira sprint board card movement fails
+- Google Calendar event rescheduling fails
+
+**Prevention:**
+1. **Provide keyboard alternatives for EVERY drag operation** in the guide:
+   - Trello: Use card's "Move" action (accessible via card back menu) instead of drag
+   - Jira: Use the "Move to Sprint" action from the issue context menu
+   - Google Calendar: Edit the event and change the date/time fields instead of drag-resizing
+   - Airtable: Use sort/filter instead of manual row reordering
+   - Notion: Use Cmd+Shift+Up/Down to move blocks instead of drag handles
+2. **Anti-feature documentation**: Explicitly state in each guide: "Do NOT attempt drag-and-drop. Use keyboard/menu alternatives."
+3. **Workflow alternatives**: Every workflow that a user might accomplish via drag should have a keyboard/menu equivalent documented.
+
+**Phase/Task:** All 7 guide implementations. This is a design decision, not a bug to fix.
+
+---
+
+### Pitfall 17: Contenteditable Diversity Across Apps
+
+**What goes wrong:**
+Four of the 7 apps use `contenteditable` elements, but each behaves differently:
+
+| App | Contenteditable Pattern | Gotcha |
+|-----|------------------------|--------|
+| **Notion** | One `[contenteditable]` per block. Enter creates new block (new element). | Element ref invalidation on Enter |
+| **Todoist** | Task title/description are contenteditable. Markdown-like formatting. | Typing `/` or `@` may trigger autocomplete in newer versions |
+| **Airtable** | Long text fields use contenteditable in expanded record modal. Rich text fields support markdown. | Different behavior in grid cell vs expanded record |
+| **Jira** | Description field uses Atlassian Editor (ProseMirror-based). Rich text with / command palette. | ProseMirror manages its own cursor state; fill() may not work |
+
+The FSB `type` action handles contenteditable elements by focusing and using `document.execCommand('insertText')` or CDP `Input.insertText`. Both approaches work differently with each app's custom contenteditable handlers.
+
+**Why it happens:**
+Each app wraps contenteditable with its own event handlers, custom input processing, and state management. There is no standard behavior.
+
+**Consequences:**
+- `type` action may produce duplicated text (Playwright bug #36715 documents this for custom contenteditable handlers)
+- Formatting characters may be interpreted as commands
+- Cursor position after type may not be where expected
+
+**Prevention:**
+1. **Test each app's contenteditable behavior**: Verify that FSB's type action works correctly with each app's specific implementation. Document which input method works (insertText vs dispatchKeyEvent vs execCommand).
+2. **Fallback to CDP key-by-key**: If `Input.insertText` fails, fall back to `Input.dispatchKeyEvent` for each character. This is slower but more compatible with custom handlers.
+3. **App-specific type guidance**: In each guide's warnings, document how contenteditable behaves and what the AI should expect after typing.
+
+**Phase/Task:** Each app's guide implementation. Test contenteditable behavior early.
+
+---
+
+### Pitfall 18: Rate Limiting and Anti-Automation Detection
+
+**What goes wrong:**
+Some apps may detect or throttle automated interactions:
+
+| App | Risk | Details |
+|-----|------|---------|
+| **Jira Cloud** | HIGH | Explicit API rate limiting (100 req/sec GET, 50 req/sec PUT). Browser automation triggers XHR requests that count against these limits. Fast sequential operations (bulk issue creation) may hit 429s. |
+| **Notion** | MODERATE | Uses Cloudflare. Aggressive rapid page switching may trigger bot detection challenges. |
+| **Airtable** | MODERATE | API rate limit of 5 requests/second per base. Browser operations that trigger API calls (saving records) are subject to this. |
+| **Trello** | LOW | API rate limit of 100 requests per 10 seconds per token. Browser automation rarely hits this. |
+| **Google Calendar** | LOW | Google Workspace apps have internal rate limiting but it is generous for single-user browser interaction. |
+| **Google Keep** | LOW | Minimal API calls for note operations. |
+| **Todoist** | LOW | API rate limit exists but browser interactions are well below threshold. |
+
+**Prevention:**
+1. **Pace operations**: For Jira bulk operations, add 200ms delays between issue creation/update operations.
+2. **Monitor for 429 responses**: If the page shows an error banner or the AI sees "rate limit" or "too many requests" text, pause and retry.
+3. **Avoid rapid navigation**: Do not cycle through multiple Notion pages in quick succession.
+4. **Jira-specific**: Add guidance about rate limiting in the Jira guide warnings. The AI should not attempt bulk issue creation without pacing.
+
+**Phase/Task:** Jira and Airtable guides specifically. Add rate-limit warnings to those guides.
 
 ---
 
 ## Minor Pitfalls
 
-Mistakes that cause suboptimal results or require small fixes.
-
 ---
 
-### Pitfall 12: Token Budget Assumptions Change with CLI Format
+### Pitfall 19: Shared Category Guidance Needs Updating
 
 **What goes wrong:**
-FSB's prompt budget is 15K tokens with a 40/50/10 split (system prompt / page context / memory, line 118 of PROJECT.md). CLI commands are shorter than JSON responses (~76% token reduction per Playwright CLI research), which means the AI's OUTPUT uses fewer tokens. But the PROMPT also changes: YAML DOM snapshots are ~15-40% smaller, and CLI tool documentation is more compact than JSON parameter tables. This changes the effective allocation across prompt sections. If the budget is not recalculated, either too much or too little context is allocated to each section.
+The current `_shared.js` for Productivity Tools (at `site-guides/productivity/_shared.js`) only mentions Google Sheets and Google Docs canvas-based rendering. Adding 7 non-canvas apps to the same category means the shared guidance about "canvas-based rendering" and "Name Box navigation" is misleading for Notion, Trello, etc.
 
 **Prevention:**
-1. Measure actual token counts for CLI-format prompts vs JSON-format prompts with the same page
-2. Recalculate the prompt budget split. If YAML saves 30% on page context, that budget can be reallocated to more elements (the 50-element cap might increase to 70+) or more memory context
-3. Update `estimatedTokens` calculation (line 3024 of ai-integration.js) to account for CLI format differences
+Rewrite `_shared.js` to only include truly universal productivity tool guidance (keyboard shortcuts, auto-save patterns, modal interaction patterns). Move canvas-specific guidance to the Google Sheets and Google Docs guides.
 
-**Detection:**
-- Prompt token counts are significantly under budget (wasting context capacity)
-- Or prompt token counts exceed budget because tool documentation grew
-
-**Phase to address:**
-Prompt Architecture Redesign phase -- budget recalculation should happen after the new prompt format is finalized
+**Phase/Task:** Phase 1, alongside guide infrastructure. Small refactor.
 
 ---
 
-### Pitfall 13: ActionRecorder and Session Replay Incompatibility
+### Pitfall 20: Element Budget (50 elements) May Be Tight for Complex Apps
 
 **What goes wrong:**
-The `ActionRecorder` in content/actions.js records actions for debugging and replay. If session recordings are stored in `{tool, params}` format but the replay system expects CLI commands (or vice versa), recorded sessions from before the migration cannot be replayed after migration, and vice versa.
+FSB caps the DOM snapshot at 50 interactive elements. Jira's issue view, Airtable's grid with multiple field types, and Notion's block-heavy pages may have 100+ interactive elements. The scoring algorithm filters to the most relevant 50, but fsbElements may not all survive the cut if many page elements score higher.
 
 **Prevention:**
-1. Store recorded actions in the canonical `{tool, params}` format regardless of protocol mode
-2. The replay system should dispatch canonical format actions, not raw protocol text
-3. Add a `protocolVersion` field to session recordings so the replay system can detect and handle old-format recordings
+fsbElements injected in Stage 1b are added to the candidate array before scoring. They should be given priority in the scoring stage. Verify that the scoring algorithm does not filter out fsbElements. If needed, add a score boost for elements with `data-fsbRole` set.
 
-**Detection:**
-- Session replay fails with "unknown action format" errors
-- Recorded sessions from v9.x cannot be analyzed after v10.0 migration
-
-**Phase to address:**
-Action Dispatch Rewrite phase -- minor concern but should be addressed alongside canonical format design
+**Phase/Task:** Test during each guide's implementation. If fsbElements are being filtered out, adjust scoring in dom-analysis.js.
 
 ---
 
-### Pitfall 14: Analytics and Logging Break with Format Change
+### Pitfall 21: Notion and Todoist Dark Mode Changes Selector Attributes
 
 **What goes wrong:**
-The analytics system (`analytics.js`) tracks action types, tool usage frequencies, and cost calculations. The automation logger logs `action.tool` for each executed action. If CLI-parsed actions have different field names or if the logging happens BEFORE normalization to canonical format, analytics data becomes inconsistent across the migration boundary.
+Both Notion and Todoist support dark mode. Some CSS selectors may include theme-specific attributes or classes that change between light and dark mode. If fsbElements are tested only in light mode, they may fail in dark mode.
 
 **Prevention:**
-1. Ensure logging and analytics consume the CANONICAL format, never the raw CLI text
-2. Add a `protocol` field to analytics events (`json` or `cli`) for migration tracking
-3. Verify that the cost calculation per-action still works (token estimation may change with CLI format)
+Test all fsbElements in both light and dark mode. Use attribute selectors that are theme-independent (role, aria-label, data-testid, structural position).
 
-**Detection:**
-- Analytics dashboard shows "unknown" tool types or zero counts for actions that are executing
-- Cost estimates are wrong because token counting does not account for CLI format efficiency
-
-**Phase to address:**
-Action Dispatch Rewrite phase -- verify analytics pipeline after parser is built
+**Phase/Task:** QA step for each guide. Low effort, easy to miss.
 
 ---
 
-## Multi-Provider CLI Compatibility Matrix
+### Pitfall 22: Multiple Guides for Same Domain (Google Calendar + Google Keep under google.com)
 
-Based on research and FSB's current provider-specific handling:
+**What goes wrong:**
+Google Calendar lives at `calendar.google.com` and Google Keep at `keep.google.com`. The `extractDomain()` function in `index.js` handles subdomains but the URL pattern matching needs to be precise enough to distinguish them. Both are Google products on `google.com` subdomains.
 
-| Provider | JSON Quality | Expected CLI Quality | Key Risk | Mitigation |
-|----------|-------------|---------------------|----------|------------|
-| xAI Grok 4.1 Fast | HIGH (primary provider, well-tuned) | MEDIUM -- may add conversational preamble before commands | Chatty output wrapping CLI commands | Strip everything before first recognized command |
-| OpenAI GPT-4o | HIGH (strong function calling) | MEDIUM-HIGH -- follows format specs well but may invent flags | Hallucinated command flags (`--verbose`, `--wait`) | Validate commands against known vocabulary, ignore unknown flags |
-| Anthropic Claude | HIGH (excellent instruction following) | HIGH -- likely best CLI compliance | May revert to JSON if conversation history contains JSON | Clear history when switching format, add format reinforcement |
-| Gemini 2.5 Flash | MEDIUM (markdown wrapping issues) | LOW-MEDIUM -- wraps everything in code blocks | `` ```bash\nclick e5\n``` `` wrapping | Aggressive markdown stripping, same as current JSON handling |
-| Grok 3 Mini | MEDIUM (budget model, less reliable) | LOW -- may mix CLI and prose | "I will click on element e5 for you: click e5" | Extract commands from prose using regex, same pattern as current JSON extraction |
+**Prevention:**
+Use hostname-specific patterns:
+- Google Calendar: `/calendar\.google\.com/` (primary) and `/calendar\.google\.com\/calendar/` (specific views)
+- Google Keep: `/keep\.google\.com/`
 
-**Recommendation:** Test all providers before migration. Consider designating specific providers as "CLI-ready" and keeping JSON as fallback for others. Grok 4.1 Fast and Claude should be the primary CLI targets; Gemini may need extended cleaning.
+The existing `extractDomain()` function handles known subdomains (finance, mail, drive, docs, maps) but `calendar` and `keep` are not in the list (line 89). Add them.
 
----
-
-## Regression Testing Checklist
-
-Actions that must be verified after migration. Each row represents a test that must PASS with CLI format.
-
-| Test Case | What to Verify | Current JSON Format | Expected CLI Format | Risk Level |
-|-----------|---------------|--------------------|--------------------|------------|
-| Simple click | `click e5` dispatches correctly | `{"tool":"click","params":{"ref":"e5"}}` | `click e5` | LOW |
-| Type with text | Text value preserved exactly | `{"tool":"type","params":{"ref":"e3","text":"hello"}}` | `type e3 "hello"` | MEDIUM |
-| Type with pressEnter | Boolean flag parsed | `{"tool":"type","params":{"ref":"e3","text":"query","pressEnter":true}}` | `type e3 "query" --enter` | MEDIUM |
-| Type with quotes in text | Nested quotes escaped | `{"tool":"type","params":{"ref":"e3","text":"He said \"hi\""}}` | `type e3 "He said \"hi\""` | HIGH |
-| Type with URL | URL special chars preserved | `{"tool":"type","params":{"ref":"e3","text":"https://x.com?q=a&b=2"}}` | `type e3 "https://x.com?q=a&b=2"` | HIGH |
-| Navigate | URL extracted correctly | `{"tool":"navigate","params":{"url":"https://..."}}` | `navigate "https://..."` | LOW |
-| Scroll direction | Direction parameter parsed | `{"tool":"scroll","params":{"direction":"down"}}` | `scroll down` | LOW |
-| Scroll amount | Numeric amount parsed | `{"tool":"scroll","params":{"amount":800}}` | `scroll down 800` | MEDIUM |
-| searchGoogle | Query text preserved | `{"tool":"searchGoogle","params":{"query":"test query"}}` | `search "test query"` | MEDIUM |
-| clickSearchResult | Index parameter parsed | `{"tool":"clickSearchResult","params":{"index":0}}` | `clickResult 0` or `clickResult --index 0` | MEDIUM |
-| waitForElement | CSS selector preserved | `{"tool":"waitForElement","params":{"selector":".btn"}}` | `wait ".btn"` | MEDIUM |
-| storeJobData | Complex structured data preserved | `{"tool":"storeJobData","params":{"company":"...","jobs":[...]}}` | `storeJobData {...}` (JSON payload) | HIGH |
-| fillSheetData | No-param command works | `{"tool":"fillSheetData","params":{}}` | `fillSheetData` | LOW |
-| Batch 3 types | Batch boundaries detected | `{"batchActions":[{...},{...},{...}]}` | `batch\n...\nend` | HIGH |
-| Batch on Sheets URL | Batch suppressed for 2+ types | batchActions suppression check | Same check on parsed batch | HIGH |
-| Stuck detection | Pattern analysis works | `actionHistory` with `{tool,params}` | Same canonical format | HIGH |
-| taskComplete | Boolean parsed from CLI | `{"taskComplete":true,"result":"..."}` | `done "result text"` | HIGH |
-| Empty action | No action, just analysis | `{"actions":[],"reasoning":"..."}` | `# Just analyzing, no action yet` | MEDIUM |
-| Multi-tab: openNewTab | URL and active flag parsed | `{"tool":"openNewTab","params":{"url":"...","active":true}}` | `openTab "https://..." --active` | MEDIUM |
-| Security: blocked navigate | data: URI blocked | Sanitization catches `data:` URLs | Same sanitization on canonical format | HIGH |
-
----
-
-## Rollback Strategy
-
-### Pre-Migration Safeguards
-
-1. **Feature flag:** Implement `protocolMode: 'json' | 'cli'` in config. Default: `'json'`. CLI is opt-in initially
-2. **Dual parser:** Keep the JSON parser fully functional alongside the CLI parser. The protocol mode determines which parser runs first, but the other is available as fallback
-3. **Version tagging:** Tag `v9.4-pre-cli` in git before any CLI changes. This is the rollback target
-4. **Session compatibility:** Store `protocolVersion` in session state so sessions started with one protocol can be identified
-
-### Rollback Triggers
-
-| Trigger | Action |
-|---------|--------|
-| CLI parse failure rate > 20% in production | Switch `protocolMode` to `'json'` immediately |
-| Any provider has > 50% CLI failure rate | Disable CLI for that provider, keep JSON |
-| Stuck detection confirmed broken | Rollback to JSON while fixing canonical format |
-| Security bypass confirmed | Immediate rollback, patch, then re-deploy |
-| Career search workflow regression | Rollback CLI for career tasks, keep for simple tasks |
-
-### Rollback Process
-
-1. Set `protocolMode: 'json'` in config (instant, no code change needed if flag is implemented)
-2. Clear conversation history for all active sessions (prevents format contamination)
-3. Verify JSON mode works (run one full automation cycle)
-4. Diagnose the CLI failure from logs
-5. Fix in CLI branch, re-test with provider compatibility matrix
-6. Re-enable CLI mode after fix is verified
-
-### What CANNOT Be Rolled Back
-
-- YAML DOM snapshots can be rolled back independently of CLI commands (separate feature)
-- Prompt architecture changes may need to be rolled back along with CLI (they are coupled)
-- Site guide text changes that removed JSON examples need JSON examples restored
+**Phase/Task:** Phase 1 infrastructure, when registering new guide URL patterns. Test that Google Sheets, Google Docs, Google Calendar, and Google Keep all resolve to the correct guide.
 
 ---
 
 ## Phase-Specific Warnings
 
-| Phase | Likely Pitfall | Mitigation |
-|-------|---------------|------------|
-| CLI Protocol Design | Pitfall 3 (quoted strings), Pitfall 4 (batch semantics) | Finalize quoting spec and batch delimiters before writing any code. Write test cases first |
-| CLI Parser Implementation | Pitfall 1 (multi-provider quality), Pitfall 11 (testing gap) | Build parser with multi-provider test fixtures. TDD approach |
-| Action Dispatch Rewrite | Pitfall 5 (stuck detection), Pitfall 7 (backward compat), Pitfall 10 (security) | Canonical format is the key. All downstream consumers unchanged if canonical format matches current `{tool, params}` |
-| Prompt Architecture Redesign | Pitfall 2 (history mismatch), Pitfall 6 (site guide examples), Pitfall 9 (drift) | Full sweep of all prompt layers. Continuation prompt must enforce format. Site guides must use CLI examples |
-| YAML DOM Snapshots | Pitfall 8 (ref resolution), Pitfall 12 (token budget) | Comparative JSON vs YAML ref accuracy testing. Budget recalculation |
-| Integration Testing | ALL pitfalls | Run full regression checklist. Test each provider. Test career search + Sheets end-to-end |
+| Phase/Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| **Phase 1: Infrastructure refactor** | Pitfalls 1, 2, 3 -- fsbElements injection, isCanvasBasedEditor, health check generalization | Must be completed BEFORE any app guide work. Test with Google Sheets to verify no regression. |
+| **Phase 1: URL patterns** | Pitfall 14, 22 -- SPA routing, multi-Google-domain conflicts | Design all 7 URL patterns together to avoid overlap. Test with getGuideForUrl() against example URLs. |
+| **Phase 1: Keyword matching** | Pitfall 5 -- missing keywords | Add all app names/aliases in one commit. |
+| **App guides: Notion** | Pitfalls 6, 7, 17 -- slash commands, hashed classes, contenteditable | Highest complexity. Needs thorough DevTools inspection. |
+| **App guides: Airtable** | Pitfalls 10, 17 -- virtual scrolling, field type diversity | Second highest complexity. Expanded record modal is the safe editing path. |
+| **App guides: Jira** | Pitfalls 11, 18 -- moving target UI, rate limiting | Build for new UI only. Accept need for maintenance updates. |
+| **App guides: Google Calendar** | Pitfall 8, 16 -- time grid complexity, drag operations | Keyboard-first event creation. Avoid drag entirely. |
+| **App guides: Trello** | Pitfall 9, 16 -- card modal routing, drag | data-testid is your friend. Move action replaces drag. |
+| **App guides: Todoist** | Pitfall 12, 17 -- single-key shortcuts, contenteditable | Always verify input focus before typing. |
+| **App guides: Google Keep** | Pitfall 13 -- card expansion timing | Simplest app. Good starting point for testing the generalized infrastructure. |
+| **All guides: Drag-and-drop** | Pitfall 16 -- not automatable reliably | Document keyboard/menu alternatives for every drag operation. |
+| **All guides: Popovers** | Pitfall 15 -- timing | waitForElement in every workflow that triggers a popover. |
+| **All guides: Contenteditable** | Pitfall 17 -- diverse behavior | Test type action per app. Document quirks in warnings. |
+
+---
+
+## Integration Testing Checklist
+
+After the infrastructure refactor (Pitfalls 1-3) and before shipping any new guide:
+
+- [ ] Google Sheets still works exactly as before (regression check)
+- [ ] Google Docs still works (it uses isCanvasBasedEditor, must not break)
+- [ ] fsbElements injection fires for new app URLs (verify via console logs)
+- [ ] Health check reports correctly per app
+- [ ] Scoring does not filter out fsbElements
+- [ ] getGuideForUrl() returns correct guide for all 7 app URLs
+- [ ] getGuideForUrl() still returns Google Sheets guide for sheets.google.com
+- [ ] Keyword matching resolves "create a page in Notion" to the Notion guide
+- [ ] No Google domain confusion (Calendar vs Keep vs Sheets vs Docs)
+- [ ] _shared.js category guidance is not misleading for non-canvas apps
 
 ---
 
 ## Sources
 
-- Direct codebase analysis: `ai/ai-integration.js` (5K+ lines: prompt construction, JSON parsing pipeline, model-specific instructions, tool documentation, conversation history management), `background.js` (11K+ lines: stuck detection, batch execution, action dispatch, session management, security sanitization), `content/actions.js` (action execution, coordinate fallback), 43+ site guide files (tool preferences, workflow text)
-- [Playwright CLI: Token-Efficient Browser Automation](https://testcollab.com/blog/playwright-cli) -- 4x token reduction (114K vs 27K tokens), file-based snapshots, element ref format
-- [agent-browser SKILL.md](https://github.com/vercel-labs/agent-browser/blob/main/skills/agent-browser/SKILL.md) -- @eN ref format, snapshot-based element discovery, ref invalidation after navigation, 50+ CLI commands
-- [webctl](https://github.com/cosinusalpha/webctl) -- ARIA-based semantic targeting, context window control, `--interactive-only --limit 30` filtering
-- [agent-browser: 93% Context Reduction](https://medium.com/@richardhightower/agent-browser-ai-first-browser-automation-that-saves-93-of-your-context-window-7a2c52562f8c) -- Streamlined element refs vs full accessibility trees
-- [Best Nested Data Format for LLMs](https://www.improvingagents.com/blog/best-nested-data-format/) -- YAML 62% accuracy vs JSON 50% for nested data, Markdown 34-38% fewer tokens than JSON
-- [5 Steps to Handle LLM Output Failures](https://latitude.so/blog/5-steps-to-handle-llm-output-failures/) -- LLMs produce content that fails to parse correctly, error correction via retry with feedback
-- [Hidden Incompatibilities Between LLM Providers](https://dev.to/rgambee/the-hidden-incompatibilities-between-llm-providers-51d) -- Parameter differences, temperature handling, format compliance divergence across providers
-- [LLM Ignores Tools: Troubleshooting Guide](https://www.arsturn.com/blog/llm-ignores-tools-troubleshooting-guide) -- Models clicking wrong elements, format errors, instruction drift over long sessions
-- [TOON vs JSON: Token Efficiency](https://www.tensorlake.ai/blog/toon-vs-json) -- JSON degrades reasoning by 10-15%, TOON achieves 73.9% vs 69.7% accuracy
-- [browser-use Issue #2656](https://github.com/browser-use/browser-use/issues/2656) -- Real-world browser automation failures: models clicking unrelated buttons, format regression mid-session
+**Codebase analysis (HIGH confidence):**
+- `content/dom-analysis.js` lines 1758-1870: fsbElements injection, findElementByStrategies
+- `content/messaging.js` line 217: isCanvasBasedEditor() function
+- `content/actions.js` lines 1105, 2438: canvas editor bypasses
+- `content/accessibility.js` line 642: obscuration check bypass
+- `background.js` line 8478-8483: guide selector resolution
+- `site-guides/index.js` line 193: categoryKeywords for Productivity Tools
+- `site-guides/productivity/google-sheets.js`: fsbElements pattern reference
 
----
-*Pitfalls research for: v10.0 CLI Architecture Migration (FSB)*
-*Researched: 2026-02-27*
+**Web research (MEDIUM confidence):**
+- [Notion keyboard shortcuts](https://www.notion.com/help/keyboard-shortcuts) -- slash commands and @ mentions
+- [Todoist keyboard shortcuts](https://www.todoist.com/help/articles/use-keyboard-shortcuts-in-todoist-Wyovn2) -- 20+ single-key shortcuts
+- [Jira Cloud rate limiting](https://developer.atlassian.com/cloud/jira/platform/rate-limiting/) -- 100 req/sec burst, points-based hourly
+- [Jira 2025 UI evolution](https://community.atlassian.com/forums/Jira-articles/Jira-s-ever-evolving-UI-2025-Edition/ba-p/2966105) -- ongoing UI migration
+- [Notion Boost slash command conflicts](https://github.com/GorvGoyl/Notion-Boost-browser-extension/issues/88) -- extension + slash command interference
+- [Playwright contenteditable bug #36715](https://github.com/microsoft/playwright/issues/36715) -- fill() duplicates text in custom contenteditable
+- [CSS Modules selector fragility](https://github.com/css-modules/css-modules/issues/194) -- hashed class names break automation
+- [notion-enhancer CSS tweaks](https://github.com/notion-enhancer/tweaks) -- data-block-id usage patterns
+- [Airtable React adoption](https://medium.com/@matt_bush/how-airtable-uses-react-5e37066a87d4) -- virtual DOM and performance optimization
+- [Browser extension keyboard shortcut conflicts](https://www.mathiaspolligkeit.com/two-common-pitfalls-for-keyboard-shortcuts-in-web-applications/) -- event.preventDefault patterns
+
+**App-specific DOM patterns (LOW confidence -- needs validation via DevTools inspection):**
+- Notion: `data-block-id`, `.notion-page-content`, `[placeholder]` attributes
+- Airtable: `[data-columnid]`, `[data-rowid]`, `[role="gridcell"]`
+- Jira: `data-testid` attributes, `[data-ds--*]` design system attributes
+- Trello: `data-testid` attributes on cards and modals
+- Google Calendar: `[data-datekey]`, `[data-eventid]`, `[role="dialog"]`
+- Google Keep: `[aria-label]` patterns on note cards
+- Todoist: `[data-testid]` if present, `[aria-label]` patterns

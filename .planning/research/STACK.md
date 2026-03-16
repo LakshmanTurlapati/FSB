@@ -1,653 +1,703 @@
-# Technology Stack: CLI Command Protocol + YAML DOM Snapshots
+# Technology Stack: Productivity Site Intelligence Guides
 
-**Project:** FSB v10.0 - CLI Architecture
-**Researched:** 2026-02-27
-**Mode:** Ecosystem (Stack dimension for CLI protocol milestone)
-**Constraint:** Vanilla JS (ES2021+), no build system, Chrome Extension MV3, importScripts service worker
-**Overall confidence:** HIGH
+**Project:** FSB v0.9.2 - Productivity Site Intelligence
+**Researched:** 2026-03-16
+**Mode:** Ecosystem (DOM patterns, keyboard shortcuts, mechanical tool needs per target app)
+**Constraint:** Vanilla JS (ES2021+), no build system, Chrome Extension MV3, existing fsbElements + findElementByStrategies pipeline
+**Overall confidence:** MEDIUM (DOM class names require live inspection; keyboard shortcuts HIGH from official docs)
 
 ---
 
 ## Executive Summary
 
-FSB v10.0 replaces the JSON tool-call interface with a CLI-style command protocol where the AI outputs line-based commands (`click e5`, `type e12 "hello"`) instead of JSON objects. This requires three new capabilities: (1) a CLI command parser in background.js, (2) a YAML-like DOM snapshot serializer in content scripts, and (3) a fully rewritten prompt architecture that teaches the AI the CLI format.
+Adding site intelligence for 7 productivity apps (Notion, Google Calendar, Trello, Google Keep, Todoist, Airtable, Jira) requires NO new external dependencies and NO new Chrome Extension APIs. The existing `registerSiteGuide()` / `fsbElements` / `findElementByStrategies()` pipeline is architecturally sufficient -- but has one critical bottleneck: the Stage 1b fsbElements injection in `dom-analysis.js` is hardcoded to only fire on Google Sheets URLs (`/spreadsheets\/d\/`). This gate must be generalized to run for ANY site guide that provides `fsbElements`, which is the single most important infrastructure change in this milestone.
 
-**Key decision: Do NOT use a YAML library. Build a custom YAML-like serializer.**
+The 7 target apps fall into three DOM-complexity tiers:
 
-The DOM snapshot format FSB needs is a strict subset of YAML -- indented key-value pairs with no advanced YAML features (anchors, aliases, tags, flow sequences, multi-documents). The existing `generateCompactSnapshot()` in `content/dom-analysis.js` already produces line-based output (`[e1] button "Submit"`) that is 80% of the way to the target format. Adding a 39KB js-yaml library for a subset that can be implemented in ~100 lines of custom code violates the project's no-unnecessary-dependencies constraint and adds attack surface for no benefit.
+1. **Standard DOM (keyboard-first guidance only):** Google Keep, Todoist, Trello -- these render interactive elements as normal DOM nodes. Standard click/type commands work. They need site guides with keyboard shortcuts, fsbElements for key UI targets, and workflow recipes. No mechanical tools needed.
 
-**Key decision: Use regex-based CLI parsing, not a grammar library.**
+2. **React virtual DOM with dynamic selectors:** Notion, Jira -- these use React with frequently-changing class names but stable `data-block-id`/`data-testid`/`aria-label` attributes. Multi-strategy selectors are essential. Notion's contenteditable blocks and slash commands need special guidance. No mechanical tools needed.
 
-The CLI command grammar is deliberately simple -- `command [ref] [arguments]` with quoted strings. This is a regular language parseable by regex. Grammar libraries (PEG.js, nearley) are overkill for ~15 command patterns and would add 50-200KB of unnecessary dependency. The Playwright CLI, webctl, and agent-browser all use simple string parsing for their CLI protocols.
+3. **Canvas/hybrid rendering:** Google Calendar, Airtable -- these render parts of their UI on canvas or with custom grid renderers where cells are NOT standard DOM elements. Google Calendar uses DOM elements for the time grid slots but canvas for rendering event chips. Airtable uses a custom grid renderer that is NOT canvas-based (unlike Google Sheets) but has unique cell selection patterns. Neither needs mechanical tools at the level of fillsheet/readsheet -- keyboard navigation suffices.
 
-**Key decision: Prompt templates as string constants in a new module, not a template engine.**
-
-The existing prompt architecture uses string concatenation in `buildPrompt()`. The v10.0 rewrite should extract prompt sections into a dedicated `ai/prompt-templates.js` module with named template functions. No template library needed -- ES2021 template literals with tagged templates provide sufficient capability.
-
-**Net dependency change: ZERO new libraries.** All three capabilities are implemented as new vanilla JS modules.
+**Net dependency change: ZERO new libraries. ZERO new Chrome APIs. One infrastructure change (generalize Stage 1b injection) + 7 new site guide files + 1 updated category shared file.**
 
 ---
 
-## 1. CLI Command Parser (New Module: `ai/cli-parser.js`)
+## Critical Infrastructure Change
 
-### What It Replaces
+### Generalize Stage 1b fsbElements Injection
 
-**Confidence: HIGH** (Verified by reading current parseResponse pipeline in `ai/universal-provider.js` lines 528-678 and `ai/ai-integration.js` normalization at lines 4133-4161)
-
-Currently the AI returns JSON:
-```json
-{
-  "reasoning": "The search box is visible",
-  "actions": [{"tool": "type", "params": {"ref": "e3", "text": "wireless mouse", "pressEnter": true}}],
-  "taskComplete": false
-}
-```
-
-This gets parsed by a 6-stage JSON repair pipeline (`parseJSONSafely`) that handles truncation, markdown wrappers, malformed quotes, trailing commas, and natural language contamination. This pipeline exists because LLMs frequently produce invalid JSON.
-
-### What It Becomes
-
-The AI outputs line-based commands:
-```
-# Search box is visible, typing query
-type e3 "wireless mouse" --enter
-```
-
-Lines starting with `#` are reasoning comments. Each command line is: `command [ref] [args...]`
-
-### Recommended Approach: Regex-Based Line Parser
-
-**Confidence: HIGH** (Pattern validated by Playwright CLI, webctl, agent-browser implementations)
-
-**Why regex, not grammar parser:**
-- The command grammar has ~15 commands with positional + flag arguments
-- No nested structures, no operator precedence, no recursive rules
-- Quoted string handling is the only complexity (and regex handles this well)
-- Playwright CLI and agent-browser both parse commands with simple string splitting
-- Grammar libraries (PEG.js ~150KB, nearley ~60KB) solve problems we do not have
-
-**Why regex, not simple string.split():**
-- Quoted arguments with spaces: `type e3 "hello world"` must parse `"hello world"` as one argument
-- Flag arguments: `--enter`, `--submit`, `--timeout=5000`
-- Optional positional args: `scroll down` vs `scroll down 800` vs `scroll`
-
-**Parser architecture:**
-
+**Current state (hardcoded to Sheets):**
 ```javascript
-// ai/cli-parser.js -- loaded by background.js via importScripts
-
-// Master regex for tokenizing a command line
-// Handles: command, refs (eNN), quoted strings, flags (--key=val), bare words, numbers
-const TOKEN_RE = /("(?:[^"\\]|\\.)*"|--\w+(?:=\S+)?|e\d+|\S+)/g;
-
-// Command registry: maps command name -> { params: [...], flags: [...] }
-const COMMANDS = {
-  click:    { params: ['ref'] },
-  type:     { params: ['ref', 'text'], flags: ['enter', 'submit', 'clear'] },
-  navigate: { params: ['url'] },
-  scroll:   { params: ['direction', 'amount'] },
-  // ... all 30+ commands
-};
-
-function parseCLIResponse(responseText) {
-  const lines = responseText.split('\n');
-  const actions = [];
-  let reasoning = '';
-  let taskComplete = false;
-  let result = '';
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    if (trimmed.startsWith('#')) { reasoning += trimmed.slice(1).trim() + ' '; continue; }
-    if (trimmed.startsWith('done')) { taskComplete = true; result = trimmed.slice(4).trim(); continue; }
-
-    const tokens = trimmed.match(TOKEN_RE);
-    if (!tokens) continue;
-
-    const command = tokens[0];
-    const args = tokens.slice(1);
-    actions.push(buildAction(command, args));
-  }
-
-  return { actions, reasoning: reasoning.trim(), taskComplete, result };
+// content/dom-analysis.js, line ~1810
+if (/spreadsheets\/d\//.test(window.location.pathname)) {
+    const fsbElements = guideSelectors?.fsbElements;
+    // ... injection loop
 }
 ```
 
-**Integration point:** `parseCLIResponse()` returns the same `{ actions, reasoning, taskComplete, result }` shape as the current `normalizeResponse()` in `ai-integration.js`. The action dispatch loop in `background.js` (lines 9274-9320) consumes `action.tool` and `action.params` unchanged. The CLI parser is a drop-in replacement for the JSON parse pipeline.
-
-### Alternatives Considered
-
-| Approach | Size | Complexity | Why Not |
-|----------|------|-----------|---------|
-| **Regex tokenizer** (recommended) | ~200 lines | Low | -- |
-| **PEG.js grammar** | ~150KB lib + grammar file | Medium | Overkill for 15 command patterns, adds dependency |
-| **nearley parser** | ~60KB lib + grammar file | Medium | Same as PEG.js -- solving wrong problem |
-| **Simple split()** | ~100 lines | Low | Cannot handle quoted strings with spaces |
-| **JSON with relaxed parser** (status quo) | 0 (exists) | High | 6-stage repair pipeline, still fails ~5% of the time |
-
-### Error Handling Strategy
-
-The CLI format is inherently more error-tolerant than JSON:
-- A malformed line is skipped; the rest still parse (JSON: one bad char breaks everything)
-- Missing quotes default to single-word interpretation
-- Unknown commands get logged and skipped
-- Empty response = no actions (safe default)
-
-The 6-stage JSON repair pipeline in `universal-provider.js` (lines 619-678) gets replaced by a ~20-line error handler in the CLI parser.
-
-### Token Efficiency Gain
-
-**Confidence: MEDIUM** (Based on Playwright CLI benchmarks showing 4x reduction; FSB-specific measurement needed during implementation)
-
-Current JSON format for 3 actions: ~350 tokens
-```json
-{"reasoning":"Search box visible","actions":[{"tool":"type","params":{"ref":"e3","text":"wireless mouse","pressEnter":true}},{"tool":"click","params":{"ref":"e7"}},{"tool":"scroll","params":{"direction":"down"}}],"taskComplete":false}
+**Required state (any site with fsbElements):**
+```javascript
+// Replace Sheets URL check with presence check
+const fsbElements = guideSelectors?.fsbElements;
+if (fsbElements) {
+    // ... same injection loop, works for ALL sites
+}
 ```
 
-CLI format for same 3 actions: ~80 tokens
-```
-# Search box visible
-type e3 "wireless mouse" --enter
-click e7
-scroll down
-```
+The `guideSelectors` object already carries `fsbElements` from the matched site guide (background.js line 8483 merges `guide.fsbElements` into the guideSelectors payload). The plumbing exists end-to-end. The ONLY gate is the hardcoded Sheets URL regex in `dom-analysis.js`. Removing that gate makes the entire fsbElements system work for all 7 new sites automatically.
 
-Estimated output token reduction: ~4x per AI response. Over a 10-iteration session, this compounds to significant cost savings.
+**Also needed:** Move the Sheets-specific health check and logging outside the generalized block, or make them site-aware rather than Sheets-specific.
+
+**Confidence: HIGH** -- verified by reading the actual code paths in dom-analysis.js, background.js, and messaging.js.
 
 ---
 
-## 2. YAML-Like DOM Snapshot Serializer (Enhancement to `content/dom-analysis.js`)
+## Per-App DOM Analysis and Stack Needs
 
-### What It Replaces
+### 1. Notion (notion.so)
 
-**Confidence: HIGH** (Verified by reading `generateCompactSnapshot()` at content/dom-analysis.js lines 1838-2003 and `formatElements()` at ai/ai-integration.js lines 3183-3272)
+**DOM Rendering:** React app with contenteditable blocks. NOT canvas-based. Each block is a `div` with `contenteditable="true"` wrapping the text content. Notion uses CSS class names that include block type identifiers (like `notion-text-block`, `notion-to_do-block`, `notion-page-block`), though class name hashes change across builds.
 
-Current compact snapshot format (already partially YAML-like):
-```
-[e1] button "Submit Form"
-[e2] textbox placeholder="Enter email" label="Email"
-[e3] link "Products" href="/products"
-[e4] select selected="United States" label="Country"
-```
+**Stable selectors available:**
+- `data-block-id` attribute on each block (UUID, stable)
+- `contenteditable="true"` on editable blocks
+- `[role="textbox"]` on the main page content area
+- `[placeholder]` attributes on empty blocks (e.g., "Type '/' for commands")
+- Sidebar navigation uses standard `[role="treeitem"]` patterns
+- Database views use `[role="row"]`, `[role="cell"]` ARIA patterns
 
-### What It Becomes
+**Key DOM challenge:** Notion re-renders blocks aggressively via React. Elements may be removed and re-created between snapshots. The `data-block-id` attribute persists across re-renders and is the most reliable anchor. Class-based selectors are fragile due to CSS module hashing.
 
-YAML-like structured snapshot with element grouping and hierarchy:
-```yaml
-page:
-  url: https://example.com/contact
-  title: Contact Us
-  scroll: 45% | more below
-viewport:
-  e1: button "Submit Form"
-  e2: textbox "Enter email" label="Email"
-  e3: link "Products" href="/products"
-  e4: select "United States" label="Country" [disabled]
-offscreen:
-  e5: heading "Footer Links" [level=2]
-  e6: link "Privacy Policy" href="/privacy"
-forms:
-  form_0: {fields: e2 e4, submit: e1}
-```
+**Keyboard shortcuts (verified from official docs):**
+| Action | Shortcut |
+|--------|----------|
+| Slash command menu | `/` |
+| New page | `Ctrl+N` |
+| Bold | `Ctrl+B` |
+| Italic | `Ctrl+I` |
+| Heading 1/2/3 | `Ctrl+Shift+1/2/3` |
+| To-do | `Ctrl+Shift+4` |
+| Bulleted list | `Ctrl+Shift+5` |
+| Numbered list | `Ctrl+Shift+6` |
+| Toggle list | `Ctrl+Shift+7` |
+| Code block | `Ctrl+Shift+8` |
+| Move block up/down | `Ctrl+Shift+ArrowUp/Down` |
+| Indent/outdent | `Tab` / `Shift+Tab` |
+| Search/quick find | `Ctrl+P` or `Ctrl+K` |
+| Link | `Ctrl+K` |
+| Comment | `Ctrl+Shift+M` |
+| Duplicate block | `Ctrl+D` |
+| Select block | `Esc` then arrow keys |
 
-### Recommended Approach: Custom String Builder (NOT js-yaml)
+**Mechanical tool needed:** NO. Notion's contenteditable blocks accept standard type commands. Slash commands (`/todo`, `/heading1`, etc.) are text-based and work with the existing `type` tool. Keyboard shortcuts handle block creation and formatting.
 
-**Confidence: HIGH** (Design validated against Playwright aria-snapshot format and project constraints)
+**fsbElements needed:**
+- `page-content` -- main editable area
+- `sidebar-toggle` -- hamburger menu to open/close sidebar
+- `new-page-button` -- create new page
+- `search-input` -- quick find/search field
+- `breadcrumb` -- navigation breadcrumb
+- `database-add-row` -- add new row in database views
 
-**Why NOT js-yaml (39KB minified, 0 dependencies):**
-1. FSB's "YAML" is output-only (serialize, never parse) -- a library's parser is dead weight
-2. The format is a strict subset: flat key-value pairs with 1-level nesting, no YAML advanced features
-3. `generateCompactSnapshot()` already builds line-by-line output -- adding YAML indentation is trivial
-4. 39KB added to service worker for a ~100-line function violates the minimalism constraint
-5. The existing `lib/` directory vendors chart.min.js (205KB), marked.min.js (40KB), purify.min.js (22KB), mermaid.min.js (2.7MB) -- these are all used by the UI, not the automation core. The service worker should stay lean.
-6. Custom format allows optimizations a generic library cannot: omitting quotes for simple values, compact state flags, form grouping
+**Strategy priority:** aria > role > context > class (avoid id-based, Notion generates no stable IDs)
 
-**Why NOT the Playwright aria-snapshot YAML format verbatim:**
-1. Playwright's format uses accessibility roles as primary identifiers -- FSB already has `e1`-style refs via `RefMap` (content/dom-state.js lines 614-654)
-2. Playwright nests elements by DOM hierarchy -- FSB should group by viewport/offscreen for spatial awareness
-3. Playwright includes all elements -- FSB uses 3-stage filtering with a 50-80 element budget
-4. The ref-based system (`click e5` instead of `click role=button name~="Submit"`) is more token-efficient
+**Confidence:** MEDIUM -- DOM class naming pattern is well-known from community; exact current selectors need live inspection verification.
 
-**Implementation: Extend `generateCompactSnapshot()` in `content/dom-analysis.js`:**
+---
+
+### 2. Google Calendar (calendar.google.com)
+
+**DOM Rendering:** Polymer/Lit-based (Google internal framework, evolved from Closure). The time grid uses standard DOM elements -- NOT canvas. Each time slot is a `div` with `data-datekey` and `data-eventchip` attributes. Event chips are rendered as DOM elements with `data-eventid` attributes.
+
+**Stable selectors available:**
+- `[data-datekey]` on date cells
+- `[data-eventid]` on event chips
+- `[aria-label]` extensively used on all interactive elements
+- `[data-view]` on view containers (day, week, month)
+- Mini calendar uses standard `[role="grid"]` with `[data-date]` cells
+- Event creation form uses `[aria-label]` on all fields
+
+**Key DOM challenge:** Google Calendar aggressively lazy-loads events. Scrolling in week/month view triggers AJAX that inserts new event elements. Modal popovers for event details appear as overlays with dynamic positioning. The time grid itself is reliable DOM -- the challenge is event chips that appear/disappear based on scroll position.
+
+**Keyboard shortcuts (verified from Google support docs):**
+| Action | Shortcut |
+|--------|----------|
+| Create event | `C` |
+| Day view | `D` |
+| Week view | `W` |
+| Month view | `M` |
+| Year view | `Y` |
+| Agenda view | `A` |
+| Custom view | `X` |
+| Go to today | `T` |
+| Go to date | `G` (then type date) |
+| Next period | `N` or `J` |
+| Previous period | `P` or `K` |
+| Search | `/` |
+| Settings | `S` |
+| Delete event | `Backspace` or `Delete` |
+| Undo | `Z` |
+| Show shortcuts | `?` |
+
+**Mechanical tool needed:** NO. Events are created via the `C` shortcut which opens a standard form with labeled input fields. Date/time pickers use standard select/input elements. The time grid click-to-create interaction works with standard click commands at the correct grid position.
+
+**fsbElements needed:**
+- `create-event-button` -- floating "+" or toolbar create button
+- `event-title-input` -- title field in event creation popover
+- `event-date-input` -- date field
+- `event-time-input` -- time field
+- `event-save-button` -- save/create button
+- `mini-calendar` -- the small date picker in the sidebar
+- `view-switcher` -- day/week/month view toggle area
+- `search-input` -- search box
+
+**Strategy priority:** aria > data-attribute > role > context (Google uses aria-label extensively, stable IDs are rare)
+
+**Confidence:** MEDIUM -- framework identification is well-known; exact selector stability needs live verification.
+
+---
+
+### 3. Trello (trello.com)
+
+**DOM Rendering:** React app with standard DOM elements. Cards and lists are normal `div` elements with `data-testid` attributes (Atlassian convention). Drag-and-drop is handled by React DnD library but all card/list elements are accessible via standard selectors.
+
+**Stable selectors available:**
+- `[data-testid]` on major UI elements (Atlassian convention)
+- `[aria-label]` on buttons and interactive elements
+- Card links have `href` attributes containing card IDs
+- Lists have `[data-list-id]` attributes (from Atlassian data attributes)
+- `[role="button"]`, `[role="dialog"]`, `[role="textbox"]` on interactive elements
+
+**Key DOM challenge:** Trello's list IDs are NOT exposed as DOM IDs directly. Cards within lists contain `href` attributes with card IDs. The board scrolls horizontally, and lists may not be in DOM if scrolled out of view (virtual scrolling). Modal overlays for card details use standard dialog patterns.
+
+**Keyboard shortcuts (verified from Atlassian support docs):**
+| Action | Shortcut |
+|--------|----------|
+| New card | `N` |
+| Open card | `Enter` |
+| Edit card title | `T` |
+| Archive card | `C` |
+| Move up/down | `J` / `K` or Arrow keys |
+| Search boards | `B` |
+| Filter cards | `F` |
+| Repeat last action | `R` |
+| Undo | `Z` |
+| Redo | `Shift+Z` |
+| Clear filters | `X` |
+| Show shortcuts | `Shift+?` |
+| Due date | `D` |
+| Label | `L` |
+| Members | `M` |
+| Description | `E` |
+| Quick edit | `E` (while hovering) |
+
+**Mechanical tool needed:** NO. Card creation uses the `N` shortcut or the "Add a card" button. Card editing uses standard contenteditable/textarea elements. Labels, due dates, and members use standard click-to-select patterns.
+
+**fsbElements needed:**
+- `add-card-button` -- "Add a card" link at bottom of lists
+- `add-list-button` -- "Add another list" button
+- `card-title-input` -- textarea for card title when creating/editing
+- `board-header` -- board name/header area
+- `list-header` -- list name area (for renaming)
+- `card-detail-modal` -- the card detail overlay
+- `search-input` -- search box in header
+
+**Strategy priority:** data-testid > aria > role > context (Atlassian uses data-testid consistently)
+
+**Confidence:** MEDIUM -- Atlassian data-testid convention is well-documented; exact values need live verification.
+
+---
+
+### 4. Google Keep (keep.google.com)
+
+**DOM Rendering:** Standard DOM with Polymer/Material Web Components. Notes are rendered as card elements with standard class names. Checkboxes are standard input elements. The note grid uses CSS grid/flexbox layout -- NOT canvas.
+
+**Stable selectors available:**
+- `[aria-label]` on interactive elements
+- `[data-id]` on note cards
+- `[role="listitem"]` on note cards in grid
+- `contenteditable="true"` on note title and body
+- Checkbox items use standard `[role="checkbox"]` or `input[type="checkbox"]`
+- Color picker uses `[aria-label]` with color names
+
+**Key DOM challenge:** Google Keep uses Material Design components that wrap standard elements in shadow DOM or custom elements. The note editing experience opens an overlay/modal that contains the editable fields. Notes in the grid are NOT directly editable -- you must click to open the edit overlay. The contenteditable areas in the overlay are standard and work with type commands.
+
+**Keyboard shortcuts (verified from Google support and community docs):**
+| Action | Shortcut |
+|--------|----------|
+| New note | `C` |
+| New list | `L` |
+| Search | `/` |
+| Select note | `X` |
+| Open note | `O` or `Enter` |
+| Archive | `E` |
+| Delete | `#` |
+| Pin/unpin | `F` |
+| Next note | `J` |
+| Previous note | `K` |
+| Next list item | `N` |
+| Previous list item | `P` |
+| Move item down | `Shift+N` |
+| Move item up | `Shift+P` |
+| Toggle grid/list | `Ctrl+G` |
+| Toggle checkboxes | `Ctrl+Shift+8` |
+| Indent | `Ctrl+]` |
+| Dedent | `Ctrl+[` |
+| Close note | `Esc` or `Ctrl+Enter` |
+| Show shortcuts | `?` |
+
+**Mechanical tool needed:** NO. Note creation uses `C` shortcut, list creation uses `L`. Text entry is standard contenteditable. Checkbox toggling is standard click on checkbox elements.
+
+**fsbElements needed:**
+- `new-note-button` -- compose new note
+- `new-list-button` -- compose new list
+- `search-input` -- search bar
+- `note-title-input` -- title field in note editor
+- `note-body-input` -- body contenteditable in note editor
+- `add-checkbox-item` -- the "+ List item" button in list notes
+- `color-picker` -- note background color selector
+- `pin-button` -- pin/unpin button in note editor
+- `close-note-button` -- done/close button
+
+**Strategy priority:** aria > role > context > class (Google uses aria-label, avoids stable IDs in Keep)
+
+**Confidence:** MEDIUM -- rendering approach verified via web search; exact selectors need live inspection.
+
+---
+
+### 5. Todoist (todoist.com)
+
+**DOM Rendering:** React app with standard DOM elements. Uses `data-testid` attributes on some elements. Task items are standard DOM elements with contenteditable for inline editing. The quick-add bar is a standard input/contenteditable area.
+
+**Stable selectors available:**
+- `[data-testid]` on some UI elements
+- `[aria-label]` on buttons and interactive elements
+- `[role="listbox"]` on project/label dropdowns
+- `[contenteditable="true"]` on task name editing fields
+- Task checkboxes use standard checkbox patterns
+- Priority indicators use `[data-priority]` or class-based indicators
+
+**Key DOM challenge:** Todoist uses React with frequent re-renders. Class names include hashed suffixes (CSS modules). The inline task editor replaces the task display element when activated, so element references may become stale. The quick-add modal is a standard overlay with well-labeled fields. Date picker uses a custom popover with calendar grid.
+
+**Keyboard shortcuts (verified from Todoist official docs):**
+| Action | Shortcut |
+|--------|----------|
+| Quick add task | `Q` |
+| Add to bottom | `A` |
+| Add to top | `Shift+A` |
+| Open task | `Enter` |
+| Edit task | `Ctrl+E` |
+| Complete task | `E` |
+| Set date | `T` |
+| Remove date | `Shift+T` |
+| Set priority 1-4 | `1`, `2`, `3`, `4` |
+| Add label | `L` |
+| Add comment | `C` |
+| Search | `/` or `F` |
+| Go to Inbox | `G` then `I` |
+| Go to Today | `G` then `T` |
+| Go to Upcoming | `G` then `U` |
+| Move up/down | `K`/`J` or arrows |
+| Command menu | `Ctrl+K` |
+| Add section | `S` |
+
+**Mechanical tool needed:** NO. Task creation uses `Q` for quick-add or `A` for inline add. All fields accept standard type commands. Natural language date parsing means typing "tomorrow" or "next Monday" in the date field works directly.
+
+**fsbElements needed:**
+- `quick-add-button` -- the "+" button or quick add trigger
+- `task-name-input` -- task name field in quick add or inline editor
+- `date-picker-trigger` -- due date button/field
+- `priority-picker` -- priority selection
+- `project-selector` -- project dropdown
+- `label-selector` -- label/tag dropdown
+- `search-input` -- search bar
+- `inbox-link` -- inbox navigation item
+- `today-link` -- today view navigation item
+
+**Strategy priority:** data-testid > aria > role > context (React app with CSS module hashing makes class selectors fragile)
+
+**Confidence:** MEDIUM -- React architecture confirmed; keyboard shortcuts from official docs; exact selectors need live verification.
+
+---
+
+### 6. Airtable (airtable.com)
+
+**DOM Rendering:** React app with a CUSTOM GRID RENDERER. The grid view is NOT canvas-based (unlike Google Sheets) -- cells are real DOM elements, but they use a virtualized rendering approach where only visible rows/columns are in the DOM. Cells use `[role="gridcell"]` ARIA pattern. Cell editing opens an inline editor overlay.
+
+**Stable selectors available:**
+- `[role="grid"]`, `[role="row"]`, `[role="gridcell"]`, `[role="columnheader"]` ARIA grid pattern
+- `[aria-label]` on toolbar buttons and field type selectors
+- `[aria-colindex]`, `[aria-rowindex]` on grid cells (standard ARIA grid attributes)
+- `[data-columnid]`, `[data-rowid]` (Airtable-specific data attributes on some elements)
+- Record expansion uses `[role="dialog"]` with `[aria-label]`
+- Field type indicators use `[data-field-type]` or class-based patterns
+
+**Key DOM challenge:** Airtable virtualizes the grid -- only ~20-30 visible rows exist in DOM at any time. Scrolling creates/destroys row elements. Cell editing triggers an inline expansion overlay that replaces the static cell content. Rich field types (attachments, linked records, selects) each have unique editor UIs. This is the most complex grid interaction of all 7 apps.
+
+**Keyboard shortcuts (verified from Airtable official docs):**
+| Action | Shortcut |
+|--------|----------|
+| Edit cell | `Enter` |
+| Expand record | `Space` |
+| Expand cell | `Shift+Space` |
+| Navigate cells | Arrow keys |
+| Jump to edge | `Ctrl+Arrow` |
+| Select range | `Shift+Arrow` |
+| Insert record below | `Shift+Enter` |
+| Undo/Redo | `Ctrl+Z` / `Ctrl+Shift+Z` |
+| Copy/Paste | `Ctrl+C` / `Ctrl+V` |
+| Find | `Ctrl+F` |
+| Table switcher | `Ctrl+J` |
+| View switcher | `Ctrl+Shift+K` |
+| Filters | `Ctrl+Shift+F` |
+| Sort | `Ctrl+Shift+S` |
+| Group | `Ctrl+Shift+D` |
+| Page up/down | `PgUp` / `PgDn` |
+| Scroll horizontal | `Alt+PgUp` / `Alt+PgDn` |
+| Toggle blocks | `Ctrl+Shift+\` |
+| Previous/Next record | `Ctrl+Shift+<` / `Ctrl+Shift+>` |
+| Close expanded | `Esc` |
+
+**Mechanical tool needed:** MAYBE (deferred). Airtable's grid is DOM-based (unlike Sheets' canvas) so standard click/type work for individual cells. However, bulk data entry into Airtable is tedious cell-by-cell. A future `fillairtable` mechanical tool could be valuable but is NOT required for the initial site guide. Keyboard navigation (arrow keys + Enter to edit + type + Tab to next cell) is reliable enough for the first version. Defer mechanical tool to a future milestone if demand arises.
+
+**fsbElements needed:**
+- `grid-container` -- the main grid area
+- `add-row-button` -- "+" row at bottom of grid
+- `add-field-button` -- "+" column header to add new field
+- `search-input` -- search bar
+- `view-switcher` -- view tabs (grid, kanban, calendar, etc.)
+- `record-expand-button` -- row expand icon
+- `table-switcher` -- table tabs at top
+- `filter-button` -- filter toolbar button
+- `sort-button` -- sort toolbar button
+
+**Strategy priority:** aria > role > context > data-attribute (Airtable has excellent ARIA grid implementation)
+
+**Confidence:** MEDIUM -- grid rendering approach (virtualized DOM, not canvas) confirmed by Airtable community discussions; exact selectors need live verification.
+
+---
+
+### 7. Jira (*.atlassian.net)
+
+**DOM Rendering:** React app using Atlassian Design System (ADS). Uses `data-testid` attributes extensively (Atlassian testing convention). The board view uses React DnD for drag-and-drop. Issue creation uses a modal dialog. Sprint views use standard DOM elements.
+
+**Stable selectors available:**
+- `[data-testid]` -- Atlassian convention, present on most interactive elements
+- `[aria-label]` on buttons, inputs, and navigation items
+- `[role="dialog"]` on modals
+- `[role="gridcell"]` on board columns/cards
+- `[role="button"]`, `[role="menuitem"]` on toolbar actions
+- Board columns use `[data-column-id]` attributes
+- Issue keys (e.g., "PROJ-123") appear in `data-issue-key` or href attributes
+
+**Key DOM challenge:** Jira Cloud changes DOM structure with each sprint release (bi-weekly). Atlassian explicitly warns against relying on DOM structure. However, `data-testid` attributes are stable across releases (they're part of Atlassian's testing infrastructure). The issue creation modal has many dynamic fields that appear/disappear based on project configuration (custom fields, issue types). Board drag-and-drop is complex but NOT needed for the guide -- keyboard shortcuts handle column transitions.
+
+**Keyboard shortcuts (verified from Atlassian support docs):**
+| Action | Shortcut |
+|--------|----------|
+| Create issue | `C` |
+| Quick search | `/` |
+| Show backlog | `1` |
+| Show board | `2` |
+| Show reports | `3` |
+| Assign to me | `I` |
+| Assign to other | `A` |
+| Open issue | `O` |
+| Edit labels | `L` |
+| Add comment | `M` |
+| Next/previous issue | `J` / `K` |
+| Next/previous column | `N` / `P` |
+| Show shortcuts | `?` |
+| Command palette | `Ctrl+K` |
+
+**Mechanical tool needed:** NO. Issue creation uses `C` shortcut to open the creation modal. All fields are standard form inputs (text, select, date pickers). Sprint management uses standard click interactions. Board card movement uses keyboard shortcuts.
+
+**fsbElements needed:**
+- `create-issue-button` -- the "Create" button in header
+- `issue-summary-input` -- summary/title field in create modal
+- `issue-type-selector` -- issue type dropdown
+- `project-selector` -- project dropdown
+- `assignee-selector` -- assignee field
+- `priority-selector` -- priority dropdown
+- `sprint-selector` -- sprint field
+- `description-editor` -- rich text description field
+- `board-column` -- board columns (for context)
+- `search-input` -- global search bar
+- `backlog-view` -- backlog navigation
+- `board-view` -- board navigation
+
+**Strategy priority:** data-testid > aria > role > context (Atlassian's data-testid is the most stable selector strategy)
+
+**Confidence:** MEDIUM -- Atlassian data-testid convention well-documented; Jira DOM instability explicitly warned by Atlassian; data-testid stability confirmed.
+
+---
+
+## Recommended Stack (Changes from Current)
+
+### No New Dependencies
+
+| Category | Technology | Version | Purpose | Change |
+|----------|-----------|---------|---------|--------|
+| Runtime | Vanilla JS (ES2021+) | N/A | All site guide code | No change |
+| Platform | Chrome Extension MV3 | N/A | Extension framework | No change |
+| Element lookup | findElementByStrategies | Existing | Multi-strategy selector resolution | No change |
+| Guide registry | registerSiteGuide | Existing | URL pattern matching + guide loading | No change |
+| fsbElements pipeline | Stage 1b injection | Existing | Element injection into DOM snapshot | **Generalize** (remove Sheets URL gate) |
+
+### New Files (7 site guides + 1 updated shared)
+
+| File | Purpose | Estimated Size |
+|------|---------|---------------|
+| `site-guides/productivity/notion.js` | Notion block editor intelligence | ~300 lines |
+| `site-guides/productivity/google-calendar.js` | Google Calendar event management | ~250 lines |
+| `site-guides/productivity/trello.js` | Trello board/card management | ~200 lines |
+| `site-guides/productivity/google-keep.js` | Google Keep note/list management | ~200 lines |
+| `site-guides/productivity/todoist.js` | Todoist task management | ~200 lines |
+| `site-guides/productivity/airtable.js` | Airtable grid/record management | ~300 lines |
+| `site-guides/productivity/jira.js` | Jira issue/board/sprint management | ~300 lines |
+| `site-guides/productivity/_shared.js` | Updated category guidance (add non-canvas app patterns) | ~50 line delta |
+
+### Modified Files
+
+| File | Change | Scope |
+|------|--------|-------|
+| `content/dom-analysis.js` | Generalize Stage 1b fsbElements injection (remove `/spreadsheets\/d\/` gate) | ~20 lines changed |
+| `content/dom-analysis.js` | Make Sheets health check and logging site-aware | ~15 lines changed |
+| `site-guides/index.js` | Add productivity app keywords to `categoryKeywords` for task-based routing | ~10 lines added |
+| `options.html` | Add 7 `<script>` tags for new guide files | 7 lines added |
+| `manifest.json` | Add new guide files to `content_scripts` or `web_accessible_resources` if needed | ~7 lines |
+
+### No New Chrome Extension APIs Needed
+
+The existing API surface is sufficient:
+- `chrome.tabs.get()` -- already used for guide URL matching
+- `chrome.debugger` -- already used for keyboard input via CDP
+- Content script messaging -- already used for DOM snapshot + guide selector passing
+- No new permissions needed in manifest.json
+
+---
+
+## Mechanical Tool Assessment
+
+| App | Needs Mechanical Tool? | Rationale |
+|-----|----------------------|-----------|
+| Google Sheets | YES (existing) | Canvas-based grid; fillsheet/readsheet already implemented |
+| Notion | NO | Contenteditable blocks accept standard type; slash commands are text-based |
+| Google Calendar | NO | Event creation form has standard labeled inputs |
+| Trello | NO | Card creation uses standard textarea/contenteditable |
+| Google Keep | NO | Note body is contenteditable; checkbox is standard click |
+| Todoist | NO | Quick-add and inline editing use standard inputs |
+| Airtable | MAYBE (deferred) | DOM grid with keyboard nav works; bulk entry could benefit from future tool |
+| Jira | NO | Issue creation modal has standard form fields |
+
+**Rationale:** Mechanical tools (like fillsheet) are justified when the app's rendering makes standard DOM interaction impossible (canvas-based grid). None of the 7 new apps have that problem. Airtable's virtualized grid is the closest, but keyboard navigation (arrow + Enter + type + Tab) is reliable for single-record interaction. Bulk data entry into Airtable is an edge case that can be deferred.
+
+---
+
+## Site Guide Structure Template
+
+Each new site guide follows the established pattern from `google-sheets.js`:
 
 ```javascript
-function generateYAMLSnapshot(options = {}) {
-  // Reuse existing 3-stage filtering from getFilteredElements()
-  const elements = getFilteredElements({ maxElements: 80, prioritizeViewport: true });
-
-  const lines = [];
-
-  // Page metadata section
-  lines.push('page:');
-  lines.push(`  url: ${window.location.href}`);
-  lines.push(`  title: ${document.title}`);
-  lines.push(`  scroll: ${scrollPct}%${hasMoreBelow ? ' | more below' : ''}${atBottom ? ' | at bottom' : ''}`);
-
-  // Viewport elements
-  const vpElements = elements.filter(el => isInViewport(el));
-  const offElements = elements.filter(el => !isInViewport(el));
-
-  if (vpElements.length > 0) {
-    lines.push('viewport:');
-    for (const el of vpElements) {
-      lines.push(`  ${formatElementLine(el)}`);
+registerSiteGuide({
+  site: 'App Name',
+  category: 'Productivity Tools',
+  patterns: [
+    /hostname\.com\/path/i  // URL patterns
+  ],
+  guidance: `APP-SPECIFIC INTELLIGENCE:
+    // Keyboard shortcuts
+    // Navigation patterns
+    // Common workflows
+    // Critical warnings
+  `,
+  fsbElements: {
+    'element-name': {
+      label: 'Human-readable label',
+      selectors: [
+        { strategy: 'aria', selector: '[aria-label="Label"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Label"]' },
+        { strategy: 'data-testid', selector: '[data-testid="element-id"]' },
+        { strategy: 'context', selector: '.parent .child-pattern' },
+        { strategy: 'class', selector: '.known-stable-class' }
+      ]
     }
-  }
+    // ... more elements
+  },
+  selectors: {
+    // Legacy flat selector map (backward compatibility)
+  },
+  workflows: {
+    // Step-by-step recipes for common tasks
+  },
+  warnings: [
+    // Critical gotchas for the AI
+  ],
+  toolPreferences: ['navigate', 'click', 'type', 'keyPress', ...]
+});
+```
 
-  if (offElements.length > 0) {
-    lines.push('offscreen:');
-    for (const el of offElements) {
-      lines.push(`  ${formatElementLine(el)}`);
-    }
-  }
+### Selector Strategy Ordering by App
 
-  // Form associations (compact)
-  if (forms.length > 0) {
-    lines.push('forms:');
-    for (const form of forms) {
-      lines.push(`  ${form.id}: {fields: ${form.fieldRefs.join(' ')}, submit: ${form.submitRef}}`);
-    }
-  }
+| App | Strategy 1 | Strategy 2 | Strategy 3 | Strategy 4 | Strategy 5 |
+|-----|-----------|-----------|-----------|-----------|-----------|
+| Notion | aria | role | context | data-block-id | class |
+| Google Calendar | aria | data-attribute | role | context | class |
+| Trello | data-testid | aria | role | context | class |
+| Google Keep | aria | role | context | class | id |
+| Todoist | data-testid | aria | role | context | class |
+| Airtable | aria | role | data-attribute | context | class |
+| Jira | data-testid | aria | role | context | class |
 
-  return lines.join('\n');
+---
+
+## Category Shared Guidance Update
+
+The current `_shared.js` assumes all productivity tools are canvas-based (Google Docs/Sheets). The update must add patterns for the non-canvas apps:
+
+```
+PRODUCTIVITY TOOLS INTELLIGENCE:
+
+CANVAS-BASED APPLICATIONS (Google Sheets, Google Docs):
+- ... (existing guidance unchanged)
+
+BLOCK-EDITOR APPLICATIONS (Notion):
+- Content is organized as blocks, each independently editable
+- Use slash commands (/) to create new block types
+- Use keyboard shortcuts for block manipulation
+- Tab/Shift+Tab for indenting/outdenting blocks
+
+CARD/BOARD APPLICATIONS (Trello, Jira):
+- Content organized as cards within lists/columns
+- Keyboard shortcuts (N, J, K) for card creation and navigation
+- Modal overlays for detailed card/issue editing
+- Drag-and-drop replaced by keyboard shortcuts for reliability
+
+GRID APPLICATIONS (Airtable):
+- Cells are real DOM elements (unlike Sheets canvas)
+- Arrow keys to navigate, Enter to edit, Escape to confirm
+- Space to expand record for full editing
+- Virtualized rendering -- only visible rows in DOM
+
+LIST APPLICATIONS (Todoist, Google Keep):
+- Quick-add shortcuts (Q for Todoist, C for Keep)
+- Inline editing with contenteditable
+- Keyboard navigation (J/K) between items
+```
+
+---
+
+## Task-Based Keyword Routing Update
+
+The `categoryKeywords` in `site-guides/index.js` needs expanded weak keywords for the new apps:
+
+```javascript
+'Productivity Tools': {
+  strong: [
+    'google sheets', 'google sheet', 'spreadsheet', 'google docs', 'google doc',
+    'notion', 'trello', 'google calendar', 'google keep', 'todoist', 'airtable', 'jira'
+  ],
+  weak: [
+    'sheets', 'sheet', 'create sheet', 'new sheet', 'add to sheet', 'enter data',
+    'create document', 'new document', 'write document', 'share document', 'edit document',
+    'create page', 'new page', 'add block', 'database view', 'kanban',
+    'create event', 'schedule meeting', 'calendar event', 'add to calendar',
+    'create card', 'add card', 'move card', 'board',
+    'new note', 'create note', 'checklist', 'keep note',
+    'add task', 'create task', 'todo', 'due date', 'priority',
+    'new record', 'add record', 'grid view', 'base',
+    'create issue', 'new issue', 'sprint', 'backlog', 'epic'
+  ]
 }
 ```
 
-**Integration point:** The `_compactSnapshot` field on the DOM state object (consumed by `formatCompactElements()` at ai/ai-integration.js line 891) gets replaced with `_yamlSnapshot`. The `buildPrompt()` function at ai/ai-integration.js line 2975 switches from `formatCompactElements()` to directly embedding the YAML string.
+---
 
-### Token Efficiency Gain
+## Complexity Tiers and Phase Ordering Recommendation
 
-Current compact format for 50 elements: ~2,500 tokens
-YAML format with viewport/offscreen grouping: ~2,000 tokens (20% reduction)
-YAML format with form compression: ~1,800 tokens (28% reduction)
+| Tier | Apps | Complexity Driver | Recommended Phase |
+|------|------|-------------------|-------------------|
+| 1 (Simple) | Google Keep, Todoist | Standard DOM, simple interactions, clear keyboard shortcuts | First -- validate the generalized pipeline |
+| 2 (Medium) | Trello, Google Calendar | Standard DOM but with modals, popovers, lazy loading | Second -- more complex interactions |
+| 3 (Complex) | Notion, Jira, Airtable | React virtual DOM, dynamic selectors, rich field types | Third -- most research-dependent |
 
-The main savings come not from the format itself but from:
-1. Eliminating redundant metadata per element (selectors, position coords)
-2. Grouping by viewport (AI immediately knows what it can interact with)
-3. Form compression (one line per form vs per-field details)
-
-### Alternatives Considered
-
-| Approach | Size Impact | Tokens | Why Not |
-|----------|-----------|--------|---------|
-| **Custom string builder** (recommended) | ~100 lines new code | ~1,800 | -- |
-| **js-yaml library** | +39KB to service worker | ~1,800 | Overkill, parse capability unused |
-| **JSON (status quo)** | 0 | ~3,500 | Verbose, wastes tokens on braces/quotes/commas |
-| **Playwright aria-snapshot format** | ~150 lines new code | ~2,200 | Hierarchy-based nesting less useful than viewport grouping |
-| **Plain text list (current compact)** | 0 (exists) | ~2,500 | No structure, no form grouping, no metadata section |
+**Phase ordering rationale:**
+1. Start with Tier 1 (Keep + Todoist) because they test the generalized fsbElements pipeline with minimal DOM complexity. If the pipeline generalization works here, it works everywhere.
+2. Tier 2 (Trello + Calendar) adds modal overlay patterns and lazy loading, but still uses standard DOM.
+3. Tier 3 (Notion + Jira + Airtable) has the most fragile selectors and most complex interaction patterns. These benefit from the pipeline being battle-tested on simpler apps first.
 
 ---
 
-## 3. Prompt Architecture (New Module: `ai/prompt-templates.js`)
+## Alternatives Considered
 
-### What It Replaces
-
-**Confidence: HIGH** (Verified by reading `buildPrompt()` at ai/ai-integration.js lines 2129-3053)
-
-Currently, `buildPrompt()` is a ~900-line method that concatenates strings with inline conditionals. The system prompt is built by appending task-type guidance, tool documentation, site guides, memory, formatting directives, and security rules through string concatenation. The continuation prompt (`MINIMAL_CONTINUATION_PROMPT` at line 370) duplicates rules from the full prompt.
-
-### What It Becomes
-
-A dedicated module with named template functions:
-
-```javascript
-// ai/prompt-templates.js
-
-// SYSTEM PROMPT: CLI command reference
-function buildCLIReference() {
-  return `COMMANDS:
-  click <ref>              -- Click element
-  type <ref> "text"        -- Type text (--enter to submit)
-  navigate <url>           -- Go to URL
-  scroll <dir> [amount]    -- Scroll (up/down/left/right)
-  ...
-
-RESPONSE FORMAT:
-  # reasoning comment
-  command arg1 arg2 --flag
-  done "result summary when task complete"
-
-RULES:
-  - One command per line
-  - Lines starting with # are reasoning (required)
-  - Refs (e1, e2) come from the DOM snapshot
-  - End with "done" line when task is complete`;
-}
-
-// SYSTEM PROMPT: Security rules (unchanged content, extracted)
-function buildSecurityRules() { ... }
-
-// SYSTEM PROMPT: Task-specific guidance (refactored from TASK_PROMPTS)
-function buildTaskGuidance(taskType, siteGuide) { ... }
-
-// CONTINUATION PROMPT: Minimal rules for subsequent iterations
-function buildContinuationPrompt() { ... }
-
-// USER PROMPT: DOM snapshot + context
-function buildUserContext(yamlSnapshot, actionHistory, memory) { ... }
-```
-
-### Recommended Approach: Template Functions in a Dedicated Module
-
-**Confidence: HIGH** (Standard pattern, no external dependencies needed)
-
-**Why a new module, not inline in ai-integration.js:**
-1. `ai-integration.js` is already ~5,000 lines -- prompt templates add another ~500 lines
-2. Templates change independently of the AI provider logic
-3. Testing prompt templates in isolation is valuable
-4. The `importScripts` pattern already supports this (background.js loads ai-integration.js which loads ai-providers.js)
-
-**Why NOT a template engine library (Handlebars, Mustache, etc.):**
-1. Template literals in ES2021+ handle variable interpolation natively
-2. Conditional sections use if/else, not template directives
-3. No loops over unknown data -- all template sections are statically known
-4. A template engine adds 20-80KB for zero functional benefit
-
-**Integration point:** `ai/ai-integration.js` imports the new module:
-```javascript
-importScripts('ai/prompt-templates.js');
-```
-The `buildPrompt()` method in `BrowserAgentAI` class calls template functions instead of inline string building. The method shrinks from ~900 lines to ~150 lines of orchestration logic.
-
-### Prompt Structure Change
-
-**Current (JSON-oriented):**
-```
-System: You are a browser automation agent. [1500 chars of rules]
-        [500 chars of JSON format spec]
-        [2000 chars of tool documentation as JSON examples]
-        [500 chars of task guidance]
-User:   TASK: "search for wireless mouse"
-        DOM: [e1] button "Search" [e2] textbox placeholder="Search"
-        ACTION HISTORY: [JSON array of previous actions]
-```
-
-**New (CLI-oriented):**
-```
-System: You are a browser automation agent. [800 chars of rules]
-        [300 chars of CLI command reference]
-        [200 chars of response format]
-        [500 chars of task guidance]
-User:   TASK: search for wireless mouse
-        PAGE:
-          page:
-            url: https://amazon.com
-            title: Amazon.com
-            scroll: 0% | more below
-          viewport:
-            e1: button "Search"
-            e2: textbox "Search Amazon" placeholder="Search Amazon"
-        HISTORY:
-          > type e2 "wireless mouse" --enter (ok)
-          > click e7 (ok: navigated to results)
-```
-
-System prompt reduction: ~4,500 chars -> ~1,800 chars (60% smaller)
-User prompt per iteration: varies, but action history as CLI lines vs JSON is ~3x smaller
+| Decision | Recommended | Alternative | Why Not |
+|----------|-------------|-------------|---------|
+| fsbElements injection | Generalize existing Stage 1b | Create per-site injection functions | Per-site functions would duplicate 90% identical logic; the existing loop already handles any fsbElements object |
+| Selector strategy | 5 strategies per element (matching Sheets pattern) | Fewer strategies for simpler apps | Consistency across all guides; Sheets has proven the 5-strategy pattern catches DOM changes |
+| Mechanical tools | None for new apps | Build fillnotion, fillairtable, etc. | None of these apps use canvas-based grids; standard DOM interaction is sufficient |
+| Chrome API additions | None | requestAnimationFrame via chrome.scripting | Unnecessary; existing DOM snapshot timing is sufficient for all 7 apps |
+| Category restructure | Keep all 7 in "Productivity Tools" | Split into "Project Management", "Notes", etc. | Unnecessary granularity; the category is already established and the shared guidance covers all patterns |
 
 ---
 
-## 4. Integration Map
+## Installation / File Changes
 
-### Files Modified
-
-| File | Change Type | Scope |
-|------|------------|-------|
-| `ai/ai-integration.js` | Major refactor | `buildPrompt()` calls template functions; `normalizeResponse()` routes to CLI parser; JSON pipeline kept as fallback |
-| `ai/universal-provider.js` | Minor | `parseResponse()` returns raw text instead of JSON-parsing when CLI mode active |
-| `content/dom-analysis.js` | Enhancement | `generateYAMLSnapshot()` added alongside existing `generateCompactSnapshot()` |
-| `content/messaging.js` | Minor | DOM response includes `_yamlSnapshot` field |
-| `background.js` | Minor | Action dispatch unchanged (consumes same `{tool, params}` shape) |
-
-### Files Added
-
-| File | Size Estimate | Purpose |
-|------|--------------|---------|
-| `ai/cli-parser.js` | ~300 lines | Parse CLI command lines into `{tool, params}` objects |
-| `ai/prompt-templates.js` | ~500 lines | Named template functions for system/user prompts |
-
-### Files Unchanged
-
-| File | Why |
-|------|-----|
-| `content/actions.js` | Actions receive `{tool, params}` -- unchanged interface |
-| `content/selectors.js` | `resolveRef()` unchanged -- still maps `e1` -> DOM element |
-| `content/dom-state.js` | `RefMap` class unchanged -- still generates `e1, e2, ...` refs |
-| `config/config.js` | No new config needed (CLI mode could be a toggle during migration) |
-| All site guide files | Guide content unchanged, just injected into different prompt template |
-
-### Migration Strategy
-
-The CLI parser and JSON parser should coexist during migration:
-
-```javascript
-// In ai-integration.js normalizeResponse()
-function normalizeResponse(rawText, mode = 'cli') {
-  if (mode === 'cli') {
-    try {
-      return parseCLIResponse(rawText);  // New CLI parser
-    } catch (e) {
-      // Fallback: maybe model returned JSON anyway
-      return this.parseJSONResponse(rawText);  // Existing pipeline
-    }
-  }
-  return this.parseJSONResponse(rawText);
-}
 ```
+# New files to create (7 site guides):
+site-guides/productivity/notion.js
+site-guides/productivity/google-calendar.js
+site-guides/productivity/trello.js
+site-guides/productivity/google-keep.js
+site-guides/productivity/todoist.js
+site-guides/productivity/airtable.js
+site-guides/productivity/jira.js
 
-This ensures zero-downtime migration. The system prompt instructs CLI format; if the LLM ignores it and returns JSON, the fallback catches it.
+# Files to modify:
+content/dom-analysis.js          # Generalize Stage 1b injection
+site-guides/productivity/_shared.js  # Add non-canvas app patterns
+site-guides/index.js             # Add productivity keywords
+options.html                     # Add 7 script tags
+
+# No new npm dependencies
+# No new Chrome permissions
+```
 
 ---
 
-## 5. CLI Command Specification
+## Sources
 
-### Full Command Reference
+### Official Documentation (HIGH confidence)
+- [Notion Keyboard Shortcuts](https://www.notion.com/help/keyboard-shortcuts)
+- [Notion Slash Commands](https://www.notion.com/help/guides/using-slash-commands)
+- [Google Calendar Keyboard Shortcuts](https://support.google.com/calendar/answer/37034)
+- [Trello Keyboard Shortcuts](https://support.atlassian.com/trello/docs/keyboard-shortcuts-in-trello/)
+- [Todoist Keyboard Shortcuts](https://www.todoist.com/help/articles/use-keyboard-shortcuts-in-todoist-Wyovn2)
+- [Todoist Quick Add](https://www.todoist.com/help/articles/use-task-quick-add-in-todoist-va4Lhpzz)
+- [Airtable Keyboard Shortcuts](https://support.airtable.com/docs/airtable-keyboard-shortcuts)
+- [Airtable Grid View](https://support.airtable.com/docs/airtable-grid-view)
+- [Jira Cloud Keyboard Shortcuts](https://support.atlassian.com/jira-software-cloud/docs/use-keyboard-shortcuts/)
+- [Google Keep Keyboard Shortcuts](https://support.google.com/keep/answer/12862970)
 
-Based on analysis of all 35+ tools in `isValidTool()` (ai/ai-integration.js lines 4172-4198) and `TOOL_DOCUMENTATION` (lines 15-116):
+### Community/Third-Party (MEDIUM confidence)
+- [UseTheKeyboard: Airtable](https://usethekeyboard.com/airtable/)
+- [UseTheKeyboard: Todoist](https://usethekeyboard.com/todoist/)
+- [DefKey: Google Keep](https://defkey.com/google-keep-shortcuts)
+- [KeyCombiner: Notion](https://keycombiner.com/collections/notion/)
+- [Notion Block API](https://developers.notion.com/reference/block)
 
-**Navigation:**
-```
-navigate <url>                    -- Go to URL
-search "query"                    -- Google search (shorthand for searchGoogle)
-back                              -- Browser back
-forward                           -- Browser forward
-refresh                           -- Reload page
-```
+### Codebase Analysis (HIGH confidence)
+- `content/dom-analysis.js` lines 1790-1870 -- Stage 1b injection pipeline
+- `content/dom-analysis.js` line 1758 -- findElementByStrategies implementation
+- `background.js` line 8483 -- fsbElements passed to content script
+- `site-guides/productivity/google-sheets.js` -- reference pattern for new guides
+- `site-guides/index.js` -- guide registry and keyword routing
+- `content/actions.js` lines 3769-3990 -- fillsheet/readsheet implementation (reference for mechanical tool pattern)
 
-**Element Interaction:**
-```
-click <ref>                       -- Click element
-click-result [index] [--domain=x] -- Click search result
-type <ref> "text" [--enter] [--clear]  -- Type text
-hover <ref>                       -- Hover over element
-focus <ref>                       -- Focus element
-select <ref> "option"             -- Select dropdown option
-check <ref>                       -- Toggle checkbox
-```
-
-**Keyboard:**
-```
-press <key> [--ctrl] [--shift] [--meta]  -- Press key
-keys "sequence"                   -- Key sequence
-arrow <dir>                       -- Arrow key (up/down/left/right)
-enter                             -- Press Enter (shorthand)
-```
-
-**Scrolling:**
-```
-scroll <dir> [amount]             -- Scroll (up/down, optional px)
-scroll-to <ref>                   -- Scroll element into view
-scroll-top                        -- Scroll to top
-scroll-bottom                     -- Scroll to bottom
-```
-
-**Extraction:**
-```
-get-text <ref>                    -- Get element text content
-get-attr <ref> <attribute>        -- Get element attribute
-```
-
-**Waiting:**
-```
-wait <selector> [--timeout=ms]    -- Wait for element (CSS selector)
-wait-stable [--timeout=ms]        -- Wait for DOM to stabilize
-wait-load                         -- Wait for page load
-```
-
-**Multi-Tab:**
-```
-new-tab <url> [--background]      -- Open new tab
-switch-tab <tabId>                -- Switch to tab
-close-tab <tabId>                 -- Close tab
-list-tabs                         -- List open tabs
-```
-
-**Data:**
-```
-store-jobs <company> [json-data]  -- Store job data
-get-jobs                          -- Get stored jobs
-fill-sheet                        -- Write jobs to Google Sheet
-```
-
-**Session Control:**
-```
-done "result summary"             -- Mark task complete with result
-```
-
-### Command Line Grammar (Informal)
-
-```
-line       = comment | command | done | blank
-comment    = '#' text
-command    = verb [ref] [args...] [flags...]
-done       = 'done' [quoted-string]
-verb       = word (from command registry)
-ref        = 'e' digits
-args       = quoted-string | word | number
-flags      = '--' word ['=' value]
-quoted-str = '"' (escaped-char | non-quote)* '"'
-```
-
-This is a regular grammar (no recursion, no nesting) and is fully parseable by regex tokenization.
-
----
-
-## 6. What NOT to Add
-
-| Temptation | Why Resist |
-|-----------|-----------|
-| **js-yaml library** | Only need serialize (not parse), only need flat subset, ~100 lines of custom code replaces 39KB library |
-| **PEG.js / nearley grammar** | 15 commands with positional args is regex territory, not grammar territory |
-| **Handlebars / Mustache templates** | ES2021 template literals + functions cover all needs |
-| **Schema validation (Zod/Joi)** | CLI commands are validated by the command registry, not a schema library |
-| **Build system (webpack/rollup)** | Would change the entire project's deployment model for zero benefit here |
-| **TypeScript** | Would require build system; JSDoc comments provide type hints for IDE |
-| **YAML parser for AI output** | AI outputs CLI commands, not YAML. YAML is only for DOM snapshots (output direction) |
-
----
-
-## 7. Version Compatibility
-
-| Component | Required Version | Current Status | Notes |
-|-----------|-----------------|---------------|-------|
-| Chrome Extension MV3 | Chrome 88+ | Satisfied | importScripts, service worker, all APIs available |
-| ES2021+ JavaScript | Chrome 88+ | Satisfied | Template literals, WeakRef, optional chaining all available |
-| RefMap (WeakRef) | Chrome 84+ | Satisfied | Already implemented in content/dom-state.js |
-| Regex named groups | Chrome 64+ | Satisfied | Used in tokenizer for cleaner parsing |
-| String.prototype.matchAll | Chrome 73+ | Satisfied | Cleaner than exec loop for tokenization |
-
-No version bumps or polyfills needed. All required language features are available in the minimum Chrome version already supported.
-
----
-
-## 8. Performance Considerations
-
-### Service Worker Memory
-
-| Component | Current | After v10.0 | Delta |
-|-----------|---------|------------|-------|
-| `ai-integration.js` | ~5,000 lines | ~4,500 lines (prompt extraction) | -10% |
-| `ai/prompt-templates.js` | -- | ~500 lines | +500 lines |
-| `ai/cli-parser.js` | -- | ~300 lines | +300 lines |
-| JSON repair pipeline | ~160 lines | ~20 lines (kept as fallback) | -140 lines |
-| Net change | -- | -- | +~660 lines across 3 files |
-
-The service worker does NOT get heavier. Prompt templates move from ai-integration.js to prompt-templates.js (net zero). The CLI parser replaces the JSON repair pipeline (net smaller). No new libraries loaded.
-
-### Content Script Impact
-
-The `generateYAMLSnapshot()` function in `content/dom-analysis.js` runs alongside (or replaces) `generateCompactSnapshot()`. Both iterate the same filtered elements and build strings. Performance difference: negligible (both are O(n) string concatenation over 50-80 elements, completing in <5ms).
-
-### AI Response Parsing
-
-Current JSON pipeline: 6-stage parse with regex cleaning, truncation repair, structure fix, fallback extraction. Worst case: 5-10ms for malformed responses.
-
-CLI parser: Single pass line-by-line with regex tokenization. Constant: <1ms for any response size.
-
----
-
-## 9. Testing Strategy
-
-### CLI Parser Testing
-
-The CLI parser is a pure function (`parseCLIResponse(text) -> {actions, reasoning, taskComplete, result}`) with no DOM or Chrome API dependencies. It can be tested in any JavaScript runtime:
-
-```javascript
-// Test cases
-assert(parseCLIResponse('click e5').actions[0]).deepEqual({tool: 'click', params: {ref: 'e5'}});
-assert(parseCLIResponse('type e3 "hello world" --enter').actions[0]).deepEqual({tool: 'type', params: {ref: 'e3', text: 'hello world', pressEnter: true}});
-assert(parseCLIResponse('# reasoning\nclick e1\ndone "task finished"')).includes({taskComplete: true});
-```
-
-### YAML Snapshot Testing
-
-Compare `generateYAMLSnapshot()` output against expected strings for known DOM states. Can be tested with mocked DOM elements in a browser environment.
-
-### Prompt Template Testing
-
-Each template function returns a string. Test that required sections appear, that security rules are present, that CLI reference is included, etc.
-
----
-
-## 10. Sources
-
-### CLI Protocol Design (Evidence for Line-Based Approach)
-
-- [Playwright CLI: Token-Efficient Browser Automation](https://testcollab.com/blog/playwright-cli) -- 4x token reduction benchmarks, CLI command format
-- [webctl: Browser automation via CLI](https://github.com/cosinusalpha/webctl) -- CLI-first design, snapshot filtering, session management
-- [agent-browser: Vercel Labs](https://github.com/vercel-labs/agent-browser) -- Compact text output, @ref element references, 93% context reduction
-- [Deep Dive into Playwright CLI](https://testdino.com/blog/playwright-cli/) -- Snapshot format with e15/e21 refs, YAML file output
-- [Playwright ARIA Snapshots](https://playwright.dev/docs/aria-snapshots) -- YAML format specification for accessibility tree
-
-### YAML Serialization Options (Evidence for Custom Builder)
-
-- [js-yaml npm package](https://www.npmjs.com/package/js-yaml) -- 39KB minified, full YAML 1.2 parser+serializer
-- [js-yaml-browser fork](https://github.com/shockey/js-yaml-browser) -- Browser-optimized js-yaml
-- [yaml npm package](https://www.npmjs.com/package/yaml) -- Alternative YAML library, no dependencies
-- [js-yaml CDN on jsDelivr](https://www.jsdelivr.com/package/npm/js-yaml) -- Pre-built browser bundle available
-- [Bundlephobia: js-yaml](https://bundlephobia.com/package/js-yaml) -- 39.1KB minified, 13KB gzipped
-
-### Chrome Extension MV3 Constraints
-
-- [Extension Service Worker Basics](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/basics) -- importScripts requirements
-- [ES Modules in Service Workers](https://web.dev/articles/es-modules-in-sw) -- Module format options
-
-### LLM Structured Output
-
-- [LLM Structured Output 2026](https://dev.to/pockit_tools/llm-structured-output-in-2026-stop-parsing-json-with-regex-and-do-it-right-34pk) -- Current state of structured output
-- [webctl HN Discussion](https://news.ycombinator.com/item?id=46616481) -- Community validation of CLI approach for browser agents
-
----
-
-## Confidence Assessment
-
-| Area | Level | Reason |
-|------|-------|--------|
-| CLI Parser (regex) | HIGH | Proven pattern in Playwright CLI, webctl, agent-browser; regular grammar; pure function |
-| YAML Snapshot (custom builder) | HIGH | Extension of existing generateCompactSnapshot(); no new dependencies needed |
-| Prompt Templates (module extraction) | HIGH | Standard refactoring pattern; ES2021 template literals sufficient |
-| Token Reduction (4x output) | MEDIUM | Playwright benchmarks show 4x; FSB-specific measurement needed during implementation |
-| Token Reduction (3x input/context) | MEDIUM | Depends on YAML snapshot compression vs current compact format; 20-30% likely |
-| LLM Adherence to CLI Format | MEDIUM | All modern LLMs handle line-based output well, but needs testing across providers (xAI, OpenAI, Anthropic, Gemini) |
-| Migration Safety (JSON fallback) | HIGH | Dual-mode parser ensures backward compatibility during rollout |
+### LOW Confidence (needs live verification)
+- Notion DOM class names (`notion-selectable`, `notion-text-block`, `data-block-id`) -- inferred from community tools and API docs, not directly inspected
+- Airtable ARIA grid attributes (`aria-rowindex`, `aria-colindex`) -- inferred from W3C ARIA grid pattern, not directly verified on live Airtable
+- Jira `data-testid` stability -- Atlassian states DOM is unstable but data-testid is maintained; needs confirmation on current Cloud version
+- Google Calendar `data-datekey`, `data-eventid` attributes -- commonly cited but need live verification against current Calendar UI
+- Google Keep `data-id` on note cards -- needs live verification
