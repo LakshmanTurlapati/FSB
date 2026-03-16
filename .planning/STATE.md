@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: executing
-stopped_at: Completed 31-01-PLAN.md
-last_updated: "2026-03-16T09:51:30Z"
-last_activity: 2026-03-16 -- Completed 31-01 Task Memory schema
+stopped_at: Completed 31-02-PLAN.md
+last_updated: "2026-03-16T09:57:24Z"
+last_activity: 2026-03-16 -- Completed 31-02 Task Memory storage/retrieval/UI
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 6
-  completed_plans: 5
-  percent: 75
+  completed_plans: 6
+  percent: 83
 ---
 
 # Project State
@@ -26,25 +26,25 @@ See: .planning/PROJECT.md (updated 2026-03-16)
 ## Current Position
 
 Phase: 31 of 33 (Task Memory Schema & Storage)
-Plan: 1 of 3 completed in current phase
+Plan: 2 of 3 completed in current phase
 Status: Executing
-Last activity: 2026-03-16 -- Completed 31-01 Task Memory schema
+Last activity: 2026-03-16 -- Completed 31-02 Task Memory storage/retrieval/UI
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
+- Total plans completed: 5
 - Average duration: 5min
-- Total execution time: 0.30 hours
+- Total execution time: 0.35 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 30 | 3/4 | 17min | 6min |
-| 31 | 1/3 | 1min | 1min |
+| 31 | 2/3 | 4min | 2min |
 
 ## Accumulated Context
 
@@ -67,6 +67,8 @@ Recent decisions:
 - 30-03: dragdrop tool tries 3 methods (HTML5 DragEvent, PointerEvent, MouseEvent) with DOM change detection
 - [Phase 30]: Notion: aria/role-first selectors for CSS Modules resilience; Jira: data-testid-first for Atlassian stability; Airtable: documented all read-only field types to prevent edit attempts
 - 31-01: Followed CONTEXT.md nested structure for Task Memory typeData (session/learned/procedures)
+- 31-02: Task boost 0.15+0.05 -- between semantic (0.1) and procedural (up to 0.2) baselines
+- 31-02: stepCount _removeFromIndex sweeps all buckets defensively against bucket drift
 
 ### Pending Todos
 
@@ -79,6 +81,6 @@ Recent decisions:
 
 ## Session Continuity
 
-Last session: 2026-03-16T09:51:30Z
-Stopped at: Completed 31-01-PLAN.md
-Resume file: .planning/phases/31-task-memory-schema-storage/31-01-SUMMARY.md
+Last session: 2026-03-16T09:57:24Z
+Stopped at: Completed 31-02-PLAN.md
+Resume file: .planning/phases/31-task-memory-schema-storage/31-02-SUMMARY.md
