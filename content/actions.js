@@ -4117,6 +4117,173 @@ const tools = {
     } catch (error) {
       return { success: false, error: error.message, action: 'readsheet' };
     }
+  },
+
+  // =========================================================================
+  // DRAG-AND-DROP: dragdrop — mechanical drag simulation with 3 fallback methods
+  // Tries HTML5 DragEvent, PointerEvent sequence, MouseEvent sequence in order.
+  // Returns { success, method } on success or { success: false, error } on failure.
+  // =========================================================================
+  dragdrop: async (params) => {
+    const { sourceRef, targetRef, steps: userSteps, holdMs: userHoldMs, stepDelayMs: userStepDelayMs } = params;
+
+    if (!sourceRef || !targetRef) {
+      return { success: false, error: 'sourceRef and targetRef are required (element references, e.g., "e5" and "e12")', action: 'dragdrop' };
+    }
+
+    // Resolve element references through FSB's element map
+    const source = typeof sourceRef === 'string' ? FSB.getElementByRef?.(sourceRef) || document.querySelector(`[data-fsb-ref="${sourceRef}"]`) : sourceRef;
+    const target = typeof targetRef === 'string' ? FSB.getElementByRef?.(targetRef) || document.querySelector(`[data-fsb-ref="${targetRef}"]`) : targetRef;
+
+    if (!source) {
+      return { success: false, error: `Source element not found: ${sourceRef}`, action: 'dragdrop' };
+    }
+    if (!target) {
+      return { success: false, error: `Target element not found: ${targetRef}`, action: 'dragdrop' };
+    }
+
+    const steps = userSteps || 10;
+    const holdMs = userHoldMs || 150;
+    const stepDelayMs = userStepDelayMs || 20;
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // Snapshot DOM state for change detection
+    function snapshotState() {
+      const sourceParent = source.parentElement;
+      const targetParent = target.parentElement;
+      return {
+        sourceIndex: sourceParent ? Array.from(sourceParent.children).indexOf(source) : -1,
+        sourceParentChildCount: sourceParent ? sourceParent.children.length : 0,
+        targetParentChildCount: targetParent ? targetParent.children.length : 0,
+        sourceInDOM: document.contains(source),
+        sourceParentId: sourceParent ? (sourceParent.id || sourceParent.dataset?.testid || '') : '',
+        targetParentId: targetParent ? (targetParent.id || targetParent.dataset?.testid || '') : ''
+      };
+    }
+
+    function detectChange(before, after) {
+      // Source moved out of its original parent
+      if (before.sourceParentChildCount !== after.sourceParentChildCount) return true;
+      // Target parent gained a child
+      if (before.targetParentChildCount !== after.targetParentChildCount) return true;
+      // Source index within parent changed
+      if (before.sourceIndex !== after.sourceIndex) return true;
+      // Source removed from DOM entirely (some drag libs re-render)
+      if (before.sourceInDOM && !after.sourceInDOM) return true;
+      return false;
+    }
+
+    const sourceRect = source.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const startX = sourceRect.left + sourceRect.width / 2;
+    const startY = sourceRect.top + sourceRect.height / 2;
+    const endX = targetRect.left + targetRect.width / 2;
+    const endY = targetRect.top + targetRect.height / 2;
+
+    // -----------------------------------------------------------------------
+    // Method 1: HTML5 DragEvent sequence
+    // -----------------------------------------------------------------------
+    try {
+      const before = snapshotState();
+      const dt = new DataTransfer();
+
+      source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      await delay(50);
+      target.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      await delay(50);
+      target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      await delay(100);
+
+      const after = snapshotState();
+      if (detectChange(before, after)) {
+        logger.log('info', 'dragdrop succeeded with HTML5 DragEvent', { sessionId: FSB.sessionId, method: 'html5_drag' });
+        return { success: true, method: 'html5_drag', action: 'dragdrop', hadEffect: true };
+      }
+    } catch (e) {
+      // Method 1 failed, continue to Method 2
+    }
+
+    // -----------------------------------------------------------------------
+    // Method 2: PointerEvent sequence (works for react-beautiful-dnd and similar)
+    // -----------------------------------------------------------------------
+    try {
+      const before = snapshotState();
+
+      source.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, cancelable: true, clientX: startX, clientY: startY, pointerId: 1,
+        button: 0, buttons: 1, pointerType: 'mouse'
+      }));
+      await delay(holdMs);
+
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const x = startX + (endX - startX) * t;
+        const y = startY + (endY - startY) * t;
+        document.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1,
+          button: 0, buttons: 1, pointerType: 'mouse'
+        }));
+        await delay(stepDelayMs);
+      }
+
+      document.dispatchEvent(new PointerEvent('pointerup', {
+        bubbles: true, cancelable: true, clientX: endX, clientY: endY, pointerId: 1,
+        button: 0, buttons: 0, pointerType: 'mouse'
+      }));
+      await delay(200);
+
+      const after = snapshotState();
+      if (detectChange(before, after)) {
+        logger.log('info', 'dragdrop succeeded with PointerEvent sequence', { sessionId: FSB.sessionId, method: 'pointer_events' });
+        return { success: true, method: 'pointer_events', action: 'dragdrop', hadEffect: true };
+      }
+    } catch (e) {
+      // Method 2 failed, continue to Method 3
+    }
+
+    // -----------------------------------------------------------------------
+    // Method 3: MouseEvent sequence (fallback for basic drag implementations)
+    // -----------------------------------------------------------------------
+    try {
+      const before = snapshotState();
+
+      source.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true, cancelable: true, clientX: startX, clientY: startY,
+        button: 0, buttons: 1, view: window
+      }));
+      await delay(holdMs);
+
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const x = startX + (endX - startX) * t;
+        const y = startY + (endY - startY) * t;
+        document.dispatchEvent(new MouseEvent('mousemove', {
+          bubbles: true, cancelable: true, clientX: x, clientY: y,
+          button: 0, buttons: 1, view: window
+        }));
+        await delay(stepDelayMs);
+      }
+
+      document.dispatchEvent(new MouseEvent('mouseup', {
+        bubbles: true, cancelable: true, clientX: endX, clientY: endY,
+        button: 0, buttons: 0, view: window
+      }));
+      await delay(200);
+
+      const after = snapshotState();
+      if (detectChange(before, after)) {
+        logger.log('info', 'dragdrop succeeded with MouseEvent sequence', { sessionId: FSB.sessionId, method: 'mouse_events' });
+        return { success: true, method: 'mouse_events', action: 'dragdrop', hadEffect: true };
+      }
+    } catch (e) {
+      // Method 3 failed
+    }
+
+    // All methods exhausted
+    logger.log('warn', 'dragdrop: all three methods failed', { sessionId: FSB.sessionId, sourceRef, targetRef });
+    return { success: false, error: 'All drag methods failed - use keyboard move alternative', action: 'dragdrop', hadEffect: false };
   }
 };
 

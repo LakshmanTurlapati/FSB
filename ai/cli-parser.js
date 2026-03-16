@@ -251,6 +251,9 @@ const COMMAND_REGISTRY = {
   fillsheet:          { tool: 'fillsheet',           args: [{ name: 'startCell', type: 'string' }, { name: 'data', type: 'string' }, { name: 'sheetName', type: 'string', optional: true }] },
   readsheet:          { tool: 'readsheet',           args: [{ name: 'range', type: 'string' }] },
 
+  // -- Mechanical drag-and-drop tool (content-script) --
+  dragdrop:           { tool: 'dragdrop',            args: [{ name: 'sourceRef', type: 'string' }, { name: 'targetRef', type: 'string' }] },
+
   // -- Signal commands (not dispatched as actions) --
   done:               { tool: '__done', args: [{ name: 'message', type: 'string', optional: true }], signal: 'done' },
   fail:               { tool: '__fail', args: [{ name: 'message', type: 'string', optional: true }], signal: 'fail' },
