@@ -96,11 +96,11 @@ Plans:
   2. `memory-storage.js` can save and retrieve Task Memory objects from `fsb_memories` with the new schema
   3. Old type-based memories (episodic, semantic, procedural) still load and render correctly -- the reader is backward-compatible
   4. The inverted index and hybrid search in `memory-retriever.js` work with Task Memory fields (domain, task description, selectors, patterns)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 31-01: TBD
-- [ ] 31-02: TBD
+- [ ] 31-01-PLAN.md -- Task Memory schema: createTaskMemory factory, TASK type constant, validation
+- [ ] 31-02-PLAN.md -- Storage/retriever/UI wiring: inverted index, scoring boost, type filter, card rendering
 
 ### Phase 32: Extraction Pipeline & Consolidation
 **Goal**: Every completed automation session produces exactly one Task Memory through a rewritten AI extraction prompt and session-based consolidation
@@ -142,8 +142,8 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 30. Productivity Site Intelligence | 4/4 | Complete   | 2026-03-16 |
-| 31. Task Memory Schema & Storage | 0/TBD | Not started | - |
+| 30. Productivity Site Intelligence | 4/4 | Complete    | 2026-03-16 |
+| 31. Task Memory Schema & Storage | 0/2 | Not started | - |
 | 32. Extraction Pipeline & Consolidation | 0/TBD | Not started | - |
 | 33. Task Memory Display & Migration | 0/TBD | Not started | - |
 
@@ -158,4 +158,4 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33
 | v0.9.3 Memory Tab Overhaul | 31-33 | TBD | 0/9 | Planned | - |
 
 ---
-*Updated: 2026-03-16 after v0.9.3 roadmap created*
+*Updated: 2026-03-16 after Phase 31 planning*
