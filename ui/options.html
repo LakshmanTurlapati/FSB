@@ -753,6 +753,12 @@
               <option value="procedural">Procedural</option>
               <option value="task">Task</option>
             </select>
+            <button class="control-btn" id="btnExportMemories" title="Export memories as JSON">
+              <i class="fas fa-download"></i> Export
+            </button>
+            <button class="control-btn" id="btnImportMemories" title="Import memories from JSON">
+              <i class="fas fa-upload"></i> Import
+            </button>
             <div class="memory-overflow-menu">
               <button class="control-btn" id="btnMemoryOverflow" title="More actions">
                 <i class="fas fa-ellipsis-v"></i>
@@ -760,12 +766,6 @@
               <div class="overflow-dropdown" id="memoryOverflowDropdown">
                 <button class="overflow-item" id="btnConsolidateMemories">
                   <i class="fas fa-compress-arrows-alt"></i> Consolidate
-                </button>
-                <button class="overflow-item" id="btnExportMemories">
-                  <i class="fas fa-download"></i> Export
-                </button>
-                <button class="overflow-item" id="btnImportMemories">
-                  <i class="fas fa-upload"></i> Import
                 </button>
                 <button class="overflow-item danger" id="btnClearMemories">
                   <i class="fas fa-trash"></i> Clear All
