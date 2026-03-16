@@ -159,7 +159,7 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33 -> Phase 34
 | 31. Task Memory Schema & Storage | 2/2 | Complete    | 2026-03-16 |
 | 32. Extraction Pipeline & Consolidation | 2/2 | Complete    | 2026-03-16 |
 | 33. Task Memory Display & Graph | 2/2 | Complete    | 2026-03-16 |
-| 34. Memory Tab Theme Fix & Export/Import | 1/2 | In Progress|  |
+| 34. Memory Tab Theme Fix & Export/Import | 2/2 | Complete   | 2026-03-16 |
 
 | Milestone | Phases | Plans | Requirements | Status | Shipped |
 |-----------|--------|-------|-------------|--------|---------|
