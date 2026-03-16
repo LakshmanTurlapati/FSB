@@ -68,6 +68,14 @@
   --transition-base: 200ms ease-in-out;
   --transition-slow: 300ms ease-in-out;
   
+  /* Surface Colors */
+  --surface-color: var(--gray-50);
+  --card-bg: var(--bg-primary);
+  --hover-bg: var(--gray-100);
+
+  /* Aliases */
+  --danger: var(--error-color);
+
   /* Fonts */
   --font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
@@ -100,6 +108,12 @@
   --error-light: #2e1a1a;
   --info-color: #4dd0e1;
   --info-light: #1a2629;
+
+  --surface-color: var(--gray-800);
+  --card-bg: var(--gray-800);
+  --hover-bg: var(--gray-700);
+
+  --danger: var(--error-color);
 }
 
 /* Reset & Base Styles */
@@ -3742,8 +3756,8 @@ textarea.form-input {
   right: 0;
   top: 100%;
   margin-top: 4px;
-  background: var(--card-bg, #1a1a2e);
-  border: 1px solid var(--border-color, #2a2a3e);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 4px 0;
   min-width: 160px;
@@ -3763,14 +3777,14 @@ textarea.form-input {
   padding: 8px 16px;
   border: none;
   background: none;
-  color: var(--text-primary, #e0e0e0);
+  color: var(--text-primary);
   font-size: 0.9em;
   cursor: pointer;
   text-align: left;
 }
 
 .overflow-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--hover-bg);
 }
 
 .overflow-item.danger {
@@ -3803,7 +3817,7 @@ textarea.form-input {
 
 .cost-label {
   font-size: 0.75em;
-  color: var(--text-secondary, #a0a0b0);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -3811,7 +3825,7 @@ textarea.form-input {
 .cost-value {
   font-size: 0.95em;
   font-weight: 600;
-  color: var(--text-primary, #e0e0e0);
+  color: var(--text-primary);
 }
 
 /* ==========================================
@@ -3819,8 +3833,8 @@ textarea.form-input {
    ========================================== */
 
 .memory-cost-card {
-  background: var(--card-bg, #1a1a2e);
-  border: 1px solid var(--border-color, #2a2a3e);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 12px 16px;
   margin-bottom: 12px;
@@ -3832,19 +3846,19 @@ textarea.form-input {
   gap: 8px;
   font-size: 0.9em;
   font-weight: 600;
-  color: var(--text-primary, #e0e0e0);
+  color: var(--text-primary);
   margin-bottom: 10px;
 }
 
 .cost-card-header i {
-  color: var(--primary, #6366f1);
+  color: var(--primary-color);
 }
 
 .cost-card-period {
   margin-left: auto;
   font-size: 0.8em;
   font-weight: 400;
-  color: var(--text-secondary, #a0a0b0);
+  color: var(--text-secondary);
 }
 
 .cost-card-metrics {
@@ -3861,12 +3875,12 @@ textarea.form-input {
 .cost-card-value {
   font-size: 1.1em;
   font-weight: 700;
-  color: var(--text-primary, #e0e0e0);
+  color: var(--text-primary);
 }
 
 .cost-card-label {
   font-size: 0.75em;
-  color: var(--text-secondary, #a0a0b0);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
