@@ -4362,39 +4362,35 @@ const tools = {
   FSB.validateCoordinates = validateCoordinates;
   FSB.ensureCoordinatesVisible = ensureCoordinatesVisible;
   // =========================================================================
-  // TOGGLECHECK: Notion-aware checkbox toggle (multi-strategy)
+  // TOGGLECHECK: Notion-aware checkbox toggle
   //
   // Strategy 1: Find the checkbox element inside .notion-to_do-block and .click() it
-  //   - The checkbox is a div BEFORE the [role="textbox"], with contenteditable="false"
-  //   - or it's the first child div that is NOT the textbox
-  //   - Native .click() triggers React's event delegation via bubbling
+  // Strategy 2: CDP mouse click at checkbox coordinates (left edge of block)
+  // NO Strategy 3 (keyboard Escape→Ctrl+Enter) — it has side effects that uncheck OTHER blocks
   //
-  // Strategy 2: CDP mouse click at the checkbox coordinates (left edge of block)
-  //   - Uses chrome.debugger Input.dispatchMouseEvent for browser-level click
-  //   - Bypasses all React/synthetic event issues
-  //
-  // Strategy 3: Keyboard shortcut (click → Escape → Ctrl+Enter)
-  //   - Official Notion shortcut, but requires correct focus state
-  //
-  // Verification: compare strikethrough CSS before/after each strategy
+  // IMPORTANT: Filters out empty spacer blocks. Notion renders empty .notion-to_do-block
+  // elements between real todos. Only blocks with text content are counted.
   // =========================================================================
   tools.togglecheck = async (params) => {
     const { index } = params;
     const idx = (typeof index === 'number' && index >= 1) ? index : 1;
 
-    const todoBlocks = document.querySelectorAll('.notion-selectable.notion-to_do-block');
+    // Filter out empty spacer blocks — only count blocks with actual text content
+    const allBlocks = document.querySelectorAll('.notion-selectable.notion-to_do-block');
+    const todoBlocks = Array.from(allBlocks).filter(b => b.textContent?.trim().length > 0);
+
     if (!todoBlocks.length) {
-      return { success: false, error: 'No Notion todo blocks found on this page (.notion-to_do-block)', action: 'togglecheck' };
+      return { success: false, error: `No Notion todo blocks with text found (${allBlocks.length} empty blocks skipped)`, action: 'togglecheck' };
     }
     if (idx > todoBlocks.length) {
-      return { success: false, error: `Todo index ${idx} out of range (found ${todoBlocks.length} todos)`, action: 'togglecheck' };
+      return { success: false, error: `Todo index ${idx} out of range (found ${todoBlocks.length} todos, ${allBlocks.length - todoBlocks.length} empty blocks skipped)`, action: 'togglecheck' };
     }
 
     const block = todoBlocks[idx - 1];
     const text = block.textContent?.trim()?.substring(0, 60) || '(empty)';
     const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
-    console.log(`[FSB togglecheck] Starting toggle for todo ${idx}/${todoBlocks.length}: "${text}"`);
+    console.log(`[FSB togglecheck] Starting toggle for todo ${idx}/${todoBlocks.length}: "${text}" (${allBlocks.length - todoBlocks.length} empty blocks filtered out)`);
 
     block.scrollIntoView({ block: 'center', behavior: 'instant' });
     await delay(150);
@@ -4404,157 +4400,70 @@ const tools = {
     const getStrike = () => window.getComputedStyle(textEl).textDecorationLine?.includes('line-through') || false;
     const preStrike = getStrike();
 
-    // Dump block children for debugging
-    const children = Array.from(block.querySelectorAll('*')).slice(0, 20);
-    const childDump = children.map(c => `${c.tagName}.${(c.className || '').split(' ')[0]}[ce=${c.contentEditable},role=${c.getAttribute('role')},w=${Math.round(c.getBoundingClientRect().width)}]`);
-    console.log(`[FSB togglecheck] Block children (first 20):`, childDump);
-
     // ---- STRATEGY 1: Find and .click() the checkbox element directly ----
     let method = 'none';
-    let checkboxEl = null;
 
-    // Look for the checkbox: it's a non-textbox element, typically with contenteditable="false"
-    // or user-select:none, positioned before the textbox
     const candidates = [
-      // Try: any div with role="checkbox" inside the block
       block.querySelector('[role="checkbox"]'),
-      // Try: contenteditable="false" div (the checkbox wrapper)
       block.querySelector('div[contenteditable="false"]'),
-      // Try: the first div child that is NOT the textbox and NOT the block itself
       ...Array.from(block.children).filter(c =>
         c.tagName === 'DIV' && c.getAttribute('role') !== 'textbox' && !c.querySelector('[role="textbox"]')
       ),
-      // Try: first child's first child (deeply nested checkbox)
       block.firstElementChild?.firstElementChild,
     ].filter(Boolean);
 
-    // Deduplicate
     const seen = new Set();
     const uniqueCandidates = candidates.filter(c => { if (seen.has(c)) return false; seen.add(c); return true; });
 
-    console.log(`[FSB togglecheck] Strategy 1: ${uniqueCandidates.length} checkbox candidates found`);
-
     for (const candidate of uniqueCandidates) {
       const cRect = candidate.getBoundingClientRect();
-      console.log(`[FSB togglecheck] Trying candidate: ${candidate.tagName}.${(candidate.className || '').split(' ')[0]} (${Math.round(cRect.width)}x${Math.round(cRect.height)}, ce=${candidate.contentEditable})`);
-
-      // Skip if too large (probably a wrapper, not the checkbox)
-      if (cRect.width > 40 || cRect.height > 40) {
-        console.log(`[FSB togglecheck] Skipping — too large (${Math.round(cRect.width)}x${Math.round(cRect.height)})`);
-        continue;
-      }
-      // Skip if zero size
+      if (cRect.width > 40 || cRect.height > 40) continue;
       if (cRect.width === 0 || cRect.height === 0) continue;
 
-      // Click it with native .click() which triggers React event delegation
       candidate.click();
       await delay(400);
+      if (getStrike() !== preStrike) { method = 'direct_click'; break; }
 
-      if (getStrike() !== preStrike) {
-        checkboxEl = candidate;
-        method = 'direct_click';
-        console.log(`[FSB togglecheck] Strategy 1 SUCCESS: direct .click() toggled the checkbox`);
-        break;
-      }
-
-      // Try dispatchEvent with full mouse sequence (some React apps need this)
       const cCenter = { x: cRect.left + cRect.width / 2, y: cRect.top + cRect.height / 2 };
       const mInit = { bubbles: true, cancelable: true, view: window, clientX: cCenter.x, clientY: cCenter.y, button: 0, buttons: 1 };
       candidate.dispatchEvent(new MouseEvent('mousedown', mInit));
       candidate.dispatchEvent(new MouseEvent('mouseup', mInit));
       candidate.dispatchEvent(new MouseEvent('click', mInit));
       await delay(400);
-
-      if (getStrike() !== preStrike) {
-        checkboxEl = candidate;
-        method = 'dispatch_click';
-        console.log(`[FSB togglecheck] Strategy 1 SUCCESS: dispatchEvent toggled the checkbox`);
-        break;
-      }
+      if (getStrike() !== preStrike) { method = 'dispatch_click'; break; }
     }
 
     // ---- STRATEGY 2: CDP mouse click at checkbox coordinates ----
     if (method === 'none') {
-      console.log(`[FSB togglecheck] Strategy 1 failed. Trying Strategy 2: CDP mouse at left edge`);
       const blockRect = block.getBoundingClientRect();
-      // Checkbox is at the left edge of the block, ~12-16px from left
       const cbX = blockRect.left + 14;
       const cbY = blockRect.top + blockRect.height / 2;
 
       try {
-        // Ask background to do CDP mouse click
-        const cdpResult = await chrome.runtime.sendMessage({
-          action: 'cdpMouseClick',
-          x: cbX,
-          y: cbY
-        });
-        console.log(`[FSB togglecheck] CDP mouse result:`, cdpResult);
+        await chrome.runtime.sendMessage({ action: 'cdpMouseClick', x: cbX, y: cbY });
       } catch (e) {
-        console.log(`[FSB togglecheck] CDP mouse not available: ${e.message}`);
-        // Fallback: elementFromPoint + click
         const pointEl = document.elementFromPoint(cbX, cbY);
-        if (pointEl) {
-          console.log(`[FSB togglecheck] elementFromPoint: ${pointEl.tagName}.${(pointEl.className || '').split(' ')[0]}`);
-          pointEl.click();
-        }
+        if (pointEl) pointEl.click();
       }
       await delay(400);
-
-      if (getStrike() !== preStrike) {
-        method = 'cdp_mouse';
-        console.log(`[FSB togglecheck] Strategy 2 SUCCESS: CDP/coordinate click toggled`);
-      }
+      if (getStrike() !== preStrike) { method = 'cdp_mouse'; }
     }
 
-    // ---- STRATEGY 3: Keyboard shortcut (click → Escape → Ctrl+Enter) ----
-    if (method === 'none') {
-      console.log(`[FSB togglecheck] Strategy 2 failed. Trying Strategy 3: Escape → Ctrl+Enter`);
-
-      // Click block center to focus
-      block.click();
-      await delay(200);
-
-      // Escape via CDP
-      try {
-        await chrome.runtime.sendMessage({
-          action: 'keyboardDebuggerAction', method: 'pressKey', key: 'Escape',
-          modifiers: { ctrl: false, shift: false, alt: false, meta: false }
-        });
-      } catch (e) {
-        document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
-      }
-      await delay(300);
-
-      // Ctrl+Enter via CDP
-      try {
-        await chrome.runtime.sendMessage({
-          action: 'keyboardDebuggerAction', method: 'pressKey', key: 'Enter',
-          modifiers: { ctrl: true, shift: false, alt: false, meta: false }
-        });
-      } catch (e) {
-        document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', {
-          key: 'Enter', code: 'Enter', ctrlKey: true, bubbles: true
-        }));
-      }
-      await delay(500);
-
-      if (getStrike() !== preStrike) {
-        method = 'keyboard_shortcut';
-        console.log(`[FSB togglecheck] Strategy 3 SUCCESS: Escape+Ctrl+Enter toggled`);
-      }
-    }
+    // NO Strategy 3 — keyboard shortcuts (Escape→Ctrl+Enter) have side effects
+    // that uncheck previously-toggled blocks. If Strategy 1+2 fail, report failure.
 
     const postStrike = getStrike();
     const toggled = preStrike !== postStrike;
 
-    console.log(`[FSB togglecheck] FINAL: method=${method}, preStrike=${preStrike}, postStrike=${postStrike}, toggled=${toggled}`);
+    console.log(`[FSB togglecheck] FINAL: method=${method}, pre=${preStrike}, post=${postStrike}, toggled=${toggled}, text="${text}"`);
 
     return {
-      success: true,
+      success: toggled,
       action: 'togglecheck',
       todoIndex: idx,
       todoText: text,
       totalTodos: todoBlocks.length,
+      skippedEmpty: allBlocks.length - todoBlocks.length,
       wasChecked: preStrike,
       nowChecked: postStrike,
       toggled,
