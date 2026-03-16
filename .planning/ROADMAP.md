@@ -65,7 +65,7 @@ See `.planning/milestones/v0.9.3-ROADMAP.md` for full details.
 
 - [x] **Phase 31: Task Memory Schema & Storage** - Define unified Task Memory object and backward-compatible storage layer (completed 2026-03-16)
 - [x] **Phase 32: Extraction Pipeline & Consolidation** - Rewrite AI extraction to produce one memory per session, session-based dedup (completed 2026-03-16)
-- [ ] **Phase 33: Task Memory Display & Migration** - Task cards, detail view, graph visualization, and migration utility
+- [x] **Phase 33: Task Memory Display & Migration** - Task cards, detail view, graph visualization, and migration utility (completed 2026-03-16)
 
 ## Phase Details
 
@@ -144,7 +144,7 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33
 | 30. Productivity Site Intelligence | 4/4 | Complete    | 2026-03-16 |
 | 31. Task Memory Schema & Storage | 2/2 | Complete    | 2026-03-16 |
 | 32. Extraction Pipeline & Consolidation | 2/2 | Complete    | 2026-03-16 |
-| 33. Task Memory Display & Graph | 1/2 | In Progress|  |
+| 33. Task Memory Display & Graph | 2/2 | Complete   | 2026-03-16 |
 
 | Milestone | Phases | Plans | Requirements | Status | Shipped |
 |-----------|--------|-------|-------------|--------|---------|
