@@ -48,6 +48,7 @@ KEYBOARD SHORTCUTS:
   Ctrl+/:            Toggle sidebar
   Ctrl+Shift+H:      Toggle hide sidebar
   Enter:             New block below current
+  Ctrl+Enter:        Toggle to-do checkbox (check/uncheck) on the focused block
   Tab:               Indent block (nest inside previous)
   Shift+Tab:         Outdent block (un-nest)
   Ctrl+Shift+0:      Convert block to text
@@ -332,9 +333,18 @@ Slash commands are faster, more reliable, and work regardless of UI state.`,
       'Type the task text next to the checkbox',
       'Press Enter to create the next to-do item automatically',
       'Repeat for all tasks',
-      'Click the checkbox to toggle completion',
-      'VERIFY: Each line shows a checkbox with task text. Clicking checkbox adds strikethrough.',
+      'To check/uncheck: click the todo text to focus the block, then press Ctrl+Enter to toggle the checkbox',
+      'VERIFY: Each line shows a checkbox with task text. Checked items show strikethrough text.',
       'STUCK: If /todo does not work, try Ctrl+Shift+4 to convert current block to a to-do. Or type "[]" followed by Space at the start of a line.'
+    ],
+    toggleTodo: [
+      'CRITICAL: Notion todo checkboxes are NOT standard DOM elements -- they do NOT appear as clickable refs in the page snapshot. You CANNOT click them directly.',
+      'To toggle a todo checkbox: click on the todo TEXT (the div/group element containing the task text) to focus that block',
+      'Press Ctrl+Enter to toggle the checkbox state (checked <-> unchecked)',
+      'The checkbox state toggles and checked items show strikethrough text',
+      'To toggle multiple todos: click each todo text block and press Ctrl+Enter for each one',
+      'VERIFY: After pressing Ctrl+Enter, the todo text gains strikethrough formatting (checked) or loses it (unchecked).',
+      'STUCK: If Ctrl+Enter does not toggle, the block may not be a todo type. First convert it: click the block, press Ctrl+Shift+4 to make it a todo, then Ctrl+Enter to toggle.'
     ],
     createTable: [
       'Type "/table" and press Enter to insert a simple table',
@@ -403,7 +413,8 @@ Slash commands are faster, more reliable, and work regardless of UI state.`,
     'Images and embeds use a separate upload/URL flow. /image opens a picker with tabs for Upload, Embed link, and Unsplash. Cannot fully automate file upload via keyboard.',
     'notion.site URLs are for PUBLISHED/public pages which are read-only. Editing requires accessing the page via notion.so workspace URL.',
     'When a page has a database, the database can be inline (embedded in page) or full-page. Inline databases show view tabs directly in the page. Full-page databases open as their own page.',
-    'Notion renders blocks lazily -- blocks below the viewport may not be in the DOM until scrolled to. Use scrolling before trying to interact with blocks far down the page.'
+    'Notion renders blocks lazily -- blocks below the viewport may not be in the DOM until scrolled to. Use scrolling before trying to interact with blocks far down the page.',
+    'CRITICAL -- TODO CHECKBOXES: Notion todo checkbox elements do NOT appear as clickable refs in the page snapshot. The checkbox is a non-standard div inside a contenteditable block that the DOM walker cannot capture. To toggle a todo, click the todo TEXT block to focus it, then press Ctrl+Enter. NEVER try to click the checkbox directly -- it will not have a ref. NEVER hover or doubleClick the group element -- use Ctrl+Enter after focusing the text.'
   ],
   toolPreferences: ['navigate', 'click', 'type', 'keyPress', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable']
 });
