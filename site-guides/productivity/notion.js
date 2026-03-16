@@ -332,19 +332,18 @@ Slash commands are faster, more reliable, and work regardless of UI state.`,
       'Type the task text next to the checkbox',
       'Press Enter to create the next to-do item automatically',
       'Repeat for all tasks',
-      'To check/uncheck a todo, see the toggleTodo workflow below',
+      'To check/uncheck a todo: use the togglecheck command -- togglecheck N (where N is the todo number, e.g., togglecheck 1)',
       'VERIFY: Each line shows a checkbox with task text. Checked items show strikethrough text.',
       'STUCK: If /todo does not work, try Ctrl+Shift+4 to convert current block to a to-do. Or type "[]" followed by Space at the start of a line.'
     ],
     toggleTodo: [
-      'CRITICAL: Notion todo checkboxes do NOT appear as element refs in the page snapshot. The snapshot shows the todo TEXT block (e.g., e1: div = "task text") but the checkbox icon is a hidden DOM element with no ARIA role.',
-      'To toggle a checkbox, you MUST use a CSS selector click targeting the checkbox inside the todo block.',
-      'Use this command: click ".notion-to_do-block:nth-of-type(N) [role=\\"checkbox\\"]"  -- replace N with the position (1st todo = 1, 2nd = 2, etc.)',
-      'If that fails, try: click ".notion-to_do-block:nth-of-type(N) div[contenteditable=\\"false\\"]"  -- the checkbox is the non-editable div inside the todo block',
-      'If BOTH fail, try: click ".notion-to_do-block:nth-of-type(N) div:first-child div:first-child"  -- the checkbox is typically the first nested div',
-      'To toggle multiple todos: repeat the click command for each N (1, 2, 3, ...)',
-      'VERIFY: After clicking, the todo text gains strikethrough formatting (checked) or the checkbox square fills in.',
-      'STUCK: If no CSS selector works, use readPage to read the full page text. If items show as "☑" or strikethrough they are already checked. You may need to scroll down first if todos are below the viewport.'
+      'CRITICAL: Notion todo checkboxes do NOT appear as element refs in the page snapshot. The checkbox is a hidden DOM element with no ARIA role.',
+      'Use the togglecheck command: togglecheck N  -- where N is the todo position (1 = first todo, 2 = second, etc.)',
+      'togglecheck finds .notion-to_do-block elements and clicks the checkbox at the left edge of the block using coordinate-based clicking.',
+      'Example: togglecheck 1 (checks/unchecks the first todo), togglecheck 2 (second todo), etc.',
+      'To toggle ALL todos: use togglecheck 1, then togglecheck 2, then togglecheck 3, etc. -- one command per line.',
+      'VERIFY: togglecheck returns { toggled: true/false, wasChecked, nowChecked }. If toggled is true, the checkbox state changed. Use readPage to confirm strikethrough text.',
+      'STUCK: If togglecheck says "No Notion todo blocks found", the page may need to scroll down to render the todos. Try scroll down first, then retry togglecheck.'
     ],
     createTable: [
       'Type "/table" and press Enter to insert a simple table',
@@ -414,7 +413,7 @@ Slash commands are faster, more reliable, and work regardless of UI state.`,
     'notion.site URLs are for PUBLISHED/public pages which are read-only. Editing requires accessing the page via notion.so workspace URL.',
     'When a page has a database, the database can be inline (embedded in page) or full-page. Inline databases show view tabs directly in the page. Full-page databases open as their own page.',
     'Notion renders blocks lazily -- blocks below the viewport may not be in the DOM until scrolled to. Use scrolling before trying to interact with blocks far down the page.',
-    'CRITICAL -- TODO CHECKBOXES: Notion todo checkboxes do NOT appear as element refs (e1, e2, etc.) in the page snapshot. The todo TEXT block appears as a div or group element, but the checkbox icon has no ARIA role and is invisible to the snapshot. To toggle a checkbox you MUST use a CSS selector click: click ".notion-to_do-block:nth-of-type(N) [role=\\"checkbox\\"]" or click ".notion-to_do-block:nth-of-type(N) div[contenteditable=\\"false\\"]". NEVER hover, doubleClick, or use Ctrl+Enter on the group/div -- none of these toggle checkboxes. See the toggleTodo workflow for the full fallback chain.'
+    'CRITICAL -- TODO CHECKBOXES: Notion todo checkboxes do NOT appear as element refs in the page snapshot. The checkbox is a hidden div with no ARIA role. Use the togglecheck command: togglecheck N (1-indexed position). NEVER try to click the checkbox via element ref, CSS selector, hover, doubleClick, or Ctrl+Enter -- none of these work. The togglecheck tool handles the coordinate-based click at the correct position within the todo block.'
   ],
-  toolPreferences: ['navigate', 'click', 'type', 'keyPress', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable']
+  toolPreferences: ['navigate', 'click', 'type', 'keyPress', 'togglecheck', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable']
 });

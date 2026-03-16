@@ -4292,6 +4292,83 @@ const tools = {
   // =========================================================================
   FSB.validateCoordinates = validateCoordinates;
   FSB.ensureCoordinatesVisible = ensureCoordinatesVisible;
+  // =========================================================================
+  // TOGGLECHECK: Notion-aware checkbox toggle
+  // Finds .notion-to_do-block elements and clicks the checkbox by targeting
+  // the left edge of the block (where the checkbox visually sits).
+  // The checkbox is a plain div with no ARIA role — not discoverable via selectors.
+  // Uses coordinate-based clicking at x-offset 12px from the block's left edge.
+  // =========================================================================
+  tools.togglecheck = async (params) => {
+    const { index } = params;
+    const idx = (typeof index === 'number' && index >= 1) ? index : 1;
+
+    // Find all todo blocks on the page
+    const todoBlocks = document.querySelectorAll('.notion-selectable.notion-to_do-block');
+    if (!todoBlocks.length) {
+      return { success: false, error: 'No Notion todo blocks found on this page (.notion-to_do-block)', action: 'togglecheck' };
+    }
+    if (idx > todoBlocks.length) {
+      return { success: false, error: `Todo index ${idx} out of range (found ${todoBlocks.length} todos)`, action: 'togglecheck' };
+    }
+
+    const block = todoBlocks[idx - 1];
+    const text = block.textContent?.trim()?.substring(0, 60) || '(empty)';
+
+    // Scroll into view if needed
+    block.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await new Promise(r => setTimeout(r, 100));
+
+    const rect = block.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      return { success: false, error: `Todo block ${idx} has zero dimensions — may be hidden`, action: 'togglecheck' };
+    }
+
+    // Click at the LEFT EDGE of the block (x + 12px) where the checkbox sits.
+    // The checkbox is always at the far left of the todo block, before the text.
+    const checkboxX = rect.left + 12;
+    const checkboxY = rect.top + rect.height / 2;
+
+    const mouseInit = {
+      bubbles: true, cancelable: true, view: window,
+      clientX: checkboxX, clientY: checkboxY,
+      screenX: checkboxX + window.screenX, screenY: checkboxY + window.screenY,
+      button: 0, buttons: 1
+    };
+
+    // Capture pre-state: check if text has strikethrough
+    const preStrike = window.getComputedStyle(block.querySelector('[role="textbox"]') || block)
+      .textDecorationLine?.includes('line-through') || false;
+
+    // Full mouse event sequence at checkbox coordinates
+    const target = document.elementFromPoint(checkboxX, checkboxY) || block;
+    target.dispatchEvent(new MouseEvent('mousedown', mouseInit));
+    target.dispatchEvent(new MouseEvent('mouseup', mouseInit));
+    target.dispatchEvent(new MouseEvent('click', mouseInit));
+
+    // Wait for Notion's React state update
+    await new Promise(r => setTimeout(r, 300));
+
+    // Capture post-state
+    const postStrike = window.getComputedStyle(block.querySelector('[role="textbox"]') || block)
+      .textDecorationLine?.includes('line-through') || false;
+
+    const toggled = preStrike !== postStrike;
+
+    return {
+      success: true,
+      action: 'togglecheck',
+      todoIndex: idx,
+      todoText: text,
+      totalTodos: todoBlocks.length,
+      wasChecked: preStrike,
+      nowChecked: postStrike,
+      toggled,
+      clickedAt: { x: Math.round(checkboxX), y: Math.round(checkboxY) },
+      targetElement: target.tagName + (target.className ? '.' + target.className.split(' ')[0] : '')
+    };
+  };
+
   FSB.clickAtCoordinates = clickAtCoordinates;
   FSB.captureActionState = captureActionState;
   FSB.EXPECTED_EFFECTS = EXPECTED_EFFECTS;

@@ -254,6 +254,9 @@ const COMMAND_REGISTRY = {
   // -- Mechanical drag-and-drop tool (content-script) --
   dragdrop:           { tool: 'dragdrop',            args: [{ name: 'sourceRef', type: 'string' }, { name: 'targetRef', type: 'string' }] },
 
+  // -- Notion checkbox toggle tool (content-script) --
+  togglecheck:        { tool: 'togglecheck',         args: [{ name: 'index', type: 'number' }] },
+
   // -- Signal commands (not dispatched as actions) --
   done:               { tool: '__done', args: [{ name: 'message', type: 'string', optional: true }], signal: 'done' },
   fail:               { tool: '__fail', args: [{ name: 'message', type: 'string', optional: true }], signal: 'fail' },
