@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: executing
-stopped_at: Completed 31-02-PLAN.md
-last_updated: "2026-03-16T09:57:24Z"
-last_activity: 2026-03-16 -- Completed 31-02 Task Memory storage/retrieval/UI
+stopped_at: Phase 32 context gathered
+last_updated: "2026-03-16T11:07:42.430Z"
+last_activity: 2026-03-16 -- Completed 32-01 extraction pipeline rewrite for single Task Memory
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
   completed_plans: 6
-  percent: 83
+  percent: 100
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 31 - Task Memory Schema & Storage
+**Current focus:** Phase 32 - Extraction Pipeline Consolidation
 
 ## Current Position
 
-Phase: 31 of 33 (Task Memory Schema & Storage)
-Plan: 2 of 3 completed in current phase
+Phase: 32 of 33 (Extraction Pipeline Consolidation)
+Plan: 1 of 3 completed in current phase
 Status: Executing
-Last activity: 2026-03-16 -- Completed 31-02 Task Memory storage/retrieval/UI
+Last activity: 2026-03-16 -- Completed 32-01 extraction pipeline rewrite for single Task Memory
 
 Progress: [██████████] 100%
 
@@ -45,6 +45,7 @@ Progress: [██████████] 100%
 |-------|-------|-------|----------|
 | 30 | 3/4 | 17min | 6min |
 | 31 | 2/3 | 4min | 2min |
+| 32 | 1/3 | 2min | 2min |
 
 ## Accumulated Context
 
@@ -69,6 +70,9 @@ Recent decisions:
 - 31-01: Followed CONTEXT.md nested structure for Task Memory typeData (session/learned/procedures)
 - 31-02: Task boost 0.15+0.05 -- between semantic (0.1) and procedural (up to 0.2) baselines
 - 31-02: stepCount _removeFromIndex sweeps all buckets defensively against bucket drift
+- 32-01: Recon report framing for AI extraction (intelligence analyst producing consolidated report)
+- 32-01: Full action history sent to AI with smart truncation (first 5 + last 15 if >4000 chars)
+- 32-01: Task memories always enriched regardless of autoAnalyzeMemories setting
 
 ### Pending Todos
 
@@ -81,6 +85,6 @@ Recent decisions:
 
 ## Session Continuity
 
-Last session: 2026-03-16T09:57:24Z
-Stopped at: Completed 31-02-PLAN.md
-Resume file: .planning/phases/31-task-memory-schema-storage/31-02-SUMMARY.md
+Last session: 2026-03-16T11:46:08Z
+Stopped at: Completed 32-01-PLAN.md
+Resume file: .planning/phases/32-extraction-pipeline-consolidation/32-01-SUMMARY.md
