@@ -25,13 +25,13 @@ Requirements for Productivity Site Intelligence milestone. All map to a single p
 
 ### Trello
 
-- [ ] **TREL-01**: Site guide with URL patterns, fsbElements (3-8 elements with 5 strategies each), guidance, keyboard shortcuts, and warnings for Trello
-- [ ] **TREL-02**: Workflows for create card, move card between lists (keyboard-only, no drag), edit card details, create list, board navigation
+- [x] **TREL-01**: Site guide with URL patterns, fsbElements (3-8 elements with 5 strategies each), guidance, keyboard shortcuts, and warnings for Trello
+- [x] **TREL-02**: Workflows for create card, move card between lists (keyboard-only, no drag), edit card details, create list, board navigation
 
 ### Google Calendar
 
-- [ ] **GCAL-01**: Site guide with URL patterns, fsbElements (5-10 elements with 5 strategies each), guidance, keyboard shortcuts, and warnings for Google Calendar
-- [ ] **GCAL-02**: Workflows for create event, edit event details, navigate dates, switch views (day/week/month), RSVP to invitations
+- [x] **GCAL-01**: Site guide with URL patterns, fsbElements (5-10 elements with 5 strategies each), guidance, keyboard shortcuts, and warnings for Google Calendar
+- [x] **GCAL-02**: Workflows for create event, edit event details, navigate dates, switch views (day/week/month), RSVP to invitations
 
 ### Notion
 
@@ -82,10 +82,10 @@ Requirements for Productivity Site Intelligence milestone. All map to a single p
 | KEEP-02 | Phase 30 | Complete |
 | TODO-01 | Phase 30 | Complete |
 | TODO-02 | Phase 30 | Complete |
-| TREL-01 | Phase 30 | Pending |
-| TREL-02 | Phase 30 | Pending |
-| GCAL-01 | Phase 30 | Pending |
-| GCAL-02 | Phase 30 | Pending |
+| TREL-01 | Phase 30 | Complete |
+| TREL-02 | Phase 30 | Complete |
+| GCAL-01 | Phase 30 | Complete |
+| GCAL-02 | Phase 30 | Complete |
 | NOTN-01 | Phase 30 | Pending |
 | NOTN-02 | Phase 30 | Pending |
 | JIRA-01 | Phase 30 | Pending |

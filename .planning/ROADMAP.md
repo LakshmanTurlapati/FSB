@@ -55,7 +55,7 @@ See `.planning/milestones/v10.0-ROADMAP.md` for full details.
 
 **Milestone Goal:** Expand custom site intelligence (fsbElements, multi-strategy selectors, keyboard-first guidance, workflows) to 7 productivity web apps -- replicating the Google Sheets treatment for apps where standard DOM automation fails.
 
-- [ ] **Phase 30: Productivity Site Intelligence** - Generalize fsbElements pipeline and create site guides with fsbElements, guidance, keyboard shortcuts, and workflows for Notion, Google Calendar, Trello, Google Keep, Todoist, Airtable, and Jira
+- [x] **Phase 30: Productivity Site Intelligence** - Generalize fsbElements pipeline and create site guides with fsbElements, guidance, keyboard shortcuts, and workflows for Notion, Google Calendar, Trello, Google Keep, Todoist, Airtable, and Jira (completed 2026-03-16)
 
 ### v0.9.3 Memory Tab Overhaul (Planned)
 
@@ -142,7 +142,7 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 30. Productivity Site Intelligence | 2/4 | In Progress|  |
+| 30. Productivity Site Intelligence | 4/4 | Complete   | 2026-03-16 |
 | 31. Task Memory Schema & Storage | 0/TBD | Not started | - |
 | 32. Extraction Pipeline & Consolidation | 0/TBD | Not started | - |
 | 33. Task Memory Display & Migration | 0/TBD | Not started | - |
