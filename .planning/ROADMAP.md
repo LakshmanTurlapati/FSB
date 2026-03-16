@@ -99,8 +99,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 31-01-PLAN.md -- Task Memory schema: createTaskMemory factory, TASK type constant, validation
-- [ ] 31-02-PLAN.md -- Storage/retriever/UI wiring: inverted index, scoring boost, type filter, card rendering
+- [x] 31-01-PLAN.md -- Task Memory schema: createTaskMemory factory, TASK type constant, validation
+- [x] 31-02-PLAN.md -- Storage/retriever/UI wiring: inverted index, scoring boost, type filter, card rendering
 
 ### Phase 32: Extraction Pipeline & Consolidation
 **Goal**: Every completed automation session produces exactly one Task Memory through a rewritten AI extraction prompt and session-based consolidation
@@ -109,13 +109,13 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. `extractAndStoreMemories` (called from 13 sites in background.js) produces exactly one Task Memory per session instead of 1-5 fragmented memories
   2. The AI extraction prompt returns a single consolidated recon-style report containing: task description, outcome, step-by-step timeline, selectors discovered, site structure encountered, and patterns learned
-  3. The consolidator groups memories by `sourceSessionId` instead of text similarity, merging repeat runs of the same task into one memory with run history
+  3. The consolidator groups memories by domain + task similarity instead of text similarity, merging repeat runs of the same task into one memory with run history
   4. No changes needed at the 13 call sites in background.js -- the pipeline change is internal to memory-extractor.js and memory-manager.js
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 32-01: TBD
-- [ ] 32-02: TBD
+- [ ] 32-01-PLAN.md -- Rewrite extraction prompt and parser for single Task Memory output
+- [ ] 32-02-PLAN.md -- Update consolidator for domain+task dedup and unified task enrichment
 
 ### Phase 33: Task Memory Display & Migration
 **Goal**: Users see one card per task in the Memory tab with full detail drill-down, graph visualization, and can migrate old fragmented memories
@@ -143,8 +143,8 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 30. Productivity Site Intelligence | 4/4 | Complete    | 2026-03-16 |
-| 31. Task Memory Schema & Storage | 2/2 | Complete   | 2026-03-16 |
-| 32. Extraction Pipeline & Consolidation | 0/TBD | Not started | - |
+| 31. Task Memory Schema & Storage | 2/2 | Complete    | 2026-03-16 |
+| 32. Extraction Pipeline & Consolidation | 0/2 | Not started | - |
 | 33. Task Memory Display & Migration | 0/TBD | Not started | - |
 
 | Milestone | Phases | Plans | Requirements | Status | Shipped |
@@ -158,4 +158,4 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33
 | v0.9.3 Memory Tab Overhaul | 31-33 | TBD | 0/9 | Planned | - |
 
 ---
-*Updated: 2026-03-16 after Phase 31 planning*
+*Updated: 2026-03-16 after Phase 32 planning*
