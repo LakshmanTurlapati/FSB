@@ -3950,6 +3950,13 @@ function initializeMemorySection() {
   if (exportBtn) exportBtn.addEventListener('click', exportMemories);
   if (clearBtn) clearBtn.addEventListener('click', clearAllMemories);
 
+  const importBtn = document.getElementById('btnImportMemories');
+  const importFileInput = document.getElementById('memoryImportFileInput');
+  if (importBtn && importFileInput) {
+    importBtn.addEventListener('click', () => importFileInput.click());
+    importFileInput.addEventListener('change', handleMemoryImport);
+  }
+
   if (searchInput) {
     searchInput.addEventListener('input', () => {
       clearTimeout(memorySearchDebounce);
@@ -5056,6 +5063,78 @@ async function exportMemories() {
     showToast('Memories exported', 'success');
   } catch (error) {
     showToast('Export failed: ' + error.message, 'error');
+  }
+}
+
+async function handleMemoryImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  // Reset input so same file can be re-selected
+  event.target.value = '';
+
+  try {
+    const text = await file.text();
+    let imported;
+    try {
+      imported = JSON.parse(text);
+    } catch {
+      showToast('Invalid JSON file', 'error');
+      return;
+    }
+
+    // Accept both array and single object
+    if (!Array.isArray(imported)) {
+      if (imported && typeof imported === 'object' && imported.id) {
+        imported = [imported];
+      } else {
+        showToast('Invalid memory file format', 'error');
+        return;
+      }
+    }
+
+    if (imported.length === 0) {
+      showToast('No memories found in file', 'error');
+      return;
+    }
+
+    // Check for duplicates by id
+    const existing = await memoryManager.getAll();
+    const existingIds = new Set(existing.map(m => m.id));
+    const duplicates = imported.filter(m => existingIds.has(m.id));
+    const newMemories = imported.filter(m => !existingIds.has(m.id));
+
+    // Validate new memories
+    const valid = [];
+    const invalid = [];
+    for (const memory of newMemories) {
+      const validation = validateMemory(memory);
+      if (validation.valid) {
+        valid.push(memory);
+      } else {
+        invalid.push(memory);
+      }
+    }
+
+    // Confirmation dialog
+    const msg = `Import ${valid.length} memories?\n` +
+      (duplicates.length > 0 ? `${duplicates.length} duplicates will be skipped.\n` : '') +
+      (invalid.length > 0 ? `${invalid.length} invalid entries will be skipped.\n` : '');
+    if (!confirm(msg)) return;
+
+    // Import valid memories
+    let added = 0;
+    for (const memory of valid) {
+      const success = await memoryStorage.add(memory);
+      if (success) added++;
+    }
+
+    loadMemoryDashboard();
+    showToast(`Imported ${added} memories` +
+      (duplicates.length > 0 ? `, ${duplicates.length} duplicates skipped` : '') +
+      (invalid.length > 0 ? `, ${invalid.length} invalid skipped` : ''),
+      added > 0 ? 'success' : 'info');
+  } catch (error) {
+    showToast('Import failed: ' + error.message, 'error');
   }
 }
 
