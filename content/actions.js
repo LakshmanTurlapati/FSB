@@ -157,6 +157,22 @@ async function clickAtCoordinates(params) {
   // Wait for potential effects
   await new Promise(resolve => setTimeout(resolve, 300));
 
+  // Check if DOM click had effect; if not, try CDP mouse as final fallback
+  let clickMethod = 'dom_coordinate';
+  try {
+    const cdpResult = await chrome.runtime.sendMessage({
+      action: 'cdpMouseClick',
+      x: viewportCenterX,
+      y: viewportCenterY
+    });
+    if (cdpResult?.success) {
+      clickMethod = 'cdp_coordinate';
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  } catch (e) {
+    // CDP unavailable, DOM click already dispatched
+  }
+
   logger.log('info', 'Coordinate fallback click executed', {
     sessionId: FSB.sessionId,
     clickedElement: {
@@ -165,7 +181,8 @@ async function clickAtCoordinates(params) {
       class: FSB.getClassName(element).substring(0, 50) || null
     },
     coordinates: { x: viewportCenterX, y: viewportCenterY },
-    scrolled: scrollResult.scrolled
+    scrolled: scrollResult.scrolled,
+    method: clickMethod
   });
 
   return {
@@ -178,7 +195,8 @@ async function clickAtCoordinates(params) {
     },
     coordinates: { x: viewportCenterX, y: viewportCenterY },
     scrolled: scrollResult.scrolled,
-    message: 'Clicked using coordinate fallback (selector-based approach failed)'
+    method: clickMethod,
+    message: `Clicked using ${clickMethod} fallback (selector-based approach failed)`
   };
 }
 
@@ -1302,7 +1320,58 @@ const tools = {
           }
         }
 
-        // Record action - click had no effect
+        // FALLBACK 3: CDP mouse click at element coordinates (browser-level input)
+        // Bypasses React synthetic events, Shadow DOM, and event listener interception
+        try {
+          const cdpRect = element.getBoundingClientRect();
+          const cdpX = cdpRect.left + cdpRect.width / 2;
+          const cdpY = cdpRect.top + cdpRect.height / 2;
+
+          logger.logActionExecution(FSB.sessionId, 'click', 'cdp_mouse_fallback', {
+            x: Math.round(cdpX), y: Math.round(cdpY), selector: params.selector
+          });
+
+          const cdpResult = await chrome.runtime.sendMessage({
+            action: 'cdpMouseClick',
+            x: cdpX,
+            y: cdpY
+          });
+
+          if (cdpResult?.success) {
+            await waitForPageStability({ maxWait: 1500, stableTime: 200 });
+            const postState2 = captureActionState(element, 'click');
+            const verification2 = verifyActionEffect(preState, postState2, 'click');
+            const cdpHadEffect = verification2.verified ||
+              verification2.changes?.urlChanged ||
+              verification2.changes?.contentChanged ||
+              verification2.changes?.elementCountChanged;
+
+            if (cdpHadEffect) {
+              actionRecorder.record(null, 'click', params, {
+                selectorTried, selectorUsed: selectorTried, elementFound: true,
+                coordinatesUsed: { x: Math.round(cdpX), y: Math.round(cdpY) },
+                coordinateSource: 'cdp_mouse', success: true, hadEffect: true,
+                duration: Date.now() - startTime
+              });
+              return {
+                success: true,
+                clicked: params.selector,
+                hadEffect: true,
+                method: 'cdp-mouse-fallback',
+                message: 'DOM click had no effect, CDP mouse click succeeded',
+                elementInfo: {
+                  tag: element.tagName,
+                  text: element.textContent?.trim().substring(0, 50),
+                  wasScrolledIntoView: wasScrolled
+                }
+              };
+            }
+          }
+        } catch (cdpErr) {
+          logger.debug('CDP mouse fallback unavailable', { error: cdpErr.message, sessionId: FSB.sessionId });
+        }
+
+        // Record action - click had no effect (all fallbacks exhausted)
         actionRecorder.record(null, 'click', params, {
           selectorTried,
           selectorUsed: selectorTried,
