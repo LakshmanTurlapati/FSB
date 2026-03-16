@@ -35,18 +35,18 @@ Requirements for Productivity Site Intelligence milestone. All map to a single p
 
 ### Notion
 
-- [ ] **NOTN-01**: Site guide with URL patterns, fsbElements (10-18 elements with 5 strategies each), guidance, keyboard shortcuts, and warnings for Notion
-- [ ] **NOTN-02**: Workflows for create page, add blocks (text/heading/todo/table), slash command usage, database view navigation, search
+- [x] **NOTN-01**: Site guide with URL patterns, fsbElements (10-18 elements with 5 strategies each), guidance, keyboard shortcuts, and warnings for Notion
+- [x] **NOTN-02**: Workflows for create page, add blocks (text/heading/todo/table), slash command usage, database view navigation, search
 
 ### Jira
 
-- [ ] **JIRA-01**: Site guide with URL patterns, fsbElements (8-12 elements with 5 strategies each), guidance, keyboard shortcuts, and warnings for Jira (new UI only)
-- [ ] **JIRA-02**: Workflows for create issue, transition issue status, board navigation, search/filter issues, add comment
+- [x] **JIRA-01**: Site guide with URL patterns, fsbElements (8-12 elements with 5 strategies each), guidance, keyboard shortcuts, and warnings for Jira (new UI only)
+- [x] **JIRA-02**: Workflows for create issue, transition issue status, board navigation, search/filter issues, add comment
 
 ### Airtable
 
-- [ ] **ATBL-01**: Site guide with URL patterns, fsbElements (10-16 elements with 5 strategies each), guidance, keyboard shortcuts, and warnings for Airtable
-- [ ] **ATBL-02**: Workflows for navigate grid, edit cells by field type, create record, switch views (grid/kanban/calendar/gallery), sort/filter
+- [x] **ATBL-01**: Site guide with URL patterns, fsbElements (10-16 elements with 5 strategies each), guidance, keyboard shortcuts, and warnings for Airtable
+- [x] **ATBL-02**: Workflows for navigate grid, edit cells by field type, create record, switch views (grid/kanban/calendar/gallery), sort/filter
 
 ## Future Requirements
 
@@ -86,12 +86,12 @@ Requirements for Productivity Site Intelligence milestone. All map to a single p
 | TREL-02 | Phase 30 | Complete |
 | GCAL-01 | Phase 30 | Complete |
 | GCAL-02 | Phase 30 | Complete |
-| NOTN-01 | Phase 30 | Pending |
-| NOTN-02 | Phase 30 | Pending |
-| JIRA-01 | Phase 30 | Pending |
-| JIRA-02 | Phase 30 | Pending |
-| ATBL-01 | Phase 30 | Pending |
-| ATBL-02 | Phase 30 | Pending |
+| NOTN-01 | Phase 30 | Complete |
+| NOTN-02 | Phase 30 | Complete |
+| JIRA-01 | Phase 30 | Complete |
+| JIRA-02 | Phase 30 | Complete |
+| ATBL-01 | Phase 30 | Complete |
+| ATBL-02 | Phase 30 | Complete |
 
 **Coverage:**
 - v0.9.2 requirements: 17 total
