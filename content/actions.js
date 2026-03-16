@@ -4319,6 +4319,8 @@ const tools = {
     const text = block.textContent?.trim()?.substring(0, 60) || '(empty)';
     const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
+    console.log(`[FSB togglecheck] Starting toggle for todo ${idx}/${todoBlocks.length}: "${text}"`);
+
     // Scroll into view if needed
     block.scrollIntoView({ block: 'center', behavior: 'instant' });
     await delay(150);
@@ -4326,6 +4328,7 @@ const tools = {
     // Capture pre-state: check if text has strikethrough
     const textEl = block.querySelector('[role="textbox"]') || block;
     const preStrike = window.getComputedStyle(textEl).textDecorationLine?.includes('line-through') || false;
+    console.log(`[FSB togglecheck] Pre-state: strikethrough=${preStrike}, activeElement=${document.activeElement?.tagName}`);
 
     // STEP 1: Click the block text to focus/enter text editing mode
     const rect = block.getBoundingClientRect();
@@ -4339,42 +4342,49 @@ const tools = {
     block.dispatchEvent(new MouseEvent('mousedown', mouseInit));
     block.dispatchEvent(new MouseEvent('mouseup', mouseInit));
     block.dispatchEvent(new MouseEvent('click', mouseInit));
-    await delay(150);
+    await delay(200);
+    console.log(`[FSB togglecheck] Step 1 (click): activeElement=${document.activeElement?.tagName}.${document.activeElement?.className?.split(' ')[0] || ''}, role=${document.activeElement?.getAttribute('role')}`);
 
     // STEP 2: Press Escape to exit text editing → enter block selection mode
     // Using CDP keyboard for reliability (Notion intercepts DOM keyboard events)
+    let escResult = 'unknown';
     try {
-      await chrome.runtime.sendMessage({
+      const escResponse = await chrome.runtime.sendMessage({
         action: 'keyboardDebuggerAction',
         method: 'pressKey',
         key: 'Escape',
         modifiers: { ctrl: false, shift: false, alt: false, meta: false }
       });
+      escResult = escResponse?.success ? 'cdp_ok' : `cdp_fail:${escResponse?.error}`;
     } catch (e) {
-      // Fallback: dispatch DOM event
+      escResult = `cdp_error:${e.message}`;
       document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
     }
-    await delay(200);
+    await delay(250);
+    console.log(`[FSB togglecheck] Step 2 (Escape): ${escResult}, activeElement=${document.activeElement?.tagName}.${document.activeElement?.className?.split(' ')[0] || ''}, blockSelected=${block.classList.contains('notion-selected') || block.getAttribute('data-block-selected') || 'unknown'}`);
 
     // STEP 3: Press Ctrl+Enter to toggle the checkbox (official Notion shortcut)
+    let ctrlEnterResult = 'unknown';
     try {
-      await chrome.runtime.sendMessage({
+      const ctrlResponse = await chrome.runtime.sendMessage({
         action: 'keyboardDebuggerAction',
         method: 'pressKey',
         key: 'Enter',
         modifiers: { ctrl: true, shift: false, alt: false, meta: false }
       });
+      ctrlEnterResult = ctrlResponse?.success ? 'cdp_ok' : `cdp_fail:${ctrlResponse?.error}`;
     } catch (e) {
-      // Fallback: dispatch DOM event
+      ctrlEnterResult = `cdp_error:${e.message}`;
       document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', {
         key: 'Enter', code: 'Enter', ctrlKey: true, bubbles: true
       }));
     }
-    await delay(400);
+    await delay(500);
 
     // Capture post-state
     const postStrike = window.getComputedStyle(textEl).textDecorationLine?.includes('line-through') || false;
     const toggled = preStrike !== postStrike;
+    console.log(`[FSB togglecheck] Step 3 (Ctrl+Enter): ${ctrlEnterResult}, postStrike=${postStrike}, toggled=${toggled}`);
 
     return {
       success: true,
@@ -4385,7 +4395,8 @@ const tools = {
       wasChecked: preStrike,
       nowChecked: postStrike,
       toggled,
-      method: 'click_escape_ctrlenter'
+      method: 'click_escape_ctrlenter',
+      debug: { escResult, ctrlEnterResult }
     };
   };
 

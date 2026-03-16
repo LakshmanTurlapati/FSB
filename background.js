@@ -2193,6 +2193,13 @@ function slimActionResult(result) {
   if (result.rows !== undefined) slim.rows = result.rows;
   if (result.cols !== undefined) slim.cols = result.cols;
   if (result.data !== undefined) slim.data = typeof result.data === 'string' ? result.data.substring(0, 2000) : result.data;
+  // togglecheck: preserve toggle state for debugging and AI verification
+  if (result.toggled !== undefined) slim.toggled = result.toggled;
+  if (result.wasChecked !== undefined) slim.wasChecked = result.wasChecked;
+  if (result.nowChecked !== undefined) slim.nowChecked = result.nowChecked;
+  if (result.todoText) slim.todoText = result.todoText;
+  if (result.todoIndex) slim.todoIndex = result.todoIndex;
+  if (result.totalTodos) slim.totalTodos = result.totalTodos;
   return slim;
 }
 
