@@ -114,25 +114,24 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 32-01-PLAN.md -- Rewrite extraction prompt and parser for single Task Memory output
-- [ ] 32-02-PLAN.md -- Update consolidator for domain+task dedup and unified task enrichment
+- [x] 32-01-PLAN.md -- Rewrite extraction prompt and parser for single Task Memory output
+- [x] 32-02-PLAN.md -- Update consolidator for domain+task dedup and unified task enrichment
 
-### Phase 33: Task Memory Display & Migration
-**Goal**: Users see one card per task in the Memory tab with full detail drill-down, graph visualization, and can migrate old fragmented memories
+### Phase 33: Task Memory Display & Graph
+**Goal**: Users see polished task cards with a full recon report detail view, per-task 2D graph visualization, and task data feeding into the FSB Intelligence knowledge graph
 **Depends on**: Phase 32
-**Requirements**: DISP-01, DISP-02, DISP-03, STOR-02
+**Requirements**: DISP-01, DISP-02, DISP-03
 **Success Criteria** (what must be TRUE):
-  1. The Memory list shows one card per Task Memory with: task description, outcome badge (success/partial/failure), domain, duration, step count, and age
-  2. Clicking a card expands to a full detail view showing: task narrative, step-by-step timeline with outcomes, selectors/patterns discovered, site structure, and AI analysis
-  3. Each Task Memory detail view includes a force-directed graph showing pages visited, elements interacted with, and navigation paths taken during the task
-  4. A migration button in the Memory tab consolidates existing fragmented memories (episodic + semantic + procedural from the same session) into unified Task Memories
-  5. Old-format memories that cannot be migrated (no matching session data) remain visible and functional
-**Plans**: TBD
+  1. Task Memory cards are polished with better outcome badge styling, domain indicator, and the Refine button is removed from all memory types
+  2. Clicking a card expands to a full recon report with collapsible sections: summary+outcome at top, then Timeline, Discoveries, Procedures — AI analysis integrated into relevant sections
+  3. Each Task Memory detail view includes an inline 2D graph (SiteGraph-style) showing pages visited, elements interacted with, and navigation paths
+  4. Task Memory discoveries auto-update the FSB Intelligence knowledge graph data structure
+  5. Old-format memories remain visible and functional alongside Task Memories
+**Plans**: 2 plans
 
 Plans:
-- [ ] 33-01: TBD
-- [ ] 33-02: TBD
-- [ ] 33-03: TBD
+- [ ] 33-01-PLAN.md -- Card polish, Refine button removal, full recon report detail view with collapsible sections
+- [ ] 33-02-PLAN.md -- Per-task graph visualization and FSB Intelligence knowledge graph integration
 
 ## Progress
 
@@ -144,8 +143,8 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33
 |-------|----------------|--------|-----------|
 | 30. Productivity Site Intelligence | 4/4 | Complete    | 2026-03-16 |
 | 31. Task Memory Schema & Storage | 2/2 | Complete    | 2026-03-16 |
-| 32. Extraction Pipeline & Consolidation | 2/2 | Complete   | 2026-03-16 |
-| 33. Task Memory Display & Migration | 0/TBD | Not started | - |
+| 32. Extraction Pipeline & Consolidation | 2/2 | Complete    | 2026-03-16 |
+| 33. Task Memory Display & Graph | 0/2 | Not started | - |
 
 | Milestone | Phases | Plans | Requirements | Status | Shipped |
 |-----------|--------|-------|-------------|--------|---------|
@@ -158,4 +157,4 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33
 | v0.9.3 Memory Tab Overhaul | 31-33 | TBD | 0/9 | Planned | - |
 
 ---
-*Updated: 2026-03-16 after Phase 32 planning*
+*Updated: 2026-03-16 after Phase 33 planning*
