@@ -130,13 +130,13 @@ importScripts('site-guides/gaming/humble-bundle.js');
 // Per-site guides: Productivity
 importScripts('site-guides/productivity/google-sheets.js');
 importScripts('site-guides/productivity/google-docs.js');
-try { importScripts('site-guides/productivity/google-keep.js'); } catch(e) { /* guide not yet created */ }
-try { importScripts('site-guides/productivity/google-calendar.js'); } catch(e) { /* guide not yet created */ }
-try { importScripts('site-guides/productivity/todoist.js'); } catch(e) { /* guide not yet created */ }
-try { importScripts('site-guides/productivity/trello.js'); } catch(e) { /* guide not yet created */ }
-try { importScripts('site-guides/productivity/notion.js'); } catch(e) { /* guide not yet created */ }
-try { importScripts('site-guides/productivity/jira.js'); } catch(e) { /* guide not yet created */ }
-try { importScripts('site-guides/productivity/airtable.js'); } catch(e) { /* guide not yet created */ }
+importScripts('site-guides/productivity/google-keep.js');
+importScripts('site-guides/productivity/google-calendar.js');
+importScripts('site-guides/productivity/todoist.js');
+importScripts('site-guides/productivity/trello.js');
+importScripts('site-guides/productivity/notion.js');
+importScripts('site-guides/productivity/jira.js');
+importScripts('site-guides/productivity/airtable.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
