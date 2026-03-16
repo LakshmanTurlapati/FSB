@@ -4294,10 +4294,13 @@ const tools = {
   FSB.ensureCoordinatesVisible = ensureCoordinatesVisible;
   // =========================================================================
   // TOGGLECHECK: Notion-aware checkbox toggle
-  // Finds .notion-to_do-block elements and clicks the checkbox by targeting
-  // the left edge of the block (where the checkbox visually sits).
-  // The checkbox is a plain div with no ARIA role — not discoverable via selectors.
-  // Uses coordinate-based clicking at x-offset 12px from the block's left edge.
+  //
+  // Per Notion's official keyboard shortcuts:
+  //   1. Press Esc to SELECT the block (exit text editing → block selection mode)
+  //   2. Press Cmd/Ctrl+Enter to TOGGLE the to-do checkbox
+  //
+  // Sequence: click block text (focus) → Escape (block selection) → Ctrl+Enter (toggle)
+  // Uses CDP keyboard via chrome.runtime.sendMessage for reliable key dispatch.
   // =========================================================================
   tools.togglecheck = async (params) => {
     const { index } = params;
@@ -4314,45 +4317,63 @@ const tools = {
 
     const block = todoBlocks[idx - 1];
     const text = block.textContent?.trim()?.substring(0, 60) || '(empty)';
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
     // Scroll into view if needed
     block.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await new Promise(r => setTimeout(r, 100));
-
-    const rect = block.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
-      return { success: false, error: `Todo block ${idx} has zero dimensions — may be hidden`, action: 'togglecheck' };
-    }
-
-    // Click at the LEFT EDGE of the block (x + 12px) where the checkbox sits.
-    // The checkbox is always at the far left of the todo block, before the text.
-    const checkboxX = rect.left + 12;
-    const checkboxY = rect.top + rect.height / 2;
-
-    const mouseInit = {
-      bubbles: true, cancelable: true, view: window,
-      clientX: checkboxX, clientY: checkboxY,
-      screenX: checkboxX + window.screenX, screenY: checkboxY + window.screenY,
-      button: 0, buttons: 1
-    };
+    await delay(150);
 
     // Capture pre-state: check if text has strikethrough
-    const preStrike = window.getComputedStyle(block.querySelector('[role="textbox"]') || block)
-      .textDecorationLine?.includes('line-through') || false;
+    const textEl = block.querySelector('[role="textbox"]') || block;
+    const preStrike = window.getComputedStyle(textEl).textDecorationLine?.includes('line-through') || false;
 
-    // Full mouse event sequence at checkbox coordinates
-    const target = document.elementFromPoint(checkboxX, checkboxY) || block;
-    target.dispatchEvent(new MouseEvent('mousedown', mouseInit));
-    target.dispatchEvent(new MouseEvent('mouseup', mouseInit));
-    target.dispatchEvent(new MouseEvent('click', mouseInit));
+    // STEP 1: Click the block text to focus/enter text editing mode
+    const rect = block.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const mouseInit = {
+      bubbles: true, cancelable: true, view: window,
+      clientX: centerX, clientY: centerY,
+      button: 0, buttons: 1
+    };
+    block.dispatchEvent(new MouseEvent('mousedown', mouseInit));
+    block.dispatchEvent(new MouseEvent('mouseup', mouseInit));
+    block.dispatchEvent(new MouseEvent('click', mouseInit));
+    await delay(150);
 
-    // Wait for Notion's React state update
-    await new Promise(r => setTimeout(r, 300));
+    // STEP 2: Press Escape to exit text editing → enter block selection mode
+    // Using CDP keyboard for reliability (Notion intercepts DOM keyboard events)
+    try {
+      await chrome.runtime.sendMessage({
+        action: 'keyboardDebuggerAction',
+        method: 'pressKey',
+        key: 'Escape',
+        modifiers: { ctrl: false, shift: false, alt: false, meta: false }
+      });
+    } catch (e) {
+      // Fallback: dispatch DOM event
+      document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+    }
+    await delay(200);
+
+    // STEP 3: Press Ctrl+Enter to toggle the checkbox (official Notion shortcut)
+    try {
+      await chrome.runtime.sendMessage({
+        action: 'keyboardDebuggerAction',
+        method: 'pressKey',
+        key: 'Enter',
+        modifiers: { ctrl: true, shift: false, alt: false, meta: false }
+      });
+    } catch (e) {
+      // Fallback: dispatch DOM event
+      document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Enter', code: 'Enter', ctrlKey: true, bubbles: true
+      }));
+    }
+    await delay(400);
 
     // Capture post-state
-    const postStrike = window.getComputedStyle(block.querySelector('[role="textbox"]') || block)
-      .textDecorationLine?.includes('line-through') || false;
-
+    const postStrike = window.getComputedStyle(textEl).textDecorationLine?.includes('line-through') || false;
     const toggled = preStrike !== postStrike;
 
     return {
@@ -4364,8 +4385,7 @@ const tools = {
       wasChecked: preStrike,
       nowChecked: postStrike,
       toggled,
-      clickedAt: { x: Math.round(checkboxX), y: Math.round(checkboxY) },
-      targetElement: target.tagName + (target.className ? '.' + target.className.split(' ')[0] : '')
+      method: 'click_escape_ctrlenter'
     };
   };
 

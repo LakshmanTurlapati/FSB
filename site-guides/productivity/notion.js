@@ -337,13 +337,13 @@ Slash commands are faster, more reliable, and work regardless of UI state.`,
       'STUCK: If /todo does not work, try Ctrl+Shift+4 to convert current block to a to-do. Or type "[]" followed by Space at the start of a line.'
     ],
     toggleTodo: [
-      'CRITICAL: Notion todo checkboxes do NOT appear as element refs in the page snapshot. The checkbox is a hidden DOM element with no ARIA role.',
+      'CRITICAL: Notion todo checkboxes do NOT appear as element refs in the page snapshot. The checkbox is invisible to the DOM walker.',
       'Use the togglecheck command: togglecheck N  -- where N is the todo position (1 = first todo, 2 = second, etc.)',
-      'togglecheck finds .notion-to_do-block elements and clicks the checkbox at the left edge of the block using coordinate-based clicking.',
+      'togglecheck works by: (1) clicking the todo block to focus it, (2) pressing Escape to enter block selection mode, (3) pressing Ctrl+Enter which is the official Notion shortcut to toggle a to-do checkbox.',
       'Example: togglecheck 1 (checks/unchecks the first todo), togglecheck 2 (second todo), etc.',
-      'To toggle ALL todos: use togglecheck 1, then togglecheck 2, then togglecheck 3, etc. -- one command per line.',
-      'VERIFY: togglecheck returns { toggled: true/false, wasChecked, nowChecked }. If toggled is true, the checkbox state changed. Use readPage to confirm strikethrough text.',
-      'STUCK: If togglecheck says "No Notion todo blocks found", the page may need to scroll down to render the todos. Try scroll down first, then retry togglecheck.'
+      'To toggle ALL todos: use togglecheck 1, then togglecheck 2, then togglecheck 3, etc. -- one command per line, NOT batched.',
+      'VERIFY: togglecheck returns { toggled: true/false, wasChecked, nowChecked }. If toggled is true, the checkbox state changed.',
+      'STUCK: If togglecheck says "No Notion todo blocks found", scroll down first to render the todos. If toggled is false, click elsewhere on the page first to deselect, then retry.'
     ],
     createTable: [
       'Type "/table" and press Enter to insert a simple table',
@@ -413,7 +413,7 @@ Slash commands are faster, more reliable, and work regardless of UI state.`,
     'notion.site URLs are for PUBLISHED/public pages which are read-only. Editing requires accessing the page via notion.so workspace URL.',
     'When a page has a database, the database can be inline (embedded in page) or full-page. Inline databases show view tabs directly in the page. Full-page databases open as their own page.',
     'Notion renders blocks lazily -- blocks below the viewport may not be in the DOM until scrolled to. Use scrolling before trying to interact with blocks far down the page.',
-    'CRITICAL -- TODO CHECKBOXES: Notion todo checkboxes do NOT appear as element refs in the page snapshot. The checkbox is a hidden div with no ARIA role. Use the togglecheck command: togglecheck N (1-indexed position). NEVER try to click the checkbox via element ref, CSS selector, hover, doubleClick, or Ctrl+Enter -- none of these work. The togglecheck tool handles the coordinate-based click at the correct position within the todo block.'
+    'CRITICAL -- TODO CHECKBOXES: Notion todo checkboxes do NOT appear as element refs in the page snapshot. Use the togglecheck command: togglecheck N (1-indexed position). togglecheck clicks the block, presses Escape to enter block selection mode, then Ctrl+Enter (official Notion shortcut) to toggle the checkbox. NEVER try to click the checkbox via element ref, CSS selector, hover, or doubleClick -- the checkbox element is invisible to the DOM. NEVER press Ctrl+Enter directly without first entering block selection mode via Escape.'
   ],
   toolPreferences: ['navigate', 'click', 'type', 'keyPress', 'togglecheck', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable']
 });
