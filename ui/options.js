@@ -4294,6 +4294,17 @@ async function toggleMemoryDetail(memoryItem) {
     });
   });
 
+  // Render per-task graph if SiteGraph is available (Task Memory only)
+  const graphContainer = panelDiv.querySelector('.task-graph-container');
+  if (graphContainer && typeof SiteGraph !== 'undefined' && typeof SiteGraph.transformTaskData === 'function') {
+    const graphData = SiteGraph.transformTaskData(memory);
+    if (graphData.nodes.length > 0) {
+      SiteGraph.render(graphContainer, graphData, { width: graphContainer.clientWidth || 500, height: 250 });
+    } else {
+      graphContainer.style.display = 'none';
+    }
+  }
+
   // Scroll into view
   memoryItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -4302,6 +4313,11 @@ function collapseMemoryDetail(memoryItem) {
   memoryItem.classList.remove('detail-expanded');
   const nextSibling = memoryItem.nextElementSibling;
   if (nextSibling && nextSibling.classList.contains('memory-detail-panel')) {
+    // Destroy task graph SVG before removing panel
+    const graphContainer = nextSibling.querySelector('.task-graph-container');
+    if (graphContainer && typeof SiteGraph !== 'undefined') {
+      SiteGraph.destroy(graphContainer);
+    }
     nextSibling.remove();
   }
 }
@@ -4789,8 +4805,12 @@ function renderTaskDetail(memory) {
 
   const proceduresSection = renderCollapsibleSection('procedures', `Procedures (${procedures.length})`, 'fa-code-branch', proceduresContent, false);
 
+  // Task graph container (rendered after panel opens)
+  const taskGraphHtml = `<div class="task-graph-container" data-memory-id="${memory.id}" style="min-height: 250px; margin-bottom: 12px;"></div>`;
+
   return `
     ${summaryHeader}
+    ${taskGraphHtml}
     ${timelineSection}
     ${discoveriesSection}
     ${proceduresSection}

@@ -3195,6 +3195,10 @@ textarea.form-input {
 .outcome-badge-unknown { background: rgba(115, 115, 115, 0.15); color: var(--text-muted, #737373); }
 .outcome-badge-lg { font-size: 0.9rem; padding: 4px 14px; border-radius: 12px; }
 
+/* Task graph container (inline SVG in task detail view) */
+.task-graph-container { border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; overflow: hidden; background: var(--surface-color, #f9fafb); }
+.task-graph-container svg { display: block; }
+
 /* Recon report collapsible sections */
 .recon-summary-header {
   margin-bottom: 12px;
