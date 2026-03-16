@@ -4370,6 +4370,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleKeyboardDebuggerAction(request, sender, sendResponse);
       return true; // Will respond asynchronously
 
+    case 'cdpMouseClick':
+      handleCDPMouseClick(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
     case 'cdpInsertText':
       handleCDPInsertText(request, sender, sendResponse);
       return true; // Will respond asynchronously
@@ -11109,6 +11113,36 @@ function initializeKeyboardEmulator() {
     keyboardEmulator = new KeyboardEmulator();
   }
   return keyboardEmulator;
+}
+
+/**
+ * Handle CDP mouse click at specific page coordinates.
+ * Uses Input.dispatchMouseEvent for browser-level click simulation.
+ * Called from content scripts that need to click elements not reachable via DOM APIs.
+ */
+async function handleCDPMouseClick(request, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  const { x, y } = request;
+  if (!tabId || typeof x !== 'number' || typeof y !== 'number') {
+    sendResponse({ success: false, error: 'Missing tabId or coordinates' });
+    return;
+  }
+  try {
+    await chrome.debugger.attach({ tabId }, '1.3');
+    // mousePressed
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mousePressed', x, y, button: 'left', clickCount: 1
+    });
+    // mouseReleased
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x, y, button: 'left', clickCount: 1
+    });
+    await chrome.debugger.detach({ tabId });
+    sendResponse({ success: true, x, y, method: 'cdp_mouse' });
+  } catch (e) {
+    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+    sendResponse({ success: false, error: e.message });
+  }
 }
 
 /**
