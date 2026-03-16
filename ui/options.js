@@ -3184,16 +3184,16 @@ async function viewResearch(researchId) {
             <ul style="margin: 0.25rem 0 0; padding-left: 0; font-size: 0.75rem; font-family: monospace; color: var(--text-muted); max-height: 500px; overflow-y: auto;">
               ${data.pages.map(p => `<li style="list-style: none; margin-bottom: 0.5rem;">
                 <div>
-                  ${escapeHtml(p.url)} (${p.interactiveElements?.length || 0} elements)${p.guideName ? `<span style="color: #4fc3f7; margin-left: 0.5rem; font-size: 0.6875rem;">Guide: ${escapeHtml(p.guideName)}</span>` : ''}
+                  ${escapeHtml(p.url)} (${p.interactiveElements?.length || 0} elements)${p.guideName ? `<span style="color: var(--info-color); margin-left: 0.5rem; font-size: 0.6875rem;">Guide: ${escapeHtml(p.guideName)}</span>` : ''}
                 </div>
                 <div style="margin-top: 0.15rem; font-size: 0.6875rem;">
                   ${p.markdownSnapshot
                     ? `Markdown: ${p.markdownSnapshot.length.toLocaleString()} chars, ${p.markdownElementCount || 0} elements`
-                    : '<span style="color: #ffb74d;">Snapshot unavailable</span>'}
+                    : '<span style="color: var(--warning-color);">Snapshot unavailable</span>'}
                 </div>
                 ${p.markdownSnapshot ? `<details style="margin-top: 0.25rem;">
                   <summary style="cursor: pointer; font-size: 0.6875rem; color: var(--text-secondary);">View Markdown Snapshot</summary>
-                  <pre style="background: #1a1a2e; color: #e0e0e0; padding: 0.75rem; border-radius: 4px; font-size: 0.6875rem; line-height: 1.4; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-word;">${escapeHtml(p.markdownSnapshot)}</pre>
+                  <pre style="background: var(--bg-tertiary); color: var(--text-primary); padding: 0.75rem; border-radius: 4px; font-size: 0.6875rem; line-height: 1.4; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-word;">${escapeHtml(p.markdownSnapshot)}</pre>
                 </details>` : ''}
               </li>`).join('')}
             </ul>
@@ -4932,8 +4932,8 @@ async function expandMemoryGraph(memoryItem, memoryId) {
   const hasDiscovered = graphData.nodes.some(n => n.discovered);
 
   let legendItems = '';
-  if (hasPages) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: #4285f4; opacity: 0.7;"></span> Page</span>';
-  if (hasDiscovered) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: transparent; border: 1.5px dashed #4285f4; opacity: 0.5;"></span> Discovered</span>';
+  if (hasPages) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--info-color); opacity: 0.7;"></span> Page</span>';
+  if (hasDiscovered) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: transparent; border: 1.5px dashed var(--info-color); opacity: 0.5;"></span> Discovered</span>';
   if (hasForms) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: #d97706; opacity: 0.7;"></span> Form</span>';
   if (hasElements) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--text-muted, #737373); opacity: 0.5; border: 1px dashed var(--text-muted, #737373); background: transparent;"></span> Element</span>';
   if (hasWorkflowLinks) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: transparent; border: 1.5px dashed var(--success-color, #059669);"></span> Workflow</span>';
