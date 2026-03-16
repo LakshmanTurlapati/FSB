@@ -1806,68 +1806,46 @@
         }
       }
 
-      // Sheets-specific elements (formula bar and name box)
-      if (/spreadsheets\/d\//.test(window.location.pathname)) {
-        const fsbElements = guideSelectors?.fsbElements;
-        const selectorMatches = {};
+    }
 
-        if (fsbElements) {
-          // Use multi-strategy lookup from site guide
-          for (const [role, def] of Object.entries(fsbElements)) {
-            const result = findElementByStrategies(def);
-            if (result) {
-              const { element: el, matchedIndex, matchedStrategy, total } = result;
-              // Always set fsbRole/fsbLabel — element may already be in candidates from Stage 1
-              el.dataset.fsbRole = role;
-              el.dataset.fsbLabel = def.label;
-              if (!candidateArray.includes(el)) {
-                candidateArray.push(el);
-              }
-              selectorMatches[role] = `${def.selectors[matchedIndex].selector} [${matchedIndex + 1}/${total}]`;
-              logger.logDOMOperation(FSB.sessionId, 'sheets_selector_match', {
-                role,
-                matched: `${def.selectors[matchedIndex].selector} [${matchedIndex + 1}/${total}]`,
-                strategy: matchedStrategy
-              });
-            } else {
-              logger.log('warn', `[Sheets] All ${def.selectors.length} selectors failed for ${role} — element skipped`, {
-                role,
-                selectorsAttempted: def.selectors.length
-              });
-              selectorMatches[role] = 'NONE';
-            }
+    // Stage 1c: Inject site guide fsbElements (generic - works for ANY guide with fsbElements)
+    const fsbElements = guideSelectors?.fsbElements;
+    if (fsbElements) {
+      const selectorMatches = {};
+      for (const [role, def] of Object.entries(fsbElements)) {
+        const result = findElementByStrategies(def);
+        if (result) {
+          const { element: el, matchedIndex, matchedStrategy, total } = result;
+          el.dataset.fsbRole = role;
+          el.dataset.fsbLabel = def.label;
+          if (!candidateArray.includes(el)) {
+            candidateArray.push(el);
           }
+          selectorMatches[role] = `${def.selectors[matchedIndex].selector} [${matchedIndex + 1}/${total}]`;
+          logger.logDOMOperation(FSB.sessionId, 'fsbElements_selector_match', {
+            role,
+            matched: `${def.selectors[matchedIndex].selector} [${matchedIndex + 1}/${total}]`,
+            strategy: matchedStrategy
+          });
         } else {
-          // Fallback: hardcoded selectors when no site guide fsbElements present
-          const sheetsSelectors = [
-            { selector: '#t-formula-bar-input, .cell-input', role: 'formula-bar', label: 'Formula bar (shows selected cell content)' },
-            { selector: '#t-name-box, .waffle-name-box', role: 'name-box', label: 'Name Box (current cell reference)' }
-          ];
-          for (const { selector, role, label } of sheetsSelectors) {
-            const el = document.querySelector(selector);
-            if (el) {
-              // Always set fsbRole/fsbLabel — element may already be in candidates from Stage 1
-              el.dataset.fsbRole = role;
-              el.dataset.fsbLabel = label;
-              if (!candidateArray.includes(el)) {
-                candidateArray.push(el);
-              }
-            }
-            selectorMatches[role] = el ? `${selector} [fallback]` : 'NONE';
-          }
+          logger.log('warn', `[fsbElements] All ${def.selectors.length} selectors failed for ${role} - element skipped`, {
+            role,
+            selectorsAttempted: def.selectors.length
+          });
+          selectorMatches[role] = 'NONE';
         }
-
-        // Log Sheets element injection results with strategy match info
-        const fsbInjectedCount = candidateArray.filter(el => el.dataset.fsbRole).length;
-        logger.logDOMOperation(FSB.sessionId, 'sheets_injection', {
-          formulaBar: selectorMatches['formula-bar'] !== 'NONE',
-          nameBox: selectorMatches['name-box'] !== 'NONE',
-          totalFsbElements: fsbInjectedCount,
-          matchedCount: Object.values(selectorMatches).filter(v => v !== 'NONE').length,
-          failedCount: Object.values(selectorMatches).filter(v => v === 'NONE').length,
-          selectorMatches
-        });
       }
+
+      // Generic injection logging
+      const siteName = guideSelectors?._siteName || 'unknown';
+      const fsbInjectedCount = candidateArray.filter(el => el.dataset.fsbRole).length;
+      logger.logDOMOperation(FSB.sessionId, 'fsbElements_injection', {
+        site: siteName,
+        totalFsbElements: fsbInjectedCount,
+        matchedCount: Object.values(selectorMatches).filter(v => v !== 'NONE').length,
+        failedCount: Object.values(selectorMatches).filter(v => v === 'NONE').length,
+        selectorMatches
+      });
     }
 
     // Stage 2: Filter by visibility
@@ -1898,12 +1876,12 @@
       return true;
     });
 
-    // Log when Sheets elements are filtered in or out
-    if (/spreadsheets\/d\//.test(window.location.pathname)) {
+    // Log when fsbElements are filtered by visibility
+    {
       const injected = candidateArray.filter(el => el.dataset.fsbRole);
       const survived = visible.filter(el => el.dataset.fsbRole);
       if (injected.length > 0) {
-        logger.logDOMOperation(FSB.sessionId, 'sheets_visibility_filter', {
+        logger.logDOMOperation(FSB.sessionId, 'fsbElements_visibility_filter', {
           injected: injected.length,
           survived: survived.length,
           filtered_out: injected.length - survived.length,
@@ -2536,74 +2514,59 @@
     // e. Walk the DOM tree producing region-tagged lines
     const walkedLines = walkDOMToMarkdown(document.body, interactiveSet, refMap, guideAnnotationsMap);
 
-    // Log snapshot content summary for debugging
-    if (/spreadsheets\/d\//.test(window.location.pathname)) {
+    // Log snapshot content summary for debugging (generic - any site with fsbElements)
+    if (guideSelectors?.fsbElements) {
       const snapshotText = walkedLines.map(l => l.text || l).join('\n');
-      const hasFormulaBar = snapshotText.includes('formula-bar') || snapshotText.includes('Formula bar');
-      const hasNameBox = snapshotText.includes('name-box') || snapshotText.includes('Name Box');
-      const formulaBarValue = snapshotText.match(/formula.*?= "([^"]+)"/i)?.[1] || null;
-      const nameBoxValue = snapshotText.match(/name.*?box.*?= "([^"]+)"/i)?.[1] || null;
-      logger.logDOMOperation(FSB.sessionId, 'sheets_snapshot_summary', {
+      const fsbRoleNames = Object.keys(guideSelectors.fsbElements);
+      const fsbPresence = {};
+      for (const role of fsbRoleNames) {
+        fsbPresence[role] = snapshotText.includes(role);
+      }
+      const siteName = guideSelectors?._siteName || 'unknown';
+      logger.logDOMOperation(FSB.sessionId, 'fsbElements_snapshot_summary', {
+        site: siteName,
         totalLines: walkedLines.length,
         totalChars: snapshotText.length,
-        hasFormulaBar,
-        hasNameBox,
-        formulaBarValue,
-        nameBoxValue,
+        fsbPresence,
         interactiveElements: elementCount
       });
     }
 
-    // First-snapshot health check: verify pipeline is working on initial Sheets snapshot
-    if (/spreadsheets\/d\//.test(window.location.pathname) && !FSB._sheetsHealthCheckDone) {
-      FSB._sheetsHealthCheckDone = true;
-
+    // First-snapshot health check: verify pipeline is working (generic - any site with fsbElements)
+    const healthCheckKey = `_healthCheckDone_${(guideSelectors?._siteName || 'default').replace(/\s+/g, '_')}`;
+    if (guideSelectors?.fsbElements && !FSB[healthCheckKey]) {
+      FSB[healthCheckKey] = true;
       const healthSnapshotText = walkedLines.map(l => l.text || l).join('\n');
-
-      const checks = {
-        nameBoxPresent: healthSnapshotText.includes('name-box') || /name\s*box/i.test(healthSnapshotText),
-        formulaBarPresent: healthSnapshotText.includes('formula-bar') || healthSnapshotText.includes('Formula bar'),
-        nameBoxValue: healthSnapshotText.match(/name.*?box.*?= "([^"]*?)"/i)?.[1] ?? null,
-        formulaBarValue: healthSnapshotText.match(/formula.*?= "([^"]*?)"/i)?.[1] ?? null
-      };
-      checks.nameBoxValidRef = checks.nameBoxValue !== null ? SHEETS_CELL_REF_REGEX.test(checks.nameBoxValue) : null;
-
-      // Count fsbRole elements for post-inject awareness
+      const siteName = guideSelectors?._siteName || 'unknown';
+      const fsbRoleNames = Object.keys(guideSelectors.fsbElements);
       let fsbRoleCount = 0;
       for (const el of interactiveSet) {
         if (el.dataset && el.dataset.fsbRole) fsbRoleCount++;
       }
-      checks.fsbRoleElementCount = fsbRoleCount;
-
-      checks.minExpectedFsbElements = 5;
-      const allPass = checks.nameBoxPresent && checks.formulaBarPresent && fsbRoleCount >= checks.minExpectedFsbElements;
-
-      // One-line summary always logged to console
-      console.log(`[Sheets Health] name-box: ${checks.nameBoxPresent ? 'OK' : 'MISSING'}, formula-bar: ${checks.formulaBarPresent ? 'OK' : 'MISSING'}, fsbRole elements: ${fsbRoleCount} (min: 5)`);
-
+      const checks = {
+        site: siteName,
+        fsbRoleElementCount: fsbRoleCount,
+        minExpectedFsbElements: Math.max(3, Math.floor(fsbRoleNames.length * 0.3)),
+        expectedRoles: fsbRoleNames,
+        foundRoles: fsbRoleNames.filter(role => healthSnapshotText.includes(role))
+      };
+      const allPass = fsbRoleCount >= checks.minExpectedFsbElements;
+      console.log(`[${siteName} Health] fsbRole elements: ${fsbRoleCount} (min: ${checks.minExpectedFsbElements}), roles found in snapshot: ${checks.foundRoles.length}/${fsbRoleNames.length}`);
       if (allPass) {
-        logger.logDOMOperation(FSB.sessionId, 'sheets_health_check', {
-          passed: true,
-          checks
-        });
+        logger.logDOMOperation(FSB.sessionId, 'fsbElements_health_check', { passed: true, checks });
       } else {
-        console.warn('[Sheets Health] FAILED - diagnostic dump:', checks);
-        logger.logDOMOperation(FSB.sessionId, 'sheets_health_check', {
+        console.warn(`[${siteName} Health] FAILED - diagnostic dump:`, checks);
+        logger.logDOMOperation(FSB.sessionId, 'fsbElements_health_check', {
           passed: false,
           checks,
           stages: {
             injection: fsbRoleCount > 0 ? 'pass' : 'fail',
-            visibility: checks.nameBoxPresent || checks.formulaBarPresent ? 'pass' : 'fail',
-            walker: walkedLines.length > 0 ? 'pass' : 'fail',
-            postInject: fsbRoleCount > 0 ? 'pass' : 'unknown',
-            summary: healthSnapshotText.length > 0 ? 'pass' : 'fail'
+            walker: walkedLines.length > 0 ? 'pass' : 'fail'
           }
         });
       }
-
-      // Detailed dump in debug mode
       if (FSB._debugMode) {
-        console.debug('[Sheets Health] Full diagnostic:', JSON.stringify(checks, null, 2));
+        console.debug(`[${siteName} Health] Full diagnostic:`, JSON.stringify(checks, null, 2));
       }
     }
 

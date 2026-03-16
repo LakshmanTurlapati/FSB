@@ -8480,7 +8480,7 @@ async function startAutomationLoop(sessionId) {
         const guideTab = await chrome.tabs.get(session.tabId);
         const guide = getGuideForTask(session.task, guideTab?.url);
         if (guide) {
-          iterationGuideSelectors = { ...guide.selectors, fsbElements: guide.fsbElements };
+          iterationGuideSelectors = { ...guide.selectors, fsbElements: guide.fsbElements, _siteName: guide.site };
         }
       } catch (e) {
         // Tab inaccessible, proceed without guide selectors
