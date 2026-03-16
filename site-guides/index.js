@@ -192,11 +192,19 @@ function getGuideForTask(task, url) {
     ],
     'Productivity Tools': {
       strong: [
-        'google sheets', 'google sheet', 'spreadsheet', 'google docs', 'google doc'
+        'google sheets', 'google sheet', 'spreadsheet', 'google docs', 'google doc',
+        'notion', 'google calendar', 'google keep', 'todoist', 'trello', 'jira', 'airtable'
       ],
       weak: [
         'sheets', 'sheet', 'create sheet', 'new sheet', 'add to sheet', 'enter data',
-        'create document', 'new document', 'write document', 'share document', 'edit document'
+        'create document', 'new document', 'write document', 'share document', 'edit document',
+        'calendar event', 'create event', 'schedule meeting', 'schedule',
+        'note', 'create note', 'checklist', 'keep note',
+        'task', 'create task', 'todo', 'add task', 'quick add',
+        'card', 'create card', 'board', 'kanban',
+        'issue', 'create issue', 'ticket', 'sprint', 'backlog', 'story points',
+        'base', 'record', 'create record', 'grid view', 'table view',
+        'page', 'create page', 'block', 'slash command', 'database view'
       ]
     }
   };
