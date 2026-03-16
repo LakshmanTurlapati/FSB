@@ -4286,6 +4286,14 @@ async function toggleMemoryDetail(memoryItem) {
   memoryItem.classList.add('detail-expanded');
   memoryItem.after(panelDiv);
 
+  // Wire up collapsible recon section toggles (Task Memory detail view)
+  panelDiv.querySelectorAll('.recon-section-toggle').forEach(toggle => {
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggle.parentElement.classList.toggle('recon-section-open');
+    });
+  });
+
   // Scroll into view
   memoryItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -4318,7 +4326,8 @@ function renderMemoryDetailPanel(memory) {
       content = `<div class="detail-section"><div class="detail-value">${escapeHtml(memory.text)}</div></div>`;
   }
 
-  const aiSection = renderAIAnalysisSection(memory.aiAnalysis);
+  // Task type integrates AI analysis into its collapsible sections; others get separate block
+  const aiSection = memory.type === 'task' ? '' : renderAIAnalysisSection(memory.aiAnalysis);
 
   return `
     <div class="detail-panel-inner">
@@ -4608,18 +4617,26 @@ function renderProceduralDetail(memory) {
   `;
 }
 
+function renderCollapsibleSection(id, title, icon, content, defaultOpen = false) {
+  return `<div class="recon-section${defaultOpen ? ' recon-section-open' : ''}">
+    <div class="recon-section-toggle" data-section="${id}">
+      <i class="fas fa-chevron-right recon-chevron"></i>
+      <i class="fas ${icon}"></i> ${title}
+    </div>
+    <div class="recon-section-body">${content}</div>
+  </div>`;
+}
+
 function renderTaskDetail(memory) {
   const sess = memory.typeData?.session || {};
   const learned = memory.typeData?.learned || {};
   const procedures = memory.typeData?.procedures || [];
+  const ai = memory.aiAnalysis || {};
 
   // Outcome badge
-  const outcomeClass = {
-    success: 'outcome-success',
-    failure: 'outcome-failure',
-    partial: 'outcome-partial'
-  }[sess.outcome] || 'outcome-unknown';
-  const outcomeLabel = (sess.outcome || 'unknown').charAt(0).toUpperCase() + (sess.outcome || 'unknown').slice(1);
+  const outcomeVal = (sess.outcome || 'unknown').toLowerCase();
+  const outcomeBadgeClass = { success: 'success', failure: 'failure', partial: 'partial' }[outcomeVal] || 'unknown';
+  const outcomeLabel = outcomeVal.charAt(0).toUpperCase() + outcomeVal.slice(1);
 
   // Duration
   let durationStr = 'N/A';
@@ -4630,98 +4647,153 @@ function renderTaskDetail(memory) {
     durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
   }
 
-  // Final URL
-  const finalUrlHtml = sess.finalUrl
-    ? `<div class="detail-section">
-        <div class="detail-label">Final URL</div>
-        <div class="detail-value"><a href="${escapeHtml(sess.finalUrl)}" target="_blank" rel="noopener">${escapeHtml(sess.finalUrl)}</a></div>
-      </div>`
-    : '';
-
-  // Timeline
   const timeline = sess.timeline || [];
-  const timelineHtml = timeline.length > 0
-    ? `<ol class="detail-list detail-list-ordered">${timeline.map(s =>
-        `<li>${escapeHtml(s.action || '')} on <code class="detail-code">${escapeHtml(s.target || '')}</code> &mdash; ${escapeHtml(s.result || '')}</li>`
-      ).join('')}</ol>`
-    : '<span class="detail-muted">No steps recorded</span>';
+  const stepCount = timeline.length;
+  const taskDomain = sess.domain || memory.metadata?.domain || 'Unknown';
 
-  // Failures
-  const failuresHtml = (sess.failures && sess.failures.length > 0)
-    ? `<ul class="detail-list">${sess.failures.map(f => `<li>${escapeHtml(String(f))}</li>`).join('')}</ul>`
-    : '';
-  const failuresSection = failuresHtml
-    ? `<div class="detail-section">
-        <div class="detail-label">Failures</div>
-        ${failuresHtml}
-      </div>`
+  // --- Summary header (always visible) ---
+  const finalUrlHtml = sess.finalUrl
+    ? `<div style="margin-top: 6px; font-size: 0.85em;"><i class="fas fa-link" style="opacity: 0.5; margin-right: 4px;"></i><a href="${escapeHtml(sess.finalUrl)}" target="_blank" rel="noopener" style="color: var(--primary);">${escapeHtml(sess.finalUrl)}</a></div>`
     : '';
 
-  // Learned: selectors
-  const selectorsHtml = (learned.selectors && learned.selectors.length > 0)
-    ? learned.selectors.map(s => `<code class="detail-code">${escapeHtml(String(s))}</code>`).join(', ')
-    : '<span class="detail-muted">None</span>';
+  const summaryHeader = `
+    <div class="recon-summary-header">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+        <span class="outcome-badge outcome-badge-lg outcome-badge-${outcomeBadgeClass}">${outcomeLabel}</span>
+        <span style="font-weight: 600; font-size: 1.05em;">${escapeHtml(sess.task || memory.text || 'Task')}</span>
+      </div>
+      <div style="font-size: 0.85em; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 4px 12px;">
+        <span><i class="fas fa-globe" style="opacity: 0.6;"></i> ${escapeHtml(taskDomain)}</span>
+        <span><i class="fas fa-clock" style="opacity: 0.6;"></i> ${durationStr}</span>
+        <span><i class="fas fa-shoe-prints" style="opacity: 0.6;"></i> ${stepCount} steps</span>
+        <span><i class="fas fa-redo" style="opacity: 0.6;"></i> ${sess.iterationCount || 0} iterations</span>
+      </div>
+      ${finalUrlHtml}
+    </div>
+  `;
 
-  // Learned: patterns
-  const patternsHtml = (learned.patterns && learned.patterns.length > 0)
-    ? `<ul class="detail-list">${learned.patterns.map(p => `<li>${escapeHtml(String(p))}</li>`).join('')}</ul>`
-    : '<span class="detail-muted">None</span>';
+  // --- Timeline section (default open) ---
+  let timelineContent = '';
+  if (timeline.length > 0) {
+    timelineContent = `<ol class="recon-timeline-list">${timeline.map((s, i) => {
+      const isFailed = s.result && /fail|error/i.test(s.result);
+      const stepClass = isFailed ? ' recon-timeline-step-failed' : '';
+      const urlHtml = s.url ? ` <a href="${escapeHtml(s.url)}" target="_blank" rel="noopener" class="recon-timeline-url" title="${escapeHtml(s.url)}"><i class="fas fa-external-link-alt"></i></a>` : '';
+      return `<li class="recon-timeline-step${stepClass}">
+        <strong>${escapeHtml(s.action || '')}</strong> on <code class="detail-code">${escapeHtml(s.target || '')}</code> &mdash; ${escapeHtml(s.result || '')}${urlHtml}
+      </li>`;
+    }).join('')}</ol>`;
+  } else {
+    timelineContent = '<span class="detail-muted">No steps recorded</span>';
+  }
 
-  const learnedSection = (learned.selectors?.length || learned.patterns?.length)
-    ? `<div class="detail-section" style="margin-top: 8px;">
-        <div class="detail-label" style="font-weight: 600; margin-bottom: 4px;">Learned</div>
-        <div class="detail-section">
-          <div class="detail-label">Selectors</div>
-          <div class="detail-value">${selectorsHtml}</div>
-        </div>
-        <div class="detail-section">
-          <div class="detail-label">Patterns</div>
-          ${patternsHtml}
-        </div>
-      </div>`
-    : '';
+  // Inline failures in timeline section
+  if (sess.failures && sess.failures.length > 0) {
+    timelineContent += `<div class="recon-failures-block">
+      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px; color: var(--danger, #ef4444);"><i class="fas fa-exclamation-triangle"></i> Failures</div>
+      <ul class="detail-list">${sess.failures.map(f => `<li>${escapeHtml(String(f))}</li>`).join('')}</ul>
+    </div>`;
+  }
 
-  // Procedures
-  const proceduresHtml = procedures.length > 0
-    ? `<div class="detail-section" style="margin-top: 8px;">
-        <div class="detail-label" style="font-weight: 600; margin-bottom: 4px;">Procedures</div>
-        ${procedures.map(proc => {
-          const rate = Math.round((proc.successRate ?? 1) * 100);
-          const rateClass = rate >= 80 ? 'outcome-success' : rate >= 50 ? 'outcome-partial' : 'outcome-failure';
-          return `<div class="detail-section">
-            <div class="detail-value"><strong>${escapeHtml(proc.name || 'Unnamed')}</strong> &mdash; ${(proc.steps || []).length} steps &mdash; <span class="${rateClass}">${rate}%</span></div>
-          </div>`;
-        }).join('')}
-      </div>`
-    : '';
+  // AI risk factors at bottom of timeline
+  if (ai.riskFactors && ai.riskFactors.length > 0) {
+    timelineContent += `<div class="recon-ai-note">
+      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;"><i class="fas fa-shield-alt" style="opacity: 0.7;"></i> Risk Factors</div>
+      <ul class="detail-list">${ai.riskFactors.map(r => `<li>${escapeHtml(String(r))}</li>`).join('')}</ul>
+    </div>`;
+  }
+
+  const timelineSection = renderCollapsibleSection('timeline', `Timeline (${stepCount} steps)`, 'fa-route', timelineContent, true);
+
+  // --- Discoveries section (default closed) ---
+  let discoveriesContent = '';
+
+  // AI key takeaways at top
+  if (ai.keyTakeaways && ai.keyTakeaways.length > 0) {
+    discoveriesContent += `<div class="recon-ai-note" style="margin-bottom: 10px;">
+      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;"><i class="fas fa-brain" style="opacity: 0.7;"></i> Key Takeaways</div>
+      <ul class="detail-list">${ai.keyTakeaways.map(t => `<li>${escapeHtml(String(t))}</li>`).join('')}</ul>
+    </div>`;
+  }
+
+  // Selectors
+  if (learned.selectors && learned.selectors.length > 0) {
+    discoveriesContent += `<div style="margin-bottom: 8px;">
+      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;">Selectors Discovered</div>
+      <div>${learned.selectors.map(s => `<code class="detail-code">${escapeHtml(String(s))}</code>`).join(' ')}</div>
+    </div>`;
+  }
+
+  // Site structure
+  if (learned.siteStructure && Object.keys(learned.siteStructure).length > 0) {
+    const structItems = Object.entries(learned.siteStructure)
+      .map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</li>`)
+      .join('');
+    discoveriesContent += `<div style="margin-bottom: 8px;">
+      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;">Site Structure</div>
+      <ul class="detail-list">${structItems}</ul>
+    </div>`;
+  }
+
+  // Patterns
+  if (learned.patterns && learned.patterns.length > 0) {
+    discoveriesContent += `<div style="margin-bottom: 8px;">
+      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;">Patterns</div>
+      <ul class="detail-list">${learned.patterns.map(p => `<li>${escapeHtml(String(p))}</li>`).join('')}</ul>
+    </div>`;
+  }
+
+  const hasDiscoveries = discoveriesContent.length > 0;
+  if (!hasDiscoveries) discoveriesContent = '<span class="detail-muted">No discoveries recorded</span>';
+  const discoveriesSection = renderCollapsibleSection('discoveries', 'Discoveries', 'fa-search', discoveriesContent, false);
+
+  // --- Procedures section (default closed) ---
+  let proceduresContent = '';
+
+  if (procedures.length > 0) {
+    proceduresContent = procedures.map(proc => {
+      const rate = Math.round((proc.successRate ?? 1) * 100);
+      const rateClass = rate >= 80 ? 'outcome-badge-success' : rate >= 50 ? 'outcome-badge-partial' : 'outcome-badge-failure';
+      return `<div class="recon-procedure-item">
+        <strong>${escapeHtml(proc.name || 'Unnamed')}</strong>
+        <span style="color: var(--text-secondary); font-size: 0.85em;">${(proc.steps || []).length} steps</span>
+        <span class="outcome-badge ${rateClass}">${rate}%</span>
+      </div>`;
+    }).join('');
+  } else {
+    proceduresContent = '<span class="detail-muted">No procedures recorded</span>';
+  }
+
+  // AI optimization tips
+  if (ai.optimizationTips && ai.optimizationTips.length > 0) {
+    proceduresContent += `<div class="recon-ai-note" style="margin-top: 10px;">
+      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;"><i class="fas fa-lightbulb" style="opacity: 0.7;"></i> Optimization Tips</div>
+      <ul class="detail-list">${ai.optimizationTips.map(t => `<li>${escapeHtml(String(t))}</li>`).join('')}</ul>
+    </div>`;
+  }
+
+  // AI suggested improvements
+  if (ai.suggestedImprovements && ai.suggestedImprovements.length > 0) {
+    proceduresContent += `<div class="recon-ai-note">
+      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;"><i class="fas fa-arrow-up" style="opacity: 0.7;"></i> Suggested Improvements</div>
+      <ul class="detail-list">${ai.suggestedImprovements.map(t => `<li>${escapeHtml(String(t))}</li>`).join('')}</ul>
+    </div>`;
+  }
+
+  // AI reusability assessment
+  if (ai.reusabilityAssessment) {
+    proceduresContent += `<div class="recon-ai-note" style="margin-top: 8px; padding: 8px 10px; background: var(--surface-color, #f9fafb); border-radius: 6px; font-size: 0.85em;">
+      <i class="fas fa-recycle" style="opacity: 0.7;"></i> <strong>Reusability:</strong> ${escapeHtml(String(ai.reusabilityAssessment))}
+    </div>`;
+  }
+
+  const proceduresSection = renderCollapsibleSection('procedures', `Procedures (${procedures.length})`, 'fa-code-branch', proceduresContent, false);
 
   return `
-    <div class="detail-grid">
-      <div class="detail-section">
-        <div class="detail-label">Task</div>
-        <div class="detail-value">${escapeHtml(sess.task || 'N/A')}</div>
-      </div>
-      <div class="detail-section">
-        <div class="detail-label">Outcome</div>
-        <div class="detail-value"><span class="${outcomeClass}">${outcomeLabel}</span></div>
-      </div>
-      <div class="detail-section">
-        <div class="detail-label">Duration</div>
-        <div class="detail-value">${durationStr}</div>
-      </div>
-      <div class="detail-section">
-        <div class="detail-label">Iterations</div>
-        <div class="detail-value">${sess.iterationCount || 0}</div>
-      </div>
-    </div>
-    ${finalUrlHtml}
-    <div class="detail-section">
-      <div class="detail-label">Timeline (${timeline.length} steps)</div>
-      ${timelineHtml}
-    </div>
-    ${failuresSection}
-    ${learnedSection}
-    ${proceduresHtml}
+    ${summaryHeader}
+    ${timelineSection}
+    ${discoveriesSection}
+    ${proceduresSection}
   `;
 }
 
