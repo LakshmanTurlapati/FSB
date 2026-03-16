@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: executing
-stopped_at: Phase 32 context gathered
-last_updated: "2026-03-16T11:07:42.430Z"
+stopped_at: Completed 32-01-PLAN.md
+last_updated: "2026-03-16T11:51:44.805Z"
 last_activity: 2026-03-16 -- Completed 32-01 extraction pipeline rewrite for single Task Memory
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
+  completed_phases: 3
+  total_plans: 8
+  completed_plans: 8
   percent: 100
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-16)
 ## Current Position
 
 Phase: 32 of 33 (Extraction Pipeline Consolidation)
-Plan: 1 of 3 completed in current phase
+Plan: 2 of 3 completed in current phase
 Status: Executing
-Last activity: 2026-03-16 -- Completed 32-01 extraction pipeline rewrite for single Task Memory
+Last activity: 2026-03-16 -- Completed 32-02 task-aware consolidation and unified enrichment
 
 Progress: [██████████] 100%
 
@@ -45,7 +45,7 @@ Progress: [██████████] 100%
 |-------|-------|-------|----------|
 | 30 | 3/4 | 17min | 6min |
 | 31 | 2/3 | 4min | 2min |
-| 32 | 1/3 | 2min | 2min |
+| 32 | 2/3 | 5min | 3min |
 
 ## Accumulated Context
 
@@ -73,6 +73,9 @@ Recent decisions:
 - 32-01: Recon report framing for AI extraction (intelligence analyst producing consolidated report)
 - 32-01: Full action history sent to AI with smart truncation (first 5 + last 15 if >4000 chars)
 - 32-01: Task memories always enriched regardless of autoAnalyzeMemories setting
+- 32-02: Task similarity threshold 0.7 for merge (lower than 0.85 text dedup since task descriptions are shorter)
+- 32-02: Consolidator builds merged data and returns with UPDATE -- manager stores directly, no merge logic
+- 32-02: Task enrichment gets structured context (1000 char) instead of raw JSON truncation (500 char)
 
 ### Pending Todos
 
@@ -85,6 +88,6 @@ Recent decisions:
 
 ## Session Continuity
 
-Last session: 2026-03-16T11:46:08Z
-Stopped at: Completed 32-01-PLAN.md
-Resume file: .planning/phases/32-extraction-pipeline-consolidation/32-01-SUMMARY.md
+Last session: 2026-03-16T11:51:04Z
+Stopped at: Completed 32-02-PLAN.md
+Resume file: .planning/phases/32-extraction-pipeline-consolidation/32-02-SUMMARY.md
