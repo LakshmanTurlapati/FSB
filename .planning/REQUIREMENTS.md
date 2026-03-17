@@ -19,12 +19,12 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### QR Pairing
 
-- [ ] **PAIR-01**: Extension generates unique one-time pairing token (not raw hash key) with 60s TTL
+- [x] **PAIR-01**: Extension generates unique one-time pairing token (not raw hash key) with 60s TTL
 - [ ] **PAIR-02**: Extension displays pairing token as QR code in popup/sidepanel
 - [ ] **PAIR-03**: Dashboard scans QR code via device camera to pair with extension
 - [ ] **PAIR-04**: User can manually paste hash key as fallback when camera is unavailable
 - [ ] **PAIR-05**: Dashboard shows paired status and allows unpairing/session revocation
-- [ ] **PAIR-06**: Pairing session expires after configurable timeout with re-pair flow
+- [x] **PAIR-06**: Pairing session expires after configurable timeout with re-pair flow
 
 ### Remote Task Control
 
@@ -96,12 +96,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SERV-05 | Phase 40 | Complete |
 | SERV-06 | Phase 40 | Complete |
 | SERV-07 | Phase 40 | Complete |
-| PAIR-01 | Phase 41 | Pending |
+| PAIR-01 | Phase 41 | Complete |
 | PAIR-02 | Phase 41 | Pending |
 | PAIR-03 | Phase 41 | Pending |
 | PAIR-04 | Phase 41 | Pending |
 | PAIR-05 | Phase 41 | Pending |
-| PAIR-06 | Phase 41 | Pending |
+| PAIR-06 | Phase 41 | Complete |
 | TASK-01 | Phase 42 | Pending |
 | TASK-02 | Phase 42 | Pending |
 | TASK-03 | Phase 42 | Pending |

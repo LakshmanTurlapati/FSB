@@ -107,7 +107,7 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 40. WebSocket Infrastructure | 3/3 | Complete    | 2026-03-17 |
-| 41. QR Pairing & Showcase Site | 0/3 | Not started | - |
+| 41. QR Pairing & Showcase Site | 1/3 | In Progress|  |
 | 42. Remote Task Control | 0/? | Not started | - |
 | 43. Agent Dashboard | 0/? | Not started | - |
 | 44. DOM Cloning Stream | 0/? | Not started | - |
