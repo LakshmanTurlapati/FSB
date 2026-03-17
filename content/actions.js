@@ -1174,6 +1174,84 @@ async function waitForPageStability(options = {}) {
 // =============================================================================
 // END ACTION VERIFICATION UTILITIES
 // =============================================================================
+
+/**
+ * Generic ARIA binary state pre-check.
+ * Checks whether an element is already in the target state (checked, expanded, etc.)
+ * to prevent unnecessary toggles (double-toggling).
+ * @param {Element} element - The DOM element to check
+ * @param {string} intent - One of: check, uncheck, expand, collapse, select, deselect, press, unpress
+ * @returns {Object} { shouldAct, reason, currentState?, targetState?, attribute? }
+ */
+function checkBinaryState(element, intent) {
+  const stateMap = {
+    check: { attr: 'aria-checked', target: 'true', current: element.getAttribute('aria-checked') },
+    uncheck: { attr: 'aria-checked', target: 'false', current: element.getAttribute('aria-checked') },
+    expand: { attr: 'aria-expanded', target: 'true', current: element.getAttribute('aria-expanded') },
+    collapse: { attr: 'aria-expanded', target: 'false', current: element.getAttribute('aria-expanded') },
+    select: { attr: 'aria-selected', target: 'true', current: element.getAttribute('aria-selected') },
+    deselect: { attr: 'aria-selected', target: 'false', current: element.getAttribute('aria-selected') },
+    press: { attr: 'aria-pressed', target: 'true', current: element.getAttribute('aria-pressed') },
+    unpress: { attr: 'aria-pressed', target: 'false', current: element.getAttribute('aria-pressed') }
+  };
+
+  const mapping = stateMap[intent];
+
+  // Check native checkbox/radio checked property first
+  if (element.type === 'checkbox' || element.type === 'radio') {
+    if (intent === 'check' && element.checked) {
+      return { shouldAct: false, reason: 'already_in_state', currentState: 'true', targetState: 'true', attribute: 'checked (native)' };
+    }
+    if (intent === 'uncheck' && !element.checked) {
+      return { shouldAct: false, reason: 'already_in_state', currentState: 'false', targetState: 'false', attribute: 'checked (native)' };
+    }
+  }
+
+  if (!mapping) return { shouldAct: true, reason: 'unknown_intent' };
+
+  // Try ARIA attribute first
+  if (mapping.current !== null) {
+    if (mapping.current === mapping.target) {
+      return {
+        shouldAct: false,
+        reason: 'already_in_state',
+        currentState: mapping.current,
+        targetState: mapping.target,
+        attribute: mapping.attr
+      };
+    }
+    return { shouldAct: true, reason: 'state_change_needed', currentState: mapping.current, targetState: mapping.target };
+  }
+
+  // Fallback: check data-state attribute
+  const dataState = element.getAttribute('data-state');
+  if (dataState !== null) {
+    const dataStateMap = {
+      check: ['checked'],
+      uncheck: ['unchecked', ''],
+      expand: ['open', 'expanded'],
+      collapse: ['closed', 'collapsed'],
+      select: ['selected', 'active'],
+      deselect: ['unselected', 'inactive']
+    };
+    const targetStates = dataStateMap[intent];
+    if (targetStates && targetStates.includes(dataState)) {
+      return {
+        shouldAct: false,
+        reason: 'already_in_state',
+        currentState: dataState,
+        targetState: targetStates[0],
+        attribute: 'data-state'
+      };
+    }
+    if (targetStates) {
+      return { shouldAct: true, reason: 'state_change_needed', currentState: dataState, targetState: targetStates[0] };
+    }
+  }
+
+  return { shouldAct: true, reason: 'no_aria_state' };
+}
+
 // Tool functions for browser automation
 const tools = {
   // Scroll the page - supports direction ("up"/"down") or raw amount
@@ -3874,6 +3952,22 @@ const tools = {
         let element = FSB.querySelectorWithShadow(currentSelector);
         if (!element || (element.type !== 'checkbox' && element.type !== 'radio')) { lastAttemptError = `Checkbox/radio element not found with selector: ${currentSelector}`; continue; }
 
+        // Binary state pre-check: skip if already in target state
+        if (params.checked !== undefined) {
+          const targetIntent = params.checked ? 'check' : 'uncheck';
+          const stateCheck = checkBinaryState(element, targetIntent);
+          if (!stateCheck.shouldAct) {
+            return {
+              success: true,
+              action: 'toggleCheckbox',
+              alreadyInState: true,
+              checked: element.checked,
+              message: `Already ${targetIntent}ed (${stateCheck.attribute}=${stateCheck.currentState})`,
+              selector: currentSelector
+            };
+          }
+        }
+
         const readiness = await FSB.smartEnsureReady(element, 'toggleCheckbox');
         if (!readiness.ready) { lastAttemptError = `Element not ready: ${readiness.failureReason}`; continue; }
         if (readiness.scrolled) { element = FSB.querySelectorWithShadow(currentSelector); if (!element) { lastAttemptError = 'Element became stale after scrolling'; continue; } }
@@ -4557,6 +4651,115 @@ const tools = {
   FSB.validateCoordinates = validateCoordinates;
   FSB.ensureCoordinatesVisible = ensureCoordinatesVisible;
   // =========================================================================
+  // CHECK / UNCHECK: Generic ARIA-based intent commands
+  // These enforce a target state (checked or unchecked) without toggling.
+  // Uses checkBinaryState() to skip if already in target state.
+  // Works with any ARIA-compatible checkbox, toggle, or switch.
+  // CLI registration: check and uncheck are auto-discovered from the tools object.
+  // =========================================================================
+  tools.check = async (params) => {
+    const selectors = params.selectors || [params.selector];
+    let element = null;
+    let selectorUsed = null;
+
+    for (const sel of selectors) {
+      element = FSB.querySelectorWithShadow(sel);
+      if (element) { selectorUsed = sel; break; }
+    }
+
+    if (!element) {
+      const diagnostic = diagnoseElementFailure(params.selector);
+      return { success: false, error: 'Element not found', action: 'check', diagnostic };
+    }
+
+    const stateCheck = checkBinaryState(element, 'check');
+    if (!stateCheck.shouldAct) {
+      return { success: true, action: 'check', alreadyInState: true, message: 'Already checked', selector: selectorUsed };
+    }
+
+    // Capture pre-state for verification
+    const preState = captureActionState(element, 'click');
+
+    // Perform the check action
+    if (element.type === 'checkbox' || element.type === 'radio') {
+      element.checked = true;
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      element.click();
+    }
+    await new Promise(r => setTimeout(r, 150));
+
+    // Verify it's now checked
+    const postCheck = checkBinaryState(element, 'check');
+    const postState = captureActionState(element, 'click');
+    const verification = verifyActionEffect(preState, postState, 'click');
+
+    return {
+      success: !postCheck.shouldAct,
+      action: 'check',
+      toggled: true,
+      verified: !postCheck.shouldAct,
+      selector: selectorUsed,
+      verification: {
+        confidence: verification.confidence,
+        whatChanged: verification.whatChanged,
+        localChanges: verification.localChanges
+      }
+    };
+  };
+
+  tools.uncheck = async (params) => {
+    const selectors = params.selectors || [params.selector];
+    let element = null;
+    let selectorUsed = null;
+
+    for (const sel of selectors) {
+      element = FSB.querySelectorWithShadow(sel);
+      if (element) { selectorUsed = sel; break; }
+    }
+
+    if (!element) {
+      const diagnostic = diagnoseElementFailure(params.selector);
+      return { success: false, error: 'Element not found', action: 'uncheck', diagnostic };
+    }
+
+    const stateCheck = checkBinaryState(element, 'uncheck');
+    if (!stateCheck.shouldAct) {
+      return { success: true, action: 'uncheck', alreadyInState: true, message: 'Already unchecked', selector: selectorUsed };
+    }
+
+    // Capture pre-state for verification
+    const preState = captureActionState(element, 'click');
+
+    // Perform the uncheck action
+    if (element.type === 'checkbox') {
+      element.checked = false;
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      element.click();
+    }
+    await new Promise(r => setTimeout(r, 150));
+
+    // Verify it's now unchecked
+    const postCheck = checkBinaryState(element, 'uncheck');
+    const postState = captureActionState(element, 'click');
+    const verification = verifyActionEffect(preState, postState, 'click');
+
+    return {
+      success: !postCheck.shouldAct,
+      action: 'uncheck',
+      toggled: true,
+      verified: !postCheck.shouldAct,
+      selector: selectorUsed,
+      verification: {
+        confidence: verification.confidence,
+        whatChanged: verification.whatChanged,
+        localChanges: verification.localChanges
+      }
+    };
+  };
+
+  // =========================================================================
   // TOGGLECHECK: Notion-aware checkbox toggle
   //
   // Strategy 1: Find the checkbox element inside .notion-to_do-block and .click() it
@@ -4694,6 +4897,7 @@ const tools = {
   FSB.DIAGNOSTIC_MESSAGES = DIAGNOSTIC_MESSAGES;
   FSB.generateDiagnostic = generateDiagnostic;
   FSB.diagnoseElementFailure = diagnoseElementFailure;
+  FSB.checkBinaryState = checkBinaryState;
   FSB.captureElementDetails = captureElementDetails;
   FSB.ActionRecorder = ActionRecorder;
   FSB.actionRecorder = actionRecorder;
