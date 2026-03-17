@@ -89,9 +89,9 @@ Requirements for AI Perception & Action Quality milestone. Cross-cutting refinem
 
 ### Error Reporting & Debug
 
-- [ ] **ERR-01**: Structured diagnostic on every failure: reason (human-readable), diagnostic (what was checked), suggestions (natural language for AI)
-- [ ] **ERR-02**: Element state snapshot on failure: visibility, disabled state, ARIA attributes, parent context
-- [ ] **ERR-03**: Parallel debug fallback -- heuristic engine AND AI debugger fire concurrently on failure; if heuristic works, discard debugger; if heuristic fails, AI diagnosis already ready
+- [x] **ERR-01**: Structured diagnostic on every failure: reason (human-readable), diagnostic (what was checked), suggestions (natural language for AI)
+- [x] **ERR-02**: Element state snapshot on failure: visibility, disabled state, ARIA attributes, parent context
+- [x] **ERR-03**: Parallel debug fallback -- heuristic engine AND AI debugger fire concurrently on failure; if heuristic works, discard debugger; if heuristic fails, AI diagnosis already ready
 
 ## Future Requirements
 

@@ -189,7 +189,7 @@ v0.9.4: Phase 35
 | 32. Extraction Pipeline & Consolidation | 2/2 | Complete    | 2026-03-16 |
 | 33. Task Memory Display & Graph | 2/2 | Complete    | 2026-03-16 |
 | 34. Memory Tab Theme Fix & Export/Import | 2/2 | Complete    | 2026-03-16 |
-| 35. AI Perception & Action Quality | 3/5 | In Progress|  |
+| 35. AI Perception & Action Quality | 4/5 | In Progress|  |
 
 | Milestone | Phases | Plans | Requirements | Status | Shipped |
 |-----------|--------|-------|-------------|--------|---------|

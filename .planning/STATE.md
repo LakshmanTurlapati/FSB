@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: executing
-stopped_at: Completed 35-02-PLAN.md
+stopped_at: Completed 35-05-PLAN.md
 last_updated: "2026-03-17T01:37:45.784Z"
-last_activity: 2026-03-17 -- Completed 35-02 action diagnostics and binary state commands
+last_activity: 2026-03-17 -- Completed 35-05 structured error reporting and parallel debug fallback
 progress:
   total_phases: 6
   completed_phases: 5
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-16)
 ## Current Position
 
 Phase: 35 of 35 (Notion Todo Workflow Refinement)
-Plan: 2 of 5 completed in current phase
+Plan: 4 of 5 completed in current phase
 Status: In Progress
-Last activity: 2026-03-17 -- Completed 35-02 action diagnostics and binary state commands
+Last activity: 2026-03-17 -- Completed 35-05 structured error reporting and parallel debug fallback
 
 Progress: [██████████] 100%
 
@@ -53,6 +53,7 @@ Progress: [██████████] 100%
 | Phase 35 P01 | 2min | 2 tasks | 1 files |
 | Phase 35 P03 | 4min | 2 tasks | 2 files |
 | Phase 35 P02 | 5min | 2 tasks | 1 files |
+| Phase 35 P05 | 12min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,9 @@ Recent decisions:
 - [Phase 35]: diagnoseElementFailure: 8 checks (visible, enabled, not_covered, in_viewport, pointer_events, not_collapsed, no_hover_needed, in_dom)
 - [Phase 35]: checkBinaryState: native .checked first, ARIA second, data-state fallback third
 - [Phase 35]: check/uncheck auto-discovered via FSB.tools -- no separate CLI registration needed
+- [Phase 35]: runHeuristicFix in content script (DOM access) with HEURISTIC_FIX message bridge to background
+- [Phase 35]: buildFailureReport wraps all action failures with diagnostic + element snapshot + suggestions
+- [Phase 35]: AI debugger reuses UniversalProvider pattern from summarizeTask/estimateTaskComplexity
 
 ### Pending Todos
 
@@ -118,6 +122,6 @@ Recent decisions:
 
 ## Session Continuity
 
-Last session: 2026-03-17T01:37:45.745Z
-Stopped at: Completed 35-02-PLAN.md
+Last session: 2026-03-17T02:05:17Z
+Stopped at: Completed 35-05-PLAN.md
 Resume file: None
