@@ -2946,7 +2946,21 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
             if (action.result?.error) {
               userPrompt += ` - Error: ${action.result.error}`;
             }
-            
+            // DBG-06: Include 8-point diagnostic suggestions (from content script element analysis)
+            if (action.result?.suggestion) {
+              userPrompt += ` | Suggestion: ${action.result.suggestion}`;
+            }
+            if (action.result?.diagnosticSuggestions?.length) {
+              userPrompt += ` | Diagnostic: ${action.result.diagnosticSuggestions.join('; ')}`;
+            }
+            // DBG-05: Include AI debugger diagnosis and suggestions (from parallelDebugFallback)
+            if (action.result?.aiDiagnosis) {
+              userPrompt += ` | AI Debug: ${action.result.aiDiagnosis}`;
+            }
+            if (action.result?.aiDebugSuggestions?.length) {
+              userPrompt += ` | Debug suggestions: ${action.result.aiDebugSuggestions.join('; ')}`;
+            }
+
             // Track critical failures for completion validation
             if (['type', 'click'].includes(action.tool)) {
               criticalFailures.push(action);
