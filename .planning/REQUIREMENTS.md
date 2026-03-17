@@ -7,10 +7,10 @@
 
 ### Live Action Summaries (LIVE)
 
-- [ ] **LIVE-01**: Progress overlay displays AI-generated contextual step descriptions that reflect what the automation is doing and why, replacing static `getActionStatus()` labels
-- [ ] **LIVE-02**: AI summary generation is non-blocking — falls back to existing `getActionStatus()` labels if AI summary is not ready or fails
+- [x] **LIVE-01**: Progress overlay displays AI-generated contextual step descriptions that reflect what the automation is doing and why, replacing static `getActionStatus()` labels
+- [x] **LIVE-02**: AI summary generation is non-blocking — falls back to existing `getActionStatus()` labels if AI summary is not ready or fails
 - [ ] **LIVE-03**: Step descriptions update in real-time as each action executes (not just per-iteration)
-- [ ] **LIVE-04**: AI reads the action type, target element context, and task goal to produce meaningful descriptions (e.g., "Navigating to LinkedIn messages" instead of "Clicking element")
+- [x] **LIVE-04**: AI reads the action type, target element context, and task goal to produce meaningful descriptions (e.g., "Navigating to LinkedIn messages" instead of "Clicking element")
 
 ### Smart Progress & ETA (PROG)
 
@@ -57,10 +57,10 @@
 | PROG-02 | Phase 37 | Complete |
 | PROG-03 | Phase 37 | Complete |
 | PROG-04 | Phase 37 | Complete |
-| LIVE-01 | Phase 38 | Pending |
-| LIVE-02 | Phase 38 | Pending |
+| LIVE-01 | Phase 38 | Complete |
+| LIVE-02 | Phase 38 | Complete |
 | LIVE-03 | Phase 38 | Pending |
-| LIVE-04 | Phase 38 | Pending |
+| LIVE-04 | Phase 38 | Complete |
 | UX-01 | Phase 39 | Pending |
 | UX-02 | Phase 39 | Pending |
 | UX-03 | Phase 39 | Pending |

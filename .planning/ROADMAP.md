@@ -11,7 +11,7 @@
 |-------|------|-------------|------------|
 | 36 | 2/2 | Complete    | 2026-03-17 |
 | 37 | 2/2 | Complete    | 2026-03-17 |
-| 38 | Live Action Summaries | LIVE-01 through LIVE-04 | 36 (clean text paths) |
+| 38 | 1/2 | In Progress|  |
 | 39 | Overlay UX Polish | UX-01 through UX-03 | 36, 37, 38 |
 
 ## Phase 36: Debug Feedback Pipeline
@@ -69,7 +69,7 @@ Plans:
 
 **Requirements:** LIVE-01, LIVE-02, LIVE-03, LIVE-04
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 38-01-PLAN.md — Create generateActionSummary function with cache and non-blocking timeout
