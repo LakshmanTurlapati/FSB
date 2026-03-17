@@ -1062,6 +1062,7 @@
               analyzing: 'Analyzing page...',
               thinking: 'Planning next step...',
               acting: 'Executing...',
+              recovering: 'Recovering from error...',
               'sheets-entry': 'Entering data...',
               'sheets-formatting': 'Formatting spreadsheet...'
             };
@@ -1072,7 +1073,8 @@
               || phase;
 
             FSB.progressOverlay.update({
-              taskName: sanitizeOverlayText(taskSummary || taskName),
+              taskName: sanitizeOverlayText(taskName),
+              taskSummary: sanitizeOverlayText(taskSummary),
               stepNumber: iteration || 0,
               totalSteps: maxIterations,
               stepText: sanitizeOverlayText(displayText),
