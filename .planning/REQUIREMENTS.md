@@ -59,11 +59,11 @@ Requirements for AI Perception & Action Quality milestone. Cross-cutting refinem
 
 ### Action Diagnostics & Verification
 
-- [ ] **DIAG-01**: 8-point diagnostic check before action failure reporting (visible? disabled? covered? needs scroll? pointer-events:none? collapsed? needs hover? removed from DOM?)
-- [ ] **DIAG-02**: Diagnostics applied to ALL interactive actions (click, type, select, check), not just click
-- [ ] **VRFY-01**: Localized + global verification -- track changes near action target AND global state, report specific observations
-- [ ] **VRFY-02**: Canvas-aware verification for Google Docs/Sheets via visible text changes, selection movement, URL fragment updates
-- [ ] **VRFY-03**: Every action response includes what changed, what didn't, and confidence level
+- [x] **DIAG-01**: 8-point diagnostic check before action failure reporting (visible? disabled? covered? needs scroll? pointer-events:none? collapsed? needs hover? removed from DOM?)
+- [x] **DIAG-02**: Diagnostics applied to ALL interactive actions (click, type, select, check), not just click
+- [x] **VRFY-01**: Localized + global verification -- track changes near action target AND global state, report specific observations
+- [x] **VRFY-02**: Canvas-aware verification for Google Docs/Sheets via visible text changes, selection movement, URL fragment updates
+- [x] **VRFY-03**: Every action response includes what changed, what didn't, and confidence level
 
 ### Continuation Prompt Quality
 
@@ -84,8 +84,8 @@ Requirements for AI Perception & Action Quality milestone. Cross-cutting refinem
 
 ### Binary State Actions
 
-- [ ] **BIN-01**: Generic ARIA pre-check for all binary state actions (toggle/expand/collapse) -- check aria-expanded/aria-checked/aria-selected/aria-pressed before acting, skip if already in target state
-- [ ] **BIN-02**: Intent-based check/uncheck CLI commands that enforce target state (separate from toggle for explicit flip)
+- [x] **BIN-01**: Generic ARIA pre-check for all binary state actions (toggle/expand/collapse) -- check aria-expanded/aria-checked/aria-selected/aria-pressed before acting, skip if already in target state
+- [x] **BIN-02**: Intent-based check/uncheck CLI commands that enforce target state (separate from toggle for explicit flip)
 
 ### Error Reporting & Debug
 
