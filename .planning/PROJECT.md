@@ -70,6 +70,16 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ### Active
 
+- [ ] Server relay on fly.io — WebSocket coordinator connecting all FSB instances
+- [ ] Showcase/dashboard site on fly.io — public landing page + QR-authenticated control center
+- [ ] QR code pairing — FSB generates unique hash per user, dashboard scans to pair
+- [ ] DOM cloning stream — real-time DOM reconstruction on dashboard (images via CDN, not proxied)
+- [ ] Remote task control — create and monitor tasks from dashboard, see FSB working live
+- [ ] Background polling agents — cron-like tasks (price monitoring etc.) with default safe refresh rates, user's browser stays active
+- [ ] Automation replay agents — save successful action selectors, replay without AI, AI re-engages on errors/page changes
+
+### Backlog
+
 - [ ] Reliable CAPTCHA detection -- eliminate false positives on normal pages
 - [ ] Smart multi-tab management -- context-aware navigation across multiple tabs
 
@@ -78,6 +88,20 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - Firefox support -- requires significant Manifest V2/V3 adaptation, defer to future
 - CAPTCHA solving -- third-party integration complexity, users can solve manually
 - Offline mode -- AI requires connectivity, not feasible for core functionality
+- Headless server-side execution -- server is relay only, user's browser must stay active
+- Video/screenshot streaming -- DOM cloning with CDN images, not visual capture
+
+## Current Milestone: v0.9.6 Agents & Remote Control
+
+**Goal:** Enable remote monitoring and control of FSB from a web dashboard, with background polling agents and automation replay.
+
+**Target features:**
+- Server relay infrastructure (fly.io WebSocket coordinator)
+- Showcase site with QR-authenticated dashboard
+- Real-time DOM cloning stream to dashboard
+- Remote task creation and live monitoring
+- Background polling agents (cron-like, browser must stay open)
+- Automation replay agents (saved selectors, AI fallback on failure)
 
 ## Previous State: v0.9.5 Shipped
 
@@ -151,4 +175,4 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | 300ms phase label debounce | Only debounce generic labels, bypass for explicit statusText | Good -- no flicker, AI summaries still instant |
 
 ---
-*Last updated: 2026-03-17 after v0.9.5 milestone shipped*
+*Last updated: 2026-03-17 after v0.9.6 milestone started*

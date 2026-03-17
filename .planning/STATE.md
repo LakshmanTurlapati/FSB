@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: null
-milestone_name: null
-status: complete
-stopped_at: Milestone v0.9.5 archived
+milestone: v0.9.6
+milestone_name: Agents & Remote Control
+status: ready_to_plan
+stopped_at: null
 last_updated: "2026-03-17"
-last_activity: 2026-03-17 -- Archived v0.9.5 milestone
+last_activity: 2026-03-17 -- Roadmap created (5 phases, 31 requirements)
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
-  percent: 100
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,22 +21,29 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Planning next milestone
+**Current focus:** Phase 40 - WebSocket Infrastructure
 
 ## Current Position
 
-Milestone v0.9.5 archived. Ready for `/gsd:new-milestone`.
+Phase: 40 of 44 (WebSocket Infrastructure)
+Plan: --
+Status: Ready to plan
+Last activity: 2026-03-17 -- Roadmap created for v0.9.6
 
-Last shipped: v0.9.5 Progress Overlay Intelligence (2026-03-17)
+Progress: [..........] 0%
 
 ## Performance Metrics
 
-**Velocity (v0.9.5):**
-- 4 phases, 8 plans
-- 23 commits
-- 37 files changed, 2,224 lines added
-- 17 requirements (100% satisfied)
-- Completed in 1 day (2026-03-17)
+**Velocity:**
+- Total plans completed: 0
+- Average duration: --
+- Total execution time: 0 hours
+
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| - | - | - | - |
 
 ## Accumulated Context
 
@@ -52,9 +59,10 @@ Full decision log in PROJECT.md Key Decisions table.
 
 - Site Guides Viewer design mismatch (deferred from v9.3)
 - uiReadySelector option implemented but not wired to any site guide
+- Dashboard tech stack: existing server/dashboard/ has React+Vite -- confirm whether new dashboard work extends it or rebuilds vanilla JS (resolve in Phase 40 planning)
 
 ## Session Continuity
 
 Last session: 2026-03-17
-Stopped at: Milestone shipped
+Stopped at: Roadmap created, ready to plan Phase 40
 Resume file: None
