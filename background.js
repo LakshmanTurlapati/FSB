@@ -2742,6 +2742,143 @@ function generateAlternativeSelectors(originalSelector) {
   return alternatives.slice(0, 5); // Limit alternatives
 }
 
+// =============================================================================
+// PARALLEL DEBUG FALLBACK (ERR-01/02/03)
+// When an action fails, fire heuristic fix AND AI debugger concurrently.
+// If heuristic fix works, discard AI response. If heuristic fails, AI diagnosis
+// is already ready -- zero extra latency for the AI debugger path.
+// =============================================================================
+
+/**
+ * Parallel debug fallback: fires heuristic engine (content script) and AI debugger
+ * (background) concurrently on action failure.
+ * @param {Object} failedAction - The action result that failed
+ * @param {Object} session - Current session object
+ * @param {Object} context - Current page context (URL, etc.)
+ * @param {number} tabId - Tab ID for content script communication
+ * @returns {Promise<Object>} { resolved, method, fix, diagnosis, elapsed }
+ */
+async function parallelDebugFallback(failedAction, session, context, tabId) {
+  const startTime = Date.now();
+
+  // Fire both in parallel: heuristic in content script, AI debugger in background
+  const [heuristicResult, aiDebugResult] = await Promise.allSettled([
+    chrome.tabs.sendMessage(tabId, {
+      action: 'HEURISTIC_FIX',
+      failedAction: {
+        diagnostic: failedAction.diagnostic,
+        selector: failedAction.selector || failedAction.selectorTried || failedAction.clicked,
+        selectorTried: failedAction.selectorTried
+      }
+    }).catch(() => ({ resolved: false })),
+    runAIDebugger(failedAction, session, context)
+  ]);
+
+  const heuristic = heuristicResult.status === 'fulfilled' ? heuristicResult.value : null;
+  const aiDebug = aiDebugResult.status === 'fulfilled' ? aiDebugResult.value : null;
+
+  const elapsed = Date.now() - startTime;
+  automationLogger.debug('Parallel debug fallback completed', {
+    sessionId: session.sessionId,
+    elapsed,
+    heuristicResolved: heuristic?.resolved || false,
+    aiDebugAvailable: !!aiDebug?.diagnosis
+  });
+
+  // If heuristic fix worked, use it and discard AI debugger response
+  if (heuristic?.resolved) {
+    return {
+      resolved: true,
+      method: 'heuristic',
+      fix: heuristic.fix,
+      diagnosis: null,
+      elapsed
+    };
+  }
+
+  // If heuristic failed but AI debugger has a diagnosis, return it
+  if (aiDebug?.diagnosis) {
+    return {
+      resolved: false,
+      method: 'ai_debugger',
+      fix: null,
+      diagnosis: aiDebug.diagnosis,
+      suggestions: aiDebug.suggestions || [],
+      elapsed
+    };
+  }
+
+  // Neither resolved
+  return { resolved: false, method: 'none', fix: null, diagnosis: null, elapsed };
+}
+
+/**
+ * AI-powered debugger: sends compact failure context to the AI provider for diagnosis.
+ * Runs in background (has API access). Returns natural language diagnosis + suggestions.
+ * @param {Object} failedAction - The action result that failed
+ * @param {Object} session - Current session object
+ * @param {Object} context - Current page context
+ * @returns {Promise<Object>} { diagnosis, suggestions }
+ */
+async function runAIDebugger(failedAction, session, context) {
+  const debugContext = {
+    failedAction: {
+      action: failedAction.action || failedAction.tool,
+      selector: failedAction.selector || failedAction.selectorTried || failedAction.clicked,
+      error: failedAction.error,
+      diagnosticSummary: failedAction.diagnostic?.summary,
+      elementSnapshot: failedAction.elementSnapshot
+    },
+    recentActions: (session.actionHistory || []).slice(-5).map(a => ({
+      action: a.tool,
+      success: a.result?.success,
+      selector: a.params?.selector
+    })),
+    pageUrl: context?.currentUrl || 'unknown',
+    siteName: context?.siteGuide?.name || 'unknown'
+  };
+
+  try {
+    const settings = await config.getAll();
+    if (!settings) return { diagnosis: null };
+
+    const provider = new UniversalProvider(settings);
+    const requestBody = await provider.buildRequest({
+      systemPrompt: `You are a browser automation debugger. An action failed during automation. Analyze the failure and suggest recovery.
+
+Respond in this exact format:
+DIAGNOSIS: What likely went wrong (1-2 sentences)
+SUGGESTIONS: 2-3 specific recovery actions`,
+      userPrompt: `FAILED ACTION:\n${JSON.stringify(debugContext.failedAction, null, 2)}\n\nRECENT HISTORY:\n${JSON.stringify(debugContext.recentActions, null, 2)}\n\nPAGE: ${debugContext.pageUrl} (${debugContext.siteName})`
+    }, {});
+
+    // Limit tokens for this diagnostic call
+    if (requestBody.max_tokens) requestBody.max_tokens = 300;
+    if (requestBody.generationConfig?.maxOutputTokens) requestBody.generationConfig.maxOutputTokens = 300;
+
+    const response = await provider.sendRequest(requestBody, { timeout: 8000 });
+
+    // Extract text from provider-specific response format
+    let diagnosis = null;
+    const providerName = settings.modelProvider || 'xai';
+    if (providerName === 'gemini') {
+      diagnosis = response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    } else if (providerName === 'anthropic') {
+      diagnosis = response?.content?.[0]?.text;
+    } else {
+      diagnosis = response?.choices?.[0]?.message?.content;
+    }
+
+    return {
+      diagnosis: diagnosis?.trim() || null,
+      suggestions: []
+    };
+  } catch (e) {
+    automationLogger.debug('AI debugger failed', { error: e.message });
+    return { diagnosis: null };
+  }
+}
+
 // Enhanced stuck detection with pattern recognition
 function analyzeStuckPatterns(session) {
   const recentActions = session.actionHistory.slice(-10); // Look at last 10 actions
@@ -9849,7 +9986,29 @@ async function startAutomationLoop(sessionId) {
           }
           
           automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: false, error: errorMessage, failureCount: session.failedActionDetails[actionSignature].count });
-          
+
+          // ERR-03: Parallel debug fallback -- fire heuristic + AI debugger concurrently
+          if (actionResult.diagnostic) {
+            try {
+              const debugResult = await parallelDebugFallback(actionResult, session, { currentUrl: session.currentUrl, siteGuide: session.siteGuide }, session.tabId);
+              if (debugResult.resolved) {
+                // Heuristic fix worked (overlay dismissed, element scrolled, etc.)
+                automationLogger.info('Heuristic fix resolved failure', {
+                  sessionId, fix: debugResult.fix, elapsed: debugResult.elapsed
+                });
+                // Continue to next iteration -- the AI will see the updated page state
+              } else if (debugResult.diagnosis) {
+                // AI debugger has diagnosis -- inject into action result for AI context
+                actionResult.aiDiagnosis = debugResult.diagnosis;
+                automationLogger.info('AI debugger diagnosis available', {
+                  sessionId, diagnosis: debugResult.diagnosis.substring(0, 200), elapsed: debugResult.elapsed
+                });
+              }
+            } catch (debugErr) {
+              automationLogger.debug('Parallel debug fallback error', { sessionId, error: debugErr.message });
+            }
+          }
+
           // Try alternative actions for critical failures
           if (actionResult.retryable && actionResult.failureType !== FAILURE_TYPES.PERMISSION) {
             automationLogger.logRecovery(sessionId, 'action_fail', 'alternative', 'attempt', { tool: action.tool });
