@@ -281,6 +281,11 @@
     tabPaste.addEventListener('click', function () { switchTab('paste'); });
   }
 
+  // Auto-start QR scanner if login card is visible and Scan tab is active
+  if (loginSection && loginSection.style.display !== 'none' && tabScan && tabScan.classList.contains('active')) {
+    startQRScanner();
+  }
+
   function switchTab(tab) {
     if (tab === 'scan') {
       tabScan.classList.add('active');

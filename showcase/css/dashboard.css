@@ -514,11 +514,11 @@
 
 .dash-tab {
   padding: 8px 24px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -546,6 +546,11 @@
   margin: 16px auto;
   border-radius: var(--radius-md);
   overflow: hidden;
+  border: 2px dashed var(--border-color);
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .dash-scan-instruction {
