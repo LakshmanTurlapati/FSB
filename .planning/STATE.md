@@ -1,15 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9
-milestone_name: milestone
-status: unknown
-stopped_at: Completed 39-02-PLAN.md
-last_updated: "2026-03-17T10:17:11.249Z"
+milestone: null
+milestone_name: null
+status: complete
+stopped_at: Milestone v0.9.5 archived
+last_updated: "2026-03-17"
+last_activity: 2026-03-17 -- Archived v0.9.5 milestone
 progress:
   total_phases: 4
   completed_phases: 4
   total_plans: 8
   completed_plans: 8
+  percent: 100
 ---
 
 # Project State
@@ -19,36 +21,28 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v0.9.5 Progress Overlay Intelligence
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Milestone v0.9.5 roadmap created. 4 phases (36-39), 17 requirements. Ready for `/gsd:plan-phase 36`.
+Milestone v0.9.5 archived. Ready for `/gsd:new-milestone`.
 
-## Phase Map
+Last shipped: v0.9.5 Progress Overlay Intelligence (2026-03-17)
 
-| Phase | Name | Status |
-|-------|------|--------|
-| 36 | Debug Feedback Pipeline | Planned (2 plans) |
-| 37 | Smart Progress & ETA | Not started |
-| 38 | Live Action Summaries | Not started |
-| 39 | Overlay UX Polish | Not started |
+## Performance Metrics
+
+**Velocity (v0.9.5):**
+- 4 phases, 8 plans
+- 23 commits
+- 37 files changed, 2,224 lines added
+- 17 requirements (100% satisfied)
+- Completed in 1 day (2026-03-17)
 
 ## Accumulated Context
 
 ### Decisions
 
 Full decision log in PROJECT.md Key Decisions table.
-- [Phase 36]: Used diagnosticSuggestions naming to avoid collision with singular suggestion field
-- [Phase 36]: Retroactive actionHistory patching for async debug results instead of restructuring flow
-- [Phase 36]: sanitizeOverlayText defined inside sessionStatus handler for scope locality; markdown stripped before length check in summarizeTask
-- [Phase 37]: Phase detection uses sliding window of last 5 actions for responsiveness
-- [Phase 37]: ETA weight decays from 70% estimate to 10% as iterations progress
-- [Phase 37]: Delegation pattern in calculateProgress avoids changing every sendSessionStatus call site
-- [Phase 38]: 2.5s Promise.race timeout as hard ceiling for non-blocking action summaries
-- [Phase 38]: AI summary .then() placed after sendSessionStatus to ensure static labels display first; both overlay and sidepanel updated on resolution
-- [Phase 39]: taskName and taskSummary are separate overlay display fields rather than taskSummary being a fallback
-- [Phase 39]: 300ms debounce window for phase-only labels; statusText always bypasses debounce
 
 ### Pending Todos
 
@@ -61,6 +55,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-17T10:13:57.505Z
-Stopped at: Completed 39-02-PLAN.md
+Last session: 2026-03-17
+Stopped at: Milestone shipped
 Resume file: None

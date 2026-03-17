@@ -1,5 +1,33 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.5 Progress Overlay Intelligence (Shipped: 2026-03-17)
+
+**Delivered:** Enhanced the automation progress overlay with AI-generated live action summaries, smart task-aware progress/ETA estimation, fixed debug feedback leaking to the overlay, and wired debug intelligence back into the AI continuation prompt for better recovery decisions.
+
+**Phases completed:** 36-39 (8 plans across 4 phases)
+
+**Key accomplishments:**
+
+- sanitizeOverlayText strips markdown and clamps to 80 chars, expanded phase labels for sheets workflows
+- AI debugger diagnosis and 8-point diagnostic suggestions wired into continuation prompt via slimActionResult + retroactive actionHistory patching
+- detectTaskPhase classifies actions into navigation/extraction/writing with phase-weighted progress bands (0-30%, 30-70%, 70-100%)
+- Complexity-aware ETA blending with decaying weight formula (70% estimate early, 10% late)
+- Multi-site progress shows company completion, Sheets progress shows row completion
+- generateActionSummary with 2.5s timeout and 50-entry FIFO cache, fire-and-forget per action
+- Task summary line in overlay, recovery state display during debug fallback, 300ms debounce on phase transitions
+
+**Stats:**
+
+- 23 commits
+- 37 files changed
+- 2,224 lines added, 290 lines removed
+- 4 phases, 8 plans, 17 requirements (100% satisfied)
+- 1 day (2026-03-17)
+
+**Git range:** `6453f92` -> `22cbf8c`
+
+---
+
 ## v0.9.2-v0.9.4 Productivity, Memory & AI Quality (Shipped: 2026-03-17)
 
 **Delivered:** Three milestones shipped in one burst: expanded site intelligence to 7 productivity apps, overhauled Memory tab with unified Task Memories and graph visualization, and added cross-cutting AI perception/action quality improvements (scroll-aware snapshots, 8-point diagnostics, stability detection, parallel debug fallback).

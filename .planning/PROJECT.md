@@ -60,6 +60,13 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ 8-point action diagnostics with natural language suggestions -- v0.9.4
 - ✓ Observation-based stability detection replacing hardcoded delays -- v0.9.4
 - ✓ Parallel heuristic + AI debug fallback on every failure -- v0.9.4
+- ✓ Progress overlay text sanitization with markdown stripping -- v0.9.5
+- ✓ Debug intelligence pipeline (diagnosis + suggestions in AI continuation prompt) -- v0.9.5
+- ✓ Phase-weighted progress model with task phase detection -- v0.9.5
+- ✓ Complexity-aware ETA blending from task estimator -- v0.9.5
+- ✓ Multi-site and Sheets workflow-specific progress tracking -- v0.9.5
+- ✓ AI-generated live action summaries with cache and timeout -- v0.9.5
+- ✓ Overlay UX polish (task summary line, recovery state, phase debounce) -- v0.9.5
 
 ### Active
 
@@ -72,15 +79,9 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - CAPTCHA solving -- third-party integration complexity, users can solve manually
 - Offline mode -- AI requires connectivity, not feasible for core functionality
 
-## Current State: v0.9.5 In Progress
+## Previous State: v0.9.5 Shipped
 
-**Goal:** Progress Overlay Intelligence — enhance the automation feedback overlay with AI-generated live action summaries, smart ETA/progress estimation, fix debug feedback leaking to overlay, and wire debug intelligence back into the AI for better recovery decisions.
-
-**Phases:** 36-39 (4 phases, 17 requirements)
-- Phase 36: Debug Feedback Pipeline (DBG-01 through DBG-06)
-- Phase 37: Smart Progress & ETA (PROG-01 through PROG-04)
-- Phase 38: Live Action Summaries (LIVE-01 through LIVE-04)
-- Phase 39: Overlay UX Polish (UX-01 through UX-03)
+**Shipped:** 2026-03-17. Progress overlay intelligence — AI-generated live action summaries, phase-weighted progress, debug intelligence pipeline, overlay UX polish (17 requirements, 4 phases).
 
 ## Previous State: v0.9.4 Shipped
 
@@ -92,8 +93,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Context
 
-**Previous milestones:** v0.9 (Reliability), v9.0.2 (AI Situational Awareness), v9.3 (Tech Debt), v9.4 (Career Search), v10.0 (CLI Architecture), v0.9.2 (Productivity Sites), v0.9.3 (Memory Tab), v0.9.4 (AI Quality)
-**Current milestone:** v0.9.5 (Progress Overlay Intelligence)
+**Previous milestones:** v0.9 (Reliability), v9.0.2 (AI Situational Awareness), v9.3 (Tech Debt), v9.4 (Career Search), v10.0 (CLI Architecture), v0.9.2 (Productivity Sites), v0.9.3 (Memory Tab), v0.9.4 (AI Quality), v0.9.5 (Progress Overlay Intelligence)
 
 **Tech stack:** Chrome Extension Manifest V3, vanilla JavaScript (ES2021+), xAI Grok / OpenAI / Anthropic / Gemini / OpenRouter APIs.
 **Codebase:** background.js (~11K lines), ai-integration.js (~5K lines), content/ modules (10 files), 50+ site guide files, CLI parser (cli-parser.js), Task Memory system.
@@ -143,6 +143,12 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | Recon report framing for AI extraction | Intelligence analyst producing consolidated report | Good -- single Task Memory per session vs 1-5 fragments |
 | Observation-based stability detection | Replace setTimeout with DOM/network quiescence monitoring | Good -- faster on fast pages, patient on slow ones |
 | Parallel debug fallback | Heuristic + AI fire concurrently, fastest wins | Good -- common fixes instant, rare ones get AI analysis |
+| Retroactive actionHistory patching | Debug results arrive after slimActionResult; patch last entry | Good -- no flow restructuring needed, clean separation |
+| diagnosticSuggestions naming | Avoid collision with existing singular `suggestion` field | Good -- clear distinction between 8-point and debug AI sources |
+| Phase-weighted progress bands | navigation 0-30%, extraction 30-70%, writing 70-100% | Good -- progress reflects actual task advancement |
+| Complexity-aware ETA with decaying weight | 70% estimate early, 10% late (trust actual data over time) | Good -- stable early ETA, accurate late ETA |
+| Fire-and-forget AI summaries | generateActionSummary never awaited, 2.5s timeout | Good -- zero impact on automation speed |
+| 300ms phase label debounce | Only debounce generic labels, bypass for explicit statusText | Good -- no flicker, AI summaries still instant |
 
 ---
-*Last updated: 2026-03-17 after v0.9.5 milestone started*
+*Last updated: 2026-03-17 after v0.9.5 milestone shipped*
