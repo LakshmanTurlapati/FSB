@@ -143,6 +143,7 @@ importScripts('agents/agent-manager.js');
 importScripts('agents/agent-scheduler.js');
 importScripts('agents/agent-executor.js');
 importScripts('agents/server-sync.js');
+importScripts('ws/ws-client.js');
 
 // Memory layer modules
 importScripts('lib/memory/memory-schemas.js');
@@ -12016,6 +12017,13 @@ chrome.runtime.onInstalled.addListener(async () => {
 
   // Reschedule all background agents
   agentScheduler.rescheduleAllAgents();
+
+  // Initialize WebSocket connection if server sync is enabled
+  chrome.storage.local.get(['serverSyncEnabled'], (result) => {
+    if (result.serverSyncEnabled) {
+      fsbWebSocket.connect();
+    }
+  });
 });
 
 // Initialize analytics and restore sessions on startup
@@ -12028,6 +12036,13 @@ chrome.runtime.onStartup.addListener(async () => {
   await restoreSessionsFromStorage();
   // Reschedule all background agents
   agentScheduler.rescheduleAllAgents();
+
+  // Initialize WebSocket connection if server sync is enabled
+  chrome.storage.local.get(['serverSyncEnabled'], (result) => {
+    if (result.serverSyncEnabled) {
+      fsbWebSocket.connect();
+    }
+  });
 });
 
 // Listen for debug mode changes so toggling takes effect immediately
@@ -12035,6 +12050,15 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.debugMode) {
     fsbDebugMode = changes.debugMode.newValue === true;
     console.log('[FSB] Debug mode ' + (fsbDebugMode ? 'enabled' : 'disabled'));
+  }
+
+  // Connect/disconnect WebSocket when serverSyncEnabled is toggled
+  if (namespace === 'local' && changes.serverSyncEnabled) {
+    if (changes.serverSyncEnabled.newValue) {
+      fsbWebSocket.connect();
+    } else {
+      fsbWebSocket.disconnect();
+    }
   }
 
   // PERF: Update cached DOM settings in active sessions when changed
