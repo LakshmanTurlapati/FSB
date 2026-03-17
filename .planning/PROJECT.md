@@ -45,14 +45,26 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Google Sheets formatting (headers, freeze, auto-size) -- v9.4
 - ✓ Batch action execution with DOM completion detection -- v9.4
 - ✓ Timezone/country locale injection for AI decisions -- v9.4
+- ✓ CLI command protocol replacing JSON tool calls -- v10.0
+- ✓ Unified markdown DOM snapshot with element refs -- v10.0
+- ✓ Full prompt architecture rewrite for CLI grammar -- v10.0
+- ✓ Multi-signal completion validator with task-type awareness -- v10.0
+- ✓ Google Sheets multi-strategy selector resilience -- v10.0
+- ✓ Page text extraction via readpage CLI command -- v10.0
+- ✓ Site intelligence for 7 productivity apps (Notion, Calendar, Trello, Keep, Todoist, Airtable, Jira) -- v0.9.2
+- ✓ Generalized fsbElements injection pipeline with keyword routing -- v0.9.2
+- ✓ Unified Task Memory schema (one consolidated report per session) -- v0.9.3
+- ✓ Task Memory display with collapsible recon report, per-task graph, knowledge graph integration -- v0.9.3
+- ✓ Memory export/import with duplicate detection -- v0.9.3
+- ✓ Scroll-aware DOM snapshots with viewport-complete element inclusion -- v0.9.4
+- ✓ 8-point action diagnostics with natural language suggestions -- v0.9.4
+- ✓ Observation-based stability detection replacing hardcoded delays -- v0.9.4
+- ✓ Parallel heuristic + AI debug fallback on every failure -- v0.9.4
 
 ### Active
 
-- [ ] CLI-based AI action interface -- replace JSON tool calls with CLI-style commands for better LLM accuracy and token efficiency
-- [ ] Compact DOM snapshot format -- YAML/text element refs instead of verbose JSON structures
-- [ ] Complete page awareness -- AI sees full DOM context without truncation losing critical elements
-- [ ] Task completion detection -- system-level verification that the task objective was met, not just AI self-report
 - [ ] Reliable CAPTCHA detection -- eliminate false positives on normal pages
+- [ ] Smart multi-tab management -- context-aware navigation across multiple tabs
 
 ### Out of Scope
 
@@ -60,43 +72,25 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - CAPTCHA solving -- third-party integration complexity, users can solve manually
 - Offline mode -- AI requires connectivity, not feasible for core functionality
 
-## Current Milestone: v10.0 CLI Architecture
+## Previous State: v0.9.4 Shipped
 
-**Goal:** Replace FSB's JSON tool-call interface with a CLI-style command protocol, redesign DOM snapshots as compact YAML with element refs, and fully rewrite the prompt architecture -- all to dramatically improve LLM accuracy, reduce token costs ~3x, and eliminate JSON parsing failures.
+**Shipped:** 2026-03-17. Three milestones completed in a single day:
 
-**Target features:**
-- CLI command protocol: AI outputs line-based commands (click e5, type e12 "hello") instead of JSON tool calls
-- YAML DOM snapshots: structured element refs with types, text, and attributes instead of verbose JSON
-- Full prompt architecture redesign: system prompt, context tiers, continuation, stuck recovery -- all CLI-native
-- Action dispatch rewrite: new CLI parser in background.js, new content script dispatch, new response handling
-- Backward-compatible migration: existing action toolset preserved, only the AI-to-extension protocol changes
+**v0.9.2 Productivity Site Intelligence** — Site guides with fsbElements, keyboard-first workflows for Notion, Calendar, Trello, Keep, Todoist, Airtable, Jira (17 requirements)
+**v0.9.3 Memory Tab Overhaul** — Unified Task Memory schema, consolidated recon reports, graph visualization, export/import (10 requirements)
+**v0.9.4 AI Perception & Action Quality** — Scroll-aware snapshots, 8-point diagnostics, stability detection, parallel debug fallback (20 requirements)
 
 ## Context
 
-**Current state:** Shipped v9.4 Career Search Automation. The core automation engine works well but the AI-to-extension communication layer has fundamental inefficiencies: verbose JSON tool-call format wastes tokens, a 5-tier JSON parsing pipeline handles malformed responses, and DOM snapshots are bloated. Industry evidence (Playwright CLI: 76% token reduction, webctl, agent-browser: 93% context reduction) shows CLI-style interfaces dramatically outperform JSON tool calls for LLM-driven browser automation. background.js (~11K lines), ai-integration.js (~5K lines), content/ modules (10 files).
+**Previous milestones:** v0.9 (Reliability), v9.0.2 (AI Situational Awareness), v9.3 (Tech Debt), v9.4 (Career Search), v10.0 (CLI Architecture), v0.9.2 (Productivity Sites), v0.9.3 (Memory Tab), v0.9.4 (AI Quality)
 
-## Current State: v9.4 Shipped
-
-**Shipped:** 2026-02-27. Career Search Automation milestone complete.
-
-**What shipped in v9.4:**
-- Session log parser: 38 crowd logs -> per-company site guides with confidence-scored selectors
-- 5 ATS base guides (Workday, Greenhouse, Lever, iCIMS, Taleo) covering 15+ companies
-- Career search workflow: single-site and multi-site (2-10 companies) with data persistence
-- Google Sheets output: Name Box data entry, bold/colored headers, frozen row, auto-sized columns
-- Batch action execution: multiple actions per AI turn with DOM-based completion detection
-- Timezone/country locale injection for location-aware AI decisions
-- 3 hotfix phases for Google Sheets cell navigation precision
-
-**Previous milestones:** v9.3 (Tech Debt Cleanup), v9.0.2 (AI Situational Awareness), v0.9 (Reliability Improvements)
-
-**Tech stack:** Chrome Extension Manifest V3, vanilla JavaScript (ES2021+), xAI Grok / OpenAI / Anthropic / Gemini APIs.
-**Codebase:** background.js (~11K lines), ai-integration.js (~5K lines), content/ modules (10 files), 43+ site guide files.
+**Tech stack:** Chrome Extension Manifest V3, vanilla JavaScript (ES2021+), xAI Grok / OpenAI / Anthropic / Gemini / OpenRouter APIs.
+**Codebase:** background.js (~11K lines), ai-integration.js (~5K lines), content/ modules (10 files), 50+ site guide files, CLI parser (cli-parser.js), Task Memory system.
 
 **Known tech debt:**
+- `uiReadySelector` option in waitForPageStability implemented but no caller wires it yet
 - Site Guides Viewer design mismatch (displays as accordion, should match memory-style list with mind maps)
-- 53 script tags for per-site guide files in options.html (could be bundled)
-- ACCEL traceability table rows not marked Complete (body checkboxes are correct)
+- fsbElements use data-fsbLabel annotation path vs [hint:] tags from buildGuideAnnotations
 
 ## Constraints
 
@@ -130,9 +124,14 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | URL-based batch suppression for Sheets | Sheets canvas concatenates rapid types, detect via URL regex | Good -- prevents data corruption with graceful fallback |
 | Escape-before-NameBox protocol | Explicit Escape step before every Name Box navigation | Good -- eliminates cell edit mode trapping |
 | Static timezone-to-country map (85 entries) | No npm dependency for locale detection | Good -- zero dependencies, covers all major timezones |
+| CLI-only mode (no JSON fallback) | Full commitment to CLI format -- models must comply | Good -- all 4 providers comply, ~40-60% token reduction |
+| Unified markdown snapshot | Interleave text and element refs instead of separate listings | Good -- AI sees page context naturally, token-efficient |
+| Multi-strategy selector resilience | 5 selectors per Google Sheets element, first match wins | Good -- survives Google DOM changes |
+| aria/role-first selectors for Notion/Airtable | CSS Module hash resilience via stable ARIA attributes | Good -- survives framework CSS changes |
+| data-testid-first for Trello/Jira | Atlassian test IDs are more stable than class names | Good -- consistent across Atlassian UI updates |
+| Recon report framing for AI extraction | Intelligence analyst producing consolidated report | Good -- single Task Memory per session vs 1-5 fragments |
+| Observation-based stability detection | Replace setTimeout with DOM/network quiescence monitoring | Good -- faster on fast pages, patient on slow ones |
+| Parallel debug fallback | Heuristic + AI fire concurrently, fastest wins | Good -- common fixes instant, rare ones get AI analysis |
 
 ---
-| CLI-only mode (no JSON fallback) | Full commitment to CLI format -- models must comply | -- Pending |
-
----
-*Last updated: 2026-02-27 after v10.0 CLI Architecture milestone started*
+*Last updated: 2026-03-17 after v0.9.2/v0.9.3/v0.9.4 milestones shipped*

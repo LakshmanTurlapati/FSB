@@ -1,5 +1,65 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.2-v0.9.4 Productivity, Memory & AI Quality (Shipped: 2026-03-17)
+
+**Delivered:** Three milestones shipped in one burst: expanded site intelligence to 7 productivity apps, overhauled Memory tab with unified Task Memories and graph visualization, and added cross-cutting AI perception/action quality improvements (scroll-aware snapshots, 8-point diagnostics, stability detection, parallel debug fallback).
+
+**Phases completed:** 30-35 (17 plans across 6 phases)
+
+**Key accomplishments:**
+
+- Generalized fsbElements pipeline + 7 productivity app site guides (Notion, Calendar, Trello, Keep, Todoist, Airtable, Jira) with keyword routing
+- Unified Task Memory schema -- one consolidated recon report per automation session replacing 1-5 fragments
+- Polished Memory tab with task cards, collapsible detail views, per-task graph visualization, knowledge graph integration
+- Theme-aware rendering with zero hardcoded colors, JSON export/import with duplicate detection
+- Scroll-aware DOM snapshots with viewport-complete element inclusion (no arbitrary cap)
+- 8-point action diagnostics on every failure with natural language suggestions
+- Observation-based stability detection (STABILITY_PROFILES) replacing all hardcoded setTimeout delays
+- Hybrid continuation prompt preserving reasoning framework and site guide knowledge across iterations
+- Context-aware selector re-resolution with unique match enforcement
+- Parallel debug fallback -- heuristic engine and AI debugger fire concurrently on every failure
+
+**Stats:**
+
+- 72 commits
+- 56 files changed
+- 10,415 lines added, 872 lines removed
+- 6 phases, 17 plans, 47 requirements (100% satisfied)
+- 2 days (2026-03-16 to 2026-03-17)
+
+**Git range:** `49784b9` -> `505db19`
+
+---
+
+## v10.0 CLI Architecture (Shipped: 2026-03-15)
+
+**Delivered:** Replaced FSB's entire AI-to-extension communication protocol from JSON tool calls to line-based CLI commands, redesigned DOM snapshots as unified markdown with interleaved element refs, and hardened Google Sheets automation with multi-strategy selector resilience -- achieving ~40-60% token reduction and eliminating JSON parsing failures.
+
+**Phases completed:** 15-29 (37 plans across 15 phases)
+
+**Key accomplishments:**
+
+- CLI command protocol: hand-written state-machine tokenizer with 75-command registry parses line-based AI output (click e5, type e12 "hello") into {tool, params} objects -- zero JSON fallback
+- Unified markdown DOM snapshot: page text and backtick element refs interwoven (`` `e5: button "Submit"` ``), region headings, 12K char budget -- replacing verbose JSON/YAML with ~40-60% measured token reduction
+- Full prompt architecture rewrite: system prompt, continuation, stuck recovery, and 43+ site guide files all speaking CLI grammar exclusively
+- Multi-signal completion validator: media/extraction task types, URL pattern matching, DOM snapshot evidence, and consecutive-done escape hatch replacing unreliable AI self-report
+- Google Sheets resilience: multi-strategy selector lookup (5 strategies per element), 24 toolbar/menu fsbElements, canvas-aware stuck recovery, keyboard-first interaction patterns, first-snapshot health check
+- ~800 lines dead YAML/compact code removed, redundant HTML context eliminated from prompts when markdown present
+
+**Stats:**
+
+- 134 commits
+- 237 files changed
+- 26,343 lines added, 4,999 lines removed
+- 15 phases, 37 plans, 67 requirements (100% satisfied)
+- 16 days from start to ship (2026-02-27 to 2026-03-15)
+
+**Git range:** `b5c737d` -> `f92f8b3`
+
+**Tech debt (non-blocking):** 7 items -- stale JSDoc refs to deleted YAML functions (2), dead readPage message handler branch (2), fsbElements annotation format divergence (1), legacy viewport patterns (1), single-slash comment syntax (1)
+
+---
+
 ## v9.3 Tech Debt Cleanup (Shipped: 2026-02-23)
 
 **Delivered:** Modularized content.js into 10 logical modules, removed dead code, made ElementCache configurable, fixed AI memory extraction, overhauled memory intelligence with AI enrichment and cost tracking, and split site guides into 43 per-site files with a browsable viewer.
