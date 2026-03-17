@@ -163,6 +163,21 @@ const bundledSiteMapCache = new Map();
 // Speech-to-Text: tracks which tab has active browser recognition
 let _sttActiveTabId = null;
 
+// Ensure offscreen document for STT on restricted pages (new tab, chrome://)
+async function _ensureOffscreenSTT() {
+  const url = chrome.runtime.getURL('offscreen/stt.html');
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [url]
+  });
+  if (contexts.length > 0) return;
+  await chrome.offscreen.createDocument({
+    url,
+    reasons: ['AUDIO_PLAYBACK'],
+    justification: 'Speech-to-text recognition requires audio capture'
+  });
+}
+
 // Content script module files in dependency order.
 // Used by all file-based chrome.scripting.executeScript injection points.
 // Order matters: init.js sets up the window.FSB namespace, utils.js provides
@@ -2184,6 +2199,10 @@ function slimActionResult(result) {
   if (result.validationPassed === false && result.actualValue !== undefined) slim.actualValue = result.actualValue;
   if (result.warning) slim.warning = result.warning;
   if (!result.success && result.suggestion) slim.suggestion = result.suggestion;
+  // DBG-05: Preserve AI debugger diagnosis for continuation prompt
+  if (!result.success && result.aiDiagnosis) slim.aiDiagnosis = typeof result.aiDiagnosis === 'string' ? result.aiDiagnosis.substring(0, 500) : result.aiDiagnosis;
+  // DBG-06: Preserve 8-point diagnostic suggestions array for continuation prompt
+  if (!result.success && result.suggestions && Array.isArray(result.suggestions)) slim.diagnosticSuggestions = result.suggestions.slice(0, 5);
   if (result.typed) slim.typed = result.typed;
   if (result.clicked) slim.clicked = result.clicked;
   if (result.navigatingTo) slim.navigatingTo = result.navigatingTo;
@@ -5117,7 +5136,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             return;
           }
           if (isRestrictedURL(tab.url)) {
-            sendResponse({ error: 'Cannot use speech recognition on this page' });
+            // Restricted page (new tab, chrome://) — use offscreen document
+            await _ensureOffscreenSTT();
+            chrome.runtime.sendMessage({ target: 'offscreen-stt', action: 'start', lang: request.lang }).catch(() => {});
+            _sttActiveTabId = null;
+            sendResponse({ ok: true });
             return;
           }
           // Stop any existing STT session on a different tab
@@ -5143,6 +5166,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (_sttActiveTabId) {
           try { await chrome.tabs.sendMessage(_sttActiveTabId, { target: 'content-stt', action: 'stop' }); } catch (_) {}
           _sttActiveTabId = null;
+        } else {
+          // Might be using offscreen document
+          chrome.runtime.sendMessage({ target: 'offscreen-stt', action: 'stop' }).catch(() => {});
         }
         sendResponse({ ok: true });
       })();
@@ -10000,6 +10026,15 @@ async function startAutomationLoop(sessionId) {
               } else if (debugResult.diagnosis) {
                 // AI debugger has diagnosis -- inject into action result for AI context
                 actionResult.aiDiagnosis = debugResult.diagnosis;
+                // DBG-05: Retroactively patch the action history record since slimActionResult
+                // was called before the debug fallback completed
+                const lastRecord = session.actionHistory[session.actionHistory.length - 1];
+                if (lastRecord && lastRecord.result) {
+                  lastRecord.result.aiDiagnosis = (debugResult.diagnosis || '').substring(0, 500);
+                  if (debugResult.suggestions && debugResult.suggestions.length > 0) {
+                    lastRecord.result.aiDebugSuggestions = debugResult.suggestions.slice(0, 3);
+                  }
+                }
                 automationLogger.info('AI debugger diagnosis available', {
                   sessionId, diagnosis: debugResult.diagnosis.substring(0, 200), elapsed: debugResult.elapsed
                 });
