@@ -9997,6 +9997,24 @@ async function startAutomationLoop(sessionId) {
         ...calculateProgress(session),
         taskSummary: session.taskSummary || null
       });
+
+      // LIVE-01: Fire AI summary for first action in parallel
+      generateActionSummary(aiResponse.actions[0], session, settings).then(aiSummary => {
+        if (aiSummary && !isSessionTerminating(sessionId)) {
+          session.lastActionStatusText = aiSummary;
+          sendSessionStatus(session.tabId, {
+            phase: 'acting',
+            taskName: session.task,
+            iteration: session.iterationCount,
+            maxIterations: session.maxIterations || 20,
+            statusText: aiSummary,
+            animatedHighlights: session.animatedActionHighlights,
+            ...calculateProgress(session),
+            taskSummary: session.taskSummary || null
+          });
+        }
+      }).catch(() => {});
+
       // Create a smart signature for this action sequence
       const sequenceSignature = createSmartSequenceSignature(aiResponse.actions);
       
@@ -10128,6 +10146,38 @@ async function startAutomationLoop(sessionId) {
             taskSummary: session.taskSummary || null
           });
         }
+
+        // LIVE-01/LIVE-03: Fire AI summary generation in parallel (non-blocking)
+        // Static label from getActionStatus is already displayed above.
+        // If AI responds fast enough, update the overlay with a contextual description.
+        generateActionSummary(action, session, settings).then(aiSummary => {
+          if (aiSummary && !isSessionTerminating(sessionId)) {
+            // Update session's last status text with the AI summary
+            session.lastActionStatusText = aiSummary;
+
+            // Update content overlay with AI-generated contextual description
+            sendSessionStatus(session.tabId, {
+              phase: 'acting',
+              taskName: session.task,
+              iteration: session.iterationCount,
+              maxIterations: session.maxIterations || 20,
+              statusText: aiSummary,
+              animatedHighlights: session.animatedActionHighlights,
+              ...calculateProgress(session),
+              taskSummary: session.taskSummary || null
+            });
+
+            // Also update sidepanel
+            chrome.runtime.sendMessage({
+              action: 'statusUpdate',
+              sessionId,
+              message: aiSummary,
+              iteration: session.iterationCount,
+              maxIterations: session.maxIterations || 20,
+              ...calculateProgress(session)
+            }).catch(() => {});
+          }
+        }).catch(() => {}); // Swallow errors - never block execution
 
         let actionResult;
 
