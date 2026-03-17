@@ -1,651 +1,555 @@
 # Architecture Patterns
 
-**Domain:** Productivity Site Intelligence for Browser Automation Extension
-**Researched:** 2026-03-16
-**Confidence:** HIGH (based on thorough codebase analysis of existing patterns)
+**Domain:** Remote control dashboard, WebSocket relay, QR pairing, DOM cloning, background agents for Chrome Extension MV3
+**Researched:** 2026-03-17
+**Confidence:** HIGH (based on codebase analysis of existing v0.9.5 + existing server/agents scaffolding + Chrome official docs)
 
 ## Executive Summary
 
-The 7 target apps (Notion, Google Calendar, Trello, Google Keep, Todoist, Airtable, Jira) integrate with FSB's existing site guide architecture with **no structural changes** to the registry, guide format, or loading pipeline. The core architectural question is whether Stage 1b injection (currently gated behind `isCanvasBasedEditor()`) needs to be generalized for non-canvas complex apps -- it does, but the change is surgical. Three of the 7 apps need fsbElements (Notion, Airtable, Google Calendar), four work primarily through standard DOM + keyboard shortcuts, and none require new mechanical tools comparable to fillsheet/readsheet.
+The v0.9.6 milestone adds six major features to FSB: WebSocket relay server, showcase/dashboard site, QR pairing, real-time DOM cloning stream, background polling agents, and automation replay agents. Critically, **significant scaffolding already exists** -- the `agents/` directory has a complete agent manager, scheduler, executor with replay support, and server-sync client. The `server/` directory has an Express server with SQLite, SSE-based real-time updates, hash-key auth, and a React dashboard. This is not greenfield -- it is wiring, upgrading, and filling gaps in existing infrastructure.
+
+The three genuinely new capabilities that require substantial new code are: (1) upgrading SSE to WebSocket for bidirectional communication (remote task creation requires server-to-extension messages), (2) DOM cloning stream via content script MutationObserver serialization, and (3) QR code pairing flow replacing the current manual hash-key entry. Everything else is enhancement of existing patterns.
+
+## Existing Infrastructure Audit
+
+Before defining new components, here is what already exists and its readiness state:
+
+### Extension Side (Chrome Extension MV3)
+
+| Component | File(s) | Status | What Works | What's Missing |
+|-----------|---------|--------|------------|----------------|
+| Agent Manager | `agents/agent-manager.js` | **Complete** | CRUD, run history, replay stats, storage | Nothing -- fully functional |
+| Agent Scheduler | `agents/agent-scheduler.js` | **Complete** | chrome.alarms scheduling, interval/daily/once, reschedule | Nothing -- fully functional |
+| Agent Executor | `agents/agent-executor.js` | **Complete** | Background tab creation, AI execution, replay with AI fallback, script recording | Nothing -- fully functional |
+| Server Sync | `agents/server-sync.js` | **Partial** | HTTP POST to server for run results + agent defs, retry queue | Only pushes data. No pull (remote tasks). No WebSocket. No DOM stream. |
+| Alarm Handler | `background.js:11927` | **Complete** | Fires agent, records run, reschedules, syncs to server | Nothing -- fully functional |
+| Offscreen Document | `offscreen/stt.js` | **Complete** | STT via offscreen API pattern | Could host WebSocket if needed, but Chrome 116+ makes this unnecessary |
+
+### Server Side
+
+| Component | File(s) | Status | What Works | What's Missing |
+|-----------|---------|--------|------------|----------------|
+| Express Server | `server/server.js` | **Core complete** | REST API, SQLite, SSE, static dashboard serving | WebSocket upgrade, DOM relay, QR pairing endpoints, showcase page |
+| Database Schema | `server/src/db/schema.js` | **Partial** | hash_keys, agents, agent_runs tables | No DOM snapshots table (not needed -- stream only), no task queue table |
+| Auth Middleware | `server/src/middleware/auth.js` | **Complete** | X-FSB-Hash-Key validation | Nothing -- works for WebSocket auth too |
+| Auth Routes | `server/src/routes/auth.js` | **Partial** | Register hash key, validate | No QR code generation, no pairing flow |
+| Agent Routes | `server/src/routes/agents.js` | **Complete** | CRUD + run recording + SSE broadcast | Needs task creation endpoint (server -> extension) |
+| SSE Routes | `server/src/routes/sse.js` | **Will be replaced** | Server-to-dashboard streaming | Replace with WebSocket for bidirectional |
+| Dashboard | `server/dashboard/` | **Partial** | React + Vite, agent cards, run timeline, live feed, login | No DOM viewer, no task creation UI, no QR pairing, no showcase page |
 
 ## Recommended Architecture
 
-### Category Organization: All 7 Stay in `productivity/`
+### System Topology
 
-All 7 apps belong in `site-guides/productivity/` under the existing `Productivity Tools` category. No new categories needed.
-
-**Rationale:** The existing category taxonomy groups by user intent (shopping, coding, finance). All 7 apps serve the same intent -- task/content management and organization. Splitting into subcategories (e.g., "Project Management" for Trello/Jira, "Notes" for Notion/Keep) would fragment keyword matching in `getGuideForTask()` and add complexity without benefit. The `_shared.js` guidance needs updating to cover non-canvas productivity apps, but the category itself is correct.
-
-### App Classification by DOM Complexity
-
-The 7 apps fall into 3 tiers based on how much they diverge from standard DOM patterns:
-
-| Tier | Apps | DOM Type | fsbElements Needed | Keyboard-First |
-|------|------|----------|-------------------|----------------|
-| **Tier 1: Complex non-standard** | Notion, Airtable, Google Calendar | Block editor / Canvas grid / Custom time grid | YES (10-20 each) | YES |
-| **Tier 2: SPA with overlays** | Trello, Jira | React SPA, modals, boards | MINIMAL (3-5 each) | MODERATE |
-| **Tier 3: Straightforward SPA** | Google Keep, Todoist | Standard DOM with card/list UI | NO | YES |
+```
++-------------------+         WebSocket          +------------------+
+|  Chrome Extension |<=========================>|   FSB Server     |
+|  (user's browser) |   wss://fsb.fly.dev/ws    |   (fly.io)       |
+|                   |                            |                  |
+|  background.js    |--- keepalive 20s --------->|  ws-handler.js   |
+|  (service worker) |<-- remote tasks -----------|                  |
+|                   |--- DOM stream, results --->|  SQLite + memory |
+|                   |                            |                  |
+|  content script   |                            |  Express + WS    |
+|  (DOM observer)   |                            |                  |
++-------------------+                            +--------+---------+
+                                                          |
+                                               WebSocket  |  HTTPS
+                                                          |
+                                                 +--------+---------+
+                                                 |   Dashboard      |
+                                                 |   (React SPA)    |
+                                                 |                  |
+                                                 |  DOM viewer      |
+                                                 |  Task creation   |
+                                                 |  Agent monitoring|
+                                                 |  QR pairing      |
+                                                 +------------------+
+```
 
 ### Component Boundaries
 
-| Component | Responsibility | Modification Needed |
-|-----------|---------------|---------------------|
-| `site-guides/index.js` | Registry, URL matching, keyword matching | Update `categoryKeywords['Productivity Tools']` with new strong/weak keywords |
-| `site-guides/productivity/_shared.js` | Category-level guidance | Rewrite to cover both canvas and non-canvas app patterns |
-| `site-guides/productivity/{app}.js` | Per-app guide (7 new files) | NEW FILES -- guidance, fsbElements, selectors, workflows, warnings |
-| `content/dom-analysis.js` | Stage 1b injection, element scoring | Generalize Stage 1b gate from `isCanvasBasedEditor()` to fsbElements-aware |
-| `content/messaging.js` | `isCanvasBasedEditor()` detection | NO CHANGE -- keep as-is for Google Docs/Sheets |
-| `content/actions.js` | Action execution, type handler | NO CHANGE -- existing contenteditable handling covers Notion/Airtable |
-| `background.js` | importScripts, completion validator | Add 7 importScripts lines; optionally update `isCanvasEditorUrl()` |
-| `ui/options.html` | Script loading for site guides viewer | Add 7 script tags |
+| Component | Responsibility | Communicates With | New vs Modified |
+|-----------|---------------|-------------------|-----------------|
+| **WebSocket Client** (extension) | Persistent connection to server, send DOM stream + results, receive remote tasks | background.js service worker, content scripts | **NEW** -- replaces `server-sync.js` HTTP calls |
+| **WebSocket Handler** (server) | Manage connected extensions + dashboards, route messages, relay DOM stream | Express server, SQLite queries | **NEW** -- replaces SSE route |
+| **DOM Cloning Observer** (content script) | MutationObserver-based DOM serialization, initial snapshot + incremental diffs | Extension WebSocket client via chrome.runtime messages | **NEW** content script module |
+| **DOM Viewer** (dashboard) | Reconstruct DOM from snapshot + diffs, render in sandboxed iframe | Dashboard WebSocket connection | **NEW** React component |
+| **QR Pairing Flow** (server + extension) | Generate pairing QR, validate scan, bind hash key to extension instance | Auth routes, extension popup/options | **NEW** route + extension UI |
+| **Remote Task Queue** (server) | Accept task creation from dashboard, push to extension via WebSocket | WebSocket handler, agent routes | **NEW** route + DB table |
+| **Showcase Page** (server) | Public landing page with product info, QR pairing entry point | Static files, auth routes | **NEW** static page |
+| **Agent Manager** (extension) | CRUD, run history, replay stats | Agent scheduler, executor, storage | **EXISTING** -- no changes |
+| **Agent Scheduler** (extension) | chrome.alarms scheduling | Agent manager, chrome.alarms API | **EXISTING** -- no changes |
+| **Agent Executor** (extension) | Background tab execution, replay | Agent manager, automation task runner | **EXISTING** -- minor: add DOM stream hookup |
+| **Server Sync** (extension) | HTTP fallback sync for when WS is disconnected | Server REST API | **MODIFIED** -- becomes fallback for WS |
 
 ### Data Flow
 
-```
-User visits notion.so
-    |
-    v
-getGuideForUrl(url) --> matches /notion\.so/i pattern
-    |
-    v
-Returns notion.js guide with fsbElements, selectors, workflows
-    |
-    v
-getFilteredElements() -- Stage 1b:
-    IF guide has fsbElements (NEW CONDITION -- not just isCanvasBasedEditor)
-        findElementByStrategies() for each fsbElement
-        Inject into candidateArray with data-fsbRole/data-fsbLabel
-    |
-    v
-Stage 2 (visibility) -- fsbRole elements bypass visibility check (existing)
-    |
-    v
-Stage 3 (scoring) -- fsbRole elements get score boost (existing)
-    |
-    v
-Markdown snapshot includes fsbElements with [hint:] annotations
-    |
-    v
-AI receives guidance + annotated snapshot, uses keyboard shortcuts
-```
-
-## Critical Architecture Change: Stage 1b Generalization
-
-### Current State (Problem)
-
-Stage 1b injection in `dom-analysis.js` is gated behind two conditions:
-1. `FSB.isCanvasBasedEditor()` must return true (only for docs.google.com)
-2. For fsbElements specifically: `/spreadsheets\/d\//.test(window.location.pathname)` (only for Sheets)
-
-This means fsbElements defined in a Notion or Airtable guide will **never be injected** into the candidate array. The multi-strategy lookup code (`findElementByStrategies()`) exists and is generic, but it is unreachable for non-Google sites.
-
-### Required Change
-
-Replace the Sheets-specific pathname check with a guide-aware check:
+#### 1. QR Pairing Flow
 
 ```
-BEFORE (dom-analysis.js ~line 1794):
-    if (FSB.isCanvasBasedEditor && FSB.isCanvasBasedEditor()) {
-        // hardcoded canvas editor selectors
-        // ...
-        if (/spreadsheets\/d\//.test(window.location.pathname)) {
-            const fsbElements = guideSelectors?.fsbElements;
-            // multi-strategy lookup
-        }
-    }
-
-AFTER:
-    // Canvas editor hardcoded selectors (Google Docs/Sheets baseline)
-    if (FSB.isCanvasBasedEditor && FSB.isCanvasBasedEditor()) {
-        // existing .kix-page-column, .kix-appview-editor, .docs-title-input injection
-    }
-
-    // Guide-driven fsbElements injection (works for ANY site with fsbElements)
-    const fsbElements = guideSelectors?.fsbElements;
-    if (fsbElements && Object.keys(fsbElements).length > 0) {
-        for (const [role, def] of Object.entries(fsbElements)) {
-            const result = findElementByStrategies(def);
-            if (result) {
-                const { element: el, matchedIndex, matchedStrategy, total } = result;
-                el.dataset.fsbRole = role;
-                el.dataset.fsbLabel = def.label;
-                if (!candidateArray.includes(el)) {
-                    candidateArray.push(el);
-                }
-                // logging...
-            }
-        }
-    }
+Dashboard (new device)           Server                    Extension (paired browser)
+        |                          |                              |
+        |-- GET /api/auth/qr ---->|                              |
+        |<-- QR image + token ----|                              |
+        |                          |                              |
+User scans QR in extension popup/options                         |
+        |                          |<--- POST /api/auth/pair ----|
+        |                          |     { pairToken, hashKey }  |
+        |                          |                              |
+        |                          |--- validate + bind -------->|
+        |<-- WS: paired event ----|                              |
+        |                          |                              |
+Dashboard stores hashKey in localStorage, connects WS
 ```
 
-**Impact:** This is a ~30 line refactor that unlocks fsbElements for all 7 new apps (and any future guides). The existing Sheets fallback path remains for backward compatibility. The `findElementByStrategies()` function, visibility bypass (`if (el.dataset.fsbRole) return true`), scoring boost, and snapshot annotation all work unchanged because they key off `data-fsbRole`, not the canvas editor check.
+#### 2. WebSocket Connection Lifecycle
 
-### What Does NOT Need Changing
+```
+Extension SW starts (install/wakeup)
+    |
+    v
+Check serverUrl + hashKey in chrome.storage.local
+    |
+    v (if configured)
+Open WebSocket to wss://fsb.fly.dev/ws?key={hashKey}
+    |
+    v
+Server validates hashKey, registers connection
+    |
+    v
+setInterval keepalive ping every 20 seconds (Chrome 116+ requirement)
+    |
+    +--- SW receives 'task:create' message ---> create agent + execute
+    +--- Content script sends DOM diff -------> relay to dashboard WS clients
+    +--- Agent run completes -----------------> send result via WS (replaces HTTP POST)
+    |
+    v (on SW shutdown / disconnect)
+Server marks extension as offline
+Dashboard shows "Extension offline" indicator
+    |
+    v (on reconnect)
+Resend current DOM snapshot (full) to catch up dashboard
+```
 
-- **`isCanvasBasedEditor()`** -- Keep this function as-is. It correctly identifies Google Docs/Sheets for CDP keyboard routing. Notion/Airtable/etc. do NOT need CDP keyboard routing because they use standard contenteditable/input elements.
-- **`isCanvasEditorUrl()`** in background.js -- Keep as-is. Only Google Docs/Sheets need the canvas editor progress tracking bypass.
-- **`fillsheet`/`readsheet` guards** -- Keep `isCanvasBasedEditor()` guard. These mechanical tools are Sheets-specific.
-- **Type action canvas path** -- The `canvasEditor` branch in the type handler routes to CDP `Input.insertText` or `typeWithKeys`. Notion/Airtable/etc. use the standard contenteditable path which already works (line 1596-1601 in actions.js detects `contentEditable`, `role="textbox"`, etc.).
+#### 3. DOM Cloning Stream
 
-## Per-App Integration Architecture
+```
+Content Script (active tab)        Background SW          Server           Dashboard
+        |                              |                    |                 |
+  MutationObserver fires               |                    |                 |
+        |                              |                    |                 |
+  Serialize mutation batch             |                    |                 |
+  (add/remove/attr/text diffs)         |                    |                 |
+        |                              |                    |                 |
+  chrome.runtime.sendMessage           |                    |                 |
+  { action: 'domDiff', diffs }  -----> |                    |                 |
+        |                              |                    |                 |
+        |                    ws.send('dom:diff', diffs) --> |                 |
+        |                              |                    |                 |
+        |                              |          relay to dashboard WS ---> |
+        |                              |                    |                 |
+        |                              |                    |          Patch virtual DOM
+        |                              |                    |          Re-render in iframe
+```
 
-### 1. Notion (notion.so)
+#### 4. Remote Task Creation
 
-**DOM Characteristics:**
-- React SPA with contenteditable block elements
-- Each block has `data-block-id` attribute
-- Slash command menu renders as a dropdown overlay
-- Database views use virtualized rendering (only visible rows in DOM)
-- Page content wrapper: `.notion-page-content`
-- Sidebar: `.notion-sidebar`
-- Topbar: `.notion-topbar`
+```
+Dashboard                    Server                     Extension
+    |                          |                           |
+    |-- POST /api/tasks ------>|                           |
+    |   { task, targetUrl }    |                           |
+    |                          |-- WS: task:create ------->|
+    |                          |   { taskId, task, url }   |
+    |                          |                           |
+    |                          |                  agentExecutor.execute()
+    |                          |                  (opens background tab)
+    |                          |                           |
+    |                          |<-- WS: task:progress -----|
+    |<-- WS: relay progress ---|   { phase, action, etc } |
+    |                          |                           |
+    |                          |<-- WS: task:complete -----|
+    |<-- WS: relay complete ---|   { result, duration }    |
+```
 
-**fsbElements (estimated 12-15):**
-- `page-content`: Main content area (`.notion-page-content`, `[contenteditable="true"]` child)
-- `page-title`: Page title input (`.notion-page-block [placeholder]`)
-- `sidebar-toggle`: Sidebar toggle button
-- `new-page-button`: Create new page
-- `search-input`: Quick search (`Cmd+K` triggered overlay)
-- `slash-menu`: Slash command menu (appears on `/`)
-- `database-add-row`: Add row button in database views
-- `database-filter`: Filter button in database toolbar
-- `database-sort`: Sort button in database toolbar
-- `breadcrumb-nav`: Breadcrumb navigation at top
+## Critical Architecture Decisions
 
-**Keyboard-First Strategy:**
-- `Cmd+N` / `Ctrl+N`: New page
-- `Cmd+K` / `Ctrl+K`: Quick search / page link
-- `/` at line start: Slash command menu (critical -- this is primary block creation)
-- `Tab` / `Shift+Tab`: Indent/outdent blocks
-- `Cmd+Shift+M` / `Ctrl+Shift+M`: Comment
-- `Cmd+D` / `Ctrl+D`: Duplicate block
-- Arrow keys: Navigate between blocks
-- `Enter`: New block below
-- `Backspace` at empty block: Delete block, merge with above
+### Decision 1: WebSocket in Service Worker (Not Offscreen Document)
 
-**Automation Challenges:**
-- Block IDs change on every page load -- cannot use `data-block-id` for stable selectors
-- Slash command menu is a floating overlay that mounts/unmounts dynamically
-- Database views virtualize rows -- only visible rows are in DOM
-- Notion's React reconciliation may not reflect typed text immediately in DOM
+**Use WebSocket directly in background.js service worker.**
 
-**Typing Approach:** Standard contenteditable -- existing FSB type handler works (line 1596 detects `contentEditable`). No CDP keyboard bypass needed.
+Chrome 116+ keeps the service worker alive as long as a WebSocket has activity within the 30-second window. FSB already requires a recent Chrome version (uses alarms, offscreen, sidePanel). Setting `"minimum_chrome_version": "116"` in manifest.json is safe.
 
-**No Mechanical Tools Needed:** Notion's block editor accepts standard typing. Slash commands handle block creation naturally.
+**Why not offscreen document:** An offscreen document would add a message-passing hop between the offscreen doc and the service worker. The service worker already has direct access to all extension APIs (tabs, storage, alarms, scripting). Adding an intermediary offscreen doc just for WebSocket creates unnecessary complexity. The 20-second keepalive ping is trivial to implement.
 
-### 2. Google Calendar (calendar.google.com)
-
-**DOM Characteristics:**
-- NOT canvas-rendered (unlike Sheets/Docs). Uses standard DOM with CSS grid for time slots
-- Events render as positioned divs with `data-eventid` and `data-eventchip` attributes
-- Time grid uses `role="grid"` / `role="gridcell"` ARIA attributes
-- Event creation popover: `[data-eventid]` overlay or full-page edit form
-- Date cells: `[data-datekey]` attributes
-- Mini calendar (sidebar): standard buttons with `aria-label` containing date strings
-
-**fsbElements (estimated 10-12):**
-- `create-event-button`: FAB or "Create" button (`[aria-label="Create"]`, `[data-tooltip="Create"]`)
-- `event-title-input`: Title input in event creation form
-- `event-date-start`: Start date picker
-- `event-date-end`: End date picker
-- `event-time-start`: Start time picker
-- `event-time-end`: End time picker
-- `event-save-button`: Save button in event form
-- `search-bar`: Calendar search input
-- `view-switcher`: Day/Week/Month/Agenda view buttons
-- `mini-calendar`: Date navigation sidebar
-- `today-button`: "Today" button to jump to current date
-
-**Keyboard-First Strategy:**
-- `c`: Create new event (critical -- primary entry point)
-- `e`: Edit selected event
-- `s` or `Ctrl+S`: Save event
-- `1`/`2`/`3`/`4`: Switch to Day/Week/Month/Year view
-- `t`: Jump to today
-- `j`/`k` or arrow keys: Navigate between dates
-- `Delete` / `Backspace`: Delete selected event
-- `/`: Open search
-
-**Automation Challenges:**
-- Event time slots are positioned divs, not actual grid cells -- clicking at specific Y positions within a day column targets specific times
-- Date/time pickers are custom widgets (not native `<input type="date">`)
-- The event creation form can be a quick popover OR a full-page detail editor
-- View state (day/week/month) changes the entire DOM structure
-
-**Typing Approach:** Standard inputs and contenteditable fields. No canvas bypass needed.
-
-**No Mechanical Tools Needed:** `c` to create event, then fill standard form fields.
-
-### 3. Trello (trello.com)
-
-**DOM Characteristics:**
-- React SPA with dynamic lists and cards
-- Board layout: `.board-main-content` with list containers
-- Cards: `[data-testid="trello-card"]` or `.list-card`
-- Card modals: overlay dialog with form inputs
-- Drag-and-drop uses visual position, not DOM order manipulation
-
-**fsbElements (estimated 3-5):**
-- `add-card-button`: "Add a card" link at bottom of each list
-- `card-title-input`: Card title textarea (in compose mode)
-- `card-modal-title`: Title input in opened card modal
-- `board-menu-button`: Board menu trigger
-- `search-input`: Board search
-
-**Keyboard-First Strategy:**
-- `n`: New card (hover-based -- adds card below hovered card)
-- `j`/`k`: Navigate between cards
-- `<`/`>`: Move card between lists
-- `t`: Edit card title (when card is selected)
-- `e`: Quick edit card (opens inline edit)
-- `Enter`: Open selected card
-- `Esc`: Close dialog/modal
-
-**Automation Challenges:**
-- `n` shortcut is hover-position dependent -- must hover correct list first
-- Card modals are overlay portals (React portals) -- not in the DOM tree of the board
-- Drag-and-drop is visual, not keyboard-addressable for positioning
-- List/card order changes via AJAX, not page reload
-
-**Typing Approach:** Standard inputs and textareas. No special handling needed.
-
-**No Mechanical Tools Needed.**
-
-### 4. Google Keep (keep.google.com)
-
-**DOM Characteristics:**
-- Standard DOM with masonry card grid layout
-- Notes rendered as cards with `role="listitem"` or `[data-id]`
-- Note editor: contenteditable for title and body
-- Checklist items: checkbox inputs within note cards
-- Color picker: palette of color buttons
-- Labels: dropdown with checkboxes
-
-**fsbElements: NONE needed.**
-- All elements are standard DOM (buttons, inputs, contenteditable)
-- Masonry grid is CSS-based, not canvas
-- No virtualization -- all visible notes are in DOM
-
-**Keyboard-First Strategy:**
-- `c`: Create new note (critical -- must close any open note first)
-- `l`: Create new list (checklist note)
-- `j`/`k`: Navigate between notes
-- `Esc`: Close/save note
-- `e`: Archive note
-- `/`: Search
-
-**Automation Challenges:**
-- Creating a note requires no other note to be open (the `c` shortcut only works when no note is focused)
-- Notes auto-save on blur -- no explicit save needed
-- Color picker requires clicking the palette icon then a color swatch
-- PIN/Unpin is a toggle button on hover
-
-**Typing Approach:** Contenteditable (already handled by existing type action code). The existing `inferElementPurpose` function at line 287-294 already matches contenteditable editors on any site.
-
-**No Mechanical Tools Needed.** Simplest of the 7 apps.
-
-### 5. Todoist (todoist.com / app.todoist.com)
-
-**DOM Characteristics:**
-- React SPA with project/task list views
-- Tasks rendered as list items with custom components
-- Quick Add overlay: floating modal for task creation
-- Inline editing: contenteditable task names
-- Date picker: custom popover calendar widget
-- Priority selector: colored flag icons (p1-p4)
-
-**fsbElements: NONE needed (or minimal 2-3).**
-- Quick Add dialog is triggered by `q` shortcut, contains standard input
-- Task items are clickable list elements
-- Possible fsbElements for priority/date pickers if selectors are unstable
-
-**Keyboard-First Strategy:**
-- `q`: Open Quick Add (critical -- primary task creation)
-- `a`: Add task to bottom of list
-- `Shift+A`: Add task to top of list
-- `Ctrl+K` / `Cmd+K`: Command menu (powerful -- search, navigate, actions)
-- `Enter`: Save task (in edit mode)
-- `Esc`: Cancel edit
-- `1`-`4`: Set priority (in task context)
-
-**Automation Challenges:**
-- Quick Add uses natural language parsing (e.g., "Buy groceries tomorrow p1 #Shopping") -- the AI should use this
-- Date picker is a custom widget, but natural language in Quick Add bypasses it
-- Projects/labels are typed directly into Quick Add with `#` and `@` prefixes
-- The command menu (`Ctrl+K`) provides another automation path
-
-**Typing Approach:** Standard inputs and contenteditable. No special handling.
-
-**No Mechanical Tools Needed.** Quick Add natural language is the optimal automation path.
-
-### 6. Airtable (airtable.com)
-
-**DOM Characteristics:**
-- Grid view: **Canvas-rendered cells** (similar to Google Sheets)
-- Row headers and column headers are DOM elements
-- Cell editing: clicking a cell opens an inline editor overlay (standard input/textarea)
-- Expanded record modal: standard form fields
-- Rich field types: attachments, linked records, single/multi select dropdowns
-- Virtual scrolling: only visible rows are in DOM
-
-**fsbElements (estimated 12-18):**
-- `grid-container`: Main grid area
-- `add-row-button`: "+" button to add new row
-- `add-field-button`: "+" button to add new column/field
-- `cell-editor`: Active cell edit overlay
-- `expand-record-button`: Expand row button
-- `search-bar`: Grid search input
-- `filter-button`: Filter controls
-- `sort-button`: Sort controls
-- `group-button`: Grouping controls
-- `view-switcher`: Grid/Kanban/Calendar/Form view tabs
-- `field-config-modal`: Field type configuration
-- `record-title`: Primary field in expanded record
-
-**Keyboard-First Strategy:**
-- `Space`: Expand selected record (critical -- opens full record modal)
-- `Shift+Space`: Expand individual cell
-- `Tab` / `Shift+Tab`: Move between cells in a row
-- `Arrow keys`: Navigate grid cells
-- `Enter`: Begin editing selected cell / Move to next row
-- `Esc`: Cancel cell edit / Close modal
-- `Ctrl+/` / `Cmd+/`: Show shortcuts
-- `Shift+Enter`: Add new record below
-
-**Automation Challenges:**
-- **Grid is canvas-rendered** -- individual cells are NOT in the DOM (like Google Sheets)
-- Cell editing opens an overlay input, but navigation to specific cells must use keyboard (arrow keys, Tab)
-- Rich field types (linked records, attachments) have complex custom editors
-- No equivalent of Sheets' Name Box -- cannot jump to a specific cell by reference
-- Virtual scrolling means off-screen rows are not in DOM
-
-**Typing Approach:** Cell editor overlays are standard inputs/contenteditable. But navigating TO the correct cell requires keyboard arrows + Tab, not clicking (because the grid is canvas).
-
-**Potential Mechanical Tool:** A `fillairtable` tool COULD be valuable for bulk data entry (navigate by arrow keys + enter data + Tab pattern), but this is a **future optimization**, not a launch requirement. For v0.9.2, keyboard-first guidance with fsbElements for the toolbar is sufficient.
-
-### 7. Jira (atlassian.net)
-
-**DOM Characteristics:**
-- React SPA built on Atlassian Design System (Atlaskit)
-- Board view: Kanban columns with draggable issue cards
-- Issue creation: Modal dialog with form fields
-- Sprint planning: Drag between sprints
-- Backlog: Sortable list with inline editing
-- Rich text: Atlassian editor (ProseMirror-based contenteditable)
-
-**fsbElements (estimated 5-8):**
-- `create-issue-button`: "Create" button in top nav (or `c` shortcut)
-- `issue-summary-input`: Summary/title field in create modal
-- `issue-type-select`: Issue type dropdown (Bug, Story, Task, Epic)
-- `issue-priority-select`: Priority dropdown
-- `issue-assignee-select`: Assignee people picker
-- `board-search`: Board/backlog search
-- `sprint-selector`: Active sprint filter
-- `issue-description`: Rich text editor for description (ProseMirror)
-
-**Keyboard-First Strategy:**
-- `c`: Create issue (critical -- opens create modal)
-- `j`/`k`: Navigate between issues
-- `/`: Search
-- `1`/`2`/`3`: Switch to Backlog/Board/Reports
-- `n`/`p`: Next/Previous column (board view)
-- `Enter`: Open selected issue
-- `?`: Show all shortcuts
-
-**Automation Challenges:**
-- Jira Cloud has frequent DOM structure changes (Atlassian's own warning)
-- ProseMirror-based description editor requires special handling for rich text
-- Issue types, priorities, and workflows are project-configurable -- cannot hardcode exact values
-- Sprint board drag-and-drop is the primary issue movement mechanism
-- Atlassian's design system changes class names between releases
-
-**Typing Approach:** Standard inputs for summary. ProseMirror contenteditable for description (FSB's existing contenteditable detection handles this). The check at dom-analysis.js line 291 already matches `ProseMirror` class: `/editor|page|content|body|compose|write|kix|ql-editor|ProseMirror/i`.
-
-**No Mechanical Tools Needed.**
-
-## Patterns to Follow
-
-### Pattern 1: Keyboard-First Guidance Over Selector-Heavy Automation
-
-**What:** For all 7 apps, the primary guidance strategy should be keyboard shortcuts + natural flow, with fsbElements providing fallback anchor points. Do NOT try to click on every UI element via selectors.
-
-**When:** Always -- this is the core lesson from Google Sheets (Name Box + keyboard beats clicking cells).
-
-**Example (Notion):**
+**Implementation:**
 ```javascript
-guidance: `NOTION-SPECIFIC INTELLIGENCE:
+// In background.js or new file: ws-client.js (importScripts)
+let ws = null;
 
-CREATE NEW BLOCK:
-  # Preferred: slash command from keyboard
-  key "Enter"         # new line
-  type "/"            # opens slash menu
-  type "heading 1"    # filter slash menu
-  key "Enter"         # select block type
-  type "My heading"   # type content
+function connectWebSocket() {
+  const config = /* from chrome.storage.local */;
+  if (!config.serverUrl || !config.hashKey) return;
 
-  # Fallback: click approach
-  click e5            # click in content area
-  type "/" ...        # same slash menu flow
-`
-```
+  ws = new WebSocket(config.serverUrl.replace('https', 'wss') + '/ws?key=' + config.hashKey);
 
-### Pattern 2: fsbElements for Toolbar/Navigation Anchors Only
+  ws.onopen = () => {
+    console.log('[FSB WS] Connected');
+    // Send current state snapshot
+  };
 
-**What:** Use fsbElements for elements that are always present and structurally important (toolbars, search bars, navigation), NOT for content elements that change per page state.
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    handleServerMessage(msg);
+  };
 
-**When:** For Tier 1 and Tier 2 apps that have complex, non-standard toolbars.
+  ws.onclose = () => {
+    // Reconnect after 5 seconds
+    setTimeout(connectWebSocket, 5000);
+  };
 
-**Example (Google Calendar):**
-```javascript
-fsbElements: {
-  // YES -- always present, structurally stable
-  'create-event': {
-    label: 'Create event button',
-    selectors: [
-      { strategy: 'aria', selector: '[aria-label="Create"]' },
-      { strategy: 'data', selector: '[data-tooltip="Create"]' },
-      { strategy: 'role', selector: '[role="button"][data-view="event"]' }
-    ]
-  },
-  // NO -- do not define fsbElements for individual events, time slots, etc.
+  // Chrome 116+ keepalive
+  setInterval(() => {
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'ping' }));
+    }
+  }, 20000);
 }
 ```
 
-### Pattern 3: Multi-Strategy Selectors with Aria-First Priority
+### Decision 2: SSE-to-WebSocket Migration Path
 
-**What:** For every fsbElement, define 3-5 selectors in priority order: `aria` > `role` > `data-*` > `class` > `context`. Aria and role selectors survive framework upgrades better than class names.
+**Keep SSE as fallback, add WebSocket as primary.**
 
-**When:** For all fsbElement definitions in React/SPA apps.
+The server currently uses SSE (server/src/routes/sse.js) for dashboard real-time updates. SSE is unidirectional (server -> client). Remote task creation requires bidirectional communication. Rather than ripping out SSE, upgrade the server to support both:
 
-**Rationale:** Google Sheets uses `id` as first strategy because Sheets has stable IDs. React apps (Notion, Trello, Jira, Todoist) typically do NOT have stable IDs. Aria labels are the most stable selectors for React SPAs because they are accessibility-driven and change less frequently than class names.
+1. WebSocket for extension connections (bidirectional: DOM stream up, tasks down)
+2. WebSocket for dashboard connections (bidirectional: task creation up, DOM stream + status down)
+3. SSE remains as degraded fallback for dashboards that can't connect via WS
 
-### Pattern 4: Workflow Step Sequences for Complex Operations
+**Server WebSocket implementation:** Use the `ws` npm package alongside Express. Express and `ws` can share the same HTTP server by handling the `upgrade` event.
 
-**What:** Define `workflows` for multi-step operations that the AI cannot easily infer from the DOM alone.
+### Decision 3: DOM Serialization Format (Custom Lightweight, Not rrweb)
 
-**When:** For operations involving overlays, multiple form fields, or specific execution order.
+**Use a custom lightweight serialization, not rrweb.**
 
-**Example (Jira issue creation):**
-```javascript
-workflows: {
-  createIssue: [
-    'Press "c" to open the Create Issue dialog (or click the Create button)',
-    'Wait for the modal to fully load',
-    'Select the Issue Type from the dropdown (default is usually "Task")',
-    'Type the issue summary in the Summary field',
-    'Optionally set Priority, Assignee, Sprint from respective dropdowns',
-    'For description, click the description editor and type content',
-    'Click "Create" button to save, or press Cmd+Enter'
-  ]
-}
+rrweb is a comprehensive session recording library (pixel-perfect replay with CSS, animations, canvas, etc.). FSB's DOM cloning needs are different:
+
+- FSB already has a DOM snapshot format (unified markdown with element refs)
+- The dashboard needs a structural view of the page (what elements exist, their text, their state) -- not pixel-perfect visual replay
+- Images are loaded via CDN URLs (not proxied) per PROJECT.md
+- rrweb would add ~100KB+ to content scripts and is overkill
+
+**Custom serialization approach:**
+
+1. **Initial snapshot:** Serialize the DOM tree to a JSON structure with node IDs, tag names, attributes, text content, and computed styles for layout (display, position, dimensions). Images get their original `src` URLs (CDN, not proxied). Scripts are stripped.
+
+2. **Incremental diffs:** MutationObserver batches changes into a compact diff format:
+   ```javascript
+   {
+     type: 'diff',
+     timestamp: Date.now(),
+     mutations: [
+       { op: 'add', parentId: 42, afterId: 41, node: { id: 99, tag: 'div', attrs: {...}, text: '...' } },
+       { op: 'remove', id: 55 },
+       { op: 'attr', id: 42, attrs: { class: 'new-class' } },
+       { op: 'text', id: 43, text: 'updated text' }
+     ]
+   }
+   ```
+
+3. **Throttling:** Batch diffs every 500ms to avoid overwhelming the WebSocket. If more than 50 mutations in a batch, send a full re-snapshot instead (the page changed too much for diffs to be efficient).
+
+4. **Dashboard reconstruction:** Build a virtual DOM tree from the snapshot JSON, apply diffs incrementally, render into a sandboxed iframe using `document.createElement` calls.
+
+### Decision 4: QR Pairing Architecture
+
+**QR encodes a one-time pairing token, not the hash key itself.**
+
+The pairing flow:
+
+1. Dashboard requests `GET /api/auth/qr` -- server generates a short-lived pairing token (UUID, expires in 5 minutes), returns a QR code image (server-generated SVG or base64 PNG) containing the pairing URL: `https://fsb.fly.dev/pair?token={uuid}`
+
+2. Extension has a "Pair with Dashboard" button in options page. User scans the QR code. Extension extracts the token from the URL and sends `POST /api/auth/pair` with `{ pairToken, hashKey }`.
+
+3. Server validates the token (not expired, not already used), binds the hashKey to the pairing session, and marks the dashboard session as paired.
+
+4. Dashboard receives a WebSocket event `{ type: 'paired', hashKey }` and stores the hashKey, completing the connection.
+
+**Why not encode the hash key in the QR?** The hash key is a 64-char hex string that grants full access to the account. Putting it in a QR code that could be screenshotted or intercepted is a security risk. The pairing token is single-use and short-lived.
+
+**QR code generation:** Use `qrcode` npm package server-side to generate SVG. No client-side QR generation needed.
+
+### Decision 5: Remote Task Queue Design
+
+**Tasks are ephemeral (not persisted to DB), pushed directly via WebSocket.**
+
+Remote task creation from the dashboard does not need a persistent task queue because:
+
+- Tasks execute immediately on the user's browser (which must be online and connected)
+- If the extension is offline, the task cannot execute (browser must stay active per PROJECT.md)
+- Task results are already stored as agent runs in the existing `agent_runs` table
+
+**Flow:** Dashboard sends `POST /api/tasks` -> Server validates, sends WebSocket message to extension -> Extension creates a temporary agent via `agentManager.createAgent()` with `schedule.type: 'once'` -> Extension runs it immediately via `agentExecutor.execute()` -> Results flow back via WebSocket.
+
+**New DB table for task tracking (minimal):**
+
+```sql
+CREATE TABLE IF NOT EXISTS remote_tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  hash_key TEXT NOT NULL,
+  task_id TEXT UNIQUE NOT NULL,
+  task TEXT NOT NULL,
+  target_url TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending, running, completed, failed
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT,
+  result TEXT,
+  error TEXT,
+  FOREIGN KEY (hash_key) REFERENCES hash_keys(hash_key) ON DELETE CASCADE
+);
 ```
 
-## Anti-Patterns to Avoid
+## New Files Required
 
-### Anti-Pattern 1: Extending `isCanvasBasedEditor()` for Non-Canvas Apps
+### Extension Side
 
-**What:** Adding Notion/Trello/Jira/etc. to `isCanvasBasedEditor()`.
-**Why bad:** This function gates CDP keyboard bypass and canvas-specific type handling. Notion et al. use standard contenteditable -- they do NOT need CDP bypass. Adding them would route their typing through the wrong code path (keyboard emulator instead of standard focus+insertText).
-**Instead:** Generalize Stage 1b to check for guide fsbElements presence, independent of canvas detection.
+| File | Purpose | Estimated Lines |
+|------|---------|-----------------|
+| `ws/ws-client.js` | WebSocket connection manager with keepalive, reconnect, message routing | ~200 |
+| `ws/dom-stream.js` | Coordinate DOM snapshots from content script, forward to WS | ~100 |
+| `content/dom-observer.js` | MutationObserver-based DOM serialization (initial snapshot + incremental diffs) | ~350 |
 
-### Anti-Pattern 2: Creating Mechanical Tools for Every App
+### Server Side
 
-**What:** Building `fillnotion`, `filltrello`, `fillcalendar` equivalents.
-**Why bad:** `fillsheet`/`readsheet` exist because Sheets has a fundamentally un-automatable canvas grid that requires deterministic cell-by-cell navigation. The other 7 apps have standard DOM inputs (even Airtable's cell editor opens as a standard input overlay). The AI can fill forms normally.
-**Instead:** Rely on keyboard-first guidance + standard type/click actions. Revisit mechanical tools only if real-world testing reveals specific patterns that fail repeatedly.
+| File | Purpose | Estimated Lines |
+|------|---------|-----------------|
+| `server/src/ws/handler.js` | WebSocket connection management, message routing, room-based relay | ~250 |
+| `server/src/routes/tasks.js` | Remote task creation endpoint | ~60 |
+| `server/src/routes/qr.js` | QR code generation and pairing endpoints | ~80 |
+| `server/src/db/schema.js` | Add `remote_tasks` table (migration) | ~15 (addition) |
 
-### Anti-Pattern 3: Hardcoding App-Specific Branches in dom-analysis.js
+### Dashboard Side
 
-**What:** Adding `if (window.location.hostname === 'notion.so') { ... }` checks.
-**Why bad:** The Google Sheets-specific pathname check (`/spreadsheets\/d\/`) is already technical debt. Every new app should not add another hostname branch.
-**Instead:** The Stage 1b generalization (check for `guideSelectors?.fsbElements` presence) handles all apps uniformly. App-specific behavior lives in the guide files, not in core infrastructure.
+| File | Purpose | Estimated Lines |
+|------|---------|-----------------|
+| `server/dashboard/src/components/DOMViewer.jsx` | DOM reconstruction and rendering in iframe | ~300 |
+| `server/dashboard/src/components/TaskCreator.jsx` | Remote task creation form | ~120 |
+| `server/dashboard/src/components/QRPairing.jsx` | QR code display and pairing flow UI | ~100 |
+| `server/dashboard/src/components/ConnectionStatus.jsx` | Extension online/offline indicator | ~50 |
+| `server/dashboard/src/hooks/useWebSocket.js` | WebSocket hook replacing useSSE | ~100 |
+| `server/dashboard/src/pages/Showcase.jsx` | Public landing/showcase page | ~150 |
 
-### Anti-Pattern 4: Over-Defining fsbElements for Simple Apps
+### Showcase (public site)
 
-**What:** Defining 20+ fsbElements for Google Keep or Todoist.
-**Why bad:** These apps have standard DOM that FSB's Stage 1 (interactive element query selector) already captures. Adding fsbElements for standard buttons/inputs just duplicates what the generic element collector finds.
-**Instead:** Only define fsbElements for elements that Stage 1 misses or mis-identifies. Keep and Todoist need zero or near-zero fsbElements. Their guides are primarily guidance + workflows + warnings.
+| File | Purpose | Notes |
+|------|---------|-------|
+| `server/public/index.html` | Public showcase landing page | Static HTML, served at `/` instead of redirect to `/dashboard` |
+| `server/public/assets/` | Showcase CSS, images, demo screenshots | Static assets |
 
-## Scalability Considerations
-
-| Concern | At 7 apps (v0.9.2) | At 20+ apps (future) | Mitigation |
-|---------|-------------------|--------------------|-----------|
-| Script tag count | 60 tags (53 + 7) | 70+ tags | Known tech debt. Bundling deferred. Acceptable for now. |
-| Stage 1b performance | 7 apps x ~10 fsbElements = negligible | 200+ fsbElements across all guides | fsbElements only looked up when guide matches URL -- max ~20 per page |
-| Registry size | ~50 guides | 100+ guides | `getGuideForUrl()` is O(n) pattern test -- fast enough at 200 |
-| Keyword matching | Add 7 app names to Productivity strong/weak lists | Growing keyword lists | Weighted matching already handles disambiguation |
-| Background.js size | 7 new importScripts lines | More lines | Acceptable. Service worker loads all at startup regardless. |
-
-## Integration Summary: What to Build vs What to Modify
-
-### New Files (7)
-
-| File | fsbElements | Workflows | Complexity |
-|------|-------------|-----------|-----------|
-| `site-guides/productivity/notion.js` | 12-15 | 5-7 | HIGH -- block editor, databases |
-| `site-guides/productivity/google-calendar.js` | 10-12 | 4-6 | MEDIUM -- event CRUD, view nav |
-| `site-guides/productivity/trello.js` | 3-5 | 3-5 | MEDIUM -- board/card/modal |
-| `site-guides/productivity/google-keep.js` | 0 | 3-4 | LOW -- standard DOM |
-| `site-guides/productivity/todoist.js` | 0-3 | 3-5 | LOW-MEDIUM -- Quick Add + natural language |
-| `site-guides/productivity/airtable.js` | 12-18 | 5-7 | HIGH -- canvas grid, rich fields |
-| `site-guides/productivity/jira.js` | 5-8 | 4-6 | MEDIUM -- modal forms, ProseMirror |
-
-### Modified Files (5)
+## Modified Files
 
 | File | Change | Risk |
 |------|--------|------|
-| `content/dom-analysis.js` | Generalize Stage 1b fsbElements gate | LOW -- additive, existing Sheets path preserved |
-| `site-guides/productivity/_shared.js` | Update category guidance for non-canvas apps | LOW -- text-only change |
-| `site-guides/index.js` | Update Productivity keyword lists | LOW -- add new strong/weak keywords |
-| `background.js` | Add 7 importScripts lines | ZERO -- mechanical addition |
-| `ui/options.html` | Add 7 script tags | ZERO -- mechanical addition |
+| `manifest.json` | Add `"minimum_chrome_version": "116"` | ZERO -- Chrome 116 is from Aug 2023, all current users are past this |
+| `background.js` | Add `importScripts('ws/ws-client.js', 'ws/dom-stream.js')`, wire WS connection on install/startup, route incoming WS messages | LOW -- additive |
+| `agents/server-sync.js` | Add WS-based sync path alongside existing HTTP, use WS when connected | LOW -- fallback preserved |
+| `agents/agent-executor.js` | Emit progress events to WS during execution (optional hook) | LOW -- additive |
+| `server/server.js` | Add WebSocket upgrade handling via `ws` package, add QR + task routes | MEDIUM -- server startup changes |
+| `server/package.json` | Add `ws`, `qrcode` dependencies | ZERO |
+| `server/src/routes/sse.js` | Keep as fallback but mark deprecated | ZERO |
+| `server/dashboard/src/App.jsx` | Add routing for showcase vs dashboard, QR pairing page | LOW |
+| `server/dashboard/src/pages/Dashboard.jsx` | Add DOM viewer tab, task creation, connection status | MEDIUM -- significant UI additions |
+| `server/dashboard/src/hooks/useSSE.js` | Replace with useWebSocket.js or keep as fallback | LOW |
+| `ui/control_panel.html` or `ui/options.html` | Add "Pair with Dashboard" section with QR scanner or manual hash entry | LOW |
 
-### Unchanged (everything else)
+## Patterns to Follow
 
-- `content/actions.js` -- no changes needed
-- `content/messaging.js` -- no changes needed
-- `content/accessibility.js` -- no changes needed
-- `ai/cli-parser.js` -- no changes needed
-- All existing site guides -- no changes needed
+### Pattern 1: WebSocket Message Protocol
+
+**What:** All WebSocket messages use a typed JSON envelope with consistent structure.
+
+**Why:** Enables clean message routing without inspecting payloads. Both extension and dashboard can handle the same protocol.
+
+```javascript
+// Every WS message follows this shape:
+{
+  type: 'dom:snapshot' | 'dom:diff' | 'task:create' | 'task:progress' | 'task:complete' |
+        'agent:run_complete' | 'agent:status' | 'ext:status' | 'ping' | 'pong' | 'paired',
+  payload: { /* type-specific data */ },
+  timestamp: 1710000000000
+}
+```
+
+### Pattern 2: Room-Based WebSocket Relay
+
+**What:** Server groups WebSocket connections by hashKey. Extension connections and dashboard connections with the same hashKey are in the same "room." DOM stream from extension is relayed only to dashboard connections in the same room.
+
+**When:** Always -- this is the core relay pattern.
+
+```javascript
+// Server-side connection tracking
+const rooms = new Map(); // hashKey -> { extensions: Set<ws>, dashboards: Set<ws> }
+
+// On extension message:
+function handleExtensionMessage(hashKey, msg) {
+  const room = rooms.get(hashKey);
+  if (!room) return;
+
+  // Relay DOM diffs to all dashboard connections in this room
+  if (msg.type === 'dom:snapshot' || msg.type === 'dom:diff') {
+    for (const dashboard of room.dashboards) {
+      dashboard.send(JSON.stringify(msg));
+    }
+  }
+}
+```
+
+### Pattern 3: Content Script DOM Observer as Opt-In Module
+
+**What:** The DOM observer content script (`content/dom-observer.js`) is NOT injected by default. It is only injected when a dashboard is actively viewing the tab (triggered by a message from background.js).
+
+**Why:** DOM observation has performance overhead (MutationObserver callbacks, serialization, message passing). Most of the time no dashboard is watching, so there is zero overhead. When a dashboard connects and requests DOM view, background.js injects the observer into the active tab.
+
+```javascript
+// background.js: only inject when dashboard requests DOM view
+function handleDashboardViewRequest(tabId) {
+  chrome.scripting.executeScript({
+    target: { tabId },
+    files: ['content/dom-observer.js']
+  });
+}
+```
+
+### Pattern 4: Graceful Degradation
+
+**What:** Every new feature degrades gracefully when the server is unreachable or WebSocket disconnects.
+
+**When:** Always -- the extension must remain fully functional without the server.
+
+- WebSocket disconnects: Fall back to HTTP sync (existing `server-sync.js`)
+- Server unreachable: Queue sync operations, retry with exponential backoff (existing pattern)
+- Dashboard offline: Extension works normally, DOM observer is not injected
+- Extension offline: Dashboard shows "Extension offline," task creation is disabled
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Proxying Images Through the Server
+
+**What:** Routing page images through the FSB server for dashboard DOM viewer.
+**Why bad:** Massive bandwidth cost, latency, potential copyright/legal issues. Images on web pages are already on CDNs.
+**Instead:** Send image `src` URLs in DOM snapshots. Dashboard loads images directly from their original CDN URLs. Set `crossorigin` and handle CORS failures gracefully (show placeholder for images that can't load cross-origin).
+
+### Anti-Pattern 2: Streaming Full DOM Snapshots Continuously
+
+**What:** Sending the entire serialized DOM tree on every change.
+**Why bad:** A complex page can have 5000+ nodes. Serializing and sending the full tree at 500ms intervals would be tens of KB per second.
+**Instead:** Initial full snapshot once, then incremental MutationObserver diffs. Only re-snapshot when the page navigates or diffs exceed the batch threshold (>50 mutations).
+
+### Anti-Pattern 3: Using the Offscreen Document for WebSocket
+
+**What:** Creating an offscreen document just to host the WebSocket connection.
+**Why bad:** Adds an unnecessary message-passing layer between offscreen doc and service worker. Chrome 116+ keeps the service worker alive with WebSocket activity. The offscreen document already exists for STT -- creating another one requires a separate HTML file (Chrome allows only one offscreen doc at a time per reason, and different reasons need different documents or the existing one needs modification).
+**Instead:** WebSocket directly in the service worker with 20-second keepalive pings.
+
+### Anti-Pattern 4: Storing DOM Snapshots in SQLite
+
+**What:** Persisting DOM snapshots/diffs to the server database.
+**Why bad:** DOM data is ephemeral and potentially huge. It is only useful in real-time for the dashboard viewer. Storing it adds DB bloat and serves no purpose -- nobody replays historical DOM state.
+**Instead:** DOM stream is purely in-memory relay. Server receives from extension WebSocket, immediately forwards to dashboard WebSocket connections in the same room. Nothing persisted.
+
+### Anti-Pattern 5: Multiple WebSocket Connections from Extension
+
+**What:** Opening separate WebSocket connections for DOM stream, task events, and agent sync.
+**Why bad:** Each connection has its own keepalive overhead, reconnect logic, and auth handshake. Multiple connections multiply the chance of one being in a degraded state.
+**Instead:** Single WebSocket connection carrying all message types, routed by the `type` field in the message envelope.
+
+## Scalability Considerations
+
+| Concern | At 1 user (MVP) | At 100 users | At 1K users |
+|---------|-----------------|--------------|-------------|
+| WebSocket connections | 2 (1 extension + 1 dashboard) | 200 | 2000 -- need connection limits per hashKey |
+| DOM stream bandwidth | ~5-20 KB/s per active view | Only streams when dashboard is viewing | Add per-room throttling |
+| SQLite write load | Trivial | ~100 run records/hour | Consider PostgreSQL migration |
+| Server memory | <50MB | ~200MB (WS buffers) | Need horizontal scaling (not v0.9.6 scope) |
+| Fly.io hosting | Single instance | Single instance + more RAM | Multiple instances need sticky sessions for WS |
+
+For v0.9.6 (single user with possible demo), a single fly.io instance is sufficient.
 
 ## Suggested Build Order (Dependency-Driven)
 
-### Phase 0: Infrastructure (must come first)
-1. Stage 1b generalization in `dom-analysis.js`
-2. `_shared.js` rewrite for category guidance
-3. `index.js` keyword list updates
-4. `background.js` and `options.html` script registration
+### Phase 1: WebSocket Infrastructure (must come first)
 
-### Phase 1: Lowest complexity, validate pattern (2 apps)
-5. Google Keep guide (simplest -- validates guide-only approach)
-6. Todoist guide (simple with Quick Add natural language)
+Everything else depends on bidirectional server-extension communication.
 
-### Phase 2: Medium complexity (2 apps)
-7. Trello guide (SPA with modals, minimal fsbElements)
-8. Google Calendar guide (non-canvas time grid, moderate fsbElements)
+1. Add `ws` + `qrcode` to server/package.json
+2. Create `server/src/ws/handler.js` -- WebSocket connection management with room-based routing
+3. Modify `server/server.js` -- add WebSocket upgrade handling alongside Express
+4. Create `ws/ws-client.js` in extension -- WebSocket connection with keepalive, reconnect, message routing
+5. Modify `background.js` -- importScripts, connect on startup, route incoming messages
+6. Modify `agents/server-sync.js` -- use WS when connected, HTTP as fallback
+7. Add `minimum_chrome_version: "116"` to manifest.json
+8. Test: extension connects to server via WS, keepalive works, agent run results flow via WS
 
-### Phase 3: Highest complexity (3 apps)
-9. Jira guide (ProseMirror editor, configurable workflows)
-10. Notion guide (block editor, slash commands, databases)
-11. Airtable guide (canvas grid, rich field types, virtual scrolling)
+### Phase 2: QR Pairing + Showcase
+
+Dashboard needs auth before it can receive anything.
+
+9. Create `server/src/routes/qr.js` -- QR code generation, pairing token lifecycle
+10. Create `server/dashboard/src/components/QRPairing.jsx` -- display QR, wait for pairing
+11. Add pairing button to extension options page (scan QR or enter server URL + hash key)
+12. Create showcase landing page at `server/public/index.html`
+13. Modify `server/server.js` -- serve showcase at `/`, dashboard at `/dashboard`
+14. Test: dashboard shows QR, extension scans/enters code, connection established
+
+### Phase 3: Remote Task Control
+
+Requires Phase 1 (WebSocket) and Phase 2 (auth/pairing).
+
+15. Create `server/src/routes/tasks.js` -- task creation endpoint
+16. Add `remote_tasks` table to schema
+17. Create `server/dashboard/src/components/TaskCreator.jsx` -- task creation form
+18. Add WS message handler in extension for `task:create` -- creates one-time agent, executes
+19. Add WS progress reporting during task execution
+20. Replace `useSSE` hook with `useWebSocket` in dashboard
+21. Add `ConnectionStatus.jsx` to dashboard
+22. Test: create task from dashboard, see it execute on extension, results flow back
+
+### Phase 4: DOM Cloning Stream
+
+Most complex new feature, depends on Phase 1 (WebSocket) and Phase 3 (remote task visible in dashboard).
+
+23. Create `content/dom-observer.js` -- MutationObserver, initial snapshot serialization, incremental diff generation
+24. Create `ws/dom-stream.js` in extension -- coordinate observer injection, forward snapshots/diffs to WS
+25. Add DOM relay logic in `server/src/ws/handler.js` -- forward DOM messages within room
+26. Create `server/dashboard/src/components/DOMViewer.jsx` -- reconstruct DOM in sandboxed iframe
+27. Add "Live View" tab to dashboard with DOM viewer
+28. Test: navigate to a page, dashboard shows reconstructed DOM updating in real-time
+
+### Phase 5: Polish and Integration
+
+29. Agent monitoring enhancements in dashboard (existing agent cards + WS-based live status)
+30. Dashboard UI polish (responsive layout, loading states, error handling)
+31. Extension connection status indicator in popup/sidepanel
+32. Showcase page content and design
+33. Fly.io deployment configuration (Dockerfile, fly.toml)
 
 **Ordering rationale:**
-- Phase 0 is prerequisite for any guide with fsbElements
-- Phase 1 validates the pattern works without fsbElements (low risk)
-- Phase 2 adds moderate fsbElements, validating the Stage 1b generalization
-- Phase 3 tackles the most complex apps after the pattern is proven
-- Notion and Airtable are last because they have the most unknowns (block editor semantics, canvas grid navigation)
-
-## `_shared.js` Rewrite Recommendation
-
-The current `_shared.js` is canvas-centric (Google Docs/Sheets). Needs to be rewritten to cover three paradigms:
-
-```
-PRODUCTIVITY TOOLS INTELLIGENCE:
-
-CANVAS-BASED APPLICATIONS (Google Sheets, Google Docs, Airtable grid):
-  [existing canvas guidance]
-
-BLOCK EDITORS (Notion):
-  - Content is organized in blocks. Each block is a separate element.
-  - Use slash commands (type "/" at an empty line) to create new block types.
-  - Arrow keys navigate between blocks. Tab indents/outdents.
-  - Databases use virtual rendering -- only visible rows are in the DOM.
-
-KEYBOARD-FIRST APPS (Google Calendar, Trello, Jira, Todoist, Google Keep):
-  - Most actions are triggered by single-key shortcuts (c, n, q, etc.)
-  - Keyboard shortcuts MUST be enabled in the app settings (especially Google Calendar)
-  - Modals/overlays contain standard form fields -- use click + type normally
-  - Auto-save is common -- explicit save is rarely needed
-
-COMMON PATTERNS:
-  - Esc: Close modal/cancel edit (universal)
-  - Enter: Confirm/save (context-dependent)
-  - /: Search (many apps)
-  - j/k: Navigate items (Gmail-style pattern used by Calendar, Trello, Jira, Keep)
-```
-
-## `index.js` Keyword Update
-
-Current Productivity Tools keyword config:
-```javascript
-'Productivity Tools': {
-  strong: ['google sheets', 'google sheet', 'spreadsheet', 'google docs', 'google doc'],
-  weak: ['sheets', 'sheet', 'create sheet', 'new sheet', 'add to sheet', 'enter data',
-         'create document', 'new document', 'write document', 'share document', 'edit document']
-}
-```
-
-Recommended additions:
-```javascript
-'Productivity Tools': {
-  strong: [
-    'google sheets', 'google sheet', 'spreadsheet', 'google docs', 'google doc',
-    'notion', 'google calendar', 'trello', 'google keep', 'todoist', 'airtable', 'jira'
-  ],
-  weak: [
-    'sheets', 'sheet', 'create sheet', 'new sheet', 'add to sheet', 'enter data',
-    'create document', 'new document', 'write document', 'share document', 'edit document',
-    'calendar', 'event', 'schedule', 'meeting', 'appointment',
-    'board', 'card', 'kanban', 'trello board',
-    'note', 'keep note', 'checklist', 'sticky note',
-    'task', 'todo', 'to-do', 'project', 'due date', 'reminder',
-    'base', 'table', 'record', 'field', 'view',
-    'issue', 'sprint', 'backlog', 'epic', 'story', 'bug report'
-  ]
-}
-```
+- Phase 1 is prerequisite for all real-time features
+- Phase 2 is prerequisite for dashboard access (auth)
+- Phase 3 validates the bidirectional message flow pattern before adding the more complex DOM stream
+- Phase 4 builds on the established WebSocket + room pattern
+- Phase 5 is polish that benefits from all infrastructure being in place
+- Background agents and automation replay are ALREADY BUILT -- they just need WS integration (Phase 1)
 
 ## Sources
 
-- FSB codebase analysis: `content/dom-analysis.js` (Stage 1b pipeline, lines 1758-1870), `content/actions.js` (type handler lines 1590-1710, fillsheet lines 3766-3990), `content/messaging.js` (isCanvasBasedEditor lines 217-225), `site-guides/index.js` (registry, keyword matching), `site-guides/productivity/google-sheets.js` (fsbElements pattern), `site-guides/productivity/google-docs.js` (canvas guide pattern), `background.js` (importScripts lines 16-132, isCanvasEditorUrl line 9933)
-- [Notion Keyboard Shortcuts](https://www.notion.com/help/keyboard-shortcuts) -- official Notion Help Center (HIGH confidence)
-- [Notion Slash Commands](https://www.notion.com/help/guides/using-slash-commands) -- official Notion Help Center (HIGH confidence)
-- [Google Calendar Keyboard Shortcuts](https://support.google.com/calendar/answer/37034) -- official Google Support (HIGH confidence)
-- [Trello Keyboard Shortcuts](https://support.atlassian.com/trello/docs/keyboard-shortcuts-in-trello/) -- official Atlassian Support (HIGH confidence)
-- [Todoist Keyboard Shortcuts](https://www.todoist.com/help/articles/use-keyboard-shortcuts-in-todoist-Wyovn2) -- official Todoist Help (HIGH confidence)
-- [Todoist Quick Add](https://www.todoist.com/help/articles/use-task-quick-add-in-todoist-va4Lhpzz) -- official Todoist Help (HIGH confidence)
-- [Airtable Keyboard Shortcuts](https://support.airtable.com/docs/airtable-keyboard-shortcuts) -- official Airtable Support (HIGH confidence)
-- [Jira Keyboard Shortcuts](https://support.atlassian.com/jira-software-cloud/docs/use-keyboard-shortcuts/) -- official Atlassian Support (HIGH confidence)
-- [Google Keep Keyboard Shortcuts](https://support.google.com/keep/answer/12862970) -- official Google Support (HIGH confidence)
-- [Jira Frontend API](https://developer.atlassian.com/server/jira/platform/jira-frontend-api/) -- Atlassian developer docs, notes DOM instability (MEDIUM confidence)
+- [Chrome Official: Use WebSockets in Service Workers](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets) -- Chrome 116+ keepalive behavior (HIGH confidence)
+- [Chrome Official: Service Worker Lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) -- 30-second inactivity timeout (HIGH confidence)
+- [Chrome Official: Migrate to Service Workers](https://developer.chrome.com/docs/extensions/develop/migrate/to-service-workers) -- MV3 migration guidance (HIGH confidence)
+- [rrweb Serialization Docs](https://github.com/rrweb-io/rrweb/blob/master/docs/serialization.md) -- DOM serialization approach reference (HIGH confidence, used for comparison)
+- [rrweb Observer Docs](https://github.com/rrweb-io/rrweb/blob/master/docs/observer.md) -- MutationObserver patterns (HIGH confidence)
+- [Firefox Ecosystem: Pairing Flow Architecture](https://mozilla.github.io/ecosystem-platform/explanation/pairing-flow-architecture) -- QR pairing architecture reference (MEDIUM confidence, different platform but same pattern)
+- [Cross-Device Communication via WebSockets](https://medium.com/@getflourish/from-mobile-to-desktop-cross-device-communication-using-websockets-f9c48f669c8) -- QR + WebSocket room pattern (MEDIUM confidence)
+- FSB codebase analysis: `agents/` directory (agent-manager.js, agent-scheduler.js, agent-executor.js, server-sync.js), `server/` directory (server.js, src/), `background.js` lines 11927-11990 (alarm handler), `offscreen/stt.js` (offscreen pattern), `manifest.json` (permissions) -- (HIGH confidence, direct code reading)

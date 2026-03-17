@@ -1,703 +1,337 @@
-# Technology Stack: Productivity Site Intelligence Guides
+# Technology Stack: v0.9.6 Agents & Remote Control
 
-**Project:** FSB v0.9.2 - Productivity Site Intelligence
-**Researched:** 2026-03-16
-**Mode:** Ecosystem (DOM patterns, keyboard shortcuts, mechanical tool needs per target app)
-**Constraint:** Vanilla JS (ES2021+), no build system, Chrome Extension MV3, existing fsbElements + findElementByStrategies pipeline
-**Overall confidence:** MEDIUM (DOM class names require live inspection; keyboard shortcuts HIGH from official docs)
+**Project:** FSB v0.9.6 - Server Relay, Dashboard, QR Pairing, DOM Cloning, Background Agents, Automation Replay
+**Researched:** 2026-03-17
+**Constraint:** Vanilla JS extension (no build system), new Node.js server component on fly.io
+**Overall confidence:** HIGH (core libraries verified via npm/official docs; fly.io deployment patterns well-documented)
 
 ---
 
 ## Executive Summary
 
-Adding site intelligence for 7 productivity apps (Notion, Google Calendar, Trello, Google Keep, Todoist, Airtable, Jira) requires NO new external dependencies and NO new Chrome Extension APIs. The existing `registerSiteGuide()` / `fsbElements` / `findElementByStrategies()` pipeline is architecturally sufficient -- but has one critical bottleneck: the Stage 1b fsbElements injection in `dom-analysis.js` is hardcoded to only fire on Google Sheets URLs (`/spreadsheets\/d\/`). This gate must be generalized to run for ANY site guide that provides `fsbElements`, which is the single most important infrastructure change in this milestone.
+This milestone introduces FSB's first server-side component and first external web application. The extension remains vanilla JS with no build system -- the server is a separate Node.js project deployed to fly.io. The stack additions are minimal and deliberate: `ws` for WebSocket relay, `express` for serving the dashboard + API, `qr` for QR code pairing, and custom DOM serialization (NOT rrweb) for the cloning stream. Background agents use Chrome's existing `chrome.alarms` API. No new Chrome permissions are needed beyond what's already in the manifest.
 
-The 7 target apps fall into three DOM-complexity tiers:
-
-1. **Standard DOM (keyboard-first guidance only):** Google Keep, Todoist, Trello -- these render interactive elements as normal DOM nodes. Standard click/type commands work. They need site guides with keyboard shortcuts, fsbElements for key UI targets, and workflow recipes. No mechanical tools needed.
-
-2. **React virtual DOM with dynamic selectors:** Notion, Jira -- these use React with frequently-changing class names but stable `data-block-id`/`data-testid`/`aria-label` attributes. Multi-strategy selectors are essential. Notion's contenteditable blocks and slash commands need special guidance. No mechanical tools needed.
-
-3. **Canvas/hybrid rendering:** Google Calendar, Airtable -- these render parts of their UI on canvas or with custom grid renderers where cells are NOT standard DOM elements. Google Calendar uses DOM elements for the time grid slots but canvas for rendering event chips. Airtable uses a custom grid renderer that is NOT canvas-based (unlike Google Sheets) but has unique cell selection patterns. Neither needs mechanical tools at the level of fillsheet/readsheet -- keyboard navigation suffices.
-
-**Net dependency change: ZERO new libraries. ZERO new Chrome APIs. One infrastructure change (generalize Stage 1b injection) + 7 new site guide files + 1 updated category shared file.**
+**Key decision: Build the DOM cloning yourself, do NOT use rrweb.** The project already has a sophisticated DOM snapshot system (unified markdown snapshots with element refs). rrweb is stuck in alpha (v2.0.0-alpha.4, main package last published 3 years ago), adds 50KB+ of code, and solves a different problem (pixel-perfect session replay). FSB needs structural DOM cloning for a control dashboard, not video-like replay. Extend the existing snapshot pipeline to emit serialized DOM deltas over WebSocket.
 
 ---
 
-## Critical Infrastructure Change
+## Recommended Stack
 
-### Generalize Stage 1b fsbElements Injection
+### Server-Side (NEW -- fly.io)
 
-**Current state (hardcoded to Sheets):**
-```javascript
-// content/dom-analysis.js, line ~1810
-if (/spreadsheets\/d\//.test(window.location.pathname)) {
-    const fsbElements = guideSelectors?.fsbElements;
-    // ... injection loop
-}
-```
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| Node.js | 20 LTS | Server runtime | LTS stability, native WebSocket client support since v22 but v20 is the safe choice for production |
+| `ws` | ^8.19.0 | WebSocket server | De facto standard for Node.js WS servers. 0 dependencies, blazing fast, thoroughly tested. Node.js v22 has native WS client but NO native WS server -- `ws` fills this gap |
+| `express` | ^4.21.0 | HTTP server + static files | Serves dashboard site, handles QR pairing API, and upgrades connections to WebSocket. Single app serves both static site and WS relay |
+| `@paulmillr/qr` (aka `qr`) | ^0.5.3 | QR code generation (server-side) | Zero-dependency, 4KB, generates SVG/ASCII QR codes. Server generates pairing QR that dashboard page displays. Actively maintained (last published ~1 month ago) |
+| `crypto` (Node built-in) | N/A | Pairing hash generation | `crypto.randomUUID()` + `crypto.createHash()` for unique pairing tokens. No external dependency needed |
 
-**Required state (any site with fsbElements):**
-```javascript
-// Replace Sheets URL check with presence check
-const fsbElements = guideSelectors?.fsbElements;
-if (fsbElements) {
-    // ... same injection loop, works for ALL sites
-}
-```
+### Extension-Side (CHANGES to existing)
 
-The `guideSelectors` object already carries `fsbElements` from the matched site guide (background.js line 8483 merges `guide.fsbElements` into the guideSelectors payload). The plumbing exists end-to-end. The ONLY gate is the hardcoded Sheets URL regex in `dom-analysis.js`. Removing that gate makes the entire fsbElements system work for all 7 new sites automatically.
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `WebSocket` (browser built-in) | N/A | Connect to relay server | Chrome 116+ supports WebSocket in MV3 service workers with keepalive. Extension already requires Chrome 88+; bump minimum to 116 |
+| `chrome.alarms` | Existing API | Background polling agent scheduling | Already in manifest permissions. Minimum interval 1 minute. Wakes service worker reliably. Perfect for cron-like polling tasks |
+| `MutationObserver` (browser built-in) | N/A | DOM change detection for cloning stream | Already used in the stability detection system. Extend to emit serialized DOM deltas for real-time cloning |
+| QRCode.js | 1.0.0 (vendored) | QR code display in extension popup | Zero-dependency, works via script tag, generates QR on canvas. Vendored (copied into extension), NOT npm-installed. Extension shows QR for phone/dashboard scanning |
 
-**Also needed:** Move the Sheets-specific health check and logging outside the generalized block, or make them site-aware rather than Sheets-specific.
+### Dashboard Site (NEW -- served from same fly.io app)
 
-**Confidence: HIGH** -- verified by reading the actual code paths in dom-analysis.js, background.js, and messaging.js.
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| Vanilla HTML/CSS/JS | N/A | Dashboard UI | Matches the extension's no-build-system constraint. The dashboard is a single-page app with a few HTML files served by Express |
+| `WebSocket` (browser built-in) | N/A | Connect to relay for live updates | Dashboard receives DOM clones and task status via WebSocket |
+| `qr-scanner` or camera API | N/A | QR scanning on dashboard | Dashboard needs to scan QR codes displayed by the extension. Use `navigator.mediaDevices.getUserMedia()` + jsQR (vendored) for camera-based scanning, OR manual code entry as fallback |
 
----
+### Infrastructure
 
-## Per-App DOM Analysis and Stack Needs
-
-### 1. Notion (notion.so)
-
-**DOM Rendering:** React app with contenteditable blocks. NOT canvas-based. Each block is a `div` with `contenteditable="true"` wrapping the text content. Notion uses CSS class names that include block type identifiers (like `notion-text-block`, `notion-to_do-block`, `notion-page-block`), though class name hashes change across builds.
-
-**Stable selectors available:**
-- `data-block-id` attribute on each block (UUID, stable)
-- `contenteditable="true"` on editable blocks
-- `[role="textbox"]` on the main page content area
-- `[placeholder]` attributes on empty blocks (e.g., "Type '/' for commands")
-- Sidebar navigation uses standard `[role="treeitem"]` patterns
-- Database views use `[role="row"]`, `[role="cell"]` ARIA patterns
-
-**Key DOM challenge:** Notion re-renders blocks aggressively via React. Elements may be removed and re-created between snapshots. The `data-block-id` attribute persists across re-renders and is the most reliable anchor. Class-based selectors are fragile due to CSS module hashing.
-
-**Keyboard shortcuts (verified from official docs):**
-| Action | Shortcut |
-|--------|----------|
-| Slash command menu | `/` |
-| New page | `Ctrl+N` |
-| Bold | `Ctrl+B` |
-| Italic | `Ctrl+I` |
-| Heading 1/2/3 | `Ctrl+Shift+1/2/3` |
-| To-do | `Ctrl+Shift+4` |
-| Bulleted list | `Ctrl+Shift+5` |
-| Numbered list | `Ctrl+Shift+6` |
-| Toggle list | `Ctrl+Shift+7` |
-| Code block | `Ctrl+Shift+8` |
-| Move block up/down | `Ctrl+Shift+ArrowUp/Down` |
-| Indent/outdent | `Tab` / `Shift+Tab` |
-| Search/quick find | `Ctrl+P` or `Ctrl+K` |
-| Link | `Ctrl+K` |
-| Comment | `Ctrl+Shift+M` |
-| Duplicate block | `Ctrl+D` |
-| Select block | `Esc` then arrow keys |
-
-**Mechanical tool needed:** NO. Notion's contenteditable blocks accept standard type commands. Slash commands (`/todo`, `/heading1`, etc.) are text-based and work with the existing `type` tool. Keyboard shortcuts handle block creation and formatting.
-
-**fsbElements needed:**
-- `page-content` -- main editable area
-- `sidebar-toggle` -- hamburger menu to open/close sidebar
-- `new-page-button` -- create new page
-- `search-input` -- quick find/search field
-- `breadcrumb` -- navigation breadcrumb
-- `database-add-row` -- add new row in database views
-
-**Strategy priority:** aria > role > context > class (avoid id-based, Notion generates no stable IDs)
-
-**Confidence:** MEDIUM -- DOM class naming pattern is well-known from community; exact current selectors need live inspection verification.
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| fly.io | N/A | Hosting platform | WebSocket-native (no special config needed), auto-TLS, global edge network, ~$2/month for a shared-cpu-1x instance. Single app serves both static dashboard and WebSocket relay |
+| Docker | N/A | Deployment container | fly.io auto-generates Dockerfile from Node.js app. Standard `node:20-alpine` base |
 
 ---
 
-### 2. Google Calendar (calendar.google.com)
+## Architecture: Single fly.io App
 
-**DOM Rendering:** Polymer/Lit-based (Google internal framework, evolved from Closure). The time grid uses standard DOM elements -- NOT canvas. Each time slot is a `div` with `data-datekey` and `data-eventchip` attributes. Event chips are rendered as DOM elements with `data-eventid` attributes.
-
-**Stable selectors available:**
-- `[data-datekey]` on date cells
-- `[data-eventid]` on event chips
-- `[aria-label]` extensively used on all interactive elements
-- `[data-view]` on view containers (day, week, month)
-- Mini calendar uses standard `[role="grid"]` with `[data-date]` cells
-- Event creation form uses `[aria-label]` on all fields
-
-**Key DOM challenge:** Google Calendar aggressively lazy-loads events. Scrolling in week/month view triggers AJAX that inserts new event elements. Modal popovers for event details appear as overlays with dynamic positioning. The time grid itself is reliable DOM -- the challenge is event chips that appear/disappear based on scroll position.
-
-**Keyboard shortcuts (verified from Google support docs):**
-| Action | Shortcut |
-|--------|----------|
-| Create event | `C` |
-| Day view | `D` |
-| Week view | `W` |
-| Month view | `M` |
-| Year view | `Y` |
-| Agenda view | `A` |
-| Custom view | `X` |
-| Go to today | `T` |
-| Go to date | `G` (then type date) |
-| Next period | `N` or `J` |
-| Previous period | `P` or `K` |
-| Search | `/` |
-| Settings | `S` |
-| Delete event | `Backspace` or `Delete` |
-| Undo | `Z` |
-| Show shortcuts | `?` |
-
-**Mechanical tool needed:** NO. Events are created via the `C` shortcut which opens a standard form with labeled input fields. Date/time pickers use standard select/input elements. The time grid click-to-create interaction works with standard click commands at the correct grid position.
-
-**fsbElements needed:**
-- `create-event-button` -- floating "+" or toolbar create button
-- `event-title-input` -- title field in event creation popover
-- `event-date-input` -- date field
-- `event-time-input` -- time field
-- `event-save-button` -- save/create button
-- `mini-calendar` -- the small date picker in the sidebar
-- `view-switcher` -- day/week/month view toggle area
-- `search-input` -- search box
-
-**Strategy priority:** aria > data-attribute > role > context (Google uses aria-label extensively, stable IDs are rare)
-
-**Confidence:** MEDIUM -- framework identification is well-known; exact selector stability needs live verification.
-
----
-
-### 3. Trello (trello.com)
-
-**DOM Rendering:** React app with standard DOM elements. Cards and lists are normal `div` elements with `data-testid` attributes (Atlassian convention). Drag-and-drop is handled by React DnD library but all card/list elements are accessible via standard selectors.
-
-**Stable selectors available:**
-- `[data-testid]` on major UI elements (Atlassian convention)
-- `[aria-label]` on buttons and interactive elements
-- Card links have `href` attributes containing card IDs
-- Lists have `[data-list-id]` attributes (from Atlassian data attributes)
-- `[role="button"]`, `[role="dialog"]`, `[role="textbox"]` on interactive elements
-
-**Key DOM challenge:** Trello's list IDs are NOT exposed as DOM IDs directly. Cards within lists contain `href` attributes with card IDs. The board scrolls horizontally, and lists may not be in DOM if scrolled out of view (virtual scrolling). Modal overlays for card details use standard dialog patterns.
-
-**Keyboard shortcuts (verified from Atlassian support docs):**
-| Action | Shortcut |
-|--------|----------|
-| New card | `N` |
-| Open card | `Enter` |
-| Edit card title | `T` |
-| Archive card | `C` |
-| Move up/down | `J` / `K` or Arrow keys |
-| Search boards | `B` |
-| Filter cards | `F` |
-| Repeat last action | `R` |
-| Undo | `Z` |
-| Redo | `Shift+Z` |
-| Clear filters | `X` |
-| Show shortcuts | `Shift+?` |
-| Due date | `D` |
-| Label | `L` |
-| Members | `M` |
-| Description | `E` |
-| Quick edit | `E` (while hovering) |
-
-**Mechanical tool needed:** NO. Card creation uses the `N` shortcut or the "Add a card" button. Card editing uses standard contenteditable/textarea elements. Labels, due dates, and members use standard click-to-select patterns.
-
-**fsbElements needed:**
-- `add-card-button` -- "Add a card" link at bottom of lists
-- `add-list-button` -- "Add another list" button
-- `card-title-input` -- textarea for card title when creating/editing
-- `board-header` -- board name/header area
-- `list-header` -- list name area (for renaming)
-- `card-detail-modal` -- the card detail overlay
-- `search-input` -- search box in header
-
-**Strategy priority:** data-testid > aria > role > context (Atlassian uses data-testid consistently)
-
-**Confidence:** MEDIUM -- Atlassian data-testid convention is well-documented; exact values need live verification.
-
----
-
-### 4. Google Keep (keep.google.com)
-
-**DOM Rendering:** Standard DOM with Polymer/Material Web Components. Notes are rendered as card elements with standard class names. Checkboxes are standard input elements. The note grid uses CSS grid/flexbox layout -- NOT canvas.
-
-**Stable selectors available:**
-- `[aria-label]` on interactive elements
-- `[data-id]` on note cards
-- `[role="listitem"]` on note cards in grid
-- `contenteditable="true"` on note title and body
-- Checkbox items use standard `[role="checkbox"]` or `input[type="checkbox"]`
-- Color picker uses `[aria-label]` with color names
-
-**Key DOM challenge:** Google Keep uses Material Design components that wrap standard elements in shadow DOM or custom elements. The note editing experience opens an overlay/modal that contains the editable fields. Notes in the grid are NOT directly editable -- you must click to open the edit overlay. The contenteditable areas in the overlay are standard and work with type commands.
-
-**Keyboard shortcuts (verified from Google support and community docs):**
-| Action | Shortcut |
-|--------|----------|
-| New note | `C` |
-| New list | `L` |
-| Search | `/` |
-| Select note | `X` |
-| Open note | `O` or `Enter` |
-| Archive | `E` |
-| Delete | `#` |
-| Pin/unpin | `F` |
-| Next note | `J` |
-| Previous note | `K` |
-| Next list item | `N` |
-| Previous list item | `P` |
-| Move item down | `Shift+N` |
-| Move item up | `Shift+P` |
-| Toggle grid/list | `Ctrl+G` |
-| Toggle checkboxes | `Ctrl+Shift+8` |
-| Indent | `Ctrl+]` |
-| Dedent | `Ctrl+[` |
-| Close note | `Esc` or `Ctrl+Enter` |
-| Show shortcuts | `?` |
-
-**Mechanical tool needed:** NO. Note creation uses `C` shortcut, list creation uses `L`. Text entry is standard contenteditable. Checkbox toggling is standard click on checkbox elements.
-
-**fsbElements needed:**
-- `new-note-button` -- compose new note
-- `new-list-button` -- compose new list
-- `search-input` -- search bar
-- `note-title-input` -- title field in note editor
-- `note-body-input` -- body contenteditable in note editor
-- `add-checkbox-item` -- the "+ List item" button in list notes
-- `color-picker` -- note background color selector
-- `pin-button` -- pin/unpin button in note editor
-- `close-note-button` -- done/close button
-
-**Strategy priority:** aria > role > context > class (Google uses aria-label, avoids stable IDs in Keep)
-
-**Confidence:** MEDIUM -- rendering approach verified via web search; exact selectors need live inspection.
-
----
-
-### 5. Todoist (todoist.com)
-
-**DOM Rendering:** React app with standard DOM elements. Uses `data-testid` attributes on some elements. Task items are standard DOM elements with contenteditable for inline editing. The quick-add bar is a standard input/contenteditable area.
-
-**Stable selectors available:**
-- `[data-testid]` on some UI elements
-- `[aria-label]` on buttons and interactive elements
-- `[role="listbox"]` on project/label dropdowns
-- `[contenteditable="true"]` on task name editing fields
-- Task checkboxes use standard checkbox patterns
-- Priority indicators use `[data-priority]` or class-based indicators
-
-**Key DOM challenge:** Todoist uses React with frequent re-renders. Class names include hashed suffixes (CSS modules). The inline task editor replaces the task display element when activated, so element references may become stale. The quick-add modal is a standard overlay with well-labeled fields. Date picker uses a custom popover with calendar grid.
-
-**Keyboard shortcuts (verified from Todoist official docs):**
-| Action | Shortcut |
-|--------|----------|
-| Quick add task | `Q` |
-| Add to bottom | `A` |
-| Add to top | `Shift+A` |
-| Open task | `Enter` |
-| Edit task | `Ctrl+E` |
-| Complete task | `E` |
-| Set date | `T` |
-| Remove date | `Shift+T` |
-| Set priority 1-4 | `1`, `2`, `3`, `4` |
-| Add label | `L` |
-| Add comment | `C` |
-| Search | `/` or `F` |
-| Go to Inbox | `G` then `I` |
-| Go to Today | `G` then `T` |
-| Go to Upcoming | `G` then `U` |
-| Move up/down | `K`/`J` or arrows |
-| Command menu | `Ctrl+K` |
-| Add section | `S` |
-
-**Mechanical tool needed:** NO. Task creation uses `Q` for quick-add or `A` for inline add. All fields accept standard type commands. Natural language date parsing means typing "tomorrow" or "next Monday" in the date field works directly.
-
-**fsbElements needed:**
-- `quick-add-button` -- the "+" button or quick add trigger
-- `task-name-input` -- task name field in quick add or inline editor
-- `date-picker-trigger` -- due date button/field
-- `priority-picker` -- priority selection
-- `project-selector` -- project dropdown
-- `label-selector` -- label/tag dropdown
-- `search-input` -- search bar
-- `inbox-link` -- inbox navigation item
-- `today-link` -- today view navigation item
-
-**Strategy priority:** data-testid > aria > role > context (React app with CSS module hashing makes class selectors fragile)
-
-**Confidence:** MEDIUM -- React architecture confirmed; keyboard shortcuts from official docs; exact selectors need live verification.
-
----
-
-### 6. Airtable (airtable.com)
-
-**DOM Rendering:** React app with a CUSTOM GRID RENDERER. The grid view is NOT canvas-based (unlike Google Sheets) -- cells are real DOM elements, but they use a virtualized rendering approach where only visible rows/columns are in the DOM. Cells use `[role="gridcell"]` ARIA pattern. Cell editing opens an inline editor overlay.
-
-**Stable selectors available:**
-- `[role="grid"]`, `[role="row"]`, `[role="gridcell"]`, `[role="columnheader"]` ARIA grid pattern
-- `[aria-label]` on toolbar buttons and field type selectors
-- `[aria-colindex]`, `[aria-rowindex]` on grid cells (standard ARIA grid attributes)
-- `[data-columnid]`, `[data-rowid]` (Airtable-specific data attributes on some elements)
-- Record expansion uses `[role="dialog"]` with `[aria-label]`
-- Field type indicators use `[data-field-type]` or class-based patterns
-
-**Key DOM challenge:** Airtable virtualizes the grid -- only ~20-30 visible rows exist in DOM at any time. Scrolling creates/destroys row elements. Cell editing triggers an inline expansion overlay that replaces the static cell content. Rich field types (attachments, linked records, selects) each have unique editor UIs. This is the most complex grid interaction of all 7 apps.
-
-**Keyboard shortcuts (verified from Airtable official docs):**
-| Action | Shortcut |
-|--------|----------|
-| Edit cell | `Enter` |
-| Expand record | `Space` |
-| Expand cell | `Shift+Space` |
-| Navigate cells | Arrow keys |
-| Jump to edge | `Ctrl+Arrow` |
-| Select range | `Shift+Arrow` |
-| Insert record below | `Shift+Enter` |
-| Undo/Redo | `Ctrl+Z` / `Ctrl+Shift+Z` |
-| Copy/Paste | `Ctrl+C` / `Ctrl+V` |
-| Find | `Ctrl+F` |
-| Table switcher | `Ctrl+J` |
-| View switcher | `Ctrl+Shift+K` |
-| Filters | `Ctrl+Shift+F` |
-| Sort | `Ctrl+Shift+S` |
-| Group | `Ctrl+Shift+D` |
-| Page up/down | `PgUp` / `PgDn` |
-| Scroll horizontal | `Alt+PgUp` / `Alt+PgDn` |
-| Toggle blocks | `Ctrl+Shift+\` |
-| Previous/Next record | `Ctrl+Shift+<` / `Ctrl+Shift+>` |
-| Close expanded | `Esc` |
-
-**Mechanical tool needed:** MAYBE (deferred). Airtable's grid is DOM-based (unlike Sheets' canvas) so standard click/type work for individual cells. However, bulk data entry into Airtable is tedious cell-by-cell. A future `fillairtable` mechanical tool could be valuable but is NOT required for the initial site guide. Keyboard navigation (arrow keys + Enter to edit + type + Tab to next cell) is reliable enough for the first version. Defer mechanical tool to a future milestone if demand arises.
-
-**fsbElements needed:**
-- `grid-container` -- the main grid area
-- `add-row-button` -- "+" row at bottom of grid
-- `add-field-button` -- "+" column header to add new field
-- `search-input` -- search bar
-- `view-switcher` -- view tabs (grid, kanban, calendar, etc.)
-- `record-expand-button` -- row expand icon
-- `table-switcher` -- table tabs at top
-- `filter-button` -- filter toolbar button
-- `sort-button` -- sort toolbar button
-
-**Strategy priority:** aria > role > context > data-attribute (Airtable has excellent ARIA grid implementation)
-
-**Confidence:** MEDIUM -- grid rendering approach (virtualized DOM, not canvas) confirmed by Airtable community discussions; exact selectors need live verification.
-
----
-
-### 7. Jira (*.atlassian.net)
-
-**DOM Rendering:** React app using Atlassian Design System (ADS). Uses `data-testid` attributes extensively (Atlassian testing convention). The board view uses React DnD for drag-and-drop. Issue creation uses a modal dialog. Sprint views use standard DOM elements.
-
-**Stable selectors available:**
-- `[data-testid]` -- Atlassian convention, present on most interactive elements
-- `[aria-label]` on buttons, inputs, and navigation items
-- `[role="dialog"]` on modals
-- `[role="gridcell"]` on board columns/cards
-- `[role="button"]`, `[role="menuitem"]` on toolbar actions
-- Board columns use `[data-column-id]` attributes
-- Issue keys (e.g., "PROJ-123") appear in `data-issue-key` or href attributes
-
-**Key DOM challenge:** Jira Cloud changes DOM structure with each sprint release (bi-weekly). Atlassian explicitly warns against relying on DOM structure. However, `data-testid` attributes are stable across releases (they're part of Atlassian's testing infrastructure). The issue creation modal has many dynamic fields that appear/disappear based on project configuration (custom fields, issue types). Board drag-and-drop is complex but NOT needed for the guide -- keyboard shortcuts handle column transitions.
-
-**Keyboard shortcuts (verified from Atlassian support docs):**
-| Action | Shortcut |
-|--------|----------|
-| Create issue | `C` |
-| Quick search | `/` |
-| Show backlog | `1` |
-| Show board | `2` |
-| Show reports | `3` |
-| Assign to me | `I` |
-| Assign to other | `A` |
-| Open issue | `O` |
-| Edit labels | `L` |
-| Add comment | `M` |
-| Next/previous issue | `J` / `K` |
-| Next/previous column | `N` / `P` |
-| Show shortcuts | `?` |
-| Command palette | `Ctrl+K` |
-
-**Mechanical tool needed:** NO. Issue creation uses `C` shortcut to open the creation modal. All fields are standard form inputs (text, select, date pickers). Sprint management uses standard click interactions. Board card movement uses keyboard shortcuts.
-
-**fsbElements needed:**
-- `create-issue-button` -- the "Create" button in header
-- `issue-summary-input` -- summary/title field in create modal
-- `issue-type-selector` -- issue type dropdown
-- `project-selector` -- project dropdown
-- `assignee-selector` -- assignee field
-- `priority-selector` -- priority dropdown
-- `sprint-selector` -- sprint field
-- `description-editor` -- rich text description field
-- `board-column` -- board columns (for context)
-- `search-input` -- global search bar
-- `backlog-view` -- backlog navigation
-- `board-view` -- board navigation
-
-**Strategy priority:** data-testid > aria > role > context (Atlassian's data-testid is the most stable selector strategy)
-
-**Confidence:** MEDIUM -- Atlassian data-testid convention well-documented; Jira DOM instability explicitly warned by Atlassian; data-testid stability confirmed.
-
----
-
-## Recommended Stack (Changes from Current)
-
-### No New Dependencies
-
-| Category | Technology | Version | Purpose | Change |
-|----------|-----------|---------|---------|--------|
-| Runtime | Vanilla JS (ES2021+) | N/A | All site guide code | No change |
-| Platform | Chrome Extension MV3 | N/A | Extension framework | No change |
-| Element lookup | findElementByStrategies | Existing | Multi-strategy selector resolution | No change |
-| Guide registry | registerSiteGuide | Existing | URL pattern matching + guide loading | No change |
-| fsbElements pipeline | Stage 1b injection | Existing | Element injection into DOM snapshot | **Generalize** (remove Sheets URL gate) |
-
-### New Files (7 site guides + 1 updated shared)
-
-| File | Purpose | Estimated Size |
-|------|---------|---------------|
-| `site-guides/productivity/notion.js` | Notion block editor intelligence | ~300 lines |
-| `site-guides/productivity/google-calendar.js` | Google Calendar event management | ~250 lines |
-| `site-guides/productivity/trello.js` | Trello board/card management | ~200 lines |
-| `site-guides/productivity/google-keep.js` | Google Keep note/list management | ~200 lines |
-| `site-guides/productivity/todoist.js` | Todoist task management | ~200 lines |
-| `site-guides/productivity/airtable.js` | Airtable grid/record management | ~300 lines |
-| `site-guides/productivity/jira.js` | Jira issue/board/sprint management | ~300 lines |
-| `site-guides/productivity/_shared.js` | Updated category guidance (add non-canvas app patterns) | ~50 line delta |
-
-### Modified Files
-
-| File | Change | Scope |
-|------|--------|-------|
-| `content/dom-analysis.js` | Generalize Stage 1b fsbElements injection (remove `/spreadsheets\/d\/` gate) | ~20 lines changed |
-| `content/dom-analysis.js` | Make Sheets health check and logging site-aware | ~15 lines changed |
-| `site-guides/index.js` | Add productivity app keywords to `categoryKeywords` for task-based routing | ~10 lines added |
-| `options.html` | Add 7 `<script>` tags for new guide files | 7 lines added |
-| `manifest.json` | Add new guide files to `content_scripts` or `web_accessible_resources` if needed | ~7 lines |
-
-### No New Chrome Extension APIs Needed
-
-The existing API surface is sufficient:
-- `chrome.tabs.get()` -- already used for guide URL matching
-- `chrome.debugger` -- already used for keyboard input via CDP
-- Content script messaging -- already used for DOM snapshot + guide selector passing
-- No new permissions needed in manifest.json
-
----
-
-## Mechanical Tool Assessment
-
-| App | Needs Mechanical Tool? | Rationale |
-|-----|----------------------|-----------|
-| Google Sheets | YES (existing) | Canvas-based grid; fillsheet/readsheet already implemented |
-| Notion | NO | Contenteditable blocks accept standard type; slash commands are text-based |
-| Google Calendar | NO | Event creation form has standard labeled inputs |
-| Trello | NO | Card creation uses standard textarea/contenteditable |
-| Google Keep | NO | Note body is contenteditable; checkbox is standard click |
-| Todoist | NO | Quick-add and inline editing use standard inputs |
-| Airtable | MAYBE (deferred) | DOM grid with keyboard nav works; bulk entry could benefit from future tool |
-| Jira | NO | Issue creation modal has standard form fields |
-
-**Rationale:** Mechanical tools (like fillsheet) are justified when the app's rendering makes standard DOM interaction impossible (canvas-based grid). None of the 7 new apps have that problem. Airtable's virtualized grid is the closest, but keyboard navigation (arrow + Enter + type + Tab) is reliable for single-record interaction. Bulk data entry into Airtable is an edge case that can be deferred.
-
----
-
-## Site Guide Structure Template
-
-Each new site guide follows the established pattern from `google-sheets.js`:
-
-```javascript
-registerSiteGuide({
-  site: 'App Name',
-  category: 'Productivity Tools',
-  patterns: [
-    /hostname\.com\/path/i  // URL patterns
-  ],
-  guidance: `APP-SPECIFIC INTELLIGENCE:
-    // Keyboard shortcuts
-    // Navigation patterns
-    // Common workflows
-    // Critical warnings
-  `,
-  fsbElements: {
-    'element-name': {
-      label: 'Human-readable label',
-      selectors: [
-        { strategy: 'aria', selector: '[aria-label="Label"]' },
-        { strategy: 'role', selector: '[role="button"][aria-label*="Label"]' },
-        { strategy: 'data-testid', selector: '[data-testid="element-id"]' },
-        { strategy: 'context', selector: '.parent .child-pattern' },
-        { strategy: 'class', selector: '.known-stable-class' }
-      ]
-    }
-    // ... more elements
-  },
-  selectors: {
-    // Legacy flat selector map (backward compatibility)
-  },
-  workflows: {
-    // Step-by-step recipes for common tasks
-  },
-  warnings: [
-    // Critical gotchas for the AI
-  ],
-  toolPreferences: ['navigate', 'click', 'type', 'keyPress', ...]
-});
-```
-
-### Selector Strategy Ordering by App
-
-| App | Strategy 1 | Strategy 2 | Strategy 3 | Strategy 4 | Strategy 5 |
-|-----|-----------|-----------|-----------|-----------|-----------|
-| Notion | aria | role | context | data-block-id | class |
-| Google Calendar | aria | data-attribute | role | context | class |
-| Trello | data-testid | aria | role | context | class |
-| Google Keep | aria | role | context | class | id |
-| Todoist | data-testid | aria | role | context | class |
-| Airtable | aria | role | data-attribute | context | class |
-| Jira | data-testid | aria | role | context | class |
-
----
-
-## Category Shared Guidance Update
-
-The current `_shared.js` assumes all productivity tools are canvas-based (Google Docs/Sheets). The update must add patterns for the non-canvas apps:
+The server is ONE application that handles three responsibilities:
 
 ```
-PRODUCTIVITY TOOLS INTELLIGENCE:
-
-CANVAS-BASED APPLICATIONS (Google Sheets, Google Docs):
-- ... (existing guidance unchanged)
-
-BLOCK-EDITOR APPLICATIONS (Notion):
-- Content is organized as blocks, each independently editable
-- Use slash commands (/) to create new block types
-- Use keyboard shortcuts for block manipulation
-- Tab/Shift+Tab for indenting/outdenting blocks
-
-CARD/BOARD APPLICATIONS (Trello, Jira):
-- Content organized as cards within lists/columns
-- Keyboard shortcuts (N, J, K) for card creation and navigation
-- Modal overlays for detailed card/issue editing
-- Drag-and-drop replaced by keyboard shortcuts for reliability
-
-GRID APPLICATIONS (Airtable):
-- Cells are real DOM elements (unlike Sheets canvas)
-- Arrow keys to navigate, Enter to edit, Escape to confirm
-- Space to expand record for full editing
-- Virtualized rendering -- only visible rows in DOM
-
-LIST APPLICATIONS (Todoist, Google Keep):
-- Quick-add shortcuts (Q for Todoist, C for Keep)
-- Inline editing with contenteditable
-- Keyboard navigation (J/K) between items
+fly.io app (fsb-relay)
+  |
+  +-- Express static files --> Dashboard/showcase site (HTML/CSS/JS)
+  +-- Express REST API     --> POST /api/pair (QR pairing), GET /api/status
+  +-- ws WebSocket server  --> /ws endpoint (relay between extension <-> dashboard)
 ```
+
+This avoids the complexity and cost of separate apps. Express serves the static dashboard files AND handles HTTP API routes. The `ws` library attaches to the same HTTP server for WebSocket upgrades.
 
 ---
 
-## Task-Based Keyword Routing Update
+## Supporting Libraries
 
-The `categoryKeywords` in `site-guides/index.js` needs expanded weak keywords for the new apps:
-
-```javascript
-'Productivity Tools': {
-  strong: [
-    'google sheets', 'google sheet', 'spreadsheet', 'google docs', 'google doc',
-    'notion', 'trello', 'google calendar', 'google keep', 'todoist', 'airtable', 'jira'
-  ],
-  weak: [
-    'sheets', 'sheet', 'create sheet', 'new sheet', 'add to sheet', 'enter data',
-    'create document', 'new document', 'write document', 'share document', 'edit document',
-    'create page', 'new page', 'add block', 'database view', 'kanban',
-    'create event', 'schedule meeting', 'calendar event', 'add to calendar',
-    'create card', 'add card', 'move card', 'board',
-    'new note', 'create note', 'checklist', 'keep note',
-    'add task', 'create task', 'todo', 'due date', 'priority',
-    'new record', 'add record', 'grid view', 'base',
-    'create issue', 'new issue', 'sprint', 'backlog', 'epic'
-  ]
-}
-```
-
----
-
-## Complexity Tiers and Phase Ordering Recommendation
-
-| Tier | Apps | Complexity Driver | Recommended Phase |
-|------|------|-------------------|-------------------|
-| 1 (Simple) | Google Keep, Todoist | Standard DOM, simple interactions, clear keyboard shortcuts | First -- validate the generalized pipeline |
-| 2 (Medium) | Trello, Google Calendar | Standard DOM but with modals, popovers, lazy loading | Second -- more complex interactions |
-| 3 (Complex) | Notion, Jira, Airtable | React virtual DOM, dynamic selectors, rich field types | Third -- most research-dependent |
-
-**Phase ordering rationale:**
-1. Start with Tier 1 (Keep + Todoist) because they test the generalized fsbElements pipeline with minimal DOM complexity. If the pipeline generalization works here, it works everywhere.
-2. Tier 2 (Trello + Calendar) adds modal overlay patterns and lazy loading, but still uses standard DOM.
-3. Tier 3 (Notion + Jira + Airtable) has the most fragile selectors and most complex interaction patterns. These benefit from the pipeline being battle-tested on simpler apps first.
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| `jsQR` | 1.4.0 (vendored in dashboard) | QR code reading from camera | Dashboard scans QR codes shown by extension. Vendored into dashboard static files, not npm-installed in extension |
+| `helmet` | ^8.0.0 | HTTP security headers | Express middleware for the dashboard. Sets CSP, HSTS, etc. Small, focused, well-maintained |
+| `cors` | ^2.8.5 | CORS headers for API | Extension needs to POST to the relay server from any origin. Scoped to specific routes only |
+| `uuid` | ^11.1.0 | Pairing token generation | Generate unique pairing codes. Could use `crypto.randomUUID()` instead to avoid the dependency -- prefer built-in |
 
 ---
 
 ## Alternatives Considered
 
-| Decision | Recommended | Alternative | Why Not |
+| Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| fsbElements injection | Generalize existing Stage 1b | Create per-site injection functions | Per-site functions would duplicate 90% identical logic; the existing loop already handles any fsbElements object |
-| Selector strategy | 5 strategies per element (matching Sheets pattern) | Fewer strategies for simpler apps | Consistency across all guides; Sheets has proven the 5-strategy pattern catches DOM changes |
-| Mechanical tools | None for new apps | Build fillnotion, fillairtable, etc. | None of these apps use canvas-based grids; standard DOM interaction is sufficient |
-| Chrome API additions | None | requestAnimationFrame via chrome.scripting | Unnecessary; existing DOM snapshot timing is sufficient for all 7 apps |
-| Category restructure | Keep all 7 in "Productivity Tools" | Split into "Project Management", "Notes", etc. | Unnecessary granularity; the category is already established and the shared guidance covers all patterns |
+| WebSocket library | `ws` | Socket.IO | Socket.IO adds 50KB+ client-side, auto-reconnect/rooms are nice but overkill for a relay. `ws` is lighter, the extension's service worker handles reconnection logic directly |
+| WebSocket library | `ws` | `uWebSockets.js` | uWS is faster but requires native compilation, complicates Docker deployment, and the relay won't have enough connections to need it |
+| Dashboard framework | Vanilla HTML/JS | React/Vue/Svelte | No build system constraint applies to the dashboard too. The dashboard is simple enough (DOM viewer, task list, settings) that a framework adds complexity without proportional value |
+| QR generation (extension) | QRCode.js (vendored) | `qr` npm package | Extension has no build system and no npm. QRCode.js is a single file that works with a script tag in HTML pages |
+| QR generation (server) | `qr` (@paulmillr) | `qrcode` npm | `qrcode` hasn't been updated in 2 years. `qr` is zero-dep, actively maintained, smaller |
+| DOM streaming | Custom (extend existing snapshots) | rrweb | rrweb main package stuck at alpha for 3 years. 50KB+. Solves pixel-perfect replay, not structural cloning. FSB already has DOM serialization -- extend it with MutationObserver deltas |
+| DOM streaming | Custom | Chrome DevTools Protocol (CDP) | CDP `DOM.getDocument` would work but requires `debugger` permission active (already have it). However, CDP DOM snapshots are verbose XML and don't leverage FSB's existing element-aware serialization. Custom approach reuses existing code |
+| Background scheduling | `chrome.alarms` | `setInterval` | Service workers terminate after 30s idle. `setInterval` timers die with the worker. `chrome.alarms` persists across worker restarts |
+| Hosting | fly.io | Vercel/Netlify | Vercel/Netlify are serverless -- no persistent WebSocket connections. fly.io runs actual servers with WebSocket support natively |
+| Hosting | fly.io | Railway | Railway works but fly.io has better WebSocket documentation, edge network, and the user specified fly.io |
+| Hosting | fly.io | Render | Render's free tier spins down (kills WebSocket connections). fly.io machines stay warm for ~$2/month |
 
 ---
 
-## Installation / File Changes
+## Chrome Extension Changes
+
+### Minimum Chrome Version Bump
+
+**Current:** Chrome 88+ (implicit from MV3)
+**Required:** Chrome 116+ (for WebSocket support in service workers)
+
+Chrome 116 (released August 2023) added proper WebSocket lifecycle management in MV3 service workers. Active WebSocket connections now extend the service worker's idle timer. A heartbeat message every 20 seconds keeps the connection alive.
+
+**Impact:** Minimal. Chrome 116 is 2.5+ years old. Users on older versions can still use the extension for local automation; remote features gracefully degrade.
+
+### No New Permissions Needed
+
+The manifest already has everything:
+- `alarms` -- for background polling agent scheduling
+- `storage` / `unlimitedStorage` -- for saving automation recordings and agent configurations
+- `offscreen` -- could be used for WebSocket keepalive if needed (already present)
+- `tabs`, `activeTab`, `scripting` -- for automation replay
+- `<all_urls>` host permission -- allows connecting to the relay server
+
+### New Manifest Entry: `externally_connectable` (MAYBE)
+
+If the dashboard needs to communicate directly with the extension (not through the relay), add:
+```json
+"externally_connectable": {
+  "matches": ["https://fsb-relay.fly.dev/*"]
+}
+```
+**Decision: Probably NOT needed.** All communication should go through the WebSocket relay. Direct extension messaging from a web page is fragile and requires the extension ID.
+
+---
+
+## WebSocket Protocol Design (Stack Implications)
+
+The relay server is stateless -- it routes messages between paired clients. No database needed.
 
 ```
-# New files to create (7 site guides):
-site-guides/productivity/notion.js
-site-guides/productivity/google-calendar.js
-site-guides/productivity/trello.js
-site-guides/productivity/google-keep.js
-site-guides/productivity/todoist.js
-site-guides/productivity/airtable.js
-site-guides/productivity/jira.js
-
-# Files to modify:
-content/dom-analysis.js          # Generalize Stage 1b injection
-site-guides/productivity/_shared.js  # Add non-canvas app patterns
-site-guides/index.js             # Add productivity keywords
-options.html                     # Add 7 script tags
-
-# No new npm dependencies
-# No new Chrome permissions
+Extension (ws client) <---> fly.io relay (ws server) <---> Dashboard (ws client)
 ```
+
+**Message format:** JSON over WebSocket (not binary). Messages are small (DOM deltas, task status, commands). No need for protobuf or MessagePack.
+
+**Pairing flow:**
+1. Extension generates pairing token via `crypto.randomUUID()`
+2. Extension connects to relay: `wss://fsb-relay.fly.dev/ws?token=<token>`
+3. Extension displays token as QR code (using QRCode.js)
+4. Dashboard scans QR (using jsQR + camera) or user types code manually
+5. Dashboard connects to relay with same token
+6. Relay matches the two connections, begins forwarding messages
+
+**Server state:** In-memory Map of `token -> [extensionSocket, dashboardSocket]`. No persistence needed -- if the server restarts, clients reconnect and re-pair (the token is stored in extension storage).
+
+---
+
+## DOM Cloning Strategy (Stack Implications)
+
+**Do NOT proxy images.** The PROJECT.md explicitly states "images via CDN, not proxied." The DOM clone sends image URLs as-is. The dashboard renders them directly from the original CDN sources. This means:
+
+- No image proxy server needed
+- No bandwidth costs for image relay
+- Dashboard must handle CORS/mixed content for images (some will fail to load -- acceptable)
+
+**Serialization approach:**
+1. **Initial snapshot:** Full DOM serialization (extend existing `buildDomSnapshot()` to output JSON tree instead of markdown)
+2. **Incremental updates:** MutationObserver captures DOM changes, serializes only the delta (added/removed/modified nodes)
+3. **Dashboard reconstruction:** Receives JSON tree, builds DOM in an iframe or shadow DOM container
+
+**Estimated data volume:** Initial snapshot ~50-200KB depending on page complexity. Deltas typically 1-5KB per change batch. At 1-2 updates/second, this is well within WebSocket bandwidth.
+
+---
+
+## Background Agent Scheduling
+
+**`chrome.alarms` constraints:**
+- Minimum interval: 1 minute (Chrome enforces this)
+- Alarms persist across service worker restarts
+- Listener must be registered at top level of service worker
+- Maximum ~500 alarms (undocumented but practical limit)
+
+**Agent types and intervals:**
+| Agent Type | Default Interval | Configurable? |
+|------------|-----------------|---------------|
+| Price monitor | 15 minutes | Yes (min 1 min) |
+| Stock check | 5 minutes | Yes (min 1 min) |
+| Page change detection | 30 minutes | Yes (min 1 min) |
+| Custom polling | 10 minutes | Yes (min 1 min) |
+
+**Storage for agent configs:** `chrome.storage.local` (already have `unlimitedStorage` permission). Each agent stores:
+- URL to check
+- Polling interval
+- Last result hash (for change detection)
+- Action to take on change (notify, run automation, etc.)
+
+---
+
+## Automation Replay (Stack Implications)
+
+**No new libraries needed.** Replay uses the existing action execution pipeline:
+
+1. **Recording:** During a successful automation, save the action sequence with selectors to `chrome.storage.local`
+2. **Replay:** Re-execute saved actions using `findElementByStrategies()` with the saved selectors
+3. **AI fallback:** If a selector fails (page changed), pass the current DOM snapshot + saved action intent to AI for re-resolution
+
+**Storage format:**
+```javascript
+{
+  id: "recording-uuid",
+  name: "Add to cart on Amazon",
+  url: "https://amazon.com/...",
+  actions: [
+    { type: "click", selectors: [...], description: "Click search box" },
+    { type: "type", value: "wireless mouse", selectors: [...] },
+    { type: "click", selectors: [...], description: "Click first result" }
+  ],
+  createdAt: "2026-03-17T...",
+  lastSuccess: "2026-03-17T..."
+}
+```
+
+---
+
+## Installation
+
+### Server (new project)
+
+```bash
+# Initialize server project
+mkdir fsb-relay && cd fsb-relay
+npm init -y
+
+# Core dependencies
+npm install ws express qr helmet cors
+
+# Dev dependencies (optional)
+npm install -D nodemon
+
+# fly.io deployment
+fly launch --name fsb-relay
+fly deploy
+```
+
+### Extension (modifications only)
+
+```
+# No npm install needed -- extension has no build system
+# Vendor QRCode.js into extension:
+# Download https://davidshimjs.github.io/qrcodejs/qrcode.min.js
+# Save as lib/qrcode.min.js
+
+# Vendor jsQR into dashboard static files:
+# Download from https://github.com/cozmo/jsQR
+# Save as dashboard/lib/jsqr.min.js (server-side, not in extension)
+```
+
+### fly.toml (server config)
+
+```toml
+app = "fsb-relay"
+primary_region = "iad"
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
+```
+
+---
+
+## Cost Estimate
+
+| Component | Monthly Cost | Notes |
+|-----------|-------------|-------|
+| fly.io shared-cpu-1x (256MB) | ~$2.00 | Single machine, always running |
+| fly.io bandwidth | ~$0.00 | 100GB free outbound, DOM deltas are tiny |
+| fly.io TLS certificate | $0.00 | Auto-provisioned via Let's Encrypt |
+| **Total** | **~$2/month** | Can scale to shared-cpu-2x ($3.50/mo) if needed |
+
+---
+
+## Version Compatibility Matrix
+
+| Component | Minimum Version | Reason |
+|-----------|----------------|--------|
+| Chrome | 116 | WebSocket in MV3 service workers |
+| Node.js (server) | 20.x LTS | `crypto.randomUUID()`, stable ESM support |
+| `ws` | 8.x | Stable API, permessage-deflate support |
+| `express` | 4.x | Battle-tested, 5.x still in beta |
+| fly.io CLI (`flyctl`) | Latest | Deployment tool, always use latest |
+
+---
+
+## What NOT to Add
+
+| Technology | Why Not |
+|------------|---------|
+| Socket.IO | Overhead of polling fallback, rooms, namespaces -- all unnecessary for a simple relay |
+| rrweb | Alpha for 3 years, wrong abstraction (session replay vs structural cloning), 50KB+ |
+| React/Vue/Svelte (dashboard) | No-build-system constraint. Dashboard is simple enough for vanilla JS |
+| Redis/PostgreSQL | Server is stateless relay. In-memory Map is sufficient. If server restarts, clients reconnect |
+| Protobuf/MessagePack | JSON is fine for DOM deltas and task commands. Complexity not justified |
+| nginx reverse proxy | fly.io handles TLS termination and routing. Express serves everything directly |
+| Puppeteer/Playwright | Server does NOT run browsers. User's browser stays active. Server is relay only |
+| `node-cron` | Server doesn't schedule tasks. Chrome's `chrome.alarms` handles scheduling in the extension |
+| Screenshot/video streaming | PROJECT.md explicitly says "DOM cloning with CDN images, not visual capture" |
 
 ---
 
 ## Sources
 
 ### Official Documentation (HIGH confidence)
-- [Notion Keyboard Shortcuts](https://www.notion.com/help/keyboard-shortcuts)
-- [Notion Slash Commands](https://www.notion.com/help/guides/using-slash-commands)
-- [Google Calendar Keyboard Shortcuts](https://support.google.com/calendar/answer/37034)
-- [Trello Keyboard Shortcuts](https://support.atlassian.com/trello/docs/keyboard-shortcuts-in-trello/)
-- [Todoist Keyboard Shortcuts](https://www.todoist.com/help/articles/use-keyboard-shortcuts-in-todoist-Wyovn2)
-- [Todoist Quick Add](https://www.todoist.com/help/articles/use-task-quick-add-in-todoist-va4Lhpzz)
-- [Airtable Keyboard Shortcuts](https://support.airtable.com/docs/airtable-keyboard-shortcuts)
-- [Airtable Grid View](https://support.airtable.com/docs/airtable-grid-view)
-- [Jira Cloud Keyboard Shortcuts](https://support.atlassian.com/jira-software-cloud/docs/use-keyboard-shortcuts/)
-- [Google Keep Keyboard Shortcuts](https://support.google.com/keep/answer/12862970)
+- [ws npm package](https://www.npmjs.com/package/ws) -- v8.19.0, last published ~2 months ago
+- [Chrome WebSocket in Service Workers](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets) -- Chrome 116+ support, heartbeat pattern
+- [chrome.alarms API](https://developer.chrome.com/docs/extensions/reference/api/alarms) -- 1-minute minimum interval, persistence across restarts
+- [fly.io WebSocket blog](https://fly.io/blog/websockets-and-fly/) -- no special config needed, Express + ws pattern
+- [fly.io static site docs](https://fly.io/docs/languages-and-frameworks/static/) -- nginx or Express for static serving
+- [fly.io Node.js docs](https://fly.io/docs/deep-dive/nodejs/) -- deployment patterns
+- [fly.io pricing](https://fly.io/pricing/) -- pay-as-you-go, ~$2/month for shared-cpu-1x
+- [qr npm package](https://www.npmjs.com/package/qr) -- v0.5.3, zero-dep, last published ~1 month ago
+- [QRCode.js](https://davidshimjs.github.io/qrcodejs/) -- cross-browser, no dependencies, canvas-based
 
-### Community/Third-Party (MEDIUM confidence)
-- [UseTheKeyboard: Airtable](https://usethekeyboard.com/airtable/)
-- [UseTheKeyboard: Todoist](https://usethekeyboard.com/todoist/)
-- [DefKey: Google Keep](https://defkey.com/google-keep-shortcuts)
-- [KeyCombiner: Notion](https://keycombiner.com/collections/notion/)
-- [Notion Block API](https://developers.notion.com/reference/block)
+### Community/Verified (MEDIUM confidence)
+- [Express + ws on fly.io pattern](https://fly.io/blog/websockets-and-fly/) -- flychat-ws example app
+- [jsQR GitHub](https://github.com/cozmo/jsQR) -- pure JS QR reader, works in browser
+- [Chrome MV3 service worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) -- 30s idle timeout, alarm wakeup
 
-### Codebase Analysis (HIGH confidence)
-- `content/dom-analysis.js` lines 1790-1870 -- Stage 1b injection pipeline
-- `content/dom-analysis.js` line 1758 -- findElementByStrategies implementation
-- `background.js` line 8483 -- fsbElements passed to content script
-- `site-guides/productivity/google-sheets.js` -- reference pattern for new guides
-- `site-guides/index.js` -- guide registry and keyword routing
-- `content/actions.js` lines 3769-3990 -- fillsheet/readsheet implementation (reference for mechanical tool pattern)
-
-### LOW Confidence (needs live verification)
-- Notion DOM class names (`notion-selectable`, `notion-text-block`, `data-block-id`) -- inferred from community tools and API docs, not directly inspected
-- Airtable ARIA grid attributes (`aria-rowindex`, `aria-colindex`) -- inferred from W3C ARIA grid pattern, not directly verified on live Airtable
-- Jira `data-testid` stability -- Atlassian states DOM is unstable but data-testid is maintained; needs confirmation on current Cloud version
-- Google Calendar `data-datekey`, `data-eventid` attributes -- commonly cited but need live verification against current Calendar UI
-- Google Keep `data-id` on note cards -- needs live verification
+### Architecture Decisions (HIGH confidence -- from PROJECT.md)
+- "DOM cloning with CDN images, not visual capture" -- no image proxying
+- "Server is relay only, user's browser must stay active" -- no headless execution
+- "No build system: Direct JavaScript execution" -- vanilla JS for all components
