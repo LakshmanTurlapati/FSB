@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/dashboard.css">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script>
   (function(){if(localStorage.getItem('fsb-showcase-theme')==='light'){document.documentElement.setAttribute('data-theme','light')}})();
   </script>
@@ -60,17 +61,29 @@
     <div class="container">
       <div class="dash-login-card">
         <div class="dash-login-icon">
-          <i class="fa-solid fa-key"></i>
+          <i class="fa-solid fa-qrcode"></i>
         </div>
         <h2>Agent Dashboard</h2>
-        <p>Paste your hash key from the FSB extension to view your background agents.</p>
-        <div class="dash-login-form">
-          <input type="text" id="dash-key-input" class="dash-input" placeholder="Enter your hash key..." spellcheck="false" autocomplete="off">
-          <button id="dash-connect-btn" class="btn btn-primary">
-            <i class="fa-solid fa-plug"></i> Connect
-          </button>
+        <p>Connect to your FSB extension</p>
+        <div class="dash-login-tabs">
+          <button class="dash-tab active" data-tab="scan" id="dash-tab-scan">Scan QR</button>
+          <button class="dash-tab" data-tab="paste" id="dash-tab-paste">Paste Key</button>
         </div>
-        <p class="dash-login-hint">Find your hash key in the FSB extension settings under Server Sync.</p>
+        <div class="dash-tab-content" id="tab-scan">
+          <p class="dash-scan-instruction">Point camera at QR code in FSB extension</p>
+          <div id="qr-reader" class="dash-qr-reader" aria-label="QR code camera viewfinder"></div>
+          <p id="dash-scan-error" class="dash-scan-error" style="display: none;"></p>
+        </div>
+        <div class="dash-tab-content" id="tab-paste" style="display: none;">
+          <div class="dash-login-form">
+            <input type="text" id="dash-key-input" class="dash-input" placeholder="Enter your hash key..." spellcheck="false" autocomplete="off">
+            <button id="dash-connect-btn" class="btn btn-primary">
+              <i class="fa-solid fa-plug"></i> Connect with Key
+            </button>
+          </div>
+          <p class="dash-login-hint">Find your hash key in the FSB extension settings under Server Sync.</p>
+        </div>
+        <p id="dash-login-message" class="dash-login-message" style="display: none;"></p>
       </div>
     </div>
   </section>
@@ -84,9 +97,10 @@
         <div class="dash-header-left">
           <h2>Your Agents</h2>
           <span id="dash-agent-count" class="dash-badge">0 agents</span>
+          <span id="dash-paired-badge" class="dash-paired-badge">Paired</span>
           <span id="dash-sse-status" class="dash-sse-badge dash-sse-disconnected">offline</span>
         </div>
-        <button id="dash-disconnect-btn" class="btn btn-outline btn-sm">
+        <button id="dash-disconnect-btn" class="btn btn-outline btn-sm dash-disconnect-btn">
           <i class="fa-solid fa-right-from-bracket"></i> Disconnect
         </button>
       </div>
