@@ -105,7 +105,7 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 40. WebSocket Infrastructure | 0/3 | Planning complete | - |
+| 40. WebSocket Infrastructure | 1/3 | In Progress|  |
 | 41. QR Pairing & Showcase Site | 0/? | Not started | - |
 | 42. Remote Task Control | 0/? | Not started | - |
 | 43. Agent Dashboard | 0/? | Not started | - |

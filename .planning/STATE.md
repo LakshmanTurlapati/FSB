@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.6
-milestone_name: Agents & Remote Control
-status: ready_to_plan
-stopped_at: null
-last_updated: "2026-03-17"
-last_activity: 2026-03-17 -- Roadmap created (5 phases, 31 requirements)
+milestone: v0.9
+milestone_name: milestone
+status: executing
+stopped_at: Completed 40-01-PLAN.md
+last_updated: "2026-03-17T12:33:49.302Z"
+last_activity: 2026-03-17 -- Completed 40-01 WebSocket Infrastructure
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
   percent: 0
 ---
 
@@ -26,30 +26,34 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 40 of 44 (WebSocket Infrastructure)
-Plan: --
-Status: Ready to plan
-Last activity: 2026-03-17 -- Roadmap created for v0.9.6
+Plan: 2 of 3
+Status: Executing
+Last activity: 2026-03-17 -- Completed 40-01 WebSocket Infrastructure
 
-Progress: [..........] 0%
+Progress: [###.......] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: --
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 5min
+- Total execution time: 0.08 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 40-websocket-infrastructure | 1 | 5min | 5min |
 
 ## Accumulated Context
 
 ### Decisions
 
 Full decision log in PROJECT.md Key Decisions table.
+
+- [40-01] Removed SERVER_SECRET; hashKey generated via crypto.randomBytes(32) instead of HMAC
+- [40-01] Placed Dockerfile and fly.toml at repo root for simpler fly deploy
+- [40-01] Showcase static files served from ../showcase in dev, /app/public in Docker
 
 ### Pending Todos
 
@@ -59,10 +63,10 @@ Full decision log in PROJECT.md Key Decisions table.
 
 - Site Guides Viewer design mismatch (deferred from v9.3)
 - uiReadySelector option implemented but not wired to any site guide
-- Dashboard tech stack: existing server/dashboard/ has React+Vite -- confirm whether new dashboard work extends it or rebuilds vanilla JS (resolve in Phase 40 planning)
+- Dashboard tech stack: RESOLVED -- old React+Vite dashboard deleted, rebuilding vanilla JS per CONTEXT.md
 
 ## Session Continuity
 
-Last session: 2026-03-17
-Stopped at: Roadmap created, ready to plan Phase 40
-Resume file: None
+Last session: 2026-03-17T12:33:06Z
+Stopped at: Completed 40-01-PLAN.md
+Resume file: .planning/phases/40-websocket-infrastructure/40-02-PLAN.md
