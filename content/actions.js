@@ -75,7 +75,7 @@ async function ensureCoordinatesVisible(docX, docY, width, height) {
     });
 
     // Wait for scroll animation to complete
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await waitForStability('scroll');
   }
 
   // Return current viewport coordinates after potential scroll
@@ -155,7 +155,7 @@ async function clickAtCoordinates(params) {
   }
 
   // Wait for potential effects
-  await new Promise(resolve => setTimeout(resolve, 300));
+  await waitForStability('click');
 
   // Check if DOM click had effect; if not, try CDP mouse as final fallback
   let clickMethod = 'dom_coordinate';
@@ -167,7 +167,7 @@ async function clickAtCoordinates(params) {
     });
     if (cdpResult?.success) {
       clickMethod = 'cdp_coordinate';
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await waitForStability('click');
     }
   } catch (e) {
     // CDP unavailable, DOM click already dispatched
@@ -642,6 +642,141 @@ function diagnoseElementFailure(selector, element = null) {
   }
 
   return diagnostic;
+}
+
+/**
+ * Build a structured failure report for action handlers.
+ * Combines diagnostic info, element state snapshot, and natural language suggestions
+ * so the AI gets everything it needs to reason about recovery.
+ * @param {string} action - Action name (click, type, select, etc.)
+ * @param {string} selector - Selector that was used
+ * @param {Element|null} element - The element (if found), or null
+ * @param {string} error - Error description
+ * @param {Object|null} diagnostic - Pre-computed diagnostic from diagnoseElementFailure, or null to auto-compute
+ * @returns {Object} Structured failure report
+ */
+function buildFailureReport(action, selector, element, error, diagnostic = null) {
+  const report = {
+    success: false,
+    action,
+    error,
+    reason: error,
+    diagnostic: diagnostic || (selector ? diagnoseElementFailure(selector, element) : null),
+    suggestions: [],
+    elementSnapshot: null
+  };
+
+  // Build element state snapshot if element exists and is still in DOM
+  if (element && document.contains(element)) {
+    try {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      report.elementSnapshot = {
+        tag: element.tagName.toLowerCase(),
+        visible: rect.width > 0 && rect.height > 0 && style.display !== 'none',
+        disabled: element.disabled || element.getAttribute('aria-disabled') === 'true',
+        ariaRole: element.getAttribute('role'),
+        ariaExpanded: element.getAttribute('aria-expanded'),
+        ariaChecked: element.getAttribute('aria-checked'),
+        ariaSelected: element.getAttribute('aria-selected'),
+        ariaHidden: element.getAttribute('aria-hidden'),
+        parentTag: element.parentElement?.tagName?.toLowerCase(),
+        parentRole: element.parentElement?.getAttribute('role'),
+        nearbyText: (element.parentElement?.textContent?.trim() || '').substring(0, 100),
+        rect: { top: Math.round(rect.top), left: Math.round(rect.left), width: Math.round(rect.width), height: Math.round(rect.height) }
+      };
+    } catch (e) {
+      report.elementSnapshot = { error: 'Could not capture element state' };
+    }
+  }
+
+  // Build natural language suggestions from diagnostic
+  if (report.diagnostic?.suggestions?.length) {
+    report.suggestions = report.diagnostic.suggestions;
+  } else {
+    // Generic suggestions based on error type
+    if (error.includes('not found')) {
+      report.suggestions.push('The element may have been removed or the page changed. Try re-reading the page to get updated element refs.');
+    }
+    if (error.includes('disabled')) {
+      report.suggestions.push('Wait for the element to become enabled, or look for an alternative action.');
+    }
+    if (error.includes('timeout')) {
+      report.suggestions.push('The page may be loading slowly. Try waiting and retrying, or scroll to ensure the element is visible.');
+    }
+  }
+
+  return report;
+}
+
+/**
+ * Heuristic fix engine: tries deterministic DOM-level fixes for common failure patterns.
+ * Runs in content script (has DOM access). Called by background.js via HEURISTIC_FIX message.
+ * @param {Object} failedAction - The action result that failed (with diagnostic)
+ * @returns {Promise<Object>} { resolved: boolean, fix?: string }
+ */
+async function runHeuristicFix(failedAction) {
+  const diagnostic = failedAction.diagnostic;
+  if (!diagnostic) return { resolved: false };
+
+  const failures = diagnostic.checks?.filter(c => !c.passed) || [];
+  const selector = failedAction.selector || failedAction.selectorTried;
+
+  for (const failure of failures) {
+    // Pattern: Element covered by overlay/modal -> try dismissing with Escape
+    if (failure.check === 'not_covered') {
+      try {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await new Promise(r => setTimeout(r, 300));
+        if (selector) {
+          const el = document.querySelector(selector);
+          if (el) {
+            const retryDiag = diagnoseElementFailure(selector, el);
+            const stillCovered = retryDiag.checks.find(c => c.check === 'not_covered' && !c.passed);
+            if (!stillCovered) {
+              return { resolved: true, fix: 'Dismissed overlay with Escape key' };
+            }
+          }
+        }
+      } catch (e) { /* continue to next pattern */ }
+    }
+
+    // Pattern: Element needs scroll into view
+    if (failure.check === 'in_viewport' && selector) {
+      try {
+        const el = document.querySelector(selector);
+        if (el) {
+          el.scrollIntoView({ behavior: 'instant', block: 'center' });
+          await new Promise(r => setTimeout(r, 200));
+          return { resolved: true, fix: 'Scrolled element into view' };
+        }
+      } catch (e) { /* continue */ }
+    }
+
+    // Pattern: Element inside collapsed container -> try expanding parent
+    if (failure.check === 'not_collapsed' && selector) {
+      try {
+        const el = document.querySelector(selector);
+        if (el) {
+          let parent = el.parentElement;
+          while (parent) {
+            if (parent.tagName === 'DETAILS' && !parent.open) {
+              parent.open = true;
+              return { resolved: true, fix: 'Expanded collapsed details element' };
+            }
+            if (parent.getAttribute('aria-expanded') === 'false') {
+              parent.click();
+              await new Promise(r => setTimeout(r, 300));
+              return { resolved: true, fix: 'Expanded collapsed accordion' };
+            }
+            parent = parent.parentElement;
+          }
+        }
+      } catch (e) { /* continue */ }
+    }
+  }
+
+  return { resolved: false };
 }
 
 // =============================================================================
@@ -1264,7 +1399,7 @@ const tools = {
       amount = params.amount || 300;
     }
     window.scrollBy(0, amount);
-    await new Promise(r => setTimeout(r, 300));
+    await waitForStability('scroll');
     const pageHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
     const maxScroll = pageHeight - window.innerHeight;
     const atBottom = window.scrollY >= maxScroll - 10;
@@ -1281,14 +1416,14 @@ const tools = {
   // Scroll to top of page
   scrollToTop: async () => {
     window.scrollTo(0, 0);
-    await new Promise(r => setTimeout(r, 300));
+    await waitForStability('scroll');
     return { success: true, scrollY: 0, atTop: true };
   },
 
   // Scroll to bottom of page
   scrollToBottom: async () => {
     window.scrollTo(0, document.body.scrollHeight);
-    await new Promise(r => setTimeout(r, 300));
+    await waitForStability('scroll');
     return { success: true, scrollY: window.scrollY, atBottom: true };
   },
 
@@ -1300,7 +1435,7 @@ const tools = {
     if (!element) return { success: false, error: `Element not found: ${selector}` };
     const position = params.position || 'center';
     element.scrollIntoView({ behavior: 'smooth', block: position === 'center' ? 'center' : 'start' });
-    await new Promise(r => setTimeout(r, 300));
+    await waitForStability('scroll');
     const rect = element.getBoundingClientRect();
     const inViewport = rect.top >= 0 && rect.bottom <= window.innerHeight;
     return { success: true, scrollY: window.scrollY, elementInViewport: inViewport };
@@ -1369,12 +1504,7 @@ const tools = {
         diagnostic: clickNotFoundDiagnostic,
         duration: Date.now() - startTime
       });
-      return {
-        success: false,
-        error: 'Element not found and no coordinates available for fallback',
-        selector: params.selector,
-        diagnostic: clickNotFoundDiagnostic
-      };
+      return buildFailureReport('click', params.selector, null, 'Element not found and no coordinates available for fallback', clickNotFoundDiagnostic);
     }
 
     // Canvas-based editors (Google Sheets/Docs/Slides): skip readiness checks entirely.
@@ -1400,13 +1530,7 @@ const tools = {
           diagnostic: generateDiagnostic('notReady', { selector: selectorUsed, checks: readiness.checks }),
           duration: Date.now() - startTime
         });
-        return {
-          success: false,
-          error: `Element not ready: ${readiness.failureReason}`,
-          selector: params.selector,
-          checks: readiness.checks,
-          failureDetails: readiness.failureDetails
-        };
+        return buildFailureReport('click', params.selector, element, `Element not ready: ${readiness.failureReason}`);
       }
     }
 
@@ -1414,11 +1538,7 @@ const tools = {
     if (readiness.scrolled) {
       element = FSB.querySelectorWithShadow(selectorUsed);
       if (!element) {
-        return {
-          success: false,
-          error: 'Element became stale after scrolling',
-          selector: params.selector
-        };
+        return buildFailureReport('click', params.selector, null, 'Element became stale after scrolling');
       }
     }
 
@@ -1428,11 +1548,7 @@ const tools = {
     if (element) {
       // Verify element is still interactive
       if (!document.contains(element)) {
-        return {
-          success: false,
-          error: 'Element no longer in DOM',
-          selector: params.selector
-        };
+        return buildFailureReport('click', params.selector, null, 'Element no longer in DOM');
       }
 
       // FIX: Handle target="_blank" links that would open in a new tab
@@ -1653,29 +1769,20 @@ const tools = {
           diagnostic: clickNoEffectDiagnostic,
           duration: Date.now() - startTime
         });
-        return {
-          success: false,
-          error: 'Click executed but had no detectable effect on the page',
-          clicked: params.selector,
-          hadEffect: false,
-          verification: {
-            preState,
-            postState,
-            verified: verification.verified,
-            changes: verification.changes,
-            reason: verification.reason,
-            localChanges: verification.localChanges,
-            confidence: verification.confidence,
-            whatChanged: verification.whatChanged
-          },
-          diagnostic: clickNoEffectDiagnostic,
-          elementInfo: {
-            tag: element.tagName,
-            text: element.textContent?.trim().substring(0, 50),
-            wasScrolledIntoView: wasScrolled
-          },
-          suggestion: clickNoEffectDiagnostic.suggestions[0] || 'Element may not be interactive or may require different interaction method'
+        const clickNoEffectReport = buildFailureReport('click', selectorTried, element, 'Click executed but had no detectable effect on the page', clickNoEffectDiagnostic);
+        clickNoEffectReport.clicked = params.selector;
+        clickNoEffectReport.hadEffect = false;
+        clickNoEffectReport.verification = {
+          preState,
+          postState,
+          verified: verification.verified,
+          changes: verification.changes,
+          reason: verification.reason,
+          localChanges: verification.localChanges,
+          confidence: verification.confidence,
+          whatChanged: verification.whatChanged
         };
+        return clickNoEffectReport;
       }
 
       // Record successful action
@@ -1962,12 +2069,12 @@ const tools = {
           });
           // Press Escape first to blur the Name Box and return focus to the grid
           try { await tools.keyPress({ key: 'Escape', useDebuggerAPI: true }); } catch(e) {}
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await waitForStability('type_keystroke');
           try {
             const twkResult = await tools.typeWithKeys({ text: params.text, clearFirst: false, delay: 20 });
             if (twkResult.success) {
               if (params.pressEnter) {
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await waitForStability('type_keystroke');
                 await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
               }
               return {
@@ -1999,7 +2106,7 @@ const tools = {
             const twkResult = await tools.typeWithKeys({ text: params.text, clearFirst: false, delay: 20 });
             if (twkResult.success) {
               if (params.pressEnter) {
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await waitForStability('type_keystroke');
                 await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
               }
               return {
@@ -2038,7 +2145,7 @@ const tools = {
               cursorTarget.focus();
               cursorTarget.click();
               logger.debug('gdocs_formatted_paste: focused cursor target', { tagName: cursorTarget.tagName, className: cursorTarget.className?.substring?.(0, 60) });
-              await new Promise(r => setTimeout(r, 200));
+              await waitForStability('click');
             }
 
             // If clearFirst, select all and delete before pasting
@@ -2055,7 +2162,7 @@ const tools = {
                   else resolve(response);
                 });
               });
-              await new Promise(r => setTimeout(r, 200));
+              await waitForStability('type_complete');
               await new Promise((resolve, reject) => {
                 chrome.runtime.sendMessage({
                   action: 'keyboardDebuggerAction',
@@ -2067,7 +2174,7 @@ const tools = {
                   else resolve(response);
                 });
               });
-              await new Promise(r => setTimeout(r, 200));
+              await waitForStability('type_complete');
             }
 
             const html = FSB.markdownToHTML(params.text);
@@ -2080,7 +2187,7 @@ const tools = {
                 textLenAfter: pasteResult.textLenAfter
               });
               if (params.pressEnter) {
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await waitForStability('type_keystroke');
                 document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
                 document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
               }
@@ -2120,7 +2227,7 @@ const tools = {
           });
           // Trust CDP on canvas editors -- no DOM validation possible
           if (params.pressEnter) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await waitForStability('type_keystroke');
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
             document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
           }
@@ -2154,32 +2261,32 @@ const tools = {
       // Universal click-first activation (unless explicitly disabled)
       if (!shouldSkipClick) {
         element.click();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await waitForStability('light');
 
         if (document.activeElement !== element && element.id) {
           const label = document.querySelector(`label[for="${element.id}"]`);
           if (label) {
             label.click();
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await waitForStability('type_keystroke');
           }
         }
 
         if (document.activeElement !== element && element.parentElement) {
           element.parentElement.click();
-          await new Promise(resolve => setTimeout(resolve, 50));
+          await waitForStability('type_keystroke');
         }
       }
 
       // Always focus after clicking
       element.focus();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await waitForStability('type_keystroke');
 
       // Final verification - ensure element is truly focused and ready
       let focusAttempts = 0;
       while (document.activeElement !== element && focusAttempts < 3) {
         element.click();
         element.focus();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await waitForStability('light');
         focusAttempts++;
       }
 
@@ -2209,7 +2316,7 @@ const tools = {
               });
             });
 
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await waitForStability('type_complete');
 
             logger.debug('Editor API via MAIN world succeeded', {
               sessionId: FSB.sessionId,
@@ -2259,7 +2366,7 @@ const tools = {
             });
           });
 
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await waitForStability('type_complete');
 
           logger.debug('CDP code editor fast-path succeeded', {
             sessionId: FSB.sessionId,
@@ -2290,7 +2397,7 @@ const tools = {
       if (isCodeEditorInput) {
         previousValue = element.value || '';
         element.focus();
-        await new Promise(resolve => setTimeout(resolve, 150));
+        await waitForStability('light');
 
         let codeInserted = false;
 
@@ -2335,7 +2442,7 @@ const tools = {
               bubbles: true,
               cancelable: true
             }));
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await waitForStability('type_keystroke');
             codeInserted = true;
           } catch (e) {
             logger.debug('Code editor clipboard paste failed', { error: e.message });
@@ -2388,7 +2495,7 @@ const tools = {
               cancelable: true
             });
             element.dispatchEvent(pasteEvent);
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await waitForStability('type_keystroke');
             if (element.textContent.includes(params.text)) {
               insertionSuccess = true;
             }
@@ -2446,7 +2553,7 @@ const tools = {
           }
         });
 
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await waitForStability('type_keystroke');
       }
 
       // Gmail/email recipient field: dispatch Tab to confirm the recipient "chip"
@@ -2461,14 +2568,14 @@ const tools = {
         logger.debug('Recipient field detected, sending Tab to confirm chip', {
           sessionId: FSB.sessionId, ariaLabel: elAriaLabel, text: params.text
         });
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await waitForStability('type_complete');
         element.dispatchEvent(new KeyboardEvent('keydown', {
           key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true, cancelable: true
         }));
         element.dispatchEvent(new KeyboardEvent('keyup', {
           key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true, cancelable: true
         }));
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await waitForStability('type_complete');
       }
 
       // Optional: Press Enter after typing
@@ -2498,14 +2605,14 @@ const tools = {
         logger.logActionExecution(FSB.sessionId, 'type', 'amazon_retry', { reason: 'initial_typing_failed' });
         try {
           element.focus();
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await waitForStability('light');
           element.value = '';
           element.value = params.text;
           element.dispatchEvent(new Event('input', { bubbles: true }));
           element.dispatchEvent(new Event('change', { bubbles: true }));
           element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: params.text.slice(-1) }));
           element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: params.text.slice(-1) }));
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await waitForStability('type_complete');
           const retryValue = element.value || '';
           if (retryValue.includes(params.text) || retryValue === params.text) {
             logger.logActionExecution(FSB.sessionId, 'type', 'amazon_retry_success', {});
@@ -2590,7 +2697,7 @@ const tools = {
             });
           });
 
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await waitForStability('type_complete');
           const cdpCanvasEditor = FSB.isCanvasBasedEditor();
           const cdpFinalCheck = cdpCanvasEditor ? '' : (isInput ? (element.value || '') : (element.textContent || element.value || ''));
           const cdpSuccess = cdpCanvasEditor || cdpFinalCheck.includes(params.text) || cdpFinalCheck.trim() === params.text.trim();
@@ -2787,7 +2894,7 @@ const tools = {
           const twkResult = await tools.typeWithKeys({ text: params.text, clearFirst: false, delay: 20 });
           if (twkResult.success) {
             if (params.pressEnter) {
-              await new Promise(resolve => setTimeout(resolve, 100));
+              await waitForStability('type_keystroke');
               await tools.keyPress({ key: 'Enter', useDebuggerAPI: true });
             }
             return {
@@ -2812,7 +2919,7 @@ const tools = {
         const canvasTarget = document.querySelector('.kix-page-column') || document.querySelector('.kix-appview-editor');
         if (canvasTarget) {
           canvasTarget.click();
-          await new Promise(r => setTimeout(r, 200));
+          await waitForStability('click');
           const eventTargetIframe = document.querySelector('.docs-texteventtarget-iframe');
           if (eventTargetIframe && eventTargetIframe.contentDocument) {
             try {
@@ -2822,7 +2929,7 @@ const tools = {
               // Cross-origin iframe
             }
           }
-          await new Promise(r => setTimeout(r, 200));
+          await waitForStability('type_complete');
         }
         const cdpResult = await new Promise((resolve, reject) => {
           chrome.runtime.sendMessage({
@@ -2836,7 +2943,7 @@ const tools = {
           });
         });
         if (params.pressEnter) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await waitForStability('type_keystroke');
           document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
           document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
         }
@@ -2875,18 +2982,11 @@ const tools = {
       duration: Date.now() - startTime
     });
 
-    return {
-      success: false,
-      error: lastAttemptError || 'Type action had no effect with any available selector',
-      hadEffect: false,
-      selectorsTriad: selectors.length,
-      lastVerification: lastVerification,
-      diagnostic: typeNotFoundDiagnostic,
-      suggestion: typeNotFoundDiagnostic.suggestions[0] || 'Input may be readonly, disabled, or requires focus first',
-      isAmazonPage: window.location.hostname.includes('amazon'),
-      currentUrl: window.location.href,
-      timestamp: Date.now()
-    };
+    const typeFailReport = buildFailureReport('type', params.selector, lastElement, lastAttemptError || 'Type action had no effect with any available selector', typeNotFoundDiagnostic);
+    typeFailReport.hadEffect = false;
+    typeFailReport.selectorsTriad = selectors.length;
+    typeFailReport.lastVerification = lastVerification;
+    return typeFailReport;
   },
   // Press Enter key on an element with verification
   pressEnter: async (params) => {
@@ -2996,15 +3096,11 @@ const tools = {
       duration: Date.now() - startTime
     });
 
-    return {
-      success: false,
-      error: lastAttemptError || 'Enter key had no effect with any available selector',
-      hadEffect: false,
-      selectorsTriad: selectors.length,
-      lastVerification: lastVerification,
-      diagnostic: enterNotFoundDiagnostic,
-      suggestion: enterNotFoundDiagnostic.suggestions[0] || 'Form may have validation errors or require button click instead'
-    };
+    const enterFailReport = buildFailureReport('pressEnter', params.selector, lastElement, lastAttemptError || 'Enter key had no effect with any available selector', enterNotFoundDiagnostic);
+    enterFailReport.hadEffect = false;
+    enterFailReport.selectorsTriad = selectors.length;
+    enterFailReport.lastVerification = lastVerification;
+    return enterFailReport;
   },
 
   // Move mouse to coordinates (simulated)
@@ -3936,7 +4032,7 @@ const tools = {
     }
 
     actionRecorder.record(null, 'selectOption', params, { selectorTried: selectors[0], selectorUsed: null, elementFound: false, success: false, error: lastAttemptError || 'Selection had no effect with any available selector', diagnostic: generateDiagnostic('noEffect', { selector: selectors[0] }), duration: Date.now() - startTime });
-    return { success: false, error: lastAttemptError || 'Selection had no effect with any available selector', hadEffect: false, selectorsTriad: selectors.length, lastVerification, suggestion: 'Option may not exist or select may be disabled' };
+    return buildFailureReport('selectOption', selectors[0], null, lastAttemptError || 'Selection had no effect with any available selector');
   },
 
   // Check/uncheck checkbox or radio with verification
@@ -3988,7 +4084,7 @@ const tools = {
     }
 
     actionRecorder.record(null, 'toggleCheckbox', params, { selectorTried: selectors[0], selectorUsed: null, elementFound: false, success: false, error: lastAttemptError || 'Toggle had no effect with any available selector', diagnostic: generateDiagnostic('noEffect', { selector: selectors[0] }), duration: Date.now() - startTime });
-    return { success: false, error: lastAttemptError || 'Toggle had no effect with any available selector', hadEffect: false, selectorsTriad: selectors.length, lastVerification, suggestion: 'Checkbox may be readonly or controlled by JavaScript' };
+    return buildFailureReport('toggleCheckbox', selectors[0], null, lastAttemptError || 'Toggle had no effect with any available selector');
   },
 
   refresh: () => { window.location.reload(); return { success: true, action: 'page refresh initiated' }; },
@@ -4110,7 +4206,7 @@ const tools = {
     const gameTargets = ['canvas', 'iframe[src*="game"]', 'div[id*="game"]', 'div[class*="game"]', 'body'];
     let targetElement = null;
     for (const selector of gameTargets) { targetElement = document.querySelector(selector); if (targetElement) break; }
-    if (targetElement && targetElement !== document.body) { targetElement.focus(); await new Promise(resolve => setTimeout(resolve, 50)); }
+    await waitForStability('type_keystroke');
     const result = await tools.keyPress({ key: key, useDebuggerAPI: true });
     return { success: result.success, action: action, key: key, targetElement: targetElement ? targetElement.tagName : 'body', gameControlUsed: true, result: result };
   },
@@ -4668,8 +4764,7 @@ const tools = {
     }
 
     if (!element) {
-      const diagnostic = diagnoseElementFailure(params.selector);
-      return { success: false, error: 'Element not found', action: 'check', diagnostic };
+      return buildFailureReport('check', params.selector, null, 'Element not found');
     }
 
     const stateCheck = checkBinaryState(element, 'check');
@@ -4687,7 +4782,7 @@ const tools = {
     } else {
       element.click();
     }
-    await new Promise(r => setTimeout(r, 150));
+    await waitForStability('light');
 
     // Verify it's now checked
     const postCheck = checkBinaryState(element, 'check');
@@ -4719,8 +4814,7 @@ const tools = {
     }
 
     if (!element) {
-      const diagnostic = diagnoseElementFailure(params.selector);
-      return { success: false, error: 'Element not found', action: 'uncheck', diagnostic };
+      return buildFailureReport('uncheck', params.selector, null, 'Element not found');
     }
 
     const stateCheck = checkBinaryState(element, 'uncheck');
@@ -4738,7 +4832,7 @@ const tools = {
     } else {
       element.click();
     }
-    await new Promise(r => setTimeout(r, 150));
+    await waitForStability('light');
 
     // Verify it's now unchecked
     const postCheck = checkBinaryState(element, 'uncheck');
@@ -4897,6 +4991,8 @@ const tools = {
   FSB.DIAGNOSTIC_MESSAGES = DIAGNOSTIC_MESSAGES;
   FSB.generateDiagnostic = generateDiagnostic;
   FSB.diagnoseElementFailure = diagnoseElementFailure;
+  FSB.buildFailureReport = buildFailureReport;
+  FSB.runHeuristicFix = runHeuristicFix;
   FSB.checkBinaryState = checkBinaryState;
   FSB.captureElementDetails = captureElementDetails;
   FSB.ActionRecorder = ActionRecorder;

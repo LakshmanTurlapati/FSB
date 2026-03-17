@@ -1275,6 +1275,19 @@
         }
         break;
 
+      // Handle heuristic fix requests from background.js (parallel debug fallback)
+      case 'HEURISTIC_FIX':
+        if (FSB.runHeuristicFix) {
+          FSB.runHeuristicFix(request.failedAction).then(result => {
+            sendResponse(result);
+          }).catch(err => {
+            sendResponse({ resolved: false, error: err.message });
+          });
+        } else {
+          sendResponse({ resolved: false, error: 'runHeuristicFix not available' });
+        }
+        break;
+
       default:
         sendResponse({ error: 'Unknown action' });
     }
