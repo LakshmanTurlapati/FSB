@@ -1,13 +1,13 @@
 const express = require('express');
 const { generateHashKey } = require('../utils/hash');
 
-function createAuthRouter(queries, serverSecret) {
+function createAuthRouter(queries) {
   const router = express.Router();
 
   // POST /api/auth/register - Generate a new hash key
   router.post('/register', (req, res) => {
     try {
-      const hashKey = generateHashKey(serverSecret);
+      const hashKey = generateHashKey();
       queries.createHashKey(hashKey);
       res.json({ hashKey, message: 'Hash key created. Save this key - it cannot be recovered.' });
     } catch (error) {

@@ -1,6 +1,7 @@
 const express = require('express');
+const { broadcastToRoom } = require('../ws/handler');
 
-function createAgentsRouter(queries, sseClients) {
+function createAgentsRouter(queries) {
   const router = express.Router();
 
   // GET /api/agents - List all agents
@@ -30,7 +31,7 @@ function createAgentsRouter(queries, sseClients) {
       });
 
       const agent = queries.getAgentData(req.hashKey, agentId);
-      broadcastSSE(sseClients, req.hashKey, { type: 'agent_updated', agent });
+      broadcastToRoom(req.hashKey, { type: 'agent_updated', agent });
       res.json({ success: true, agent });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -44,7 +45,7 @@ function createAgentsRouter(queries, sseClients) {
       if (result.changes === 0) {
         return res.status(404).json({ error: 'Agent not found' });
       }
-      broadcastSSE(sseClients, req.hashKey, { type: 'agent_deleted', agentId: req.params.agentId });
+      broadcastToRoom(req.hashKey, { type: 'agent_deleted', agentId: req.params.agentId });
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -85,7 +86,7 @@ function createAgentsRouter(queries, sseClients) {
         durationMs: run.durationMs || 0
       });
 
-      broadcastSSE(sseClients, req.hashKey, {
+      broadcastToRoom(req.hashKey, {
         type: 'run_completed',
         agentId,
         run: run
@@ -110,7 +111,7 @@ function createAgentsRouter(queries, sseClients) {
     }
   });
 
-  // GET /api/stats - Aggregate stats
+  // GET /api/agents/stats - Aggregate stats
   router.get('/stats', (req, res) => {
     try {
       const stats = queries.getAgentStats(req.hashKey);
@@ -121,20 +122,6 @@ function createAgentsRouter(queries, sseClients) {
   });
 
   return router;
-}
-
-function broadcastSSE(sseClients, hashKey, data) {
-  const clients = sseClients.get(hashKey);
-  if (!clients || clients.length === 0) return;
-
-  const message = `data: ${JSON.stringify(data)}\n\n`;
-  for (const client of clients) {
-    try {
-      client.write(message);
-    } catch {
-      // Client disconnected
-    }
-  }
 }
 
 module.exports = createAgentsRouter;
