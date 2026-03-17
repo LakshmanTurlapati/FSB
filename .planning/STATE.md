@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 37-01-PLAN.md
-last_updated: "2026-03-17T09:03:35.273Z"
+stopped_at: Completed 37-02-PLAN.md
+last_updated: "2026-03-17T09:06:44.757Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -44,6 +44,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 36]: sanitizeOverlayText defined inside sessionStatus handler for scope locality; markdown stripped before length check in summarizeTask
 - [Phase 37]: Phase detection uses sliding window of last 5 actions for responsiveness
 - [Phase 37]: ETA weight decays from 70% estimate to 10% as iterations progress
+- [Phase 37]: Delegation pattern in calculateProgress avoids changing every sendSessionStatus call site
 
 ### Pending Todos
 
@@ -56,6 +57,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-17T09:03:29.982Z
-Stopped at: Completed 37-01-PLAN.md
+Last session: 2026-03-17T09:06:44.740Z
+Stopped at: Completed 37-02-PLAN.md
 Resume file: None
