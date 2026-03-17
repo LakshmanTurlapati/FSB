@@ -10,7 +10,7 @@
 | Phase | Name | Requirements | Depends On |
 |-------|------|-------------|------------|
 | 36 | 2/2 | Complete    | 2026-03-17 |
-| 37 | Smart Progress & ETA | PROG-01 through PROG-04 | — |
+| 37 | 1/2 | In Progress|  |
 | 38 | Live Action Summaries | LIVE-01 through LIVE-04 | 36 (clean text paths) |
 | 39 | Overlay UX Polish | UX-01 through UX-03 | 36, 37, 38 |
 
@@ -44,7 +44,7 @@ Plans:
 
 **Requirements:** PROG-01, PROG-02, PROG-03, PROG-04
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 37-01-PLAN.md — Phase detection + weighted progress model + complexity-aware ETA

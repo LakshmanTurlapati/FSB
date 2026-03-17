@@ -14,9 +14,9 @@
 
 ### Smart Progress & ETA (PROG)
 
-- [ ] **PROG-01**: Progress percentage reflects actual task advancement based on action patterns and completion signals, not just iteration/maxIterations ratio
-- [ ] **PROG-02**: ETA estimation accounts for task complexity type (simple/moderate/complex/multi-site) from the existing task complexity estimator
-- [ ] **PROG-03**: Progress tracks phase transitions (analyzing → acting → reading → writing) and adjusts estimates when the task enters a new phase (e.g., navigation complete, now extracting data)
+- [x] **PROG-01**: Progress percentage reflects actual task advancement based on action patterns and completion signals, not just iteration/maxIterations ratio
+- [x] **PROG-02**: ETA estimation accounts for task complexity type (simple/moderate/complex/multi-site) from the existing task complexity estimator
+- [x] **PROG-03**: Progress tracks phase transitions (analyzing → acting → reading → writing) and adjusts estimates when the task enters a new phase (e.g., navigation complete, now extracting data)
 - [ ] **PROG-04**: Multi-site and Sheets workflows show task-specific progress (e.g., "Company 3/10", "Row 15/30") in the progress overlay with phase-aware ETA
 
 ### Debug Feedback Pipeline (DBG)
@@ -53,9 +53,9 @@
 | DBG-04 | Phase 36 | Complete |
 | DBG-05 | Phase 36 | Complete |
 | DBG-06 | Phase 36 | Complete |
-| PROG-01 | Phase 37 | Pending |
-| PROG-02 | Phase 37 | Pending |
-| PROG-03 | Phase 37 | Pending |
+| PROG-01 | Phase 37 | Complete |
+| PROG-02 | Phase 37 | Complete |
+| PROG-03 | Phase 37 | Complete |
 | PROG-04 | Phase 37 | Pending |
 | LIVE-01 | Phase 38 | Pending |
 | LIVE-02 | Phase 38 | Pending |

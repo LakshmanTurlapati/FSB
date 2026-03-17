@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 36-01-PLAN.md
-last_updated: "2026-03-17T08:36:06.718Z"
+stopped_at: Completed 37-01-PLAN.md
+last_updated: "2026-03-17T09:03:35.273Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
 ---
 
 # Project State
@@ -42,6 +42,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 36]: Used diagnosticSuggestions naming to avoid collision with singular suggestion field
 - [Phase 36]: Retroactive actionHistory patching for async debug results instead of restructuring flow
 - [Phase 36]: sanitizeOverlayText defined inside sessionStatus handler for scope locality; markdown stripped before length check in summarizeTask
+- [Phase 37]: Phase detection uses sliding window of last 5 actions for responsiveness
+- [Phase 37]: ETA weight decays from 70% estimate to 10% as iterations progress
 
 ### Pending Todos
 
@@ -54,6 +56,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-17T08:32:51.005Z
-Stopped at: Completed 36-01-PLAN.md
+Last session: 2026-03-17T09:03:29.982Z
+Stopped at: Completed 37-01-PLAN.md
 Resume file: None

@@ -742,8 +742,9 @@ function detectTaskPhase(session) {
  * @returns {{ progressPercent: number, estimatedTimeRemaining: string|null }}
  */
 function calculateProgress(session) {
-  // Multi-site and Sheets have their own progress models (Plan 02)
-  // Fall through to generic model for standard sessions
+  // Delegate to workflow-specific progress when applicable
+  if (session.multiSite) return calculateMultiSiteProgress(session);
+  if (session.sheetsData) return calculateSheetsProgress(session);
 
   const maxIter = session.maxIterations || 20;
   const current = session.iterationCount || 0;
@@ -824,6 +825,90 @@ function formatETA(ms) {
   if (seconds < 60) return `~${seconds}s remaining`;
   const minutes = Math.round(seconds / 60);
   return `~${minutes}m remaining`;
+}
+
+/**
+ * Calculate progress for multi-site workflows based on completed companies.
+ * Overrides generic calculateProgress when session.multiSite is active.
+ * @param {Object} session
+ * @returns {{ progressPercent: number, estimatedTimeRemaining: string|null }}
+ */
+function calculateMultiSiteProgress(session) {
+  const ms = session.multiSite;
+  if (!ms) return calculateProgress(session);
+
+  const companies = ms.companyList || ms.companies || [];
+  const totalCompanies = companies.length;
+  if (totalCompanies === 0) return calculateProgress(session);
+
+  const completedIndex = ms.currentIndex || 0;
+
+  // Within-company progress from iteration ratio (0 to 1)
+  const maxIter = session.maxIterations || 20;
+  const current = session.iterationCount || 0;
+  const withinCompanyProgress = maxIter > 0 ? Math.min(1, current / maxIter) : 0;
+
+  // Overall: (completed companies + fraction of current) / total
+  const progressPercent = Math.min(99, Math.round(
+    ((completedIndex + withinCompanyProgress) / totalCompanies) * 100
+  ));
+
+  // ETA: average time per company * remaining companies
+  let estimatedTimeRemaining = null;
+  if (completedIndex > 0 && session.multiSite.startedAt) {
+    const elapsed = Date.now() - session.multiSite.startedAt;
+    const avgPerCompany = elapsed / completedIndex;
+    const remainingCompanies = totalCompanies - completedIndex - withinCompanyProgress;
+    const remaining = remainingCompanies * avgPerCompany;
+    if (remaining > 0) {
+      estimatedTimeRemaining = formatETA(remaining);
+    }
+  }
+
+  return { progressPercent, estimatedTimeRemaining };
+}
+
+/**
+ * Calculate progress for Google Sheets workflows based on rows written or formatting state.
+ * Overrides generic calculateProgress when session.sheetsData is active.
+ * @param {Object} session
+ * @returns {{ progressPercent: number, estimatedTimeRemaining: string|null }}
+ */
+function calculateSheetsProgress(session) {
+  const sd = session.sheetsData;
+  if (!sd) return calculateProgress(session);
+
+  let progressPercent;
+  let estimatedTimeRemaining = null;
+
+  if (sd.formattingPhase || sd.formattingComplete) {
+    // Formatting phase: use iteration-based progress within 0-100 range
+    // Formatting is typically 2-4 iterations
+    if (sd.formattingComplete) {
+      progressPercent = 99;
+    } else {
+      const maxIter = session.maxIterations || 5;
+      const current = session.iterationCount || 0;
+      progressPercent = Math.min(99, Math.round((current / maxIter) * 100));
+    }
+  } else {
+    // Data entry phase: rows written / total rows
+    const totalRows = sd.totalRows || 1;
+    const rowsWritten = sd.rowsWritten || 0;
+    progressPercent = Math.min(99, Math.round((rowsWritten / totalRows) * 100));
+
+    // ETA based on write rate
+    if (rowsWritten > 0 && sd.startedAt) {
+      const elapsed = Date.now() - sd.startedAt;
+      const avgPerRow = elapsed / rowsWritten;
+      const remaining = (totalRows - rowsWritten) * avgPerRow;
+      if (remaining > 0) {
+        estimatedTimeRemaining = formatETA(remaining);
+      }
+    }
+  }
+
+  return { progressPercent, estimatedTimeRemaining };
 }
 
 /**
@@ -8195,7 +8280,9 @@ async function startSheetsDataEntry(sessionId, session) {
     taskName: session.task,
     iteration: 0,
     maxIterations: session.maxIterations,
-    taskSummary: session.taskSummary
+    taskSummary: session.taskSummary,
+    progressPercent: 0,
+    estimatedTimeRemaining: null
   });
 
   // 13. Persist session state
@@ -8286,7 +8373,9 @@ async function startSheetsFormatting(sessionId, session) {
     taskName: session.task,
     iteration: 0,
     maxIterations: session.maxIterations,
-    taskSummary: session.taskSummary
+    taskSummary: session.taskSummary,
+    progressPercent: 0,
+    estimatedTimeRemaining: null
   });
 
   // Persist and launch
@@ -9797,7 +9886,8 @@ async function startAutomationLoop(sessionId) {
           taskName: session.task,
           iteration: session.iterationCount,
           maxIterations: session.maxIterations,
-          taskSummary: session.taskSummary
+          taskSummary: session.taskSummary,
+          ...calculateSheetsProgress(session)
         });
 
         // Persist session every 5 iterations during Sheets entry to survive service worker restarts
