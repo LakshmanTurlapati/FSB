@@ -727,7 +727,7 @@ async function runHeuristicFix(failedAction) {
     if (failure.check === 'not_covered') {
       try {
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-        await new Promise(r => setTimeout(r, 300));
+        await waitForStability('click');
         if (selector) {
           const el = document.querySelector(selector);
           if (el) {
@@ -747,7 +747,7 @@ async function runHeuristicFix(failedAction) {
         const el = document.querySelector(selector);
         if (el) {
           el.scrollIntoView({ behavior: 'instant', block: 'center' });
-          await new Promise(r => setTimeout(r, 200));
+          await waitForStability('scroll');
           return { resolved: true, fix: 'Scrolled element into view' };
         }
       } catch (e) { /* continue */ }
@@ -766,7 +766,7 @@ async function runHeuristicFix(failedAction) {
             }
             if (parent.getAttribute('aria-expanded') === 'false') {
               parent.click();
-              await new Promise(r => setTimeout(r, 300));
+              await waitForStability('click');
               return { resolved: true, fix: 'Expanded collapsed accordion' };
             }
             parent = parent.parentElement;
@@ -4206,7 +4206,7 @@ const tools = {
     const gameTargets = ['canvas', 'iframe[src*="game"]', 'div[id*="game"]', 'div[class*="game"]', 'body'];
     let targetElement = null;
     for (const selector of gameTargets) { targetElement = document.querySelector(selector); if (targetElement) break; }
-    await waitForStability('type_keystroke');
+    if (targetElement && targetElement !== document.body) { targetElement.focus(); await waitForStability('light'); }
     const result = await tools.keyPress({ key: key, useDebuggerAPI: true });
     return { success: result.success, action: action, key: key, targetElement: targetElement ? targetElement.tagName : 'body', gameControlUsed: true, result: result };
   },
