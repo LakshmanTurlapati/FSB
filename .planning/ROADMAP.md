@@ -9,6 +9,7 @@
 - v10.0 **CLI Architecture** -- Phases 15-29 (shipped 2026-03-15)
 - v0.9.2 **Productivity Site Intelligence** -- Phase 30 (in progress)
 - v0.9.3 **Memory Tab Overhaul** -- Phases 31-34 (planned)
+- v0.9.4 **AI Perception & Action Quality** -- Phase 35 (planned)
 
 ## Phases
 
@@ -67,6 +68,12 @@ See `.planning/milestones/v0.9.3-ROADMAP.md` for full details.
 - [x] **Phase 32: Extraction Pipeline & Consolidation** - Rewrite AI extraction to produce one memory per session, session-based dedup (completed 2026-03-16)
 - [x] **Phase 33: Task Memory Display & Migration** - Task cards, detail view, graph visualization, and migration utility (completed 2026-03-16)
 
+### v0.9.4 AI Perception & Action Quality (Planned)
+
+**Milestone Goal:** Improve how the AI sees web pages (DOM snapshot quality, scroll awareness, viewport-complete element inclusion) and how it executes actions (click diagnostics, verification, stability detection, error recovery) -- cross-cutting refinements that improve reliability across ALL sites.
+
+- [ ] **Phase 35: AI Perception & Action Quality Refinement** - Snapshot awareness, action diagnostics, continuation prompt quality, adaptive waiting, selector resilience, error reporting with parallel debug fallback
+
 ## Phase Details
 
 ### Phase 30: Productivity Site Intelligence
@@ -123,7 +130,7 @@ Plans:
 **Requirements**: DISP-01, DISP-02, DISP-03
 **Success Criteria** (what must be TRUE):
   1. Task Memory cards are polished with better outcome badge styling, domain indicator, and the Refine button is removed from all memory types
-  2. Clicking a card expands to a full recon report with collapsible sections: summary+outcome at top, then Timeline, Discoveries, Procedures — AI analysis integrated into relevant sections
+  2. Clicking a card expands to a full recon report with collapsible sections: summary+outcome at top, then Timeline, Discoveries, Procedures -- AI analysis integrated into relevant sections
   3. Each Task Memory detail view includes an inline 2D graph (SiteGraph-style) showing pages visited, elements interacted with, and navigation paths
   4. Task Memory discoveries auto-update the FSB Intelligence knowledge graph data structure
   5. Old-format memories remain visible and functional alongside Task Memories
@@ -138,7 +145,7 @@ Plans:
 **Depends on**: Phase 33
 **Requirements**: THEME-01, EXPORT-01
 **Success Criteria** (what must be TRUE):
-  1. All Memory tab elements (cards, detail panels, graph containers, badges, collapsible sections, stats bar) respect the active theme — no white elements in dark mode or dark elements in light mode
+  1. All Memory tab elements (cards, detail panels, graph containers, badges, collapsible sections, stats bar) respect the active theme -- no white elements in dark mode or dark elements in light mode
   2. Users can export all memories (or filtered subset) as a downloadable JSON file from the Memory tab
   3. Users can import a previously exported JSON file to restore or merge memories, with duplicate detection
 **Plans**: 2 plans
@@ -147,19 +154,42 @@ Plans:
 - [ ] 34-01-PLAN.md -- Theme fix: define missing CSS variables, replace hardcoded colors in CSS and JS inline styles
 - [ ] 34-02-PLAN.md -- Memory import: file picker, validation, duplicate detection, merge with toast feedback
 
+### Phase 35: AI Perception & Action Quality Refinement
+**Goal**: Improve how the AI sees web pages (snapshot awareness, viewport-complete element inclusion) and how it executes actions (8-point diagnostics, enhanced verification, adaptive waiting, selector resilience, parallel debug fallback) -- cross-cutting reliability improvements across all sites
+**Depends on**: Phase 34
+**Requirements**: SNAP-01, SNAP-02, DIAG-01, DIAG-02, VRFY-01, VRFY-02, VRFY-03, CONT-01, CONT-02, CONT-03, CONT-04, WAIT-01, WAIT-02, SEL-01, SEL-02, BIN-01, BIN-02, ERR-01, ERR-02, ERR-03
+**Success Criteria** (what must be TRUE):
+  1. Every DOM snapshot includes scroll awareness (hasMoreAbove/Below, content-remaining %) and includes ALL viewport-visible interactive elements without an arbitrary cap
+  2. Failed actions receive 8-point diagnostic (visible? disabled? covered? scrollable? pointer-events? collapsed? hover-needed? in-DOM?) with natural language suggestions
+  3. Continuation prompts preserve reasoning framework, site guide knowledge, and tool preferences on iteration 2+ (not just bare CLI rules)
+  4. All hardcoded setTimeout delays in action handlers are replaced with observation-based waitForPageStability using stability profiles
+  5. Failed selectors attempt context-aware re-resolution, and all generated selectors enforce unique match
+  6. Binary state actions pre-check ARIA state and skip if already in target state; check/uncheck are intent-based CLI commands
+  7. Every failure triggers parallel heuristic + AI debugger -- heuristic resolves common patterns instantly, AI diagnosis is ready with zero extra latency if heuristic fails
+**Plans**: 5 plans
+
+Plans:
+- [ ] 35-01-PLAN.md -- Snapshot awareness: scroll metadata header, viewport-complete element inclusion
+- [ ] 35-02-PLAN.md -- Action diagnostics: 8-point diagnostic, enhanced verification, binary state pre-checks, check/uncheck commands
+- [ ] 35-03-PLAN.md -- Continuation prompt quality: hybrid prompt, domain change flags, site-aware tool hints, stuck detection cleanup
+- [ ] 35-04-PLAN.md -- Adaptive waiting: replace hardcoded delays, UI-ready detection, context-aware selector re-resolution, unique match enforcement
+- [ ] 35-05-PLAN.md -- Error reporting: structured failure reports, parallel debug fallback with heuristic engine + AI debugger
+
 ## Progress
 
 **Execution Order:**
 v0.9.2: Phase 30
 v0.9.3: Phase 31 -> Phase 32 -> Phase 33 -> Phase 34
+v0.9.4: Phase 35
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 30. Productivity Site Intelligence | 4/4 | Complete    | 2026-03-16 |
+| 30. Productivity Site Intelligence | 4/4 | Complete    | 2026-03-17 |
 | 31. Task Memory Schema & Storage | 2/2 | Complete    | 2026-03-16 |
 | 32. Extraction Pipeline & Consolidation | 2/2 | Complete    | 2026-03-16 |
 | 33. Task Memory Display & Graph | 2/2 | Complete    | 2026-03-16 |
-| 34. Memory Tab Theme Fix & Export/Import | 2/2 | Complete   | 2026-03-16 |
+| 34. Memory Tab Theme Fix & Export/Import | 2/2 | Complete    | 2026-03-16 |
+| 35. AI Perception & Action Quality | 0/5 | Planned     | - |
 
 | Milestone | Phases | Plans | Requirements | Status | Shipped |
 |-----------|--------|-------|-------------|--------|---------|
@@ -170,6 +200,7 @@ v0.9.3: Phase 31 -> Phase 32 -> Phase 33 -> Phase 34
 | v10.0 CLI Architecture | 15-29 | 37 | 67/67 | Complete | 2026-03-15 |
 | v0.9.2 Productivity Site Intelligence | 30 | 4 | 0/17 | In progress | - |
 | v0.9.3 Memory Tab Overhaul | 31-34 | TBD | 0/9 | Planned | - |
+| v0.9.4 AI Perception & Action Quality | 35 | 5 | 0/18 | Planned | - |
 
 ---
-*Updated: 2026-03-16 after Phase 34 planning*
+*Updated: 2026-03-16 after Phase 35 planning*
