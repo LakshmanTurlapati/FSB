@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: executing
-stopped_at: Completed 34-01-PLAN.md
-last_updated: "2026-03-16T13:47:19.047Z"
-last_activity: 2026-03-16 -- Completed 34-02 memory import with duplicate detection
+stopped_at: Completed 35-03-PLAN.md
+last_updated: "2026-03-17T01:35:00.843Z"
+last_activity: 2026-03-17 -- Completed 35-01 scroll metadata and viewport-complete elements
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 5
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 17
+  completed_plans: 14
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 34 - Memory Tab Theme Fix Export Import
+**Current focus:** Phase 35 - Notion Todo Workflow Refinement
 
 ## Current Position
 
-Phase: 34 of 34 (Memory Tab Theme Fix Export Import)
-Plan: 2 of 2 completed in current phase
+Phase: 35 of 35 (Notion Todo Workflow Refinement)
+Plan: 1 of 5 completed in current phase
 Status: In Progress
-Last activity: 2026-03-16 -- Completed 34-02 memory import with duplicate detection
+Last activity: 2026-03-17 -- Completed 35-01 scroll metadata and viewport-complete elements
 
 Progress: [██████████] 100%
 
@@ -50,6 +50,8 @@ Progress: [██████████] 100%
 | Phase 33 P02 | 3min | 2 tasks | 5 files |
 | Phase 34 P02 | 1min | 2 tasks | 2 files |
 | Phase 34 P01 | 3min | 2 tasks | 2 files |
+| Phase 35 P01 | 2min | 2 tasks | 1 files |
+| Phase 35 P03 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -90,10 +92,20 @@ Recent decisions:
 - 34-02: Accept both JSON arrays and single memory objects for import flexibility
 - [Phase 34]: Added --danger as alias for --error-color (used in 4+ Memory tab rules with no definition)
 - [Phase 34]: Used --primary-color instead of undefined --primary for cost-card-header icon
+- 35-01: viewportComplete as opt-in option (default false) preserves all existing callers
+- 35-01: charBudget truncation is the only size limiter for viewport-complete snapshots
+- 35-01: Offscreen elements capped at 30 in viewport-complete mode for important interactive elements only
+- [Phase 35]: Hybrid prompt retains reasoning framework while dropping first-iteration-only content (security preamble, structural rules)
+- [Phase 35]: Tool hints and site scenarios use placeholder replacement for zero overhead when no site guide
+- [Phase 35]: consecutiveNoProgressCount verified: resets only on session start and meaningful progress, never on URL change
 
 ### Pending Todos
 
 1. Smart multi-tab management with context-aware navigation (area: general) - `.planning/todos/pending/2026-02-14-smart-multi-tab-management.md`
+
+### Roadmap Evolution
+
+- Phase 35 added: Notion Todo Workflow Refinement
 
 ### Blockers/Concerns
 
@@ -102,6 +114,6 @@ Recent decisions:
 
 ## Session Continuity
 
-Last session: 2026-03-16T13:47:19.030Z
-Stopped at: Completed 34-01-PLAN.md
+Last session: 2026-03-17T01:35:00.808Z
+Stopped at: Completed 35-03-PLAN.md
 Resume file: None

@@ -54,8 +54,8 @@ Requirements for AI Perception & Action Quality milestone. Cross-cutting refinem
 
 ### Snapshot & Perception
 
-- [ ] **SNAP-01**: Scroll metadata header on every snapshot with scroll position %, hasMoreAbove/hasMoreBelow flags, content-remaining estimate
-- [ ] **SNAP-02**: Viewport-complete element inclusion -- all interactive elements in current viewport included, no arbitrary element cap (80). Dynamic based on what's visible
+- [x] **SNAP-01**: Scroll metadata header on every snapshot with scroll position %, hasMoreAbove/hasMoreBelow flags, content-remaining estimate
+- [x] **SNAP-02**: Viewport-complete element inclusion -- all interactive elements in current viewport included, no arbitrary element cap (80). Dynamic based on what's visible
 
 ### Action Diagnostics & Verification
 
@@ -67,10 +67,10 @@ Requirements for AI Perception & Action Quality milestone. Cross-cutting refinem
 
 ### Continuation Prompt Quality
 
-- [ ] **CONT-01**: Hybrid continuation prompt keeping REASONING FRAMEWORK, TOOL PREFERENCES, site guide knowledge, specific scenarios; only dropping security preamble and locale
-- [ ] **CONT-02**: Explicit domain change flag to AI: "DOMAIN CHANGED from [old] to [new]. Previous site assumptions invalid."
-- [ ] **CONT-03**: Site-aware tool hints in continuation prompt using site guide toolPreferences array
-- [ ] **CONT-04**: Stuck detection heuristic cleanup -- document and simplify counter/reset conditions in background.js
+- [x] **CONT-01**: Hybrid continuation prompt keeping REASONING FRAMEWORK, TOOL PREFERENCES, site guide knowledge, specific scenarios; only dropping security preamble and locale
+- [x] **CONT-02**: Explicit domain change flag to AI: "DOMAIN CHANGED from [old] to [new]. Previous site assumptions invalid."
+- [x] **CONT-03**: Site-aware tool hints in continuation prompt using site guide toolPreferences array
+- [x] **CONT-04**: Stuck detection heuristic cleanup -- document and simplify counter/reset conditions in background.js
 
 ### Adaptive Waiting
 
