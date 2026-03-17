@@ -14,6 +14,7 @@ const Queries = require('./src/db/queries');
 const authMiddleware = require('./src/middleware/auth');
 const createAuthRouter = require('./src/routes/auth');
 const createAgentsRouter = require('./src/routes/agents');
+const createPairRouter = require('./src/routes/pair');
 const { setupWSHandler } = require('./src/ws/handler');
 
 // Configuration
@@ -54,6 +55,7 @@ app.use('/api/auth', createAuthRouter(queries));
 // Routes - protected (require hash key)
 const auth = authMiddleware(queries);
 app.use('/api/agents', auth, createAgentsRouter(queries));
+app.use('/api/pair', createPairRouter(queries, auth));
 app.use('/api/stats', auth, (req, res) => {
   try {
     const stats = queries.getAgentStats(req.hashKey);
@@ -85,9 +87,9 @@ app.get('/dashboard*', (req, res) => {
   }
 });
 
-// Root redirect to dashboard
+// Root serves landing page (not redirect to dashboard)
 app.get('/', (req, res) => {
-  res.redirect('/dashboard');
+  res.sendFile(path.join(staticPath, 'index.html'));
 });
 
 // Error handler
