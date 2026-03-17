@@ -1772,6 +1772,7 @@
           position: Array.from(element.parentElement?.children || []).indexOf(element)
         };
         element._fsbResolveContext = context;
+        fsbElementDef._lastContext = context;
         return { element, matchedIndex: i, matchedStrategy: strategy, total, context };
       }
     }

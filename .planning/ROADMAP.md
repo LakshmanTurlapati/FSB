@@ -7,9 +7,9 @@
 - v9.3 **Tech Debt Cleanup** -- Phases 4-8 (shipped 2026-02-23)
 - v9.4 **Career Search Automation** -- Phases 9-14.3 (shipped 2026-02-27)
 - v10.0 **CLI Architecture** -- Phases 15-29 (shipped 2026-03-15)
-- v0.9.2 **Productivity Site Intelligence** -- Phase 30 (in progress)
-- v0.9.3 **Memory Tab Overhaul** -- Phases 31-34 (planned)
-- v0.9.4 **AI Perception & Action Quality** -- Phase 35 (planned)
+- v0.9.2 **Productivity Site Intelligence** -- Phase 30 (complete)
+- v0.9.3 **Memory Tab Overhaul** -- Phases 31-34 (complete)
+- v0.9.4 **AI Perception & Action Quality** -- Phase 35 (complete)
 
 ## Phases
 
@@ -52,13 +52,13 @@ See `.planning/milestones/v10.0-ROADMAP.md` for full details.
 
 </details>
 
-### v0.9.2 Productivity Site Intelligence (In Progress)
+### v0.9.2 Productivity Site Intelligence (Complete)
 
 **Milestone Goal:** Expand custom site intelligence (fsbElements, multi-strategy selectors, keyboard-first guidance, workflows) to 7 productivity web apps -- replicating the Google Sheets treatment for apps where standard DOM automation fails.
 
 - [x] **Phase 30: Productivity Site Intelligence** - Generalize fsbElements pipeline and create site guides with fsbElements, guidance, keyboard shortcuts, and workflows for Notion, Google Calendar, Trello, Google Keep, Todoist, Airtable, and Jira (completed 2026-03-16)
 
-### v0.9.3 Memory Tab Overhaul (Planned)
+### v0.9.3 Memory Tab Overhaul (Complete)
 
 **Milestone Goal:** Overhaul the Memory tab so one automation produces one consolidated Task Memory (a reconnaissance report) instead of 3-5 fragmented type-based memories, with graph visualization per task.
 
@@ -68,7 +68,7 @@ See `.planning/milestones/v0.9.3-ROADMAP.md` for full details.
 - [x] **Phase 32: Extraction Pipeline & Consolidation** - Rewrite AI extraction to produce one memory per session, session-based dedup (completed 2026-03-16)
 - [x] **Phase 33: Task Memory Display & Migration** - Task cards, detail view, graph visualization, and migration utility (completed 2026-03-16)
 
-### v0.9.4 AI Perception & Action Quality (Planned)
+### v0.9.4 AI Perception & Action Quality (Complete)
 
 **Milestone Goal:** Improve how the AI sees web pages (DOM snapshot quality, scroll awareness, viewport-complete element inclusion) and how it executes actions (click diagnostics, verification, stability detection, error recovery) -- cross-cutting refinements that improve reliability across ALL sites.
 
@@ -189,7 +189,7 @@ v0.9.4: Phase 35
 | 32. Extraction Pipeline & Consolidation | 2/2 | Complete    | 2026-03-16 |
 | 33. Task Memory Display & Graph | 2/2 | Complete    | 2026-03-16 |
 | 34. Memory Tab Theme Fix & Export/Import | 2/2 | Complete    | 2026-03-16 |
-| 35. AI Perception & Action Quality | 5/5 | Complete   | 2026-03-17 |
+| 35. AI Perception & Action Quality | 5/5 | Complete    | 2026-03-17 |
 
 | Milestone | Phases | Plans | Requirements | Status | Shipped |
 |-----------|--------|-------|-------------|--------|---------|
@@ -198,9 +198,9 @@ v0.9.4: Phase 35
 | v9.3 Tech Debt | 4-8 | 17 | 9/9 | Complete | 2026-02-23 |
 | v9.4 Career Search | 9-14.3 | 18 | 21/21 | Complete | 2026-02-27 |
 | v10.0 CLI Architecture | 15-29 | 37 | 67/67 | Complete | 2026-03-15 |
-| v0.9.2 Productivity Site Intelligence | 30 | 4 | 0/17 | In progress | - |
-| v0.9.3 Memory Tab Overhaul | 31-34 | TBD | 0/9 | Planned | - |
-| v0.9.4 AI Perception & Action Quality | 35 | 5 | 0/18 | Planned | - |
+| v0.9.2 Productivity Site Intelligence | 30 | 4 | 17/17 | Complete | - |
+| v0.9.3 Memory Tab Overhaul | 31-34 | 8 | 10/10 | Complete | - |
+| v0.9.4 AI Perception & Action Quality | 35 | 5 | 20/20 | Complete | - |
 
 ---
-*Updated: 2026-03-16 after Phase 35 planning*
+*Updated: 2026-03-17 after milestone audit gap closure*

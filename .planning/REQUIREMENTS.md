@@ -93,6 +93,35 @@ Requirements for AI Perception & Action Quality milestone. Cross-cutting refinem
 - [x] **ERR-02**: Element state snapshot on failure: visibility, disabled state, ARIA attributes, parent context
 - [x] **ERR-03**: Parallel debug fallback -- heuristic engine AND AI debugger fire concurrently on failure; if heuristic works, discard debugger; if heuristic fails, AI diagnosis already ready
 
+## v0.9.3 Requirements
+
+Requirements for Memory Tab Overhaul milestone. Unified Task Memory with graph visualization.
+
+### Task Memory Schema
+
+- [x] **MEM-01**: Unified Task Memory object with `type: "task"` containing episodic (steps timeline, outcome), semantic (selectors, site structure), and procedural (reusable patterns) data
+- [x] **MEM-02**: AI extraction prompt produces single consolidated recon-style report per session instead of 1-5 fragmented memories
+- [x] **MEM-03**: Consolidator groups memories by domain + task similarity, merging repeat runs into one memory with run history
+
+### Storage & Retrieval
+
+- [x] **STOR-01**: memory-storage.js saves/retrieves Task Memory objects with backward-compatible reader for old type-based memories
+
+### Consolidation
+
+- [x] **CONS-01**: extractAndStoreMemories produces exactly one Task Memory per session with no changes needed at call sites
+
+### Display & Visualization
+
+- [x] **DISP-01**: Task Memory cards with polished outcome badges, domain indicator, and Refine button removed from all memory types
+- [x] **DISP-02**: Full recon report detail view with collapsible Timeline, Discoveries, Procedures sections and integrated AI analysis
+- [x] **DISP-03**: Per-task inline 2D graph showing pages visited, elements interacted with, navigation paths; task discoveries auto-update knowledge graph
+
+### Theme & Export
+
+- [x] **THEME-01**: All Memory tab elements respect active theme with no hardcoded hex colors in CSS or JS inline styles
+- [x] **EXPORT-01**: Memory export as downloadable JSON and import with duplicate detection and merge
+
 ## Future Requirements
 
 ### Mechanical Tools (v2+)
@@ -141,31 +170,42 @@ Requirements for AI Perception & Action Quality milestone. Cross-cutting refinem
 | JIRA-02 | Phase 30 | Complete |
 | ATBL-01 | Phase 30 | Complete |
 | ATBL-02 | Phase 30 | Complete |
-| SNAP-01 | Phase 35 | Planned |
-| SNAP-02 | Phase 35 | Planned |
-| DIAG-01 | Phase 35 | Planned |
-| DIAG-02 | Phase 35 | Planned |
-| VRFY-01 | Phase 35 | Planned |
-| VRFY-02 | Phase 35 | Planned |
-| VRFY-03 | Phase 35 | Planned |
-| CONT-01 | Phase 35 | Planned |
-| CONT-02 | Phase 35 | Planned |
-| CONT-03 | Phase 35 | Planned |
-| CONT-04 | Phase 35 | Planned |
-| WAIT-01 | Phase 35 | Planned |
-| WAIT-02 | Phase 35 | Planned |
-| SEL-01 | Phase 35 | Planned |
-| SEL-02 | Phase 35 | Planned |
-| BIN-01 | Phase 35 | Planned |
-| BIN-02 | Phase 35 | Planned |
-| ERR-01 | Phase 35 | Planned |
-| ERR-02 | Phase 35 | Planned |
-| ERR-03 | Phase 35 | Planned |
+| MEM-01 | Phase 31 | Complete |
+| MEM-02 | Phase 32 | Complete |
+| MEM-03 | Phase 32 | Complete |
+| STOR-01 | Phase 31 | Complete |
+| CONS-01 | Phase 32 | Complete |
+| DISP-01 | Phase 33 | Complete |
+| DISP-02 | Phase 33 | Complete |
+| DISP-03 | Phase 33 | Complete |
+| THEME-01 | Phase 34 | Complete |
+| EXPORT-01 | Phase 34 | Complete |
+| SNAP-01 | Phase 35 | Complete |
+| SNAP-02 | Phase 35 | Complete |
+| DIAG-01 | Phase 35 | Complete |
+| DIAG-02 | Phase 35 | Complete |
+| VRFY-01 | Phase 35 | Complete |
+| VRFY-02 | Phase 35 | Complete |
+| VRFY-03 | Phase 35 | Complete |
+| CONT-01 | Phase 35 | Complete |
+| CONT-02 | Phase 35 | Complete |
+| CONT-03 | Phase 35 | Complete |
+| CONT-04 | Phase 35 | Complete |
+| WAIT-01 | Phase 35 | Complete |
+| WAIT-02 | Phase 35 | Complete |
+| SEL-01 | Phase 35 | Complete |
+| SEL-02 | Phase 35 | Complete |
+| BIN-01 | Phase 35 | Complete |
+| BIN-02 | Phase 35 | Complete |
+| ERR-01 | Phase 35 | Complete |
+| ERR-02 | Phase 35 | Complete |
+| ERR-03 | Phase 35 | Complete |
 
 **Coverage:**
 - v0.9.2 requirements: 17 total, mapped: 17, unmapped: 0
-- v0.9.4 requirements: 18 total, mapped: 18, unmapped: 0
+- v0.9.3 requirements: 10 total, mapped: 10, unmapped: 0
+- v0.9.4 requirements: 20 total, mapped: 20, unmapped: 0
 
 ---
 *Requirements defined: 2026-03-16*
-*Last updated: 2026-03-16 after Phase 35 planning*
+*Last updated: 2026-03-17 after milestone audit gap closure*

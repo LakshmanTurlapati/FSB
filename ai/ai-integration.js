@@ -2580,7 +2580,7 @@ ${this._buildTaskGuidance(taskType, siteGuide, currentUrl, task)}`;
       // Build dynamic tool hints from site guide
       let toolHints = '';
       if (siteGuide && siteGuide.toolPreferences && siteGuide.toolPreferences.length > 0) {
-        toolHints = `\nPREFERRED TOOLS for ${siteGuide.name || 'this site'}: ${siteGuide.toolPreferences.join(', ')}`;
+        toolHints = `\nPREFERRED TOOLS for ${siteGuide.site || siteGuide.name || 'this site'}: ${siteGuide.toolPreferences.join(', ')}`;
       }
 
       // Build site-specific scenario context from site guide guidance
@@ -2590,7 +2590,7 @@ ${this._buildTaskGuidance(taskType, siteGuide, currentUrl, task)}`;
           ? siteGuide.guidance.substring(0, 500)
           : (siteGuide.guidance.key_patterns || siteGuide.guidance.warnings || '').substring(0, 500);
         if (guidanceText) {
-          siteScenarios = `\nSITE CONTEXT (${siteGuide.name || 'current site'}):\n${guidanceText}`;
+          siteScenarios = `\nSITE CONTEXT (${siteGuide.site || siteGuide.name || 'current site'}):\n${guidanceText}`;
         }
       }
 
