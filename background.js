@@ -160,6 +160,9 @@ importScripts('lib/memory/sitemap-refiner.js');
 // Site map intelligence - bundled map cache
 const bundledSiteMapCache = new Map();
 
+// Speech-to-Text: tracks which tab has active browser recognition
+let _sttActiveTabId = null;
+
 // Content script module files in dependency order.
 // Used by all file-based chrome.scripting.executeScript injection points.
 // Order matters: init.js sets up the window.FSB namespace, utils.js provides
@@ -1184,12 +1187,12 @@ function isSessionTerminating(sessionId) {
  * @param {string} newTask - The new follow-up task/command
  */
 function reactivateSession(session, newTask) {
-  // Reset per-command fields
+  // Reset per-command fields (new command = fresh stuck detection state)
   session.status = 'running';
   session.task = newTask;
   session.iterationCount = 0;
-  session.stuckCounter = 0;
-  session.consecutiveNoProgressCount = 0;
+  session.stuckCounter = 0;              // Reset: new command
+  session.consecutiveNoProgressCount = 0; // Reset: new command
   session.lastDOMHash = null;
   session.lastDOMSignals = null;
   session.actionSequences = [];
@@ -1604,6 +1607,12 @@ chrome.webNavigation.onCommitted.addListener((details) => {
     transitionType: details.transitionType,
     url: details.url
   });
+
+  // Reset STT if the recording tab navigated away
+  if (tabId === _sttActiveTabId) {
+    _sttActiveTabId = null;
+    chrome.runtime.sendMessage({ from: 'content-stt', event: 'end', text: '' }).catch(() => {});
+  }
 });
 
 // PERF: Clean up all state when a tab is closed to prevent memory leaks
@@ -1621,6 +1630,12 @@ chrome.tabs.onRemoved.addListener((tabId) => {
         sessionAIInstances.delete(sessionId);
       }
     }
+  }
+
+  // Reset STT if the recording tab was closed
+  if (tabId === _sttActiveTabId) {
+    _sttActiveTabId = null;
+    chrome.runtime.sendMessage({ from: 'content-stt', event: 'end', text: '' }).catch(() => {});
   }
 });
 
@@ -2784,7 +2799,12 @@ function analyzeStuckPatterns(session) {
     patterns.noProgressMade = true;
     patterns.severity = 'high';
   }
-  
+
+  // Include counter values for transparency in recovery prompts
+  patterns.stuckCounter = session.stuckCounter;
+  patterns.noProgressCount = session.consecutiveNoProgressCount;
+  patterns.totalIterations = session.iterationCount;
+
   return patterns;
 }
 
@@ -3337,26 +3357,29 @@ class BackgroundAnalytics {
   
   calculateCost(model, inputTokens, outputTokens) {
     const pricing = {
-      // New Grok 4.1 series (2026)
-      'grok-4-1': { input: 3.00, output: 15.00 },
-      'grok-4-1-fast': { input: 0.20, output: 0.50 },
+      // xAI Current models
+      'grok-4-0709': { input: 3.00, output: 15.00 },
+      'grok-4-1-fast-reasoning': { input: 0.20, output: 0.50 },
       'grok-4-1-fast-non-reasoning': { input: 0.20, output: 0.50 },
-      'grok-4': { input: 3.00, output: 15.00 },
+      'grok-4-fast-reasoning': { input: 3.00, output: 15.00 },
+      'grok-4-fast-non-reasoning': { input: 3.00, output: 15.00 },
       'grok-code-fast-1': { input: 0.20, output: 1.50 },
-      'grok-3': { input: 3.00, output: 15.00 },
+      'grok-3': { input: 5.00, output: 25.00 },
       'grok-3-mini': { input: 0.30, output: 0.50 },
-      'grok-2-vision': { input: 2.00, output: 10.00 },
-      // Legacy model IDs for backward compatibility
-      'grok-3-fast': { input: 0.20, output: 0.50 },
+      // xAI Legacy
+      'grok-4-1-fast': { input: 0.20, output: 0.50 },
+      'grok-4-1': { input: 3.00, output: 15.00 },
+      'grok-4': { input: 3.00, output: 15.00 },
+      'grok-4-fast': { input: 3.00, output: 15.00 },
+      'grok-3-fast': { input: 0.50, output: 2.50 },
       'grok-3-mini-beta': { input: 0.30, output: 0.50 },
       'grok-3-mini-fast-beta': { input: 0.20, output: 0.50 },
-      'grok-4-fast': { input: 3.00, output: 15.00 },
       // Other providers
       'gpt-4o': { input: 2.50, output: 10.00 },
       'gpt-4o-mini': { input: 0.15, output: 0.60 }
     };
 
-    const modelPricing = pricing[model] || pricing['grok-4-1-fast'];
+    const modelPricing = pricing[model] || pricing['grok-4-1-fast-reasoning'];
     const inputCost = (inputTokens / 1000000) * modelPricing.input;
     const outputCost = (outputTokens / 1000000) * modelPricing.output;
     return inputCost + outputCost;
@@ -4299,6 +4322,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   automationLogger.logComm(null, 'receive', request.action || 'unknown', true, { tabId: sender.tab?.id });
 
+  // STT content script broadcasts results to all extension pages — let them pass through
+  if (request.from === 'content-stt') return;
+
   switch (request.action) {
     case 'startAutomation':
       handleStartAutomation(request, sender, sendResponse);
@@ -4945,6 +4971,46 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })();
       return true;
 
+    case 'stt-start':
+      (async () => {
+        try {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (!tab?.id) {
+            sendResponse({ error: 'No active tab found' });
+            return;
+          }
+          if (isRestrictedURL(tab.url)) {
+            sendResponse({ error: 'Cannot use speech recognition on this page' });
+            return;
+          }
+          // Stop any existing STT session on a different tab
+          if (_sttActiveTabId && _sttActiveTabId !== tab.id) {
+            try { await chrome.tabs.sendMessage(_sttActiveTabId, { target: 'content-stt', action: 'stop' }); } catch (_) {}
+          }
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id, frameIds: [0] },
+            files: ['content/stt-recognition.js'],
+            world: 'ISOLATED'
+          });
+          _sttActiveTabId = tab.id;
+          await chrome.tabs.sendMessage(tab.id, { target: 'content-stt', action: 'start', lang: request.lang });
+          sendResponse({ ok: true });
+        } catch (e) {
+          sendResponse({ error: e.message });
+        }
+      })();
+      return true;
+
+    case 'stt-stop':
+      (async () => {
+        if (_sttActiveTabId) {
+          try { await chrome.tabs.sendMessage(_sttActiveTabId, { target: 'content-stt', action: 'stop' }); } catch (_) {}
+          _sttActiveTabId = null;
+        }
+        sendResponse({ ok: true });
+      })();
+      return true;
+
     default:
       sendResponse({ error: 'Unknown action' });
   }
@@ -5261,8 +5327,19 @@ async function handleStartAutomation(request, sender, sendResponse) {
       failedActionDetails: {},  // Track detailed failures by action signature
       lastDOMHash: null,        // Hash of last DOM state to detect changes (backward compat)
       lastDOMSignals: null,     // Multi-channel DOM signals for fine-grained change detection
-      stuckCounter: 0,          // Counter for detecting stuck state
-      consecutiveNoProgressCount: 0, // Counter for iterations with no meaningful progress (doesn't reset on URL change)
+      // STUCK DETECTION COUNTERS
+      // stuckCounter: Incremented when the AI produces no meaningful progress on an iteration
+      //   (same DOM hash, repetitive actions, or failed actions). Reset on: URL change,
+      //   successful action with DOM change, or manual intervention.
+      //   Threshold: >=3 triggers recovery prompt, >=5 triggers force-stop consideration.
+      //
+      // consecutiveNoProgressCount: Incremented when an iteration produces no DOM change AND
+      //   no URL change. Unlike stuckCounter, this does NOT reset on URL change (tracks
+      //   persistent inability to make progress even across pages).
+      //   Threshold: >=4 triggers escalated recovery with navigation suggestions.
+      //   Reset only on: session start, verified meaningful progress (DOM changed after action).
+      stuckCounter: 0,
+      consecutiveNoProgressCount: 0,
       iterationCount: 0,        // Total iterations
       urlHistory: [],           // Track URL changes
       lastUrl: null,            // Last known URL
@@ -8840,6 +8917,9 @@ async function startAutomationLoop(sessionId) {
     let domChanged = changeResult.changed;
 
     // Multi-signal stuck detection
+    // stuckCounter++ when: same DOM hash as last iteration AND no successful action
+    // stuckCounter=0 when: URL changed, or substantive DOM change (structural/content/pageState)
+    // stuckCounter-1 when: interaction-only change (focus moved, element toggled)
     if (!changeResult.changed && !urlChanged) {
       // No signal changes detected -- apply stuck detection logic
 
@@ -8865,19 +8945,19 @@ async function startAutomationLoop(sessionId) {
 
         if (sameTypeRepeats >= 2) {
           session.stuckCounter++;
-          automationLogger.debug('Stuck: Repetitive typing detected', { sessionId, stuckCounter: session.stuckCounter });
+          automationLogger.debug('Stuck: Repetitive typing detected', { sessionId, stuckCounter: session.stuckCounter, noProgressCount: session.consecutiveNoProgressCount });
         } else if (allTypingFailed) {
           session.stuckCounter++;
-          automationLogger.debug('Stuck: All recent type actions failed', { sessionId, stuckCounter: session.stuckCounter });
+          automationLogger.debug('Stuck: All recent type actions failed', { sessionId, stuckCounter: session.stuckCounter, noProgressCount: session.consecutiveNoProgressCount });
         } else if (clicksNearSameArea) {
           session.stuckCounter++;
-          automationLogger.debug('Stuck: Clicking same area repeatedly', { sessionId, stuckCounter: session.stuckCounter });
+          automationLogger.debug('Stuck: Clicking same area repeatedly', { sessionId, stuckCounter: session.stuckCounter, noProgressCount: session.consecutiveNoProgressCount });
         } else {
           automationLogger.debug('Typing sequence in progress - not counting as stuck', { sessionId });
         }
       } else {
         session.stuckCounter++;
-        automationLogger.debug('Stuck: DOM and URL unchanged', { sessionId, stuckCounter: session.stuckCounter });
+        automationLogger.debug('Stuck: DOM and URL unchanged', { sessionId, stuckCounter: session.stuckCounter, noProgressCount: session.consecutiveNoProgressCount });
       }
 
       if (session.stuckCounter > 0) {
@@ -8896,7 +8976,8 @@ async function startAutomationLoop(sessionId) {
         automationLogger.debug('Stuck counter reduced: interaction-only change', { sessionId, stuckCounter: session.stuckCounter });
       }
     } else {
-      // URL changed -- reset stuck counter
+      // URL changed -- reset stuckCounter (but NOT consecutiveNoProgressCount, which
+      // tracks persistent inability to make progress even across page navigations)
       session.stuckCounter = 0;
     }
 
