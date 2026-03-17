@@ -44,6 +44,12 @@ Plans:
 
 **Requirements:** PROG-01, PROG-02, PROG-03, PROG-04
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 37-01-PLAN.md — Phase detection + weighted progress model + complexity-aware ETA
+- [ ] 37-02-PLAN.md — Multi-site and Sheets workflow-specific progress
+
 **Key changes:**
 - Refactor `calculateProgress()` to use weighted progress model: navigation phase (0-30%), action phase (30-70%), verification phase (70-100%)
 - Integrate `_taskEstimate` (from existing `estimateTaskComplexity`) into ETA calculation

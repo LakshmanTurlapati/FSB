@@ -694,15 +694,94 @@ function formatDuration(ms) {
 }
 
 /**
+ * Detect the current task phase from action history patterns.
+ * Phases: 'navigation' (0-30%), 'extraction' (30-70%), 'writing' (70-100%)
+ * Sets session._taskPhase and returns the phase string.
+ * @param {Object} session
+ * @returns {string} 'navigation'|'extraction'|'writing'|'unknown'
+ */
+function detectTaskPhase(session) {
+  const history = session.actionHistory || [];
+  if (history.length === 0) {
+    session._taskPhase = 'navigation';
+    return 'navigation';
+  }
+
+  // Classify action types
+  const navTools = new Set(['searchGoogle', 'navigate', 'clickSearchResult', 'openNewTab', 'switchToTab', 'waitForTabLoad', 'scroll']);
+  const extractTools = new Set(['getText', 'readPage', 'getPageSource', 'readStructuredContent', 'getStoredJobs']);
+  const writeTools = new Set(['type', 'click', 'select', 'fillSheetData', 'storeJobData', 'submit']);
+
+  // Count actions in recent window (last 5 actions weigh more)
+  const recent = history.slice(-5);
+  let navCount = 0, extractCount = 0, writeCount = 0;
+
+  for (const a of recent) {
+    if (navTools.has(a.tool)) navCount++;
+    else if (extractTools.has(a.tool)) extractCount++;
+    else if (writeTools.has(a.tool)) writeCount++;
+  }
+
+  let phase;
+  if (writeCount >= 2 || (writeCount > 0 && extractCount > 0 && navCount === 0)) {
+    phase = 'writing';
+  } else if (extractCount >= 2 || (extractCount > 0 && navCount === 0)) {
+    phase = 'extraction';
+  } else {
+    phase = 'navigation';
+  }
+
+  session._taskPhase = phase;
+  return phase;
+}
+
+/**
  * Calculate progress percentage and estimated time remaining for a session.
+ * Uses phase-weighted model: navigation=0-30%, extraction=30-70%, writing=70-99%.
  * @param {Object} session - Active automation session
  * @returns {{ progressPercent: number, estimatedTimeRemaining: string|null }}
  */
 function calculateProgress(session) {
+  // Multi-site and Sheets have their own progress models (Plan 02)
+  // Fall through to generic model for standard sessions
+
   const maxIter = session.maxIterations || 20;
   const current = session.iterationCount || 0;
-  const progressPercent = Math.min(99, Math.round((current / maxIter) * 100));
 
+  // Detect task phase from action patterns
+  const phase = detectTaskPhase(session);
+
+  // Phase weight floors: navigation=0%, extraction=30%, writing=70%
+  const phaseFloors = { navigation: 0, extraction: 30, writing: 70, unknown: 0 };
+  const phaseCeilings = { navigation: 30, extraction: 70, writing: 99, unknown: 99 };
+
+  const floor = phaseFloors[phase] || 0;
+  const ceiling = phaseCeilings[phase] || 99;
+
+  // Within-phase progress: iteration-based but scaled to phase range
+  const iterationRatio = maxIter > 0 ? current / maxIter : 0;
+
+  // Map iteration ratio to within-phase progress
+  let progressPercent;
+
+  if (current === 0) {
+    progressPercent = 0;
+  } else {
+    // Use phase floor as minimum, then add within-phase progress
+    const phaseRange = ceiling - floor;
+    // Within-phase progress based on how far through maxIter we are,
+    // but clamped to current phase range
+    const withinPhase = Math.min(1, iterationRatio * (99 / ceiling));
+    progressPercent = Math.min(99, Math.round(floor + phaseRange * Math.min(1, withinPhase)));
+  }
+
+  // Ensure progress never goes backward
+  if (session._lastProgressPercent && progressPercent < session._lastProgressPercent) {
+    progressPercent = session._lastProgressPercent;
+  }
+  session._lastProgressPercent = progressPercent;
+
+  // ETA calculation (basic -- enhanced by Task 2)
   let estimatedTimeRemaining = null;
   if (current > 0 && session.startTime) {
     const elapsed = Date.now() - session.startTime;
@@ -712,6 +791,7 @@ function calculateProgress(session) {
       estimatedTimeRemaining = formatETA(remaining);
     }
   }
+
   return { progressPercent, estimatedTimeRemaining };
 }
 
