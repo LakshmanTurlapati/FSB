@@ -763,6 +763,20 @@ async function summarizeTask(taskText, settings) {
     }
 
     summary = summary?.trim();
+
+    // DBG-04: Strip markdown formatting from AI summary output
+    if (summary) {
+      summary = summary
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/\*(.+?)\*/g, '$1')
+        .replace(/__(.+?)__/g, '$1')
+        .replace(/_(.+?)_/g, '$1')
+        .replace(/`(.+?)`/g, '$1')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .trim();
+    }
+
     if (summary && summary.length > 0 && summary.length <= 60) return summary;
     return summary ? summary.substring(0, 40) : null;
   } catch (e) {
