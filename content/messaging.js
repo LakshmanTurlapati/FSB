@@ -1037,26 +1037,45 @@
               FSB.viewportGlow.show(glowState);
             }
 
+            // DBG-01/DBG-03: Sanitize overlay text — strip markdown and clamp length
+            function sanitizeOverlayText(text) {
+              if (!text || typeof text !== 'string') return text;
+              let clean = text
+                .replace(/\*\*(.+?)\*\*/g, '$1')   // **bold**
+                .replace(/\*(.+?)\*/g, '$1')        // *italic*
+                .replace(/__(.+?)__/g, '$1')        // __bold__
+                .replace(/_(.+?)_/g, '$1')          // _italic_
+                .replace(/`(.+?)`/g, '$1')          // `code`
+                .replace(/^#{1,6}\s+/gm, '')        // # headings
+                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')  // [text](url)
+                .trim();
+              if (clean.length > 80) clean = clean.substring(0, 77) + '...';
+              return clean;
+            }
+
             if (statusText) {
-              FSB.lastActionStatusText = statusText;
+              FSB.lastActionStatusText = sanitizeOverlayText(statusText);
             }
 
             FSB.progressOverlay.create();
             const phaseLabels = {
               analyzing: 'Analyzing page...',
               thinking: 'Planning next step...',
-              acting: 'Executing...'
+              acting: 'Executing...',
+              'sheets-entry': 'Entering data...',
+              'sheets-formatting': 'Formatting spreadsheet...'
             };
+
             const displayText = statusText
               || FSB.lastActionStatusText
               || phaseLabels[phase]
               || phase;
 
             FSB.progressOverlay.update({
-              taskName: taskSummary || taskName,
+              taskName: sanitizeOverlayText(taskSummary || taskName),
               stepNumber: iteration || 0,
               totalSteps: maxIterations,
-              stepText: displayText,
+              stepText: sanitizeOverlayText(displayText),
               progress: progressPercent !== undefined
                 ? progressPercent
                 : (maxIterations ? (iteration / maxIterations) * 100 : 0),
