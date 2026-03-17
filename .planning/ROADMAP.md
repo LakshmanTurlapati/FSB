@@ -10,7 +10,7 @@
 | Phase | Name | Requirements | Depends On |
 |-------|------|-------------|------------|
 | 36 | 2/2 | Complete    | 2026-03-17 |
-| 37 | 2/2 | Complete   | 2026-03-17 |
+| 37 | 2/2 | Complete    | 2026-03-17 |
 | 38 | Live Action Summaries | LIVE-01 through LIVE-04 | 36 (clean text paths) |
 | 39 | Overlay UX Polish | UX-01 through UX-03 | 36, 37, 38 |
 
