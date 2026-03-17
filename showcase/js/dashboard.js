@@ -8,10 +8,15 @@
 
   var API_BASE = '';
   var STORAGE_KEY = 'fsb_dashboard_key';
+  var SESSION_KEY = 'fsb_dashboard_session';
+  var SESSION_EXPIRES_KEY = 'fsb_dashboard_expires';
   var POLL_INTERVAL = 30000;
 
   // State
   var hashKey = localStorage.getItem(STORAGE_KEY) || '';
+  var sessionToken = localStorage.getItem(SESSION_KEY) || '';
+  var sessionExpiresAt = localStorage.getItem(SESSION_EXPIRES_KEY) || '';
+  var qrScanner = null;
   var agents = [];
   var stats = {};
   var selectedAgentId = null;
@@ -39,9 +44,25 @@
   var runsClose = document.getElementById('dash-runs-close');
   var runsPagination = document.getElementById('dash-runs-pagination');
   var emptyState = document.getElementById('dash-empty');
+  var tabScan = document.getElementById('dash-tab-scan');
+  var tabPaste = document.getElementById('dash-tab-paste');
+  var tabScanContent = document.getElementById('tab-scan');
+  var tabPasteContent = document.getElementById('tab-paste');
+  var scanError = document.getElementById('dash-scan-error');
+  var loginMessage = document.getElementById('dash-login-message');
+  var pairedBadge = document.getElementById('dash-paired-badge');
 
   // --- Init ---
-  if (hashKey) {
+  if (sessionToken && sessionExpiresAt) {
+    // Check local expiry first (avoid server call if obviously expired)
+    if (new Date(sessionExpiresAt) > new Date()) {
+      validateSession();
+    } else {
+      clearSession();
+      showExpiredLogin();
+    }
+  } else if (hashKey) {
+    // Legacy: user had hash key but no session token (pre-pairing upgrade)
     validateAndConnect(hashKey);
   }
 
@@ -85,6 +106,8 @@
       if (result.valid) {
         hashKey = key;
         localStorage.setItem(STORAGE_KEY, key);
+        // For paste-key users, clear any stale session
+        clearSession();
         showDashboard();
         loadData();
         connectWS();
@@ -120,13 +143,23 @@
   }
 
   function disconnect() {
+    // Revoke session on server (fire and forget)
+    if (sessionToken) {
+      apiFetch('/api/pair/revoke', {
+        method: 'POST',
+        headers: { 'X-FSB-Session-Token': sessionToken }
+      }).catch(function () {});
+    }
+
     hashKey = '';
     localStorage.removeItem(STORAGE_KEY);
+    clearSession();
     agents = [];
     stats = {};
     selectedAgentId = null;
     stopPolling();
     disconnectWS();
+    stopQRScanner();
     showLogin();
   }
 
@@ -139,14 +172,32 @@
   // --- UI Toggle ---
 
   function showDashboard() {
-    loginSection.style.display = 'none';
-    contentSection.style.display = 'block';
+    loginSection.classList.add('fade-out');
+    setTimeout(function () {
+      loginSection.style.display = 'none';
+      loginSection.classList.remove('fade-out');
+      contentSection.style.display = 'block';
+      contentSection.classList.add('fade-in');
+    }, 400);
+    stopQRScanner();
+    if (pairedBadge) pairedBadge.style.display = 'inline-flex';
+    if (loginMessage) loginMessage.style.display = 'none';
   }
 
   function showLogin() {
-    loginSection.style.display = '';
     contentSection.style.display = 'none';
-    keyInput.value = '';
+    contentSection.classList.remove('fade-in', 'fade-dim');
+    loginSection.style.display = '';
+    loginSection.classList.remove('fade-out');
+    if (keyInput) keyInput.value = '';
+    if (pairedBadge) pairedBadge.style.display = 'none';
+    // Reset to Scan QR tab
+    if (tabScan && tabPaste && tabScanContent && tabPasteContent) {
+      tabScan.classList.add('active');
+      tabPaste.classList.remove('active');
+      tabScanContent.style.display = 'block';
+      tabPasteContent.style.display = 'none';
+    }
   }
 
   function showError(msg) {
@@ -162,6 +213,207 @@
   function clearError() {
     var existing = document.getElementById('dash-error');
     if (existing) existing.remove();
+  }
+
+  // --- Session Management ---
+
+  function validateSession() {
+    apiFetch('/api/pair/validate', {
+      headers: { 'X-FSB-Session-Token': sessionToken }
+    }).then(function (result) {
+      if (result.valid) {
+        hashKey = result.hashKey;
+        localStorage.setItem(STORAGE_KEY, hashKey);
+        showDashboard();
+        loadData();
+        connectWS();
+        startPolling();
+      } else {
+        clearSession();
+        if (result.reason === 'expired') {
+          showExpiredLogin();
+        } else {
+          showLogin();
+        }
+      }
+    }).catch(function () {
+      // Server unreachable - try with stored hashKey
+      if (hashKey) {
+        showDashboard();
+        loadData();
+        connectWS();
+        startPolling();
+      }
+    });
+  }
+
+  function storeSession(newHashKey, newSessionToken, newExpiresAt) {
+    hashKey = newHashKey;
+    sessionToken = newSessionToken;
+    sessionExpiresAt = newExpiresAt;
+    localStorage.setItem(STORAGE_KEY, hashKey);
+    localStorage.setItem(SESSION_KEY, sessionToken);
+    localStorage.setItem(SESSION_EXPIRES_KEY, sessionExpiresAt);
+  }
+
+  function clearSession() {
+    sessionToken = '';
+    sessionExpiresAt = '';
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_EXPIRES_KEY);
+  }
+
+  function showExpiredLogin() {
+    showLogin();
+    if (loginMessage) {
+      loginMessage.textContent = 'Session expired. Scan QR code to reconnect.';
+      loginMessage.className = 'dash-login-message expired';
+      loginMessage.style.display = 'block';
+    }
+  }
+
+  // --- Tab Switching ---
+
+  if (tabScan) {
+    tabScan.addEventListener('click', function () { switchTab('scan'); });
+  }
+  if (tabPaste) {
+    tabPaste.addEventListener('click', function () { switchTab('paste'); });
+  }
+
+  function switchTab(tab) {
+    if (tab === 'scan') {
+      tabScan.classList.add('active');
+      tabPaste.classList.remove('active');
+      tabScanContent.style.display = 'block';
+      tabPasteContent.style.display = 'none';
+      startQRScanner();
+    } else {
+      tabPaste.classList.add('active');
+      tabScan.classList.remove('active');
+      tabPasteContent.style.display = 'block';
+      tabScanContent.style.display = 'none';
+      stopQRScanner();
+    }
+    // Clear any error messages
+    if (scanError) { scanError.style.display = 'none'; }
+    clearError();
+  }
+
+  // --- QR Scanner ---
+
+  function startQRScanner() {
+    if (qrScanner) return; // Already running
+    if (typeof Html5Qrcode === 'undefined') {
+      showScanError('QR scanner not available');
+      switchTab('paste');
+      return;
+    }
+
+    qrScanner = new Html5Qrcode('qr-reader');
+
+    qrScanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      function onScanSuccess(decodedText) {
+        qrScanner.stop().then(function () {
+          qrScanner = null;
+          handleScannedQR(decodedText);
+        }).catch(function () {
+          qrScanner = null;
+          handleScannedQR(decodedText);
+        });
+      },
+      function onScanFailure() {
+        // Ignore per-frame decode failures - this is normal
+      }
+    ).catch(function (err) {
+      qrScanner = null;
+      // Camera permission denied or not available
+      var msg = 'Camera unavailable';
+      if (err && err.toString().indexOf('NotAllowedError') !== -1) {
+        msg = 'Camera unavailable';
+      } else if (err && err.toString().indexOf('NotFoundError') !== -1) {
+        msg = 'Camera unavailable';
+      }
+      showScanError(msg);
+      switchTab('paste');
+    });
+  }
+
+  function stopQRScanner() {
+    if (qrScanner) {
+      qrScanner.stop().then(function () {
+        qrScanner = null;
+      }).catch(function () {
+        qrScanner = null;
+      });
+    }
+  }
+
+  function handleScannedQR(decodedText) {
+    try {
+      var data = JSON.parse(decodedText);
+      if (!data.t) throw new Error('No token in QR data');
+
+      // Show connecting state
+      if (tabScanContent) {
+        tabScanContent.innerHTML = '<p class="dash-scan-instruction">Connecting...</p>';
+      }
+
+      // Exchange token for session
+      var exchangeUrl = (data.s || '') + '/api/pair/exchange';
+      // If server URL matches our origin, use relative URL
+      if (data.s && data.s === location.origin) {
+        exchangeUrl = '/api/pair/exchange';
+      }
+      // Default to relative if no server URL
+      if (!data.s) {
+        exchangeUrl = '/api/pair/exchange';
+      }
+
+      fetch(exchangeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: data.t })
+      }).then(function (resp) {
+        if (!resp.ok) {
+          return resp.json().then(function (body) {
+            throw new Error(body.error || 'Exchange failed');
+          });
+        }
+        return resp.json();
+      }).then(function (result) {
+        // Store session and connect
+        storeSession(result.hashKey, result.sessionToken, result.expiresAt);
+        showDashboard();
+        loadData();
+        connectWS();
+        startPolling();
+      }).catch(function (err) {
+        showScanError(err.message || 'Scan failed -- paste your key instead');
+        // Restore scan tab content
+        if (tabScanContent) {
+          tabScanContent.innerHTML =
+            '<p class="dash-scan-instruction">Point camera at QR code in FSB extension</p>' +
+            '<div id="qr-reader" class="dash-qr-reader" aria-label="QR code camera viewfinder"></div>' +
+            '<p id="dash-scan-error" class="dash-scan-error" style="display: none;"></p>';
+        }
+        switchTab('paste');
+      });
+
+    } catch (err) {
+      showScanError('Scan failed -- paste your key instead');
+      switchTab('paste');
+    }
+  }
+
+  function showScanError(msg) {
+    var el = document.getElementById('dash-scan-error');
+    if (el) {
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
   }
 
   // --- Data Loading ---
