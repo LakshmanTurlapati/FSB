@@ -4,7 +4,7 @@
  * Provides BPE token counting (via gpt-tokenizer o200k_base) and
  * CLI vs JSON format comparison infrastructure.
  *
- * Loaded via <script> tag in options.html (browser context).
+ * Loaded via <script> tag in control_panel.html (browser context).
  * Requires lib/gpt-tokenizer.min.js to be loaded first.
  *
  * @module TokenComparator

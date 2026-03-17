@@ -439,7 +439,55 @@ body {
   transform: scale(1.05);
 }
 
-.stop-btn i, .send-btn i {
+.mic-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-size: 15px;
+  background: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.mic-btn:hover {
+  color: var(--primary-color);
+  background: rgba(255, 107, 53, 0.12);
+  transform: scale(1.05);
+}
+
+/* Recording state: solid red — clearly distinct from automation stop (light red) */
+.mic-btn.recording {
+  background: #dc2626;
+  color: white;
+  animation: mic-pulse 1.5s infinite;
+}
+
+[data-theme="dark"] .mic-btn.recording {
+  background: #dc2626;
+  color: white;
+}
+
+.mic-btn.transcribing {
+  color: var(--primary-color);
+  background: rgba(255, 107, 53, 0.12);
+}
+
+.mic-btn.error {
+  color: #dc2626;
+  background: #fee2e2;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+}
+
+.stop-btn i, .send-btn i, .mic-btn i {
   transition: all 0.2s ease;
 }
 
@@ -469,7 +517,8 @@ body {
 /* Focus States for Accessibility */
 .icon-btn:focus,
 .send-btn:focus,
-.stop-btn:focus {
+.stop-btn:focus,
+.mic-btn:focus {
   outline: 2px solid #ff6b35;
   outline-offset: 2px;
 }

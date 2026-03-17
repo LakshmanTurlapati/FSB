@@ -34,7 +34,7 @@ const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
 
 // Initialize speech-to-text
-const stt = new FSBSpeechToText(chatInput, micBtn);
+const stt = new FSBSpeechToText(chatInput, micBtn, sendBtn);
 
 // Apply theme based on settings
 function applyTheme() {

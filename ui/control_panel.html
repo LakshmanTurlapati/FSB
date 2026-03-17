@@ -159,12 +159,13 @@
               
               <!-- Model Provider Selection -->
               <div class="form-group">
-                <label for="modelProvider">AI Provider</label>
+                <label for="modelProvider">AI Provider <span id="providerIcon" style="display: inline-block; vertical-align: middle; margin-left: 6px;"></span></label>
                 <select id="modelProvider" class="form-select">
                   <option value="xai">xAI (Grok)</option>
                   <option value="gemini">Google Gemini</option>
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="openrouter">OpenRouter</option>
                   <option value="custom">Custom (OpenAI Compatible)</option>
                 </select>
                 <div class="form-help">Select your preferred AI provider</div>
@@ -237,6 +238,20 @@
                 </div>
               </div>
               
+              <!-- OpenRouter API Key -->
+              <div class="form-group" id="openrouterApiKeyGroup" style="display: none;">
+                <label for="openrouterApiKey">OpenRouter API Key</label>
+                <div class="input-with-button">
+                  <input type="password" id="openrouterApiKey" placeholder="Enter your OpenRouter API key" class="form-input">
+                  <button type="button" class="input-btn" id="toggleOpenrouterApiKey" title="Toggle visibility">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+                <div class="form-help">
+                  Get your API key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter</a>. Access 200+ models with a single key.
+                </div>
+              </div>
+
               <!-- Custom API Configuration -->
               <div class="form-group" id="customApiGroup" style="display: none;">
                 <label for="customEndpoint">Custom API Endpoint</label>
@@ -251,6 +266,23 @@
                   </button>
                 </div>
                 <div class="form-help">Your key is stored locally in your browser.</div>
+              </div>
+
+              <!-- Speech-to-Text -->
+              <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                <h3 style="margin-bottom: 12px;">Speech-to-Text</h3>
+                <div class="toggle-grid single">
+                  <label class="modern-toggle">
+                    <input type="checkbox" id="sttProvider" value="whisper">
+                    <span class="toggle-track">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                    <div class="toggle-content">
+                      <span class="toggle-label">Use OpenAI Whisper</span>
+                      <span class="toggle-desc" id="sttStatusDesc">Requires an OpenAI API key. When disabled, uses browser's built-in speech recognition.</span>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               <!-- API Status Card -->

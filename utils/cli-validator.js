@@ -13,7 +13,7 @@
  *   - CLIValidator: Test runner with suite registration, execution, reporting
  *   - DEFAULT_SUITES: Pre-defined test suites for all 6 task types
  *
- * Loaded via <script> tag in options.html (browser context, NOT service worker).
+ * Loaded via <script> tag in control_panel.html (browser context, NOT service worker).
  * Depends on cli-parser.js being loaded before this module (provides
  * parseCliResponse and preprocessResponse on window scope).
  *
@@ -1229,5 +1229,5 @@ window.FAILURE_TYPES = FAILURE_TYPES;
 window.DEFAULT_SUITES = DEFAULT_SUITES;
 
 // CLI Validator Module v1.0.0 -- FSB v10.0 Phase 19
-// Loaded via: <script src="utils/cli-validator.js"> in options.html
+// Loaded via: <script src="utils/cli-validator.js"> in control_panel.html
 // Depends on: cli-parser.js (parseCliResponse on window/self scope)

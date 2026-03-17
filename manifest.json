@@ -14,7 +14,8 @@
     "debugger",
     "webNavigation",
     "alarms",
-    "clipboardWrite"
+    "clipboardWrite",
+    "offscreen"
   ],
   "host_permissions": [
     "<all_urls>"

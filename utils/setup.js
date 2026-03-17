@@ -158,7 +158,7 @@ class FSBSetup {
     console.log('2. setupGemini("your_gemini_api_key")');
     console.log('3. resetSettings()');
     console.log('4. testConnection()');
-    console.log('\nFor full configuration, open chrome-extension://[extension-id]/options.html');
+    console.log('\nFor full configuration, open chrome-extension://[extension-id]/control_panel.html');
     
     return settings;
   }
