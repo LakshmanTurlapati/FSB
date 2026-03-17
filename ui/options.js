@@ -3472,6 +3472,16 @@ function initializeAgentSection() {
     });
   }
 
+  // QR popup close button and overlay backdrop click
+  const btnCancelPairing = document.getElementById('btnCancelPairing');
+  if (btnCancelPairing) btnCancelPairing.addEventListener('click', cancelPairing);
+  const qrOverlay = document.getElementById('pairingQROverlay');
+  if (qrOverlay) {
+    qrOverlay.addEventListener('click', function (e) {
+      if (e.target === qrOverlay) cancelPairing();
+    });
+  }
+
   // Load server settings
   loadServerSettings();
 
@@ -4033,7 +4043,7 @@ async function showPairingQR() {
   const serverUrl = document.getElementById('serverUrl')?.value?.trim();
   const hashKey = document.getElementById('serverHashKey')?.value?.trim();
   const btn = document.getElementById('btnPairDashboard');
-  const container = document.getElementById('pairingQRContainer');
+  const container = document.getElementById('pairingQROverlay');
   const qrCodeEl = document.getElementById('pairingQRCode');
   const countdownEl = document.getElementById('pairingCountdown');
   const messageEl = document.getElementById('pairingQRMessage');
@@ -4070,7 +4080,7 @@ async function showPairingQR() {
     qrCodeEl.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2 });
 
     // Show container, update button
-    container.style.display = 'block';
+    container.style.display = 'flex';
     btn.innerHTML = '<i class="fas fa-times"></i> Cancel Pairing';
     btn.dataset.pairing = 'true';
     btn.disabled = false;
@@ -4129,7 +4139,7 @@ function clearPairingCountdown() {
 
 function cancelPairing() {
   clearPairingCountdown();
-  var container = document.getElementById('pairingQRContainer');
+  var container = document.getElementById('pairingQROverlay');
   var btn = document.getElementById('btnPairDashboard');
   var messageEl = document.getElementById('pairingQRMessage');
   if (container) container.style.display = 'none';

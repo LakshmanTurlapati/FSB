@@ -703,12 +703,18 @@
                   Pair Dashboard
                 </button>
               </div>
-              <div id="pairingQRContainer" class="pairing-qr-container" style="display: none;">
-                <div id="pairingQRCode" class="pairing-qr-code"></div>
-                <div class="pairing-qr-countdown">
-                  <span id="pairingCountdown">60s</span> remaining
+              <div id="pairingQROverlay" class="pairing-qr-overlay" style="display: none;">
+                <div class="pairing-qr-popup">
+                  <div class="pairing-qr-popup-header">
+                    <span>Scan to Pair</span>
+                    <button class="pairing-qr-close" id="btnCancelPairing">&times;</button>
+                  </div>
+                  <div id="pairingQRCode" class="pairing-qr-code"></div>
+                  <div class="pairing-qr-countdown">
+                    <span id="pairingCountdown">60s</span> remaining
+                  </div>
+                  <div id="pairingQRMessage" class="pairing-qr-message"></div>
                 </div>
-                <div id="pairingQRMessage" class="pairing-qr-message"></div>
               </div>
               <div class="form-group">
                 <button class="control-btn" id="btnTestConnection">

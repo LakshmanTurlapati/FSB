@@ -4533,13 +4533,51 @@ textarea.form-input {
   opacity: 0.9;
 }
 
-.pairing-qr-container {
-  margin-top: 12px;
-  padding: 16px;
+.pairing-qr-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.pairing-qr-popup {
   background: var(--bg-elevated, #1a1a2e);
   border: 1px solid var(--border-color, #333);
-  border-radius: 8px;
+  border-radius: 12px;
+  padding: 24px;
   text-align: center;
+  min-width: 280px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.pairing-qr-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+}
+
+.pairing-qr-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #999);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.pairing-qr-close:hover {
+  color: var(--text-primary, #fff);
 }
 
 .pairing-qr-code {
