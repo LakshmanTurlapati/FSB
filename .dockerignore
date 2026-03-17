@@ -1,0 +1,9 @@
+node_modules
+.git
+.planning
+server-py
+server/node_modules
+server/fsb-data.db
+server/.env
+*.md
+.gitignore
