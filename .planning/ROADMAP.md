@@ -12,7 +12,7 @@
 | 36 | 2/2 | Complete    | 2026-03-17 |
 | 37 | 2/2 | Complete    | 2026-03-17 |
 | 38 | 2/2 | Complete    | 2026-03-17 |
-| 39 | Overlay UX Polish | UX-01 through UX-03 | 36, 37, 38 |
+| 39 | 1/2 | In Progress|  |
 
 ## Phase 36: Debug Feedback Pipeline
 
@@ -94,6 +94,12 @@ Plans:
 **Goal:** Polish the progress overlay experience — task summary display, recovery state handling, smooth phase transitions.
 
 **Requirements:** UX-01, UX-02, UX-03
+
+**Plans:** 1/2 plans executed
+
+Plans:
+- [ ] 39-01-PLAN.md — Task summary line in overlay + recovery state signaling
+- [ ] 39-02-PLAN.md — Smooth phase transitions with debounce
 
 **Key changes:**
 - Add task summary line to overlay UI (below task name, above step text)
