@@ -1027,6 +1027,11 @@
               clearTimeout(FSB._overlayWatchdogTimer);
               FSB._overlayWatchdogTimer = null;
             }
+            // UX-03: Clean up phase label debounce timer
+            if (FSB._phaseDebounceTimer) {
+              clearTimeout(FSB._phaseDebounceTimer);
+              FSB._phaseDebounceTimer = null;
+            }
             FSB.viewportGlow.destroy();
             FSB.progressOverlay.destroy();
             FSB.actionGlowOverlay.destroy();
@@ -1072,17 +1077,37 @@
               || phaseLabels[phase]
               || phase;
 
+            // UX-03: Immediate updates — progress, ETA, taskName, taskSummary (no debounce)
             FSB.progressOverlay.update({
               taskName: sanitizeOverlayText(taskName),
               taskSummary: sanitizeOverlayText(taskSummary),
               stepNumber: iteration || 0,
               totalSteps: maxIterations,
-              stepText: sanitizeOverlayText(displayText),
               progress: progressPercent !== undefined
                 ? progressPercent
                 : (maxIterations ? (iteration / maxIterations) * 100 : 0),
               eta: estimatedTimeRemaining
             });
+
+            // UX-03: Debounce phase label to prevent flicker on rapid transitions
+            if (statusText || FSB.lastActionStatusText) {
+              // Real action description — show immediately, no debounce
+              FSB.progressOverlay.update({ stepText: sanitizeOverlayText(displayText) });
+              if (FSB._phaseDebounceTimer) {
+                clearTimeout(FSB._phaseDebounceTimer);
+                FSB._phaseDebounceTimer = null;
+              }
+            } else {
+              // Phase-only label — debounce to prevent flicker
+              const resolvedStepText = sanitizeOverlayText(displayText);
+              if (FSB._phaseDebounceTimer) {
+                clearTimeout(FSB._phaseDebounceTimer);
+              }
+              FSB._phaseDebounceTimer = setTimeout(() => {
+                FSB._phaseDebounceTimer = null;
+                FSB.progressOverlay.update({ stepText: resolvedStepText });
+              }, 300);
+            }
             FSB.progressOverlay.show();
 
             if (FSB._overlayWatchdogTimer) {
