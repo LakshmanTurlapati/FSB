@@ -12,7 +12,7 @@
 | 36 | 2/2 | Complete    | 2026-03-17 |
 | 37 | 2/2 | Complete    | 2026-03-17 |
 | 38 | 2/2 | Complete    | 2026-03-17 |
-| 39 | 1/2 | In Progress|  |
+| 39 | 2/2 | Complete   | 2026-03-17 |
 
 ## Phase 36: Debug Feedback Pipeline
 
@@ -95,7 +95,7 @@ Plans:
 
 **Requirements:** UX-01, UX-02, UX-03
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 39-01-PLAN.md — Task summary line in overlay + recovery state signaling

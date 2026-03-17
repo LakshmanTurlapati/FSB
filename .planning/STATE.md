@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 39-01-PLAN.md
-last_updated: "2026-03-17T10:11:26.363Z"
+stopped_at: Completed 39-02-PLAN.md
+last_updated: "2026-03-17T10:13:57.523Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -48,6 +48,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 38]: 2.5s Promise.race timeout as hard ceiling for non-blocking action summaries
 - [Phase 38]: AI summary .then() placed after sendSessionStatus to ensure static labels display first; both overlay and sidepanel updated on resolution
 - [Phase 39]: taskName and taskSummary are separate overlay display fields rather than taskSummary being a fallback
+- [Phase 39]: 300ms debounce window for phase-only labels; statusText always bypasses debounce
 
 ### Pending Todos
 
@@ -60,6 +61,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-17T10:11:26.345Z
-Stopped at: Completed 39-01-PLAN.md
+Last session: 2026-03-17T10:13:57.505Z
+Stopped at: Completed 39-02-PLAN.md
 Resume file: None
