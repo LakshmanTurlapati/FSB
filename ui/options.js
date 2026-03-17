@@ -3460,6 +3460,18 @@ function initializeAgentSection() {
   if (btnCopy) btnCopy.addEventListener('click', copyHashKey);
   if (btnTest) btnTest.addEventListener('click', testServerConnection);
 
+  // Pair Dashboard button
+  const btnPairDashboard = document.getElementById('btnPairDashboard');
+  if (btnPairDashboard) {
+    btnPairDashboard.addEventListener('click', function () {
+      if (btnPairDashboard.dataset.pairing === 'true') {
+        cancelPairing();
+      } else {
+        showPairingQR();
+      }
+    });
+  }
+
   // Load server settings
   loadServerSettings();
 
@@ -4011,6 +4023,123 @@ async function testServerConnection() {
     if (statusEl) statusEl.textContent = 'Failed';
     if (statusEl) statusEl.className = 'connection-status error';
     showToast('Cannot connect to server', 'error');
+  }
+}
+
+// --- QR Pairing ---
+var pairingCountdownTimer = null;
+
+async function showPairingQR() {
+  const serverUrl = document.getElementById('serverUrl')?.value?.trim();
+  const hashKey = document.getElementById('serverHashKey')?.value?.trim();
+  const btn = document.getElementById('btnPairDashboard');
+  const container = document.getElementById('pairingQRContainer');
+  const qrCodeEl = document.getElementById('pairingQRCode');
+  const countdownEl = document.getElementById('pairingCountdown');
+  const messageEl = document.getElementById('pairingQRMessage');
+
+  if (!serverUrl || !hashKey) {
+    showToast('Set server URL and generate a hash key first', 'error');
+    return;
+  }
+
+  // Show loading state
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+  btn.disabled = true;
+  messageEl.textContent = '';
+  messageEl.className = 'pairing-qr-message';
+
+  try {
+    const resp = await fetch(serverUrl + '/api/pair/generate', {
+      method: 'POST',
+      headers: { 'X-FSB-Hash-Key': hashKey }
+    });
+
+    if (!resp.ok) {
+      throw new Error('Server returned ' + resp.status);
+    }
+
+    const { token, expiresAt } = await resp.json();
+
+    // Generate QR code using qrcode-generator
+    var qr = qrcode(0, 'M');
+    qr.addData(JSON.stringify({ t: token, s: serverUrl }));
+    qr.make();
+
+    // Render SVG into container
+    qrCodeEl.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2 });
+
+    // Show container, update button
+    container.style.display = 'block';
+    btn.innerHTML = '<i class="fas fa-times"></i> Cancel Pairing';
+    btn.dataset.pairing = 'true';
+    btn.disabled = false;
+
+    // Start countdown
+    startPairingCountdown(expiresAt, countdownEl, container, btn, messageEl);
+
+  } catch (err) {
+    btn.innerHTML = '<i class="fas fa-qrcode"></i> Pair Dashboard';
+    btn.disabled = false;
+    showToast('Failed to generate pairing token: ' + err.message, 'error');
+  }
+}
+
+function startPairingCountdown(expiresAt, countdownEl, container, btn, messageEl) {
+  clearPairingCountdown();
+
+  var expiryTime = new Date(expiresAt).getTime();
+
+  function tick() {
+    var remaining = Math.max(0, Math.ceil((expiryTime - Date.now()) / 1000));
+    countdownEl.textContent = remaining + 's';
+
+    // Pulse effect when under 10 seconds
+    if (remaining <= 10 && remaining > 0) {
+      countdownEl.classList.add('pairing-countdown-urgent');
+    }
+
+    if (remaining <= 0) {
+      clearPairingCountdown();
+      // Token expired
+      messageEl.textContent = 'Token expired';
+      messageEl.className = 'pairing-qr-message pairing-qr-expired';
+      setTimeout(function () {
+        container.style.display = 'none';
+        btn.innerHTML = '<i class="fas fa-qrcode"></i> Pair Dashboard';
+        btn.dataset.pairing = 'false';
+        messageEl.textContent = '';
+        messageEl.className = 'pairing-qr-message';
+      }, 2000);
+      return;
+    }
+
+    pairingCountdownTimer = setTimeout(tick, 1000);
+  }
+
+  tick();
+}
+
+function clearPairingCountdown() {
+  if (pairingCountdownTimer) {
+    clearTimeout(pairingCountdownTimer);
+    pairingCountdownTimer = null;
+  }
+}
+
+function cancelPairing() {
+  clearPairingCountdown();
+  var container = document.getElementById('pairingQRContainer');
+  var btn = document.getElementById('btnPairDashboard');
+  var messageEl = document.getElementById('pairingQRMessage');
+  if (container) container.style.display = 'none';
+  if (btn) {
+    btn.innerHTML = '<i class="fas fa-qrcode"></i> Pair Dashboard';
+    btn.dataset.pairing = 'false';
+  }
+  if (messageEl) {
+    messageEl.textContent = '';
+    messageEl.className = 'pairing-qr-message';
   }
 }
 

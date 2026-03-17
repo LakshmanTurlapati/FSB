@@ -4521,3 +4521,65 @@ textarea.form-input {
     gap: var(--space-sm);
   }
 }
+
+/* --- QR Pairing Styles --- */
+.control-btn.accent {
+  background: var(--primary, #ff6b35);
+  color: #fff;
+  border: none;
+}
+
+.control-btn.accent:hover {
+  opacity: 0.9;
+}
+
+.pairing-qr-container {
+  margin-top: 12px;
+  padding: 16px;
+  background: var(--bg-elevated, #1a1a2e);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.pairing-qr-code {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.pairing-qr-code svg {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 4px;
+}
+
+.pairing-qr-countdown {
+  font-size: 14px;
+  color: var(--text-secondary, #999);
+  margin-bottom: 8px;
+}
+
+.pairing-countdown-urgent {
+  color: var(--primary, #ff6b35) !important;
+  font-weight: 700;
+  animation: pairingPulse 1s ease-in-out infinite;
+}
+
+@keyframes pairingPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.pairing-qr-message {
+  font-size: 13px;
+  min-height: 18px;
+}
+
+.pairing-qr-expired {
+  color: var(--error, #ef4444);
+}
+
+.pairing-qr-success {
+  color: var(--success, #22c55e);
+}
