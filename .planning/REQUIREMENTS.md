@@ -21,10 +21,10 @@
 
 ### Debug Feedback Pipeline (DBG)
 
-- [ ] **DBG-01**: Diagnostic suggestions from the 8-point checker never appear as user-facing text in the progress overlay
-- [ ] **DBG-02**: AI debugger DIAGNOSIS/SUGGESTIONS output from `parallelDebugFallback` is excluded from any overlay-visible text path
-- [ ] **DBG-03**: Custom phase values (`sheets-entry`, `sheets-formatting`, and any future phases) map to human-readable labels in the progress overlay instead of falling through as raw strings
-- [ ] **DBG-04**: The `summarizeTask()` AI call output is sanitized — strip markdown formatting, limit to plain text before displaying in overlay
+- [x] **DBG-01**: Diagnostic suggestions from the 8-point checker never appear as user-facing text in the progress overlay
+- [x] **DBG-02**: AI debugger DIAGNOSIS/SUGGESTIONS output from `parallelDebugFallback` is excluded from any overlay-visible text path
+- [x] **DBG-03**: Custom phase values (`sheets-entry`, `sheets-formatting`, and any future phases) map to human-readable labels in the progress overlay instead of falling through as raw strings
+- [x] **DBG-04**: The `summarizeTask()` AI call output is sanitized — strip markdown formatting, limit to plain text before displaying in overlay
 - [x] **DBG-05**: AI debugger diagnosis and suggestions are injected into the continuation prompt for the next AI iteration via `slimActionResult` so the automation AI can use them to make better recovery decisions
 - [x] **DBG-06**: 8-point diagnostic `suggestion` field is included in the action history fed to the AI, giving it concrete recovery guidance (e.g., "Try dismissing the overlay first", "Scroll element into view")
 
@@ -47,10 +47,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DBG-01 | Phase 36 | Pending |
-| DBG-02 | Phase 36 | Pending |
-| DBG-03 | Phase 36 | Pending |
-| DBG-04 | Phase 36 | Pending |
+| DBG-01 | Phase 36 | Complete |
+| DBG-02 | Phase 36 | Complete |
+| DBG-03 | Phase 36 | Complete |
+| DBG-04 | Phase 36 | Complete |
 | DBG-05 | Phase 36 | Complete |
 | DBG-06 | Phase 36 | Complete |
 | PROG-01 | Phase 37 | Pending |

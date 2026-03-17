@@ -9,7 +9,7 @@
 
 | Phase | Name | Requirements | Depends On |
 |-------|------|-------------|------------|
-| 36 | 1/2 | In Progress|  |
+| 36 | 2/2 | Complete    | 2026-03-17 |
 | 37 | Smart Progress & ETA | PROG-01 through PROG-04 | — |
 | 38 | Live Action Summaries | LIVE-01 through LIVE-04 | 36 (clean text paths) |
 | 39 | Overlay UX Polish | UX-01 through UX-03 | 36, 37, 38 |
@@ -20,7 +20,7 @@
 
 **Requirements:** DBG-01, DBG-02, DBG-03, DBG-04, DBG-05, DBG-06
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 36-01-PLAN.md — Overlay text sanitization (phase labels, markdown stripping, text clamping)

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 36-02-PLAN.md
-last_updated: "2026-03-17T08:32:22.990Z"
+stopped_at: Completed 36-01-PLAN.md
+last_updated: "2026-03-17T08:36:06.718Z"
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -41,6 +41,7 @@ Milestone v0.9.5 roadmap created. 4 phases (36-39), 17 requirements. Ready for `
 Full decision log in PROJECT.md Key Decisions table.
 - [Phase 36]: Used diagnosticSuggestions naming to avoid collision with singular suggestion field
 - [Phase 36]: Retroactive actionHistory patching for async debug results instead of restructuring flow
+- [Phase 36]: sanitizeOverlayText defined inside sessionStatus handler for scope locality; markdown stripped before length check in summarizeTask
 
 ### Pending Todos
 
@@ -53,6 +54,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-17T08:32:22.977Z
-Stopped at: Completed 36-02-PLAN.md
+Last session: 2026-03-17T08:32:51.005Z
+Stopped at: Completed 36-01-PLAN.md
 Resume file: None
