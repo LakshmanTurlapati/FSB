@@ -1776,7 +1776,8 @@
       maxElements = 50,
       prioritizeViewport = true,
       taskType = 'general',
-      guideSelectors = null
+      guideSelectors = null,
+      viewportComplete = false
     } = options;
 
     // Stage 1: Get potentially relevant elements
@@ -2466,14 +2467,13 @@
    * @param {Object} options
    * @param {Object|null} options.guideSelectors - CSS selectors from matched site guide
    * @param {number} options.charBudget - Character limit for output (default 12000)
-   * @param {number} options.maxElements - Max interactive elements (default 80)
+   * @note Uses viewportComplete mode - includes all viewport elements, charBudget is the only size limit
    * @returns {{ snapshot: string, refGeneration: number, elementCount: number }}
    */
   function buildMarkdownSnapshot(options = {}) {
     const {
       guideSelectors = null,
-      charBudget = 12000,
-      maxElements = 80
+      charBudget = 12000
     } = options;
 
     // Access cross-module singletons
@@ -2486,7 +2486,7 @@
 
     // b. Get interactive elements via existing 3-stage filtering pipeline
     const elements = getFilteredElements({
-      maxElements,
+      viewportComplete: true,
       prioritizeViewport: true,
       taskType: 'general',
       guideSelectors
@@ -3102,7 +3102,17 @@
     let offscreenBudget;
     let importantOffscreen = [];
 
-    if (viewportOnlyMode) {
+    if (viewportComplete) {
+      // Viewport-complete mode: include ALL viewport elements, cap offscreen at 30
+      viewportBudget = viewportElements.length;
+      offscreenBudget = 30;
+      importantOffscreen = offscreenElements
+        .filter(el => el.isButton || el.isInput || el.isLink ||
+                      el.attributes?.['data-testid'] || el.attributes?.['aria-label'] ||
+                      el.isCaptcha)
+        .slice(0, 30);
+      elements = [...viewportElements, ...importantOffscreen];
+    } else if (viewportOnlyMode) {
       viewportBudget = maxElements;
       offscreenBudget = 0;
       elements = viewportElements.slice(0, maxElements);
@@ -3127,6 +3137,7 @@
 
     logger.logDOMOperation(FSB.sessionId, 'viewport_first_collection', {
       viewportOnlyMode,
+      viewportComplete,
       viewportElements: viewportElements.length,
       offscreenElements: viewportOnlyMode ? 0 : offscreenElements.length,
       viewportBudget,
@@ -3138,9 +3149,11 @@
     // Apply optimizations
     let processedElements = elements;
 
-    if (prioritizeViewport) {
+    if (prioritizeViewport && !viewportComplete) {
       processedElements = prioritizeElements(processedElements);
       processedElements = processedElements.slice(0, maxElements);
+    } else if (prioritizeViewport) {
+      processedElements = prioritizeElements(processedElements);
     }
 
     // Apply DOM diffing
