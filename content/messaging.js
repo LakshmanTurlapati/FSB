@@ -1078,9 +1078,16 @@
               || phase;
 
             // UX-03: Immediate updates — progress, ETA, taskName, taskSummary (no debounce)
+            // Use taskSummary as the display title (short AI-generated label);
+            // only fall back to full taskName if no summary available yet.
+            // Show full taskName in the summary line only when it differs from what's displayed.
+            const displayTitle = sanitizeOverlayText(taskSummary || taskName);
+            const displaySubtitle = (taskSummary && taskName && taskSummary !== taskName)
+              ? sanitizeOverlayText(taskName)
+              : '';
             FSB.progressOverlay.update({
-              taskName: sanitizeOverlayText(taskName),
-              taskSummary: sanitizeOverlayText(taskSummary),
+              taskName: displayTitle,
+              taskSummary: displaySubtitle,
               stepNumber: iteration || 0,
               totalSteps: maxIterations,
               progress: progressPercent !== undefined
