@@ -20,6 +20,12 @@
 
 **Requirements:** DBG-01, DBG-02, DBG-03, DBG-04, DBG-05, DBG-06
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 36-01-PLAN.md — Overlay text sanitization (phase labels, markdown stripping, text clamping)
+- [ ] 36-02-PLAN.md — Wire debug intelligence into AI continuation prompt
+
 **Key changes:**
 - Sanitize all text paths feeding the progress overlay (phase label map, markdown stripping, text clamping)
 - Add `aiDiagnosis` and `suggestions` fields to `slimActionResult()` so they flow into `session.actionHistory`
