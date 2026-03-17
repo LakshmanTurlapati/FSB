@@ -72,6 +72,16 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - CAPTCHA solving -- third-party integration complexity, users can solve manually
 - Offline mode -- AI requires connectivity, not feasible for core functionality
 
+## Current State: v0.9.5 In Progress
+
+**Goal:** Progress Overlay Intelligence — enhance the automation feedback overlay with AI-generated live action summaries, smart ETA/progress estimation, fix debug feedback leaking to overlay, and wire debug intelligence back into the AI for better recovery decisions.
+
+**Phases:** 36-39 (4 phases, 17 requirements)
+- Phase 36: Debug Feedback Pipeline (DBG-01 through DBG-06)
+- Phase 37: Smart Progress & ETA (PROG-01 through PROG-04)
+- Phase 38: Live Action Summaries (LIVE-01 through LIVE-04)
+- Phase 39: Overlay UX Polish (UX-01 through UX-03)
+
 ## Previous State: v0.9.4 Shipped
 
 **Shipped:** 2026-03-17. Three milestones completed in a single day:
@@ -83,6 +93,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 ## Context
 
 **Previous milestones:** v0.9 (Reliability), v9.0.2 (AI Situational Awareness), v9.3 (Tech Debt), v9.4 (Career Search), v10.0 (CLI Architecture), v0.9.2 (Productivity Sites), v0.9.3 (Memory Tab), v0.9.4 (AI Quality)
+**Current milestone:** v0.9.5 (Progress Overlay Intelligence)
 
 **Tech stack:** Chrome Extension Manifest V3, vanilla JavaScript (ES2021+), xAI Grok / OpenAI / Anthropic / Gemini / OpenRouter APIs.
 **Codebase:** background.js (~11K lines), ai-integration.js (~5K lines), content/ modules (10 files), 50+ site guide files, CLI parser (cli-parser.js), Task Memory system.
@@ -134,4 +145,4 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | Parallel debug fallback | Heuristic + AI fire concurrently, fastest wins | Good -- common fixes instant, rare ones get AI analysis |
 
 ---
-*Last updated: 2026-03-17 after v0.9.2/v0.9.3/v0.9.4 milestones shipped*
+*Last updated: 2026-03-17 after v0.9.5 milestone started*

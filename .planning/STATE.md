@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: null
-milestone_name: null
-status: complete
-stopped_at: Milestone v0.9.2-v0.9.4 archived
+milestone: v0.9.5
+milestone_name: Progress Overlay Intelligence
+status: planning
+stopped_at: Roadmap created, ready for phase planning
 last_updated: "2026-03-17"
-last_activity: 2026-03-17 -- Archived v0.9.2-v0.9.4 milestones
+last_activity: 2026-03-17 -- Created requirements and roadmap for v0.9.5
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 17
-  completed_plans: 17
-  percent: 100
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,22 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Planning next milestone
+**Current focus:** v0.9.5 Progress Overlay Intelligence
 
 ## Current Position
 
-Milestone v0.9.2-v0.9.4 archived. Ready for `/gsd:new-milestone`.
+Milestone v0.9.5 roadmap created. 4 phases (36-39), 17 requirements. Ready for `/gsd:plan-phase 36`.
 
-Last shipped: v0.9.4 AI Perception & Action Quality (2026-03-17)
+## Phase Map
 
-## Performance Metrics
-
-**Velocity (v0.9.2-v0.9.4):**
-- 6 phases, 17 plans
-- 73 commits
-- 56 files changed, 10,486 lines added
-- 47 requirements (100% satisfied)
-- Completed in 1 day (2026-03-16 to 2026-03-17)
+| Phase | Name | Status |
+|-------|------|--------|
+| 36 | Debug Feedback Pipeline | Not started |
+| 37 | Smart Progress & ETA | Not started |
+| 38 | Live Action Summaries | Not started |
+| 39 | Overlay UX Polish | Not started |
 
 ## Accumulated Context
 
@@ -56,5 +54,5 @@ Full decision log in PROJECT.md Key Decisions table.
 ## Session Continuity
 
 Last session: 2026-03-17
-Stopped at: Milestones shipped
+Stopped at: Roadmap created
 Resume file: None

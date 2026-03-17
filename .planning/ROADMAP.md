@@ -1,206 +1,120 @@
-# Roadmap: FSB (Full Self-Browsing)
+# Roadmap: FSB v0.9.5 — Progress Overlay Intelligence
 
-## Milestones
+**Created:** 2026-03-17
+**Milestone:** v0.9.5
+**Phases:** 36-39 (continues from v0.9.4 Phase 35)
+**Requirements:** 17 (LIVE: 4, PROG: 4, DBG: 6, UX: 3)
 
-- v0.9 **Reliability Improvements** -- Phases 1-11 (shipped 2026-02-14)
-- v9.0.2 **AI Situational Awareness** -- Phases 1-10 (shipped 2026-02-18)
-- v9.3 **Tech Debt Cleanup** -- Phases 4-8 (shipped 2026-02-23)
-- v9.4 **Career Search Automation** -- Phases 9-14.3 (shipped 2026-02-27)
-- v10.0 **CLI Architecture** -- Phases 15-29 (shipped 2026-03-15)
-- v0.9.2 **Productivity Site Intelligence** -- Phase 30 (complete)
-- v0.9.3 **Memory Tab Overhaul** -- Phases 31-34 (complete)
-- v0.9.4 **AI Perception & Action Quality** -- Phase 35 (complete)
+## Phase Overview
 
-## Phases
+| Phase | Name | Requirements | Depends On |
+|-------|------|-------------|------------|
+| 36 | Debug Feedback Pipeline | DBG-01 through DBG-06 | — |
+| 37 | Smart Progress & ETA | PROG-01 through PROG-04 | — |
+| 38 | Live Action Summaries | LIVE-01 through LIVE-04 | 36 (clean text paths) |
+| 39 | Overlay UX Polish | UX-01 through UX-03 | 36, 37, 38 |
 
-<details>
-<summary>v0.9 Reliability Improvements (Phases 1-11) -- SHIPPED 2026-02-14</summary>
+## Phase 36: Debug Feedback Pipeline
 
-See `.planning/milestones/v0.9-ROADMAP.md` for full details.
-11 phases, 24 plans.
+**Goal:** Fix debug feedback leaking to the progress overlay AND wire debug intelligence back into the AI continuation prompt so the automation agent makes better recovery decisions.
 
-</details>
+**Requirements:** DBG-01, DBG-02, DBG-03, DBG-04, DBG-05, DBG-06
 
-<details>
-<summary>v9.0.2 AI Situational Awareness (Phases 1-10) -- SHIPPED 2026-02-18</summary>
+**Key changes:**
+- Sanitize all text paths feeding the progress overlay (phase label map, markdown stripping, text clamping)
+- Add `aiDiagnosis` and `suggestions` fields to `slimActionResult()` so they flow into `session.actionHistory`
+- Update continuation prompt builder (`ai-integration.js`) to include diagnosis + suggestions for failed actions
+- Map custom `phase` values to human-readable labels in `content/messaging.js` sessionStatus handler
 
-See `.planning/milestones/v9.0.2-ROADMAP.md` for full details.
-10 phases, 21 plans, 22 requirements (100% satisfied).
+**Files:** `background.js` (slimActionResult, parallelDebugFallback, summarizeTask), `content/messaging.js` (sessionStatus handler), `ai/ai-integration.js` (continuation prompt)
 
-</details>
-
-<details>
-<summary>v9.3 Tech Debt Cleanup (Phases 4-8) -- SHIPPED 2026-02-23</summary>
-
-5 phases, 17 plans, 9 requirements (100% satisfied).
-
-</details>
-
-<details>
-<summary>v9.4 Career Search Automation (Phases 9-14.3) -- SHIPPED 2026-02-27</summary>
-
-See `.planning/milestones/v9.4-ROADMAP.md` for full details.
-9 phases (6 main + 3 hotfix), 18 plans, 21 requirements (100% satisfied).
-
-</details>
-
-<details>
-<summary>v10.0 CLI Architecture (Phases 15-29) -- SHIPPED 2026-03-15</summary>
-
-See `.planning/milestones/v10.0-ROADMAP.md` for full details.
-15 phases, 37 plans, 67 requirements (100% satisfied).
-
-</details>
-
-### v0.9.2 Productivity Site Intelligence (Complete)
-
-**Milestone Goal:** Expand custom site intelligence (fsbElements, multi-strategy selectors, keyboard-first guidance, workflows) to 7 productivity web apps -- replicating the Google Sheets treatment for apps where standard DOM automation fails.
-
-- [x] **Phase 30: Productivity Site Intelligence** - Generalize fsbElements pipeline and create site guides with fsbElements, guidance, keyboard shortcuts, and workflows for Notion, Google Calendar, Trello, Google Keep, Todoist, Airtable, and Jira (completed 2026-03-16)
-
-### v0.9.3 Memory Tab Overhaul (Complete)
-
-**Milestone Goal:** Overhaul the Memory tab so one automation produces one consolidated Task Memory (a reconnaissance report) instead of 3-5 fragmented type-based memories, with graph visualization per task.
-
-See `.planning/milestones/v0.9.3-ROADMAP.md` for full details.
-
-- [x] **Phase 31: Task Memory Schema & Storage** - Define unified Task Memory object and backward-compatible storage layer (completed 2026-03-16)
-- [x] **Phase 32: Extraction Pipeline & Consolidation** - Rewrite AI extraction to produce one memory per session, session-based dedup (completed 2026-03-16)
-- [x] **Phase 33: Task Memory Display & Migration** - Task cards, detail view, graph visualization, and migration utility (completed 2026-03-16)
-
-### v0.9.4 AI Perception & Action Quality (Complete)
-
-**Milestone Goal:** Improve how the AI sees web pages (DOM snapshot quality, scroll awareness, viewport-complete element inclusion) and how it executes actions (click diagnostics, verification, stability detection, error recovery) -- cross-cutting refinements that improve reliability across ALL sites.
-
-- [x] **Phase 35: AI Perception & Action Quality Refinement** - Snapshot awareness, action diagnostics, continuation prompt quality, adaptive waiting, selector resilience, error reporting with parallel debug fallback (completed 2026-03-17)
-
-## Phase Details
-
-### Phase 30: Productivity Site Intelligence
-**Goal**: Users can automate tasks on Notion, Google Calendar, Trello, Google Keep, Todoist, Airtable, and Jira with the same reliability as Google Sheets -- the AI receives app-specific fsbElements, keyboard shortcuts, interaction guidance, and step-by-step workflows for each app
-**Depends on**: Phase 29 (v10.0 CLI Architecture)
-**Requirements**: INFRA-01, INFRA-02, INFRA-03, KEEP-01, KEEP-02, TODO-01, TODO-02, TREL-01, TREL-02, GCAL-01, GCAL-02, NOTN-01, NOTN-02, JIRA-01, JIRA-02, ATBL-01, ATBL-02
-**Success Criteria** (what must be TRUE):
-  1. The fsbElements injection pipeline fires for any site guide that defines fsbElements (not just Google Sheets), and Google subdomains (calendar.google.com, keep.google.com, docs.google.com/spreadsheets) route to their correct site guide without cross-contamination
-  2. User can ask FSB to create, edit, and navigate items on Google Keep and Todoist using keyboard-shortcut-first workflows, with Todoist Quick Add natural language syntax (#project @label p1 tomorrow) documented in guidance
-  3. User can ask FSB to create and manage cards on Trello and create/edit events on Google Calendar, with fsbElements providing reliable selector-based targeting for toolbar buttons, create actions, and navigation controls
-  4. User can ask FSB to create pages and blocks in Notion, create and transition issues in Jira, and navigate/edit records in Airtable, with robust multi-strategy fsbElements (5 selectors each, aria/role-first) surviving CSS Module hash changes and React DOM updates
-  5. All 7 apps are discoverable via keyword matching in site-guides/index.js -- asking FSB to "create a Notion page" or "add a Trello card" loads the correct site guide without the user needing to configure anything
-**Plans**: 4 plans
-
-Plans:
-- [ ] 30-01-PLAN.md -- Infrastructure: generalize fsbElements pipeline, keyword matching, _shared.js, file registration
-- [ ] 30-02-PLAN.md -- Simple apps: Google Keep + Todoist site guides
-- [ ] 30-03-PLAN.md -- Medium apps: Trello + Google Calendar site guides + drag-and-drop tool
-- [ ] 30-04-PLAN.md -- Complex apps: Notion + Jira + Airtable site guides
-
-### Phase 31: Task Memory Schema & Storage
-**Goal**: A unified Task Memory schema exists and the storage layer can persist and retrieve it alongside old-format memories
-**Depends on**: Phase 30 (v0.9.2 complete) -- parallel milestone, no code dependency
-**Requirements**: MEM-01, STOR-01
-**Success Criteria** (what must be TRUE):
-  1. A Task Memory object with `type: "task"` contains episodic data (steps timeline, outcome), semantic data (selectors discovered, site structure), and procedural data (reusable patterns) in a single document
-  2. `memory-storage.js` can save and retrieve Task Memory objects from `fsb_memories` with the new schema
-  3. Old type-based memories (episodic, semantic, procedural) still load and render correctly -- the reader is backward-compatible
-  4. The inverted index and hybrid search in `memory-retriever.js` work with Task Memory fields (domain, task description, selectors, patterns)
-**Plans**: 2 plans
-
-Plans:
-- [x] 31-01-PLAN.md -- Task Memory schema: createTaskMemory factory, TASK type constant, validation
-- [x] 31-02-PLAN.md -- Storage/retriever/UI wiring: inverted index, scoring boost, type filter, card rendering
-
-### Phase 32: Extraction Pipeline & Consolidation
-**Goal**: Every completed automation session produces exactly one Task Memory through a rewritten AI extraction prompt and session-based consolidation
-**Depends on**: Phase 31
-**Requirements**: MEM-02, MEM-03, CONS-01
-**Success Criteria** (what must be TRUE):
-  1. `extractAndStoreMemories` (called from 13 sites in background.js) produces exactly one Task Memory per session instead of 1-5 fragmented memories
-  2. The AI extraction prompt returns a single consolidated recon-style report containing: task description, outcome, step-by-step timeline, selectors discovered, site structure encountered, and patterns learned
-  3. The consolidator groups memories by domain + task similarity instead of text similarity, merging repeat runs of the same task into one memory with run history
-  4. No changes needed at the 13 call sites in background.js -- the pipeline change is internal to memory-extractor.js and memory-manager.js
-**Plans**: 2 plans
-
-Plans:
-- [x] 32-01-PLAN.md -- Rewrite extraction prompt and parser for single Task Memory output
-- [x] 32-02-PLAN.md -- Update consolidator for domain+task dedup and unified task enrichment
-
-### Phase 33: Task Memory Display & Graph
-**Goal**: Users see polished task cards with a full recon report detail view, per-task 2D graph visualization, and task data feeding into the FSB Intelligence knowledge graph
-**Depends on**: Phase 32
-**Requirements**: DISP-01, DISP-02, DISP-03
-**Success Criteria** (what must be TRUE):
-  1. Task Memory cards are polished with better outcome badge styling, domain indicator, and the Refine button is removed from all memory types
-  2. Clicking a card expands to a full recon report with collapsible sections: summary+outcome at top, then Timeline, Discoveries, Procedures -- AI analysis integrated into relevant sections
-  3. Each Task Memory detail view includes an inline 2D graph (SiteGraph-style) showing pages visited, elements interacted with, and navigation paths
-  4. Task Memory discoveries auto-update the FSB Intelligence knowledge graph data structure
-  5. Old-format memories remain visible and functional alongside Task Memories
-**Plans**: 2 plans
-
-Plans:
-- [ ] 33-01-PLAN.md -- Card polish, Refine button removal, full recon report detail view with collapsible sections
-- [ ] 33-02-PLAN.md -- Per-task graph visualization and FSB Intelligence knowledge graph integration
-
-### Phase 34: Memory Tab Theme Fix & Export/Import
-**Goal**: Fix all theme mismatches in Memory tab UI and add memory export/import so users can download and share Task Memories
-**Depends on**: Phase 33
-**Requirements**: THEME-01, EXPORT-01
-**Success Criteria** (what must be TRUE):
-  1. All Memory tab elements (cards, detail panels, graph containers, badges, collapsible sections, stats bar) respect the active theme -- no white elements in dark mode or dark elements in light mode
-  2. Users can export all memories (or filtered subset) as a downloadable JSON file from the Memory tab
-  3. Users can import a previously exported JSON file to restore or merge memories, with duplicate detection
-**Plans**: 2 plans
-
-Plans:
-- [ ] 34-01-PLAN.md -- Theme fix: define missing CSS variables, replace hardcoded colors in CSS and JS inline styles
-- [ ] 34-02-PLAN.md -- Memory import: file picker, validation, duplicate detection, merge with toast feedback
-
-### Phase 35: AI Perception & Action Quality Refinement
-**Goal**: Improve how the AI sees web pages (snapshot awareness, viewport-complete element inclusion) and how it executes actions (8-point diagnostics, enhanced verification, adaptive waiting, selector resilience, parallel debug fallback) -- cross-cutting reliability improvements across all sites
-**Depends on**: Phase 34
-**Requirements**: SNAP-01, SNAP-02, DIAG-01, DIAG-02, VRFY-01, VRFY-02, VRFY-03, CONT-01, CONT-02, CONT-03, CONT-04, WAIT-01, WAIT-02, SEL-01, SEL-02, BIN-01, BIN-02, ERR-01, ERR-02, ERR-03
-**Success Criteria** (what must be TRUE):
-  1. Every DOM snapshot includes scroll awareness (hasMoreAbove/Below, content-remaining %) and includes ALL viewport-visible interactive elements without an arbitrary cap
-  2. Failed actions receive 8-point diagnostic (visible? disabled? covered? scrollable? pointer-events? collapsed? hover-needed? in-DOM?) with natural language suggestions
-  3. Continuation prompts preserve reasoning framework, site guide knowledge, and tool preferences on iteration 2+ (not just bare CLI rules)
-  4. All hardcoded setTimeout delays in action handlers are replaced with observation-based waitForPageStability using stability profiles
-  5. Failed selectors attempt context-aware re-resolution, and all generated selectors enforce unique match
-  6. Binary state actions pre-check ARIA state and skip if already in target state; check/uncheck are intent-based CLI commands
-  7. Every failure triggers parallel heuristic + AI debugger -- heuristic resolves common patterns instantly, AI diagnosis is ready with zero extra latency if heuristic fails
-**Plans**: 5 plans
-
-Plans:
-- [ ] 35-01-PLAN.md -- Snapshot awareness: scroll metadata header, viewport-complete element inclusion
-- [ ] 35-02-PLAN.md -- Action diagnostics: 8-point diagnostic, enhanced verification, binary state pre-checks, check/uncheck commands
-- [ ] 35-03-PLAN.md -- Continuation prompt quality: hybrid prompt, domain change flags, site-aware tool hints, stuck detection cleanup
-- [ ] 35-04-PLAN.md -- Adaptive waiting: replace hardcoded delays, UI-ready detection, context-aware selector re-resolution, unique match enforcement
-- [ ] 35-05-PLAN.md -- Error reporting: structured failure reports, parallel debug fallback with heuristic engine + AI debugger
-
-## Progress
-
-**Execution Order:**
-v0.9.2: Phase 30
-v0.9.3: Phase 31 -> Phase 32 -> Phase 33 -> Phase 34
-v0.9.4: Phase 35
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 30. Productivity Site Intelligence | 4/4 | Complete    | 2026-03-17 |
-| 31. Task Memory Schema & Storage | 2/2 | Complete    | 2026-03-16 |
-| 32. Extraction Pipeline & Consolidation | 2/2 | Complete    | 2026-03-16 |
-| 33. Task Memory Display & Graph | 2/2 | Complete    | 2026-03-16 |
-| 34. Memory Tab Theme Fix & Export/Import | 2/2 | Complete    | 2026-03-16 |
-| 35. AI Perception & Action Quality | 5/5 | Complete    | 2026-03-17 |
-
-| Milestone | Phases | Plans | Requirements | Status | Shipped |
-|-----------|--------|-------|-------------|--------|---------|
-| v0.9 Reliability | 1-11 | 24 | -- | Complete | 2026-02-14 |
-| v9.0.2 Situational Awareness | 1-10 | 21 | 22/22 | Complete | 2026-02-18 |
-| v9.3 Tech Debt | 4-8 | 17 | 9/9 | Complete | 2026-02-23 |
-| v9.4 Career Search | 9-14.3 | 18 | 21/21 | Complete | 2026-02-27 |
-| v10.0 CLI Architecture | 15-29 | 37 | 67/67 | Complete | 2026-03-15 |
-| v0.9.2 Productivity Site Intelligence | 30 | 4 | 17/17 | Complete | - |
-| v0.9.3 Memory Tab Overhaul | 31-34 | 8 | 10/10 | Complete | - |
-| v0.9.4 AI Perception & Action Quality | 35 | 5 | 20/20 | Complete | - |
+**Risk:** Low — isolated changes to data flow, no new APIs or UI components
 
 ---
-*Updated: 2026-03-17 after milestone audit gap closure*
+
+## Phase 37: Smart Progress & ETA
+
+**Goal:** Replace naive iteration-based progress with task-aware estimation that accounts for complexity type, phase transitions, and workflow-specific metrics.
+
+**Requirements:** PROG-01, PROG-02, PROG-03, PROG-04
+
+**Key changes:**
+- Refactor `calculateProgress()` to use weighted progress model: navigation phase (0-30%), action phase (30-70%), verification phase (70-100%)
+- Integrate `_taskEstimate` (from existing `estimateTaskComplexity`) into ETA calculation
+- Track phase transitions (navigation → extraction → writing) and adjust progress curve
+- Multi-site: progress = `(completedCompanies + currentCompanyProgress) / totalCompanies`
+- Sheets: progress = `rowsWritten / totalRows` for entry, separate progress for formatting
+
+**Files:** `background.js` (calculateProgress, formatETA, sendSessionStatus calls, multi-site/sheets progress)
+
+**Risk:** Low — refactoring existing calculation functions, no new message types
+
+---
+
+## Phase 38: Live Action Summaries
+
+**Goal:** Replace static `getActionStatus()` labels with AI-generated contextual descriptions that reflect what the automation is doing and why.
+
+**Requirements:** LIVE-01, LIVE-02, LIVE-03, LIVE-04
+
+**Key changes:**
+- Add `generateActionSummary(action, session)` function that produces contextual descriptions using task goal + action + element context
+- Non-blocking: fire summary generation in parallel with action execution, use `getActionStatus()` as immediate fallback
+- Cache recent summaries to avoid redundant calls for similar actions
+- Update `sendSessionStatus` calls to include AI-generated `statusText` when available
+
+**Files:** `background.js` (new summary generator, action execution loop, sendSessionStatus calls)
+
+**Risk:** Medium — adds an AI call per action; must be strictly non-blocking with tight timeout (2-3s) to avoid slowing automation. Cache + fallback pattern mitigates this.
+
+**Depends on:** Phase 36 (clean text paths must be in place before adding new text sources)
+
+---
+
+## Phase 39: Overlay UX Polish
+
+**Goal:** Polish the progress overlay experience — task summary display, recovery state handling, smooth phase transitions.
+
+**Requirements:** UX-01, UX-02, UX-03
+
+**Key changes:**
+- Add task summary line to overlay UI (below task name, above step text)
+- Show "Recovering..." state when debug fallback is active instead of raw error
+- Smooth phase transition labels with debounce to prevent flicker on rapid phase changes
+- Ensure all overlay text is plain text (no markdown artifacts)
+
+**Files:** `content/visual-feedback.js` (ProgressOverlay), `content/messaging.js` (sessionStatus handler), `background.js` (recovery state signals)
+
+**Risk:** Low — UI-only changes within existing Shadow DOM overlay
+
+**Depends on:** Phases 36, 37, 38 (all text and progress sources must be clean and ready)
+
+---
+
+## Requirement Coverage
+
+| Requirement | Phase | Description |
+|-------------|-------|-------------|
+| DBG-01 | 36 | Block diagnostic suggestions from overlay text |
+| DBG-02 | 36 | Block AI debugger output from overlay text |
+| DBG-03 | 36 | Map custom phases to readable labels |
+| DBG-04 | 36 | Sanitize summarizeTask output |
+| DBG-05 | 36 | Wire aiDiagnosis into continuation prompt |
+| DBG-06 | 36 | Wire diagnostic suggestions into action history |
+| PROG-01 | 37 | Task-aware progress percentage |
+| PROG-02 | 37 | Complexity-aware ETA |
+| PROG-03 | 37 | Phase transition progress tracking |
+| PROG-04 | 37 | Multi-site/Sheets workflow progress |
+| LIVE-01 | 38 | AI-generated step descriptions |
+| LIVE-02 | 38 | Non-blocking fallback to static labels |
+| LIVE-03 | 38 | Real-time per-action updates |
+| LIVE-04 | 38 | Context-aware descriptions |
+| UX-01 | 39 | Task summary line in overlay |
+| UX-02 | 39 | Recovery state display |
+| UX-03 | 39 | Smooth phase transitions |
+
+**Coverage:** 17/17 requirements mapped (0 unmapped)
+
+---
+*Roadmap created: 2026-03-17*
+*Last updated: 2026-03-17*
