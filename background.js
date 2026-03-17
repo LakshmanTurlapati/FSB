@@ -5948,6 +5948,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
       taskSummary: sessionData.taskSummary || null
     });
 
+    // Clear action summary cache for fresh session
+    actionSummaryCache.clear();
+
     // Non-blocking task summarization (runs in parallel, does not delay start)
     config.getAll().then(settings => {
       summarizeTask(task, settings).then(summary => {
