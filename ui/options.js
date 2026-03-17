@@ -1,13 +1,14 @@
-// FSB v0.9.1.0 - Modern Dashboard Control Panel Script
+// FSB v0.9.4.0 - Modern Dashboard Control Panel Script
 
 // Default settings
 const defaultSettings = {
   modelProvider: 'xai',
-  modelName: 'grok-4-1-fast',
+  modelName: 'grok-4-1-fast-reasoning',
   apiKey: '',
   geminiApiKey: '',
   openaiApiKey: '',
   anthropicApiKey: '',
+  openrouterApiKey: '',
   customApiKey: '',
   customEndpoint: '',
   speedMode: 'normal', // Legacy support
@@ -25,7 +26,8 @@ const defaultSettings = {
   // CAPTCHA Solver
   captchaSolverEnabled: false,
   captchaApiKey: '',
-  autoRefineSiteMaps: true
+  autoRefineSiteMaps: true,
+  sttProvider: 'browser'
 };
 
 // Available models - sourced from config.js (loaded before this script) with custom provider added
@@ -35,6 +37,20 @@ const availableModels = {
     { id: 'custom-model', name: 'Custom Model', description: 'Enter your model name below' }
   ]
 };
+
+const PROVIDER_ICONS = {
+  xai: '<svg width="18" height="18" viewBox="3 9 908 1007" fill="currentColor"><path d="M827.76 200.32L745.02 318.5l-.01 348.75L745 1016h166.002l-.251-466.93-.251-466.93-82.74 118.18"/><path d="M3.167 365.816c.183.449 102.641 146.926 227.684 325.505l227.35 324.689 100.486-.255 100.485-.255-227.675-325.25L203.822 365H103.328c-55.272 0-100.345.367-100.161.816"/><path d="M801 8.787l-93.5.286-174 248.569c-95.7 136.713-174.388 249.381-174.863 250.374-.686 1.436 9.177 16.156 48.345 72.144 27.065 38.687 49.728 70.88 50.363 71.54 1.033 1.073 37.65-50.44 128.994-181.471 2.112-3.029 54.285-77.557 115.941-165.618C763.937 216.55 815.619 142.7 817.13 140.5c1.51-2.2 22.768-32.575 47.238-67.5L908.86 9.5l-7.18-.5c-3.949-.275-49.255-.371-100.68-.213"/><path d="M103.273 872.277L3.047 1015.5l100.726.21 100.727.21 45.206-64.71c24.864-35.591 47.462-67.909 50.219-71.819l5.013-7.109-49.972-71.391c-27.484-39.265-50.308-71.491-50.719-71.614-.411-.122-45.849 64.228-100.974 143"/></svg>',
+  gemini: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg>',
+  openai: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>',
+  anthropic: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg>',
+  openrouter: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16.778 1.844v1.919q-.569-.026-1.138-.032-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237-2.911 2.066-2.731 1.95-4.14 2.75-.396.223-1.342.574-2.185.798-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799 1.41.798 1.228.683 4.14 2.75 2.126 1.509 4.22 2.11 6.148 2.236.88.058 1.716.041 2.555.005v1.918l7.222-4.168-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021-1.364-.09-2.417-.357-3.979-1.465-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 1.56-1.109 2.614-1.377 3.978-1.466.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z"/></svg>',
+  custom: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 018.5 12 3.5 3.5 0 0112 8.5a3.5 3.5 0 013.5 3.5 3.5 3.5 0 01-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.65a.5.5 0 00.12-.64l-2-3.46a.5.5 0 00-.61-.22l-2.49 1a7.05 7.05 0 00-1.69-1l-.38-2.65A.49.49 0 0014 2h-4a.49.49 0 00-.49.42l-.38 2.65a7.05 7.05 0 00-1.69 1l-2.49-1a.5.5 0 00-.61.22l-2 3.46a.5.5 0 00.12.64L4.57 11c-.04.34-.07.66-.07 1s.03.65.07.97l-2.11 1.65a.5.5 0 00-.12.64l2 3.46a.5.5 0 00.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.05.24.26.42.49.42h4c.24 0 .44-.18.49-.42l.38-2.65a7.05 7.05 0 001.69-.98l2.49 1a.5.5 0 00.61-.22l2-3.46a.5.5 0 00-.12-.64l-2.11-1.65z"/></svg>'
+};
+
+function renderProviderIcon(provider) {
+  const container = document.getElementById('providerIcon');
+  if (container) container.innerHTML = PROVIDER_ICONS[provider] || '';
+}
 
 // Dashboard state
 const dashboardState = {
@@ -153,6 +169,9 @@ function cacheElements() {
   elements.captchaApiKey = document.getElementById('captchaApiKey');
   elements.toggleCaptchaApiKey = document.getElementById('toggleCaptchaApiKey');
 
+  // Speech-to-Text
+  elements.sttProvider = document.getElementById('sttProvider');
+
   // Button elements
   elements.toggleApiKey = document.getElementById('toggleApiKey');
   elements.fullApiTest = document.getElementById('fullApiTest');
@@ -203,6 +222,7 @@ function setupEventListeners() {
     elements.geminiApiKey,
     document.getElementById('openaiApiKey'),
     document.getElementById('anthropicApiKey'),
+    document.getElementById('openrouterApiKey'),
     document.getElementById('customApiKey'),
     document.getElementById('customEndpoint'),
     elements.maxIterations,
@@ -215,7 +235,8 @@ function setupEventListeners() {
     elements.showSidepanelProgress,
     elements.enableLogin,
     elements.captchaSolverEnabled,
-    elements.captchaApiKey
+    elements.captchaApiKey,
+    elements.sttProvider
   ];
 
   formInputs.forEach(input => {
@@ -283,6 +304,7 @@ function setupEventListeners() {
     elements.modelProvider.addEventListener('change', (e) => {
       updateModelOptions(e.target.value);
       updateApiKeyVisibility(e.target.value);
+      renderProviderIcon(e.target.value);
       markUnsavedChanges();
     });
   }
@@ -314,6 +336,11 @@ function setupEventListeners() {
     toggleAnthropicApiKey.addEventListener('click', () => togglePasswordVisibility('anthropicApiKey'));
   }
   
+  const toggleOpenrouterApiKey = document.getElementById('toggleOpenrouterApiKey');
+  if (toggleOpenrouterApiKey) {
+    toggleOpenrouterApiKey.addEventListener('click', () => togglePasswordVisibility('openrouterApiKey'));
+  }
+
   const toggleCustomApiKey = document.getElementById('toggleCustomApiKey');
   if (toggleCustomApiKey) {
     toggleCustomApiKey.addEventListener('click', () => togglePasswordVisibility('customApiKey'));
@@ -336,6 +363,29 @@ function setupEventListeners() {
 
   if (elements.toggleCaptchaApiKey) {
     elements.toggleCaptchaApiKey.addEventListener('click', () => togglePasswordVisibility('captchaApiKey'));
+  }
+
+  // Speech-to-Text toggle
+  if (elements.sttProvider) {
+    elements.sttProvider.addEventListener('change', (e) => {
+      const openaiKey = document.getElementById('openaiApiKey')?.value;
+      updateSttDescription(e.target.checked, openaiKey);
+      markUnsavedChanges();
+    });
+  }
+
+  // Auto-enable Whisper when OpenAI key is added
+  const openaiKeyInput = document.getElementById('openaiApiKey');
+  if (openaiKeyInput && elements.sttProvider) {
+    openaiKeyInput.addEventListener('input', () => {
+      const hasKey = openaiKeyInput.value.trim().length > 0;
+      if (hasKey && !elements.sttProvider.checked) {
+        elements.sttProvider.checked = true;
+        updateSttDescription(true, openaiKeyInput.value);
+        markUnsavedChanges();
+      }
+      updateSttDescription(elements.sttProvider.checked, openaiKeyInput.value);
+    });
   }
 
   // API test
@@ -531,6 +581,7 @@ function updateApiKeyVisibility(provider) {
     gemini: document.getElementById('geminiApiKeyGroup'),
     openai: document.getElementById('openaiApiKeyGroup'),
     anthropic: document.getElementById('anthropicApiKeyGroup'),
+    openrouter: document.getElementById('openrouterApiKeyGroup'),
     custom: document.getElementById('customApiGroup')
   };
 
@@ -552,7 +603,7 @@ function loadSettings() {
     // Handle legacy speedMode to new model format
     if (!settings.modelProvider && settings.speedMode) {
       settings.modelProvider = 'xai';
-      settings.modelName = 'grok-4-1-fast'; // All legacy modes map to new default
+      settings.modelName = 'grok-4-1-fast-reasoning'; // All legacy modes map to new default
     }
     
     // Update model provider and options
@@ -560,6 +611,7 @@ function loadSettings() {
       elements.modelProvider.value = settings.modelProvider || 'xai';
       updateModelOptions(settings.modelProvider || 'xai');
       updateApiKeyVisibility(settings.modelProvider || 'xai');
+      renderProviderIcon(settings.modelProvider || 'xai');
     }
     
     // Update model name
@@ -589,6 +641,9 @@ function loadSettings() {
     const customApiKey = document.getElementById('customApiKey');
     if (customApiKey) customApiKey.value = settings.customApiKey || '';
     
+    const openrouterApiKey = document.getElementById('openrouterApiKey');
+    if (openrouterApiKey) openrouterApiKey.value = settings.openrouterApiKey || '';
+
     const customEndpoint = document.getElementById('customEndpoint');
     if (customEndpoint) customEndpoint.value = settings.customEndpoint || '';
 
@@ -657,6 +712,12 @@ function loadSettings() {
       elements.autoRefineSiteMaps.checked = settings.autoRefineSiteMaps ?? true;
     }
 
+    // Speech-to-Text
+    if (elements.sttProvider) {
+      elements.sttProvider.checked = settings.sttProvider === 'whisper';
+      updateSttDescription(settings.sttProvider === 'whisper', settings.openaiApiKey);
+    }
+
     addLog('info', 'Settings loaded successfully');
   });
 }
@@ -664,11 +725,12 @@ function loadSettings() {
 function saveSettings() {
   const settings = {
     modelProvider: elements.modelProvider?.value || 'xai',
-    modelName: elements.modelName?.value || 'grok-4-1-fast',
+    modelName: elements.modelName?.value || 'grok-4-1-fast-reasoning',
     apiKey: elements.apiKey?.value || '',
     geminiApiKey: elements.geminiApiKey?.value || '',
     openaiApiKey: document.getElementById('openaiApiKey')?.value || '',
     anthropicApiKey: document.getElementById('anthropicApiKey')?.value || '',
+    openrouterApiKey: document.getElementById('openrouterApiKey')?.value || '',
     customApiKey: document.getElementById('customApiKey')?.value || '',
     customEndpoint: document.getElementById('customEndpoint')?.value || '',
     maxIterations: parseInt(elements.maxIterations?.value) || 20,
@@ -683,9 +745,10 @@ function saveSettings() {
     enableLogin: elements.enableLogin?.checked ?? false,
     captchaSolverEnabled: elements.captchaSolverEnabled?.checked ?? false,
     captchaApiKey: elements.captchaApiKey?.value || '',
-    autoRefineSiteMaps: elements.autoRefineSiteMaps?.checked ?? true
+    autoRefineSiteMaps: elements.autoRefineSiteMaps?.checked ?? true,
+    sttProvider: elements.sttProvider?.checked ? 'whisper' : 'browser'
   };
-  
+
   chrome.storage.local.set(settings, () => {
     dashboardState.hasUnsavedChanges = false;
     hideSaveBar();
@@ -758,6 +821,7 @@ async function checkApiConnection() {
       gemini: settings.geminiApiKey,
       openai: settings.openaiApiKey,
       anthropic: settings.anthropicApiKey,
+      openrouter: settings.openrouterApiKey,
       custom: settings.customApiKey
     };
 
@@ -769,6 +833,7 @@ async function checkApiConnection() {
         gemini: 'Gemini',
         openai: 'OpenAI',
         anthropic: 'Anthropic',
+        openrouter: 'OpenRouter',
         custom: 'Custom'
       };
       updateConnectionStatus('disconnected', 'No API key configured');
@@ -868,6 +933,7 @@ async function runFullApiTest() {
       gemini: { key: settings.geminiApiKey, name: 'Gemini' },
       openai: { key: settings.openaiApiKey, name: 'OpenAI' },
       anthropic: { key: settings.anthropicApiKey, name: 'Anthropic' },
+      openrouter: { key: settings.openrouterApiKey, name: 'OpenRouter' },
       custom: { key: settings.customApiKey, name: 'Custom' }
     };
 
@@ -929,6 +995,7 @@ function exportSettings() {
       geminiApiKey: settings.geminiApiKey ? '[CONFIGURED]' : '',
       openaiApiKey: settings.openaiApiKey ? '[CONFIGURED]' : '',
       anthropicApiKey: settings.anthropicApiKey ? '[CONFIGURED]' : '',
+      openrouterApiKey: settings.openrouterApiKey ? '[CONFIGURED]' : '',
       customApiKey: settings.customApiKey ? '[CONFIGURED]' : ''
     };
     
@@ -1130,7 +1197,7 @@ async function testTokenTracking() {
 
   // Test with fake data
   const testData = {
-    model: 'grok-4-1-fast',
+    model: 'grok-4-1-fast-reasoning',
     inputTokens: 150,
     outputTokens: 75,
     success: true
@@ -1170,7 +1237,7 @@ async function clearAnalyticsData() {
       await chrome.storage.local.remove(['fsbUsageData', 'fsbCurrentModel']);
       if (analytics) {
         analytics.usageData = [];
-        analytics.currentModel = 'grok-4-1-fast';
+        analytics.currentModel = 'grok-4-1-fast-reasoning';
         analytics.updateDashboard();
         loadDashboardCostBreakdown();
         analytics.updateChart('24h');
@@ -2448,6 +2515,18 @@ let credentialModalMode = 'add'; // 'add' or 'edit'
 let credentialEditingDomain = null;
 
 // Show/hide credentials manager based on toggle
+function updateSttDescription(whisperEnabled, openaiKey) {
+  const desc = document.getElementById('sttStatusDesc');
+  if (!desc) return;
+  if (whisperEnabled && openaiKey) {
+    desc.textContent = 'Using OpenAI Whisper for higher accuracy transcription.';
+  } else if (whisperEnabled && !openaiKey) {
+    desc.textContent = 'OpenAI API key required. Add one above to enable Whisper.';
+  } else {
+    desc.textContent = "Using browser's built-in speech recognition (no API key needed).";
+  }
+}
+
 function updateCaptchaSolverVisibility(enabled) {
   const configPanel = document.getElementById('captchaSolverConfig');
   if (configPanel) {

@@ -1,4 +1,4 @@
-// Modern Chat Interface Script for FSB v0.9.1.0
+// Modern Chat Interface Script for FSB v0.9.4.0
 
 let currentSessionId = null;
 let conversationId = null;
@@ -24,6 +24,7 @@ async function initConversationId() {
 // DOM elements - updated for new chat interface
 const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
+const micBtn = document.getElementById('micBtn');
 const stopBtn = document.getElementById('stopBtn');
 const testBtn = document.getElementById('testBtn');
 const settingsBtn = document.getElementById('settingsBtn');
@@ -31,6 +32,9 @@ const pinBtn = document.getElementById('pinBtn');
 const chatMessages = document.getElementById('chatMessages');
 const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
+
+// Initialize speech-to-text
+const stt = new FSBSpeechToText(chatInput, micBtn);
 
 // Apply theme based on settings
 function applyTheme() {
@@ -838,7 +842,7 @@ chatInput.addEventListener('input', adjustInputHeight);
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => e.preventDefault());
 
-console.log('FSB v0.9.1.0 chat interface loaded');
+console.log('FSB v0.9.4.0 chat interface loaded');
 
 // ==========================================
 // /agent Slash Command Handler

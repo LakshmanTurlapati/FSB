@@ -1,5 +1,5 @@
 /**
- * Universal AI Provider for FSB v0.9.1.0
+ * Universal AI Provider for FSB v0.9.4.0
  * A model-agnostic provider that works with any OpenAI-compatible API
  */
 
@@ -29,6 +29,16 @@ const PROVIDER_CONFIGS = {
     authQuery: 'key', // API key in query string
     keyField: 'geminiApiKey',
     customFormat: true // Uses different request format
+  },
+  openrouter: {
+    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+    authHeader: 'Authorization',
+    authPrefix: 'Bearer',
+    keyField: 'openrouterApiKey',
+    extraHeaders: {
+      'HTTP-Referer': 'https://github.com/AikidoMaster/FSB',
+      'X-Title': 'FSB Browser Automation'
+    }
   },
   custom: {
     // For custom OpenAI-compatible endpoints
@@ -319,7 +329,11 @@ class UniversalProvider {
         : apiKey;
       headers[this.config.authHeader] = authValue;
     }
-    
+
+    if (this.config.extraHeaders) {
+      Object.assign(headers, this.config.extraHeaders);
+    }
+
     return headers;
   }
   

@@ -1,4 +1,4 @@
-# FSB v0.9.1.0 - Full Self-Browsing
+# FSB v0.9.4.0 - Full Self-Browsing
 
 <div align="center">
 
@@ -10,7 +10,7 @@
 
 <!-- Row 1: Identity badges -->
 ![FSB](https://img.shields.io/badge/FSB-Full_Self--Browsing-000000?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-0.9.1.0-0078D4?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-0.9.4.0-0078D4?style=for-the-badge)
 ![Manifest V3](https://img.shields.io/badge/Manifest_V3-Chrome-34A853?style=for-the-badge&logo=googlechrome&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-F5C518?style=for-the-badge)
 
@@ -42,7 +42,7 @@
 
 ## Overview
 
-> **Note**: While FSB v0.9.1.0 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
+> **Note**: While FSB v0.9.4.0 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
 
 FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers** -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models.
 
@@ -310,7 +310,7 @@ graph TB
 | `site-maps/` | Generated site structure maps (JSON) |
 | `ui/popup.html/js/css` | Popup chat interface |
 | `ui/sidepanel.html/js/css` | Persistent side panel interface |
-| `ui/options.html/js/css` | Settings dashboard with analytics, memory viewer, and logs |
+| `ui/control_panel.html/js/css` | Settings dashboard with analytics, memory viewer, and logs |
 | `ui/markdown-renderer.js` | Markdown, mermaid diagram, and Chart.js rendering |
 | `server/` | Optional Node.js backend for agent data |
 | `server-py/` | Optional Python/Flask backend for agent data |
@@ -442,7 +442,7 @@ Access settings through the extension popup or options page:
 Configure all settings through the extension's built-in options page:
 
 1. **Right-click the extension icon** then select "Options"
-2. **Or visit**: `chrome-extension://[extension-id]/options.html`
+2. **Or visit**: `chrome-extension://[extension-id]/control_panel.html`
 
 #### Security Features
 - **Encrypted Storage**: API keys are automatically encrypted using AES-GCM in Chrome storage
@@ -540,7 +540,7 @@ FSB/
   ui/                           # User interface files
     popup.html / popup.js / popup.css
     sidepanel.html / sidepanel.js / sidepanel.css
-    options.html / options.js / options.css
+    control_panel.html / options.js / options.css
     markdown-renderer.js        # Markdown, mermaid, Chart.js rendering
     markdown.css                # Markdown rendering styles
     unlock.html / unlock.js     # API key unlock screen
@@ -857,7 +857,7 @@ FSB provides real-time visual indicators during automation:
 
 ## Roadmap
 
-### Completed in v0.9.1.0
+### Completed in v0.9.4.0
 - Full automation engine with smart iteration and stuck recovery
 - Four AI providers (xAI, OpenAI, Anthropic, Gemini) with 21 models
 - Universal model-agnostic provider architecture

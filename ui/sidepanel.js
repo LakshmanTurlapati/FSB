@@ -1,4 +1,4 @@
-// Side Panel Script for FSB v0.9.1.0 - Persistent UI
+// Side Panel Script for FSB v0.9.4.0 - Persistent UI
 
 let currentSessionId = null;
 let conversationId = null;
@@ -26,12 +26,16 @@ async function initConversationId() {
 // DOM elements - adapted for side panel
 const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
+const micBtn = document.getElementById('micBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const chatMessages = document.getElementById('chatMessages');
 const historyBtn = document.getElementById('historyBtn');
 const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
+
+// Initialize speech-to-text
+const stt = new FSBSpeechToText(chatInput, micBtn);
 
 // Apply theme based on settings
 function applyTheme() {
@@ -184,7 +188,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 // Initialize side panel
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('FSB v0.9.1.0 side panel loaded');
+  console.log('FSB v0.9.4.0 side panel loaded');
 
   // Apply theme first
   applyTheme();
@@ -1390,7 +1394,7 @@ function escapeHtml(str) {
 }
 
 
-console.log('FSB v0.9.1.0 side panel script loaded');
+console.log('FSB v0.9.4.0 side panel script loaded');
 
 // ==========================================
 // /agent Slash Command Handler
