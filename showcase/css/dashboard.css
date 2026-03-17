@@ -135,6 +135,11 @@
   color: var(--text-muted);
 }
 
+.dash-sse-reconnecting {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+}
+
 /* --- Stats Bar --- */
 .dash-stats-bar {
   display: grid;
