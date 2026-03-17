@@ -13,6 +13,19 @@ registerSiteGuide({
   ],
   guidance: `NOTION-SPECIFIC INTELLIGENCE:
 
+TODO LIST WORKFLOW (CRITICAL — READ THIS FIRST):
+  When a Notion page contains a to-do list (checkbox items), you MUST follow this process:
+  1. Read the page to identify all todo items using readPage
+  2. For EACH todo item, in sequential order:
+     a. Read what the task says (e.g., "Research for best router under $100")
+     b. PERFORM that task — search Google, navigate to websites, click buttons, fill forms, whatever the task requires
+     c. After you have COMPLETED the task, navigate BACK to the Notion page
+     d. Use togglecheck N to check off that specific completed item
+  3. Move to the NEXT unchecked item and repeat steps 2a-2d
+  4. Do NOT check all items at once — you must COMPLETE each task BEFORE checking it
+  5. togglecheck should ONLY be used after you have actually done what the todo item describes
+  6. If a todo says "research X" — go research it. If it says "add to wishlist" — go add it. If it says "document in Google Docs" — go write in Docs. THEN check it off.
+
 SLASH COMMANDS (PRIMARY BLOCK CREATION METHOD):
   Type "/" at the beginning of a new line to open the slash command menu:
     /text or /p       - Plain text paragraph
@@ -337,14 +350,13 @@ Slash commands are faster, more reliable, and work regardless of UI state.`,
       'STUCK: If /todo does not work, try Ctrl+Shift+4 to convert current block to a to-do. Or type "[]" followed by Space at the start of a line.'
     ],
     toggleTodo: [
+      'IMPORTANT: Only use togglecheck AFTER you have COMPLETED the task described in that todo item. Read the todo text, go perform that task (search, navigate, click, fill forms), then come back to Notion and check it off.',
       'CRITICAL: Notion todo checkboxes do NOT appear as element refs in the page snapshot. The checkbox is invisible to the DOM walker.',
       'Use the togglecheck command: togglecheck N  -- where N is the todo position (1 = first todo, 2 = second, etc.)',
-      'togglecheck only CHECKS items — it will NOT uncheck already-checked items. Safe to call repeatedly without risk of unchecking.',
-      'If a todo is already checked, togglecheck returns { alreadyChecked: true, toggled: false } — this is a success, the item is checked.',
-      'Example: togglecheck 1 (checks first todo), togglecheck 2 (checks second todo), etc.',
-      'To check ALL todos: use togglecheck 1, then togglecheck 2, then togglecheck 3, etc. -- one command per line.',
-      'VERIFY: togglecheck returns { toggled: true } when it checked an unchecked item, or { alreadyChecked: true } when item was already checked. Both mean the item IS checked.',
-      'After calling togglecheck on all items, you are DONE. Do NOT call togglecheck again to verify — the return values already confirm the state.',
+      'togglecheck only CHECKS items — it will NOT uncheck already-checked items. Safe to call repeatedly.',
+      'Example: complete task 1 → togglecheck 1, complete task 2 → togglecheck 2, etc.',
+      'VERIFY: togglecheck returns { toggled: true } when it checked an item, or { alreadyChecked: true } if already checked.',
+      'After checking an item, move to the NEXT unchecked todo and perform THAT task before checking it.',
       'STUCK: If togglecheck says "No Notion todo blocks found", scroll down first to render the todos.'
     ],
     createTable: [
