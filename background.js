@@ -969,6 +969,95 @@ async function summarizeTask(taskText, settings) {
   }
 }
 
+/** Cache for AI-generated action summaries. Key: "tool:selector_or_url", Value: summary string. Max 50 entries. */
+const actionSummaryCache = new Map();
+
+/**
+ * Generate a contextual AI summary for an action being executed.
+ * Non-blocking: returns null if AI doesn't respond within 2.5s.
+ * Uses cache to avoid redundant calls for the same tool+target combo.
+ *
+ * @param {Object} action - The action being executed { tool, params }
+ * @param {Object} session - Active automation session
+ * @param {Object} settings - AI provider settings from config.getAll()
+ * @returns {Promise<string|null>} Contextual description or null
+ */
+async function generateActionSummary(action, session, settings) {
+  try {
+    // Build cache key from tool + primary identifier (selector, url, or query)
+    const target = action.params?.selector || action.params?.url || action.params?.query || action.params?.text || '';
+    const cacheKey = `${action.tool}:${target}`;
+
+    // Check cache first
+    const cached = actionSummaryCache.get(cacheKey);
+    if (cached) return cached;
+
+    // Build compact context for the AI
+    const taskGoal = session.taskSummary || session.task;
+    const elementHint = action.params?.text || action.params?.ariaLabel || action.params?.placeholder || action.params?.selector || '';
+    const phase = session._taskPhase || 'unknown';
+
+    const provider = new UniversalProvider(settings);
+    const requestBody = await provider.buildRequest({
+      systemPrompt: 'You describe what a browser automation step is doing in context of the user\'s goal. Return ONLY a short phrase (5-10 words). No quotes, no markdown, no punctuation at the end. Examples: "Opening LinkedIn Jobs section", "Typing search query for React jobs", "Reading company contact details".',
+      userPrompt: `Goal: ${taskGoal}\nAction: ${action.tool}${elementHint ? ' on "' + elementHint + '"' : ''}\nPhase: ${phase}`
+    }, {});
+
+    // Minimal tokens - we only need a short phrase
+    if (requestBody.max_tokens) requestBody.max_tokens = 30;
+    if (requestBody.generationConfig?.maxOutputTokens) requestBody.generationConfig.maxOutputTokens = 30;
+
+    // Race against timeout - 2.5s max
+    const response = await Promise.race([
+      provider.sendRequest(requestBody, { timeout: 2500 }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+    ]);
+
+    // Extract text per provider (same pattern as summarizeTask)
+    let summary = null;
+    const providerName = settings.modelProvider || 'xai';
+    if (providerName === 'gemini') {
+      summary = response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    } else if (providerName === 'anthropic') {
+      summary = response?.content?.[0]?.text;
+    } else {
+      // xAI / OpenAI compatible
+      summary = response?.choices?.[0]?.message?.content;
+    }
+
+    summary = summary?.trim();
+
+    // Strip markdown formatting from AI output
+    if (summary) {
+      summary = summary
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/\*(.+?)\*/g, '$1')
+        .replace(/__(.+?)__/g, '$1')
+        .replace(/_(.+?)_/g, '$1')
+        .replace(/`(.+?)`/g, '$1')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/[."'!]+$/g, '') // Strip trailing punctuation
+        .trim();
+    }
+
+    // Validate: must be short and non-empty
+    if (!summary || summary.length === 0 || summary.length > 80) return null;
+
+    // Cache the result (evict oldest if cache is full)
+    if (actionSummaryCache.size >= 50) {
+      const firstKey = actionSummaryCache.keys().next().value;
+      actionSummaryCache.delete(firstKey);
+    }
+    actionSummaryCache.set(cacheKey, summary);
+
+    return summary;
+  } catch (e) {
+    // Non-blocking: silently return null on any failure
+    return null;
+  }
+}
+
 /**
  * Task Complexity Estimator — parallel AI call at session start.
  * Analyzes the task description and current URL to estimate required iterations,

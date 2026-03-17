@@ -69,6 +69,12 @@ Plans:
 
 **Requirements:** LIVE-01, LIVE-02, LIVE-03, LIVE-04
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 38-01-PLAN.md — Create generateActionSummary function with cache and non-blocking timeout
+- [ ] 38-02-PLAN.md — Wire AI summaries into action execution loop and session lifecycle
+
 **Key changes:**
 - Add `generateActionSummary(action, session)` function that produces contextual descriptions using task goal + action + element context
 - Non-blocking: fire summary generation in parallel with action execution, use `getActionStatus()` as immediate fallback
