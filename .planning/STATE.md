@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 38-01-PLAN.md
-last_updated: "2026-03-17T09:48:35.573Z"
+stopped_at: Completed 38-02-PLAN.md
+last_updated: "2026-03-17T09:55:19.132Z"
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -46,6 +46,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 37]: ETA weight decays from 70% estimate to 10% as iterations progress
 - [Phase 37]: Delegation pattern in calculateProgress avoids changing every sendSessionStatus call site
 - [Phase 38]: 2.5s Promise.race timeout as hard ceiling for non-blocking action summaries
+- [Phase 38]: AI summary .then() placed after sendSessionStatus to ensure static labels display first; both overlay and sidepanel updated on resolution
 
 ### Pending Todos
 
@@ -58,6 +59,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-17T09:48:35.562Z
-Stopped at: Completed 38-01-PLAN.md
+Last session: 2026-03-17T09:52:21.313Z
+Stopped at: Completed 38-02-PLAN.md
 Resume file: None
