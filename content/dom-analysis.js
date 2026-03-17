@@ -1762,9 +1762,32 @@
       const { strategy, selector } = strategies[i];
       const element = document.querySelector(selector);
       if (element) {
-        return { element, matchedIndex: i, matchedStrategy: strategy, total };
+        // Store context for re-resolution if selector breaks later
+        const context = {
+          role: element.getAttribute('role') || element.tagName.toLowerCase(),
+          accName: (element.getAttribute('aria-label') || element.textContent?.trim() || '').substring(0, 60),
+          nearbyText: (element.parentElement?.textContent?.trim() || '').substring(0, 100),
+          parentTag: element.parentElement?.tagName?.toLowerCase(),
+          parentClasses: element.parentElement?.className || '',
+          position: Array.from(element.parentElement?.children || []).indexOf(element)
+        };
+        element._fsbResolveContext = context;
+        return { element, matchedIndex: i, matchedStrategy: strategy, total, context };
       }
     }
+
+    // All selectors failed -- try context-aware re-resolution via last-known context
+    if (FSB.reResolveElement && fsbElementDef._lastContext) {
+      const reResolved = FSB.reResolveElement(fsbElementDef._lastContext);
+      if (reResolved) {
+        logger.log('info', `[findElementByStrategies] Re-resolved element via ${reResolved.method} (confidence: ${reResolved.confidence})`, {
+          role: fsbElementDef._lastContext.role,
+          method: reResolved.method
+        });
+        return { element: reResolved.element, matchedIndex: -1, matchedStrategy: `re-resolve:${reResolved.method}`, total, context: fsbElementDef._lastContext };
+      }
+    }
+
     return null;
   }
 
@@ -3339,6 +3362,7 @@
   FSB.extractEcommerceProducts = extractEcommerceProducts;
   FSB.calculateElementScore = calculateElementScore;
   FSB.getFilteredElements = getFilteredElements;
+  FSB.findElementByStrategies = findElementByStrategies;
   FSB.buildMarkdownSnapshot = buildMarkdownSnapshot;
   FSB.extractPageText = extractPageText;
   FSB.getStructuredDOM = getStructuredDOM;

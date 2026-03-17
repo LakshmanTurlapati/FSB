@@ -1139,7 +1139,8 @@ async function waitForPageStability(options = {}) {
   const {
     maxWait = 5000,
     stableTime = 500,
-    networkQuietTime = 300
+    networkQuietTime = 300,
+    uiReadySelector = null  // CSS selector -- if this element is enabled/visible, proceed even with pending network
   } = options;
 
   const startTime = Date.now();
@@ -1230,6 +1231,38 @@ async function waitForPageStability(options = {}) {
         const isNetworkQuiet = networkQuietFor >= networkQuietTime && pendingRequestCount === 0;
         const isStable = isDOMStable && isNetworkQuiet;
         const hasTimedOut = totalTime >= maxWait;
+
+        // UI-ready override: if the target element is interactable, proceed even if network isn't quiet
+        if (uiReadySelector && isDOMStable && !isStable) {
+          try {
+            const readyEl = document.querySelector(uiReadySelector);
+            if (readyEl) {
+              const isReady = !readyEl.disabled &&
+                readyEl.getAttribute('aria-disabled') !== 'true' &&
+                getComputedStyle(readyEl).pointerEvents !== 'none' &&
+                readyEl.getBoundingClientRect().width > 0;
+              if (isReady) {
+                clearInterval(checkInterval);
+                observer.disconnect();
+                window.fetch = originalFetch;
+                XMLHttpRequest.prototype.open = originalXHROpen;
+                XMLHttpRequest.prototype.send = originalXHRSend;
+                resolve({
+                  stable: true,
+                  timedOut: false,
+                  domStableFor,
+                  networkQuietFor,
+                  pendingRequests: pendingRequestCount,
+                  waitTime: totalTime,
+                  domChangeCount,
+                  networkRequestCount,
+                  reason: 'ui_ready'
+                });
+                return;
+              }
+            }
+          } catch (e) { /* uiReadySelector check failed, fall through to normal logic */ }
+        }
 
         if (isStable || hasTimedOut) {
           clearInterval(checkInterval);
@@ -4999,6 +5032,8 @@ const tools = {
   FSB.actionRecorder = actionRecorder;
   FSB.detectActionOutcome = detectActionOutcome;
   FSB.waitForPageStability = waitForPageStability;
+  FSB.waitForStability = waitForStability;
+  FSB.STABILITY_PROFILES = STABILITY_PROFILES;
   FSB.tools = tools;
 
   window.FSB._modules['actions'] = { loaded: true, timestamp: Date.now() };
