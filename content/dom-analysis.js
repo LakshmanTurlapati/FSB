@@ -2581,8 +2581,21 @@
       ? Math.round((scrollTop / (pageHeight - viewportHeight)) * 100)
       : 0;
 
+    // Scroll awareness flags
+    const hasMoreAbove = scrollTop > 10;
+    const hasMoreBelow = scrollTop + viewportHeight < pageHeight - 10;
+    const contentAbove = Math.round(scrollTop / viewportHeight * 100);
+    const contentBelow = Math.round((pageHeight - scrollTop - viewportHeight) / viewportHeight * 100);
+    const atTop = scrollTop <= 10;
+    const atBottom = scrollTop + viewportHeight >= pageHeight - 10;
+
     const title = document.title || 'Untitled Page';
-    let metaHeader = `# ${title}\n> URL: ${window.location.href} | Scroll: ${scrollPct}% | Viewport: ${window.innerWidth}x${viewportHeight}`;
+    let scrollMeta = `Scroll: ${scrollPct}%`;
+    if (atTop) scrollMeta += ' | atTop';
+    if (hasMoreAbove) scrollMeta += ` | Above: ${contentAbove}% content above`;
+    if (hasMoreBelow) scrollMeta += ` | Below: ${contentBelow}% content below`;
+    if (atBottom) scrollMeta += ' | atBottom';
+    let metaHeader = `# ${title}\n> URL: ${window.location.href} | ${scrollMeta} | Viewport: ${window.innerWidth}x${viewportHeight}`;
 
     // Include focused element ref if applicable
     const active = document.activeElement;
