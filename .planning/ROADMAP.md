@@ -72,7 +72,7 @@ See `.planning/milestones/v0.9.3-ROADMAP.md` for full details.
 
 **Milestone Goal:** Improve how the AI sees web pages (DOM snapshot quality, scroll awareness, viewport-complete element inclusion) and how it executes actions (click diagnostics, verification, stability detection, error recovery) -- cross-cutting refinements that improve reliability across ALL sites.
 
-- [ ] **Phase 35: AI Perception & Action Quality Refinement** - Snapshot awareness, action diagnostics, continuation prompt quality, adaptive waiting, selector resilience, error reporting with parallel debug fallback
+- [x] **Phase 35: AI Perception & Action Quality Refinement** - Snapshot awareness, action diagnostics, continuation prompt quality, adaptive waiting, selector resilience, error reporting with parallel debug fallback (completed 2026-03-17)
 
 ## Phase Details
 
@@ -189,7 +189,7 @@ v0.9.4: Phase 35
 | 32. Extraction Pipeline & Consolidation | 2/2 | Complete    | 2026-03-16 |
 | 33. Task Memory Display & Graph | 2/2 | Complete    | 2026-03-16 |
 | 34. Memory Tab Theme Fix & Export/Import | 2/2 | Complete    | 2026-03-16 |
-| 35. AI Perception & Action Quality | 4/5 | In Progress|  |
+| 35. AI Perception & Action Quality | 5/5 | Complete   | 2026-03-17 |
 
 | Milestone | Phases | Plans | Requirements | Status | Shipped |
 |-----------|--------|-------|-------------|--------|---------|

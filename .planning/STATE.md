@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-16)
 Phase: 35 of 35 (Notion Todo Workflow Refinement)
 Plan: 4 of 5 completed in current phase
 Status: In Progress
-Last activity: 2026-03-17 -- Completed 35-05 structured error reporting and parallel debug fallback
+Last activity: 2026-03-17 -- Completed 35-04 stability detection and selector re-resolution
 
 Progress: [██████████] 100%
 
@@ -54,6 +54,7 @@ Progress: [██████████] 100%
 | Phase 35 P03 | 4min | 2 tasks | 2 files |
 | Phase 35 P02 | 5min | 2 tasks | 1 files |
 | Phase 35 P05 | 12min | 2 tasks | 3 files |
+| Phase 35 P04 | 20min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,9 @@ Recent decisions:
 - [Phase 35]: checkBinaryState: native .checked first, ARIA second, data-state fallback third
 - [Phase 35]: check/uncheck auto-discovered via FSB.tools -- no separate CLI registration needed
 - [Phase 35]: runHeuristicFix in content script (DOM access) with HEURISTIC_FIX message bridge to background
+- [Phase 35]: STABILITY_PROFILES: scroll/click/type_keystroke/type_complete/select/light -- replaces all hardcoded setTimeout in action handlers
+- [Phase 35]: generateSelector tightened to ===1 match with makeUnique() nth-of-type positional fallback
+- [Phase 35]: reResolveElement: 3-strategy cascade -- role+name (0.9), nearby_text (0.6), parent+position (0.5)
 - [Phase 35]: buildFailureReport wraps all action failures with diagnostic + element snapshot + suggestions
 - [Phase 35]: AI debugger reuses UniversalProvider pattern from summarizeTask/estimateTaskComplexity
 
@@ -123,5 +127,5 @@ Recent decisions:
 ## Session Continuity
 
 Last session: 2026-03-17T02:05:17Z
-Stopped at: Completed 35-05-PLAN.md
+Stopped at: Completed 35-04-PLAN.md
 Resume file: None

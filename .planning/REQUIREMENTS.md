@@ -74,13 +74,13 @@ Requirements for AI Perception & Action Quality milestone. Cross-cutting refinem
 
 ### Adaptive Waiting
 
-- [ ] **WAIT-01**: Replace ALL hardcoded setTimeout delays in actions.js with observation-based waitForPageStability calls
-- [ ] **WAIT-02**: UI-ready detection for infinite-fetching sites -- detect when interactive elements become enabled/focusable, proceed even if background fetches continue
+- [x] **WAIT-01**: Replace ALL hardcoded setTimeout delays in actions.js with observation-based waitForPageStability calls
+- [x] **WAIT-02**: UI-ready detection for infinite-fetching sites -- detect when interactive elements become enabled/focusable, proceed even if background fetches continue
 
 ### Selector Resilience
 
-- [ ] **SEL-01**: Context-aware re-resolve when selectors fail -- use element's last-known context (nearby text, parent structure, position) to re-find it
-- [ ] **SEL-02**: Unique selector match requirement -- if selector matches >1 element, fall back to more specific selector or add positional constraint
+- [x] **SEL-01**: Context-aware re-resolve when selectors fail -- use element's last-known context (nearby text, parent structure, position) to re-find it
+- [x] **SEL-02**: Unique selector match requirement -- if selector matches >1 element, fall back to more specific selector or add positional constraint
 
 ### Binary State Actions
 
