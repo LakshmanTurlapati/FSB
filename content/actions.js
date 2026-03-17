@@ -402,12 +402,95 @@ function verifyActionEffect(preState, postState, actionType) {
   const changes = detectChanges(preState, postState);
   const expectations = EXPECTED_EFFECTS[actionType];
 
+  // --- Localized change detection ---
+  // Track changes near the target element and global state changes
+  const localChanges = [];
+  let whatChanged = 'No observable changes';
+
+  // Check sibling changes (next/previous element visibility or content)
+  if (postState.element?.exists && preState.element?.exists) {
+    if (preState.element.innerText !== postState.element.innerText) {
+      localChanges.push({ type: 'text_changed', detail: 'Target element text content updated' });
+    }
+    if (preState.element.ariaExpanded !== postState.element.ariaExpanded) {
+      localChanges.push({ type: 'aria_expanded_changed', detail: `aria-expanded: ${preState.element.ariaExpanded} -> ${postState.element.ariaExpanded}` });
+    }
+    if (preState.element.ariaChecked !== postState.element.ariaChecked) {
+      localChanges.push({ type: 'aria_checked_changed', detail: `aria-checked: ${preState.element.ariaChecked} -> ${postState.element.ariaChecked}` });
+    }
+    if (preState.element.dataState !== postState.element.dataState) {
+      localChanges.push({ type: 'data_state_changed', detail: `data-state: ${preState.element.dataState} -> ${postState.element.dataState}` });
+    }
+  }
+
+  // Check related element visibility changes (parent containers, siblings)
+  if (preState.relatedElements && postState.relatedElements) {
+    for (let i = 0; i < Math.max(preState.relatedElements.length, postState.relatedElements.length); i++) {
+      const pre = preState.relatedElements[i];
+      const post = postState.relatedElements[i];
+      if (!pre && post) {
+        localChanges.push({ type: 'related_appeared', detail: `New related element appeared: ${post.tagName}` });
+      } else if (pre && post) {
+        if (pre.display !== post.display || pre.visibility !== post.visibility) {
+          localChanges.push({ type: 'related_visibility_changed', detail: `Related element visibility changed` });
+        }
+        if (Math.abs(pre.height - post.height) > 5) {
+          localChanges.push({ type: 'related_size_changed', detail: `Related element height changed: ${pre.height} -> ${post.height}` });
+        }
+      }
+    }
+  }
+
+  // Check for new global UI elements (menus, dialogs, listboxes)
+  if (changes.elementCountChanged) {
+    try {
+      const newMenus = document.querySelectorAll('[role="menu"], [role="listbox"], [role="dialog"]');
+      if (newMenus.length > 0) {
+        localChanges.push({ type: 'global_ui_element', detail: `Found ${newMenus.length} menu/dialog/listbox elements in DOM` });
+      }
+    } catch (e) {
+      // Ignore DOM query errors during verification
+    }
+  }
+
+  // URL change is a global change
+  if (changes.urlChanged) {
+    localChanges.push({ type: 'url_changed', detail: `URL changed: ${preState.url} -> ${postState.url}` });
+  }
+
+  // Build whatChanged summary
+  if (localChanges.length > 0) {
+    const types = localChanges.map(c => c.type);
+    if (types.includes('url_changed')) whatChanged = 'Navigation occurred';
+    else if (types.includes('aria_expanded_changed')) whatChanged = 'Dropdown/section expanded or collapsed';
+    else if (types.includes('global_ui_element')) whatChanged = 'Menu or dialog opened';
+    else if (types.includes('related_appeared') || types.includes('related_visibility_changed')) whatChanged = 'Related element appeared or changed visibility';
+    else if (types.includes('text_changed')) whatChanged = 'Text content updated';
+    else if (types.includes('data_state_changed')) whatChanged = 'Element state changed';
+    else whatChanged = localChanges.map(c => c.detail).join('; ');
+  }
+
+  // --- End localized change detection ---
+
+  // Determine confidence level based on expectations and local changes
+  function computeConfidence(requiredMet, anyOfMet) {
+    const hasLocal = localChanges.length > 0;
+    if (requiredMet !== false && anyOfMet && hasLocal) return 'high';
+    if (anyOfMet && !hasLocal) return 'medium';
+    if (!anyOfMet && hasLocal) return 'medium';
+    return 'low';
+  }
+
   // If no expectations defined for this action type, assume verified
   if (!expectations) {
+    const confidence = localChanges.length > 0 ? 'medium' : 'low';
     return {
       verified: true,
       reason: 'No expectations defined for action type',
       changes,
+      localChanges,
+      confidence,
+      whatChanged,
       details: { actionType, expectationsDefined: false }
     };
   }
@@ -416,6 +499,9 @@ function verifyActionEffect(preState, postState, actionType) {
     verified: false,
     reason: '',
     changes,
+    localChanges,
+    confidence: 'low',
+    whatChanged,
     details: {
       actionType,
       expectations,
@@ -432,6 +518,7 @@ function verifyActionEffect(preState, postState, actionType) {
     if (!requiredMet) {
       const missingRequired = expectations.required.filter(change => !changes[change]);
       result.reason = `Required changes not detected: ${missingRequired.join(', ')}`;
+      result.confidence = computeConfidence(false, false);
       return result;
     }
   }
@@ -446,10 +533,12 @@ function verifyActionEffect(preState, postState, actionType) {
       if (expectations.optional) {
         result.verified = true;
         result.reason = 'Optional action - no detectable effect (may be normal)';
+        result.confidence = computeConfidence(result.details.requiredMet, false);
         return result;
       }
 
       result.reason = `No expected effects detected. Expected one of: ${expectations.anyOf.join(', ')}`;
+      result.confidence = computeConfidence(result.details.requiredMet, false);
       return result;
     }
   }
@@ -460,9 +549,101 @@ function verifyActionEffect(preState, postState, actionType) {
     .filter(([key, value]) => value === true)
     .map(([key]) => key);
   result.reason = `Action verified: ${detectedChanges.join(', ')}`;
+  result.confidence = computeConfidence(result.details.requiredMet, true);
 
   return result;
 }
+
+/**
+ * 8-point diagnostic check for element failures.
+ * When a click/type/select action fails, this runs a comprehensive check
+ * to determine WHY and provide actionable suggestions to the AI.
+ * @param {string} selector - The selector that was used
+ * @param {Element|null} element - The element (if found but action failed), or null if not found
+ * @returns {Object} Diagnostic result with checks array, summary, and suggestions
+ */
+function diagnoseElementFailure(selector, element = null) {
+  const diagnostic = {
+    selector,
+    checks: [],
+    summary: '',
+    suggestions: []
+  };
+
+  // If element was found but action failed, diagnose the element
+  if (element) {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+
+    // 1. Visible?
+    const isVisible = rect.width > 0 && rect.height > 0 &&
+      style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    diagnostic.checks.push({ check: 'visible', passed: isVisible, detail: isVisible ? 'Element visible' : `Hidden: display=${style.display}, visibility=${style.visibility}, opacity=${style.opacity}, size=${rect.width}x${rect.height}` });
+
+    // 2. Disabled?
+    const isDisabled = element.disabled || element.getAttribute('aria-disabled') === 'true';
+    diagnostic.checks.push({ check: 'enabled', passed: !isDisabled, detail: isDisabled ? 'Element is disabled' : 'Element enabled' });
+
+    // 3. Covered by overlay/modal?
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const topEl = document.elementFromPoint(centerX, centerY);
+    const isCovered = topEl && topEl !== element && !element.contains(topEl) && !topEl.contains(element);
+    diagnostic.checks.push({ check: 'not_covered', passed: !isCovered, detail: isCovered ? `Covered by ${topEl.tagName}.${topEl.className?.split?.(' ')?.[0] || ''}` : 'Not covered' });
+
+    // 4. Needs scroll into view?
+    const inViewport = rect.top >= 0 && rect.bottom <= window.innerHeight && rect.left >= 0 && rect.right <= window.innerWidth;
+    diagnostic.checks.push({ check: 'in_viewport', passed: inViewport, detail: inViewport ? 'In viewport' : `Out of viewport: top=${Math.round(rect.top)}, bottom=${Math.round(rect.bottom)}` });
+
+    // 5. pointer-events: none?
+    const pointerNone = style.pointerEvents === 'none';
+    diagnostic.checks.push({ check: 'pointer_events', passed: !pointerNone, detail: pointerNone ? 'pointer-events: none' : 'Pointer events enabled' });
+
+    // 6. Inside collapsed details/accordion?
+    let collapsed = false;
+    let parent = element.parentElement;
+    while (parent) {
+      if (parent.tagName === 'DETAILS' && !parent.open) { collapsed = true; break; }
+      if (parent.getAttribute('aria-expanded') === 'false' && parent.getAttribute('aria-hidden') === 'true') { collapsed = true; break; }
+      parent = parent.parentElement;
+    }
+    diagnostic.checks.push({ check: 'not_collapsed', passed: !collapsed, detail: collapsed ? 'Inside collapsed container' : 'Not collapsed' });
+
+    // 7. Requires hover to become clickable?
+    const needsHover = style.visibility === 'hidden' && element.closest('[class*="hover"]') !== null;
+    diagnostic.checks.push({ check: 'no_hover_needed', passed: !needsHover, detail: needsHover ? 'May need hover to reveal' : 'No hover dependency detected' });
+
+    // 8. Element still in DOM?
+    const inDOM = document.contains(element);
+    diagnostic.checks.push({ check: 'in_dom', passed: inDOM, detail: inDOM ? 'In DOM' : 'REMOVED from DOM since snapshot' });
+
+    // Build summary and suggestions
+    const failures = diagnostic.checks.filter(c => !c.passed);
+    if (failures.length === 0) {
+      diagnostic.summary = 'All checks passed -- element appears interactable';
+    } else {
+      diagnostic.summary = `Failed: ${failures.map(f => f.check).join(', ')}`;
+      for (const f of failures) {
+        if (f.check === 'not_covered') diagnostic.suggestions.push('Try dismissing the overlay or modal first, then retry');
+        if (f.check === 'in_viewport') diagnostic.suggestions.push('Scroll the element into view first');
+        if (f.check === 'enabled') diagnostic.suggestions.push('Element is disabled -- wait for it to become enabled or look for an alternative');
+        if (f.check === 'visible') diagnostic.suggestions.push('Element is hidden -- it may appear after a user action like clicking a menu or hovering');
+        if (f.check === 'pointer_events') diagnostic.suggestions.push('Element has pointer-events:none -- try clicking its parent or a nearby interactive element');
+        if (f.check === 'not_collapsed') diagnostic.suggestions.push('Expand the collapsed section first, then retry');
+        if (f.check === 'no_hover_needed') diagnostic.suggestions.push('Try hovering over the parent element first to reveal this element');
+        if (f.check === 'in_dom') diagnostic.suggestions.push('Element was removed -- page may have updated. Re-read the page and find the new element');
+      }
+    }
+  } else {
+    // Element not found at all
+    diagnostic.checks.push({ check: 'exists', passed: false, detail: `No element found for selector: ${selector}` });
+    diagnostic.summary = 'Element not found in DOM';
+    diagnostic.suggestions.push('The element may have been removed or the page changed. Re-read the page content and use updated refs');
+  }
+
+  return diagnostic;
+}
+
 // =============================================================================
 // DIAGNOSTIC MESSAGES AND ACTION RECORDING
 // =============================================================================
@@ -1097,6 +1278,7 @@ const tools = {
       }
 
       // Record failure - element not found, no fallback
+      const clickNotFoundDiagnostic = diagnoseElementFailure(params.selector);
       actionRecorder.record(null, 'click', params, {
         selectorTried,
         selectorUsed: null,
@@ -1106,13 +1288,14 @@ const tools = {
         coordinateSource: null,
         success: false,
         error: 'Element not found and no coordinates available for fallback',
-        diagnostic: generateDiagnostic('elementNotFound', { selector: selectorTried }),
+        diagnostic: clickNotFoundDiagnostic,
         duration: Date.now() - startTime
       });
       return {
         success: false,
         error: 'Element not found and no coordinates available for fallback',
-        selector: params.selector
+        selector: params.selector,
+        diagnostic: clickNotFoundDiagnostic
       };
     }
 
@@ -1372,6 +1555,7 @@ const tools = {
         }
 
         // Record action - click had no effect (all fallbacks exhausted)
+        const clickNoEffectDiagnostic = diagnoseElementFailure(selectorTried, element);
         actionRecorder.record(null, 'click', params, {
           selectorTried,
           selectorUsed: selectorTried,
@@ -1388,7 +1572,7 @@ const tools = {
             changes: verification.changes,
             reason: verification.reason
           },
-          diagnostic: generateDiagnostic('noEffect', { action: 'click', changes: verification.changes }),
+          diagnostic: clickNoEffectDiagnostic,
           duration: Date.now() - startTime
         });
         return {
@@ -1401,14 +1585,18 @@ const tools = {
             postState,
             verified: verification.verified,
             changes: verification.changes,
-            reason: verification.reason
+            reason: verification.reason,
+            localChanges: verification.localChanges,
+            confidence: verification.confidence,
+            whatChanged: verification.whatChanged
           },
+          diagnostic: clickNoEffectDiagnostic,
           elementInfo: {
             tag: element.tagName,
             text: element.textContent?.trim().substring(0, 50),
             wasScrolledIntoView: wasScrolled
           },
-          suggestion: 'Element may not be interactive or may require different interaction method'
+          suggestion: clickNoEffectDiagnostic.suggestions[0] || 'Element may not be interactive or may require different interaction method'
         };
       }
 
@@ -1436,6 +1624,9 @@ const tools = {
         hadEffect: true,
         scrolled: wasScrolled,
         verification: {
+          localChanges: verification.localChanges,
+          confidence: verification.confidence,
+          whatChanged: verification.whatChanged,
           preState,
           postState,
           verified: verification.verified,
@@ -2591,6 +2782,7 @@ const tools = {
     }
 
     // Record failure - all selectors exhausted
+    const typeNotFoundDiagnostic = diagnoseElementFailure(params.selector);
     actionRecorder.record(null, 'type', params, {
       selectorTried: params.selector,
       selectorUsed: null,
@@ -2601,7 +2793,7 @@ const tools = {
       success: false,
       error: lastAttemptError || 'Type action had no effect with any available selector',
       hadEffect: false,
-      diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector, tried: selectors }),
+      diagnostic: typeNotFoundDiagnostic,
       duration: Date.now() - startTime
     });
 
@@ -2611,7 +2803,8 @@ const tools = {
       hadEffect: false,
       selectorsTriad: selectors.length,
       lastVerification: lastVerification,
-      suggestion: 'Input may be readonly, disabled, or requires focus first',
+      diagnostic: typeNotFoundDiagnostic,
+      suggestion: typeNotFoundDiagnostic.suggestions[0] || 'Input may be readonly, disabled, or requires focus first',
       isAmazonPage: window.location.hostname.includes('amazon'),
       currentUrl: window.location.href,
       timestamp: Date.now()
@@ -2710,6 +2903,7 @@ const tools = {
       }
     }
 
+    const enterNotFoundDiagnostic = diagnoseElementFailure(params.selector);
     actionRecorder.record(null, 'pressEnter', params, {
       selectorTried: params.selector,
       selectorUsed: null,
@@ -2720,7 +2914,7 @@ const tools = {
       success: false,
       error: lastAttemptError || 'Enter key had no effect with any available selector',
       hadEffect: false,
-      diagnostic: generateDiagnostic('elementNotFound', { selector: params.selector, tried: selectors }),
+      diagnostic: enterNotFoundDiagnostic,
       duration: Date.now() - startTime
     });
 
@@ -2730,7 +2924,8 @@ const tools = {
       hadEffect: false,
       selectorsTriad: selectors.length,
       lastVerification: lastVerification,
-      suggestion: 'Form may have validation errors or require button click instead'
+      diagnostic: enterNotFoundDiagnostic,
+      suggestion: enterNotFoundDiagnostic.suggestions[0] || 'Form may have validation errors or require button click instead'
     };
   },
 
@@ -4498,6 +4693,7 @@ const tools = {
   FSB.verifyActionEffect = verifyActionEffect;
   FSB.DIAGNOSTIC_MESSAGES = DIAGNOSTIC_MESSAGES;
   FSB.generateDiagnostic = generateDiagnostic;
+  FSB.diagnoseElementFailure = diagnoseElementFailure;
   FSB.captureElementDetails = captureElementDetails;
   FSB.ActionRecorder = ActionRecorder;
   FSB.actionRecorder = actionRecorder;
