@@ -46,11 +46,12 @@ Plans:
   3. User can manually paste their hash key as a fallback when camera is unavailable
   4. Dashboard shows paired status with the ability to unpair, and sessions expire after a configurable timeout requiring re-pairing
   5. Public landing page at the root URL explains FSB capabilities, and the dashboard works on mobile browsers
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 41-01: TBD
-- [ ] 41-02: TBD
+- [ ] 41-01-PLAN.md — Server pairing token infrastructure (DB schema, API routes, root URL fix)
+- [ ] 41-02-PLAN.md — Extension QR code generation with countdown timer in control panel
+- [ ] 41-03-PLAN.md — Dashboard QR scanning, session management, landing page CTA
 
 ### Phase 42: Remote Task Control
 **Goal**: Users can create and monitor automation tasks from the dashboard while watching FSB execute them in real time
@@ -105,8 +106,8 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 40. WebSocket Infrastructure | 3/3 | Complete   | 2026-03-17 |
-| 41. QR Pairing & Showcase Site | 0/? | Not started | - |
+| 40. WebSocket Infrastructure | 3/3 | Complete    | 2026-03-17 |
+| 41. QR Pairing & Showcase Site | 0/3 | Not started | - |
 | 42. Remote Task Control | 0/? | Not started | - |
 | 43. Agent Dashboard | 0/? | Not started | - |
 | 44. DOM Cloning Stream | 0/? | Not started | - |

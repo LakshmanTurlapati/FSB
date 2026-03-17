@@ -90,6 +90,29 @@ class Queries {
       FROM agent_runs
       WHERE hash_key = ? AND completed_at >= datetime('now', '-1 day')
     `);
+
+    // Pairing tokens
+    this.insertPairingToken = this.db.prepare(
+      'INSERT INTO pairing_tokens (token, hash_key, expires_at) VALUES (?, ?, ?)'
+    );
+    this.selectPairingToken = this.db.prepare(
+      'SELECT * FROM pairing_tokens WHERE token = ?'
+    );
+    this.markTokenUsed = this.db.prepare(
+      'UPDATE pairing_tokens SET used = 1, session_token = ?, session_expires_at = ? WHERE token = ?'
+    );
+    this.invalidateTokensByHashKey = this.db.prepare(
+      'UPDATE pairing_tokens SET used = 1 WHERE hash_key = ? AND used = 0'
+    );
+    this.selectSessionByToken = this.db.prepare(
+      'SELECT * FROM pairing_tokens WHERE session_token = ? AND used = 1'
+    );
+    this.cleanExpiredTokens = this.db.prepare(
+      "DELETE FROM pairing_tokens WHERE expires_at < datetime('now') AND used = 0"
+    );
+    this.deleteSessionByToken = this.db.prepare(
+      'DELETE FROM pairing_tokens WHERE session_token = ?'
+    );
   }
 
   // Hash key operations
@@ -147,6 +170,35 @@ class Queries {
 
   listRecentRuns(hashKey, limit = 50) {
     return this.getRecentRuns.all(hashKey, limit);
+  }
+
+  // Pairing token operations
+  createPairingToken(token, hashKey, expiresAt) {
+    return this.insertPairingToken.run(token, hashKey, expiresAt);
+  }
+
+  getPairingToken(token) {
+    return this.selectPairingToken.get(token) || null;
+  }
+
+  consumePairingToken(token, sessionToken, sessionExpiresAt) {
+    return this.markTokenUsed.run(sessionToken, sessionExpiresAt, token);
+  }
+
+  invalidatePairingTokens(hashKey) {
+    return this.invalidateTokensByHashKey.run(hashKey);
+  }
+
+  getSessionByToken(sessionToken) {
+    return this.selectSessionByToken.get(sessionToken) || null;
+  }
+
+  cleanExpiredPairingTokens() {
+    return this.cleanExpiredTokens.run();
+  }
+
+  revokeSession(sessionToken) {
+    return this.deleteSessionByToken.run(sessionToken);
   }
 
   // Stats

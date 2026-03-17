@@ -54,6 +54,21 @@ function initializeDatabase(db) {
     CREATE INDEX IF NOT EXISTS idx_agent_runs_hash_key ON agent_runs(hash_key);
     CREATE INDEX IF NOT EXISTS idx_agent_runs_agent_id ON agent_runs(agent_id);
     CREATE INDEX IF NOT EXISTS idx_agent_runs_completed_at ON agent_runs(completed_at);
+
+    CREATE TABLE IF NOT EXISTS pairing_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT UNIQUE NOT NULL,
+      hash_key TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0,
+      session_token TEXT,
+      session_expires_at TEXT,
+      FOREIGN KEY (hash_key) REFERENCES hash_keys(hash_key) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_pairing_tokens_token ON pairing_tokens(token);
+    CREATE INDEX IF NOT EXISTS idx_pairing_tokens_hash_key ON pairing_tokens(hash_key);
   `);
 
   // Migration: add replay columns to existing databases
