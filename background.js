@@ -10360,6 +10360,17 @@ async function startAutomationLoop(sessionId) {
 
           // ERR-03: Parallel debug fallback -- fire heuristic + AI debugger concurrently
           if (actionResult.diagnostic) {
+            // UX-01: Signal recovery state to overlay before debug fallback runs
+            sendSessionStatus(session.tabId, {
+              phase: 'recovering',
+              taskName: session.taskName,
+              taskSummary: session.taskSummary,
+              iteration: session.iterationCount,
+              maxIterations: session.maxIterations,
+              statusText: 'Recovering from error...',
+              progressPercent: session._lastProgressPercent,
+              estimatedTimeRemaining: session._lastETA
+            });
             try {
               const debugResult = await parallelDebugFallback(actionResult, session, { currentUrl: session.currentUrl, siteGuide: session.siteGuide }, session.tabId);
               if (debugResult.resolved) {
@@ -10387,6 +10398,16 @@ async function startAutomationLoop(sessionId) {
             } catch (debugErr) {
               automationLogger.debug('Parallel debug fallback error', { sessionId, error: debugErr.message });
             }
+            // UX-01: Restore normal phase display after debug fallback completes
+            sendSessionStatus(session.tabId, {
+              phase: 'acting',
+              taskName: session.taskName,
+              taskSummary: session.taskSummary,
+              iteration: session.iterationCount,
+              maxIterations: session.maxIterations,
+              progressPercent: session._lastProgressPercent,
+              estimatedTimeRemaining: session._lastETA
+            });
           }
 
           // Try alternative actions for critical failures

@@ -317,6 +317,16 @@
         white-space: nowrap;
       }
 
+      .fsb-summary {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 11px;
+        margin-bottom: 6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-style: italic;
+      }
+
       .fsb-step {
         display: flex;
         align-items: center;
@@ -375,6 +385,7 @@
         <span class="fsb-title">FSB Automating</span>
       </div>
       <div class="fsb-task">-</div>
+      <div class="fsb-summary"></div>
       <div class="fsb-step">
         <span class="fsb-step-number">0%</span>
         <span class="fsb-step-text">Initializing...</span>
@@ -409,11 +420,14 @@
      * @param {string} data.stepText - Step description
      * @param {number} data.progress - Progress percentage (0-100)
      */
-    update({ taskName, stepNumber, totalSteps, stepText, progress, eta }) {
+    update({ taskName, taskSummary, stepNumber, totalSteps, stepText, progress, eta }) {
       if (!this.container) return;
 
       if (taskName !== undefined) {
         this.container.querySelector('.fsb-task').textContent = taskName;
+      }
+      if (taskSummary !== undefined) {
+        this.container.querySelector('.fsb-summary').textContent = taskSummary;
       }
       if (progress !== undefined) {
         const clamped = Math.min(100, Math.max(0, progress));
