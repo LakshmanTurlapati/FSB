@@ -2897,6 +2897,7 @@
       useDiffing = false,
       prioritizeViewport = true,
       viewportOnlyMode = true,
+      viewportComplete = false,
       maxElements = 50,
       includeAllAttributes = false,
       includeComputedStyles = false
