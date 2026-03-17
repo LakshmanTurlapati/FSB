@@ -13,7 +13,7 @@ This milestone transforms FSB from a local-only Chrome extension into a remotely
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 40: WebSocket Infrastructure** - Server upgrades from SSE to WebSocket relay with fly.io deployment, extension keepalive, and dashboard connectivity (completed 2026-03-17)
-- [ ] **Phase 41: QR Pairing & Showcase Site** - Secure device pairing via QR code with one-time tokens, plus public landing page and dashboard shell
+- [x] **Phase 41: QR Pairing & Showcase Site** - Secure device pairing via QR code with one-time tokens, plus public landing page and dashboard shell (completed 2026-03-17)
 - [ ] **Phase 42: Remote Task Control** - Create tasks from dashboard and monitor execution with real-time progress, summaries, and completion status
 - [ ] **Phase 43: Agent Dashboard** - View, create, and manage background polling and automation replay agents from the dashboard
 - [ ] **Phase 44: DOM Cloning Stream** - Real-time DOM reconstruction on dashboard via initial snapshot plus incremental MutationObserver diffs
@@ -107,7 +107,7 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 40. WebSocket Infrastructure | 3/3 | Complete    | 2026-03-17 |
-| 41. QR Pairing & Showcase Site | 2/3 | In Progress|  |
+| 41. QR Pairing & Showcase Site | 3/3 | Complete   | 2026-03-17 |
 | 42. Remote Task Control | 0/? | Not started | - |
 | 43. Agent Dashboard | 0/? | Not started | - |
 | 44. DOM Cloning Stream | 0/? | Not started | - |

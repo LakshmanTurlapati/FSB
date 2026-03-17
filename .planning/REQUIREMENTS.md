@@ -21,9 +21,9 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 - [x] **PAIR-01**: Extension generates unique one-time pairing token (not raw hash key) with 60s TTL
 - [x] **PAIR-02**: Extension displays pairing token as QR code in popup/sidepanel
-- [ ] **PAIR-03**: Dashboard scans QR code via device camera to pair with extension
-- [ ] **PAIR-04**: User can manually paste hash key as fallback when camera is unavailable
-- [ ] **PAIR-05**: Dashboard shows paired status and allows unpairing/session revocation
+- [x] **PAIR-03**: Dashboard scans QR code via device camera to pair with extension
+- [x] **PAIR-04**: User can manually paste hash key as fallback when camera is unavailable
+- [x] **PAIR-05**: Dashboard shows paired status and allows unpairing/session revocation
 - [x] **PAIR-06**: Pairing session expires after configurable timeout with re-pair flow
 
 ### Remote Task Control
@@ -52,9 +52,9 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Showcase Site
 
-- [ ] **SITE-01**: Public landing page explains FSB and showcases capabilities
-- [ ] **SITE-02**: Dashboard UI accessible without login (QR pairing is the auth)
-- [ ] **SITE-03**: Responsive design works on mobile browsers
+- [x] **SITE-01**: Public landing page explains FSB and showcases capabilities
+- [x] **SITE-02**: Dashboard UI accessible without login (QR pairing is the auth)
+- [x] **SITE-03**: Responsive design works on mobile browsers
 
 ## Future Requirements
 
@@ -98,9 +98,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SERV-07 | Phase 40 | Complete |
 | PAIR-01 | Phase 41 | Complete |
 | PAIR-02 | Phase 41 | Complete |
-| PAIR-03 | Phase 41 | Pending |
-| PAIR-04 | Phase 41 | Pending |
-| PAIR-05 | Phase 41 | Pending |
+| PAIR-03 | Phase 41 | Complete |
+| PAIR-04 | Phase 41 | Complete |
+| PAIR-05 | Phase 41 | Complete |
 | PAIR-06 | Phase 41 | Complete |
 | TASK-01 | Phase 42 | Pending |
 | TASK-02 | Phase 42 | Pending |
@@ -117,9 +117,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DOM-04 | Phase 44 | Pending |
 | DOM-05 | Phase 44 | Pending |
 | DOM-06 | Phase 44 | Pending |
-| SITE-01 | Phase 41 | Pending |
-| SITE-02 | Phase 41 | Pending |
-| SITE-03 | Phase 41 | Pending |
+| SITE-01 | Phase 41 | Complete |
+| SITE-02 | Phase 41 | Complete |
+| SITE-03 | Phase 41 | Complete |
 
 **Coverage:**
 - v0.9.6 requirements: 31 total
