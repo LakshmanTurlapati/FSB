@@ -1,17 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.5
-milestone_name: Progress Overlay Intelligence
-status: planning
-stopped_at: Roadmap created, ready for phase planning
-last_updated: "2026-03-17"
-last_activity: 2026-03-17 -- Created requirements and roadmap for v0.9.5
+milestone: v0.9
+milestone_name: milestone
+status: unknown
+stopped_at: Completed 36-02-PLAN.md
+last_updated: "2026-03-17T08:32:22.990Z"
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -31,7 +29,7 @@ Milestone v0.9.5 roadmap created. 4 phases (36-39), 17 requirements. Ready for `
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 36 | Debug Feedback Pipeline | Not started |
+| 36 | Debug Feedback Pipeline | Planned (2 plans) |
 | 37 | Smart Progress & ETA | Not started |
 | 38 | Live Action Summaries | Not started |
 | 39 | Overlay UX Polish | Not started |
@@ -41,6 +39,8 @@ Milestone v0.9.5 roadmap created. 4 phases (36-39), 17 requirements. Ready for `
 ### Decisions
 
 Full decision log in PROJECT.md Key Decisions table.
+- [Phase 36]: Used diagnosticSuggestions naming to avoid collision with singular suggestion field
+- [Phase 36]: Retroactive actionHistory patching for async debug results instead of restructuring flow
 
 ### Pending Todos
 
@@ -53,6 +53,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-17
-Stopped at: Roadmap created
+Last session: 2026-03-17T08:32:22.977Z
+Stopped at: Completed 36-02-PLAN.md
 Resume file: None
