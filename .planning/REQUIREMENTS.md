@@ -10,7 +10,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 ### Server Infrastructure
 
 - [x] **SERV-01**: Server upgrades from SSE to WebSocket relay with room-based routing by hashKey
-- [ ] **SERV-02**: Extension service worker maintains WebSocket connection with 20s keepalive ping
+- [x] **SERV-02**: Extension service worker maintains WebSocket connection with 20s keepalive ping
 - [ ] **SERV-03**: Dashboard establishes WebSocket connection and receives real-time events
 - [ ] **SERV-04**: Connection status indicator shows connected/disconnected/reconnecting on dashboard
 - [x] **SERV-05**: Single fly.io app serves dashboard static files + WebSocket relay + REST API
@@ -90,7 +90,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | SERV-01 | Phase 40 | Complete |
-| SERV-02 | Phase 40 | Pending |
+| SERV-02 | Phase 40 | Complete |
 | SERV-03 | Phase 40 | Pending |
 | SERV-04 | Phase 40 | Pending |
 | SERV-05 | Phase 40 | Complete |
