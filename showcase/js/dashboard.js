@@ -1,12 +1,12 @@
 /* =============================================
    FSB Showcase - Dashboard JavaScript
-   Agent monitoring, stats, SSE, run history
+   Agent monitoring, stats, WebSocket, run history
    ============================================= */
 
 (function () {
   'use strict';
 
-  var API_BASE = 'https://fsb-server.fly.dev';
+  var API_BASE = '';
   var STORAGE_KEY = 'fsb_dashboard_key';
   var POLL_INTERVAL = 30000;
 
@@ -18,7 +18,11 @@
   var runsOffset = 0;
   var runsLimit = 20;
   var pollTimer = null;
-  var sseController = null;
+  var ws = null;
+  var wsReconnectDelay = 0;
+  var wsMaxReconnectDelay = 30000;
+  var wsReconnectTimer = null;
+  var extensionOnline = false;
 
   // DOM refs
   var loginSection = document.getElementById('dash-login');
@@ -83,7 +87,7 @@
         localStorage.setItem(STORAGE_KEY, key);
         showDashboard();
         loadData();
-        connectSSE();
+        connectWS();
         startPolling();
       } else {
         showError(result.error || 'Invalid hash key. Check your key and try again.');
@@ -100,7 +104,7 @@
       if (result.valid) {
         showDashboard();
         loadData();
-        connectSSE();
+        connectWS();
         startPolling();
       } else {
         // Stored key is invalid, clear it
@@ -122,7 +126,7 @@
     stats = {};
     selectedAgentId = null;
     stopPolling();
-    disconnectSSE();
+    disconnectWS();
     showLogin();
   }
 
@@ -199,7 +203,8 @@
     setTextById('stat-success-rate', (stats.successRate || 0) + '%');
     setTextById('stat-total-cost', '$' + (stats.totalCost || 0).toFixed(2));
     setTextById('stat-cost-saved', '$' + (stats.totalCostSaved || 0).toFixed(2));
-    agentCountEl.textContent = (stats.totalAgents || 0) + ' agent' + ((stats.totalAgents || 0) !== 1 ? 's' : '');
+    var countText = (stats.totalAgents || 0) + ' agent' + ((stats.totalAgents || 0) !== 1 ? 's' : '');
+    agentCountEl.textContent = countText + (extensionOnline ? '' : ' - extension offline');
   }
 
   function renderAgents() {
@@ -370,89 +375,102 @@
     });
   }
 
-  // --- SSE ---
+  // --- WebSocket ---
 
-  function connectSSE() {
-    disconnectSSE();
-    sseController = new AbortController();
+  function connectWS() {
+    disconnectWS();
+    var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var wsUrl = proto + '//' + location.host + '/ws?key=' +
+      encodeURIComponent(hashKey) + '&role=dashboard';
 
-    fetch(API_BASE + '/api/sse', {
-      headers: { 'X-FSB-Hash-Key': hashKey },
-      signal: sseController.signal
-    }).then(function (response) {
-      if (!response.ok) {
-        setSseStatus(false);
-        return;
-      }
-      setSseStatus(true);
+    ws = new WebSocket(wsUrl);
+    setWsState('reconnecting');
 
-      var reader = response.body.getReader();
-      var decoder = new TextDecoder();
-      var buffer = '';
+    ws.onopen = function () {
+      wsReconnectDelay = 0;
+      setWsState('connected');
+    };
 
-      function read() {
-        reader.read().then(function (result) {
-          if (result.done) {
-            setSseStatus(false);
-            return;
-          }
+    ws.onmessage = function (event) {
+      try {
+        var msg = JSON.parse(event.data);
+        handleWSMessage(msg);
+      } catch (e) { /* ignore parse errors */ }
+    };
 
-          buffer += decoder.decode(result.value, { stream: true });
-          var lines = buffer.split('\n');
-          buffer = lines.pop() || '';
+    ws.onclose = function () {
+      setWsState('disconnected');
+      scheduleWSReconnect();
+    };
 
-          for (var i = 0; i < lines.length; i++) {
-            var line = lines[i];
-            if (line.indexOf('data: ') === 0) {
-              try {
-                var data = JSON.parse(line.slice(6));
-                handleSSEMessage(data);
-              } catch (e) {
-                // ignore parse errors
-              }
-            }
-          }
-
-          read();
-        }).catch(function (err) {
-          if (err.name !== 'AbortError') {
-            setSseStatus(false);
-            // Reconnect after 5 seconds
-            setTimeout(function () {
-              if (hashKey) connectSSE();
-            }, 5000);
-          }
-        });
-      }
-
-      read();
-    }).catch(function (err) {
-      if (err.name !== 'AbortError') {
-        setSseStatus(false);
-      }
-    });
+    ws.onerror = function () {}; // onclose fires after
   }
 
-  function disconnectSSE() {
-    if (sseController) {
-      sseController.abort();
-      sseController = null;
+  function disconnectWS() {
+    if (wsReconnectTimer) {
+      clearTimeout(wsReconnectTimer);
+      wsReconnectTimer = null;
     }
-    setSseStatus(false);
+    if (ws) {
+      ws.onclose = null; // Prevent reconnect on intentional close
+      ws.close();
+      ws = null;
+    }
+    setWsState('disconnected');
   }
 
-  function setSseStatus(connected) {
+  function scheduleWSReconnect() {
+    if (!hashKey) return;
+    if (wsReconnectDelay === 0) {
+      wsReconnectDelay = 1000;
+      connectWS();
+      return;
+    }
+    wsReconnectTimer = setTimeout(function () {
+      connectWS();
+    }, wsReconnectDelay);
+    wsReconnectDelay = Math.min(wsReconnectDelay * 2, wsMaxReconnectDelay);
+  }
+
+  function setWsState(state) {
     if (!sseStatusEl) return;
-    sseStatusEl.textContent = connected ? 'live' : 'offline';
-    sseStatusEl.className = 'dash-sse-badge ' + (connected ? 'dash-sse-connected' : 'dash-sse-disconnected');
+    var labels = {
+      connected: 'connected',
+      disconnected: 'disconnected',
+      reconnecting: 'reconnecting...'
+    };
+    sseStatusEl.textContent = labels[state] || state;
+    sseStatusEl.className = 'dash-sse-badge ' +
+      (state === 'connected' ? 'dash-sse-connected' :
+       state === 'reconnecting' ? 'dash-sse-reconnecting' :
+       'dash-sse-disconnected');
   }
 
-  function handleSSEMessage(data) {
-    if (data.type === 'agent_updated' || data.type === 'agent_deleted' || data.type === 'run_completed') {
-      // Refresh all data on any event
+  function handleWSMessage(msg) {
+    if (msg.type === 'pong') return; // Ignore pong responses
+
+    if (msg.type === 'ext:status') {
+      extensionOnline = msg.payload && msg.payload.online;
+      // Update agent count area to show extension status
+      if (agentCountEl) {
+        var countText = (stats.totalAgents || 0) + ' agent' +
+          ((stats.totalAgents || 0) !== 1 ? 's' : '');
+        agentCountEl.textContent = countText +
+          (extensionOnline ? '' : ' - extension offline');
+      }
+      return;
+    }
+
+    if (msg.type === 'ext:snapshot') {
+      extensionOnline = true;
+      loadData(); // Refresh dashboard data on extension reconnect
+      return;
+    }
+
+    // Agent/run events from REST API broadcasts
+    if (msg.type === 'agent_updated' || msg.type === 'agent_deleted' || msg.type === 'run_completed') {
       loadData();
-      // If we're viewing runs for the affected agent, refresh runs too
-      if (data.agentId && data.agentId === selectedAgentId) {
+      if (msg.agentId && msg.agentId === selectedAgentId) {
         fetchRuns(selectedAgentId, runsLimit, runsOffset).then(function (result) {
           renderRuns(result.runs || [], result.total || 0, result.limit || runsLimit, result.offset || 0);
         }).catch(function () {});
