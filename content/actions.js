@@ -1420,6 +1420,30 @@ function checkBinaryState(element, intent) {
   return { shouldAct: true, reason: 'no_aria_state' };
 }
 
+// ============================================================================
+// STABILITY PROFILES -- observation-based waits replacing hardcoded setTimeout
+// Each profile tunes maxWait, stableTime, and networkQuietTime for its use case.
+// ============================================================================
+const STABILITY_PROFILES = {
+  scroll:         { maxWait: 2000, stableTime: 200, networkQuietTime: 150 },
+  click:          { maxWait: 3000, stableTime: 300, networkQuietTime: 200 },
+  type_keystroke: { maxWait:  500, stableTime:  50, networkQuietTime:  50 },
+  type_complete:  { maxWait: 2000, stableTime: 200, networkQuietTime: 150 },
+  select:         { maxWait: 2000, stableTime: 300, networkQuietTime: 200 },
+  light:          { maxWait: 1000, stableTime: 150, networkQuietTime: 100 }
+};
+
+/**
+ * Convenience wrapper for waitForPageStability using named profiles.
+ * @param {string} profile - One of the STABILITY_PROFILES keys (default: 'click')
+ * @param {Object} [overrides] - Optional overrides merged onto the profile options
+ * @returns {Promise<Object>} Stability result from waitForPageStability
+ */
+async function waitForStability(profile = 'click', overrides = {}) {
+  const base = STABILITY_PROFILES[profile] || STABILITY_PROFILES.click;
+  return waitForPageStability({ ...base, ...overrides });
+}
+
 // Tool functions for browser automation
 const tools = {
   // Scroll the page - supports direction ("up"/"down") or raw amount
