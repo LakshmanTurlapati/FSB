@@ -29,11 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Dashboard web page connects to the same server and receives messages sent by the extension in real time
   3. Connection status indicator on the dashboard accurately reflects connected, disconnected, and reconnecting states
   4. Server is deployed on fly.io with auto-TLS, SQLite on a persistent volume, and serves both static files and WebSocket from a single app
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 40-01: TBD
-- [ ] 40-02: TBD
+- [ ] 40-01-PLAN.md — WS relay server core, deployment config, SSE removal, dead code cleanup
+- [ ] 40-02-PLAN.md — Extension WS client with keepalive, reconnection, and badge icon
+- [ ] 40-03-PLAN.md — Dashboard SSE-to-WS rewrite with connection status indicator
 
 ### Phase 41: QR Pairing & Showcase Site
 **Goal**: Users can pair their browser to the dashboard by scanning a QR code, and the dashboard is accessible as a public showcase site
@@ -104,7 +105,7 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 40. WebSocket Infrastructure | 0/? | Not started | - |
+| 40. WebSocket Infrastructure | 0/3 | Planning complete | - |
 | 41. QR Pairing & Showcase Site | 0/? | Not started | - |
 | 42. Remote Task Control | 0/? | Not started | - |
 | 43. Agent Dashboard | 0/? | Not started | - |
