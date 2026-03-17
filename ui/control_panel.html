@@ -698,6 +698,19 @@
                 </div>
               </div>
               <div class="form-group">
+                <button class="control-btn accent" id="btnPairDashboard">
+                  <i class="fas fa-qrcode"></i>
+                  Pair Dashboard
+                </button>
+              </div>
+              <div id="pairingQRContainer" class="pairing-qr-container" style="display: none;">
+                <div id="pairingQRCode" class="pairing-qr-code"></div>
+                <div class="pairing-qr-countdown">
+                  <span id="pairingCountdown">60s</span> remaining
+                </div>
+                <div id="pairingQRMessage" class="pairing-qr-message"></div>
+              </div>
+              <div class="form-group">
                 <button class="control-btn" id="btnTestConnection">
                   <i class="fas fa-plug"></i>
                   Test Connection
@@ -1282,6 +1295,7 @@
   <script src="../site-guides/productivity/airtable.js"></script>
   <!-- Site guides viewer (must be after all guide scripts) -->
   <script src="site-guides-viewer.js"></script>
+  <script src="lib/qrcode-generator.min.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
