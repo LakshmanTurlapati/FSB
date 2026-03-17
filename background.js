@@ -781,14 +781,33 @@ function calculateProgress(session) {
   }
   session._lastProgressPercent = progressPercent;
 
-  // ETA calculation (basic -- enhanced by Task 2)
+  // ETA calculation -- blend iteration average with complexity estimate
   let estimatedTimeRemaining = null;
   if (current > 0 && session.startTime) {
     const elapsed = Date.now() - session.startTime;
     const avgPerIteration = elapsed / current;
-    const remaining = (maxIter - current) * avgPerIteration;
-    if (remaining > 0) {
-      estimatedTimeRemaining = formatETA(remaining);
+    const iterationBasedETA = (maxIter - current) * avgPerIteration;
+
+    let finalETA = iterationBasedETA;
+
+    // Blend with complexity estimate when available
+    const estimate = session._taskEstimate;
+    if (estimate && session._complexityResolved) {
+      const estimateBasedETA = Math.max(0, (estimate.estimatedTimeoutSec * 1000) - elapsed);
+
+      // Weight: early iterations trust estimate more, later iterations trust actual more
+      // At iteration 1: 70% estimate, 30% actual
+      // At iteration maxIter/2: 50/50
+      // At iteration maxIter: 10% estimate, 90% actual
+      const iterationRatio = Math.min(1, current / maxIter);
+      const estimateWeight = Math.max(0.1, 0.7 - (0.6 * iterationRatio));
+      const actualWeight = 1 - estimateWeight;
+
+      finalETA = (estimateBasedETA * estimateWeight) + (iterationBasedETA * actualWeight);
+    }
+
+    if (finalETA > 0) {
+      estimatedTimeRemaining = formatETA(finalETA);
     }
   }
 
