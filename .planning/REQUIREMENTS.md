@@ -35,10 +35,10 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Agent Management
 
-- [ ] **AGNT-01**: Dashboard displays all background agents with status, schedule, and run history
-- [ ] **AGNT-02**: Dashboard shows replay cost savings and success rates per agent
-- [ ] **AGNT-03**: User can create new background polling agents from dashboard
-- [ ] **AGNT-04**: User can create new automation replay agents from dashboard
+- [x] **AGNT-01**: Dashboard displays all background agents with status, schedule, and run history
+- [x] **AGNT-02**: Dashboard shows replay cost savings and success rates per agent
+- [x] **AGNT-03**: User can create new background polling agents from dashboard
+- [x] **AGNT-04**: User can create new automation replay agents from dashboard
 - [x] **AGNT-05**: User can start/stop/delete agents from dashboard
 
 ### DOM Cloning Stream
@@ -123,10 +123,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TASK-02 | Phase 42 | Complete |
 | TASK-03 | Phase 42 | Complete |
 | TASK-04 | Phase 42 | Complete |
-| AGNT-01 | Phase 43 | Pending |
-| AGNT-02 | Phase 43 | Pending |
-| AGNT-03 | Phase 43 | Pending |
-| AGNT-04 | Phase 43 | Pending |
+| AGNT-01 | Phase 43 | Complete |
+| AGNT-02 | Phase 43 | Complete |
+| AGNT-03 | Phase 43 | Complete |
+| AGNT-04 | Phase 43 | Complete |
 | AGNT-05 | Phase 43 | Complete |
 | DOM-01 | Phase 44 | Pending |
 | DOM-02 | Phase 44 | Pending |
