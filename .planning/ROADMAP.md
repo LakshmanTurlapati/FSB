@@ -94,11 +94,12 @@ Plans:
   3. Images and resources in the cloned view load directly from the original CDN URLs (no server proxying)
   4. FSB's orange glow highlighting and progress overlay are visible in the cloned DOM view on the dashboard
   5. DOM streaming activates only when the dashboard is actively viewing -- zero performance overhead on the extension otherwise
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 44-01: TBD
-- [ ] 44-02: TBD
+- [ ] 44-01-PLAN.md — Extension DOM serializer, MutationObserver streamer, WS message routing
+- [ ] 44-02-PLAN.md — Dashboard iframe renderer, mutation applier, overlay indicators, preview state machine
+- [ ] 44-03-PLAN.md — Edge case hardening and end-to-end verification checkpoint
 
 ### Phase 45: MCP Server Interface
 **Goal**: Any MCP-compatible AI agent can connect to FSB and use its full browser automation capabilities via a local TypeScript MCP server communicating with the extension through Chrome Native Messaging
@@ -130,6 +131,6 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44 -> 45
 | 40. WebSocket Infrastructure | 3/3 | Complete    | 2026-03-17 |
 | 41. QR Pairing & Showcase Site | 3/3 | Complete    | 2026-03-17 |
 | 42. Remote Task Control | 2/2 | Complete    | 2026-03-18 |
-| 43. Agent Dashboard | 2/2 | Complete   | 2026-03-18 |
-| 44. DOM Cloning Stream | 0/? | Not started | - |
+| 43. Agent Dashboard | 2/2 | Complete    | 2026-03-18 |
+| 44. DOM Cloning Stream | 0/3 | Not started | - |
 | 45. MCP Server Interface | 4/4 | Complete    | 2026-03-18 |
