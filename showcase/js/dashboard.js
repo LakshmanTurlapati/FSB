@@ -126,11 +126,8 @@
   // Task control listeners
   function setupTaskInput(inputEl, submitEl) {
     if (inputEl) {
-      inputEl.addEventListener('input', function () {
-        if (submitEl) submitEl.disabled = !inputEl.value.trim() || !extensionOnline || taskState === 'running';
-      });
       inputEl.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' && inputEl.value.trim() && !submitEl.disabled) {
+        if (e.key === 'Enter' && inputEl.value.trim()) {
           submitTask(inputEl.value.trim());
         }
       });
@@ -192,7 +189,7 @@
       case 'idle':
         if (taskInputRow) taskInputRow.style.display = 'flex';
         if (taskInput) { taskInput.value = ''; taskInput.disabled = false; }
-        if (taskSubmitBtn) taskSubmitBtn.disabled = true;
+        if (taskSubmitBtn) taskSubmitBtn.disabled = false;
         // Reset progress bar
         if (taskBarFill) { taskBarFill.style.width = '0%'; taskBarFill.className = 'dash-task-bar-fill'; }
         break;
@@ -234,7 +231,6 @@
         // Show next-task input
         disableAllTaskInputs(false);
         if (taskInputNext) { taskInputNext.value = ''; }
-        if (taskSubmitNext) taskSubmitNext.disabled = true;
         break;
 
       case 'failed':
@@ -345,18 +341,12 @@
       taskArea.classList.add('dash-task-offline');
       if (taskState === 'idle' && taskInput) {
         taskInput.placeholder = 'Extension offline...';
-        taskInput.disabled = true;
       }
-      if (taskSubmitBtn) taskSubmitBtn.disabled = true;
     } else {
       taskArea.classList.remove('dash-task-offline');
       if (taskState === 'idle' && taskInput) {
         taskInput.placeholder = 'What should FSB do?';
         taskInput.disabled = false;
-      }
-      // Re-enable submit button if input has text
-      if (taskSubmitBtn && taskState === 'idle' && taskInput && taskInput.value.trim()) {
-        taskSubmitBtn.disabled = false;
       }
     }
   }
