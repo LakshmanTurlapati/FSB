@@ -192,6 +192,18 @@ class FSBWebSocket {
       case 'dash:agent-run-now':
         this._handleAgentRunNow(msg.payload);
         break;
+      case 'dash:dom-stream-start':
+        this._forwardToContentScript('domStreamStart', msg.payload);
+        break;
+      case 'dash:dom-stream-stop':
+        this._forwardToContentScript('domStreamStop', msg.payload);
+        break;
+      case 'dash:dom-stream-pause':
+        this._forwardToContentScript('domStreamPause', msg.payload);
+        break;
+      case 'dash:dom-stream-resume':
+        this._forwardToContentScript('domStreamResume', msg.payload);
+        break;
       default:
         console.log('[FSB WS] Received: ' + msg.type);
         break;
@@ -259,6 +271,25 @@ class FSBWebSocket {
       startAgentRunNow(agentId);
     } else {
       this.send('ext:agent-run-complete', { agentId: agentId, success: false, error: 'Agent execution not available' });
+    }
+  }
+
+  /**
+   * Forward a message to the content script on the active tab.
+   * Used for dashboard-to-content-script communication (DOM stream control).
+   * @param {string} action - Content script action name
+   * @param {Object} payload - Additional payload data
+   */
+  async _forwardToContentScript(action, payload) {
+    try {
+      var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      var tab = tabs[0];
+      if (tab && tab.id) {
+        chrome.tabs.sendMessage(tab.id, { action: action, ...payload }, { frameId: 0 })
+          .catch(function() {}); // Ignore if content script not ready
+      }
+    } catch (e) {
+      console.warn('[FSB WS] Failed to forward to content script:', action, e.message);
     }
   }
 

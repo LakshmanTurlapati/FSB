@@ -193,6 +193,7 @@ const CONTENT_SCRIPT_FILES = [
   'content/accessibility.js',
   'content/actions.js',
   'content/dom-analysis.js',
+  'content/dom-stream.js',
   'content/messaging.js',
   'content/lifecycle.js'
 ];
@@ -648,6 +649,7 @@ async function sendSessionStatus(tabId, statusData) {
 // --- Dashboard progress broadcasting helpers ---
 
 var _lastDashboardBroadcast = 0; // Throttle: max 1 WS broadcast per second
+var _dashboardTaskTabId = null; // Tab ID for active dashboard task (used for DOM stream stop)
 
 /**
  * Broadcast task progress to the dashboard via WebSocket.
@@ -681,6 +683,12 @@ function broadcastDashboardProgress(session) {
 
   // Forward progress to MCP server for autopilot tasks
   broadcastMCPProgress(session);
+
+  // Request overlay state from content script for DOM stream viewers
+  try {
+    chrome.tabs.sendMessage(session.tabId, { action: 'domStreamRequestOverlay' }, { frameId: 0 })
+      .catch(function() {}); // Ignore if content script not ready
+  } catch (e) { /* ignore */ }
 }
 
 /**
@@ -700,6 +708,15 @@ function broadcastDashboardComplete(result) {
       error: result.error || 'Task failed',
       elapsed: result.duration || 0
     });
+  }
+
+  // Stop DOM streaming when task completes
+  if (_dashboardTaskTabId) {
+    try {
+      chrome.tabs.sendMessage(_dashboardTaskTabId, { action: 'domStreamStop' }, { frameId: 0 })
+        .catch(function() {});
+    } catch (e) { /* ignore */ }
+    _dashboardTaskTabId = null;
   }
 }
 
@@ -5520,6 +5537,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })();
       return true;
 
+    // --- DOM Stream forwarding: content script -> dashboard via WS ---
+    case 'domStreamSnapshot':
+      fsbWebSocket.send('ext:dom-snapshot', request.snapshot);
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamMutations':
+      fsbWebSocket.send('ext:dom-mutations', { mutations: request.mutations });
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamScroll':
+      fsbWebSocket.send('ext:dom-scroll', { scrollX: request.scrollX, scrollY: request.scrollY });
+      sendResponse({ success: true });
+      break;
+
+    case 'domStreamOverlay':
+      fsbWebSocket.send('ext:dom-overlay', { glow: request.glow, progress: request.progress });
+      sendResponse({ success: true });
+      break;
+
     default:
       sendResponse({ error: 'Unknown action' });
   }
@@ -6212,6 +6250,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
  * @param {string} task - Task description from the dashboard
  */
 async function startDashboardTask(tabId, task) {
+  _dashboardTaskTabId = tabId;
   try {
     var result = await executeAutomationTask(tabId, task, {
       maxIterations: 20,
