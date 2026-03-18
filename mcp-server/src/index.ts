@@ -3,14 +3,26 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createServer } from './server.js';
 import { NativeMessagingBridge } from './bridge.js';
+import { TaskQueue } from './queue.js';
+import { registerAutopilotTools } from './tools/autopilot.js';
+import { registerManualTools } from './tools/manual.js';
+import { registerReadOnlyTools } from './tools/read-only.js';
+import { registerResources } from './resources/index.js';
+import { registerPrompts } from './prompts/index.js';
 
 async function main(): Promise<void> {
   const server = createServer();
   const bridge = new NativeMessagingBridge();
 
-  // TODO: Register tools (Plan 02)
-  // TODO: Register resources (Plan 03)
-  // TODO: Register prompts (Plan 03)
+  // Register all MCP tools
+  const queue = new TaskQueue();
+  registerAutopilotTools(server, bridge, queue);
+  registerManualTools(server, bridge, queue);
+  registerReadOnlyTools(server, bridge, queue);
+
+  // Register resources and prompt templates
+  registerResources(server, bridge);
+  registerPrompts(server);
 
   // Connect MCP stdio transport (AI host <-> MCP server)
   const transport = new StdioServerTransport();
