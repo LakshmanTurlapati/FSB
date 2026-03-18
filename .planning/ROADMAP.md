@@ -97,7 +97,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 44-01-PLAN.md — Extension DOM serializer, MutationObserver streamer, WS message routing
+- [x] 44-01-PLAN.md — Extension DOM serializer, MutationObserver streamer, WS message routing
 - [ ] 44-02-PLAN.md — Dashboard iframe renderer, mutation applier, overlay indicators, preview state machine
 - [ ] 44-03-PLAN.md — Edge case hardening and end-to-end verification checkpoint
 
@@ -132,5 +132,5 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44 -> 45
 | 41. QR Pairing & Showcase Site | 3/3 | Complete    | 2026-03-17 |
 | 42. Remote Task Control | 2/2 | Complete    | 2026-03-18 |
 | 43. Agent Dashboard | 2/2 | Complete    | 2026-03-18 |
-| 44. DOM Cloning Stream | 0/3 | Not started | - |
+| 44. DOM Cloning Stream | 1/3 | In progress | - |
 | 45. MCP Server Interface | 4/4 | Complete    | 2026-03-18 |

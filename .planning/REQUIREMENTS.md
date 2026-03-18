@@ -43,12 +43,12 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### DOM Cloning Stream
 
-- [ ] **DOM-01**: Content script serializes full DOM snapshot on task start (scripts stripped, URLs absolute)
-- [ ] **DOM-02**: MutationObserver captures incremental DOM diffs and streams via WebSocket
+- [x] **DOM-01**: Content script serializes full DOM snapshot on task start (scripts stripped, URLs absolute)
+- [x] **DOM-02**: MutationObserver captures incremental DOM diffs and streams via WebSocket
 - [ ] **DOM-03**: Dashboard reconstructs live page view in sandboxed iframe from snapshot + diffs
 - [ ] **DOM-04**: Images and resources in cloned DOM load directly from original CDN URLs
 - [ ] **DOM-05**: Orange glow highlighting and progress overlay visible in cloned DOM view
-- [ ] **DOM-06**: DOM stream activates only when dashboard is actively viewing (zero overhead otherwise)
+- [x] **DOM-06**: DOM stream activates only when dashboard is actively viewing (zero overhead otherwise)
 
 ### Showcase Site
 
@@ -128,12 +128,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AGNT-03 | Phase 43 | Complete |
 | AGNT-04 | Phase 43 | Complete |
 | AGNT-05 | Phase 43 | Complete |
-| DOM-01 | Phase 44 | Pending |
-| DOM-02 | Phase 44 | Pending |
+| DOM-01 | Phase 44 | Complete |
+| DOM-02 | Phase 44 | Complete |
 | DOM-03 | Phase 44 | Pending |
 | DOM-04 | Phase 44 | Pending |
 | DOM-05 | Phase 44 | Pending |
-| DOM-06 | Phase 44 | Pending |
+| DOM-06 | Phase 44 | Complete |
 | SITE-01 | Phase 41 | Complete |
 | SITE-02 | Phase 41 | Complete |
 | SITE-03 | Phase 41 | Complete |
