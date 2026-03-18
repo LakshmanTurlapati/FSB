@@ -18,6 +18,16 @@ function setupWSHandler(wss) {
       });
     }
 
+    // When dashboard connects, tell it if an extension is already in the room
+    if (role === 'dashboard') {
+      const room = rooms.get(hashKey);
+      if (room && room.extensions.size > 0) {
+        ws.send(JSON.stringify({
+          type: 'ext:status', payload: { online: true }, ts: Date.now()
+        }));
+      }
+    }
+
     ws.on('message', (data) => {
       try {
         const msg = JSON.parse(data);
