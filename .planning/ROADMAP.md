@@ -108,6 +108,16 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44
 |-------|----------------|--------|-----------|
 | 40. WebSocket Infrastructure | 3/3 | Complete    | 2026-03-17 |
 | 41. QR Pairing & Showcase Site | 3/3 | Complete    | 2026-03-17 |
-| 42. Remote Task Control | 0/2 | Not started | - |
+| 42. Remote Task Control | 1/2 | In Progress|  |
 | 43. Agent Dashboard | 0/? | Not started | - |
 | 44. DOM Cloning Stream | 0/? | Not started | - |
+
+### Phase 45: MCP Server Interface
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 44
+**Plans:** 1/2 plans executed
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 45 to break down)

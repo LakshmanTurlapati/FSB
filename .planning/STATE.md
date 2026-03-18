@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
-status: executing
-stopped_at: Completed 41-03-PLAN.md
-last_updated: "2026-03-17T20:28:45.536Z"
-last_activity: 2026-03-17 -- Completed 41-03 Dashboard & Landing
+status: in_progress
+stopped_at: Completed 42-01-PLAN.md
+last_updated: "2026-03-18T01:05:09Z"
+last_activity: 2026-03-17 -- Completed 42-01 Extension Task Handling
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 83
+  total_plans: 8
+  completed_plans: 7
+  percent: 88
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 41 - QR Pairing Showcase Site
+**Current focus:** Phase 42 - Remote Task Control
 
 ## Current Position
 
-Phase: 41 of 44 (QR Pairing Showcase Site)
-Plan: 3 of 3
-Status: Complete
-Last activity: 2026-03-17 -- Completed 41-03 Dashboard & Landing
+Phase: 42 of 44 (Remote Task Control)
+Plan: 1 of 2
+Status: In Progress
+Last activity: 2026-03-17 -- Completed 42-01 Extension Task Handling
 
-Progress: [██████████] 100%
+Progress: [█████████░] 88%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
+- Total plans completed: 7
 - Average duration: 3min
-- Total execution time: 0.27 hours
+- Total execution time: 0.32 hours
 
 **By Phase:**
 
@@ -45,6 +45,7 @@ Progress: [██████████] 100%
 |-------|-------|-------|----------|
 | 40-websocket-infrastructure | 3 | 10min | 3min |
 | 41-qr-pairing-showcase-site | 3 | 6min | 2min |
+| 42-remote-task-control | 1 | 3min | 3min |
 
 ## Accumulated Context
 
@@ -63,10 +64,15 @@ Full decision log in PROJECT.md Key Decisions table.
 - [41-02] Used qrcode-generator v1.4.4 bundled locally for Chrome MV3 CSP compliance
 - [41-02] Used showToast instead of showNotification to match existing codebase pattern
 - [Phase 41-03]: Used html5-qrcode CDN from unpkg for QR scanning in showcase dashboard
+- [42-01] Used executeAutomationTask with isDashboardTask option flag rather than separate session flow
 
 ### Pending Todos
 
 1. Smart multi-tab management with context-aware navigation (area: general) - `.planning/todos/pending/2026-02-14-smart-multi-tab-management.md`
+
+### Roadmap Evolution
+
+- Phase 45 added: MCP Server Interface — expose FSB as an MCP server so AI agents can use browser automation directly
 
 ### Blockers/Concerns
 
@@ -76,6 +82,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-17T20:28:45.523Z
-Stopped at: Completed 41-03-PLAN.md
-Resume file: None
+Last session: 2026-03-18T01:05:09Z
+Stopped at: Completed 42-01-PLAN.md
+Resume file: .planning/phases/42-remote-task-control/42-02-PLAN.md

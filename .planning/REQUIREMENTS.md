@@ -28,10 +28,10 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Remote Task Control
 
-- [ ] **TASK-01**: User can type a task on dashboard and FSB executes it in the user's browser
-- [ ] **TASK-02**: Dashboard shows real-time progress (%, phase, ETA) during task execution
-- [ ] **TASK-03**: Dashboard displays AI-generated action summaries as task executes
-- [ ] **TASK-04**: User can see task completion status and results on dashboard
+- [x] **TASK-01**: User can type a task on dashboard and FSB executes it in the user's browser
+- [x] **TASK-02**: Dashboard shows real-time progress (%, phase, ETA) during task execution
+- [x] **TASK-03**: Dashboard displays AI-generated action summaries as task executes
+- [x] **TASK-04**: User can see task completion status and results on dashboard
 
 ### Agent Management
 
@@ -102,10 +102,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PAIR-04 | Phase 41 | Complete |
 | PAIR-05 | Phase 41 | Complete |
 | PAIR-06 | Phase 41 | Complete |
-| TASK-01 | Phase 42 | Pending |
-| TASK-02 | Phase 42 | Pending |
-| TASK-03 | Phase 42 | Pending |
-| TASK-04 | Phase 42 | Pending |
+| TASK-01 | Phase 42 | Complete |
+| TASK-02 | Phase 42 | Complete |
+| TASK-03 | Phase 42 | Complete |
+| TASK-04 | Phase 42 | Complete |
 | AGNT-01 | Phase 43 | Pending |
 | AGNT-02 | Phase 43 | Pending |
 | AGNT-03 | Phase 43 | Pending |
