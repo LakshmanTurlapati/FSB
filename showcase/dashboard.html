@@ -195,6 +195,26 @@
         </div>
       </div>
 
+      <!-- Live DOM Preview -->
+      <div id="dash-preview" class="dash-preview" style="display: none;">
+        <div class="dash-preview-status" id="dash-preview-status"></div>
+        <div class="dash-preview-loading" id="dash-preview-loading">
+          <div class="dash-spinner"></div>
+          <span>Connecting to browser...</span>
+        </div>
+        <iframe id="dash-preview-iframe" class="dash-preview-iframe" sandbox="allow-same-origin" title="Live page preview"></iframe>
+        <div id="dash-preview-glow" class="dash-preview-glow" style="display: none;"></div>
+        <div id="dash-preview-progress" class="dash-preview-progress" style="display: none;"></div>
+        <div id="dash-preview-disconnected" class="dash-preview-disconnected" style="display: none;">
+          <span>Stream disconnected</span>
+        </div>
+        <div id="dash-preview-error" class="dash-preview-error" style="display: none;">
+          <i class="fa-solid fa-exclamation-triangle"></i>
+          <p>Could not load page preview</p>
+          <span>The extension may have navigated to a restricted page</span>
+        </div>
+      </div>
+
       <!-- Stats Bar -->
       <div class="dash-stats-bar">
         <div class="dash-stat-card">
