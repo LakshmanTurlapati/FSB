@@ -29,6 +29,12 @@
   var wsReconnectTimer = null;
   var extensionOnline = false;
 
+  // Task control state
+  var taskState = 'idle'; // 'idle' | 'running' | 'success' | 'failed'
+  var taskText = '';
+  var taskStartTime = 0;
+  var taskElapsedTimer = null;
+
   // DOM refs
   var loginSection = document.getElementById('dash-login');
   var contentSection = document.getElementById('dash-content');
@@ -51,6 +57,31 @@
   var scanError = document.getElementById('dash-scan-error');
   var loginMessage = document.getElementById('dash-login-message');
   var pairedBadge = document.getElementById('dash-paired-badge');
+
+  // Task control DOM refs
+  var taskArea = document.getElementById('dash-task-area');
+  var taskInput = document.getElementById('dash-task-input');
+  var taskSubmitBtn = document.getElementById('dash-task-submit');
+  var taskInputRow = document.getElementById('dash-task-input-row');
+  var taskProgressView = document.getElementById('dash-task-progress');
+  var taskTitle = document.getElementById('dash-task-title');
+  var taskBarFill = document.getElementById('dash-task-bar-fill');
+  var taskPercent = document.getElementById('dash-task-percent');
+  var taskPhase = document.getElementById('dash-task-phase');
+  var taskEta = document.getElementById('dash-task-eta');
+  var taskElapsed = document.getElementById('dash-task-elapsed');
+  var taskAction = document.getElementById('dash-task-action');
+  var taskSuccessView = document.getElementById('dash-task-success');
+  var taskSuccessStatus = document.getElementById('dash-task-success-status');
+  var taskResultText = document.getElementById('dash-task-result-text');
+  var taskInputNext = document.getElementById('dash-task-input-next');
+  var taskSubmitNext = document.getElementById('dash-task-submit-next');
+  var taskFailedView = document.getElementById('dash-task-failed');
+  var taskFailedStatus = document.getElementById('dash-task-failed-status');
+  var taskErrorText = document.getElementById('dash-task-error-text');
+  var taskRetryBtn = document.getElementById('dash-task-retry');
+  var taskInputRetry = document.getElementById('dash-task-input-retry');
+  var taskSubmitRetry = document.getElementById('dash-task-submit-retry');
 
   // --- Init ---
   if (sessionToken && sessionExpiresAt) {
@@ -90,6 +121,240 @@
 
   if (runsClose) {
     runsClose.addEventListener('click', closeRunsPanel);
+  }
+
+  // Task control listeners
+  function setupTaskInput(inputEl, submitEl) {
+    if (inputEl) {
+      inputEl.addEventListener('input', function () {
+        if (submitEl) submitEl.disabled = !inputEl.value.trim() || !extensionOnline || taskState === 'running';
+      });
+      inputEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && inputEl.value.trim() && !submitEl.disabled) {
+          submitTask(inputEl.value.trim());
+        }
+      });
+    }
+    if (submitEl) {
+      submitEl.addEventListener('click', function () {
+        var text = inputEl ? inputEl.value.trim() : '';
+        if (text) submitTask(text);
+      });
+    }
+  }
+
+  setupTaskInput(taskInput, taskSubmitBtn);
+  setupTaskInput(taskInputNext, taskSubmitNext);
+  setupTaskInput(taskInputRetry, taskSubmitRetry);
+
+  if (taskRetryBtn) {
+    taskRetryBtn.addEventListener('click', function () {
+      if (taskText) submitTask(taskText);
+    });
+  }
+
+  // --- Task Control ---
+
+  function submitTask(text) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!extensionOnline) return;
+    if (taskState === 'running') return;
+
+    taskText = text;
+    taskStartTime = Date.now();
+
+    ws.send(JSON.stringify({
+      type: 'dash:task-submit',
+      payload: { task: text },
+      ts: Date.now()
+    }));
+
+    setTaskState('running', { task: text });
+  }
+
+  function setTaskState(newState, data) {
+    taskState = newState;
+    data = data || {};
+
+    // Clear elapsed timer
+    if (taskElapsedTimer) {
+      clearInterval(taskElapsedTimer);
+      taskElapsedTimer = null;
+    }
+
+    // Hide all sub-views
+    if (taskInputRow) taskInputRow.style.display = 'none';
+    if (taskProgressView) taskProgressView.style.display = 'none';
+    if (taskSuccessView) taskSuccessView.style.display = 'none';
+    if (taskFailedView) taskFailedView.style.display = 'none';
+
+    switch (newState) {
+      case 'idle':
+        if (taskInputRow) taskInputRow.style.display = 'flex';
+        if (taskInput) { taskInput.value = ''; taskInput.disabled = false; }
+        if (taskSubmitBtn) taskSubmitBtn.disabled = true;
+        // Reset progress bar
+        if (taskBarFill) { taskBarFill.style.width = '0%'; taskBarFill.className = 'dash-task-bar-fill'; }
+        break;
+
+      case 'running':
+        if (taskProgressView) taskProgressView.style.display = 'block';
+        if (taskTitle) taskTitle.textContent = data.task || taskText || '';
+        if (taskBarFill) { taskBarFill.style.width = '0%'; taskBarFill.className = 'dash-task-bar-fill'; }
+        if (taskPercent) taskPercent.textContent = '0%';
+        if (taskPhase) taskPhase.textContent = '';
+        if (taskEta) taskEta.textContent = '';
+        if (taskElapsed) taskElapsed.textContent = 'Running for 0s';
+        if (taskAction) { taskAction.textContent = 'Working...'; taskAction.style.display = ''; }
+        // Start elapsed timer
+        taskElapsedTimer = setInterval(function () {
+          if (taskElapsed && taskStartTime) {
+            taskElapsed.textContent = 'Running for ' + formatDuration(Date.now() - taskStartTime);
+          }
+        }, 1000);
+        // Disable all task inputs during run
+        disableAllTaskInputs(true);
+        break;
+
+      case 'success':
+        if (taskProgressView) taskProgressView.style.display = 'block';
+        if (taskSuccessView) taskSuccessView.style.display = 'block';
+        // Fill progress bar to 100% green
+        if (taskBarFill) { taskBarFill.style.width = '100%'; taskBarFill.className = 'dash-task-bar-fill dash-task-bar-success'; }
+        if (taskPercent) taskPercent.textContent = '100%';
+        // Hide metadata during success
+        if (taskPhase) taskPhase.textContent = '';
+        if (taskEta) taskEta.textContent = '';
+        if (taskElapsed) taskElapsed.textContent = '';
+        if (taskAction) taskAction.style.display = 'none';
+        // Render success info
+        var elapsed = data.elapsed || (Date.now() - taskStartTime);
+        if (taskSuccessStatus) taskSuccessStatus.innerHTML = '\u2713 Complete \u00b7 Completed in ' + formatDuration(elapsed);
+        if (taskResultText) taskResultText.textContent = data.summary || '';
+        // Show next-task input
+        disableAllTaskInputs(false);
+        if (taskInputNext) { taskInputNext.value = ''; }
+        if (taskSubmitNext) taskSubmitNext.disabled = true;
+        break;
+
+      case 'failed':
+        if (taskProgressView) taskProgressView.style.display = 'block';
+        if (taskFailedView) taskFailedView.style.display = 'block';
+        // Progress bar turns red
+        if (taskBarFill) { taskBarFill.className = 'dash-task-bar-fill dash-task-bar-failed'; }
+        // Hide metadata
+        if (taskPhase) taskPhase.textContent = '';
+        if (taskEta) taskEta.textContent = '';
+        if (taskElapsed) taskElapsed.textContent = '';
+        if (taskAction) taskAction.style.display = 'none';
+        // Render failure info
+        if (taskFailedStatus) taskFailedStatus.innerHTML = '\u2717 Failed';
+        if (taskErrorText) taskErrorText.textContent = data.error || 'Task could not be completed';
+        // Show retry + next-task input
+        disableAllTaskInputs(false);
+        if (taskInputRetry) { taskInputRetry.value = ''; }
+        if (taskSubmitRetry) taskSubmitRetry.disabled = true;
+        break;
+    }
+  }
+
+  function updateTaskProgress(payload) {
+    if (taskState !== 'running') return;
+
+    var progress = payload.progress || 0;
+    if (taskBarFill) {
+      var width = progress > 0 ? Math.max(2, progress) : 0;
+      taskBarFill.style.width = width + '%';
+    }
+    if (taskPercent) taskPercent.textContent = Math.round(progress) + '%';
+
+    // Phase label: map internal names to display labels
+    var phaseLabels = {
+      navigation: 'Navigating',
+      extraction: 'Reading page',
+      writing: 'Filling form',
+      unknown: 'Working'
+    };
+    if (taskPhase && payload.phase) {
+      taskPhase.textContent = phaseLabels[payload.phase] || payload.phase;
+    }
+
+    if (taskEta && payload.eta) {
+      taskEta.textContent = '~' + payload.eta;
+    }
+
+    // Elapsed is handled by the interval timer, but update from server if available
+    if (taskElapsed && payload.elapsed) {
+      taskElapsed.textContent = 'Running for ' + formatDuration(payload.elapsed);
+    }
+
+    if (taskAction && payload.action) {
+      taskAction.style.display = '';
+      taskAction.textContent = payload.action;
+    }
+  }
+
+  function handleTaskComplete(payload) {
+    // Handle immediate rejections (extension busy, no tab, etc.)
+    if (taskState === 'idle' && !payload.success) {
+      // Briefly show the error in the task area without full state transition
+      if (taskAction) {
+        taskAction.style.display = '';
+        taskAction.textContent = payload.error || 'Task could not be started';
+        setTimeout(function () {
+          if (taskState === 'idle' && taskAction) taskAction.style.display = 'none';
+        }, 5000);
+      }
+      return;
+    }
+
+    if (payload.success) {
+      setTaskState('success', {
+        summary: payload.summary || '',
+        elapsed: payload.elapsed || 0
+      });
+    } else {
+      setTaskState('failed', {
+        error: payload.error || 'Task could not be completed',
+        elapsed: payload.elapsed || 0
+      });
+    }
+  }
+
+  function disableAllTaskInputs(disabled) {
+    var inputs = [taskInput, taskInputNext, taskInputRetry];
+    var btns = [taskSubmitBtn, taskSubmitNext, taskSubmitRetry];
+    inputs.forEach(function (el) { if (el) el.disabled = disabled; });
+    btns.forEach(function (el) { if (el) el.disabled = disabled; });
+  }
+
+  function showTaskArea() {
+    if (taskArea) taskArea.style.display = 'block';
+    if (taskState === 'idle') {
+      setTaskState('idle');
+    }
+  }
+
+  function hideTaskArea() {
+    if (taskArea) taskArea.style.display = 'none';
+  }
+
+  function updateTaskOfflineState() {
+    if (!taskArea) return;
+    if (!extensionOnline) {
+      taskArea.classList.add('dash-task-offline');
+      if (taskState === 'idle' && taskInput) {
+        taskInput.placeholder = 'Extension offline...';
+        taskInput.disabled = true;
+      }
+      if (taskSubmitBtn) taskSubmitBtn.disabled = true;
+    } else {
+      taskArea.classList.remove('dash-task-offline');
+      if (taskState === 'idle' && taskInput) {
+        taskInput.placeholder = 'What should FSB do?';
+        taskInput.disabled = false;
+      }
+    }
   }
 
   // --- Auth ---
@@ -178,6 +443,7 @@
       loginSection.classList.remove('fade-out');
       contentSection.style.display = 'block';
       contentSection.classList.add('fade-in');
+      showTaskArea();
     }, 400);
     stopQRScanner();
     if (pairedBadge) pairedBadge.style.display = 'inline-flex';
@@ -189,6 +455,7 @@
     contentSection.classList.remove('fade-in', 'fade-dim');
     loginSection.style.display = '';
     loginSection.classList.remove('fade-out');
+    hideTaskArea();
     if (keyInput) keyInput.value = '';
     if (pairedBadge) pairedBadge.style.display = 'none';
     // Reset to Scan QR tab
@@ -706,8 +973,19 @@
   function handleWSMessage(msg) {
     if (msg.type === 'pong') return; // Ignore pong responses
 
+    if (msg.type === 'ext:task-progress') {
+      updateTaskProgress(msg.payload);
+      return;
+    }
+
+    if (msg.type === 'ext:task-complete') {
+      handleTaskComplete(msg.payload);
+      return;
+    }
+
     if (msg.type === 'ext:status') {
       extensionOnline = msg.payload && msg.payload.online;
+      updateTaskOfflineState();
       // Update agent count area to show extension status
       if (agentCountEl) {
         var countText = (stats.totalAgents || 0) + ' agent' +
@@ -721,6 +999,19 @@
     if (msg.type === 'ext:snapshot') {
       extensionOnline = true;
       loadData(); // Refresh dashboard data on extension reconnect
+      // Restore task state on reconnection
+      if (msg.payload && msg.payload.taskRunning) {
+        taskText = msg.payload.task || '';
+        taskStartTime = Date.now() - (msg.payload.elapsed || 0);
+        setTaskState('running', { task: msg.payload.task });
+        updateTaskProgress({
+          progress: msg.payload.progress || 0,
+          phase: msg.payload.phase || '',
+          elapsed: msg.payload.elapsed || 0,
+          action: 'Reconnected...'
+        });
+      }
+      updateTaskOfflineState();
       return;
     }
 
