@@ -151,10 +151,30 @@ class FSBWebSocket {
    * Send a state snapshot on connect/reconnect for dashboard sync.
    */
   _sendStateSnapshot() {
-    this.send('ext:snapshot', {
+    var snapshotPayload = {
       version: chrome.runtime.getManifest().version,
       timestamp: Date.now()
-    });
+    };
+
+    // Include current dashboard task state for reconnection recovery
+    if (typeof activeSessions !== 'undefined') {
+      var dashSession = null;
+      activeSessions.forEach(function(s) {
+        if (s._isDashboardTask && s.status === 'running') dashSession = s;
+      });
+      if (dashSession) {
+        var progress = typeof calculateProgress === 'function' ? calculateProgress(dashSession) : { progressPercent: 0 };
+        snapshotPayload.taskRunning = true;
+        snapshotPayload.task = dashSession.task;
+        snapshotPayload.progress = progress.progressPercent;
+        snapshotPayload.phase = typeof detectTaskPhase === 'function' ? detectTaskPhase(dashSession) : 'unknown';
+        snapshotPayload.elapsed = Date.now() - dashSession.startTime;
+      } else {
+        snapshotPayload.taskRunning = false;
+      }
+    }
+
+    this.send('ext:snapshot', snapshotPayload);
   }
 
   /**
@@ -166,9 +186,47 @@ class FSBWebSocket {
       case 'pong':
         // Server responded to our ping -- connection is healthy
         break;
+      case 'dash:task-submit':
+        this._handleDashboardTask(msg.payload);
+        break;
       default:
         console.log('[FSB WS] Received: ' + msg.type);
         break;
+    }
+  }
+
+  /**
+   * Handle a task submission from the dashboard.
+   * Validates preconditions (no running session, active tab) then dispatches to background.js.
+   * @param {Object} payload - { task: string }
+   */
+  async _handleDashboardTask(payload) {
+    var task = payload?.task;
+    if (!task) {
+      this.send('ext:task-complete', { success: false, error: 'No task provided', elapsed: 0 });
+      return;
+    }
+
+    // Reject if another session is already running
+    if (typeof activeSessions !== 'undefined') {
+      var hasRunning = [...activeSessions.values()].some(function(s) { return s.status === 'running'; });
+      if (hasRunning) {
+        this.send('ext:task-complete', { success: false, error: 'Another task is already running', elapsed: 0 });
+        return;
+      }
+    }
+
+    // Get the user's active tab to run automation on
+    try {
+      var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      var tab = tabs[0];
+      if (!tab || !tab.id) {
+        this.send('ext:task-complete', { success: false, error: 'No active browser tab', elapsed: 0 });
+        return;
+      }
+      startDashboardTask(tab.id, task);
+    } catch (err) {
+      this.send('ext:task-complete', { success: false, error: err.message, elapsed: 0 });
     }
   }
 

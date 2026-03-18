@@ -6003,7 +6003,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
  * @returns {Promise<Object>} { success, sessionId, result, error, duration, tokensUsed, costUsd, iterations }
  */
 async function executeAutomationTask(tabId, task, options = {}) {
-  const { maxIterations = 15, isBackgroundAgent = false, agentId = null } = options;
+  const { maxIterations = 15, isBackgroundAgent = false, agentId = null, isDashboardTask = false } = options;
 
   return new Promise(async (resolve) => {
     try {
@@ -6029,7 +6029,8 @@ async function executeAutomationTask(tabId, task, options = {}) {
         sequenceRepeatCount: {},
         isBackgroundAgent: isBackgroundAgent,
         agentId: agentId,
-        animatedActionHighlights: false, // No highlights for background agents
+        _isDashboardTask: isDashboardTask,
+        animatedActionHighlights: isDashboardTask ? true : (isBackgroundAgent ? false : true),
         _completionCallback: resolve, // Store callback for when automation finishes
         // PERF: Cache DOM settings (use defaults for background agents)
         domSettings: {
@@ -6143,6 +6144,29 @@ async function executeAutomationTask(tabId, task, options = {}) {
       });
     }
   });
+}
+
+/**
+ * Start a dashboard-initiated automation task.
+ * Called from ws-client.js when a dash:task-submit message is received.
+ * Uses executeAutomationTask with the isDashboardTask flag for progress broadcasting.
+ * @param {number} tabId - Target tab ID
+ * @param {string} task - Task description from the dashboard
+ */
+async function startDashboardTask(tabId, task) {
+  try {
+    var result = await executeAutomationTask(tabId, task, {
+      maxIterations: 20,
+      isDashboardTask: true
+    });
+    broadcastDashboardComplete(result);
+  } catch (err) {
+    fsbWebSocket.send('ext:task-complete', {
+      success: false,
+      error: err.message || 'Task execution failed',
+      elapsed: 0
+    });
+  }
 }
 
 
