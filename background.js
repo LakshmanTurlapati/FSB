@@ -645,6 +645,61 @@ async function sendSessionStatus(tabId, statusData) {
   }
 }
 
+// --- Dashboard progress broadcasting helpers ---
+
+var _lastDashboardBroadcast = 0; // Throttle: max 1 WS broadcast per second
+
+/**
+ * Broadcast task progress to the dashboard via WebSocket.
+ * Only fires for dashboard-initiated tasks, throttled to max 1/second.
+ * @param {Object} session - Active automation session with _isDashboardTask flag
+ */
+function broadcastDashboardProgress(session) {
+  if (!session._isDashboardTask) return;
+  // Throttle to max 1/second
+  var now = Date.now();
+  if (now - _lastDashboardBroadcast < 1000) return;
+  _lastDashboardBroadcast = now;
+
+  var progress = calculateProgress(session);
+  var phase = detectTaskPhase(session);
+  var lastAction = session.actionHistory && session.actionHistory.length > 0
+    ? session.actionHistory[session.actionHistory.length - 1]
+    : null;
+  var actionText = session._lastActionSummary
+    || (lastAction ? getActionStatus(lastAction.tool, lastAction.params) : null)
+    || 'Working...';
+
+  fsbWebSocket.send('ext:task-progress', {
+    progress: progress.progressPercent,
+    phase: phase,
+    eta: progress.estimatedTimeRemaining || null,
+    elapsed: Date.now() - session.startTime,
+    action: actionText,
+    status: 'running'
+  });
+}
+
+/**
+ * Broadcast task completion to the dashboard via WebSocket.
+ * @param {Object} result - Return value from executeAutomationTask
+ */
+function broadcastDashboardComplete(result) {
+  if (result.success) {
+    fsbWebSocket.send('ext:task-complete', {
+      success: true,
+      summary: result.result || 'Task completed',
+      elapsed: result.duration || 0
+    });
+  } else {
+    fsbWebSocket.send('ext:task-complete', {
+      success: false,
+      error: result.error || 'Task failed',
+      elapsed: result.duration || 0
+    });
+  }
+}
+
 /**
  * Load debug mode setting from storage
  */
@@ -8803,6 +8858,7 @@ async function startAutomationLoop(sessionId) {
     ...calculateProgress(session),
     taskSummary: session.taskSummary || null
   });
+  broadcastDashboardProgress(session);
 
   // Fallback: clean up overlays on previous tab if a tab switch occurred
   if (session.previousTabId && session.previousTabId !== session.tabId) {
@@ -9866,6 +9922,7 @@ async function startAutomationLoop(sessionId) {
       ...calculateProgress(session),
       taskSummary: session.taskSummary || null
     });
+    broadcastDashboardProgress(session);
 
     const aiPromise = callAIAPI(
       session.task,
@@ -10025,11 +10082,13 @@ async function startAutomationLoop(sessionId) {
         ...calculateProgress(session),
         taskSummary: session.taskSummary || null
       });
+      broadcastDashboardProgress(session);
 
       // LIVE-01: Fire AI summary for first action in parallel
       generateActionSummary(aiResponse.actions[0], session, settings).then(aiSummary => {
         if (aiSummary && !isSessionTerminating(sessionId)) {
           session.lastActionStatusText = aiSummary;
+          if (session._isDashboardTask) session._lastActionSummary = aiSummary;
           sendSessionStatus(session.tabId, {
             phase: 'acting',
             taskName: session.task,
@@ -10040,6 +10099,7 @@ async function startAutomationLoop(sessionId) {
             ...calculateProgress(session),
             taskSummary: session.taskSummary || null
           });
+          broadcastDashboardProgress(session);
         }
       }).catch(() => {});
 
@@ -10173,6 +10233,7 @@ async function startAutomationLoop(sessionId) {
             ...calculateProgress(session),
             taskSummary: session.taskSummary || null
           });
+          broadcastDashboardProgress(session);
         }
 
         // LIVE-01/LIVE-03: Fire AI summary generation in parallel (non-blocking)
@@ -10182,6 +10243,7 @@ async function startAutomationLoop(sessionId) {
           if (aiSummary && !isSessionTerminating(sessionId)) {
             // Update session's last status text with the AI summary
             session.lastActionStatusText = aiSummary;
+            if (session._isDashboardTask) session._lastActionSummary = aiSummary;
 
             // Update content overlay with AI-generated contextual description
             sendSessionStatus(session.tabId, {
@@ -10194,6 +10256,7 @@ async function startAutomationLoop(sessionId) {
               ...calculateProgress(session),
               taskSummary: session.taskSummary || null
             });
+            broadcastDashboardProgress(session);
 
             // Also update sidepanel
             chrome.runtime.sendMessage({
