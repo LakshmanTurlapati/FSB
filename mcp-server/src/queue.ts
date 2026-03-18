@@ -1,0 +1,69 @@
+type QueueItem = {
+  execute: () => Promise<unknown>;
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
+};
+
+export class TaskQueue {
+  private queue: QueueItem[] = [];
+  private running = false;
+  private readonly readOnlyTools = new Set([
+    'get_dom_snapshot',
+    'list_tabs',
+    'get_task_status',
+    'read_page',
+    'get_text',
+    'get_attribute',
+    'get_site_guides',
+    'get_memory',
+    'get_extension_config',
+  ]);
+
+  /**
+   * Enqueue a tool call. Read-only tools bypass the queue and execute
+   * immediately; mutation tools are serialized.
+   */
+  async enqueue<T>(toolName: string, fn: () => Promise<T>): Promise<T> {
+    if (this.readOnlyTools.has(toolName)) {
+      return fn();
+    }
+
+    return new Promise<T>((resolve, reject) => {
+      this.queue.push({
+        execute: fn as () => Promise<unknown>,
+        resolve: resolve as (value: unknown) => void,
+        reject,
+      });
+      this.process();
+    });
+  }
+
+  /** Whether a mutation tool is currently executing. */
+  get isRunning(): boolean {
+    return this.running;
+  }
+
+  /** Flush all pending (not yet started) queue items. */
+  clear(): void {
+    for (const item of this.queue) {
+      item.reject(new Error('Queue cleared'));
+    }
+    this.queue = [];
+  }
+
+  private async process(): Promise<void> {
+    if (this.running || this.queue.length === 0) return;
+    this.running = true;
+
+    const item = this.queue.shift()!;
+    try {
+      const result = await item.execute();
+      item.resolve(result);
+    } catch (err) {
+      item.reject(err);
+    } finally {
+      this.running = false;
+      this.process();
+    }
+  }
+}
