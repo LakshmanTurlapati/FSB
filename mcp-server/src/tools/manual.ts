@@ -1,0 +1,249 @@
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
+import type { NativeMessagingBridge } from '../bridge.js';
+import type { TaskQueue } from '../queue.js';
+import { mapFSBError } from '../errors.js';
+
+type ToolCallResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
+
+/**
+ * Execute a single browser action through the FSB extension.
+ * All manual tools funnel through this helper which checks connectivity,
+ * enqueues via TaskQueue (mutation serialization), and maps the result.
+ */
+async function execAction(
+  bridge: NativeMessagingBridge,
+  queue: TaskQueue,
+  toolName: string,
+  fsbVerb: string,
+  params: Record<string, unknown>,
+): Promise<ToolCallResult> {
+  if (!bridge.isConnected) {
+    return mapFSBError({ success: false, error: 'extension_not_connected' });
+  }
+  return queue.enqueue(toolName, async () => {
+    const result = await bridge.sendAndWait(
+      { type: 'mcp:execute-action', payload: { tool: fsbVerb, params } },
+      { timeout: 30_000 },
+    );
+    return mapFSBError(result);
+  });
+}
+
+/**
+ * Register all 25 manual browser action tools.
+ * Each tool maps to an FSB CLI verb and sends mcp:execute-action
+ * through the native messaging bridge.
+ */
+export function registerManualTools(
+  server: McpServer,
+  bridge: NativeMessagingBridge,
+  queue: TaskQueue,
+): void {
+  // --- Navigation tools ---
+
+  server.tool(
+    'navigate',
+    'Open a URL in the active browser tab. Use to go to a specific page before interacting with it. Returns the final URL after any redirects.',
+    { url: z.string().describe('URL to navigate to') },
+    async ({ url }) => execAction(bridge, queue, 'navigate', 'navigate', { url }),
+  );
+
+  server.tool(
+    'search',
+    'Trigger a search on the current page. Use when the page has a search function and you need to find specific content. Returns search results status.',
+    { query: z.string().describe('Search query text') },
+    async ({ query }) => execAction(bridge, queue, 'search', 'search', { query }),
+  );
+
+  server.tool(
+    'go_back',
+    'Navigate back one page in browser history. Use to return to the previous page. Returns the new URL.',
+    {},
+    async () => execAction(bridge, queue, 'go_back', 'back', {}),
+  );
+
+  server.tool(
+    'go_forward',
+    'Navigate forward one page in browser history. Use after going back. Returns the new URL.',
+    {},
+    async () => execAction(bridge, queue, 'go_forward', 'forward', {}),
+  );
+
+  server.tool(
+    'refresh',
+    'Reload the current page. Use when page content may be stale. Returns the refreshed URL.',
+    {},
+    async () => execAction(bridge, queue, 'refresh', 'refresh', {}),
+  );
+
+  // --- Interaction tools ---
+
+  server.tool(
+    'click',
+    'Click an element on the page by CSS selector or element reference. Use to press buttons, follow links, or activate controls. Returns whether the click succeeded.',
+    { selector: z.string().describe('CSS selector or element reference (e.g., \'e5\', \'#submit-btn\')') },
+    async ({ selector }) => execAction(bridge, queue, 'click', 'click', { selector }),
+  );
+
+  server.tool(
+    'type_text',
+    'Type text into an input field by selector. Use to fill text inputs, search boxes, or text areas. Returns confirmation of typed text.',
+    {
+      selector: z.string().describe('CSS selector or element reference for the input field'),
+      text: z.string().describe('Text to type into the field'),
+    },
+    async ({ selector, text }) => execAction(bridge, queue, 'type_text', 'type', { selector, text }),
+  );
+
+  server.tool(
+    'press_enter',
+    'Press the Enter key, optionally on a specific element. Use to submit forms or confirm input. Returns key press confirmation.',
+    { selector: z.string().optional().describe('Optional CSS selector or element reference to press Enter on') },
+    async ({ selector }) => execAction(bridge, queue, 'press_enter', 'enter', { selector }),
+  );
+
+  server.tool(
+    'press_key',
+    'Press a keyboard key with optional modifiers (ctrl, shift, alt). Use for keyboard shortcuts or special key input. Returns key press confirmation.',
+    {
+      key: z.string().describe('Key to press (e.g., \'Escape\', \'Tab\', \'ArrowDown\')'),
+      ctrl: z.boolean().optional().describe('Hold Ctrl'),
+      shift: z.boolean().optional().describe('Hold Shift'),
+      alt: z.boolean().optional().describe('Hold Alt'),
+    },
+    async ({ key, ctrl, shift, alt }) =>
+      execAction(bridge, queue, 'press_key', 'key', { key, ctrl, shift, alt }),
+  );
+
+  server.tool(
+    'select_option',
+    'Select an option from a dropdown by value. Use to choose from select menus. Returns the selected value.',
+    {
+      selector: z.string().describe('CSS selector or element reference for the select dropdown'),
+      value: z.string().describe('Option value or visible text to select'),
+    },
+    async ({ selector, value }) => execAction(bridge, queue, 'select_option', 'select', { selector, value }),
+  );
+
+  server.tool(
+    'check_box',
+    'Toggle a checkbox element. Use to check or uncheck form checkboxes. Returns the new checked state.',
+    { selector: z.string().describe('CSS selector or element reference for the checkbox') },
+    async ({ selector }) => execAction(bridge, queue, 'check_box', 'check', { selector }),
+  );
+
+  server.tool(
+    'hover',
+    'Move the mouse over an element. Use to trigger hover menus, tooltips, or hover states. Returns hover confirmation.',
+    { selector: z.string().describe('CSS selector or element reference to hover over') },
+    async ({ selector }) => execAction(bridge, queue, 'hover', 'hover', { selector }),
+  );
+
+  server.tool(
+    'right_click',
+    'Open context menu on an element. Use to access right-click options. Returns context menu confirmation.',
+    { selector: z.string().describe('CSS selector or element reference to right-click') },
+    async ({ selector }) => execAction(bridge, queue, 'right_click', 'rightclick', { selector }),
+  );
+
+  server.tool(
+    'double_click',
+    'Double-click an element. Use for actions requiring double-click like text selection or opening items. Returns click confirmation.',
+    { selector: z.string().describe('CSS selector or element reference to double-click') },
+    async ({ selector }) => execAction(bridge, queue, 'double_click', 'doubleclick', { selector }),
+  );
+
+  server.tool(
+    'focus',
+    'Move keyboard focus to an element. Use to prepare an element for keyboard input. Returns focus confirmation.',
+    { selector: z.string().describe('CSS selector or element reference to focus') },
+    async ({ selector }) => execAction(bridge, queue, 'focus', 'focus', { selector }),
+  );
+
+  server.tool(
+    'clear_input',
+    'Clear the contents of an input field. Use before typing new text into an already-filled field. Returns clear confirmation.',
+    { selector: z.string().describe('CSS selector or element reference for the input to clear') },
+    async ({ selector }) => execAction(bridge, queue, 'clear_input', 'clear', { selector }),
+  );
+
+  // --- Scrolling tools ---
+
+  server.tool(
+    'scroll',
+    'Scroll the page up or down by a specified amount. Use to bring off-screen content into view. Returns new scroll position.',
+    {
+      direction: z.enum(['up', 'down']).describe('Scroll direction'),
+      amount: z.number().optional().describe('Scroll amount in pixels (default: one viewport)'),
+    },
+    async ({ direction, amount }) => execAction(bridge, queue, 'scroll', 'scroll', { direction, amount }),
+  );
+
+  server.tool(
+    'scroll_to_top',
+    'Scroll to the top of the page. Use to return to the beginning of the page. Returns confirmation.',
+    {},
+    async () => execAction(bridge, queue, 'scroll_to_top', 'scrolltotop', {}),
+  );
+
+  server.tool(
+    'scroll_to_bottom',
+    'Scroll to the bottom of the page. Use to reach the end of the page or load lazy content. Returns confirmation.',
+    {},
+    async () => execAction(bridge, queue, 'scroll_to_bottom', 'scrolltobottom', {}),
+  );
+
+  // --- Waiting tools ---
+
+  server.tool(
+    'wait_for_element',
+    'Wait until an element matching the selector appears on the page. Use after navigation or actions that load new content. Returns when element is found or times out.',
+    { selector: z.string().describe('CSS selector to wait for (not element reference -- must be a CSS selector)') },
+    async ({ selector }) => execAction(bridge, queue, 'wait_for_element', 'wait', { selector }),
+  );
+
+  server.tool(
+    'wait_for_stable',
+    'Wait until the page stops changing (no DOM mutations). Use after actions that trigger dynamic content loading. Returns when page is stable.',
+    {},
+    async () => execAction(bridge, queue, 'wait_for_stable', 'waitstable', {}),
+  );
+
+  // --- Tab tools ---
+
+  server.tool(
+    'open_tab',
+    'Open a new browser tab with the given URL. Use when you need to work in a separate tab. Returns the new tab ID.',
+    { url: z.string().describe('URL to open in new tab') },
+    async ({ url }) => execAction(bridge, queue, 'open_tab', 'opentab', { url }),
+  );
+
+  server.tool(
+    'switch_tab',
+    'Switch the active browser tab by tab ID. Use to move between open tabs. Returns confirmation with the new active tab info.',
+    { tabId: z.number().describe('Tab ID to switch to (from list_tabs)') },
+    async ({ tabId }) => execAction(bridge, queue, 'switch_tab', 'switchtab', { tabId }),
+  );
+
+  // --- Data tools ---
+
+  server.tool(
+    'fill_sheet',
+    'Fill cells in a spreadsheet starting from a given cell with CSV data. Use for bulk data entry into Google Sheets or similar. Returns fill confirmation.',
+    {
+      startCell: z.string().describe('Starting cell reference (e.g., \'A1\')'),
+      csvData: z.string().describe('CSV data with \\n for row breaks'),
+      sheetName: z.string().optional().describe('Optional sheet name to set'),
+    },
+    async ({ startCell, csvData, sheetName }) =>
+      execAction(bridge, queue, 'fill_sheet', 'fillsheet', { startCell, csvData, sheetName }),
+  );
+
+  server.tool(
+    'read_sheet',
+    'Read cell values from a spreadsheet range. Use to extract tabular data from Google Sheets or similar. Returns cell values as array.',
+    { range: z.string().describe('Cell range to read (e.g., \'A1:C5\')') },
+    async ({ range }) => execAction(bridge, queue, 'read_sheet', 'readsheet', { range }),
+  );
+}
