@@ -658,10 +658,624 @@
   to { opacity: 1; }
 }
 
+/* --- Toggle Switch --- */
+.dash-toggle {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: #64748b;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background 150ms ease;
+  flex-shrink: 0;
+}
+
+.dash-toggle[aria-checked="true"] {
+  background: var(--primary);
+}
+
+.dash-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 150ms ease;
+}
+
+.dash-toggle[aria-checked="true"]::after {
+  transform: translateX(16px);
+}
+
+/* --- Enhanced Agent Card --- */
+.dash-agent-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+.dash-agent-card.dash-agent-disabled {
+  opacity: 0.5;
+}
+
+.dash-agent-card-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.dash-agent-success-rate {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.dash-agent-cost-saved {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.dash-agent-last-run {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.dash-agent-card-highlight {
+  animation: dashCardHighlight 1000ms ease-out;
+}
+
+@keyframes dashCardHighlight {
+  from { border-color: var(--primary); }
+  to { border-color: var(--border-color); }
+}
+
+.dash-agent-running-icon {
+  margin-left: 4px;
+}
+
+/* --- Agent Container (Grid + Detail) --- */
+.dash-agent-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.dash-agent-container.dash-detail-open {
+  grid-template-columns: 1fr 420px;
+}
+
+/* --- Agent Detail Panel --- */
+.dash-agent-detail {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  overflow-y: auto;
+  max-height: calc(100vh - 200px);
+}
+
+.dash-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.dash-detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dash-detail-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.dash-detail-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.dash-detail-close {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.dash-detail-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+.dash-detail-section {
+  padding: 16px 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.dash-detail-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 0 0 12px 0;
+}
+
+.dash-detail-config {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-detail-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dash-detail-value {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.dash-detail-mono {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-size: 0.82rem;
+}
+
+/* Cost Savings Grid */
+.dash-detail-cost-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.dash-detail-cost-item {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  text-align: center;
+}
+
+.dash-detail-cost-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.dash-detail-cost-highlight {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  color: #22c55e;
+}
+
+.dash-detail-cost-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+/* Run Now Progress */
+.dash-detail-run-progress {
+  padding: 12px 0;
+}
+
+.dash-detail-run-action {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+  display: block;
+}
+
+/* Run History in Detail Panel */
+.dash-detail-runs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Recorded Script */
+.dash-detail-script-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dash-detail-script-toggle i {
+  transition: transform 200ms ease;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.dash-detail-script-toggle.expanded i {
+  transform: rotate(90deg);
+}
+
+.dash-detail-script-content {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin-top: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.dash-detail-script-list {
+  margin: 0;
+  padding-left: 24px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+
+/* Delete Button */
+.dash-detail-footer {
+  padding: 16px 0 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.dash-btn-delete {
+  width: 100%;
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.dash-btn-delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* --- Modal --- */
+.dash-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: dashModalFadeIn 200ms ease;
+}
+
+@keyframes dashModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.dash-agent-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 32px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.dash-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.dash-modal-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.dash-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dash-modal-field label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.dash-textarea {
+  resize: vertical;
+  min-height: 72px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.dash-input-mono {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.dash-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.dash-modal-field .dash-field-error {
+  font-size: 0.8rem;
+  color: #ef4444;
+  margin-top: 4px;
+}
+
+.dash-modal-field .dash-input.dash-input-error {
+  border-color: #ef4444;
+}
+
+/* --- Schedule Configuration --- */
+.dash-schedule-type-row {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.dash-schedule-pill {
+  flex: 1;
+  padding: 8px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: none;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.dash-schedule-pill:not(:last-child) {
+  border-right: 1px solid var(--border-color);
+}
+
+.dash-schedule-pill.active {
+  background: var(--primary);
+  color: white;
+}
+
+.dash-schedule-config {
+  margin-top: 12px;
+}
+
+.dash-schedule-interval-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dash-schedule-interval-input {
+  width: 80px;
+  text-align: center;
+}
+
+.dash-schedule-interval-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.dash-schedule-snap-msg {
+  font-size: 0.8rem;
+  color: #eab308;
+  margin-top: 4px;
+  transition: opacity 2000ms ease;
+}
+
+.dash-day-pills {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.dash-day-pill {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: none;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.dash-day-pill[aria-checked="true"] {
+  background: var(--primary);
+  color: white;
+}
+
+/* --- Delete Confirmation --- */
+.dash-delete-dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 32px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+}
+
+.dash-delete-dialog h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.dash-delete-body {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.dash-delete-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.dash-btn-delete-confirm {
+  background: #ef4444;
+  color: white;
+  border: 1px solid #ef4444;
+}
+
+.dash-btn-delete-confirm:hover {
+  background: #dc2626;
+}
+
+/* --- Post-Task Save as Agent --- */
+.dash-task-save-agent {
+  border-top: 1px solid var(--border-color);
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.dash-save-agent-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color var(--transition-fast);
+}
+
+.dash-save-agent-trigger:hover {
+  color: var(--text-secondary);
+}
+
+.dash-save-agent-trigger i {
+  font-size: 0.7rem;
+  transition: transform 200ms ease;
+}
+
+.dash-save-agent-trigger.expanded i {
+  transform: rotate(180deg);
+}
+
+.dash-save-agent-fields {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 200ms ease;
+}
+
+.dash-save-agent-fields.dash-save-expanded {
+  max-height: 400px;
+  display: flex;
+}
+
+.dash-save-agent-field label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.dash-save-agent-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* --- New Agent Button --- */
+.dash-new-agent-btn {
+  margin-left: 8px;
+}
+
+/* --- Screen Reader Only --- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* --- Responsive --- */
 @media (max-width: 1024px) {
   .dash-stats-bar {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .dash-agent-container.dash-detail-open {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-agent-detail {
+    position: fixed;
+    right: 0;
+    top: var(--nav-height, 64px);
+    height: calc(100vh - var(--nav-height, 64px));
+    width: 420px;
+    max-height: none;
+    z-index: 100;
+    border-radius: 0;
+    border-left: 1px solid var(--border-color);
+    animation: dashDetailSlideIn 250ms ease;
+  }
+
+  @keyframes dashDetailSlideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
   }
 }
 
@@ -702,6 +1316,40 @@
 
   .dash-task-meta {
     flex-wrap: wrap;
+  }
+
+  .dash-agent-detail {
+    width: 100%;
+  }
+
+  .dash-agent-modal {
+    max-width: none;
+    margin: 16px;
+    border-radius: var(--radius-lg);
+  }
+
+  .dash-day-pill {
+    width: 28px;
+    height: 28px;
+  }
+
+  .dash-detail-cost-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dash-qr-reader {
+    width: 100%;
+    max-width: 280px;
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  .dash-login-form .btn {
+    width: 100%;
+  }
+
+  .dash-tab {
+    padding: 8px 16px;
   }
 }
 
@@ -838,20 +1486,3 @@
   pointer-events: none;
 }
 
-/* Mobile responsive for login card */
-@media (max-width: 768px) {
-  .dash-qr-reader {
-    width: 100%;
-    max-width: 280px;
-    height: auto;
-    aspect-ratio: 1;
-  }
-
-  .dash-login-form .btn {
-    width: 100%;
-  }
-
-  .dash-tab {
-    padding: 8px 16px;
-  }
-}

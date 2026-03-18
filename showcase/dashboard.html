@@ -99,6 +99,9 @@
           <span id="dash-agent-count" class="dash-badge">0 agents</span>
           <span id="dash-paired-badge" class="dash-paired-badge">Paired</span>
           <span id="dash-sse-status" class="dash-sse-badge dash-sse-disconnected">offline</span>
+          <button id="dash-new-agent-btn" class="btn btn-primary btn-sm dash-new-agent-btn">
+            <i class="fa-solid fa-plus"></i> New Agent
+          </button>
         </div>
         <button id="dash-disconnect-btn" class="btn btn-outline btn-sm dash-disconnect-btn">
           <i class="fa-solid fa-right-from-bracket"></i> Disconnect
@@ -141,6 +144,36 @@
             <button class="btn btn-primary dash-task-submit" id="dash-task-submit-next" aria-label="Submit task" disabled>
               <i class="fa-solid fa-arrow-right"></i>
             </button>
+          </div>
+          <!-- Save as Agent (post-task) -->
+          <div id="dash-task-save-agent" class="dash-task-save-agent" style="display: none;">
+            <button id="dash-save-agent-trigger" class="dash-save-agent-trigger">
+              Save as Agent <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div id="dash-save-agent-fields" class="dash-save-agent-fields" style="display: none;">
+              <div class="dash-save-agent-field">
+                <label>Agent Name</label>
+                <input type="text" id="dash-save-agent-name" class="dash-input" placeholder="e.g., Check stock prices">
+              </div>
+              <div class="dash-save-agent-field">
+                <label>Target URL</label>
+                <input type="text" id="dash-save-agent-url" class="dash-input dash-input-mono" placeholder="https://example.com">
+              </div>
+              <div class="dash-save-agent-field">
+                <label>Schedule</label>
+                <div class="dash-schedule-type-row">
+                  <button class="dash-schedule-pill active" data-type="interval">Interval</button>
+                  <button class="dash-schedule-pill" data-type="daily">Daily</button>
+                  <button class="dash-schedule-pill" data-type="once">Once</button>
+                </div>
+              </div>
+              <div id="dash-save-agent-schedule-config" class="dash-schedule-config">
+                <!-- Populated by JS based on schedule type -->
+              </div>
+              <div class="dash-save-agent-actions">
+                <button id="dash-save-agent-btn" class="btn btn-primary btn-sm">Save Agent</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -190,27 +223,164 @@
         </div>
       </div>
 
-      <!-- Agent Grid -->
-      <div id="dash-agent-grid" class="dash-agent-grid">
-        <!-- Populated by JS -->
-      </div>
-
-      <!-- Run History (expanded below selected agent) -->
-      <div id="dash-runs-panel" class="dash-runs-panel" style="display: none;">
-        <div class="dash-runs-header">
-          <h3 id="dash-runs-title">Run History</h3>
-          <button id="dash-runs-close" class="dash-runs-close"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div id="dash-runs-list" class="dash-runs-list">
+      <!-- Agent Grid + Detail Panel Container -->
+      <div id="dash-agent-container" class="dash-agent-container">
+        <!-- Agent Grid -->
+        <div id="dash-agent-grid" class="dash-agent-grid">
           <!-- Populated by JS -->
         </div>
-        <div id="dash-runs-pagination" class="dash-runs-pagination"></div>
+
+        <!-- Agent Detail Side Panel -->
+        <div id="dash-agent-detail" class="dash-agent-detail" style="display: none;">
+          <div class="dash-detail-header">
+            <div class="dash-detail-title-row">
+              <h3 id="dash-detail-name" class="dash-detail-name"></h3>
+              <div class="dash-detail-actions">
+                <button id="dash-detail-run-now" class="btn btn-primary btn-sm">Run Now</button>
+                <button id="dash-detail-edit" class="btn btn-outline btn-sm">Edit</button>
+              </div>
+            </div>
+            <button id="dash-detail-close" class="dash-detail-close" aria-label="Close detail panel">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <!-- Config Section -->
+          <div class="dash-detail-section">
+            <div class="dash-detail-config">
+              <div class="dash-detail-field">
+                <span class="dash-detail-label">Task</span>
+                <span id="dash-detail-task" class="dash-detail-value"></span>
+              </div>
+              <div class="dash-detail-field">
+                <span class="dash-detail-label">URL</span>
+                <span id="dash-detail-url" class="dash-detail-value dash-detail-mono"></span>
+              </div>
+              <div class="dash-detail-field">
+                <span class="dash-detail-label">Schedule</span>
+                <span id="dash-detail-schedule" class="dash-detail-value"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cost Savings Section -->
+          <div class="dash-detail-section">
+            <h4 class="dash-detail-section-title">Cost Savings</h4>
+            <div class="dash-detail-cost-grid">
+              <div class="dash-detail-cost-item">
+                <div class="dash-detail-cost-value" id="dash-detail-replay-runs">0</div>
+                <div class="dash-detail-cost-label">Replay Runs</div>
+              </div>
+              <div class="dash-detail-cost-item">
+                <div class="dash-detail-cost-value" id="dash-detail-ai-fallback">0</div>
+                <div class="dash-detail-cost-label">AI Fallback</div>
+              </div>
+              <div class="dash-detail-cost-item">
+                <div class="dash-detail-cost-value" id="dash-detail-tokens-saved">0</div>
+                <div class="dash-detail-cost-label">Tokens Saved</div>
+              </div>
+              <div class="dash-detail-cost-item">
+                <div class="dash-detail-cost-value dash-detail-cost-highlight" id="dash-detail-cost-saved">$0.00</div>
+                <div class="dash-detail-cost-label">Cost Saved</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Run Now Progress (hidden by default) -->
+          <div id="dash-detail-run-progress" class="dash-detail-run-progress" style="display: none;">
+            <div class="dash-task-bar">
+              <div class="dash-task-bar-fill" id="dash-detail-run-bar" style="width: 0%;"></div>
+            </div>
+            <span class="dash-detail-run-action" id="dash-detail-run-action">Starting...</span>
+          </div>
+
+          <!-- Run History -->
+          <div class="dash-detail-section">
+            <h4 class="dash-detail-section-title">Run History</h4>
+            <div id="dash-detail-runs" class="dash-detail-runs">
+              <p class="text-muted text-center">No runs yet. Tap Run Now to test this agent.</p>
+            </div>
+            <div id="dash-detail-runs-pagination" class="dash-runs-pagination"></div>
+          </div>
+
+          <!-- Recorded Script (collapsible) -->
+          <div class="dash-detail-section">
+            <button id="dash-detail-script-toggle" class="dash-detail-script-toggle">
+              <span>Recorded Script</span>
+              <i class="fa-solid fa-chevron-right" id="dash-detail-script-chevron"></i>
+            </button>
+            <div id="dash-detail-script-content" class="dash-detail-script-content" style="display: none;">
+              <ol id="dash-detail-script-list" class="dash-detail-script-list">
+                <!-- Populated by JS -->
+              </ol>
+            </div>
+          </div>
+
+          <!-- Delete Button -->
+          <div class="dash-detail-footer">
+            <button id="dash-detail-delete" class="btn btn-outline dash-btn-delete">Delete Agent</button>
+          </div>
+        </div>
       </div>
 
       <!-- Empty state -->
       <div id="dash-empty" class="dash-empty" style="display: none;">
         <i class="fa-solid fa-robot"></i>
-        <p>No agents found. Create a background agent in the FSB extension to see it here.</p>
+        <h3>No agents yet</h3>
+        <p>Create your first agent after running a task, or tap + New Agent to set one up manually.</p>
+      </div>
+
+      <!-- Agent Creation/Edit Modal -->
+      <div id="dash-agent-modal-overlay" class="dash-modal-overlay" style="display: none;">
+        <div class="dash-agent-modal" role="dialog" aria-modal="true" aria-labelledby="dash-modal-title">
+          <div class="dash-modal-header">
+            <h3 id="dash-modal-title">New Agent</h3>
+            <button id="dash-modal-close" class="dash-detail-close" aria-label="Close modal">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          <div class="dash-modal-body">
+            <div class="dash-modal-field">
+              <label for="dash-modal-name">Name</label>
+              <input type="text" id="dash-modal-name" class="dash-input" placeholder="e.g., Check stock prices">
+            </div>
+            <div class="dash-modal-field">
+              <label for="dash-modal-task">Task Description</label>
+              <textarea id="dash-modal-task" class="dash-input dash-textarea" rows="3" placeholder="Describe what this agent should do..."></textarea>
+            </div>
+            <div class="dash-modal-field">
+              <label for="dash-modal-url">Target URL</label>
+              <input type="text" id="dash-modal-url" class="dash-input dash-input-mono" placeholder="https://example.com">
+            </div>
+            <div class="dash-modal-field">
+              <label>Schedule</label>
+              <div class="dash-schedule-type-row" id="dash-modal-schedule-type">
+                <button class="dash-schedule-pill active" data-type="interval">Interval</button>
+                <button class="dash-schedule-pill" data-type="daily">Daily</button>
+                <button class="dash-schedule-pill" data-type="once">Once</button>
+              </div>
+            </div>
+            <div id="dash-modal-schedule-config" class="dash-schedule-config">
+              <!-- Populated by JS based on schedule type -->
+            </div>
+          </div>
+          <div class="dash-modal-footer">
+            <button id="dash-modal-discard" class="btn btn-outline btn-sm">Discard Changes</button>
+            <button id="dash-modal-save" class="btn btn-primary btn-sm">Save Agent</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delete Confirmation Dialog -->
+      <div id="dash-delete-overlay" class="dash-modal-overlay" style="display: none;">
+        <div class="dash-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="dash-delete-title">
+          <h3 id="dash-delete-title">Delete agent?</h3>
+          <p class="dash-delete-body">This removes all run history.</p>
+          <div class="dash-delete-actions">
+            <button id="dash-delete-cancel" class="btn btn-outline btn-sm">Keep Agent</button>
+            <button id="dash-delete-confirm" class="btn btn-sm dash-btn-delete-confirm">Delete</button>
+          </div>
+        </div>
       </div>
     </div>
   </section>
