@@ -153,9 +153,16 @@
   // --- Task Control ---
 
   function submitTask(text) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    if (!extensionOnline) return;
     if (taskState === 'running') return;
+    if (!text) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (taskAction) { taskAction.textContent = 'Not connected to server. Check your connection.'; taskAction.style.display = 'block'; }
+      return;
+    }
+    if (!extensionOnline) {
+      if (taskAction) { taskAction.textContent = 'Extension is offline. Open your FSB extension.'; taskAction.style.display = 'block'; }
+      return;
+    }
 
     taskText = text;
     taskStartTime = Date.now();
