@@ -52,6 +52,25 @@ function createAgentsRouter(queries) {
     }
   });
 
+  // PATCH /api/agents/:agentId - Toggle agent enabled/disabled
+  router.patch('/:agentId', (req, res) => {
+    try {
+      const { enabled } = req.body;
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'Missing required field: enabled (boolean)' });
+      }
+      const result = queries.toggleAgentEnabled(req.hashKey, req.params.agentId, enabled);
+      if (result.changes === 0) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      const agent = queries.getAgentData(req.hashKey, req.params.agentId);
+      broadcastToRoom(req.hashKey, { type: 'agent_updated', agent });
+      res.json({ success: true, agent });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // POST /api/agents/:agentId/runs - Report run result
   router.post('/:agentId/runs', (req, res) => {
     try {
@@ -83,7 +102,9 @@ function createAgentsRouter(queries) {
         iterations: run.iterations || 0,
         tokensUsed: run.tokensUsed || 0,
         costUsd: run.costUsd || 0,
-        durationMs: run.durationMs || 0
+        durationMs: run.durationMs || 0,
+        executionMode: run.executionMode || 'ai_initial',
+        costSaved: run.costSaved || 0
       });
 
       broadcastToRoom(req.hashKey, {
@@ -93,6 +114,16 @@ function createAgentsRouter(queries) {
       });
 
       res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/agents/:agentId/stats - Per-agent cost savings stats
+  router.get('/:agentId/stats', (req, res) => {
+    try {
+      const stats = queries.getPerAgentStats(req.hashKey, req.params.agentId);
+      res.json(stats);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

@@ -48,8 +48,8 @@ class Queries {
 
     // Agent runs
     this.insertRun = this.db.prepare(`
-      INSERT INTO agent_runs (hash_key, agent_id, run_id, started_at, completed_at, status, result, error, iterations, tokens_used, cost_usd, duration_ms)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO agent_runs (hash_key, agent_id, run_id, started_at, completed_at, status, result, error, iterations, tokens_used, cost_usd, duration_ms, execution_mode, cost_saved)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     this.getRuns = this.db.prepare(`
@@ -78,6 +78,7 @@ class Queries {
         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_runs,
         SUM(tokens_used) as total_tokens,
         SUM(cost_usd) as total_cost,
+        SUM(cost_saved) as total_cost_saved,
         SUM(duration_ms) as total_duration
       FROM agent_runs
       WHERE hash_key = ?
@@ -113,6 +114,24 @@ class Queries {
     this.deleteSessionByToken = this.db.prepare(
       'DELETE FROM pairing_tokens WHERE session_token = ?'
     );
+
+    // Agent toggle
+    this.updateAgentEnabled = this.db.prepare(
+      "UPDATE agents SET enabled = ?, updated_at = datetime('now') WHERE hash_key = ? AND agent_id = ?"
+    );
+
+    // Per-agent stats
+    this.getAgentPerStats = this.db.prepare(`
+      SELECT
+        COUNT(*) as total_runs,
+        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_runs,
+        SUM(CASE WHEN execution_mode = 'replay' THEN 1 ELSE 0 END) as replay_runs,
+        SUM(CASE WHEN execution_mode = 'ai_fallback' THEN 1 ELSE 0 END) as ai_fallback_runs,
+        SUM(tokens_used) as tokens_saved,
+        SUM(cost_saved) as cost_saved
+      FROM agent_runs
+      WHERE hash_key = ? AND agent_id = ?
+    `);
   }
 
   // Hash key operations
@@ -149,6 +168,22 @@ class Queries {
     return this.deleteAgent.run(hashKey, agentId);
   }
 
+  toggleAgentEnabled(hashKey, agentId, enabled) {
+    return this.updateAgentEnabled.run(enabled ? 1 : 0, hashKey, agentId);
+  }
+
+  getPerAgentStats(hashKey, agentId) {
+    const row = this.getAgentPerStats.get(hashKey, agentId);
+    return {
+      totalRuns: row.total_runs || 0,
+      successfulRuns: row.successful_runs || 0,
+      replayRuns: row.replay_runs || 0,
+      aiFallbackRuns: row.ai_fallback_runs || 0,
+      tokensSaved: row.tokens_saved || 0,
+      costSaved: Math.round((row.cost_saved || 0) * 10000) / 10000
+    };
+  }
+
   // Run operations
   recordRun(hashKey, agentId, run) {
     return this.insertRun.run(
@@ -156,7 +191,9 @@ class Queries {
       run.startedAt, run.completedAt,
       run.status, run.result, run.error,
       run.iterations || 0, run.tokensUsed || 0,
-      run.costUsd || 0, run.durationMs || 0
+      run.costUsd || 0, run.durationMs || 0,
+      run.executionMode || 'ai_initial',
+      run.costSaved || 0
     );
   }
 
@@ -219,6 +256,7 @@ class Queries {
         : 0,
       totalTokens: allTime.total_tokens || 0,
       totalCost: Math.round((allTime.total_cost || 0) * 10000) / 10000,
+      totalCostSaved: Math.round((allTime.total_cost_saved || 0) * 10000) / 10000,
       totalDuration: allTime.total_duration || 0
     };
   }
