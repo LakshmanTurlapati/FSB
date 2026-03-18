@@ -29,7 +29,14 @@ async function main(): Promise<void> {
   await server.connect(transport);
 
   // Connect Native Messaging bridge (MCP server <-> Chrome extension)
-  await bridge.connect();
+  // Wrapped in try/catch: bridge failure should not prevent MCP server from
+  // starting. In disconnected mode, all tool calls return "Extension not
+  // connected" errors, but the server still responds to MCP protocol messages.
+  try {
+    await bridge.connect();
+  } catch (err: unknown) {
+    console.error('[FSB MCP] Native messaging bridge failed to connect (running in disconnected mode):', err);
+  }
 
   console.error('[FSB MCP] Server started on stdio');
 
