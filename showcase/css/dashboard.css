@@ -453,6 +453,211 @@
   to { transform: rotate(360deg); }
 }
 
+/* --- Task Control Area --- */
+.dash-task-area {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.dash-task-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dash-task-input {
+  flex: 1;
+  padding: 8px 16px;
+  font-size: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.dash-task-input:focus {
+  border-color: var(--primary);
+}
+
+.dash-task-input::placeholder {
+  color: var(--text-muted);
+}
+
+.dash-task-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dash-task-submit {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  padding: 0;
+}
+
+.dash-task-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Progress view */
+.dash-task-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+
+.dash-task-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.dash-task-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.dash-task-bar-fill {
+  height: 4px;
+  background: var(--primary);
+  border-radius: 2px;
+  min-width: 0;
+  transition: width 300ms ease, background 300ms ease;
+}
+
+.dash-task-bar-fill.dash-task-bar-success {
+  background: #22c55e;
+}
+
+.dash-task-bar-fill.dash-task-bar-failed {
+  background: #ef4444;
+}
+
+.dash-task-percent {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  min-width: 36px;
+  text-align: right;
+}
+
+.dash-task-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.dash-task-phase {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  background: var(--bg-elevated);
+  border-radius: 4px;
+}
+
+.dash-task-eta,
+.dash-task-elapsed {
+  font-size: 12px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  color: var(--text-muted);
+}
+
+.dash-task-action {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-task-action::before {
+  content: '> ';
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Success state */
+.dash-task-status {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.dash-task-status-success {
+  color: #22c55e;
+}
+
+.dash-task-status-failed {
+  color: #ef4444;
+}
+
+.dash-task-result {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.dash-task-error {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.dash-task-retry-row {
+  margin-top: 12px;
+}
+
+.dash-task-retry:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.dash-task-input-again {
+  margin-top: 16px;
+}
+
+/* Offline state */
+.dash-task-offline .dash-task-input {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Transition animations */
+.dash-task-progress,
+.dash-task-result-view {
+  animation: dashTaskFadeIn 200ms ease;
+}
+
+@keyframes dashTaskFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* --- Responsive --- */
 @media (max-width: 1024px) {
   .dash-stats-bar {
@@ -486,6 +691,18 @@
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .dash-task-input-row {
+    flex-direction: column;
+  }
+
+  .dash-task-submit {
+    width: 100%;
+  }
+
+  .dash-task-meta {
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 480px) {
@@ -500,6 +717,10 @@
 
   .dash-stat-value {
     font-size: 1.2rem;
+  }
+
+  .dash-task-area {
+    padding: 16px;
   }
 }
 

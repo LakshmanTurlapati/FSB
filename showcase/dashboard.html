@@ -105,6 +105,63 @@
         </button>
       </div>
 
+      <!-- Task Control Area -->
+      <div id="dash-task-area" class="dash-task-area dash-task-idle" style="display: none;">
+        <!-- Idle state: input bar -->
+        <div class="dash-task-input-row" id="dash-task-input-row">
+          <input type="text" id="dash-task-input" class="dash-task-input" placeholder="What should FSB do?" autocomplete="off" spellcheck="false">
+          <button id="dash-task-submit" class="btn btn-primary dash-task-submit" aria-label="Submit task" disabled>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+
+        <!-- Running state: progress view -->
+        <div class="dash-task-progress" id="dash-task-progress" style="display: none;">
+          <div class="dash-task-title" id="dash-task-title"></div>
+          <div class="dash-task-bar-row">
+            <div class="dash-task-bar">
+              <div class="dash-task-bar-fill" id="dash-task-bar-fill" style="width: 0%;"></div>
+            </div>
+            <span class="dash-task-percent" id="dash-task-percent">0%</span>
+          </div>
+          <div class="dash-task-meta" id="dash-task-meta">
+            <span class="dash-task-phase" id="dash-task-phase"></span>
+            <span class="dash-task-eta" id="dash-task-eta"></span>
+            <span class="dash-task-elapsed" id="dash-task-elapsed"></span>
+          </div>
+          <div class="dash-task-action" id="dash-task-action"></div>
+        </div>
+
+        <!-- Success state: result view -->
+        <div class="dash-task-result-view" id="dash-task-success" style="display: none;">
+          <div class="dash-task-status dash-task-status-success" id="dash-task-success-status"></div>
+          <div class="dash-task-result" id="dash-task-result-text"></div>
+          <div class="dash-task-input-row dash-task-input-again">
+            <input type="text" class="dash-task-input" id="dash-task-input-next" placeholder="What should FSB do?" autocomplete="off" spellcheck="false">
+            <button class="btn btn-primary dash-task-submit" id="dash-task-submit-next" aria-label="Submit task" disabled>
+              <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Failed state: error view -->
+        <div class="dash-task-result-view" id="dash-task-failed" style="display: none;">
+          <div class="dash-task-status dash-task-status-failed" id="dash-task-failed-status"></div>
+          <div class="dash-task-error" id="dash-task-error-text"></div>
+          <div class="dash-task-retry-row">
+            <button class="btn btn-outline btn-sm dash-task-retry" id="dash-task-retry">
+              <i class="fa-solid fa-rotate-right"></i> Retry Task
+            </button>
+          </div>
+          <div class="dash-task-input-row dash-task-input-again">
+            <input type="text" class="dash-task-input" id="dash-task-input-retry" placeholder="What should FSB do?" autocomplete="off" spellcheck="false">
+            <button class="btn btn-primary dash-task-submit" id="dash-task-submit-retry" aria-label="Submit task" disabled>
+              <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Stats Bar -->
       <div class="dash-stats-bar">
         <div class="dash-stat-card">
