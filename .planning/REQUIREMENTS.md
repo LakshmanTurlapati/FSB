@@ -65,10 +65,10 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [x] **MCP-05**: All 25+ manual browser action primitives exposed as individual MCP tools with full parity
 - [x] **MCP-06**: Task queue serializes mutation tools and allows concurrent read-only tool execution
 - [x] **MCP-07**: Error mapping translates FSB errors to descriptive MCP error messages per UI-SPEC contract
-- [ ] **MCP-08**: MCP resources expose DOM snapshot, open tabs, site guides, memory, and config (keys redacted)
-- [ ] **MCP-09**: Pre-built MCP prompts provide workflow templates for common automation patterns
-- [ ] **MCP-10**: Cross-platform install script registers native host manifest on macOS, Linux, and Windows
-- [ ] **MCP-11**: .mcp.json at repo root enables Claude Code auto-discovery of FSB MCP server
+- [x] **MCP-08**: MCP resources expose DOM snapshot, open tabs, site guides, memory, and config (keys redacted)
+- [x] **MCP-09**: Pre-built MCP prompts provide workflow templates for common automation patterns
+- [x] **MCP-10**: Cross-platform install script registers native host manifest on macOS, Linux, and Windows
+- [x] **MCP-11**: .mcp.json at repo root enables Claude Code auto-discovery of FSB MCP server
 
 ## Future Requirements
 
@@ -144,10 +144,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MCP-05 | Phase 45 | Complete |
 | MCP-06 | Phase 45 | Complete |
 | MCP-07 | Phase 45 | Complete |
-| MCP-08 | Phase 45 | Pending |
-| MCP-09 | Phase 45 | Pending |
-| MCP-10 | Phase 45 | Pending |
-| MCP-11 | Phase 45 | Pending |
+| MCP-08 | Phase 45 | Complete |
+| MCP-09 | Phase 45 | Complete |
+| MCP-10 | Phase 45 | Complete |
+| MCP-11 | Phase 45 | Complete |
 
 **Coverage:**
 - v0.9.6 requirements: 42 total

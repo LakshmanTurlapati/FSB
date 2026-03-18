@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.9
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 45-02-PLAN.md
-last_updated: "2026-03-18T02:02:44.000Z"
-last_activity: 2026-03-18 -- Completed 45-02 MCP Tool Registration
+stopped_at: Completed 45-03-PLAN.md
+last_updated: "2026-03-18T02:04:07.000Z"
+last_activity: 2026-03-18 -- Completed 45-03 MCP Resources, Prompts & Native Host
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 12
-  completed_plans: 10
-  percent: 83
+  completed_plans: 11
+  percent: 91
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 45 of 45 (MCP Server Interface)
-Plan: 2 of 4
+Plan: 3 of 4
 Status: In Progress
-Last activity: 2026-03-18 -- Completed 45-02 MCP Tool Registration
+Last activity: 2026-03-18 -- Completed 45-03 MCP Resources, Prompts & Native Host
 
-Progress: [████████░░] 83%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 11
 - Average duration: 3min
-- Total execution time: 0.53 hours
+- Total execution time: 0.62 hours
 
 **By Phase:**
 
@@ -46,7 +46,7 @@ Progress: [████████░░] 83%
 | 40-websocket-infrastructure | 3 | 10min | 3min |
 | 41-qr-pairing-showcase-site | 3 | 6min | 2min |
 | 42-remote-task-control | 2 | 7min | 3min |
-| 45-mcp-server-interface | 2 | 9min | 4min |
+| 45-mcp-server-interface | 3 | 14min | 4min |
 
 ## Accumulated Context
 
@@ -72,6 +72,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [45-01] Used child_process.fork() IPC for bridge-to-shim communication
 - [45-02] Used server.tool() API (deprecated but stable) matching plan specification
 - [45-02] Used execAction helper pattern for data-driven manual tool registration
+- [45-03] Used registerResource/registerPrompt (not deprecated resource/prompt methods) for SDK forward-compat
+- [45-03] Renamed install-host.js to .cjs because package.json type:module makes .js files ESM
 
 ### Pending Todos
 
@@ -89,6 +91,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-18T02:02:44.000Z
-Stopped at: Completed 45-02-PLAN.md
-Resume file: .planning/phases/45-mcp-server-interface/45-03-PLAN.md
+Last session: 2026-03-18T02:04:07.000Z
+Stopped at: Completed 45-03-PLAN.md
+Resume file: .planning/phases/45-mcp-server-interface/45-04-PLAN.md
