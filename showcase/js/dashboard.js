@@ -46,6 +46,12 @@
   var saveAgentScheduleType = 'interval'; // schedule type for inline save / modal
   var agentRunningId = null;        // agentId currently running via Run Now
 
+  // DOM preview state
+  var previewState = 'hidden'; // 'hidden' | 'loading' | 'streaming' | 'disconnected' | 'error'
+  var previewScale = 1;
+  var previewHideTimer = null;
+  var previewSnapshotData = null; // Last snapshot for reconnect
+
   // DOM refs
   var loginSection = document.getElementById('dash-login');
   var contentSection = document.getElementById('dash-content');
@@ -88,6 +94,16 @@
   var taskRetryBtn = document.getElementById('dash-task-retry');
   var taskInputRetry = document.getElementById('dash-task-input-retry');
   var taskSubmitRetry = document.getElementById('dash-task-submit-retry');
+
+  // DOM preview refs
+  var previewContainer = document.getElementById('dash-preview');
+  var previewIframe = document.getElementById('dash-preview-iframe');
+  var previewLoading = document.getElementById('dash-preview-loading');
+  var previewGlow = document.getElementById('dash-preview-glow');
+  var previewProgress = document.getElementById('dash-preview-progress');
+  var previewStatus = document.getElementById('dash-preview-status');
+  var previewDisconnected = document.getElementById('dash-preview-disconnected');
+  var previewError = document.getElementById('dash-preview-error');
 
   // Agent management DOM refs
   var newAgentBtn = document.getElementById('dash-new-agent-btn');
@@ -351,6 +367,7 @@
         // Reset progress bar
         if (taskBarFill) { taskBarFill.style.width = '0%'; taskBarFill.className = 'dash-task-bar-fill'; }
         hideSaveAsAgent();
+        setPreviewState('hidden');
         break;
 
       case 'running':
@@ -371,6 +388,15 @@
         // Disable all task inputs during run
         disableAllTaskInputs(true);
         hideSaveAsAgent();
+        // Start DOM stream
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'dash:dom-stream-start',
+            payload: {},
+            ts: Date.now()
+          }));
+          setPreviewState('loading');
+        }
         break;
 
       case 'success':
@@ -393,6 +419,18 @@
         if (taskInputNext) { taskInputNext.value = ''; }
         // Show save-as-agent option
         showSaveAsAgent();
+        // Stop DOM stream, keep preview visible briefly
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'dash:dom-stream-stop',
+            payload: {},
+            ts: Date.now()
+          }));
+        }
+        // Hide preview after 5 seconds
+        previewHideTimer = setTimeout(function() {
+          setPreviewState('hidden');
+        }, 5000);
         break;
 
       case 'failed':
@@ -412,6 +450,17 @@
         disableAllTaskInputs(false);
         if (taskInputRetry) { taskInputRetry.value = ''; }
         if (taskSubmitRetry) taskSubmitRetry.disabled = true;
+        // Stop DOM stream, hide preview
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'dash:dom-stream-stop',
+            payload: {},
+            ts: Date.now()
+          }));
+        }
+        previewHideTimer = setTimeout(function() {
+          setPreviewState('hidden');
+        }, 5000);
         break;
     }
   }
@@ -1512,6 +1561,234 @@
     return '<span class="dash-mode-badge dash-mode-ai">AI</span>';
   }
 
+  // --- DOM Preview ---
+
+  function setPreviewState(newState) {
+    previewState = newState;
+
+    // Clear any pending hide timer
+    if (previewHideTimer) {
+      clearTimeout(previewHideTimer);
+      previewHideTimer = null;
+    }
+
+    // Reset all sub-views
+    if (previewContainer) previewContainer.style.display = 'none';
+    if (previewLoading) previewLoading.style.display = 'none';
+    if (previewIframe) previewIframe.style.display = 'none';
+    if (previewGlow) previewGlow.style.display = 'none';
+    if (previewProgress) previewProgress.style.display = 'none';
+    if (previewStatus) { previewStatus.style.display = 'none'; previewStatus.className = 'dash-preview-status'; }
+    if (previewDisconnected) previewDisconnected.style.display = 'none';
+    if (previewError) previewError.style.display = 'none';
+
+    switch (newState) {
+      case 'hidden':
+        // Container not visible
+        break;
+
+      case 'loading':
+        if (previewContainer) previewContainer.style.display = '';
+        if (previewLoading) previewLoading.style.display = 'flex';
+        break;
+
+      case 'streaming':
+        if (previewContainer) previewContainer.style.display = '';
+        if (previewIframe) previewIframe.style.display = '';
+        if (previewStatus) {
+          previewStatus.className = 'dash-preview-status dash-preview-status-streaming';
+          previewStatus.style.display = '';
+        }
+        break;
+
+      case 'disconnected':
+        if (previewContainer) previewContainer.style.display = '';
+        if (previewIframe) previewIframe.style.display = ''; // Show last content frozen
+        if (previewDisconnected) previewDisconnected.style.display = 'flex';
+        if (previewStatus) {
+          previewStatus.className = 'dash-preview-status dash-preview-status-disconnected';
+          previewStatus.style.display = '';
+        }
+        break;
+
+      case 'error':
+        if (previewContainer) previewContainer.style.display = '';
+        if (previewError) previewError.style.display = 'flex';
+        break;
+    }
+  }
+
+  function handleDOMSnapshot(payload) {
+    if (!payload || !payload.html) {
+      setPreviewState('error');
+      return;
+    }
+
+    previewSnapshotData = payload;
+
+    try {
+      // Build full HTML document for iframe
+      var stylesheetLinks = (payload.stylesheets || []).map(function(url) {
+        return '<link rel="stylesheet" href="' + url.replace(/"/g, '&quot;') + '">';
+      }).join('\n');
+
+      var fullHTML = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+        '<meta name="viewport" content="width=' + (payload.viewportWidth || 1920) + '">' +
+        stylesheetLinks +
+        '<style>body { margin: 0; overflow: auto; } *::selection { background: transparent; }</style>' +
+        '</head><body>' + payload.html + '</body></html>';
+
+      // Write to iframe via srcdoc
+      if (previewIframe) {
+        previewIframe.srcdoc = fullHTML;
+        previewIframe.onload = function() {
+          // Calculate scale factor to fit container
+          updatePreviewScale();
+          // Apply initial scroll position
+          try {
+            previewIframe.contentWindow.scrollTo(payload.scrollX || 0, payload.scrollY || 0);
+          } catch (e) { /* cross-origin fallback */ }
+          setPreviewState('streaming');
+        };
+      }
+    } catch (e) {
+      console.warn('[FSB-DASH] DOM snapshot render failed:', e.message);
+      setPreviewState('error');
+    }
+  }
+
+  function updatePreviewScale() {
+    if (!previewIframe || !previewContainer || !previewSnapshotData) return;
+
+    var containerWidth = previewContainer.clientWidth;
+    var pageWidth = previewSnapshotData.viewportWidth || previewSnapshotData.pageWidth || 1920;
+
+    previewScale = containerWidth / pageWidth;
+
+    // Size iframe to original page dimensions, then scale down
+    previewIframe.style.width = pageWidth + 'px';
+    previewIframe.style.height = (previewSnapshotData.viewportHeight || 1080) + 'px';
+    previewIframe.style.transform = 'scale(' + previewScale + ')';
+  }
+
+  window.addEventListener('resize', function() {
+    if (previewState === 'streaming') {
+      updatePreviewScale();
+    }
+  });
+
+  function handleDOMMutations(payload) {
+    if (previewState !== 'streaming' || !previewIframe) return;
+
+    var mutations = payload.mutations || [];
+    var doc;
+    try {
+      doc = previewIframe.contentDocument;
+      if (!doc || !doc.body) return;
+    } catch (e) { return; }
+
+    mutations.forEach(function(m) {
+      try {
+        switch (m.op) {
+          case 'add': {
+            var parent = doc.querySelector('[data-fsb-nid="' + m.parentNid + '"]');
+            if (!parent) break;
+            var temp = doc.createElement('div');
+            temp.innerHTML = m.html;
+            var newNode = temp.firstElementChild;
+            if (!newNode) break;
+            if (m.beforeNid) {
+              var before = doc.querySelector('[data-fsb-nid="' + m.beforeNid + '"]');
+              parent.insertBefore(newNode, before);
+            } else {
+              parent.appendChild(newNode);
+            }
+            break;
+          }
+          case 'rm': {
+            var el = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+            break;
+          }
+          case 'attr': {
+            var target = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
+            if (!target) break;
+            if (m.val === null) {
+              target.removeAttribute(m.attr);
+            } else {
+              target.setAttribute(m.attr, m.val);
+            }
+            break;
+          }
+          case 'text': {
+            var textTarget = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
+            if (textTarget) textTarget.textContent = m.text;
+            break;
+          }
+        }
+      } catch (e) {
+        // Skip individual mutation errors -- don't break the whole batch
+      }
+    });
+  }
+
+  function handleDOMScroll(payload) {
+    if (previewState !== 'streaming' || !previewIframe) return;
+    try {
+      previewIframe.contentWindow.scrollTo({
+        left: payload.scrollX || 0,
+        top: payload.scrollY || 0,
+        behavior: 'smooth'
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  function handleDOMOverlay(payload) {
+    if (previewState !== 'streaming') return;
+
+    // Update glow rect
+    if (payload.glow && payload.glow.state === 'active' && previewGlow) {
+      previewGlow.style.display = '';
+      previewGlow.style.top = (payload.glow.y * previewScale) + 'px';
+      previewGlow.style.left = (payload.glow.x * previewScale) + 'px';
+      previewGlow.style.width = (payload.glow.w * previewScale) + 'px';
+      previewGlow.style.height = (payload.glow.h * previewScale) + 'px';
+    } else if (previewGlow) {
+      previewGlow.style.display = 'none';
+    }
+
+    // Update progress indicator
+    if (payload.progress && previewProgress) {
+      previewProgress.style.display = '';
+      previewProgress.textContent = Math.round(payload.progress.percent || 0) + '% - ' + (payload.progress.phase || 'Working');
+    }
+  }
+
+  document.addEventListener('visibilitychange', function() {
+    if (previewState === 'hidden' || previewState === 'error') return;
+
+    if (document.hidden) {
+      // Tab hidden -- pause stream
+      if (ws && ws.readyState === WebSocket.OPEN && previewState === 'streaming') {
+        ws.send(JSON.stringify({
+          type: 'dash:dom-stream-pause',
+          payload: {},
+          ts: Date.now()
+        }));
+      }
+    } else {
+      // Tab visible -- resume stream (triggers fresh snapshot)
+      if (ws && ws.readyState === WebSocket.OPEN && (previewState === 'streaming' || previewState === 'disconnected')) {
+        ws.send(JSON.stringify({
+          type: 'dash:dom-stream-resume',
+          payload: {},
+          ts: Date.now()
+        }));
+        setPreviewState('loading');
+      }
+    }
+  });
+
   // --- WebSocket ---
 
   function connectWS() {
@@ -1528,6 +1805,15 @@
       console.log('[FSB-DASH] WS connected');
       wsReconnectDelay = 0;
       setWsState('connected');
+      // If preview was disconnected and a task is still running, request fresh snapshot
+      if (previewState === 'disconnected' && taskState === 'running') {
+        ws.send(JSON.stringify({
+          type: 'dash:dom-stream-resume',
+          payload: {},
+          ts: Date.now()
+        }));
+        setPreviewState('loading');
+      }
     };
 
     ws.onmessage = function (event) {
@@ -1541,6 +1827,9 @@
     ws.onclose = function (e) {
       console.log('[FSB-DASH] WS closed, code:', e.code, 'reason:', e.reason);
       setWsState('disconnected');
+      if (previewState === 'streaming' || previewState === 'loading') {
+        setPreviewState('disconnected');
+      }
       scheduleWSReconnect();
     };
 
@@ -1669,6 +1958,26 @@
 
       // Refresh grid data
       loadData();
+      return;
+    }
+
+    if (msg.type === 'ext:dom-snapshot') {
+      handleDOMSnapshot(msg.payload);
+      return;
+    }
+
+    if (msg.type === 'ext:dom-mutations') {
+      handleDOMMutations(msg.payload);
+      return;
+    }
+
+    if (msg.type === 'ext:dom-scroll') {
+      handleDOMScroll(msg.payload);
+      return;
+    }
+
+    if (msg.type === 'ext:dom-overlay') {
+      handleDOMOverlay(msg.payload);
       return;
     }
 
