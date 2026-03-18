@@ -678,6 +678,9 @@ function broadcastDashboardProgress(session) {
     action: actionText,
     status: 'running'
   });
+
+  // Forward progress to MCP server for autopilot tasks
+  broadcastMCPProgress(session);
 }
 
 /**
@@ -12163,3 +12166,261 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
   }
 });
+
+// ============================================================================
+// MCP NATIVE MESSAGING BRIDGE
+// ============================================================================
+
+let mcpNativePort = null;
+let mcpProgressCallbacks = new Map(); // sessionId -> MCP message id for progress forwarding
+
+/**
+ * Connect to the MCP native messaging host.
+ * Called when extension starts or when MCP server requests connection.
+ */
+function connectToMCPBridge() {
+  if (mcpNativePort) {
+    try { mcpNativePort.disconnect(); } catch (e) { /* ignore */ }
+  }
+
+  try {
+    mcpNativePort = chrome.runtime.connectNative('com.fsb.mcp');
+  } catch (err) {
+    console.error('[FSB MCP] Failed to connect native host:', err.message);
+    return;
+  }
+
+  mcpNativePort.onMessage.addListener(handleMCPMessage);
+
+  mcpNativePort.onDisconnect.addListener(() => {
+    const lastError = chrome.runtime.lastError;
+    console.log('[FSB MCP] Native messaging disconnected', lastError?.message || '');
+    mcpNativePort = null;
+    mcpProgressCallbacks.clear();
+  });
+
+  console.log('[FSB MCP] Native messaging connected');
+}
+
+/**
+ * Handle messages from MCP server via native messaging.
+ * Routes to existing extension handlers and returns results.
+ */
+async function handleMCPMessage(msg) {
+  const { id, type, payload } = msg;
+
+  try {
+    switch (type) {
+      case 'mcp:start-automation': {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) {
+          sendMCPResponse(id, { success: false, error: 'No active tab' });
+          return;
+        }
+        // Delegate to existing handleStartAutomation
+        const result = await new Promise((resolve) => {
+          handleStartAutomation(
+            { action: 'startAutomation', task: payload.task, tabId: tab.id },
+            { id: chrome.runtime.id, tab: tab },
+            resolve
+          );
+        });
+
+        // For autopilot tasks, register progress callback
+        if (result && result.success && result.sessionId) {
+          mcpProgressCallbacks.set(result.sessionId, id);
+        }
+
+        sendMCPResponse(id, result || { success: false, error: 'No response from handler' });
+        break;
+      }
+
+      case 'mcp:stop-automation': {
+        const result = await new Promise((resolve) => {
+          handleStopAutomation(
+            { action: 'stopAutomation' },
+            { id: chrome.runtime.id },
+            resolve
+          );
+        });
+        sendMCPResponse(id, result || { success: true });
+        break;
+      }
+
+      case 'mcp:get-status': {
+        const sessionIds = Array.from(activeSessions.keys());
+        const firstSession = sessionIds.length > 0 ? activeSessions.get(sessionIds[0]) : null;
+        sendMCPResponse(id, {
+          success: true,
+          activeSessions: activeSessions.size,
+          sessionIds,
+          currentSessionId: sessionIds[0] || null,
+          currentTask: firstSession?.task || null,
+          progress: firstSession ? calculateProgress(firstSession) : null,
+          phase: firstSession ? detectTaskPhase(firstSession) : null
+        });
+        break;
+      }
+
+      case 'mcp:execute-action': {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) {
+          sendMCPResponse(id, { success: false, error: 'No active tab' });
+          return;
+        }
+        const result = await chrome.tabs.sendMessage(tab.id, {
+          action: 'executeAction',
+          tool: payload.tool,
+          params: payload.params || {}
+        });
+        sendMCPResponse(id, result || { success: false, error: 'No response from content script' });
+        break;
+      }
+
+      case 'mcp:get-dom': {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) {
+          sendMCPResponse(id, { success: false, error: 'No active tab' });
+          return;
+        }
+        const dom = await chrome.tabs.sendMessage(tab.id, {
+          action: 'getStructuredDOM',
+          maxElements: payload.maxElements || 2000,
+          prioritizeViewport: payload.prioritizeViewport !== false
+        });
+        sendMCPResponse(id, dom || { success: false, error: 'No DOM response' });
+        break;
+      }
+
+      case 'mcp:get-tabs': {
+        const tabs = await chrome.tabs.query({});
+        sendMCPResponse(id, {
+          success: true,
+          tabs: tabs.map(t => ({
+            id: t.id,
+            title: t.title,
+            url: t.url,
+            active: t.active,
+            windowId: t.windowId
+          }))
+        });
+        break;
+      }
+
+      case 'mcp:get-site-guides': {
+        const guides = await loadSiteGuides();
+        sendMCPResponse(id, { success: true, guides });
+        break;
+      }
+
+      case 'mcp:get-memory': {
+        const memory = await chrome.storage.local.get(['episodicMemory', 'semanticMemory', 'proceduralMemory']);
+        sendMCPResponse(id, { success: true, memory });
+        break;
+      }
+
+      case 'mcp:get-config': {
+        const config = await chrome.storage.local.get([
+          'modelProvider', 'modelName', 'actionDelay', 'maxIterations',
+          'confirmSensitive', 'debugMode'
+        ]);
+        // Explicitly exclude API keys -- never expose through MCP
+        sendMCPResponse(id, { success: true, config });
+        break;
+      }
+
+      case 'mcp:read-page': {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) {
+          sendMCPResponse(id, { success: false, error: 'No active tab' });
+          return;
+        }
+        const pageContent = await chrome.tabs.sendMessage(tab.id, {
+          action: 'readPage',
+          full: payload.full || false
+        });
+        sendMCPResponse(id, pageContent || { success: false, error: 'No page content response' });
+        break;
+      }
+
+      default:
+        sendMCPResponse(id, { success: false, error: `Unknown MCP message type: ${type}` });
+    }
+  } catch (err) {
+    sendMCPResponse(id, { success: false, error: err.message || 'Internal extension error' });
+  }
+}
+
+/**
+ * Send a response back to MCP server via native messaging.
+ */
+function sendMCPResponse(id, payload) {
+  if (!mcpNativePort) return;
+  try {
+    mcpNativePort.postMessage({ id, type: 'mcp:result', payload });
+  } catch (err) {
+    console.error('[FSB MCP] Failed to send response:', err.message);
+  }
+}
+
+/**
+ * Forward automation progress to MCP server for autopilot tasks.
+ * Called from broadcastDashboardProgress.
+ */
+function broadcastMCPProgress(session) {
+  if (!mcpNativePort) return;
+  const mcpMsgId = mcpProgressCallbacks.get(session.sessionId);
+  if (!mcpMsgId) return;
+  try {
+    var progress = calculateProgress(session);
+    mcpNativePort.postMessage({
+      id: mcpMsgId,
+      type: 'mcp:progress',
+      payload: {
+        taskId: session.sessionId,
+        progress: progress.progressPercent,
+        phase: detectTaskPhase(session),
+        eta: progress.estimatedTimeRemaining || null,
+        action: session._lastActionSummary || null
+      }
+    });
+  } catch (err) {
+    console.error('[FSB MCP] Failed to send progress:', err.message);
+  }
+}
+
+/**
+ * Load site guides from extension resources.
+ * Returns array of { filename, domain } objects.
+ */
+async function loadSiteGuides() {
+  try {
+    const siteGuideFiles = await new Promise((resolve) => {
+      chrome.runtime.getPackageDirectoryEntry((dirEntry) => {
+        if (!dirEntry) { resolve([]); return; }
+        dirEntry.getDirectory('site-maps', {}, (subDir) => {
+          const reader = subDir.createReader();
+          reader.readEntries((entries) => {
+            resolve(entries.filter(e => e.name.endsWith('.json')).map(e => e.name));
+          }, () => resolve([]));
+        }, () => resolve([]));
+      });
+    });
+    return siteGuideFiles.map(f => ({
+      filename: f,
+      domain: f.replace('.json', '').replace(/_/g, '.')
+    }));
+  } catch (err) {
+    return [];
+  }
+}
+
+// Auto-connect to MCP bridge when extension starts.
+// The native host will only be available if installed, so this is safe to call
+// even if the user hasn't set up MCP yet (connectNative will fail silently).
+try {
+  connectToMCPBridge();
+} catch (e) {
+  // MCP native host not installed -- that's fine, MCP is optional
+  console.log('[FSB MCP] Native host not available (MCP not installed)');
+}
