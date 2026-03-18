@@ -56,6 +56,20 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [x] **SITE-02**: Dashboard UI accessible without login (QR pairing is the auth)
 - [x] **SITE-03**: Responsive design works on mobile browsers
 
+### MCP Server Interface
+
+- [ ] **MCP-01**: MCP server runs as local Node.js process with stdio transport using @modelcontextprotocol/sdk
+- [ ] **MCP-02**: Two-process Native Messaging bridge connects MCP server to Chrome extension via IPC
+- [ ] **MCP-03**: Extension handles MCP messages via chrome.runtime.connectNative with nativeMessaging permission
+- [ ] **MCP-04**: Autopilot tools (run_task, stop_task, get_task_status) delegate to FSB's AI loop via MCP
+- [ ] **MCP-05**: All 25+ manual browser action primitives exposed as individual MCP tools with full parity
+- [ ] **MCP-06**: Task queue serializes mutation tools and allows concurrent read-only tool execution
+- [ ] **MCP-07**: Error mapping translates FSB errors to descriptive MCP error messages per UI-SPEC contract
+- [ ] **MCP-08**: MCP resources expose DOM snapshot, open tabs, site guides, memory, and config (keys redacted)
+- [ ] **MCP-09**: Pre-built MCP prompts provide workflow templates for common automation patterns
+- [ ] **MCP-10**: Cross-platform install script registers native host manifest on macOS, Linux, and Windows
+- [ ] **MCP-11**: .mcp.json at repo root enables Claude Code auto-discovery of FSB MCP server
+
 ## Future Requirements
 
 Deferred to post-v0.9.6. Tracked but not in current roadmap.
@@ -82,6 +96,9 @@ Deferred to post-v0.9.6. Tracked but not in current roadmap.
 | Mobile native app | Dashboard is responsive web, PWA-installable |
 | Full rrweb integration | 50KB+ bundle, alpha for 3 years, wrong abstraction — custom MutationObserver approach |
 | Socket.IO | 50KB overhead, unnecessary for typed JSON envelope protocol |
+| Remote MCP access via fly.io | Future phase -- local stdio only for now |
+| Multi-tab MCP targeting | Future consideration -- active tab only for now |
+| MCP resource subscriptions | Future phase -- on-demand reads only for now |
 
 ## Traceability
 
@@ -120,12 +137,23 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SITE-01 | Phase 41 | Complete |
 | SITE-02 | Phase 41 | Complete |
 | SITE-03 | Phase 41 | Complete |
+| MCP-01 | Phase 45 | Pending |
+| MCP-02 | Phase 45 | Pending |
+| MCP-03 | Phase 45 | Pending |
+| MCP-04 | Phase 45 | Pending |
+| MCP-05 | Phase 45 | Pending |
+| MCP-06 | Phase 45 | Pending |
+| MCP-07 | Phase 45 | Pending |
+| MCP-08 | Phase 45 | Pending |
+| MCP-09 | Phase 45 | Pending |
+| MCP-10 | Phase 45 | Pending |
+| MCP-11 | Phase 45 | Pending |
 
 **Coverage:**
-- v0.9.6 requirements: 31 total
-- Mapped to phases: 31
+- v0.9.6 requirements: 42 total
+- Mapped to phases: 42
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-17*
-*Last updated: 2026-03-17 after roadmap creation*
+*Last updated: 2026-03-18 after Phase 45 planning*

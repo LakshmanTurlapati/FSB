@@ -17,6 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 42: Remote Task Control** - Create tasks from dashboard and monitor execution with real-time progress, summaries, and completion status (completed 2026-03-18)
 - [ ] **Phase 43: Agent Dashboard** - View, create, and manage background polling and automation replay agents from the dashboard
 - [ ] **Phase 44: DOM Cloning Stream** - Real-time DOM reconstruction on dashboard via initial snapshot plus incremental MutationObserver diffs
+- [ ] **Phase 45: MCP Server Interface** - Expose FSB as a Model Context Protocol server so AI agents can use browser automation directly
 
 ## Phase Details
 
@@ -99,25 +100,36 @@ Plans:
 - [ ] 44-01: TBD
 - [ ] 44-02: TBD
 
+### Phase 45: MCP Server Interface
+**Goal**: Any MCP-compatible AI agent can connect to FSB and use its full browser automation capabilities via a local TypeScript MCP server communicating with the extension through Chrome Native Messaging
+**Depends on**: Phase 42
+**Requirements**: MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06, MCP-07, MCP-08, MCP-09, MCP-10, MCP-11
+**Success Criteria** (what must be TRUE):
+  1. MCP server starts as a local Node.js process and responds to MCP protocol initialization via stdio
+  2. Extension connects to MCP server via Chrome Native Messaging two-process bridge
+  3. Agent can run natural language automation tasks via run_task tool (autopilot mode)
+  4. Agent can execute any of 25+ individual browser actions via manual mode tools
+  5. Agent can read DOM snapshot, open tabs, site guides, memory, and extension config as MCP resources
+  6. Agent can use pre-built prompt templates for common workflows
+  7. Cross-platform install script registers native host on macOS, Linux, and Windows
+**Plans**: 4 plans
+
+Plans:
+- [ ] 45-01-PLAN.md — MCP server package scaffold, Native Messaging bridge, extension handler, types/queue/errors
+- [ ] 45-02-PLAN.md — MCP tool registration: autopilot, manual browser actions, read-only information tools
+- [ ] 45-03-PLAN.md — MCP resources, prompt templates, install script, .mcp.json config
+- [ ] 45-04-PLAN.md — Integration verification and human checkpoint
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44
+Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44 -> 45
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 40. WebSocket Infrastructure | 3/3 | Complete    | 2026-03-17 |
 | 41. QR Pairing & Showcase Site | 3/3 | Complete    | 2026-03-17 |
-| 42. Remote Task Control | 2/2 | Complete   | 2026-03-18 |
+| 42. Remote Task Control | 2/2 | Complete    | 2026-03-18 |
 | 43. Agent Dashboard | 0/? | Not started | - |
 | 44. DOM Cloning Stream | 0/? | Not started | - |
-
-### Phase 45: MCP Server Interface
-
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 44
-**Plans:** 2/2 plans complete
-
-Plans:
-- [ ] TBD (run /gsd:plan-phase 45 to break down)
+| 45. MCP Server Interface | 0/4 | Not started | - |
