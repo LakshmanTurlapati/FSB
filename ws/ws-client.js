@@ -17,14 +17,14 @@ class FSBWebSocket {
 
   /**
    * Connect to the relay server WebSocket endpoint.
-   * Reads config from chrome.storage.local; no-ops if sync not enabled.
+   * Reads config from chrome.storage.local; no-ops if no serverHashKey.
    */
   async connect() {
-    const { serverUrl, serverHashKey, serverSyncEnabled } = await chrome.storage.local.get([
-      'serverUrl', 'serverHashKey', 'serverSyncEnabled'
+    const { serverUrl, serverHashKey } = await chrome.storage.local.get([
+      'serverUrl', 'serverHashKey'
     ]);
 
-    if (!serverSyncEnabled || !serverHashKey) {
+    if (!serverHashKey) {
       this._clearBadge();
       return;
     }
@@ -189,6 +189,9 @@ class FSBWebSocket {
       case 'dash:task-submit':
         this._handleDashboardTask(msg.payload);
         break;
+      case 'dash:agent-run-now':
+        this._handleAgentRunNow(msg.payload);
+        break;
       default:
         console.log('[FSB WS] Received: ' + msg.type);
         break;
@@ -227,6 +230,35 @@ class FSBWebSocket {
       startDashboardTask(tab.id, task);
     } catch (err) {
       this.send('ext:task-complete', { success: false, error: err.message, elapsed: 0 });
+    }
+  }
+
+  /**
+   * Handle an immediate agent run request from the dashboard.
+   * Validates the agent exists and is not already running, then triggers execution.
+   * @param {Object} payload - { agentId: string }
+   */
+  async _handleAgentRunNow(payload) {
+    var agentId = payload && payload.agentId;
+    if (!agentId) {
+      this.send('ext:agent-run-complete', { agentId: null, success: false, error: 'No agentId provided' });
+      return;
+    }
+
+    // Check if another session is already running
+    if (typeof activeSessions !== 'undefined') {
+      var hasRunning = [...activeSessions.values()].some(function(s) { return s.status === 'running'; });
+      if (hasRunning) {
+        this.send('ext:agent-run-complete', { agentId: agentId, success: false, error: 'Another task is already running' });
+        return;
+      }
+    }
+
+    // Dispatch to background.js handler
+    if (typeof startAgentRunNow === 'function') {
+      startAgentRunNow(agentId);
+    } else {
+      this.send('ext:agent-run-complete', { agentId: agentId, success: false, error: 'Agent execution not available' });
     }
   }
 

@@ -6228,6 +6228,68 @@ async function startDashboardTask(tabId, task) {
 }
 
 
+/**
+ * Execute an agent immediately upon dashboard "Run Now" request.
+ * Loads agent from storage, runs via agentExecutor, and broadcasts progress/completion via WS.
+ * @param {string} agentId - The agent to run
+ */
+async function startAgentRunNow(agentId) {
+  try {
+    const agent = await agentManager.getAgent(agentId);
+    if (!agent) {
+      fsbWebSocket.send('ext:agent-run-complete', { agentId, success: false, error: 'Agent not found' });
+      return;
+    }
+
+    // Send initial progress
+    fsbWebSocket.send('ext:agent-run-progress', {
+      agentId,
+      progress: 0,
+      phase: 'starting',
+      action: 'Initializing agent run...'
+    });
+
+    // Execute via the agent executor
+    const result = await agentExecutor.execute(agent);
+
+    // Record the run in history
+    await agentManager.recordRun(agentId, {
+      status: result.success ? 'success' : 'failed',
+      result: result.summary || null,
+      error: result.error || null,
+      iterations: result.iterations || 0,
+      tokensUsed: result.tokensUsed || 0,
+      costUsd: result.costUsd || 0,
+      durationMs: result.durationMs || 0,
+      executionMode: result.executionMode || 'ai_initial',
+      costSaved: result.costSaved || 0
+    });
+
+    // Broadcast completion to dashboard
+    fsbWebSocket.send('ext:agent-run-complete', {
+      agentId,
+      success: result.success !== false,
+      summary: result.summary || '',
+      error: result.error || '',
+      executionMode: result.executionMode || 'ai_initial',
+      costSaved: result.costSaved || 0,
+      durationMs: result.durationMs || 0
+    });
+
+    // Sync to server if enabled
+    if (agent.syncEnabled && typeof serverSync !== 'undefined') {
+      try { serverSync.syncRun(agent, result).catch(() => {}); } catch (_) { /* fire and forget */ }
+    }
+
+  } catch (err) {
+    fsbWebSocket.send('ext:agent-run-complete', {
+      agentId,
+      success: false,
+      error: err.message || 'Agent execution failed'
+    });
+  }
+}
+
 // Handle automation stop
 async function handleStopAutomation(request, sender, sendResponse) {
   const { sessionId } = request;
@@ -12108,12 +12170,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   // Reschedule all background agents
   agentScheduler.rescheduleAllAgents();
 
-  // Initialize WebSocket connection if server sync is enabled
-  chrome.storage.local.get(['serverSyncEnabled'], (result) => {
-    if (result.serverSyncEnabled) {
-      fsbWebSocket.connect();
-    }
-  });
+  // Initialize WebSocket connection (connect() checks for serverHashKey internally)
+  fsbWebSocket.connect();
 });
 
 // Initialize analytics and restore sessions on startup
@@ -12127,12 +12185,8 @@ chrome.runtime.onStartup.addListener(async () => {
   // Reschedule all background agents
   agentScheduler.rescheduleAllAgents();
 
-  // Initialize WebSocket connection if server sync is enabled
-  chrome.storage.local.get(['serverSyncEnabled'], (result) => {
-    if (result.serverSyncEnabled) {
-      fsbWebSocket.connect();
-    }
-  });
+  // Initialize WebSocket connection (connect() checks for serverHashKey internally)
+  fsbWebSocket.connect();
 });
 
 // Listen for debug mode changes so toggling takes effect immediately
