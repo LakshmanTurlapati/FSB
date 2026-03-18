@@ -62,11 +62,11 @@ Plans:
   2. Dashboard displays real-time progress percentage, current phase, and ETA as the task runs
   3. Dashboard shows AI-generated action summaries describing what FSB is doing at each step
   4. User can see task completion status and results on the dashboard when execution finishes
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 42-01: TBD
-- [ ] 42-02: TBD
+- [ ] 42-01-PLAN.md — Extension WS wiring: task receipt, progress broadcasting, completion notifications
+- [ ] 42-02-PLAN.md — Dashboard UI: task input, progress display, state machine, WS message handlers
 
 ### Phase 43: Agent Dashboard
 **Goal**: Users can view, create, and control background polling agents and automation replay agents entirely from the dashboard
@@ -107,7 +107,7 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 40. WebSocket Infrastructure | 3/3 | Complete    | 2026-03-17 |
-| 41. QR Pairing & Showcase Site | 3/3 | Complete   | 2026-03-17 |
-| 42. Remote Task Control | 0/? | Not started | - |
+| 41. QR Pairing & Showcase Site | 3/3 | Complete    | 2026-03-17 |
+| 42. Remote Task Control | 0/2 | Not started | - |
 | 43. Agent Dashboard | 0/? | Not started | - |
 | 44. DOM Cloning Stream | 0/? | Not started | - |
