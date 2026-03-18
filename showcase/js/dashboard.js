@@ -354,6 +354,10 @@
         taskInput.placeholder = 'What should FSB do?';
         taskInput.disabled = false;
       }
+      // Re-enable submit button if input has text
+      if (taskSubmitBtn && taskState === 'idle' && taskInput && taskInput.value.trim()) {
+        taskSubmitBtn.disabled = false;
+      }
     }
   }
 
