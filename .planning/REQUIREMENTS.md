@@ -58,9 +58,9 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### MCP Server Interface
 
-- [ ] **MCP-01**: MCP server runs as local Node.js process with stdio transport using @modelcontextprotocol/sdk
-- [ ] **MCP-02**: Two-process Native Messaging bridge connects MCP server to Chrome extension via IPC
-- [ ] **MCP-03**: Extension handles MCP messages via chrome.runtime.connectNative with nativeMessaging permission
+- [x] **MCP-01**: MCP server runs as local Node.js process with stdio transport using @modelcontextprotocol/sdk
+- [x] **MCP-02**: Two-process Native Messaging bridge connects MCP server to Chrome extension via IPC
+- [x] **MCP-03**: Extension handles MCP messages via chrome.runtime.connectNative with nativeMessaging permission
 - [ ] **MCP-04**: Autopilot tools (run_task, stop_task, get_task_status) delegate to FSB's AI loop via MCP
 - [ ] **MCP-05**: All 25+ manual browser action primitives exposed as individual MCP tools with full parity
 - [ ] **MCP-06**: Task queue serializes mutation tools and allows concurrent read-only tool execution
@@ -137,9 +137,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SITE-01 | Phase 41 | Complete |
 | SITE-02 | Phase 41 | Complete |
 | SITE-03 | Phase 41 | Complete |
-| MCP-01 | Phase 45 | Pending |
-| MCP-02 | Phase 45 | Pending |
-| MCP-03 | Phase 45 | Pending |
+| MCP-01 | Phase 45 | Complete |
+| MCP-02 | Phase 45 | Complete |
+| MCP-03 | Phase 45 | Complete |
 | MCP-04 | Phase 45 | Pending |
 | MCP-05 | Phase 45 | Pending |
 | MCP-06 | Phase 45 | Pending |
