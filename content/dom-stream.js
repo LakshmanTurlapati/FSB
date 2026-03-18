@@ -232,6 +232,24 @@
       // Assign data-fsb-nid
       cl.setAttribute('data-fsb-nid', String(nextNodeId++));
 
+      // Canvas-to-img conversion: capture canvas content before it's lost in the clone
+      if (tag === 'canvas') {
+        try {
+          var dataUrl = orig.toDataURL('image/png');
+          var img = clone.ownerDocument.createElement('img');
+          img.src = dataUrl;
+          img.setAttribute('data-fsb-nid', String(nextNodeId++));
+          img.setAttribute('style', 'width:' + (orig.width || 300) + 'px;height:' + (orig.height || 150) + 'px;');
+          if (cl.parentNode) {
+            cl.parentNode.replaceChild(img, cl);
+          }
+        } catch (e) {
+          // Tainted canvas or security error -- leave as empty canvas
+          cl.setAttribute('data-fsb-nid', String(nextNodeId - 1 >= 1 ? nextNodeId - 1 : nextNodeId++));
+        }
+        continue;
+      }
+
       // Absolutify URL attributes
       for (var a = 0; a < URL_ATTRS.length; a++) {
         var attrVal = cl.getAttribute(URL_ATTRS[a]);
@@ -239,6 +257,14 @@
           cl.setAttribute(URL_ATTRS[a], absolutifyUrl(attrVal));
         }
       }
+
+      // SVG xlink:href absolutification
+      try {
+        var xlinkHref = cl.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+        if (xlinkHref) {
+          cl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', absolutifyUrl(xlinkHref));
+        }
+      } catch (e) { /* not an SVG element or no xlink support */ }
 
       // Absolutify srcset
       var srcsetVal = cl.getAttribute('srcset');
@@ -267,8 +293,34 @@
       }
     }
 
+    var html = clone.innerHTML;
+    var truncated = false;
+
+    // Large page safety: cap at 2MB
+    if (html.length > 2 * 1024 * 1024) {
+      // Remove elements below the fold (below 3x viewport height)
+      var viewportCutoff = window.innerHeight * 3;
+      var allEls = clone.querySelectorAll('[data-fsb-nid]');
+      for (var t = allEls.length - 1; t >= 0; t--) {
+        try {
+          // Use original element positions via nid mapping
+          var nidVal = allEls[t].getAttribute('data-fsb-nid');
+          var origByNid = document.querySelector('[data-fsb-nid="' + nidVal + '"]');
+          if (origByNid) {
+            var elRect = origByNid.getBoundingClientRect();
+            if (elRect.top > viewportCutoff) {
+              allEls[t].parentNode && allEls[t].parentNode.removeChild(allEls[t]);
+            }
+          }
+        } catch (e) { /* skip */ }
+      }
+      html = clone.innerHTML;
+      truncated = true;
+    }
+
     return {
-      html: clone.innerHTML,
+      html: html,
+      truncated: truncated,
       stylesheets: stylesheets,
       scrollX: window.scrollX,
       scrollY: window.scrollY,
@@ -598,6 +650,11 @@
     switch (request.action) {
       case 'domStreamStart':
         logger.info('[DOM Stream] Start requested');
+        // Re-injection guard: stop existing stream before restarting
+        if (streaming) {
+          stopMutationStream();
+          stopScrollTracker();
+        }
         var snapshot = serializeDOM();
         try {
           chrome.runtime.sendMessage({

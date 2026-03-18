@@ -51,6 +51,7 @@
   var previewScale = 1;
   var previewHideTimer = null;
   var previewSnapshotData = null; // Last snapshot for reconnect
+  var lastPreviewScroll = { x: 0, y: 0 }; // Last known scroll position for maintenance after mutations
 
   // DOM refs
   var loginSection = document.getElementById('dash-login');
@@ -1624,6 +1625,10 @@
       return;
     }
 
+    // Reset glow and progress overlays on new snapshot
+    if (previewGlow) previewGlow.style.display = 'none';
+    if (previewProgress) previewProgress.style.display = 'none';
+
     previewSnapshotData = payload;
 
     try {
@@ -1649,6 +1654,9 @@
             previewIframe.contentWindow.scrollTo(payload.scrollX || 0, payload.scrollY || 0);
           } catch (e) { /* cross-origin fallback */ }
           setPreviewState('streaming');
+        };
+        previewIframe.onerror = function() {
+          setPreviewState('error');
         };
       }
     } catch (e) {
@@ -1677,67 +1685,89 @@
     }
   });
 
+  // ResizeObserver for more accurate scaling when container resizes independently
+  if (typeof ResizeObserver !== 'undefined' && previewContainer) {
+    new ResizeObserver(function() {
+      if (previewState === 'streaming') {
+        updatePreviewScale();
+      }
+    }).observe(previewContainer);
+  }
+
   function handleDOMMutations(payload) {
     if (previewState !== 'streaming' || !previewIframe) return;
 
-    var mutations = payload.mutations || [];
-    var doc;
     try {
-      doc = previewIframe.contentDocument;
+      var mutations = payload.mutations || [];
+      var doc = previewIframe.contentDocument;
       if (!doc || !doc.body) return;
-    } catch (e) { return; }
 
-    mutations.forEach(function(m) {
-      try {
-        switch (m.op) {
-          case 'add': {
-            var parent = doc.querySelector('[data-fsb-nid="' + m.parentNid + '"]');
-            if (!parent) break;
-            var temp = doc.createElement('div');
-            temp.innerHTML = m.html;
-            var newNode = temp.firstElementChild;
-            if (!newNode) break;
-            if (m.beforeNid) {
-              var before = doc.querySelector('[data-fsb-nid="' + m.beforeNid + '"]');
-              parent.insertBefore(newNode, before);
-            } else {
-              parent.appendChild(newNode);
+      mutations.forEach(function(m) {
+        try {
+          switch (m.op) {
+            case 'add': {
+              var parent = doc.querySelector('[data-fsb-nid="' + m.parentNid + '"]');
+              if (!parent) { console.debug('[FSB-DASH] Stale parentNid:', m.parentNid); break; }
+              var temp = doc.createElement('div');
+              temp.innerHTML = m.html;
+              var newNode = temp.firstElementChild;
+              if (!newNode) break;
+              if (m.beforeNid) {
+                var before = doc.querySelector('[data-fsb-nid="' + m.beforeNid + '"]');
+                parent.insertBefore(newNode, before);
+              } else {
+                parent.appendChild(newNode);
+              }
+              break;
             }
-            break;
-          }
-          case 'rm': {
-            var el = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
-            if (el && el.parentNode) el.parentNode.removeChild(el);
-            break;
-          }
-          case 'attr': {
-            var target = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
-            if (!target) break;
-            if (m.val === null) {
-              target.removeAttribute(m.attr);
-            } else {
-              target.setAttribute(m.attr, m.val);
+            case 'rm': {
+              var el = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
+              if (!el) { console.debug('[FSB-DASH] Stale rm nid:', m.nid); break; }
+              if (el.parentNode) el.parentNode.removeChild(el);
+              break;
             }
-            break;
+            case 'attr': {
+              var target = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
+              if (!target) { console.debug('[FSB-DASH] Stale attr nid:', m.nid); break; }
+              if (m.val === null) {
+                target.removeAttribute(m.attr);
+              } else {
+                target.setAttribute(m.attr, m.val);
+              }
+              break;
+            }
+            case 'text': {
+              var textTarget = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
+              if (!textTarget) { console.debug('[FSB-DASH] Stale text nid:', m.nid); break; }
+              textTarget.textContent = m.text;
+              break;
+            }
           }
-          case 'text': {
-            var textTarget = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
-            if (textTarget) textTarget.textContent = m.text;
-            break;
-          }
+        } catch (e) {
+          // Skip individual mutation errors -- don't break the whole batch
         }
-      } catch (e) {
-        // Skip individual mutation errors -- don't break the whole batch
-      }
-    });
+      });
+
+      // Maintain scroll position after DOM changes
+      try {
+        previewIframe.contentWindow.scrollTo(lastPreviewScroll.x, lastPreviewScroll.y);
+      } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.warn('[FSB-DASH] Mutation apply error:', e.message);
+      // Don't change state -- keep showing last good content
+    }
   }
 
   function handleDOMScroll(payload) {
+    // Store last scroll position for maintenance after mutations
+    lastPreviewScroll.x = payload.scrollX || 0;
+    lastPreviewScroll.y = payload.scrollY || 0;
+
     if (previewState !== 'streaming' || !previewIframe) return;
     try {
       previewIframe.contentWindow.scrollTo({
-        left: payload.scrollX || 0,
-        top: payload.scrollY || 0,
+        left: lastPreviewScroll.x,
+        top: lastPreviewScroll.y,
         behavior: 'smooth'
       });
     } catch (e) { /* ignore */ }
