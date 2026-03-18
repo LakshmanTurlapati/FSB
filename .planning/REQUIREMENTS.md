@@ -61,10 +61,10 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [x] **MCP-01**: MCP server runs as local Node.js process with stdio transport using @modelcontextprotocol/sdk
 - [x] **MCP-02**: Two-process Native Messaging bridge connects MCP server to Chrome extension via IPC
 - [x] **MCP-03**: Extension handles MCP messages via chrome.runtime.connectNative with nativeMessaging permission
-- [ ] **MCP-04**: Autopilot tools (run_task, stop_task, get_task_status) delegate to FSB's AI loop via MCP
-- [ ] **MCP-05**: All 25+ manual browser action primitives exposed as individual MCP tools with full parity
-- [ ] **MCP-06**: Task queue serializes mutation tools and allows concurrent read-only tool execution
-- [ ] **MCP-07**: Error mapping translates FSB errors to descriptive MCP error messages per UI-SPEC contract
+- [x] **MCP-04**: Autopilot tools (run_task, stop_task, get_task_status) delegate to FSB's AI loop via MCP
+- [x] **MCP-05**: All 25+ manual browser action primitives exposed as individual MCP tools with full parity
+- [x] **MCP-06**: Task queue serializes mutation tools and allows concurrent read-only tool execution
+- [x] **MCP-07**: Error mapping translates FSB errors to descriptive MCP error messages per UI-SPEC contract
 - [ ] **MCP-08**: MCP resources expose DOM snapshot, open tabs, site guides, memory, and config (keys redacted)
 - [ ] **MCP-09**: Pre-built MCP prompts provide workflow templates for common automation patterns
 - [ ] **MCP-10**: Cross-platform install script registers native host manifest on macOS, Linux, and Windows
@@ -140,10 +140,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MCP-01 | Phase 45 | Complete |
 | MCP-02 | Phase 45 | Complete |
 | MCP-03 | Phase 45 | Complete |
-| MCP-04 | Phase 45 | Pending |
-| MCP-05 | Phase 45 | Pending |
-| MCP-06 | Phase 45 | Pending |
-| MCP-07 | Phase 45 | Pending |
+| MCP-04 | Phase 45 | Complete |
+| MCP-05 | Phase 45 | Complete |
+| MCP-06 | Phase 45 | Complete |
+| MCP-07 | Phase 45 | Complete |
 | MCP-08 | Phase 45 | Pending |
 | MCP-09 | Phase 45 | Pending |
 | MCP-10 | Phase 45 | Pending |
