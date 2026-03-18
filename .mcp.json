@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "fsb-browser": {
+      "command": "node",
+      "args": ["mcp-server/build/index.js"]
+    }
+  }
+}
