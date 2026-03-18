@@ -78,11 +78,11 @@ Plans:
   2. Dashboard shows replay cost savings (tokens saved vs full AI execution) and success rates per agent
   3. User can create new background polling agents and automation replay agents from the dashboard
   4. User can start, stop, and delete agents from the dashboard and see the state change reflected immediately
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 43-01: TBD
-- [ ] 43-02: TBD
+- [ ] 43-01-PLAN.md — Server API gaps (cost_saved stats, PATCH toggle, per-agent stats) and extension WS handler for dash:agent-run-now
+- [ ] 43-02-PLAN.md — Dashboard UI: enhanced agent cards, detail panel, creation modal, save-as-agent, delete dialog, all interactions
 
 ### Phase 44: DOM Cloning Stream
 **Goal**: Dashboard shows a live structural reconstruction of the page FSB is automating, updated in real time
@@ -130,6 +130,6 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44 -> 45
 | 40. WebSocket Infrastructure | 3/3 | Complete    | 2026-03-17 |
 | 41. QR Pairing & Showcase Site | 3/3 | Complete    | 2026-03-17 |
 | 42. Remote Task Control | 2/2 | Complete    | 2026-03-18 |
-| 43. Agent Dashboard | 0/? | Not started | - |
+| 43. Agent Dashboard | 0/2 | Not started | - |
 | 44. DOM Cloning Stream | 0/? | Not started | - |
-| 45. MCP Server Interface | 4/4 | Complete   | 2026-03-18 |
+| 45. MCP Server Interface | 4/4 | Complete    | 2026-03-18 |
