@@ -12261,39 +12261,107 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 });
 
 // ============================================================================
-// MCP NATIVE MESSAGING BRIDGE
+// MCP WEBSOCKET BRIDGE (localhost:7225)
 // ============================================================================
 
-let mcpNativePort = null;
 let mcpProgressCallbacks = new Map(); // sessionId -> MCP message id for progress forwarding
 
-/**
- * Connect to the MCP native messaging host.
- * Called when extension starts or when MCP server requests connection.
- */
-function connectToMCPBridge() {
-  if (mcpNativePort) {
-    try { mcpNativePort.disconnect(); } catch (e) { /* ignore */ }
+class MCPWebSocket {
+  constructor() {
+    this.ws = null;
+    this.reconnectTimer = null;
+    this.reconnectDelay = 0;
+    this.maxReconnectDelay = 30000;
+    this.connected = false;
+    this.intentionalClose = false;
   }
 
-  try {
-    mcpNativePort = chrome.runtime.connectNative('com.fsb.mcp');
-  } catch (err) {
-    console.error('[FSB MCP] Failed to connect native host:', err.message);
-    return;
+  connect() {
+    if (this.ws) {
+      try { this.ws.close(); } catch (_) { /* ignore */ }
+      this.ws = null;
+    }
+
+    this.intentionalClose = false;
+
+    try {
+      this.ws = new WebSocket('ws://localhost:7225');
+    } catch (err) {
+      console.warn('[FSB MCP WS] Failed to create WebSocket:', err.message);
+      this._scheduleReconnect();
+      return;
+    }
+
+    this.ws.onopen = () => {
+      this.reconnectDelay = 0;
+      this.connected = true;
+      console.log('[FSB MCP WS] Connected to MCP server');
+    };
+
+    this.ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        this._handleMessage(msg);
+      } catch (err) {
+        console.warn('[FSB MCP WS] Failed to parse message:', err.message);
+      }
+    };
+
+    this.ws.onclose = () => {
+      this.connected = false;
+      if (!this.intentionalClose) {
+        this._scheduleReconnect();
+      }
+      console.log('[FSB MCP WS] Disconnected');
+    };
+
+    this.ws.onerror = () => {
+      // onclose fires after onerror
+    };
   }
 
-  mcpNativePort.onMessage.addListener(handleMCPMessage);
+  disconnect() {
+    this.intentionalClose = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      this.ws.close();
+    }
+    this.ws = null;
+    this.connected = false;
+  }
 
-  mcpNativePort.onDisconnect.addListener(() => {
-    const lastError = chrome.runtime.lastError;
-    console.log('[FSB MCP] Native messaging disconnected', lastError?.message || '');
-    mcpNativePort = null;
-    mcpProgressCallbacks.clear();
-  });
+  send(data) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify(data));
+    return true;
+  }
 
-  console.log('[FSB MCP] Native messaging connected');
+  _handleMessage(msg) {
+    // All messages from MCP server are MCPMessage objects with { id, type, payload }
+    // Route them to the existing handleMCPMessage handler
+    if (msg && msg.type && msg.type.startsWith('mcp:')) {
+      handleMCPMessage(msg);
+    }
+  }
+
+  _scheduleReconnect() {
+    if (this.reconnectDelay === 0) {
+      this.reconnectDelay = 2000;
+      // Don't reconnect immediately -- MCP server may not be running
+      console.log('[FSB MCP WS] Will retry in 2s');
+      this.reconnectTimer = setTimeout(() => this.connect(), 2000);
+    } else {
+      console.log('[FSB MCP WS] Reconnecting in ' + this.reconnectDelay + 'ms');
+      this.reconnectTimer = setTimeout(() => this.connect(), this.reconnectDelay);
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
+    }
+  }
 }
+
+const mcpWebSocket = new MCPWebSocket();
 
 /**
  * Handle messages from MCP server via native messaging.
@@ -12445,15 +12513,10 @@ async function handleMCPMessage(msg) {
 }
 
 /**
- * Send a response back to MCP server via native messaging.
+ * Send a response back to MCP server via WebSocket.
  */
 function sendMCPResponse(id, payload) {
-  if (!mcpNativePort) return;
-  try {
-    mcpNativePort.postMessage({ id, type: 'mcp:result', payload });
-  } catch (err) {
-    console.error('[FSB MCP] Failed to send response:', err.message);
-  }
+  mcpWebSocket.send({ id, type: 'mcp:result', payload });
 }
 
 /**
@@ -12461,12 +12524,12 @@ function sendMCPResponse(id, payload) {
  * Called from broadcastDashboardProgress.
  */
 function broadcastMCPProgress(session) {
-  if (!mcpNativePort) return;
+  if (!mcpWebSocket.connected) return;
   const mcpMsgId = mcpProgressCallbacks.get(session.sessionId);
   if (!mcpMsgId) return;
   try {
     var progress = calculateProgress(session);
-    mcpNativePort.postMessage({
+    mcpWebSocket.send({
       id: mcpMsgId,
       type: 'mcp:progress',
       payload: {
@@ -12478,7 +12541,7 @@ function broadcastMCPProgress(session) {
       }
     });
   } catch (err) {
-    console.error('[FSB MCP] Failed to send progress:', err.message);
+    console.error('[FSB MCP WS] Failed to send progress:', err.message);
   }
 }
 
@@ -12508,12 +12571,6 @@ async function loadSiteGuides() {
   }
 }
 
-// Auto-connect to MCP bridge when extension starts.
-// The native host will only be available if installed, so this is safe to call
-// even if the user hasn't set up MCP yet (connectNative will fail silently).
-try {
-  connectToMCPBridge();
-} catch (e) {
-  // MCP native host not installed -- that's fine, MCP is optional
-  console.log('[FSB MCP] Native host not available (MCP not installed)');
-}
+// Auto-connect to MCP WebSocket server.
+// Will silently retry if MCP server isn't running (localhost:7225).
+mcpWebSocket.connect();
