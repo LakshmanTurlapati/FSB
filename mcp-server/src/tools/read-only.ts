@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import type { NativeMessagingBridge } from '../bridge.js';
+import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import { mapFSBError } from '../errors.js';
 
@@ -11,7 +11,7 @@ import { mapFSBError } from '../errors.js';
  */
 export function registerReadOnlyTools(
   server: McpServer,
-  bridge: NativeMessagingBridge,
+  bridge: WebSocketBridge,
   queue: TaskQueue,
 ): void {
   server.tool(

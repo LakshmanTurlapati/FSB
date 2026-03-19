@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import type { NativeMessagingBridge } from '../bridge.js';
+import type { WebSocketBridge } from '../bridge.js';
 import type { TaskQueue } from '../queue.js';
 import { mapFSBError } from '../errors.js';
 
@@ -12,7 +12,7 @@ type ToolCallResult = { content: Array<{ type: 'text'; text: string }>; isError?
  * enqueues via TaskQueue (mutation serialization), and maps the result.
  */
 async function execAction(
-  bridge: NativeMessagingBridge,
+  bridge: WebSocketBridge,
   queue: TaskQueue,
   toolName: string,
   fsbVerb: string,
@@ -37,7 +37,7 @@ async function execAction(
  */
 export function registerManualTools(
   server: McpServer,
-  bridge: NativeMessagingBridge,
+  bridge: WebSocketBridge,
   queue: TaskQueue,
 ): void {
   // --- Navigation tools ---

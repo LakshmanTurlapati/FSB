@@ -1,6 +1,6 @@
 export const FSB_ERROR_MESSAGES: Record<string, string> = {
   'extension_not_connected':
-    'Extension not connected. The FSB Chrome extension must be running and connected via Native Messaging. Verify the extension is installed and the native host is registered.',
+    'Extension WebSocket not connected. The FSB Chrome extension must be running with a WebSocket connection to ws://localhost:7225. Verify the extension is installed and running.',
   'no_active_tab':
     'No active browser tab found. Open a browser tab or use the navigate tool to go to a URL first.',
   'task_already_running':
@@ -11,8 +11,6 @@ export const FSB_ERROR_MESSAGES: Record<string, string> = {
     'Navigation to {url} failed. The URL may be invalid or unreachable. Verify the URL and try again.',
   'task_timeout':
     'Task timed out after {seconds} seconds. The automation did not complete within the allowed time. Try a simpler task or break it into smaller steps using manual mode tools.',
-  'native_messaging_error':
-    'Native messaging communication failed. The bridge between the MCP server and Chrome extension is broken. Restart the MCP server and verify the native host manifest is correctly installed.',
   'action_rejected':
     'Action rejected by the extension. The requested action could not be performed on the current page. Use read_page or get_dom_snapshot to check the current page state.',
   'queue_timeout':

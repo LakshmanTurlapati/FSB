@@ -37,12 +37,6 @@ export interface MCPProgress {
   };
 }
 
-// Bridge IPC messages (between MCP server process and native host shim)
-export interface BridgeMessage {
-  channel: 'mcp-to-ext' | 'ext-to-mcp';
-  data: MCPMessage | MCPResponse;
-}
-
 // Tool result wrapper
 export interface ToolResult {
   success: boolean;

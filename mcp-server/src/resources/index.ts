@@ -1,11 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { NativeMessagingBridge } from '../bridge.js';
+import type { WebSocketBridge } from '../bridge.js';
 
 /**
  * Register all MCP resources that expose FSB's data to AI agents.
  * Each resource checks bridge connectivity before attempting a read.
  */
-export function registerResources(server: McpServer, bridge: NativeMessagingBridge): void {
+export function registerResources(server: McpServer, bridge: WebSocketBridge): void {
   const notConnectedText =
     'Extension not connected. The FSB Chrome extension must be running and connected via Native Messaging.';
 
