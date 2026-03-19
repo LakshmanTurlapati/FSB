@@ -18,6 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 43: Agent Dashboard** - View, create, and manage background polling and automation replay agents from the dashboard (completed 2026-03-18)
 - [x] **Phase 44: DOM Cloning Stream** - Real-time DOM reconstruction on dashboard via initial snapshot plus incremental MutationObserver diffs (completed 2026-03-19)
 - [x] **Phase 45: MCP Server Interface** - Expose FSB as a Model Context Protocol server so AI agents can use browser automation directly (completed 2026-03-18)
+- [ ] **Phase 46: MCP WebSocket Bridge** - Replace native messaging with direct localhost WebSocket for zero-install MCP connectivity
 
 ## Phase Details
 
@@ -33,9 +34,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 40-01-PLAN.md — WS relay server core, deployment config, SSE removal, dead code cleanup
-- [ ] 40-02-PLAN.md — Extension WS client with keepalive, reconnection, and badge icon
-- [ ] 40-03-PLAN.md — Dashboard SSE-to-WS rewrite with connection status indicator
+- [ ] 40-01-PLAN.md -- WS relay server core, deployment config, SSE removal, dead code cleanup
+- [ ] 40-02-PLAN.md -- Extension WS client with keepalive, reconnection, and badge icon
+- [ ] 40-03-PLAN.md -- Dashboard SSE-to-WS rewrite with connection status indicator
 
 ### Phase 41: QR Pairing & Showcase Site
 **Goal**: Users can pair their browser to the dashboard by scanning a QR code, and the dashboard is accessible as a public showcase site
@@ -50,9 +51,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 41-01-PLAN.md — Server pairing token infrastructure (DB schema, API routes, root URL fix)
-- [ ] 41-02-PLAN.md — Extension QR code generation with countdown timer in control panel
-- [ ] 41-03-PLAN.md — Dashboard QR scanning, session management, landing page CTA
+- [ ] 41-01-PLAN.md -- Server pairing token infrastructure (DB schema, API routes, root URL fix)
+- [ ] 41-02-PLAN.md -- Extension QR code generation with countdown timer in control panel
+- [ ] 41-03-PLAN.md -- Dashboard QR scanning, session management, landing page CTA
 
 ### Phase 42: Remote Task Control
 **Goal**: Users can create and monitor automation tasks from the dashboard while watching FSB execute them in real time
@@ -66,8 +67,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 42-01-PLAN.md — Extension WS wiring: task receipt, progress broadcasting, completion notifications
-- [ ] 42-02-PLAN.md — Dashboard UI: task input, progress display, state machine, WS message handlers
+- [ ] 42-01-PLAN.md -- Extension WS wiring: task receipt, progress broadcasting, completion notifications
+- [ ] 42-02-PLAN.md -- Dashboard UI: task input, progress display, state machine, WS message handlers
 
 ### Phase 43: Agent Dashboard
 **Goal**: Users can view, create, and control background polling agents and automation replay agents entirely from the dashboard
@@ -81,8 +82,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 43-01-PLAN.md — Server API gaps (cost_saved stats, PATCH toggle, per-agent stats) and extension WS handler for dash:agent-run-now
-- [ ] 43-02-PLAN.md — Dashboard UI: enhanced agent cards, detail panel, creation modal, save-as-agent, delete dialog, all interactions
+- [ ] 43-01-PLAN.md -- Server API gaps (cost_saved stats, PATCH toggle, per-agent stats) and extension WS handler for dash:agent-run-now
+- [ ] 43-02-PLAN.md -- Dashboard UI: enhanced agent cards, detail panel, creation modal, save-as-agent, delete dialog, all interactions
 
 ### Phase 44: DOM Cloning Stream
 **Goal**: Dashboard shows a live structural reconstruction of the page FSB is automating, updated in real time
@@ -97,9 +98,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [x] 44-01-PLAN.md — Extension DOM serializer, MutationObserver streamer, WS message routing
-- [ ] 44-02-PLAN.md — Dashboard iframe renderer, mutation applier, overlay indicators, preview state machine
-- [ ] 44-03-PLAN.md — Edge case hardening and end-to-end verification checkpoint
+- [x] 44-01-PLAN.md -- Extension DOM serializer, MutationObserver streamer, WS message routing
+- [ ] 44-02-PLAN.md -- Dashboard iframe renderer, mutation applier, overlay indicators, preview state machine
+- [ ] 44-03-PLAN.md -- Edge case hardening and end-to-end verification checkpoint
 
 ### Phase 45: MCP Server Interface
 **Goal**: Any MCP-compatible AI agent can connect to FSB and use its full browser automation capabilities via a local TypeScript MCP server communicating with the extension through Chrome Native Messaging
@@ -116,15 +117,31 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 45-01-PLAN.md — MCP server package scaffold, Native Messaging bridge, extension handler, types/queue/errors
-- [ ] 45-02-PLAN.md — MCP tool registration: autopilot, manual browser actions, read-only information tools
-- [ ] 45-03-PLAN.md — MCP resources, prompt templates, install script, .mcp.json config
-- [ ] 45-04-PLAN.md — Integration verification and human checkpoint
+- [ ] 45-01-PLAN.md -- MCP server package scaffold, Native Messaging bridge, extension handler, types/queue/errors
+- [ ] 45-02-PLAN.md -- MCP tool registration: autopilot, manual browser actions, read-only information tools
+- [ ] 45-03-PLAN.md -- MCP resources, prompt templates, install script, .mcp.json config
+- [ ] 45-04-PLAN.md -- Integration verification and human checkpoint
+
+### Phase 46: MCP WebSocket Bridge
+**Goal**: MCP server communicates with the Chrome extension via a direct localhost WebSocket connection instead of Chrome Native Messaging, eliminating native host installation and extension ID requirements for zero-friction setup
+**Depends on**: Phase 45
+**Requirements**: WSBRIDGE-01, WSBRIDGE-02, WSBRIDGE-03, WSBRIDGE-04, WSBRIDGE-05
+**Success Criteria** (what must be TRUE):
+  1. MCP server embeds a WebSocket server on localhost:7225 -- no native host manifest installation required
+  2. Extension auto-connects to ws://localhost:7225 with reconnection backoff
+  3. All 33+ existing MCP tools work identically over the WebSocket bridge as they did over native messaging
+  4. Users only need `npm install && npm run build` to get a working MCP server -- no extension ID copy-paste or install script
+  5. Native messaging code completely removed (not kept as fallback)
+**Plans**: 2 plans
+
+Plans:
+- [ ] 46-01-PLAN.md -- MCP server WebSocket bridge (bridge.ts rewrite, native file deletion, package.json cleanup)
+- [ ] 46-02-PLAN.md -- Extension MCPWebSocket client, manifest cleanup, sendMCPResponse/broadcastMCPProgress rewiring
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44 -> 45
+Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44 -> 45 -> 46
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -133,4 +150,5 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44 -> 45
 | 42. Remote Task Control | 2/2 | Complete    | 2026-03-18 |
 | 43. Agent Dashboard | 2/2 | Complete    | 2026-03-18 |
 | 44. DOM Cloning Stream | 3/3 | Complete    | 2026-03-19 |
-| 45. MCP Server Interface | 4/4 | Complete   | 2026-03-19 |
+| 45. MCP Server Interface | 4/4 | Complete    | 2026-03-19 |
+| 46. MCP WebSocket Bridge | 0/2 | Not Started | - |

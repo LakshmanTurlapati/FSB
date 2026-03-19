@@ -1,7 +1,7 @@
 # Requirements: FSB v0.9.6 Agents & Remote Control
 
 **Defined:** 2026-03-17
-**Core Value:** Reliable single-attempt execution — the AI decides correctly, the mechanics execute precisely
+**Core Value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
 
 ## v0.9.6 Requirements
 
@@ -70,6 +70,14 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [x] **MCP-10**: Cross-platform install script registers native host manifest on macOS, Linux, and Windows
 - [x] **MCP-11**: .mcp.json at repo root enables Claude Code auto-discovery of FSB MCP server
 
+### MCP WebSocket Bridge
+
+- [ ] **WSBRIDGE-01**: MCP server embeds WebSocket server on localhost:7225 via ws library (replaces native messaging)
+- [ ] **WSBRIDGE-02**: WebSocketBridge class preserves same interface (connect, disconnect, sendAndWait, isConnected) for tool compatibility
+- [ ] **WSBRIDGE-03**: Extension MCPWebSocket client auto-connects to ws://localhost:7225 with reconnection backoff
+- [ ] **WSBRIDGE-04**: nativeMessaging permission and all native host files removed (shim, install script, manifest template)
+- [ ] **WSBRIDGE-05**: Native messaging code deleted from bridge.ts, types.ts, errors.ts, package.json
+
 ## Future Requirements
 
 Deferred to post-v0.9.6. Tracked but not in current roadmap.
@@ -91,10 +99,10 @@ Deferred to post-v0.9.6. Tracked but not in current roadmap.
 | Video/screenshot streaming | Bandwidth-heavy (1-5 Mbps vs 1-50 KB/s for DOM deltas), PROJECT.md explicitly prohibits |
 | Headless server-side execution | Server is relay only, user's browser must stay active |
 | User account system / login | Hash key auth is simpler and anonymous, no PII/GDPR obligations |
-| Always-on WebSocket | Battery drain, fights MV3 lifecycle — connect only when dashboard open or agents running |
+| Always-on WebSocket | Battery drain, fights MV3 lifecycle -- connect only when dashboard open or agents running |
 | Proxy/tunnel for page resources | Images load from original CDN, no server bandwidth cost |
 | Mobile native app | Dashboard is responsive web, PWA-installable |
-| Full rrweb integration | 50KB+ bundle, alpha for 3 years, wrong abstraction — custom MutationObserver approach |
+| Full rrweb integration | 50KB+ bundle, alpha for 3 years, wrong abstraction -- custom MutationObserver approach |
 | Socket.IO | 50KB overhead, unnecessary for typed JSON envelope protocol |
 | Remote MCP access via fly.io | Future phase -- local stdio only for now |
 | Multi-tab MCP targeting | Future consideration -- active tab only for now |
@@ -148,12 +156,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MCP-09 | Phase 45 | Complete |
 | MCP-10 | Phase 45 | Complete |
 | MCP-11 | Phase 45 | Complete |
+| WSBRIDGE-01 | Phase 46 | Planned |
+| WSBRIDGE-02 | Phase 46 | Planned |
+| WSBRIDGE-03 | Phase 46 | Planned |
+| WSBRIDGE-04 | Phase 46 | Planned |
+| WSBRIDGE-05 | Phase 46 | Planned |
 
 **Coverage:**
-- v0.9.6 requirements: 42 total
-- Mapped to phases: 42
+- v0.9.6 requirements: 47 total
+- Mapped to phases: 47
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-17*
-*Last updated: 2026-03-18 after Phase 45 planning*
+*Last updated: 2026-03-19 after Phase 46 planning*
