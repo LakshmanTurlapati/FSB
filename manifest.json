@@ -15,8 +15,7 @@
     "webNavigation",
     "alarms",
     "clipboardWrite",
-    "offscreen",
-    "nativeMessaging"
+    "offscreen"
   ],
   "host_permissions": [
     "<all_urls>"
