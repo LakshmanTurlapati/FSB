@@ -28,7 +28,7 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  // Connect Native Messaging bridge (MCP server <-> Chrome extension)
+  // Connect WebSocket bridge (MCP server <-> Chrome extension)
   // Wrapped in try/catch: bridge failure should not prevent MCP server from
   // starting. In disconnected mode, all tool calls return "Extension not
   // connected" errors, but the server still responds to MCP protocol messages.
