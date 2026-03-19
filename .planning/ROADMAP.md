@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 43: Agent Dashboard** - View, create, and manage background polling and automation replay agents from the dashboard (completed 2026-03-18)
 - [x] **Phase 44: DOM Cloning Stream** - Real-time DOM reconstruction on dashboard via initial snapshot plus incremental MutationObserver diffs (completed 2026-03-19)
 - [x] **Phase 45: MCP Server Interface** - Expose FSB as a Model Context Protocol server so AI agents can use browser automation directly (completed 2026-03-18)
-- [ ] **Phase 46: MCP WebSocket Bridge** - Replace native messaging with direct localhost WebSocket for zero-install MCP connectivity
+- [x] **Phase 46: MCP WebSocket Bridge** - Replace native messaging with direct localhost WebSocket for zero-install MCP connectivity (completed 2026-03-19)
 
 ## Phase Details
 
@@ -151,4 +151,4 @@ Phases execute in numeric order: 40 -> 41 -> 42 -> 43 -> 44 -> 45 -> 46
 | 43. Agent Dashboard | 2/2 | Complete    | 2026-03-18 |
 | 44. DOM Cloning Stream | 3/3 | Complete    | 2026-03-19 |
 | 45. MCP Server Interface | 4/4 | Complete    | 2026-03-19 |
-| 46. MCP WebSocket Bridge | 1/2 | In Progress|  |
+| 46. MCP WebSocket Bridge | 2/2 | Complete   | 2026-03-19 |
