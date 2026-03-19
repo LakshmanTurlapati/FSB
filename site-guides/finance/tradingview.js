@@ -42,16 +42,48 @@ WATCHLIST:
 - Watchlist shows in the right sidebar
 
 DRAWING TOOLS:
-- TradingView has extensive drawing tools for technical analysis
-- These are complex and require precise interaction
-- Prefer using the built-in indicators panel for analysis`,
+- TradingView drawing tools are in the left-side toolbar as standard HTML DOM elements
+- Drawing toolbar buttons use regular DOM clicks (existing click tool works)
+- Fibonacci Retracement is under the "Gann and Fibonacci tools" group button
+- After selecting a drawing tool, chart canvas interaction requires CDP trusted events
+- Use cdpClickAt or cdpDrag tools for all canvas coordinate interactions
+- Content script dispatchEvent() produces untrusted events that canvas ignores
+
+DRAWING TOOLS -- CDP INTERACTION:
+- The chart canvas listens for mousedown/mousemove/mouseup events and checks isTrusted
+- CDP Input.dispatchMouseEvent produces trusted browser-level events
+- cdpClickAt(x, y): sends mousePressed + mouseReleased at viewport coordinates
+- cdpDrag(startX, startY, endX, endY, steps, stepDelayMs): sends mousePressed + N mouseMoved + mouseReleased
+- Coordinates are viewport-relative (use getBoundingClientRect(), NOT offsetTop/offsetLeft)
+- TradingView uses 5px manhattan distance threshold to distinguish click from drag
+- Ensure drag distance exceeds 50px and use at least 10 intermediate mouseMoved steps
+
+FIBONACCI RETRACEMENT WORKFLOW:
+1. Click the drawing tool group button on the left toolbar (DOM click)
+2. Select "Fib Retracement" from the expanded dropdown/submenu (DOM click)
+3. Click first point on chart canvas (local low) using cdpClickAt with viewport coords
+4. Click second point on chart canvas (local high) using cdpClickAt with viewport coords
+5. TradingView uses click-click method (two separate clicks, not drag) for Fibonacci
+6. Verify Fibonacci lines appeared by checking for new SVG/DOM drawing elements
+
+MODAL HANDLING:
+- TradingView shows sign-up and cookie modals to unauthenticated users
+- Dismiss by clicking close buttons on .tv-dialog or overlay elements
+- Check for modals before attempting chart interaction
+- Free tier allows drawing tools without login`,
   selectors: {
     searchBox: '#header-toolbar-symbol-search input',
     price: '.js-symbol-last',
     changePercent: '.js-symbol-change-pt',
     timeframeButtons: '.item-2IihgTnv',
     chartContainer: '.chart-gui-wrapper',
-    watchlistPanel: '.widgetbar-widget-watchlist'
+    watchlistPanel: '.widgetbar-widget-watchlist',
+    drawingToolbar: '.drawing-toolbar, [data-name="drawing-toolbar"]',
+    fibToolGroup: '[data-name="Gann and Fibonacci Tools"], .menu-S_1OCXUK [data-name="Fib Retracement"]',
+    fibRetracement: '[data-name="Fib Retracement"], [data-tool-name="FibRetracement"]',
+    chartCanvas: '.chart-gui-wrapper canvas, .chart-markup-table canvas',
+    modalOverlay: '.tv-dialog, .tv-dialog__modal-wrap, [class*="overlay"]',
+    modalClose: '.tv-dialog .close-BZKENkhT, .tv-dialog__close, [data-name="close"]'
   },
   workflows: {
     getQuote: [
@@ -66,13 +98,25 @@ DRAWING TOOLS:
       'Look up second stock and record its data',
       'Compare key metrics side by side',
       'Report the comparison'
+    ],
+    drawFibRetracement: [
+      'Dismiss any sign-up or cookie modals (click close on .tv-dialog overlays)',
+      'Click drawing toolbar group containing Fibonacci tools (left sidebar DOM button)',
+      'Select Fib Retracement from dropdown/submenu (DOM click on submenu item)',
+      'Get chart canvas bounding rect via getBoundingClientRect for viewport coordinates',
+      'Click first point on chart canvas (local low) using cdpClickAt with viewport coordinates',
+      'Click second point on chart canvas (local high) using cdpClickAt with viewport coordinates',
+      'If click-click does not produce drawing, fall back to cdpDrag from low to high point',
+      'Verify Fibonacci lines appeared on chart (check for new SVG elements or drawing DOM nodes)'
     ]
   },
   warnings: [
     'TradingView charts are canvas-based -- cannot extract data from the chart itself',
     'Use the data panels and summary stats for numerical data extraction',
     'Some features require a TradingView subscription (Pro, Pro+, Premium)',
-    'Drawing tools and indicators are complex -- prefer reading existing analysis'
+    'Canvas interactions MUST use cdpClickAt or cdpDrag -- content script events are untrusted and ignored',
+    'CDP coordinates are viewport-relative -- always use getBoundingClientRect() not offsetTop/offsetLeft',
+    'Drag distance must exceed 50px with at least 10 intermediate mouseMoved steps for TradingView to register'
   ],
-  toolPreferences: ['click', 'type', 'scroll', 'getText', 'waitForElement', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
+  toolPreferences: ['click', 'type', 'scroll', 'getText', 'waitForElement', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute', 'cdpClickAt', 'cdpDrag']
 });
