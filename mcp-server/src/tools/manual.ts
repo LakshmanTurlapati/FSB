@@ -263,4 +263,31 @@ export function registerManualTools(
     { range: z.string().describe('Cell range to read (e.g., \'A1:C5\')') },
     async ({ range }) => execAction(bridge, queue, 'read_sheet', 'readsheet', { range }),
   );
+
+  // --- CDP coordinate tools (for canvas/overlay elements) ---
+
+  server.tool(
+    'click_at',
+    'Click at specific viewport coordinates using CDP trusted events. Use for canvas elements, overlays, or any element where DOM-based click does not work. Coordinates are CSS pixels relative to the browser viewport (use getBoundingClientRect() values). Returns success/failure with method used.',
+    {
+      x: z.number().describe('X coordinate in viewport CSS pixels'),
+      y: z.number().describe('Y coordinate in viewport CSS pixels'),
+    },
+    async ({ x, y }) => execAction(bridge, queue, 'click_at', 'cdpClickAt', { x, y }),
+  );
+
+  server.tool(
+    'drag',
+    'Drag from one viewport coordinate to another using CDP trusted events. Produces mousePressed at start, N intermediate mouseMoved events, then mouseReleased at end. Essential for canvas drawing tools, sliders, and map interactions where DOM drag events are ignored. Coordinates are CSS pixels relative to the browser viewport.',
+    {
+      startX: z.number().describe('Start X coordinate in viewport CSS pixels'),
+      startY: z.number().describe('Start Y coordinate in viewport CSS pixels'),
+      endX: z.number().describe('End X coordinate in viewport CSS pixels'),
+      endY: z.number().describe('End Y coordinate in viewport CSS pixels'),
+      steps: z.number().optional().default(10).describe('Number of intermediate mouseMoved events (default 10, increase for smoother drag)'),
+      stepDelayMs: z.number().optional().default(20).describe('Delay in ms between each mouseMoved step (default 20)'),
+    },
+    async ({ startX, startY, endX, endY, steps, stepDelayMs }) =>
+      execAction(bridge, queue, 'drag', 'cdpDrag', { startX, startY, endX, endY, steps, stepDelayMs }),
+  );
 }
