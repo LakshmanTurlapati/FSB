@@ -68,7 +68,10 @@
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 47-01-PLAN.md -- CDP click_at and drag MCP tools for canvas interaction
+- [ ] 47-02-PLAN.md -- Execute TradingView Fibonacci test, update site guide, generate diagnostic report
 
 ### Phase 48: Figma Frame Alignment
 **Goal:** Execute Figma-like editor frame creation and rectangle alignment via MCP manual tools; fix blockers
