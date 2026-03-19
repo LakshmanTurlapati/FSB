@@ -7,6 +7,7 @@ import { TaskQueue } from './queue.js';
 import { registerAutopilotTools } from './tools/autopilot.js';
 import { registerManualTools } from './tools/manual.js';
 import { registerReadOnlyTools } from './tools/read-only.js';
+import { registerObservabilityTools } from './tools/observability.js';
 import { registerResources } from './resources/index.js';
 import { registerPrompts } from './prompts/index.js';
 
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
   registerAutopilotTools(server, bridge, queue);
   registerManualTools(server, bridge, queue);
   registerReadOnlyTools(server, bridge, queue);
+  registerObservabilityTools(server, bridge, queue);
 
   // Register resources and prompt templates
   registerResources(server, bridge);
@@ -38,7 +40,7 @@ async function main(): Promise<void> {
     console.error('[FSB MCP] WebSocket bridge failed to start (running in disconnected mode):', err);
   }
 
-  console.error('[FSB MCP] Server started (stdio + WebSocket on port 7225)');
+  console.error(`[FSB MCP] Server started (stdio + WebSocket bridge in ${bridge.currentMode} mode)`);
 
   // Graceful shutdown
   const shutdown = (): void => {

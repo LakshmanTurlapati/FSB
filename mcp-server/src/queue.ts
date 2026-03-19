@@ -17,6 +17,11 @@ export class TaskQueue {
     'get_site_guides',
     'get_memory',
     'get_extension_config',
+    'list_sessions',
+    'get_session_detail',
+    'get_logs',
+    'search_memory',
+    'get_memory_stats',
   ]);
 
   /**

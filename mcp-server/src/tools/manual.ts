@@ -19,21 +19,32 @@ async function execAction(
   params: Record<string, unknown>,
 ): Promise<ToolCallResult> {
   if (!bridge.isConnected) {
+    console.error(`[FSB Manual] ${toolName}: bridge not connected`);
     return mapFSBError({ success: false, error: 'extension_not_connected' });
   }
+  console.error(`[FSB Manual] ${toolName}: sending verb=${fsbVerb} params=${JSON.stringify(params).slice(0, 150)}`);
   return queue.enqueue(toolName, async () => {
-    const result = await bridge.sendAndWait(
-      { type: 'mcp:execute-action', payload: { tool: fsbVerb, params } },
-      { timeout: 30_000 },
-    );
-    return mapFSBError(result);
+    try {
+      const result = await bridge.sendAndWait(
+        { type: 'mcp:execute-action', payload: { tool: fsbVerb, params } },
+        { timeout: 30_000 },
+      );
+      if (!result?.success) {
+        console.error(`[FSB Manual] ${toolName}: FAILED - ${result?.error || 'unknown error'}`);
+      }
+      return mapFSBError(result);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[FSB Manual] ${toolName}: EXCEPTION - ${errMsg}`);
+      return mapFSBError({ success: false, error: errMsg });
+    }
   });
 }
 
 /**
  * Register all 25 manual browser action tools.
  * Each tool maps to an FSB CLI verb and sends mcp:execute-action
- * through the native messaging bridge.
+ * through the WebSocket bridge.
  */
 export function registerManualTools(
   server: McpServer,
@@ -53,21 +64,21 @@ export function registerManualTools(
     'search',
     'Trigger a search on the current page. Use when the page has a search function and you need to find specific content. Returns search results status.',
     { query: z.string().describe('Search query text') },
-    async ({ query }) => execAction(bridge, queue, 'search', 'search', { query }),
+    async ({ query }) => execAction(bridge, queue, 'search', 'searchGoogle', { query }),
   );
 
   server.tool(
     'go_back',
     'Navigate back one page in browser history. Use to return to the previous page. Returns the new URL.',
     {},
-    async () => execAction(bridge, queue, 'go_back', 'back', {}),
+    async () => execAction(bridge, queue, 'go_back', 'goBack', {}),
   );
 
   server.tool(
     'go_forward',
     'Navigate forward one page in browser history. Use after going back. Returns the new URL.',
     {},
-    async () => execAction(bridge, queue, 'go_forward', 'forward', {}),
+    async () => execAction(bridge, queue, 'go_forward', 'goForward', {}),
   );
 
   server.tool(
@@ -100,7 +111,7 @@ export function registerManualTools(
     'press_enter',
     'Press the Enter key, optionally on a specific element. Use to submit forms or confirm input. Returns key press confirmation.',
     { selector: z.string().optional().describe('Optional CSS selector or element reference to press Enter on') },
-    async ({ selector }) => execAction(bridge, queue, 'press_enter', 'enter', { selector }),
+    async ({ selector }) => execAction(bridge, queue, 'press_enter', 'pressEnter', { selector }),
   );
 
   server.tool(
@@ -113,7 +124,13 @@ export function registerManualTools(
       alt: z.boolean().optional().describe('Hold Alt'),
     },
     async ({ key, ctrl, shift, alt }) =>
-      execAction(bridge, queue, 'press_key', 'key', { key, ctrl, shift, alt }),
+      execAction(bridge, queue, 'press_key', 'keyPress', {
+        key,
+        ctrlKey: ctrl ?? false,
+        shiftKey: shift ?? false,
+        altKey: alt ?? false,
+        useDebuggerAPI: true,
+      }),
   );
 
   server.tool(
@@ -123,14 +140,14 @@ export function registerManualTools(
       selector: z.string().describe('CSS selector or element reference for the select dropdown'),
       value: z.string().describe('Option value or visible text to select'),
     },
-    async ({ selector, value }) => execAction(bridge, queue, 'select_option', 'select', { selector, value }),
+    async ({ selector, value }) => execAction(bridge, queue, 'select_option', 'selectOption', { selector, value }),
   );
 
   server.tool(
     'check_box',
     'Toggle a checkbox element. Use to check or uncheck form checkboxes. Returns the new checked state.',
     { selector: z.string().describe('CSS selector or element reference for the checkbox') },
-    async ({ selector }) => execAction(bridge, queue, 'check_box', 'check', { selector }),
+    async ({ selector }) => execAction(bridge, queue, 'check_box', 'toggleCheckbox', { selector }),
   );
 
   server.tool(
@@ -144,14 +161,14 @@ export function registerManualTools(
     'right_click',
     'Open context menu on an element. Use to access right-click options. Returns context menu confirmation.',
     { selector: z.string().describe('CSS selector or element reference to right-click') },
-    async ({ selector }) => execAction(bridge, queue, 'right_click', 'rightclick', { selector }),
+    async ({ selector }) => execAction(bridge, queue, 'right_click', 'rightClick', { selector }),
   );
 
   server.tool(
     'double_click',
     'Double-click an element. Use for actions requiring double-click like text selection or opening items. Returns click confirmation.',
     { selector: z.string().describe('CSS selector or element reference to double-click') },
-    async ({ selector }) => execAction(bridge, queue, 'double_click', 'doubleclick', { selector }),
+    async ({ selector }) => execAction(bridge, queue, 'double_click', 'doubleClick', { selector }),
   );
 
   server.tool(
@@ -165,7 +182,7 @@ export function registerManualTools(
     'clear_input',
     'Clear the contents of an input field. Use before typing new text into an already-filled field. Returns clear confirmation.',
     { selector: z.string().describe('CSS selector or element reference for the input to clear') },
-    async ({ selector }) => execAction(bridge, queue, 'clear_input', 'clear', { selector }),
+    async ({ selector }) => execAction(bridge, queue, 'clear_input', 'clearInput', { selector }),
   );
 
   // --- Scrolling tools ---
@@ -184,14 +201,14 @@ export function registerManualTools(
     'scroll_to_top',
     'Scroll to the top of the page. Use to return to the beginning of the page. Returns confirmation.',
     {},
-    async () => execAction(bridge, queue, 'scroll_to_top', 'scrolltotop', {}),
+    async () => execAction(bridge, queue, 'scroll_to_top', 'scrollToTop', {}),
   );
 
   server.tool(
     'scroll_to_bottom',
     'Scroll to the bottom of the page. Use to reach the end of the page or load lazy content. Returns confirmation.',
     {},
-    async () => execAction(bridge, queue, 'scroll_to_bottom', 'scrolltobottom', {}),
+    async () => execAction(bridge, queue, 'scroll_to_bottom', 'scrollToBottom', {}),
   );
 
   // --- Waiting tools ---
@@ -200,14 +217,14 @@ export function registerManualTools(
     'wait_for_element',
     'Wait until an element matching the selector appears on the page. Use after navigation or actions that load new content. Returns when element is found or times out.',
     { selector: z.string().describe('CSS selector to wait for (not element reference -- must be a CSS selector)') },
-    async ({ selector }) => execAction(bridge, queue, 'wait_for_element', 'wait', { selector }),
+    async ({ selector }) => execAction(bridge, queue, 'wait_for_element', 'waitForElement', { selector }),
   );
 
   server.tool(
     'wait_for_stable',
     'Wait until the page stops changing (no DOM mutations). Use after actions that trigger dynamic content loading. Returns when page is stable.',
     {},
-    async () => execAction(bridge, queue, 'wait_for_stable', 'waitstable', {}),
+    async () => execAction(bridge, queue, 'wait_for_stable', 'waitForDOMStable', {}),
   );
 
   // --- Tab tools ---
@@ -216,14 +233,14 @@ export function registerManualTools(
     'open_tab',
     'Open a new browser tab with the given URL. Use when you need to work in a separate tab. Returns the new tab ID.',
     { url: z.string().describe('URL to open in new tab') },
-    async ({ url }) => execAction(bridge, queue, 'open_tab', 'opentab', { url }),
+    async ({ url }) => execAction(bridge, queue, 'open_tab', 'openNewTab', { url }),
   );
 
   server.tool(
     'switch_tab',
     'Switch the active browser tab by tab ID. Use to move between open tabs. Returns confirmation with the new active tab info.',
     { tabId: z.number().describe('Tab ID to switch to (from list_tabs)') },
-    async ({ tabId }) => execAction(bridge, queue, 'switch_tab', 'switchtab', { tabId }),
+    async ({ tabId }) => execAction(bridge, queue, 'switch_tab', 'switchToTab', { tabId }),
   );
 
   // --- Data tools ---

@@ -1,4 +1,4 @@
-// Messages FROM MCP server TO extension (via native messaging bridge)
+// Messages FROM MCP server TO extension (via WebSocket bridge)
 export interface MCPMessage {
   id: string;          // Unique message ID for request/response correlation
   type: MCPMessageType;
@@ -15,7 +15,11 @@ export type MCPMessageType =
   | 'mcp:get-site-guides'     // Read site guide data
   | 'mcp:get-memory'          // Read memory system
   | 'mcp:get-config'          // Read extension config (keys redacted)
-  | 'mcp:read-page';          // Read page text content
+  | 'mcp:read-page'           // Read page text content
+  | 'mcp:list-sessions'       // List all past session summaries
+  | 'mcp:get-session'         // Get full session detail by ID
+  | 'mcp:get-logs'            // Get recent logs or session-specific logs
+  | 'mcp:search-memory';      // Search memories with query and filters
 
 // Messages FROM extension TO MCP server (responses)
 export interface MCPResponse {
@@ -36,6 +40,20 @@ export interface MCPProgress {
     action?: string;     // Current action summary
   };
 }
+
+// Relay protocol: MCP instance -> hub handshake
+export interface RelayHello {
+  type: 'relay:hello';
+  instanceId: string;
+}
+
+// Relay protocol: hub -> MCP instance handshake ack
+export interface RelayWelcome {
+  type: 'relay:welcome';
+  instanceId: string;
+}
+
+export type RelayMessage = RelayHello | RelayWelcome;
 
 // Tool result wrapper
 export interface ToolResult {

@@ -1,172 +1,156 @@
-# Requirements: FSB v0.9.6 Agents & Remote Control
+# Requirements: FSB v0.9.7 MCP Edge Case Validation
 
-**Defined:** 2026-03-17
+**Defined:** 2026-03-19
 **Core Value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
 
-## v0.9.6 Requirements
+## v0.9.7 Requirements
 
-Requirements for this milestone. Each maps to roadmap phases.
+Each requirement = one edge case prompt executed via MCP manual mode (no vision, DOM only). Success means: prompt completed OR specific blockers identified and fixed in-phase with autopilot diagnostic report generated.
 
-### Server Infrastructure
+### Canvas, WebGL & Spatial Reasoning
 
-- [x] **SERV-01**: Server upgrades from SSE to WebSocket relay with room-based routing by hashKey
-- [x] **SERV-02**: Extension service worker maintains WebSocket connection with 20s keepalive ping
-- [x] **SERV-03**: Dashboard establishes WebSocket connection and receives real-time events
-- [x] **SERV-04**: Connection status indicator shows connected/disconnected/reconnecting on dashboard
-- [x] **SERV-05**: Single fly.io app serves dashboard static files + WebSocket relay + REST API
-- [x] **SERV-06**: SQLite database persists via fly.io volume mount
-- [x] **SERV-07**: Auto-TLS and production deployment configuration on fly.io
+- [ ] **CANVAS-01**: MCP can interact with TradingView chart elements (draw Fibonacci retracement from local low to local high)
+- [ ] **CANVAS-02**: MCP can interact with Figma-like editor (create frame, align rectangles) -- free alternative if Figma requires auth
+- [ ] **CANVAS-03**: MCP can interact with Google Maps (zoom, trace walking path around Central Park reservoir)
+- [ ] **CANVAS-04**: MCP can play browser-based solitaire (move specific card to target)
+- [ ] **CANVAS-05**: MCP can interact with Photopea (upload image, use magic wand tool to remove background)
+- [ ] **CANVAS-06**: MCP can interact with 3D product viewer on retail site (rotate shoe 180 degrees)
+- [ ] **CANVAS-07**: MCP can click canvas-painted button (pixels, not HTML element) in browser game
+- [ ] **CANVAS-08**: MCP can play notes on online piano keyboard (first four notes of Mary Had a Little Lamb)
+- [ ] **CANVAS-09**: MCP can use online PDF editor to place signature on dotted line on page 3
+- [ ] **CANVAS-10**: MCP can interact with Miro board (group scattered sticky notes into cluster)
 
-### QR Pairing
+### Continuous Input & Micro-Interactions
 
-- [x] **PAIR-01**: Extension generates unique one-time pairing token (not raw hash key) with 60s TTL
-- [x] **PAIR-02**: Extension displays pairing token as QR code in popup/sidepanel
-- [x] **PAIR-03**: Dashboard scans QR code via device camera to pair with extension
-- [x] **PAIR-04**: User can manually paste hash key as fallback when camera is unavailable
-- [x] **PAIR-05**: Dashboard shows paired status and allows unpairing/session revocation
-- [x] **PAIR-06**: Pairing session expires after configurable timeout with re-pair flow
+- [ ] **MICRO-01**: MCP can adjust volume slider on custom HTML5 video player to exactly 37%
+- [ ] **MICRO-02**: MCP can click-and-hold record button for 5 seconds then release on voice memo app
+- [ ] **MICRO-03**: MCP can reorder items via drag-and-drop (Jira/Trello board, bottom card to top of another list)
+- [ ] **MICRO-04**: MCP can highlight exactly the second sentence of third paragraph in Wikipedia article
+- [ ] **MICRO-05**: MCP can use color picker tool (drag hue slider and shade reticle to select custom hex)
+- [ ] **MICRO-06**: MCP can scroll horizontally through carousel without triggering vertical scroll
+- [ ] **MICRO-07**: MCP can hover over nav menu, wait for CSS animation mega-menu, click nested sub-link
+- [ ] **MICRO-08**: MCP can trigger file upload via browser dropzone (simulate drag-and-drop file input)
+- [ ] **MICRO-09**: MCP can solve slide-to-fit puzzle CAPTCHA by dragging piece at variable speed
+- [ ] **MICRO-10**: MCP can scrub podcast audio timeline to exactly the 14:22 mark
 
-### Remote Task Control
+### Infinite Scroll & Virtualized DOMs
 
-- [x] **TASK-01**: User can type a task on dashboard and FSB executes it in the user's browser
-- [x] **TASK-02**: Dashboard shows real-time progress (%, phase, ETA) during task execution
-- [x] **TASK-03**: Dashboard displays AI-generated action summaries as task executes
-- [x] **TASK-04**: User can see task completion status and results on dashboard
+- [ ] **SCROLL-01**: MCP can scroll through X/Twitter feed and extract text of a user's 150th post
+- [ ] **SCROLL-02**: MCP can scrape names of all 500 items on dynamically loading e-commerce search page
+- [ ] **SCROLL-03**: MCP can find specific log entry from 3 days ago in infinitely scrolling dashboard
+- [ ] **SCROLL-04**: MCP can navigate to bottom of populated Reddit thread and reply to last comment
+- [ ] **SCROLL-05**: MCP can read multi-page document in virtualized viewer (pages unload as you scroll)
+- [ ] **SCROLL-06**: MCP can expand all nested comment threads on Hacker News post with 1000+ comments
+- [ ] **SCROLL-07**: MCP can find Airbnb listing by panning map interface until new pins populate
+- [ ] **SCROLL-08**: MCP can scroll TikTok web feed until finding a video containing a cat
+- [ ] **SCROLL-09**: MCP can extract pricing data from table that only loads rows in viewport
+- [ ] **SCROLL-10**: MCP can navigate infinite-scroll news site and stop at articles published yesterday
 
-### Agent Management
+### Context Bloat & Long-Running Workflows
 
-- [x] **AGNT-01**: Dashboard displays all background agents with status, schedule, and run history
-- [x] **AGNT-02**: Dashboard shows replay cost savings and success rates per agent
-- [x] **AGNT-03**: User can create new background polling agents from dashboard
-- [x] **AGNT-04**: User can create new automation replay agents from dashboard
-- [x] **AGNT-05**: User can start/stop/delete agents from dashboard
+- [ ] **CONTEXT-01**: MCP can monitor live sports ticker for 30 minutes logging score changes
+- [ ] **CONTEXT-02**: MCP can fork Observable notebook, modify data array in cell 3 without altering cell 1
+- [ ] **CONTEXT-03**: MCP can read 50-page PDF then fill web form with details from pages 4, 17, and 42
+- [ ] **CONTEXT-04**: MCP can open 5 tabs comparing flight prices, switch back to cheapest after searching
+- [ ] **CONTEXT-05**: MCP can complete multi-step checkout, input wrong zip, correct it, verify tax updates
+- [ ] **CONTEXT-06**: MCP can converse with support chatbot for 15 turns then summarize first instruction
+- [ ] **CONTEXT-07**: MCP can handle 2FA flow (trigger email code, open new tab to fetch, return to complete login)
+- [ ] **CONTEXT-08**: MCP can edit Google Doc replacing every "synergy" with "collaboration" without Find/Replace
+- [ ] **CONTEXT-09**: MCP can cross-reference 50 employee names in web CRM against separate HR portal
+- [ ] **CONTEXT-10**: MCP can handle session expiration modal, re-authenticate, and resume previous task
 
-### DOM Cloning Stream
+### Visual Ambiguity & Dark Patterns
 
-- [x] **DOM-01**: Content script serializes full DOM snapshot on task start (scripts stripped, URLs absolute)
-- [x] **DOM-02**: MutationObserver captures incremental DOM diffs and streams via WebSocket
-- [x] **DOM-03**: Dashboard reconstructs live page view in sandboxed iframe from snapshot + diffs
-- [x] **DOM-04**: Images and resources in cloned DOM load directly from original CDN URLs
-- [x] **DOM-05**: Orange glow highlighting and progress overlay visible in cloned DOM view
-- [x] **DOM-06**: DOM stream activates only when dashboard is actively viewing (zero overhead otherwise)
+- [ ] **DARK-01**: MCP can download file from freeware site ignoring fake "Download Now" ad buttons
+- [ ] **DARK-02**: MCP can opt out of all non-essential cookies on EU news site with hidden reject option
+- [ ] **DARK-03**: MCP can cancel subscription on site that shuffles Keep/Cancel button positions
+- [ ] **DARK-04**: MCP can close pop-up ad where X button is camouflaged against background
+- [ ] **DARK-05**: MCP can bypass "disable adblocker" modal with no visible DOM exit button
+- [ ] **DARK-06**: MCP can select cheapest flight on airline site with misleading premium highlighting
+- [ ] **DARK-07**: MCP can uncheck hidden "subscribe to newsletter" box injected before submit
+- [ ] **DARK-08**: MCP can find actual login link on homepage that prioritizes Sign Up CTAs
+- [ ] **DARK-09**: MCP can click Skip Ad button on video player when 5-second countdown finishes
+- [ ] **DARK-10**: MCP can scrape text from site that blocks right-clicks, disables selection, masks CSS classes
 
-### Showcase Site
+## Future Requirements (v0.9.8 Autopilot Enhancement)
 
-- [x] **SITE-01**: Public landing page explains FSB and showcases capabilities
-- [x] **SITE-02**: Dashboard UI accessible without login (QR pairing is the auth)
-- [x] **SITE-03**: Responsive design works on mobile browsers
+Deferred to next milestone. Will use diagnostic reports from this milestone as input.
 
-### MCP Server Interface
-
-- [x] **MCP-01**: MCP server runs as local Node.js process with stdio transport using @modelcontextprotocol/sdk
-- [x] **MCP-02**: Two-process Native Messaging bridge connects MCP server to Chrome extension via IPC
-- [x] **MCP-03**: Extension handles MCP messages via chrome.runtime.connectNative with nativeMessaging permission
-- [x] **MCP-04**: Autopilot tools (run_task, stop_task, get_task_status) delegate to FSB's AI loop via MCP
-- [x] **MCP-05**: All 25+ manual browser action primitives exposed as individual MCP tools with full parity
-- [x] **MCP-06**: Task queue serializes mutation tools and allows concurrent read-only tool execution
-- [x] **MCP-07**: Error mapping translates FSB errors to descriptive MCP error messages per UI-SPEC contract
-- [x] **MCP-08**: MCP resources expose DOM snapshot, open tabs, site guides, memory, and config (keys redacted)
-- [x] **MCP-09**: Pre-built MCP prompts provide workflow templates for common automation patterns
-- [x] **MCP-10**: Cross-platform install script registers native host manifest on macOS, Linux, and Windows
-- [x] **MCP-11**: .mcp.json at repo root enables Claude Code auto-discovery of FSB MCP server
-
-### MCP WebSocket Bridge
-
-- [x] **WSBRIDGE-01**: MCP server embeds WebSocket server on localhost:7225 via ws library (replaces native messaging)
-- [x] **WSBRIDGE-02**: WebSocketBridge class preserves same interface (connect, disconnect, sendAndWait, isConnected) for tool compatibility
-- [x] **WSBRIDGE-03**: Extension MCPWebSocket client auto-connects to ws://localhost:7225 with reconnection backoff
-- [x] **WSBRIDGE-04**: nativeMessaging permission and all native host files removed (shim, install script, manifest template)
-- [x] **WSBRIDGE-05**: Native messaging code deleted from bridge.ts, types.ts, errors.ts, package.json
-
-## Future Requirements
-
-Deferred to post-v0.9.6. Tracked but not in current roadmap.
-
-### Templates & Workflows
-
-- **TMPL-01**: Pre-configured task templates launchable with one click from dashboard
-- **TMPL-02**: Selective DOM region streaming (optimization over full cloning)
-
-### Advanced Agents
-
-- **AADV-01**: CAPTCHA detection notifies user via dashboard, pauses agent, resumes after manual solve
-- **AADV-02**: Multi-user shared dashboards with access control
+- **AUTO-01**: Autopilot can complete edge cases that manual MCP mode solved
+- **AUTO-02**: Autopilot CLI parse failure rate reduced below 5%
+- **AUTO-03**: Autopilot LLM timeout eliminated on heavy DOM pages
+- **AUTO-04**: Autopilot stuck detection recovery actually advances the task
+- **AUTO-05**: Autopilot completion validation accuracy above 90%
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Video/screenshot streaming | Bandwidth-heavy (1-5 Mbps vs 1-50 KB/s for DOM deltas), PROJECT.md explicitly prohibits |
-| Headless server-side execution | Server is relay only, user's browser must stay active |
-| User account system / login | Hash key auth is simpler and anonymous, no PII/GDPR obligations |
-| Always-on WebSocket | Battery drain, fights MV3 lifecycle -- connect only when dashboard open or agents running |
-| Proxy/tunnel for page resources | Images load from original CDN, no server bandwidth cost |
-| Mobile native app | Dashboard is responsive web, PWA-installable |
-| Full rrweb integration | 50KB+ bundle, alpha for 3 years, wrong abstraction -- custom MutationObserver approach |
-| Socket.IO | 50KB overhead, unnecessary for typed JSON envelope protocol |
-| Remote MCP access via fly.io | Future phase -- local stdio only for now |
-| Multi-tab MCP targeting | Future consideration -- active tab only for now |
-| MCP resource subscriptions | Future phase -- on-demand reads only for now |
+| Vision-based interaction | No screenshot/visual analysis -- DOM only per project constraint |
+| Paid service authentication | Skip prompts requiring paid accounts with no free alternative |
+| Autopilot fixes | Diagnostic only this milestone -- fixes deferred to v0.9.8 |
+| Mobile browser testing | Chrome desktop extension only |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SERV-01 | Phase 40 | Complete |
-| SERV-02 | Phase 40 | Complete |
-| SERV-03 | Phase 40 | Complete |
-| SERV-04 | Phase 40 | Complete |
-| SERV-05 | Phase 40 | Complete |
-| SERV-06 | Phase 40 | Complete |
-| SERV-07 | Phase 40 | Complete |
-| PAIR-01 | Phase 41 | Complete |
-| PAIR-02 | Phase 41 | Complete |
-| PAIR-03 | Phase 41 | Complete |
-| PAIR-04 | Phase 41 | Complete |
-| PAIR-05 | Phase 41 | Complete |
-| PAIR-06 | Phase 41 | Complete |
-| TASK-01 | Phase 42 | Complete |
-| TASK-02 | Phase 42 | Complete |
-| TASK-03 | Phase 42 | Complete |
-| TASK-04 | Phase 42 | Complete |
-| AGNT-01 | Phase 43 | Complete |
-| AGNT-02 | Phase 43 | Complete |
-| AGNT-03 | Phase 43 | Complete |
-| AGNT-04 | Phase 43 | Complete |
-| AGNT-05 | Phase 43 | Complete |
-| DOM-01 | Phase 44 | Complete |
-| DOM-02 | Phase 44 | Complete |
-| DOM-03 | Phase 44 | Complete |
-| DOM-04 | Phase 44 | Complete |
-| DOM-05 | Phase 44 | Complete |
-| DOM-06 | Phase 44 | Complete |
-| SITE-01 | Phase 41 | Complete |
-| SITE-02 | Phase 41 | Complete |
-| SITE-03 | Phase 41 | Complete |
-| MCP-01 | Phase 45 | Complete |
-| MCP-02 | Phase 45 | Complete |
-| MCP-03 | Phase 45 | Complete |
-| MCP-04 | Phase 45 | Complete |
-| MCP-05 | Phase 45 | Complete |
-| MCP-06 | Phase 45 | Complete |
-| MCP-07 | Phase 45 | Complete |
-| MCP-08 | Phase 45 | Complete |
-| MCP-09 | Phase 45 | Complete |
-| MCP-10 | Phase 45 | Complete |
-| MCP-11 | Phase 45 | Complete |
-| WSBRIDGE-01 | Phase 46 | Planned |
-| WSBRIDGE-02 | Phase 46 | Planned |
-| WSBRIDGE-03 | Phase 46 | Planned |
-| WSBRIDGE-04 | Phase 46 | Planned |
-| WSBRIDGE-05 | Phase 46 | Planned |
+| CANVAS-01 | Phase 47 | Pending |
+| CANVAS-02 | Phase 48 | Pending |
+| CANVAS-03 | Phase 49 | Pending |
+| CANVAS-04 | Phase 50 | Pending |
+| CANVAS-05 | Phase 51 | Pending |
+| CANVAS-06 | Phase 52 | Pending |
+| CANVAS-07 | Phase 53 | Pending |
+| CANVAS-08 | Phase 54 | Pending |
+| CANVAS-09 | Phase 55 | Pending |
+| CANVAS-10 | Phase 56 | Pending |
+| MICRO-01 | Phase 57 | Pending |
+| MICRO-02 | Phase 58 | Pending |
+| MICRO-03 | Phase 59 | Pending |
+| MICRO-04 | Phase 60 | Pending |
+| MICRO-05 | Phase 61 | Pending |
+| MICRO-06 | Phase 62 | Pending |
+| MICRO-07 | Phase 63 | Pending |
+| MICRO-08 | Phase 64 | Pending |
+| MICRO-09 | Phase 65 | Pending |
+| MICRO-10 | Phase 66 | Pending |
+| SCROLL-01 | Phase 67 | Pending |
+| SCROLL-02 | Phase 68 | Pending |
+| SCROLL-03 | Phase 69 | Pending |
+| SCROLL-04 | Phase 70 | Pending |
+| SCROLL-05 | Phase 71 | Pending |
+| SCROLL-06 | Phase 72 | Pending |
+| SCROLL-07 | Phase 73 | Pending |
+| SCROLL-08 | Phase 74 | Pending |
+| SCROLL-09 | Phase 75 | Pending |
+| SCROLL-10 | Phase 76 | Pending |
+| CONTEXT-01 | Phase 77 | Pending |
+| CONTEXT-02 | Phase 78 | Pending |
+| CONTEXT-03 | Phase 79 | Pending |
+| CONTEXT-04 | Phase 80 | Pending |
+| CONTEXT-05 | Phase 81 | Pending |
+| CONTEXT-06 | Phase 82 | Pending |
+| CONTEXT-07 | Phase 83 | Pending |
+| CONTEXT-08 | Phase 84 | Pending |
+| CONTEXT-09 | Phase 85 | Pending |
+| CONTEXT-10 | Phase 86 | Pending |
+| DARK-01 | Phase 87 | Pending |
+| DARK-02 | Phase 88 | Pending |
+| DARK-03 | Phase 89 | Pending |
+| DARK-04 | Phase 90 | Pending |
+| DARK-05 | Phase 91 | Pending |
+| DARK-06 | Phase 92 | Pending |
+| DARK-07 | Phase 93 | Pending |
+| DARK-08 | Phase 94 | Pending |
+| DARK-09 | Phase 95 | Pending |
+| DARK-10 | Phase 96 | Pending |
 
 **Coverage:**
-- v0.9.6 requirements: 47 total
-- Mapped to phases: 47
+- v0.9.7 requirements: 50 total
+- Mapped to phases: 50
 - Unmapped: 0
 
 ---
-*Requirements defined: 2026-03-17*
-*Last updated: 2026-03-19 after Phase 46 planning*
+*Requirements defined: 2026-03-19*
+*Last updated: 2026-03-19 after initial definition*

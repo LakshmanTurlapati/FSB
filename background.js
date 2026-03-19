@@ -1537,6 +1537,7 @@ async function cleanupSession(sessionId) {
       ai.clearConversationHistory();
     }
     sessionAIInstances.delete(sessionId);
+    mcpProgressCallbacks.delete(sessionId);
     automationLogger.debug('Cleaned up AI instance for session', { sessionId });
   }
 
@@ -12364,11 +12365,12 @@ class MCPWebSocket {
 const mcpWebSocket = new MCPWebSocket();
 
 /**
- * Handle messages from MCP server via native messaging.
+ * Handle messages from MCP server via WebSocket bridge.
  * Routes to existing extension handlers and returns results.
  */
 async function handleMCPMessage(msg) {
   const { id, type, payload } = msg;
+  console.log(`[FSB MCP] >> Received: ${type}`, { id, payload: JSON.stringify(payload).slice(0, 200) });
 
   try {
     switch (type) {
@@ -12426,30 +12428,62 @@ async function handleMCPMessage(msg) {
       case 'mcp:execute-action': {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab) {
+          console.warn('[FSB MCP] execute-action: No active tab found');
           sendMCPResponse(id, { success: false, error: 'No active tab' });
           return;
         }
-        const result = await chrome.tabs.sendMessage(tab.id, {
-          action: 'executeAction',
-          tool: payload.tool,
-          params: payload.params || {}
-        });
-        sendMCPResponse(id, result || { success: false, error: 'No response from content script' });
+        console.log(`[FSB MCP] execute-action: tab=${tab.id} url=${tab.url} tool=${payload.tool}`);
+        try {
+          const injected = await ensureContentScriptInjected(tab.id);
+          console.log(`[FSB MCP] execute-action: ensureContentScript result=${injected}`);
+        } catch (injectErr) {
+          console.error(`[FSB MCP] execute-action: ensureContentScript FAILED:`, injectErr.message);
+          sendMCPResponse(id, { success: false, error: `Content script injection failed: ${injectErr.message}` });
+          return;
+        }
+        try {
+          const result = await chrome.tabs.sendMessage(tab.id, {
+            action: 'executeAction',
+            tool: payload.tool,
+            params: payload.params || {},
+            source: 'mcp-manual'
+          });
+          console.log(`[FSB MCP] execute-action: result success=${result?.success}`, result?.error ? `error=${result.error}` : '');
+          sendMCPResponse(id, result || { success: false, error: 'No response from content script (result was null/undefined)' });
+        } catch (msgErr) {
+          console.error(`[FSB MCP] execute-action: sendMessage FAILED:`, msgErr.message);
+          sendMCPResponse(id, { success: false, error: `Content script communication failed: ${msgErr.message}` });
+        }
         break;
       }
 
       case 'mcp:get-dom': {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab) {
+          console.warn('[FSB MCP] get-dom: No active tab found');
           sendMCPResponse(id, { success: false, error: 'No active tab' });
           return;
         }
-        const dom = await chrome.tabs.sendMessage(tab.id, {
-          action: 'getStructuredDOM',
-          maxElements: payload.maxElements || 2000,
-          prioritizeViewport: payload.prioritizeViewport !== false
-        });
-        sendMCPResponse(id, dom || { success: false, error: 'No DOM response' });
+        console.log(`[FSB MCP] get-dom: tab=${tab.id} url=${tab.url}`);
+        try {
+          await ensureContentScriptInjected(tab.id);
+        } catch (injectErr) {
+          console.error(`[FSB MCP] get-dom: ensureContentScript FAILED:`, injectErr.message);
+          sendMCPResponse(id, { success: false, error: `Content script injection failed: ${injectErr.message}` });
+          return;
+        }
+        try {
+          const dom = await chrome.tabs.sendMessage(tab.id, {
+            action: 'getDOM',
+            maxElements: payload.maxElements || 2000,
+            prioritizeViewport: payload.prioritizeViewport !== false
+          });
+          console.log(`[FSB MCP] get-dom: result success=${dom?.success}, elements=${dom?.structuredDOM?.elements?.length || 'N/A'}`);
+          sendMCPResponse(id, dom || { success: false, error: 'No DOM response (result was null/undefined)' });
+        } catch (msgErr) {
+          console.error(`[FSB MCP] get-dom: sendMessage FAILED:`, msgErr.message);
+          sendMCPResponse(id, { success: false, error: `Content script communication failed: ${msgErr.message}` });
+        }
         break;
       }
 
@@ -12475,8 +12509,14 @@ async function handleMCPMessage(msg) {
       }
 
       case 'mcp:get-memory': {
-        const memory = await chrome.storage.local.get(['episodicMemory', 'semanticMemory', 'proceduralMemory']);
-        sendMCPResponse(id, { success: true, memory });
+        if (payload.statsOnly) {
+          const stats = await memoryManager.getStats();
+          sendMCPResponse(id, { success: true, stats });
+        } else {
+          const memories = await memoryManager.getAll();
+          const stats = await memoryManager.getStats();
+          sendMCPResponse(id, { success: true, memories, stats });
+        }
         break;
       }
 
@@ -12493,14 +12533,86 @@ async function handleMCPMessage(msg) {
       case 'mcp:read-page': {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab) {
+          console.warn('[FSB MCP] read-page: No active tab found');
           sendMCPResponse(id, { success: false, error: 'No active tab' });
           return;
         }
-        const pageContent = await chrome.tabs.sendMessage(tab.id, {
-          action: 'readPage',
-          full: payload.full || false
-        });
-        sendMCPResponse(id, pageContent || { success: false, error: 'No page content response' });
+        console.log(`[FSB MCP] read-page: tab=${tab.id} url=${tab.url}`);
+        try {
+          await ensureContentScriptInjected(tab.id);
+        } catch (injectErr) {
+          console.error(`[FSB MCP] read-page: ensureContentScript FAILED:`, injectErr.message);
+          sendMCPResponse(id, { success: false, error: `Content script injection failed: ${injectErr.message}` });
+          return;
+        }
+        try {
+          const pageContent = await chrome.tabs.sendMessage(tab.id, {
+            action: 'readPage',
+            full: payload.full || false
+          });
+          console.log(`[FSB MCP] read-page: result success=${pageContent?.success}, chars=${pageContent?.charCount || 'N/A'}`);
+          sendMCPResponse(id, pageContent || { success: false, error: 'No page content response (result was null/undefined)' });
+        } catch (msgErr) {
+          console.error(`[FSB MCP] read-page: sendMessage FAILED:`, msgErr.message);
+          sendMCPResponse(id, { success: false, error: `Content script communication failed: ${msgErr.message}` });
+        }
+        break;
+      }
+
+      case 'mcp:list-sessions': {
+        const sessions = await automationLogger.listSessions();
+        sendMCPResponse(id, { success: true, sessions });
+        break;
+      }
+
+      case 'mcp:get-session': {
+        const sessionId = payload.sessionId;
+        if (!sessionId) {
+          sendMCPResponse(id, { success: false, error: 'Missing sessionId' });
+          break;
+        }
+        if (payload.format === 'text') {
+          const report = await automationLogger.exportHumanReadable(sessionId);
+          sendMCPResponse(id, { success: true, report });
+        } else {
+          const session = await automationLogger.loadSession(sessionId);
+          if (!session) {
+            sendMCPResponse(id, { success: false, error: `Session ${sessionId} not found` });
+          } else {
+            sendMCPResponse(id, { success: true, session });
+          }
+        }
+        break;
+      }
+
+      case 'mcp:get-logs': {
+        const sid = payload.sessionId;
+        const count = payload.count || 50;
+        let logs, report;
+        if (sid) {
+          logs = automationLogger.getSessionLogs(sid);
+          report = automationLogger.generateReport(sid);
+        } else {
+          logs = automationLogger.getRecentLogs(count);
+          report = automationLogger.generateReport();
+        }
+        sendMCPResponse(id, { success: true, logs, report });
+        break;
+      }
+
+      case 'mcp:search-memory': {
+        const query = payload.query;
+        if (!query) {
+          sendMCPResponse(id, { success: false, error: 'Missing query parameter' });
+          break;
+        }
+        const results = await memoryManager.search(
+          query,
+          payload.filters || {},
+          payload.options || {}
+        );
+        const stats = await memoryManager.getStats();
+        sendMCPResponse(id, { success: true, results, stats });
         break;
       }
 
@@ -12508,7 +12620,8 @@ async function handleMCPMessage(msg) {
         sendMCPResponse(id, { success: false, error: `Unknown MCP message type: ${type}` });
     }
   } catch (err) {
-    sendMCPResponse(id, { success: false, error: err.message || 'Internal extension error' });
+    console.error(`[FSB MCP] UNHANDLED ERROR in ${type}:`, err.message, err.stack?.split('\n').slice(0, 3).join(' | '));
+    sendMCPResponse(id, { success: false, error: `[${type}] ${err.message || 'Internal extension error'}` });
   }
 }
 
@@ -12516,6 +12629,9 @@ async function handleMCPMessage(msg) {
  * Send a response back to MCP server via WebSocket.
  */
 function sendMCPResponse(id, payload) {
+  if (!payload.success) {
+    console.warn(`[FSB MCP] << Sending error response:`, { id, error: payload.error });
+  }
   mcpWebSocket.send({ id, type: 'mcp:result', payload });
 }
 

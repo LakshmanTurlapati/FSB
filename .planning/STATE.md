@@ -1,54 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9
-milestone_name: milestone
-status: unknown
-stopped_at: Completed 46-02-PLAN.md
-last_updated: "2026-03-19T09:06:03.640Z"
+milestone: v0.9.7
+milestone_name: MCP Edge Case Validation
+status: in_progress
+stopped_at: Phase 47 ready to start
+last_updated: "2026-03-19T11:00:00.000Z"
 progress:
-  total_phases: 7
-  completed_phases: 6
-  total_plans: 16
-  completed_plans: 19
+  total_phases: 50
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-17)
+See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 46 — mcp-websocket-bridge
+**Current focus:** Phase 47 -- TradingView Fibonacci (CANVAS-01)
 
 ## Current Position
 
-Phase: 46 (mcp-websocket-bridge) — COMPLETE
-Plan: 2 of 2
+Phase: 47 - TradingView Fibonacci
+Plan: TBD
+Status: Ready to start
+Last activity: 2026-03-19 -- Roadmap created, Phase 47 queued
 
-## Performance Metrics
-
-**Velocity:**
-
-- Total plans completed: 15
-- Average duration: 3min
-- Total execution time: 0.75 hours
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 40-websocket-infrastructure | 3 | 10min | 3min |
-| 41-qr-pairing-showcase-site | 3 | 6min | 2min |
-| 42-remote-task-control | 2 | 7min | 3min |
-| 45-mcp-server-interface | 4 | 19min | 4min |
-| 43-agent-dashboard | 1 | 3min | 3min |
-| Phase 43-agent-dashboard P02 | 8min | 2 tasks | 3 files |
-| Phase 44-dom-cloning-stream P01 | 4min | 2 tasks | 3 files |
-| Phase 44-dom-cloning-stream P02 | 3min | 2 tasks | 3 files |
-| Phase 44-dom-cloning-stream P03 | 3min | 2 tasks | 2 files |
-| Phase 46 P01 | 3min | 2 tasks | 9 files |
-| Phase 46 P02 | 2min | 2 tasks | 2 files |
+Progress: [                                        ] 0/50 phases
 
 ## Accumulated Context
 
@@ -56,58 +36,28 @@ Plan: 2 of 2
 
 Full decision log in PROJECT.md Key Decisions table.
 
-- [40-01] Removed SERVER_SECRET; hashKey generated via crypto.randomBytes(32) instead of HMAC
-- [40-01] Placed Dockerfile and fly.toml at repo root for simpler fly deploy
-- [40-01] Showcase static files served from ../showcase in dev, /app/public in Docker
-- [40-03] Kept polling fallback alongside WebSocket for data consistency
-- [40-03] Used empty API_BASE string for relative URLs instead of removing it entirely
-- [Phase 40-02]: Close existing WS before opening new one in connect() to prevent stale connections
-- [41-01] Pairing tokens use crypto.randomBytes(32) with 60s TTL, sessions 24h TTL
-- [41-01] Root URL serves index.html via sendFile instead of redirect to /dashboard
-- [41-02] Used qrcode-generator v1.4.4 bundled locally for Chrome MV3 CSP compliance
-- [41-02] Used showToast instead of showNotification to match existing codebase pattern
-- [Phase 41-03]: Used html5-qrcode CDN from unpkg for QR scanning in showcase dashboard
-- [42-01] Used executeAutomationTask with isDashboardTask option flag rather than separate session flow
-- [42-02] Used unicode checkmark/cross characters for status indicators instead of Font Awesome icons
-- [42-02] Immediate rejection errors shown briefly in idle state then auto-hidden after 5 seconds
-- [45-01] Used zod v3.25.76 (not v4) for MCP SDK v1.27.1 compatibility
-- [45-01] Used child_process.fork() IPC for bridge-to-shim communication
-- [45-02] Used server.tool() API (deprecated but stable) matching plan specification
-- [45-02] Used execAction helper pattern for data-driven manual tool registration
-- [45-03] Used registerResource/registerPrompt (not deprecated resource/prompt methods) for SDK forward-compat
-- [45-03] Renamed install-host.js to .cjs because package.json type:module makes .js files ESM
-- [45-04] Wrapped bridge.connect() in try/catch so MCP server starts even without native host running
-- [43-01] Used agentManager/agentExecutor.execute/serverSync.syncRun matching existing codebase names (not plan-specified bgAgentManager/executeAgent/syncRunResult)
-- [Phase 43-02]: Used CSS grid container with dash-detail-open class for side-by-side detail panel layout
-- [Phase 43-02]: Optimistic UI for toggle: update local agents array immediately, revert on PATCH failure
-- [44-01] Used parallel TreeWalker on original + clone for computed style capture without modifying live DOM
-- [44-01] Used data-fsb-nid integer attributes for stable element addressing in mutation diffs
-- [44-01] Module-level _dashboardTaskTabId variable for auto-stopping DOM stream on task completion
-- [Phase 44-02]: Used iframe srcdoc for snapshot injection rather than blob URL for simpler lifecycle management
-- [Phase 44-02]: Scale factor computed as containerWidth / viewportWidth with CSS transform-origin top left
-- [Phase 44-02]: Overlay glow coordinates multiplied by previewScale for accurate positioning over scaled iframe
-- [Phase 44-03]: Used parallel TreeWalker on original + clone for canvas-to-img conversion without modifying live DOM
-- [Phase 44-03]: 2MB size cap with 3-viewport truncation to prevent WS message bloat on heavy pages
-- [Phase 46]: Hardcoded port 7225 for WebSocket bridge, single-client model
-- [Phase 46]: Used 2s initial reconnect delay for MCPWebSocket (MCP server is optional)
+- [MCP-FIX] Fixed 18/28 broken MCP verb mappings (lowercase -> camelCase FSB.tools keys)
+- [MCP-FIX] Fixed get_dom_snapshot action name (getStructuredDOM -> getDOM)
+- [MCP-FIX] Fixed mcp:get-memory reading from deprecated storage keys
+- [MCP-FIX] Wired onProgress callback in autopilot run_task
+- [MCP-FIX] Fixed mcpProgressCallbacks memory leak in cleanupSession
+- [MCP-FIX] Added 5 observability tools (list_sessions, get_session_detail, get_logs, search_memory, get_memory_stats)
+- [DIAG] Autopilot uses grok-4-1-fast-reasoning (times out on 11K token prompts) or grok-4-1-fast-non-reasoning (works but wastes iterations on CLI parse failures)
+- [DIAG] Autopilot completed LinkedIn task in 2m40s with 19 iterations (12 actions, 7 empty) vs manual mode 25s with 6 actions
+- [DIAG] Autopilot key weaknesses: wrong element clicks, CLI reformat retry loops, premature task completion, 452K input tokens for simple task
 
 ### Pending Todos
 
-1. Smart multi-tab management with context-aware navigation (area: general) - `.planning/todos/pending/2026-02-14-smart-multi-tab-management.md`
-
-### Roadmap Evolution
-
-- Phase 45 added: MCP Server Interface — expose FSB as an MCP server so AI agents can use browser automation directly
-- Phase 46 added: MCP WebSocket Bridge — replace native messaging with WebSocket relay for zero-install MCP connectivity
+1. Smart multi-tab management with context-aware navigation (area: general)
 
 ### Blockers/Concerns
 
 - Site Guides Viewer design mismatch (deferred from v9.3)
 - uiReadySelector option implemented but not wired to any site guide
-- Dashboard tech stack: RESOLVED -- old React+Vite dashboard deleted, rebuilding vanilla JS per CONTEXT.md
+- Autopilot LLM timeout on heavy DOM pages (LinkedIn) -- to be addressed in future Autopilot Enhancement milestone
 
 ## Session Continuity
 
-Last session: 2026-03-19T08:49:00.610Z
-Stopped at: Completed 46-02-PLAN.md
+Last session: 2026-03-19T11:00:00.000Z
+Stopped at: Roadmap created -- Phase 47 ready to start
 Resume file: None

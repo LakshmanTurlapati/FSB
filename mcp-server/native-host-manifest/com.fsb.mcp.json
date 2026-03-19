@@ -1,9 +1,0 @@
-{
-  "name": "com.fsb.mcp",
-  "description": "FSB Browser Automation MCP Bridge",
-  "path": "PLACEHOLDER_PATH",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://EXTENSION_ID_HERE/"
-  ]
-}

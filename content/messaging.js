@@ -793,11 +793,17 @@
           break;
 
         case 'executeAction':
-          const { tool, params, visualContext } = request;
+          const { tool, params, visualContext, source } = request;
+          const isManualMCP = source === 'mcp-manual';
           logger.logActionExecution(FSB.sessionId, tool, 'start', params);
 
-          // VIS-02: Initialize/update progress overlay on action start
-          if (visualContext) {
+          // MCP manual tools: show viewport glow without progress overlay
+          if (isManualMCP) {
+            try { FSB.viewportGlow.show('acting'); } catch (e) { /* non-blocking */ }
+          }
+
+          // VIS-02: Initialize/update progress overlay on action start (autopilot only)
+          if (visualContext && !isManualMCP) {
             try {
               FSB.progressOverlay.create();
               FSB.progressOverlay.update({
@@ -849,6 +855,10 @@
                 const cssSel = sels.find(s => typeof s === 'string' ? !s.startsWith('//') : !s.selector?.startsWith('//'));
                 params.selector = typeof cssSel === 'string' ? cssSel : (cssSel?.selector || '');
                 if (params.selector) FSB.elementCache.set(params.selector, focused);
+              } else if (tool === 'keyPress') {
+                // keyPress can use Chrome Debugger API (CDP) without a focused element.
+                // Let it through - the debugger API dispatches browser-level trusted events
+                // that work for fullscreen, shortcuts, etc. without needing DOM focus.
               } else {
                 sendResponse({ success: false, error: 'No element is currently focused. Use click to focus an element first, then retry.' });
                 return;
@@ -903,7 +913,12 @@
               // Clean up highlights
               try { FSB.actionGlowOverlay.hide(); } catch (e) { /* non-blocking */ }
               FSB.highlightManager.hide();
-              try { FSB.viewportGlow.setState('thinking'); } catch (e) { /* non-blocking */ }
+              if (isManualMCP) {
+                // Manual MCP: no session to return to, destroy the glow entirely
+                try { FSB.viewportGlow.destroy(); } catch (e) { /* non-blocking */ }
+              } else {
+                try { FSB.viewportGlow.setState('thinking'); } catch (e) { /* non-blocking */ }
+              }
 
               if (result === undefined || result === null) {
                 logger.warn('Action returned null/undefined result', { sessionId: FSB.sessionId, tool });
@@ -924,6 +939,7 @@
               try {
                 FSB.actionGlowOverlay.destroy();
                 FSB.highlightManager.hide();
+                if (isManualMCP) { FSB.viewportGlow.destroy(); }
               } catch (cleanupError) {
                 // Ignore cleanup errors
               }
@@ -932,6 +948,7 @@
           } else {
             try {
               FSB.actionGlowOverlay.destroy();
+              if (isManualMCP) { FSB.viewportGlow.destroy(); }
             } catch (e) { /* ignore */ }
             logger.error('Unknown tool requested', { sessionId: FSB.sessionId, tool });
             sendResponse({ success: false, error: `Unknown tool: ${tool}` });

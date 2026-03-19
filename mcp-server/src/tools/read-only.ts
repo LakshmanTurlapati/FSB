@@ -42,7 +42,7 @@ export function registerReadOnlyTools(
       }
       return queue.enqueue('get_text', async () => {
         const result = await bridge.sendAndWait(
-          { type: 'mcp:execute-action', payload: { tool: 'gettext', params: { selector } } },
+          { type: 'mcp:execute-action', payload: { tool: 'getText', params: { selector } } },
           { timeout: 30_000 },
         );
         return mapFSBError(result);
@@ -63,7 +63,7 @@ export function registerReadOnlyTools(
       }
       return queue.enqueue('get_attribute', async () => {
         const result = await bridge.sendAndWait(
-          { type: 'mcp:execute-action', payload: { tool: 'getattr', params: { selector, attribute } } },
+          { type: 'mcp:execute-action', payload: { tool: 'getAttribute', params: { selector, attribute } } },
           { timeout: 30_000 },
         );
         return mapFSBError(result);

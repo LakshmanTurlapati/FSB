@@ -91,17 +91,22 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - Headless server-side execution -- server is relay only, user's browser must stay active
 - Video/screenshot streaming -- DOM cloning with CDN images, not visual capture
 
-## Current Milestone: v0.9.6 Agents & Remote Control
+## Current Milestone: v0.9.7 MCP Edge Case Validation
 
-**Goal:** Enable remote monitoring and control of FSB from a web dashboard, with background polling agents and automation replay.
+**Goal:** Systematically test all 50 edge case prompts through FSB's MCP manual mode, fix every blocker found in-phase, and generate autopilot diagnostic reports -- building the evidence base for a future autopilot refinement milestone.
 
 **Target features:**
-- Server relay infrastructure (fly.io WebSocket coordinator)
-- Showcase site with QR-authenticated dashboard
-- Real-time DOM cloning stream to dashboard
-- Remote task creation and live monitoring
-- Background polling agents (cron-like, browser must stay open)
-- Automation replay agents (saved selectors, AI fallback on failure)
+- Execute each of 50 edge case prompts via MCP manual tools (no vision, DOM only)
+- Fix tool/extension bugs discovered during each test in-phase
+- Document what works, what fails, and what autopilot would struggle with
+- Generate per-prompt autopilot diagnostic report
+- Skip only prompts requiring paid auth with no free alternative
+
+**Approach:** Each phase = one edge case prompt. Try it, fix blockers, document findings.
+
+## Previous State: v0.9.6 Shipped
+
+**Shipped:** 2026-03-19. Agents & Remote Control -- WebSocket relay, QR pairing, dashboard, DOM cloning, MCP server with WebSocket bridge (7 phases, phases 40-46). Plus mid-milestone MCP fixes: observability tools, verb mapping fixes (18/28 broken verbs corrected), progress wiring, memory leak fix.
 
 ## Previous State: v0.9.5 Shipped
 
