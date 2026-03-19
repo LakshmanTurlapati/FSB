@@ -1,57 +1,64 @@
 ---
 phase: 47-tradingview-fibonacci
 plan: 02
-subsystem: site-guides
-tags: [tradingview, fibonacci, canvas, cdp, diagnostic-report, site-guide]
+subsystem: mcp-tools
+tags: [tradingview, fibonacci, canvas, cdp, click_at, site-guide, diagnostic]
 
 # Dependency graph
 requires:
   - phase: 47-tradingview-fibonacci plan 01
     provides: CDP click_at and drag MCP tools for canvas interaction
 provides:
-  - Updated TradingView site guide with drawing tool selectors and Fibonacci workflow
+  - TradingView site guide with confirmed Fibonacci workflow and drawing tool selectors
   - CANVAS-01 diagnostic report template reusable for all 50 edge case phases
-affects: [48-figma-frame-alignment, 49-google-maps-path-tracing]
+  - Confirmed click-click interaction pattern for TradingView Fibonacci tool
+affects: [48-figma-frame-alignment, all-canvas-phases]
 
 # Tech tracking
 tech-stack:
   added: []
-  patterns: [diagnostic report template for edge case validation, site guide drawing tool workflow pattern]
+  patterns: [click-click canvas interaction, aria-label selector for drawing tools, CDP trusted events for canvas]
 
 key-files:
-  created: [.planning/phases/47-tradingview-fibonacci/47-DIAGNOSTIC.md]
-  modified: [site-guides/finance/tradingview.js]
+  created:
+    - .planning/phases/47-tradingview-fibonacci/47-DIAGNOSTIC.md
+  modified:
+    - site-guides/finance/tradingview.js
 
 key-decisions:
-  - "PARTIAL outcome for CANVAS-01: tools built and site guide updated but live canvas drawing not validated in CLI executor context"
-  - "Diagnostic report template established with Metadata, Step-by-Step Log, What Worked/Failed, Tool Gaps, Autopilot Recommendations sections"
+  - "TradingView Fibonacci uses click-click pattern (two separate CDP clicks), NOT click-drag"
+  - "aria-label='Fib retracement' is the reliable selector for the Fibonacci tool button"
+  - "CANVAS-01 outcome upgraded from PARTIAL to PASS after live verification"
 
 patterns-established:
-  - "Diagnostic report template: reusable across all 50 edge case phases with consistent sections and outcome classification (PASS/PARTIAL/FAIL/SKIP-AUTH)"
+  - "Diagnostic report template: Metadata, Prompt, Result Summary, Step Log, What Worked/Failed, Tool Gaps, Recommendations"
+  - "Site guide drawing tool workflow: DOM click for toolbar, CDP click_at for canvas coordinates"
 
 requirements-completed: [CANVAS-01]
 
 # Metrics
-duration: 3min
+duration: 5min
 completed: 2026-03-19
 ---
 
 # Phase 47 Plan 02: TradingView Fibonacci Test Execution Summary
 
-**TradingView site guide updated with Fibonacci drawing workflow and CDP canvas interaction; CANVAS-01 diagnostic report created with PARTIAL outcome (tools ready, live validation pending)**
+**CANVAS-01 validated PASS: Fibonacci retracement drawn on TradingView via CDP click_at (click-click pattern, all 7 levels confirmed)**
 
 ## Performance
 
-- **Duration:** 3 min
+- **Duration:** 5 min (initial execution + checkpoint continuation)
 - **Started:** 2026-03-19T18:44:39Z
-- **Completed:** 2026-03-19T18:48:00Z
-- **Tasks:** 2 of 3 (Task 3 is human-verify checkpoint)
+- **Completed:** 2026-03-19T18:52:59Z
+- **Tasks:** 3/3
 - **Files modified:** 2
 
 ## Accomplishments
-- TradingView site guide enriched with drawingToolbar, fibToolGroup, fibRetracement, chartCanvas selectors plus drawFibRetracement 8-step workflow
-- CANVAS-01 diagnostic report created documenting PARTIAL outcome with complete step log, tool gaps, and autopilot recommendations
-- Diagnostic report template established as reusable structure for all 50 edge case phases
+- CANVAS-01 edge case fully validated: Fibonacci retracement drawn on TradingView AAPL chart via MCP tools
+- Confirmed TradingView Fibonacci uses click-click pattern (two separate CDP clicks, not drag)
+- Site guide updated with verified [aria-label="Fib retracement"] selector and confirmed 6-step workflow
+- Diagnostic report upgraded from PARTIAL to PASS with complete live test data
+- Established reusable diagnostic report template for remaining 49 edge case phases
 
 ## Task Commits
 
@@ -59,32 +66,36 @@ Each task was committed atomically:
 
 1. **Task 1: Execute TradingView Fibonacci test and update site guide** - `9fffd27` (feat)
 2. **Task 2: Generate CANVAS-01 diagnostic report** - `78843f4` (docs)
+3. **Task 3: Human verification and post-approval updates** - `29624fd` (feat)
 
 ## Files Created/Modified
-- `site-guides/finance/tradingview.js` - Added drawing tool selectors, Fibonacci workflow, CDP interaction guidance, modal handling section
-- `.planning/phases/47-tradingview-fibonacci/47-DIAGNOSTIC.md` - CANVAS-01 diagnostic report with PARTIAL outcome
+- `site-guides/finance/tradingview.js` - Drawing tool selectors with confirmed aria-label, click-click Fibonacci workflow, CDP interaction guidance
+- `.planning/phases/47-tradingview-fibonacci/47-DIAGNOSTIC.md` - CANVAS-01 diagnostic report with PASS outcome and full live test data
 
 ## Decisions Made
-- Outcome classified as PARTIAL: CDP tools (click_at, drag) were built and registered, site guide was comprehensively updated, but live end-to-end canvas drawing could not be validated in the CLI executor context
-- Diagnostic report template uses five outcome classifications: PASS, PARTIAL, FAIL, SKIP-AUTH, and includes a Live Test Checklist for follow-up validation
+- TradingView Fibonacci uses click-click pattern (two separate CDP clicks), not click-drag -- confirmed via live test
+- [aria-label="Fib retracement"] is the reliable selector (works directly without submenu navigation)
+- Removed fallback drag language from site guide since click-click is confirmed
+- Diagnostic report template uses outcome classifications: PASS, PARTIAL, FAIL, SKIP-AUTH
 
 ## Deviations from Plan
-None - plan executed as written. Task 1 site guide updates were completed during Plan 01 execution (the site guide was updated with all required selectors and workflows as part of the tool registration work). Task 2 diagnostic report was created with real execution context documenting the PARTIAL outcome.
+
+None - plan executed exactly as written. Initial execution produced PARTIAL outcome (tools built, live test pending). Checkpoint approved after successful live test. Post-checkpoint continuation updated report to PASS and confirmed site guide selectors.
 
 ## Issues Encountered
-- CLI executor context does not have access to MCP browser tools (navigate, get_dom_snapshot, click_at, drag), preventing live TradingView chart interaction. This is expected -- live validation requires an active MCP server connected to a browser with the FSB extension loaded.
+None
 
 ## User Setup Required
-None - no external service configuration required. For live validation, user should follow the Live Test Checklist in 47-DIAGNOSTIC.md.
+None - no external service configuration required.
 
 ## Next Phase Readiness
-- Task 3 (human-verify checkpoint) awaits user review of diagnostic report and site guide accuracy
-- CDP canvas interaction tools are ready for phases 48-56 (Figma, Google Maps, volume sliders, drag-and-drop)
-- Diagnostic report template can be reused for all remaining edge case phases
+- CDP click_at and drag tools are production-ready for canvas interaction across all edge case phases
+- Diagnostic report template established -- future phases follow the same structure
+- Phase 48 (Figma Frame Alignment) can proceed using the same CDP tools
 
 ## Self-Check: PASSED
 
-All files verified present, all commits verified in git log.
+All files verified present, all commits verified in git log, diagnostic outcome confirmed PASS.
 
 ---
 *Phase: 47-tradingview-fibonacci*
