@@ -5,13 +5,11 @@
   "type": "module",
   "main": "build/index.js",
   "bin": {
-    "fsb-mcp": "build/index.js",
-    "fsb-native-host": "build/native-host-shim.js"
+    "fsb-mcp": "build/index.js"
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
-    "install-host": "node scripts/install-host.cjs"
+    "dev": "tsx src/index.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",

@@ -2,7 +2,7 @@
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createServer } from './server.js';
-import { NativeMessagingBridge } from './bridge.js';
+import { WebSocketBridge } from './bridge.js';
 import { TaskQueue } from './queue.js';
 import { registerAutopilotTools } from './tools/autopilot.js';
 import { registerManualTools } from './tools/manual.js';
@@ -12,7 +12,7 @@ import { registerPrompts } from './prompts/index.js';
 
 async function main(): Promise<void> {
   const server = createServer();
-  const bridge = new NativeMessagingBridge();
+  const bridge = new WebSocketBridge();
 
   // Register all MCP tools
   const queue = new TaskQueue();
@@ -35,10 +35,10 @@ async function main(): Promise<void> {
   try {
     await bridge.connect();
   } catch (err: unknown) {
-    console.error('[FSB MCP] Native messaging bridge failed to connect (running in disconnected mode):', err);
+    console.error('[FSB MCP] WebSocket bridge failed to start (running in disconnected mode):', err);
   }
 
-  console.error('[FSB MCP] Server started on stdio');
+  console.error('[FSB MCP] Server started (stdio + WebSocket on port 7225)');
 
   // Graceful shutdown
   const shutdown = (): void => {
