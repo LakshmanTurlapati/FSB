@@ -5040,6 +5040,36 @@ const tools = {
     };
   };
 
+  tools.cdpClickAt = async (params) => {
+    const { x, y } = params;
+    if (typeof x !== 'number' || typeof y !== 'number') {
+      return { success: false, error: 'x and y coordinates required (viewport-relative numbers)' };
+    }
+    try {
+      const result = await chrome.runtime.sendMessage({ action: 'cdpMouseClick', x, y });
+      return result || { success: false, error: 'No response from CDP click handler' };
+    } catch (e) {
+      return { success: false, error: `CDP click failed: ${e.message}` };
+    }
+  };
+
+  tools.cdpDrag = async (params) => {
+    const { startX, startY, endX, endY, steps, stepDelayMs } = params;
+    if (typeof startX !== 'number' || typeof startY !== 'number' ||
+        typeof endX !== 'number' || typeof endY !== 'number') {
+      return { success: false, error: 'startX, startY, endX, endY required (viewport-relative numbers)' };
+    }
+    try {
+      const result = await chrome.runtime.sendMessage({
+        action: 'cdpMouseDrag', startX, startY, endX, endY,
+        steps: steps || 10, stepDelayMs: stepDelayMs || 20
+      });
+      return result || { success: false, error: 'No response from CDP drag handler' };
+    } catch (e) {
+      return { success: false, error: `CDP drag failed: ${e.message}` };
+    }
+  };
+
   FSB.clickAtCoordinates = clickAtCoordinates;
   FSB.captureActionState = captureActionState;
   FSB.EXPECTED_EFFECTS = EXPECTED_EFFECTS;

@@ -4920,6 +4920,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleCDPMouseClick(request, sender, sendResponse);
       return true; // Will respond asynchronously
 
+    case 'cdpMouseDrag':
+      handleCDPMouseDrag(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
     case 'cdpInsertText':
       handleCDPInsertText(request, sender, sendResponse);
       return true; // Will respond asynchronously
@@ -11973,6 +11977,52 @@ async function handleCDPMouseClick(request, sender, sendResponse) {
     });
     await chrome.debugger.detach({ tabId });
     sendResponse({ success: true, x, y, method: 'cdp_mouse' });
+  } catch (e) {
+    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+    sendResponse({ success: false, error: e.message });
+  }
+}
+
+/**
+ * Handle CDP mouse drag between two viewport coordinates.
+ * Uses Input.dispatchMouseEvent for browser-level drag simulation:
+ * mousePressed at start -> N mouseMoved steps -> mouseReleased at end.
+ * Essential for canvas apps (TradingView, Figma, etc.) that ignore untrusted DOM events.
+ */
+async function handleCDPMouseDrag(request, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  const { startX, startY, endX, endY, steps = 10, stepDelayMs = 20 } = request;
+  if (!tabId || typeof startX !== 'number' || typeof startY !== 'number' ||
+      typeof endX !== 'number' || typeof endY !== 'number') {
+    sendResponse({ success: false, error: 'Missing tabId or coordinates (startX, startY, endX, endY required)' });
+    return;
+  }
+  try {
+    await chrome.debugger.attach({ tabId }, '1.3');
+
+    // mousePressed at start position
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mousePressed', x: startX, y: startY, button: 'left', clickCount: 1
+    });
+
+    // mouseMoved in intermediate steps (canvas apps need this to register drag intent)
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const x = Math.round(startX + (endX - startX) * t);
+      const y = Math.round(startY + (endY - startY) * t);
+      await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+        type: 'mouseMoved', x, y, button: 'left', buttons: 1
+      });
+      if (stepDelayMs > 0) await new Promise(r => setTimeout(r, stepDelayMs));
+    }
+
+    // mouseReleased at end position
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x: endX, y: endY, button: 'left', clickCount: 1
+    });
+
+    await chrome.debugger.detach({ tabId });
+    sendResponse({ success: true, startX, startY, endX, endY, steps, method: 'cdp_drag' });
   } catch (e) {
     try { await chrome.debugger.detach({ tabId }); } catch (_) {}
     sendResponse({ success: false, error: e.message });
