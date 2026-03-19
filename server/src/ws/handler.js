@@ -9,7 +9,10 @@ const rooms = new Map();
  */
 function setupWSHandler(wss) {
   wss.on('connection', (ws, request, { hashKey, role }) => {
+    console.log(`[WS] ${role} connected, hashKey: ${hashKey.substring(0, 8)}...`);
     addClient(hashKey, ws, role);
+    const room = rooms.get(hashKey);
+    console.log(`[WS] Room ${hashKey.substring(0, 8)}...: ${room ? room.extensions.size : 0} ext, ${room ? room.dashboards.size : 0} dash`);
 
     // Notify dashboards when extension connects
     if (role === 'extension') {
@@ -41,6 +44,7 @@ function setupWSHandler(wss) {
     });
 
     ws.on('close', () => {
+      console.log(`[WS] ${role} disconnected, hashKey: ${hashKey.substring(0, 8)}...`);
       removeClient(hashKey, ws);
       if (role === 'extension') {
         broadcast(hashKey, 'dashboards', {
