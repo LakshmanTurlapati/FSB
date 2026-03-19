@@ -72,11 +72,11 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### MCP WebSocket Bridge
 
-- [ ] **WSBRIDGE-01**: MCP server embeds WebSocket server on localhost:7225 via ws library (replaces native messaging)
-- [ ] **WSBRIDGE-02**: WebSocketBridge class preserves same interface (connect, disconnect, sendAndWait, isConnected) for tool compatibility
+- [x] **WSBRIDGE-01**: MCP server embeds WebSocket server on localhost:7225 via ws library (replaces native messaging)
+- [x] **WSBRIDGE-02**: WebSocketBridge class preserves same interface (connect, disconnect, sendAndWait, isConnected) for tool compatibility
 - [ ] **WSBRIDGE-03**: Extension MCPWebSocket client auto-connects to ws://localhost:7225 with reconnection backoff
 - [ ] **WSBRIDGE-04**: nativeMessaging permission and all native host files removed (shim, install script, manifest template)
-- [ ] **WSBRIDGE-05**: Native messaging code deleted from bridge.ts, types.ts, errors.ts, package.json
+- [x] **WSBRIDGE-05**: Native messaging code deleted from bridge.ts, types.ts, errors.ts, package.json
 
 ## Future Requirements
 
