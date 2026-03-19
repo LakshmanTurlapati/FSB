@@ -9,7 +9,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 
 ### Canvas, WebGL & Spatial Reasoning
 
-- [ ] **CANVAS-01**: MCP can interact with TradingView chart elements (draw Fibonacci retracement from local low to local high)
+- [x] **CANVAS-01**: MCP can interact with TradingView chart elements (draw Fibonacci retracement from local low to local high)
 - [ ] **CANVAS-02**: MCP can interact with Figma-like editor (create frame, align rectangles) -- free alternative if Figma requires auth
 - [ ] **CANVAS-03**: MCP can interact with Google Maps (zoom, trace walking path around Central Park reservoir)
 - [ ] **CANVAS-04**: MCP can play browser-based solitaire (move specific card to target)
@@ -95,7 +95,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CANVAS-01 | Phase 47 | Pending |
+| CANVAS-01 | Phase 47 | Complete |
 | CANVAS-02 | Phase 48 | Pending |
 | CANVAS-03 | Phase 49 | Pending |
 | CANVAS-04 | Phase 50 | Pending |
