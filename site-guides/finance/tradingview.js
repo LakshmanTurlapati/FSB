@@ -58,13 +58,13 @@ DRAWING TOOLS -- CDP INTERACTION:
 - TradingView uses 5px manhattan distance threshold to distinguish click from drag
 - Ensure drag distance exceeds 50px and use at least 10 intermediate mouseMoved steps
 
-FIBONACCI RETRACEMENT WORKFLOW:
-1. Click the drawing tool group button on the left toolbar (DOM click)
-2. Select "Fib Retracement" from the expanded dropdown/submenu (DOM click)
-3. Click first point on chart canvas (local low) using cdpClickAt with viewport coords
-4. Click second point on chart canvas (local high) using cdpClickAt with viewport coords
-5. TradingView uses click-click method (two separate clicks, not drag) for Fibonacci
-6. Verify Fibonacci lines appeared by checking for new SVG/DOM drawing elements
+FIBONACCI RETRACEMENT WORKFLOW (CONFIRMED via live test 2026-03-19):
+1. Click [aria-label="Fib retracement"] on the left toolbar (DOM click works)
+2. Click first point on chart canvas (local low) using cdpClickAt with viewport coords
+3. Click second point on chart canvas (local high) using cdpClickAt with viewport coords
+4. TradingView Fibonacci uses click-click pattern (two separate CDP clicks, NOT drag)
+5. All 7 standard levels render: 0, 0.236, 0.382, 0.5, 0.618, 0.786, 1
+6. Verify Fibonacci lines appeared by checking for new drawing DOM elements
 
 MODAL HANDLING:
 - TradingView shows sign-up and cookie modals to unauthenticated users
@@ -79,8 +79,8 @@ MODAL HANDLING:
     chartContainer: '.chart-gui-wrapper',
     watchlistPanel: '.widgetbar-widget-watchlist',
     drawingToolbar: '.drawing-toolbar, [data-name="drawing-toolbar"]',
-    fibToolGroup: '[data-name="Gann and Fibonacci Tools"], .menu-S_1OCXUK [data-name="Fib Retracement"]',
-    fibRetracement: '[data-name="Fib Retracement"], [data-tool-name="FibRetracement"]',
+    fibToolGroup: '[data-name="Gann and Fibonacci Tools"], [aria-label="Fib retracement"]',
+    fibRetracement: '[aria-label="Fib retracement"], [data-name="Fib Retracement"], [data-tool-name="FibRetracement"]',
     chartCanvas: '.chart-gui-wrapper canvas, .chart-markup-table canvas',
     modalOverlay: '.tv-dialog, .tv-dialog__modal-wrap, [class*="overlay"]',
     modalClose: '.tv-dialog .close-BZKENkhT, .tv-dialog__close, [data-name="close"]'
@@ -101,13 +101,12 @@ MODAL HANDLING:
     ],
     drawFibRetracement: [
       'Dismiss any sign-up or cookie modals (click close on .tv-dialog overlays)',
-      'Click drawing toolbar group containing Fibonacci tools (left sidebar DOM button)',
-      'Select Fib Retracement from dropdown/submenu (DOM click on submenu item)',
+      'Click [aria-label="Fib retracement"] on left toolbar (DOM click)',
       'Get chart canvas bounding rect via getBoundingClientRect for viewport coordinates',
       'Click first point on chart canvas (local low) using cdpClickAt with viewport coordinates',
       'Click second point on chart canvas (local high) using cdpClickAt with viewport coordinates',
-      'If click-click does not produce drawing, fall back to cdpDrag from low to high point',
-      'Verify Fibonacci lines appeared on chart (check for new SVG elements or drawing DOM nodes)'
+      'Fibonacci uses click-click pattern (two separate CDP clicks, NOT drag)',
+      'Verify Fibonacci lines appeared on chart (all 7 levels: 0, 0.236, 0.382, 0.5, 0.618, 0.786, 1)'
     ]
   },
   warnings: [

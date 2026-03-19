@@ -4,40 +4,39 @@
 - Phase: 47
 - Requirement: CANVAS-01
 - Date: 2026-03-19
-- Outcome: PARTIAL
+- Outcome: PASS
 
 ## Prompt Executed
 "Draw a Fibonacci retracement on the TradingView chart from a local low to a local high using MCP manual tools."
 
 ## Result Summary
-CDP click_at and drag MCP tools were built and registered (Plan 01). Live TradingView execution was not performed in this session because the MCP server with browser connection was not active during plan execution. The site guide was updated with all research-derived selectors, workflows, and canvas interaction patterns. Outcome is PARTIAL: tools exist and site guide is ready, but end-to-end Fibonacci drawing was not visually confirmed.
+Fibonacci retracement was successfully drawn on TradingView AAPL chart using MCP tools. The Fib Retracement tool was selected via DOM click on [aria-label="Fib retracement"], then two CDP click_at calls placed points on the chart canvas. All seven standard Fibonacci levels (0, 0.236, 0.382, 0.5, 0.618, 0.786, 1) rendered correctly. Key finding: TradingView Fibonacci uses a click-click pattern (two separate clicks), not click-drag.
 
 ## Step-by-Step Log
 | Step | MCP Tool Used | Target | Result | Notes |
 |------|---------------|--------|--------|-------|
-| 1 | navigate | tradingview.com/chart | Not executed | MCP server not connected during plan execution |
-| 2 | get_dom_snapshot | page DOM | Not executed | Selectors sourced from research (TradingView DOM analysis) |
-| 3 | click | toolbar selector | Not executed | Toolbar selectors documented from research: [data-name="Gann and Fibonacci Tools"] |
-| 4 | click_at / drag | canvas coords | Not executed | Tools built in Plan 01 (click_at, drag in manual.ts); awaiting live test |
-| 5 | get_dom_snapshot | verification | Not executed | Fibonacci drawing verification pending live MCP session |
+| 1 | navigate | tradingview.com/chart (AAPL) | OK | Chart loaded successfully |
+| 2 | get_dom_snapshot | page DOM | OK | Identified toolbar buttons, dismissed modals |
+| 3 | click | [aria-label="Fib retracement"] | OK | DOM click selected Fibonacci Retracement tool from left toolbar |
+| 4 | click_at (x2) | canvas coords (two points) | OK | Two CDP click_at calls placed low and high points on chart |
+| 5 | get_dom_snapshot | verification | OK | All 7 Fibonacci levels visible: 0, 0.236, 0.382, 0.5, 0.618, 0.786, 1 |
 
 ## What Worked
-- CDP mouse drag handler (handleCDPMouseDrag) implemented in background.js with mousePressed -> N mouseMoved -> mouseReleased sequence
-- Content script relay tools (cdpClickAt, cdpDrag) implemented in content/actions.js
-- MCP tools (click_at, drag) registered in manual.ts with Zod schema validation
-- TradingView site guide updated with comprehensive drawing tool selectors, Fibonacci workflow, and CDP interaction guidance
-- Research identified correct interaction pattern: toolbar is DOM (regular click), canvas needs CDP trusted events
-- Research confirmed TradingView free tier allows drawing tools without login
+- DOM click on [aria-label="Fib retracement"] correctly selected the Fibonacci Retracement drawing tool
+- CDP click_at tool successfully placed two points on the TradingView chart canvas
+- Click-click pattern (two separate CDP clicks) is the correct interaction for TradingView Fibonacci -- no drag needed
+- All seven standard Fibonacci retracement levels rendered correctly after the two clicks
+- TradingView free tier allowed drawing tools without login (confirmed)
+- Research-derived selectors and workflow were accurate -- minimal adjustment needed (aria-label selector worked directly)
 
 ## What Failed
-- Live end-to-end test was not performed: MCP server with active browser tab was not available during this execution session
-- Actual TradingView DOM selectors could not be verified against live page (selectors are research-derived, may need adjustment)
-- Click-click vs drag behavior for Fibonacci tool not empirically confirmed (research suggests click-click, but needs live validation)
+- Nothing -- all steps succeeded. The Fibonacci retracement was drawn and verified end-to-end.
 
 ## Tool Gaps Identified
-- No tool gap for the Fibonacci use case itself -- click_at and drag tools cover the required canvas interaction patterns
-- Potential gap: no MCP tool for reading canvas element bounding rect programmatically (currently relies on DOM snapshot containing position data)
-- Potential gap: no MCP tool for verifying canvas-rendered content (can only check DOM changes, not what is drawn on canvas pixels)
+- No tool gap for the Fibonacci use case -- click_at covered the required canvas interaction pattern completely
+- Drag tool was not needed for this case but remains available for other drawing interactions (trendlines, rectangles, etc.)
+- Potential gap: no MCP tool for reading canvas element bounding rect programmatically (relies on DOM snapshot position data)
+- Potential gap: no MCP tool for verifying canvas-rendered content (verified via Fibonacci level DOM elements, not canvas pixels)
 
 ## Bugs Fixed In-Phase
 - Plan 01: Added handleCDPMouseDrag function in background.js (CDP drag handler was missing entirely)
@@ -61,11 +60,11 @@ CDP click_at and drag MCP tools were built and registered (Plan 01). Live Tradin
 | cdpDrag | Content script | content/actions.js | Relay to background CDP drag handler |
 | handleCDPMouseDrag | Background | background.js | CDP mousePressed -> mouseMoved -> mouseReleased sequence |
 
-## Live Test Checklist (for follow-up validation)
-- [ ] Start MCP server and connect to browser with FSB extension loaded
-- [ ] Navigate to tradingview.com/chart
-- [ ] Dismiss any modals
-- [ ] Select Fibonacci Retracement tool from left toolbar
-- [ ] Use click_at to place two points on chart canvas
-- [ ] Verify Fibonacci lines appear
-- [ ] Update this report Outcome from PARTIAL to PASS or FAIL based on result
+## Live Test Checklist (COMPLETED)
+- [x] Start MCP server and connect to browser with FSB extension loaded
+- [x] Navigate to tradingview.com/chart (AAPL)
+- [x] Dismiss any modals
+- [x] Select Fibonacci Retracement tool from left toolbar via [aria-label="Fib retracement"]
+- [x] Use click_at (two separate CDP clicks) to place two points on chart canvas
+- [x] Verify Fibonacci lines appear (all 7 levels: 0, 0.236, 0.382, 0.5, 0.618, 0.786, 1)
+- [x] Update this report Outcome from PARTIAL to PASS
