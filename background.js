@@ -128,6 +128,9 @@ importScripts('site-guides/gaming/epic-games.js');
 importScripts('site-guides/gaming/gog.js');
 importScripts('site-guides/gaming/humble-bundle.js');
 
+// Per-site guides: Browser Games
+importScripts('site-guides/games/google-solitaire.js');
+
 // Per-site guides: Productivity
 importScripts('site-guides/productivity/google-sheets.js');
 importScripts('site-guides/productivity/google-docs.js');
