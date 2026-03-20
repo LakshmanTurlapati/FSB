@@ -145,6 +145,7 @@ importScripts('site-guides/productivity/airtable.js');
 // Per-site guides: Design & Whiteboard
 importScripts('site-guides/design/_shared.js');
 importScripts('site-guides/design/excalidraw.js');
+importScripts('site-guides/design/photopea.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
