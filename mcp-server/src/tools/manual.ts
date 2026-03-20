@@ -306,4 +306,17 @@ export function registerManualTools(
         altKey: alt ?? false,
       }),
   );
+
+  server.tool(
+    'scroll_at',
+    'Scroll (mouse wheel) at specific viewport coordinates using CDP trusted events. Use for map zoom (Google Maps, Leaflet), canvas zoom, or any element where page-level scrolling does not trigger the desired zoom/scroll behavior. Negative deltaY = zoom in / scroll up, positive deltaY = zoom out / scroll down. Each call dispatches one wheel tick; call multiple times for more zoom. Coordinates are CSS pixels relative to the browser viewport.',
+    {
+      x: z.number().describe('X coordinate in viewport CSS pixels (center of zoom target)'),
+      y: z.number().describe('Y coordinate in viewport CSS pixels (center of zoom target)'),
+      deltaY: z.number().optional().default(-120).describe('Vertical scroll delta (-120 = one tick zoom in, 120 = one tick zoom out)'),
+      deltaX: z.number().optional().default(0).describe('Horizontal scroll delta (usually 0)'),
+    },
+    async ({ x, y, deltaY, deltaX }) =>
+      execAction(bridge, queue, 'scroll_at', 'cdpScrollAt', { x, y, deltaX, deltaY }),
+  );
 }
