@@ -138,6 +138,10 @@ importScripts('site-guides/productivity/notion.js');
 importScripts('site-guides/productivity/jira.js');
 importScripts('site-guides/productivity/airtable.js');
 
+// Per-site guides: Design & Whiteboard
+importScripts('site-guides/design/_shared.js');
+importScripts('site-guides/design/excalidraw.js');
+
 // Background agent modules
 importScripts('agents/agent-manager.js');
 importScripts('agents/agent-scheduler.js');
