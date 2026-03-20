@@ -122,8 +122,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [x] 50-01-PLAN.md -- Create Google Solitaire site guide with card interaction selectors and workflows
-- [ ] 50-02-PLAN.md -- Execute live MCP solitaire test, generate CANVAS-04 diagnostic report
+- [ ] 51-01-PLAN.md -- Create Photopea site guide with magic wand and background removal patterns
+- [ ] 51-02-PLAN.md -- Execute live MCP Photopea test, generate CANVAS-05 diagnostic report
 
 ### Phase 52: 3D Product Viewer Rotation
 **Goal:** Execute 3D retail shoe viewer 180-degree rotation via MCP manual tools; fix blockers
