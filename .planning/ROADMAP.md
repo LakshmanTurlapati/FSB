@@ -11,7 +11,7 @@
 - [x] **Phase 48: Figma Frame Alignment** - CANVAS-02: create frame and align rectangles in Figma-like editor (completed 2026-03-20)
 - [x] **Phase 49: Google Maps Path Tracing** - CANVAS-03: zoom and trace walking path around Central Park reservoir (completed 2026-03-20)
 - [x] **Phase 50: Browser Solitaire** - CANVAS-04: move specific card to target in browser-based solitaire (completed 2026-03-20)
-- [ ] **Phase 51: Photopea Background Removal** - CANVAS-05: upload image and use magic wand to remove background
+- [x] **Phase 51: Photopea Background Removal** - CANVAS-05: upload image and use magic wand to remove background (completed 2026-03-20)
 - [ ] **Phase 52: 3D Product Viewer Rotation** - CANVAS-06: rotate shoe 180 degrees in 3D product viewer
 - [ ] **Phase 53: Canvas-Painted Button Click** - CANVAS-07: click canvas-pixel button in browser game
 - [ ] **Phase 54: Online Piano Notes** - CANVAS-08: play first four notes of Mary Had a Little Lamb
@@ -120,10 +120,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 51-01-PLAN.md -- Create Photopea site guide with magic wand and background removal patterns
-- [ ] 51-02-PLAN.md -- Execute live MCP Photopea test, generate CANVAS-05 diagnostic report
+- [x] 51-02-PLAN.md -- Execute live MCP Photopea test, generate CANVAS-05 diagnostic report
 
 ### Phase 52: 3D Product Viewer Rotation
 **Goal:** Execute 3D retail shoe viewer 180-degree rotation via MCP manual tools; fix blockers
@@ -718,7 +718,7 @@ Plans:
 | 48. Figma Frame Alignment | 2/2 | Complete   | 2026-03-20 |
 | 49. Google Maps Path Tracing | 2/2 | Complete    | 2026-03-20 |
 | 50. Browser Solitaire | 2/2 | Complete    | 2026-03-20 |
-| 51. Photopea Background Removal | 1/2 | In Progress|  |
+| 51. Photopea Background Removal | 2/2 | Complete   | 2026-03-20 |
 | 52. 3D Product Viewer Rotation | 0/1 | Not started | - |
 | 53. Canvas-Painted Button Click | 0/1 | Not started | - |
 | 54. Online Piano Notes | 0/1 | Not started | - |
