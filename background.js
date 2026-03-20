@@ -57,6 +57,7 @@ importScripts('site-guides/travel/kayak.js');
 importScripts('site-guides/travel/southwest.js');
 importScripts('site-guides/travel/united.js');
 importScripts('site-guides/travel/google-travel.js');
+importScripts('site-guides/travel/google-maps.js');
 
 // Per-site guides: Email
 importScripts('site-guides/email/gmail.js');
