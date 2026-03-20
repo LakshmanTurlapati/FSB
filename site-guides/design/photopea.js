@@ -3,9 +3,10 @@
  * Per-site guide for the Photopea online image editor (Photoshop alternative).
  *
  * Photopea is a web-based raster/vector image editor at photopea.com.
- * Image editing happens on an HTML5 <canvas> element.
- * Toolbar and menus are DOM elements -- use DOM click or keyboard shortcuts.
- * Canvas pixel interaction (magic wand click, brush strokes) requires CDP click_at.
+ * IMPORTANT: Photopea renders its ENTIRE UI on a single HTML5 canvas element.
+ * There are NO DOM elements for toolbars, menus, dialogs, or any editor feature.
+ * ALL interaction must use CDP click_at with pixel coordinates or keyboard shortcuts.
+ * DOM selectors below are INVALID -- kept as reference only. Use keyboard shortcuts.
  * Keyboard shortcuts mirror Adobe Photoshop conventions.
  *
  * Tested via MCP manual tools (Phase 51, CANVAS-05 diagnostic).
@@ -50,22 +51,23 @@ CANVAS ELEMENT:
 - Get canvas bounds via getBoundingClientRect() for coordinate calculations
 - The canvas is centered in the editor workspace and may have scrollbars around it
 
-TOOLBAR STRUCTURE:
-- Left vertical toolbar contains tool selection buttons (Photoshop-like icon column)
-- Each tool button is a clickable DOM element with tool name in attributes
+TOOLBAR STRUCTURE (all canvas-rendered -- NO DOM elements):
+- Left vertical toolbar contains tool icons (Photoshop-like column) -- CANVAS PAINTED
 - Tools are grouped: selection tools (top), drawing tools (middle), utility tools (bottom)
-- Some tool buttons have a small triangle indicating sub-tools (click-and-hold or right-click)
-- Magic Wand is grouped with Quick Selection tool -- W key or Shift+W to toggle between them
-- Menu bar at top: File, Edit, Image, Layer, Select, Filter, View, Window, More
-- Tool options bar below menu bar shows options for the currently selected tool
-- Layers panel on right side shows layer stack, blend modes, opacity
-- Properties/adjustments panels also on right side
+- Magic Wand is grouped with Quick Selection tool -- use W key (Shift+W to toggle)
+- Menu bar at top: File, Edit, Image, Layer, Select, Filter, View, Window, More -- CANVAS PAINTED
+- Tool options bar below menu bar -- CANVAS PAINTED
+- Layers panel on right side -- CANVAS PAINTED
+- CRITICAL: All toolbar, menu, and panel elements are PIXEL-RENDERED on canvas
+- DOM selectors CANNOT target any Photopea UI element
+- Use keyboard shortcuts (preferred) or click_at with known pixel coordinates
 
-SPLASH DIALOG:
-- Photopea shows a welcome/splash screen on first load with recent files and "New Project" button
-- The splash appears as a centered dialog/panel over the editor canvas area
-- Close the splash by: clicking the X button, clicking "New Project", or pressing Escape
-- After closing splash, the editor canvas becomes interactive
+SPLASH DIALOG (canvas-rendered):
+- Photopea shows a welcome/splash with ad, recent files, and "New Project" button
+- The splash is CANVAS PAINTED -- not a DOM dialog
+- Escape key does NOT dismiss it (tested live)
+- "Skip Ad" countdown appears (also canvas-rendered)
+- To bypass: use Photopea API URL hash (photopea.com#open:IMAGE_URL) to load image directly
 - Photopea may also show ads -- these appear as banners (typically right side or top)
 - Ad banners do not block canvas interaction but may reduce visible workspace
 
