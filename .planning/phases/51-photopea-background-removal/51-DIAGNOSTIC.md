@@ -4,8 +4,8 @@
 - Phase: 51
 - Requirement: CANVAS-05
 - Date: 2026-03-20
-- Outcome: PARTIAL
-- Live MCP Testing: NO (no active MCP server connection to Chrome in this executor session)
+- Outcome: PARTIAL (upgraded with live test data)
+- Live MCP Testing: YES (partial -- navigation + editor launch confirmed, canvas UI blocks DOM interaction)
 
 ## Prompt Executed
 "Open an image in Photopea, select the Magic Wand tool, click on the background area, and press Delete to remove the background using MCP manual tools."
@@ -71,3 +71,67 @@ Photopea site guide was created in Plan 01 with comprehensive selectors and 6 wo
 | Tool | Type | Location | Purpose |
 |------|------|----------|---------|
 | (none) | - | - | All tools from Phases 47-49 are sufficient for Photopea interaction |
+
+## Live Test Log (2026-03-20)
+
+### Test Environment
+- Browser: Chrome with FSB extension active
+- MCP tools available: click_at, drag, click, press_key, navigate, read_page, get_dom_snapshot
+
+### Step 1: Navigate to Photopea
+- Tool: mcp__fsb__navigate("https://www.photopea.com")
+- Result: SUCCESS -- landing page loaded with "Start using Photopea" button
+
+### Step 2: Launch Editor
+- Tool: mcp__fsb__click on button "Start using Photopea"
+- Result: SUCCESS -- editor loaded, landing page div collapsed (height 2328 -> 0)
+- DOM changes detected: 57 mutations during load (poor stability for 5s)
+- After waiting: editor visible with menu bar and splash dialog
+
+### Step 3: Editor State
+- read_page shows: menu bar (File, Edit, Image, Layer, Select, Filter, View, Window, More, Account)
+- Splash dialog shows: Home, This Device, PeaDrive, Dropbox, OneDrive, Google Drive
+- Action buttons: New Project, Open From Computer, Templates, Generate with AI
+- Ad overlay: "Skip Ad" with countdown timer
+
+### Step 4: Attempt to Dismiss Splash / Open New Project
+- press_key(Escape): No effect -- splash persists
+- click_at on "New Project" area (multiple coordinates attempted): No dismissal
+- press_key(N): No effect
+- DISCOVERY: Photopea renders ENTIRE UI via single HTML5 canvas element
+- All menus, toolbars, dialogs, and buttons are pixel-painted on canvas
+- DOM selectors find ZERO Photopea UI elements (only accessibility text overlay)
+- "Skip Ad" countdown is canvas-rendered, not a DOM element
+
+### Step 5: CDP Interaction Test
+- click_at(450, 480): SUCCESS -- CDP click registers on canvas
+- click_at(350, 520): SUCCESS -- CDP click registers
+- click_at(280, 455): SUCCESS -- CDP click registers
+- All clicks execute but without knowing exact pixel positions of canvas-rendered UI buttons, interaction is blind
+
+### Key Discoveries
+1. Photopea renders its ENTIRE UI via a single HTML5 canvas -- no DOM elements for any editor feature
+2. read_page returns text from accessibility overlays, NOT from actual DOM elements
+3. get_dom_snapshot returns only 6 elements (header links + generic buttons) -- useless for editor interaction
+4. CDP click_at and press_key work on the canvas but require exact pixel coordinates of UI elements
+5. Splash dialog with ad cannot be dismissed via DOM click or Escape -- it's a canvas-rendered overlay
+6. This is WORSE than Google Solitaire (Phase 50) which was iframe-isolated but had DOM inside the iframe
+7. Automation requires a pixel-coordinate map of the Photopea toolbar layout -- positions depend on window size
+8. Site guide selectors for toolbar items, menus, and tools are ALL WRONG -- there are no DOM elements to select
+9. Only viable automation strategy: memorize pixel coordinates of toolbar positions at a known viewport size
+
+### Selector Accuracy Update
+| Site Guide Selector | Live Status | Notes |
+|---------------------|-------------|-------|
+| canvas#canvas (main canvas) | NOT FOUND | There is a canvas but no id="canvas" |
+| .toolbar, .tool-panel | NOT FOUND | No DOM toolbar elements -- all canvas-rendered |
+| [data-tool="magic-wand"] | NOT FOUND | No DOM tool elements at all |
+| File/Edit/Image menus | NOT FOUND | Menu bar is canvas-rendered |
+| All tool selectors | NOT FOUND | Everything is painted on a single canvas |
+
+### Updated Recommendation
+Photopea automation MUST use fixed pixel coordinates at a known viewport size:
+- Map toolbar icon positions relative to viewport origin
+- Map menu item positions when menus are opened via coordinates
+- No DOM-based automation is possible for any editor feature
+- Consider using Photopea's API (photopea.com/api) as an alternative to UI automation
