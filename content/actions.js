@@ -5112,6 +5112,22 @@ const tools = {
     }
   };
 
+  tools.cdpScrollAt = async (params) => {
+    const { x, y, deltaX, deltaY } = params;
+    if (typeof x !== 'number' || typeof y !== 'number') {
+      return { success: false, error: 'x and y coordinates required (viewport-relative numbers)' };
+    }
+    try {
+      const result = await chrome.runtime.sendMessage({
+        action: 'cdpMouseWheel', x, y,
+        deltaX: deltaX || 0, deltaY: (typeof deltaY === 'number') ? deltaY : -120
+      });
+      return result || { success: false, error: 'No response from CDP mouseWheel handler' };
+    } catch (e) {
+      return { success: false, error: `CDP mouseWheel failed: ${e.message}` };
+    }
+  };
+
   FSB.clickAtCoordinates = clickAtCoordinates;
   FSB.captureActionState = captureActionState;
   FSB.EXPECTED_EFFECTS = EXPECTED_EFFECTS;

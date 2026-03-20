@@ -4928,6 +4928,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleCDPMouseDrag(request, sender, sendResponse);
       return true; // Will respond asynchronously
 
+    case 'cdpMouseWheel':
+      handleCDPMouseWheel(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
     case 'cdpInsertText':
       handleCDPInsertText(request, sender, sendResponse);
       return true; // Will respond asynchronously
@@ -12037,6 +12041,31 @@ async function handleCDPMouseDrag(request, sender, sendResponse) {
 
     await chrome.debugger.detach({ tabId });
     sendResponse({ success: true, startX, startY, endX, endY, steps, modifiers, method: 'cdp_drag' });
+  } catch (e) {
+    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+    sendResponse({ success: false, error: e.message });
+  }
+}
+
+/**
+ * Handle CDP mouse wheel at specific viewport coordinates.
+ * Uses Input.dispatchMouseEvent with type "mouseWheel" for coordinate-targeted scrolling.
+ * Essential for map zoom (Google Maps, Leaflet) and canvas zoom where page-level scroll does nothing.
+ */
+async function handleCDPMouseWheel(request, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  const { x, y, deltaX = 0, deltaY = -120 } = request;
+  if (!tabId || typeof x !== 'number' || typeof y !== 'number') {
+    sendResponse({ success: false, error: 'Missing tabId or coordinates' });
+    return;
+  }
+  try {
+    await chrome.debugger.attach({ tabId }, '1.3');
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseWheel', x, y, deltaX, deltaY
+    });
+    await chrome.debugger.detach({ tabId });
+    sendResponse({ success: true, x, y, deltaX, deltaY, method: 'cdp_mouseWheel' });
   } catch (e) {
     try { await chrome.debugger.detach({ tabId }); } catch (_) {}
     sendResponse({ success: false, error: e.message });
