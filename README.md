@@ -25,16 +25,19 @@
 ![AI Models](https://img.shields.io/badge/AI_Models-21-8B5CF6?style=flat-square)
 ![Browser Actions](https://img.shields.io/badge/Browser_Actions-47-F97316?style=flat-square)
 ![Site Guides](https://img.shields.io/badge/Site_Guides-9_Categories-22C55E?style=flat-square)
+![MCP](https://img.shields.io/badge/MCP-Server-00B4D8?style=flat-square)
 ![xAI](https://img.shields.io/badge/xAI-Grok-000000?style=flat-square&logo=x&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/OpenAI-GPT-412991?style=flat-square&logo=openai&logoColor=white)
 ![Anthropic](https://img.shields.io/badge/Anthropic-Claude-D4A574?style=flat-square&logo=anthropic&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Google-Gemini-4285F4?style=flat-square&logo=googlegemini&logoColor=white)
 
-**An intelligent, open-source browser automation assistant powered by multiple AI models**
+**Perfecting browser automation with zero vision**
+
+*Pure DOM intelligence. No screenshots. No computer vision. Just structure.*
 
 *Inspired by Project Mariner, built for everyone*
 
-[Quick Start](#quick-start) | [Architecture](#architecture-overview) | [AI Providers](#multi-model-ai-integration) | [Memory](#long-term-memory-system) | [Contributing](#contributing)
+[Quick Start](#quick-start) | [MCP Server](#mcp-server) | [Architecture](#architecture-overview) | [AI Providers](#multi-model-ai-integration) | [Memory](#long-term-memory-system) | [Contributing](#contributing)
 
 </div>
 
@@ -44,7 +47,7 @@
 
 > **Note**: While FSB v0.9.4.0 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
 
-FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers** -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models.
+FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers** -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models. FSB can run as a **standalone Chrome extension** or be controlled by any MCP-compatible AI client (Claude Code, Cursor, Windsurf, and others) through its built-in **MCP server** -- in manual mode for fine-grained control, or autopilot mode where FSB handles everything.
 
 <details>
 <summary><b>All features (detailed list)</b></summary>
@@ -71,6 +74,10 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 - **Secure Configuration**: AES-GCM encrypted API key storage
 - **Smart Recovery**: Automatic stuck detection with DOM hashing, action pattern analysis, and adaptive behavior
 - **Multiple UI Modes**: Popup chat and persistent side panel interfaces
+- **MCP Server**: Built-in Model Context Protocol server with 42+ tools -- any MCP-compatible AI client can control FSB
+- **Dual Operation Modes**: Use FSB standalone or through MCP, with manual (tool-by-tool) and autopilot (AI-driven) modes
+- **WebSocket Bridge**: Hub/relay architecture for MCP-to-extension communication with automatic failover and multi-instance support
+- **Remote Streaming**: Optional relay server connection for remote monitoring and control
 
 </details>
 
@@ -174,6 +181,86 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 
 ---
 
+## MCP Server
+
+FSB includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes the full browser automation engine to any MCP-compatible AI client. Any tool that speaks MCP -- Claude Code, Cursor, Windsurf, or your own agents -- can plug in and control FSB.
+
+### Two Ways to Use FSB
+
+| Mode | Description | Best For |
+|------|-------------|----------|
+| **Standalone** | Use FSB directly as a Chrome extension via the popup or side panel | Interactive browsing, quick tasks, visual monitoring |
+| **MCP** | Connect an external AI client to FSB's MCP server | Agent workflows, programmatic control, CI pipelines |
+
+### MCP Operating Modes
+
+Within MCP, FSB offers two operating modes:
+
+**Manual Mode** -- Direct browser control through 42+ individual tools. The AI client decides what to do; FSB executes each action.
+
+**Autopilot Mode** -- Delegate an entire task to FSB. When an AI API key is configured in the extension, `run_task` hands the goal to FSB's built-in AI loop, which plans, executes, recovers from errors, and reports back with progress updates. The external client just watches.
+
+### MCP Tool Categories
+
+| Category | Tools | Description |
+|----------|-------|-------------|
+| **Autopilot** | `run_task`, `stop_task`, `get_task_status` | Delegate full tasks to FSB's AI loop |
+| **Manual** | 25+ tools (`navigate`, `click`, `type_text`, `scroll`, etc.) | Individual browser actions with direct control |
+| **Read-Only** | `read_page`, `get_text`, `get_dom_snapshot`, `list_tabs`, etc. | Information gathering -- bypasses the mutation queue for concurrent reads |
+| **Observability** | `list_sessions`, `get_session_detail`, `get_logs`, `search_memory`, `get_memory_stats` | Inspect past sessions, logs, and memory state |
+
+### MCP Resources and Prompts
+
+**Resources** (live data streams):
+- `browser://dom/snapshot` -- Current page DOM with element references
+- `browser://tabs` -- Open tabs with title, URL, and active status
+- `fsb://site-guides` -- Domain-specific automation intelligence
+
+**Prompt Templates** (reusable workflows):
+- `search-and-extract` -- Navigate, search, and extract structured data
+- `fill-form` -- Navigate, identify fields, fill, and submit
+- `monitor-page` -- Watch for changes and report
+- `navigate-and-read` -- Go to a URL and extract specific content
+
+### Setup
+
+1. **Build the MCP server**
+   ```bash
+   cd mcp-server && npm install && npm run build
+   ```
+
+2. **Add FSB to your MCP client config** (e.g., `claude_desktop_config.json`):
+   ```json
+   {
+     "mcpServers": {
+       "fsb": {
+         "command": "node",
+         "args": ["/path/to/FSB/mcp-server/build/index.js"]
+       }
+     }
+   }
+   ```
+
+3. **Run the extension** -- make sure the FSB Chrome extension is loaded and active. The MCP server connects to it via WebSocket on port 7225.
+
+### Communication Flow
+
+```mermaid
+graph LR
+    MC["MCP Client<br/>(Claude Code, Cursor, etc.)"] -->|stdio<br/>JSON-RPC 2.0| MS["MCP Server"]
+    MS -->|WebSocket<br/>port 7225| WSB["WebSocket Bridge<br/>Hub / Relay"]
+    WSB --> BG["Background Worker<br/>Chrome Extension"]
+    BG --> CS["Content Scripts"]
+    CS --> WP["Web Page"]
+```
+
+- **MCP transport**: stdio (JSON-RPC 2.0) between the AI client and the MCP server
+- **WebSocket bridge**: Connects the MCP server to the Chrome extension on port 7225
+- **Hub/relay pattern**: First MCP instance becomes the hub; additional instances connect as relays with automatic promotion on hub failure
+- **Mutation serialization**: A task queue ensures one mutation at a time; read-only tools bypass the queue for concurrent access
+
+---
+
 ## Documentation
 
 ### Architecture Overview
@@ -182,6 +269,13 @@ FSB follows a modular architecture designed for reliability and extensibility:
 
 ```mermaid
 graph TB
+    subgraph MCP["MCP Layer"]
+        MCPC["MCP Clients<br/>Claude Code, Cursor, etc."]
+        MCPS["MCP Server<br/>stdio + WebSocket"]
+        WSB["WebSocket Bridge<br/>Hub / Relay"]
+        TQ["Task Queue<br/>Mutation Serialization"]
+    end
+
     subgraph UI["UI Layer"]
         P["Popup Chat"]
         SP["Side Panel"]
@@ -220,6 +314,9 @@ graph TB
         SRV["Server Backends<br/>Node.js / Python"]
     end
 
+    MCPC --> MCPS
+    MCPS --> WSB
+    WSB --> Core
     UI --> Core
     Core --> Intelligence
     Core --> Content
@@ -243,7 +340,7 @@ graph TB
 - **Analytics Tracking**: Monitors usage, performance, and cost calculations per model
 - **Site Guide Loader**: Matches current domain to specialized automation guides across 9 categories
 
-**Content Script Layer (10 modular files):**
+**Content Script Layer (12 modular files):**
 - **DOM Analysis**: Advanced webpage structure parsing with incremental diffing (`dom-analysis.js`, `dom-state.js`)
 - **Action Execution**: 47 browser actions with smart delays and error handling (`actions.js`)
 - **Selector Generation**: Multiple CSS selector strategies for reliability (`selectors.js`)
@@ -268,8 +365,15 @@ graph TB
 - **Agent Executor**: Runs agent tasks with session replay and result capture (`agents/agent-executor.js`)
 - **Server Sync**: Optional synchronization with Node.js or Python server backends (`agents/server-sync.js`)
 
+**MCP Layer:**
+- **MCP Server**: Exposes FSB to external AI clients via stdio transport with 42+ tools across 4 categories (`mcp-server/src/`)
+- **WebSocket Bridge**: Hub/relay architecture connecting the MCP server to the Chrome extension on port 7225 (`mcp-server/src/bridge.ts`)
+- **Task Queue**: Serializes mutations to prevent race conditions; read-only tools bypass the queue for concurrent access (`mcp-server/src/queue.ts`)
+- **Remote Streaming**: Optional relay server connection for remote monitoring and control (`ws/ws-client.js`)
+
 **External Services:**
 - **AI APIs**: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini
+- **MCP Clients**: Claude Code, Cursor, Windsurf, or any MCP-compatible AI client
 - **CAPTCHA Services**: Optional integration for automated CAPTCHA solving
 - **Server Backends**: Optional Node.js (`server/`) and Python/Flask (`server-py/`) backends for agent data persistence
 
@@ -312,6 +416,10 @@ graph TB
 | `ui/sidepanel.html/js/css` | Persistent side panel interface |
 | `ui/control_panel.html/js/css` | Settings dashboard with analytics, memory viewer, and logs |
 | `ui/markdown-renderer.js` | Markdown, mermaid diagram, and Chart.js rendering |
+| `mcp-server/` | MCP server exposing FSB to external AI clients |
+| `mcp-server/src/bridge.ts` | WebSocket hub/relay bridge for extension communication |
+| `mcp-server/src/tools/` | Autopilot, manual, read-only, and observability tool sets |
+| `ws/ws-client.js` | WebSocket client for optional remote relay connection |
 | `server/` | Optional Node.js backend for agent data |
 | `server-py/` | Optional Python/Flask backend for agent data |
 
@@ -476,15 +584,17 @@ FSB/
     config.js                   # Model validation and settings
     init-config.js              # First-run setup and migration
     secure-config.js            # AES-GCM encrypted storage
-  content/                      # Content script modules (10 files)
+  content/                      # Content script modules (12 files)
     accessibility.js            # Accessibility helpers
     actions.js                  # 47 browser action tools
     dom-analysis.js             # DOM traversal and element extraction
     dom-state.js                # DOM state tracking and diffing
+    dom-stream.js               # Real-time DOM change streaming
     init.js                     # Content script initialization
     lifecycle.js                # Script lifecycle and cleanup
     messaging.js                # Message passing with background
     selectors.js                # CSS selector generation
+    stt-recognition.js          # Speech-to-text recognition
     utils.js                    # Shared content utilities
     visual-feedback.js          # Viewport glow, highlights, overlay
   lib/                          # Libraries and subsystems
@@ -506,6 +616,27 @@ FSB/
     marked.min.js               # Markdown parser
     mermaid.min.js              # Mermaid diagram renderer
     purify.min.js               # DOMPurify for XSS protection
+  mcp-server/                     # MCP server (TypeScript)
+    src/
+      index.ts                    # Entry point: stdio + WebSocket bridge
+      server.ts                   # MCP server factory
+      bridge.ts                   # WebSocket hub/relay bridge
+      queue.ts                    # Task queue for mutation serialization
+      errors.ts                   # Error mapping
+      types.ts                    # Message interfaces
+      tools/
+        autopilot.ts              # run_task, stop_task, get_task_status
+        manual.ts                 # 25+ browser action tools
+        read-only.ts              # read_page, get_text, get_dom_snapshot, etc.
+        observability.ts          # list_sessions, get_logs, search_memory, etc.
+      resources/
+        index.ts                  # DOM snapshot, tabs, site guides resources
+      prompts/
+        index.ts                  # Reusable workflow templates
+    package.json                  # TypeScript, MCP SDK, zod, ws
+    tsconfig.json                 # TypeScript configuration
+  ws/                             # WebSocket client for remote streaming
+    ws-client.js                  # Persistent relay connection with reconnection
   Logs/                         # Session logs (generated at runtime)
   server/                       # Optional Node.js backend
     server.js                   # Express API server
@@ -875,21 +1006,28 @@ FSB provides real-time visual indicators during automation:
 - Cross-site pattern analysis detecting recurring UI patterns across websites
 - D3.js site visualization with force-directed radial mind maps
 - Background agent system with chrome.alarms scheduling and run history
-- Content script modularization -- monolithic content.js split into 10 focused modules
+- Content script modularization -- monolithic content.js split into 12 focused modules
 - Memory intelligence overhaul -- AI analysis pipeline, detail viewers, auto-refresh, cost tracking
 - Optional server backends (Node.js and Python/Flask) for agent data persistence
 - Sitemap generation and refinement with AI-powered conversion
 - Site guides viewer with consolidated 3D knowledge graph visualization
 
-### In Progress -- v9.3
-- Dead code removal and configuration cleanup
-- Memory extractor bug fix for AI provider instantiation
+### Completed in v9.4 -- v9.7
+- MCP server with 42+ tools across 4 categories (autopilot, manual, read-only, observability)
+- WebSocket hub/relay bridge for MCP-to-extension communication
+- CDP (Chrome DevTools Protocol) click_at and drag tools for canvas interaction
+- MCP resources (DOM snapshot, tabs, site guides) and prompt templates
+- Task queue with mutation serialization and read-only bypass
+- Career search automation with Google Sheets integration
+- Remote streaming via optional relay server connection
+
+### In Progress
+- MCP edge case validation across 50 scenarios (canvas, micro-interactions, scrolling, context, dark patterns)
 
 ### Future
 - Advanced CAPTCHA solver integration (Buster, CapSolver, 2Captcha)
 - Workflow templates and task saving
 - Chrome Web Store publication
-- Visual element recognition and computer vision
 - Plugin architecture for custom actions
 - Enterprise features, team collaboration, and compliance
 
@@ -961,7 +1099,7 @@ Every contributor helps make FSB better! Contributors are recognized in our ackn
 
 **Star this repository if FSB helps you automate your browsing!**
 
-*FSB - Full Self-Browsing: Making AI-powered automation accessible to everyone*
+*FSB - Full Self-Browsing: Perfecting browser automation with zero vision*
 
 [Back to top](#fsb-v902---full-self-browsing)
 
