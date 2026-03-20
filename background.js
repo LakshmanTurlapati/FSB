@@ -32,6 +32,7 @@ importScripts('site-guides/ecommerce/ebay.js');
 importScripts('site-guides/ecommerce/walmart.js');
 importScripts('site-guides/ecommerce/target.js');
 importScripts('site-guides/ecommerce/bestbuy.js');
+importScripts('site-guides/ecommerce/nike-3d-viewer.js');
 
 // Per-site guides: Social Media
 importScripts('site-guides/social/linkedin.js');
