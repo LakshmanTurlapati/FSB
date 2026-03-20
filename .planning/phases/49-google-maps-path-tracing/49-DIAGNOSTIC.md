@@ -4,8 +4,8 @@
 - Phase: 49
 - Requirement: CANVAS-03
 - Date: 2026-03-20
-- Outcome: PARTIAL
-- Live MCP Testing: NO (site guide created with research-based selectors; live test deferred to checkpoint)
+- Outcome: PARTIAL (upgraded with live test data)
+- Live MCP Testing: YES (partial -- drag confirmed, scroll_at/click_at need MCP server restart)
 
 ## Prompt Executed
 "Zoom Google Maps to Central Park Reservoir and trace the walking path around the reservoir perimeter using MCP manual tools."
@@ -67,9 +67,68 @@ Site guide created with comprehensive Google Maps selectors and interaction work
 | handleCDPMouseWheel | Background | background.js | CDP Input.dispatchMouseEvent mouseWheel dispatch |
 
 ## Live Test Status
-- Live MCP execution: NOT PERFORMED (no active browser connection in this session)
-- scroll_at tool: IMPLEMENTED and chain-verified in Plan 01
-- Site guide selectors: RESEARCH-BASED (need live verification)
-- Zoom interaction: NOT VERIFIED (scroll_at ready but not tested on Google Maps)
-- Pan interaction: NOT VERIFIED (cdpDrag available but not tested on Google Maps)
-- Outcome classification: PARTIAL -- tooling complete and site guide created, but live execution deferred
+- Live MCP execution: PERFORMED (partial -- via autonomous workflow checkpoint)
+- scroll_at tool: IMPLEMENTED, chain-verified in Plan 01, NOT LIVE-TESTED (MCP server needs restart to register new tool)
+- click_at tool: IMPLEMENTED, NOT LIVE-TESTED (same -- needs MCP server restart)
+- Site guide selectors: LIVE-VERIFIED (see test log below)
+- Zoom interaction: NOT DIRECTLY VERIFIED via scroll_at (MCP server needs restart), but scale changed 500ft->200ft during drag interaction suggesting zoom occurred
+- Pan interaction: VERIFIED -- cdpDrag successfully pans Google Maps canvas (4 drag segments completed)
+- Outcome classification: PARTIAL -- drag confirmed working, scroll_at/click_at need MCP server restart for live verification
+
+## Live Test Log (2026-03-20)
+
+### Test Environment
+- Browser: Chrome with FSB extension active
+- MCP server: Running (pre-Phase 49 tools only -- scroll_at/click_at not yet registered)
+- Starting URL: google.com/maps/search/Central+Park+Reservoir+NYC
+
+### Step 1: Navigate
+- Tool: mcp__fsb__navigate("https://www.google.com/maps/search/Central+Park+Reservoir+NYC")
+- Result: SUCCESS -- page loaded, "Jacqueline Kennedy Onassis Reservoir" displayed
+- URL landed at: @40.7854951,-73.9620731,16z
+
+### Step 2: DOM Selector Verification
+- Tool: mcp__fsb__get_dom_snapshot
+- [aria-label="Zoom in"] -- FOUND (button_zoom_in_presentation)
+- [aria-label="Zoom out"] -- FOUND (button_zoom_out_presentation)
+- [role="combobox"] (search box) -- FOUND (combobox_q_combobox_text)
+- [role="application"] (map div) -- FOUND (application_map_use_arrow_keys_to_pan_the__map_use_arrow_k)
+- [aria-label="Collapse side panel"] -- FOUND (but zero dimensions -- obscured)
+- [aria-label="Show Your Location"] -- FOUND
+- [aria-label="Street View"] -- FOUND
+- Scale indicator: "500 ft" initially, changed to "200 ft" after interactions
+- NOTE: #searchboxinput NOT found -- actual selector is [role="combobox"] with class UGojuc
+- NOTE: #map canvas NOT found as exact selector -- map is [role="application"] div
+
+### Step 3: Zoom Button Click Attempt
+- Tool: mcp__fsb__click('[aria-label="Zoom in"]')
+- Result: FAILED -- "Element is obscured at center" (side panel overlaps zoom buttons)
+- Discovery: Google Maps side panel covers zoom controls when place info is shown
+
+### Step 4: Drag Test (Map Panning)
+- Tool: mcp__fsb__drag(900, 450, 700, 350, steps=15, delay=30ms)
+- Result: SUCCESS -- cdp_drag method used, 651ms execution
+- Post-drag: Scale changed from 500ft to 200ft (unexpected zoom-in effect from diagonal drag)
+
+### Step 5: Path Tracing (4 Drag Segments)
+- Segment 1 (right): drag(800,300 -> 1000,300) -- SUCCESS (632ms)
+- Segment 2 (down): drag(1000,300 -> 1000,500) -- SUCCESS (640ms)
+- Segment 3 (left): drag(1000,500 -> 800,500) -- SUCCESS (615ms)
+- Segment 4 (up): drag(800,500 -> 800,300) -- SUCCESS (624ms)
+- All 4 segments completed, map remained at reservoir location at 200ft scale
+
+### Selector Accuracy Update
+| Site Guide Selector | Live Status | Actual Selector |
+|---------------------|-------------|-----------------|
+| #searchboxinput | NOT FOUND | [role="combobox"] .UGojuc |
+| button[aria-label="Zoom in"] | FOUND (but obscured by side panel) | [aria-label="Zoom in"] |
+| button[aria-label="Zoom out"] | FOUND (but obscured by side panel) | [aria-label="Zoom out"] |
+| #map canvas | NOT FOUND as exact ID | [role="application"] div.D21QYe |
+| form[action*="consent"] | NOT TESTED (no consent popup appeared -- logged in user) |
+
+### Key Discoveries
+1. cdpDrag CONFIRMED working on Google Maps canvas -- pans the map successfully
+2. Diagonal drag caused unexpected zoom (500ft->200ft) -- Google Maps interprets certain drag gestures as zoom
+3. Zoom buttons are obscured when side panel is open with place info
+4. Some site guide selectors need updating (#searchboxinput -> [role="combobox"], #map canvas -> [role="application"])
+5. scroll_at and click_at tools need MCP server restart to become available -- they were added this phase but server still has old tool registry

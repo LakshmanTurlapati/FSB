@@ -86,9 +86,9 @@ MAP TILE LOADING:
 - Large zoom changes (multiple scroll_at calls) may need longer waits
 - Check for loading spinner or tile placeholders via DOM if needed`,
   selectors: {
-    mapContainer: '#map, div[aria-label="Map"], div[role="presentation"]',
-    mapCanvas: '#map canvas, div[aria-label="Map"] canvas',
-    searchBox: '#searchboxinput, input[aria-label="Search Google Maps"]',
+    mapContainer: 'div[role="application"][aria-label*="Map"], #map, div[aria-label="Map"], div[role="presentation"]',
+    mapCanvas: 'div[role="application"][aria-label*="Map"] canvas, #map canvas, div[aria-label="Map"] canvas',
+    searchBox: '[role="combobox"].UGojuc, #searchboxinput, input[aria-label="Search Google Maps"]',
     searchButton: '#searchbox-searchbutton, button[aria-label="Search"]',
     zoomIn: 'button[aria-label="Zoom in"], #widget-zoom-in',
     zoomOut: 'button[aria-label="Zoom out"], #widget-zoom-out',
@@ -97,7 +97,7 @@ MAP TILE LOADING:
     consentReject: 'button[aria-label="Reject all"]',
     scaleBar: 'div.widget-scale-text, div.widget-scale',
     sidePanel: 'div[role="main"], div.widget-pane, div.section-layout',
-    sidePanelClose: 'button[aria-label="Close"], button.hYBOP',
+    sidePanelClose: 'button[aria-label="Collapse side panel"], button[aria-label="Close"], button.hYBOP',
     satelliteToggle: 'button[aria-label="Show satellite imagery"], button[data-value="satellite"]',
     streetViewToggle: 'button[aria-label="Pegman"], div.widget-pegman',
     directionsButton: 'button[aria-label="Directions"]',
