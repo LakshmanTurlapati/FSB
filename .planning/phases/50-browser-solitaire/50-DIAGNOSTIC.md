@@ -4,8 +4,8 @@
 - Phase: 50
 - Requirement: CANVAS-04
 - Date: 2026-03-20
-- Outcome: PARTIAL
-- Live MCP Testing: NO (executor context has no active MCP server connection to Chrome)
+- Outcome: PARTIAL (upgraded with live test data)
+- Live MCP Testing: YES (partial -- CDP tools confirmed working through iframe, DOM inspection blocked by iframe boundary)
 
 ## Prompt Executed
 "Play browser-based solitaire on Google and move a specific card to a valid target pile using MCP manual tools."
@@ -66,3 +66,65 @@ Google Solitaire site guide was created in Plan 01 with comprehensive card inter
 | Tool | Type | Location | Purpose |
 |------|------|----------|---------|
 | (none) | - | - | All tools from Phases 47-49 are sufficient for solitaire interaction |
+
+## Live Test Log (2026-03-20)
+
+### Test Environment
+- Browser: Chrome with FSB extension active
+- MCP server: Running (click_at and drag available, scroll_at not yet registered)
+
+### Step 1: Navigate to Google Solitaire
+- Tool: mcp__fsb__navigate("https://www.google.com/search?q=solitaire")
+- Result: SUCCESS -- Google search results with Solitaire game card visible
+- "Play" button found with class `.Mm9DXe`, game card `.Ka1Rbb`
+
+### Step 2: Launch Game
+- Tool: mcp__fsb__click on Play button div
+- Result: SUCCESS (via cdp-mouse-fallback) -- DOM click had no effect, CDP mouse click succeeded
+- Game loaded inside iframe (class `.YPU6Hf`)
+- DISCOVERY: Game renders inside an iframe, NOT as direct DOM elements
+
+### Step 3: DOM Inspection Attempt
+- Tool: mcp__fsb__get_dom_snapshot
+- Result: 164K char DOM returned -- but shows PARENT page elements only
+- DISCOVERY: Game DOM inside iframe is invisible to get_dom_snapshot
+- Cannot see card elements, pile elements, or game controls from parent page
+- This means research-based selectors (.card, [data-card], etc.) cannot be verified
+
+### Step 4: CDP Interactions Through Iframe
+- Tool: mcp__fsb__click_at(825, 445) -- center of game area
+- Result: SUCCESS -- CDP click penetrates iframe boundary
+- Tool: mcp__fsb__click_at(180, 220) -- stock pile area
+- Result: SUCCESS -- CDP click works at stock position
+- Tool: mcp__fsb__drag(280, 350, 550, 220) -- card to foundation area
+- Result: SUCCESS -- CDP drag works through iframe (614ms)
+- Tool: mcp__fsb__drag(380, 370, 280, 350) -- card between tableau
+- Result: SUCCESS -- CDP drag works through iframe (618ms)
+
+### Key Discoveries
+1. Google Solitaire renders inside an IFRAME, not as direct DOM elements in the page
+2. get_dom_snapshot CANNOT see inside the iframe -- card selectors invisible
+3. CDP click_at and drag WORK through iframe boundaries (viewport coordinates)
+4. DOM-based click/double_click on game selectors WILL NOT WORK (elements not accessible)
+5. All game interaction MUST use coordinate-based CDP tools (click_at, drag)
+6. The "Play" button itself requires CDP fallback (DOM click has no effect)
+7. Site guide selectors for cards (.card, [data-card]) are WRONG -- game is iframe-hosted, not DOM-rendered
+8. Card move verification is not possible without seeing iframe content
+9. click (DOM selector) on `.Mm9DXe` and `.Ka1Rbb` failed with "obscured at center" -- iframe overlays them
+
+### Selector Accuracy Update
+| Site Guide Selector | Live Status | Notes |
+|---------------------|-------------|-------|
+| .Mm9DXe (Play button) | FOUND but obscured | Needs CDP click_at instead |
+| .Ka1Rbb (Solitaire card) | FOUND but obscured | Same issue |
+| .YPU6Hf (game iframe) | FOUND | Iframe container confirmed |
+| .card, [data-card] | NOT ACCESSIBLE | Inside iframe, invisible to DOM snapshot |
+| .stock-pile, .solitaire-stock | NOT ACCESSIBLE | Inside iframe |
+| All card selectors | NOT ACCESSIBLE | Iframe boundary blocks DOM access |
+
+### Updated Recommendation
+Google Solitaire automation MUST use coordinate-based CDP tools exclusively:
+- click_at for card selection and stock pile draws
+- drag for card moves between piles
+- Cannot use DOM-based click/double_click for any game element
+- Need visual/coordinate mapping of card positions (hardcoded or computed from game layout)
