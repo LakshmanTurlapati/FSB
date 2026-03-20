@@ -268,17 +268,25 @@ export function registerManualTools(
 
   server.tool(
     'click_at',
-    'Click at specific viewport coordinates using CDP trusted events. Use for canvas elements, overlays, or any element where DOM-based click does not work. Coordinates are CSS pixels relative to the browser viewport (use getBoundingClientRect() values). Returns success/failure with method used.',
+    'Click at specific viewport coordinates using CDP trusted events. Use for canvas elements, overlays, or any element where DOM-based click does not work. Supports modifier keys for shift+click (multi-select), ctrl+click, alt+click. Coordinates are CSS pixels relative to the browser viewport (use getBoundingClientRect() values). Returns success/failure with method used.',
     {
       x: z.number().describe('X coordinate in viewport CSS pixels'),
       y: z.number().describe('Y coordinate in viewport CSS pixels'),
+      shift: z.boolean().optional().describe('Hold Shift key during click (for multi-select)'),
+      ctrl: z.boolean().optional().describe('Hold Ctrl key during click'),
+      alt: z.boolean().optional().describe('Hold Alt key during click'),
     },
-    async ({ x, y }) => execAction(bridge, queue, 'click_at', 'cdpClickAt', { x, y }),
+    async ({ x, y, shift, ctrl, alt }) => execAction(bridge, queue, 'click_at', 'cdpClickAt', {
+      x, y,
+      shiftKey: shift ?? false,
+      ctrlKey: ctrl ?? false,
+      altKey: alt ?? false,
+    }),
   );
 
   server.tool(
     'drag',
-    'Drag from one viewport coordinate to another using CDP trusted events. Produces mousePressed at start, N intermediate mouseMoved events, then mouseReleased at end. Essential for canvas drawing tools, sliders, and map interactions where DOM drag events are ignored. Coordinates are CSS pixels relative to the browser viewport.',
+    'Drag from one viewport coordinate to another using CDP trusted events. Produces mousePressed at start, N intermediate mouseMoved events, then mouseReleased at end. Essential for canvas drawing tools, sliders, and map interactions where DOM drag events are ignored. Supports modifier keys for constrained drawing (shift+drag). Coordinates are CSS pixels relative to the browser viewport.',
     {
       startX: z.number().describe('Start X coordinate in viewport CSS pixels'),
       startY: z.number().describe('Start Y coordinate in viewport CSS pixels'),
@@ -286,8 +294,16 @@ export function registerManualTools(
       endY: z.number().describe('End Y coordinate in viewport CSS pixels'),
       steps: z.number().optional().default(10).describe('Number of intermediate mouseMoved events (default 10, increase for smoother drag)'),
       stepDelayMs: z.number().optional().default(20).describe('Delay in ms between each mouseMoved step (default 20)'),
+      shift: z.boolean().optional().describe('Hold Shift key during drag (for constrained movement)'),
+      ctrl: z.boolean().optional().describe('Hold Ctrl key during drag'),
+      alt: z.boolean().optional().describe('Hold Alt key during drag'),
     },
-    async ({ startX, startY, endX, endY, steps, stepDelayMs }) =>
-      execAction(bridge, queue, 'drag', 'cdpDrag', { startX, startY, endX, endY, steps, stepDelayMs }),
+    async ({ startX, startY, endX, endY, steps, stepDelayMs, shift, ctrl, alt }) =>
+      execAction(bridge, queue, 'drag', 'cdpDrag', {
+        startX, startY, endX, endY, steps, stepDelayMs,
+        shiftKey: shift ?? false,
+        ctrlKey: ctrl ?? false,
+        altKey: alt ?? false,
+      }),
   );
 }
