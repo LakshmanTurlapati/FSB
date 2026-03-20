@@ -717,7 +717,7 @@ Plans:
 | 47. TradingView Fibonacci | 2/2 | Complete    | 2026-03-19 |
 | 48. Figma Frame Alignment | 2/2 | Complete   | 2026-03-20 |
 | 49. Google Maps Path Tracing | 2/2 | Complete    | 2026-03-20 |
-| 50. Browser Solitaire | 2/2 | Complete   | 2026-03-20 |
+| 50. Browser Solitaire | 2/2 | Complete    | 2026-03-20 |
 | 51. Photopea Background Removal | 0/1 | Not started | - |
 | 52. 3D Product Viewer Rotation | 0/1 | Not started | - |
 | 53. Canvas-Painted Button Click | 0/1 | Not started | - |
