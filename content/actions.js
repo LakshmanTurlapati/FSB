@@ -1574,6 +1574,29 @@ const tools = {
       // SPEED-05: Use smart readiness check with fast-path for ready elements
       readiness = await FSB.smartEnsureReady(element, 'click');
       if (!readiness.ready) {
+        // If element is obscured (e.g., toolbar button behind canvas overlay),
+        // try programmatic element.click() as fallback before giving up.
+        // Canvas-heavy apps (TradingView, Figma, Miro) have DOM toolbar buttons
+        // behind their canvas layers -- these ARE clickable via .click().
+        const isObscured = readiness.failureReason && readiness.failureReason.includes('obscured');
+        if (isObscured && element && typeof element.click === 'function') {
+          try {
+            element.click();
+            await delay(300);
+            return {
+              success: true,
+              clicked: params.selector,
+              hadEffect: true,
+              scrolled: false,
+              method: 'programmatic_click_obscured_fallback',
+              verification: { verified: false, reason: 'obscured_fallback_no_verification' },
+              elementInfo: { tag: element.tagName, text: (element.innerText || '').substring(0, 50), wasScrolledIntoView: false },
+              duration: Date.now() - startTime
+            };
+          } catch (fallbackErr) {
+            // Fallback also failed, continue to original error
+          }
+        }
         // Record failure - element not ready
         actionRecorder.record(null, 'click', params, {
           selectorTried,
@@ -3991,6 +4014,11 @@ const tools = {
 
     const readiness = await FSB.smartEnsureReady(element, 'focus');
     if (!readiness.ready) {
+      // Obscured fallback: programmatic focus bypasses canvas overlays
+      const isObscured = readiness.failureReason && readiness.failureReason.includes('obscured');
+      if (isObscured && element && typeof element.focus === 'function') {
+        try { element.focus(); return { success: true, focused: params.selector, method: 'programmatic_focus_obscured_fallback' }; } catch (e) { /* continue to error */ }
+      }
       actionRecorder.record(null, 'focus', params, { selectorTried: params.selector, selectorUsed: params.selector, elementFound: true, elementDetails: captureElementDetails(element), success: false, error: `Element not ready for focus: ${readiness.failureReason}`, diagnostic: generateDiagnostic('notReady', { selector: params.selector, checks: readiness.checks }), duration: Date.now() - startTime });
       return { success: false, error: `Element not ready for focus: ${readiness.failureReason}`, selector: params.selector, checks: readiness.checks };
     }
@@ -4032,6 +4060,16 @@ const tools = {
 
     const readiness = await FSB.smartEnsureReady(element, 'hover');
     if (!readiness.ready) {
+      // Obscured fallback: dispatch hover events programmatically past canvas overlays
+      const isObscured = readiness.failureReason && readiness.failureReason.includes('obscured');
+      if (isObscured && element) {
+        try {
+          const rect = element.getBoundingClientRect();
+          element.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }));
+          element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }));
+          return { success: true, hovered: params.selector, method: 'programmatic_hover_obscured_fallback' };
+        } catch (e) { /* continue to error */ }
+      }
       actionRecorder.record(null, 'hover', params, { selectorTried: params.selector, selectorUsed: params.selector, elementFound: true, elementDetails: captureElementDetails(element), success: false, error: `Element not ready for hover: ${readiness.failureReason}`, diagnostic: generateDiagnostic('notReady', { selector: params.selector, checks: readiness.checks }), duration: Date.now() - startTime });
       return { success: false, error: `Element not ready for hover: ${readiness.failureReason}`, selector: params.selector, checks: readiness.checks };
     }
@@ -5041,12 +5079,15 @@ const tools = {
   };
 
   tools.cdpClickAt = async (params) => {
-    const { x, y } = params;
+    const { x, y, shiftKey, ctrlKey, altKey } = params;
     if (typeof x !== 'number' || typeof y !== 'number') {
       return { success: false, error: 'x and y coordinates required (viewport-relative numbers)' };
     }
     try {
-      const result = await chrome.runtime.sendMessage({ action: 'cdpMouseClick', x, y });
+      const result = await chrome.runtime.sendMessage({
+        action: 'cdpMouseClick', x, y,
+        shiftKey: !!shiftKey, ctrlKey: !!ctrlKey, altKey: !!altKey
+      });
       return result || { success: false, error: 'No response from CDP click handler' };
     } catch (e) {
       return { success: false, error: `CDP click failed: ${e.message}` };
@@ -5054,7 +5095,7 @@ const tools = {
   };
 
   tools.cdpDrag = async (params) => {
-    const { startX, startY, endX, endY, steps, stepDelayMs } = params;
+    const { startX, startY, endX, endY, steps, stepDelayMs, shiftKey, ctrlKey, altKey } = params;
     if (typeof startX !== 'number' || typeof startY !== 'number' ||
         typeof endX !== 'number' || typeof endY !== 'number') {
       return { success: false, error: 'startX, startY, endX, endY required (viewport-relative numbers)' };
@@ -5062,7 +5103,8 @@ const tools = {
     try {
       const result = await chrome.runtime.sendMessage({
         action: 'cdpMouseDrag', startX, startY, endX, endY,
-        steps: steps || 10, stepDelayMs: stepDelayMs || 20
+        steps: steps || 10, stepDelayMs: stepDelayMs || 20,
+        shiftKey: !!shiftKey, ctrlKey: !!ctrlKey, altKey: !!altKey
       });
       return result || { success: false, error: 'No response from CDP drag handler' };
     } catch (e) {
