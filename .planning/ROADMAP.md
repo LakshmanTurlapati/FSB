@@ -120,9 +120,9 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 51-01-PLAN.md -- Create Photopea site guide with magic wand and background removal patterns
+- [x] 51-01-PLAN.md -- Create Photopea site guide with magic wand and background removal patterns
 - [ ] 51-02-PLAN.md -- Execute live MCP Photopea test, generate CANVAS-05 diagnostic report
 
 ### Phase 52: 3D Product Viewer Rotation
@@ -718,7 +718,7 @@ Plans:
 | 48. Figma Frame Alignment | 2/2 | Complete   | 2026-03-20 |
 | 49. Google Maps Path Tracing | 2/2 | Complete    | 2026-03-20 |
 | 50. Browser Solitaire | 2/2 | Complete    | 2026-03-20 |
-| 51. Photopea Background Removal | 0/1 | Not started | - |
+| 51. Photopea Background Removal | 1/2 | In Progress|  |
 | 52. 3D Product Viewer Rotation | 0/1 | Not started | - |
 | 53. Canvas-Painted Button Click | 0/1 | Not started | - |
 | 54. Online Piano Notes | 0/1 | Not started | - |

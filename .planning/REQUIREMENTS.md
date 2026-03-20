@@ -13,7 +13,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 - [x] **CANVAS-02**: MCP can interact with Figma-like editor (create frame, align rectangles) -- free alternative if Figma requires auth
 - [x] **CANVAS-03**: MCP can interact with Google Maps (zoom, trace walking path around Central Park reservoir)
 - [x] **CANVAS-04**: MCP can play browser-based solitaire (move specific card to target)
-- [ ] **CANVAS-05**: MCP can interact with Photopea (upload image, use magic wand tool to remove background)
+- [x] **CANVAS-05**: MCP can interact with Photopea (upload image, use magic wand tool to remove background)
 - [ ] **CANVAS-06**: MCP can interact with 3D product viewer on retail site (rotate shoe 180 degrees)
 - [ ] **CANVAS-07**: MCP can click canvas-painted button (pixels, not HTML element) in browser game
 - [ ] **CANVAS-08**: MCP can play notes on online piano keyboard (first four notes of Mary Had a Little Lamb)
@@ -99,7 +99,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | CANVAS-02 | Phase 48 | Complete |
 | CANVAS-03 | Phase 49 | Complete |
 | CANVAS-04 | Phase 50 | Complete |
-| CANVAS-05 | Phase 51 | Pending |
+| CANVAS-05 | Phase 51 | Complete |
 | CANVAS-06 | Phase 52 | Pending |
 | CANVAS-07 | Phase 53 | Pending |
 | CANVAS-08 | Phase 54 | Pending |
