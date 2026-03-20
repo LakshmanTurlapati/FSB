@@ -12,7 +12,7 @@
 - [x] **Phase 49: Google Maps Path Tracing** - CANVAS-03: zoom and trace walking path around Central Park reservoir (completed 2026-03-20)
 - [x] **Phase 50: Browser Solitaire** - CANVAS-04: move specific card to target in browser-based solitaire (completed 2026-03-20)
 - [x] **Phase 51: Photopea Background Removal** - CANVAS-05: upload image and use magic wand to remove background (completed 2026-03-20)
-- [ ] **Phase 52: 3D Product Viewer Rotation** - CANVAS-06: rotate shoe 180 degrees in 3D product viewer
+- [x] **Phase 52: 3D Product Viewer Rotation** - CANVAS-06: rotate shoe 180 degrees in 3D product viewer (completed 2026-03-20)
 - [ ] **Phase 53: Canvas-Painted Button Click** - CANVAS-07: click canvas-pixel button in browser game
 - [ ] **Phase 54: Online Piano Notes** - CANVAS-08: play first four notes of Mary Had a Little Lamb
 - [ ] **Phase 55: PDF Signature Placement** - CANVAS-09: place signature on dotted line on page 3 of PDF
@@ -133,10 +133,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 Plans:
 - [x] 52-01-PLAN.md -- Create 3D product viewer site guide with rotation drag workflows
-- [ ] 52-02-PLAN.md -- Execute live MCP 3D viewer rotation test, generate CANVAS-06 diagnostic report
+- [x] 52-02-PLAN.md -- Execute live MCP 3D viewer rotation test, generate CANVAS-06 diagnostic report
 
 ### Phase 53: Canvas-Painted Button Click
 **Goal:** Execute canvas-pixel button click in browser game via MCP manual tools; fix blockers
