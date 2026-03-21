@@ -166,6 +166,7 @@ importScripts('site-guides/reference/wikipedia.js');
 importScripts('site-guides/utilities/carousel.js');
 importScripts('site-guides/utilities/color-picker.js');
 importScripts('site-guides/utilities/file-upload.js');
+importScripts('site-guides/utilities/slider-captcha.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
