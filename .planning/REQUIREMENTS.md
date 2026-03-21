@@ -42,7 +42,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 - [x] **SCROLL-05**: MCP can read multi-page document in virtualized viewer (pages unload as you scroll)
 - [x] **SCROLL-06**: MCP can expand all nested comment threads on Hacker News post with 1000+ comments
 - [x] **SCROLL-07**: MCP can find Airbnb listing by panning map interface until new pins populate
-- [ ] **SCROLL-08**: MCP can scroll TikTok web feed until finding a video containing a cat
+- [x] **SCROLL-08**: MCP can scroll TikTok web feed until finding a video containing a cat
 - [ ] **SCROLL-09**: MCP can extract pricing data from table that only loads rows in viewport
 - [ ] **SCROLL-10**: MCP can navigate infinite-scroll news site and stop at articles published yesterday
 
@@ -122,7 +122,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | SCROLL-05 | Phase 71 | Complete |
 | SCROLL-06 | Phase 72 | Complete |
 | SCROLL-07 | Phase 73 | Complete |
-| SCROLL-08 | Phase 74 | Pending |
+| SCROLL-08 | Phase 74 | Complete |
 | SCROLL-09 | Phase 75 | Pending |
 | SCROLL-10 | Phase 76 | Pending |
 | CONTEXT-01 | Phase 77 | Pending |
