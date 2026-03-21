@@ -74,6 +74,7 @@ importScripts('site-guides/coding/github.js');
 importScripts('site-guides/coding/codeforces.js');
 importScripts('site-guides/coding/geeksforgeeks.js');
 importScripts('site-guides/coding/stackoverflow.js');
+importScripts('site-guides/coding/observable.js');
 
 // Per-site guides: Career -- ATS base guides (load first)
 importScripts('site-guides/career/workday.js');
