@@ -329,8 +329,9 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 67-01-PLAN.md -- Update twitter.js site guide with infinite scroll post counting workflow
+- [ ] 67-02-PLAN.md -- Execute live MCP Twitter infinite scroll test, generate SCROLL-01 diagnostic report
+
 
 ### Phase 68: E-Commerce 500-Item Scrape
 **Goal:** Execute dynamic e-commerce search page full scrape of 500 product names via MCP manual tools; fix blockers
