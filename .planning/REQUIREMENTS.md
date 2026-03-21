@@ -16,7 +16,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 - [x] **CANVAS-05**: MCP can interact with Photopea (upload image, use magic wand tool to remove background)
 - [x] **CANVAS-06**: MCP can interact with 3D product viewer on retail site (rotate shoe 180 degrees)
 - [x] **CANVAS-07**: MCP can click canvas-painted button (pixels, not HTML element) in browser game
-- [ ] **CANVAS-08**: MCP can play notes on online piano keyboard (first four notes of Mary Had a Little Lamb)
+- [x] **CANVAS-08**: MCP can play notes on online piano keyboard (first four notes of Mary Had a Little Lamb)
 - [ ] **CANVAS-09**: MCP can use online PDF editor to place signature on dotted line on page 3
 - [ ] **CANVAS-10**: MCP can interact with Miro board (group scattered sticky notes into cluster)
 
@@ -102,7 +102,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | CANVAS-05 | Phase 51 | Complete |
 | CANVAS-06 | Phase 52 | Complete |
 | CANVAS-07 | Phase 53 | Complete |
-| CANVAS-08 | Phase 54 | Pending |
+| CANVAS-08 | Phase 54 | Complete |
 | CANVAS-09 | Phase 55 | Pending |
 | CANVAS-10 | Phase 56 | Pending |
 | MICRO-01 | Phase 57 | Pending |
