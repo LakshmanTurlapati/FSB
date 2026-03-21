@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 74-02-PLAN.md
-last_updated: "2026-03-21T21:41:40.978Z"
+stopped_at: Completed 75-01-PLAN.md
+last_updated: "2026-03-21T21:52:07.693Z"
 progress:
   total_phases: 50
   completed_phases: 28
-  total_plans: 56
-  completed_plans: 56
+  total_plans: 58
+  completed_plans: 57
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 74 — tiktok-cat-video-search
+**Current focus:** Phase 75 — viewport-only-pricing-table
 
 ## Current Position
 
-Phase: 75
-Plan: Not started
+Phase: 75 (viewport-only-pricing-table) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -131,6 +131,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 74]: Search page (tiktok.com/search?q=cat) as primary no-auth target over For You feed; tag page as fallback
 - [Phase 74]: SCROLL-08 PARTIAL: TikTok fully client-rendered SPA, zero content in server HTML, all 11 data-e2e selectors untestable via HTTP
 - [Phase 74]: TikTok SIGI_STATE pattern deprecated -- __UNIVERSAL_DATA_FOR_REHYDRATION__ contains only app config, not content data
+- [Phase 75]: Feature name text as unique deduplication key for pricing table rows across scroll cycles
+- [Phase 75]: Notion pricing page as primary SCROLL-09 target, Airtable pricing as fallback; 400-600px scroll increments for viewport-gated table extraction
 
 ### Pending Todos
 
@@ -144,6 +146,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T21:41:00.866Z
-Stopped at: Completed 74-02-PLAN.md
+Last session: 2026-03-21T21:52:07.690Z
+Stopped at: Completed 75-01-PLAN.md
 Resume file: None

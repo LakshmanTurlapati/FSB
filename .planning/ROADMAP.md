@@ -438,10 +438,12 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [x] 75-01-PLAN.md -- Create pricing-table.js site guide with viewport-scroll extraction workflow and wire imports
+- [ ] 75-02-PLAN.md -- Execute live MCP pricing table extraction test, generate SCROLL-09 diagnostic report
+
+
 
 ### Phase 76: News Site Date-Stop Scroll
 **Goal:** Execute infinite-scroll news site scroll stopping at yesterday's articles via MCP manual tools; fix blockers
@@ -748,7 +750,7 @@ Plans:
 | 72. Hacker News Thread Expansion | 1/2 | Complete    | 2026-03-21 |
 | 73. Airbnb Map Pan Search | 2/2 | Complete    | 2026-03-21 |
 | 74. TikTok Cat Video Search | 2/2 | Complete    | 2026-03-21 |
-| 75. Viewport-Only Pricing Table | 0/1 | Not started | - |
+| 75. Viewport-Only Pricing Table | 1/2 | In Progress|  |
 | 76. News Site Date-Stop Scroll | 0/1 | Not started | - |
 | 77. Live Sports Score Monitor | 0/1 | Not started | - |
 | 78. Observable Notebook Edit | 0/1 | Not started | - |
