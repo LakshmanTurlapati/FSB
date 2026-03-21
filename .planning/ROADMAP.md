@@ -472,8 +472,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 77-01-PLAN.md -- Create live-scores.js site guide with ESPN scoreboard selectors, polling workflow, and wire into background.js
+- [ ] 77-02-PLAN.md -- Execute live MCP score monitoring test, generate CONTEXT-01 diagnostic report
 
 ### Phase 78: Observable Notebook Edit
 **Goal:** Execute Observable notebook fork with cell 3 data modification without altering cell 1 via MCP manual tools; fix blockers
