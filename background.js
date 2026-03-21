@@ -152,6 +152,7 @@ importScripts('site-guides/productivity/pdf-editor.js');
 importScripts('site-guides/design/_shared.js');
 importScripts('site-guides/design/excalidraw.js');
 importScripts('site-guides/design/photopea.js');
+importScripts('site-guides/design/miro.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
