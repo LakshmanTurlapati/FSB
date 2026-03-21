@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 74-01-PLAN.md
-last_updated: "2026-03-21T21:33:46.399Z"
+stopped_at: Completed 74-02-PLAN.md
+last_updated: "2026-03-21T21:41:00.869Z"
 progress:
   total_phases: 50
-  completed_phases: 27
+  completed_phases: 28
   total_plans: 56
-  completed_plans: 55
+  completed_plans: 56
 ---
 
 # Project State
@@ -129,6 +129,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 73]: SCROLL-07 PARTIAL: Airbnb map container validated via data-testid, listing pins confirmed client-rendered React, live CDP drag panning blocked by WebSocket bridge disconnect
 - [Phase 74]: data-e2e attribute selectors preferred over CSS class names for TikTok (dynamic tiktok-* classes change between deployments)
 - [Phase 74]: Search page (tiktok.com/search?q=cat) as primary no-auth target over For You feed; tag page as fallback
+- [Phase 74]: SCROLL-08 PARTIAL: TikTok fully client-rendered SPA, zero content in server HTML, all 11 data-e2e selectors untestable via HTTP
+- [Phase 74]: TikTok SIGI_STATE pattern deprecated -- __UNIVERSAL_DATA_FOR_REHYDRATION__ contains only app config, not content data
 
 ### Pending Todos
 
@@ -142,6 +144,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T21:33:46.396Z
-Stopped at: Completed 74-01-PLAN.md
+Last session: 2026-03-21T21:41:00.866Z
+Stopped at: Completed 74-02-PLAN.md
 Resume file: None
