@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 70-02-PLAN.md
-last_updated: "2026-03-21T19:04:07.326Z"
+stopped_at: Completed 71-01-PLAN.md
+last_updated: "2026-03-21T19:14:43.934Z"
 progress:
   total_phases: 50
   completed_phases: 24
-  total_plans: 48
-  completed_plans: 48
+  total_plans: 50
+  completed_plans: 49
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 70 — reddit-thread-bottom-reply
+**Current focus:** Phase 71 — virtualized-pdf-reader
 
 ## Current Position
 
-Phase: 71
-Plan: Not started
+Phase: 71 (virtualized-pdf-reader) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -116,6 +116,9 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 70]: Old Reddit (old.reddit.com) confirmed as preferred automation target -- server-renders 184 comments vs new Reddit 1 in server HTML
 - [Phase 70]: Expansion-first strategy for load-more buttons: click all 73 before scrolling, not click-as-encountered
 - [Phase 70]: Three reddit.js selectors confirmed incorrect: loadMoreComments (a.morecomments -> a.button[id^=more_t1]), sortComments (select -> div.dropdown), loginModal (data-testid -> a[href*=/login])
+- [Phase 71]: Separate pdf-viewer.js from pdf-editor.js -- viewer targets read-only text extraction from virtualized pages, editor targets Smallpdf signature placement
+- [Phase 71]: Page number input (#pageNumber) preferred over scroll-distance estimation for pdf.js viewer navigation reliability
+- [Phase 71]: textLayer span concatenation as text extraction strategy for pdf.js viewers -- spans contain plain text in DOM order
 
 ### Pending Todos
 
@@ -129,6 +132,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T19:03:37.707Z
-Stopped at: Completed 70-02-PLAN.md
+Last session: 2026-03-21T19:14:43.931Z
+Stopped at: Completed 71-01-PLAN.md
 Resume file: None
