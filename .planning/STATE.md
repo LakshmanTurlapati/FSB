@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 70-01-PLAN.md
-last_updated: "2026-03-21T18:55:02.618Z"
+stopped_at: Completed 70-02-PLAN.md
+last_updated: "2026-03-21T19:03:37.710Z"
 progress:
   total_phases: 50
-  completed_phases: 23
+  completed_phases: 24
   total_plans: 48
-  completed_plans: 47
+  completed_plans: 48
 ---
 
 # Project State
@@ -113,6 +113,9 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 69]: GitHub REST API as fallback data source: 5 torvalds commits on March 18 confirmed without auth (60 req/hour unauthenticated)
 - [Phase 70]: Documented both new Reddit (Shreddit web components) and old Reddit (div.comment) DOM structures for maximum thread navigation compatibility
 - [Phase 70]: Sort by Old recommended for chronological bottom = most recent comment; SKIP-AUTH documented for reply portion
+- [Phase 70]: Old Reddit (old.reddit.com) confirmed as preferred automation target -- server-renders 184 comments vs new Reddit 1 in server HTML
+- [Phase 70]: Expansion-first strategy for load-more buttons: click all 73 before scrolling, not click-as-encountered
+- [Phase 70]: Three reddit.js selectors confirmed incorrect: loadMoreComments (a.morecomments -> a.button[id^=more_t1]), sortComments (select -> div.dropdown), loginModal (data-testid -> a[href*=/login])
 
 ### Pending Todos
 
@@ -126,6 +129,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T18:55:02.616Z
-Stopped at: Completed 70-01-PLAN.md
+Last session: 2026-03-21T19:03:37.707Z
+Stopped at: Completed 70-02-PLAN.md
 Resume file: None
