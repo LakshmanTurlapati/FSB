@@ -238,8 +238,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 57-01-PLAN.md -- Create HTML5 video player site guide with volume slider precision workflows
-- [ ] 57-02-PLAN.md -- Execute live MCP volume slider test, generate MICRO-01 diagnostic report
+- [ ] 60-01-PLAN.md -- Add select_text_range MCP tool and Wikipedia site guide with highlightSentence workflow
+- [ ] 60-02-PLAN.md -- Execute live MCP text selection test, generate MICRO-04 diagnostic report
 
 ### Phase 61: Color Picker Custom Hex
 **Goal:** Execute color picker hue slider and shade reticle drag to select custom hex via MCP manual tools; fix blockers
