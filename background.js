@@ -170,6 +170,9 @@ importScripts('site-guides/reference/wikipedia.js');
 importScripts('site-guides/news/hackernews.js');
 importScripts('site-guides/news/news-feed.js');
 
+// Per-site guides: Sports
+importScripts('site-guides/sports/live-scores.js');
+
 // Per-site guides: Utilities
 importScripts('site-guides/utilities/carousel.js');
 importScripts('site-guides/utilities/color-picker.js');
