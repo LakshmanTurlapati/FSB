@@ -24,7 +24,7 @@
 - [x] **Phase 61: Color Picker Custom Hex** - MICRO-05: drag hue slider and shade reticle to select custom hex (completed 2026-03-21)
 - [x] **Phase 62: Horizontal Carousel Scroll** - MICRO-06: scroll horizontally through carousel without vertical scroll (completed 2026-03-21)
 - [x] **Phase 63: CSS Mega-Menu Navigation** - MICRO-07: hover nav, wait for animation, click nested sub-link (completed 2026-03-21)
-- [ ] **Phase 64: Dropzone File Upload** - MICRO-08: trigger file upload via browser dropzone simulation
+- [x] **Phase 64: Dropzone File Upload** - MICRO-08: trigger file upload via browser dropzone simulation (completed 2026-03-21)
 - [ ] **Phase 65: Slide-to-Fit CAPTCHA** - MICRO-09: solve slide-to-fit puzzle by dragging piece at variable speed
 - [ ] **Phase 66: Podcast Timeline Scrub** - MICRO-10: scrub podcast audio timeline to exactly 14:22 mark
 - [ ] **Phase 67: Twitter 150th Post Extraction** - SCROLL-01: scroll X/Twitter feed and extract text of 150th post
@@ -288,10 +288,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [x] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
 
 ### Phase 65: Slide-to-Fit CAPTCHA
 **Goal:** Execute slide-to-fit puzzle CAPTCHA drag at variable speed via MCP manual tools; fix blockers
@@ -303,7 +303,7 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
+- [x] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
 - [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
 
 ### Phase 66: Podcast Timeline Scrub
@@ -730,7 +730,7 @@ Plans:
 | 61. Color Picker Custom Hex | 2/2 | Complete    | 2026-03-21 |
 | 62. Horizontal Carousel Scroll | 2/2 | Complete    | 2026-03-21 |
 | 63. CSS Mega-Menu Navigation | 2/2 | Complete    | 2026-03-21 |
-| 64. Dropzone File Upload | 1/2 | In Progress|  |
+| 64. Dropzone File Upload | 2/2 | Complete   | 2026-03-21 |
 | 65. Slide-to-Fit CAPTCHA | 0/1 | Not started | - |
 | 66. Podcast Timeline Scrub | 0/1 | Not started | - |
 | 67. Twitter 150th Post Extraction | 0/1 | Not started | - |
