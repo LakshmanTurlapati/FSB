@@ -730,7 +730,7 @@ Plans:
 | 61. Color Picker Custom Hex | 2/2 | Complete    | 2026-03-21 |
 | 62. Horizontal Carousel Scroll | 2/2 | Complete    | 2026-03-21 |
 | 63. CSS Mega-Menu Navigation | 2/2 | Complete    | 2026-03-21 |
-| 64. Dropzone File Upload | 2/2 | Complete   | 2026-03-21 |
+| 64. Dropzone File Upload | 2/2 | Complete    | 2026-03-21 |
 | 65. Slide-to-Fit CAPTCHA | 0/1 | Not started | - |
 | 66. Podcast Timeline Scrub | 0/1 | Not started | - |
 | 67. Twitter 150th Post Extraction | 0/1 | Not started | - |
