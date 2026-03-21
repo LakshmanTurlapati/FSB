@@ -423,8 +423,12 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 74-01-PLAN.md -- Create tiktok.js site guide with feed scroll workflow, video selectors, and cat content detection; wire into background.js
+- [ ] 74-02-PLAN.md -- Execute live MCP TikTok cat video search test, generate SCROLL-08 diagnostic report
+
+
+
+
 
 ### Phase 75: Viewport-Only Pricing Table
 **Goal:** Execute viewport-gated pricing table row extraction via MCP manual tools; fix blockers
