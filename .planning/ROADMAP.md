@@ -742,7 +742,7 @@ Plans:
 | 70. Reddit Thread Bottom Reply | 2/2 | Complete    | 2026-03-21 |
 | 71. Virtualized PDF Reader | 2/2 | Complete    | 2026-03-21 |
 | 72. Hacker News Thread Expansion | 1/2 | Complete    | 2026-03-21 |
-| 73. Airbnb Map Pan Search | 2/2 | Complete   | 2026-03-21 |
+| 73. Airbnb Map Pan Search | 2/2 | Complete    | 2026-03-21 |
 | 74. TikTok Cat Video Search | 0/1 | Not started | - |
 | 75. Viewport-Only Pricing Table | 0/1 | Not started | - |
 | 76. News Site Date-Stop Scroll | 0/1 | Not started | - |
