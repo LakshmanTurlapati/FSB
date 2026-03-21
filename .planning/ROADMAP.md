@@ -731,7 +731,7 @@ Plans:
 | 62. Horizontal Carousel Scroll | 2/2 | Complete    | 2026-03-21 |
 | 63. CSS Mega-Menu Navigation | 2/2 | Complete    | 2026-03-21 |
 | 64. Dropzone File Upload | 2/2 | Complete    | 2026-03-21 |
-| 65. Slide-to-Fit CAPTCHA | 2/2 | Complete   | 2026-03-21 |
+| 65. Slide-to-Fit CAPTCHA | 2/2 | Complete    | 2026-03-21 |
 | 66. Podcast Timeline Scrub | 0/1 | Not started | - |
 | 67. Twitter 150th Post Extraction | 0/1 | Not started | - |
 | 68. E-Commerce 500-Item Scrape | 0/1 | Not started | - |
