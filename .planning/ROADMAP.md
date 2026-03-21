@@ -734,7 +734,7 @@ Plans:
 | 64. Dropzone File Upload | 2/2 | Complete    | 2026-03-21 |
 | 65. Slide-to-Fit CAPTCHA | 2/2 | Complete    | 2026-03-21 |
 | 66. Podcast Timeline Scrub | 2/2 | Complete    | 2026-03-21 |
-| 67. Twitter 150th Post Extraction | 2/2 | Complete   | 2026-03-21 |
+| 67. Twitter 150th Post Extraction | 2/2 | Complete    | 2026-03-21 |
 | 68. E-Commerce 500-Item Scrape | 0/1 | Not started | - |
 | 69. Dashboard Log Entry Search | 0/1 | Not started | - |
 | 70. Reddit Thread Bottom Reply | 0/1 | Not started | - |
