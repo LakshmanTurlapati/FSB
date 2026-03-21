@@ -158,6 +158,9 @@ importScripts('site-guides/design/excalidraw.js');
 importScripts('site-guides/design/photopea.js');
 importScripts('site-guides/design/miro.js');
 
+// Per-site guides: Reference
+importScripts('site-guides/reference/wikipedia.js');
+
 // Background agent modules
 importScripts('agents/agent-manager.js');
 importScripts('agents/agent-scheduler.js');
