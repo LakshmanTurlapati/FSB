@@ -214,8 +214,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [x] 57-01-PLAN.md -- Create HTML5 video player site guide with volume slider precision workflows
-- [ ] 57-02-PLAN.md -- Execute live MCP volume slider test, generate MICRO-01 diagnostic report
+- [ ] 58-01-PLAN.md -- Add click_and_hold CDP tool and voice recorder site guide
+- [ ] 58-02-PLAN.md -- Execute live MCP click-and-hold record test, generate MICRO-02 diagnostic report
 
 ### Phase 59: Drag-and-Drop Reorder
 **Goal:** Execute Jira/Trello card drag-and-drop from bottom to top of another list via MCP manual tools; fix blockers
