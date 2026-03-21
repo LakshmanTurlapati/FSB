@@ -33,25 +33,22 @@ registerSiteGuide({
   guidance: `ONLINE VIRTUAL PIANO INTELLIGENCE:
 
 KEYBOARD MAPPING (virtualpiano.net):
-- virtualpiano.net maps keyboard letters to piano notes using the standard layout:
-- WHITE KEYS (home row, middle octave C4-B4):
-  A = C4 (Middle C)
-  S = D4
-  D = E4
-  F = F4
-  G = G4
-  H = A4
-  J = B4
-- BLACK KEYS (top row, sharps/flats):
-  W = C#4 / Db4
-  E = D#4 / Eb4
-  T = F#4 / Gb4
-  Y = G#4 / Ab4
-  U = A#4 / Bb4
-- Higher octave white keys (right side): K = C5, L = D5, ; = E5
-- Lower octave white keys (number row): 1 = C3, 2 = D3, 3 = E3, etc.
+- virtualpiano.net maps keyboard letters to piano notes (LIVE VERIFIED 2026-03-21):
+- OCTAVE 4 WHITE KEYS (middle keyboard row):
+  t = C4 (Middle C)
+  y = D4
+  u = E4
+  i = F4
+  o = G4
+  p = A4
+  a = B4
+- OCTAVE 4 BLACK KEYS (sharps/flats):
+  T = C#4, Y = D#4, I = F#4, O = G#4, P = A#4
+- OCTAVE 5 WHITE KEYS: s = C5, d = D5, f = E5, g = F5, h = G5, j = A5, k = B5
+- OCTAVE 3 WHITE KEYS: 8 = C3, 9 = D3, 0 = E3, q = F3, w = G3, e = A3, r = B3
+- OCTAVE 2 WHITE KEYS: 1 = C2, 2 = D2, 3 = E2, 4 = F2, 5 = G2, 6 = A2, 7 = B2
 - To play "Mary Had a Little Lamb" first four notes (E4-D4-C4-D4):
-  press_key("d"), wait 400ms, press_key("s"), wait 400ms, press_key("a"), wait 400ms, press_key("s")
+  press_key("u"), wait 400ms, press_key("y"), wait 400ms, press_key("t"), wait 400ms, press_key("y")
 - IMPORTANT: Other piano sites may use different keyboard mappings. Always verify
   by checking the site's keyboard overlay or help section before sending press_key events.
 
