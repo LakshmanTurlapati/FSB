@@ -453,9 +453,9 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 76-01-PLAN.md -- Create news-feed.js site guide with date-based scroll-stop workflow and wire imports
+- [x] 76-01-PLAN.md -- Create news-feed.js site guide with date-based scroll-stop workflow and wire imports
 - [ ] 76-02-PLAN.md -- Execute live MCP news feed date-stop scroll test, generate SCROLL-10 diagnostic report
 
 
@@ -755,7 +755,7 @@ Plans:
 | 73. Airbnb Map Pan Search | 2/2 | Complete    | 2026-03-21 |
 | 74. TikTok Cat Video Search | 2/2 | Complete    | 2026-03-21 |
 | 75. Viewport-Only Pricing Table | 2/2 | Complete    | 2026-03-21 |
-| 76. News Site Date-Stop Scroll | 0/1 | Not started | - |
+| 76. News Site Date-Stop Scroll | 1/2 | In Progress|  |
 | 77. Live Sports Score Monitor | 0/1 | Not started | - |
 | 78. Observable Notebook Edit | 0/1 | Not started | - |
 | 79. 50-Page PDF Form Fill | 0/1 | Not started | - |

@@ -44,7 +44,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 - [x] **SCROLL-07**: MCP can find Airbnb listing by panning map interface until new pins populate
 - [x] **SCROLL-08**: MCP can scroll TikTok web feed until finding a video containing a cat
 - [x] **SCROLL-09**: MCP can extract pricing data from table that only loads rows in viewport
-- [ ] **SCROLL-10**: MCP can navigate infinite-scroll news site and stop at articles published yesterday
+- [x] **SCROLL-10**: MCP can navigate infinite-scroll news site and stop at articles published yesterday
 
 ### Context Bloat & Long-Running Workflows
 
@@ -124,7 +124,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | SCROLL-07 | Phase 73 | Complete |
 | SCROLL-08 | Phase 74 | Complete |
 | SCROLL-09 | Phase 75 | Complete |
-| SCROLL-10 | Phase 76 | Pending |
+| SCROLL-10 | Phase 76 | Complete |
 | CONTEXT-01 | Phase 77 | Pending |
 | CONTEXT-02 | Phase 78 | Pending |
 | CONTEXT-03 | Phase 79 | Pending |

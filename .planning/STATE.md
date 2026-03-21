@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 75-02-PLAN.md
-last_updated: "2026-03-21T22:01:54.350Z"
+stopped_at: Completed 76-01-PLAN.md
+last_updated: "2026-03-21T22:12:25.665Z"
 progress:
   total_phases: 50
   completed_phases: 29
-  total_plans: 58
-  completed_plans: 58
+  total_plans: 60
+  completed_plans: 59
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 75 — viewport-only-pricing-table
+**Current focus:** Phase 76 — news-site-date-stop-scroll
 
 ## Current Position
 
-Phase: 76
-Plan: Not started
+Phase: 76 (news-site-date-stop-scroll) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -135,6 +135,9 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 75]: Notion pricing page as primary SCROLL-09 target, Airtable pricing as fallback; 400-600px scroll increments for viewport-gated table extraction
 - [Phase 75]: Notion pricing page fully server-rendered (58 rows in 429KB HTML); CSS Module prefix matching needed for React SaaS sites
 - [Phase 75]: SCROLL-09 outcome PARTIAL: all 58 feature rows extractable from server HTML, live scroll-read-deduplicate loop blocked by WebSocket bridge disconnect
+- [Phase 76]: BBC News as primary target with CNN/Reuters fallback for date-based scroll stop
+- [Phase 76]: datetime attribute parsing preferred over relative text for date comparison accuracy
+- [Phase 76]: Article link href as unique deduplication key across scroll batches
 
 ### Pending Todos
 
@@ -148,6 +151,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T22:01:11.352Z
-Stopped at: Completed 75-02-PLAN.md
+Last session: 2026-03-21T22:12:25.662Z
+Stopped at: Completed 76-01-PLAN.md
 Resume file: None
