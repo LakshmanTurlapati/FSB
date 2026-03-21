@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 72-02-PLAN.md
-last_updated: "2026-03-21T19:43:21.872Z"
+stopped_at: Completed 73-01-PLAN.md
+last_updated: "2026-03-21T21:13:31.490Z"
 progress:
   total_phases: 50
   completed_phases: 26
-  total_plans: 52
-  completed_plans: 52
+  total_plans: 54
+  completed_plans: 53
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 72 — hacker-news-thread-expansion
+**Current focus:** Phase 73 — airbnb-map-pan-search
 
 ## Current Position
 
-Phase: 73
-Plan: Not started
+Phase: 73 (airbnb-map-pan-search) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -124,6 +124,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 72]: News site guide category (site-guides/news/) created between Reference and Utilities in background.js
 - [Phase 72]: HN loads ALL comments on single page (no morelink pagination on threads) -- tested up to 2530 comments / 3.5MB HTML
 - [Phase 72]: SCROLL-06 outcome PARTIAL: 11/14 selectors validated, HTTP DOM validation comprehensive, live MCP blocked by WebSocket bridge disconnect
+- [Phase 73]: Adapted Google Maps CDP drag panning pattern for Airbnb map with 2000-3000ms post-pan wait for API response + pin rendering
+- [Phase 73]: data-testid selectors (map/markers/BasePillMarker) preferred over CSS class selectors for pin detection stability
 
 ### Pending Todos
 
@@ -137,6 +139,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T19:45:00.000Z
-Stopped at: Completed 72-02-PLAN.md
+Last session: 2026-03-21T21:13:31.487Z
+Stopped at: Completed 73-01-PLAN.md
 Resume file: None
