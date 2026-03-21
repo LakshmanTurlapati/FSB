@@ -163,6 +163,7 @@ importScripts('site-guides/reference/wikipedia.js');
 
 // Per-site guides: Utilities
 importScripts('site-guides/utilities/color-picker.js');
+importScripts('site-guides/utilities/carousel.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
