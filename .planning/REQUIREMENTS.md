@@ -29,7 +29,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 - [x] **MICRO-05**: MCP can use color picker tool (drag hue slider and shade reticle to select custom hex)
 - [x] **MICRO-06**: MCP can scroll horizontally through carousel without triggering vertical scroll
 - [x] **MICRO-07**: MCP can hover over nav menu, wait for CSS animation mega-menu, click nested sub-link
-- [ ] **MICRO-08**: MCP can trigger file upload via browser dropzone (simulate drag-and-drop file input)
+- [x] **MICRO-08**: MCP can trigger file upload via browser dropzone (simulate drag-and-drop file input)
 - [ ] **MICRO-09**: MCP can solve slide-to-fit puzzle CAPTCHA by dragging piece at variable speed
 - [ ] **MICRO-10**: MCP can scrub podcast audio timeline to exactly the 14:22 mark
 
@@ -112,7 +112,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | MICRO-05 | Phase 61 | Complete |
 | MICRO-06 | Phase 62 | Complete |
 | MICRO-07 | Phase 63 | Complete |
-| MICRO-08 | Phase 64 | Pending |
+| MICRO-08 | Phase 64 | Complete |
 | MICRO-09 | Phase 65 | Pending |
 | MICRO-10 | Phase 66 | Pending |
 | SCROLL-01 | Phase 67 | Pending |
