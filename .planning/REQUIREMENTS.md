@@ -26,7 +26,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 - [x] **MICRO-02**: MCP can click-and-hold record button for 5 seconds then release on voice memo app
 - [x] **MICRO-03**: MCP can reorder items via drag-and-drop (Jira/Trello board, bottom card to top of another list)
 - [x] **MICRO-04**: MCP can highlight exactly the second sentence of third paragraph in Wikipedia article
-- [ ] **MICRO-05**: MCP can use color picker tool (drag hue slider and shade reticle to select custom hex)
+- [x] **MICRO-05**: MCP can use color picker tool (drag hue slider and shade reticle to select custom hex)
 - [ ] **MICRO-06**: MCP can scroll horizontally through carousel without triggering vertical scroll
 - [ ] **MICRO-07**: MCP can hover over nav menu, wait for CSS animation mega-menu, click nested sub-link
 - [ ] **MICRO-08**: MCP can trigger file upload via browser dropzone (simulate drag-and-drop file input)
@@ -109,7 +109,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | MICRO-02 | Phase 58 | Complete |
 | MICRO-03 | Phase 59 | Complete |
 | MICRO-04 | Phase 60 | Complete |
-| MICRO-05 | Phase 61 | Pending |
+| MICRO-05 | Phase 61 | Complete |
 | MICRO-06 | Phase 62 | Pending |
 | MICRO-07 | Phase 63 | Pending |
 | MICRO-08 | Phase 64 | Pending |

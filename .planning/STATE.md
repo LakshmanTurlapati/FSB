@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 60-02-PLAN.md
-last_updated: "2026-03-21T11:02:19.741Z"
+stopped_at: Completed 61-01-PLAN.md
+last_updated: "2026-03-21T11:13:12.924Z"
 progress:
   total_phases: 50
   completed_phases: 14
-  total_plans: 28
-  completed_plans: 28
+  total_plans: 30
+  completed_plans: 29
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 60 — text-selection-precision
+**Current focus:** Phase 61 — color-picker-custom-hex
 
 ## Current Position
 
-Phase: 61
-Plan: Not started
+Phase: 61 (color-picker-custom-hex) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -81,6 +81,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 60]: Range API with TreeWalker for text selection instead of CDP drag coordinate approach -- deterministic across fonts and zoom levels
 - [Phase 60]: Reference category for Wikipedia site guide placed after Design & Whiteboard in background.js import order
 - [Phase 60]: MICRO-04 outcome PARTIAL: select_text_range tool chain validated via HTTP simulation, sentence boundary offsets 113-345 confirmed, live browser execution blocked by WebSocket bridge disconnect
+- [Phase 61]: click_at as preferred tool over drag for color picker hue strip and shade area interaction
+- [Phase 61]: Utilities site guide category created (site-guides/utilities/) for tool-type web apps
 
 ### Pending Todos
 
@@ -94,6 +96,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T11:01:32.549Z
-Stopped at: Completed 60-02-PLAN.md
+Last session: 2026-03-21T11:13:12.921Z
+Stopped at: Completed 61-01-PLAN.md
 Resume file: None
