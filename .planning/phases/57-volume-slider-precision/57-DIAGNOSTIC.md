@@ -4,8 +4,8 @@
 - Phase: 57
 - Requirement: MICRO-01
 - Date: 2026-03-21
-- Outcome: PARTIAL (site guide created with dual-method workflows, live MCP test blocked by WebSocket bridge disconnect)
-- Live MCP Testing: NO -- MCP server process running (PIDs 79709, 80445) but WebSocket bridge ports 3711/3712 not listening; CDP tools cannot reach Chrome
+- Outcome: PARTIAL (upgraded -- Vimeo navigation confirmed, click_at works on player iframe, volume controls inside iframe)
+- Live MCP Testing: YES (partial -- navigate + click_at on Vimeo player confirmed, volume slider inside iframe not directly accessible)
 
 ## Prompt Executed
 "Navigate to an HTML5 video player page, locate the custom volume slider, and adjust it to exactly 37% using MCP manual tools."
