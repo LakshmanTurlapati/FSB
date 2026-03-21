@@ -36,7 +36,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 ### Infinite Scroll & Virtualized DOMs
 
 - [x] **SCROLL-01**: MCP can scroll through X/Twitter feed and extract text of a user's 150th post
-- [ ] **SCROLL-02**: MCP can scrape names of all 500 items on dynamically loading e-commerce search page
+- [x] **SCROLL-02**: MCP can scrape names of all 500 items on dynamically loading e-commerce search page
 - [ ] **SCROLL-03**: MCP can find specific log entry from 3 days ago in infinitely scrolling dashboard
 - [ ] **SCROLL-04**: MCP can navigate to bottom of populated Reddit thread and reply to last comment
 - [ ] **SCROLL-05**: MCP can read multi-page document in virtualized viewer (pages unload as you scroll)
@@ -116,7 +116,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | MICRO-09 | Phase 65 | Complete |
 | MICRO-10 | Phase 66 | Complete |
 | SCROLL-01 | Phase 67 | Complete |
-| SCROLL-02 | Phase 68 | Pending |
+| SCROLL-02 | Phase 68 | Complete |
 | SCROLL-03 | Phase 69 | Pending |
 | SCROLL-04 | Phase 70 | Pending |
 | SCROLL-05 | Phase 71 | Pending |
