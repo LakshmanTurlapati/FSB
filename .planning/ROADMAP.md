@@ -277,8 +277,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 57-01-PLAN.md -- Create HTML5 video player site guide with volume slider precision workflows
-- [ ] 57-02-PLAN.md -- Execute live MCP volume slider test, generate MICRO-01 diagnostic report
+- [ ] 63-01-PLAN.md -- Create mega-menu site guide with navigateMegaMenu workflow and wire imports
+- [ ] 63-02-PLAN.md -- Execute live MCP mega-menu navigation test, generate MICRO-07 diagnostic report
 
 ### Phase 64: Dropzone File Upload
 **Goal:** Execute browser dropzone file upload simulation via MCP manual tools; fix blockers
