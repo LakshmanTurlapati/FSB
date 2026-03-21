@@ -4,7 +4,7 @@ milestone: v0.9.7
 milestone_name: milestone
 status: unknown
 stopped_at: Completed 59-02-PLAN.md
-last_updated: "2026-03-21T10:42:10.525Z"
+last_updated: "2026-03-21T10:42:49.561Z"
 progress:
   total_phases: 50
   completed_phases: 13
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 
 ## Current Position
 
-Phase: 59 (drag-and-drop-reorder) — EXECUTING
-Plan: 2 of 2
+Phase: 60
+Plan: Not started
 
 ## Accumulated Context
 

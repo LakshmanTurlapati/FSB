@@ -725,7 +725,7 @@ Plans:
 | 56. Miro Sticky Note Grouping | 2/2 | Complete    | 2026-03-21 |
 | 57. Volume Slider Precision | 2/2 | Complete    | 2026-03-21 |
 | 58. Click-and-Hold Record | 2/2 | Complete    | 2026-03-21 |
-| 59. Drag-and-Drop Reorder | 2/2 | Complete   | 2026-03-21 |
+| 59. Drag-and-Drop Reorder | 2/2 | Complete    | 2026-03-21 |
 | 60. Text Selection Precision | 0/1 | Not started | - |
 | 61. Color Picker Custom Hex | 0/1 | Not started | - |
 | 62. Horizontal Carousel Scroll | 0/1 | Not started | - |
