@@ -236,9 +236,9 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 60-01-PLAN.md -- Add select_text_range MCP tool and Wikipedia site guide with highlightSentence workflow
+- [x] 60-01-PLAN.md -- Add select_text_range MCP tool and Wikipedia site guide with highlightSentence workflow
 - [ ] 60-02-PLAN.md -- Execute live MCP text selection test, generate MICRO-04 diagnostic report
 
 ### Phase 61: Color Picker Custom Hex
@@ -726,7 +726,7 @@ Plans:
 | 57. Volume Slider Precision | 2/2 | Complete    | 2026-03-21 |
 | 58. Click-and-Hold Record | 2/2 | Complete    | 2026-03-21 |
 | 59. Drag-and-Drop Reorder | 2/2 | Complete    | 2026-03-21 |
-| 60. Text Selection Precision | 0/1 | Not started | - |
+| 60. Text Selection Precision | 1/2 | In Progress|  |
 | 61. Color Picker Custom Hex | 0/1 | Not started | - |
 | 62. Horizontal Carousel Scroll | 0/1 | Not started | - |
 | 63. CSS Mega-Menu Navigation | 0/1 | Not started | - |

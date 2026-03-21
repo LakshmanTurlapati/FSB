@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 59-02-PLAN.md
-last_updated: "2026-03-21T10:42:49.561Z"
+stopped_at: Completed 60-01-PLAN.md
+last_updated: "2026-03-21T10:53:47.539Z"
 progress:
   total_phases: 50
   completed_phases: 13
-  total_plans: 26
-  completed_plans: 26
+  total_plans: 28
+  completed_plans: 27
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 59 — drag-and-drop-reorder
+**Current focus:** Phase 60 — text-selection-precision
 
 ## Current Position
 
-Phase: 60
-Plan: Not started
+Phase: 60 (text-selection-precision) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -78,6 +78,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 59]: drag_drop MCP tool placed in Interaction tools section (DOM selectors) not CDP section (coordinates)
 - [Phase 59]: holdMs=200 recommended for react-beautiful-dnd drag recognition (vs default 150)
 - [Phase 59]: MICRO-03 outcome PARTIAL: drag_drop tool chain complete with 3-method fallback, live execution blocked by WebSocket bridge disconnect
+- [Phase 60]: Range API with TreeWalker for text selection instead of CDP drag coordinate approach -- deterministic across fonts and zoom levels
+- [Phase 60]: Reference category for Wikipedia site guide placed after Design & Whiteboard in background.js import order
 
 ### Pending Todos
 
@@ -91,6 +93,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T10:42:10.523Z
-Stopped at: Completed 59-02-PLAN.md
+Last session: 2026-03-21T10:53:47.537Z
+Stopped at: Completed 60-01-PLAN.md
 Resume file: None
