@@ -36,7 +36,7 @@
 - [x] **Phase 73: Airbnb Map Pan Search** - SCROLL-07: pan Airbnb map until new listing pins populate (completed 2026-03-21)
 - [x] **Phase 74: TikTok Cat Video Search** - SCROLL-08: scroll TikTok web feed until finding a cat video (completed 2026-03-21)
 - [x] **Phase 75: Viewport-Only Pricing Table** - SCROLL-09: extract pricing from table that only loads visible rows (completed 2026-03-21)
-- [ ] **Phase 76: News Site Date-Stop Scroll** - SCROLL-10: scroll infinite-scroll news site stopping at yesterday's articles
+- [x] **Phase 76: News Site Date-Stop Scroll** - SCROLL-10: scroll infinite-scroll news site stopping at yesterday's articles (completed 2026-03-21)
 - [ ] **Phase 77: Live Sports Score Monitor** - CONTEXT-01: monitor live sports ticker for 30 minutes logging score changes
 - [ ] **Phase 78: Observable Notebook Edit** - CONTEXT-02: fork Observable notebook, modify cell 3 data without altering cell 1
 - [ ] **Phase 79: 50-Page PDF Form Fill** - CONTEXT-03: read 50-page PDF then fill form with details from pages 4, 17, 42
@@ -453,10 +453,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 76-01-PLAN.md -- Create news-feed.js site guide with date-based scroll-stop workflow and wire imports
-- [ ] 76-02-PLAN.md -- Execute live MCP news feed date-stop scroll test, generate SCROLL-10 diagnostic report
+- [x] 76-02-PLAN.md -- Execute live MCP news feed date-stop scroll test, generate SCROLL-10 diagnostic report
 
 
 
@@ -755,7 +755,7 @@ Plans:
 | 73. Airbnb Map Pan Search | 2/2 | Complete    | 2026-03-21 |
 | 74. TikTok Cat Video Search | 2/2 | Complete    | 2026-03-21 |
 | 75. Viewport-Only Pricing Table | 2/2 | Complete    | 2026-03-21 |
-| 76. News Site Date-Stop Scroll | 1/2 | In Progress|  |
+| 76. News Site Date-Stop Scroll | 2/2 | Complete   | 2026-03-21 |
 | 77. Live Sports Score Monitor | 0/1 | Not started | - |
 | 78. Observable Notebook Edit | 0/1 | Not started | - |
 | 79. 50-Page PDF Form Fill | 0/1 | Not started | - |

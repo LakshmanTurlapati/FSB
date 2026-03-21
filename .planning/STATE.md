@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 76-01-PLAN.md
-last_updated: "2026-03-21T22:12:25.665Z"
+stopped_at: Completed 76-02-PLAN.md
+last_updated: "2026-03-21T22:20:57.871Z"
 progress:
   total_phases: 50
-  completed_phases: 29
+  completed_phases: 30
   total_plans: 60
-  completed_plans: 59
+  completed_plans: 60
 ---
 
 # Project State
@@ -138,6 +138,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 76]: BBC News as primary target with CNN/Reuters fallback for date-based scroll stop
 - [Phase 76]: datetime attribute parsing preferred over relative text for date comparison accuracy
 - [Phase 76]: Article link href as unique deduplication key across scroll batches
+- [Phase 76]: BBC uses __NEXT_DATA__ JSON timestamps (Unix ms) not time[datetime] ISO 8601 -- site guide datetime strategy does not apply
+- [Phase 76]: BBC homepage is finite curated page (47 articles) not true infinite scroll -- scroll sentinel absent
 
 ### Pending Todos
 
@@ -151,6 +153,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T22:12:25.662Z
-Stopped at: Completed 76-01-PLAN.md
+Last session: 2026-03-21T22:20:57.868Z
+Stopped at: Completed 76-02-PLAN.md
 Resume file: None
