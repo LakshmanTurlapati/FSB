@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 64-02-PLAN.md
-last_updated: "2026-03-21T12:23:54.430Z"
+stopped_at: Completed 65-01-PLAN.md
+last_updated: "2026-03-21T12:36:48.453Z"
 progress:
   total_phases: 50
   completed_phases: 18
-  total_plans: 36
-  completed_plans: 36
+  total_plans: 38
+  completed_plans: 37
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 64 — dropzone-file-upload
+**Current focus:** Phase 65 — slide-to-fit-captcha
 
 ## Current Position
 
-Phase: 65
-Plan: Not started
+Phase: 65 (slide-to-fit-captcha) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -92,6 +92,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 64]: drop_file tool creates real File object + DataTransfer + full DragEvent sequence (dragenter, dragover, drop, dragleave) for dropzone interaction
 - [Phase 64]: Two file upload strategies: Strategy A (drop_file DragEvent, preferred) and Strategy B (hidden input[type=file] click, fallback)
 - [Phase 64]: MICRO-08 PARTIAL: drop_file tool chain validated against 3 live sites, WebSocket bridge disconnect blocked physical DragEvent dispatch
+- [Phase 65]: Quadratic speed curve (1-4*(t-0.5)^2) for ease-in-out variable-speed drag -- simpler than cubic, produces desired slow-fast-slow pattern
+- [Phase 65]: drag_variable_speed as Strategy A (preferred) for slider CAPTCHAs, regular drag as Strategy B (fallback) for position-only checks
 
 ### Pending Todos
 
@@ -105,6 +107,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T12:23:16.404Z
-Stopped at: Completed 64-02-PLAN.md
+Last session: 2026-03-21T12:36:48.450Z
+Stopped at: Completed 65-01-PLAN.md
 Resume file: None
