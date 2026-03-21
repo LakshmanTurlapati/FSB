@@ -172,6 +172,18 @@ export function registerManualTools(
   );
 
   server.tool(
+    'select_text_range',
+    'Select a specific substring within a DOM element by character offsets. Uses the Range API to highlight text from startOffset to endOffset within the element\'s text content. Essential for precise text selection like highlighting a specific sentence in a paragraph. Returns the selected text for verification. For selecting an entire element\'s text, use double-click instead.',
+    {
+      selector: z.string().describe('CSS selector or element reference for the container element (e.g., "#mw-content-text p:nth-of-type(3)" for third paragraph)'),
+      startOffset: z.number().describe('Character offset where selection starts (0-based, counting from start of element text content)'),
+      endOffset: z.number().describe('Character offset where selection ends (exclusive, like string.substring)'),
+    },
+    async ({ selector, startOffset, endOffset }) =>
+      execAction(bridge, queue, 'select_text_range', 'selectTextRange', { selector, startOffset, endOffset }),
+  );
+
+  server.tool(
     'drag_drop',
     'Drag and drop one DOM element onto another using element references. Tries three methods in order: HTML5 DragEvent (dragstart/drop), PointerEvent sequence (for react-beautiful-dnd and similar libraries), and MouseEvent sequence (basic fallback). Use for Kanban card reordering, sortable lists, file drag targets, or any drag-and-drop interaction between two identifiable DOM elements. Returns which method succeeded. For canvas/coordinate-based drag, use the drag tool instead.',
     {

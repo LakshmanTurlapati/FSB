@@ -4003,6 +4003,62 @@ const tools = {
     return { success: false, error: 'Element not found' };
   },
 
+  // Select a specific text range within an element by character offsets
+  selectTextRange: (params) => {
+    const { selector, startOffset, endOffset } = params;
+    const element = FSB.querySelectorWithShadow(selector);
+    if (!element) {
+      return { success: false, error: 'Element not found', selector };
+    }
+
+    // Walk text nodes to find the node and offset for a given character position
+    function findTextPosition(root, charOffset) {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+      let currentOffset = 0;
+      let node;
+      while ((node = walker.nextNode())) {
+        const nodeLen = node.textContent.length;
+        if (currentOffset + nodeLen >= charOffset) {
+          return { node, offset: charOffset - currentOffset };
+        }
+        currentOffset += nodeLen;
+      }
+      // If charOffset exceeds total text length, clamp to end of last text node
+      const allText = root.textContent || '';
+      const lastNode = walker.currentNode || root;
+      return { node: lastNode, offset: lastNode.textContent ? lastNode.textContent.length : 0 };
+    }
+
+    try {
+      const totalText = element.textContent || '';
+      const clampedStart = Math.max(0, Math.min(startOffset, totalText.length));
+      const clampedEnd = Math.max(clampedStart, Math.min(endOffset, totalText.length));
+
+      const startPos = findTextPosition(element, clampedStart);
+      const endPos = findTextPosition(element, clampedEnd);
+
+      const range = document.createRange();
+      range.setStart(startPos.node, startPos.offset);
+      range.setEnd(endPos.node, endPos.offset);
+
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      const selectedText = selection.toString();
+      return {
+        success: true,
+        selectedText,
+        startOffset: clampedStart,
+        endOffset: clampedEnd,
+        totalLength: totalText.length,
+        selector
+      };
+    } catch (error) {
+      return { success: false, error: error.message || 'Text range selection failed', selector };
+    }
+  },
+
   // Focus on element with auto-wait
   focus: async (params) => {
     const startTime = Date.now();
