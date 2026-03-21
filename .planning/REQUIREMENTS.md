@@ -48,7 +48,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 
 ### Context Bloat & Long-Running Workflows
 
-- [ ] **CONTEXT-01**: MCP can monitor live sports ticker for 30 minutes logging score changes
+- [x] **CONTEXT-01**: MCP can monitor live sports ticker for 30 minutes logging score changes
 - [ ] **CONTEXT-02**: MCP can fork Observable notebook, modify data array in cell 3 without altering cell 1
 - [ ] **CONTEXT-03**: MCP can read 50-page PDF then fill web form with details from pages 4, 17, and 42
 - [ ] **CONTEXT-04**: MCP can open 5 tabs comparing flight prices, switch back to cheapest after searching
@@ -125,7 +125,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | SCROLL-08 | Phase 74 | Complete |
 | SCROLL-09 | Phase 75 | Complete |
 | SCROLL-10 | Phase 76 | Complete |
-| CONTEXT-01 | Phase 77 | Pending |
+| CONTEXT-01 | Phase 77 | Complete |
 | CONTEXT-02 | Phase 78 | Pending |
 | CONTEXT-03 | Phase 79 | Pending |
 | CONTEXT-04 | Phase 80 | Pending |
