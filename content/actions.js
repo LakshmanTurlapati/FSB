@@ -4893,6 +4893,113 @@ const tools = {
 };
 
   // =========================================================================
+  // DROP FILE: dropfile -- simulate file drop onto a dropzone element
+  // Creates a synthetic File in a DataTransfer object and dispatches
+  // dragenter, dragover, drop events on the target element.
+  // Works with Dropzone.js, react-dropzone, native HTML5 drop handlers.
+  // =========================================================================
+  tools.dropfile = async (params) => {
+    const { selector, fileName, fileContent, mimeType } = params;
+
+    if (!selector) {
+      return { success: false, error: 'selector is required (CSS selector for the dropzone element)', action: 'dropfile' };
+    }
+
+    const name = fileName || 'test-upload.txt';
+    const content = fileContent || 'FSB automated file upload test content.';
+    const type = mimeType || 'text/plain';
+
+    // Resolve element
+    const element = FSB.querySelectorWithShadow(selector);
+    if (!element) {
+      return buildFailureReport('dropfile', selector, null, 'Dropzone element not found');
+    }
+
+    try {
+      // Create a real File object
+      const file = new File([content], name, { type, lastModified: Date.now() });
+
+      // Create DataTransfer with the file
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+
+      // Dispatch the full drag-and-drop event sequence on the target
+      // 1. dragenter -- signals a drag has entered the dropzone
+      element.dispatchEvent(new DragEvent('dragenter', {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer
+      }));
+
+      // 2. dragover -- must be dispatched and default prevented for drop to work
+      const dragOverEvent = new DragEvent('dragover', {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer
+      });
+      element.dispatchEvent(dragOverEvent);
+
+      // Small delay to let dropzone libraries process dragenter/dragover
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 3. drop -- the actual file drop event
+      const dropEvent = new DragEvent('drop', {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer
+      });
+      element.dispatchEvent(dropEvent);
+
+      // 4. dragleave -- cleanup signal
+      element.dispatchEvent(new DragEvent('dragleave', {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer
+      }));
+
+      // Wait for the dropzone to process the file
+      await waitForStability('dropfile');
+
+      // Check for success indicators: file name appearing in DOM, progress bar, upload status
+      const dropzoneText = element.textContent || element.innerText || '';
+      const parentText = element.parentElement ? (element.parentElement.textContent || '') : '';
+      const nameWithoutExt = name.replace(/\.[^.]+$/, '');
+      const fileNameVisible = dropzoneText.includes(name) || dropzoneText.includes(nameWithoutExt) ||
+                              parentText.includes(name) || parentText.includes(nameWithoutExt);
+
+      // Check if a file input was populated as a side effect
+      const nearbyInputs = element.querySelectorAll('input[type="file"]');
+      const inputPopulated = Array.from(nearbyInputs).some(inp => inp.files && inp.files.length > 0);
+
+      logger.log('info', 'dropfile dispatched DragEvent sequence', {
+        sessionId: FSB.sessionId,
+        selector,
+        fileName: name,
+        mimeType: type,
+        contentLength: content.length,
+        fileNameVisible,
+        inputPopulated
+      });
+
+      return {
+        success: true,
+        action: 'dropfile',
+        fileName: name,
+        mimeType: type,
+        contentLength: content.length,
+        fileNameVisible,
+        inputPopulated,
+        note: fileNameVisible ? 'File name detected in dropzone area after drop' :
+              inputPopulated ? 'File input populated after drop' :
+              'DragEvent sequence dispatched -- verify file acceptance via DOM snapshot'
+      };
+    } catch (e) {
+      logger.log('error', 'dropfile failed', { sessionId: FSB.sessionId, error: e.message, selector });
+      return { success: false, error: `dropfile failed: ${e.message}`, action: 'dropfile', selector };
+    }
+  };
+
+  // =========================================================================
   // NAMESPACE EXPORTS
   // =========================================================================
   FSB.validateCoordinates = validateCoordinates;

@@ -204,6 +204,19 @@ export function registerManualTools(
   );
 
   server.tool(
+    'drop_file',
+    'Simulate dropping a file onto a dropzone element. Creates a synthetic File with the given name, content, and MIME type, then dispatches HTML5 DragEvent sequence (dragenter, dragover, drop) on the target element. Use for file upload dropzones (Dropzone.js, react-dropzone, native HTML5 drop handlers). For drag-and-drop of DOM elements (not files), use drag_drop instead.',
+    {
+      selector: z.string().describe('CSS selector for the dropzone element (the area where files are dropped)'),
+      fileName: z.string().optional().default('test-upload.txt').describe('Name of the synthetic file to drop (e.g., "photo.jpg", "document.pdf")'),
+      fileContent: z.string().optional().default('FSB automated file upload test content.').describe('Text content of the file (for text-based files)'),
+      mimeType: z.string().optional().default('text/plain').describe('MIME type of the file (e.g., "text/plain", "image/png", "application/pdf")'),
+    },
+    async ({ selector, fileName, fileContent, mimeType }) =>
+      execAction(bridge, queue, 'drop_file', 'dropfile', { selector, fileName, fileContent, mimeType }),
+  );
+
+  server.tool(
     'focus',
     'Move keyboard focus to an element. Use to prepare an element for keyboard input. Returns focus confirmation.',
     { selector: z.string().describe('CSS selector or element reference to focus') },
