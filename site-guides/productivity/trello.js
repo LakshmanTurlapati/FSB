@@ -286,7 +286,11 @@ FEEDBACK LOOP:
     cardDetailModal: '[data-testid="card-back"], [role="dialog"]',
     cardDetailTitle: '[data-testid="card-back-title-input"], .js-card-detail-title-input',
     cardDetailDescription: '[data-testid="card-back-description"], .js-desc',
-    moveButton: '[data-testid="card-back-move-card-button"], .js-move-card'
+    moveButton: '[data-testid="card-back-move-card-button"], .js-move-card',
+    lastCardInList: '[data-testid="list"]:nth-child(INDEX) [data-testid="trello-card"]:last-child, .list-wrapper:nth-child(INDEX) .list-card:last-child',
+    firstCardInList: '[data-testid="list"]:nth-child(INDEX) [data-testid="trello-card"]:first-child, .list-wrapper:nth-child(INDEX) .list-card:first-child',
+    listCards: '[data-testid="list-cards"], .list-cards',
+    movePositionSelect: '[data-testid="move-card-popover-select-position"], .js-select-position'
   },
   workflows: {
     createCard: [
@@ -310,7 +314,20 @@ FEEDBACK LOOP:
       'Click the "Move" button to confirm',
       'Press Escape to close the card detail modal',
       'VERIFY: Check the card now appears in the destination list and is gone from the source list',
-      'STUCK: If "Move" button is not visible, scroll down in the card sidebar. If popover does not appear, press Escape and try again. Do NOT attempt drag-and-drop — use this Move button workflow instead'
+      'STUCK: If "Move" button is not visible, scroll down in the card sidebar. If popover does not appear, press Escape and try again. For drag-and-drop reordering, use the dragAndDropReorder workflow instead'
+    ],
+    dragAndDropReorder: [
+      'Identify the source card (the card to move) and the target location (top of destination list)',
+      'Use get_dom_snapshot to locate both the source card element reference and the first card in the destination list (or the list header if the list is empty)',
+      'SOURCE CARD: Find the last/bottom card in the source list -- look for [data-testid="trello-card"] inside the source list container [data-testid="list"]',
+      'TARGET ELEMENT: Find the first/top card in the destination list, or the list header [data-testid="list-name"] if the list has no cards',
+      'METHOD 1 (DOM drag_drop): Use drag_drop(sourceSelector, targetSelector, steps=15, holdMs=200, stepDelayMs=25) -- this dispatches PointerEvent sequence which react-beautiful-dnd listens for. holdMs=200 gives rbd time to recognize the drag intent.',
+      'After drag_drop, use get_dom_snapshot to verify the card moved: source card should now appear at the top of the destination list',
+      'METHOD 2 (CDP drag): If drag_drop reports failure, get bounding rects of source and target elements. Calculate center coordinates: sourceX=left+width/2, sourceY=top+height/2, targetX and targetY similarly. Use drag(sourceX, sourceY, targetX, targetY, steps=20, stepDelayMs=30) for a slow, deliberate CDP drag.',
+      'After CDP drag, verify card position via get_dom_snapshot',
+      'METHOD 3 (Move button fallback): If both drag methods fail, fall back to the moveCard workflow -- open card detail (click or Enter), click Move button [data-testid="card-back-move-card-button"], select destination list, select position "1" (top), click Move to confirm',
+      'VERIFY: The source card now appears at the top of the destination list and is no longer in the source list. Check by reading card titles in both lists via get_dom_snapshot.',
+      'STUCK: If Trello requires login, report skip-auth. If all three methods fail, report which methods were attempted and their error messages. react-beautiful-dnd may block all synthetic events on some Trello versions -- the Move button fallback should always work if logged in.'
     ],
     editCard: [
       'Navigate to the target card using arrow keys',
@@ -390,7 +407,8 @@ FEEDBACK LOOP:
     'Trello keyboard shortcuts only work when focus is on the BOARD — if focus is inside a text input (card composer, search, etc.), shortcuts act as normal text input. Press Escape first to exit the input.',
     'Card title quick edit (E key) opens an inline editor ON THE BOARD, not the full detail modal. Press Enter in quick edit to save, or Escape to cancel.',
     'Multiple boards may have the same name — always check the URL to confirm you are on the correct board.',
-    'Power-Ups and custom fields may add extra UI elements to card detail — wait for the full modal to render before looking for specific sections.'
+    'Power-Ups and custom fields may add extra UI elements to card detail — wait for the full modal to render before looking for specific sections.',
+    'Drag-and-drop reorder uses a 3-tier approach: drag_drop (DOM-level, best for react-beautiful-dnd PointerEvent handling), CDP drag (raw mouse events), and Move button (guaranteed if logged in). Try in this order. The drag_drop tool with holdMs=200 gives react-beautiful-dnd time to recognize drag intent.'
   ],
-  toolPreferences: ['navigate', 'click', 'type', 'keyPress', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable']
+  toolPreferences: ['navigate', 'click', 'type', 'keyPress', 'drag_drop', 'drag', 'click_at', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable', 'get_dom_snapshot', 'read_page']
 });
