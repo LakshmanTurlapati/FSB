@@ -131,6 +131,7 @@ importScripts('site-guides/gaming/humble-bundle.js');
 
 // Per-site guides: Browser Games
 importScripts('site-guides/games/google-solitaire.js');
+importScripts('site-guides/games/canvas-game.js');
 
 // Per-site guides: Productivity
 importScripts('site-guides/productivity/google-sheets.js');
