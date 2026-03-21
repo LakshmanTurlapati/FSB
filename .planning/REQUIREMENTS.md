@@ -23,7 +23,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 ### Continuous Input & Micro-Interactions
 
 - [x] **MICRO-01**: MCP can adjust volume slider on custom HTML5 video player to exactly 37%
-- [ ] **MICRO-02**: MCP can click-and-hold record button for 5 seconds then release on voice memo app
+- [x] **MICRO-02**: MCP can click-and-hold record button for 5 seconds then release on voice memo app
 - [ ] **MICRO-03**: MCP can reorder items via drag-and-drop (Jira/Trello board, bottom card to top of another list)
 - [ ] **MICRO-04**: MCP can highlight exactly the second sentence of third paragraph in Wikipedia article
 - [ ] **MICRO-05**: MCP can use color picker tool (drag hue slider and shade reticle to select custom hex)
@@ -106,7 +106,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | CANVAS-09 | Phase 55 | Complete |
 | CANVAS-10 | Phase 56 | Complete |
 | MICRO-01 | Phase 57 | Complete |
-| MICRO-02 | Phase 58 | Pending |
+| MICRO-02 | Phase 58 | Complete |
 | MICRO-03 | Phase 59 | Pending |
 | MICRO-04 | Phase 60 | Pending |
 | MICRO-05 | Phase 61 | Pending |
