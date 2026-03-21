@@ -4939,6 +4939,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleCDPMouseClick(request, sender, sendResponse);
       return true; // Will respond asynchronously
 
+    case 'cdpMouseClickAndHold':
+      handleCDPMouseClickAndHold(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
     case 'cdpMouseDrag':
       handleCDPMouseDrag(request, sender, sendResponse);
       return true; // Will respond asynchronously
@@ -12005,6 +12009,39 @@ async function handleCDPMouseClick(request, sender, sendResponse) {
     });
     await chrome.debugger.detach({ tabId });
     sendResponse({ success: true, x, y, modifiers, method: 'cdp_mouse' });
+  } catch (e) {
+    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+    sendResponse({ success: false, error: e.message });
+  }
+}
+
+/**
+ * Handle CDP mouse click-and-hold at specific page coordinates.
+ * Uses Input.dispatchMouseEvent for browser-level press-hold-release simulation.
+ * mousePressed -> wait holdMs -> mouseReleased at same coordinates.
+ * Essential for record buttons, long-press menus, and timed press interactions.
+ */
+async function handleCDPMouseClickAndHold(request, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  const { x, y, holdMs = 5000 } = request;
+  if (!tabId || typeof x !== 'number' || typeof y !== 'number') {
+    sendResponse({ success: false, error: 'Missing tabId or coordinates' });
+    return;
+  }
+  try {
+    await chrome.debugger.attach({ tabId }, '1.3');
+    // mousePressed
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mousePressed', x, y, button: 'left', clickCount: 1
+    });
+    // Hold for specified duration
+    await new Promise(r => setTimeout(r, holdMs));
+    // mouseReleased at same position
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x, y, button: 'left', clickCount: 1
+    });
+    await chrome.debugger.detach({ tabId });
+    sendResponse({ success: true, x, y, holdMs, method: 'cdp_click_and_hold' });
   } catch (e) {
     try { await chrome.debugger.detach({ tabId }); } catch (_) {}
     sendResponse({ success: false, error: e.message });

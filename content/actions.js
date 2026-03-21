@@ -5094,6 +5094,22 @@ const tools = {
     }
   };
 
+  tools.cdpClickAndHold = async (params) => {
+    const { x, y, holdMs } = params;
+    if (typeof x !== 'number' || typeof y !== 'number') {
+      return { success: false, error: 'x and y coordinates required (viewport-relative numbers)' };
+    }
+    try {
+      const result = await chrome.runtime.sendMessage({
+        action: 'cdpMouseClickAndHold', x, y,
+        holdMs: holdMs || 5000
+      });
+      return result || { success: false, error: 'No response from CDP click-and-hold handler' };
+    } catch (e) {
+      return { success: false, error: `CDP click-and-hold failed: ${e.message}` };
+    }
+  };
+
   tools.cdpDrag = async (params) => {
     const { startX, startY, endX, endY, steps, stepDelayMs, shiftKey, ctrlKey, altKey } = params;
     if (typeof startX !== 'number' || typeof startY !== 'number' ||

@@ -285,6 +285,17 @@ export function registerManualTools(
   );
 
   server.tool(
+    'click_and_hold',
+    'Click and hold at specific viewport coordinates for a specified duration using CDP trusted events. Dispatches mousePressed, waits holdMs milliseconds, then dispatches mouseReleased at the same position. Use for record buttons, long-press menus, or any UI that requires sustained mouse press. Coordinates are CSS pixels relative to the browser viewport.',
+    {
+      x: z.number().describe('X coordinate in viewport CSS pixels'),
+      y: z.number().describe('Y coordinate in viewport CSS pixels'),
+      holdMs: z.number().default(5000).describe('Duration to hold the mouse button in milliseconds (default 5000 = 5 seconds)'),
+    },
+    async ({ x, y, holdMs }) => execAction(bridge, queue, 'click_and_hold', 'cdpClickAndHold', { x, y, holdMs }),
+  );
+
+  server.tool(
     'drag',
     'Drag from one viewport coordinate to another using CDP trusted events. Produces mousePressed at start, N intermediate mouseMoved events, then mouseReleased at end. Essential for canvas drawing tools, sliders, and map interactions where DOM drag events are ignored. Supports modifier keys for constrained drawing (shift+drag). Coordinates are CSS pixels relative to the browser viewport.',
     {
