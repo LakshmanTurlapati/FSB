@@ -31,7 +31,7 @@
 - [x] **Phase 68: E-Commerce 500-Item Scrape** - SCROLL-02: scrape all 500 dynamically loading product names (completed 2026-03-21)
 - [x] **Phase 69: Dashboard Log Entry Search** - SCROLL-03: find log entry from 3 days ago in infinite-scroll dashboard (completed 2026-03-21)
 - [x] **Phase 70: Reddit Thread Bottom Reply** - SCROLL-04: navigate to bottom of Reddit thread and reply to last comment (completed 2026-03-21)
-- [ ] **Phase 71: Virtualized PDF Reader** - SCROLL-05: read multi-page document in virtualized viewer
+- [x] **Phase 71: Virtualized PDF Reader** - SCROLL-05: read multi-page document in virtualized viewer (completed 2026-03-21)
 - [ ] **Phase 72: Hacker News Thread Expansion** - SCROLL-06: expand all nested comment threads on HN post with 1000+ comments
 - [ ] **Phase 73: Airbnb Map Pan Search** - SCROLL-07: pan Airbnb map until new listing pins populate
 - [ ] **Phase 74: TikTok Cat Video Search** - SCROLL-08: scroll TikTok web feed until finding a cat video
@@ -378,10 +378,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 71-01-PLAN.md -- Create pdf-viewer.js site guide with virtualized reading workflow, wire background.js import
-- [ ] 71-02-PLAN.md -- Execute live MCP virtualized PDF reading test, generate SCROLL-05 diagnostic report
+- [x] 71-02-PLAN.md -- Execute live MCP virtualized PDF reading test, generate SCROLL-05 diagnostic report
 
 ### Phase 72: Hacker News Thread Expansion
 **Goal:** Execute HN post nested comment thread full expansion with 1000+ comments via MCP manual tools; fix blockers
@@ -736,7 +736,7 @@ Plans:
 | 68. E-Commerce 500-Item Scrape | 2/2 | Complete    | 2026-03-21 |
 | 69. Dashboard Log Entry Search | 2/2 | Complete    | 2026-03-21 |
 | 70. Reddit Thread Bottom Reply | 2/2 | Complete    | 2026-03-21 |
-| 71. Virtualized PDF Reader | 1/2 | In Progress|  |
+| 71. Virtualized PDF Reader | 2/2 | Complete   | 2026-03-21 |
 | 72. Hacker News Thread Expansion | 0/1 | Not started | - |
 | 73. Airbnb Map Pan Search | 0/1 | Not started | - |
 | 74. TikTok Cat Video Search | 0/1 | Not started | - |
