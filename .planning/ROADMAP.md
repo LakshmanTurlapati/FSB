@@ -393,8 +393,9 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 72-01-PLAN.md -- Create HN site guide with thread expansion workflow, comment selectors, and wire background.js import
+- [ ] 72-02-PLAN.md -- Execute live MCP HN thread expansion test, generate SCROLL-06 diagnostic report
+
 
 ### Phase 73: Airbnb Map Pan Search
 **Goal:** Execute Airbnb map pan to populate new listing pins via MCP manual tools; fix blockers
