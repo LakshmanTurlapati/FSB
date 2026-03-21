@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 69-01-PLAN.md
-last_updated: "2026-03-21T18:37:17.553Z"
+stopped_at: Completed 69-02-PLAN.md
+last_updated: "2026-03-21T18:46:16.962Z"
 progress:
   total_phases: 50
-  completed_phases: 22
+  completed_phases: 23
   total_plans: 46
-  completed_plans: 45
+  completed_plans: 46
 ---
 
 # Project State
@@ -108,6 +108,9 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 68]: SCROLL-02 PARTIAL outcome: Amazon selectors validated via HTTP on amazon.in, ASIN deduplication confirmed, live MCP blocked by WebSocket bridge disconnect
 - [Phase 69-dashboard-log-entry-search]: GitHub activity feed persists DOM elements during scroll (not virtualized), deduplication by event href recommended
 - [Phase 69-dashboard-log-entry-search]: relative-time datetime attribute preferred over displayed text for precise date comparison in activity feeds
+- [Phase 69]: GitHub uses contributions tab not activity tab -- activityTab selector incorrect, needs site guide update
+- [Phase 69]: relative-time datetime attributes are client-rendered only -- HTTP validation cannot test timestamp parsing, live browser required
+- [Phase 69]: GitHub REST API as fallback data source: 5 torvalds commits on March 18 confirmed without auth (60 req/hour unauthenticated)
 
 ### Pending Todos
 
@@ -121,6 +124,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T18:37:17.551Z
-Stopped at: Completed 69-01-PLAN.md
+Last session: 2026-03-21T18:46:16.959Z
+Stopped at: Completed 69-02-PLAN.md
 Resume file: None
