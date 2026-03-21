@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 72-01-PLAN.md
+stopped_at: Completed 72-02-PLAN.md
 last_updated: "2026-03-21T19:32:51.906Z"
 progress:
   total_phases: 50
   completed_phases: 25
   total_plans: 52
-  completed_plans: 51
+  completed_plans: 52
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 
 ## Current Position
 
-Phase: 72 (hacker-news-thread-expansion) — EXECUTING
-Plan: 2 of 2
+Phase: 72 (hacker-news-thread-expansion) — COMPLETE
+Plan: 2 of 2 (all complete)
 
 ## Accumulated Context
 
@@ -122,6 +122,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 71]: SCROLL-05 PARTIAL: pdf.js viewer validated via HTTP + source analysis, live MCP blocked by WebSocket bridge disconnect, 4 selector corrections identified
 - [Phase 72]: Morelink is full page navigation (not AJAX) -- critical distinction from Reddit inline load-more
 - [Phase 72]: News site guide category (site-guides/news/) created between Reference and Utilities in background.js
+- [Phase 72]: HN loads ALL comments on single page (no morelink pagination on threads) -- tested up to 2530 comments / 3.5MB HTML
+- [Phase 72]: SCROLL-06 outcome PARTIAL: 11/14 selectors validated, HTTP DOM validation comprehensive, live MCP blocked by WebSocket bridge disconnect
 
 ### Pending Todos
 
@@ -135,6 +137,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T19:32:51.903Z
-Stopped at: Completed 72-01-PLAN.md
+Last session: 2026-03-21T19:45:00.000Z
+Stopped at: Completed 72-02-PLAN.md
 Resume file: None

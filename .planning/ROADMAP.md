@@ -32,7 +32,7 @@
 - [x] **Phase 69: Dashboard Log Entry Search** - SCROLL-03: find log entry from 3 days ago in infinite-scroll dashboard (completed 2026-03-21)
 - [x] **Phase 70: Reddit Thread Bottom Reply** - SCROLL-04: navigate to bottom of Reddit thread and reply to last comment (completed 2026-03-21)
 - [x] **Phase 71: Virtualized PDF Reader** - SCROLL-05: read multi-page document in virtualized viewer (completed 2026-03-21)
-- [ ] **Phase 72: Hacker News Thread Expansion** - SCROLL-06: expand all nested comment threads on HN post with 1000+ comments
+- [x] **Phase 72: Hacker News Thread Expansion** - SCROLL-06: expand all nested comment threads on HN post with 1000+ comments (completed 2026-03-21)
 - [ ] **Phase 73: Airbnb Map Pan Search** - SCROLL-07: pan Airbnb map until new listing pins populate
 - [ ] **Phase 74: TikTok Cat Video Search** - SCROLL-08: scroll TikTok web feed until finding a cat video
 - [ ] **Phase 75: Viewport-Only Pricing Table** - SCROLL-09: extract pricing from table that only loads visible rows
@@ -391,10 +391,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 72-01-PLAN.md -- Create HN site guide with thread expansion workflow, comment selectors, and wire background.js import
-- [ ] 72-02-PLAN.md -- Execute live MCP HN thread expansion test, generate SCROLL-06 diagnostic report
+- [x] 72-02-PLAN.md -- Execute live MCP HN thread expansion test, generate SCROLL-06 diagnostic report
 
 
 ### Phase 73: Airbnb Map Pan Search
