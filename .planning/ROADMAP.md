@@ -757,7 +757,7 @@ Plans:
 | 75. Viewport-Only Pricing Table | 2/2 | Complete    | 2026-03-21 |
 | 76. News Site Date-Stop Scroll | 2/2 | Complete    | 2026-03-21 |
 | 77. Live Sports Score Monitor | 2/2 | Complete    | 2026-03-21 |
-| 78. Observable Notebook Edit | 2/2 | Complete   | 2026-03-21 |
+| 78. Observable Notebook Edit | 2/2 | Complete    | 2026-03-21 |
 | 79. 50-Page PDF Form Fill | 0/1 | Not started | - |
 | 80. Multi-Tab Flight Price Compare | 0/1 | Not started | - |
 | 81. Multi-Step Checkout with Correction | 0/1 | Not started | - |
