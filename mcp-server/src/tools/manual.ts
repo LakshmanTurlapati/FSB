@@ -364,6 +364,24 @@ export function registerManualTools(
   );
 
   server.tool(
+    'drag_variable_speed',
+    'Drag from one viewport coordinate to another at variable speed using an ease-in-out timing curve. Produces mousePressed at start, N intermediate mouseMoved events with varying delays (slow-fast-slow), then mouseReleased at end. The speed curve mimics human drag behavior: slow acceleration at start, peak speed in the middle, slow deceleration at end. Essential for slider CAPTCHAs and puzzle CAPTCHAs where constant-speed drag is detected as bot behavior. For uniform-speed drag (canvas drawing, map panning), use the regular drag tool instead.',
+    {
+      startX: z.number().describe('Start X coordinate in viewport CSS pixels (slider thumb position)'),
+      startY: z.number().describe('Start Y coordinate in viewport CSS pixels (slider thumb position)'),
+      endX: z.number().describe('End X coordinate in viewport CSS pixels (target/gap position)'),
+      endY: z.number().describe('End Y coordinate in viewport CSS pixels (usually same as startY for horizontal slider)'),
+      steps: z.number().optional().default(20).describe('Number of intermediate mouseMoved events (default 20, more = smoother curve)'),
+      minDelayMs: z.number().optional().default(5).describe('Minimum delay in ms between steps at peak speed (default 5, center of drag)'),
+      maxDelayMs: z.number().optional().default(40).describe('Maximum delay in ms between steps at start/end (default 40, edges of drag)'),
+    },
+    async ({ startX, startY, endX, endY, steps, minDelayMs, maxDelayMs }) =>
+      execAction(bridge, queue, 'drag_variable_speed', 'cdpDragVariableSpeed', {
+        startX, startY, endX, endY, steps, minDelayMs, maxDelayMs,
+      }),
+  );
+
+  server.tool(
     'scroll_at',
     'Scroll (mouse wheel) at specific viewport coordinates using CDP trusted events. Use for map zoom (Google Maps, Leaflet), canvas zoom, or any element where page-level scrolling does not trigger the desired zoom/scroll behavior. Negative deltaY = zoom in / scroll up, positive deltaY = zoom out / scroll down. Each call dispatches one wheel tick; call multiple times for more zoom. Coordinates are CSS pixels relative to the browser viewport.',
     {

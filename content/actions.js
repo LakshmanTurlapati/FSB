@@ -5291,6 +5291,23 @@ const tools = {
     }
   };
 
+  tools.cdpDragVariableSpeed = async (params) => {
+    const { startX, startY, endX, endY, steps, minDelayMs, maxDelayMs } = params;
+    if (typeof startX !== 'number' || typeof startY !== 'number' ||
+        typeof endX !== 'number' || typeof endY !== 'number') {
+      return { success: false, error: 'startX, startY, endX, endY required (viewport-relative numbers)' };
+    }
+    try {
+      const result = await chrome.runtime.sendMessage({
+        action: 'cdpMouseDragVariableSpeed', startX, startY, endX, endY,
+        steps: steps || 20, minDelayMs: minDelayMs || 5, maxDelayMs: maxDelayMs || 40
+      });
+      return result || { success: false, error: 'No response from CDP variable-speed drag handler' };
+    } catch (e) {
+      return { success: false, error: `CDP variable-speed drag failed: ${e.message}` };
+    }
+  };
+
   tools.cdpScrollAt = async (params) => {
     const { x, y, deltaX, deltaY } = params;
     if (typeof x !== 'number' || typeof y !== 'number') {

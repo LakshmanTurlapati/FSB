@@ -4957,6 +4957,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleCDPMouseDrag(request, sender, sendResponse);
       return true; // Will respond asynchronously
 
+    case 'cdpMouseDragVariableSpeed':
+      handleCDPMouseDragVariableSpeed(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+
     case 'cdpMouseWheel':
       handleCDPMouseWheel(request, sender, sendResponse);
       return true; // Will respond asynchronously
@@ -12103,6 +12107,72 @@ async function handleCDPMouseDrag(request, sender, sendResponse) {
 
     await chrome.debugger.detach({ tabId });
     sendResponse({ success: true, startX, startY, endX, endY, steps, modifiers, method: 'cdp_drag' });
+  } catch (e) {
+    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+    sendResponse({ success: false, error: e.message });
+  }
+}
+
+/**
+ * Handle CDP mouse drag with variable speed (ease-in-out timing).
+ * Like handleCDPMouseDrag but varies the delay between mouseMoved steps
+ * using a quadratic ease-in-out function to produce human-like drag movement:
+ * slow start, acceleration through middle, deceleration at end.
+ *
+ * The speed curve: speedFactor = 1 - 4*(t-0.5)^2 maps [0,1] -> [0,1] where
+ * values near 0 and 1 produce higher delays (slower movement) and
+ * values near 0.5 produce lower delays (faster movement).
+ *
+ * Used for slider CAPTCHAs where constant-speed drag is detected as bot behavior.
+ */
+async function handleCDPMouseDragVariableSpeed(request, sender, sendResponse) {
+  const tabId = sender.tab?.id;
+  const { startX, startY, endX, endY, steps = 20, minDelayMs = 5, maxDelayMs = 40 } = request;
+  if (!tabId || typeof startX !== 'number' || typeof startY !== 'number' ||
+      typeof endX !== 'number' || typeof endY !== 'number') {
+    sendResponse({ success: false, error: 'Missing tabId or coordinates (startX, startY, endX, endY required)' });
+    return;
+  }
+  try {
+    await chrome.debugger.attach({ tabId }, '1.3');
+
+    // mousePressed at start position
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mousePressed', x: startX, y: startY, button: 'left', clickCount: 1
+    });
+
+    // mouseMoved with variable-speed delays using ease-in-out quadratic curve
+    // Ease-in-out: slow at edges (t near 0 or 1), fast in middle (t near 0.5)
+    // Speed curve (inverted to get delay): high delay at edges, low delay in middle
+    const totalSteps = Math.max(steps, 5); // minimum 5 steps for meaningful curve
+    for (let i = 1; i <= totalSteps; i++) {
+      const t = i / totalSteps; // progress 0..1
+      const x = Math.round(startX + (endX - startX) * t);
+      const y = Math.round(startY + (endY - startY) * t);
+
+      await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+        type: 'mouseMoved', x, y, button: 'left', buttons: 1
+      });
+
+      // Ease-in-out delay: high at start/end, low in middle
+      // speedFactor = 1 - 4*(t-0.5)^2 maps [0,1] -> [0,1] with peak at 0.5
+      // delay = maxDelay at edges (speedFactor=0), minDelay at center (speedFactor=1)
+      const speedFactor = 1.0 - 4.0 * Math.pow(t - 0.5, 2); // 0 at edges, 1 at center
+      const clampedFactor = Math.max(0, Math.min(1, speedFactor));
+      const delay = Math.round(maxDelayMs - clampedFactor * (maxDelayMs - minDelayMs));
+      await new Promise(r => setTimeout(r, delay));
+    }
+
+    // mouseReleased at end position
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x: endX, y: endY, button: 'left', clickCount: 1
+    });
+
+    await chrome.debugger.detach({ tabId });
+    sendResponse({
+      success: true, startX, startY, endX, endY, steps: totalSteps,
+      minDelayMs, maxDelayMs, method: 'cdp_drag_variable_speed'
+    });
   } catch (e) {
     try { await chrome.debugger.detach({ tabId }); } catch (_) {}
     sendResponse({ success: false, error: e.message });
