@@ -35,7 +35,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 
 ### Infinite Scroll & Virtualized DOMs
 
-- [ ] **SCROLL-01**: MCP can scroll through X/Twitter feed and extract text of a user's 150th post
+- [x] **SCROLL-01**: MCP can scroll through X/Twitter feed and extract text of a user's 150th post
 - [ ] **SCROLL-02**: MCP can scrape names of all 500 items on dynamically loading e-commerce search page
 - [ ] **SCROLL-03**: MCP can find specific log entry from 3 days ago in infinitely scrolling dashboard
 - [ ] **SCROLL-04**: MCP can navigate to bottom of populated Reddit thread and reply to last comment
