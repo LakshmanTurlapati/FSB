@@ -407,8 +407,11 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 73-01-PLAN.md -- Update airbnb.js site guide with map pan workflow, map selectors, and listing pin detection
+- [ ] 73-02-PLAN.md -- Execute live MCP Airbnb map pan test, generate SCROLL-07 diagnostic report
+
+
+
 
 ### Phase 74: TikTok Cat Video Search
 **Goal:** Execute TikTok web feed infinite scroll to find cat-containing video via MCP manual tools; fix blockers
