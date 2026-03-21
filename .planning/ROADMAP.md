@@ -750,7 +750,7 @@ Plans:
 | 72. Hacker News Thread Expansion | 1/2 | Complete    | 2026-03-21 |
 | 73. Airbnb Map Pan Search | 2/2 | Complete    | 2026-03-21 |
 | 74. TikTok Cat Video Search | 2/2 | Complete    | 2026-03-21 |
-| 75. Viewport-Only Pricing Table | 2/2 | Complete   | 2026-03-21 |
+| 75. Viewport-Only Pricing Table | 2/2 | Complete    | 2026-03-21 |
 | 76. News Site Date-Stop Scroll | 0/1 | Not started | - |
 | 77. Live Sports Score Monitor | 0/1 | Not started | - |
 | 78. Observable Notebook Edit | 0/1 | Not started | - |
