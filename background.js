@@ -168,6 +168,7 @@ importScripts('site-guides/reference/wikipedia.js');
 
 // Per-site guides: News
 importScripts('site-guides/news/hackernews.js');
+importScripts('site-guides/news/news-feed.js');
 
 // Per-site guides: Utilities
 importScripts('site-guides/utilities/carousel.js');
