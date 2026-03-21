@@ -485,8 +485,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 78-01-PLAN.md -- Create observable.js site guide with notebook cell editing workflow and wire imports
+- [ ] 78-02-PLAN.md -- Execute live MCP Observable notebook edit test, generate CONTEXT-02 diagnostic report
 
 ### Phase 79: 50-Page PDF Form Fill
 **Goal:** Execute 50-page PDF read then web form fill from pages 4, 17, 42 via MCP manual tools; fix blockers
