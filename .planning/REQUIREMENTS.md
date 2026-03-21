@@ -115,7 +115,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | MICRO-08 | Phase 64 | Complete |
 | MICRO-09 | Phase 65 | Complete |
 | MICRO-10 | Phase 66 | Complete |
-| SCROLL-01 | Phase 67 | Pending |
+| SCROLL-01 | Phase 67 | In Progress |
 | SCROLL-02 | Phase 68 | Pending |
 | SCROLL-03 | Phase 69 | Pending |
 | SCROLL-04 | Phase 70 | Pending |
