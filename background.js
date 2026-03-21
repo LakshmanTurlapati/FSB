@@ -42,6 +42,7 @@ importScripts('site-guides/social/facebook.js');
 importScripts('site-guides/social/reddit.js');
 importScripts('site-guides/social/instagram.js');
 importScripts('site-guides/social/youtube.js');
+importScripts('site-guides/social/tiktok.js');
 
 // Per-site guides: Finance
 importScripts('site-guides/finance/yahoo-finance.js');
