@@ -303,8 +303,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [x] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 65-01-PLAN.md -- Create drag_variable_speed MCP tool, slider-captcha site guide, and wire imports
+- [ ] 65-02-PLAN.md -- Execute live MCP slider CAPTCHA test, generate MICRO-09 diagnostic report
 
 ### Phase 66: Podcast Timeline Scrub
 **Goal:** Execute podcast audio timeline scrub to exactly 14:22 mark via MCP manual tools; fix blockers
