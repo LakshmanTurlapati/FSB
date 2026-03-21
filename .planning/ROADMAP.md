@@ -189,8 +189,6 @@ Plans:
 Plans:
 - [x] 56-01-PLAN.md -- Create Miro whiteboard site guide with sticky note clustering workflows
 - [x] 56-02-PLAN.md -- Execute live MCP Miro sticky note test, generate CANVAS-10 diagnostic report
-
-
 ### Phase 57: Volume Slider Precision
 **Goal:** Execute HTML5 video custom volume slider adjustment to exactly 37% via MCP manual tools; fix blockers
 **Depends on:** Phase 56
@@ -227,8 +225,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 57-01-PLAN.md -- Create HTML5 video player site guide with volume slider precision workflows
-- [ ] 57-02-PLAN.md -- Execute live MCP volume slider test, generate MICRO-01 diagnostic report
+- [ ] 59-01-PLAN.md -- Expose drag_drop MCP tool and update Trello site guide with dragAndDropReorder workflow
+- [ ] 59-02-PLAN.md -- Execute live MCP drag-and-drop reorder test, generate MICRO-03 diagnostic report
 
 ### Phase 60: Text Selection Precision
 **Goal:** Execute precise text selection of second sentence in third Wikipedia paragraph via MCP manual tools; fix blockers

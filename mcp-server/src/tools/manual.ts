@@ -172,6 +172,26 @@ export function registerManualTools(
   );
 
   server.tool(
+    'drag_drop',
+    'Drag and drop one DOM element onto another using element references. Tries three methods in order: HTML5 DragEvent (dragstart/drop), PointerEvent sequence (for react-beautiful-dnd and similar libraries), and MouseEvent sequence (basic fallback). Use for Kanban card reordering, sortable lists, file drag targets, or any drag-and-drop interaction between two identifiable DOM elements. Returns which method succeeded. For canvas/coordinate-based drag, use the drag tool instead.',
+    {
+      sourceSelector: z.string().describe('CSS selector or element reference (e.g., "e5", "#card-1") for the element to drag'),
+      targetSelector: z.string().describe('CSS selector or element reference (e.g., "e12", "#column-2") for the drop target element'),
+      steps: z.number().optional().default(10).describe('Number of intermediate move events during drag (default 10)'),
+      holdMs: z.number().optional().default(150).describe('Milliseconds to hold before starting drag motion (default 150, increase for libraries that need longer press)'),
+      stepDelayMs: z.number().optional().default(20).describe('Delay in ms between each move step (default 20)'),
+    },
+    async ({ sourceSelector, targetSelector, steps, holdMs, stepDelayMs }) =>
+      execAction(bridge, queue, 'drag_drop', 'dragdrop', {
+        sourceRef: sourceSelector,
+        targetRef: targetSelector,
+        steps,
+        holdMs,
+        stepDelayMs,
+      }),
+  );
+
+  server.tool(
     'focus',
     'Move keyboard focus to an element. Use to prepare an element for keyboard input. Returns focus confirmation.',
     { selector: z.string().describe('CSS selector or element reference to focus') },
@@ -254,7 +274,7 @@ export function registerManualTools(
       sheetName: z.string().optional().describe('Optional sheet name to set'),
     },
     async ({ startCell, csvData, sheetName }) =>
-      execAction(bridge, queue, 'fill_sheet', 'fillsheet', { startCell, csvData, sheetName }),
+      execAction(bridge, queue, 'fill_sheet', 'fillsheet', { startCell, data: csvData, sheetName }),
   );
 
   server.tool(
