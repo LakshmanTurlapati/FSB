@@ -251,8 +251,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 57-01-PLAN.md -- Create HTML5 video player site guide with volume slider precision workflows
-- [ ] 57-02-PLAN.md -- Execute live MCP volume slider test, generate MICRO-01 diagnostic report
+- [ ] 61-01-PLAN.md -- Create color picker site guide with selectCustomHex workflow and wire imports
+- [ ] 61-02-PLAN.md -- Execute live MCP color picker test, generate MICRO-05 diagnostic report
 
 ### Phase 62: Horizontal Carousel Scroll
 **Goal:** Execute horizontal carousel scroll without triggering vertical scroll via MCP manual tools; fix blockers
