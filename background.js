@@ -161,6 +161,9 @@ importScripts('site-guides/design/miro.js');
 // Per-site guides: Reference
 importScripts('site-guides/reference/wikipedia.js');
 
+// Per-site guides: Utilities
+importScripts('site-guides/utilities/color-picker.js');
+
 // Background agent modules
 importScripts('agents/agent-manager.js');
 importScripts('agents/agent-scheduler.js');
