@@ -455,8 +455,12 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 76-01-PLAN.md -- Create news-feed.js site guide with date-based scroll-stop workflow and wire imports
+- [ ] 76-02-PLAN.md -- Execute live MCP news feed date-stop scroll test, generate SCROLL-10 diagnostic report
+
+
+
+
 
 ### Phase 77: Live Sports Score Monitor
 **Goal:** Execute 30-minute live sports ticker monitoring with score change logging via MCP manual tools; fix blockers
