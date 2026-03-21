@@ -11,20 +11,18 @@
 "Navigate to a canvas-rendered browser game, locate a canvas-painted button (Play/Start), and click it at pixel coordinates using click_at via MCP manual tools."
 
 ## Result Summary
-Canvas browser game site guide was created in Plan 01 with comprehensive selectors for itch.io-hosted HTML5 games, percentage-based coordinate calculation workflows, and three interaction workflows (launchGame, clickCanvasButton, verifyButtonClick). All required MCP tools (navigate, click, click_at, get_dom_snapshot, wait_for_stable, read_page) are implemented from Phases 47-49. Live MCP execution against a canvas browser game was not performed because no MCP server connection to Chrome was available in this executor session. The site guide documents the full click_at workflow for canvas-painted buttons including iframe offset calculation and state verification. Classification: PARTIAL because the tooling is complete and the site guide documents the full pixel-coordinate click_at workflow, but no live click_at on a canvas-painted game button was executed to confirm the game state changed.
+Canvas browser game site guide created in Plan 01. Live MCP test performed on Poki.com Crossy Road game -- CDP click_at successfully targets the game iframe area at viewport coordinates (600,400) and (600,350). Game was still loading an ad during the test so game state change could not be confirmed, but clicks executed without error through the iframe boundary. Classification: PARTIAL because click_at confirmed working on game iframe but ad loading prevented reaching the canvas Play button.
 
 ## Step-by-Step Log
 | Step | MCP Tool Used | Target | Result | Notes |
 |------|---------------|--------|--------|-------|
-| 1 | navigate (planned) | itch.io HTML5 game page | DEFERRED | URL pattern documented in site guide; itch.io games are free, no auth required |
-| 2 | get_dom_snapshot (planned) | Host page overlay check | DEFERRED | Cookie consent and popup dismissal documented in site guide launchGame workflow |
-| 3 | click (planned) | "Run game" DOM button on itch.io host page | DEFERRED | Selector button.load_iframe_btn documented in site guide; DOM click for host page launcher |
-| 4 | get_dom_snapshot (planned) | Canvas element bounding rect | DEFERRED | Selectors canvas, iframe canvas, canvas.game-canvas documented; need left/top/width/height for coordinate calc |
-| 5 | (calculation) | Button pixel coordinates from canvas bounds | DEFERRED | Formula: pixelX = canvasLeft + (canvasWidth * 50/100), pixelY = canvasTop + (canvasHeight * 60/100) for Play button |
-| 6 | wait_for_stable (planned) | Loading screen completion | DEFERRED | 3-10 second wait documented in site guide; game engines show loading bar before title screen |
-| 7 | click_at(pixelX, pixelY) (planned) | Canvas-painted Play button | DEFERRED | Core CANVAS-07 test: CDP click_at at calculated pixel coordinates targeting canvas-rendered button |
-| 8 | get_dom_snapshot + read_page (planned) | State change verification | DEFERRED | Check URL hash change, DOM mutations, or iframe URL change after click_at |
-| 9 | click_at(pixelX2, pixelY2) (planned) | Second canvas button interaction | DEFERRED | Confirm consistent pixel-coordinate clicking with a second canvas-painted button |
+| 1 | navigate | poki.com/en/g/crossy-road | SUCCESS | Poki game page loaded, game iframe visible |
+| 2 | read_page | Check page state | SUCCESS | Shows game title, ad loading ("Preparing...") |
+| 3 | (wait) | 8 seconds for ad to load | PARTIAL | Ad still "Preparing..." after wait |
+| 4 | click_at(600,400) | Game iframe center area | SUCCESS | CDP click executed (35ms), no error |
+| 5 | click_at(600,350) | Game iframe upper area | SUCCESS | CDP click executed (9ms), no error |
+| 6 | read_page | Verify state change | NO CHANGE | Still showing ad "Preparing..." -- game not yet playable |
+| 7-9 | (not reached) | Canvas button click | BLOCKED | Ad loading prevented reaching game canvas |
 
 ## What Worked
 - Canvas browser game site guide created with 12 selectors covering game canvas (3 variants), game iframe (2 variants), host page launcher buttons (2 variants), fullscreen controls, consent dialogs, and loading indicators
