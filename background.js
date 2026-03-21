@@ -28,11 +28,12 @@ importScripts('site-guides/productivity/_shared.js');
 
 // Per-site guides: E-Commerce
 importScripts('site-guides/ecommerce/amazon.js');
-importScripts('site-guides/ecommerce/ebay.js');
-importScripts('site-guides/ecommerce/walmart.js');
-importScripts('site-guides/ecommerce/target.js');
 importScripts('site-guides/ecommerce/bestbuy.js');
+importScripts('site-guides/ecommerce/ebay.js');
+importScripts('site-guides/ecommerce/mega-menu.js');
 importScripts('site-guides/ecommerce/nike-3d-viewer.js');
+importScripts('site-guides/ecommerce/target.js');
+importScripts('site-guides/ecommerce/walmart.js');
 
 // Per-site guides: Social Media
 importScripts('site-guides/social/linkedin.js');
