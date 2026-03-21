@@ -391,9 +391,9 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 72-01-PLAN.md -- Create HN site guide with thread expansion workflow, comment selectors, and wire background.js import
+- [x] 72-01-PLAN.md -- Create HN site guide with thread expansion workflow, comment selectors, and wire background.js import
 - [ ] 72-02-PLAN.md -- Execute live MCP HN thread expansion test, generate SCROLL-06 diagnostic report
 
 
@@ -738,7 +738,7 @@ Plans:
 | 69. Dashboard Log Entry Search | 2/2 | Complete    | 2026-03-21 |
 | 70. Reddit Thread Bottom Reply | 2/2 | Complete    | 2026-03-21 |
 | 71. Virtualized PDF Reader | 2/2 | Complete    | 2026-03-21 |
-| 72. Hacker News Thread Expansion | 0/1 | Not started | - |
+| 72. Hacker News Thread Expansion | 1/2 | In Progress|  |
 | 73. Airbnb Map Pan Search | 0/1 | Not started | - |
 | 74. TikTok Cat Video Search | 0/1 | Not started | - |
 | 75. Viewport-Only Pricing Table | 0/1 | Not started | - |

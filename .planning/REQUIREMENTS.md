@@ -40,7 +40,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 - [x] **SCROLL-03**: MCP can find specific log entry from 3 days ago in infinitely scrolling dashboard
 - [x] **SCROLL-04**: MCP can navigate to bottom of populated Reddit thread and reply to last comment
 - [x] **SCROLL-05**: MCP can read multi-page document in virtualized viewer (pages unload as you scroll)
-- [ ] **SCROLL-06**: MCP can expand all nested comment threads on Hacker News post with 1000+ comments
+- [x] **SCROLL-06**: MCP can expand all nested comment threads on Hacker News post with 1000+ comments
 - [ ] **SCROLL-07**: MCP can find Airbnb listing by panning map interface until new pins populate
 - [ ] **SCROLL-08**: MCP can scroll TikTok web feed until finding a video containing a cat
 - [ ] **SCROLL-09**: MCP can extract pricing data from table that only loads rows in viewport
@@ -120,7 +120,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | SCROLL-03 | Phase 69 | Complete |
 | SCROLL-04 | Phase 70 | Complete |
 | SCROLL-05 | Phase 71 | Complete |
-| SCROLL-06 | Phase 72 | Pending |
+| SCROLL-06 | Phase 72 | Complete |
 | SCROLL-07 | Phase 73 | Pending |
 | SCROLL-08 | Phase 74 | Pending |
 | SCROLL-09 | Phase 75 | Pending |

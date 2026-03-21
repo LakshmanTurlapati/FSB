@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 71-02-PLAN.md
-last_updated: "2026-03-21T19:23:16.559Z"
+stopped_at: Completed 72-01-PLAN.md
+last_updated: "2026-03-21T19:32:51.906Z"
 progress:
   total_phases: 50
   completed_phases: 25
-  total_plans: 50
-  completed_plans: 50
+  total_plans: 52
+  completed_plans: 51
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 71 — virtualized-pdf-reader
+**Current focus:** Phase 72 — hacker-news-thread-expansion
 
 ## Current Position
 
-Phase: 72
-Plan: Not started
+Phase: 72 (hacker-news-thread-expansion) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -120,6 +120,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 71]: Page number input (#pageNumber) preferred over scroll-distance estimation for pdf.js viewer navigation reliability
 - [Phase 71]: textLayer span concatenation as text extraction strategy for pdf.js viewers -- spans contain plain text in DOM order
 - [Phase 71]: SCROLL-05 PARTIAL: pdf.js viewer validated via HTTP + source analysis, live MCP blocked by WebSocket bridge disconnect, 4 selector corrections identified
+- [Phase 72]: Morelink is full page navigation (not AJAX) -- critical distinction from Reddit inline load-more
+- [Phase 72]: News site guide category (site-guides/news/) created between Reference and Utilities in background.js
 
 ### Pending Todos
 
@@ -133,6 +135,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T19:22:32.405Z
-Stopped at: Completed 71-02-PLAN.md
+Last session: 2026-03-21T19:32:51.903Z
+Stopped at: Completed 72-01-PLAN.md
 Resume file: None
