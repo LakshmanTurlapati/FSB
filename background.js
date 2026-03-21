@@ -146,6 +146,7 @@ importScripts('site-guides/productivity/trello.js');
 importScripts('site-guides/productivity/notion.js');
 importScripts('site-guides/productivity/jira.js');
 importScripts('site-guides/productivity/airtable.js');
+importScripts('site-guides/productivity/pdf-editor.js');
 
 // Per-site guides: Design & Whiteboard
 importScripts('site-guides/design/_shared.js');
