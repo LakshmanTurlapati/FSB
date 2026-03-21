@@ -138,6 +138,7 @@ importScripts('site-guides/music/virtual-piano.js');
 
 // Per-site guides: Media
 importScripts('site-guides/media/video-player.js');
+importScripts('site-guides/media/voice-recorder.js');
 
 // Per-site guides: Productivity
 importScripts('site-guides/productivity/google-sheets.js');
