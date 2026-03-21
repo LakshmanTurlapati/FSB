@@ -136,6 +136,9 @@ importScripts('site-guides/games/canvas-game.js');
 // Per-site guides: Music
 importScripts('site-guides/music/virtual-piano.js');
 
+// Per-site guides: Media
+importScripts('site-guides/media/video-player.js');
+
 // Per-site guides: Productivity
 importScripts('site-guides/productivity/google-sheets.js');
 importScripts('site-guides/productivity/google-docs.js');
