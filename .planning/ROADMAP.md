@@ -37,7 +37,7 @@
 - [x] **Phase 74: TikTok Cat Video Search** - SCROLL-08: scroll TikTok web feed until finding a cat video (completed 2026-03-21)
 - [x] **Phase 75: Viewport-Only Pricing Table** - SCROLL-09: extract pricing from table that only loads visible rows (completed 2026-03-21)
 - [x] **Phase 76: News Site Date-Stop Scroll** - SCROLL-10: scroll infinite-scroll news site stopping at yesterday's articles (completed 2026-03-21)
-- [ ] **Phase 77: Live Sports Score Monitor** - CONTEXT-01: monitor live sports ticker for 30 minutes logging score changes
+- [x] **Phase 77: Live Sports Score Monitor** - CONTEXT-01: monitor live sports ticker for 30 minutes logging score changes (completed 2026-03-21)
 - [ ] **Phase 78: Observable Notebook Edit** - CONTEXT-02: fork Observable notebook, modify cell 3 data without altering cell 1
 - [ ] **Phase 79: 50-Page PDF Form Fill** - CONTEXT-03: read 50-page PDF then fill form with details from pages 4, 17, 42
 - [ ] **Phase 80: Multi-Tab Flight Price Compare** - CONTEXT-04: open 5 tabs comparing flight prices, return to cheapest
@@ -470,10 +470,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 77-01-PLAN.md -- Create live-scores.js site guide with ESPN scoreboard selectors, polling workflow, and wire into background.js
-- [ ] 77-02-PLAN.md -- Execute live MCP score monitoring test, generate CONTEXT-01 diagnostic report
+- [x] 77-02-PLAN.md -- Execute live MCP score monitoring test, generate CONTEXT-01 diagnostic report
 
 ### Phase 78: Observable Notebook Edit
 **Goal:** Execute Observable notebook fork with cell 3 data modification without altering cell 1 via MCP manual tools; fix blockers
@@ -756,7 +756,7 @@ Plans:
 | 74. TikTok Cat Video Search | 2/2 | Complete    | 2026-03-21 |
 | 75. Viewport-Only Pricing Table | 2/2 | Complete    | 2026-03-21 |
 | 76. News Site Date-Stop Scroll | 2/2 | Complete    | 2026-03-21 |
-| 77. Live Sports Score Monitor | 1/2 | In Progress|  |
+| 77. Live Sports Score Monitor | 2/2 | Complete   | 2026-03-21 |
 | 78. Observable Notebook Edit | 0/1 | Not started | - |
 | 79. 50-Page PDF Form Fill | 0/1 | Not started | - |
 | 80. Multi-Tab Flight Price Compare | 0/1 | Not started | - |

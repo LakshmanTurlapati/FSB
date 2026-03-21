@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 77-01-PLAN.md
-last_updated: "2026-03-21T22:31:36.673Z"
+stopped_at: Completed 77-02-PLAN.md
+last_updated: "2026-03-21T22:45:04.490Z"
 progress:
   total_phases: 50
-  completed_phases: 30
+  completed_phases: 31
   total_plans: 62
-  completed_plans: 61
+  completed_plans: 62
 ---
 
 # Project State
@@ -141,6 +141,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 76]: BBC uses __NEXT_DATA__ JSON timestamps (Unix ms) not time[datetime] ISO 8601 -- site guide datetime strategy does not apply
 - [Phase 76]: BBC homepage is finite curated page (47 articles) not true infinite scroll -- scroll sentinel absent
 - [Phase 77]: ESPN as primary scoreboard target with CBS Sports and NBA.com fallback; 2-snapshot retention for context bloat mitigation over 30-minute polling
+- [Phase 77]: CONTEXT-01 outcome PARTIAL: ESPN NBA scoreboard HTTP polling confirmed 3 score changes across 5 polls, 13/27 selectors matched, 2-snapshot retention validated, 30-minute sustained polling blocked by WebSocket bridge disconnect
+- [Phase 77]: Embedded JSON (window.__CONFIG__ evts array) more reliable than DOM scraping for ESPN game data -- provides event IDs, scores, records, and machine-readable status
 
 ### Pending Todos
 
@@ -154,6 +156,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T22:31:36.670Z
-Stopped at: Completed 77-01-PLAN.md
+Last session: 2026-03-21T22:45:04.487Z
+Stopped at: Completed 77-02-PLAN.md
 Resume file: None
