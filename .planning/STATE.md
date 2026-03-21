@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 58-02-PLAN.md
-last_updated: "2026-03-21T08:21:05.785Z"
+stopped_at: Completed 59-01-PLAN.md
+last_updated: "2026-03-21T10:36:26.302Z"
 progress:
   total_phases: 50
   completed_phases: 12
-  total_plans: 24
-  completed_plans: 24
+  total_plans: 26
+  completed_plans: 25
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 58 — click-and-hold-record
+**Current focus:** Phase 59 — drag-and-drop-reorder
 
 ## Current Position
 
-Phase: 59
-Plan: Not started
+Phase: 59 (drag-and-drop-reorder) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -75,6 +75,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 57]: Two potential tool gaps identified: set_input_value for range inputs, get_bounding_rect for precision positioning
 - [Phase 58]: Dedicated click_and_hold tool instead of reusing drag with same start/end -- cleaner semantics, no unnecessary mouseMoved events
 - [Phase 58]: MICRO-02 outcome PARTIAL: click_and_hold tool chain verified, live execution blocked by WebSocket bridge disconnect, toggle-to-record recommended as default
+- [Phase 59]: drag_drop MCP tool placed in Interaction tools section (DOM selectors) not CDP section (coordinates)
+- [Phase 59]: holdMs=200 recommended for react-beautiful-dnd drag recognition (vs default 150)
 
 ### Pending Todos
 
@@ -88,6 +90,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-21T08:20:22.313Z
-Stopped at: Completed 58-02-PLAN.md
+Last session: 2026-03-21T10:36:26.299Z
+Stopped at: Completed 59-01-PLAN.md
 Resume file: None
