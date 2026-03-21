@@ -31,7 +31,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 - [x] **MICRO-07**: MCP can hover over nav menu, wait for CSS animation mega-menu, click nested sub-link
 - [x] **MICRO-08**: MCP can trigger file upload via browser dropzone (simulate drag-and-drop file input)
 - [x] **MICRO-09**: MCP can solve slide-to-fit puzzle CAPTCHA by dragging piece at variable speed
-- [ ] **MICRO-10**: MCP can scrub podcast audio timeline to exactly the 14:22 mark
+- [x] **MICRO-10**: MCP can scrub podcast audio timeline to exactly the 14:22 mark
 
 ### Infinite Scroll & Virtualized DOMs
 
@@ -114,7 +114,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | MICRO-07 | Phase 63 | Complete |
 | MICRO-08 | Phase 64 | Complete |
 | MICRO-09 | Phase 65 | Complete |
-| MICRO-10 | Phase 66 | Pending |
+| MICRO-10 | Phase 66 | Complete |
 | SCROLL-01 | Phase 67 | Pending |
 | SCROLL-02 | Phase 68 | Pending |
 | SCROLL-03 | Phase 69 | Pending |
