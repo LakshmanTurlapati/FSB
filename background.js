@@ -164,6 +164,9 @@ importScripts('site-guides/design/miro.js');
 // Per-site guides: Reference
 importScripts('site-guides/reference/wikipedia.js');
 
+// Per-site guides: News
+importScripts('site-guides/news/hackernews.js');
+
 // Per-site guides: Utilities
 importScripts('site-guides/utilities/carousel.js');
 importScripts('site-guides/utilities/color-picker.js');
