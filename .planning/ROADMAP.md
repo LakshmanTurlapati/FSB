@@ -380,8 +380,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 71-01-PLAN.md -- Create pdf-viewer.js site guide with virtualized reading workflow, wire background.js import
+- [ ] 71-02-PLAN.md -- Execute live MCP virtualized PDF reading test, generate SCROLL-05 diagnostic report
 
 ### Phase 72: Hacker News Thread Expansion
 **Goal:** Execute HN post nested comment thread full expansion with 1000+ comments via MCP manual tools; fix blockers
