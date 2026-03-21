@@ -367,8 +367,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 70-01-PLAN.md -- Update reddit.js site guide with thread-bottom scroll and last-comment reply workflow
+- [ ] 70-02-PLAN.md -- Execute live MCP Reddit thread-bottom scroll and reply test, generate SCROLL-04 diagnostic report
 
 ### Phase 71: Virtualized PDF Reader
 **Goal:** Execute multi-page virtualized PDF viewer reading with unloading pages via MCP manual tools; fix blockers
