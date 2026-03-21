@@ -1,6 +1,14 @@
 /**
  * Site Guide: Twitter/X
  * Per-site guide for Twitter (X) social media platform.
+ *
+ * Includes infinite scroll post extraction workflow for counting and extracting
+ * the Nth post from a Twitter/X feed. Twitter uses virtualized DOM rendering
+ * where post elements are recycled during scroll -- posts must be counted
+ * incrementally across multiple DOM snapshots, not via a single snapshot.
+ *
+ * Created for Phase 67, SCROLL-01 edge case validation.
+ * Target: extract text of the 150th post via scroll-and-count strategy.
  */
 
 registerSiteGuide({
@@ -54,7 +62,70 @@ UI FRAMEWORK NOTES:
 - CSS class names are hashed/obfuscated (css-175oi2r, r-sdzlij) -- NEVER use them as selectors
 - ID-based selectors are dynamically generated (id__<random>) -- do NOT rely on them
 - Prefer data-testid selectors over aria-label for consistency
-- Navigation uses AppTabBar data-testid pattern -- more reliable than aria-label which can include notification counts`,
+- Navigation uses AppTabBar data-testid pattern -- more reliable than aria-label which can include notification counts
+
+INFINITE SCROLL & POST EXTRACTION:
+
+VIRTUALIZED DOM BEHAVIOR:
+- X/Twitter uses virtualized rendering (DOM recycling) for the feed timeline
+- As you scroll down, older tweets are REMOVED from the DOM and new tweets are ADDED
+- At any given time, only ~20-40 tweets exist in the DOM regardless of how far you scrolled
+- You CANNOT get all 150 posts in a single DOM snapshot
+- Strategy: scroll repeatedly, count NEW posts each snapshot, track running total across snapshots
+
+POST ELEMENT SELECTORS:
+- Individual tweet/post: [data-testid="tweet"] (each post is wrapped in this)
+- Tweet text content: [data-testid="tweetText"] (the text body of the post)
+- Tweet article: article[data-testid="tweet"] (full tweet article element)
+- Tweet link/permalink: a[href*="/status/"] inside [data-testid="tweet"] (link to individual post)
+- User display name: [data-testid="User-Name"] inside [data-testid="tweet"]
+- Timeline container: [data-testid="primaryColumn"] section (main feed area)
+- Cell inner div: [data-testid="cellInnerDiv"] (wrapper around each timeline item including tweets, ads, suggestions)
+
+COUNTING POSTS DURING INFINITE SCROLL:
+- Each [data-testid="cellInnerDiv"] in the timeline may be a tweet, ad, or suggestion module
+- Only count elements that contain [data-testid="tweet"] as actual posts
+- Filter out ads: skip [data-testid="cellInnerDiv"] elements containing "Ad" label or [data-testid="placementTracking"]
+- Filter out "Who to follow" and "Subscribe to Premium" suggestion modules
+- Use tweet permalink href (contains "/status/") as unique identifier to avoid double-counting when DOM recycles
+- Maintain a Set of seen permalink hrefs to track unique posts across scroll cycles
+
+METHOD: SCROLL-AND-COUNT TO Nth POST (target: 150th post):
+Steps:
+1. Navigate to target X/Twitter profile page (e.g., x.com/{username}) or feed
+2. Dismiss any cookie/consent banners or login prompts if present
+3. Use get_dom_snapshot to capture initial visible tweets
+4. For each [data-testid="tweet"] element, extract:
+   - The tweet permalink (a[href*="/status/"]) as unique ID
+   - The tweet text from [data-testid="tweetText"]
+   - Store in running list: [{permalink, text, position}]
+5. Scroll down using scroll(direction="down", amount=800) to load more posts
+6. Wait for new content: use waitForDOMStable or short delay (500ms-1000ms) for new tweets to render
+7. Use get_dom_snapshot again, extract NEW tweets (permalink not in seen set)
+8. Add new tweets to running list, increment running count
+9. Repeat steps 5-8 until running count >= 150
+10. The 150th entry in the list is the target post
+11. Extract and return the text content of the 150th post via read_page or getText on that element
+12. Verify: the returned text is non-empty and corresponds to a real tweet
+
+FALLBACK FOR PUBLIC PROFILE PAGES:
+- If x.com requires auth for the home feed, use a public profile page instead
+- Public profiles (e.g., x.com/elonmusk, x.com/NASA) show posts without login
+- Profile pages use the same [data-testid="tweet"] selectors as the home feed
+- Some profiles may have fewer than 150 posts -- switch to a high-volume account if needed
+
+AUTH DETECTION:
+- If page shows login/signup wall, classify as skip-auth outcome
+- Login wall indicators: [data-testid="loginButton"], "Log in" text in primary content area, redirect to x.com/i/flow/login
+- Some pages show partial content with a login prompt overlay -- try scrolling past it
+
+SCROLL TIMING:
+- Allow 500ms-1000ms between scrolls for new content to load
+- Twitter lazy-loads tweets as the user scrolls
+- If no new tweets appear after 3 consecutive scrolls, the feed may have ended or rate-limited
+- Use waitForDOMStable after each scroll to detect when new content has rendered
+- Typical rate: ~10-15 new tweets per scroll of 800px`,
+
   selectors: {
     searchBox: 'input[data-testid="SearchBox_Search_Input"]',
     tweetCompose: '[data-testid="tweetTextarea_0"]',
@@ -82,7 +153,16 @@ UI FRAMEWORK NOTES:
     trendItem: '[data-testid="trend"]',
     settingsBar: '[data-testid="settingsAppBar"]',
     backButton: '[data-testid="app-bar-back"]',
-    closeButton: '[data-testid="app-bar-close"]'
+    closeButton: '[data-testid="app-bar-close"]',
+    // Infinite scroll post extraction selectors
+    tweetText: '[data-testid="tweetText"]',
+    tweetArticle: 'article[data-testid="tweet"]',
+    tweetPermalink: '[data-testid="tweet"] a[href*="/status/"]',
+    userName: '[data-testid="User-Name"]',
+    cellInnerDiv: '[data-testid="cellInnerDiv"]',
+    adIndicator: '[data-testid="placementTracking"]',
+    loginWall: '[data-testid="loginButton"]',
+    timelineSection: '[data-testid="primaryColumn"] section'
   },
   workflows: {
     createPost: [
@@ -99,6 +179,26 @@ UI FRAMEWORK NOTES:
       'Type the message in the message input',
       'Click Send button',
       'Verify message was sent'
+    ],
+    scrollAndCountPosts: [
+      'Navigate to X/Twitter profile page (public, no auth required)',
+      'Dismiss cookie/consent banners if present',
+      'Get initial DOM snapshot, identify [data-testid="tweet"] elements',
+      'Extract permalink (a[href*="/status/"]) and text ([data-testid="tweetText"]) for each tweet',
+      'Store in running list with unique permalink Set for deduplication',
+      'Scroll down (scroll direction=down amount=800)',
+      'Wait for DOM to stabilize (waitForDOMStable or 500ms delay)',
+      'Re-snapshot DOM, extract NEW tweets not in seen set',
+      'Increment running count, repeat scroll+snapshot until count >= 150',
+      'Extract text of 150th post from running list',
+      'Verify extracted text is non-empty tweet content'
+    ],
+    extractNthPost: [
+      'Navigate to target profile page',
+      'Initialize empty post list and seen-permalinks Set',
+      'Loop: snapshot DOM, collect new tweets, scroll, wait, repeat',
+      'When N posts collected, return Nth post text',
+      'Handle auth walls by switching to public profile fallback'
     ]
   },
   warnings: [
@@ -108,7 +208,13 @@ UI FRAMEWORK NOTES:
     'CSS class names on X/Twitter are hashed/obfuscated (css-175oi2r, r-sdzlij) -- never use them as selectors',
     'ID-based selectors on X/Twitter are dynamically generated (id__<random>) -- do not rely on them',
     'Prefer data-testid selectors over aria-label on X/Twitter for consistency',
-    'Account menu on X/Twitter shows username text but use [data-testid="SideNav_AccountSwitcher_Button"] to target it'
+    'Account menu on X/Twitter shows username text but use [data-testid="SideNav_AccountSwitcher_Button"] to target it',
+    'X/Twitter uses virtualized DOM -- at most ~20-40 tweets exist in DOM at once, scroll incrementally to count',
+    'Use tweet permalink hrefs as unique IDs to avoid double-counting recycled DOM elements',
+    'Filter out ads ([data-testid="placementTracking"]) and suggestion modules when counting posts',
+    'Allow 500ms-1000ms between scrolls for lazy-loaded tweets to render',
+    'Public profile pages (x.com/{username}) may not require auth; home feed usually does',
+    'If no new tweets load after 3 scrolls, the profile may have fewer posts than target count'
   ],
-  toolPreferences: ['click', 'type', 'scroll', 'getText', 'waitForElement', 'hover', 'focus', 'pressEnter', 'navigate']
+  toolPreferences: ['click', 'type', 'scroll', 'getText', 'waitForElement', 'hover', 'focus', 'pressEnter', 'navigate', 'get_dom_snapshot', 'read_page', 'waitForDOMStable']
 });
