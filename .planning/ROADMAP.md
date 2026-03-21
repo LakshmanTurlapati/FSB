@@ -38,7 +38,7 @@
 - [x] **Phase 75: Viewport-Only Pricing Table** - SCROLL-09: extract pricing from table that only loads visible rows (completed 2026-03-21)
 - [x] **Phase 76: News Site Date-Stop Scroll** - SCROLL-10: scroll infinite-scroll news site stopping at yesterday's articles (completed 2026-03-21)
 - [x] **Phase 77: Live Sports Score Monitor** - CONTEXT-01: monitor live sports ticker for 30 minutes logging score changes (completed 2026-03-21)
-- [ ] **Phase 78: Observable Notebook Edit** - CONTEXT-02: fork Observable notebook, modify cell 3 data without altering cell 1
+- [x] **Phase 78: Observable Notebook Edit** - CONTEXT-02: fork Observable notebook, modify cell 3 data without altering cell 1 (completed 2026-03-21)
 - [ ] **Phase 79: 50-Page PDF Form Fill** - CONTEXT-03: read 50-page PDF then fill form with details from pages 4, 17, 42
 - [ ] **Phase 80: Multi-Tab Flight Price Compare** - CONTEXT-04: open 5 tabs comparing flight prices, return to cheapest
 - [ ] **Phase 81: Multi-Step Checkout with Correction** - CONTEXT-05: complete checkout, input wrong zip, correct it, verify tax updates
@@ -483,10 +483,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 78-01-PLAN.md -- Create observable.js site guide with notebook cell editing workflow and wire imports
-- [ ] 78-02-PLAN.md -- Execute live MCP Observable notebook edit test, generate CONTEXT-02 diagnostic report
+- [x] 78-02-PLAN.md -- Execute live MCP Observable notebook edit test, generate CONTEXT-02 diagnostic report
 
 ### Phase 79: 50-Page PDF Form Fill
 **Goal:** Execute 50-page PDF read then web form fill from pages 4, 17, 42 via MCP manual tools; fix blockers
@@ -757,7 +757,7 @@ Plans:
 | 75. Viewport-Only Pricing Table | 2/2 | Complete    | 2026-03-21 |
 | 76. News Site Date-Stop Scroll | 2/2 | Complete    | 2026-03-21 |
 | 77. Live Sports Score Monitor | 2/2 | Complete    | 2026-03-21 |
-| 78. Observable Notebook Edit | 1/2 | In Progress|  |
+| 78. Observable Notebook Edit | 2/2 | Complete   | 2026-03-21 |
 | 79. 50-Page PDF Form Fill | 0/1 | Not started | - |
 | 80. Multi-Tab Flight Price Compare | 0/1 | Not started | - |
 | 81. Multi-Step Checkout with Correction | 0/1 | Not started | - |
