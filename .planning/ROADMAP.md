@@ -264,8 +264,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 57-01-PLAN.md -- Create HTML5 video player site guide with volume slider precision workflows
-- [ ] 57-02-PLAN.md -- Execute live MCP volume slider test, generate MICRO-01 diagnostic report
+- [ ] 62-01-PLAN.md -- Create carousel site guide with scrollCarouselHorizontally workflow and wire imports
+- [ ] 62-02-PLAN.md -- Execute live MCP horizontal carousel test, generate MICRO-06 diagnostic report
 
 ### Phase 63: CSS Mega-Menu Navigation
 **Goal:** Execute hover-triggered CSS mega-menu navigation to nested sub-link via MCP manual tools; fix blockers
