@@ -55,7 +55,7 @@
 - [x] **Phase 92: Misleading Premium Highlighting** - DARK-06: select cheapest flight on site with misleading premium highlights (completed 2026-03-22)
 - [x] **Phase 93: Hidden Newsletter Uncheck** - DARK-07: uncheck hidden newsletter subscription box before submit (completed 2026-03-22)
 - [x] **Phase 94: Buried Login Link** - DARK-08: find actual login link on homepage that prioritizes Sign Up CTAs (completed 2026-03-22)
-- [ ] **Phase 95: Skip Ad Countdown** - DARK-09: click Skip Ad button after 5-second countdown finishes
+- [x] **Phase 95: Skip Ad Countdown** - DARK-09: click Skip Ad button after 5-second countdown finishes (completed 2026-03-22)
 - [ ] **Phase 96: Anti-Scrape Site Text Extraction** - DARK-10: scrape text from site blocking right-clicks, selection, masking CSS
 
 ## Phase Details
@@ -686,10 +686,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 95-01-PLAN.md -- Create skip-ad-countdown.js site guide with skipAdCountdown workflow and DARK-09 guidance
-- [ ] 95-02-PLAN.md -- Execute live MCP skip ad countdown test, generate DARK-09 diagnostic report
+- [x] 95-02-PLAN.md -- Execute live MCP skip ad countdown test, generate DARK-09 diagnostic report
 
 
 
@@ -760,7 +760,7 @@ Plans:
 | 92. Misleading Premium Highlighting | 1/2 | Complete    | 2026-03-22 |
 | 93. Hidden Newsletter Uncheck | 2/2 | Complete    | 2026-03-22 |
 | 94. Buried Login Link | 2/2 | Complete    | 2026-03-22 |
-| 95. Skip Ad Countdown | 1/2 | In Progress|  |
+| 95. Skip Ad Countdown | 2/2 | Complete   | 2026-03-22 |
 | 96. Anti-Scrape Site Text Extraction | 0/1 | Not started | - |
 
 ---
