@@ -395,8 +395,6 @@ Plans:
 Plans:
 - [x] 72-01-PLAN.md -- Create HN site guide with thread expansion workflow, comment selectors, and wire background.js import
 - [x] 72-02-PLAN.md -- Execute live MCP HN thread expansion test, generate SCROLL-06 diagnostic report
-
-
 ### Phase 73: Airbnb Map Pan Search
 **Goal:** Execute Airbnb map pan to populate new listing pins via MCP manual tools; fix blockers
 **Depends on:** Phase 72
@@ -422,8 +420,6 @@ Plans:
 Plans:
 - [x] 74-01-PLAN.md -- Create tiktok.js site guide with feed scroll workflow, video selectors, and cat content detection; wire into background.js
 - [x] 74-02-PLAN.md -- Execute live MCP TikTok cat video search test, generate SCROLL-08 diagnostic report
-
-
 ### Phase 75: Viewport-Only Pricing Table
 **Goal:** Execute viewport-gated pricing table row extraction via MCP manual tools; fix blockers
 **Depends on:** Phase 74
@@ -448,8 +444,6 @@ Plans:
 Plans:
 - [x] 76-01-PLAN.md -- Create news-feed.js site guide with date-based scroll-stop workflow and wire imports
 - [x] 76-02-PLAN.md -- Execute live MCP news feed date-stop scroll test, generate SCROLL-10 diagnostic report
-
-
 ### Phase 77: Live Sports Score Monitor
 **Goal:** Execute 30-minute live sports ticker monitoring with score change logging via MCP manual tools; fix blockers
 **Depends on:** Phase 76
@@ -592,8 +586,6 @@ Plans:
 Plans:
 - [x] 87-01-PLAN.md -- Create freeware-download.js site guide with downloadRealFile workflow and DARK-01 guidance
 - [x] 87-02-PLAN.md -- Execute live MCP freeware download ad avoidance test, generate DARK-01 diagnostic report
-
-
 ### Phase 88: Cookie Opt-Out Hidden Reject
 **Goal:** Execute EU news site full cookie opt-out with hidden reject button via MCP manual tools; fix blockers
 **Depends on:** Phase 87
@@ -630,8 +622,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 90-01-PLAN.md -- Create camouflaged-close.js site guide with closePopupAd workflow and DARK-04 guidance
+- [ ] 90-02-PLAN.md -- Execute live MCP camouflaged close button test, generate DARK-04 diagnostic report
 
 ### Phase 91: Adblocker Modal Bypass
 **Goal:** Execute "disable adblocker" modal bypass with no visible DOM exit button via MCP manual tools; fix blockers
