@@ -410,9 +410,6 @@ Plans:
 - [x] 73-01-PLAN.md -- Update airbnb.js site guide with map pan workflow, map selectors, and listing pin detection
 - [x] 73-02-PLAN.md -- Execute live MCP Airbnb map pan test, generate SCROLL-07 diagnostic report
 
-
-
-
 ### Phase 74: TikTok Cat Video Search
 **Goal:** Execute TikTok web feed infinite scroll to find cat-containing video via MCP manual tools; fix blockers
 **Depends on:** Phase 73
@@ -427,9 +424,6 @@ Plans:
 - [x] 74-02-PLAN.md -- Execute live MCP TikTok cat video search test, generate SCROLL-08 diagnostic report
 
 
-
-
-
 ### Phase 75: Viewport-Only Pricing Table
 **Goal:** Execute viewport-gated pricing table row extraction via MCP manual tools; fix blockers
 **Depends on:** Phase 74
@@ -442,9 +436,6 @@ Plans:
 Plans:
 - [x] 75-01-PLAN.md -- Create pricing-table.js site guide with viewport-scroll extraction workflow and wire imports
 - [x] 75-02-PLAN.md -- Execute live MCP pricing table extraction test, generate SCROLL-09 diagnostic report
-
-
-
 ### Phase 76: News Site Date-Stop Scroll
 **Goal:** Execute infinite-scroll news site scroll stopping at yesterday's articles via MCP manual tools; fix blockers
 **Depends on:** Phase 75
@@ -457,9 +448,6 @@ Plans:
 Plans:
 - [x] 76-01-PLAN.md -- Create news-feed.js site guide with date-based scroll-stop workflow and wire imports
 - [x] 76-02-PLAN.md -- Execute live MCP news feed date-stop scroll test, generate SCROLL-10 diagnostic report
-
-
-
 
 
 ### Phase 77: Live Sports Score Monitor
@@ -550,8 +538,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 83-01-PLAN.md -- Create two-factor-auth.js site guide with multi-tab 2FA workflow and CONTEXT-07 guidance
+- [ ] 83-02-PLAN.md -- Execute live MCP 2FA multi-tab auth test, generate CONTEXT-07 diagnostic report
 
 ### Phase 84: Google Doc Word Replace
 **Goal:** Execute manual Google Doc word replacement of "synergy" with "collaboration" (no Find/Replace) via MCP manual tools; fix blockers
