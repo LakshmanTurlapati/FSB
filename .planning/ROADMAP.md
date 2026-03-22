@@ -648,8 +648,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 92-01-PLAN.md -- Create premium-highlighting.js site guide with selectCheapestFlight workflow and DARK-06 guidance
+- [ ] 92-02-PLAN.md -- Execute live MCP premium highlighting test, generate DARK-06 diagnostic report
 
 ### Phase 93: Hidden Newsletter Uncheck
 **Goal:** Execute hidden pre-checked newsletter subscription uncheck before form submit via MCP manual tools; fix blockers
