@@ -51,7 +51,7 @@
 - [x] **Phase 88: Cookie Opt-Out Hidden Reject** - DARK-02: opt out of non-essential cookies with hidden reject option (completed 2026-03-22)
 - [x] **Phase 89: Shuffled Cancel Button** - DARK-03: cancel subscription on site with shuffled Keep/Cancel buttons (completed 2026-03-22)
 - [x] **Phase 90: Camouflaged Close Button** - DARK-04: close pop-up where X button is camouflaged against background (completed 2026-03-22)
-- [ ] **Phase 91: Adblocker Modal Bypass** - DARK-05: bypass "disable adblocker" modal with no visible DOM exit
+- [x] **Phase 91: Adblocker Modal Bypass** - DARK-05: bypass "disable adblocker" modal with no visible DOM exit (completed 2026-03-22)
 - [ ] **Phase 92: Misleading Premium Highlighting** - DARK-06: select cheapest flight on site with misleading premium highlights
 - [ ] **Phase 93: Hidden Newsletter Uncheck** - DARK-07: uncheck hidden newsletter subscription box before submit
 - [ ] **Phase 94: Buried Login Link** - DARK-08: find actual login link on homepage that prioritizes Sign Up CTAs
@@ -633,10 +633,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 91-01-PLAN.md -- Create adblocker-bypass.js site guide with bypassAdblockerModal workflow and DARK-05 guidance
-- [ ] 91-02-PLAN.md -- Execute live MCP adblocker modal bypass test, generate DARK-05 diagnostic report
+- [x] 91-02-PLAN.md -- Execute live MCP adblocker modal bypass test, generate DARK-05 diagnostic report
 
 ### Phase 92: Misleading Premium Highlighting
 **Goal:** Execute cheapest flight selection on airline site with deceptive premium UI highlighting via MCP manual tools; fix blockers
@@ -751,7 +751,7 @@ Plans:
 | 88. Cookie Opt-Out Hidden Reject | 2/2 | Complete    | 2026-03-22 |
 | 89. Shuffled Cancel Button | 2/2 | Complete    | 2026-03-22 |
 | 90. Camouflaged Close Button | 2/2 | Complete    | 2026-03-22 |
-| 91. Adblocker Modal Bypass | 1/2 | In Progress|  |
+| 91. Adblocker Modal Bypass | 2/2 | Complete   | 2026-03-22 |
 | 92. Misleading Premium Highlighting | 0/1 | Not started | - |
 | 93. Hidden Newsletter Uncheck | 0/1 | Not started | - |
 | 94. Buried Login Link | 0/1 | Not started | - |

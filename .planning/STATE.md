@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 91-01-PLAN.md
-last_updated: "2026-03-22T10:01:13.287Z"
+stopped_at: Completed 91-02-PLAN.md
+last_updated: "2026-03-22T10:10:30.671Z"
 progress:
   total_phases: 50
-  completed_phases: 44
+  completed_phases: 45
   total_plans: 90
-  completed_plans: 89
+  completed_plans: 90
 ---
 
 # Project State
@@ -180,6 +180,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 90]: DARK-04 PARTIAL outcome: BusinessInsider aria-label='Close this ad' validated via Tier 1 attribute detection, delayed appearance (5s rollUpTimeout) confirmed from ad config JSON, live click blocked by WebSocket bridge disconnect
 - [Phase 91]: DOM removal as primary bypass strategy with CSS override as MutationObserver-resistant alternative for DARK-05 adblocker modals
 - [Phase 91]: 4 detection library patterns documented: BlockAdBlock, FuckAdBlock, Admiral, custom bait-div with per-library selectors and detection variables
+- [Phase 91]: CSS override preferred over DOM removal as primary bypass for sites with setInterval re-detection
+- [Phase 91]: BlockAdBlock.com confirmed as canonical DARK-05 pattern: block screen with zero close mechanism, 17 bait IDs, 10s re-check
 
 ### Pending Todos
 
@@ -193,6 +195,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-22T10:01:13.283Z
-Stopped at: Completed 91-01-PLAN.md
+Last session: 2026-03-22T10:10:30.668Z
+Stopped at: Completed 91-02-PLAN.md
 Resume file: None
