@@ -25,7 +25,14 @@ registerSiteGuide({
     /google\.com\/search\?.*q=solitaire/i,
     /google\.com.*[?&]q=solitaire/i
   ],
-  guidance: `GOOGLE SOLITAIRE-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-04):
+- [canvas] Game renders inside IFRAME -- DOM selectors invisible; use CDP click_at/drag exclusively
+- [canvas] Play button needs CDP click (DOM click has no effect due to iframe overlay)
+- [canvas] Start with stock pile draw (single click_at) to confirm game interactivity
+- [canvas] Select Easy mode (1-card draw) for simpler automation
+- [canvas] Consent overlay blocks all clicks -- dismiss via CDP before game interaction
+
+GOOGLE SOLITAIRE-SPECIFIC INTELLIGENCE:
 
 GAME LAUNCH:
 - Search "solitaire" on Google -- game widget appears directly in search results

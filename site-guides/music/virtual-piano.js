@@ -30,7 +30,14 @@ registerSiteGuide({
     /onlinepianist\.com/i,
     /autopiano\.com/i
   ],
-  guidance: `ONLINE VIRTUAL PIANO INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-08):
+- [canvas] Prefer press_key over click_at for keyboard-mapped pianos -- faster, viewport-independent
+- [canvas] Live-verified mapping: t=C4, y=D4, u=E4 (NOT home row A/S/D) on virtualpiano.net
+- [canvas] Click page body FIRST to satisfy browser audio autoplay policy before press_key
+- [canvas] 400ms inter-note delay balances speed and reliability; <200ms risks dropped notes
+- [canvas] Fallback chain: press_key -> DOM click [data-note] -> click_at at calculated key coords
+
+ONLINE VIRTUAL PIANO INTELLIGENCE:
 
 KEYBOARD MAPPING (virtualpiano.net):
 - virtualpiano.net maps keyboard letters to piano notes (LIVE VERIFIED 2026-03-21):

@@ -18,7 +18,14 @@ registerSiteGuide({
   patterns: [
     /photopea\.com/i
   ],
-  guidance: `PHOTOPEA-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-05):
+- [canvas] ENTIRE UI is canvas-rendered -- NO DOM elements for toolbar, menus, or dialogs
+- [canvas] Prefer keyboard shortcuts (W=Magic Wand, B=Brush) -- only reliable tool selection
+- [canvas] Use URL hash (photopea.com#open:IMAGE_URL) to load images -- avoids menu interaction
+- [canvas] Click image corners (offset+10px) for background selection with Magic Wand
+- [canvas] Splash/ad dialog is canvas-painted; Escape does NOT work -- use URL hash to bypass
+
+PHOTOPEA-SPECIFIC INTELLIGENCE:
 
 KEYBOARD SHORTCUTS (preferred for tool selection):
   W = Magic Wand tool (Shift+W toggles to Quick Selection)

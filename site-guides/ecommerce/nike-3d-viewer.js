@@ -18,7 +18,14 @@ registerSiteGuide({
     /nike\.com/i,
     /sketchfab\.com/i
   ],
-  guidance: `3D PRODUCT VIEWER INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-06):
+- [canvas] Half-width horizontal drag = ~180deg rotation; startX=25% width, endX=75% width
+- [canvas] Use steps=30, stepDelayMs=20 for smooth rotation -- fewer steps risk jerky/missed input
+- [canvas] Dismiss cookie consent and region modals BEFORE any canvas interaction
+- [canvas] Shadow DOM in model-viewer: use click_at/drag with outer element bounds, not inner canvas
+- [canvas] Sketchfab is reliable fallback if Nike product lacks 3D view (no auth required)
+
+3D PRODUCT VIEWER INTELLIGENCE:
 
 VIEWER TECHNOLOGY:
 - Nike may use <model-viewer> web component (Google's 3D viewer library)

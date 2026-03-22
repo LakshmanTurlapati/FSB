@@ -16,7 +16,14 @@ registerSiteGuide({
   patterns: [
     /miro\.com/i
   ],
-  guidance: `MIRO-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-10):
+- [canvas] Check for login wall first via read_page; if auth required, fallback to Excalidraw
+- [canvas] Prefer N key shortcut for sticky note creation over toolbar clicks
+- [canvas] Must press V (selection mode) BEFORE dragging -- N mode creates new notes on click
+- [canvas] cdpDrag needs 20+ steps, 15ms delay, and 30px+ distance for Miro to register as move
+- [canvas] Press Escape after type_text to exit edit mode before next action
+
+MIRO-SPECIFIC INTELLIGENCE:
 
 KEYBOARD SHORTCUTS (preferred over toolbar clicks):
   N = Sticky note tool

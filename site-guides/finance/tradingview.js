@@ -9,7 +9,14 @@ registerSiteGuide({
   patterns: [
     /tradingview\.com/i
   ],
-  guidance: `TRADINGVIEW-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-01):
+- [canvas] Prefer cdpClickAt/cdpDrag over DOM click for all chart canvas interactions
+- [canvas] Fibonacci uses click-click pattern (two CDP clicks, NOT drag) for low-high points
+- [canvas] Dismiss sign-up/cookie modals as pre-step before any chart interaction
+- [canvas] Use relative offsets from chart center (center-150px, center+150px) not absolute coords
+- [canvas] Use targeted selectors ([aria-label="Fib retracement"]) to avoid large DOM snapshots
+
+TRADINGVIEW-SPECIFIC INTELLIGENCE:
 
 COMMON PATTERNS:
   # look up a symbol

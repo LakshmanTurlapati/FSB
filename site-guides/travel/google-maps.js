@@ -20,7 +20,14 @@ registerSiteGuide({
     /google\.com\/maps/i,
     /maps\.google\.com/i
   ],
-  guidance: `GOOGLE MAPS-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-03):
+- [canvas] Use scroll_at (CDP mouseWheel) at map center for zoom; repeat 8-12x with wait_for_stable
+- [canvas] cdpDrag PANS the map view -- does NOT draw lines; understand map vs drawing app distinction
+- [canvas] Dismiss consent/cookie popup BEFORE any map interaction -- overlay blocks canvas events
+- [canvas] Side panel is ~408px left; offset canvas center coords when panel is open
+- [canvas] Verify zoom/pan via URL @lat,lng,zoomz format -- most reliable check
+
+GOOGLE MAPS-SPECIFIC INTELLIGENCE:
 
 NAVIGATION:
 - Direct URL navigation: google.com/maps/search/[query] or google.com/maps/@lat,lng,zoom

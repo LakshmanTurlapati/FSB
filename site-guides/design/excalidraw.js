@@ -17,7 +17,14 @@ registerSiteGuide({
   patterns: [
     /excalidraw\.com/i
   ],
-  guidance: `EXCALIDRAW-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-02):
+- [canvas] Prefer keyboard shortcuts (R, F, V) over toolbar DOM clicks for tool selection
+- [canvas] Shape draw pattern: press_key(tool letter) then cdpDrag -- re-press key before each shape
+- [canvas] Multi-select: Ctrl+A (all) or shift+click_at on each shape; rubber-band must fully enclose
+- [canvas] Alignment buttons are standard DOM elements -- use regular click, not CDP events
+- [canvas] React DOM can be very large -- use targeted data-testid selectors to reduce tokens
+
+EXCALIDRAW-SPECIFIC INTELLIGENCE:
 
 KEYBOARD SHORTCUTS (preferred over toolbar clicks):
   R = Rectangle tool

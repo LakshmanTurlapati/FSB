@@ -30,7 +30,14 @@ registerSiteGuide({
     /pdfbuddy\.com/i,
     /pdf\.online/i
   ],
-  guidance: `ONLINE PDF EDITOR-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-09):
+- [canvas] Dual interaction: DOM click for toolbar buttons (Sign/Text), click_at for page placement
+- [canvas] Type signature (not Draw) is simplest for automation -- avoids CDP drag on signature pad
+- [canvas] Signature line target: x=35% page width, y=75% page height from page element top
+- [canvas] Prefer page number input over scrolling for page navigation -- more precise
+- [canvas] Dismiss cookie consent and upgrade modals as pre-step before editor interaction
+
+ONLINE PDF EDITOR-SPECIFIC INTELLIGENCE:
 
 PDF PAGE RENDERING:
 - Online PDF editors render each page as an image (img element) or canvas element inside a scrollable container

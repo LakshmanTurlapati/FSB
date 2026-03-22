@@ -32,7 +32,14 @@ registerSiteGuide({
     /crazygames\.com\/game\//i,
     /poki\.com\/en\/g\//i
   ],
-  guidance: `CANVAS BROWSER GAME INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-07):
+- [canvas] Two-phase pattern: DOM click host "Run game" button, then CDP click_at for canvas buttons
+- [canvas] Express button positions as % of canvas dims (Play ~50%W, 60%H); compute from bounding rect
+- [canvas] If canvas is in iframe, add iframe offset to coordinates for main viewport click_at
+- [canvas] Fallback: press_key(Enter) or press_key(Space) if click_at misses canvas Play button
+- [canvas] Wait 3-10s after "Run game" for engine init before attempting canvas button clicks
+
+CANVAS BROWSER GAME INTELLIGENCE:
 
 GAME LAUNCH:
 - Navigate to the game page URL (e.g., an itch.io game page like https://example.itch.io/game-name)
