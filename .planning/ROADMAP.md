@@ -750,7 +750,7 @@ Plans:
 | 80. Multi-Tab Flight Price Compare | 1/2 | Complete    | 2026-03-22 |
 | 81. Multi-Step Checkout with Correction | 2/2 | Complete    | 2026-03-22 |
 | 82. Support Chatbot 15-Turn Summary | 2/2 | Complete    | 2026-03-22 |
-| 83. 2FA Multi-Tab Auth Flow | 2/2 | Complete   | 2026-03-22 |
+| 83. 2FA Multi-Tab Auth Flow | 2/2 | Complete    | 2026-03-22 |
 | 84. Google Doc Word Replace | 0/1 | Not started | - |
 | 85. CRM vs HR Portal Cross-Reference | 0/1 | Not started | - |
 | 86. Session Expiry Re-Auth | 0/1 | Not started | - |
