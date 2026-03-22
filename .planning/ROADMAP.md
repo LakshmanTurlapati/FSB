@@ -49,7 +49,7 @@
 - [x] **Phase 86: Session Expiry Re-Auth** - CONTEXT-10: handle session expiration modal, re-authenticate, resume task (completed 2026-03-22)
 - [x] **Phase 87: Freeware Download Ad Avoidance** - DARK-01: download file from freeware site ignoring fake download buttons (completed 2026-03-22)
 - [x] **Phase 88: Cookie Opt-Out Hidden Reject** - DARK-02: opt out of non-essential cookies with hidden reject option (completed 2026-03-22)
-- [ ] **Phase 89: Shuffled Cancel Button** - DARK-03: cancel subscription on site with shuffled Keep/Cancel buttons
+- [x] **Phase 89: Shuffled Cancel Button** - DARK-03: cancel subscription on site with shuffled Keep/Cancel buttons (completed 2026-03-22)
 - [ ] **Phase 90: Camouflaged Close Button** - DARK-04: close pop-up where X button is camouflaged against background
 - [ ] **Phase 91: Adblocker Modal Bypass** - DARK-05: bypass "disable adblocker" modal with no visible DOM exit
 - [ ] **Phase 92: Misleading Premium Highlighting** - DARK-06: select cheapest flight on site with misleading premium highlights
@@ -615,10 +615,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 89-01-PLAN.md -- Create shuffled-cancel.js site guide with cancelSubscription workflow and DARK-03 guidance
-- [ ] 89-02-PLAN.md -- Execute live MCP shuffled cancel button test, generate DARK-03 diagnostic report
+- [x] 89-02-PLAN.md -- Execute live MCP shuffled cancel button test, generate DARK-03 diagnostic report
 
 ### Phase 90: Camouflaged Close Button
 **Goal:** Execute pop-up ad close where X is camouflaged against the background via MCP manual tools; fix blockers
@@ -757,7 +757,7 @@ Plans:
 | 86. Session Expiry Re-Auth | 2/2 | Complete    | 2026-03-22 |
 | 87. Freeware Download Ad Avoidance | 1/2 | Complete    | 2026-03-22 |
 | 88. Cookie Opt-Out Hidden Reject | 2/2 | Complete    | 2026-03-22 |
-| 89. Shuffled Cancel Button | 1/2 | In Progress|  |
+| 89. Shuffled Cancel Button | 2/2 | Complete   | 2026-03-22 |
 | 90. Camouflaged Close Button | 0/1 | Not started | - |
 | 91. Adblocker Modal Bypass | 0/1 | Not started | - |
 | 92. Misleading Premium Highlighting | 0/1 | Not started | - |
