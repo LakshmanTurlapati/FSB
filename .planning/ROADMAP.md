@@ -604,8 +604,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 88-01-PLAN.md -- Create cookie-opt-out.js site guide with rejectAllCookies workflow and DARK-02 guidance
+- [ ] 88-02-PLAN.md -- Execute live MCP cookie opt-out test, generate DARK-02 diagnostic report
 
 ### Phase 89: Shuffled Cancel Button
 **Goal:** Execute subscription cancellation on site with randomized Keep/Cancel button positions via MCP manual tools; fix blockers
