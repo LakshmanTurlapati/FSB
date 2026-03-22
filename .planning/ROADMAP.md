@@ -674,8 +674,9 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 94-01-PLAN.md -- Create buried-login-link.js site guide with findBuriedLoginLink workflow and DARK-08 guidance
+- [ ] 94-02-PLAN.md -- Execute live MCP buried login link test, generate DARK-08 diagnostic report
+
 
 ### Phase 95: Skip Ad Countdown
 **Goal:** Execute video player Skip Ad button click after 5-second countdown completes via MCP manual tools; fix blockers

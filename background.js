@@ -191,6 +191,7 @@ importScripts('site-guides/utilities/camouflaged-close.js');
 importScripts('site-guides/utilities/adblocker-bypass.js');
 importScripts('site-guides/utilities/premium-highlighting.js');
 importScripts('site-guides/utilities/newsletter-uncheck.js');
+importScripts('site-guides/utilities/buried-login-link.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
