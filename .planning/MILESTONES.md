@@ -1,5 +1,114 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.7 MCP Edge Case Validation (Shipped: 2026-03-22)
+
+**Phases completed:** 50 phases, 100 plans, 183 tasks
+
+**Key accomplishments:**
+
+- CDP-based click_at and drag MCP tools for canvas interaction using Input.dispatchMouseEvent trusted events
+- CANVAS-01 validated PASS: Fibonacci retracement drawn on TradingView via CDP click_at (click-click pattern, all 7 levels confirmed)
+- CDP click_at and drag tools now accept shift/ctrl/alt modifiers, enabling shift+click multi-select and constrained drag in canvas apps
+- Excalidraw site guide created and live MCP test confirms canvas drawing workflow (press_key + cdpDrag) works; multi-select/alignment blocked by MCP server restart needed for modifier params
+- CDP mouseWheel tool for coordinate-targeted zoom on Google Maps and canvas apps, dispatching trusted Input.dispatchMouseEvent at specific viewport coordinates
+- Google Maps site guide with 15 selectors, zoom/pan/search workflows, and CANVAS-03 diagnostic report (PARTIAL -- tooling ready, live test deferred to human checkpoint)
+- Google Solitaire site guide with Klondike card game DOM selectors, click/drag card interaction workflows, and background.js registration
+- Live MCP test of Google Solitaire revealing iframe-hosted game requires CDP coordinate tools (click_at/drag), not DOM selectors -- PARTIAL outcome with key architectural discovery
+- Photopea site guide with magic wand background removal workflow, Photoshop keyboard shortcuts, and canvas/toolbar DOM split
+- CANVAS-05 PARTIAL: Photopea editor launches and CDP clicks register, but entire UI is canvas-rendered with zero DOM elements -- all site guide selectors invalid
+- Nike 3D viewer site guide with model-viewer/WebGL canvas selectors, Sketchfab fallback, and half-width horizontal drag rotation workflow for 180-degree shoe rotation
+- Live MCP CDP drag on Sketchfab Nike Air Jordan 3D viewer -- rotation confirmed via horizontal drag, PARTIAL outcome human-approved
+- Canvas browser game site guide with pixel-coordinate click_at workflows for fully canvas-rendered HTML5/WebGL game buttons
+- CANVAS-07 live MCP test with PARTIAL outcome -- CDP click_at confirmed on Poki/Crossy Road game iframe, canvas button targeting blocked by game loading ads
+- Online piano site guide for virtualpiano.net with press_key keyboard mapping (A=C4,S=D4,D=E4), DOM click, and click_at canvas fallback workflows for playing E-D-C-D (Mary Had a Little Lamb)
+- CANVAS-08 PASS: all 4 notes of Mary Had a Little Lamb (E-D-C-D) played via press_key debuggerAPI on virtualpiano.net with corrected keyboard mapping (t=C4, y=D4, u=E4)
+- Online PDF editor site guide with signature placement workflows for Smallpdf/Sejda/DocHub targeting click_at page placement and DOM click toolbar interaction
+- CANVAS-09 PARTIAL outcome -- Smallpdf navigation confirmed via live MCP, DOM-based UI verified, signature placement blocked by WebSocket bridge disconnect
+- Miro whiteboard site guide with sticky note creation, drag-to-cluster, and full 12-step clustering workflow using CDP canvas events
+- CANVAS-10 diagnostic report with SKIP-AUTH outcome: Miro requires sign-in, 14-step test plan documented, 10 autopilot recommendations including Excalidraw fallback
+- HTML5 video player site guide with click_at/drag volume slider workflows targeting 37% precision, supporting Vimeo, Dailymotion, JW Player, Plyr, and Video.js
+- MICRO-01 diagnostic report with PARTIAL outcome -- click_at/drag tools confirmed capable for volume slider precision, live execution blocked by WebSocket bridge disconnect, 10 autopilot recommendations documented
+- click_and_hold CDP tool wired through all three MCP layers (manual.ts, actions.js, background.js) with mousePressed -> holdMs delay -> mouseReleased, plus voice recorder site guide with dual record workflows
+- MICRO-02 diagnostic report with PARTIAL outcome -- click_and_hold tool chain verified across all layers, live execution blocked by WebSocket bridge disconnect, 10 autopilot recommendations for hold/toggle recording
+- drag_drop MCP tool exposing DOM-level 3-method fallback chain (HTML5 DragEvent, PointerEvent, MouseEvent) with Trello site guide 3-tier drag-and-drop reorder workflow
+- MICRO-03 diagnostic report with PARTIAL outcome: drag_drop MCP tool chain verified complete with 3-method fallback, Trello 3-tier workflow ready, live Kanban card reorder blocked by WebSocket bridge disconnect
+- select_text_range MCP tool with TreeWalker-based Range API substring selection, plus Wikipedia site guide with highlightSentence workflow for MICRO-04 sentence targeting
+- MICRO-04 diagnostic report with PARTIAL outcome: select_text_range tool chain validated against live Albert Einstein article content, sentence boundary detection confirmed (offsets 113-345 for second sentence), live browser execution blocked by WebSocket bridge disconnect
+- Color picker site guide with selectCustomHex workflow covering hue strip positioning, shade area reticle targeting, and hex value readout using click_at/drag CDP tools
+- MICRO-05 diagnostic report generated with live DOM validation confirming all 6 colorpicker.me selectors, critical hue formula inversion bug found, 10 autopilot recommendations for coordinate-based color picker interaction
+- Carousel site guide with scrollCarouselHorizontally workflow covering arrow buttons, scroll_at deltaX, and drag swipe methods with vertical scroll verification
+- MICRO-06 carousel diagnostic with PARTIAL outcome -- Target.com carousel selectors validated against live DOM, 10 autopilot recommendations, WebSocket bridge persistent blocker
+- Mega-menu site guide with two interaction strategies (DOM hover+click for JS menus, CDP drag+click_at for CSS :hover menus) covering Best Buy, Home Depot, and Lowes
+- MICRO-07 PARTIAL: Lowes.com mega-menu DOM validated (click-to-open modal pattern with data-linkid selectors), physical hover/click blocked by WebSocket bridge disconnect
+- drop_file MCP tool with synthetic File + DataTransfer + DragEvent dispatch, plus file-upload site guide with simulateFileUpload workflow covering Dropzone.js, react-dropzone, and native HTML5 patterns
+- MICRO-08 diagnostic report with PARTIAL outcome: drop_file tool chain validated, DOM selectors tested against three live sites (dropzone.dev, file.io, gofile.io), WebSocket bridge disconnect blocked physical DragEvent dispatch
+- drag_variable_speed MCP tool with quadratic ease-in-out timing curve and slider-captcha site guide with solveSliderCaptcha workflow for GEETEST/Tencent/generic slider CAPTCHAs
+- MICRO-09 diagnostic report with PARTIAL outcome: drag_variable_speed tool chain validated at code level, GEETEST JS-rendered DOM structure documented, live MCP execution blocked by WebSocket bridge disconnect (persistent blocker Phases 55-65)
+- Podcast audio timeline scrub site guide with click_at/drag workflows for seeking to 14:22 (862s), covering 12 podcast platforms with 5-second tolerance verification
+- MICRO-10 diagnostic report with PARTIAL outcome -- Buzzsprout DOM validated (native range input, aria-valuemax=2144, 40.2% position calculation), Spreaker Alpine.js SPA confirmed, live CDP execution blocked by WebSocket bridge disconnect
+- Twitter site guide updated with scrollAndCountPosts workflow, virtualized DOM recycling documentation, and permalink-based deduplication for extracting the 150th post from infinite scroll feed
+- SCROLL-01 PARTIAL: X/Twitter SPA architecture confirmed (245KB React shell, zero server-rendered tweets), all 10 selectors UNTESTABLE without live browser, WebSocket bridge disconnect blocks MCP execution (Phases 55-67)
+- Amazon site guide updated with 14-step scrapeAllSearchResults workflow using ASIN-based deduplication for paginated 500+ product name extraction
+- SCROLL-02 diagnostic report with PARTIAL outcome -- Amazon paginated selectors validated via HTTP on amazon.in, ASIN deduplication confirmed with 3 cross-page overlaps, live MCP execution blocked by WebSocket bridge disconnect
+- GitHub site guide updated with 12-step findLogEntryByDate workflow, 8 activity feed selectors, relative-time datetime parsing, and href-based event deduplication for SCROLL-03
+- SCROLL-03 PARTIAL: GitHub activity timeline structure validated, target date (March 18) confirmed via contribution calendar and REST API (5 torvalds commits extracted), live MCP scroll-through-feed blocked by WebSocket bridge disconnect
+- Reddit site guide updated with scrollToBottomAndReply workflow, 12 comment selectors for both new Reddit (Shreddit) and old Reddit, load-more-comments expansion pattern, and SKIP-AUTH reply documentation
+- SCROLL-04 PARTIAL: old.reddit.com thread validated with 184/3342 server-rendered comments, 73 load-more buttons identified, last comment identified (kalaban101 at 09:36:59Z), reply auth-gated as SKIP-AUTH, live MCP scroll loop blocked by WebSocket bridge disconnect
+- pdf.js virtualized viewer site guide with readVirtualizedDocument workflow (14 steps), textLayer text extraction, page virtualization detection, and 4 workflows for scroll-and-read automation
+- SCROLL-05 diagnostic report with PARTIAL outcome -- pdf.js viewer validated via HTTP + viewer.mjs source analysis confirming textLayer/virtualization architecture, 4 selector corrections found, 10 autopilot recommendations, live MCP blocked by WebSocket bridge disconnect
+- HN site guide with expandAllThreads workflow (12-step paginated expansion cycle), countComments workflow, 14 selectors, and full page navigation documentation for 1000+ comment threads
+- SCROLL-06 HN thread expansion diagnostic with HTTP DOM validation across 3 threads (1115, 2530, 2507 comments), finding that HN loads all comments on a single page with no morelink pagination on comment threads
+- Airbnb site guide updated with 11-step panMapForListings workflow, 9 map selectors, CDP drag panning strategy, and pin-count verification for SCROLL-07 edge case
+- SCROLL-07 diagnostic report with PARTIAL outcome -- Airbnb map container validated via data-testid, listing pins confirmed client-rendered, live CDP drag panning blocked by WebSocket bridge disconnect
+- TikTok site guide with scrollFeedForCatVideo workflow using data-e2e selectors, search-page-first auth avoidance, and cat keyword matching in video descriptions
+- SCROLL-08 diagnostic report with PARTIAL outcome -- TikTok fully client-rendered SPA returns zero content in server HTML, all 11 data-e2e selectors untestable via HTTP, live MCP blocked by WebSocket bridge disconnect
+- SaaS pricing table site guide with 15-step scroll-read-deduplicate extraction workflow, 18+ selectors, and Notion/Airtable targeting for SCROLL-09
+- SCROLL-09 diagnostic report with PARTIAL outcome: Notion pricing page fully server-rendered (58 rows in 429KB HTML), generic table selectors 0/6 match, CSS Module prefix matching required, live scroll-read-deduplicate loop blocked by WebSocket bridge disconnect
+- News feed site guide with 15-step scrollToYesterdaysArticles workflow, 21 selectors (generic + BBC/CNN/Reuters), and datetime-preferred date detection for SCROLL-10
+- SCROLL-10 PARTIAL outcome: BBC News 47 articles validated via HTTP with 15 yesterday articles confirmed from __NEXT_DATA__ JSON, live scroll-stop loop blocked by WebSocket bridge disconnect
+- ESPN scoreboard site guide with 17-step monitorLiveScores polling workflow, 20+ selectors (generic + ESPN/CBS/NBA-specific), and snapshot-based change detection for 30-minute sustained monitoring
+- CONTEXT-01 diagnostic with PARTIAL outcome: ESPN NBA scoreboard HTTP polling confirmed 3 score changes across 5 polls (Thunder 69->73, Wizards 64->70), 13/27 selectors matched, 2-snapshot retention validated, 30-minute sustained polling blocked by WebSocket bridge disconnect
+- Observable notebook editing site guide with forkAndEditCell workflow (15-step fork/tinker + cell edit sequence), verifyCellUnchanged workflow, 16 selectors, CodeMirror 6 interaction patterns, and background.js wiring
+- CONTEXT-02 diagnostic with PARTIAL outcome: Observable notebook HTTP-validated (38 cells via __NEXT_DATA__ JSON), all 16 cell selectors client-rendered only, context bloat analysis showing breadth-based mitigation via targeted getText, live cell editing blocked by WebSocket bridge disconnect
+- readPdfAndFillForm workflow and cross-site context retention guidance added to pdf-viewer.js for 50-page PDF to web form data transfer
+- CONTEXT-03 PARTIAL diagnostic: pdf.js viewer toolbar (6/16 selectors match) and httpbin form (4 text-fillable fields) validated via HTTP, cross-site PDF-to-form chain blocked by WebSocket bridge disconnect
+- compareFlightsMultiTab workflow and CONTEXT-04 guidance added to google-travel.js with 18-step multi-tab comparison sequence, tab lifecycle docs, and context bloat mitigation (under 2500 chars for 5 tabs)
+- CONTEXT-04 diagnostic report with PARTIAL outcome: Google Flights HTTP-validated with 12+ server-rendered flight suggestions containing prices in aria-labels, 5-tab open_tab/switch_tab/list_tabs workflow documented but blocked by WebSocket bridge disconnect, Context Bloat Analysis showing 97-99% savings from targeted price-only extraction
+- Demo-store.js site guide with 14-step multiStepCheckoutWithCorrection workflow targeting 5 auth-free e-commerce stores for CONTEXT-05 zip correction and tax verification
+- CONTEXT-05 PARTIAL outcome: SauceDemo validated as best checkout correction target with data-test selectors for postalCode input and tax summary, but all 5 demo stores use flat tax (not zip-dependent), and live MCP execution blocked by persistent WebSocket bridge disconnect
+- Support chatbot site guide with 13-step chatbot15TurnSummary workflow, CONTEXT-06 15-turn conversation strategy, iframe-aware widget detection, and context bloat mitigation for multi-turn exchanges
+- CONTEXT-06 diagnostic report with PARTIAL outcome: 5 chatbot targets HTTP-validated (tidio.com, crisp.chat, drift.com, hubspot.com, intercom.com), context bloat analysis showing 92-97% savings via compact turn tracking, 10 chatbot-specific autopilot recommendations, zero conversation turns due to WebSocket bridge disconnect
+- Two-factor-auth.js site guide with twoFactorMultiTab workflow documenting multi-tab 2FA authentication flow (login, email code fetch, tab switch, code entry) for CONTEXT-07
+- CONTEXT-07 diagnostic report with PARTIAL outcome: 5 login targets and guerrillamail validated via HTTP, 9/14 selectors confirmed, 85-95% context savings from compact {authTabId, emailTabId, code} state tracking, live MCP blocked by WebSocket bridge disconnect
+- manualWordReplace workflow with 5-phase Ctrl+F/double-click/type strategy for canvas-based Google Docs word replacement without Find/Replace dialog
+- SKIP-AUTH diagnostic for Google Doc manual word replacement -- Ctrl+F search delegation saves 83-96% context, all 10 selectors untestable via HTTP due to auth gate
+- crm-hr-cross-ref.js site guide with crossReferenceEmployees 12-step workflow, CONTEXT-09 batch processing guidance for 50-name CRM-to-HR cross-reference, selectors for DemoQA and herokuapp, 5 auth-free fallback targets
+- CONTEXT-09 PARTIAL diagnostic: HR portal (herokuapp) fully validated with 7/12 selectors confirmed, CRM (DemoQA) client-rendered, DummyJSON fallback CRM with 208 users, 0 cross-reference matches (independent datasets), 84-96% context savings from batch-of-10 extraction with HR caching
+- Session expiry site guide with 14-step handleSessionExpiry workflow, 4 detection patterns, and CONTEXT-10 context bloat mitigation via compact task state under 500 chars
+- CONTEXT-10 diagnostic with PARTIAL outcome: herokuapp login selectors validated, session expiry via 302 redirect confirmed, 243-byte compact task state under 500-char budget, 10 autopilot recommendations for re-auth handling
+- Freeware download site guide with 12-step downloadRealFile workflow, 8 ad detection heuristics, and elimination-based real link identification for DARK-01 dark pattern avoidance
+- DARK-01 PARTIAL: SourceForge VLC real download button identified via 8-heuristic elimination (a.button.download.big-text.green), zero server-rendered fake download buttons found, 22 ad/promotional elements classified, live click blocked by WebSocket bridge disconnect
+- Cookie consent dark pattern avoidance site guide with 5-CMP detection, 3-tier hidden reject strategy, and 10-step rejectAllCookies workflow for EU news sites
+- DARK-02 diagnostic with PARTIAL outcome: 5 EU news sites validated via HTTP confirming Sourcepoint/iubenda/custom CMP detection, 100% JS-rendered consent UIs, 3 selector mismatches, and 10 cookie consent dark pattern autopilot recommendations
+- Shuffled-cancel.js site guide with DARK-03 cancelSubscription workflow using text-based button identification for randomized Keep/Cancel positions
+- DARK-03 diagnostic with PARTIAL outcome: userinyerface.com cancel modal validated via HTTP with trick-question "Cancel" = keep-intent pattern, Math.random/Shuffle randomization confirmed in app.js, text-based classification validated across 7 targets, and 10 shuffled button autopilot recommendations
+- DARK-04 closePopupAd workflow with 3-tier DOM-based close button detection, decoy filtering, iframe handling, and 5 fallback dismissal strategies for camouflaged pop-up ad overlays
+- DARK-04 PARTIAL: BusinessInsider aria-label="Close this ad" with SVG close-icon validated via Tier 1 attribute detection, delayed appearance (5s rollUpTimeout) confirmed from ad config JSON, live click blocked by WebSocket bridge disconnect
+- DARK-05 adblocker modal bypass site guide with 8-step bypassAdblockerModal workflow, DOM removal and CSS override strategies, 4 detection library patterns, and MutationObserver re-detection handling
+- DARK-05 diagnostic report with PARTIAL outcome: 5 live targets HTTP-validated (BlockAdBlock, Forbes, Wired, BusinessInsider, DetectAdBlock), adblocker detection infrastructure confirmed, all modals 100% JavaScript-rendered, DOM removal and CSS override bypass strategies validated against documented library patterns
+- DARK-06 site guide with selectCheapestFlight 8-step workflow using numeric price comparison to defeat 7 misleading premium highlighting techniques across 5 airline sites
+- PARTIAL outcome diagnostic for misleading premium highlighting: 12 Google Flights + 329 Kayak prices extracted via HTTP, cheapest identified ($56 ATL-TPA, $20 Kayak global), badge manipulation confirmed (Kayak "Best" is composite not cheapest), live click blocked by WebSocket bridge disconnect
+- Newsletter-uncheck.js site guide with DARK-07 uncheckNewsletterBeforeSubmit workflow documenting 8 hiding techniques, checkbox classification strategy, and pre-checked newsletter detection using DOM-only analysis
+- DARK-07 PARTIAL diagnostic: 2 of 4 targets HTTP-validated, 89% checkbox classification accuracy, 9/11 selectors matched, 10 autopilot recommendations for pre-checked newsletter detection and unchecking
+- DARK-08 site guide with findBuriedLoginLink workflow using text-based login vs signup classification across header, footer, hamburger menu, and signup page fallback locations
+- DARK-08 diagnostic report with HTTP validation across 5 SaaS homepages confirming login link identification via text/href classification on 4 sites, login:signup ratio 1:3 to 1:5, and CTA asymmetry on 3/4 sites
+- DARK-09 skip-ad-countdown site guide with temporal gating workflow using wait_for_element to detect skip button appearance after pre-roll ad countdown, covering YouTube/Dailymotion/Twitch/JW Player/VAST/Vimeo
+- DARK-09 diagnostic report with PARTIAL outcome -- HTTP validation confirms ad infrastructure on YouTube/Dailymotion/Twitch (adPlacements JSON, skip feature flags, client-side ad modules) with all skip button elements confirmed 100% client-rendered, wait_for_element validated as correct temporal gating counter-strategy, live execution blocked by WebSocket bridge disconnect
+- DARK-10 site guide with extractProtectedText workflow documenting 8 anti-scrape protection types, 6 target sites, and DOM-level bypass strategies using get_dom_snapshot, read_page, and get_text
+- DARK-10 PARTIAL diagnostic: Genius lyrics (1.18MB, styled-components sc-HASH) and NYTimes (1.34MB, Emotion css-HASH) both server-render text extractable via structural selectors despite class obfuscation; 3/5 sites blocked by HTTP-level bot detection; live MCP blocked by WebSocket bridge disconnect
+
+---
+
 ## v0.9.5 Progress Overlay Intelligence (Shipped: 2026-03-17)
 
 **Delivered:** Enhanced the automation progress overlay with AI-generated live action summaries, smart task-aware progress/ETA estimation, fixed debug feedback leaking to the overlay, and wired debug intelligence back into the AI continuation prompt for better recovery decisions.
@@ -152,6 +261,7 @@
 **Phases completed:** 1-11 (24 plans total, Phase 10 deferred)
 
 **Key accomplishments:**
+
 - Selector generation with uniqueness scoring and coordinate fallback when all selectors fail
 - Element readiness checks (visibility, interactability, obscuration) before every action
 - Orange glow visual highlighting and progress overlay using Shadow DOM isolation
@@ -162,6 +272,7 @@
 - Control panel cleanup: removed dead UI code, wired Debug Mode and Test API settings
 
 **Stats:**
+
 - 18 files created/modified
 - 43,283 lines of JavaScript
 - 11 phases, 24 plans
@@ -200,4 +311,3 @@
 **Known issues:** ACCEL-01, ACCEL-02, ACCEL-05 traceability table not updated to Complete (requirements checked off in body)
 
 ---
-

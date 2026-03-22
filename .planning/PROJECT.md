@@ -67,6 +67,10 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Multi-site and Sheets workflow-specific progress tracking -- v0.9.5
 - ✓ AI-generated live action summaries with cache and timeout -- v0.9.5
 - ✓ Overlay UX polish (task summary line, recovery state, phase debounce) -- v0.9.5
+- ✓ 50 MCP edge case prompts validated across canvas, micro-interaction, scroll, context, and dark pattern categories -- v0.9.7
+- ✓ 6 new CDP tools (scroll_at, click_and_hold, drag_drop, select_text_range, drop_file, drag_variable_speed) -- v0.9.7
+- ✓ 30+ site guides created/updated with real-world automation intelligence -- v0.9.7
+- ✓ 50 autopilot diagnostic reports with 500+ recommendations catalogued -- v0.9.7
 
 ### Active
 
@@ -91,38 +95,17 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - Headless server-side execution -- server is relay only, user's browser must stay active
 - Video/screenshot streaming -- DOM cloning with CDN images, not visual capture
 
-## Current Milestone: v0.9.7 MCP Edge Case Validation
+## Previous Milestone: v0.9.7 Shipped
 
-**Goal:** Systematically test all 50 edge case prompts through FSB's MCP manual mode, fix every blocker found in-phase, and generate autopilot diagnostic reports -- building the evidence base for a future autopilot refinement milestone.
-
-**Target features:**
-- Execute each of 50 edge case prompts via MCP manual tools (no vision, DOM only)
-- Fix tool/extension bugs discovered during each test in-phase
-- Document what works, what fails, and what autopilot would struggle with
-- Generate per-prompt autopilot diagnostic report
-- Skip only prompts requiring paid auth with no free alternative
-
-**Approach:** Each phase = one edge case prompt. Try it, fix blockers, document findings.
+**Shipped:** 2026-03-22. MCP Edge Case Validation -- 50 edge case prompts tested via MCP manual mode across canvas, micro-interaction, infinite scroll, context bloat, and dark pattern categories. 6 new CDP tools added, 30+ site guides created, 50 diagnostic reports generated. Evidence base built for autopilot refinement.
 
 ## Previous State: v0.9.6 Shipped
 
-**Shipped:** 2026-03-19. Agents & Remote Control -- WebSocket relay, QR pairing, dashboard, DOM cloning, MCP server with WebSocket bridge (7 phases, phases 40-46). Plus mid-milestone MCP fixes: observability tools, verb mapping fixes (18/28 broken verbs corrected), progress wiring, memory leak fix.
-
-## Previous State: v0.9.5 Shipped
-
-**Shipped:** 2026-03-17. Progress overlay intelligence — AI-generated live action summaries, phase-weighted progress, debug intelligence pipeline, overlay UX polish (17 requirements, 4 phases).
-
-## Previous State: v0.9.4 Shipped
-
-**Shipped:** 2026-03-17. Three milestones completed in a single day:
-
-**v0.9.2 Productivity Site Intelligence** — Site guides with fsbElements, keyboard-first workflows for Notion, Calendar, Trello, Keep, Todoist, Airtable, Jira (17 requirements)
-**v0.9.3 Memory Tab Overhaul** — Unified Task Memory schema, consolidated recon reports, graph visualization, export/import (10 requirements)
-**v0.9.4 AI Perception & Action Quality** — Scroll-aware snapshots, 8-point diagnostics, stability detection, parallel debug fallback (20 requirements)
+**Shipped:** 2026-03-19. Agents & Remote Control -- WebSocket relay, QR pairing, dashboard, DOM cloning, MCP server with WebSocket bridge (7 phases, phases 40-46).
 
 ## Context
 
-**Previous milestones:** v0.9 (Reliability), v9.0.2 (AI Situational Awareness), v9.3 (Tech Debt), v9.4 (Career Search), v10.0 (CLI Architecture), v0.9.2 (Productivity Sites), v0.9.3 (Memory Tab), v0.9.4 (AI Quality), v0.9.5 (Progress Overlay Intelligence)
+**Previous milestones:** v0.9 (Reliability), v9.0.2 (AI Situational Awareness), v9.3 (Tech Debt), v9.4 (Career Search), v10.0 (CLI Architecture), v0.9.2 (Productivity Sites), v0.9.3 (Memory Tab), v0.9.4 (AI Quality), v0.9.5 (Progress Overlay Intelligence), v0.9.6 (Agents & Remote Control), v0.9.7 (MCP Edge Case Validation)
 
 **Tech stack:** Chrome Extension Manifest V3, vanilla JavaScript (ES2021+), xAI Grok / OpenAI / Anthropic / Gemini / OpenRouter APIs.
 **Codebase:** background.js (~11K lines), ai-integration.js (~5K lines), content/ modules (10 files), 50+ site guide files, CLI parser (cli-parser.js), Task Memory system.
@@ -180,4 +163,4 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | 300ms phase label debounce | Only debounce generic labels, bypass for explicit statusText | Good -- no flicker, AI summaries still instant |
 
 ---
-*Last updated: 2026-03-17 after v0.9.6 milestone started*
+*Last updated: 2026-03-22 after v0.9.7 milestone*
