@@ -759,7 +759,7 @@ Plans:
 | 77. Live Sports Score Monitor | 2/2 | Complete    | 2026-03-21 |
 | 78. Observable Notebook Edit | 2/2 | Complete    | 2026-03-21 |
 | 79. 50-Page PDF Form Fill | 2/2 | Complete    | 2026-03-22 |
-| 80. Multi-Tab Flight Price Compare | 1/2 | In Progress|  |
+| 80. Multi-Tab Flight Price Compare | 1/2 | Complete    | 2026-03-22 |
 | 81. Multi-Step Checkout with Correction | 0/1 | Not started | - |
 | 82. Support Chatbot 15-Turn Summary | 0/1 | Not started | - |
 | 83. 2FA Multi-Tab Auth Flow | 0/1 | Not started | - |
