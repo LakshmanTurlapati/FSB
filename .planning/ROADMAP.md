@@ -537,8 +537,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [x] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 82-01-PLAN.md -- Create support-chatbot.js site guide with 15-turn conversation workflow and CONTEXT-06 guidance
+- [ ] 82-02-PLAN.md -- Execute live MCP 15-turn chatbot conversation test, generate CONTEXT-06 diagnostic report
 
 ### Phase 83: 2FA Multi-Tab Auth Flow
 **Goal:** Execute 2FA flow with new tab email code fetch and return to complete login via MCP manual tools; fix blockers
