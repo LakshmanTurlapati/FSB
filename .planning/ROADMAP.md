@@ -524,8 +524,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 82: Support Chatbot 15-Turn Summary
 **Goal:** Execute 15-turn support chatbot conversation then summarize first instruction via MCP manual tools; fix blockers
@@ -537,8 +537,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 83: 2FA Multi-Tab Auth Flow
 **Goal:** Execute 2FA flow with new tab email code fetch and return to complete login via MCP manual tools; fix blockers
@@ -550,8 +550,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 84: Google Doc Word Replace
 **Goal:** Execute manual Google Doc word replacement of "synergy" with "collaboration" (no Find/Replace) via MCP manual tools; fix blockers
@@ -563,8 +563,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 85: CRM vs HR Portal Cross-Reference
 **Goal:** Execute 50-employee name cross-reference between web CRM and HR portal via MCP manual tools; fix blockers
@@ -576,8 +576,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 86: Session Expiry Re-Auth
 **Goal:** Execute session expiration modal handling, re-authentication, and task resumption via MCP manual tools; fix blockers
@@ -589,8 +589,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 87: Freeware Download Ad Avoidance
 **Goal:** Execute freeware site real download while ignoring fake "Download Now" ad buttons via MCP manual tools; fix blockers
@@ -602,8 +602,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 88: Cookie Opt-Out Hidden Reject
 **Goal:** Execute EU news site full cookie opt-out with hidden reject button via MCP manual tools; fix blockers
@@ -615,8 +615,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 89: Shuffled Cancel Button
 **Goal:** Execute subscription cancellation on site with randomized Keep/Cancel button positions via MCP manual tools; fix blockers
@@ -628,8 +628,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 90: Camouflaged Close Button
 **Goal:** Execute pop-up ad close where X is camouflaged against the background via MCP manual tools; fix blockers
@@ -641,8 +641,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 91: Adblocker Modal Bypass
 **Goal:** Execute "disable adblocker" modal bypass with no visible DOM exit button via MCP manual tools; fix blockers
@@ -654,8 +654,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 92: Misleading Premium Highlighting
 **Goal:** Execute cheapest flight selection on airline site with deceptive premium UI highlighting via MCP manual tools; fix blockers
@@ -667,8 +667,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 93: Hidden Newsletter Uncheck
 **Goal:** Execute hidden pre-checked newsletter subscription uncheck before form submit via MCP manual tools; fix blockers
@@ -680,8 +680,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 94: Buried Login Link
 **Goal:** Execute login link discovery on homepage dominated by Sign Up CTAs via MCP manual tools; fix blockers
@@ -693,8 +693,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 95: Skip Ad Countdown
 **Goal:** Execute video player Skip Ad button click after 5-second countdown completes via MCP manual tools; fix blockers
@@ -706,8 +706,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 96: Anti-Scrape Site Text Extraction
 **Goal:** Execute text extraction from site blocking right-clicks, disabling selection, and masking CSS classes via MCP manual tools; fix blockers
@@ -719,8 +719,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ## Progress Table
 
