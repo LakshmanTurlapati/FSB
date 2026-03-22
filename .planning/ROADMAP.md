@@ -498,8 +498,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 64-01-PLAN.md -- Create drop_file MCP tool, file-upload site guide, and wire imports
-- [ ] 64-02-PLAN.md -- Execute live MCP dropzone file upload test, generate MICRO-08 diagnostic report
+- [ ] 79-01-PLAN.md -- Add readPdfAndFillForm workflow and CONTEXT-03 guidance to pdf-viewer.js
+- [ ] 79-02-PLAN.md -- Execute live MCP PDF-to-form test, generate CONTEXT-03 diagnostic report
 
 ### Phase 80: Multi-Tab Flight Price Compare
 **Goal:** Execute 5-tab flight price comparison then return to cheapest tab via MCP manual tools; fix blockers
