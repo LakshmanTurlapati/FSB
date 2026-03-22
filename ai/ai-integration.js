@@ -4236,7 +4236,13 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       'dragdrop', 'togglecheck',
 
       // Content reading tools
-      'readPage'
+      'readPage',
+
+      // CDP coordinate tools (v0.9.8 -- tool parity with MCP)
+      'cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt',
+
+      // Text selection and file tools (v0.9.8 -- tool parity with MCP)
+      'selectTextRange', 'dropfile'
     ].includes(tool);
   }
   
