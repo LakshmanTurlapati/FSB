@@ -180,6 +180,7 @@ importScripts('site-guides/utilities/carousel.js');
 importScripts('site-guides/utilities/color-picker.js');
 importScripts('site-guides/utilities/file-upload.js');
 importScripts('site-guides/utilities/slider-captcha.js');
+importScripts('site-guides/utilities/support-chatbot.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
