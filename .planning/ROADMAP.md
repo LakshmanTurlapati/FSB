@@ -551,8 +551,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 84-01-PLAN.md -- Update google-docs.js site guide with manualWordReplace workflow and CONTEXT-08 guidance
+- [ ] 84-02-PLAN.md -- Execute live MCP Google Doc word replacement test, generate CONTEXT-08 diagnostic report
 
 ### Phase 85: CRM vs HR Portal Cross-Reference
 **Goal:** Execute 50-employee name cross-reference between web CRM and HR portal via MCP manual tools; fix blockers
