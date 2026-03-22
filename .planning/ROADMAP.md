@@ -659,10 +659,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [x] 93-01-PLAN.md -- Create newsletter-uncheck.js site guide with uncheckNewsletterBeforeSubmit workflow and DARK-07 guidance
+- [ ] 93-02-PLAN.md -- Execute live MCP newsletter uncheck test, generate DARK-07 diagnostic report
 
 ### Phase 94: Buried Login Link
 **Goal:** Execute login link discovery on homepage dominated by Sign Up CTAs via MCP manual tools; fix blockers
@@ -753,7 +753,7 @@ Plans:
 | 90. Camouflaged Close Button | 2/2 | Complete    | 2026-03-22 |
 | 91. Adblocker Modal Bypass | 2/2 | Complete    | 2026-03-22 |
 | 92. Misleading Premium Highlighting | 1/2 | Complete    | 2026-03-22 |
-| 93. Hidden Newsletter Uncheck | 0/1 | Not started | - |
+| 93. Hidden Newsletter Uncheck | 1/2 | In Progress|  |
 | 94. Buried Login Link | 0/1 | Not started | - |
 | 95. Skip Ad Countdown | 0/1 | Not started | - |
 | 96. Anti-Scrape Site Text Extraction | 0/1 | Not started | - |
