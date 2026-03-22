@@ -577,8 +577,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 86-01-PLAN.md -- Create session-expiry.js site guide with handleSessionExpiry workflow and CONTEXT-10 guidance
+- [ ] 86-02-PLAN.md -- Execute live MCP session expiry re-auth test, generate CONTEXT-10 diagnostic report
 
 ### Phase 87: Freeware Download Ad Avoidance
 **Goal:** Execute freeware site real download while ignoring fake "Download Now" ad buttons via MCP manual tools; fix blockers
