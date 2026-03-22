@@ -757,7 +757,7 @@ Plans:
 | 86. Session Expiry Re-Auth | 2/2 | Complete    | 2026-03-22 |
 | 87. Freeware Download Ad Avoidance | 1/2 | Complete    | 2026-03-22 |
 | 88. Cookie Opt-Out Hidden Reject | 2/2 | Complete    | 2026-03-22 |
-| 89. Shuffled Cancel Button | 2/2 | Complete   | 2026-03-22 |
+| 89. Shuffled Cancel Button | 2/2 | Complete    | 2026-03-22 |
 | 90. Camouflaged Close Button | 0/1 | Not started | - |
 | 91. Adblocker Modal Bypass | 0/1 | Not started | - |
 | 92. Misleading Premium Highlighting | 0/1 | Not started | - |
