@@ -4,11 +4,11 @@ milestone: v0.9.7
 milestone_name: milestone
 status: unknown
 stopped_at: Completed 95-02-PLAN.md
-last_updated: "2026-03-22T11:35:58.135Z"
+last_updated: "2026-03-22T11:42:39.345Z"
 progress:
   total_phases: 50
   completed_phases: 49
-  total_plans: 98
+  total_plans: 100
   completed_plans: 98
 ---
 
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 95 — skip-ad-countdown
+**Current focus:** Phase 96 — anti-scrape-site-text-extraction
 
 ## Current Position
 
-Phase: 96
-Plan: Not started
+Phase: 96 (anti-scrape-site-text-extraction) — EXECUTING
+Plan: 1 of 2
 
 ## Accumulated Context
 
