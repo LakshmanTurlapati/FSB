@@ -564,8 +564,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 85-01-PLAN.md -- Create crm-hr-cross-ref.js site guide with crossReferenceEmployees workflow and CONTEXT-09 guidance
+- [ ] 85-02-PLAN.md -- Execute live MCP CRM-HR cross-reference test, generate CONTEXT-09 diagnostic report
 
 ### Phase 86: Session Expiry Re-Auth
 **Goal:** Execute session expiration modal handling, re-authentication, and task resumption via MCP manual tools; fix blockers
