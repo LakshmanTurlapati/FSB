@@ -68,7 +68,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 - [x] **DARK-05**: MCP can bypass "disable adblocker" modal with no visible DOM exit button
 - [x] **DARK-06**: MCP can select cheapest flight on airline site with misleading premium highlighting
 - [x] **DARK-07**: MCP can uncheck hidden "subscribe to newsletter" box injected before submit
-- [ ] **DARK-08**: MCP can find actual login link on homepage that prioritizes Sign Up CTAs
+- [x] **DARK-08**: MCP can find actual login link on homepage that prioritizes Sign Up CTAs
 - [ ] **DARK-09**: MCP can click Skip Ad button on video player when 5-second countdown finishes
 - [ ] **DARK-10**: MCP can scrape text from site that blocks right-clicks, disables selection, masks CSS classes
 
@@ -142,7 +142,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | DARK-05 | Phase 91 | Complete |
 | DARK-06 | Phase 92 | Complete |
 | DARK-07 | Phase 93 | Complete |
-| DARK-08 | Phase 94 | Pending |
+| DARK-08 | Phase 94 | Complete |
 | DARK-09 | Phase 95 | Pending |
 | DARK-10 | Phase 96 | Pending |
 

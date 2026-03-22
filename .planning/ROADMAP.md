@@ -672,9 +672,9 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 94-01-PLAN.md -- Create buried-login-link.js site guide with findBuriedLoginLink workflow and DARK-08 guidance
+- [x] 94-01-PLAN.md -- Create buried-login-link.js site guide with findBuriedLoginLink workflow and DARK-08 guidance
 - [ ] 94-02-PLAN.md -- Execute live MCP buried login link test, generate DARK-08 diagnostic report
 
 
@@ -755,7 +755,7 @@ Plans:
 | 91. Adblocker Modal Bypass | 2/2 | Complete    | 2026-03-22 |
 | 92. Misleading Premium Highlighting | 1/2 | Complete    | 2026-03-22 |
 | 93. Hidden Newsletter Uncheck | 2/2 | Complete    | 2026-03-22 |
-| 94. Buried Login Link | 0/1 | Not started | - |
+| 94. Buried Login Link | 1/2 | In Progress|  |
 | 95. Skip Ad Countdown | 0/1 | Not started | - |
 | 96. Anti-Scrape Site Text Extraction | 0/1 | Not started | - |
 
