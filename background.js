@@ -181,6 +181,7 @@ importScripts('site-guides/utilities/color-picker.js');
 importScripts('site-guides/utilities/file-upload.js');
 importScripts('site-guides/utilities/slider-captcha.js');
 importScripts('site-guides/utilities/support-chatbot.js');
+importScripts('site-guides/utilities/two-factor-auth.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
