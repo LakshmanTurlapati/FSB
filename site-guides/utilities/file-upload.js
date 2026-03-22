@@ -36,7 +36,14 @@ registerSiteGuide({
     /gofile\.io/i,
     /catbox\.moe/i
   ],
-  guidance: `FILE UPLOAD DROPZONE INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic MICRO-08):
+- [micro] Use drop_file tool with most specific selector (#id preferred over class)
+- [micro] Dropzone elements may be JS-rendered (SPA) -- wait_for_stable before scanning
+- [micro] Check input[type=file] accept attribute to match mimeType before dropping
+- [micro] Verify file acceptance via DOM snapshot: file name visible, progress bar, .dz-success
+- [micro] Fallback: click dropzone to trigger file input, though native picker blocks automation
+
+FILE UPLOAD DROPZONE INTELLIGENCE:
 
 DROPZONE ANATOMY:
 - A file upload dropzone is an area on the page where users can drag and drop

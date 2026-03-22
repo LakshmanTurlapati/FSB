@@ -12,7 +12,14 @@ registerSiteGuide({
     /trello\.com\/c\//i,
     /trello\.com\/w\//i
   ],
-  guidance: `TRELLO-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic MICRO-03):
+- [micro/drag] 3-tier drag: drag_drop(holdMs=200) first, CDP drag second, Move button UI third
+- [micro/drag] react-beautiful-dnd needs holdMs>=200 and PointerEvent sequence to recognize drag
+- [micro/drag] Verify card moved: compare list contents before/after via get_dom_snapshot
+- [micro/drag] If auth required, use free no-auth Kanban demo sites as fallback
+- [micro/drag] Detect rbd via [data-rbd-draggable-id] markers to tune drag parameters
+
+TRELLO-SPECIFIC INTELLIGENCE:
 
 KEYBOARD-FIRST INTERACTION:
   Trello has excellent built-in keyboard shortcuts. Prefer these over click actions.

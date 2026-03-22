@@ -31,7 +31,14 @@ registerSiteGuide({
     /bbc\.com/i,
     /nytimes\.com/i
   ],
-  guidance: `HORIZONTAL CAROUSEL SCROLL INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic MICRO-06):
+- [micro] Arrow buttons are preferred -- zero vertical scroll risk, work on all carousel types
+- [micro] scroll_at(deltaX=300, deltaY=0) coords MUST be inside carousel bounds to avoid page scroll
+- [micro] Verify scrollY unchanged before/after to confirm no vertical scroll leak
+- [micro] Hover carousel container first if arrow buttons are hidden until mouseover
+- [micro] Detect framework from DOM classes: .slick-*, .swiper-*, .a-carousel-* for best strategy
+
+HORIZONTAL CAROUSEL SCROLL INTELLIGENCE:
 
 CAROUSEL ANATOMY:
 - A horizontal carousel is a row of items (cards, images, products) inside a

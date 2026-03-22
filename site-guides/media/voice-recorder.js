@@ -29,7 +29,14 @@ registerSiteGuide({
     /rev\.com\/voice-recorder/i,
     /voca\.ro/i
   ],
-  guidance: `ONLINE VOICE RECORDER INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic MICRO-02):
+- [micro] Default to toggle-to-record (click start, wait, click stop); try click_and_hold as fallback
+- [micro] Detect hold vs toggle: check button text for "Hold to record" before choosing method
+- [micro] Use holdMs=6000 (not 5000) to account for MediaRecorder startup delay
+- [micro] Verify recording via timer>=4s, playback controls appearing, or download button
+- [micro] Microphone permission dialog is native -- cannot auto-grant; document as skip-auth if blocked
+
+ONLINE VOICE RECORDER INTELLIGENCE:
 
 RECORD BUTTON ANATOMY:
 - Online voice recorders typically have a prominent circular record button, often

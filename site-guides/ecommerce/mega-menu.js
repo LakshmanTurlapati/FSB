@@ -30,7 +30,14 @@ registerSiteGuide({
     /newegg\.com/i,
     /overstock\.com/i
   ],
-  guidance: `MEGA-MENU NAVIGATION INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic MICRO-07):
+- [micro] Detect trigger type first: data-method="post" buttons = click; <a> with hidden panel = hover
+- [micro] Three strategies: DOM hover (JS menus), CDP coord hover (CSS :hover), click-to-open (modals)
+- [micro] Sustain hover 300-500ms before re-snapshotting DOM for menu panel appearance
+- [micro] Use data-* attributes (data-linkid, data-testid) not styled-components class hashes
+- [micro] L-shaped cursor path: move down into panel first, then horizontal to sub-link
+
+MEGA-MENU NAVIGATION INTELLIGENCE:
 
 MEGA-MENU ANATOMY:
 - A mega-menu is a large dropdown panel that appears when hovering over a

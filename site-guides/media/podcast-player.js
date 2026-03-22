@@ -40,7 +40,14 @@ registerSiteGuide({
     /pocketcasts\.com/i,
     /castbox\.fm/i
   ],
-  guidance: `PODCAST AUDIO TIMELINE SCRUB INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic MICRO-10):
+- [micro] click_at on progress bar at (targetSec/totalSec)*trackWidth is preferred seek method
+- [micro] Extract duration from data-duration attr or aria-valuemax on range input
+- [micro] Click play button FIRST to load audio before attempting timeline scrub
+- [micro] Verify via time display text parsed to seconds; accept +/-5s tolerance
+- [micro] SPA players (Alpine.js, React) need wait_for_element before DOM scan
+
+PODCAST AUDIO TIMELINE SCRUB INTELLIGENCE:
 
 AUDIO TIMELINE ANATOMY:
 - Podcast players render a horizontal progress bar (timeline/scrubber) showing

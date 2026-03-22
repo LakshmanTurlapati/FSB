@@ -32,7 +32,14 @@ registerSiteGuide({
     /plyr\.io/i,
     /videojs\.com/i
   ],
-  guidance: `HTML5 VIDEO PLAYER VOLUME SLIDER INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic MICRO-01):
+- [micro] Default to click_at on slider track (single action); drag thumb only if click_at fails
+- [micro] Formula: targetX = Math.round(track_left + percentage * track_width), targetY = center
+- [micro] Hover player container FIRST to reveal hidden volume controls before interaction
+- [micro] Verify via aria-valuenow (0-1 or 0-100 scale); accept +/-2% tolerance for pixel rounding
+- [micro] Avoid mute button adjacent to slider -- verify target is input/slider, not button
+
+HTML5 VIDEO PLAYER VOLUME SLIDER INTELLIGENCE:
 
 VOLUME SLIDER ANATOMY:
 - Custom HTML5 video players render volume as a horizontal or vertical slider track

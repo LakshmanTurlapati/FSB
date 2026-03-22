@@ -38,7 +38,14 @@ registerSiteGuide({
     /slider-captcha/i,
     /slide-to-fit/i
   ],
-  guidance: `SLIDER CAPTCHA (SLIDE-TO-FIT PUZZLE) INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic MICRO-09):
+- [micro] Always use drag_variable_speed (ease-in-out) not constant-speed drag for CAPTCHAs
+- [micro] Recommended params: steps=25, minDelayMs=5, maxDelayMs=45 for human-like movement
+- [micro] GEETEST widget is fully JS-rendered -- wait_for_element before scanning for slider
+- [micro] Estimate target at 50-60% track width; retry +/-20px on failure (max 3 attempts)
+- [micro] Check for iframe: CAPTCHA providers often render in iframe requiring coord adjustment
+
+SLIDER CAPTCHA (SLIDE-TO-FIT PUZZLE) INTELLIGENCE:
 
 CAPTCHA ANATOMY:
 - A slide-to-fit CAPTCHA presents a background image with a puzzle-piece-shaped gap.

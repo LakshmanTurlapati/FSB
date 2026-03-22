@@ -25,7 +25,14 @@ registerSiteGuide({
     /color-hex\.com/i,
     /coolors\.co/i
   ],
-  guidance: `COLOR PICKER INTERACTION INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic MICRO-05):
+- [micro] Hue direction varies by site: colorpicker.me maps 360 at TOP, 0 at BOTTOM (inverted)
+- [micro] click_at is sufficient -- no drag needed; mousedown handler updates color on single click
+- [micro] Shade area: S increases left-to-right, V DECREASES top-to-bottom (y = (1-V)*height)
+- [micro] Direct hex input (#enter-color + Enter) is reliable fallback bypassing coord calculation
+- [micro] Verify hex via RGB channel tolerance (+/-15 per channel) not exact string match
+
+COLOR PICKER INTERACTION INTELLIGENCE:
 
 COLOR PICKER ANATOMY:
 - Two primary controls: HUE STRIP (1D) and SHADE AREA (2D)

@@ -22,7 +22,14 @@ registerSiteGuide({
     /\w+\.wikipedia\.org/i,
     /wikipedia\.org\/wiki\//i
   ],
-  guidance: `WIKIPEDIA TEXT SELECTION INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic MICRO-04):
+- [micro] Use select_text_range (TreeWalker+Range API) not CDP drag for text selection
+- [micro] Filter empty <p> elements before counting -- p:nth-of-type(N) includes empties
+- [micro] Sentence boundary: use ". [A-Z]" pattern; skip abbreviations (Dr., U.S., e.g.)
+- [micro] Citation text [10] shifts offsets -- calculate from raw textContent, do NOT strip
+- [micro] Verify selectedText starts uppercase, ends period, contains expected keywords
+
+WIKIPEDIA TEXT SELECTION INTELLIGENCE:
 
 ARTICLE CONTENT STRUCTURE:
 - All article text lives inside #mw-content-text .mw-parser-output
