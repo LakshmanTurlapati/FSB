@@ -705,8 +705,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 96-01-PLAN.md -- Create anti-scrape-text-extraction.js site guide with extractProtectedText workflow and DARK-10 guidance
+- [ ] 96-02-PLAN.md -- Execute live MCP anti-scrape text extraction test, generate DARK-10 diagnostic report
 
 ## Progress Table
 
@@ -761,7 +761,7 @@ Plans:
 | 93. Hidden Newsletter Uncheck | 2/2 | Complete    | 2026-03-22 |
 | 94. Buried Login Link | 2/2 | Complete    | 2026-03-22 |
 | 95. Skip Ad Countdown | 2/2 | Complete    | 2026-03-22 |
-| 96. Anti-Scrape Site Text Extraction | 0/1 | Not started | - |
+| 96. Anti-Scrape Site Text Extraction | 0/2 | Not started | - |
 
 ---
 *Roadmap created: 2026-03-19*
