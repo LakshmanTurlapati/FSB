@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 86-01-PLAN.md
-last_updated: "2026-03-22T08:12:30.120Z"
+stopped_at: Completed 86-02-PLAN.md
+last_updated: "2026-03-22T08:22:46.400Z"
 progress:
   total_phases: 50
-  completed_phases: 39
+  completed_phases: 40
   total_plans: 80
-  completed_plans: 79
+  completed_plans: 80
 ---
 
 # Project State
@@ -167,6 +167,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 85]: Batch-of-10 extraction pattern for CRM-to-HR cross-reference with under-3000-char context budget; DemoQA webtables + herokuapp sortable tables as auth-free primary targets
 - [Phase 85]: CONTEXT-09 PARTIAL outcome: HR portal fully server-rendered and validated, CRM target client-rendered (React SPA shell), DummyJSON as fallback CRM, 84-96% context savings from batch-of-10 extraction with HR caching
 - [Phase 86]: the-internet.herokuapp.com as primary session expiry target with simulated logout; 4 detection patterns (modal, redirect, banner, HTTP error); compact task state under 500 chars for CONTEXT-10
+- [Phase 86]: CONTEXT-10 PARTIAL: 9/15 selectors validated, 302 redirect session expiry detection confirmed, 243-byte compact state under 500-char budget, live MCP blocked by WebSocket bridge disconnect
 
 ### Pending Todos
 
@@ -180,6 +181,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-22T08:12:30.089Z
-Stopped at: Completed 86-01-PLAN.md
+Last session: 2026-03-22T08:22:46.397Z
+Stopped at: Completed 86-02-PLAN.md
 Resume file: None
