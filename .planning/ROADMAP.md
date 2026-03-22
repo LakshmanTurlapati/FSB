@@ -52,7 +52,7 @@
 - [x] **Phase 89: Shuffled Cancel Button** - DARK-03: cancel subscription on site with shuffled Keep/Cancel buttons (completed 2026-03-22)
 - [x] **Phase 90: Camouflaged Close Button** - DARK-04: close pop-up where X button is camouflaged against background (completed 2026-03-22)
 - [x] **Phase 91: Adblocker Modal Bypass** - DARK-05: bypass "disable adblocker" modal with no visible DOM exit (completed 2026-03-22)
-- [ ] **Phase 92: Misleading Premium Highlighting** - DARK-06: select cheapest flight on site with misleading premium highlights
+- [x] **Phase 92: Misleading Premium Highlighting** - DARK-06: select cheapest flight on site with misleading premium highlights (completed 2026-03-22)
 - [ ] **Phase 93: Hidden Newsletter Uncheck** - DARK-07: uncheck hidden newsletter subscription box before submit
 - [ ] **Phase 94: Buried Login Link** - DARK-08: find actual login link on homepage that prioritizes Sign Up CTAs
 - [ ] **Phase 95: Skip Ad Countdown** - DARK-09: click Skip Ad button after 5-second countdown finishes
@@ -646,10 +646,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 Plans:
 - [x] 92-01-PLAN.md -- Create premium-highlighting.js site guide with selectCheapestFlight workflow and DARK-06 guidance
-- [ ] 92-02-PLAN.md -- Execute live MCP premium highlighting test, generate DARK-06 diagnostic report
+- [x] 92-02-PLAN.md -- Execute live MCP premium highlighting test, generate DARK-06 diagnostic report
 
 ### Phase 93: Hidden Newsletter Uncheck
 **Goal:** Execute hidden pre-checked newsletter subscription uncheck before form submit via MCP manual tools; fix blockers
