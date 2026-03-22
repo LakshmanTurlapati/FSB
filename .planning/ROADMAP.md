@@ -41,7 +41,7 @@
 - [x] **Phase 78: Observable Notebook Edit** - CONTEXT-02: fork Observable notebook, modify cell 3 data without altering cell 1 (completed 2026-03-21)
 - [x] **Phase 79: 50-Page PDF Form Fill** - CONTEXT-03: read 50-page PDF then fill form with details from pages 4, 17, 42 (completed 2026-03-22)
 - [x] **Phase 80: Multi-Tab Flight Price Compare** - CONTEXT-04: open 5 tabs comparing flight prices, return to cheapest (completed 2026-03-22)
-- [ ] **Phase 81: Multi-Step Checkout with Correction** - CONTEXT-05: complete checkout, input wrong zip, correct it, verify tax updates
+- [x] **Phase 81: Multi-Step Checkout with Correction** - CONTEXT-05: complete checkout, input wrong zip, correct it, verify tax updates (completed 2026-03-22)
 - [ ] **Phase 82: Support Chatbot 15-Turn Summary** - CONTEXT-06: converse with chatbot for 15 turns then summarize first instruction
 - [ ] **Phase 83: 2FA Multi-Tab Auth Flow** - CONTEXT-07: handle 2FA, open new tab to fetch code, return to complete login
 - [ ] **Phase 84: Google Doc Word Replace** - CONTEXT-08: replace every "synergy" with "collaboration" in Google Doc manually
@@ -522,10 +522,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [x] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 82: Support Chatbot 15-Turn Summary
 **Goal:** Execute 15-turn support chatbot conversation then summarize first instruction via MCP manual tools; fix blockers
@@ -537,7 +537,7 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [x] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
 - [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 83: 2FA Multi-Tab Auth Flow
@@ -760,7 +760,7 @@ Plans:
 | 78. Observable Notebook Edit | 2/2 | Complete    | 2026-03-21 |
 | 79. 50-Page PDF Form Fill | 2/2 | Complete    | 2026-03-22 |
 | 80. Multi-Tab Flight Price Compare | 1/2 | Complete    | 2026-03-22 |
-| 81. Multi-Step Checkout with Correction | 1/2 | In Progress|  |
+| 81. Multi-Step Checkout with Correction | 2/2 | Complete   | 2026-03-22 |
 | 82. Support Chatbot 15-Turn Summary | 0/1 | Not started | - |
 | 83. 2FA Multi-Tab Auth Flow | 0/1 | Not started | - |
 | 84. Google Doc Word Replace | 0/1 | Not started | - |

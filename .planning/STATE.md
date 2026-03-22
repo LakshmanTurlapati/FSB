@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 81-01-PLAN.md
-last_updated: "2026-03-22T06:27:25.319Z"
+stopped_at: Completed 81-02-PLAN.md
+last_updated: "2026-03-22T06:40:09.095Z"
 progress:
   total_phases: 50
-  completed_phases: 34
+  completed_phases: 35
   total_plans: 70
-  completed_plans: 69
+  completed_plans: 70
 ---
 
 # Project State
@@ -155,6 +155,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 80]: pIav2d result card selector not found in Google Flights server HTML (0 occurrences in 1.9MB) -- may be client-rendered or renamed
 - [Phase 80]: Context Bloat Analysis: 97-99% savings from targeted price-only extraction (0.5-2.5KB) vs full DOM reads (100-400KB) across 5 airline tabs
 - [Phase 81]: 5 demo store targets prioritized by auth-free checkout: automationexercise.com primary, 4 fallbacks; Alaska 99501 vs New York 10001 for maximum tax differential
+- [Phase 81]: SauceDemo confirmed as best CONTEXT-05 target over automationexercise.com -- stable data-test selectors, editable postalCode field, subtotal/tax/total summary display
+- [Phase 81]: CONTEXT-05 outcome PARTIAL: checkout forms validated across 5 demo stores, clear_input + type_text correction documented, but no demo store has zip-dependent tax and live MCP blocked by WebSocket bridge disconnect
 
 ### Pending Todos
 
@@ -168,6 +170,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-22T06:27:25.316Z
-Stopped at: Completed 81-01-PLAN.md
+Last session: 2026-03-22T06:40:09.091Z
+Stopped at: Completed 81-02-PLAN.md
 Resume file: None
