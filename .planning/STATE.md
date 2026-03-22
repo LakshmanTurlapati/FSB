@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 81-02-PLAN.md
-last_updated: "2026-03-22T06:40:38.863Z"
+stopped_at: Completed 82-01-PLAN.md
+last_updated: "2026-03-22T06:50:56.790Z"
 progress:
   total_phases: 50
   completed_phases: 35
-  total_plans: 70
-  completed_plans: 70
+  total_plans: 72
+  completed_plans: 71
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 81 — multi-step-checkout-with-correction
+**Current focus:** Phase 82 — support-chatbot-15-turn-summary
 
 ## Current Position
 
-Phase: 82
-Plan: Not started
+Phase: 82 (support-chatbot-15-turn-summary) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -157,6 +157,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 81]: 5 demo store targets prioritized by auth-free checkout: automationexercise.com primary, 4 fallbacks; Alaska 99501 vs New York 10001 for maximum tax differential
 - [Phase 81]: SauceDemo confirmed as best CONTEXT-05 target over automationexercise.com -- stable data-test selectors, editable postalCode field, subtotal/tax/total summary display
 - [Phase 81]: CONTEXT-05 outcome PARTIAL: checkout forms validated across 5 demo stores, clear_input + type_text correction documented, but no demo store has zip-dependent tax and live MCP blocked by WebSocket bridge disconnect
+- [Phase 82]: 10 chatbot provider URL patterns covering Intercom, Zendesk, Drift, Crisp, Tawk.to, Freshdesk, HubSpot, Tidio, LiveChat, HelpScout
+- [Phase 82]: Compact turn tracking under 3000 chars for 15-turn conversation context bloat mitigation; three-strategy iframe handling (DOM first, CDP fallback, standalone URL)
 
 ### Pending Todos
 
@@ -170,6 +172,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-22T06:40:09.091Z
-Stopped at: Completed 81-02-PLAN.md
+Last session: 2026-03-22T06:50:56.787Z
+Stopped at: Completed 82-01-PLAN.md
 Resume file: None
