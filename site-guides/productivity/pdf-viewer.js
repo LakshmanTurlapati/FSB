@@ -115,7 +115,42 @@ VERIFICATION:
 - After reading a page's text: verify the text is non-empty and contains recognizable words (not just whitespace)
 - After scrolling back to a previously unloaded page: verify textLayer repopulates with the same content
 - Cross-reference: text from page N should differ from page N+1 (different content)
-- The pdf.js sample document has 14 pages with distinct content on each page -- good for verification`,
+- The pdf.js sample document has 14 pages with distinct content on each page -- good for verification
+
+CROSS-SITE PDF-TO-FORM WORKFLOW (CONTEXT-03):
+- This workflow reads specific pages from a long PDF, extracts key data, then navigates to a separate web form and fills it with the extracted data
+- The challenge is CROSS-SITE CONTEXT RETENTION: data extracted from the PDF viewer must be remembered across a full site navigation to the form page
+- Strategy: extract and store compact text from target pages BEFORE navigating away from the PDF viewer
+- Do NOT read all 50 pages -- only jump to pages 4, 17, and 42 using the page number input (#pageNumber)
+- For each target page: navigate via page input, wait for textLayer to render, extract and store the first 300 characters of page text
+- After extracting all 3 pages: navigate to the web form URL in the SAME tab (the PDF viewer page will be replaced)
+- On the form page: identify form fields by label text or input name/id attributes, clear each field before typing, then type the stored extracted text
+- Form field identification: look for label[for="fieldId"] associations, input[name], input[placeholder], or aria-label attributes
+- Clear field before typing: click on the input to focus, Ctrl+A to select all existing text, then type_text to replace
+- After filling all fields: optionally click a submit button if present, or leave the form filled for verification
+- Context bloat mitigation: store only page text excerpts (not full DOM snapshots), navigate directly to target pages (skip pages 1-3, 5-16, 18-41, 43-50)
+
+TARGET SELECTION (CLAUDE'S DISCRETION):
+- PDF target: any publicly accessible PDF with 50+ pages loaded in a pdf.js viewer. Options:
+  (a) Upload a test PDF to the pdf.js demo viewer: https://mozilla.github.io/pdf.js/web/viewer.html?file=URL
+  (b) Use an existing long PDF already hosted online (e.g., a public government report, academic paper)
+  (c) Any pdf.js-based viewer with a long document already loaded
+- The pdf.js demo viewer only loads its 14-page sample by default -- for a 50-page test, a URL parameter or alternative viewer is needed
+- Form target: any publicly accessible web form with at least 3 text input fields. Options:
+  (a) httpbin.org/forms/post -- simple HTML form with multiple fields (no auth required)
+  (b) Any contact form or test form on a public website
+  (c) A form builder demo page (e.g., Google Forms in view mode, Typeform, JotForm demo)
+- The form needs at least 3 distinct text input fields to receive data from the 3 PDF pages
+- Prefer forms with visible labels for each field (easier for MCP to identify correct fields)
+
+CONTEXT MANAGEMENT FOR 50-PAGE DOCUMENTS:
+- A 50-page PDF can generate 500KB+ of text if all pages are read -- this WILL exhaust context
+- Critical rule: read ONLY the 3 target pages (4, 17, 42), not the entire document
+- Per-page text budget: store first 300 characters of extracted text (enough for form filling, prevents context bloat)
+- Page jump sequence: 4 -> 17 -> 42 (forward order minimizes scroll distance and virtualization churn)
+- Between page jumps: the PDF viewer may virtualize previously loaded pages -- this is expected and acceptable since we stored the text already
+- After extracting all 3 pages of text: the stored text is compact (~900 characters total) and survives site navigation
+- On the form page: type stored text directly, no need to re-read the PDF`,
   selectors: {
     // Viewer container
     viewerContainer: '#viewerContainer, .pdfViewer, [role="document"]',
@@ -197,6 +232,30 @@ VERIFICATION:
       'Scroll back to page 1 using page input',
       'Wait for re-render and read text again',
       'Compare: re-read text should match original stored text'
+    ],
+    readPdfAndFillForm: [
+      'Navigate to a pdf.js viewer URL containing a long PDF document (50+ pages) using navigate tool',
+      'Wait for initial load via wait_for_stable -- verify page elements exist and textLayer has content on page 1',
+      'Check total page count from numPages element -- confirm document has 50+ pages (or at least enough to include pages 4, 17, 42)',
+      'EXTRACT PAGE 4: Type "4" in the page number input (#pageNumber) and press Enter to jump to page 4',
+      'Wait 500-1000ms for page 4 to render (canvas + textLayer population) -- use wait_for_stable or fixed delay',
+      'Read page 4 text: extract all span.textContent from .page[data-page-number="4"] .textLayer and concatenate. Store first 300 characters as page4Text',
+      'EXTRACT PAGE 17: Type "17" in the page number input and press Enter to jump to page 17',
+      'Wait 500-1000ms for page 17 to render',
+      'Read page 17 text: extract spans from .page[data-page-number="17"] .textLayer. Store first 300 characters as page17Text',
+      'EXTRACT PAGE 42: Type "42" in the page number input and press Enter to jump to page 42',
+      'Wait 500-1000ms for page 42 to render',
+      'Read page 42 text: extract spans from .page[data-page-number="42"] .textLayer. Store first 300 characters as page42Text',
+      'VERIFY EXTRACTION: Confirm all 3 text excerpts are non-empty and contain readable words (not just whitespace)',
+      'NAVIGATE TO FORM: Use navigate tool to go to a web form URL (e.g., httpbin.org/forms/post or any form with 3+ text inputs). This replaces the PDF viewer page.',
+      'Wait for form page to load via wait_for_stable',
+      'IDENTIFY FORM FIELDS: Use get_dom_snapshot or read_page to find text input fields (input[type="text"], textarea, or input without type). Map fields to page data: field 1 = page4Text, field 2 = page17Text, field 3 = page42Text',
+      'FILL FIELD 1: Click on the first text input to focus, use Ctrl+A to select any existing text, then type_text with page4Text content',
+      'FILL FIELD 2: Click on the second text input to focus, Ctrl+A to select, type_text with page17Text content',
+      'FILL FIELD 3: Click on the third text input to focus, Ctrl+A to select, type_text with page42Text content',
+      'VERIFY FORM FILLED: Use read_page or get_dom_snapshot to confirm all 3 fields contain the typed text from their respective PDF pages',
+      'Optionally click submit button if present, or leave form filled for human verification',
+      'Record outcomes: pages extracted (4/17/42), text non-empty (yes/no per page), form fields filled (yes/no per field), cross-site context retained (yes/no)'
     ]
   },
   warnings: [
@@ -207,7 +266,8 @@ VERIFICATION:
     'The pdf.js sample document (14 pages) is ideal for testing -- it has distinct text content on each page',
     'Very large PDFs may take several seconds per page render -- increase wait times for 100+ page documents',
     'textLayer text order follows DOM order which matches reading order for most Western documents -- may not work for complex multi-column layouts',
-    'If reading across many pages, extract and store text as you go -- do not rely on being able to read all pages at the end since earlier pages will be virtualized'
+    'If reading across many pages, extract and store text as you go -- do not rely on being able to read all pages at the end since earlier pages will be virtualized',
+    'For CONTEXT-03 (50-page PDF form fill): read ONLY pages 4, 17, and 42 -- do NOT read all 50 pages. Store first 300 characters per page. Total stored text should be under 1000 characters to avoid context bloat during cross-site navigation.'
   ],
   toolPreferences: [
     'Use read_page for initial page verification and DOM structure inspection',
