@@ -252,7 +252,7 @@ const COMMAND_REGISTRY = {
   readsheet:          { tool: 'readsheet',           args: [{ name: 'range', type: 'string' }] },
 
   // -- Mechanical drag-and-drop tool (content-script) --
-  dragdrop:           { tool: 'dragdrop',            args: [{ name: 'sourceRef', type: 'string' }, { name: 'targetRef', type: 'string' }] },
+  dragdrop:           { tool: 'dragdrop',            args: [{ name: 'sourceRef', type: 'string' }, { name: 'targetRef', type: 'string' }, { name: 'steps', type: 'number', optional: true }, { name: 'holdMs', type: 'number', optional: true }, { name: 'stepDelayMs', type: 'number', optional: true }] },
 
   // -- Notion checkbox toggle tool (content-script) --
   togglecheck:        { tool: 'togglecheck',         args: [{ name: 'index', type: 'number' }] },
