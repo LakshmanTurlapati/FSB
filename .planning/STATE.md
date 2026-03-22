@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.8
 milestone_name: Autopilot Refinement
 status: unknown
-stopped_at: Completed 98-01-PLAN.md
-last_updated: "2026-03-22T13:22:56.321Z"
+stopped_at: Completed 99-03-PLAN.md
+last_updated: "2026-03-22T13:55:02Z"
 progress:
   total_phases: 7
-  completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 6
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 98 — prompt-architecture
+**Current focus:** Phase 99 — diagnostic-to-guide-pipeline
 
 ## Current Position
 
-Phase: 98 (prompt-architecture) — EXECUTING
-Plan: 1 of 1
+Phase: 99 (diagnostic-to-guide-pipeline) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Plan: 1 of 1
 | Phase 97 P02 | 2min | 2 tasks | 1 files |
 | Phase 97 P01 | 2min | 2 tasks | 1 files |
 | Phase 98 P01 | 2min | 2 tasks | 1 files |
+| Phase 99 P01 | 4min | 2 tasks | 20 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,7 @@ Recent decisions affecting current work:
 - [Phase 97]: CLI verbs lowercase (clickat) vs camelCase in isValidTool (cdpClickAt) -- matches existing convention split between CLI grammar and FSB.tools keys
 - [Phase 98]: TOOL SELECTION GUIDE placed above CLI COMMAND REFERENCE -- AI reads interaction paradigm guidance before tool details
 - [Phase 98]: PRIORITY TOOLS block prepended per task type -- full CLI table always returned, priority guidance added on top
+- [Phase 99]: Prepend AUTOPILOT STRATEGY HINTS at top of guidance strings (within 500-char continuation prompt window)
 
 ### Pending Todos
 
@@ -79,6 +81,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-22T13:22:56.319Z
-Stopped at: Completed 98-01-PLAN.md
+Last session: 2026-03-22T13:56:48.407Z
+Stopped at: Completed 99-01-PLAN.md
 Resume file: None

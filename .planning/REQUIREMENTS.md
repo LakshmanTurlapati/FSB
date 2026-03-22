@@ -18,7 +18,7 @@ Make the autopilot mode perform as flawlessly as MCP manual mode. The AI (Grok 4
 
 - [x] **PROMPT-01**: System prompt groups tools by interaction type (DOM element, CDP coordinate, text range, file upload) with "when to use which" decision guidance
 - [x] **PROMPT-02**: Task-type detection triggers tool-specific prompt sections -- canvas/map tasks prioritize CDP tools, form tasks prioritize DOM tools, text tasks prioritize selection tools
-- [ ] **PROMPT-03**: v0.9.7 autopilot diagnostic recommendations (500+) wired into site guide files as strategy hints for autopilot mode
+- [x] **PROMPT-03**: v0.9.7 autopilot diagnostic recommendations (500+) wired into site guide files as strategy hints for autopilot mode
 
 ### Memory
 
@@ -70,7 +70,7 @@ Make the autopilot mode perform as flawlessly as MCP manual mode. The AI (Grok 4
 | TOOL-04 | Phase 97 | Complete |
 | PROMPT-01 | Phase 98 | Complete |
 | PROMPT-02 | Phase 98 | Complete |
-| PROMPT-03 | Phase 99 | Pending |
+| PROMPT-03 | Phase 99 | Complete |
 | MEM-01 | Phase 100 | Pending |
 | MEM-02 | Phase 100 | Pending |
 | MEM-03 | Phase 101 | Pending |

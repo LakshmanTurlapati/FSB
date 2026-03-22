@@ -20,7 +20,7 @@
 
 - [x] **Phase 97: Tool Parity** - Register all 7 new CDP tools in autopilot's CLI command table, parser registry, and validation layer (completed 2026-03-22)
 - [x] **Phase 98: Prompt Architecture** - Restructure system prompt with tool grouping by interaction type and task-type conditional sections (completed 2026-03-22)
-- [ ] **Phase 99: Diagnostic-to-Guide Pipeline** - Wire 500+ v0.9.7 diagnostic recommendations into site guide files as autopilot strategy hints
+- [x] **Phase 99: Diagnostic-to-Guide Pipeline** - Wire 500+ v0.9.7 diagnostic recommendations into site guide files as autopilot strategy hints (completed 2026-03-22)
 - [ ] **Phase 100: Procedural Memory** - Extract successful action sequences from Task memories and inject as recommended approaches for matching tasks
 - [ ] **Phase 101: Memory Intelligence** - Auto-consolidation triggers, cross-domain strategy transfer, domain-change refresh, and dead code cleanup
 - [ ] **Phase 102: Robustness Hardening** - Coordinate validation, bidirectional stuck recovery, progressive prompt trimming, and CLI parse retry
@@ -62,11 +62,11 @@ Plans:
   1. Site guide files for sites tested in v0.9.7 contain strategy hints derived from diagnostic report recommendations
   2. When autopilot operates on a site with diagnostic-enriched guides, the strategy hints appear in the continuation prompt context
   3. Diagnostic recommendations are categorized by interaction type (canvas, drag, scroll, dark pattern) in the guide files
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 Plans:
-- [ ] 99-01-PLAN.md -- Enrich CANVAS + MICRO site guides (phases 47-66, 20 guides)
-- [ ] 99-02-PLAN.md -- Enrich SCROLL + CONTEXT site guides (phases 67-86, 19 guides)
-- [ ] 99-03-PLAN.md -- Enrich DARK pattern site guides (phases 87-96, 10 guides)
+- [x] 99-01-PLAN.md -- Enrich CANVAS + MICRO site guides (phases 47-66, 20 guides)
+- [x] 99-02-PLAN.md -- Enrich SCROLL + CONTEXT site guides (phases 67-86, 19 guides)
+- [x] 99-03-PLAN.md -- Enrich DARK pattern site guides (phases 87-96, 10 guides)
 
 ### Phase 100: Procedural Memory
 **Goal**: Autopilot learns from past successes -- completed Task memories become replayable playbooks that inform future identical tasks
@@ -123,7 +123,7 @@ Phase 103 (Validation) requires all other phases complete.
 |-------|----------------|--------|-----------|
 | 97. Tool Parity | 2/2 | Complete    | 2026-03-22 |
 | 98. Prompt Architecture | 1/1 | Complete    | 2026-03-22 |
-| 99. Diagnostic-to-Guide Pipeline | 0/3 | Not started | - |
+| 99. Diagnostic-to-Guide Pipeline | 3/3 | Complete   | 2026-03-22 |
 | 100. Procedural Memory | 0/TBD | Not started | - |
 | 101. Memory Intelligence | 0/TBD | Not started | - |
 | 102. Robustness Hardening | 0/TBD | Not started | - |
