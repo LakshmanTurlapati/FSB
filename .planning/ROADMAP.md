@@ -56,7 +56,7 @@
 - [x] **Phase 93: Hidden Newsletter Uncheck** - DARK-07: uncheck hidden newsletter subscription box before submit (completed 2026-03-22)
 - [x] **Phase 94: Buried Login Link** - DARK-08: find actual login link on homepage that prioritizes Sign Up CTAs (completed 2026-03-22)
 - [x] **Phase 95: Skip Ad Countdown** - DARK-09: click Skip Ad button after 5-second countdown finishes (completed 2026-03-22)
-- [ ] **Phase 96: Anti-Scrape Site Text Extraction** - DARK-10: scrape text from site blocking right-clicks, selection, masking CSS
+- [x] **Phase 96: Anti-Scrape Site Text Extraction** - DARK-10: scrape text from site blocking right-clicks, selection, masking CSS (completed 2026-03-22)
 
 ## Phase Details
 
@@ -703,10 +703,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
-- [ ] 96-01-PLAN.md -- Create anti-scrape-text-extraction.js site guide with extractProtectedText workflow and DARK-10 guidance
-- [ ] 96-02-PLAN.md -- Execute live MCP anti-scrape text extraction test, generate DARK-10 diagnostic report
+- [x] 96-01-PLAN.md -- Create anti-scrape-text-extraction.js site guide with extractProtectedText workflow and DARK-10 guidance
+- [x] 96-02-PLAN.md -- Execute live MCP anti-scrape text extraction test, generate DARK-10 diagnostic report
 
 ## Progress Table
 
@@ -761,7 +761,7 @@ Plans:
 | 93. Hidden Newsletter Uncheck | 2/2 | Complete    | 2026-03-22 |
 | 94. Buried Login Link | 2/2 | Complete    | 2026-03-22 |
 | 95. Skip Ad Countdown | 2/2 | Complete    | 2026-03-22 |
-| 96. Anti-Scrape Site Text Extraction | 0/2 | Not started | - |
+| 96. Anti-Scrape Site Text Extraction | 2/2 | Complete    | 2026-03-22 |
 
 ---
 *Roadmap created: 2026-03-19*
