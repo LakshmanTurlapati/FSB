@@ -53,7 +53,7 @@
 - [x] **Phase 90: Camouflaged Close Button** - DARK-04: close pop-up where X button is camouflaged against background (completed 2026-03-22)
 - [x] **Phase 91: Adblocker Modal Bypass** - DARK-05: bypass "disable adblocker" modal with no visible DOM exit (completed 2026-03-22)
 - [x] **Phase 92: Misleading Premium Highlighting** - DARK-06: select cheapest flight on site with misleading premium highlights (completed 2026-03-22)
-- [ ] **Phase 93: Hidden Newsletter Uncheck** - DARK-07: uncheck hidden newsletter subscription box before submit
+- [x] **Phase 93: Hidden Newsletter Uncheck** - DARK-07: uncheck hidden newsletter subscription box before submit (completed 2026-03-22)
 - [ ] **Phase 94: Buried Login Link** - DARK-08: find actual login link on homepage that prioritizes Sign Up CTAs
 - [ ] **Phase 95: Skip Ad Countdown** - DARK-09: click Skip Ad button after 5-second countdown finishes
 - [ ] **Phase 96: Anti-Scrape Site Text Extraction** - DARK-10: scrape text from site blocking right-clicks, selection, masking CSS
@@ -659,10 +659,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 93-01-PLAN.md -- Create newsletter-uncheck.js site guide with uncheckNewsletterBeforeSubmit workflow and DARK-07 guidance
-- [ ] 93-02-PLAN.md -- Execute live MCP newsletter uncheck test, generate DARK-07 diagnostic report
+- [x] 93-02-PLAN.md -- Execute live MCP newsletter uncheck test, generate DARK-07 diagnostic report
 
 ### Phase 94: Buried Login Link
 **Goal:** Execute login link discovery on homepage dominated by Sign Up CTAs via MCP manual tools; fix blockers
@@ -753,7 +753,7 @@ Plans:
 | 90. Camouflaged Close Button | 2/2 | Complete    | 2026-03-22 |
 | 91. Adblocker Modal Bypass | 2/2 | Complete    | 2026-03-22 |
 | 92. Misleading Premium Highlighting | 1/2 | Complete    | 2026-03-22 |
-| 93. Hidden Newsletter Uncheck | 1/2 | In Progress|  |
+| 93. Hidden Newsletter Uncheck | 2/2 | Complete   | 2026-03-22 |
 | 94. Buried Login Link | 0/1 | Not started | - |
 | 95. Skip Ad Countdown | 0/1 | Not started | - |
 | 96. Anti-Scrape Site Text Extraction | 0/1 | Not started | - |
