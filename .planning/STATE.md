@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 85-01-PLAN.md
-last_updated: "2026-03-22T07:49:11Z"
+stopped_at: Completed 85-02-PLAN.md
+last_updated: "2026-03-22T08:00:59.199Z"
 progress:
   total_phases: 50
-  completed_phases: 38
+  completed_phases: 39
   total_plans: 78
-  completed_plans: 77
+  completed_plans: 78
 ---
 
 # Project State
@@ -165,6 +165,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 84]: Ctrl+F (Find only) instead of Ctrl+H per CONTEXT-08 constraint; double-click word selection for canvas-rendered text; Find toolbar occurrence count for progress tracking
 - [Phase 84]: SKIP-AUTH outcome: Google Docs editing requires signed-in account with no demo mode, anonymous editing, or public editable documents
 - [Phase 85]: Batch-of-10 extraction pattern for CRM-to-HR cross-reference with under-3000-char context budget; DemoQA webtables + herokuapp sortable tables as auth-free primary targets
+- [Phase 85]: CONTEXT-09 PARTIAL outcome: HR portal fully server-rendered and validated, CRM target client-rendered (React SPA shell), DummyJSON as fallback CRM, 84-96% context savings from batch-of-10 extraction with HR caching
 
 ### Pending Todos
 
@@ -178,6 +179,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-22T07:49:11Z
-Stopped at: Completed 85-01-PLAN.md
+Last session: 2026-03-22T08:00:59.171Z
+Stopped at: Completed 85-02-PLAN.md
 Resume file: None

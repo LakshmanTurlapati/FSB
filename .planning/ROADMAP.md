@@ -45,7 +45,7 @@
 - [x] **Phase 82: Support Chatbot 15-Turn Summary** - CONTEXT-06: converse with chatbot for 15 turns then summarize first instruction (completed 2026-03-22)
 - [x] **Phase 83: 2FA Multi-Tab Auth Flow** - CONTEXT-07: handle 2FA, open new tab to fetch code, return to complete login (completed 2026-03-22)
 - [x] **Phase 84: Google Doc Word Replace** - CONTEXT-08: replace every "synergy" with "collaboration" in Google Doc manually (completed 2026-03-22)
-- [ ] **Phase 85: CRM vs HR Portal Cross-Reference** - CONTEXT-09: cross-reference 50 employee names across CRM and HR portal
+- [x] **Phase 85: CRM vs HR Portal Cross-Reference** - CONTEXT-09: cross-reference 50 employee names across CRM and HR portal (completed 2026-03-22)
 - [ ] **Phase 86: Session Expiry Re-Auth** - CONTEXT-10: handle session expiration modal, re-authenticate, resume task
 - [ ] **Phase 87: Freeware Download Ad Avoidance** - DARK-01: download file from freeware site ignoring fake download buttons
 - [ ] **Phase 88: Cookie Opt-Out Hidden Reject** - DARK-02: opt out of non-essential cookies with hidden reject option
@@ -562,10 +562,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 85-01-PLAN.md -- Create crm-hr-cross-ref.js site guide with crossReferenceEmployees workflow and CONTEXT-09 guidance
-- [ ] 85-02-PLAN.md -- Execute live MCP CRM-HR cross-reference test, generate CONTEXT-09 diagnostic report
+- [x] 85-02-PLAN.md -- Execute live MCP CRM-HR cross-reference test, generate CONTEXT-09 diagnostic report
 
 ### Phase 86: Session Expiry Re-Auth
 **Goal:** Execute session expiration modal handling, re-authentication, and task resumption via MCP manual tools; fix blockers
@@ -752,7 +752,7 @@ Plans:
 | 82. Support Chatbot 15-Turn Summary | 2/2 | Complete    | 2026-03-22 |
 | 83. 2FA Multi-Tab Auth Flow | 2/2 | Complete    | 2026-03-22 |
 | 84. Google Doc Word Replace | 2/2 | Complete    | 2026-03-22 |
-| 85. CRM vs HR Portal Cross-Reference | 0/1 | Not started | - |
+| 85. CRM vs HR Portal Cross-Reference | 2/2 | Complete   | 2026-03-22 |
 | 86. Session Expiry Re-Auth | 0/1 | Not started | - |
 | 87. Freeware Download Ad Avoidance | 0/1 | Not started | - |
 | 88. Cookie Opt-Out Hidden Reject | 0/1 | Not started | - |
