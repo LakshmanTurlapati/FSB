@@ -48,7 +48,7 @@
 - [x] **Phase 85: CRM vs HR Portal Cross-Reference** - CONTEXT-09: cross-reference 50 employee names across CRM and HR portal (completed 2026-03-22)
 - [x] **Phase 86: Session Expiry Re-Auth** - CONTEXT-10: handle session expiration modal, re-authenticate, resume task (completed 2026-03-22)
 - [x] **Phase 87: Freeware Download Ad Avoidance** - DARK-01: download file from freeware site ignoring fake download buttons (completed 2026-03-22)
-- [ ] **Phase 88: Cookie Opt-Out Hidden Reject** - DARK-02: opt out of non-essential cookies with hidden reject option
+- [x] **Phase 88: Cookie Opt-Out Hidden Reject** - DARK-02: opt out of non-essential cookies with hidden reject option (completed 2026-03-22)
 - [ ] **Phase 89: Shuffled Cancel Button** - DARK-03: cancel subscription on site with shuffled Keep/Cancel buttons
 - [ ] **Phase 90: Camouflaged Close Button** - DARK-04: close pop-up where X button is camouflaged against background
 - [ ] **Phase 91: Adblocker Modal Bypass** - DARK-05: bypass "disable adblocker" modal with no visible DOM exit
@@ -602,10 +602,10 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 88-01-PLAN.md -- Create cookie-opt-out.js site guide with rejectAllCookies workflow and DARK-02 guidance
-- [ ] 88-02-PLAN.md -- Execute live MCP cookie opt-out test, generate DARK-02 diagnostic report
+- [x] 88-02-PLAN.md -- Execute live MCP cookie opt-out test, generate DARK-02 diagnostic report
 
 ### Phase 89: Shuffled Cancel Button
 **Goal:** Execute subscription cancellation on site with randomized Keep/Cancel button positions via MCP manual tools; fix blockers
@@ -756,7 +756,7 @@ Plans:
 | 85. CRM vs HR Portal Cross-Reference | 2/2 | Complete    | 2026-03-22 |
 | 86. Session Expiry Re-Auth | 2/2 | Complete    | 2026-03-22 |
 | 87. Freeware Download Ad Avoidance | 1/2 | Complete    | 2026-03-22 |
-| 88. Cookie Opt-Out Hidden Reject | 1/2 | In Progress|  |
+| 88. Cookie Opt-Out Hidden Reject | 2/2 | Complete   | 2026-03-22 |
 | 89. Shuffled Cancel Button | 0/1 | Not started | - |
 | 90. Camouflaged Close Button | 0/1 | Not started | - |
 | 91. Adblocker Modal Bypass | 0/1 | Not started | - |
