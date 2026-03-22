@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 94-02-PLAN.md
-last_updated: "2026-03-22T11:14:46.175Z"
+stopped_at: Completed 95-01-PLAN.md
+last_updated: "2026-03-22T11:25:14.598Z"
 progress:
   total_phases: 50
   completed_phases: 48
-  total_plans: 96
-  completed_plans: 96
+  total_plans: 98
+  completed_plans: 97
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 94 — buried-login-link
+**Current focus:** Phase 95 — skip-ad-countdown
 
 ## Current Position
 
-Phase: 95
-Plan: Not started
+Phase: 95 (skip-ad-countdown) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -187,6 +187,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 93]: Exhaustive DOM checkbox scanning as primary strategy -- scan ALL checkboxes then classify by label text keywords
 - [Phase 94]: Text content and href attribute analysis as primary login link identification strategy for DARK-08 buried login links
 - [Phase 94]: Text keyword matching 100% accurate for login link identification across all 4 testable SaaS homepages
+- [Phase 95]: wait_for_element with 15000ms timeout as primary temporal gating counter-strategy for DARK-09 skip ad countdown
+- [Phase 95]: DOM-based click (CSS selector) over click_at (coordinates) for skip button -- position varies by player size and viewport
 
 ### Pending Todos
 
@@ -200,6 +202,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-22T11:14:02.771Z
-Stopped at: Completed 94-02-PLAN.md
+Last session: 2026-03-22T11:25:14.595Z
+Stopped at: Completed 95-01-PLAN.md
 Resume file: None

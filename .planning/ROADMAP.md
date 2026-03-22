@@ -686,9 +686,9 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 95-01-PLAN.md -- Create skip-ad-countdown.js site guide with skipAdCountdown workflow and DARK-09 guidance
+- [x] 95-01-PLAN.md -- Create skip-ad-countdown.js site guide with skipAdCountdown workflow and DARK-09 guidance
 - [ ] 95-02-PLAN.md -- Execute live MCP skip ad countdown test, generate DARK-09 diagnostic report
 
 
@@ -760,7 +760,7 @@ Plans:
 | 92. Misleading Premium Highlighting | 1/2 | Complete    | 2026-03-22 |
 | 93. Hidden Newsletter Uncheck | 2/2 | Complete    | 2026-03-22 |
 | 94. Buried Login Link | 2/2 | Complete    | 2026-03-22 |
-| 95. Skip Ad Countdown | 0/1 | Not started | - |
+| 95. Skip Ad Countdown | 1/2 | In Progress|  |
 | 96. Anti-Scrape Site Text Extraction | 0/1 | Not started | - |
 
 ---
