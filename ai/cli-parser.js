@@ -257,6 +257,22 @@ const COMMAND_REGISTRY = {
   // -- Notion checkbox toggle tool (content-script) --
   togglecheck:        { tool: 'togglecheck',         args: [{ name: 'index', type: 'number' }] },
 
+  // -- CDP coordinate tools (v0.9.8 -- tool parity with MCP) --
+  clickat:              { tool: 'cdpClickAt',           args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
+  cdpclickat:           { tool: 'cdpClickAt',           args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
+  clickandhold:         { tool: 'cdpClickAndHold',      args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
+  cdpclickandhold:      { tool: 'cdpClickAndHold',      args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
+  drag:                 { tool: 'cdpDrag',              args: [{ name: 'startX', type: 'number' }, { name: 'startY', type: 'number' }, { name: 'endX', type: 'number' }, { name: 'endY', type: 'number' }] },
+  cdpdrag:              { tool: 'cdpDrag',              args: [{ name: 'startX', type: 'number' }, { name: 'startY', type: 'number' }, { name: 'endX', type: 'number' }, { name: 'endY', type: 'number' }] },
+  dragvariablespeed:    { tool: 'cdpDragVariableSpeed', args: [{ name: 'startX', type: 'number' }, { name: 'startY', type: 'number' }, { name: 'endX', type: 'number' }, { name: 'endY', type: 'number' }] },
+  cdpdragvariablespeed: { tool: 'cdpDragVariableSpeed', args: [{ name: 'startX', type: 'number' }, { name: 'startY', type: 'number' }, { name: 'endX', type: 'number' }, { name: 'endY', type: 'number' }] },
+  scrollat:             { tool: 'cdpScrollAt',          args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
+  cdpscrollat:          { tool: 'cdpScrollAt',          args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
+
+  // -- Text selection and file tools (v0.9.8 -- tool parity with MCP) --
+  selecttextrange:      { tool: 'selectTextRange',      args: [{ name: 'ref', type: 'ref' }, { name: 'startOffset', type: 'number' }, { name: 'endOffset', type: 'number' }] },
+  dropfile:             { tool: 'dropfile',             args: [{ name: 'ref', type: 'ref' }, { name: 'fileName', type: 'string', optional: true }, { name: 'fileContent', type: 'string', optional: true }, { name: 'mimeType', type: 'string', optional: true }] },
+
   // -- Signal commands (not dispatched as actions) --
   done:               { tool: '__done', args: [{ name: 'message', type: 'string', optional: true }], signal: 'done' },
   fail:               { tool: '__fail', args: [{ name: 'message', type: 'string', optional: true }], signal: 'fail' },
