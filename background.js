@@ -158,6 +158,7 @@ importScripts('site-guides/productivity/airtable.js');
 importScripts('site-guides/productivity/pdf-editor.js');
 importScripts('site-guides/productivity/pdf-viewer.js');
 importScripts('site-guides/productivity/pricing-table.js');
+importScripts('site-guides/productivity/crm-hr-cross-ref.js');
 
 // Per-site guides: Design & Whiteboard
 importScripts('site-guides/design/_shared.js');
