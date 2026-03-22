@@ -183,6 +183,7 @@ importScripts('site-guides/utilities/file-upload.js');
 importScripts('site-guides/utilities/slider-captcha.js');
 importScripts('site-guides/utilities/support-chatbot.js');
 importScripts('site-guides/utilities/two-factor-auth.js');
+importScripts('site-guides/utilities/session-expiry.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
