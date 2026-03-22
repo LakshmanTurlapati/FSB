@@ -56,7 +56,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 - [x] **CONTEXT-06**: MCP can converse with support chatbot for 15 turns then summarize first instruction
 - [x] **CONTEXT-07**: MCP can handle 2FA flow (trigger email code, open new tab to fetch, return to complete login)
 - [x] **CONTEXT-08**: MCP can edit Google Doc replacing every "synergy" with "collaboration" without Find/Replace
-- [ ] **CONTEXT-09**: MCP can cross-reference 50 employee names in web CRM against separate HR portal
+- [x] **CONTEXT-09**: MCP can cross-reference 50 employee names in web CRM against separate HR portal
 - [ ] **CONTEXT-10**: MCP can handle session expiration modal, re-authenticate, and resume previous task
 
 ### Visual Ambiguity & Dark Patterns
@@ -133,7 +133,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | CONTEXT-06 | Phase 82 | Complete |
 | CONTEXT-07 | Phase 83 | Complete |
 | CONTEXT-08 | Phase 84 | Complete |
-| CONTEXT-09 | Phase 85 | Pending |
+| CONTEXT-09 | Phase 85 | Complete |
 | CONTEXT-10 | Phase 86 | Pending |
 | DARK-01 | Phase 87 | Pending |
 | DARK-02 | Phase 88 | Pending |

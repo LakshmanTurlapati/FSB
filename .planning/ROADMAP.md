@@ -564,7 +564,7 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 85-01-PLAN.md -- Create crm-hr-cross-ref.js site guide with crossReferenceEmployees workflow and CONTEXT-09 guidance
+- [x] 85-01-PLAN.md -- Create crm-hr-cross-ref.js site guide with crossReferenceEmployees workflow and CONTEXT-09 guidance
 - [ ] 85-02-PLAN.md -- Execute live MCP CRM-HR cross-reference test, generate CONTEXT-09 diagnostic report
 
 ### Phase 86: Session Expiry Re-Auth
