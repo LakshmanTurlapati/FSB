@@ -67,7 +67,56 @@ SHARE AND COLLABORATE:
 - Share button is in the top-right corner of the document
 - Click Share to open the sharing dialog
 - Type email addresses to share with specific people
-- Change permissions (Viewer, Commenter, Editor) via the dropdown`,
+- Change permissions (Viewer, Commenter, Editor) via the dropdown
+
+MANUAL WORD REPLACEMENT WITHOUT FIND/REPLACE (CONTEXT-08):
+- This edge case tests replacing every occurrence of a target word with a replacement WITHOUT using Ctrl+H (Find & Replace dialog)
+- Google Docs renders text on CANVAS -- the text visible on screen is NOT standard DOM text nodes
+- getText on .kix-page-column extracts the visible rendered text as a string, but you CANNOT use select_text_range (Range API) because there are no text nodes to select
+- Strategy: use Ctrl+F (Find only, NOT Replace) to locate each occurrence visually, then manually select and overtype
+
+MANUAL REPLACE STRATEGY (step-by-step for each occurrence):
+  Phase A -- Locate the word:
+    1. Press Ctrl+F to open the Find toolbar (NOT Ctrl+H which opens Find AND Replace)
+    2. Type the target word (e.g., "synergy") into the Find input
+    3. The first occurrence will be highlighted in the document
+    4. Press Escape to close the Find toolbar (cursor remains near the highlighted word)
+
+  Phase B -- Select the word:
+    5. Double-click on the highlighted word to select it (double-click selects a word in Google Docs)
+    6. Alternative: use Ctrl+Shift+Right Arrow to select word-by-word from cursor position
+    7. Verify selection by checking if the word is highlighted (selected state)
+
+  Phase C -- Replace the word:
+    8. Type the replacement word (e.g., "collaboration") -- typing while text is selected replaces it
+    9. The selected word is now replaced with the new text
+
+  Phase D -- Find next occurrence:
+    10. Press Ctrl+F again to reopen Find toolbar
+    11. The previous search term should still be populated
+    12. Press Enter or click "Next" to jump to the next occurrence
+    13. If "no results" or the search wraps back to the beginning: all occurrences have been replaced
+    14. If another occurrence found: repeat from Phase B (step 5)
+
+  Phase E -- Verify completion:
+    15. After replacing all occurrences, press Ctrl+F one final time
+    16. Type the original target word (e.g., "synergy")
+    17. If Find reports 0 results: replacement is complete
+    18. If occurrences remain: continue replacing
+
+SKIP-AUTH EXPECTATION:
+- Google Docs EDITING requires a signed-in Google account with edit permission
+- If the document is in "View only" mode, text replacement is impossible
+- Expected outcome: SKIP-AUTH (Google account required for editing) or PARTIAL (navigation and text reading works but editing blocked)
+- A public Google Doc can be READ but not EDITED without auth
+
+CONTEXT BLOAT MITIGATION FOR WORD REPLACEMENT:
+- Do NOT re-read the full document text after each replacement
+- Use Ctrl+F to find the next occurrence -- the browser does the searching, not the AI reading DOM
+- Track only: {replacementCount: N, remainingOccurrences: M, lastReplacedPosition: "paragraph N"}
+- Total context for replacement workflow: under 500 characters regardless of document length
+- For very long documents (50+ pages): Ctrl+F handles searching across all pages automatically, no manual scrolling needed
+- Compare to Phase 79 (50-page PDF form fill): same long-document context challenge, different interaction model (PDF is read-only extract, Google Docs is read-write edit)`,
   selectors: {
     pageContent: '.kix-page-column',
     page: '.kix-page',
@@ -183,6 +232,17 @@ SHARE AND COLLABORATE:
       'Scroll down to load more content if the document is long',
       'Repeat getText + scroll until all content is extracted',
       'The document title can be read from .docs-title-input'
+    ],
+    manualWordReplace: [
+      'SETUP: Navigate to the Google Doc URL. Wait for the editor to load (toolbar visible, .kix-page-column present). Verify the document is in Edit mode (not View only or Suggesting). If View only: document as SKIP-AUTH.',
+      'INITIAL COUNT: Press Ctrl+F to open Find toolbar. Type the target word (e.g., "synergy") in the find input. Note the occurrence count shown by the Find toolbar (e.g., "1 of 5"). Press Escape to close Find toolbar. Record: totalOccurrences = N.',
+      'LOCATE FIRST OCCURRENCE: Press Ctrl+F again. Type the target word. The first occurrence is highlighted in the document. Do NOT press Enter to advance -- stay on the first match.',
+      'SELECT THE WORD: Press Escape to close Find toolbar (cursor near the word). Double-click on the highlighted word to select it. The word should now be selected (highlighted in blue).',
+      'REPLACE THE WORD: Type the replacement word (e.g., "collaboration"). The selected text is replaced. Increment replacementCount by 1.',
+      'FIND NEXT OCCURRENCE: Press Ctrl+F again. Type the target word. If the Find toolbar shows "0 results" or wraps to beginning with no match: all occurrences replaced, skip to VERIFY step. If another match found: repeat from SELECT THE WORD step.',
+      'LOOP: Repeat SELECT -> REPLACE -> FIND NEXT until no more occurrences remain. Track replacementCount after each replacement.',
+      'VERIFY COMPLETION: Press Ctrl+F. Type the original target word. Confirm 0 results shown. Press Escape to close Find toolbar.',
+      'REPORT: State outcome with: target word, replacement word, totalOccurrences found initially, replacementCount completed, verification result (0 remaining = success).'
     ]
   },
   warnings: [
@@ -194,7 +254,11 @@ SHARE AND COLLABORATE:
     'The Find & Replace dialog (Ctrl+H) is the most reliable way to locate specific text in a document.',
     'The document title (.docs-title-input) is a standard input field and CAN be directly clicked and typed into, unlike the canvas body.',
     'Comments and suggestions appear in the right margin -- they may overlap with document content in narrow viewports.',
-    'Share dialog requires the user to be signed into a Google account with edit permissions.'
+    'Share dialog requires the user to be signed into a Google account with edit permissions.',
+    'CONTEXT-08 CONSTRAINT: Do NOT use Ctrl+H (Find and Replace dialog) -- the task requires manual word-by-word replacement using Find (Ctrl+F) for location and double-click + type for replacement.',
+    'Google Docs canvas rendering means select_text_range (Range API) will NOT work for text selection -- use double-click to select words instead.',
+    'After each replacement, the Find toolbar may need to be reopened with Ctrl+F -- the search state may reset after editing.',
+    'For documents with many occurrences: use the Find toolbar occurrence count (e.g., "3 of 7") to track progress rather than re-reading document text.'
   ],
   toolPreferences: ['navigate', 'click', 'type', 'keyPress', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute']
 });
