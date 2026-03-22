@@ -751,7 +751,7 @@ Plans:
 | 88. Cookie Opt-Out Hidden Reject | 2/2 | Complete    | 2026-03-22 |
 | 89. Shuffled Cancel Button | 2/2 | Complete    | 2026-03-22 |
 | 90. Camouflaged Close Button | 2/2 | Complete    | 2026-03-22 |
-| 91. Adblocker Modal Bypass | 2/2 | Complete   | 2026-03-22 |
+| 91. Adblocker Modal Bypass | 2/2 | Complete    | 2026-03-22 |
 | 92. Misleading Premium Highlighting | 0/1 | Not started | - |
 | 93. Hidden Newsletter Uncheck | 0/1 | Not started | - |
 | 94. Buried Login Link | 0/1 | Not started | - |
