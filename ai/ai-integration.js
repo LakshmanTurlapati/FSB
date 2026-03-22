@@ -437,7 +437,31 @@ EXPLORATION STRATEGY (when page is unfamiliar):
 - If stuck: scroll to reveal more elements, try different interaction methods before giving up
 - Do NOT open new tabs to "start fresh" -- work with the current page
 
-When completing, provide a detailed summary with specific data found or actions taken.`
+When completing, provide a detailed summary with specific data found or actions taken.`,
+  canvas: `CANVAS / DRAWING / MAP INTERACTION:
+
+This task involves a canvas-based, SVG-based, or interactive map application. Standard DOM element refs (e5, e12) do NOT exist for items drawn on a canvas.
+
+INTERACTION STRATEGY:
+1. IDENTIFY the canvas or interactive area using DOM refs for the container element
+2. READ element position data (x, y, width, height from the page content) to determine viewport coordinates
+3. USE CDP coordinate tools: clickat x y, drag startX startY endX endY, scrollat x y --dy pixels
+4. For toolbar buttons and menus OUTSIDE the canvas, use standard DOM tools (click, type)
+5. For drag operations, use drag or dragvariablespeed with appropriate step counts for smooth movement
+
+COORDINATE TIPS:
+- Viewport coordinates start at (0,0) top-left of the browser viewport
+- Element position data in the page content gives you bounding box coordinates
+- Click the CENTER of an element: x + width/2, y + height/2
+- For precise drawing: use dragvariablespeed with --steps 20+ for smooth curves
+
+COMMON PATTERNS:
+- Select a tool from toolbar (click e5) then draw on canvas (drag 200 300 500 300)
+- Pan a map (drag 400 300 200 300 --steps 10)
+- Zoom at a point (scrollat 400 300 --dy -120 for zoom in, --dy 120 for zoom out)
+- Pin/marker placement (clickat 350 400)
+
+When completing, describe the canvas interactions performed and their visual outcomes.`
 };
 
 // PERFORMANCE OPTIMIZATION: Tiered system prompts
@@ -4359,6 +4383,18 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       guidance += careerUrlDirective;
     }
 
+    // Sub-pattern hints: text selection and file upload detected via task keywords
+    // These are not dedicated task types but add targeted tool hints
+    if (task) {
+      const tLower = task.toLowerCase();
+      if (/select\s+text|highlight\s+text|text\s+range|select.*from.*to/.test(tLower)) {
+        guidance += '\n\nTEXT SELECTION HINT: Use selecttextrange ref startOffset endOffset to select specific text within an element. Get the element ref from page content, then specify character offsets.';
+      }
+      if (/upload\s+file|drop\s+file|attach\s+file|file\s+upload/.test(tLower)) {
+        guidance += '\n\nFILE UPLOAD HINT: Use dropfile ref "fileName" to simulate dropping a file on an upload zone. Find the dropzone element ref from page content.';
+      }
+    }
+
     return guidance;
   }
 
@@ -4570,6 +4606,9 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         return ['navigate', 'click', 'type', 'scroll', 'scrollToBottom', 'getText',
                 'waitForElement', 'pressEnter', 'keyPress', 'hover', 'selectOption',
                 'openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'getCurrentTab', 'waitForTabLoad'];
+      case 'canvas':
+        return ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt',
+                'click', 'hover', 'focus', 'keyPress', 'waitForElement', 'scroll', 'getText'];
       default:
         // Return all common tools (CLI_COMMAND_TABLE covers all verbs)
         return ['navigate', 'searchGoogle', 'click', 'type', 'hover', 'focus', 'getText',
@@ -4581,13 +4620,42 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
   
   // Get tools documentation for task type, with optional site guide
   // Phase 17: Returns CLI command table instead of JSON tool documentation
+  // Phase 98: PRIORITY TOOLS injection based on task type (canvas, form, gaming)
   getToolsDocumentation(taskType, siteGuide = null) {
     // Platform-specific note for key command
     const platformNote = (typeof navigator !== 'undefined' && navigator.userAgent?.includes('Macintosh'))
       ? '\nPLATFORM: macOS detected -- use key "Enter" --meta for Cmd+Enter, key "c" --meta for Cmd+C.'
       : '';
 
-    return CLI_COMMAND_TABLE + platformNote;
+    // Task-type PRIORITY TOOLS block (injected before full CLI_COMMAND_TABLE)
+    let priorityBlock = '';
+    switch (taskType) {
+      case 'canvas':
+        priorityBlock = `PRIORITY TOOLS for this canvas/drawing task:
+PREFER CDP coordinate tools (clickat, drag, scrollat, clickandhold, dragvariablespeed). Canvas elements have no DOM refs -- always use viewport coordinates from element position data. Use DOM tools (click, type) only for non-canvas UI elements like toolbars and menus.
+`;
+        break;
+      case 'form':
+        priorityBlock = `PRIORITY TOOLS for this form task:
+PREFER DOM element tools (type, click, select, check, clear). Target fields by their refs (e5, e12). Use Tab/Enter for field navigation. CDP coordinate tools are NOT needed for standard forms.
+`;
+        break;
+      case 'gaming':
+        priorityBlock = `PRIORITY TOOLS for this gaming task:
+PREFER keyboard controls (arrowup, arrowdown, arrowleft, arrowright, key). Focus the game element first. If the game is canvas-based with no refs, use CDP coordinate tools (clickat) for mouse interactions.
+`;
+        break;
+      default:
+        // Check for sub-pattern keywords in task type detection
+        // (text selection and file upload are sub-patterns, not dedicated task types)
+        break;
+    }
+
+    // Sub-pattern detection: inject hints for text selection and file upload keywords
+    // These are detected by _buildTaskGuidance or the calling context, but we add
+    // lightweight hints here when the task string is not available (defensive)
+
+    return priorityBlock + CLI_COMMAND_TABLE + platformNote;
   }
   
   // Validate response structure
