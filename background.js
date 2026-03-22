@@ -188,6 +188,7 @@ importScripts('site-guides/utilities/freeware-download.js');
 importScripts('site-guides/utilities/cookie-opt-out.js');
 importScripts('site-guides/utilities/shuffled-cancel.js');
 importScripts('site-guides/utilities/camouflaged-close.js');
+importScripts('site-guides/utilities/adblocker-bypass.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
