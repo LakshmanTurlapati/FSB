@@ -549,9 +549,9 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 84-01-PLAN.md -- Update google-docs.js site guide with manualWordReplace workflow and CONTEXT-08 guidance
+- [x] 84-01-PLAN.md -- Update google-docs.js site guide with manualWordReplace workflow and CONTEXT-08 guidance
 - [ ] 84-02-PLAN.md -- Execute live MCP Google Doc word replacement test, generate CONTEXT-08 diagnostic report
 
 ### Phase 85: CRM vs HR Portal Cross-Reference
@@ -751,7 +751,7 @@ Plans:
 | 81. Multi-Step Checkout with Correction | 2/2 | Complete    | 2026-03-22 |
 | 82. Support Chatbot 15-Turn Summary | 2/2 | Complete    | 2026-03-22 |
 | 83. 2FA Multi-Tab Auth Flow | 2/2 | Complete    | 2026-03-22 |
-| 84. Google Doc Word Replace | 0/1 | Not started | - |
+| 84. Google Doc Word Replace | 1/2 | In Progress|  |
 | 85. CRM vs HR Portal Cross-Reference | 0/1 | Not started | - |
 | 86. Session Expiry Re-Auth | 0/1 | Not started | - |
 | 87. Freeware Download Ad Avoidance | 0/1 | Not started | - |
