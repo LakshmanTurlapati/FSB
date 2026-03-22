@@ -688,8 +688,12 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 95-01-PLAN.md -- Create skip-ad-countdown.js site guide with skipAdCountdown workflow and DARK-09 guidance
+- [ ] 95-02-PLAN.md -- Execute live MCP skip ad countdown test, generate DARK-09 diagnostic report
+
+
+
+
 
 ### Phase 96: Anti-Scrape Site Text Extraction
 **Goal:** Execute text extraction from site blocking right-clicks, disabling selection, and masking CSS classes via MCP manual tools; fix blockers
