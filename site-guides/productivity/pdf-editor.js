@@ -30,7 +30,14 @@ registerSiteGuide({
     /pdfbuddy\.com/i,
     /pdf\.online/i
   ],
-  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-09):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CONTEXT-03):
+- [context] Extract text immediately per page -- do not defer; virtualized pages lose content
+- [context] Store compact 300-char excerpts per page to cap cross-site context
+- [context] Read pages in forward order (4->17->42) to minimize virtualization churn
+- [context] Navigate to form in same tab after extraction -- text persists in agent context
+- [context] Clear fields before typing (click + Ctrl+A + type_text) to avoid appending
+
+AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-09):
 - [canvas] Dual interaction: DOM click for toolbar buttons (Sign/Text), click_at for page placement
 - [canvas] Type signature (not Draw) is simplest for automation -- avoids CDP drag on signature pad
 - [canvas] Signature line target: x=35% page width, y=75% page height from page element top

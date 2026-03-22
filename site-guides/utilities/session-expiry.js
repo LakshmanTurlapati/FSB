@@ -24,7 +24,14 @@ registerSiteGuide({
     /uitestingplayground\.com/i,
     /demoqa\.com\/login/i
   ],
-  guidance: `SESSION EXPIRY RE-AUTHENTICATION INTELLIGENCE (CONTEXT-10):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CONTEXT-10):
+- [context] Store compact pre-expiry state: {lastUrl, lastAction, lastResult} ~200 chars
+- [context] Detect session expiry by login form reappearance or 401/403 redirects
+- [context] Re-auth then navigate to protected page to confirm session is restored
+- [context] Resume task by re-executing lastAction and comparing with lastResult
+- [context] Budget under 500 chars for re-auth state -- never dump full page DOM
+
+SESSION EXPIRY RE-AUTHENTICATION INTELLIGENCE (CONTEXT-10):
 
 This site guide handles the CONTEXT-10 edge case: session expiration mid-task. The workflow
 detects session expiry (modal, redirect, banner, or HTTP error), re-authenticates with

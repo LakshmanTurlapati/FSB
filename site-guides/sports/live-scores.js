@@ -26,7 +26,14 @@ registerSiteGuide({
     /mlb\.com\/scores/i,
     /sports\.yahoo\.com/i
   ],
-  guidance: `LIVE SPORTS SCORE MONITORING (CONTEXT-01):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CONTEXT-01):
+- [context] Use 2-snapshot retention: keep only current + previous, discard older
+- [context] Navigate to sport-specific URL (/nba/scoreboard), not ESPN homepage
+- [context] Use embedded JSON (evts array) as primary data source over DOM scraping
+- [context] Log changes as compact one-liners, not full DOM excerpts
+- [context] Implement 30-minute hard timeout to prevent unbounded monitoring
+
+LIVE SPORTS SCORE MONITORING (CONTEXT-01):
 
 SPORTS SCOREBOARD DOM STRUCTURE:
 - Sports sites display live games in a scoreboard layout with one container per game

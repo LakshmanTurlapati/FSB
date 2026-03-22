@@ -20,7 +20,14 @@ registerSiteGuide({
     /dummyjson\.com/i,
     /jsonplaceholder\.typicode\.com/i
   ],
-  guidance: `CRM VS HR PORTAL CROSS-REFERENCE INTELLIGENCE (CONTEXT-09):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CONTEXT-09):
+- [context] Extract names in batches of 10 from CRM, not all 50 at once
+- [context] Cache HR portal data after first read -- it is static, do not re-read
+- [context] Store results as compact {n, c, h, m} records (~40 chars each)
+- [context] Use list_tabs after setup to confirm tab IDs before switch_tab calls
+- [context] Deduplicate names via lowercase-normalized Set across pagination
+
+CRM VS HR PORTAL CROSS-REFERENCE INTELLIGENCE (CONTEXT-09):
 
 TARGET SITES:
   Primary CRM: demoqa.com/webtables

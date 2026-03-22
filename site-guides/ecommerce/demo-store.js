@@ -14,7 +14,14 @@ registerSiteGuide({
     /saucedemo\.com/i,
     /practicesoftwaretesting\.com/i
   ],
-  guidance: `DEMO E-COMMERCE STORE INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CONTEXT-05):
+- [context] Use clear_input BEFORE type_text when correcting form fields
+- [context] Capture order summary at BOTH checkpoints: pre-correction and post-correction
+- [context] Store compact {step, zip, subtotal, tax, total} records per checkpoint
+- [context] Tax may only appear on review/summary step, not on the form step
+- [context] Handle form reset on back navigation -- re-fill ALL required fields
+
+DEMO E-COMMERCE STORE INTELLIGENCE:
 
 TARGET SELECTION (CONTEXT-05):
 - Primary target: automationexercise.com -- free, no auth required for checkout, multi-step checkout with address fields

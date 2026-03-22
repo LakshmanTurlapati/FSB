@@ -27,7 +27,14 @@ registerSiteGuide({
     /demoqa\.com/i,
     /uitestingplayground\.com/i
   ],
-  guidance: `TWO-FACTOR AUTHENTICATION INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CONTEXT-07):
+- [context] Capture auth tab ID (list_tabs) BEFORE opening the email tab
+- [context] Use open_tab (not navigate) for email -- preserves auth tab session
+- [context] Extract ONLY the verification code (4-8 digits), not full email body
+- [context] switch_tab back by stored authTabId, not by URL search
+- [context] Verify login success via dashboard/profile selectors, not URL alone
+
+TWO-FACTOR AUTHENTICATION INTELLIGENCE:
 
 TARGET SELECTION (CONTEXT-07):
 - This edge case tests MULTI-TAB 2FA: trigger email code delivery on auth site, open new tab to email provider, extract code, switch back, enter code, complete login

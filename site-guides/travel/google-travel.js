@@ -10,7 +10,14 @@ registerSiteGuide({
     /google\.com\/travel/i,
     /google\.com\/flights/i
   ],
-  guidance: `GOOGLE TRAVEL / FLIGHTS-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CONTEXT-04):
+- [context] Open tabs sequentially: open_tab + read price + store record, then next
+- [context] Extract ONLY price text per tab (~50 chars), not full DOM (50-200KB each)
+- [context] Store compact {tabId, price, airline, url} records -- under 200 chars each
+- [context] Parse prices aggressively: strip $, commas, convert to integer cents
+- [context] switch_tab to cheapest ONCE after comparison, not during extraction
+
+GOOGLE TRAVEL / FLIGHTS-SPECIFIC INTELLIGENCE:
 
 COMMON PATTERNS:
   # search for flights

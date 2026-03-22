@@ -9,7 +9,14 @@ registerSiteGuide({
   patterns: [
     /docs\.google\.com\/document/i
   ],
-  guidance: `GOOGLE DOCS-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CONTEXT-08):
+- [context] Delegate word search to Ctrl+F -- never re-read full doc to find words
+- [context] Canvas-rendered text: use double-click for word selection, not Range API
+- [context] Track replacements with compact state, not full document re-reads
+- [context] Expect SKIP-AUTH -- Google Docs editing requires Google account sign-in
+- [context] Budget ~4KB per replacement cycle; Ctrl+F is O(occurrences) not O(doc_length)
+
+GOOGLE DOCS-SPECIFIC INTELLIGENCE:
 
 COMMON PATTERNS:
   # edit document

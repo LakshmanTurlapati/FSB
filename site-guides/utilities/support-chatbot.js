@@ -27,7 +27,14 @@ registerSiteGuide({
     /livechat\.com/i,
     /helpscout\.com/i
   ],
-  guidance: `SUPPORT CHATBOT INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CONTEXT-06):
+- [context] Track turns as compact records, NOT full DOM reads per turn
+- [context] Defer full chat history read until ALL 15 turns complete
+- [context] Check for iframe isolation BEFORE attempting DOM tools on widget
+- [context] Wait for bot response after EACH message -- do not rapid-fire
+- [context] Extract first INSTRUCTION, not first greeting ("Hi, how can I help?")
+
+SUPPORT CHATBOT INTELLIGENCE:
 
 TARGET SELECTION (CONTEXT-06):
 - Primary target: A website with a visible automated chatbot widget (bot-driven responses, not requiring a live human agent)

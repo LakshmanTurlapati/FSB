@@ -22,7 +22,14 @@ registerSiteGuide({
   patterns: [
     /observablehq\.com/i
   ],
-  guidance: `OBSERVABLE NOTEBOOK EDITING (CONTEXT-02):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CONTEXT-02):
+- [context] Wait for client-side rendering -- cells are NOT in server HTML
+- [context] Use getText for targeted cell reads, not full read_page (~25-100x savings)
+- [context] Identify cells by content type, not just position number
+- [context] Wait 2-3s after cell edit for reactive runtime to propagate
+- [context] Use tinker mode (click to edit) as skip-auth fallback for fork
+
+OBSERVABLE NOTEBOOK EDITING (CONTEXT-02):
 
 OBSERVABLE NOTEBOOK DOM STRUCTURE:
 - Observable notebooks are web pages at observablehq.com/@username/notebook-name
