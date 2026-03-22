@@ -522,9 +522,9 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
+- [x] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
 - [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
 
 ### Phase 82: Support Chatbot 15-Turn Summary
@@ -760,7 +760,7 @@ Plans:
 | 78. Observable Notebook Edit | 2/2 | Complete    | 2026-03-21 |
 | 79. 50-Page PDF Form Fill | 2/2 | Complete    | 2026-03-22 |
 | 80. Multi-Tab Flight Price Compare | 1/2 | Complete    | 2026-03-22 |
-| 81. Multi-Step Checkout with Correction | 0/1 | Not started | - |
+| 81. Multi-Step Checkout with Correction | 1/2 | In Progress|  |
 | 82. Support Chatbot 15-Turn Summary | 0/1 | Not started | - |
 | 83. 2FA Multi-Tab Auth Flow | 0/1 | Not started | - |
 | 84. Google Doc Word Replace | 0/1 | Not started | - |

@@ -52,7 +52,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 - [x] **CONTEXT-02**: MCP can fork Observable notebook, modify data array in cell 3 without altering cell 1
 - [x] **CONTEXT-03**: MCP can read 50-page PDF then fill web form with details from pages 4, 17, and 42
 - [x] **CONTEXT-04**: MCP can open 5 tabs comparing flight prices, switch back to cheapest after searching
-- [ ] **CONTEXT-05**: MCP can complete multi-step checkout, input wrong zip, correct it, verify tax updates
+- [x] **CONTEXT-05**: MCP can complete multi-step checkout, input wrong zip, correct it, verify tax updates
 - [ ] **CONTEXT-06**: MCP can converse with support chatbot for 15 turns then summarize first instruction
 - [ ] **CONTEXT-07**: MCP can handle 2FA flow (trigger email code, open new tab to fetch, return to complete login)
 - [ ] **CONTEXT-08**: MCP can edit Google Doc replacing every "synergy" with "collaboration" without Find/Replace
@@ -129,7 +129,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | CONTEXT-02 | Phase 78 | Complete |
 | CONTEXT-03 | Phase 79 | Complete |
 | CONTEXT-04 | Phase 80 | Complete |
-| CONTEXT-05 | Phase 81 | Pending |
+| CONTEXT-05 | Phase 81 | Complete |
 | CONTEXT-06 | Phase 82 | Pending |
 | CONTEXT-07 | Phase 83 | Pending |
 | CONTEXT-08 | Phase 84 | Pending |
