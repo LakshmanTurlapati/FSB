@@ -62,7 +62,11 @@ Plans:
   1. Site guide files for sites tested in v0.9.7 contain strategy hints derived from diagnostic report recommendations
   2. When autopilot operates on a site with diagnostic-enriched guides, the strategy hints appear in the continuation prompt context
   3. Diagnostic recommendations are categorized by interaction type (canvas, drag, scroll, dark pattern) in the guide files
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 99-01-PLAN.md -- Enrich CANVAS + MICRO site guides (phases 47-66, 20 guides)
+- [ ] 99-02-PLAN.md -- Enrich SCROLL + CONTEXT site guides (phases 67-86, 19 guides)
+- [ ] 99-03-PLAN.md -- Enrich DARK pattern site guides (phases 87-96, 10 guides)
 
 ### Phase 100: Procedural Memory
 **Goal**: Autopilot learns from past successes -- completed Task memories become replayable playbooks that inform future identical tasks
@@ -118,8 +122,8 @@ Phase 103 (Validation) requires all other phases complete.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 97. Tool Parity | 2/2 | Complete    | 2026-03-22 |
-| 98. Prompt Architecture | 1/1 | Complete   | 2026-03-22 |
-| 99. Diagnostic-to-Guide Pipeline | 0/TBD | Not started | - |
+| 98. Prompt Architecture | 1/1 | Complete    | 2026-03-22 |
+| 99. Diagnostic-to-Guide Pipeline | 0/3 | Not started | - |
 | 100. Procedural Memory | 0/TBD | Not started | - |
 | 101. Memory Intelligence | 0/TBD | Not started | - |
 | 102. Robustness Hardening | 0/TBD | Not started | - |
