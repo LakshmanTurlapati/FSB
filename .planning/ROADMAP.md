@@ -756,7 +756,7 @@ Plans:
 | 85. CRM vs HR Portal Cross-Reference | 2/2 | Complete    | 2026-03-22 |
 | 86. Session Expiry Re-Auth | 2/2 | Complete    | 2026-03-22 |
 | 87. Freeware Download Ad Avoidance | 1/2 | Complete    | 2026-03-22 |
-| 88. Cookie Opt-Out Hidden Reject | 2/2 | Complete   | 2026-03-22 |
+| 88. Cookie Opt-Out Hidden Reject | 2/2 | Complete    | 2026-03-22 |
 | 89. Shuffled Cancel Button | 0/1 | Not started | - |
 | 90. Camouflaged Close Button | 0/1 | Not started | - |
 | 91. Adblocker Modal Bypass | 0/1 | Not started | - |
