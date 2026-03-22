@@ -116,6 +116,21 @@ COMPLETION:
 | done | "summary" | Mark task complete | done "Found 5 results" |
 | fail | "reason" | Mark task failed | fail "Login required" |
 | help | [verb] | Show command help | help type |
+
+CDP COORDINATE TOOLS (for canvas, maps, non-DOM elements -- use viewport pixel coordinates):
+| Verb | Args | Description | Example |
+|------|------|-------------|---------|
+| clickat | x y [--shift --ctrl --alt] | CDP click at viewport coordinates | clickat 500 300 |
+| clickandhold | x y [--hold ms] | CDP click-and-hold at coordinates | clickandhold 400 250 --hold 3000 |
+| drag | startX startY endX endY [--steps n] [--delay ms] | CDP drag between coordinates | drag 100 200 500 200 --steps 15 --delay 30 |
+| dragvariablespeed | startX startY endX endY [--steps n] [--mindelay ms] [--maxdelay ms] | CDP drag with speed variation | dragvariablespeed 100 200 500 200 --steps 20 --mindelay 5 --maxdelay 40 |
+| scrollat | x y [--dx pixels] [--dy pixels] | CDP scroll at specific coordinates | scrollat 400 300 --dy -120 |
+
+TEXT SELECTION & FILE TOOLS:
+| Verb | Args | Description | Example |
+|------|------|-------------|---------|
+| selecttextrange | ref startOffset endOffset | Select text by character offsets within element | selecttextrange e12 5 20 |
+| dropfile | ref "fileName" ["content"] ["mimeType"] | Simulate file drop on dropzone element | dropfile e8 "report.pdf" |
 `;
 
 /**
