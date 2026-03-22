@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.8
 milestone_name: Autopilot Refinement
 status: unknown
-stopped_at: Completed 97-01-PLAN.md
-last_updated: "2026-03-22T13:00:14.408Z"
+stopped_at: Completed 98-01-PLAN.md
+last_updated: "2026-03-22T13:22:56.321Z"
 progress:
   total_phases: 7
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 2
+  total_plans: 3
+  completed_plans: 3
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 97 — tool-parity
+**Current focus:** Phase 98 — prompt-architecture
 
 ## Current Position
 
-Phase: 97 (tool-parity) — EXECUTING
-Plan: 2 of 2
+Phase: 98 (prompt-architecture) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Plan: 2 of 2
 *Updated after each plan completion*
 | Phase 97 P02 | 2min | 2 tasks | 1 files |
 | Phase 97 P01 | 2min | 2 tasks | 1 files |
+| Phase 98 P01 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,8 @@ Recent decisions affecting current work:
 - [v0.9.8]: Tool Parity (Phase 97) must complete before prompt, robustness, or validation work
 - [Phase 97]: Each CDP tool gets both short alias and cdp-prefixed alias in COMMAND_REGISTRY
 - [Phase 97]: CLI verbs lowercase (clickat) vs camelCase in isValidTool (cdpClickAt) -- matches existing convention split between CLI grammar and FSB.tools keys
+- [Phase 98]: TOOL SELECTION GUIDE placed above CLI COMMAND REFERENCE -- AI reads interaction paradigm guidance before tool details
+- [Phase 98]: PRIORITY TOOLS block prepended per task type -- full CLI table always returned, priority guidance added on top
 
 ### Pending Todos
 
@@ -76,6 +79,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-22T13:00:14.406Z
-Stopped at: Completed 97-01-PLAN.md
+Last session: 2026-03-22T13:22:56.319Z
+Stopped at: Completed 98-01-PLAN.md
 Resume file: None

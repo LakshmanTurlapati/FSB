@@ -19,7 +19,7 @@
 ## Phases
 
 - [x] **Phase 97: Tool Parity** - Register all 7 new CDP tools in autopilot's CLI command table, parser registry, and validation layer (completed 2026-03-22)
-- [ ] **Phase 98: Prompt Architecture** - Restructure system prompt with tool grouping by interaction type and task-type conditional sections
+- [x] **Phase 98: Prompt Architecture** - Restructure system prompt with tool grouping by interaction type and task-type conditional sections (completed 2026-03-22)
 - [ ] **Phase 99: Diagnostic-to-Guide Pipeline** - Wire 500+ v0.9.7 diagnostic recommendations into site guide files as autopilot strategy hints
 - [ ] **Phase 100: Procedural Memory** - Extract successful action sequences from Task memories and inject as recommended approaches for matching tasks
 - [ ] **Phase 101: Memory Intelligence** - Auto-consolidation triggers, cross-domain strategy transfer, domain-change refresh, and dead code cleanup
@@ -50,7 +50,9 @@ Plans:
   1. System prompt presents tools grouped by interaction type (DOM element, CDP coordinate, text range, file upload) with explicit "when to use which" guidance
   2. Canvas/map tasks trigger CDP-prioritized prompt sections, form tasks trigger DOM-prioritized sections, and text tasks trigger selection-tool sections
   3. Autopilot selects CDP coordinate tools for canvas interactions and DOM tools for standard form interactions without human prompt intervention
-**Plans**: TBD
+**Plans:** 1/1 plans complete
+Plans:
+- [x] 98-01-PLAN.md -- Add TOOL SELECTION GUIDE, canvas task type detection, PRIORITY TOOLS injection, and sub-pattern hints
 
 ### Phase 99: Diagnostic-to-Guide Pipeline
 **Goal**: The 500+ recommendations from v0.9.7 diagnostic reports are embedded in site guide files so autopilot can leverage real-world edge case intelligence
@@ -115,8 +117,8 @@ Phase 103 (Validation) requires all other phases complete.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 97. Tool Parity | 2/2 | Complete   | 2026-03-22 |
-| 98. Prompt Architecture | 0/TBD | Not started | - |
+| 97. Tool Parity | 2/2 | Complete    | 2026-03-22 |
+| 98. Prompt Architecture | 1/1 | Complete   | 2026-03-22 |
 | 99. Diagnostic-to-Guide Pipeline | 0/TBD | Not started | - |
 | 100. Procedural Memory | 0/TBD | Not started | - |
 | 101. Memory Intelligence | 0/TBD | Not started | - |
