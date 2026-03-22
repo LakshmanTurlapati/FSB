@@ -1,11 +1,11 @@
-# FSB v0.9.4.0 - Full Self-Browsing
+# FSB v0.9.4.0: Full Self-Browsing
 
 <div align="center">
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/fsb_logo_dark.png" />
   <source media="(prefers-color-scheme: light)" srcset="assets/fsb_logo_light.png" />
-  <img src="assets/fsb_logo_light.png" alt="FSB - Full Self-Browsing" width="200" />
+  <img src="assets/fsb_logo_light.png" alt="FSB: Full Self-Browsing" width="200" />
 </picture>
 
 <!-- Row 1: Identity badges -->
@@ -47,16 +47,16 @@
 
 > **Note**: While FSB v0.9.4.0 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
 
-FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers** -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models. FSB can run as a **standalone Chrome extension** or be controlled by any MCP-compatible AI client (Claude Code, Cursor, Windsurf, and others) through its built-in **MCP server** -- in manual mode for fine-grained control, or autopilot mode where FSB handles everything.
+FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers**: xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini, with 21 models. FSB can run as a **standalone Chrome extension** or be controlled by any MCP-compatible AI client (Claude Code, Cursor, Windsurf, and others) through its built-in **MCP server**: in manual mode for fine-grained control, or autopilot mode where FSB handles everything.
 
 <details>
 <summary><b>All features (detailed list)</b></summary>
 
-- **Multi-Model AI Support**: Four fully integrated providers -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models
+- **Multi-Model AI Support**: Four fully integrated providers: xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini, with 21 models
 - **Universal Provider Architecture**: Model-agnostic engine that works with any OpenAI-compatible API, with automatic parameter discovery and self-healing
-- **Natural Language Interface**: Describe tasks in plain English -- no scripting required
+- **Natural Language Interface**: Describe tasks in plain English, no scripting required
 - **Smart DOM Analysis**: Advanced webpage structure analysis with incremental diffing and element identification
-- **Comprehensive Action Library**: 47 browser actions -- click, type, scroll, navigate, multi-tab control, form handling, and more
+- **Comprehensive Action Library**: 47 browser actions: click, type, scroll, navigate, multi-tab control, form handling, and more
 - **Site-Specific Intelligence**: Domain-specific guides for e-commerce, finance, social media, travel, coding, email, career, gaming, and productivity platforms
 - **Long-Term Memory**: Episodic, semantic, and procedural memory with AI-enriched extraction and consolidation across sessions
 - **Background Agents**: Scheduled automation tasks with chrome.alarms, run history, and session replay
@@ -74,7 +74,7 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 - **Secure Configuration**: AES-GCM encrypted API key storage
 - **Smart Recovery**: Automatic stuck detection with DOM hashing, action pattern analysis, and adaptive behavior
 - **Multiple UI Modes**: Popup chat and persistent side panel interfaces
-- **MCP Server**: Built-in Model Context Protocol server with 42+ tools -- any MCP-compatible AI client can control FSB
+- **MCP Server**: Built-in Model Context Protocol server with 42+ tools: any MCP-compatible AI client can control FSB
 - **Dual Operation Modes**: Use FSB standalone or through MCP, with manual (tool-by-tool) and autopilot (AI-driven) modes
 - **WebSocket Bridge**: Hub/relay architecture for MCP-to-extension communication with automatic failover and multi-instance support
 - **Remote Streaming**: Optional relay server connection for remote monitoring and control
@@ -105,18 +105,18 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 <table>
 <tr>
 <td width="50%" align="center">
-<img src="assets/screenshots/demo-task-input.png" alt="FSB side panel on YouTube - user entering a task" width="100%" />
+<img src="assets/screenshots/demo-task-input.png" alt="FSB side panel on YouTube: user entering a task" width="100%" />
 <br/><sub><b>Task Input</b></sub>
 </td>
 <td width="50%" align="center">
-<img src="assets/screenshots/demo-task-result.png" alt="FSB automating YouTube search - typing Sunflower" width="100%" />
+<img src="assets/screenshots/demo-task-result.png" alt="FSB automating YouTube search: typing Sunflower" width="100%" />
 <br/><sub><b>Task Execution</b></sub>
 </td>
 </tr>
 </table>
 
 <details>
-<summary><strong>View more screenshots</strong> -- Options Dashboard</summary>
+<summary><strong>View more screenshots</strong>: Options Dashboard</summary>
 
 #### Dashboard and Analytics
 <img src="assets/screenshots/dashboard-analytics.png" alt="Options dashboard showing token usage charts and cost breakdown by model" width="100%" />
@@ -139,16 +139,16 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 
 ## Quick Start
 
-> **Get running in under 2 minutes** -- Clone, load in Chrome, configure one API key, and start automating.
+> **Get running in under 2 minutes**: Clone, load in Chrome, configure one API key, and start automating.
 
 ### Prerequisites
 
 - Google Chrome (version 88+) or any Chromium-based browser (Edge, Brave, etc.)
 - **One API key** from any supported provider (only one is required):
-  - xAI Grok API key ([Get one here](https://x.ai/api)) -- recommended for automation
+  - xAI Grok API key ([Get one here](https://x.ai/api)): recommended for automation
   - OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
   - Anthropic API key ([Get one here](https://console.anthropic.com/))
-  - Google Gemini API key ([Get one here](https://ai.google.dev/)) -- includes a FREE tier (Gemini 2.0 Flash)
+  - Google Gemini API key ([Get one here](https://ai.google.dev/)): includes a FREE tier (Gemini 2.0 Flash)
 
 ### Installation
 
@@ -175,7 +175,7 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 1. **Configure your AI model**: Click settings and choose between Grok, GPT, Claude, or Gemini
 2. **Test the connection**: Use the "Test API" button to verify your chosen model works
 3. **Start simple**: Try basic tasks like "scroll down" or "click the search button"
-4. **Monitor actions**: Watch what FSB does -- visual feedback shows each step
+4. **Monitor actions**: Watch what FSB does: visual feedback shows each step
 5. **Explore features**: Try the side panel mode for persistent access during browsing
 6. **Share feedback**: Report issues or suggestions to help improve FSB
 
@@ -183,7 +183,7 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 
 ## MCP Server
 
-FSB includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes the full browser automation engine to any MCP-compatible AI client. Any tool that speaks MCP -- Claude Code, Cursor, Windsurf, or your own agents -- can plug in and control FSB.
+FSB includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes the full browser automation engine to any MCP-compatible AI client. Any tool that speaks MCP: Claude Code, Cursor, Windsurf, or your own agents, can plug in and control FSB.
 
 ### Two Ways to Use FSB
 
@@ -196,9 +196,9 @@ FSB includes a built-in [Model Context Protocol](https://modelcontextprotocol.io
 
 Within MCP, FSB offers two operating modes:
 
-**Manual Mode** -- Direct browser control through 42+ individual tools. The AI client decides what to do; FSB executes each action.
+**Manual Mode**: Direct browser control through 42+ individual tools. The AI client decides what to do; FSB executes each action.
 
-**Autopilot Mode** -- Delegate an entire task to FSB. When an AI API key is configured in the extension, `run_task` hands the goal to FSB's built-in AI loop, which plans, executes, recovers from errors, and reports back with progress updates. The external client just watches.
+**Autopilot Mode**: Delegate an entire task to FSB. When an AI API key is configured in the extension, `run_task` hands the goal to FSB's built-in AI loop, which plans, executes, recovers from errors, and reports back with progress updates. The external client just watches.
 
 ### MCP Tool Categories
 
@@ -206,21 +206,21 @@ Within MCP, FSB offers two operating modes:
 |----------|-------|-------------|
 | **Autopilot** | `run_task`, `stop_task`, `get_task_status` | Delegate full tasks to FSB's AI loop |
 | **Manual** | 25+ tools (`navigate`, `click`, `type_text`, `scroll`, etc.) | Individual browser actions with direct control |
-| **Read-Only** | `read_page`, `get_text`, `get_dom_snapshot`, `list_tabs`, etc. | Information gathering -- bypasses the mutation queue for concurrent reads |
+| **Read-Only** | `read_page`, `get_text`, `get_dom_snapshot`, `list_tabs`, etc. | Information gathering: bypasses the mutation queue for concurrent reads |
 | **Observability** | `list_sessions`, `get_session_detail`, `get_logs`, `search_memory`, `get_memory_stats` | Inspect past sessions, logs, and memory state |
 
 ### MCP Resources and Prompts
 
 **Resources** (live data streams):
-- `browser://dom/snapshot` -- Current page DOM with element references
-- `browser://tabs` -- Open tabs with title, URL, and active status
-- `fsb://site-guides` -- Domain-specific automation intelligence
+- `browser://dom/snapshot`: Current page DOM with element references
+- `browser://tabs`: Open tabs with title, URL, and active status
+- `fsb://site-guides`: Domain-specific automation intelligence
 
 **Prompt Templates** (reusable workflows):
-- `search-and-extract` -- Navigate, search, and extract structured data
-- `fill-form` -- Navigate, identify fields, fill, and submit
-- `monitor-page` -- Watch for changes and report
-- `navigate-and-read` -- Go to a URL and extract specific content
+- `search-and-extract`: Navigate, search, and extract structured data
+- `fill-form`: Navigate, identify fields, fill, and submit
+- `monitor-page`: Watch for changes and report
+- `navigate-and-read`: Go to a URL and extract specific content
 
 ### Setup
 
@@ -241,7 +241,7 @@ Within MCP, FSB offers two operating modes:
    }
    ```
 
-3. **Run the extension** -- make sure the FSB Chrome extension is loaded and active. The MCP server connects to it via WebSocket on port 7225.
+3. **Run the extension**: make sure the FSB Chrome extension is loaded and active. The MCP server connects to it via WebSocket on port 7225.
 
 ### Communication Flow
 
@@ -351,7 +351,7 @@ graph TB
 - **Lifecycle**: Script initialization, cleanup, and re-injection guards (`init.js`, `lifecycle.js`)
 
 **Memory and Intelligence Layer:**
-- **Memory Manager**: Orchestrates memory lifecycle -- creation, retrieval, consolidation, and cleanup (`lib/memory/memory-manager.js`)
+- **Memory Manager**: Orchestrates memory lifecycle: creation, retrieval, consolidation, and cleanup (`lib/memory/memory-manager.js`)
 - **Memory Extractor**: AI-enriched extraction of episodic, semantic, and procedural memories from automation sessions (`lib/memory/memory-extractor.js`)
 - **Memory Consolidator**: Deduplication and merging of related memories over time (`lib/memory/memory-consolidator.js`)
 - **Cross-Site Patterns**: Detects recurring UI patterns (login flows, navigation structures, form layouts) across different websites (`lib/memory/cross-site-patterns.js`)
@@ -384,7 +384,7 @@ graph TB
 
 | Path | Description |
 |------|-------------|
-| `background.js` | Service worker -- session orchestration and AI communication |
+| `background.js` | Service worker: session orchestration and AI communication |
 | `ai/ai-integration.js` | Prompt engineering, task type detection, and response parsing |
 | `ai/universal-provider.js` | Model-agnostic AI provider with automatic parameter discovery |
 | `ai/ai-providers.js` | Provider configurations and model registry |
@@ -683,7 +683,7 @@ FSB/
     keyboard-emulator.js        # DevTools Protocol key emulation
     setup.js                    # Extension setup utilities
     site-explorer.js            # Website reconnaissance crawler
-  background.js                 # Service worker - session orchestration
+  background.js                 # Service worker: session orchestration
   manifest.json                 # Extension manifest (Manifest V3)
   package.json                  # Project metadata
 ```
@@ -702,7 +702,7 @@ cd FSB
 # Click "Load unpacked" and select the FSB directory
 ```
 
-No build step or npm install is required -- FSB runs directly as a Chrome extension.
+No build step or npm install is required: FSB runs directly as a Chrome extension.
 
 ### Debugging
 
@@ -739,22 +739,22 @@ FSB supports four AI providers through a universal, model-agnostic architecture.
 #### xAI Grok
 - **Strengths**: Fast responses, creative problem-solving, handles complex web interactions
 - **Best for**: Dynamic websites, real-time automation, unconventional UI patterns
-- **Recommended model**: `grok-4-1-fast` -- 2M context window, high speed, low cost
+- **Recommended model**: `grok-4-1-fast`: 2M context window, high speed, low cost
 
 #### OpenAI GPT
 - **Strengths**: Broad knowledge base, reliable structured output, strong reasoning
 - **Best for**: General-purpose automation, data extraction, multi-step workflows
-- **Recommended model**: `gpt-4o` -- multimodal understanding, consistent results
+- **Recommended model**: `gpt-4o`: multimodal understanding, consistent results
 
 #### Anthropic Claude
 - **Strengths**: Advanced reasoning, strong code understanding, careful and thorough
 - **Best for**: Complex forms, code-heavy sites, tasks requiring nuanced understanding
-- **Recommended model**: `claude-sonnet-4-5` -- balanced performance and cost
+- **Recommended model**: `claude-sonnet-4-5`: balanced performance and cost
 
 #### Google Gemini
 - **Strengths**: Reliable structured output, analytical approach, FREE tier available
 - **Best for**: Structured forms, data entry, systematic workflows, budget-conscious usage
-- **Recommended model**: `gemini-2.5-flash` -- latest with thinking capabilities
+- **Recommended model**: `gemini-2.5-flash`: latest with thinking capabilities
 
 ### Universal Provider Architecture
 
@@ -764,7 +764,7 @@ FSB's universal provider eliminates the need for provider-specific code:
 - **Automatic parameter discovery**: Learns what parameters each API supports by retrying on errors
 - **Self-healing**: Adapts automatically when APIs change or add/remove parameters
 - **Configuration caching**: Remembers successful configurations per model for faster subsequent calls
-- **Custom endpoints**: Add new providers by configuring an endpoint URL -- no code changes required
+- **Custom endpoints**: Add new providers by configuring an endpoint URL, no code changes required
 
 ### Advanced Prompt Engineering
 
@@ -780,64 +780,64 @@ FSB's universal provider eliminates the need for provider-specific code:
 <summary><b>View all 47 browser actions by category</b></summary>
 
 **Navigation**
-- `navigate` -- Go to a URL
-- `searchGoogle` -- Perform a Google search
-- `refresh` -- Reload the current page
-- `goBack` / `goForward` -- Browser history navigation
+- `navigate`: Go to a URL
+- `searchGoogle`: Perform a Google search
+- `refresh`: Reload the current page
+- `goBack` / `goForward`: Browser history navigation
 
 **Clicking**
-- `click` -- Click an element (with selector cascade and coordinate fallback)
-- `clickSearchResult` -- Click search engine results (Google, Bing, DuckDuckGo)
-- `rightClick` -- Right-click context menu
-- `doubleClick` -- Double-click an element
-- `hover` -- Hover over an element
-- `focus` / `blur` -- Focus or blur an element
+- `click`: Click an element (with selector cascade and coordinate fallback)
+- `clickSearchResult`: Click search engine results (Google, Bing, DuckDuckGo)
+- `rightClick`: Right-click context menu
+- `doubleClick`: Double-click an element
+- `hover`: Hover over an element
+- `focus` / `blur`: Focus or blur an element
 
 **Text Input**
-- `type` -- Type text into an input field
-- `clearInput` -- Clear an input field
-- `selectText` -- Select text within an element
-- `pressEnter` -- Press the Enter key
-- `keyPress` -- Press any keyboard key
-- `pressKeySequence` -- Press a sequence of keys
-- `typeWithKeys` -- Type using keyboard emulation (DevTools Protocol)
-- `sendSpecialKey` -- Send special keys (Tab, Escape, etc.)
+- `type`: Type text into an input field
+- `clearInput`: Clear an input field
+- `selectText`: Select text within an element
+- `pressEnter`: Press the Enter key
+- `keyPress`: Press any keyboard key
+- `pressKeySequence`: Press a sequence of keys
+- `typeWithKeys`: Type using keyboard emulation (DevTools Protocol)
+- `sendSpecialKey`: Send special keys (Tab, Escape, etc.)
 
 **Form Controls**
-- `selectOption` -- Select a dropdown option
-- `toggleCheckbox` -- Toggle a checkbox
+- `selectOption`: Select a dropdown option
+- `toggleCheckbox`: Toggle a checkbox
 
 **Information**
-- `getText` -- Get text content of an element
-- `getAttribute` -- Get an element's attribute value
-- `setAttribute` -- Set an element's attribute
-- `getEditorContent` -- Get content from code editors (Monaco, CodeMirror, etc.)
+- `getText`: Get text content of an element
+- `getAttribute`: Get an element's attribute value
+- `setAttribute`: Set an element's attribute
+- `getEditorContent`: Get content from code editors (Monaco, CodeMirror, etc.)
 
 **Scrolling**
-- `scroll` -- Scroll by direction or amount
-- `scrollToTop` / `scrollToBottom` -- Scroll to page extremes
-- `scrollToElement` -- Scroll a specific element into view
+- `scroll`: Scroll by direction or amount
+- `scrollToTop` / `scrollToBottom`: Scroll to page extremes
+- `scrollToElement`: Scroll a specific element into view
 
 **Multi-Tab**
-- `openNewTab` -- Open a new browser tab
-- `switchToTab` -- Switch to a specific tab
-- `closeTab` -- Close a tab
-- `listTabs` / `getCurrentTab` -- Get tab information
-- `waitForTabLoad` -- Wait for a tab to finish loading
+- `openNewTab`: Open a new browser tab
+- `switchToTab`: Switch to a specific tab
+- `closeTab`: Close a tab
+- `listTabs` / `getCurrentTab`: Get tab information
+- `waitForTabLoad`: Wait for a tab to finish loading
 
 **Waiting and Detection**
-- `waitForElement` -- Wait for an element to appear in the DOM
-- `waitForDOMStable` -- Wait for DOM mutations to settle
-- `detectLoadingState` -- Check for loading indicators (spinners, progress bars)
+- `waitForElement`: Wait for an element to appear in the DOM
+- `waitForDOMStable`: Wait for DOM mutations to settle
+- `detectLoadingState`: Check for loading indicators (spinners, progress bars)
 
 **Game and Arrow Controls**
-- `gameControl` -- Send game-specific key events
-- `arrowUp` / `arrowDown` / `arrowLeft` / `arrowRight` -- Arrow key navigation
+- `gameControl`: Send game-specific key events
+- `arrowUp` / `arrowDown` / `arrowLeft` / `arrowRight`: Arrow key navigation
 
 **Special**
-- `solveCaptcha` -- CAPTCHA solving integration
-- `moveMouse` -- Move the mouse to coordinates
-- `verifyMessageSent` -- Verify a message was successfully sent
+- `solveCaptcha`: CAPTCHA solving integration
+- `moveMouse`: Move the mouse to coordinates
+- `verifyMessageSent`: Verify a message was successfully sent
 
 </details>
 
@@ -880,9 +880,9 @@ FSB maintains a persistent memory system that learns from automation sessions an
 
 ### Memory Types
 
-- **Episodic Memory**: Records of specific automation sessions -- what happened, what actions were taken, what succeeded or failed. Used to avoid repeating mistakes and to replay successful workflows.
-- **Semantic Memory**: Factual knowledge about websites -- site structure, navigation patterns, important selectors, form layouts. Built up across multiple visits to the same domain.
-- **Procedural Memory**: Step-by-step workflows that have been verified to work -- login sequences, checkout flows, data entry patterns. Includes success rate tracking per procedure.
+- **Episodic Memory**: Records of specific automation sessions: what happened, what actions were taken, what succeeded or failed. Used to avoid repeating mistakes and to replay successful workflows.
+- **Semantic Memory**: Factual knowledge about websites: site structure, navigation patterns, important selectors, form layouts. Built up across multiple visits to the same domain.
+- **Procedural Memory**: Step-by-step workflows that have been verified to work: login sequences, checkout flows, data entry patterns. Includes success rate tracking per procedure.
 
 ### How It Works
 
@@ -924,7 +924,7 @@ For persistent agent data beyond Chrome storage limits, FSB includes two optiona
 - **Node.js** (`server/`): Express-based API server for agent data persistence
 - **Python/Flask** (`server-py/`): Alternative backend with SQLite storage and Fly.io deployment support
 
-Server backends are entirely optional -- agents work fully with local Chrome storage.
+Server backends are entirely optional: agents work fully with local Chrome storage.
 
 ---
 
@@ -932,7 +932,7 @@ Server backends are entirely optional -- agents work fully with local Chrome sto
 
 FSB provides real-time visual indicators during automation:
 
-- **Viewport Glow**: A colored border around the browser viewport indicates the current state -- thinking (blue pulse), acting (amber), complete (green flash), or error (red)
+- **Viewport Glow**: A colored border around the browser viewport indicates the current state: thinking (blue pulse), acting (amber), complete (green flash), or error (red)
 - **Element Highlights**: The target element for each action is highlighted with an animated glow before the action executes
 - **Progress Overlay**: A step counter and progress bar shows the current action number and task progress
 
@@ -1000,19 +1000,19 @@ FSB provides real-time visual indicators during automation:
 - Multi-tab automation support
 - Comprehensive logging and debugging tools
 
-### Completed in v9.1 -- v9.3
+### Completed in v9.1 to v9.3
 - Long-term memory system with episodic, semantic, and procedural memory types
 - AI-enriched memory extraction for all memory types
 - Cross-site pattern analysis detecting recurring UI patterns across websites
 - D3.js site visualization with force-directed radial mind maps
 - Background agent system with chrome.alarms scheduling and run history
-- Content script modularization -- monolithic content.js split into 12 focused modules
-- Memory intelligence overhaul -- AI analysis pipeline, detail viewers, auto-refresh, cost tracking
+- Content script modularization: monolithic content.js split into 12 focused modules
+- Memory intelligence overhaul: AI analysis pipeline, detail viewers, auto-refresh, cost tracking
 - Optional server backends (Node.js and Python/Flask) for agent data persistence
 - Sitemap generation and refinement with AI-powered conversion
 - Site guides viewer with consolidated 3D knowledge graph visualization
 
-### Completed in v9.4 -- v9.7
+### Completed in v9.4 to v9.7
 - MCP server with 42+ tools across 4 categories (autopilot, manual, read-only, observability)
 - WebSocket hub/relay bridge for MCP-to-extension communication
 - CDP (Chrome DevTools Protocol) click_at and drag tools for canvas interaction
@@ -1055,13 +1055,13 @@ Every contributor, tester, and community member helps transform FSB into a bette
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License: see the [LICENSE](LICENSE) file for details.
 
 ---
 
 ## Contributing
 
-**FSB thrives on community contributions!** Whether you're fixing bugs, adding features, improving documentation, testing on new websites, or sharing feedback -- every contribution counts.
+**FSB thrives on community contributions!** Whether you're fixing bugs, adding features, improving documentation, testing on new websites, or sharing feedback, every contribution counts.
 
 ### Priority Contribution Areas
 
@@ -1099,8 +1099,8 @@ Every contributor helps make FSB better! Contributors are recognized in our ackn
 
 **Star this repository if FSB helps you automate your browsing!**
 
-*FSB - Full Self-Browsing: Perfecting browser automation with zero vision*
+*FSB: Full Self-Browsing: Perfecting browser automation with zero vision*
 
-[Back to top](#fsb-v902---full-self-browsing)
+[Back to top](#fsb-v0940-full-self-browsing)
 
 </div>
