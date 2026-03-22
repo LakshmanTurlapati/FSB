@@ -186,6 +186,7 @@ importScripts('site-guides/utilities/two-factor-auth.js');
 importScripts('site-guides/utilities/session-expiry.js');
 importScripts('site-guides/utilities/freeware-download.js');
 importScripts('site-guides/utilities/cookie-opt-out.js');
+importScripts('site-guides/utilities/shuffled-cancel.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
