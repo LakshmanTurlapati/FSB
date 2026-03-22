@@ -635,8 +635,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 91-01-PLAN.md -- Create adblocker-bypass.js site guide with bypassAdblockerModal workflow and DARK-05 guidance
+- [ ] 91-02-PLAN.md -- Execute live MCP adblocker modal bypass test, generate DARK-05 diagnostic report
 
 ### Phase 92: Misleading Premium Highlighting
 **Goal:** Execute cheapest flight selection on airline site with deceptive premium UI highlighting via MCP manual tools; fix blockers
