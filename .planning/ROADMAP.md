@@ -47,7 +47,7 @@
 - [x] **Phase 84: Google Doc Word Replace** - CONTEXT-08: replace every "synergy" with "collaboration" in Google Doc manually (completed 2026-03-22)
 - [x] **Phase 85: CRM vs HR Portal Cross-Reference** - CONTEXT-09: cross-reference 50 employee names across CRM and HR portal (completed 2026-03-22)
 - [x] **Phase 86: Session Expiry Re-Auth** - CONTEXT-10: handle session expiration modal, re-authenticate, resume task (completed 2026-03-22)
-- [ ] **Phase 87: Freeware Download Ad Avoidance** - DARK-01: download file from freeware site ignoring fake download buttons
+- [x] **Phase 87: Freeware Download Ad Avoidance** - DARK-01: download file from freeware site ignoring fake download buttons (completed 2026-03-22)
 - [ ] **Phase 88: Cookie Opt-Out Hidden Reject** - DARK-02: opt out of non-essential cookies with hidden reject option
 - [ ] **Phase 89: Shuffled Cancel Button** - DARK-03: cancel subscription on site with shuffled Keep/Cancel buttons
 - [ ] **Phase 90: Camouflaged Close Button** - DARK-04: close pop-up where X button is camouflaged against background
@@ -591,7 +591,7 @@ Plans:
 **Plans:** 1/2 plans executed
 Plans:
 - [x] 87-01-PLAN.md -- Create freeware-download.js site guide with downloadRealFile workflow and DARK-01 guidance
-- [ ] 87-02-PLAN.md -- Execute live MCP freeware download ad avoidance test, generate DARK-01 diagnostic report
+- [x] 87-02-PLAN.md -- Execute live MCP freeware download ad avoidance test, generate DARK-01 diagnostic report
 
 
 ### Phase 88: Cookie Opt-Out Hidden Reject
