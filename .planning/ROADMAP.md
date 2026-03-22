@@ -590,8 +590,9 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 87-01-PLAN.md -- Create freeware-download.js site guide with downloadRealFile workflow and DARK-01 guidance
+- [ ] 87-02-PLAN.md -- Execute live MCP freeware download ad avoidance test, generate DARK-01 diagnostic report
+
 
 ### Phase 88: Cookie Opt-Out Hidden Reject
 **Goal:** Execute EU news site full cookie opt-out with hidden reject button via MCP manual tools; fix blockers
