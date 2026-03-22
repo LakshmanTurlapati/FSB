@@ -12,6 +12,17 @@ if (typeof importScripts !== 'undefined') {
 // Derived from COMMAND_REGISTRY in cli-parser.js. Used in system prompt.
 // Compact table format grouped by category with per-command examples.
 const CLI_COMMAND_TABLE = `
+TOOL SELECTION GUIDE -- choose the right interaction method:
+| Interaction Type | When to Use | Key Tools |
+|------------------|-------------|-----------|
+| DOM Element (ref) | Standard web elements with visible refs (e5, e12) -- forms, buttons, links, inputs | click, type, select, check, hover |
+| CDP Coordinate | Canvas apps, maps, drawing tools, non-DOM elements with no refs -- use viewport pixel x,y | clickat, drag, scrollat, clickandhold, dragvariablespeed |
+| Text Range | Selecting specific text spans within an element by character offset | selecttextrange |
+| File Upload | Dropping files onto upload zones / dropzone elements | dropfile |
+| Sheets Data | Bulk cell entry in Google Sheets -- NEVER type cell-by-cell | fillsheet, readsheet |
+
+DECISION RULE: If the target element has a ref (e.g., e5), use DOM tools. If it is inside a canvas, SVG viewport, or interactive map with no refs, use CDP coordinate tools with pixel positions from element position data.
+
 CLI COMMAND REFERENCE (verb ref "args" --flags):
 
 NAVIGATION:
@@ -4375,7 +4386,8 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         'Email Platforms': 'email',
         'Gaming Platforms': 'extraction',
         'Career & Job Search': 'career',
-        'Productivity Tools': 'general'
+        'Productivity Tools': 'general',
+        'Design': 'canvas'
       };
       const guideTaskType = guideToTaskType[siteGuide.category || siteGuide.name];
       // Guide provides a default, but explicit keywords can still override
@@ -4414,6 +4426,11 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         if (taskLower.includes('fill') || taskLower.includes('submit')) return 'form';
         return guideTaskType;
       }
+    }
+
+    // Canvas/drawing/map detection -- CDP coordinate tools needed
+    if (/\b(draw|drag.*canvas|canvas|whiteboard|diagram|sketch|map.*interact|map.*click|map.*pin)\b/.test(taskLower)) {
+      return 'canvas';
     }
 
     // Multi-site detection: sequential separator + 2+ distinct domain keywords
