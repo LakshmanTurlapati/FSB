@@ -755,7 +755,7 @@ Plans:
 | 91. Adblocker Modal Bypass | 2/2 | Complete    | 2026-03-22 |
 | 92. Misleading Premium Highlighting | 1/2 | Complete    | 2026-03-22 |
 | 93. Hidden Newsletter Uncheck | 2/2 | Complete    | 2026-03-22 |
-| 94. Buried Login Link | 2/2 | Complete   | 2026-03-22 |
+| 94. Buried Login Link | 2/2 | Complete    | 2026-03-22 |
 | 95. Skip Ad Countdown | 0/1 | Not started | - |
 | 96. Anti-Scrape Site Text Extraction | 0/1 | Not started | - |
 
