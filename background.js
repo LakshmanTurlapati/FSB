@@ -29,6 +29,7 @@ importScripts('site-guides/productivity/_shared.js');
 // Per-site guides: E-Commerce
 importScripts('site-guides/ecommerce/amazon.js');
 importScripts('site-guides/ecommerce/bestbuy.js');
+importScripts('site-guides/ecommerce/demo-store.js');
 importScripts('site-guides/ecommerce/ebay.js');
 importScripts('site-guides/ecommerce/mega-menu.js');
 importScripts('site-guides/ecommerce/nike-3d-viewer.js');
