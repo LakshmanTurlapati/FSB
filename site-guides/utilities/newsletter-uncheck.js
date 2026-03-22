@@ -52,7 +52,14 @@ registerSiteGuide({
     /woocommerce/i
   ],
 
-  guidance: `HIDDEN NEWSLETTER UNCHECK INTELLIGENCE (DARK-07):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic DARK-07):
+- [dark] Scan ALL input[type=checkbox] AND input[type=radio] -- newsletter may use radio buttons not checkboxes
+- [dark] Scroll entire form and expand accordion sections BEFORE scanning for checkboxes
+- [dark] Classify by label text keywords: newsletter, subscribe, marketing, offers, partners, opt in
+- [dark] NEVER uncheck terms-of-service/privacy-policy boxes -- only uncheck newsletter/marketing ones
+- [dark] After unchecking, verify checked=false with get_attribute before submitting the form
+
+HIDDEN NEWSLETTER UNCHECK INTELLIGENCE (DARK-07):
 
 DARK PATTERN CONTEXT (DARK-07):
 E-commerce checkout forms, registration pages, and signup flows commonly inject

@@ -56,7 +56,14 @@ registerSiteGuide({
     /frontier\.com/i
   ],
 
-  guidance: `PREMIUM HIGHLIGHTING AVOIDANCE INTELLIGENCE (DARK-06):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic DARK-06):
+- [dark] Extract ALL prices numerically -- strip $, commas, "From", "+" suffix, then parseFloat and compare
+- [dark] NEVER use badge text ("Best", "Recommended") as selection criterion -- badges favor premium fares
+- [dark] NEVER select the pre-selected/highlighted option without comparing its price to all alternatives
+- [dark] Cheapest flight may be below the fold (position 9/12 on Google Flights) -- scroll to load all results
+- [dark] On airline direct sites, compare across ALL fare tier columns, not just across different flights
+
+PREMIUM HIGHLIGHTING AVOIDANCE INTELLIGENCE (DARK-06):
 
 DARK PATTERN CONTEXT:
 Airline and travel booking sites use misleading visual design to steer users toward

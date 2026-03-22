@@ -48,7 +48,14 @@ registerSiteGuide({
     /vimeo\.com/i
   ],
 
-  guidance: `SKIP AD COUNTDOWN INTELLIGENCE (DARK-09):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic DARK-09):
+- [dark] Skip button does NOT exist in DOM until countdown finishes -- use wait_for_element with 15s timeout
+- [dark] Do NOT click before button appears -- accidental ad overlay click opens advertiser URL
+- [dark] Use CSS selector click (not coordinate click_at) -- skip button position varies by player size
+- [dark] After skipping, re-check for .ad-showing -- YouTube may serve 2 sequential pre-roll ads
+- [dark] If 15s timeout expires, ad is non-skippable -- poll for ad overlay removal up to 60s total
+
+SKIP AD COUNTDOWN INTELLIGENCE (DARK-09):
 
 DARK PATTERN CONTEXT (DARK-09):
 Video platforms use pre-roll ads with a forced wait period (typically 5 seconds,

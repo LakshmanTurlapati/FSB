@@ -51,7 +51,14 @@ registerSiteGuide({
     /atlassian\.com/i
   ],
 
-  guidance: `BURIED LOGIN LINK INTELLIGENCE (DARK-08):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic DARK-08):
+- [dark] NEVER click the dominant CTA button first -- it is always Sign Up, not Login
+- [dark] Classify ALL clickable elements by text: login-intent (Log in, Sign in) vs signup-intent
+- [dark] Check href for /login or /signin patterns as secondary confirmation after text match
+- [dark] Login:signup ratio is typically 1:3 to 1:5 -- find the minority element, not the majority
+- [dark] After clicking, verify login page by checking for input[type=password] field presence
+
+BURIED LOGIN LINK INTELLIGENCE (DARK-08):
 
 DARK PATTERN CONTEXT (DARK-08):
 SaaS, freemium, and subscription sites deliberately manipulate visual hierarchy

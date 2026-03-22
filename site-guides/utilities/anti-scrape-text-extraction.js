@@ -47,7 +47,14 @@ registerSiteGuide({
     /nytimes\.com/i
   ],
 
-  guidance: `ANTI-SCRAPE TEXT EXTRACTION INTELLIGENCE (DARK-10):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic DARK-10):
+- [dark] Use get_dom_snapshot/read_page directly -- these bypass ALL JS/CSS anti-scrape protections
+- [dark] When class names are obfuscated, use structural selectors: data-*, aria-*, tag names, schema.org
+- [dark] Do NOT try to disable protections first -- direct DOM text extraction is simpler and more reliable
+- [dark] If text appears empty, check for: client-rendered content, CSS ::before/::after, iframe isolation
+- [dark] Only image-based text (canvas/SVG/img pixels) defeats DOM extraction -- document as limitation
+
+ANTI-SCRAPE TEXT EXTRACTION INTELLIGENCE (DARK-10):
 
 DARK PATTERN CONTEXT (DARK-10):
 Sites use multiple layers of JavaScript event handlers (oncontextmenu returning false,
