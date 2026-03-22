@@ -9,7 +9,14 @@ registerSiteGuide({
   patterns: [
     /github\.com/i
   ],
-  guidance: `GITHUB-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic SCROLL-03):
+- [scroll] Use contributions tab, not nonexistent "activity" tab
+- [scroll] Wait for include-fragment to load before reading activity entries
+- [scroll] Parse datetime from relative-time element attributes, not displayed text
+- [scroll] Allow 1500-2500ms between scroll iterations for activity feed loading
+- [scroll] Deduplicate activity entries by commit SHA or event link href
+
+GITHUB-SPECIFIC INTELLIGENCE:
 
 COMMON PATTERNS:
   # search for a repository

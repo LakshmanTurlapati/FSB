@@ -36,7 +36,14 @@ registerSiteGuide({
     /arxiv\.org\/pdf\//i,
     /blob:.*pdf/i
   ],
-  guidance: `VIRTUALIZED PDF VIEWER INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic SCROLL-05):
+- [scroll] Navigate pages via input#pageNumber (click, Ctrl+A, type N, Enter)
+- [scroll] Extract text from .page[data-page-number="N"] .textLayer span elements
+- [scroll] Detect virtualization via data-loaded attribute on .page div
+- [scroll] Wait 500-1000ms after page navigation for textLayer to populate
+- [scroll] Store text as you visit each page -- virtualized pages lose content
+
+VIRTUALIZED PDF VIEWER INTELLIGENCE:
 
 PDF.JS VIEWER ARCHITECTURE:
 - pdf.js is the standard open-source PDF renderer used by Firefox, many web PDF viewers, and embedded document viewers

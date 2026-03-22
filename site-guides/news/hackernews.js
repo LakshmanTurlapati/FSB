@@ -19,7 +19,14 @@ registerSiteGuide({
     /news\.ycombinator\.com/i,
     /hackernews\.com/i
   ],
-  guidance: `HACKER NEWS THREAD EXPANSION (SCROLL-06):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic SCROLL-06):
+- [scroll] HN loads ALL comments on one page -- no morelink pagination on threads
+- [scroll] Count comments via tr.athing.comtr; compare to header count for validation
+- [scroll] Use news.ycombinator.com/best to find 1000+ comment threads
+- [scroll] Depth via td.ind width attribute (width/40 = nesting level)
+- [scroll] Expect large HTML (1-4MB) for 1000+ comment threads
+
+HACKER NEWS THREAD EXPANSION (SCROLL-06):
 
 HN COMMENT DOM STRUCTURE:
 - HN renders comments as HTML tables -- no JavaScript frameworks, no virtual DOM

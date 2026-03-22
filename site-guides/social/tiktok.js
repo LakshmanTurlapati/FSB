@@ -18,7 +18,14 @@ registerSiteGuide({
   patterns: [
     /tiktok\.com/i
   ],
-  guidance: `TIKTOK-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic SCROLL-08):
+- [scroll] TikTok is fully client-rendered SPA -- zero content in server HTML
+- [scroll] Use tiktok.com/search?q=cat as primary; tiktok.com/tag/cats as fallback
+- [scroll] Dismiss cookie (onetrust) and login modal before reading cards
+- [scroll] Scroll 800-1000px with 500-1000ms wait; each batch adds 8-12 cards
+- [scroll] SIGI_STATE is deprecated -- __UNIVERSAL_DATA_FOR_REHYDRATION__ has no content
+
+TIKTOK-SPECIFIC INTELLIGENCE:
 
 FEED STRUCTURE:
 - TikTok web uses a full-screen vertical video feed (one video per viewport)

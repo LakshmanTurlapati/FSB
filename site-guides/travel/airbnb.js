@@ -17,7 +17,14 @@ registerSiteGuide({
   patterns: [
     /airbnb\.com/i
   ],
-  guidance: `AIRBNB-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic SCROLL-07):
+- [scroll] All listing pins/cards are client-rendered -- live browser required
+- [scroll] Map at data-testid="map/GoogleMap"; center ~(viewport.width*0.75, height*0.5)
+- [scroll] CDP drag 400px for pan; wait 2000-3000ms for Airbnb API pin refresh
+- [scroll] Verify "Search as I move" toggle is ON before panning map
+- [scroll] Dismiss cookie banner before map interaction to avoid click interception
+
+AIRBNB-SPECIFIC INTELLIGENCE:
 
 COMMON PATTERNS:
   # search for a rental

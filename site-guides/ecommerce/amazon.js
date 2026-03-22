@@ -9,7 +9,14 @@ registerSiteGuide({
   patterns: [
     /amazon\.(com|co\.\w+|in|de|fr|jp|ca|com\.au|com\.br|com\.mx)/i
   ],
-  guidance: `AMAZON-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic SCROLL-02):
+- [scroll] Amazon uses PAGINATION not infinite scroll -- click .s-pagination-next
+- [scroll] Deduplicate by data-asin attribute; ~15% overlap between adjacent pages
+- [scroll] Detect CAPTCHA: page <10KB or opfcaptcha in source means bot-blocked
+- [scroll] Allow 1000-2000ms between page clicks for server-rendered results to load
+- [scroll] Break on: target reached, no .s-pagination-next, or 3 pages with 0 new ASINs
+
+AMAZON-SPECIFIC INTELLIGENCE:
 
 COMMON PATTERNS:
   # search for a product

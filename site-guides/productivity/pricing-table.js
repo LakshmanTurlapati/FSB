@@ -22,7 +22,14 @@ registerSiteGuide({
     /github\.com\/pricing/i,
     /atlassian\.com.*pricing/i
   ],
-  guidance: `SAAS PRICING TABLE INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic SCROLL-09):
+- [scroll] Notion pricing is server-rendered -- try full read_page before scroll loop
+- [scroll] Scroll 400-600px increments to avoid skipping feature rows (~40-60px each)
+- [scroll] Deduplicate by feature name text; detect checkmarks via PlanFeatures_check__
+- [scroll] Use class*="PricingGrid_row__" partial match for CSS Module hashed classes
+- [scroll] Verify last section (Support) captured to confirm completeness
+
+SAAS PRICING TABLE INTELLIGENCE:
 
 TABLE STRUCTURE:
 - SaaS pricing pages typically have a feature comparison table/grid below the hero pricing cards

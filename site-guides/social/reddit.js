@@ -17,7 +17,14 @@ registerSiteGuide({
   patterns: [
     /reddit\.com/i
   ],
-  guidance: `REDDIT-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic SCROLL-04):
+- [scroll] Prefer old.reddit.com -- server-renders 184+ comments vs 1 on new Reddit
+- [scroll] Sort by "old" via URL param ?sort=old, not UI dropdown click
+- [scroll] Click ALL load-more buttons BEFORE scrolling (expansion-first strategy)
+- [scroll] Expect SKIP-AUTH for reply -- buttons use class="access-required"
+- [scroll] Use thread data-comments-count attribute for progress estimation
+
+REDDIT-SPECIFIC INTELLIGENCE:
 
 COMMON PATTERNS:
   # search for a topic

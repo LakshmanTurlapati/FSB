@@ -17,7 +17,14 @@ registerSiteGuide({
   patterns: [
     /(twitter\.com|x\.com)/i
   ],
-  guidance: `X/TWITTER-SPECIFIC INTELLIGENCE:
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic SCROLL-01):
+- [scroll] Track tweets by permalink href Set -- virtualized DOM recycles ~20-40 elements
+- [scroll] Scroll 800px with 500-1000ms wait; expect ~10-15 new tweets per cycle
+- [scroll] Break on 3 consecutive empty scrolls -- feed ended or auth wall appeared
+- [scroll] Extract tweet text DURING scroll, not after -- recycled elements are gone
+- [scroll] Filter ads via [data-testid="placementTracking"] before counting
+
+X/TWITTER-SPECIFIC INTELLIGENCE:
 
 COMMON PATTERNS:
   # compose and post

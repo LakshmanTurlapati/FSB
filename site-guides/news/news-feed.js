@@ -24,7 +24,14 @@ registerSiteGuide({
     /apnews\.com/i,
     /theguardian\.com/i
   ],
-  guidance: `NEWS FEED DATE-STOP SCROLL (SCROLL-10):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic SCROLL-10):
+- [scroll] BBC uses relative timestamps ("3 hrs ago"), not time[datetime] attributes
+- [scroll] Use __NEXT_DATA__ JSON lastUpdated (Unix ms) for reliable date comparison
+- [scroll] BBC uses dundee/cambridge/manchester/london card naming, not edinburgh
+- [scroll] BBC homepage may be finite (47 articles) -- not true infinite scroll
+- [scroll] Deduplicate articles by /news/articles/{hash} href as unique key
+
+NEWS FEED DATE-STOP SCROLL (SCROLL-10):
 
 NEWS SITE ARTICLE FEED DOM STRUCTURE:
 - News sites display articles in a chronological feed (newest first at top)
