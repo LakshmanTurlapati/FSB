@@ -62,7 +62,7 @@ Each requirement = one edge case prompt executed via MCP manual mode (no vision,
 ### Visual Ambiguity & Dark Patterns
 
 - [x] **DARK-01**: MCP can download file from freeware site ignoring fake "Download Now" ad buttons
-- [ ] **DARK-02**: MCP can opt out of all non-essential cookies on EU news site with hidden reject option
+- [x] **DARK-02**: MCP can opt out of all non-essential cookies on EU news site with hidden reject option
 - [ ] **DARK-03**: MCP can cancel subscription on site that shuffles Keep/Cancel button positions
 - [ ] **DARK-04**: MCP can close pop-up ad where X button is camouflaged against background
 - [ ] **DARK-05**: MCP can bypass "disable adblocker" modal with no visible DOM exit button
@@ -136,7 +136,7 @@ Deferred to next milestone. Will use diagnostic reports from this milestone as i
 | CONTEXT-09 | Phase 85 | Complete |
 | CONTEXT-10 | Phase 86 | Complete |
 | DARK-01 | Phase 87 | Complete |
-| DARK-02 | Phase 88 | Pending |
+| DARK-02 | Phase 88 | Complete |
 | DARK-03 | Phase 89 | Pending |
 | DARK-04 | Phase 90 | Pending |
 | DARK-05 | Phase 91 | Pending |
