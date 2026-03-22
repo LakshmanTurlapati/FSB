@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 86-02-PLAN.md
-last_updated: "2026-03-22T08:23:22.036Z"
+stopped_at: Completed 87-01-PLAN.md
+last_updated: "2026-03-22T08:34:38.439Z"
 progress:
   total_phases: 50
   completed_phases: 40
-  total_plans: 80
-  completed_plans: 80
+  total_plans: 82
+  completed_plans: 81
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 86 — session-expiry-re-auth
+**Current focus:** Phase 87 — freeware-download-ad-avoidance
 
 ## Current Position
 
-Phase: 87
-Plan: Not started
+Phase: 87 (freeware-download-ad-avoidance) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -168,6 +168,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 85]: CONTEXT-09 PARTIAL outcome: HR portal fully server-rendered and validated, CRM target client-rendered (React SPA shell), DummyJSON as fallback CRM, 84-96% context savings from batch-of-10 extraction with HR caching
 - [Phase 86]: the-internet.herokuapp.com as primary session expiry target with simulated logout; 4 detection patterns (modal, redirect, banner, HTTP error); compact task state under 500 chars for CONTEXT-10
 - [Phase 86]: CONTEXT-10 PARTIAL: 9/15 selectors validated, 302 redirect session expiry detection confirmed, 243-byte compact state under 500-char budget, live MCP blocked by WebSocket bridge disconnect
+- [Phase 87]: Elimination-based ad detection: exclude fake download buttons via 8 DOM heuristics, verify remaining candidate before click
 
 ### Pending Todos
 
@@ -181,6 +182,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-22T08:22:46.397Z
-Stopped at: Completed 86-02-PLAN.md
+Last session: 2026-03-22T08:34:38.435Z
+Stopped at: Completed 87-01-PLAN.md
 Resume file: None
