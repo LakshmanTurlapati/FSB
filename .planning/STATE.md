@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.7
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 85-02-PLAN.md
-last_updated: "2026-03-22T08:01:49.905Z"
+stopped_at: Completed 86-01-PLAN.md
+last_updated: "2026-03-22T08:12:30.120Z"
 progress:
   total_phases: 50
   completed_phases: 39
-  total_plans: 78
-  completed_plans: 78
+  total_plans: 80
+  completed_plans: 79
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 85 — crm-vs-hr-portal-cross-reference
+**Current focus:** Phase 86 — session-expiry-re-auth
 
 ## Current Position
 
-Phase: 86
-Plan: Not started
+Phase: 86 (session-expiry-re-auth) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -166,6 +166,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 84]: SKIP-AUTH outcome: Google Docs editing requires signed-in account with no demo mode, anonymous editing, or public editable documents
 - [Phase 85]: Batch-of-10 extraction pattern for CRM-to-HR cross-reference with under-3000-char context budget; DemoQA webtables + herokuapp sortable tables as auth-free primary targets
 - [Phase 85]: CONTEXT-09 PARTIAL outcome: HR portal fully server-rendered and validated, CRM target client-rendered (React SPA shell), DummyJSON as fallback CRM, 84-96% context savings from batch-of-10 extraction with HR caching
+- [Phase 86]: the-internet.herokuapp.com as primary session expiry target with simulated logout; 4 detection patterns (modal, redirect, banner, HTTP error); compact task state under 500 chars for CONTEXT-10
 
 ### Pending Todos
 
@@ -179,6 +180,6 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-03-22T08:00:59.171Z
-Stopped at: Completed 85-02-PLAN.md
+Last session: 2026-03-22T08:12:30.089Z
+Stopped at: Completed 86-01-PLAN.md
 Resume file: None
