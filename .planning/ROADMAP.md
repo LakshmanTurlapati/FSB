@@ -617,8 +617,8 @@ Plans:
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
 **Plans:** 2 plans
 Plans:
-- [ ] 81-01-PLAN.md -- Create demo-store.js site guide with checkout correction workflow and CONTEXT-05 guidance
-- [ ] 81-02-PLAN.md -- Execute live MCP checkout correction test, generate CONTEXT-05 diagnostic report
+- [ ] 89-01-PLAN.md -- Create shuffled-cancel.js site guide with cancelSubscription workflow and DARK-03 guidance
+- [ ] 89-02-PLAN.md -- Execute live MCP shuffled cancel button test, generate DARK-03 diagnostic report
 
 ### Phase 90: Camouflaged Close Button
 **Goal:** Execute pop-up ad close where X is camouflaged against the background via MCP manual tools; fix blockers
