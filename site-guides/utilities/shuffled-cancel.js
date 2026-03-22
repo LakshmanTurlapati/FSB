@@ -35,7 +35,14 @@ registerSiteGuide({
     /button.*position/i
   ],
 
-  guidance: `SHUFFLED CANCEL BUTTON INTELLIGENCE (DARK-03):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic DARK-03):
+- [dark] NEVER use button position (left/right/first/second) -- positions are randomized each load
+- [dark] Read ALL button text and classify by cancel-intent vs keep-intent keywords before clicking
+- [dark] Handle confirmshaming: parse SEMANTIC ACTION (what happens on click), not emotional framing
+- [dark] In "Are you sure?" dialogs, "Yes"=cancel-intent and "Cancel"=keep-intent (trick question)
+- [dark] Navigate through ALL retention steps (offers, surveys) before final shuffled confirmation
+
+SHUFFLED CANCEL BUTTON INTELLIGENCE (DARK-03):
 
 DARK PATTERN CONTEXT (DARK-03):
 Subscription cancellation flows intentionally randomize the position of "Keep

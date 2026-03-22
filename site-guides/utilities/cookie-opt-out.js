@@ -41,7 +41,14 @@ registerSiteGuide({
     /reject.*cookies/i
   ],
 
-  guidance: `COOKIE OPT-OUT HIDDEN REJECT INTELLIGENCE (DARK-02):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic DARK-02):
+- [dark] NEVER click the prominent first button on consent banners -- it is always Accept All
+- [dark] Use 3-tier reject path: direct reject > reject in preferences > toggle-and-save
+- [dark] Sourcepoint CMPs load consent UI inside iframes -- detect iframe first, interact inside it
+- [dark] Pre-checked toggles default ON -- verify each toggle state before clicking, skip Strictly Necessary
+- [dark] Match button text across EU languages: Reject/Refuser/Ablehnen/Rifiuta/Rechazar
+
+COOKIE OPT-OUT HIDDEN REJECT INTELLIGENCE (DARK-02):
 
 DARK PATTERN CONTEXT (DARK-02):
 Cookie consent banners on EU websites are legally required under GDPR/ePrivacy

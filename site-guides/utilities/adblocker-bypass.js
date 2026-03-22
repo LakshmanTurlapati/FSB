@@ -40,7 +40,14 @@ registerSiteGuide({
     /support.*ads/i
   ],
 
-  guidance: `ADBLOCKER MODAL BYPASS INTELLIGENCE (DARK-05):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic DARK-05):
+- [dark] No close button exists -- do NOT waste iterations searching for one, go straight to DOM bypass
+- [dark] Use CSS override (display:none !important) as PRIMARY bypass -- resists MutationObserver re-detection
+- [dark] ALWAYS restore body.style.overflow=auto and remove pointer-events:none after modal removal
+- [dark] Check for re-detection: if modal reappears in 2-3s, nullify window.blockAdBlock/fuckAdBlock vars
+- [dark] Content loads BEFORE modal -- extract text from behind overlay as last-resort fallback
+
+ADBLOCKER MODAL BYPASS INTELLIGENCE (DARK-05):
 
 DARK PATTERN CONTEXT (DARK-05):
 Adblocker detection modals are a category of dark pattern where the site detects an

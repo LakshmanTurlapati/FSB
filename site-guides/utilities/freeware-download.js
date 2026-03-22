@@ -32,7 +32,14 @@ registerSiteGuide({
     /download.*button/i
   ],
 
-  guidance: `FREEWARE DOWNLOAD AD AVOIDANCE INTELLIGENCE (DARK-01):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic DARK-01):
+- [dark] NEVER click the largest/first Download button -- verify href domain matches site before clicking
+- [dark] Any download button inside an iframe is ALWAYS an ad -- eliminate all iframe-hosted elements first
+- [dark] Check href for same-site domain (e.g. sourceforge.net/*) vs ad domains (doubleclick, googleads)
+- [dark] Scan parent chain 3 levels up for ad container markers (ad-, sponsored, gpt-ad, banner)
+- [dark] If uncertain, construct direct download URL from project pattern as fallback
+
+FREEWARE DOWNLOAD AD AVOIDANCE INTELLIGENCE (DARK-01):
 
 DARK PATTERN CONTEXT:
 Freeware download sites monetize through ad networks that serve fake "Download"

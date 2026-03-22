@@ -36,7 +36,14 @@ registerSiteGuide({
     /modal.*close/i
   ],
 
-  guidance: `CAMOUFLAGED CLOSE BUTTON INTELLIGENCE (DARK-04):
+  guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic DARK-04):
+- [dark] Use aria-label containing "close"/"dismiss" as primary signal -- most reliable across sites
+- [dark] Apply 3-tier detection: attributes first > SVG/onclick content > text/positional fallback
+- [dark] Check for decoy X buttons: verify onclick/href does not navigate to external URL before clicking
+- [dark] Close buttons may appear delayed 3-10s after ad load -- wait and rescan up to 10s total
+- [dark] Try Escape key as first fallback, DOM removal (element.remove) as last resort
+
+CAMOUFLAGED CLOSE BUTTON INTELLIGENCE (DARK-04):
 
 DARK PATTERN CONTEXT (DARK-04):
 Pop-up ads and overlay modals deliberately camouflage their close button to maximize
