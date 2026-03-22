@@ -4,7 +4,7 @@ milestone: v0.9.7
 milestone_name: milestone
 status: unknown
 stopped_at: Completed 86-02-PLAN.md
-last_updated: "2026-03-22T08:22:46.400Z"
+last_updated: "2026-03-22T08:23:22.036Z"
 progress:
   total_phases: 50
   completed_phases: 40
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 
 ## Current Position
 
-Phase: 86 (session-expiry-re-auth) — EXECUTING
-Plan: 2 of 2
+Phase: 87
+Plan: Not started
 
 ## Accumulated Context
 

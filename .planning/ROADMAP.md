@@ -753,7 +753,7 @@ Plans:
 | 83. 2FA Multi-Tab Auth Flow | 2/2 | Complete    | 2026-03-22 |
 | 84. Google Doc Word Replace | 2/2 | Complete    | 2026-03-22 |
 | 85. CRM vs HR Portal Cross-Reference | 2/2 | Complete    | 2026-03-22 |
-| 86. Session Expiry Re-Auth | 2/2 | Complete   | 2026-03-22 |
+| 86. Session Expiry Re-Auth | 2/2 | Complete    | 2026-03-22 |
 | 87. Freeware Download Ad Avoidance | 0/1 | Not started | - |
 | 88. Cookie Opt-Out Hidden Reject | 0/1 | Not started | - |
 | 89. Shuffled Cancel Button | 0/1 | Not started | - |
