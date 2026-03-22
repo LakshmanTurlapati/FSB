@@ -620,9 +620,9 @@ Plans:
   1. Edge case prompt attempted via MCP manual tools with documented outcome (pass/fail/partial/skip-auth)
   2. Any tool or extension bugs discovered are fixed in-phase with tests
   3. Autopilot diagnostic report generated documenting: what worked, what failed, tool gaps, and autopilot recommendations
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 90-01-PLAN.md -- Create camouflaged-close.js site guide with closePopupAd workflow and DARK-04 guidance
+- [x] 90-01-PLAN.md -- Create camouflaged-close.js site guide with closePopupAd workflow and DARK-04 guidance
 - [ ] 90-02-PLAN.md -- Execute live MCP camouflaged close button test, generate DARK-04 diagnostic report
 
 ### Phase 91: Adblocker Modal Bypass
@@ -750,7 +750,7 @@ Plans:
 | 87. Freeware Download Ad Avoidance | 1/2 | Complete    | 2026-03-22 |
 | 88. Cookie Opt-Out Hidden Reject | 2/2 | Complete    | 2026-03-22 |
 | 89. Shuffled Cancel Button | 2/2 | Complete    | 2026-03-22 |
-| 90. Camouflaged Close Button | 0/1 | Not started | - |
+| 90. Camouflaged Close Button | 1/2 | In Progress|  |
 | 91. Adblocker Modal Bypass | 0/1 | Not started | - |
 | 92. Misleading Premium Highlighting | 0/1 | Not started | - |
 | 93. Hidden Newsletter Uncheck | 0/1 | Not started | - |
