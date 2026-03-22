@@ -193,6 +193,7 @@ importScripts('site-guides/utilities/premium-highlighting.js');
 importScripts('site-guides/utilities/newsletter-uncheck.js');
 importScripts('site-guides/utilities/buried-login-link.js');
 importScripts('site-guides/utilities/skip-ad-countdown.js');
+importScripts('site-guides/utilities/anti-scrape-text-extraction.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
