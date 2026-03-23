@@ -22,7 +22,7 @@
 - [x] **Phase 98: Prompt Architecture** - Restructure system prompt with tool grouping by interaction type and task-type conditional sections (completed 2026-03-22)
 - [x] **Phase 99: Diagnostic-to-Guide Pipeline** - Wire 500+ v0.9.7 diagnostic recommendations into site guide files as autopilot strategy hints (completed 2026-03-22)
 - [x] **Phase 100: Procedural Memory** - Extract successful action sequences from Task memories and inject as recommended approaches for matching tasks (completed 2026-03-23)
-- [ ] **Phase 101: Memory Intelligence** - Auto-consolidation triggers, cross-domain strategy transfer, domain-change refresh, and dead code cleanup
+- [x] **Phase 101: Memory Intelligence** - Auto-consolidation triggers, cross-domain strategy transfer, domain-change refresh, and dead code cleanup (completed 2026-03-23)
 - [ ] **Phase 102: Robustness Hardening** - Coordinate validation, bidirectional stuck recovery, progressive prompt trimming, and CLI parse retry
 - [ ] **Phase 103: Validation** - Test autopilot against v0.9.7 edge cases and measure CLI parse failure rate and completion accuracy
 
@@ -89,10 +89,10 @@ Plans:
   2. When autopilot encounters a site with no stored memories, it finds and injects relevant strategies from other domains with matching task type patterns
   3. When autopilot navigates across domain boundaries during a multi-site task, memory context refreshes to include memories relevant to the new domain
   4. No dead episodic memory schemas, consolidator references, or unused code paths remain in the codebase
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
-- [ ] 101-01-PLAN.md -- Auto-consolidation triggers in background.js and dead episodic code cleanup (MEM-03, MEM-06)
-- [ ] 101-02-PLAN.md -- Cross-domain strategy transfer and domain-change memory refresh in ai-integration.js (MEM-04, MEM-05)
+- [x] 101-01-PLAN.md -- Auto-consolidation triggers in background.js and dead episodic code cleanup (MEM-03, MEM-06)
+- [x] 101-02-PLAN.md -- Cross-domain strategy transfer and domain-change memory refresh in ai-integration.js (MEM-04, MEM-05)
 
 ### Phase 102: Robustness Hardening
 **Goal**: Autopilot handles edge cases gracefully -- bad coordinates rejected before execution, stuck detection adapts to tool type, heavy pages don't timeout, and CLI parse failures self-correct
@@ -130,6 +130,6 @@ Phase 103 (Validation) requires all other phases complete.
 | 98. Prompt Architecture | 1/1 | Complete    | 2026-03-22 |
 | 99. Diagnostic-to-Guide Pipeline | 3/3 | Complete    | 2026-03-22 |
 | 100. Procedural Memory | 1/1 | Complete    | 2026-03-23 |
-| 101. Memory Intelligence | 0/2 | Not started | - |
+| 101. Memory Intelligence | 2/2 | Complete   | 2026-03-23 |
 | 102. Robustness Hardening | 0/TBD | Not started | - |
 | 103. Validation | 0/TBD | Not started | - |
