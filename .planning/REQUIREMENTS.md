@@ -45,7 +45,7 @@ Make the autopilot mode perform as flawlessly as MCP manual mode. The AI (Grok 4
 
 ### Verification Mechanics Fix
 
-- [ ] **VMFIX-01**: CDP coordinate tool calls (cdpClickAt, cdpDrag, cdpScrollAt, cdpClickAndHold, cdpDragVariableSpeed) report success=true when CDP dispatch completes without error, bypassing DOM mutation verification that is irrelevant for coordinate-based interactions
+- [x] **VMFIX-01**: CDP coordinate tool calls (cdpClickAt, cdpDrag, cdpScrollAt, cdpClickAndHold, cdpDragVariableSpeed) report success=true when CDP dispatch completes without error, bypassing DOM mutation verification that is irrelevant for coordinate-based interactions
 - [x] **VMFIX-02**: Completion validator honors AI done/fail commands within 2 iterations even on pages with continuous DOM changes (real-time charts, animations, live data feeds) by prioritizing explicit AI completion signals over DOM stability signals
 - [x] **VMFIX-03**: Stale autopilot sessions auto-expire after 5 minutes of no AI iteration progress, cleaning up session state and freeing the tab for new task launches
 
@@ -91,7 +91,7 @@ Make the autopilot mode perform as flawlessly as MCP manual mode. The AI (Grok 4
 | VALID-02 | Phase 103 | Complete |
 | VALID-03 | Phase 103 | Complete |
 | VALID-04 | Phase 103 | Complete |
-| VMFIX-01 | Phase 104 | Pending |
+| VMFIX-01 | Phase 104 | Complete |
 | VMFIX-02 | Phase 104 | Complete |
 | VMFIX-03 | Phase 104 | Complete |
 
