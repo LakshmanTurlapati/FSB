@@ -357,6 +357,74 @@ async function extractAndStoreMemories(sessionId, session) {
     }
 
     const memories = await memoryManager.add(session, { domain });
+
+    // Phase 100: Extract procedural memory from successful sessions (MEM-01)
+    try {
+      if (
+        memories.length > 0 &&
+        memories[0].typeData?.session?.outcome === 'success' &&
+        memories[0].typeData?.session?.iterationCount <= 10 &&
+        (memories[0].typeData?.session?.timeline || []).length >= 2
+      ) {
+        const timeline = memories[0].typeData.session.timeline;
+        const steps = timeline.map(step => {
+          const parts = [step.action];
+          if (step.target) parts.push(step.target);
+          return parts.join(' ');
+        });
+
+        const selectors = [...new Set(
+          timeline
+            .map(step => step.target)
+            .filter(t => t && t.length > 0)
+        )];
+
+        const taskText = memories[0].typeData?.session?.task || session.task || 'Unknown task';
+        const procText = `${taskText} on ${domain || 'unknown site'}`;
+
+        const proceduralMemory = createProceduralMemory(procText, {
+          domain: domain,
+          taskType: memories[0].metadata?.taskType || null,
+          tags: ['procedural', 'auto-extracted', ...(domain ? [domain] : [])],
+          confidence: 1.0,
+          sourceSessionId: session.sessionId || null
+        }, {
+          steps: steps,
+          selectors: selectors,
+          timings: timeline.map(step => step.timestamp).filter(Boolean),
+          successRate: 1.0,
+          totalRuns: 1,
+          lastSuccessAt: Date.now(),
+          targetUrl: memories[0].typeData?.session?.finalUrl || null
+        });
+
+        // Enforce per-domain cap of 5 procedural memories
+        const existingProcedural = await memoryStorage.query({
+          domain: domain,
+          type: MEMORY_TYPES.PROCEDURAL
+        });
+        const domainProcedural = existingProcedural.filter(m => m.type === MEMORY_TYPES.PROCEDURAL);
+        if (domainProcedural.length >= 5) {
+          domainProcedural.sort((a, b) => a.createdAt - b.createdAt);
+          const toDelete = domainProcedural.slice(0, domainProcedural.length - 4);
+          for (const old of toDelete) {
+            await memoryStorage.delete(old.id);
+          }
+        }
+
+        await memoryStorage.add(proceduralMemory);
+
+        debugLog('Extracted procedural memory from successful session', {
+          sessionId,
+          domain,
+          steps: steps.length,
+          taskType: memories[0].metadata?.taskType
+        });
+      }
+    } catch (procError) {
+      console.warn('[FSB] Procedural memory extraction failed:', procError.message);
+    }
+
     if (memories.length > 0) {
       debugLog('Extracted memories from session', {
         sessionId,
