@@ -3144,7 +3144,11 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
 
       for (const m of this._longTermMemories) {
         let entry;
-        if (m.type === 'procedural' || m.steps) {
+        if (m.type === 'procedural' && m.typeData?.steps?.length > 0) {
+          // Show compact steps instead of generic "How to:" for procedural memories
+          const stepPreview = m.typeData.steps.slice(0, 5).map((s, i) => `${i + 1}.${s}`).join(' ');
+          entry = `Playbook: ${(m.text || '').substring(0, 60)} -- ${stepPreview}`;
+        } else if (m.type === 'procedural' || m.steps) {
           entry = `How to: ${(m.text || '').substring(0, 100)}`;
         } else if (m.type === 'semantic' || m.domain) {
           entry = `Known: ${(m.text || '').substring(0, 100)}`;
@@ -4319,8 +4323,27 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
 
     if (!siteGuide) {
       // No site guide matched -- use existing TASK_PROMPTS
-      const basePrompt = TASK_PROMPTS[taskType] || TASK_PROMPTS.general;
-      return basePrompt + careerUrlDirective;
+      let baseGuidance = (TASK_PROMPTS[taskType] || TASK_PROMPTS.general) + careerUrlDirective;
+
+      // Phase 100 (MEM-02): Inject procedural memory even without site guide
+      if (this._longTermMemories && this._longTermMemories.length > 0) {
+        const proceduralMemories = this._longTermMemories.filter(
+          m => m.type === MEMORY_TYPES.PROCEDURAL && m.typeData?.steps?.length > 0
+        );
+        if (proceduralMemories.length > 0) {
+          const best = proceduralMemories[0];
+          const steps = best.typeData.steps;
+          const numberedSteps = steps
+            .slice(0, 15)
+            .map((step, i) => `${i + 1}. ${step}`)
+            .join('\n');
+          baseGuidance += '\n\nRECOMMENDED APPROACH (from prior success on this site):\n';
+          baseGuidance += numberedSteps;
+          baseGuidance += '\nAdapt steps to current page state -- elements may differ.';
+        }
+      }
+
+      return baseGuidance;
     }
 
     // Build category-level guidance if this is a per-site guide with a category
@@ -4392,6 +4415,27 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       }
       if (/upload\s+file|drop\s+file|attach\s+file|file\s+upload/.test(tLower)) {
         guidance += '\n\nFILE UPLOAD HINT: Use dropfile ref "fileName" to simulate dropping a file on an upload zone. Find the dropzone element ref from page content.';
+      }
+    }
+
+    // Phase 100 (MEM-02): Inject procedural memory as recommended approach
+    if (this._longTermMemories && this._longTermMemories.length > 0) {
+      const proceduralMemories = this._longTermMemories.filter(
+        m => m.type === MEMORY_TYPES.PROCEDURAL && m.typeData?.steps?.length > 0
+      );
+
+      if (proceduralMemories.length > 0) {
+        const best = proceduralMemories[0];
+        const steps = best.typeData.steps;
+
+        const numberedSteps = steps
+          .slice(0, 15)
+          .map((step, i) => `${i + 1}. ${step}`)
+          .join('\n');
+
+        guidance += '\n\nRECOMMENDED APPROACH (from prior success on this site):\n';
+        guidance += numberedSteps;
+        guidance += '\nAdapt steps to current page state -- elements may differ.';
       }
     }
 
