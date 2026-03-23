@@ -1,185 +1,208 @@
 # Project Research Summary
 
-**Project:** FSB v0.9.6 — Server Relay, Dashboard, QR Pairing, DOM Cloning, Background Agents, Automation Replay
-**Domain:** Remote browser automation control, WebSocket relay, real-time DOM streaming
-**Researched:** 2026-03-17
-**Confidence:** HIGH (core architecture verified against Chrome official docs and direct codebase analysis)
+**Project:** FSB v0.9.9 — Excalidraw Mastery Milestone
+**Domain:** Canvas-based diagramming automation via Chrome Extension (CDP)
+**Researched:** 2026-03-23
+**Confidence:** HIGH
 
 ## Executive Summary
 
-FSB v0.9.6 is primarily an infrastructure and connectivity milestone, not a greenfield build. Direct codebase analysis confirms that background agents (manager, scheduler, executor), automation replay, and server-sync HTTP are already complete. The real work is wiring three new capabilities: (1) upgrading the existing SSE-based server to bidirectional WebSocket, (2) a QR pairing flow so dashboards can connect without manual hash key entry, and (3) a live DOM cloning stream so the dashboard can observe the browser in real time. The recommended approach is a single fly.io app serving both the dashboard site and the WebSocket relay, using the `ws` npm package alongside Express, with vanilla JS throughout (no build system, consistent with the existing extension).
+FSB v0.9.9 targets full Excalidraw drawing mastery using only the tools already in the FSB codebase — zero new dependencies. The milestone is not a tooling problem; it is an intelligence augmentation problem. All necessary CDP primitives (`press_key`, `cdpDrag`, `cdpInsertText`, `cdpClickAt`) exist and are proven. The scope of work is: (1) fixing two broken code paths in the existing FSB engine, (2) massively expanding the Excalidraw site guide with complete keyboard shortcut maps, text entry workflows, styling selectors, and layout conventions, and (3) building toward natural language diagram generation as the capstone deliverable.
 
-The most important technical decision confirmed by research is to reject rrweb for DOM streaming. rrweb is stuck at alpha (v2.0.0-alpha.4, main package last published 3 years ago), adds 50KB+ overhead, and solves pixel-perfect session replay — a different problem. FSB already has a DOM snapshot pipeline. The correct approach is to extend that pipeline with MutationObserver incremental diffs sent as compact JSON deltas. Images load directly from their original CDN URLs on the dashboard side, meaning zero server bandwidth for image data.
+The critical technical discovery is that Excalidraw's text editor is a standard `<textarea>` (class `excalidraw-wysiwyg`) created transiently by React — not a contenteditable div. FSB's `type` tool cannot reach it, but `cdpInsertText` (using `Input.insertText` CDP command) works directly because the textarea auto-focuses when created. The entire text entry problem reduces to a focus-and-wait sequence. The second critical finding is that Excalidraw renders shapes on `<canvas>`, making DOM-based progress detection completely blind to drawing activity. FSB will abort tasks after 6 "no progress" iterations unless `isCanvasEditorUrl()` is extended to include `excalidraw.com` — a one-line regex fix.
 
-The primary risk is the MV3 service worker lifecycle. WebSocket connections in service workers require Chrome 116+ and a 20-second keepalive ping to survive Chrome's 30-second idle termination. Setting `minimum_chrome_version: "116"` in the manifest is safe (Chrome 116 is from August 2023) and is the correct mitigation. A secondary risk is QR pairing security: the QR code must encode a short-lived one-time pairing token, never the persistent hash key, to prevent QRLJacking (OWASP documented attack). Both risks have clear, well-documented mitigations that must be implemented in Phase 1 and Phase 2 respectively.
+The main risk is sequencing, not capability. Two hard-blocking code fixes (canvas editor progress detection, `isCanvasBasedEditor()` expansion) must land in Phase 1 before any multi-step automation is viable. Without them the automation loop breaks regardless of how well the site guide is written. Coordinate precision is a second risk: zoom level and canvas pan shift all CDP coordinates, so every session must reset zoom and pan before drawing. With those two blockers resolved and a solid site guide in place, the path to natural language diagram generation is straightforward and well-defined.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The server is a single fly.io Node.js 20 LTS app combining Express (HTTP + static dashboard serving) and the `ws` package (WebSocket server). They share one HTTP server via the `upgrade` event — no separate processes or port management needed. Cost is approximately $2/month on a shared-cpu-1x instance with `min_machines_running = 1` to avoid cold start delays on WebSocket connections. For QR generation server-side, use `@paulmillr/qr` (zero-dependency, actively maintained). Extension and dashboard both vendor standalone JS files (QRCode.js for extension QR display, jsQR for dashboard camera scanning) since neither has a build system.
+No new technologies are required. FSB v0.9.9 is a zero-dependency milestone. All interaction with Excalidraw flows through existing CDP tools: keyboard shortcuts via `press_key`, shape drawing via `cdpDrag`, text insertion via `cdpInsertText`, point clicks via `cdpClickAt`, and DOM state checks via `getAttribute`/`getText`. The project constraint of vanilla JS with no build system is fully preserved.
+
+The guiding principle from research is keyboard-first, DOM-fallback: Excalidraw has comprehensive keyboard shortcuts for nearly every operation. Dispatching shortcuts via `press_key` is faster, more reliable, and version-stable compared to targeting React-generated DOM selectors that change across Excalidraw releases.
 
 **Core technologies:**
-- `ws` ^8.19.0: WebSocket server — zero dependencies, battle-tested, attaches to existing Express HTTP server
-- `express` ^4.21.0: HTTP + static files — serves dashboard site, REST API, and WebSocket upgrade in one process
-- `@paulmillr/qr` ^0.5.3: Server-side QR generation — zero-dep, actively maintained (unlike `qrcode` which is 2 years stale)
-- `chrome.alarms` (built-in): Background agent scheduling — already in manifest, persists across service worker restarts
-- `WebSocket` (browser built-in, Chrome 116+): Extension-to-server relay — requires `minimum_chrome_version: "116"` in manifest
-- `MutationObserver` (browser built-in): DOM delta capture — already used for stability detection, extend for streaming
-- fly.io: Hosting — WebSocket-native, auto-TLS, ~$2/month; Vercel/Netlify excluded (no persistent WebSocket)
+- `press_key` (keyboard emulator): Tool selection (R, D, O, A, L, P, T, F, E) and all canvas operations — primary interaction method, version-stable
+- `cdpDrag`: Shape drawing and multi-element rubber-band selection — proven in existing codebase
+- `cdpInsertText` (CDP `Input.insertText`): Excalidraw text entry into auto-focused transient textarea — works focus-based, no selector needed
+- `cdpClickAt`: Canvas point interactions, toolbar/menu clicks at coordinates
+- `waitForDOMStable`: Wait for React re-renders after Excalidraw state mutations
+- `getAttribute`/`getText`: DOM state verification (textarea presence, toolbar active state, dialog state)
 
-**What NOT to add:** Socket.IO (50KB overhead, unnecessary), rrweb (alpha for 3 years, wrong abstraction), Redis/PostgreSQL (relay is stateless, in-memory Map sufficient), `node-cron` (scheduling stays in extension via `chrome.alarms`).
+**No additions required:** No npm packages, no Chrome APIs, no new tools to build.
 
 ### Expected Features
 
-Direct codebase review confirmed agents, replay, and server-sync are already built. The remaining work is WebSocket infrastructure and what depends on it.
+All table-stakes features are achievable with existing tools. The feature dependency chain is strict: text entry must work before shape labels work; shapes must work before connectors work; all primitives must work before natural language generation is viable.
 
 **Must have (table stakes):**
-- WebSocket relay server — SSE is read-only; remote task creation requires bidirectional commands; everything else depends on this
-- QR code pairing — manual hash key paste is poor UX; scan-and-go device linking is the expected pattern
-- Remote task creation — the core product promise: type a task on the dashboard, watch the browser execute it
-- Live task monitoring — without feedback, remote task creation is fire-and-forget and unusable
-- Connection status indicator — users need to know if their browser is actively connected; trust depends on this
-- Agent monitoring dashboard — already partially built; upgrade SSE transport to WebSocket
+- Draw rectangles, ellipses, diamonds — `press_key` + `cdpDrag`
+- Draw arrows and lines with shape binding — `press_key A` + edge-to-edge `cdpDrag`
+- Add text labels to shapes — text mode activation + `cdpInsertText` on transient textarea
+- Select, move, delete elements — selection tool + `cdpDrag`
+- Undo/redo — `Ctrl+Z` / `Ctrl+Y`
+- Change stroke and background colors — `S`/`G` shortcuts + DOM click on color swatches
+- Export as PNG — `Shift+Alt+C` (clipboard, zero DOM interaction needed)
+- Multi-select and align — `Ctrl+A` or rubber-band drag, then `Ctrl+Shift+Arrow` shortcuts
 
-**Should have (competitive differentiators):**
-- Real-time DOM cloning stream — live structural view of the page in the dashboard (not a screenshot)
-- AI action summaries on dashboard — already built in v0.9.5, just needs forwarding over WebSocket
-- Replay cost savings display — already tracked per-agent, surface it prominently
-- Multi-agent status view — see all running agents simultaneously
+**Should have (differentiators):**
+- Connected arrows with auto-routing and binding to shape edges
+- Elbow (orthogonal) arrow routing for professional diagram appearance
+- Style copy/paste (`Ctrl+Alt+C` / `Ctrl+Alt+V`) for consistent visual language
+- Group/ungroup (`Ctrl+G` / `Ctrl+Shift+G`)
+- Distribute elements evenly (alignment panel buttons after multi-select)
+- Natural language diagram generation — "draw a flowchart for user login" produces a complete, labeled, connected diagram
 
-**Defer to post-MVP:**
-- Agent creation from dashboard (can create agents in extension UI for now)
-- Task templates (pure dashboard feature, addable any time without extension changes)
-- Selective DOM region streaming (optimization; build full cloning first)
+**Defer (v2+):**
+- Custom library shapes (complex multi-step import workflow)
+- Image insertion (file picker complexity)
+- Mermaid/PlantUML import (direct shape generation is simpler)
+- Excalidraw+ paid features (authentication-gated)
+- Pixel-perfect layout (AI coordinates are approximate by nature)
+- Screenshot verification (no pipeline exists; action counting suffices)
 
 ### Architecture Approach
 
-The system topology is: Chrome extension service worker ↔ fly.io WebSocket relay ↔ dashboard SPA. The relay is a pure message router — it maintains an in-memory Map of `hashKey -> { extensions: Set<ws>, dashboards: Set<ws> }` and forwards messages between paired connections. No database writes for real-time events. The extension maintains a single WebSocket connection carrying all message types (DOM stream, task events, agent status, ping/pong), using a typed JSON envelope `{ type, payload, timestamp }` for routing. DOM observation is injected on-demand only when a dashboard is actively viewing — zero overhead otherwise.
+No new architectural components are needed. The work lives entirely within two areas: the `site-guides/design/excalidraw.js` file (major expansion) and two targeted bug fixes in `background.js` and `content/messaging.js`. The existing data flow — user prompt to AI to CLI command emission to CDP tool dispatch — remains unchanged. The site guide injection mechanism in `ai-integration.js` carries all new Excalidraw intelligence to the AI without modification.
 
 **Major components:**
-1. `ws/ws-client.js` (extension, NEW) — WebSocket connection manager: keepalive, reconnect with exponential backoff, message dispatcher
-2. `content/dom-observer.js` (extension, NEW) — MutationObserver-based DOM serialization: initial full snapshot + incremental diffs, injected on-demand
-3. `server/src/ws/handler.js` (server, NEW) — WebSocket handler: room-based routing by hashKey, extension/dashboard connection tracking
-4. `server/src/routes/qr.js` (server, NEW) — QR pairing: one-time token generation (60s TTL), token validation, hashKey binding
-5. `server/src/routes/tasks.js` (server, NEW) — Remote task endpoint: accept from dashboard, push to extension via WebSocket
-6. Dashboard WS components (NEW) — DOMViewer, TaskCreator, QRPairing, ConnectionStatus, useWebSocket hook replacing useSSE
+1. `site-guides/design/excalidraw.js` — THE primary work product; will contain the full keyboard shortcut reference, text entry workflow, shape drawing patterns, connector patterns, styling workflow, alignment workflow, export workflow, canvas operations, verification selectors, and layout planning grid convention
+2. `background.js` (line 11074, `isCanvasEditorUrl()`) — NEEDS FIX: extend regex to include `excalidraw.com`; also unify with the `canvasUrl` regex at line 4908 to eliminate inconsistency
+3. `content/messaging.js` (line 217, `isCanvasBasedEditor()`) — NEEDS FIX: add Excalidraw hostname detection to trigger the CDP direct path in the `type` tool
+4. `background.js` (lines 12267-12358, CDP debugger management) — MEDIUM priority: shared debugger lock prevents intermittent "already attached" errors during rapid keyboard+CDP interleaving
 
-**Key patterns confirmed:**
-- Single WebSocket per extension instance (not multiple connections per feature)
-- DOM observer as opt-in content script injection (not default manifest injection)
-- SSE replaced entirely by WebSocket (not maintained in parallel, except as showcase fallback)
-- QR encodes one-time token, never the persistent hash key
+**Layout planning convention established by research:** AI should use 150px horizontal spacing, 120px vertical spacing, and 150x80px default shape size for consistent diagram layouts.
 
 ### Critical Pitfalls
 
-1. **MV3 service worker kills WebSocket at 30s idle** — Set `minimum_chrome_version: "116"` in manifest.json. Implement `setInterval` keepalive ping every 20 seconds (NOT `chrome.alarms` — 30s minimum is too close to the deadline). Reconnect with exponential backoff (1s, 3s, 8s, 15s). Address in Phase 1 before anything else.
+1. **Transient textarea fails with `type` tool** — Excalidraw creates `<textarea class="excalidraw-wysiwyg">` dynamically; it is absent from DOM snapshots. Use `cdpInsertText` after waiting 200-400ms for textarea mount. Fix `isCanvasBasedEditor()` in `content/messaging.js` to trigger the CDP direct path. (Phase 1 gating issue.)
 
-2. **DOM serialization bandwidth explosion** — Never send full outerHTML on every mutation. Use the rrweb two-phase pattern: full snapshot once with stable node IDs, then compact incremental diffs. Throttle mutation batches to 200-500ms. Cap message size at 50KB; if exceeded, send a resync flag. Applies to Phase 4.
+2. **Progress detector aborts all multi-step tasks** — `isCanvasEditorUrl()` in `background.js` only matches `docs.google.com`. Sessions abort after 6 iterations despite successful drawing. Extend the regex to include `excalidraw\.com` and treat successful `cdpDrag`/`cdpClickAt`/`press_key` as progress signals. (Phase 1 gating issue.)
 
-3. **QR pairing enables session hijacking (QRLJacking)** — QR must encode a one-time pairing token with 60-second TTL and single-use invalidation, never the persistent hash key. Rate-limit pairing attempts: 3 per minute per IP. Address in Phase 2 before any QR code is shown to users.
+3. **Tool auto-switch after each shape draw** — Excalidraw reverts to selection tool (V) after every draw operation. A second consecutive `cdpDrag` without re-pressing the tool key creates a selection box, not a shape. CDP reports `success: true` regardless. The site guide must enforce re-pressing the tool key as a hard rule between every shape draw.
 
-4. **Service worker 5-minute kill during long agent execution** — During automation, send `chrome.storage.session.set` or open a `chrome.runtime.Port` from the content script every 25 seconds to reset the idle timer. The existing 4-minute `EXECUTION_TIMEOUT` is not sufficient protection alone. Address in Phase 5.
+4. **Coordinate precision failures from zoom/pan state** — Excalidraw's internal coordinate system is offset by zoom level and canvas scroll position. Reset zoom (`Ctrl+0`) and fit to screen (`Shift+1`) at the start of every session. Minimum 50px drag distance in both axes to clear the click/drag threshold.
 
-5. **fly.io SQLite data loss on machine replacement** — SQLite on the ephemeral filesystem is lost when the fly.io machine is replaced. Mount a fly.io volume for the database file. Add a `/health` endpoint returning 200 for fly.io health checks. Address in Phase 1 deployment setup.
+5. **Welcome dialog and localStorage contamination** — Excalidraw shows modals on first load and restores previous session content from localStorage on every visit. Every session must begin: press Escape (dismiss modals) then clear canvas (`Ctrl+A` then Delete) then reset zoom. This is a mandatory session setup sequence.
 
 ## Implications for Roadmap
 
-Based on dependencies discovered across all four research files, a 5-phase structure is recommended:
+Based on research, the natural phase structure follows the feature dependency chain. Two phases are gating and must complete before normal automation is viable.
 
-### Phase 1: WebSocket Infrastructure
-**Rationale:** Every feature in this milestone depends on bidirectional communication. The SSE-to-WebSocket migration and the MV3 keepalive problem must be solved before any remote control feature can be built or tested.
-**Delivers:** Extension connects to relay server via WebSocket with keepalive; agent run results flow via WebSocket replacing HTTP; server has room-based routing; fly.io deployment with persistent SQLite volume.
-**Addresses:** WebSocket relay (table stakes), connection status indicator, agent stats upgrade
-**Avoids:** SSE/WebSocket mismatch pitfall, service worker idle termination, fly.io data loss
-**Stack used:** `ws` package, Express upgrade event, `minimum_chrome_version: "116"`, fly.io volume configuration
+### Phase 1: Engine Fixes and Session Foundation
 
-### Phase 2: QR Pairing and Showcase
-**Rationale:** The dashboard needs authentication before it can receive any data. QR pairing is a prerequisite for all dashboard features. Showcase page is a natural companion — both are public-facing and served from the same Express routes.
-**Delivers:** Extension generates QR code; dashboard scans or manually enters pairing code; secure one-time token flow; showcase landing page at root URL.
-**Addresses:** QR pairing (table stakes), showcase/landing page
-**Avoids:** QRLJacking security pitfall (one-time token, 60s TTL, rate limiting)
-**Stack used:** `@paulmillr/qr` (server), QRCode.js (extension, vendored), jsQR (dashboard, vendored)
+**Rationale:** Two code bugs in `background.js` and `content/messaging.js` make multi-step Excalidraw automation non-functional regardless of site guide quality. These are not enhancements — they are existing breaks that silently abort sessions. Must resolve first.
 
-### Phase 3: Remote Task Control and Live Monitoring
-**Rationale:** With WebSocket infrastructure (Phase 1) and authentication (Phase 2) in place, remote task creation is straightforward wiring. Live monitoring is a prerequisite for remote task creation to feel usable — fire-and-forget is not acceptable.
-**Delivers:** Dashboard form creates tasks that execute on the extension; progress events (phase, %, AI action summaries) flow to dashboard in real-time; dashboard migrated fully from SSE to WebSocket.
-**Addresses:** Remote task creation (table stakes), live monitoring (table stakes), AI summaries on dashboard (differentiator)
-**Avoids:** Event flooding pitfall (throttle progress events), concurrent task prevention (dashboard disables form while task runs)
-**Architecture:** Adds `remote_tasks` table, `useWebSocket` hook replaces `useSSE`, new TaskCreator and ConnectionStatus components
+**Delivers:** A functional automation loop that does not abort after 6 iterations; text entry via CDP; clean session state on every run; token-efficient DOM snapshots.
 
-### Phase 4: DOM Cloning Stream
-**Rationale:** The most complex new feature and the primary differentiator. Depends on Phase 1 (WebSocket with room routing) and benefits from Phase 3 being complete (validated WS message flow pattern). Isolated to contain its complexity.
-**Delivers:** Dashboard shows a live structural reconstruction of the page being automated; initial snapshot on task start; incremental mutations in real time; images load from original CDN URLs.
-**Addresses:** Real-time DOM cloning (differentiator)
-**Avoids:** Bandwidth explosion pitfall (incremental diffs, 50KB cap), dashboard RAM exhaustion (apply diffs incrementally, never full innerHTML replace), cross-origin image errors (use original URLs, show placeholder on failure)
-**Architecture:** `content/dom-observer.js` (new, injected on-demand), `ws/dom-stream.js` (new), DOMViewer component with sandboxed iframe
+**Addresses:** Text labels (table stakes), session reliability.
 
-### Phase 5: Hardening and Polish
-**Rationale:** Several existing systems need hardening for real-world use before the milestone is complete. Background agent execution reliability and automation replay robustness are known gaps that would cause user-visible failures.
-**Delivers:** Agent executor survives slow page loads (5-min kill mitigation); replay validates selectors before executing and detects site changes; dashboard handles disconnection gracefully with reconnect UX; extension shows remote-view indicator when dashboard is connected.
-**Addresses:** Multi-agent status view (differentiator), cost savings display
-**Avoids:** 5-minute service worker kill, replay selector rot, DOM clone stale state after reconnection
-**Also includes:** Fly.io health check endpoint, responsive dashboard layout, error messages mapped to human-readable text
+**Avoids:** Pitfall 1 (transient textarea), Pitfall 2 (canvas state not DOM-observable), Pitfall 3 (isCanvasBasedEditor miss), Pitfall 11 (modals block all input), Pitfall 12 (localStorage contamination), Pitfall 17 (token explosion from React DOM), Pitfall 18 (progress detection treats drawing as no progress).
+
+**Specific fixes required:**
+- Extend `isCanvasEditorUrl()` in `background.js` (line 11074) to include `excalidraw\.com`
+- Unify with `canvasUrl` regex at line 4908 into a single shared utility
+- Expand `isCanvasBasedEditor()` in `content/messaging.js` (line 217)
+- Add DOM snapshot filtering for `.layer-ui__wrapper` subtree
+- Document and enforce session setup sequence in Excalidraw site guide
+
+### Phase 2: Drawing Primitives and Text Entry
+
+**Rationale:** With the engine fixed, implement all basic drawing operations and the text entry workflow. These are table stakes — every diagram requires shapes with labels. Text entry is the most complex primitive because of the transient textarea sequence.
+
+**Delivers:** Reliable drawing of all shape types (rectangle, ellipse, diamond, line, arrow); text labels on standalone text elements and as shape labels via double-click; undo/redo; canvas clear, zoom, pan.
+
+**Addresses:** All table-stakes drawing features.
+
+**Avoids:** Pitfall 5 (tool auto-switch), Pitfall 7 (coordinate precision from zoom/pan), Pitfall 8 (minimum 50px drag threshold).
+
+**Site guide sections to write:** KEYBOARD SHORTCUTS, TEXT ENTRY WORKFLOW, SHAPE DRAWING PATTERNS, CANVAS OPERATIONS, VERIFICATION SELECTORS.
+
+### Phase 3: Multi-Element Operations and Styling
+
+**Rationale:** Once single shapes and text work reliably, layer in connected arrows, multi-select, alignment, and color/styling. Connected arrows require shapes to already exist and have known positions. Alignment requires multi-select which has its own pitfalls around coordinate precision.
+
+**Delivers:** Connected arrows that bind to shape edges and auto-route; multi-element rubber-band selection; alignment and distribution; stroke/fill color changes; style copy/paste.
+
+**Addresses:** Connected arrows (differentiator), elbow routing, alignment/distribution, color styling (table stakes).
+
+**Avoids:** Pitfall 4 (debugger conflicts from rapid key+CDP interleaving), Pitfall 6 (canvas clear via Ctrl+A unreliable without canvas focus), Pitfall 10 (shift+click misses shape centers), Pitfall 14 (arrow endpoint binding requires landing on shape boundary), Pitfall 16 (color picker uses custom components, not standard inputs).
+
+**Site guide sections to write:** CONNECTOR/ARROW PATTERNS, STYLING WORKFLOW, ALIGNMENT WORKFLOW.
+
+### Phase 4: Export and Natural Language Diagram Generation
+
+**Rationale:** Export is the final table-stakes item with its own pitfalls around file dialogs. Natural language diagram generation is the capstone differentiator — it requires all primitives working reliably and a defined coordinate grid convention for the AI to plan layouts.
+
+**Delivers:** PNG export via `Shift+Alt+C` clipboard shortcut (zero DOM interaction); SVG export via menu flow; natural language diagram generation with AI-planned layout on a 150px x 120px coordinate grid.
+
+**Addresses:** Export (table stakes), natural language generation (key differentiator).
+
+**Avoids:** Pitfall 13 (file dialog barriers — use clipboard path), Pitfall 15 (layout planning unbounded without grid convention).
+
+**Site guide sections to write:** EXPORT WORKFLOW, LAYOUT PLANNING GUIDE.
 
 ### Phase Ordering Rationale
 
-- Phase 1 is a strict prerequisite: all real-time features depend on the WebSocket relay being stable
-- Phase 2 is a strict prerequisite for dashboard access: no auth = no dashboard features
-- Phase 3 validates the bidirectional message flow with a simpler payload (JSON task events) before Phase 4 adds high-throughput DOM streaming
-- Phase 4 is isolated to contain its complexity; its failure mode (DOM out of sync) does not break remote task control
-- Phase 5 is purely additive hardening and can be prioritized internally based on what breaks during earlier phase testing
-- Background agents and automation replay are already built and require only WebSocket integration (Phase 1)
+- Phase 1 (engine fixes) gates everything. Without progress detection, the loop aborts on any multi-step task. Non-negotiable first.
+- Phases 2-4 follow the explicit dependency chain documented in FEATURES.md: canvas operations -> primitives -> text -> connectors -> styling -> alignment -> export -> natural language generation.
+- No new architectural components means zero integration risk across all phases. Each phase is purely site guide expansion plus at most a small code edit.
+- The minimum drag threshold (50px) and coordinate grid convention (150px x 120px spacing, 150x80px shapes) established in Phase 2 are inherited by all subsequent phases.
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 4 (DOM Cloning):** The custom serialization format (node IDs, diff operations, URL rewriting for Shadow DOM) has implementation-level decisions not fully resolved. Specifically: how to handle FSB's own Shadow DOM overlay in MutationObserver output, and whether to use outerHTML strings or a JSON node tree for the initial snapshot. Plan for a design spike.
-- **Phase 5 (Service Worker Hardening):** The `chrome.runtime.Port` keepalive approach for agent execution needs testing — Port lifecycle behavior during background tab creation is not fully documented.
+Phases with well-documented patterns (skip additional research-phase):
+- **Phase 1 (engine fixes):** Exact file names, function names, and line numbers identified in PITFALLS-EXCALIDRAW.md. Implementation is mechanical regex/hostname extension.
+- **Phase 2 (drawing primitives):** Text entry workflow verified from Excalidraw source (`textWysiwyg.tsx`). Keyboard shortcuts verified from official documentation. Implementation is mechanical site guide writing.
+- **Phase 3 (multi-element/styling):** Arrow binding behavior verified by Excalidraw team. Color picker architecture understood; needs live DOM validation of selectors only.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (WebSocket Infrastructure):** Chrome official docs fully document the keepalive pattern. `ws` + Express integration is a standard pattern with fly.io's own example app (flychat-ws).
-- **Phase 2 (QR Pairing):** One-time token pairing is a documented pattern. Server-side QR SVG generation with `@paulmillr/qr` is straightforward.
-- **Phase 3 (Remote Task Control):** The WebSocket message protocol is fully designed in FEATURES.md. Wiring to the existing `executeAutomationTask` function is low-risk integration.
+Phases that may benefit from targeted research during planning:
+- **Phase 4 (natural language diagram generation):** The AI prompt engineering for coordinate layout planning is an inference challenge. The grid convention provides a starting point, but AI adherence to multi-step layout rules needs live iteration. Consider a brief pass on few-shot prompting strategies for coordinate-based layout before writing the LAYOUT PLANNING GUIDE section.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Core libraries verified via npm. Chrome WebSocket docs confirmed. fly.io patterns confirmed via official blog. No speculative choices. |
-| Features | HIGH | Existing features confirmed via direct codebase read. Remaining features derived from clear product requirements. WebSocket/DOM patterns validated via community sources. |
-| Architecture | HIGH | Component boundaries match existing code structure. Chrome service worker behavior confirmed via official docs. Pattern decisions (single WS connection, on-demand DOM injection) are well-reasoned. |
-| Pitfalls | HIGH | MV3 service worker timing verified against Chrome official docs. QRLJacking documented by OWASP. fly.io idle timeout and volume loss confirmed via fly.io configuration reference. |
+| Stack | HIGH | Zero new dependencies confirmed. All tools verified in FSB codebase and against Excalidraw source. |
+| Features | HIGH | Complete dependency chain defined. MVP scope well-bounded. Anti-features explicitly identified. |
+| Architecture | HIGH | No new components needed. Two specific code fix locations identified with file names and line numbers. |
+| Pitfalls | HIGH | 18 pitfalls catalogued with FSB source-verified line numbers for the 5 critical ones. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **DOM serialization format for Shadow DOM:** FSB uses Shadow DOM for its own overlays. The MutationObserver in `content/dom-observer.js` must explicitly filter out FSB's own Shadow DOM mutations (to avoid streaming the extension UI) while optionally capturing page Shadow DOM. The exact filter logic needs a design decision during Phase 4 planning.
-- **Dashboard tech stack discrepancy:** STACK.md recommends vanilla JS dashboard, but ARCHITECTURE.md references React SPA (`dashboard/src/`, `.jsx` files). The server directory apparently has a React + Vite dashboard already. This contradiction needs resolution at project start: is the new dashboard work added to the existing React app or rebuilt in vanilla JS? Likely React (existing code), but this should be confirmed against the actual `server/dashboard/` directory before Phase 3.
-- **fly.io volume persistence for SQLite:** PITFALLS.md flags this as a HIGH recovery cost issue. fly.io volumes must be configured before first production deployment. The fly.toml template in STACK.md does not include a volume mount — this must be added during Phase 1.
-- **`chrome.alarms` 30s minimum vs 30s SW idle:** Research notes that `chrome.alarms` minimum interval was tightened to 30 seconds in Chrome 120, which makes it unsuitable as the sole keepalive mechanism. The `setInterval`-based 20s ping inside the service worker is the correct solution, confirmed by Chrome docs. Do not use `chrome.alarms` for WebSocket keepalive.
+- **Color picker exact selectors:** `[data-testid="background-color"]` and `[data-testid="stroke-color"]` are MEDIUM confidence (from DeepWiki source analysis, not live DOM testing). Validate against live `excalidraw.com` DOM before writing the styling workflow section of the site guide.
+- **Export dialog internal selectors:** The export dialog's download button and format selection buttons are not fully mapped. The `Shift+Alt+C` clipboard path avoids this for PNG, but SVG export via menu requires live DOM inspection.
+- **Arrow binding precision threshold:** Documented as requiring endpoint landing on shape boundary, but exact tolerance and whether `cdpDrag` step count (currently 20+) affects binding reliability needs live testing in Phase 3.
+- **Debugger conflict frequency in practice:** Pitfall 4 (CDP debugger attachment conflicts) is documented with code evidence but real-world frequency during Excalidraw workflows is unknown. Existing retry logic may be sufficient; assess during Phase 2 testing before building a full shared debugger manager.
+- **AI layout adherence:** Whether the AI reliably follows the 150px x 120px grid convention for natural language diagram generation is an empirical question. Plan for prompt engineering iteration in Phase 4.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [Chrome WebSocket in Service Workers](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets) — Chrome 116+ keepalive behavior, 20-second ping pattern
-- [Chrome Service Worker Lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) — 30-second idle timeout, 5-minute event handler limit
-- [chrome.alarms API](https://developer.chrome.com/docs/extensions/reference/api/alarms) — 30-second minimum interval (Chrome 120+), persistence across restarts
-- [fly.io configuration reference](https://fly.io/docs/reference/configuration/) — idle_timeout, min_machines_running, health checks, volumes
-- [ws npm package](https://www.npmjs.com/package/ws) — v8.19.0, zero dependencies, verified active
-- [OWASP QRLJacking](https://owasp.org/www-community/attacks/Qrljacking) — QR code session hijacking attack
-- FSB codebase: `agents/`, `server/`, `background.js`, `manifest.json` — direct code review confirming existing feature status
+- [Excalidraw source: textWysiwyg.tsx](https://github.com/excalidraw/excalidraw/blob/master/packages/excalidraw/wysiwyg/textWysiwyg.tsx) — textarea element creation, class names, focus behavior
+- [Excalidraw source: DefaultItems.tsx](https://github.com/excalidraw/excalidraw/blob/master/packages/excalidraw/components/main-menu/DefaultItems.tsx) — main menu data-testid attributes
+- [Excalidraw arrow binding behavior](https://x.com/excalidraw/status/1786055557645824177) — official team confirmation of edge binding mechanics
+- [Excalidraw MainMenu docs](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/api/children-components/main-menu) — API component documentation
+- [Excalidraw undo/redo v0.18.0 release](https://github.com/excalidraw/excalidraw/releases/tag/v0.18.0) — CaptureUpdateAction history manager
+- [Chrome DevTools Protocol: Input domain](https://chromedevtools.github.io/devtools-protocol/tot/Input/) — Input.insertText, Input.dispatchKeyEvent
+- FSB codebase (`content/actions.js`, `content/messaging.js`, `background.js`, `site-guides/design/excalidraw.js`, `utils/action-verification.js`) — specific line numbers verified against source
 
 ### Secondary (MEDIUM confidence)
-- [fly.io WebSocket blog](https://fly.io/blog/websockets-and-fly/) — Express + ws pattern, flychat-ws example, TLS termination behavior
-- [rrweb serialization docs](https://github.com/rrweb-io/rrweb/blob/master/docs/serialization.md) — incremental snapshot architecture reference (used for design inspiration, not implementation)
-- [jsQR GitHub](https://github.com/cozmo/jsQR) — pure JS QR reader for dashboard camera scanning
-- [MV3 service worker keepalive discussion](https://medium.com/@dzianisv/vibe-engineering-mv3-service-worker-keepalive-how-chrome-keeps-killing-our-ai-agent-9fba3bebdc5b) — real-world AI agent SW termination experience
+- [Excalidraw keyboard shortcuts (csswolf.com)](https://csswolf.com/excalidraw-keyboard-shortcuts-pdf/) — third-party shortcut compilation
+- [DeepWiki: Excalidraw export system](https://deepwiki.com/excalidraw/excalidraw/6.6-export-system) — export dialog structure
+- [DeepWiki: Properties and color picker](https://deepwiki.com/zsviczian/excalidraw/4.6-properties-and-color-picker) — property panel structure
+- [DeepWiki: Actions and toolbars](https://deepwiki.com/excalidraw/excalidraw/4.1-actions-and-toolbars) — toolbar DOM structure
+- [Excalidraw localStorage persistence issue](https://github.com/excalidraw/excalidraw/issues/10255) — autosave behavior
+- [Excalidraw state management](https://dev.to/karataev/excalidraw-state-management-1842) — React state architecture
+- [1337skills Excalidraw cheatsheet](https://1337skills.com/cheatsheets/excalidraw/) — shortcut reference
+- [HackMD Excalidraw guide](https://hackmd.io/@alkemio/SJuewkPwn) — usage patterns
+- [CDP Input.insertText focus issues](https://github.com/ChromeDevTools/devtools-protocol/issues/45) — focus-based insertion behavior
 
 ### Tertiary (LOW confidence)
-- rrweb performance benchmarks — DOM serialization overhead estimates (~6MB memory, ~21% CPU); needs validation against FSB's specific snapshot format
+- [Canvas automation testing challenges (PixiJS discussion)](https://github.com/pixijs/pixijs/discussions/10788) — canvas automation principles (different library, same fundamental problem)
 
 ---
-*Research completed: 2026-03-17*
+*Research completed: 2026-03-23*
 *Ready for roadmap: yes*

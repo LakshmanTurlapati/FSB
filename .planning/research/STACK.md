@@ -1,82 +1,336 @@
-# Technology Stack: v0.9.6 Agents & Remote Control
+# Technology Stack: v0.9.9 Excalidraw Mastery
 
-**Project:** FSB v0.9.6 - Server Relay, Dashboard, QR Pairing, DOM Cloning, Background Agents, Automation Replay
-**Researched:** 2026-03-17
-**Constraint:** Vanilla JS extension (no build system), new Node.js server component on fly.io
-**Overall confidence:** HIGH (core libraries verified via npm/official docs; fly.io deployment patterns well-documented)
+**Project:** FSB v0.9.9 - Full Excalidraw drawing mastery via CDP automation
+**Researched:** 2026-03-23
+**Constraint:** Vanilla JS Chrome Extension MV3 (no build system), existing CDP tools, keyboard emulator
+**Overall confidence:** HIGH (Excalidraw source verified, CDP mechanisms proven in existing codebase)
 
 ---
 
 ## Executive Summary
 
-This milestone introduces FSB's first server-side component and first external web application. The extension remains vanilla JS with no build system -- the server is a separate Node.js project deployed to fly.io. The stack additions are minimal and deliberate: `ws` for WebSocket relay, `express` for serving the dashboard + API, `qr` for QR code pairing, and custom DOM serialization (NOT rrweb) for the cloning stream. Background agents use Chrome's existing `chrome.alarms` API. No new Chrome permissions are needed beyond what's already in the manifest.
+This milestone requires NO new libraries, frameworks, or external dependencies. Everything needed for full Excalidraw mastery is already in FSB's toolbox. The work is entirely about *intelligence* -- teaching the AI the right keyboard shortcuts, CDP event sequences, and DOM selectors for every Excalidraw operation.
 
-**Key decision: Build the DOM cloning yourself, do NOT use rrweb.** The project already has a sophisticated DOM snapshot system (unified markdown snapshots with element refs). rrweb is stuck in alpha (v2.0.0-alpha.4, main package last published 3 years ago), adds 50KB+ of code, and solves a different problem (pixel-perfect session replay). FSB needs structural DOM cloning for a control dashboard, not video-like replay. Extend the existing snapshot pipeline to emit serialized DOM deltas over WebSocket.
+The critical discovery: Excalidraw's text editor creates a standard `<textarea>` element (class `excalidraw-wysiwyg`, `data-type="wysiwyg"`) positioned absolutely over the canvas. This means FSB's existing `Input.insertText` CDP method (already implemented as `cdpInsertText`) will work directly once the textarea is focused. The text entry problem is NOT a contenteditable issue -- it's a focus/activation sequence issue.
+
+**Key principle: Keyboard shortcuts over DOM clicks.** Excalidraw has comprehensive keyboard shortcuts for nearly every operation. CDP `press_key` dispatching shortcuts is faster, more reliable, and avoids the fragile React DOM selectors that change across versions.
 
 ---
 
 ## Recommended Stack
 
-### Server-Side (NEW -- fly.io)
+### Existing Tools -- No Changes Needed
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Node.js | 20 LTS | Server runtime | LTS stability, native WebSocket client support since v22 but v20 is the safe choice for production |
-| `ws` | ^8.19.0 | WebSocket server | De facto standard for Node.js WS servers. 0 dependencies, blazing fast, thoroughly tested. Node.js v22 has native WS client but NO native WS server -- `ws` fills this gap |
-| `express` | ^4.21.0 | HTTP server + static files | Serves dashboard site, handles QR pairing API, and upgrades connections to WebSocket. Single app serves both static site and WS relay |
-| `@paulmillr/qr` (aka `qr`) | ^0.5.3 | QR code generation (server-side) | Zero-dependency, 4KB, generates SVG/ASCII QR codes. Server generates pairing QR that dashboard page displays. Actively maintained (last published ~1 month ago) |
-| `crypto` (Node built-in) | N/A | Pairing hash generation | `crypto.randomUUID()` + `crypto.createHash()` for unique pairing tokens. No external dependency needed |
+| Tool | Purpose in Excalidraw Context | Status |
+|------|-------------------------------|--------|
+| `press_key` (keyboard emulator) | Tool selection (R, D, O, A, L, P, T, F, E), shortcuts for all operations | Existing, proven |
+| `cdpDrag` | Drawing shapes on canvas, creating selection boxes | Existing, proven in CANVAS-02 |
+| `cdpDragVariableSpeed` | Smooth connector/arrow drawing for natural-looking paths | Existing |
+| `cdpClickAt` | Clicking on canvas elements, toolbar buttons at coordinates | Existing, proven |
+| `cdpInsertText` | Text entry into Excalidraw's WYSIWYG textarea | Existing but UNTESTED on Excalidraw |
+| `Input.insertText` | Direct text insertion into focused textarea | Existing in background.js |
+| `click` (DOM) | Toolbar buttons, menu items, color swatches, alignment buttons | Existing |
+| `waitForDOMStable` | Wait for Excalidraw React re-renders after actions | Existing |
+| `navigate` | Navigate to excalidraw.com | Existing |
+| `getAttribute` / `getText` | Verify DOM state, read element properties | Existing |
 
-### Extension-Side (CHANGES to existing)
+### Stack Additions Required
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `WebSocket` (browser built-in) | N/A | Connect to relay server | Chrome 116+ supports WebSocket in MV3 service workers with keepalive. Extension already requires Chrome 88+; bump minimum to 116 |
-| `chrome.alarms` | Existing API | Background polling agent scheduling | Already in manifest permissions. Minimum interval 1 minute. Wakes service worker reliably. Perfect for cron-like polling tasks |
-| `MutationObserver` (browser built-in) | N/A | DOM change detection for cloning stream | Already used in the stability detection system. Extend to emit serialized DOM deltas for real-time cloning |
-| QRCode.js | 1.0.0 (vendored) | QR code display in extension popup | Zero-dependency, works via script tag, generates QR on canvas. Vendored (copied into extension), NOT npm-installed. Extension shows QR for phone/dashboard scanning |
+**None.** Zero new npm packages, zero new Chrome APIs, zero new tools to build.
 
-### Dashboard Site (NEW -- served from same fly.io app)
+### What IS Needed (Site Guide Intelligence Only)
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Vanilla HTML/CSS/JS | N/A | Dashboard UI | Matches the extension's no-build-system constraint. The dashboard is a single-page app with a few HTML files served by Express |
-| `WebSocket` (browser built-in) | N/A | Connect to relay for live updates | Dashboard receives DOM clones and task status via WebSocket |
-| `qr-scanner` or camera API | N/A | QR scanning on dashboard | Dashboard needs to scan QR codes displayed by the extension. Use `navigator.mediaDevices.getUserMedia()` + jsQR (vendored) for camera-based scanning, OR manual code entry as fallback |
-
-### Infrastructure
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| fly.io | N/A | Hosting platform | WebSocket-native (no special config needed), auto-TLS, global edge network, ~$2/month for a shared-cpu-1x instance. Single app serves both static dashboard and WebSocket relay |
-| Docker | N/A | Deployment container | fly.io auto-generates Dockerfile from Node.js app. Standard `node:20-alpine` base |
+| Addition | Type | Purpose |
+|----------|------|---------|
+| Expanded Excalidraw site guide | Site guide update | Complete keyboard shortcut map, text entry workflow, styling selectors, export workflow, connector patterns |
+| Text entry workflow documentation | Site guide section | Activate text mode -> double-click/Enter -> wait for textarea -> cdpInsertText -> Escape to commit |
+| Color/styling selector map | Site guide section | Keyboard shortcuts S (stroke) and G (background) to open pickers, DOM selectors for color swatches |
+| Export workflow steps | Site guide section | Menu button -> Export image -> format selection -> download/copy |
+| Connector/arrow patterns | Site guide section | Arrow tool (A) -> drag from shape edge to shape edge for auto-binding |
+| Verification selectors | Site guide section | textarea.excalidraw-wysiwyg presence, .layer-ui__wrapper state, toolbar active states |
 
 ---
 
-## Architecture: Single fly.io App
+## Critical Technical Findings
 
-The server is ONE application that handles three responsibilities:
+### 1. Text Entry on Excalidraw (THE Key Problem to Solve)
 
-```
-fly.io app (fsb-relay)
-  |
-  +-- Express static files --> Dashboard/showcase site (HTML/CSS/JS)
-  +-- Express REST API     --> POST /api/pair (QR pairing), GET /api/status
-  +-- ws WebSocket server  --> /ws endpoint (relay between extension <-> dashboard)
-```
+**Discovery:** Excalidraw uses a standard `<textarea>` element, NOT a contenteditable div.
 
-This avoids the complexity and cost of separate apps. Express serves the static dashboard files AND handles HTTP API routes. The `ws` library attaches to the same HTTP server for WebSocket upgrades.
+**Source:** Excalidraw source `packages/excalidraw/wysiwyg/textWysiwyg.tsx`
 
----
+**DOM element details:**
+- Element type: `<textarea>`
+- CSS class: `excalidraw-wysiwyg`
+- Data attribute: `data-type="wysiwyg"`
+- Positioning: `position: absolute` with calculated viewport coordinates
+- Transform: scaled/rotated based on zoom and element angle
 
-## Supporting Libraries
+**Text entry workflow for FSB:**
+1. Activate text tool: `press_key T`
+2. Click on canvas where text should go: `cdpClickAt x y` (creates new text element)
+   - OR: Double-click existing shape to add label: `cdpClickAt x y` twice rapidly
+   - OR: Select existing text element and press Enter to edit
+3. Wait for textarea to appear: check for `textarea.excalidraw-wysiwyg` in DOM
+4. The textarea auto-receives focus when created
+5. Insert text: `cdpInsertText "your text here"`
+6. Commit text: `press_key Escape` or `press_key Enter` with ctrl=true
+7. Excalidraw calls `onSubmit` which mutates the canvas element via `app.scene.mutateElement()`
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| `jsQR` | 1.4.0 (vendored in dashboard) | QR code reading from camera | Dashboard scans QR codes shown by extension. Vendored into dashboard static files, not npm-installed in extension |
-| `helmet` | ^8.0.0 | HTTP security headers | Express middleware for the dashboard. Sets CSP, HSTS, etc. Small, focused, well-maintained |
-| `cors` | ^2.8.5 | CORS headers for API | Extension needs to POST to the relay server from any origin. Scoped to specific routes only |
-| `uuid` | ^11.1.0 | Pairing token generation | Generate unique pairing codes. Could use `crypto.randomUUID()` instead to avoid the dependency -- prefer built-in |
+**Why the existing `type` tool fails:** FSB's `type` tool targets standard input/textarea elements found via DOM selectors. But Excalidraw's textarea is:
+- Created dynamically (not in initial DOM)
+- Positioned absolutely over the canvas
+- Removed from DOM after text is committed
+- Has no stable ID, only class `excalidraw-wysiwyg`
+
+**Solution:** Use `cdpInsertText` which uses `Input.insertText` CDP command. This inserts text into whatever element currently has focus. Since Excalidraw's textarea auto-focuses when created, the sequence is: activate text mode -> click canvas -> wait for textarea -> `cdpInsertText`.
+
+**Newlines in text:** Excalidraw uses `Shift+Enter` for new lines in text elements (standard Enter commits the text or, in some contexts, creates a new line). The shortcut `Q` is documented as creating new lines in the text editor. Use `press_key q` for multi-line text.
+
+**Confidence:** HIGH -- verified from Excalidraw source code (textWysiwyg.tsx)
+
+### 2. Complete Keyboard Shortcuts Reference
+
+**Confidence:** HIGH -- verified from multiple sources including official docs
+
+#### Tool Selection (single key press, no modifiers)
+| Key | Tool | Notes |
+|-----|------|-------|
+| V or 1 | Selection/Pointer | Also deselects current tool |
+| R or 2 | Rectangle | Auto-returns to V after drawing |
+| D or 3 | Diamond | Auto-returns to V after drawing |
+| O or 4 | Ellipse/Oval | Auto-returns to V after drawing |
+| A or 5 | Arrow | Auto-returns to V after drawing |
+| L or 6 | Line | Auto-returns to V after drawing |
+| P or 7 | Pencil/Free draw | Auto-returns to V after drawing |
+| T or 8 | Text | Auto-returns to V after placing |
+| 9 | Insert image | Opens file picker |
+| E or 0 | Eraser | Click elements to erase |
+| F | Frame | Draw a container frame |
+| H | Hand/Pan | Drag to pan canvas |
+| K | Laser pointer | Presentation mode pointer |
+| I or Shift+S or Shift+G | Color picker (eyedropper) | Pick color from canvas |
+
+#### Canvas Operations
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+Z | Undo |
+| Ctrl+Y or Ctrl+Shift+Z | Redo |
+| Ctrl+A | Select all |
+| Ctrl+Delete | Clear/reset canvas |
+| Delete or Backspace | Delete selected |
+| Escape | Deselect / cancel tool |
+
+#### Element Manipulation
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+D | Duplicate selected |
+| Ctrl+G | Group selected |
+| Ctrl+Shift+G | Ungroup |
+| Ctrl+Shift+L | Lock/unlock element |
+| Shift+H | Flip horizontal |
+| Shift+V | Flip vertical |
+| Ctrl+C | Copy |
+| Ctrl+X | Cut |
+| Ctrl+V | Paste |
+| Ctrl+Shift+V | Paste as plaintext |
+| Enter | Edit text / add label to shape |
+| Ctrl+Enter | Edit line/arrow points |
+
+#### Layer Ordering
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+] | Bring forward one layer |
+| Ctrl+[ | Send backward one layer |
+| Ctrl+Shift+] | Bring to front |
+| Ctrl+Shift+[ | Send to back |
+
+#### Alignment (multi-select required)
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+Shift+ArrowUp | Align top |
+| Ctrl+Shift+ArrowDown | Align bottom |
+| Ctrl+Shift+ArrowLeft | Align left |
+| Ctrl+Shift+ArrowRight | Align right |
+
+#### Zoom & View
+| Shortcut | Action |
+|----------|--------|
+| Ctrl++ | Zoom in |
+| Ctrl+- | Zoom out |
+| Ctrl+0 | Reset zoom |
+| Shift+1 | Zoom to fit all elements |
+| Shift+2 | Zoom to selection |
+| Alt+Z | Zen mode (hide UI) |
+| Alt+R | View mode (read-only) |
+| Ctrl+' | Show grid |
+
+#### Styling Shortcuts
+| Shortcut | Action |
+|----------|--------|
+| S | Show stroke color picker |
+| G | Show background color picker |
+| Ctrl+Alt+C | Copy styles |
+| Ctrl+Alt+V | Paste styles |
+| Ctrl+Shift+< | Decrease font size |
+| Ctrl+Shift+> | Increase font size |
+
+#### Clipboard/Export
+| Shortcut | Action |
+|----------|--------|
+| Shift+Alt+C | Copy as PNG to clipboard |
+| Ctrl+/ | Open command palette |
+| Shift+/ (?) | Show keyboard shortcuts |
+
+### 3. Toolbar and Menu DOM Structure
+
+**Main menu (hamburger):**
+- Trigger: top-left hamburger icon button
+- Key menu items with data-testid:
+  - `data-testid="load-button"` -- Load scene
+  - `data-testid="save-button"` -- Save to active file
+  - `data-testid="image-export-button"` -- Save as image (export dialog)
+  - `data-testid="json-export-button"` -- Export to JSON
+  - `data-testid="clear-canvas-button"` -- Clear canvas
+  - `data-testid="toggle-dark-mode"` -- Toggle theme
+  - `data-testid="command-palette-button"` -- Command palette
+  - `data-testid="help-menu-item"` -- Help/shortcuts
+  - `data-testid="search-menu-button"` -- Search
+
+**Toolbar (shape tools):**
+- Container: `.App-toolbar`, `.Island`
+- Tool buttons use: `[data-testid="toolbar-{toolname}"]`
+  - `toolbar-selection`, `toolbar-rectangle`, `toolbar-diamond`, `toolbar-ellipse`
+  - `toolbar-arrow`, `toolbar-line`, `toolbar-text`, `toolbar-frame`, `toolbar-eraser`
+
+**Properties panel (left side when shape selected):**
+- Stroke color trigger: color swatch button for stroke
+- Background color trigger: color swatch button for background
+- Fill style: RadioSelection buttons (solid, hachure, cross-hatch)
+- Stroke width: RadioSelection buttons (thin, bold, extra bold)
+- Stroke style: RadioSelection buttons (solid, dashed, dotted)
+- Roundness: RadioSelection buttons (sharp, round)
+- Arrow type: RadioSelection (sharp, round, elbow)
+- Font family: FontPicker dropdown (Virgil/hand-drawn, Helvetica, Cascadia/code, Nunito, Excalifont)
+- Font size: RadioSelection (S, M, L, XL)
+- Text alignment: RadioSelection (left, center, right)
+- Opacity: Range slider
+- Arrowheads: RadioSelection for start/end (none, arrow, bar, dot, triangle)
+
+**Color picker popup:**
+- Opens when clicking stroke/background color swatch
+- Contains color grid (palette) and top picks row
+- Also supports hex input via `ColorInput` component
+- CSS class on trigger: various including `is-transparent`, `has-outline`
+
+**Alignment buttons (appear with 2+ elements selected):**
+- `[aria-label="Align left"]`, `[aria-label="Align right"]`
+- `[aria-label="Align top"]`, `[aria-label="Align bottom"]`
+- `[aria-label="Center horizontally"]`, `[aria-label="Center vertically"]`
+- `[aria-label="Distribute horizontally"]`, `[aria-label="Distribute vertically"]`
+
+**Confidence:** MEDIUM -- data-testid values verified from source DefaultItems.tsx; property panel structure from DeepWiki analysis of Actions.tsx. Exact CSS classes may vary by version.
+
+### 4. Export Mechanisms
+
+**Method 1: Copy as PNG keyboard shortcut (FASTEST)**
+- `Shift+Alt+C` copies current selection (or entire canvas if nothing selected) as PNG to clipboard
+- No dialog, instant clipboard copy
+- Best for automation: single keyboard shortcut, no DOM interaction needed
+
+**Method 2: Menu-based export dialog**
+1. Click hamburger menu (top-left)
+2. Click "Save as image" (`data-testid="image-export-button"`)
+3. Export dialog opens with format options (PNG, SVG)
+4. Select format, toggle background, set scale
+5. Click export/download button
+
+**Method 3: Command palette**
+- `Ctrl+/` opens command palette
+- Type "export" to filter export commands
+- Select desired export action
+
+**Method 4: Right-click context menu**
+- Right-click on selected elements
+- "Copy to clipboard as PNG" or "Copy to clipboard as SVG"
+
+**Recommendation for automation:** Use `Shift+Alt+C` (copy as PNG) as the primary export method. It requires zero DOM interaction and works instantly. For SVG export, use the menu-based flow since there's no direct SVG keyboard shortcut.
+
+**Confidence:** MEDIUM -- Shift+Alt+C confirmed from keyboard shortcut documentation; menu data-testid from source. Export dialog internal selectors not fully mapped.
+
+### 5. Connectors and Arrows
+
+**Creating a connected arrow between two shapes:**
+1. Press `A` to activate arrow tool
+2. Move cursor near the edge of source shape -- Excalidraw shows a faint outline when binding is available
+3. Click and drag from source shape edge toward target shape
+4. When cursor is near target shape edge, Excalidraw shows binding indicator
+5. Release mouse on target shape -- arrow is now bound to both shapes
+6. Shapes can be moved and arrow auto-routes to follow
+
+**CDP automation pattern:**
+1. `press_key a` -- activate arrow tool
+2. `cdpDrag sourceEdgeX sourceEdgeY targetEdgeX targetEdgeY steps=20 stepDelayMs=20`
+   - Start coordinates should be on the edge/border of the source shape
+   - End coordinates should be on the edge/border of the target shape
+   - Use more steps (20+) and slower delay for reliable binding detection
+
+**Arrow types (selectable after drawing):**
+- Sharp (default): straight segments with sharp corners
+- Round: curved path
+- Elbow: orthogonal 90-degree routing (auto-routes around obstacles)
+
+**Endpoint styles (arrowheads):**
+- Start arrowhead: none, arrow, bar, dot, triangle
+- End arrowhead: none, arrow, bar, dot, triangle
+- Accessible via properties panel RadioSelection buttons when arrow is selected
+
+**Multi-point arrows (curved/segmented):**
+- Click-click-click pattern: `A` then click multiple points, double-click or Escape to finish
+- For CDP: use multiple `cdpClickAt` calls for each vertex, then `press_key Escape` to finish
+
+**Prevent binding (draw arrow without connecting):**
+- Hold Ctrl/Cmd while drawing to prevent auto-binding to shapes
+
+**Labeled arrows:**
+- Select arrow, press Enter to add text label
+- Label appears at midpoint of arrow
+- Edit label: double-click arrow or select + Enter
+
+**Confidence:** HIGH -- binding behavior confirmed from Excalidraw team's official communications and source PRs
+
+### 6. Verification and Drawing State
+
+**Problem:** Excalidraw renders on `<canvas>` -- individual shapes are NOT DOM elements. You cannot query "how many rectangles are on the canvas" via DOM selectors.
+
+**What IS observable via DOM:**
+
+| What to Check | Selector / Method | What It Tells You |
+|---------------|-------------------|-------------------|
+| Text editor is active | `textarea.excalidraw-wysiwyg` exists in DOM | Text input mode is active |
+| WYSIWYG editor content | `textarea.excalidraw-wysiwyg` value | Current text being edited |
+| Toolbar active tool | `[data-testid="toolbar-*"].selected` or `[aria-checked="true"]` | Which tool is currently active |
+| Properties panel visible | `.layer-ui__wrapper` children for property fieldsets | Shape is selected (panel appears) |
+| Alignment buttons visible | `[aria-label="Align left"]` exists | 2+ elements are selected |
+| Menu open | `[data-testid="image-export-button"]` visible | Hamburger menu is expanded |
+| Dialog open | `[class*="Modal"]`, `[class*="Dialog"]` | Export/settings dialog is showing |
+| Color picker open | Color picker popup content in DOM | Color selection is active |
+| Canvas element | `canvas.interactive` | Canvas is loaded and ready |
+| Layer UI wrapper | `.layer-ui__wrapper` | Excalidraw UI has fully rendered |
+
+**What is NOT observable via DOM:**
+- Number of shapes on canvas
+- Shape positions, sizes, colors
+- Whether shapes are connected by arrows
+- Whether alignment was applied correctly
+
+**Verification strategies for non-DOM state:**
+1. **Action count heuristic:** Track how many draw operations were issued -- if 3 rectangles were drawn with 3 cdpDrag calls, assume 3 exist
+2. **Undo stack:** If undo (Ctrl+Z) removes the last shape, the draw succeeded
+3. **Export verification:** Copy as PNG (Shift+Alt+C) and check clipboard has content
+4. **Stats for nerds:** `Alt+/` opens element statistics panel showing element count -- this IS a DOM element that can be read
+
+**Confidence:** HIGH for DOM-observable items; MEDIUM for verification strategies (need live testing)
 
 ---
 
@@ -84,254 +338,47 @@ This avoids the complexity and cost of separate apps. Express serves the static 
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| WebSocket library | `ws` | Socket.IO | Socket.IO adds 50KB+ client-side, auto-reconnect/rooms are nice but overkill for a relay. `ws` is lighter, the extension's service worker handles reconnection logic directly |
-| WebSocket library | `ws` | `uWebSockets.js` | uWS is faster but requires native compilation, complicates Docker deployment, and the relay won't have enough connections to need it |
-| Dashboard framework | Vanilla HTML/JS | React/Vue/Svelte | No build system constraint applies to the dashboard too. The dashboard is simple enough (DOM viewer, task list, settings) that a framework adds complexity without proportional value |
-| QR generation (extension) | QRCode.js (vendored) | `qr` npm package | Extension has no build system and no npm. QRCode.js is a single file that works with a script tag in HTML pages |
-| QR generation (server) | `qr` (@paulmillr) | `qrcode` npm | `qrcode` hasn't been updated in 2 years. `qr` is zero-dep, actively maintained, smaller |
-| DOM streaming | Custom (extend existing snapshots) | rrweb | rrweb main package stuck at alpha for 3 years. 50KB+. Solves pixel-perfect replay, not structural cloning. FSB already has DOM serialization -- extend it with MutationObserver deltas |
-| DOM streaming | Custom | Chrome DevTools Protocol (CDP) | CDP `DOM.getDocument` would work but requires `debugger` permission active (already have it). However, CDP DOM snapshots are verbose XML and don't leverage FSB's existing element-aware serialization. Custom approach reuses existing code |
-| Background scheduling | `chrome.alarms` | `setInterval` | Service workers terminate after 30s idle. `setInterval` timers die with the worker. `chrome.alarms` persists across worker restarts |
-| Hosting | fly.io | Vercel/Netlify | Vercel/Netlify are serverless -- no persistent WebSocket connections. fly.io runs actual servers with WebSocket support natively |
-| Hosting | fly.io | Railway | Railway works but fly.io has better WebSocket documentation, edge network, and the user specified fly.io |
-| Hosting | fly.io | Render | Render's free tier spins down (kills WebSocket connections). fly.io machines stay warm for ~$2/month |
+| Text entry | cdpInsertText on auto-focused textarea | DOM-based type on textarea selector | cdpInsertText is simpler and doesn't need selector; textarea is ephemeral |
+| Tool selection | press_key shortcuts (R, D, O, etc.) | DOM click on toolbar buttons | Keyboard shortcuts are faster, more reliable, version-stable |
+| Color selection | Keyboard S/G to open picker + DOM click on swatch | cdpClickAt on color swatch coordinates | DOM click on swatches is more reliable than coordinate guessing |
+| Export | Shift+Alt+C (copy as PNG) | Menu navigation to export dialog | Single shortcut vs multi-step menu flow |
+| Alignment | Keyboard shortcuts (Ctrl+Shift+Arrow) | DOM click on alignment buttons | Shortcuts work without needing to find alignment button selectors |
+| Arrow creation | cdpDrag from shape edge to shape edge | Multi-click pattern | Drag is simpler for straight connectors |
 
 ---
 
-## Chrome Extension Changes
+## Anti-Stack (What NOT to Add)
 
-### Minimum Chrome Version Bump
-
-**Current:** Chrome 88+ (implicit from MV3)
-**Required:** Chrome 116+ (for WebSocket support in service workers)
-
-Chrome 116 (released August 2023) added proper WebSocket lifecycle management in MV3 service workers. Active WebSocket connections now extend the service worker's idle timer. A heartbeat message every 20 seconds keeps the connection alive.
-
-**Impact:** Minimal. Chrome 116 is 2.5+ years old. Users on older versions can still use the extension for local automation; remote features gracefully degrade.
-
-### No New Permissions Needed
-
-The manifest already has everything:
-- `alarms` -- for background polling agent scheduling
-- `storage` / `unlimitedStorage` -- for saving automation recordings and agent configurations
-- `offscreen` -- could be used for WebSocket keepalive if needed (already present)
-- `tabs`, `activeTab`, `scripting` -- for automation replay
-- `<all_urls>` host permission -- allows connecting to the relay server
-
-### New Manifest Entry: `externally_connectable` (MAYBE)
-
-If the dashboard needs to communicate directly with the extension (not through the relay), add:
-```json
-"externally_connectable": {
-  "matches": ["https://fsb-relay.fly.dev/*"]
-}
-```
-**Decision: Probably NOT needed.** All communication should go through the WebSocket relay. Direct extension messaging from a web page is fragile and requires the extension ID.
-
----
-
-## WebSocket Protocol Design (Stack Implications)
-
-The relay server is stateless -- it routes messages between paired clients. No database needed.
-
-```
-Extension (ws client) <---> fly.io relay (ws server) <---> Dashboard (ws client)
-```
-
-**Message format:** JSON over WebSocket (not binary). Messages are small (DOM deltas, task status, commands). No need for protobuf or MessagePack.
-
-**Pairing flow:**
-1. Extension generates pairing token via `crypto.randomUUID()`
-2. Extension connects to relay: `wss://fsb-relay.fly.dev/ws?token=<token>`
-3. Extension displays token as QR code (using QRCode.js)
-4. Dashboard scans QR (using jsQR + camera) or user types code manually
-5. Dashboard connects to relay with same token
-6. Relay matches the two connections, begins forwarding messages
-
-**Server state:** In-memory Map of `token -> [extensionSocket, dashboardSocket]`. No persistence needed -- if the server restarts, clients reconnect and re-pair (the token is stored in extension storage).
-
----
-
-## DOM Cloning Strategy (Stack Implications)
-
-**Do NOT proxy images.** The PROJECT.md explicitly states "images via CDN, not proxied." The DOM clone sends image URLs as-is. The dashboard renders them directly from the original CDN sources. This means:
-
-- No image proxy server needed
-- No bandwidth costs for image relay
-- Dashboard must handle CORS/mixed content for images (some will fail to load -- acceptable)
-
-**Serialization approach:**
-1. **Initial snapshot:** Full DOM serialization (extend existing `buildDomSnapshot()` to output JSON tree instead of markdown)
-2. **Incremental updates:** MutationObserver captures DOM changes, serializes only the delta (added/removed/modified nodes)
-3. **Dashboard reconstruction:** Receives JSON tree, builds DOM in an iframe or shadow DOM container
-
-**Estimated data volume:** Initial snapshot ~50-200KB depending on page complexity. Deltas typically 1-5KB per change batch. At 1-2 updates/second, this is well within WebSocket bandwidth.
-
----
-
-## Background Agent Scheduling
-
-**`chrome.alarms` constraints:**
-- Minimum interval: 1 minute (Chrome enforces this)
-- Alarms persist across service worker restarts
-- Listener must be registered at top level of service worker
-- Maximum ~500 alarms (undocumented but practical limit)
-
-**Agent types and intervals:**
-| Agent Type | Default Interval | Configurable? |
-|------------|-----------------|---------------|
-| Price monitor | 15 minutes | Yes (min 1 min) |
-| Stock check | 5 minutes | Yes (min 1 min) |
-| Page change detection | 30 minutes | Yes (min 1 min) |
-| Custom polling | 10 minutes | Yes (min 1 min) |
-
-**Storage for agent configs:** `chrome.storage.local` (already have `unlimitedStorage` permission). Each agent stores:
-- URL to check
-- Polling interval
-- Last result hash (for change detection)
-- Action to take on change (notify, run automation, etc.)
-
----
-
-## Automation Replay (Stack Implications)
-
-**No new libraries needed.** Replay uses the existing action execution pipeline:
-
-1. **Recording:** During a successful automation, save the action sequence with selectors to `chrome.storage.local`
-2. **Replay:** Re-execute saved actions using `findElementByStrategies()` with the saved selectors
-3. **AI fallback:** If a selector fails (page changed), pass the current DOM snapshot + saved action intent to AI for re-resolution
-
-**Storage format:**
-```javascript
-{
-  id: "recording-uuid",
-  name: "Add to cart on Amazon",
-  url: "https://amazon.com/...",
-  actions: [
-    { type: "click", selectors: [...], description: "Click search box" },
-    { type: "type", value: "wireless mouse", selectors: [...] },
-    { type: "click", selectors: [...], description: "Click first result" }
-  ],
-  createdAt: "2026-03-17T...",
-  lastSuccess: "2026-03-17T..."
-}
-```
+| Temptation | Why Not |
+|------------|---------|
+| Screenshot-based visual verification | Adds complexity, slow, and FSB has no screenshot analysis pipeline |
+| Excalidraw API injection (window.excalidrawAPI) | Content scripts run in isolated world, cannot access page JS objects |
+| MCP Excalidraw server (npm package exists) | Separate concern -- FSB automates the browser, not the API |
+| rrweb or canvas capture | Overkill for verification; DOM-based checks plus action counting suffices |
+| New CDP tools | All needed CDP tools already exist (click_at, drag, insertText, press_key) |
+| Build system / TypeScript | Project constraint: vanilla JS, no transpilation |
 
 ---
 
 ## Installation
 
-### Server (new project)
-
 ```bash
-# Initialize server project
-mkdir fsb-relay && cd fsb-relay
-npm init -y
-
-# Core dependencies
-npm install ws express qr helmet cors
-
-# Dev dependencies (optional)
-npm install -D nodemon
-
-# fly.io deployment
-fly launch --name fsb-relay
-fly deploy
+# No installation needed -- zero new dependencies
+# All capabilities exist in current FSB codebase
 ```
-
-### Extension (modifications only)
-
-```
-# No npm install needed -- extension has no build system
-# Vendor QRCode.js into extension:
-# Download https://davidshimjs.github.io/qrcodejs/qrcode.min.js
-# Save as lib/qrcode.min.js
-
-# Vendor jsQR into dashboard static files:
-# Download from https://github.com/cozmo/jsQR
-# Save as dashboard/lib/jsqr.min.js (server-side, not in extension)
-```
-
-### fly.toml (server config)
-
-```toml
-app = "fsb-relay"
-primary_region = "iad"
-
-[build]
-
-[http_service]
-  internal_port = 3000
-  force_https = true
-  auto_stop_machines = "stop"
-  auto_start_machines = true
-  min_machines_running = 1
-
-[env]
-  PORT = "3000"
-  NODE_ENV = "production"
-```
-
----
-
-## Cost Estimate
-
-| Component | Monthly Cost | Notes |
-|-----------|-------------|-------|
-| fly.io shared-cpu-1x (256MB) | ~$2.00 | Single machine, always running |
-| fly.io bandwidth | ~$0.00 | 100GB free outbound, DOM deltas are tiny |
-| fly.io TLS certificate | $0.00 | Auto-provisioned via Let's Encrypt |
-| **Total** | **~$2/month** | Can scale to shared-cpu-2x ($3.50/mo) if needed |
-
----
-
-## Version Compatibility Matrix
-
-| Component | Minimum Version | Reason |
-|-----------|----------------|--------|
-| Chrome | 116 | WebSocket in MV3 service workers |
-| Node.js (server) | 20.x LTS | `crypto.randomUUID()`, stable ESM support |
-| `ws` | 8.x | Stable API, permessage-deflate support |
-| `express` | 4.x | Battle-tested, 5.x still in beta |
-| fly.io CLI (`flyctl`) | Latest | Deployment tool, always use latest |
-
----
-
-## What NOT to Add
-
-| Technology | Why Not |
-|------------|---------|
-| Socket.IO | Overhead of polling fallback, rooms, namespaces -- all unnecessary for a simple relay |
-| rrweb | Alpha for 3 years, wrong abstraction (session replay vs structural cloning), 50KB+ |
-| React/Vue/Svelte (dashboard) | No-build-system constraint. Dashboard is simple enough for vanilla JS |
-| Redis/PostgreSQL | Server is stateless relay. In-memory Map is sufficient. If server restarts, clients reconnect |
-| Protobuf/MessagePack | JSON is fine for DOM deltas and task commands. Complexity not justified |
-| nginx reverse proxy | fly.io handles TLS termination and routing. Express serves everything directly |
-| Puppeteer/Playwright | Server does NOT run browsers. User's browser stays active. Server is relay only |
-| `node-cron` | Server doesn't schedule tasks. Chrome's `chrome.alarms` handles scheduling in the extension |
-| Screenshot/video streaming | PROJECT.md explicitly says "DOM cloning with CDN images, not visual capture" |
 
 ---
 
 ## Sources
 
-### Official Documentation (HIGH confidence)
-- [ws npm package](https://www.npmjs.com/package/ws) -- v8.19.0, last published ~2 months ago
-- [Chrome WebSocket in Service Workers](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets) -- Chrome 116+ support, heartbeat pattern
-- [chrome.alarms API](https://developer.chrome.com/docs/extensions/reference/api/alarms) -- 1-minute minimum interval, persistence across restarts
-- [fly.io WebSocket blog](https://fly.io/blog/websockets-and-fly/) -- no special config needed, Express + ws pattern
-- [fly.io static site docs](https://fly.io/docs/languages-and-frameworks/static/) -- nginx or Express for static serving
-- [fly.io Node.js docs](https://fly.io/docs/deep-dive/nodejs/) -- deployment patterns
-- [fly.io pricing](https://fly.io/pricing/) -- pay-as-you-go, ~$2/month for shared-cpu-1x
-- [qr npm package](https://www.npmjs.com/package/qr) -- v0.5.3, zero-dep, last published ~1 month ago
-- [QRCode.js](https://davidshimjs.github.io/qrcodejs/) -- cross-browser, no dependencies, canvas-based
-
-### Community/Verified (MEDIUM confidence)
-- [Express + ws on fly.io pattern](https://fly.io/blog/websockets-and-fly/) -- flychat-ws example app
-- [jsQR GitHub](https://github.com/cozmo/jsQR) -- pure JS QR reader, works in browser
-- [Chrome MV3 service worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) -- 30s idle timeout, alarm wakeup
-
-### Architecture Decisions (HIGH confidence -- from PROJECT.md)
-- "DOM cloning with CDN images, not visual capture" -- no image proxying
-- "Server is relay only, user's browser must stay active" -- no headless execution
-- "No build system: Direct JavaScript execution" -- vanilla JS for all components
+- [Excalidraw source: textWysiwyg.tsx](https://github.com/excalidraw/excalidraw/blob/master/packages/excalidraw/wysiwyg/textWysiwyg.tsx) -- HIGH confidence
+- [Excalidraw source: DefaultItems.tsx](https://github.com/excalidraw/excalidraw/blob/master/packages/excalidraw/components/main-menu/DefaultItems.tsx) -- HIGH confidence
+- [Excalidraw keyboard shortcuts (csswolf.com)](https://csswolf.com/excalidraw-keyboard-shortcuts-pdf/) -- MEDIUM confidence (third-party compilation)
+- [DeepWiki: Excalidraw export system](https://deepwiki.com/excalidraw/excalidraw/6.6-export-system) -- MEDIUM confidence
+- [DeepWiki: Properties and color picker](https://deepwiki.com/zsviczian/excalidraw/4.6-properties-and-color-picker) -- MEDIUM confidence
+- [DeepWiki: Actions and toolbars](https://deepwiki.com/excalidraw/excalidraw/4.1-actions-and-toolbars) -- MEDIUM confidence
+- [Excalidraw MainMenu docs](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/api/children-components/main-menu) -- HIGH confidence
+- [Excalidraw arrow binding behavior](https://x.com/excalidraw/status/1786055557645824177) -- HIGH confidence (official team)
+- [1337skills Excalidraw cheatsheet](https://1337skills.com/cheatsheets/excalidraw/) -- MEDIUM confidence
+- [HackMD Excalidraw guide](https://hackmd.io/@alkemio/SJuewkPwn) -- MEDIUM confidence
+- [CDP Input domain](https://chromedevtools.github.io/devtools-protocol/tot/Input/) -- HIGH confidence (official Chrome docs)
