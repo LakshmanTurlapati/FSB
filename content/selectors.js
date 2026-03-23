@@ -241,8 +241,12 @@
       const classes = element.className.trim().split(/\s+/).filter(c => c);
 
       if (classes.length > 0) {
+        // Escape CSS special characters in class names (e.g. CSS module hashes with +, ~, etc.)
+        const escapeCSS = (cls) => cls.replace(/([!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~])/g, '\\$1');
+        const escapedClasses = classes.map(escapeCSS);
+
         // Try full class combination
-        const fullSelector = `.${classes.join('.')}`;
+        const fullSelector = `.${escapedClasses.join('.')}`;
         const fullMatches = document.querySelectorAll(fullSelector);
         if (fullMatches.length === 1) {
           return fullSelector;
@@ -254,8 +258,8 @@
 
         // IMPROVED: Try partial class combinations (more robust)
         // Try first 2 classes
-        if (classes.length >= 2) {
-          const partialSelector = `.${classes.slice(0, 2).join('.')}`;
+        if (escapedClasses.length >= 2) {
+          const partialSelector = `.${escapedClasses.slice(0, 2).join('.')}`;
           const partialMatches = document.querySelectorAll(partialSelector);
           if (partialMatches.length === 1) {
             return partialSelector;
@@ -267,7 +271,7 @@
         }
 
         // Try just the first class
-        const singleClass = `.${classes[0]}`;
+        const singleClass = `.${escapedClasses[0]}`;
         const singleMatches = document.querySelectorAll(singleClass);
         if (singleMatches.length === 1) {
           return singleClass;
