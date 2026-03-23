@@ -2275,15 +2275,19 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
         // Apply security sanitization
         parsed.actions = sanitizeActions(parsed.actions);
 
-        // CLI reformat retry: if no valid output, ask AI to reformat
+        // ROBUST-04: Two-stage CLI parse failure recovery
+        // Stage 1: Lightweight simplified hint (cheap, fast)
+        // Stage 2: Full reformat retry with raw text echo (existing logic, heavier)
         if (parsed.actions.length === 0 && !parsed.taskComplete && !parsed.taskFailed && !parsed.helpRequested) {
-          automationLogger.debug('CLI reformat retry - no valid commands parsed', {
+          automationLogger.debug('CLI parse failure - starting two-stage recovery', {
             sessionId: this.currentSessionId,
-            rawTextPreview: rawText.substring(0, 200)
+            rawTextPreview: rawText.substring(0, 200),
+            errorCount: parsed.errors.length
           });
 
+          // Stage 1: Simplified hint retry
           try {
-            const reformatPrompt = {
+            const hintPrompt = {
               messages: [
                 ...(request.prompt.messages || [
                   { role: 'system', content: request.prompt.systemPrompt || '' },
@@ -2295,21 +2299,69 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
                 },
                 {
                   role: 'user',
-                  content: 'Your response was not in CLI command format. Reformat as CLI commands (one per line, # for reasoning). Your response was: ' + rawText.substring(0, 500)
+                  content: 'Format error. Respond with exactly one CLI command per line. Use # for reasoning. Example format:\n# reasoning here\nclick e5\ntype e3 "hello"\ndone "finished"'
                 }
               ]
             };
-            const retryResponse = await this.callAPI(reformatPrompt, { attempt: (request.attempt || 0) + 1 });
-            const retryRawText = typeof retryResponse === 'string' ? retryResponse : (retryResponse?.content || String(retryResponse));
-            parsed = parseCliResponse(retryRawText);
-            parsed.actions = sanitizeActions(parsed.actions);
-            parsed._rawCliText = retryRawText;
-          } catch (retryError) {
-            automationLogger.debug('CLI reformat retry failed', {
+            const hintResponse = await this.callAPI(hintPrompt, { attempt: (request.attempt || 0) + 1 });
+            const hintRawText = typeof hintResponse === 'string' ? hintResponse : (hintResponse?.content || String(hintResponse));
+            const hintParsed = parseCliResponse(hintRawText);
+            hintParsed.actions = sanitizeActions(hintParsed.actions);
+
+            if (hintParsed.actions.length > 0 || hintParsed.taskComplete || hintParsed.taskFailed) {
+              automationLogger.debug('CLI simplified hint retry succeeded', {
+                sessionId: this.currentSessionId,
+                actionCount: hintParsed.actions.length,
+                taskComplete: hintParsed.taskComplete
+              });
+              parsed = hintParsed;
+              parsed._rawCliText = hintRawText;
+              parsed._recoveryStage = 'simplified_hint';
+            }
+          } catch (hintError) {
+            automationLogger.debug('CLI simplified hint retry failed', {
               sessionId: this.currentSessionId,
-              error: retryError.message
+              error: hintError.message
             });
-            // Keep original parsed result (empty actions)
+          }
+
+          // Stage 2: Full reformat retry (existing logic) -- only if stage 1 did not recover
+          if (parsed.actions.length === 0 && !parsed.taskComplete && !parsed.taskFailed && !parsed.helpRequested) {
+            automationLogger.debug('CLI reformat retry - stage 2 with raw text echo', {
+              sessionId: this.currentSessionId,
+              rawTextPreview: rawText.substring(0, 200)
+            });
+
+            try {
+              const reformatPrompt = {
+                messages: [
+                  ...(request.prompt.messages || [
+                    { role: 'system', content: request.prompt.systemPrompt || '' },
+                    { role: 'user', content: request.prompt.userPrompt || '' }
+                  ]),
+                  {
+                    role: 'assistant',
+                    content: rawText
+                  },
+                  {
+                    role: 'user',
+                    content: 'Your response was not in CLI command format. Reformat as CLI commands (one per line, # for reasoning). Your response was: ' + rawText.substring(0, 500)
+                  }
+                ]
+              };
+              const retryResponse = await this.callAPI(reformatPrompt, { attempt: (request.attempt || 0) + 1 });
+              const retryRawText = typeof retryResponse === 'string' ? retryResponse : (retryResponse?.content || String(retryResponse));
+              parsed = parseCliResponse(retryRawText);
+              parsed.actions = sanitizeActions(parsed.actions);
+              parsed._rawCliText = retryRawText;
+              parsed._recoveryStage = 'full_reformat';
+            } catch (retryError) {
+              automationLogger.debug('CLI reformat retry failed', {
+                sessionId: this.currentSessionId,
+                error: retryError.message
+              });
+              // Keep original parsed result (empty actions)
+            }
           }
         }
 
