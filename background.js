@@ -425,6 +425,50 @@ async function extractAndStoreMemories(sessionId, session) {
       console.warn('[FSB] Procedural memory extraction failed:', procError.message);
     }
 
+    // Phase 101 (MEM-03): Auto-consolidation triggers
+    try {
+      // Increment persistent session counter
+      const counterResult = await chrome.storage.local.get('fsb_session_count');
+      const sessionCount = (counterResult.fsb_session_count || 0) + 1;
+      await chrome.storage.local.set({ fsb_session_count: sessionCount });
+
+      let shouldConsolidate = false;
+      let reason = '';
+
+      // Trigger 1: Every 10 sessions
+      if (sessionCount % 10 === 0) {
+        shouldConsolidate = true;
+        reason = `session count ${sessionCount} (every 10)`;
+      }
+
+      // Trigger 2: Any memory type at 80% capacity (80 out of 100 per type)
+      if (!shouldConsolidate) {
+        const stats = await memoryStorage.getStats();
+        const PER_TYPE_CAPACITY = 100;
+        const CAPACITY_THRESHOLD = 80; // 80% of 100
+        for (const [type, count] of Object.entries(stats.byType || {})) {
+          if (count >= CAPACITY_THRESHOLD) {
+            shouldConsolidate = true;
+            reason = `${type} memory at ${count}/${PER_TYPE_CAPACITY} (80% capacity)`;
+            break;
+          }
+        }
+      }
+
+      if (shouldConsolidate) {
+        // Fire-and-forget -- consolidation must never block automation
+        memoryManager.consolidate().then(result => {
+          console.log(`[Memory] Auto-consolidation complete (${reason}):`, result);
+          // Reset counter after successful consolidation
+          chrome.storage.local.set({ fsb_session_count: 0 });
+        }).catch(err => {
+          console.warn('[Memory] Auto-consolidation failed:', err.message);
+        });
+      }
+    } catch (err) {
+      console.warn('[Memory] Auto-consolidation trigger check failed:', err.message);
+    }
+
     if (memories.length > 0) {
       debugLog('Extracted memories from session', {
         sessionId,
