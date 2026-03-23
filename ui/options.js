@@ -4322,9 +4322,9 @@ function updateMemoryStats(stats) {
   };
 
   el('memStatTotal', stats.totalCount);
-  el('memStatEpisodic', stats.byType?.episodic || 0);
   el('memStatSemantic', stats.byType?.semantic || 0);
   el('memStatProcedural', stats.byType?.procedural || 0);
+  el('memStatTask', stats.byType?.task || 0);
 
   const kb = Math.round(stats.estimatedBytes / 1024);
   el('memStatStorage', kb > 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`);
@@ -4365,7 +4365,6 @@ function renderMemoryList(memories) {
 
   container.innerHTML = sorted.map(memory => {
     const typeIcon = {
-      episodic: 'fa-clock',
       semantic: 'fa-lightbulb',
       procedural: 'fa-list-ol',
       task: 'fa-clipboard-check'
@@ -4551,9 +4550,6 @@ function renderMemoryDetailPanel(memory) {
   let content = '';
 
   switch (memory.type) {
-    case 'episodic':
-      content = renderEpisodicDetail(memory);
-      break;
     case 'semantic':
       content = renderSemanticDetail(memory);
       break;
