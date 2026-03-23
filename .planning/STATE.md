@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.8
 milestone_name: Autopilot Refinement
 status: unknown
-stopped_at: Completed 101-01-PLAN.md
-last_updated: "2026-03-23T07:46:22.340Z"
+stopped_at: Completed 102-01-PLAN.md
+last_updated: "2026-03-23T08:03:23.859Z"
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 11
+  completed_plans: 10
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 101 — memory-intelligence
+**Current focus:** Phase 102 — robustness-hardening
 
 ## Current Position
 
-Phase: 101 (memory-intelligence) — EXECUTING
+Phase: 102 (robustness-hardening) — EXECUTING
 Plan: 2 of 2
 
 ## Performance Metrics
@@ -55,6 +55,7 @@ Plan: 2 of 2
 | Phase 100 P01 | 2min | 2 tasks | 2 files |
 | Phase 101 P02 | 2min | 2 tasks | 1 files |
 | Phase 101 P01 | 2min | 2 tasks | 6 files |
+| Phase 102 P01 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 101]: Domain-change clears and replaces (not merges) old-domain memories; session guard reset allows re-fetch within same session
 - [Phase 101]: Flat 80-per-type capacity threshold for auto-consolidation trigger (matching CONTEXT.md specification)
 - [Phase 101]: Fire-and-forget consolidation with session counter reset only on success
+- [Phase 102]: Viewport bounds check uses window.innerWidth/innerHeight directly in CDP tools, not existing validateCoordinates (which does DOM checks inappropriate for CDP)
+- [Phase 102]: Bidirectional recovery requires >= 2 recent actions of dominant type; classifies last 5 actions excluding navigate/done/fail
 
 ### Pending Todos
 
@@ -93,6 +96,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-23T07:46:22.338Z
-Stopped at: Completed 101-01-PLAN.md
+Last session: 2026-03-23T08:03:23.857Z
+Stopped at: Completed 102-01-PLAN.md
 Resume file: None

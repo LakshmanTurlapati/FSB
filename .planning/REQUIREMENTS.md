@@ -31,8 +31,8 @@ Make the autopilot mode perform as flawlessly as MCP manual mode. The AI (Grok 4
 
 ### Robustness
 
-- [ ] **ROBUST-01**: Coordinate validation rejects out-of-viewport CDP tool parameters before execution, returning descriptive error with viewport dimensions
-- [ ] **ROBUST-02**: Stuck detection distinguishes coordinate-based failures from DOM interaction failures, with bidirectional recovery (coordinate stuck suggests DOM fallback, DOM stuck suggests coordinate approach)
+- [x] **ROBUST-01**: Coordinate validation rejects out-of-viewport CDP tool parameters before execution, returning descriptive error with viewport dimensions
+- [x] **ROBUST-02**: Stuck detection distinguishes coordinate-based failures from DOM interaction failures, with bidirectional recovery (coordinate stuck suggests DOM fallback, DOM stuck suggests coordinate approach)
 - [ ] **ROBUST-03**: Progressive prompt trimming on heavy DOM pages reduces context in stages (trim examples, then trim element count, then memory) instead of timing out
 - [ ] **ROBUST-04**: CLI parse failure triggers automatic retry with simplified prompt hint ("respond with exactly one CLI command per line") instead of aborting the action batch
 
@@ -77,8 +77,8 @@ Make the autopilot mode perform as flawlessly as MCP manual mode. The AI (Grok 4
 | MEM-04 | Phase 101 | Complete |
 | MEM-05 | Phase 101 | Complete |
 | MEM-06 | Phase 101 | Complete |
-| ROBUST-01 | Phase 102 | Pending |
-| ROBUST-02 | Phase 102 | Pending |
+| ROBUST-01 | Phase 102 | Complete |
+| ROBUST-02 | Phase 102 | Complete |
 | ROBUST-03 | Phase 102 | Pending |
 | ROBUST-04 | Phase 102 | Pending |
 | VALID-01 | Phase 103 | Pending |
