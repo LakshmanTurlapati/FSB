@@ -2044,6 +2044,33 @@ setInterval(async () => {
       removePersistedSession(sessionId);
       continue;
     }
+    // VMFIX-03: Expire running sessions with no iteration progress for 5 minutes
+    const RUNNING_INACTIVITY_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+    if (session.status === 'running' && session.lastIterationTime &&
+        now - session.lastIterationTime > RUNNING_INACTIVITY_THRESHOLD) {
+      automationLogger.warn('Expiring stale running session (no iteration in 5 min)', {
+        sessionId,
+        lastIteration: session.lastIterationTime,
+        iterationCount: session.iterationCount,
+        ageMs: now - session.lastIterationTime
+      });
+      session.status = 'expired';
+      activeSessions.delete(sessionId);
+      sessionAIInstances.delete(sessionId);
+      removePersistedSession(sessionId);
+      // Notify UI that session expired
+      chrome.runtime.sendMessage({
+        action: 'automationComplete',
+        sessionId,
+        result: {
+          success: false,
+          result: 'Session expired due to inactivity (no progress for 5 minutes)',
+          error: 'session_expired_inactivity'
+        },
+        task: session.task
+      }).catch(() => {});
+      continue;
+    }
     // Remove sessions whose tab no longer exists
     if (session.tabId) {
       try {
@@ -6132,6 +6159,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       stuckCounter: 0,
       consecutiveNoProgressCount: 0,
       iterationCount: 0,        // Total iterations
+      lastIterationTime: Date.now(), // VMFIX-03: Track last iteration for inactivity timeout
       urlHistory: [],           // Track URL changes
       lastUrl: null,            // Last known URL
       actionSequences: [],      // Track sequences of actions to detect patterns
@@ -6363,6 +6391,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
         stuckCounter: 0,
         consecutiveNoProgressCount: 0,
         iterationCount: 0,
+        lastIterationTime: Date.now(),
         urlHistory: [],
         lastUrl: null,
         actionSequences: [],
@@ -9194,6 +9223,7 @@ async function startAutomationLoop(sessionId) {
   session.loopPromise = new Promise(resolve => { loopResolve = resolve; });
 
   session.iterationCount++;
+  session.lastIterationTime = Date.now();
 
   // Update content script with iteration progress
   sendSessionStatus(session.tabId, {
