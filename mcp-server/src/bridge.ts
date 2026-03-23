@@ -370,6 +370,17 @@ export class WebSocketBridge {
    * Route it to the correct origin (local pending request or relay client).
    */
   private _handleExtensionMessage(raw: string): void {
+    // Phase 102.1: Handle keepalive pings from extension before type-checking MCPResponse
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.type === 'mcp:ping') {
+        if (this.extensionClient && this.extensionClient.readyState === 1 /* WebSocket.OPEN */) {
+          this.extensionClient.send(JSON.stringify({ type: 'mcp:pong', ts: Date.now() }));
+        }
+        return;
+      }
+    } catch { /* fall through to normal parse */ }
+
     let resp: MCPResponse;
     try {
       resp = JSON.parse(raw) as MCPResponse;

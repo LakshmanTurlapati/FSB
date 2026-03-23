@@ -12662,6 +12662,8 @@ class MCPWebSocket {
     this.maxReconnectDelay = 30000;
     this.connected = false;
     this.intentionalClose = false;
+    this.keepaliveTimer = null;
+    this.healthCheckTimer = null;
   }
 
   connect() {
@@ -12670,6 +12672,7 @@ class MCPWebSocket {
       this.ws = null;
     }
 
+    this._stopKeepalive();
     this.intentionalClose = false;
 
     try {
@@ -12683,6 +12686,7 @@ class MCPWebSocket {
     this.ws.onopen = () => {
       this.reconnectDelay = 0;
       this.connected = true;
+      this._startKeepalive();
       console.log('[FSB MCP WS] Connected to MCP server');
     };
 
@@ -12697,6 +12701,7 @@ class MCPWebSocket {
 
     this.ws.onclose = () => {
       this.connected = false;
+      this._stopKeepalive();
       if (!this.intentionalClose) {
         this._scheduleReconnect();
       }
@@ -12710,6 +12715,7 @@ class MCPWebSocket {
 
   disconnect() {
     this.intentionalClose = true;
+    this._stopKeepalive();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -12727,7 +12733,45 @@ class MCPWebSocket {
     return true;
   }
 
+  // Phase 102.1: Keepalive pings prevent service worker suspension from killing MCP connection.
+  // Service workers suspend after ~30s idle, closing all WebSockets. A 15s ping keeps
+  // the worker alive and detects stale connections early.
+  _startKeepalive() {
+    this._stopKeepalive();
+    this.keepaliveTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'mcp:ping', ts: Date.now() }));
+      } else if (!this.intentionalClose) {
+        // WebSocket is not open but we think we're connected -- stale state
+        this.connected = false;
+        this._stopKeepalive();
+        this._scheduleReconnect();
+      }
+    }, 15000); // 15-second keepalive (under 30s service worker timeout)
+  }
+
+  _stopKeepalive() {
+    if (this.keepaliveTimer) {
+      clearInterval(this.keepaliveTimer);
+      this.keepaliveTimer = null;
+    }
+  }
+
+  // Health check: called on service worker wake to verify connection is still alive.
+  // If ws is null or closed, reconnect immediately.
+  ensureConnected() {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.log('[FSB MCP WS] Health check: connection lost, reconnecting...');
+      this.connected = false;
+      this._stopKeepalive();
+      this.reconnectDelay = 0; // Immediate reconnect on wake
+      this.connect();
+    }
+  }
+
   _handleMessage(msg) {
+    // Ignore pong responses
+    if (msg && msg.type === 'mcp:pong') return;
     // All messages from MCP server are MCPMessage objects with { id, type, payload }
     // Route them to the existing handleMCPMessage handler
     if (msg && msg.type && msg.type.startsWith('mcp:')) {
@@ -13077,3 +13121,20 @@ async function loadSiteGuides() {
 // Auto-connect to MCP WebSocket server.
 // Will silently retry if MCP server isn't running (localhost:7225).
 mcpWebSocket.connect();
+
+// Phase 102.1: Health check on service worker wake events.
+// Service workers can suspend and resume; on resume, verify MCP connection is alive.
+// chrome.runtime.onStartup fires on browser launch; onMessage fires on wake from content scripts.
+chrome.runtime.onStartup.addListener(() => {
+  mcpWebSocket.ensureConnected();
+});
+// Also check MCP health when any message arrives (service worker woke for a reason)
+const _origOnMessage = chrome.runtime.onMessage.hasListener ? null : undefined;
+if (typeof chrome.runtime.onMessage !== 'undefined') {
+  chrome.runtime.onMessage.addListener((msg) => {
+    // Lightweight: only check if we think we're connected but socket is actually dead
+    if (mcpWebSocket.connected && (!mcpWebSocket.ws || mcpWebSocket.ws.readyState !== WebSocket.OPEN)) {
+      mcpWebSocket.ensureConnected();
+    }
+  });
+}
