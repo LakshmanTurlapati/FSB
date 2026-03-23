@@ -12239,6 +12239,125 @@ function initializeKeyboardEmulator() {
 }
 
 /**
+ * Execute a CDP tool directly from the automation loop (no message round-trip).
+ * Wraps chrome.debugger calls for each CDP tool type, replicating the exact
+ * dispatch logic from the existing handler functions but returning results
+ * directly instead of using sendResponse callbacks.
+ * @param {Object} action - { tool, params }
+ * @param {number} tabId - Tab to attach debugger to
+ * @returns {Object} Result with success field
+ */
+async function executeCDPToolDirect(action, tabId) {
+  const p = action.params || {};
+
+  try {
+    await chrome.debugger.attach({ tabId }, '1.3');
+  } catch (attachErr) {
+    // Already attached is OK -- detach and retry once
+    if (attachErr.message?.includes('Already attached')) {
+      try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+      await chrome.debugger.attach({ tabId }, '1.3');
+    } else {
+      throw attachErr;
+    }
+  }
+
+  try {
+    switch (action.tool) {
+      case 'cdpClickAt': {
+        let modifiers = 0;
+        if (p.altKey) modifiers |= 1;
+        if (p.ctrlKey) modifiers |= 2;
+        if (p.shiftKey) modifiers |= 8;
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1, modifiers
+        });
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1, modifiers
+        });
+        return { success: true, x: p.x, y: p.y, modifiers, method: 'cdp_mouse_direct' };
+      }
+
+      case 'cdpClickAndHold': {
+        const holdMs = p.holdMs || 5000;
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1
+        });
+        await new Promise(r => setTimeout(r, holdMs));
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1
+        });
+        return { success: true, x: p.x, y: p.y, holdMs, method: 'cdp_click_and_hold_direct' };
+      }
+
+      case 'cdpDrag': {
+        const steps = p.steps || 10;
+        const stepDelayMs = p.stepDelayMs || 20;
+        let modifiers = 0;
+        if (p.altKey) modifiers |= 1;
+        if (p.ctrlKey) modifiers |= 2;
+        if (p.shiftKey) modifiers |= 8;
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x: p.startX, y: p.startY, button: 'left', clickCount: 1, modifiers
+        });
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          const mx = Math.round(p.startX + (p.endX - p.startX) * t);
+          const my = Math.round(p.startY + (p.endY - p.startY) * t);
+          await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+            type: 'mouseMoved', x: mx, y: my, button: 'left', buttons: 1, modifiers
+          });
+          if (stepDelayMs > 0) await new Promise(r => setTimeout(r, stepDelayMs));
+        }
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x: p.endX, y: p.endY, button: 'left', clickCount: 1, modifiers
+        });
+        return { success: true, startX: p.startX, startY: p.startY, endX: p.endX, endY: p.endY, steps, method: 'cdp_drag_direct' };
+      }
+
+      case 'cdpDragVariableSpeed': {
+        const totalSteps = Math.max(p.steps || 20, 5);
+        const minDelayMs = p.minDelayMs || 5;
+        const maxDelayMs = p.maxDelayMs || 40;
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x: p.startX, y: p.startY, button: 'left', clickCount: 1
+        });
+        for (let i = 1; i <= totalSteps; i++) {
+          const t = i / totalSteps;
+          const mx = Math.round(p.startX + (p.endX - p.startX) * t);
+          const my = Math.round(p.startY + (p.endY - p.startY) * t);
+          await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+            type: 'mouseMoved', x: mx, y: my, button: 'left', buttons: 1
+          });
+          // Ease-in-out delay: high at start/end, low in middle
+          const speedFactor = 1.0 - 4.0 * Math.pow(t - 0.5, 2);
+          const clampedFactor = Math.max(0, Math.min(1, speedFactor));
+          const delay = Math.round(maxDelayMs - clampedFactor * (maxDelayMs - minDelayMs));
+          await new Promise(r => setTimeout(r, delay));
+        }
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x: p.endX, y: p.endY, button: 'left', clickCount: 1
+        });
+        return { success: true, startX: p.startX, startY: p.startY, endX: p.endX, endY: p.endY, steps: totalSteps, minDelayMs, maxDelayMs, method: 'cdp_drag_variable_direct' };
+      }
+
+      case 'cdpScrollAt': {
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseWheel', x: p.x, y: p.y,
+          deltaX: p.deltaX || 0, deltaY: p.deltaY || -120
+        });
+        return { success: true, x: p.x, y: p.y, deltaX: p.deltaX || 0, deltaY: p.deltaY || -120, method: 'cdp_scroll_direct' };
+      }
+
+      default:
+        return { success: false, error: `Unknown CDP tool: ${action.tool}` };
+    }
+  } finally {
+    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+  }
+}
+
+/**
  * Handle CDP mouse click at specific page coordinates.
  * Uses Input.dispatchMouseEvent for browser-level click simulation.
  * Called from content scripts that need to click elements not reachable via DOM APIs.
