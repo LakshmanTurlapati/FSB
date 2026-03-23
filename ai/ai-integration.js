@@ -8,6 +8,10 @@ if (typeof importScripts !== 'undefined') {
   importScripts('ai/ai-providers.js');
 }
 
+// ROBUST-03: Progressive prompt trimming threshold
+// ~200K chars is safe for grok-4-1-fast (2M context / ~4 chars per token = 500K chars, 40% budget = 200K)
+const PROMPT_CHAR_LIMIT = 200000;
+
 // CLI Command Reference Table -- replaces JSON TOOL_DOCUMENTATION (Phase 17)
 // Derived from COMMAND_REGISTRY in cli-parser.js. Used in system prompt.
 // Compact table format grouped by category with per-command examples.
@@ -3398,30 +3402,80 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       userPrompt += `\n\nSHEETS RULE: Output at most 8 CLI commands per response. The grid is canvas-based. Wait for DOM updates between each navigation+type cycle.`;
     }
 
-    const finalPrompt = { systemPrompt, userPrompt };
-
-    // Log final prompt details
-    const estimatedTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 3.5);
-    automationLogger.debug('Final prompt built', {
-      sessionId: this.currentSessionId,
-      systemPromptLength: systemPrompt.length,
-      userPromptLength: userPrompt.length,
-      totalLength: systemPrompt.length + userPrompt.length,
-      estimatedTokens,
-      wasStuck: isStuck,
-      wasCapped: userPrompt.includes('[Prompt truncated')
-    });
-
-    // PART 1: Add prompt size warning when exceeding threshold
-    if (estimatedTokens > 10000) {
-      automationLogger.warn('Large prompt detected', {
+    // ROBUST-03: Progressive prompt trimming for heavy pages
+    const totalChars = systemPrompt.length + userPrompt.length;
+    if (totalChars > PROMPT_CHAR_LIMIT) {
+      let trimStage = 0;
+      automationLogger.info('Prompt exceeds char limit, starting progressive trim', {
         sessionId: this.currentSessionId,
-        estimatedTokens,
-        systemPromptLength: systemPrompt.length,
-        userPromptLength: userPrompt.length,
-        recommendation: 'Consider reducing DOM element count or HTML context'
+        totalChars,
+        limit: PROMPT_CHAR_LIMIT,
+        systemChars: systemPrompt.length,
+        userChars: userPrompt.length
+      });
+
+      // Stage 1: Strip task-type example blocks from system prompt
+      // These are the "Example:" and "PRIORITY TOOLS" sections that add guidance but are not essential
+      if (totalChars > PROMPT_CHAR_LIMIT) {
+        trimStage = 1;
+        // Remove lines between "PRIORITY TOOLS" headers and next "===" section header
+        systemPrompt = systemPrompt.replace(/PRIORITY TOOLS[^\n]*\n[\s\S]*?(?=\n===|\n\nPROVIDER NOTE)/g, '');
+        // Remove example blocks (multi-line example patterns)
+        systemPrompt = systemPrompt.replace(/Example[s]?:[\s\S]*?(?=\n\n[A-Z]|\n===)/g, '');
+        automationLogger.debug('Trim stage 1: removed examples and priority blocks', {
+          sessionId: this.currentSessionId,
+          newSystemChars: systemPrompt.length,
+          newTotal: systemPrompt.length + userPrompt.length
+        });
+      }
+
+      // Stage 2: Reduce element count with tighter budget
+      if (systemPrompt.length + userPrompt.length > PROMPT_CHAR_LIMIT) {
+        trimStage = 2;
+        // Re-format elements with a strict char budget (30K chars max for elements)
+        const elementsSource = domState.elements || domState.viewportElements || [];
+        if (elementsSource.length > 0) {
+          const trimmedElements = this.formatElements(elementsSource, 30000, taskType);
+          // Replace the INTERACTIVE ELEMENTS section in userPrompt
+          userPrompt = userPrompt.replace(
+            /=== INTERACTIVE ELEMENTS[\s\S]*?(?=\n=== (?!INTERACTIVE)|$)/,
+            `=== INTERACTIVE ELEMENTS (trimmed: ${elementsSource.length} elements, budget: 30K chars) ===\n${trimmedElements}\n`
+          );
+          automationLogger.debug('Trim stage 2: reduced element char budget to 30K', {
+            sessionId: this.currentSessionId,
+            elementCount: elementsSource.length,
+            newUserChars: userPrompt.length,
+            newTotal: systemPrompt.length + userPrompt.length
+          });
+        }
+      }
+
+      // Stage 3: Strip long-term memory and cross-domain strategy blocks
+      if (systemPrompt.length + userPrompt.length > PROMPT_CHAR_LIMIT) {
+        trimStage = 3;
+        // Remove RECOMMENDED APPROACH block from system prompt
+        systemPrompt = systemPrompt.replace(/=== RECOMMENDED APPROACH[\s\S]*?(?=\n===|$)/, '');
+        // Remove cross-domain strategy block
+        systemPrompt = systemPrompt.replace(/=== CROSS-DOMAIN STRATEGIES[\s\S]*?(?=\n===|$)/, '');
+        // Also remove from user prompt if present there
+        userPrompt = userPrompt.replace(/=== RECOMMENDED APPROACH[\s\S]*?(?=\n===|$)/, '');
+        userPrompt = userPrompt.replace(/=== CROSS-DOMAIN STRATEGIES[\s\S]*?(?=\n===|$)/, '');
+        automationLogger.debug('Trim stage 3: stripped memory blocks', {
+          sessionId: this.currentSessionId,
+          newTotal: systemPrompt.length + userPrompt.length
+        });
+      }
+
+      automationLogger.info('Progressive trim complete', {
+        sessionId: this.currentSessionId,
+        trimStage,
+        originalChars: totalChars,
+        finalChars: systemPrompt.length + userPrompt.length,
+        reduction: totalChars - (systemPrompt.length + userPrompt.length)
       });
     }
+
+    const finalPrompt = { systemPrompt, userPrompt };
 
     // Store prompt for token estimation
     this.storePrompt(finalPrompt);
