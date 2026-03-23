@@ -5246,6 +5246,11 @@ const tools = {
     if (typeof x !== 'number' || typeof y !== 'number') {
       return { success: false, error: 'x and y coordinates required (viewport-relative numbers)' };
     }
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (x < 0 || y < 0 || x > vw || y > vh) {
+      return { success: false, error: `Coordinates (${x}, ${y}) outside viewport bounds (${vw}x${vh}). Use values within 0-${vw} for x and 0-${vh} for y.` };
+    }
     try {
       const result = await chrome.runtime.sendMessage({
         action: 'cdpMouseClick', x, y,
@@ -5261,6 +5266,11 @@ const tools = {
     const { x, y, holdMs } = params;
     if (typeof x !== 'number' || typeof y !== 'number') {
       return { success: false, error: 'x and y coordinates required (viewport-relative numbers)' };
+    }
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (x < 0 || y < 0 || x > vw || y > vh) {
+      return { success: false, error: `Coordinates (${x}, ${y}) outside viewport bounds (${vw}x${vh}). Use values within 0-${vw} for x and 0-${vh} for y.` };
     }
     try {
       const result = await chrome.runtime.sendMessage({
@@ -5278,6 +5288,12 @@ const tools = {
     if (typeof startX !== 'number' || typeof startY !== 'number' ||
         typeof endX !== 'number' || typeof endY !== 'number') {
       return { success: false, error: 'startX, startY, endX, endY required (viewport-relative numbers)' };
+    }
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (startX < 0 || startY < 0 || startX > vw || startY > vh ||
+        endX < 0 || endY < 0 || endX > vw || endY > vh) {
+      return { success: false, error: `Drag coordinates outside viewport bounds (${vw}x${vh}). start=(${startX},${startY}) end=(${endX},${endY}). All values must be within viewport.` };
     }
     try {
       const result = await chrome.runtime.sendMessage({
@@ -5297,6 +5313,12 @@ const tools = {
         typeof endX !== 'number' || typeof endY !== 'number') {
       return { success: false, error: 'startX, startY, endX, endY required (viewport-relative numbers)' };
     }
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (startX < 0 || startY < 0 || startX > vw || startY > vh ||
+        endX < 0 || endY < 0 || endX > vw || endY > vh) {
+      return { success: false, error: `Drag coordinates outside viewport bounds (${vw}x${vh}). start=(${startX},${startY}) end=(${endX},${endY}). All values must be within viewport.` };
+    }
     try {
       const result = await chrome.runtime.sendMessage({
         action: 'cdpMouseDragVariableSpeed', startX, startY, endX, endY,
@@ -5312,6 +5334,11 @@ const tools = {
     const { x, y, deltaX, deltaY } = params;
     if (typeof x !== 'number' || typeof y !== 'number') {
       return { success: false, error: 'x and y coordinates required (viewport-relative numbers)' };
+    }
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (x < 0 || y < 0 || x > vw || y > vh) {
+      return { success: false, error: `Coordinates (${x}, ${y}) outside viewport bounds (${vw}x${vh}). Use values within 0-${vw} for x and 0-${vh} for y.` };
     }
     try {
       const result = await chrome.runtime.sendMessage({
