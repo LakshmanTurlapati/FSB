@@ -3558,7 +3558,13 @@ function areClicksNearby(clickActions) {
 // Generate recovery strategies based on stuck patterns
 function generateRecoveryStrategies(patterns, session) {
   const strategies = [];
-  
+
+  // Classify recent tool types for bidirectional recovery (ROBUST-02)
+  const recentActions = (session.actionHistory || []).slice(-5);
+  const cdpTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt'];
+  const recentCdpCount = recentActions.filter(a => cdpTools.includes(a.tool)).length;
+  const recentDomCount = recentActions.filter(a => a.tool && !cdpTools.includes(a.tool) && a.tool !== 'navigate' && a.tool !== 'done' && a.tool !== 'fail').length;
+
   if (patterns.repetitiveActions) {
     strategies.push({
       type: 'break_repetition',
@@ -3598,7 +3604,23 @@ function generateRecoveryStrategies(patterns, session) {
       priority: 'high'
     });
   }
-  
+
+  // Bidirectional stuck recovery (ROBUST-02)
+  if (recentCdpCount > recentDomCount && recentCdpCount >= 2) {
+    strategies.push({
+      type: 'coordinate_to_dom',
+      description: 'Recent CDP coordinate actions are failing. Switch to DOM-based interaction: use element refs (click e5, type e3 "text") instead of coordinate tools (clickat, scrollat). DOM refs are more reliable for standard page elements.',
+      priority: 'high'
+    });
+  }
+  if (recentDomCount > recentCdpCount && recentDomCount >= 2) {
+    strategies.push({
+      type: 'dom_to_coordinate',
+      description: 'Recent DOM-based actions are failing. Switch to CDP coordinate interaction: use clickat x y, scrollat x y instead of element refs. Coordinate tools bypass DOM issues and work on canvas/overlay elements.',
+      priority: 'high'
+    });
+  }
+
   if (patterns.noProgressMade) {
     strategies.push({
       type: 'change_approach',
