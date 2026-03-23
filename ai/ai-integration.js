@@ -1969,6 +1969,24 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
       } catch {}
     }
 
+    // Phase 101 (MEM-05): Refresh long-term memories on domain change mid-session
+    if (context?.currentUrl) {
+      try {
+        const currentDomain = new URL(context.currentUrl).hostname;
+        if (this._lastMemoryDomain && currentDomain !== this._lastMemoryDomain) {
+          automationLogger.debug('Domain change detected, refreshing memories', {
+            from: this._lastMemoryDomain,
+            to: currentDomain
+          });
+          // Clear stale memories and force re-fetch for new domain
+          this._longTermMemories = [];
+          this._longTermMemoriesSessionId = null; // Reset session guard to allow re-fetch
+          this._crossDomainProcedural = []; // Clear cross-domain cache too
+          await this._fetchLongTermMemories(task, context).catch(() => {});
+        }
+      } catch {}
+    }
+
     // Generate context-aware cache key
     const cacheKey = this.generateCacheKey(task, domState, context);
 
