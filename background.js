@@ -4874,6 +4874,42 @@ function validateCompletion(session, aiResponse, context) {
     return { approved: false, score: 0, evidence: ['AI result too short or missing (min ' + minLength + ' for ' + taskType + ')'], taskType };
   }
 
+  // VMFIX-02: Fast-path for dynamic page types where DOM never stabilizes
+  // Canvas apps (TradingView), media players, and games have continuous DOM mutations.
+  // If AI explicitly claims completion with a meaningful result, trust it on first attempt.
+  const dynamicPageTypes = ['media', 'gaming'];
+  const canvasUrl = /tradingview\.com|figma\.com|canva\.com|draw\.io|excalidraw/i;
+  const isDynamicPage = dynamicPageTypes.includes(taskType) ||
+    canvasUrl.test(sessionUrl) ||
+    taskType === 'general' && session.actionHistory?.some(a =>
+      ['cdpClickAt', 'cdpDrag', 'cdpScrollAt', 'cdpDragVariableSpeed', 'cdpClickAndHold'].includes(a.tool)
+    );
+
+  if (isDynamicPage && aiResponse.taskComplete && aiResponse.result?.trim().length >= minLength) {
+    // On dynamic pages, accept AI completion if:
+    // 1. This is a second attempt (consecutiveDoneCount >= 1), OR
+    // 2. The session has run enough iterations to have done meaningful work (>= 3)
+    const prevDoneCount = session.consecutiveDoneCount || 0;
+    if (prevDoneCount >= 1 || session.iterationCount >= 3) {
+      automationLogger.info('Dynamic page fast-path: accepting AI completion', {
+        sessionId: session.id,
+        taskType,
+        isDynamicPage: true,
+        consecutiveDoneCount: prevDoneCount,
+        iterationCount: session.iterationCount,
+        resultLength: aiResponse.result.trim().length
+      });
+      session.consecutiveDoneCount = 0;
+      return {
+        approved: true,
+        score: 80,
+        evidence: ['Dynamic page fast-path: AI completion trusted (taskType=' + taskType + ', iterations=' + session.iterationCount + ')'],
+        taskType,
+        dynamicFastPath: true
+      };
+    }
+  }
+
   const signals = gatherCompletionSignals(session, aiResponse, context);
   const scoreResult = computeCompletionScore(signals, taskType);
 
@@ -10584,6 +10620,8 @@ async function startAutomationLoop(sessionId) {
 
         let actionResult;
 
+        const cdpBackgroundTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt'];
+
         if (multiTabActions.includes(action.tool)) {
           // Handle multi-tab actions directly in background script
           automationLogger.logActionExecution(sessionId, action.tool, 'routing', { handler: 'background' });
@@ -10609,6 +10647,20 @@ async function startAutomationLoop(sessionId) {
             actionResult = {
               success: false,
               error: `Background data action failed: ${error.message}`,
+              tool: action.tool
+            };
+          }
+        } else if (cdpBackgroundTools.includes(action.tool)) {
+          // Handle CDP coordinate tools directly in background (avoid nested content->background message round-trip)
+          automationLogger.logActionExecution(sessionId, action.tool, 'routing', { handler: 'background-cdp' });
+          try {
+            actionResult = await executeCDPToolDirect(action, session.tabId);
+            automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: actionResult?.success });
+          } catch (error) {
+            automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: false, error: error.message });
+            actionResult = {
+              success: false,
+              error: `CDP action failed: ${error.message}`,
               tool: action.tool
             };
           }
