@@ -678,6 +678,10 @@ class AIIntegration {
     // Long-term memories from past sessions (fetched once per session, injected synchronously)
     this._longTermMemories = [];
     this._longTermMemoriesSessionId = null;
+    // Phase 101 (MEM-04): Cross-domain procedural memories pre-fetched for fallback
+    this._crossDomainProcedural = [];
+    // Phase 101 (MEM-05): Track last domain used for memory fetch
+    this._lastMemoryDomain = null;
 
     // SM-22: Site map knowledge cache for synchronous injection in buildPrompt
     this._lastSiteKnowledgeDomain = null;
@@ -1754,6 +1758,8 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
 
       this._longTermMemories = memories;
       this._longTermMemoriesSessionId = sessionId;
+      // Phase 101 (MEM-05): Track which domain these memories came from
+      this._lastMemoryDomain = domain;
 
       if (memories.length > 0) {
         automationLogger.debug('Loaded long-term memories', {
@@ -1761,6 +1767,33 @@ ${domState.scrollInfo?.hasMoreBelow ? 'More content below -- scroll down to see 
           count: memories.length,
           types: memories.map(m => m.type)
         });
+      }
+
+      // Phase 101 (MEM-04): Pre-fetch cross-domain procedural memories for fallback
+      // NOTE: taskType is not available here. Store all cross-domain procedural memories
+      // unfiltered. taskType filtering happens in _buildTaskGuidance where taskType is in scope.
+      this._crossDomainProcedural = [];
+      const hasSameDomainProcedural = memories.some(
+        m => m.type === MEMORY_TYPES?.PROCEDURAL && m.typeData?.steps?.length > 0
+      );
+      if (!hasSameDomainProcedural && typeof memoryStorage !== 'undefined') {
+        try {
+          const allProcedural = await memoryStorage.query({ type: 'procedural' });
+          this._crossDomainProcedural = allProcedural
+            .filter(m => m.type === 'procedural' &&
+                         m.typeData?.steps?.length > 0 &&
+                         m.metadata?.domain !== domain)
+            .sort((a, b) => (b.typeData?.successRate || 0) - (a.typeData?.successRate || 0));
+          // NOTE: No .slice() here -- full sorted list stored. Limit applied at consumption.
+          if (this._crossDomainProcedural.length > 0) {
+            automationLogger.debug('Pre-fetched cross-domain procedural memories', {
+              count: this._crossDomainProcedural.length,
+              domains: [...new Set(this._crossDomainProcedural.map(m => m.metadata?.domain))].slice(0, 5)
+            });
+          }
+        } catch (err) {
+          console.warn('[AIIntegration] Cross-domain procedural pre-fetch failed:', err.message);
+        }
       }
     } catch (error) {
       // Non-critical: proceed without long-term memories
@@ -3169,6 +3202,28 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       }
     }
 
+    // Phase 101 (MEM-04): Show cross-domain memories in first-iteration display
+    if (isFirstIteration && this._crossDomainProcedural && this._crossDomainProcedural.length > 0) {
+      let siteKnowledgeParts = [];
+      let siteKnowledgeLen = 0;
+      const SITE_KNOWLEDGE_CAP = 500;
+
+      for (const m of this._crossDomainProcedural.slice(0, 2)) {
+        const sourceDomain = m.metadata?.domain || 'unknown';
+        const preview = m.typeData.steps.slice(0, 5).map((s, i) => `${i + 1}. ${s}`).join(', ');
+        const entry = `Cross-domain playbook [from ${sourceDomain}]: ${preview}`;
+        if (siteKnowledgeLen + entry.length > SITE_KNOWLEDGE_CAP) break;
+        siteKnowledgeParts.push(entry);
+        siteKnowledgeLen += entry.length;
+      }
+
+      if (siteKnowledgeParts.length > 0) {
+        userPrompt += '\n\n=== CROSS-DOMAIN KNOWLEDGE (from similar tasks on other sites) ===';
+        userPrompt += '\n' + siteKnowledgeParts.map(e => `  - ${e}`).join('\n');
+        userPrompt += '\n=== END CROSS-DOMAIN KNOWLEDGE ===';
+      }
+    }
+
     // CMP-02: Completion signal hint when page shows success evidence
     if (context?.completionCandidate) {
       const cc = context.completionCandidate;
@@ -4341,6 +4396,27 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
           baseGuidance += numberedSteps;
           baseGuidance += '\nAdapt steps to current page state -- elements may differ.';
         }
+
+        // Phase 101 (MEM-04): Cross-domain strategy transfer fallback
+        // taskType filter applied HERE (not in pre-fetch) because taskType is in scope here
+        if (proceduralMemories.length === 0 && this._crossDomainProcedural && this._crossDomainProcedural.length > 0) {
+          const matched = this._crossDomainProcedural
+            .filter(m => m.metadata?.taskType === taskType)
+            .slice(0, 2);
+
+          if (matched.length > 0) {
+            baseGuidance += '\n\nRECOMMENDED APPROACH (cross-domain, from similar tasks):';
+            for (const mem of matched) {
+              const sourceDomain = mem.metadata?.domain || 'unknown site';
+              const steps = mem.typeData.steps
+                .slice(0, 15)
+                .map((step, i) => `${i + 1}. ${step}`)
+                .join('\n');
+              baseGuidance += `\n[from ${sourceDomain}]:\n${steps}`;
+            }
+            baseGuidance += '\nAdapt steps to current site -- selectors and layout will differ.';
+          }
+        }
       }
 
       return baseGuidance;
@@ -4436,6 +4512,27 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
         guidance += '\n\nRECOMMENDED APPROACH (from prior success on this site):\n';
         guidance += numberedSteps;
         guidance += '\nAdapt steps to current page state -- elements may differ.';
+      }
+
+      // Phase 101 (MEM-04): Cross-domain strategy transfer fallback (with-siteGuide path)
+      // taskType filter applied HERE (not in pre-fetch) because taskType is in scope here
+      if (proceduralMemories.length === 0 && this._crossDomainProcedural && this._crossDomainProcedural.length > 0) {
+        const matched = this._crossDomainProcedural
+          .filter(m => m.metadata?.taskType === taskType)
+          .slice(0, 2);
+
+        if (matched.length > 0) {
+          guidance += '\n\nRECOMMENDED APPROACH (cross-domain, from similar tasks):';
+          for (const mem of matched) {
+            const sourceDomain = mem.metadata?.domain || 'unknown site';
+            const steps = mem.typeData.steps
+              .slice(0, 15)
+              .map((step, i) => `${i + 1}. ${step}`)
+              .join('\n');
+            guidance += `\n[from ${sourceDomain}]:\n${steps}`;
+          }
+          guidance += '\nAdapt steps to current site -- selectors and layout will differ.';
+        }
       }
     }
 
