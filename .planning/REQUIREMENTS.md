@@ -38,10 +38,10 @@ Make the autopilot mode perform as flawlessly as MCP manual mode. The AI (Grok 4
 
 ### Validation
 
-- [ ] **VALID-01**: Run all 50 v0.9.7 edge case prompts (CANVAS-01 through DARK-10) through autopilot mode with documented pass/fail outcomes
-- [ ] **VALID-02**: Achieve 90%+ pass rate (45/50 minimum) across all 50 edge case autopilot runs
-- [ ] **VALID-03**: Autopilot CLI parse failure rate measured below 5% across all 50 test runs
-- [ ] **VALID-04**: Autopilot completion validation correctly identifies task done/not-done with 90%+ accuracy across all 50 test cases
+- [x] **VALID-01**: Run all 50 v0.9.7 edge case prompts (CANVAS-01 through DARK-10) through autopilot mode with documented pass/fail outcomes
+- [x] **VALID-02**: Achieve 90%+ pass rate (45/50 minimum) across all 50 edge case autopilot runs
+- [x] **VALID-03**: Autopilot CLI parse failure rate measured below 5% across all 50 test runs
+- [x] **VALID-04**: Autopilot completion validation correctly identifies task done/not-done with 90%+ accuracy across all 50 test cases
 
 ## Future Requirements (v0.9.9+)
 
@@ -81,10 +81,10 @@ Make the autopilot mode perform as flawlessly as MCP manual mode. The AI (Grok 4
 | ROBUST-02 | Phase 102 | Complete |
 | ROBUST-03 | Phase 102 | Complete |
 | ROBUST-04 | Phase 102 | Complete |
-| VALID-01 | Phase 103 | Pending |
-| VALID-02 | Phase 103 | Pending |
-| VALID-03 | Phase 103 | Pending |
-| VALID-04 | Phase 103 | Pending |
+| VALID-01 | Phase 103 | Complete |
+| VALID-02 | Phase 103 | Complete |
+| VALID-03 | Phase 103 | Complete |
+| VALID-04 | Phase 103 | Complete |
 
 **Coverage:**
 - v0.9.8 requirements: 21 total
