@@ -22,8 +22,8 @@ Make the autopilot mode perform as flawlessly as MCP manual mode. The AI (Grok 4
 
 ### Memory
 
-- [ ] **MEM-01**: Procedural memory creation -- extract successful action sequences from completed Task memories, store as replayable playbooks with site, task type, and action steps
-- [ ] **MEM-02**: Procedural memory injection -- when autopilot encounters matching site + task type, inject known-good action sequence into prompt as recommended approach
+- [x] **MEM-01**: Procedural memory creation -- extract successful action sequences from completed Task memories, store as replayable playbooks with site, task type, and action steps
+- [x] **MEM-02**: Procedural memory injection -- when autopilot encounters matching site + task type, inject known-good action sequence into prompt as recommended approach
 - [ ] **MEM-03**: Auto-consolidation triggers after every 10 sessions or when memory count exceeds 80% of capacity limit, without requiring manual user action
 - [ ] **MEM-04**: Cross-domain memory search -- when no memories exist for current domain, search by task type pattern across all domains to transfer learned strategies
 - [ ] **MEM-05**: Memory refresh on domain change mid-session -- refetch relevant memories when navigation crosses domain boundaries during multi-site tasks
@@ -71,8 +71,8 @@ Make the autopilot mode perform as flawlessly as MCP manual mode. The AI (Grok 4
 | PROMPT-01 | Phase 98 | Complete |
 | PROMPT-02 | Phase 98 | Complete |
 | PROMPT-03 | Phase 99 | Complete |
-| MEM-01 | Phase 100 | Pending |
-| MEM-02 | Phase 100 | Pending |
+| MEM-01 | Phase 100 | Complete |
+| MEM-02 | Phase 100 | Complete |
 | MEM-03 | Phase 101 | Pending |
 | MEM-04 | Phase 101 | Pending |
 | MEM-05 | Phase 101 | Pending |

@@ -21,7 +21,7 @@
 - [x] **Phase 97: Tool Parity** - Register all 7 new CDP tools in autopilot's CLI command table, parser registry, and validation layer (completed 2026-03-22)
 - [x] **Phase 98: Prompt Architecture** - Restructure system prompt with tool grouping by interaction type and task-type conditional sections (completed 2026-03-22)
 - [x] **Phase 99: Diagnostic-to-Guide Pipeline** - Wire 500+ v0.9.7 diagnostic recommendations into site guide files as autopilot strategy hints (completed 2026-03-22)
-- [ ] **Phase 100: Procedural Memory** - Extract successful action sequences from Task memories and inject as recommended approaches for matching tasks
+- [x] **Phase 100: Procedural Memory** - Extract successful action sequences from Task memories and inject as recommended approaches for matching tasks (completed 2026-03-23)
 - [ ] **Phase 101: Memory Intelligence** - Auto-consolidation triggers, cross-domain strategy transfer, domain-change refresh, and dead code cleanup
 - [ ] **Phase 102: Robustness Hardening** - Coordinate validation, bidirectional stuck recovery, progressive prompt trimming, and CLI parse retry
 - [ ] **Phase 103: Validation** - Test autopilot against v0.9.7 edge cases and measure CLI parse failure rate and completion accuracy
@@ -76,9 +76,9 @@ Plans:
   1. After a successful automation session, the system extracts a procedural memory containing site, task type, and ordered action steps from the completed Task memory
   2. When autopilot starts a task matching a stored procedural memory (same site + similar task type), the known-good action sequence appears in the prompt as a recommended approach
   3. Procedural memories are stored persistently and survive browser restarts
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
-- [ ] 100-01-PLAN.md -- Extract procedural memories from successful sessions and inject as RECOMMENDED APPROACH in autopilot prompts
+- [x] 100-01-PLAN.md -- Extract procedural memories from successful sessions and inject as RECOMMENDED APPROACH in autopilot prompts
 
 ### Phase 101: Memory Intelligence
 **Goal**: Memory system operates autonomously -- consolidates itself, transfers strategies across domains, refreshes on navigation, and carries no dead weight
@@ -126,7 +126,7 @@ Phase 103 (Validation) requires all other phases complete.
 | 97. Tool Parity | 2/2 | Complete    | 2026-03-22 |
 | 98. Prompt Architecture | 1/1 | Complete    | 2026-03-22 |
 | 99. Diagnostic-to-Guide Pipeline | 3/3 | Complete    | 2026-03-22 |
-| 100. Procedural Memory | 0/1 | Not started | - |
+| 100. Procedural Memory | 1/1 | Complete   | 2026-03-23 |
 | 101. Memory Intelligence | 0/TBD | Not started | - |
 | 102. Robustness Hardening | 0/TBD | Not started | - |
 | 103. Validation | 0/TBD | Not started | - |

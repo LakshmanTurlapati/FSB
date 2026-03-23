@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.8
 milestone_name: Autopilot Refinement
 status: unknown
-stopped_at: Completed 99-03-PLAN.md
-last_updated: "2026-03-22T13:55:02Z"
+stopped_at: Completed 100-01-PLAN.md
+last_updated: "2026-03-23T07:13:20.539Z"
 progress:
   total_phases: 7
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  completed_phases: 4
+  total_plans: 7
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 99 — diagnostic-to-guide-pipeline
+**Current focus:** Phase 100 — procedural-memory
 
 ## Current Position
 
-Phase: 99 (diagnostic-to-guide-pipeline) — EXECUTING
-Plan: 3 of 3 (COMPLETE)
+Phase: 100 (procedural-memory) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Plan: 3 of 3 (COMPLETE)
 | Phase 99 P01 | 4min | 2 tasks | 20 files |
 | Phase 99 P02 | 5min | 2 tasks | 20 files |
 | Phase 99 P03 | 4min | 2 tasks | 10 files |
+| Phase 100 P01 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,8 @@ Recent decisions affecting current work:
 - [Phase 98]: PRIORITY TOOLS block prepended per task type -- full CLI table always returned, priority guidance added on top
 - [Phase 99]: Prepend AUTOPILOT STRATEGY HINTS at top of guidance strings (within 500-char continuation prompt window)
 - [Phase 99-03]: AUTOPILOT STRATEGY HINTS placed on same line as guidance backtick for guaranteed first-500-chars visibility
+- [Phase 100]: Use memoryStorage.add() directly for procedural memories to avoid re-triggering extraction via memoryManager
+- [Phase 100]: Cap RECOMMENDED APPROACH at 15 steps for token efficiency; Playbook preview at 5 steps
 
 ### Pending Todos
 
@@ -84,6 +87,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-22T13:55:02Z
-Stopped at: Completed 99-03-PLAN.md
+Last session: 2026-03-23T07:13:20.537Z
+Stopped at: Completed 100-01-PLAN.md
 Resume file: None
