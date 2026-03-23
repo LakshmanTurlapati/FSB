@@ -76,7 +76,9 @@ Plans:
   1. After a successful automation session, the system extracts a procedural memory containing site, task type, and ordered action steps from the completed Task memory
   2. When autopilot starts a task matching a stored procedural memory (same site + similar task type), the known-good action sequence appears in the prompt as a recommended approach
   3. Procedural memories are stored persistently and survive browser restarts
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 100-01-PLAN.md -- Extract procedural memories from successful sessions and inject as RECOMMENDED APPROACH in autopilot prompts
 
 ### Phase 101: Memory Intelligence
 **Goal**: Memory system operates autonomously -- consolidates itself, transfers strategies across domains, refreshes on navigation, and carries no dead weight
@@ -123,8 +125,8 @@ Phase 103 (Validation) requires all other phases complete.
 |-------|----------------|--------|-----------|
 | 97. Tool Parity | 2/2 | Complete    | 2026-03-22 |
 | 98. Prompt Architecture | 1/1 | Complete    | 2026-03-22 |
-| 99. Diagnostic-to-Guide Pipeline | 3/3 | Complete   | 2026-03-22 |
-| 100. Procedural Memory | 0/TBD | Not started | - |
+| 99. Diagnostic-to-Guide Pipeline | 3/3 | Complete    | 2026-03-22 |
+| 100. Procedural Memory | 0/1 | Not started | - |
 | 101. Memory Intelligence | 0/TBD | Not started | - |
 | 102. Robustness Hardening | 0/TBD | Not started | - |
 | 103. Validation | 0/TBD | Not started | - |
