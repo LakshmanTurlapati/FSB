@@ -418,7 +418,67 @@ EXPORT (EXPORT-01, EXPORT-02, EXPORT-03):
     Step 1: Select elements to copy -- press_key(a, ctrl=true) for all, or cdpClickAt on a specific element
     Step 2: press_key c ctrl=true (Ctrl+C) -- copies selected elements to clipboard in Excalidraw format
     NOTE: Ctrl+C copies the Excalidraw element data, not a rendered image. Pasting (Ctrl+V) works within Excalidraw or another Excalidraw instance.
-    NOTE: For image clipboard (PNG), use Shift+Alt+C instead (EXPORT-01 above).`,
+    NOTE: For image clipboard (PNG), use Shift+Alt+C instead (EXPORT-01 above).
+
+NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
+
+  The AI can autonomously generate diagrams from natural language descriptions by following these layout planning templates and step-by-step sequences. The key principle is: PLAN all coordinates BEFORE drawing anything.
+
+  LAYOUT PLANNING RULES (NL-04, NL-05):
+    Grid convention: 150px horizontal spacing, 120px vertical spacing, default shape size 150x80px.
+    Planning step: AI MUST use # comment lines in its first iteration to plan ALL coordinates before drawing anything.
+    Execution sequence: plan layout -> draw shapes -> add text labels -> draw connectors -> (optional) align/style.
+    Every shape MUST get a text label (per NL-05) -- use in-shape text (double-click shape center, wait 300ms, cdpInsertText, Escape) for rectangles/diamonds/ellipses.
+    Every connector MUST get a text label (per NL-05) -- use arrow label workflow (double-click arrow midpoint, wait 300ms, cdpInsertText, Escape).
+    Cross-reference: see DRAWING PRIMITIVES for shape draw commands, TEXT ENTRY for labeling modes, CONNECTORS AND ARROWS for arrow binding.
+
+  FLOWCHART TEMPLATE (NL-01):
+    Layout: top-to-bottom, single column for linear flow, branches extend right for "No" paths.
+    Coordinate template for a 4-step flow:
+      Step 1 (rectangle): top-left (300, 200), drag to (450, 280) -- size 150x80
+      Step 2 (diamond decision): top-left (300, 320), drag to (450, 400) -- size 150x80
+      Step 3a (rectangle, yes branch): top-left (300, 440), drag to (450, 520) -- continues downward
+      Step 3b (rectangle, no branch): top-left (550, 320), drag to (700, 400) -- branches right from decision
+      Step 4 (rectangle): top-left (300, 560), drag to (450, 640) -- continues below Step 3a
+    Connectors:
+      Arrow from Step 1 bottom-edge (375, 280) to Step 2 top-edge (375, 320)
+      Arrow from Step 2 bottom-edge (375, 400) to Step 3a top-edge (375, 440) -- label "Yes"
+      Arrow from Step 2 right-edge (450, 360) to Step 3b left-edge (550, 360) -- label "No"
+      Arrow from Step 3a bottom-edge (375, 520) to Step 4 top-edge (375, 560)
+    Edge coordinate formula: for shape at (x,y) size (w,h) -- bottom-edge midpoint is (x+w/2, y+h), top-edge midpoint is (x+w/2, y), right-edge midpoint is (x+w, y+h/2), left-edge midpoint is (x, y+h/2).
+    All shapes labeled with step names, decision diamond labeled with question text, branch arrows labeled "Yes" / "No".
+
+  ARCHITECTURE DIAGRAM TEMPLATE (NL-02):
+    Layout: left-to-right tiers, components stacked vertically within each tier.
+    Coordinate template for a 3-tier architecture:
+      Tier 1 (Frontend) label: standalone text at (275, 150)
+      Tier 1 components: rectangles at (200, 200) to (350, 280), (200, 320) to (350, 400)
+      Tier 2 (API/Backend) label: standalone text at (525, 150)
+      Tier 2 components: rectangles at (450, 200) to (600, 280), (450, 320) to (600, 400)
+      Tier 3 (Database) label: standalone text at (775, 150)
+      Tier 3 components: rectangles at (700, 200) to (850, 280), (700, 320) to (850, 400)
+    Spacing: horizontal 250px between tier column centers (x=275, 525, 775), vertical 120px between component tops within tier.
+    Connectors: horizontal arrows from right-edge of Tier 1 components to left-edge of Tier 2 components, same for Tier 2 to Tier 3.
+      Example: arrow from (350, 240) right-edge of Tier 1 row 1 to (450, 240) left-edge of Tier 2 row 1.
+    All components labeled with their names, tier labels as standalone text above each column.
+
+  MIND MAP TEMPLATE (NL-03):
+    Layout: center node with radial branches extending outward in cardinal directions.
+    Coordinate template for a center + 4 branches:
+      Center node (ellipse): (525, 340) to (675, 420) -- center at (600, 380)
+      Right branch node (rectangle): (800, 340) to (950, 420) -- arrow from center right-edge (675, 380) to node left-edge (800, 380)
+      Top branch node (rectangle): (525, 180) to (675, 260) -- arrow from center top-edge (600, 340) to node bottom-edge (600, 260)
+      Left branch node (rectangle): (250, 340) to (400, 420) -- arrow from center left-edge (525, 380) to node right-edge (400, 380)
+      Bottom branch node (rectangle): (525, 500) to (675, 580) -- arrow from center bottom-edge (600, 420) to node top-edge (600, 500)
+    Sub-branches: extend 200px further in same direction from each branch node.
+    Center node uses ellipse (O key), branch nodes use rectangles (R key).
+    All nodes labeled: center with main topic, branches with subtopics.
+
+  GENERAL SCALING RULES:
+    For more than 4 steps in a flowchart, continue adding 120px vertical spacing per row.
+    For more tiers or components, add 250px per tier column, 120px per component row.
+    For more mind map branches, use diagonal positions (e.g., top-right at (800, 180), bottom-left at (250, 500)).
+    If diagram would exceed ~1200px in any direction, note that zoom-to-fit (Shift+1) is needed after drawing.`,
   selectors: {
     canvas: 'canvas.interactive, canvas[class*="interactive"]',
     toolbar: '.App-toolbar, [class*="toolbar"], .Island',
@@ -771,6 +831,36 @@ EXPORT (EXPORT-01, EXPORT-02, EXPORT-03):
       'Select elements to copy: press_key(a, ctrl=true) for all, or cdpClickAt on specific elements',
       'Press Ctrl+C via press_key(c, ctrl=true) to copy selected elements in Excalidraw format',
       'Elements are on clipboard -- paste with Ctrl+V in same or different Excalidraw instance'
+    ],
+    generateFlowchart: [
+      'Plan layout: use # comments to list all steps, decisions, and branches with (x,y) coordinates using 150px horizontal / 120px vertical grid',
+      'Run session setup: Escape, Ctrl+A, Delete, Ctrl+0',
+      'Draw all shapes: press R for rectangles, D for diamonds -- cdpDrag each shape at planned coordinates -- re-press tool key before each shape',
+      'Add text labels to each shape: double-click shape center via cdpClickAt, wait 300ms, cdpInsertText label, press Escape',
+      'Draw arrows between shapes: press A, cdpDrag from source bottom-edge to target top-edge (20 steps, 20ms delay) -- re-press A before each arrow',
+      'Label decision arrows: double-click arrow midpoint, wait 300ms, cdpInsertText Yes or No, press Escape',
+      'Zoom to fit: press_key(1, shift=true) to show entire diagram',
+      'Verify: count shapes and arrows drawn match the plan -- if missing, draw remaining elements'
+    ],
+    generateArchitectureDiagram: [
+      'Plan layout: use # comments to list all tiers and components with (x,y) coordinates -- tiers left-to-right at 250px spacing, components top-to-bottom at 120px spacing',
+      'Run session setup: Escape, Ctrl+A, Delete, Ctrl+0',
+      'Add tier labels: press T, cdpClickAt tier label position, wait 300ms, cdpInsertText tier name, press Escape -- re-press T before each label',
+      'Draw all component shapes: press R, cdpDrag each rectangle at planned coordinates -- re-press R before each shape',
+      'Add text labels to each component: double-click shape center via cdpClickAt, wait 300ms, cdpInsertText component name, press Escape',
+      'Draw arrows between tiers: press A, cdpDrag from source right-edge to target left-edge (20 steps, 20ms delay) -- re-press A before each arrow',
+      'Zoom to fit: press_key(1, shift=true) to show entire diagram',
+      'Verify: count shapes, labels, and arrows drawn match the plan -- if missing, draw remaining elements'
+    ],
+    generateMindMap: [
+      'Plan layout: use # comments to list center topic and all branches with (x,y) coordinates -- center at (600,380), branches extending 200px in cardinal directions',
+      'Run session setup: Escape, Ctrl+A, Delete, Ctrl+0',
+      'Draw center node: press O (ellipse), cdpDrag at center coordinates',
+      'Label center node: double-click center via cdpClickAt, wait 300ms, cdpInsertText main topic, press Escape',
+      'Draw branch nodes: press R, cdpDrag each rectangle at planned branch coordinates -- re-press R before each shape',
+      'Label branch nodes: double-click each branch shape center, wait 300ms, cdpInsertText branch topic, press Escape',
+      'Draw arrows from center to branches: press A, cdpDrag from center edge to branch edge (20 steps, 20ms delay) -- re-press A before each arrow',
+      'Zoom to fit: press_key(1, shift=true) to show entire diagram'
     ]
   },
   warnings: [
@@ -796,7 +886,8 @@ EXPORT (EXPORT-01, EXPORT-02, EXPORT-03):
     'Alignment and distribute buttons are standard DOM elements in the toolbar -- use regular click tool, not CDP events',
     'Shift+Alt+C (PNG to clipboard) exports the entire visible canvas -- not just selected elements',
     'SVG export requires navigating the hamburger menu and export dialog -- there is no keyboard-only shortcut for SVG download',
-    'Ctrl+C copies Excalidraw element data (not a rendered image) -- use Shift+Alt+C for a PNG image on clipboard'
+    'Ctrl+C copies Excalidraw element data (not a rendered image) -- use Shift+Alt+C for a PNG image on clipboard',
+    'Natural language diagrams require planning coordinates BEFORE drawing -- use # comment lines to lay out all positions first, then draw shapes, then label, then connect. Skipping the planning step causes overlapping shapes and missed connections.'
   ],
   toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'cdpInsertText', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
 });
