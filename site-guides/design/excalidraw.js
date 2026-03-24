@@ -19,17 +19,17 @@ registerSiteGuide({
   ],
   guidance: `AUTOPILOT STRATEGY HINTS (from v0.9.7 diagnostic CANVAS-02):
 - [canvas] Prefer keyboard shortcuts (R, F, V) over toolbar DOM clicks for tool selection
-- [canvas] Shape draw pattern: press_key(tool letter) then cdpDrag -- re-press key before each shape
+- [canvas] Shape draw pattern: key(tool letter) then drag -- re-press key before each shape
 - [canvas] Multi-select: Ctrl+A (all) or shift+click_at on each shape; rubber-band must fully enclose
 - [canvas] Alignment buttons are standard DOM elements -- use regular click, not CDP events
 - [canvas] React DOM can be very large -- use targeted data-testid selectors to reduce tokens
 - [canvas] ALWAYS run session setup first: Escape, Ctrl+A, Delete, Ctrl+0 -- clears modals, old content, and zoom
 
 SESSION SETUP (MANDATORY -- run before ANY drawing):
-  Step 1: press_key Escape                   -- dismiss any welcome modal or dialog
-  Step 2: press_key a ctrl=true              -- select all existing elements (Ctrl+A)
-  Step 3: press_key Delete                   -- delete selected elements (clear canvas)
-  Step 4: press_key 0 ctrl=true              -- reset zoom to 100% (Ctrl+0)
+  Step 1: key Escape                   -- dismiss any welcome modal or dialog
+  Step 2: key a --ctrl              -- select all existing elements (Ctrl+A)
+  Step 3: key Delete                   -- delete selected elements (clear canvas)
+  Step 4: key 0 --ctrl              -- reset zoom to 100% (Ctrl+0)
   WHY: Excalidraw auto-saves to localStorage. Without clearing, previous session content contaminates new diagrams. Modals from first visit block all keyboard shortcuts. Zoom/pan state affects all coordinate calculations.
 
 EXCALIDRAW-SPECIFIC INTELLIGENCE:
@@ -65,87 +65,87 @@ KEYBOARD SHORTCUTS (preferred over toolbar clicks):
 CANVAS OPERATIONS (keyboard shortcuts):
 
   UNDO / REDO (CANVAS-01):
-    Undo: press_key z ctrl=true (Ctrl+Z)
-    Redo: press_key y ctrl=true (Ctrl+Y)
-    Alternative redo: press_key z ctrl=true shift=true (Ctrl+Shift+Z)
+    Undo: key z --ctrl (Ctrl+Z)
+    Redo: key y --ctrl (Ctrl+Y)
+    Alternative redo: key z --ctrl --shift (Ctrl+Shift+Z)
     NOTE: Undo/redo operate on the Excalidraw internal history stack -- works for draws, deletes, moves, style changes.
 
   CLEAR CANVAS (CANVAS-02):
-    Step 1: press_key a ctrl=true (Ctrl+A) to select all elements
-    Step 2: press_key Delete to delete all selected elements
+    Step 1: key a --ctrl (Ctrl+A) to select all elements
+    Step 2: key Delete to delete all selected elements
     NOTE: Use Delete not Backspace -- Delete is more reliable on Excalidraw. This is the same sequence as session setup steps 2-3.
 
   ZOOM IN (CANVAS-03):
-    press_key = ctrl=true (Ctrl+=) to zoom in one step
+    key = --ctrl (Ctrl+=) to zoom in one step
     Repeat for additional zoom levels.
 
   ZOOM OUT (CANVAS-03):
-    press_key - ctrl=true (Ctrl+-) to zoom out one step
+    key - --ctrl (Ctrl+-) to zoom out one step
     Repeat for additional zoom levels.
 
   ZOOM RESET (CANVAS-03):
-    press_key 0 ctrl=true (Ctrl+0) to reset zoom to 100%.
+    key 0 --ctrl (Ctrl+0) to reset zoom to 100%.
 
   ZOOM TO FIT (CANVAS-06):
-    press_key 1 shift=true (Shift+1) to zoom and pan so all elements fit in the viewport.
+    key 1 --shift (Shift+1) to zoom and pan so all elements fit in the viewport.
     NOTE: Only useful when elements exist on canvas. On empty canvas this is a no-op.
 
   PAN CANVAS (CANVAS-04):
-    Hold Space then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) to pan the viewport.
-    Implementation: press_key Space (keyDown only, do not release), then cdpDrag to pan, then release Space.
+    Hold Space then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) to pan the viewport.
+    Implementation: key Space (keyDown only, do not release), then drag to pan, then release Space.
     Alternative: Use scroll wheel -- scroll(deltaX, deltaY) on the canvas element pans when not over a shape.
     NOTE: Panning shifts the viewport without moving elements. Coordinates in subsequent actions are viewport-relative.
 
   SELECT ALL (CANVAS-05):
-    press_key a ctrl=true (Ctrl+A) to select all elements on the canvas.
+    key a --ctrl (Ctrl+A) to select all elements on the canvas.
     After select-all, shapes show combined selection handles (resize corners around the group).
 
-ELEMENT EDITING (keyboard shortcuts + cdpDrag):
+ELEMENT EDITING (keyboard shortcuts + drag):
 
     SELECT AND MOVE (EDIT-01):
-      Step 1: press_key V (or 1) to activate selection tool
-      Step 2: cdpClickAt(elementX, elementY) to select the element -- selection handles appear around it
-      Step 3: cdpDrag(elementX, elementY, newX, newY, steps=15, stepDelayMs=15) to move the element to new position
-      NOTE: For multi-select before move, use Ctrl+click (click_at with ctrl=true) or rubber-band drag with V tool.
+      Step 1: key V (or 1) to activate selection tool
+      Step 2: clickatelementX, elementY) to select the element -- selection handles appear around it
+      Step 3: drag(elementX, elementY, newX, newY, steps=15, stepDelayMs=15) to move the element to new position
+      NOTE: For multi-select before move, use Ctrl+click (click_at with --ctrl) or rubber-band drag with V tool.
       NOTE: Moving snaps to grid when grid is visible. Hold Alt during drag to disable snapping.
 
     DELETE ELEMENT (EDIT-02):
-      Step 1: cdpClickAt(elementX, elementY) to select the element
-      Step 2: press_key Delete to delete the selected element
-      Alternative: press_key Backspace also works but Delete is more reliable
+      Step 1: clickatelementX, elementY) to select the element
+      Step 2: key Delete to delete the selected element
+      Alternative: key Backspace also works but Delete is more reliable
       NOTE: For bulk delete, Ctrl+A then Delete clears everything (same as clearCanvas workflow).
 
     DUPLICATE ELEMENT (EDIT-03):
-      Step 1: cdpClickAt(elementX, elementY) to select the element
-      Step 2: press_key d ctrl=true (Ctrl+D) to duplicate -- clone appears offset ~10px right and down
-      Alternative: Alt+drag to duplicate and place in one motion -- hold Alt, then cdpDrag from element to destination
+      Step 1: clickatelementX, elementY) to select the element
+      Step 2: key d --ctrl (Ctrl+D) to duplicate -- clone appears offset ~10px right and down
+      Alternative: Alt+drag to duplicate and place in one motion -- hold Alt, then drag from element to destination
       NOTE: Duplicate preserves all styles, text, and properties of the original.
 
     RESIZE ELEMENT (EDIT-04):
-      Step 1: cdpClickAt(elementX, elementY) to select the element -- 8 resize handles appear at corners and midpoints
+      Step 1: clickatelementX, elementY) to select the element -- 8 resize handles appear at corners and midpoints
       Step 2: Identify the resize handle position. Handles are at the element bounding box corners and edge midpoints.
         - Bottom-right corner handle is at approximately (elementX + width/2, elementY + height/2) relative to element center
         - Top-left corner handle is at approximately (elementX - width/2, elementY - height/2)
-      Step 3: cdpDrag(handleX, handleY, newHandleX, newHandleY, steps=10, stepDelayMs=15) from the handle to the desired new position
+      Step 3: drag(handleX, handleY, newHandleX, newHandleY, steps=10, stepDelayMs=15) from the handle to the desired new position
       NOTE: Corner handles resize proportionally. Edge midpoint handles resize in one dimension only.
       NOTE: Hold Shift during resize to maintain aspect ratio. Hold Alt to resize from center.
 
     ROTATE ELEMENT (EDIT-05):
-      Step 1: cdpClickAt(elementX, elementY) to select the element
+      Step 1: clickatelementX, elementY) to select the element
       Step 2: The rotation handle appears as a small circle above the top edge of the selection box, approximately 20-25px above the top-center
-      Step 3: cdpDrag(rotateHandleX, rotateHandleY, targetX, targetY, steps=15, stepDelayMs=15) in a circular arc to rotate
+      Step 3: drag(rotateHandleX, rotateHandleY, targetX, targetY, steps=15, stepDelayMs=15) in a circular arc to rotate
       NOTE: Rotation handle position is approximately (elementCenterX, elementTop - 25). Drag clockwise to rotate clockwise.
       NOTE: Hold Shift while dragging to snap rotation to 15-degree increments.
 
     GROUP ELEMENTS (EDIT-06):
-      Step 1: Multi-select elements via Ctrl+A (all) or shift+cdpClickAt on each element, or rubber-band selection with V tool
-      Step 2: press_key g ctrl=true (Ctrl+G) to group selected elements -- they now move/scale as a unit
-      UNGROUP: select the group, then press_key g ctrl=true shift=true (Ctrl+Shift+G) to ungroup
+      Step 1: Multi-select elements via Ctrl+A (all) or shift+clickat on each element, or rubber-band selection with V tool
+      Step 2: key g --ctrl (Ctrl+G) to group selected elements -- they now move/scale as a unit
+      UNGROUP: select the group, then key g --ctrl --shift (Ctrl+Shift+G) to ungroup
       NOTE: Grouped elements share selection handles. Double-click a group to enter it and select individual elements.
       NOTE: Groups can be nested (group of groups).
 
     LOCK ELEMENT (EDIT-07):
-      Step 1: cdpClickAt(elementX, elementY) to select the element
+      Step 1: clickatelementX, elementY) to select the element
       Step 2: Right-click the element to open context menu (or look for lock icon in the properties toolbar)
       Step 3: Click the "Lock" option in context menu, or click the lock icon button in the toolbar
       Alternative keyboard shortcut: There is no dedicated keyboard shortcut for lock in default Excalidraw -- use context menu
@@ -154,10 +154,10 @@ ELEMENT EDITING (keyboard shortcuts + cdpDrag):
       NOTE: Lock icon selector: look for [aria-label*="Lock"] or [data-testid*="lock"] in toolbar/context menu.
 
     COPY/PASTE STYLE (EDIT-08):
-      Step 1: cdpClickAt(sourceX, sourceY) to select the source element (the one whose style you want to copy)
-      Step 2: press_key c ctrl=true alt=true (Ctrl+Alt+C) to copy style from the selected element
-      Step 3: cdpClickAt(targetX, targetY) to select the target element (the one to apply the style to)
-      Step 4: press_key v ctrl=true alt=true (Ctrl+Alt+V) to paste style onto the target element
+      Step 1: clickatsourceX, sourceY) to select the source element (the one whose style you want to copy)
+      Step 2: key c --ctrl --alt (Ctrl+Alt+C) to copy style from the selected element
+      Step 3: clickattargetX, targetY) to select the target element (the one to apply the style to)
+      Step 4: key v --ctrl --alt (Ctrl+Alt+V) to paste style onto the target element
       NOTE: Style includes stroke color, fill color, stroke width, stroke style, fill pattern, opacity, font properties.
       NOTE: Copy/paste style works across different shape types (e.g., copy rectangle style to ellipse).
 
@@ -165,8 +165,8 @@ CONNECTORS AND ARROWS:
 
   1. ARROW BINDING TO SHAPES (CONN-01):
     Step 1: Draw two shapes first (e.g., rectangles at known coordinates)
-    Step 2: press_key A to activate arrow tool
-    Step 3: cdpDrag from the SOURCE shape EDGE to the TARGET shape EDGE using steps=20, stepDelayMs=20
+    Step 2: key A to activate arrow tool
+    Step 3: drag from the SOURCE shape EDGE to the TARGET shape EDGE using steps=20, stepDelayMs=20
     CRITICAL: Start the drag at the edge midpoint of the source shape, NOT the center. For a 150x80 shape at (200,200): right edge midpoint is (275, 240), bottom edge midpoint is (275, 280), left edge midpoint is (200, 240), top edge midpoint is (237, 200).
     Edge coordinate formula: for a shape with top-left at (x,y) and size (w,h): right-edge=(x+w, y+h/2), left-edge=(x, y+h/2), top-edge=(x+w/2, y), bottom-edge=(x+w/2, y+h).
     Similarly, end the drag at the target shape edge midpoint, not center.
@@ -176,7 +176,7 @@ CONNECTORS AND ARROWS:
 
   2. ELBOW / ORTHOGONAL ROUTING (CONN-02):
     Step 1: Draw an arrow between two shapes (using binding workflow above)
-    Step 2: Click the arrow via cdpClickAt at the arrow midpoint to select it
+    Step 2: Click the arrow via clickat at the arrow midpoint to select it
     Step 3: In the properties panel that appears, look for the routing/line-type buttons. Excalidraw shows line type options: straight line, curved, and elbow (orthogonal/sharp right-angle segments).
     Step 4: Click the elbow/orthogonal routing button. Selector hints: look for [aria-label*="Elbow"], [aria-label*="elbowed"], or the third line-type icon in the properties panel group. Also try [data-testid*="elbow"] or [data-testid*="sharp"].
     Step 5: The arrow redraws with right-angle segments that route around obstacles.
@@ -184,7 +184,7 @@ CONNECTORS AND ARROWS:
     NOTE: Default arrow type in Excalidraw is "round" (curved). Elbow is the third option (after straight and round).
 
   3. ARROWHEAD STYLES (CONN-03):
-    Step 1: Click the arrow via cdpClickAt at the arrow midpoint to select it
+    Step 1: Click the arrow via clickat at the arrow midpoint to select it
     Step 2: In the properties panel, look for arrowhead endpoint buttons. Excalidraw shows start-point and end-point arrowhead selectors separately.
     Step 3: Click the desired arrowhead style button. Available styles: arrow (default pointed), bar (flat line perpendicular to arrow), dot (circle at endpoint), triangle (filled triangle), none (no arrowhead).
     Selector hints: look for [aria-label*="Arrowhead"], [data-testid*="arrowhead"], or button groups labeled "Start" and "End" in the arrow properties section. The buttons typically show small icons of each arrowhead shape.
@@ -194,11 +194,11 @@ CONNECTORS AND ARROWS:
     NOTE: Use arrowhead styles to create: one-way arrows (none/arrow), bidirectional arrows (arrow/arrow), association lines (none/none), or connector-bar diagrams (bar/arrow).
 
   4. LABELED ARROWS / CONNECTORS (CONN-04):
-    Step 1: Click the arrow via cdpClickAt at the arrow midpoint to select it
-    Step 2: Double-click the arrow via two rapid cdpClickAt calls 50ms apart at the arrow midpoint, OR press_key Enter after selecting the arrow
+    Step 1: Click the arrow via clickat at the arrow midpoint to select it
+    Step 2: Double-click the arrow via two rapid clickat calls 50ms apart at the arrow midpoint, OR key Enter after selecting the arrow
     Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
     Step 4: inserttext "label text" to add the label
-    Step 5: press_key Escape to commit the text
+    Step 5: key Escape to commit the text
     NOTE: The label appears centered on the arrow midpoint. It moves with the arrow when endpoints are dragged.
     NOTE: To edit an existing arrow label, click arrow to select, press Enter, wait 300ms, Ctrl+A to select existing text, inserttext replacement, Escape to commit -- same as TEXT-03 edit workflow.
     NOTE: Arrow labels use the same transient textarea as shape text -- ALWAYS use inserttext, NEVER the type tool.
@@ -206,46 +206,46 @@ CONNECTORS AND ARROWS:
 STYLING (element visual properties):
 
   STROKE COLOR (STYLE-01):
-    Step 1: cdpClickAt(elementX, elementY) to select the element
-    Step 2: press_key s to open stroke color picker (keyboard shortcut S)
+    Step 1: clickatelementX, elementY) to select the element
+    Step 2: key s to open stroke color picker (keyboard shortcut S)
     Step 3: Click desired color swatch in the color picker panel, OR type hex value in the hex input field
-    Step 4: press_key Escape to close color picker
-    Step 5: Click canvas to deselect (cdpClickAt on empty area)
+    Step 4: key Escape to close color picker
+    Step 5: Click canvas to deselect (clickat on empty area)
     Selector hints: [data-testid="color-stroke"], color picker panel buttons are standard DOM elements
     NOTE: S shortcut toggles the stroke color picker. Clicking a swatch immediately applies the color.
 
   BACKGROUND/FILL COLOR (STYLE-02):
-    Step 1: cdpClickAt(elementX, elementY) to select the element
-    Step 2: press_key g to open background color picker (keyboard shortcut G -- NOT B)
+    Step 1: clickatelementX, elementY) to select the element
+    Step 2: key g to open background color picker (keyboard shortcut G -- NOT B)
     Step 3: Click desired color swatch or type hex value in hex input
-    Step 4: press_key Escape to close color picker
+    Step 4: key Escape to close color picker
     Step 5: Click canvas to deselect
     Selector hints: [data-testid="color-background"], color picker swatches
     NOTE: G shortcut toggles the background color picker. Background color only visible if fill pattern is not transparent.
 
   STROKE WIDTH (STYLE-03):
-    Step 1: cdpClickAt(elementX, elementY) to select the element
+    Step 1: clickatelementX, elementY) to select the element
     Step 2: In the properties panel (left side), find stroke width buttons: Thin (1), Bold (2), Extra Bold (3-4)
     Step 3: Click the desired stroke width button
     Selector hints: [data-testid="strokeWidth-thin"], [data-testid="strokeWidth-bold"], [data-testid="strokeWidth-extraBold"], or button group with [aria-label*="Stroke width"] or [aria-label*="stroke width"]
     NOTE: These are standard DOM buttons -- use regular click, not CDP events.
 
   STROKE STYLE (STYLE-04):
-    Step 1: cdpClickAt(elementX, elementY) to select the element
+    Step 1: clickatelementX, elementY) to select the element
     Step 2: In the properties panel, find stroke style buttons: Solid, Dashed, Dotted
     Step 3: Click the desired stroke style button
     Selector hints: [data-testid="strokeStyle-solid"], [data-testid="strokeStyle-dashed"], [data-testid="strokeStyle-dotted"], or button group with [aria-label*="Stroke style"]
     NOTE: Standard DOM buttons -- use regular click.
 
   FILL PATTERN (STYLE-05):
-    Step 1: cdpClickAt(elementX, elementY) to select the element
+    Step 1: clickatelementX, elementY) to select the element
     Step 2: In the properties panel, find fill pattern buttons: Hachure (default), Cross-hatch, Solid, Transparent
     Step 3: Click the desired fill pattern button
     Selector hints: [data-testid="fill-hachure"], [data-testid="fill-cross-hatch"], [data-testid="fill-solid"], [data-testid="fill-transparent"], or button group with [aria-label*="Fill"]
     NOTE: Standard DOM buttons. Transparent fill hides background color. Hachure is hand-drawn diagonal lines. Cross-hatch is overlapping diagonal lines.
 
   OPACITY (STYLE-06):
-    Step 1: cdpClickAt(elementX, elementY) to select the element
+    Step 1: clickatelementX, elementY) to select the element
     Step 2: In the properties panel, find the opacity slider or input field
     Step 3: Click the opacity slider/input, clear it, and type the desired value (0-100)
     Selector hints: [data-testid="opacity"], input[type="range"] near opacity label, or [aria-label*="Opacity"]
@@ -260,7 +260,7 @@ STYLING (element visual properties):
 ALIGNMENT AND LAYOUT (multi-element arrangement):
 
   ALIGN ELEMENTS (ALIGN-01):
-    Step 1: Multi-select 2+ elements via Ctrl+A (all) or shift+cdpClickAt on each element
+    Step 1: Multi-select 2+ elements via Ctrl+A (all) or shift+clickat on each element
     Step 2: After multi-select, alignment buttons appear in the top toolbar/properties bar
     Step 3: Click the desired alignment button:
       - Align left: aligns all elements to the leftmost element's left edge
@@ -274,7 +274,7 @@ ALIGNMENT AND LAYOUT (multi-element arrangement):
     Alternative keyboard shortcuts: Ctrl+Shift+Left (align left), Ctrl+Shift+Right (align right), Ctrl+Shift+Up (align top), Ctrl+Shift+Down (align bottom)
 
   DISTRIBUTE ELEMENTS (ALIGN-02):
-    Step 1: Multi-select 3+ elements via Ctrl+A (all) or shift+cdpClickAt on each
+    Step 1: Multi-select 3+ elements via Ctrl+A (all) or shift+clickat on each
     Step 2: After multi-select of 3+ elements, distribute buttons appear in the toolbar
     Step 3: Click the desired distribute button:
       - Distribute horizontally: spaces elements evenly along horizontal axis
@@ -283,20 +283,20 @@ ALIGNMENT AND LAYOUT (multi-element arrangement):
     NOTE: Requires 3+ elements selected. Distribution uses equal spacing between element edges, not centers.
 
   LAYER ORDERING (ALIGN-03):
-    Step 1: cdpClickAt(elementX, elementY) to select the element to reorder
+    Step 1: clickatelementX, elementY) to select the element to reorder
     Step 2: Use keyboard shortcuts to change layer position:
-      - Bring forward one layer: press_key ] ctrl=true (Ctrl+])
-      - Send backward one layer: press_key [ ctrl=true (Ctrl+[)
-      - Bring to front (topmost): press_key ] ctrl=true shift=true (Ctrl+Shift+])
-      - Send to back (bottommost): press_key [ ctrl=true shift=true (Ctrl+Shift+[)
+      - Bring forward one layer: key ] --ctrl (Ctrl+])
+      - Send backward one layer: key [ --ctrl (Ctrl+[)
+      - Bring to front (topmost): key ] --ctrl --shift (Ctrl+Shift+])
+      - Send to back (bottommost): key [ --ctrl --shift (Ctrl+Shift+[)
     NOTE: Layer ordering determines which elements render on top of others. Useful when shapes overlap.
-    NOTE: These are keyboard shortcuts, not DOM buttons -- use press_key.
+    NOTE: These are keyboard shortcuts, not DOM buttons -- use key.
 
 CANVAS ELEMENT:
 - The main drawing canvas is rendered as an HTML5 <canvas> element
 - Canvas selector: canvas.interactive (the primary interactive canvas layer)
 - Excalidraw renders multiple canvas layers; the interactive one handles mouse events
-- Canvas does NOT respond to content script dispatchEvent() -- use cdpClickAt/cdpDrag exclusively
+- Canvas does NOT respond to content script dispatchEvent() -- use clickat/drag exclusively
 - Get canvas bounds via getBoundingClientRect() for accurate viewport coordinates
 
 TOOLBAR STRUCTURE:
@@ -308,69 +308,69 @@ TOOLBAR STRUCTURE:
 
 FRAME TOOL:
 - Press F to activate the frame tool
-- Draw a frame by dragging on the canvas (cdpDrag from top-left to bottom-right)
+- Draw a frame by dragging on the canvas (drag from top-left to bottom-right)
 - Frames act as containers/groups for shapes drawn inside them
 - Frame shows a title/label at the top (editable by double-clicking)
 - If F key does not activate frame tool, use a large rectangle as a visual frame instead
 
 DRAWING SHAPES ON CANVAS:
 - Activate the tool via keyboard shortcut (e.g., press R for rectangle)
-- Draw the shape by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15)
+- Draw the shape by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15)
 - Minimum drag distance should be 50+ pixels for Excalidraw to register as a shape (not a click)
 - After drawing, Excalidraw auto-switches back to selection tool (V) -- re-press R before each rectangle
 - Shapes appear as DOM-accessible SVG-like objects tracked by Excalidraw internal state
 
 DRAWING PRIMITIVES (per-shape workflows):
-  RECTANGLE (DRAW-01): press_key R, then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press R before next rectangle.
-  ELLIPSE (DRAW-02): press_key O, then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press O before next ellipse.
-  DIAMOND (DRAW-03): press_key D, then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press D before next diamond.
-  LINE (DRAW-04): press_key L, then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag. Tool auto-switches to V after draw -- re-press L before next line.
-  ARROW (DRAW-05): press_key A, then cdpDrag(startX, startY, endX, endY, steps=20, stepDelayMs=20). Use 20+ steps for reliable arrow binding to shapes. Min 50px drag. Tool auto-switches to V after draw -- re-press A before next arrow.
-  FREEDRAW (DRAW-06): press_key P, then cdpDrag(startX, startY, endX, endY, steps=30, stepDelayMs=10). Use 30+ steps for smooth freehand stroke. Tool auto-switches to V after draw -- re-press P before next stroke.
-  FRAME (DRAW-07): press_key F, then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Frames act as named containers for shapes inside them. Double-click frame label to rename. Tool auto-switches to V after draw -- re-press F before next frame.
+  RECTANGLE (DRAW-01): key R, then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press R before next rectangle.
+  ELLIPSE (DRAW-02): key O, then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press O before next ellipse.
+  DIAMOND (DRAW-03): key D, then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press D before next diamond.
+  LINE (DRAW-04): key L, then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag. Tool auto-switches to V after draw -- re-press L before next line.
+  ARROW (DRAW-05): key A, then drag(startX, startY, endX, endY, steps=20, stepDelayMs=20). Use 20+ steps for reliable arrow binding to shapes. Min 50px drag. Tool auto-switches to V after draw -- re-press A before next arrow.
+  FREEDRAW (DRAW-06): key P, then drag(startX, startY, endX, endY, steps=30, stepDelayMs=10). Use 30+ steps for smooth freehand stroke. Tool auto-switches to V after draw -- re-press P before next stroke.
+  FRAME (DRAW-07): key F, then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Frames act as named containers for shapes inside them. Double-click frame label to rename. Tool auto-switches to V after draw -- re-press F before next frame.
 
-  CRITICAL RULE: Excalidraw auto-switches to selection tool (V) after EVERY shape draw. You MUST re-press the tool key (R, O, D, L, A, P, F) before each subsequent shape. Without re-pressing, cdpDrag creates a selection box instead of a shape. CDP reports success either way so the error is silent.
+  CRITICAL RULE: Excalidraw auto-switches to selection tool (V) after EVERY shape draw. You MUST re-press the tool key (R, O, D, L, A, P, F) before each subsequent shape. Without re-pressing, drag creates a selection box instead of a shape. CDP reports success either way so the error is silent.
 
   COORDINATE CONVENTION: Use 150px horizontal spacing, 120px vertical spacing, and 150x80px default shape size for consistent diagram layouts. Example: first shape at (200, 200), second at (350, 200), third at (500, 200) for a horizontal row.
 
 TEXT ENTRY WORKFLOW (3 modes):
 
   MODE 1 -- STANDALONE TEXT LABEL (TEXT-01):
-    Step 1: press_key T to activate text tool
-    Step 2: cdpClickAt(x, y) on the canvas where the text should appear -- this creates a new text element and opens the editor
+    Step 1: key T to activate text tool
+    Step 2: clickatx, y) on the canvas where the text should appear -- this creates a new text element and opens the editor
     Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
     Step 4: inserttext "your text here" -- text appears in the textarea
-    Step 5: press_key Escape to commit the text and close the textarea
+    Step 5: key Escape to commit the text and close the textarea
     NOTE: After placing text, tool auto-switches to V. Re-press T before placing the next standalone text.
 
   MODE 2 -- TEXT INSIDE A SHAPE (TEXT-02):
-    Step 1: Double-click the shape center via two rapid cdpClickAt(shapeX, shapeY) calls (50ms apart) -- this opens the in-shape text editor
-    Alternative: Click the shape once via cdpClickAt to select it, then press_key Enter to open the text editor
+    Step 1: Double-click the shape center via two rapid clickatshapeX, shapeY) calls (50ms apart) -- this opens the in-shape text editor
+    Alternative: Click the shape once via clickat to select it, then key Enter to open the text editor
     Step 2: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
     Step 3: inserttext "your label text" -- text appears inside the shape
-    Step 4: press_key Escape to commit the text and close the textarea
+    Step 4: key Escape to commit the text and close the textarea
     NOTE: The text will be centered within the shape boundary automatically.
 
   MODE 3 -- EDIT EXISTING TEXT (TEXT-03):
-    Step 1: Click the text element or shape with text via cdpClickAt(elementX, elementY) to select it
-    Step 2: press_key Enter to re-open the text editor on the selected element
+    Step 1: Click the text element or shape with text via clickatelementX, elementY) to select it
+    Step 2: key Enter to re-open the text editor on the selected element
     Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount -- it will contain the existing text
-    Step 4: Select all existing text: press_key a ctrl=true (Ctrl+A inside the textarea selects textarea content, not canvas elements)
+    Step 4: Select all existing text: key a --ctrl (Ctrl+A inside the textarea selects textarea content, not canvas elements)
     Step 5: inserttext "replacement text" -- overwrites the selected text
-    Step 6: press_key Escape to commit the updated text
+    Step 6: key Escape to commit the updated text
     NOTE: To append instead of replace, skip Step 4 and just inserttext the additional text.
 
   COMMON RULES FOR ALL TEXT MODES:
     - ALWAYS use inserttext, NEVER use the type tool -- the textarea is transient and not in DOM snapshots
     - ALWAYS wait 300ms after activating text mode before inserttext
     - ALWAYS press Escape to commit -- clicking elsewhere may lose the text
-    - For multi-line text, use press_key Enter (without ctrl) between lines within the textarea
+    - For multi-line text, use key Enter (without ctrl) between lines within the textarea
     - The textarea class is excalidraw-wysiwyg -- if you need to verify it mounted, check for this class in DOM
 
 MULTI-SELECT SHAPES:
-Method 1 (recommended): Ctrl+A via press_key with key=a, ctrl=true -- selects ALL shapes on canvas
-Method 2: Shift+click each shape using click_at with shift=true at each shape center coordinate
-Method 3: Selection box -- press V (selection tool), then cdpDrag over the area containing all shapes
+Method 1 (recommended): Ctrl+A via key with key=a, --ctrl -- selects ALL shapes on canvas
+Method 2: Shift+click each shape using click_at with --shift at each shape center coordinate
+Method 3: Selection box -- press V (selection tool), then drag over the area containing all shapes
 - After multi-select, Excalidraw shows selection handles (resize corners) around the group
 
 ALIGNMENT TOOLBAR (appears after multi-selecting 2+ shapes):
@@ -399,7 +399,7 @@ PROPERTY PANELS:
 EXPORT (EXPORT-01, EXPORT-02, EXPORT-03):
 
   PNG TO CLIPBOARD (EXPORT-01):
-    press_key c shift=true alt=true (Shift+Alt+C) -- copies entire canvas as PNG image to clipboard
+    key c --shift --alt (Shift+Alt+C) -- copies entire canvas as PNG image to clipboard
     NOTE: This is the fastest and most reliable export method -- zero DOM interaction, no dialogs.
     NOTE: Works on entire canvas content (all elements). Select specific elements first if you want partial export.
     NOTE: After copying, the user can paste (Ctrl+V) into any application that accepts images.
@@ -415,8 +415,8 @@ EXPORT (EXPORT-01, EXPORT-02, EXPORT-03):
     NOTE: The export dialog may also offer options for background color and dark mode.
 
   CLIPBOARD COPY (EXPORT-03):
-    Step 1: Select elements to copy -- press_key(a, ctrl=true) for all, or cdpClickAt on a specific element
-    Step 2: press_key c ctrl=true (Ctrl+C) -- copies selected elements to clipboard in Excalidraw format
+    Step 1: Select elements to copy -- key(a, --ctrl) for all, or clickat on a specific element
+    Step 2: key c --ctrl (Ctrl+C) -- copies selected elements to clipboard in Excalidraw format
     NOTE: Ctrl+C copies the Excalidraw element data, not a rendered image. Pasting (Ctrl+V) works within Excalidraw or another Excalidraw instance.
     NOTE: For image clipboard (PNG), use Shift+Alt+C instead (EXPORT-01 above).
 
@@ -535,58 +535,58 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
   },
   workflows: {
     sessionSetup: [
-      'Press Escape via press_key to dismiss any welcome modal or dialog',
-      'Press Ctrl+A via press_key(a, ctrl=true) to select all existing elements',
-      'Press Delete via press_key to delete all selected elements (clear canvas)',
-      'Press Ctrl+0 via press_key(0, ctrl=true) to reset zoom to 100%',
+      'Press Escape via key to dismiss any welcome modal or dialog',
+      'Press Ctrl+A via key(a, --ctrl) to select all existing elements',
+      'Press Delete via key to delete all selected elements (clear canvas)',
+      'Press Ctrl+0 via key(0, --ctrl) to reset zoom to 100%',
       'Canvas is now clean and ready for drawing'
     ],
     createFrame: [
-      'Press F via press_key to activate frame tool',
-      'Draw frame by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'Press F via key to activate frame tool',
+      'Draw frame by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press F before drawing the next frame',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawRectangle: [
-      'Press R via press_key to activate rectangle tool',
-      'Draw rectangle by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'Press R via key to activate rectangle tool',
+      'Draw rectangle by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press R before drawing the next rectangle',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawEllipse: [
-      'Press O via press_key to activate ellipse tool',
-      'Draw ellipse by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'Press O via key to activate ellipse tool',
+      'Draw ellipse by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press O before drawing the next ellipse',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawDiamond: [
-      'Press D via press_key to activate diamond tool',
-      'Draw diamond by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'Press D via key to activate diamond tool',
+      'Draw diamond by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press D before drawing the next diamond',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawLine: [
-      'Press L via press_key to activate line tool',
-      'Draw line by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag',
+      'Press L via key to activate line tool',
+      'Draw line by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press L before drawing the next line',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawArrow: [
-      'Press A via press_key to activate arrow tool',
-      'Draw arrow by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=20, stepDelayMs=20) -- minimum 50px drag, use 20+ steps for reliable arrow binding to shapes',
+      'Press A via key to activate arrow tool',
+      'Draw arrow by dragging on canvas: drag(startX, startY, endX, endY, steps=20, stepDelayMs=20) -- minimum 50px drag, use 20+ steps for reliable arrow binding to shapes',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press A before drawing the next arrow',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawFreedraw: [
-      'Press P via press_key to activate freedraw (pencil) tool',
-      'Draw freehand stroke by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=30, stepDelayMs=10) -- use 30+ steps for smooth freehand stroke',
+      'Press P via key to activate freedraw (pencil) tool',
+      'Draw freehand stroke by dragging on canvas: drag(startX, startY, endX, endY, steps=30, stepDelayMs=10) -- use 30+ steps for smooth freehand stroke',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press P before drawing the next stroke',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     alignShapes: [
-      'Multi-select all shapes: press_key(a, ctrl=true) for Ctrl+A to select all',
-      'Alternative: shift+click each shape using click_at(x, y, shift=true)',
-      'Alternative: press V for selection tool, then cdpDrag a selection box over all shapes',
+      'Multi-select all shapes: key(a, --ctrl) for Ctrl+A to select all',
+      'Alternative: shift+click each shape using click_at(x, y, --shift)',
+      'Alternative: press V for selection tool, then drag a selection box over all shapes',
       'After multi-select, look for alignment buttons in top toolbar via get_dom_snapshot',
       'Click alignment button (e.g., [aria-label="Align left"]) using DOM click tool',
       'Verify alignment took effect (shapes repositioned to same edge/center)'
@@ -594,230 +594,230 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
     fullFrameAlignmentWorkflow: [
       'Navigate to excalidraw.com and wait for canvas to load',
       'Run session setup: press Escape (dismiss modals), Ctrl+A then Delete (clear canvas), Ctrl+0 (reset zoom)',
-      'Create a frame: press F, then cdpDrag to define frame bounds',
-      'Draw rectangle 1: press R, cdpDrag inside frame area (upper-left region)',
-      'Draw rectangle 2: press R, cdpDrag inside frame area (middle region, deliberately offset)',
-      'Draw rectangle 3: press R, cdpDrag inside frame area (lower region, deliberately offset)',
-      'Select all shapes: press_key(a, ctrl=true)',
+      'Create a frame: press F, then drag to define frame bounds',
+      'Draw rectangle 1: press R, drag inside frame area (upper-left region)',
+      'Draw rectangle 2: press R, drag inside frame area (middle region, deliberately offset)',
+      'Draw rectangle 3: press R, drag inside frame area (lower region, deliberately offset)',
+      'Select all shapes: key(a, --ctrl)',
       'Get DOM snapshot to find alignment toolbar buttons',
       'Click align-left or center-horizontally button via DOM click',
       'Verify alignment applied by checking shape positions or visual state'
     ],
     // Generic text entry workflow (backward compatibility). See textStandalone, textInShape, textEdit for mode-specific workflows.
     textEntry: [
-      'Activate text mode: press T for standalone text, or double-click shape center via cdpClickAt for in-shape text',
+      'Activate text mode: press T for standalone text, or double-click shape center via clickat for in-shape text',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
       'Type text using inserttext (NOT the type tool)',
-      'Press Escape via press_key to commit text and close textarea',
+      'Press Escape via key to commit text and close textarea',
       'Text is now rendered on the canvas'
     ],
     textStandalone: [
-      'Press T via press_key to activate text tool',
-      'Click canvas position via cdpClickAt(x, y) to create text element and open editor',
+      'Press T via key to activate text tool',
+      'Click canvas position via clickatx, y) to create text element and open editor',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
       'Type text using inserttext (NOT the type tool)',
-      'Press Escape via press_key to commit text and close textarea',
+      'Press Escape via key to commit text and close textarea',
       'Tool auto-switches to V after text placement -- re-press T for next standalone text'
     ],
     textInShape: [
-      'Double-click shape center via two rapid cdpClickAt(shapeX, shapeY) calls 50ms apart to open in-shape text editor',
-      'Alternative: click shape once via cdpClickAt to select, then press_key Enter to open text editor',
+      'Double-click shape center via two rapid clickatshapeX, shapeY) calls 50ms apart to open in-shape text editor',
+      'Alternative: click shape once via clickat to select, then key Enter to open text editor',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
       'Type label text using inserttext (NOT the type tool)',
-      'Press Escape via press_key to commit text -- text centers within shape boundary automatically'
+      'Press Escape via key to commit text -- text centers within shape boundary automatically'
     ],
     textEdit: [
-      'Click text element or shape with text via cdpClickAt to select it',
-      'Press Enter via press_key to re-open text editor on selected element',
+      'Click text element or shape with text via clickat to select it',
+      'Press Enter via key to re-open text editor on selected element',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount with existing text',
-      'Select all existing text: press_key(a, ctrl=true) to select textarea content',
+      'Select all existing text: key(a, --ctrl) to select textarea content',
       'Type replacement text using inserttext to overwrite selected text',
-      'Press Escape via press_key to commit updated text'
+      'Press Escape via key to commit updated text'
     ],
     undoRedo: [
-      'Undo last action: press_key(z, ctrl=true) -- Ctrl+Z',
-      'Redo undone action: press_key(y, ctrl=true) -- Ctrl+Y',
-      'Alternative redo: press_key(z, ctrl=true, shift=true) -- Ctrl+Shift+Z',
+      'Undo last action: key(z, --ctrl) -- Ctrl+Z',
+      'Redo undone action: key(y, --ctrl) -- Ctrl+Y',
+      'Alternative redo: key(z, --ctrl, --shift) -- Ctrl+Shift+Z',
       'Repeat as needed -- undo/redo operate on Excalidraw internal history stack'
     ],
     clearCanvas: [
-      'Select all elements: press_key(a, ctrl=true) -- Ctrl+A',
-      'Delete all selected: press_key Delete -- use Delete not Backspace for reliability',
+      'Select all elements: key(a, --ctrl) -- Ctrl+A',
+      'Delete all selected: key Delete -- use Delete not Backspace for reliability',
       'Canvas is now empty and ready for new content'
     ],
     zoomIn: [
-      'Zoom in one step: press_key(=, ctrl=true) -- Ctrl+=',
-      'Repeat press_key(=, ctrl=true) for additional zoom levels'
+      'Zoom in one step: key(=, --ctrl) -- Ctrl+=',
+      'Repeat key(=, --ctrl) for additional zoom levels'
     ],
     zoomOut: [
-      'Zoom out one step: press_key(-, ctrl=true) -- Ctrl+-',
-      'Repeat press_key(-, ctrl=true) for additional zoom levels'
+      'Zoom out one step: key(-, --ctrl) -- Ctrl+-',
+      'Repeat key(-, --ctrl) for additional zoom levels'
     ],
     zoomReset: [
-      'Reset zoom to 100%: press_key(0, ctrl=true) -- Ctrl+0'
+      'Reset zoom to 100%: key(0, --ctrl) -- Ctrl+0'
     ],
     zoomToFit: [
-      'Zoom to fit all content: press_key(1, shift=true) -- Shift+1',
+      'Zoom to fit all content: key(1, --shift) -- Shift+1',
       'Viewport adjusts to show all elements -- no-op on empty canvas'
     ],
     panCanvas: [
-      'Hold Space key then drag to pan: press_key Space (hold), cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15), release Space',
+      'Hold Space key then drag to pan: key Space (hold), drag(startX, startY, endX, endY, steps=15, stepDelayMs=15), release Space',
       'Alternative: scroll on canvas element to pan viewport',
       'Panning shifts viewport without moving elements -- subsequent coordinates are viewport-relative'
     ],
     selectAll: [
-      'Select all elements: press_key(a, ctrl=true) -- Ctrl+A',
+      'Select all elements: key(a, --ctrl) -- Ctrl+A',
       'All shapes show combined selection handles (resize corners around group)',
       'Use for bulk operations: delete, move, align, group, duplicate'
     ],
     selectAndMove: [
-      'Press V via press_key to activate selection tool',
-      'Click element via cdpClickAt(elementX, elementY) to select it -- selection handles appear',
-      'Drag element to new position via cdpDrag(elementX, elementY, newX, newY, steps=15, stepDelayMs=15)',
-      'For multi-select: use Ctrl+A (all) or shift+cdpClickAt on each element before dragging'
+      'Press V via key to activate selection tool',
+      'Click element via clickatelementX, elementY) to select it -- selection handles appear',
+      'Drag element to new position via drag(elementX, elementY, newX, newY, steps=15, stepDelayMs=15)',
+      'For multi-select: use Ctrl+A (all) or shift+clickat on each element before dragging'
     ],
     deleteElement: [
-      'Click element via cdpClickAt(elementX, elementY) to select it',
-      'Press Delete via press_key to delete the selected element',
-      'For bulk delete: press_key(a, ctrl=true) then press_key Delete'
+      'Click element via clickatelementX, elementY) to select it',
+      'Press Delete via key to delete the selected element',
+      'For bulk delete: key(a, --ctrl) then key Delete'
     ],
     duplicateElement: [
-      'Click element via cdpClickAt(elementX, elementY) to select it',
-      'Press Ctrl+D via press_key(d, ctrl=true) to duplicate -- clone appears offset ~10px right and down',
+      'Click element via clickatelementX, elementY) to select it',
+      'Press Ctrl+D via key(d, --ctrl) to duplicate -- clone appears offset ~10px right and down',
       'Alternative: Alt+drag to duplicate and position in one motion'
     ],
     resizeElement: [
-      'Click element via cdpClickAt(elementX, elementY) to select it -- 8 resize handles appear',
+      'Click element via clickatelementX, elementY) to select it -- 8 resize handles appear',
       'Identify target resize handle at corner or edge midpoint of selection box',
-      'Drag handle via cdpDrag(handleX, handleY, newHandleX, newHandleY, steps=10, stepDelayMs=15)',
+      'Drag handle via drag(handleX, handleY, newHandleX, newHandleY, steps=10, stepDelayMs=15)',
       'Corner handles resize proportionally; edge handles resize one dimension only',
       'Hold Shift to maintain aspect ratio; hold Alt to resize from center'
     ],
     rotateElement: [
-      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Click element via clickatelementX, elementY) to select it',
       'Rotation handle is a small circle ~25px above the top-center of the selection box',
-      'Drag rotation handle via cdpDrag(handleX, handleY, targetX, targetY, steps=15, stepDelayMs=15) in circular arc',
+      'Drag rotation handle via drag(handleX, handleY, targetX, targetY, steps=15, stepDelayMs=15) in circular arc',
       'Hold Shift to snap rotation to 15-degree increments'
     ],
     groupElements: [
-      'Multi-select elements: Ctrl+A (all) or shift+cdpClickAt on each, or rubber-band with V tool',
-      'Press Ctrl+G via press_key(g, ctrl=true) to group -- elements move/scale as a unit',
-      'To ungroup: select group, press Ctrl+Shift+G via press_key(g, ctrl=true, shift=true)',
+      'Multi-select elements: Ctrl+A (all) or shift+clickat on each, or rubber-band with V tool',
+      'Press Ctrl+G via key(g, --ctrl) to group -- elements move/scale as a unit',
+      'To ungroup: select group, press Ctrl+Shift+G via key(g, --ctrl, --shift)',
       'Double-click a group to enter it and select individual elements inside'
     ],
     lockElement: [
-      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Click element via clickatelementX, elementY) to select it',
       'Right-click element to open context menu or find lock icon in properties toolbar',
       'Click Lock option in context menu or lock icon button',
       'To unlock: select locked element, right-click, choose Unlock',
       'Locked elements cannot be moved, resized, or rotated but can be selected and deleted'
     ],
     copyPasteStyle: [
-      'Click source element via cdpClickAt(sourceX, sourceY) to select it',
-      'Copy style: press_key(c, ctrl=true, alt=true) -- Ctrl+Alt+C',
-      'Click target element via cdpClickAt(targetX, targetY) to select it',
-      'Paste style: press_key(v, ctrl=true, alt=true) -- Ctrl+Alt+V',
+      'Click source element via clickatsourceX, sourceY) to select it',
+      'Copy style: key(c, --ctrl, --alt) -- Ctrl+Alt+C',
+      'Click target element via clickattargetX, targetY) to select it',
+      'Paste style: key(v, --ctrl, --alt) -- Ctrl+Alt+V',
       'Copies stroke color, fill, width, style, opacity, and font properties'
     ],
     arrowBindToShapes: [
-      'Draw source and target shapes first (e.g., press R, cdpDrag for each rectangle)',
-      'Press A via press_key to activate arrow tool',
+      'Draw source and target shapes first (e.g., press R, drag for each rectangle)',
+      'Press A via key to activate arrow tool',
       'Calculate source shape edge midpoint: for shape at (x,y) size (w,h), right-edge is (x+w, y+h/2)',
       'Calculate target shape edge midpoint similarly',
-      'cdpDrag(sourceEdgeX, sourceEdgeY, targetEdgeX, targetEdgeY, steps=20, stepDelayMs=20) -- must land within ~5px of shape boundary for auto-bind',
+      'drag(sourceEdgeX, sourceEdgeY, targetEdgeX, targetEdgeY, steps=20, stepDelayMs=20) -- must land within ~5px of shape boundary for auto-bind',
       'Tool auto-switches to V after draw -- re-press A before next arrow',
       'Verify binding: moving a shape should keep the arrow attached'
     ],
     elbowRouting: [
       'Draw or select an arrow between two shapes',
-      'Click arrow midpoint via cdpClickAt to select it -- properties panel appears',
+      'Click arrow midpoint via clickat to select it -- properties panel appears',
       'Find line-type/routing buttons in properties panel: look for [aria-label*="Elbow"] or [data-testid*="elbow"]',
       'Click elbow/orthogonal button (third line-type option after straight and round)',
       'Arrow redraws with right-angle segments routing around obstacles'
     ],
     changeArrowhead: [
-      'Click arrow midpoint via cdpClickAt to select it -- properties panel appears',
+      'Click arrow midpoint via clickat to select it -- properties panel appears',
       'Find arrowhead buttons: look for [aria-label*="Arrowhead"] or [data-testid*="arrowhead"]',
       'Two groups: Start arrowhead (tail) and End arrowhead (tip)',
       'Click desired style: arrow (pointed), bar (flat perpendicular), dot (circle), triangle (filled), none',
       'Default is none at start and arrow at end'
     ],
     labelArrow: [
-      'Click arrow via cdpClickAt at arrow midpoint to select it',
-      'Double-click arrow via two rapid cdpClickAt calls 50ms apart, or select arrow then press_key Enter',
+      'Click arrow via clickat at arrow midpoint to select it',
+      'Double-click arrow via two rapid clickat calls 50ms apart, or select arrow then key Enter',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
       'Type label using inserttext (NOT the type tool)',
-      'Press Escape via press_key to commit label text',
+      'Press Escape via key to commit label text',
       'Label appears centered on arrow and moves with it when endpoints change'
     ],
     changeStrokeColor: [
-      'Click element via cdpClickAt(elementX, elementY) to select it',
-      'Press S via press_key to open stroke color picker',
+      'Click element via clickatelementX, elementY) to select it',
+      'Press S via key to open stroke color picker',
       'Click desired color swatch in picker panel, or type hex in hex input field',
-      'Press Escape via press_key to close color picker',
+      'Press Escape via key to close color picker',
       'Click empty canvas area to deselect'
     ],
     changeFillColor: [
-      'Click element via cdpClickAt(elementX, elementY) to select it',
-      'Press G via press_key to open background color picker',
+      'Click element via clickatelementX, elementY) to select it',
+      'Press G via key to open background color picker',
       'Click desired color swatch in picker panel, or type hex in hex input field',
-      'Press Escape via press_key to close color picker',
+      'Press Escape via key to close color picker',
       'Ensure fill pattern is not transparent -- background color only visible with hachure, cross-hatch, or solid fill'
     ],
     changeStrokeWidth: [
-      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Click element via clickatelementX, elementY) to select it',
       'Find stroke width buttons in properties panel: Thin, Bold, Extra Bold',
       'Click desired width button via DOM click (not CDP) -- [data-testid="strokeWidth-thin"] or similar',
       'Width applies immediately to selected element'
     ],
     changeStrokeStyle: [
-      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Click element via clickatelementX, elementY) to select it',
       'Find stroke style buttons in properties panel: Solid, Dashed, Dotted',
       'Click desired style button via DOM click (not CDP) -- [data-testid="strokeStyle-solid"] or similar',
       'Style applies immediately to selected element'
     ],
     changeFillPattern: [
-      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Click element via clickatelementX, elementY) to select it',
       'Find fill pattern buttons in properties panel: Hachure, Cross-hatch, Solid, Transparent',
       'Click desired pattern button via DOM click (not CDP) -- [data-testid="fill-hachure"] or similar',
       'Pattern applies immediately -- transparent hides background color, others show it'
     ],
     changeOpacity: [
-      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Click element via clickatelementX, elementY) to select it',
       'Find opacity slider or input in properties panel -- [data-testid="opacity"] or [aria-label*="Opacity"]',
       'Set desired opacity value (0-100): click input, select all text, type new value',
       'Opacity 100 = fully opaque, 0 = fully transparent'
     ],
     changeFontProperties: [
-      'Click text element or shape with text via cdpClickAt(elementX, elementY) to select it',
+      'Click text element or shape with text via clickatelementX, elementY) to select it',
       'For font SIZE: click Small/Medium/Large/XL button in properties panel',
       'For font FAMILY: click Virgil (hand-drawn) / Helvetica (clean) / Cascadia (mono) radio button',
       'For text ALIGNMENT: click Left/Center/Right button in properties panel',
       'All font property buttons are standard DOM elements -- use regular click, not CDP'
     ],
     alignElements: [
-      'Multi-select 2+ elements: press_key(a, ctrl=true) for all, or shift+cdpClickAt each element',
+      'Multi-select 2+ elements: key(a, --ctrl) for all, or shift+clickat each element',
       'Alignment buttons appear in top toolbar after multi-select',
       'Click desired alignment button via DOM click: [aria-label="Align left"], [aria-label="Center horizontally"], etc.',
       'Alternative: Ctrl+Shift+Arrow keys for directional alignment',
       'Alignment snaps selected elements to same edge or center coordinate'
     ],
     distributeElements: [
-      'Multi-select 3+ elements: press_key(a, ctrl=true) for all, or shift+cdpClickAt each element',
+      'Multi-select 3+ elements: key(a, --ctrl) for all, or shift+clickat each element',
       'Distribute buttons appear in toolbar after selecting 3+ elements',
       'Click distribute button via DOM click: [aria-label="Distribute horizontally"] or [aria-label="Distribute vertically"]',
       'Elements are spaced evenly along the chosen axis'
     ],
     changeLayerOrder: [
-      'Click element via cdpClickAt(elementX, elementY) to select it',
-      'Bring forward one layer: press_key(], ctrl=true) -- Ctrl+]',
-      'Send backward one layer: press_key([, ctrl=true) -- Ctrl+[',
-      'Bring to front: press_key(], ctrl=true, shift=true) -- Ctrl+Shift+]',
-      'Send to back: press_key([, ctrl=true, shift=true) -- Ctrl+Shift+['
+      'Click element via clickatelementX, elementY) to select it',
+      'Bring forward one layer: key(], --ctrl) -- Ctrl+]',
+      'Send backward one layer: key([, --ctrl) -- Ctrl+[',
+      'Bring to front: key(], --ctrl, --shift) -- Ctrl+Shift+]',
+      'Send to back: key([, --ctrl, --shift) -- Ctrl+Shift+['
     ],
     exportPngToClipboard: [
       'Select elements to export (Ctrl+A for all, or click specific elements) -- unselected elements are still included in full canvas export',
-      'Press Shift+Alt+C via press_key(c, shift=true, alt=true) to copy canvas as PNG to clipboard',
+      'Press Shift+Alt+C via key(c, --shift, --alt) to copy canvas as PNG to clipboard',
       'PNG image is now on clipboard -- user can paste into any image-accepting application'
     ],
     exportSvg: [
@@ -825,58 +825,58 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Click "Export image" option in dropdown menu',
       'In export dialog, find and click SVG format button -- [data-testid*="svg"], [aria-label*="SVG"], or button with "SVG" text',
       'Click "Export" or "Download" button to save SVG file',
-      'Press Escape via press_key to close export dialog'
+      'Press Escape via key to close export dialog'
     ],
     copyToClipboard: [
-      'Select elements to copy: press_key(a, ctrl=true) for all, or cdpClickAt on specific elements',
-      'Press Ctrl+C via press_key(c, ctrl=true) to copy selected elements in Excalidraw format',
+      'Select elements to copy: key(a, --ctrl) for all, or clickat on specific elements',
+      'Press Ctrl+C via key(c, --ctrl) to copy selected elements in Excalidraw format',
       'Elements are on clipboard -- paste with Ctrl+V in same or different Excalidraw instance'
     ],
     generateFlowchart: [
       'Plan layout: use # comments to list all steps, decisions, and branches with (x,y) coordinates using 150px horizontal / 120px vertical grid',
       'Run session setup: Escape, Ctrl+A, Delete, Ctrl+0',
-      'Draw all shapes: press R for rectangles, D for diamonds -- cdpDrag each shape at planned coordinates -- re-press tool key before each shape',
-      'Add text labels to each shape: double-click shape center via cdpClickAt, wait 300ms, inserttext label, press Escape',
-      'Draw arrows between shapes: press A, cdpDrag from source bottom-edge to target top-edge (20 steps, 20ms delay) -- re-press A before each arrow',
+      'Draw all shapes: press R for rectangles, D for diamonds -- drag each shape at planned coordinates -- re-press tool key before each shape',
+      'Add text labels to each shape: double-click shape center via clickat, wait 300ms, inserttext label, press Escape',
+      'Draw arrows between shapes: press A, drag from source bottom-edge to target top-edge (20 steps, 20ms delay) -- re-press A before each arrow',
       'Label decision arrows: double-click arrow midpoint, wait 300ms, inserttext Yes or No, press Escape',
-      'Zoom to fit: press_key(1, shift=true) to show entire diagram',
+      'Zoom to fit: key(1, --shift) to show entire diagram',
       'Verify: count shapes and arrows drawn match the plan -- if missing, draw remaining elements'
     ],
     generateArchitectureDiagram: [
       'Plan layout: use # comments to list all tiers and components with (x,y) coordinates -- tiers left-to-right at 250px spacing, components top-to-bottom at 120px spacing',
       'Run session setup: Escape, Ctrl+A, Delete, Ctrl+0',
-      'Add tier labels: press T, cdpClickAt tier label position, wait 300ms, inserttext tier name, press Escape -- re-press T before each label',
-      'Draw all component shapes: press R, cdpDrag each rectangle at planned coordinates -- re-press R before each shape',
-      'Add text labels to each component: double-click shape center via cdpClickAt, wait 300ms, inserttext component name, press Escape',
-      'Draw arrows between tiers: press A, cdpDrag from source right-edge to target left-edge (20 steps, 20ms delay) -- re-press A before each arrow',
-      'Zoom to fit: press_key(1, shift=true) to show entire diagram',
+      'Add tier labels: press T, clickat tier label position, wait 300ms, inserttext tier name, press Escape -- re-press T before each label',
+      'Draw all component shapes: press R, drag each rectangle at planned coordinates -- re-press R before each shape',
+      'Add text labels to each component: double-click shape center via clickat, wait 300ms, inserttext component name, press Escape',
+      'Draw arrows between tiers: press A, drag from source right-edge to target left-edge (20 steps, 20ms delay) -- re-press A before each arrow',
+      'Zoom to fit: key(1, --shift) to show entire diagram',
       'Verify: count shapes, labels, and arrows drawn match the plan -- if missing, draw remaining elements'
     ],
     generateMindMap: [
       'Plan layout: use # comments to list center topic and all branches with (x,y) coordinates -- center at (600,380), branches extending 200px in cardinal directions',
       'Run session setup: Escape, Ctrl+A, Delete, Ctrl+0',
-      'Draw center node: press O (ellipse), cdpDrag at center coordinates',
-      'Label center node: double-click center via cdpClickAt, wait 300ms, inserttext main topic, press Escape',
-      'Draw branch nodes: press R, cdpDrag each rectangle at planned branch coordinates -- re-press R before each shape',
+      'Draw center node: press O (ellipse), drag at center coordinates',
+      'Label center node: double-click center via clickat, wait 300ms, inserttext main topic, press Escape',
+      'Draw branch nodes: press R, drag each rectangle at planned branch coordinates -- re-press R before each shape',
       'Label branch nodes: double-click each branch shape center, wait 300ms, inserttext branch topic, press Escape',
-      'Draw arrows from center to branches: press A, cdpDrag from center edge to branch edge (20 steps, 20ms delay) -- re-press A before each arrow',
-      'Zoom to fit: press_key(1, shift=true) to show entire diagram'
+      'Draw arrows from center to branches: press A, drag from center edge to branch edge (20 steps, 20ms delay) -- re-press A before each arrow',
+      'Zoom to fit: key(1, --shift) to show entire diagram'
     ]
   },
   warnings: [
-    'Excalidraw canvas requires CDP trusted events (cdpClickAt/cdpDrag) -- content script events are untrusted and ignored',
+    'Excalidraw canvas requires CDP trusted events (clickat/drag) -- content script events are untrusted and ignored',
     'After drawing each shape, Excalidraw auto-switches to selection tool -- re-press the tool shortcut (R, F, etc.) before next draw',
     'Minimum drag distance of 50px in both axes needed for Excalidraw to register as a shape draw (not a click) -- research verified this threshold',
-    'Use 15+ intermediate steps in cdpDrag with 15ms delay for smooth and reliable shape rendering',
+    'Use 15+ intermediate steps in drag with 15ms delay for smooth and reliable shape rendering',
     'Ctrl+A selects ALL shapes including the frame -- if only specific shapes are needed, use shift+click instead',
     'Excalidraw DOM snapshots can be large due to React virtual DOM -- use targeted selectors to minimize token usage',
     'Frame tool (F key) may not be available in all Excalidraw versions -- use large rectangle as fallback',
     'Alignment buttons are standard HTML DOM elements in the toolbar -- use regular click, not CDP events',
     'ALWAYS run session setup (Escape, Ctrl+A, Delete, Ctrl+0) before any Excalidraw automation -- skipping causes stale content, blocked shortcuts, and coordinate errors',
-    'For in-shape text (double-click), ensure the cdpClickAt coordinates target the CENTER of the shape, not an edge -- edge clicks may start a resize or connector instead of opening the text editor',
-    'Pan (Space+drag) requires holding Space before starting cdpDrag -- releasing Space mid-drag cancels pan mode',
-    'Resize and rotate handles are canvas-rendered (not DOM elements) -- use coordinate offsets from the element bounding box center to target them with cdpDrag',
-    'Arrow binding requires starting/ending cdpDrag at shape EDGE midpoints, not shape centers -- use edge coordinate formula: right-edge=(x+w, y+h/2), left-edge=(x, y+h/2), top-edge=(x+w/2, y), bottom-edge=(x+w/2, y+h)',
+    'For in-shape text (double-click), ensure the clickat coordinates target the CENTER of the shape, not an edge -- edge clicks may start a resize or connector instead of opening the text editor',
+    'Pan (Space+drag) requires holding Space before starting drag -- releasing Space mid-drag cancels pan mode',
+    'Resize and rotate handles are canvas-rendered (not DOM elements) -- use coordinate offsets from the element bounding box center to target them with drag',
+    'Arrow binding requires starting/ending drag at shape EDGE midpoints, not shape centers -- use edge coordinate formula: right-edge=(x+w, y+h/2), left-edge=(x, y+h/2), top-edge=(x+w/2, y), bottom-edge=(x+w/2, y+h)',
     'Arrow labels use the same transient textarea as shape text -- double-click or select+Enter to open editor, inserttext to type, Escape to commit',
     'Stroke color shortcut is S, background color shortcut is G -- do not confuse them. B does NOT open background picker.',
     'Fill pattern must be non-transparent (hachure, cross-hatch, or solid) for background color to be visible',
@@ -889,5 +889,5 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
     'Ctrl+C copies Excalidraw element data (not a rendered image) -- use Shift+Alt+C for a PNG image on clipboard',
     'Natural language diagrams require planning coordinates BEFORE drawing -- use # comment lines to lay out all positions first, then draw shapes, then label, then connect. Skipping the planning step causes overlapping shapes and missed connections.'
   ],
-  toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'inserttext', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
+  toolPreferences: ['click', 'key', 'clickat', 'drag', 'inserttext', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
 });
