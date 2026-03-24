@@ -74,9 +74,9 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 
 ### Export
 
-- [ ] **EXPORT-01**: User can export drawing as PNG to clipboard
-- [ ] **EXPORT-02**: User can export drawing as SVG
-- [ ] **EXPORT-03**: User can copy drawing to clipboard
+- [x] **EXPORT-01**: User can export drawing as PNG to clipboard
+- [x] **EXPORT-02**: User can export drawing as SVG
+- [x] **EXPORT-03**: User can copy drawing to clipboard
 
 ### Natural Language Diagrams
 
@@ -157,9 +157,9 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 | ALIGN-01 | Phase 112 | Complete |
 | ALIGN-02 | Phase 112 | Complete |
 | ALIGN-03 | Phase 112 | Complete |
-| EXPORT-01 | Phase 113 | Pending |
-| EXPORT-02 | Phase 113 | Pending |
-| EXPORT-03 | Phase 113 | Pending |
+| EXPORT-01 | Phase 113 | Complete |
+| EXPORT-02 | Phase 113 | Complete |
+| EXPORT-03 | Phase 113 | Complete |
 | NL-01 | Phase 114 | Pending |
 | NL-02 | Phase 114 | Pending |
 | NL-03 | Phase 114 | Pending |

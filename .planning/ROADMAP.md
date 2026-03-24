@@ -71,7 +71,7 @@ Plans:
 - [x] **Phase 110: Element Editing** - Select, move, delete, duplicate, resize, rotate, group, lock, style copy (completed 2026-03-24)
 - [x] **Phase 111: Connectors & Arrows** - Auto-binding arrows, elbow routing, arrowhead styles, labeled connectors (completed 2026-03-24)
 - [x] **Phase 112: Styling & Layout** - Stroke/fill colors, width, style, fill pattern, opacity, fonts, alignment, distribution, layer ordering (completed 2026-03-24)
-- [ ] **Phase 113: Export** - PNG to clipboard, SVG export, clipboard copy
+- [x] **Phase 113: Export** - PNG to clipboard, SVG export, clipboard copy (completed 2026-03-24)
 - [ ] **Phase 114: Natural Language Diagrams** - Flowcharts, architecture diagrams, mind maps from descriptions with grid-based layout
 
 ## Phase Details
@@ -171,7 +171,7 @@ Plans:
   3. User can ask FSB to copy the drawing to clipboard for pasting into other applications
 **Plans**: 1 plan
 Plans:
-- [ ] 113-01-PLAN.md -- Add EXPORT section with PNG clipboard, SVG export, and clipboard copy workflows
+- [x] 113-01-PLAN.md -- Add EXPORT section with PNG clipboard, SVG export, and clipboard copy workflows
 
 ### Phase 114: Natural Language Diagrams
 **Goal**: Users can describe a diagram in plain English and FSB autonomously plans layout, draws shapes, adds labels, and connects elements on Excalidraw
@@ -200,7 +200,7 @@ Plans:
 | 110. Element Editing | 1/1 | Complete    | 2026-03-24 |
 | 111. Connectors & Arrows | 1/1 | Complete    | 2026-03-24 |
 | 112. Styling & Layout | 0/? | Not started | - |
-| 113. Export | 0/1 | In progress | - |
+| 113. Export | 1/1 | Complete | 2026-03-24 |
 | 114. Natural Language Diagrams | 0/? | Not started | - |
 
 ---
