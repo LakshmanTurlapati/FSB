@@ -31,12 +31,12 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 
 ### Canvas Operations
 
-- [ ] **CANVAS-01**: User can undo and redo actions (Ctrl+Z / Ctrl+Y)
-- [ ] **CANVAS-02**: User can clear the entire canvas
-- [ ] **CANVAS-03**: User can zoom in, zoom out, and reset zoom
-- [ ] **CANVAS-04**: User can pan the canvas
-- [ ] **CANVAS-05**: User can select all elements
-- [ ] **CANVAS-06**: User can zoom to fit all content (Shift+1)
+- [x] **CANVAS-01**: User can undo and redo actions (Ctrl+Z / Ctrl+Y)
+- [x] **CANVAS-02**: User can clear the entire canvas
+- [x] **CANVAS-03**: User can zoom in, zoom out, and reset zoom
+- [x] **CANVAS-04**: User can pan the canvas
+- [x] **CANVAS-05**: User can select all elements
+- [x] **CANVAS-06**: User can zoom to fit all content (Shift+1)
 
 ### Element Editing
 
@@ -129,12 +129,12 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 | TEXT-01 | Phase 108 | Complete |
 | TEXT-02 | Phase 108 | Complete |
 | TEXT-03 | Phase 108 | Complete |
-| CANVAS-01 | Phase 109 | Pending |
-| CANVAS-02 | Phase 109 | Pending |
-| CANVAS-03 | Phase 109 | Pending |
-| CANVAS-04 | Phase 109 | Pending |
-| CANVAS-05 | Phase 109 | Pending |
-| CANVAS-06 | Phase 109 | Pending |
+| CANVAS-01 | Phase 109 | Complete |
+| CANVAS-02 | Phase 109 | Complete |
+| CANVAS-03 | Phase 109 | Complete |
+| CANVAS-04 | Phase 109 | Complete |
+| CANVAS-05 | Phase 109 | Complete |
+| CANVAS-06 | Phase 109 | Complete |
 | EDIT-01 | Phase 110 | Pending |
 | EDIT-02 | Phase 110 | Pending |
 | EDIT-03 | Phase 110 | Pending |

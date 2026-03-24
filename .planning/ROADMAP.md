@@ -67,7 +67,7 @@ Plans:
 
 - [x] **Phase 107: Engine Fixes & Session Foundation** - Fix gating bugs in progress detection and text entry routing, establish clean session setup (completed 2026-03-24)
 - [x] **Phase 108: Drawing Primitives & Text Entry** - All shape types drawable, standalone and in-shape text entry via transient textarea (completed 2026-03-24)
-- [ ] **Phase 109: Canvas Operations** - Undo/redo, clear, zoom, pan, select all, zoom-to-fit
+- [x] **Phase 109: Canvas Operations** - Undo/redo, clear, zoom, pan, select all, zoom-to-fit (completed 2026-03-24)
 - [ ] **Phase 110: Element Editing** - Select, move, delete, duplicate, resize, rotate, group, lock, style copy
 - [ ] **Phase 111: Connectors & Arrows** - Auto-binding arrows, elbow routing, arrowhead styles, labeled connectors
 - [ ] **Phase 112: Styling & Layout** - Stroke/fill colors, width, style, fill pattern, opacity, fonts, alignment, distribution, layer ordering
@@ -116,7 +116,7 @@ Plans:
   5. User can ask FSB to select all elements and every element on canvas becomes selected
 **Plans**: 1 plan
 Plans:
-- [ ] 109-01-PLAN.md -- Add canvas operations guidance and workflows to Excalidraw site guide
+- [x] 109-01-PLAN.md -- Add canvas operations guidance and workflows to Excalidraw site guide
 
 
 
@@ -203,7 +203,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 107. Engine Fixes & Session Foundation | 2/2 | Complete    | 2026-03-24 |
 | 108. Drawing Primitives & Text Entry | 2/2 | Complete    | 2026-03-24 |
-| 109. Canvas Operations | 0/1 | Planned | - |
+| 109. Canvas Operations | 1/1 | Complete   | 2026-03-24 |
 | 110. Element Editing | 0/? | Not started | - |
 | 111. Connectors & Arrows | 0/? | Not started | - |
 | 112. Styling & Layout | 0/? | Not started | - |
