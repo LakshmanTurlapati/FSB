@@ -92,13 +92,39 @@ DRAWING PRIMITIVES (per-shape workflows):
 
   COORDINATE CONVENTION: Use 150px horizontal spacing, 120px vertical spacing, and 150x80px default shape size for consistent diagram layouts. Example: first shape at (200, 200), second at (350, 200), third at (500, 200) for a horizontal row.
 
-TEXT ENTRY WORKFLOW (for typing text on Excalidraw canvas):
-  Step 1: Activate text mode -- either press T (standalone text) or double-click a shape via cdpClickAt (in-shape text)
-  Step 2: Wait 300ms for the transient textarea to mount (Excalidraw creates textarea.excalidraw-wysiwyg dynamically)
-  Step 3: Use cdpInsertText to type the text (NOT the type tool -- the textarea is ephemeral and not in DOM snapshots)
-  Step 4: Press Escape via press_key to commit the text and close the textarea
-  IMPORTANT: The textarea auto-focuses on creation. Do NOT try to find or click it. Just wait and use cdpInsertText.
-  IMPORTANT: Never use the type tool for Excalidraw text -- it cannot find the transient textarea reliably.
+TEXT ENTRY WORKFLOW (3 modes):
+
+  MODE 1 -- STANDALONE TEXT LABEL (TEXT-01):
+    Step 1: press_key T to activate text tool
+    Step 2: cdpClickAt(x, y) on the canvas where the text should appear -- this creates a new text element and opens the editor
+    Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
+    Step 4: cdpInsertText "your text here" -- text appears in the textarea
+    Step 5: press_key Escape to commit the text and close the textarea
+    NOTE: After placing text, tool auto-switches to V. Re-press T before placing the next standalone text.
+
+  MODE 2 -- TEXT INSIDE A SHAPE (TEXT-02):
+    Step 1: Double-click the shape center via two rapid cdpClickAt(shapeX, shapeY) calls (50ms apart) -- this opens the in-shape text editor
+    Alternative: Click the shape once via cdpClickAt to select it, then press_key Enter to open the text editor
+    Step 2: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
+    Step 3: cdpInsertText "your label text" -- text appears inside the shape
+    Step 4: press_key Escape to commit the text and close the textarea
+    NOTE: The text will be centered within the shape boundary automatically.
+
+  MODE 3 -- EDIT EXISTING TEXT (TEXT-03):
+    Step 1: Click the text element or shape with text via cdpClickAt(elementX, elementY) to select it
+    Step 2: press_key Enter to re-open the text editor on the selected element
+    Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount -- it will contain the existing text
+    Step 4: Select all existing text: press_key a ctrl=true (Ctrl+A inside the textarea selects textarea content, not canvas elements)
+    Step 5: cdpInsertText "replacement text" -- overwrites the selected text
+    Step 6: press_key Escape to commit the updated text
+    NOTE: To append instead of replace, skip Step 4 and just cdpInsertText the additional text.
+
+  COMMON RULES FOR ALL TEXT MODES:
+    - ALWAYS use cdpInsertText, NEVER use the type tool -- the textarea is transient and not in DOM snapshots
+    - ALWAYS wait 300ms after activating text mode before cdpInsertText
+    - ALWAYS press Escape to commit -- clicking elsewhere may lose the text
+    - For multi-line text, use press_key Enter (without ctrl) between lines within the textarea
+    - The textarea class is excalidraw-wysiwyg -- if you need to verify it mounted, check for this class in DOM
 
 MULTI-SELECT SHAPES:
 Method 1 (recommended): Ctrl+A via press_key with key=a, ctrl=true -- selects ALL shapes on canvas
@@ -152,7 +178,8 @@ PROPERTY PANELS:
     modalClose: '[class*="Modal"] button[aria-label="close"], [class*="Dialog"] .close',
     backgroundColor: '[data-testid="background-color"]',
     strokeColor: '[data-testid="stroke-color"]',
-    layerUI: '.layer-ui__wrapper, [class*="layer-ui"]'
+    layerUI: '.layer-ui__wrapper, [class*="layer-ui"]',
+    textareaWysiwyg: 'textarea.excalidraw-wysiwyg, textarea[data-type="wysiwyg"]'
   },
   workflows: {
     sessionSetup: [
@@ -224,12 +251,36 @@ PROPERTY PANELS:
       'Click align-left or center-horizontally button via DOM click',
       'Verify alignment applied by checking shape positions or visual state'
     ],
+    // Generic text entry workflow (backward compatibility). See textStandalone, textInShape, textEdit for mode-specific workflows.
     textEntry: [
       'Activate text mode: press T for standalone text, or double-click shape center via cdpClickAt for in-shape text',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
       'Type text using cdpInsertText (NOT the type tool)',
       'Press Escape via press_key to commit text and close textarea',
       'Text is now rendered on the canvas'
+    ],
+    textStandalone: [
+      'Press T via press_key to activate text tool',
+      'Click canvas position via cdpClickAt(x, y) to create text element and open editor',
+      'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
+      'Type text using cdpInsertText (NOT the type tool)',
+      'Press Escape via press_key to commit text and close textarea',
+      'Tool auto-switches to V after text placement -- re-press T for next standalone text'
+    ],
+    textInShape: [
+      'Double-click shape center via two rapid cdpClickAt(shapeX, shapeY) calls 50ms apart to open in-shape text editor',
+      'Alternative: click shape once via cdpClickAt to select, then press_key Enter to open text editor',
+      'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
+      'Type label text using cdpInsertText (NOT the type tool)',
+      'Press Escape via press_key to commit text -- text centers within shape boundary automatically'
+    ],
+    textEdit: [
+      'Click text element or shape with text via cdpClickAt to select it',
+      'Press Enter via press_key to re-open text editor on selected element',
+      'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount with existing text',
+      'Select all existing text: press_key(a, ctrl=true) to select textarea content',
+      'Type replacement text using cdpInsertText to overwrite selected text',
+      'Press Escape via press_key to commit updated text'
     ]
   },
   warnings: [
@@ -241,7 +292,8 @@ PROPERTY PANELS:
     'Excalidraw DOM snapshots can be large due to React virtual DOM -- use targeted selectors to minimize token usage',
     'Frame tool (F key) may not be available in all Excalidraw versions -- use large rectangle as fallback',
     'Alignment buttons are standard HTML DOM elements in the toolbar -- use regular click, not CDP events',
-    'ALWAYS run session setup (Escape, Ctrl+A, Delete, Ctrl+0) before any Excalidraw automation -- skipping causes stale content, blocked shortcuts, and coordinate errors'
+    'ALWAYS run session setup (Escape, Ctrl+A, Delete, Ctrl+0) before any Excalidraw automation -- skipping causes stale content, blocked shortcuts, and coordinate errors',
+    'For in-shape text (double-click), ensure the cdpClickAt coordinates target the CENTER of the shape, not an edge -- edge clicks may start a resize or connector instead of opening the text editor'
   ],
   toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'cdpInsertText', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
 });
