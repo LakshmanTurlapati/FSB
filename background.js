@@ -3588,7 +3588,7 @@ function generateRecoveryStrategies(patterns, session) {
 
   // Classify recent tool types for bidirectional recovery (ROBUST-02)
   const recentActions = (session.actionHistory || []).slice(-5);
-  const cdpTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt'];
+  const cdpTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt', 'cdpInsertText'];
   const recentCdpCount = recentActions.filter(a => cdpTools.includes(a.tool)).length;
   const recentDomCount = recentActions.filter(a => a.tool && !cdpTools.includes(a.tool) && a.tool !== 'navigate' && a.tool !== 'done' && a.tool !== 'fail').length;
 
@@ -4907,18 +4907,22 @@ function validateCompletion(session, aiResponse, context) {
   const dynamicPageTypes = ['media', 'gaming'];
   // NOTE: Keep in sync with isCanvasEditorUrl() around line 11074
   const canvasUrl = /tradingview\.com|figma\.com|canva\.com|draw\.io|excalidraw/i;
+  // Canvas EDITORS need more iterations than volatile canvas (charts, games)
+  // because they involve multi-step drawing sequences (shapes + text + connectors)
+  const canvasEditorUrl = /excalidraw|draw\.io|figma\.com/i;
+  const isCanvasEditor = canvasEditorUrl.test(sessionUrl);
   const isDynamicPage = dynamicPageTypes.includes(taskType) ||
     canvasUrl.test(sessionUrl) ||
     taskType === 'general' && session.actionHistory?.some(a =>
-      ['cdpClickAt', 'cdpDrag', 'cdpScrollAt', 'cdpDragVariableSpeed', 'cdpClickAndHold'].includes(a.tool)
+      ['cdpClickAt', 'cdpDrag', 'cdpScrollAt', 'cdpDragVariableSpeed', 'cdpClickAndHold', 'cdpInsertText'].includes(a.tool)
     );
 
   if (isDynamicPage && aiResponse.taskComplete && aiResponse.result?.trim().length >= minLength) {
-    // On dynamic pages, accept AI completion if:
-    // 1. This is a second attempt (consecutiveDoneCount >= 1), OR
-    // 2. The session has run enough iterations to have done meaningful work (>= 3)
+    // Canvas editors (Excalidraw, draw.io) need more iterations for multi-step drawing
+    // Volatile canvas (TradingView charts) can complete faster
+    const minIterations = isCanvasEditor ? 6 : 3;
     const prevDoneCount = session.consecutiveDoneCount || 0;
-    if (prevDoneCount >= 1 || session.iterationCount >= 3) {
+    if (prevDoneCount >= 1 || session.iterationCount >= minIterations) {
       automationLogger.info('Dynamic page fast-path: accepting AI completion', {
         sessionId: session.id,
         taskType,
@@ -10651,7 +10655,7 @@ async function startAutomationLoop(sessionId) {
 
         let actionResult;
 
-        const cdpBackgroundTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt'];
+        const cdpBackgroundTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt', 'cdpInsertText'];
 
         if (multiTabActions.includes(action.tool)) {
           // Handle multi-tab actions directly in background script
@@ -12348,6 +12352,12 @@ async function executeCDPToolDirect(action, tabId) {
           deltaX: p.deltaX || 0, deltaY: p.deltaY || -120
         });
         return { success: true, x: p.x, y: p.y, deltaX: p.deltaX || 0, deltaY: p.deltaY || -120, method: 'cdp_scroll_direct' };
+      }
+
+      case 'cdpInsertText': {
+        const text = p.text || '';
+        await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text });
+        return { success: true, text, length: text.length, method: 'cdp_inserttext_direct' };
       }
 
       default:

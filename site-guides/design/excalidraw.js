@@ -197,11 +197,11 @@ CONNECTORS AND ARROWS:
     Step 1: Click the arrow via cdpClickAt at the arrow midpoint to select it
     Step 2: Double-click the arrow via two rapid cdpClickAt calls 50ms apart at the arrow midpoint, OR press_key Enter after selecting the arrow
     Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
-    Step 4: cdpInsertText "label text" to add the label
+    Step 4: inserttext "label text" to add the label
     Step 5: press_key Escape to commit the text
     NOTE: The label appears centered on the arrow midpoint. It moves with the arrow when endpoints are dragged.
-    NOTE: To edit an existing arrow label, click arrow to select, press Enter, wait 300ms, Ctrl+A to select existing text, cdpInsertText replacement, Escape to commit -- same as TEXT-03 edit workflow.
-    NOTE: Arrow labels use the same transient textarea as shape text -- ALWAYS use cdpInsertText, NEVER the type tool.
+    NOTE: To edit an existing arrow label, click arrow to select, press Enter, wait 300ms, Ctrl+A to select existing text, inserttext replacement, Escape to commit -- same as TEXT-03 edit workflow.
+    NOTE: Arrow labels use the same transient textarea as shape text -- ALWAYS use inserttext, NEVER the type tool.
 
 STYLING (element visual properties):
 
@@ -339,7 +339,7 @@ TEXT ENTRY WORKFLOW (3 modes):
     Step 1: press_key T to activate text tool
     Step 2: cdpClickAt(x, y) on the canvas where the text should appear -- this creates a new text element and opens the editor
     Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
-    Step 4: cdpInsertText "your text here" -- text appears in the textarea
+    Step 4: inserttext "your text here" -- text appears in the textarea
     Step 5: press_key Escape to commit the text and close the textarea
     NOTE: After placing text, tool auto-switches to V. Re-press T before placing the next standalone text.
 
@@ -347,7 +347,7 @@ TEXT ENTRY WORKFLOW (3 modes):
     Step 1: Double-click the shape center via two rapid cdpClickAt(shapeX, shapeY) calls (50ms apart) -- this opens the in-shape text editor
     Alternative: Click the shape once via cdpClickAt to select it, then press_key Enter to open the text editor
     Step 2: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
-    Step 3: cdpInsertText "your label text" -- text appears inside the shape
+    Step 3: inserttext "your label text" -- text appears inside the shape
     Step 4: press_key Escape to commit the text and close the textarea
     NOTE: The text will be centered within the shape boundary automatically.
 
@@ -356,13 +356,13 @@ TEXT ENTRY WORKFLOW (3 modes):
     Step 2: press_key Enter to re-open the text editor on the selected element
     Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount -- it will contain the existing text
     Step 4: Select all existing text: press_key a ctrl=true (Ctrl+A inside the textarea selects textarea content, not canvas elements)
-    Step 5: cdpInsertText "replacement text" -- overwrites the selected text
+    Step 5: inserttext "replacement text" -- overwrites the selected text
     Step 6: press_key Escape to commit the updated text
-    NOTE: To append instead of replace, skip Step 4 and just cdpInsertText the additional text.
+    NOTE: To append instead of replace, skip Step 4 and just inserttext the additional text.
 
   COMMON RULES FOR ALL TEXT MODES:
-    - ALWAYS use cdpInsertText, NEVER use the type tool -- the textarea is transient and not in DOM snapshots
-    - ALWAYS wait 300ms after activating text mode before cdpInsertText
+    - ALWAYS use inserttext, NEVER use the type tool -- the textarea is transient and not in DOM snapshots
+    - ALWAYS wait 300ms after activating text mode before inserttext
     - ALWAYS press Escape to commit -- clicking elsewhere may lose the text
     - For multi-line text, use press_key Enter (without ctrl) between lines within the textarea
     - The textarea class is excalidraw-wysiwyg -- if you need to verify it mounted, check for this class in DOM
@@ -428,8 +428,8 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
     Grid convention: 150px horizontal spacing, 120px vertical spacing, default shape size 150x80px.
     Planning step: AI MUST use # comment lines in its first iteration to plan ALL coordinates before drawing anything.
     Execution sequence: plan layout -> draw shapes -> add text labels -> draw connectors -> (optional) align/style.
-    Every shape MUST get a text label (per NL-05) -- use in-shape text (double-click shape center, wait 300ms, cdpInsertText, Escape) for rectangles/diamonds/ellipses.
-    Every connector MUST get a text label (per NL-05) -- use arrow label workflow (double-click arrow midpoint, wait 300ms, cdpInsertText, Escape).
+    Every shape MUST get a text label (per NL-05) -- use in-shape text (double-click shape center, wait 300ms, inserttext, Escape) for rectangles/diamonds/ellipses.
+    Every connector MUST get a text label (per NL-05) -- use arrow label workflow (double-click arrow midpoint, wait 300ms, inserttext, Escape).
     Cross-reference: see DRAWING PRIMITIVES for shape draw commands, TEXT ENTRY for labeling modes, CONNECTORS AND ARROWS for arrow binding.
 
   FLOWCHART TEMPLATE (NL-01):
@@ -607,7 +607,7 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
     textEntry: [
       'Activate text mode: press T for standalone text, or double-click shape center via cdpClickAt for in-shape text',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
-      'Type text using cdpInsertText (NOT the type tool)',
+      'Type text using inserttext (NOT the type tool)',
       'Press Escape via press_key to commit text and close textarea',
       'Text is now rendered on the canvas'
     ],
@@ -615,7 +615,7 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Press T via press_key to activate text tool',
       'Click canvas position via cdpClickAt(x, y) to create text element and open editor',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
-      'Type text using cdpInsertText (NOT the type tool)',
+      'Type text using inserttext (NOT the type tool)',
       'Press Escape via press_key to commit text and close textarea',
       'Tool auto-switches to V after text placement -- re-press T for next standalone text'
     ],
@@ -623,7 +623,7 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Double-click shape center via two rapid cdpClickAt(shapeX, shapeY) calls 50ms apart to open in-shape text editor',
       'Alternative: click shape once via cdpClickAt to select, then press_key Enter to open text editor',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
-      'Type label text using cdpInsertText (NOT the type tool)',
+      'Type label text using inserttext (NOT the type tool)',
       'Press Escape via press_key to commit text -- text centers within shape boundary automatically'
     ],
     textEdit: [
@@ -631,7 +631,7 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Press Enter via press_key to re-open text editor on selected element',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount with existing text',
       'Select all existing text: press_key(a, ctrl=true) to select textarea content',
-      'Type replacement text using cdpInsertText to overwrite selected text',
+      'Type replacement text using inserttext to overwrite selected text',
       'Press Escape via press_key to commit updated text'
     ],
     undoRedo: [
@@ -746,7 +746,7 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Click arrow via cdpClickAt at arrow midpoint to select it',
       'Double-click arrow via two rapid cdpClickAt calls 50ms apart, or select arrow then press_key Enter',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
-      'Type label using cdpInsertText (NOT the type tool)',
+      'Type label using inserttext (NOT the type tool)',
       'Press Escape via press_key to commit label text',
       'Label appears centered on arrow and moves with it when endpoints change'
     ],
@@ -836,18 +836,18 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Plan layout: use # comments to list all steps, decisions, and branches with (x,y) coordinates using 150px horizontal / 120px vertical grid',
       'Run session setup: Escape, Ctrl+A, Delete, Ctrl+0',
       'Draw all shapes: press R for rectangles, D for diamonds -- cdpDrag each shape at planned coordinates -- re-press tool key before each shape',
-      'Add text labels to each shape: double-click shape center via cdpClickAt, wait 300ms, cdpInsertText label, press Escape',
+      'Add text labels to each shape: double-click shape center via cdpClickAt, wait 300ms, inserttext label, press Escape',
       'Draw arrows between shapes: press A, cdpDrag from source bottom-edge to target top-edge (20 steps, 20ms delay) -- re-press A before each arrow',
-      'Label decision arrows: double-click arrow midpoint, wait 300ms, cdpInsertText Yes or No, press Escape',
+      'Label decision arrows: double-click arrow midpoint, wait 300ms, inserttext Yes or No, press Escape',
       'Zoom to fit: press_key(1, shift=true) to show entire diagram',
       'Verify: count shapes and arrows drawn match the plan -- if missing, draw remaining elements'
     ],
     generateArchitectureDiagram: [
       'Plan layout: use # comments to list all tiers and components with (x,y) coordinates -- tiers left-to-right at 250px spacing, components top-to-bottom at 120px spacing',
       'Run session setup: Escape, Ctrl+A, Delete, Ctrl+0',
-      'Add tier labels: press T, cdpClickAt tier label position, wait 300ms, cdpInsertText tier name, press Escape -- re-press T before each label',
+      'Add tier labels: press T, cdpClickAt tier label position, wait 300ms, inserttext tier name, press Escape -- re-press T before each label',
       'Draw all component shapes: press R, cdpDrag each rectangle at planned coordinates -- re-press R before each shape',
-      'Add text labels to each component: double-click shape center via cdpClickAt, wait 300ms, cdpInsertText component name, press Escape',
+      'Add text labels to each component: double-click shape center via cdpClickAt, wait 300ms, inserttext component name, press Escape',
       'Draw arrows between tiers: press A, cdpDrag from source right-edge to target left-edge (20 steps, 20ms delay) -- re-press A before each arrow',
       'Zoom to fit: press_key(1, shift=true) to show entire diagram',
       'Verify: count shapes, labels, and arrows drawn match the plan -- if missing, draw remaining elements'
@@ -856,9 +856,9 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Plan layout: use # comments to list center topic and all branches with (x,y) coordinates -- center at (600,380), branches extending 200px in cardinal directions',
       'Run session setup: Escape, Ctrl+A, Delete, Ctrl+0',
       'Draw center node: press O (ellipse), cdpDrag at center coordinates',
-      'Label center node: double-click center via cdpClickAt, wait 300ms, cdpInsertText main topic, press Escape',
+      'Label center node: double-click center via cdpClickAt, wait 300ms, inserttext main topic, press Escape',
       'Draw branch nodes: press R, cdpDrag each rectangle at planned branch coordinates -- re-press R before each shape',
-      'Label branch nodes: double-click each branch shape center, wait 300ms, cdpInsertText branch topic, press Escape',
+      'Label branch nodes: double-click each branch shape center, wait 300ms, inserttext branch topic, press Escape',
       'Draw arrows from center to branches: press A, cdpDrag from center edge to branch edge (20 steps, 20ms delay) -- re-press A before each arrow',
       'Zoom to fit: press_key(1, shift=true) to show entire diagram'
     ]
@@ -877,7 +877,7 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
     'Pan (Space+drag) requires holding Space before starting cdpDrag -- releasing Space mid-drag cancels pan mode',
     'Resize and rotate handles are canvas-rendered (not DOM elements) -- use coordinate offsets from the element bounding box center to target them with cdpDrag',
     'Arrow binding requires starting/ending cdpDrag at shape EDGE midpoints, not shape centers -- use edge coordinate formula: right-edge=(x+w, y+h/2), left-edge=(x, y+h/2), top-edge=(x+w/2, y), bottom-edge=(x+w/2, y+h)',
-    'Arrow labels use the same transient textarea as shape text -- double-click or select+Enter to open editor, cdpInsertText to type, Escape to commit',
+    'Arrow labels use the same transient textarea as shape text -- double-click or select+Enter to open editor, inserttext to type, Escape to commit',
     'Stroke color shortcut is S, background color shortcut is G -- do not confuse them. B does NOT open background picker.',
     'Fill pattern must be non-transparent (hachure, cross-hatch, or solid) for background color to be visible',
     'Font property buttons (size, family, alignment) only appear when a text element or shape with text is selected',
@@ -889,5 +889,5 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
     'Ctrl+C copies Excalidraw element data (not a rendered image) -- use Shift+Alt+C for a PNG image on clipboard',
     'Natural language diagrams require planning coordinates BEFORE drawing -- use # comment lines to lay out all positions first, then draw shapes, then label, then connect. Skipping the planning step causes overlapping shapes and missed connections.'
   ],
-  toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'cdpInsertText', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
+  toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'inserttext', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
 });

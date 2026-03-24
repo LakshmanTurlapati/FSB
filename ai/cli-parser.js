@@ -269,6 +269,10 @@ const COMMAND_REGISTRY = {
   scrollat:             { tool: 'cdpScrollAt',          args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
   cdpscrollat:          { tool: 'cdpScrollAt',          args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
 
+  // -- Text insertion (v0.9.9 -- canvas text entry for Excalidraw etc.) --
+  inserttext:           { tool: 'cdpInsertText',        args: [{ name: 'text', type: 'string' }] },
+  cdpinserttext:        { tool: 'cdpInsertText',        args: [{ name: 'text', type: 'string' }] },
+
   // -- Text selection and file tools (v0.9.8 -- tool parity with MCP) --
   selecttextrange:      { tool: 'selectTextRange',      args: [{ name: 'ref', type: 'ref' }, { name: 'startOffset', type: 'number' }, { name: 'endOffset', type: 'number' }] },
   dropfile:             { tool: 'dropfile',             args: [{ name: 'ref', type: 'ref' }, { name: 'fileName', type: 'string', optional: true }, { name: 'fileContent', type: 'string', optional: true }, { name: 'mimeType', type: 'string', optional: true }] },

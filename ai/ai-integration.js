@@ -140,6 +140,7 @@ CDP COORDINATE TOOLS (for canvas, maps, non-DOM elements -- use viewport pixel c
 | drag | startX startY endX endY [--steps n] [--delay ms] | CDP drag between coordinates | drag 100 200 500 200 --steps 15 --delay 30 |
 | dragvariablespeed | startX startY endX endY [--steps n] [--mindelay ms] [--maxdelay ms] | CDP drag with speed variation | dragvariablespeed 100 200 500 200 --steps 20 --mindelay 5 --maxdelay 40 |
 | scrollat | x y [--dx pixels] [--dy pixels] | CDP scroll at specific coordinates | scrollat 400 300 --dy -120 |
+| inserttext | "text" | CDP direct text insertion into focused element (canvas editors, contenteditable) | inserttext "Hello World" |
 
 TEXT SELECTION & FILE TOOLS:
 | Verb | Args | Description | Example |
@@ -2741,11 +2742,18 @@ ${this._buildTaskGuidance(taskType, siteGuide, currentUrl, task)}`;
       }
 
       // Build site-specific scenario context from site guide guidance
+      // Canvas editors (Excalidraw, etc.) need more context on continuation to retain
+      // text entry workflows, connector patterns, and styling instructions
       let siteScenarios = '';
       if (siteGuide && siteGuide.guidance) {
+        const isCanvasGuide = siteGuide.toolPreferences?.includes('inserttext') ||
+          siteGuide.toolPreferences?.includes('cdpInsertText') ||
+          siteGuide.toolPreferences?.includes('cdpDrag') ||
+          (typeof siteGuide.guidance === 'string' && siteGuide.guidance.includes('DRAWING PRIMITIVES'));
+        const guidanceLimit = isCanvasGuide ? 3000 : 500;
         const guidanceText = typeof siteGuide.guidance === 'string'
-          ? siteGuide.guidance.substring(0, 500)
-          : (siteGuide.guidance.key_patterns || siteGuide.guidance.warnings || '').substring(0, 500);
+          ? siteGuide.guidance.substring(0, guidanceLimit)
+          : (siteGuide.guidance.key_patterns || siteGuide.guidance.warnings || '').substring(0, guidanceLimit);
         if (guidanceText) {
           siteScenarios = `\nSITE CONTEXT (${siteGuide.site || siteGuide.name || 'current site'}):\n${guidanceText}`;
         }
@@ -4459,6 +4467,9 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       // CDP coordinate tools (v0.9.8 -- tool parity with MCP)
       'cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt',
 
+      // CDP text insertion (v0.9.9 -- canvas text entry)
+      'cdpInsertText',
+
       // Text selection and file tools (v0.9.8 -- tool parity with MCP)
       'selectTextRange', 'dropfile'
     ].includes(tool);
@@ -4897,7 +4908,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
     switch (taskType) {
       case 'canvas':
         priorityBlock = `PRIORITY TOOLS for this canvas/drawing task:
-PREFER CDP coordinate tools (clickat, drag, scrollat, clickandhold, dragvariablespeed). Canvas elements have no DOM refs -- always use viewport coordinates from element position data. Use DOM tools (click, type) only for non-canvas UI elements like toolbars and menus.
+PREFER CDP coordinate tools (clickat, drag, scrollat, clickandhold, dragvariablespeed, inserttext). Canvas elements have no DOM refs -- always use viewport coordinates from element position data. For TEXT on canvas editors (Excalidraw, Google Docs): use inserttext "text" to type into the focused editor element -- do NOT use the type tool which fails on canvas textareas. Use DOM tools (click, type) only for non-canvas UI elements like toolbars and menus.
 `;
         break;
       case 'form':
