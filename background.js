@@ -7238,6 +7238,7 @@ async function executeBatchActions(batchActions, session, tabId) {
   const multiTabActions = ['openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab'];
   const backgroundDataTools = ['storeJobData', 'getStoredJobs', 'fillSheetData'];
   const navigationTools = ['navigate', 'searchGoogle', 'goBack', 'goForward'];
+  const cdpBackgroundTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt', 'cdpInsertText'];
 
   automationLogger.info('Starting AI-declared batch execution', {
     sessionId,
@@ -7256,6 +7257,9 @@ async function executeBatchActions(batchActions, session, tabId) {
         actionResult = await handleMultiTabAction(action, tabId);
       } else if (backgroundDataTools.includes(action.tool)) {
         actionResult = await handleBackgroundAction(action, session);
+      } else if (cdpBackgroundTools.includes(action.tool)) {
+        // Route CDP tools directly -- bypass content script round-trip (Phase 104 fix)
+        actionResult = await executeCDPToolDirect(action, tabId);
       } else {
         actionResult = await sendMessageWithRetry(tabId, {
           action: 'executeAction',
