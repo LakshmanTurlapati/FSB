@@ -59,6 +59,8 @@ KEYBOARD SHORTCUTS (preferred over toolbar clicks):
   Ctrl+- = Zoom out
   Ctrl+0 = Reset zoom to 100%
   Shift+1 = Zoom to fit all content
+  Shift+Alt+C = Copy canvas as PNG to clipboard
+  Ctrl+C = Copy selected elements (Excalidraw format)
 
 CANVAS OPERATIONS (keyboard shortcuts):
 
@@ -392,7 +394,31 @@ PROPERTY PANELS:
 - When shapes are selected, a left panel shows style properties (color, stroke, fill, opacity)
 - Background color picker: [data-testid="background-color"]
 - Stroke color picker: [data-testid="stroke-color"]
-- Stroke width options and style options appear as button groups`,
+- Stroke width options and style options appear as button groups
+
+EXPORT (EXPORT-01, EXPORT-02, EXPORT-03):
+
+  PNG TO CLIPBOARD (EXPORT-01):
+    press_key c shift=true alt=true (Shift+Alt+C) -- copies entire canvas as PNG image to clipboard
+    NOTE: This is the fastest and most reliable export method -- zero DOM interaction, no dialogs.
+    NOTE: Works on entire canvas content (all elements). Select specific elements first if you want partial export.
+    NOTE: After copying, the user can paste (Ctrl+V) into any application that accepts images.
+
+  SVG EXPORT (EXPORT-02):
+    Step 1: Open export dialog via hamburger menu -- click the menu button (top-left, [class*="menu"], [aria-label="Menu"]) or find the export option
+    Step 2: Click "Export image" or similar option in the dropdown menu
+    Step 3: In the export dialog, find format selection -- look for SVG radio/button ([data-testid*="svg"], [aria-label*="SVG"])
+    Step 4: Click the SVG format option to switch from PNG to SVG
+    Step 5: Click the "Export" or "Download" button to download the SVG file
+    Step 6: Press Escape to close the export dialog
+    NOTE: SVG export requires menu navigation -- no keyboard shortcut exists for direct SVG download.
+    NOTE: The export dialog may also offer options for background color and dark mode.
+
+  CLIPBOARD COPY (EXPORT-03):
+    Step 1: Select elements to copy -- press_key(a, ctrl=true) for all, or cdpClickAt on a specific element
+    Step 2: press_key c ctrl=true (Ctrl+C) -- copies selected elements to clipboard in Excalidraw format
+    NOTE: Ctrl+C copies the Excalidraw element data, not a rendered image. Pasting (Ctrl+V) works within Excalidraw or another Excalidraw instance.
+    NOTE: For image clipboard (PNG), use Shift+Alt+C instead (EXPORT-01 above).`,
   selectors: {
     canvas: 'canvas.interactive, canvas[class*="interactive"]',
     toolbar: '.App-toolbar, [class*="toolbar"], .Island',
@@ -441,7 +467,11 @@ PROPERTY PANELS:
     fontFamilyCascadia: '[data-testid="font-family-cascadia"], [data-testid="font-family-code"]',
     textAlignLeft: '[data-testid="text-align-left"], [aria-label*="Align text left"]',
     textAlignCenter: '[data-testid="text-align-center"], [aria-label*="Align text center"]',
-    textAlignRight: '[data-testid="text-align-right"], [aria-label*="Align text right"]'
+    textAlignRight: '[data-testid="text-align-right"], [aria-label*="Align text right"]',
+    exportMenuButton: '[class*="menu"], [aria-label="Menu"], button[class*="hamburger"]',
+    exportDialog: '[class*="ExportDialog"], [data-testid*="export"]',
+    exportSvgOption: '[data-testid*="svg"], [aria-label*="SVG"]',
+    exportDownload: '[data-testid*="export-button"], button[aria-label*="Export"]'
   },
   workflows: {
     sessionSetup: [
@@ -724,6 +754,23 @@ PROPERTY PANELS:
       'Send backward one layer: press_key([, ctrl=true) -- Ctrl+[',
       'Bring to front: press_key(], ctrl=true, shift=true) -- Ctrl+Shift+]',
       'Send to back: press_key([, ctrl=true, shift=true) -- Ctrl+Shift+['
+    ],
+    exportPngToClipboard: [
+      'Select elements to export (Ctrl+A for all, or click specific elements) -- unselected elements are still included in full canvas export',
+      'Press Shift+Alt+C via press_key(c, shift=true, alt=true) to copy canvas as PNG to clipboard',
+      'PNG image is now on clipboard -- user can paste into any image-accepting application'
+    ],
+    exportSvg: [
+      'Click hamburger menu button (top-left area) -- look for [class*="menu"], [aria-label="Menu"], or the three-line icon',
+      'Click "Export image" option in dropdown menu',
+      'In export dialog, find and click SVG format button -- [data-testid*="svg"], [aria-label*="SVG"], or button with "SVG" text',
+      'Click "Export" or "Download" button to save SVG file',
+      'Press Escape via press_key to close export dialog'
+    ],
+    copyToClipboard: [
+      'Select elements to copy: press_key(a, ctrl=true) for all, or cdpClickAt on specific elements',
+      'Press Ctrl+C via press_key(c, ctrl=true) to copy selected elements in Excalidraw format',
+      'Elements are on clipboard -- paste with Ctrl+V in same or different Excalidraw instance'
     ]
   },
   warnings: [
@@ -746,7 +793,10 @@ PROPERTY PANELS:
     'Font property buttons (size, family, alignment) only appear when a text element or shape with text is selected',
     'Layer ordering shortcuts use bracket keys: Ctrl+] forward, Ctrl+[ backward, add Shift for front/back',
     'Distribute requires 3+ elements selected -- with only 2 elements the distribute buttons do not appear',
-    'Alignment and distribute buttons are standard DOM elements in the toolbar -- use regular click tool, not CDP events'
+    'Alignment and distribute buttons are standard DOM elements in the toolbar -- use regular click tool, not CDP events',
+    'Shift+Alt+C (PNG to clipboard) exports the entire visible canvas -- not just selected elements',
+    'SVG export requires navigating the hamburger menu and export dialog -- there is no keyboard-only shortcut for SVG download',
+    'Ctrl+C copies Excalidraw element data (not a rendered image) -- use Shift+Alt+C for a PNG image on clipboard'
   ],
   toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'cdpInsertText', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
 });
