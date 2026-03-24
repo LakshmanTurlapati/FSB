@@ -52,6 +52,9 @@ KEYBOARD SHORTCUTS (preferred over toolbar clicks):
   Escape = Deselect / cancel current tool
   Ctrl+Z = Undo last action
   Ctrl+Y = Redo (or Ctrl+Shift+Z)
+  Ctrl+Shift+G = Ungroup selected elements
+  Ctrl+Alt+C = Copy style from selected element
+  Ctrl+Alt+V = Paste style onto selected element
   Ctrl+= = Zoom in
   Ctrl+- = Zoom out
   Ctrl+0 = Reset zoom to 100%
@@ -94,6 +97,67 @@ CANVAS OPERATIONS (keyboard shortcuts):
   SELECT ALL (CANVAS-05):
     press_key a ctrl=true (Ctrl+A) to select all elements on the canvas.
     After select-all, shapes show combined selection handles (resize corners around the group).
+
+ELEMENT EDITING (keyboard shortcuts + cdpDrag):
+
+    SELECT AND MOVE (EDIT-01):
+      Step 1: press_key V (or 1) to activate selection tool
+      Step 2: cdpClickAt(elementX, elementY) to select the element -- selection handles appear around it
+      Step 3: cdpDrag(elementX, elementY, newX, newY, steps=15, stepDelayMs=15) to move the element to new position
+      NOTE: For multi-select before move, use Ctrl+click (click_at with ctrl=true) or rubber-band drag with V tool.
+      NOTE: Moving snaps to grid when grid is visible. Hold Alt during drag to disable snapping.
+
+    DELETE ELEMENT (EDIT-02):
+      Step 1: cdpClickAt(elementX, elementY) to select the element
+      Step 2: press_key Delete to delete the selected element
+      Alternative: press_key Backspace also works but Delete is more reliable
+      NOTE: For bulk delete, Ctrl+A then Delete clears everything (same as clearCanvas workflow).
+
+    DUPLICATE ELEMENT (EDIT-03):
+      Step 1: cdpClickAt(elementX, elementY) to select the element
+      Step 2: press_key d ctrl=true (Ctrl+D) to duplicate -- clone appears offset ~10px right and down
+      Alternative: Alt+drag to duplicate and place in one motion -- hold Alt, then cdpDrag from element to destination
+      NOTE: Duplicate preserves all styles, text, and properties of the original.
+
+    RESIZE ELEMENT (EDIT-04):
+      Step 1: cdpClickAt(elementX, elementY) to select the element -- 8 resize handles appear at corners and midpoints
+      Step 2: Identify the resize handle position. Handles are at the element bounding box corners and edge midpoints.
+        - Bottom-right corner handle is at approximately (elementX + width/2, elementY + height/2) relative to element center
+        - Top-left corner handle is at approximately (elementX - width/2, elementY - height/2)
+      Step 3: cdpDrag(handleX, handleY, newHandleX, newHandleY, steps=10, stepDelayMs=15) from the handle to the desired new position
+      NOTE: Corner handles resize proportionally. Edge midpoint handles resize in one dimension only.
+      NOTE: Hold Shift during resize to maintain aspect ratio. Hold Alt to resize from center.
+
+    ROTATE ELEMENT (EDIT-05):
+      Step 1: cdpClickAt(elementX, elementY) to select the element
+      Step 2: The rotation handle appears as a small circle above the top edge of the selection box, approximately 20-25px above the top-center
+      Step 3: cdpDrag(rotateHandleX, rotateHandleY, targetX, targetY, steps=15, stepDelayMs=15) in a circular arc to rotate
+      NOTE: Rotation handle position is approximately (elementCenterX, elementTop - 25). Drag clockwise to rotate clockwise.
+      NOTE: Hold Shift while dragging to snap rotation to 15-degree increments.
+
+    GROUP ELEMENTS (EDIT-06):
+      Step 1: Multi-select elements via Ctrl+A (all) or shift+cdpClickAt on each element, or rubber-band selection with V tool
+      Step 2: press_key g ctrl=true (Ctrl+G) to group selected elements -- they now move/scale as a unit
+      UNGROUP: select the group, then press_key g ctrl=true shift=true (Ctrl+Shift+G) to ungroup
+      NOTE: Grouped elements share selection handles. Double-click a group to enter it and select individual elements.
+      NOTE: Groups can be nested (group of groups).
+
+    LOCK ELEMENT (EDIT-07):
+      Step 1: cdpClickAt(elementX, elementY) to select the element
+      Step 2: Right-click the element to open context menu (or look for lock icon in the properties toolbar)
+      Step 3: Click the "Lock" option in context menu, or click the lock icon button in the toolbar
+      Alternative keyboard shortcut: There is no dedicated keyboard shortcut for lock in default Excalidraw -- use context menu
+      UNLOCK: Select locked element, right-click, choose "Unlock" from context menu
+      NOTE: Locked elements cannot be moved, resized, or rotated. They can still be selected and deleted.
+      NOTE: Lock icon selector: look for [aria-label*="Lock"] or [data-testid*="lock"] in toolbar/context menu.
+
+    COPY/PASTE STYLE (EDIT-08):
+      Step 1: cdpClickAt(sourceX, sourceY) to select the source element (the one whose style you want to copy)
+      Step 2: press_key c ctrl=true alt=true (Ctrl+Alt+C) to copy style from the selected element
+      Step 3: cdpClickAt(targetX, targetY) to select the target element (the one to apply the style to)
+      Step 4: press_key v ctrl=true alt=true (Ctrl+Alt+V) to paste style onto the target element
+      NOTE: Style includes stroke color, fill color, stroke width, stroke style, fill pattern, opacity, font properties.
+      NOTE: Copy/paste style works across different shape types (e.g., copy rectangle style to ellipse).
 
 CANVAS ELEMENT:
 - The main drawing canvas is rendered as an HTML5 <canvas> element
@@ -361,6 +425,55 @@ PROPERTY PANELS:
       'Select all elements: press_key(a, ctrl=true) -- Ctrl+A',
       'All shapes show combined selection handles (resize corners around group)',
       'Use for bulk operations: delete, move, align, group, duplicate'
+    ],
+    selectAndMove: [
+      'Press V via press_key to activate selection tool',
+      'Click element via cdpClickAt(elementX, elementY) to select it -- selection handles appear',
+      'Drag element to new position via cdpDrag(elementX, elementY, newX, newY, steps=15, stepDelayMs=15)',
+      'For multi-select: use Ctrl+A (all) or shift+cdpClickAt on each element before dragging'
+    ],
+    deleteElement: [
+      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Press Delete via press_key to delete the selected element',
+      'For bulk delete: press_key(a, ctrl=true) then press_key Delete'
+    ],
+    duplicateElement: [
+      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Press Ctrl+D via press_key(d, ctrl=true) to duplicate -- clone appears offset ~10px right and down',
+      'Alternative: Alt+drag to duplicate and position in one motion'
+    ],
+    resizeElement: [
+      'Click element via cdpClickAt(elementX, elementY) to select it -- 8 resize handles appear',
+      'Identify target resize handle at corner or edge midpoint of selection box',
+      'Drag handle via cdpDrag(handleX, handleY, newHandleX, newHandleY, steps=10, stepDelayMs=15)',
+      'Corner handles resize proportionally; edge handles resize one dimension only',
+      'Hold Shift to maintain aspect ratio; hold Alt to resize from center'
+    ],
+    rotateElement: [
+      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Rotation handle is a small circle ~25px above the top-center of the selection box',
+      'Drag rotation handle via cdpDrag(handleX, handleY, targetX, targetY, steps=15, stepDelayMs=15) in circular arc',
+      'Hold Shift to snap rotation to 15-degree increments'
+    ],
+    groupElements: [
+      'Multi-select elements: Ctrl+A (all) or shift+cdpClickAt on each, or rubber-band with V tool',
+      'Press Ctrl+G via press_key(g, ctrl=true) to group -- elements move/scale as a unit',
+      'To ungroup: select group, press Ctrl+Shift+G via press_key(g, ctrl=true, shift=true)',
+      'Double-click a group to enter it and select individual elements inside'
+    ],
+    lockElement: [
+      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Right-click element to open context menu or find lock icon in properties toolbar',
+      'Click Lock option in context menu or lock icon button',
+      'To unlock: select locked element, right-click, choose Unlock',
+      'Locked elements cannot be moved, resized, or rotated but can be selected and deleted'
+    ],
+    copyPasteStyle: [
+      'Click source element via cdpClickAt(sourceX, sourceY) to select it',
+      'Copy style: press_key(c, ctrl=true, alt=true) -- Ctrl+Alt+C',
+      'Click target element via cdpClickAt(targetX, targetY) to select it',
+      'Paste style: press_key(v, ctrl=true, alt=true) -- Ctrl+Alt+V',
+      'Copies stroke color, fill, width, style, opacity, and font properties'
     ]
   },
   warnings: [
@@ -374,7 +487,8 @@ PROPERTY PANELS:
     'Alignment buttons are standard HTML DOM elements in the toolbar -- use regular click, not CDP events',
     'ALWAYS run session setup (Escape, Ctrl+A, Delete, Ctrl+0) before any Excalidraw automation -- skipping causes stale content, blocked shortcuts, and coordinate errors',
     'For in-shape text (double-click), ensure the cdpClickAt coordinates target the CENTER of the shape, not an edge -- edge clicks may start a resize or connector instead of opening the text editor',
-    'Pan (Space+drag) requires holding Space before starting cdpDrag -- releasing Space mid-drag cancels pan mode'
+    'Pan (Space+drag) requires holding Space before starting cdpDrag -- releasing Space mid-drag cancels pan mode',
+    'Resize and rotate handles are canvas-rendered (not DOM elements) -- use coordinate offsets from the element bounding box center to target them with cdpDrag'
   ],
   toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'cdpInsertText', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
 });
