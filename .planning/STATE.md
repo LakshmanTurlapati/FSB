@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: unknown
-stopped_at: Completed 114-01-PLAN.md
-last_updated: "2026-03-24T07:57:08.184Z"
+stopped_at: Completed 105-01-PLAN.md
+last_updated: "2026-03-24T08:59:42.200Z"
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 114 — Natural Language Diagrams
+**Current focus:** Phase 105 — package-distribution
 
 ## Current Position
 
-Phase: 114 (Natural Language Diagrams) — EXECUTING
-Plan: 1 of 1
+Phase: 105 (package-distribution) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Plan: 1 of 1
 | Phase 112 P01 | 2min | 1 tasks | 1 files |
 | Phase 113 P01 | 2min | 1 tasks | 1 files |
 | Phase 114 P01 | 2min | 1 tasks | 1 files |
+| Phase 105 P01 | 1min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,7 @@ Recent decisions affecting current work:
 - [Phase 112]: Color pickers opened via keyboard shortcuts S (stroke) and G (background), DOM clicks for property panel buttons
 - [Phase 113]: Shift+Alt+C is the primary PNG export (zero DOM interaction), SVG uses menu navigation, Ctrl+C copies element data not rendered image
 - [Phase 114]: Coordinate templates use concrete pixel values for direct AI follow-through without calculation
+- [Phase 105]: Version 0.1.0 signals beta status; files whitelist + .npmignore for defense-in-depth publish filtering
 
 ### Roadmap Evolution
 
@@ -99,6 +101,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T07:57:08.182Z
-Stopped at: Completed 114-01-PLAN.md
+Last session: 2026-03-24T08:59:42.198Z
+Stopped at: Completed 105-01-PLAN.md
 Resume file: None

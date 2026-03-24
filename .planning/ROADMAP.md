@@ -39,7 +39,7 @@
   5. `npx -y fsb-mcp-server` downloads and starts the MCP server on a clean machine
 **Plans**: 2 plans
 Plans:
-- [ ] 105-01-PLAN.md -- Package metadata, files whitelist, .npmignore, and prepublishOnly script
+- [x] 105-01-PLAN.md -- Package metadata, files whitelist, .npmignore, and prepublishOnly script
 - [ ] 105-02-PLAN.md -- GitHub Actions publish workflow and end-to-end local verification
 
 ### Phase 106: Documentation
@@ -200,5 +200,5 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 105. Package & Distribution | 0/2 | Not started | - |
+| 105. Package & Distribution | 1/2 | In Progress|  |
 | 106. Documentation | 0/? | Not started | - |
