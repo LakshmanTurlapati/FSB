@@ -75,9 +75,22 @@ FRAME TOOL:
 DRAWING SHAPES ON CANVAS:
 - Activate the tool via keyboard shortcut (e.g., press R for rectangle)
 - Draw the shape by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15)
-- Minimum drag distance should be 30+ pixels for Excalidraw to register as a shape (not a click)
+- Minimum drag distance should be 50+ pixels for Excalidraw to register as a shape (not a click)
 - After drawing, Excalidraw auto-switches back to selection tool (V) -- re-press R before each rectangle
 - Shapes appear as DOM-accessible SVG-like objects tracked by Excalidraw internal state
+
+DRAWING PRIMITIVES (per-shape workflows):
+  RECTANGLE (DRAW-01): press_key R, then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press R before next rectangle.
+  ELLIPSE (DRAW-02): press_key O, then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press O before next ellipse.
+  DIAMOND (DRAW-03): press_key D, then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press D before next diamond.
+  LINE (DRAW-04): press_key L, then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag. Tool auto-switches to V after draw -- re-press L before next line.
+  ARROW (DRAW-05): press_key A, then cdpDrag(startX, startY, endX, endY, steps=20, stepDelayMs=20). Use 20+ steps for reliable arrow binding to shapes. Min 50px drag. Tool auto-switches to V after draw -- re-press A before next arrow.
+  FREEDRAW (DRAW-06): press_key P, then cdpDrag(startX, startY, endX, endY, steps=30, stepDelayMs=10). Use 30+ steps for smooth freehand stroke. Tool auto-switches to V after draw -- re-press P before next stroke.
+  FRAME (DRAW-07): press_key F, then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Frames act as named containers for shapes inside them. Double-click frame label to rename. Tool auto-switches to V after draw -- re-press F before next frame.
+
+  CRITICAL RULE: Excalidraw auto-switches to selection tool (V) after EVERY shape draw. You MUST re-press the tool key (R, O, D, L, A, P, F) before each subsequent shape. Without re-pressing, cdpDrag creates a selection box instead of a shape. CDP reports success either way so the error is silent.
+
+  COORDINATE CONVENTION: Use 150px horizontal spacing, 120px vertical spacing, and 150x80px default shape size for consistent diagram layouts. Example: first shape at (200, 200), second at (350, 200), third at (500, 200) for a horizontal row.
 
 TEXT ENTRY WORKFLOW (for typing text on Excalidraw canvas):
   Step 1: Activate text mode -- either press T (standalone text) or double-click a shape via cdpClickAt (in-shape text)
@@ -150,20 +163,46 @@ PROPERTY PANELS:
       'Canvas is now clean and ready for drawing'
     ],
     createFrame: [
-      'Dismiss any welcome dialog or modal (press Escape or click outside)',
-      'Press F key via press_key to activate frame tool',
-      'If frame tool not available, press R for rectangle as fallback frame',
-      'Get canvas bounding rect via getBoundingClientRect for viewport coordinates',
-      'Draw frame by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15)',
-      'Frame appears as a labeled container on the canvas',
-      'Verify frame creation via get_dom_snapshot or visual confirmation'
+      'Press F via press_key to activate frame tool',
+      'Draw frame by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press F before drawing the next frame',
+      'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawRectangle: [
-      'Press R key via press_key to activate rectangle tool',
-      'Draw rectangle by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15)',
-      'Ensure drag distance is at least 30px in both axes for reliable shape creation',
-      'After drawing, tool auto-switches to selection -- press R again before next rectangle',
-      'Repeat for each additional rectangle'
+      'Press R via press_key to activate rectangle tool',
+      'Draw rectangle by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press R before drawing the next rectangle',
+      'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
+    ],
+    drawEllipse: [
+      'Press O via press_key to activate ellipse tool',
+      'Draw ellipse by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press O before drawing the next ellipse',
+      'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
+    ],
+    drawDiamond: [
+      'Press D via press_key to activate diamond tool',
+      'Draw diamond by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press D before drawing the next diamond',
+      'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
+    ],
+    drawLine: [
+      'Press L via press_key to activate line tool',
+      'Draw line by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag',
+      'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press L before drawing the next line',
+      'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
+    ],
+    drawArrow: [
+      'Press A via press_key to activate arrow tool',
+      'Draw arrow by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=20, stepDelayMs=20) -- minimum 50px drag, use 20+ steps for reliable arrow binding to shapes',
+      'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press A before drawing the next arrow',
+      'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
+    ],
+    drawFreedraw: [
+      'Press P via press_key to activate freedraw (pencil) tool',
+      'Draw freehand stroke by dragging on canvas: cdpDrag(startX, startY, endX, endY, steps=30, stepDelayMs=10) -- use 30+ steps for smooth freehand stroke',
+      'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press P before drawing the next stroke',
+      'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     alignShapes: [
       'Multi-select all shapes: press_key(a, ctrl=true) for Ctrl+A to select all',
@@ -196,7 +235,7 @@ PROPERTY PANELS:
   warnings: [
     'Excalidraw canvas requires CDP trusted events (cdpClickAt/cdpDrag) -- content script events are untrusted and ignored',
     'After drawing each shape, Excalidraw auto-switches to selection tool -- re-press the tool shortcut (R, F, etc.) before next draw',
-    'Minimum drag distance of 30px needed for Excalidraw to register as a shape draw (not a click)',
+    'Minimum drag distance of 50px in both axes needed for Excalidraw to register as a shape draw (not a click) -- research verified this threshold',
     'Use 15+ intermediate steps in cdpDrag with 15ms delay for smooth and reliable shape rendering',
     'Ctrl+A selects ALL shapes including the frame -- if only specific shapes are needed, use shift+click instead',
     'Excalidraw DOM snapshots can be large due to React virtual DOM -- use targeted selectors to minimize token usage',
