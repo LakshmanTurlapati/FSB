@@ -50,6 +50,50 @@ KEYBOARD SHORTCUTS (preferred over toolbar clicks):
   Ctrl+G = Group selected elements
   Delete/Backspace = Delete selected element(s)
   Escape = Deselect / cancel current tool
+  Ctrl+Z = Undo last action
+  Ctrl+Y = Redo (or Ctrl+Shift+Z)
+  Ctrl+= = Zoom in
+  Ctrl+- = Zoom out
+  Ctrl+0 = Reset zoom to 100%
+  Shift+1 = Zoom to fit all content
+
+CANVAS OPERATIONS (keyboard shortcuts):
+
+  UNDO / REDO (CANVAS-01):
+    Undo: press_key z ctrl=true (Ctrl+Z)
+    Redo: press_key y ctrl=true (Ctrl+Y)
+    Alternative redo: press_key z ctrl=true shift=true (Ctrl+Shift+Z)
+    NOTE: Undo/redo operate on the Excalidraw internal history stack -- works for draws, deletes, moves, style changes.
+
+  CLEAR CANVAS (CANVAS-02):
+    Step 1: press_key a ctrl=true (Ctrl+A) to select all elements
+    Step 2: press_key Delete to delete all selected elements
+    NOTE: Use Delete not Backspace -- Delete is more reliable on Excalidraw. This is the same sequence as session setup steps 2-3.
+
+  ZOOM IN (CANVAS-03):
+    press_key = ctrl=true (Ctrl+=) to zoom in one step
+    Repeat for additional zoom levels.
+
+  ZOOM OUT (CANVAS-03):
+    press_key - ctrl=true (Ctrl+-) to zoom out one step
+    Repeat for additional zoom levels.
+
+  ZOOM RESET (CANVAS-03):
+    press_key 0 ctrl=true (Ctrl+0) to reset zoom to 100%.
+
+  ZOOM TO FIT (CANVAS-06):
+    press_key 1 shift=true (Shift+1) to zoom and pan so all elements fit in the viewport.
+    NOTE: Only useful when elements exist on canvas. On empty canvas this is a no-op.
+
+  PAN CANVAS (CANVAS-04):
+    Hold Space then cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15) to pan the viewport.
+    Implementation: press_key Space (keyDown only, do not release), then cdpDrag to pan, then release Space.
+    Alternative: Use scroll wheel -- scroll(deltaX, deltaY) on the canvas element pans when not over a shape.
+    NOTE: Panning shifts the viewport without moving elements. Coordinates in subsequent actions are viewport-relative.
+
+  SELECT ALL (CANVAS-05):
+    press_key a ctrl=true (Ctrl+A) to select all elements on the canvas.
+    After select-all, shapes show combined selection handles (resize corners around the group).
 
 CANVAS ELEMENT:
 - The main drawing canvas is rendered as an HTML5 <canvas> element
@@ -281,6 +325,42 @@ PROPERTY PANELS:
       'Select all existing text: press_key(a, ctrl=true) to select textarea content',
       'Type replacement text using cdpInsertText to overwrite selected text',
       'Press Escape via press_key to commit updated text'
+    ],
+    undoRedo: [
+      'Undo last action: press_key(z, ctrl=true) -- Ctrl+Z',
+      'Redo undone action: press_key(y, ctrl=true) -- Ctrl+Y',
+      'Alternative redo: press_key(z, ctrl=true, shift=true) -- Ctrl+Shift+Z',
+      'Repeat as needed -- undo/redo operate on Excalidraw internal history stack'
+    ],
+    clearCanvas: [
+      'Select all elements: press_key(a, ctrl=true) -- Ctrl+A',
+      'Delete all selected: press_key Delete -- use Delete not Backspace for reliability',
+      'Canvas is now empty and ready for new content'
+    ],
+    zoomIn: [
+      'Zoom in one step: press_key(=, ctrl=true) -- Ctrl+=',
+      'Repeat press_key(=, ctrl=true) for additional zoom levels'
+    ],
+    zoomOut: [
+      'Zoom out one step: press_key(-, ctrl=true) -- Ctrl+-',
+      'Repeat press_key(-, ctrl=true) for additional zoom levels'
+    ],
+    zoomReset: [
+      'Reset zoom to 100%: press_key(0, ctrl=true) -- Ctrl+0'
+    ],
+    zoomToFit: [
+      'Zoom to fit all content: press_key(1, shift=true) -- Shift+1',
+      'Viewport adjusts to show all elements -- no-op on empty canvas'
+    ],
+    panCanvas: [
+      'Hold Space key then drag to pan: press_key Space (hold), cdpDrag(startX, startY, endX, endY, steps=15, stepDelayMs=15), release Space',
+      'Alternative: scroll on canvas element to pan viewport',
+      'Panning shifts viewport without moving elements -- subsequent coordinates are viewport-relative'
+    ],
+    selectAll: [
+      'Select all elements: press_key(a, ctrl=true) -- Ctrl+A',
+      'All shapes show combined selection handles (resize corners around group)',
+      'Use for bulk operations: delete, move, align, group, duplicate'
     ]
   },
   warnings: [
@@ -293,7 +373,8 @@ PROPERTY PANELS:
     'Frame tool (F key) may not be available in all Excalidraw versions -- use large rectangle as fallback',
     'Alignment buttons are standard HTML DOM elements in the toolbar -- use regular click, not CDP events',
     'ALWAYS run session setup (Escape, Ctrl+A, Delete, Ctrl+0) before any Excalidraw automation -- skipping causes stale content, blocked shortcuts, and coordinate errors',
-    'For in-shape text (double-click), ensure the cdpClickAt coordinates target the CENTER of the shape, not an edge -- edge clicks may start a resize or connector instead of opening the text editor'
+    'For in-shape text (double-click), ensure the cdpClickAt coordinates target the CENTER of the shape, not an edge -- edge clicks may start a resize or connector instead of opening the text editor',
+    'Pan (Space+drag) requires holding Space before starting cdpDrag -- releasing Space mid-drag cancels pan mode'
   ],
   toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'cdpInsertText', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
 });
