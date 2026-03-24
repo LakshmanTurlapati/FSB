@@ -114,10 +114,14 @@ Plans:
   3. User can ask FSB to zoom in, zoom out, reset zoom, and zoom to fit content
   4. User can ask FSB to pan the canvas and the viewport shifts
   5. User can ask FSB to select all elements and every element on canvas becomes selected
-**Plans**: 2 plans
+**Plans**: 1 plan
 Plans:
-- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
-- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
+- [ ] 109-01-PLAN.md -- Add canvas operations guidance and workflows to Excalidraw site guide
+
+
+
+
+
 
 ### Phase 110: Element Editing
 **Goal**: Users can manipulate existing elements on the Excalidraw canvas -- select, move, resize, rotate, duplicate, delete, group, lock, copy style
@@ -198,8 +202,8 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 107. Engine Fixes & Session Foundation | 2/2 | Complete    | 2026-03-24 |
-| 108. Drawing Primitives & Text Entry | 2/2 | Complete   | 2026-03-24 |
-| 109. Canvas Operations | 0/? | Not started | - |
+| 108. Drawing Primitives & Text Entry | 2/2 | Complete    | 2026-03-24 |
+| 109. Canvas Operations | 0/1 | Planned | - |
 | 110. Element Editing | 0/? | Not started | - |
 | 111. Connectors & Arrows | 0/? | Not started | - |
 | 112. Styling & Layout | 0/? | Not started | - |
