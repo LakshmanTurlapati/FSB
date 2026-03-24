@@ -58,19 +58,19 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 
 ### Styling
 
-- [ ] **STYLE-01**: User can change stroke color of elements
-- [ ] **STYLE-02**: User can change fill/background color of elements
-- [ ] **STYLE-03**: User can change stroke width of elements
-- [ ] **STYLE-04**: User can change stroke style (solid/dashed/dotted)
-- [ ] **STYLE-05**: User can change fill pattern (transparent/solid/hachure/cross-hatch)
-- [ ] **STYLE-06**: User can change element opacity
-- [ ] **STYLE-07**: User can change font size, family, and text alignment
+- [x] **STYLE-01**: User can change stroke color of elements
+- [x] **STYLE-02**: User can change fill/background color of elements
+- [x] **STYLE-03**: User can change stroke width of elements
+- [x] **STYLE-04**: User can change stroke style (solid/dashed/dotted)
+- [x] **STYLE-05**: User can change fill pattern (transparent/solid/hachure/cross-hatch)
+- [x] **STYLE-06**: User can change element opacity
+- [x] **STYLE-07**: User can change font size, family, and text alignment
 
 ### Alignment & Layout
 
-- [ ] **ALIGN-01**: User can align multiple elements (left/right/top/bottom/center)
-- [ ] **ALIGN-02**: User can distribute elements evenly (horizontal/vertical)
-- [ ] **ALIGN-03**: User can change layer ordering (bring forward/back, front/back)
+- [x] **ALIGN-01**: User can align multiple elements (left/right/top/bottom/center)
+- [x] **ALIGN-02**: User can distribute elements evenly (horizontal/vertical)
+- [x] **ALIGN-03**: User can change layer ordering (bring forward/back, front/back)
 
 ### Export
 
@@ -147,16 +147,16 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 | CONN-02 | Phase 111 | Complete |
 | CONN-03 | Phase 111 | Complete |
 | CONN-04 | Phase 111 | Complete |
-| STYLE-01 | Phase 112 | Pending |
-| STYLE-02 | Phase 112 | Pending |
-| STYLE-03 | Phase 112 | Pending |
-| STYLE-04 | Phase 112 | Pending |
-| STYLE-05 | Phase 112 | Pending |
-| STYLE-06 | Phase 112 | Pending |
-| STYLE-07 | Phase 112 | Pending |
-| ALIGN-01 | Phase 112 | Pending |
-| ALIGN-02 | Phase 112 | Pending |
-| ALIGN-03 | Phase 112 | Pending |
+| STYLE-01 | Phase 112 | Complete |
+| STYLE-02 | Phase 112 | Complete |
+| STYLE-03 | Phase 112 | Complete |
+| STYLE-04 | Phase 112 | Complete |
+| STYLE-05 | Phase 112 | Complete |
+| STYLE-06 | Phase 112 | Complete |
+| STYLE-07 | Phase 112 | Complete |
+| ALIGN-01 | Phase 112 | Complete |
+| ALIGN-02 | Phase 112 | Complete |
+| ALIGN-03 | Phase 112 | Complete |
 | EXPORT-01 | Phase 113 | Pending |
 | EXPORT-02 | Phase 113 | Pending |
 | EXPORT-03 | Phase 113 | Pending |

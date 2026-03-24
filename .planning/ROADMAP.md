@@ -70,7 +70,7 @@ Plans:
 - [x] **Phase 109: Canvas Operations** - Undo/redo, clear, zoom, pan, select all, zoom-to-fit (completed 2026-03-24)
 - [x] **Phase 110: Element Editing** - Select, move, delete, duplicate, resize, rotate, group, lock, style copy (completed 2026-03-24)
 - [x] **Phase 111: Connectors & Arrows** - Auto-binding arrows, elbow routing, arrowhead styles, labeled connectors (completed 2026-03-24)
-- [ ] **Phase 112: Styling & Layout** - Stroke/fill colors, width, style, fill pattern, opacity, fonts, alignment, distribution, layer ordering
+- [x] **Phase 112: Styling & Layout** - Stroke/fill colors, width, style, fill pattern, opacity, fonts, alignment, distribution, layer ordering (completed 2026-03-24)
 - [ ] **Phase 113: Export** - PNG to clipboard, SVG export, clipboard copy
 - [ ] **Phase 114: Natural Language Diagrams** - Flowcharts, architecture diagrams, mind maps from descriptions with grid-based layout
 
@@ -158,7 +158,7 @@ Plans:
   5. User can ask FSB to change layer ordering (bring forward, send back, bring to front, send to back)
 **Plans**: 1 plan
 Plans:
-- [ ] 112-01-PLAN.md -- Add STYLING and ALIGNMENT AND LAYOUT sections to Excalidraw site guide
+- [x] 112-01-PLAN.md -- Add STYLING and ALIGNMENT AND LAYOUT sections to Excalidraw site guide
 
 
 ### Phase 113: Export
@@ -196,7 +196,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 107. Engine Fixes & Session Foundation | 2/2 | Complete    | 2026-03-24 |
-| 112. Styling & Layout | 0/1 | Not started | - |
+| 112. Styling & Layout | 1/1 | Complete   | 2026-03-24 |
 | 109. Canvas Operations | 1/1 | Complete    | 2026-03-24 |
 | 110. Element Editing | 1/1 | Complete    | 2026-03-24 |
 | 111. Connectors & Arrows | 1/1 | Complete    | 2026-03-24 |
