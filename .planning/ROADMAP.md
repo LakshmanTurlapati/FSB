@@ -133,10 +133,13 @@ Plans:
   3. User can ask FSB to group multiple elements and then ungroup them
   4. User can ask FSB to lock an element (preventing accidental moves) and unlock it
   5. User can ask FSB to copy the style from one element and paste it onto another
-**Plans**: 2 plans
+**Plans**: 1 plan
 Plans:
-- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
-- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
+- [ ] 110-01-PLAN.md -- Add element editing guidance and workflow arrays to Excalidraw site guide
+
+
+
+
 
 ### Phase 111: Connectors & Arrows
 **Goal**: Users can create connected, labeled arrows between shapes with routing and endpoint control
@@ -203,8 +206,8 @@ Plans:
 |-------|----------------|--------|-----------|
 | 107. Engine Fixes & Session Foundation | 2/2 | Complete    | 2026-03-24 |
 | 108. Drawing Primitives & Text Entry | 2/2 | Complete    | 2026-03-24 |
-| 109. Canvas Operations | 1/1 | Complete   | 2026-03-24 |
-| 110. Element Editing | 0/? | Not started | - |
+| 109. Canvas Operations | 1/1 | Complete    | 2026-03-24 |
+| 110. Element Editing | 0/1 | In progress | - |
 | 111. Connectors & Arrows | 0/? | Not started | - |
 | 112. Styling & Layout | 0/? | Not started | - |
 | 113. Export | 0/? | Not started | - |
