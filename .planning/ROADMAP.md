@@ -11,145 +11,179 @@
 - v0.9.5 Progress Overlay Intelligence (shipped 2026-03-17)
 - v0.9.6 Agents & Remote Control (shipped 2026-03-19)
 - v0.9.7 MCP Edge Case Validation (shipped 2026-03-22) -- [archive](milestones/v0.9.7-ROADMAP.md)
+- v0.9.8 Autopilot Refinement (shipped 2026-03-23) -- [archive](milestones/v0.9.8-ROADMAP.md)
+- v0.9.8.1 npm Publishing (in progress, parallel)
+- v0.9.9 Excalidraw Mastery (in progress)
 
-## Current: v0.9.8 Autopilot Refinement
+## v0.9.8.1 npm Publishing
 
-**Milestone Goal:** Make the autopilot mode perform as flawlessly as MCP manual mode -- bridge the tool gap, refine prompting, and validate against the same edge cases.
+**Milestone Goal:** Publish the FSB MCP server as an npm package so users can install it with a single `npx` command instead of cloning the repo.
+
+### Phases (v0.9.8.1)
+
+- [ ] **Phase 105: Package & Distribution** - npm-ready package with metadata, build pipeline, CI publish, and npx installation
+- [ ] **Phase 106: Documentation** - README with FSB branding, MCP client config examples, and full tool reference
+
+<details>
+<summary>Phase Details (v0.9.8.1)</summary>
+
+### Phase 105: Package & Distribution
+**Goal**: Users can install and run the FSB MCP server via `npx -y fsb-mcp-server` without cloning the repo
+**Depends on**: Nothing (first phase of milestone)
+**Requirements**: PKG-01, PKG-02, PKG-03, PKG-04, DIST-01, DIST-02, DIST-03
+**Success Criteria** (what must be TRUE):
+  1. `npm pack --dry-run` shows only build output files and README (no source, no dev artifacts)
+  2. `node build/index.js` runs successfully with the shebang present at line 1
+  3. `npm run prepublishOnly` compiles TypeScript without errors
+  4. GitHub Actions workflow triggers on release tag and publishes to npm registry
+  5. `npx -y fsb-mcp-server` downloads and starts the MCP server on a clean machine
+**Plans**: TBD
+
+### Phase 106: Documentation
+**Goal**: Users can configure the FSB MCP server in their preferred MCP client by following the README
+**Depends on**: Phase 105
+**Requirements**: DOCS-01, DOCS-02, DOCS-03
+**Success Criteria** (what must be TRUE):
+  1. README.md in the mcp-server directory has FSB branding (logo, badges) and matches the main project style
+  2. A user can copy-paste the Claude Desktop JSON config, the Claude Code CLI command, or the Cursor config and connect to the server
+  3. All 42+ exposed MCP tools are listed in the README by category with brief descriptions
+**Plans**: TBD
+
+</details>
+
+---
+
+## Current: v0.9.9 Excalidraw Mastery
+
+**Milestone Goal:** Make FSB fully capable on Excalidraw -- every drawing tool, styling option, connector, alignment, export, and canvas operation works reliably, plus natural language diagram generation where FSB plans layouts autonomously from descriptions.
 
 ## Phases
 
-- [x] **Phase 97: Tool Parity** - Register all 7 new CDP tools in autopilot's CLI command table, parser registry, and validation layer (completed 2026-03-22)
-- [x] **Phase 98: Prompt Architecture** - Restructure system prompt with tool grouping by interaction type and task-type conditional sections (completed 2026-03-22)
-- [x] **Phase 99: Diagnostic-to-Guide Pipeline** - Wire 500+ v0.9.7 diagnostic recommendations into site guide files as autopilot strategy hints (completed 2026-03-22)
-- [x] **Phase 100: Procedural Memory** - Extract successful action sequences from Task memories and inject as recommended approaches for matching tasks (completed 2026-03-23)
-- [x] **Phase 101: Memory Intelligence** - Auto-consolidation triggers, cross-domain strategy transfer, domain-change refresh, and dead code cleanup (completed 2026-03-23)
-- [x] **Phase 102: Robustness Hardening** - Coordinate validation, bidirectional stuck recovery, progressive prompt trimming, and CLI parse retry (completed 2026-03-23)
-- [x] **Phase 103: Validation** - Test autopilot against v0.9.7 edge cases and measure CLI parse failure rate and completion accuracy (completed 2026-03-23)
-- [x] **Phase 104: Verification Mechanics Fix** - Fix action verification for CDP tools, completion detection on dynamic pages, and session lifecycle cleanup (completed 2026-03-23)
+- [ ] **Phase 107: Engine Fixes & Session Foundation** - Fix gating bugs in progress detection and text entry routing, establish clean session setup
+- [ ] **Phase 108: Drawing Primitives & Text Entry** - All shape types drawable, standalone and in-shape text entry via transient textarea
+- [ ] **Phase 109: Canvas Operations** - Undo/redo, clear, zoom, pan, select all, zoom-to-fit
+- [ ] **Phase 110: Element Editing** - Select, move, delete, duplicate, resize, rotate, group, lock, style copy
+- [ ] **Phase 111: Connectors & Arrows** - Auto-binding arrows, elbow routing, arrowhead styles, labeled connectors
+- [ ] **Phase 112: Styling & Layout** - Stroke/fill colors, width, style, fill pattern, opacity, fonts, alignment, distribution, layer ordering
+- [ ] **Phase 113: Export** - PNG to clipboard, SVG export, clipboard copy
+- [ ] **Phase 114: Natural Language Diagrams** - Flowcharts, architecture diagrams, mind maps from descriptions with grid-based layout
 
 ## Phase Details
 
-### Phase 97: Tool Parity
-**Goal**: Autopilot has identical tool access to MCP manual mode -- all 7 new CDP tools are documented, parseable, and validated
-**Depends on**: Nothing (first phase of v0.9.8)
-**Requirements**: TOOL-01, TOOL-02, TOOL-03, TOOL-04
+### Phase 107: Engine Fixes & Session Foundation
+**Goal**: FSB's automation loop survives multi-step Excalidraw sessions without aborting, and text entry reaches the canvas
+**Depends on**: Nothing (first phase of milestone)
+**Requirements**: ENGINE-01, ENGINE-02, ENGINE-03
 **Success Criteria** (what must be TRUE):
-  1. User issues a canvas task and autopilot emits clickat/scrollat/drag commands that the CLI parser recognizes and routes to correct FSB.tools functions
-  2. User issues a drag-drop task and autopilot emits dragdrop with optional steps/holdMs/stepDelayMs parameters that execute successfully
-  3. User issues a text selection task and autopilot emits selecttextrange that the parser routes to the correct content script function
-  4. isValidTool returns true for all 7 new tool names (cdpClickAt, cdpClickAndHold, cdpDrag, cdpDragVariableSpeed, cdpScrollAt, selectTextRange, dropfile)
-**Plans:** 2/2 plans complete
+  1. FSB runs a 10+ iteration Excalidraw session without the progress detector aborting for "no progress"
+  2. Text typed during an Excalidraw session reaches the canvas via CDP direct path (not the broken type tool round-trip)
+  3. Every new Excalidraw session starts with modals dismissed, canvas cleared, and zoom reset to default
+**Plans**: 2 plans
 Plans:
-- [x] 97-01-PLAN.md -- Add 7 tools to CLI_COMMAND_TABLE and isValidTool in ai-integration.js
-- [x] 97-02-PLAN.md -- Add 7 verbs to COMMAND_REGISTRY and enhance dragdrop params in cli-parser.js
+- [ ] 107-01-PLAN.md -- Fix isCanvasEditorUrl and isCanvasBasedEditor for Excalidraw detection
+- [ ] 107-02-PLAN.md -- Add session setup sequence and text entry workflow to site guide
 
-### Phase 98: Prompt Architecture
-**Goal**: Autopilot AI receives tool-aware system prompts that guide it to choose the right interaction method for each task type
-**Depends on**: Phase 97
-**Requirements**: PROMPT-01, PROMPT-02
+### Phase 108: Drawing Primitives & Text Entry
+**Goal**: Users can draw any shape type and add text labels on the Excalidraw canvas through FSB automation
+**Depends on**: Phase 107
+**Requirements**: DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06, DRAW-07, TEXT-01, TEXT-02, TEXT-03
 **Success Criteria** (what must be TRUE):
-  1. System prompt presents tools grouped by interaction type (DOM element, CDP coordinate, text range, file upload) with explicit "when to use which" guidance
-  2. Canvas/map tasks trigger CDP-prioritized prompt sections, form tasks trigger DOM-prioritized sections, and text tasks trigger selection-tool sections
-  3. Autopilot selects CDP coordinate tools for canvas interactions and DOM tools for standard form interactions without human prompt intervention
-**Plans:** 1/1 plans complete
-Plans:
-- [x] 98-01-PLAN.md -- Add TOOL SELECTION GUIDE, canvas task type detection, PRIORITY TOOLS injection, and sub-pattern hints
+  1. User can ask FSB to draw a rectangle, ellipse, diamond, line, arrow, freedraw stroke, or frame and each appears on the canvas
+  2. User can ask FSB to add a standalone text label at a specific canvas location and the text appears
+  3. User can ask FSB to add text inside a shape (via double-click) and the text renders within the shape boundary
+  4. User can ask FSB to edit existing text on a shape and the updated text replaces the original
+  5. The Excalidraw site guide documents keyboard shortcuts, tool-key re-press rules, and the transient textarea workflow
+**Plans**: TBD
 
-### Phase 99: Diagnostic-to-Guide Pipeline
-**Goal**: The 500+ recommendations from v0.9.7 diagnostic reports are embedded in site guide files so autopilot can leverage real-world edge case intelligence
-**Depends on**: Phase 98
-**Requirements**: PROMPT-03
+### Phase 109: Canvas Operations
+**Goal**: Users can control the Excalidraw canvas state -- undo, redo, clear, zoom, pan, select all
+**Depends on**: Phase 108
+**Requirements**: CANVAS-01, CANVAS-02, CANVAS-03, CANVAS-04, CANVAS-05, CANVAS-06
 **Success Criteria** (what must be TRUE):
-  1. Site guide files for sites tested in v0.9.7 contain strategy hints derived from diagnostic report recommendations
-  2. When autopilot operates on a site with diagnostic-enriched guides, the strategy hints appear in the continuation prompt context
-  3. Diagnostic recommendations are categorized by interaction type (canvas, drag, scroll, dark pattern) in the guide files
-**Plans:** 3/3 plans complete
-Plans:
-- [x] 99-01-PLAN.md -- Enrich CANVAS + MICRO site guides (phases 47-66, 20 guides)
-- [x] 99-02-PLAN.md -- Enrich SCROLL + CONTEXT site guides (phases 67-86, 19 guides)
-- [x] 99-03-PLAN.md -- Enrich DARK pattern site guides (phases 87-96, 10 guides)
+  1. User can ask FSB to undo and redo actions and the canvas state changes accordingly
+  2. User can ask FSB to clear the canvas and all elements are removed
+  3. User can ask FSB to zoom in, zoom out, reset zoom, and zoom to fit content
+  4. User can ask FSB to pan the canvas and the viewport shifts
+  5. User can ask FSB to select all elements and every element on canvas becomes selected
+**Plans**: TBD
 
-### Phase 100: Procedural Memory
-**Goal**: Autopilot learns from past successes -- completed Task memories become replayable playbooks that inform future identical tasks
-**Depends on**: Phase 97
-**Requirements**: MEM-01, MEM-02
+### Phase 110: Element Editing
+**Goal**: Users can manipulate existing elements on the Excalidraw canvas -- select, move, resize, rotate, duplicate, delete, group, lock, copy style
+**Depends on**: Phase 109
+**Requirements**: EDIT-01, EDIT-02, EDIT-03, EDIT-04, EDIT-05, EDIT-06, EDIT-07, EDIT-08
 **Success Criteria** (what must be TRUE):
-  1. After a successful automation session, the system extracts a procedural memory containing site, task type, and ordered action steps from the completed Task memory
-  2. When autopilot starts a task matching a stored procedural memory (same site + similar task type), the known-good action sequence appears in the prompt as a recommended approach
-  3. Procedural memories are stored persistently and survive browser restarts
-**Plans:** 1/1 plans complete
-Plans:
-- [x] 100-01-PLAN.md -- Extract procedural memories from successful sessions and inject as RECOMMENDED APPROACH in autopilot prompts
+  1. User can ask FSB to select an element and move it to a new position on the canvas
+  2. User can ask FSB to delete, duplicate, resize, or rotate an element and the result is visible
+  3. User can ask FSB to group multiple elements and then ungroup them
+  4. User can ask FSB to lock an element (preventing accidental moves) and unlock it
+  5. User can ask FSB to copy the style from one element and paste it onto another
+**Plans**: TBD
 
-### Phase 101: Memory Intelligence
-**Goal**: Memory system operates autonomously -- consolidates itself, transfers strategies across domains, refreshes on navigation, and carries no dead weight
-**Depends on**: Phase 100
-**Requirements**: MEM-03, MEM-04, MEM-05, MEM-06
+### Phase 111: Connectors & Arrows
+**Goal**: Users can create connected, labeled arrows between shapes with routing and endpoint control
+**Depends on**: Phase 110
+**Requirements**: CONN-01, CONN-02, CONN-03, CONN-04
 **Success Criteria** (what must be TRUE):
-  1. Memory auto-consolidation fires after every 10 sessions or when count hits 80% capacity, with no manual user trigger required
-  2. When autopilot encounters a site with no stored memories, it finds and injects relevant strategies from other domains with matching task type patterns
-  3. When autopilot navigates across domain boundaries during a multi-site task, memory context refreshes to include memories relevant to the new domain
-  4. No dead episodic memory schemas, consolidator references, or unused code paths remain in the codebase
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 101-01-PLAN.md -- Auto-consolidation triggers in background.js and dead episodic code cleanup (MEM-03, MEM-06)
-- [x] 101-02-PLAN.md -- Cross-domain strategy transfer and domain-change memory refresh in ai-integration.js (MEM-04, MEM-05)
+  1. User can ask FSB to draw an arrow from one shape to another and the arrow auto-binds to shape edges
+  2. User can ask FSB to create an elbow (orthogonal) arrow between shapes
+  3. User can ask FSB to change arrowhead styles (arrow, bar, dot, triangle, none) on existing arrows
+  4. User can ask FSB to add a text label to an arrow or connector
+**Plans**: TBD
 
-### Phase 102: Robustness Hardening
-**Goal**: Autopilot handles edge cases gracefully -- bad coordinates rejected before execution, stuck detection adapts to tool type, heavy pages don't timeout, and CLI parse failures self-correct
-**Depends on**: Phase 97
-**Requirements**: ROBUST-01, ROBUST-02, ROBUST-03, ROBUST-04
+### Phase 112: Styling & Layout
+**Goal**: Users can control the visual appearance and spatial arrangement of elements on the Excalidraw canvas
+**Depends on**: Phase 111
+**Requirements**: STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07, ALIGN-01, ALIGN-02, ALIGN-03
 **Success Criteria** (what must be TRUE):
-  1. CDP tool calls with out-of-viewport coordinates are rejected before execution with a descriptive error message including viewport dimensions
-  2. When autopilot gets stuck using coordinate-based tools, stuck recovery suggests DOM fallback (and vice versa for DOM failures suggesting coordinate approach)
-  3. On heavy DOM pages that would exceed context limits, prompt trimming reduces context in stages (examples first, then element count, then memory) without aborting
-  4. When CLI parser fails to parse AI output, the system automatically retries with a simplified prompt hint instead of aborting the action batch
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 102-01-PLAN.md -- Viewport bounds validation for CDP tools and bidirectional stuck recovery (ROBUST-01, ROBUST-02)
-- [x] 102-02-PLAN.md -- Progressive prompt trimming and CLI parse failure retry with simplified hint (ROBUST-03, ROBUST-04)
+  1. User can ask FSB to change stroke color, fill color, stroke width, stroke style, and fill pattern of any element
+  2. User can ask FSB to change element opacity
+  3. User can ask FSB to change font size, font family, and text alignment on text elements
+  4. User can ask FSB to align multiple elements (left, right, top, bottom, center) and distribute them evenly
+  5. User can ask FSB to change layer ordering (bring forward, send back, bring to front, send to back)
+**Plans**: TBD
 
-### Phase 103: Validation
-**Goal**: Autopilot performs at or near MCP manual mode quality on the same edge cases, with measurable parse reliability and completion accuracy
-**Depends on**: Phase 98, Phase 99, Phase 100, Phase 101, Phase 102
-**Requirements**: VALID-01, VALID-02, VALID-03, VALID-04
+### Phase 113: Export
+**Goal**: Users can export their Excalidraw drawings in common formats
+**Depends on**: Phase 112
+**Requirements**: EXPORT-01, EXPORT-02, EXPORT-03
 **Success Criteria** (what must be TRUE):
-  1. All 50 v0.9.7 edge case prompts (CANVAS-01 through DARK-10) executed through autopilot mode with documented pass/fail outcomes
-  2. 90%+ pass rate achieved (45/50 minimum) -- this is the milestone gate
-  3. CLI parse failure rate below 5% across all 50 test runs
-  4. Completion validation correctly identifies task done/not-done with 90%+ accuracy across all 50 runs
-**Plans:** 1/1 plans complete
-Plans:
-- [x] 103-01-PLAN.md -- Build test harness: extract 50 prompts from diagnostics, adapt for autopilot, generate VALIDATION-RUNNER.md with tracking and metrics
+  1. User can ask FSB to export the drawing as PNG to clipboard
+  2. User can ask FSB to export the drawing as SVG
+  3. User can ask FSB to copy the drawing to clipboard for pasting into other applications
+**Plans**: TBD
+
+### Phase 114: Natural Language Diagrams
+**Goal**: Users can describe a diagram in plain English and FSB autonomously plans layout, draws shapes, adds labels, and connects elements on Excalidraw
+**Depends on**: Phase 113
+**Requirements**: NL-01, NL-02, NL-03, NL-04, NL-05
+**Success Criteria** (what must be TRUE):
+  1. User can describe a flowchart (e.g., "draw a login flow with input, validation, success, and error states") and FSB produces a connected, labeled diagram
+  2. User can describe an architecture diagram (e.g., "draw a 3-tier web app with frontend, API, and database") and FSB produces a connected, labeled diagram
+  3. User can describe a mind map (e.g., "draw a mind map for project planning with 4 branches") and FSB produces a radial layout with labeled nodes
+  4. Generated diagrams use consistent spacing (approximately 150px horizontal, 120px vertical) so shapes do not overlap or cluster
+  5. Every shape and connector in a generated diagram has a text label
+**Plans**: TBD
 
 ## Progress
 
-**Execution Order:** 97 -> 98 -> 99 -> 100 -> 101 -> 102 -> 103 -> 104
-
-Note: Phases 100-101 (Memory) and Phases 98-99 (Prompt) can proceed in parallel after Phase 97.
-Phase 102 (Robustness) can proceed after Phase 97.
-Phase 103 (Validation) requires all other phases complete.
+**Execution Order:** 107 -> 108 -> 109 -> 110 -> 111 -> 112 -> 113 -> 114
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 97. Tool Parity | 2/2 | Complete    | 2026-03-22 |
-| 98. Prompt Architecture | 1/1 | Complete    | 2026-03-22 |
-| 99. Diagnostic-to-Guide Pipeline | 3/3 | Complete    | 2026-03-22 |
-| 100. Procedural Memory | 1/1 | Complete    | 2026-03-23 |
-| 101. Memory Intelligence | 2/2 | Complete    | 2026-03-23 |
-| 102. Robustness Hardening | 2/2 | Complete    | 2026-03-23 |
-| 103. Validation | 1/1 | Complete    | 2026-03-23 |
-| 104. Verification Mechanics Fix | 2/2 | Complete   | 2026-03-23 |
+| 107. Engine Fixes & Session Foundation | 0/2 | Planning complete | - |
+| 108. Drawing Primitives & Text Entry | 0/? | Not started | - |
+| 109. Canvas Operations | 0/? | Not started | - |
+| 110. Element Editing | 0/? | Not started | - |
+| 111. Connectors & Arrows | 0/? | Not started | - |
+| 112. Styling & Layout | 0/? | Not started | - |
+| 113. Export | 0/? | Not started | - |
+| 114. Natural Language Diagrams | 0/? | Not started | - |
 
-### Phase 104: Verification Mechanics Fix
-**Goal**: Autopilot action verification and completion detection work correctly for CDP coordinate tools, canvas interactions, and dynamic pages -- enabling 90%+ pass rate on the 50 edge case validation tests
-**Depends on**: Phase 103
-**Requirements**: VMFIX-01, VMFIX-02, VMFIX-03
-**Success Criteria** (what must be TRUE):
-  1. CDP coordinate tool calls (cdpClickAt, cdpDrag, cdpScrollAt) report success=true when the CDP dispatch completes without error, regardless of DOM mutation detection
-  2. Completion validator declares "done" within 2 iterations of the AI emitting a done/fail command, even on pages with continuous DOM changes
-  3. Stale autopilot sessions auto-expire after 5 minutes of no AI iteration, freeing the tab for new tasks
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 104-01-PLAN.md -- Route CDP tools directly in background automation loop, bypassing broken content-to-background message round-trip (VMFIX-01)
-- [x] 104-02-PLAN.md -- Dynamic-page completion fast-path and running-session inactivity timeout (VMFIX-02, VMFIX-03)
+---
+
+### v0.9.8.1 npm Publishing Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 105. Package & Distribution | 0/? | Not started | - |
+| 106. Documentation | 0/? | Not started | - |
