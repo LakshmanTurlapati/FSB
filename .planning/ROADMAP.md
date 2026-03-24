@@ -68,7 +68,7 @@ Plans:
 - [x] **Phase 107: Engine Fixes & Session Foundation** - Fix gating bugs in progress detection and text entry routing, establish clean session setup (completed 2026-03-24)
 - [x] **Phase 108: Drawing Primitives & Text Entry** - All shape types drawable, standalone and in-shape text entry via transient textarea (completed 2026-03-24)
 - [x] **Phase 109: Canvas Operations** - Undo/redo, clear, zoom, pan, select all, zoom-to-fit (completed 2026-03-24)
-- [ ] **Phase 110: Element Editing** - Select, move, delete, duplicate, resize, rotate, group, lock, style copy
+- [x] **Phase 110: Element Editing** - Select, move, delete, duplicate, resize, rotate, group, lock, style copy (completed 2026-03-24)
 - [ ] **Phase 111: Connectors & Arrows** - Auto-binding arrows, elbow routing, arrowhead styles, labeled connectors
 - [ ] **Phase 112: Styling & Layout** - Stroke/fill colors, width, style, fill pattern, opacity, fonts, alignment, distribution, layer ordering
 - [ ] **Phase 113: Export** - PNG to clipboard, SVG export, clipboard copy
@@ -150,10 +150,9 @@ Plans:
   2. User can ask FSB to create an elbow (orthogonal) arrow between shapes
   3. User can ask FSB to change arrowhead styles (arrow, bar, dot, triangle, none) on existing arrows
   4. User can ask FSB to add a text label to an arrow or connector
-**Plans**: 2 plans
+**Plans**: 1 plan
 Plans:
-- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
-- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
+- [ ] 111-01-PLAN.md -- Add connectors and arrows guidance to Excalidraw site guide
 
 ### Phase 112: Styling & Layout
 **Goal**: Users can control the visual appearance and spatial arrangement of elements on the Excalidraw canvas
@@ -208,7 +207,7 @@ Plans:
 | 108. Drawing Primitives & Text Entry | 2/2 | Complete    | 2026-03-24 |
 | 109. Canvas Operations | 1/1 | Complete    | 2026-03-24 |
 | 110. Element Editing | 1/1 | Complete    | 2026-03-24 |
-| 111. Connectors & Arrows | 0/? | Not started | - |
+| 111. Connectors & Arrows | 0/1 | Not started | - |
 | 112. Styling & Layout | 0/? | Not started | - |
 | 113. Export | 0/? | Not started | - |
 | 114. Natural Language Diagrams | 0/? | Not started | - |
