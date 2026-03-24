@@ -119,10 +119,6 @@ Plans:
 - [x] 109-01-PLAN.md -- Add canvas operations guidance and workflows to Excalidraw site guide
 
 
-
-
-
-
 ### Phase 110: Element Editing
 **Goal**: Users can manipulate existing elements on the Excalidraw canvas -- select, move, resize, rotate, duplicate, delete, group, lock, copy style
 **Depends on**: Phase 109
@@ -136,10 +132,6 @@ Plans:
 **Plans**: 1 plan
 Plans:
 - [x] 110-01-PLAN.md -- Add element editing guidance and workflow arrays to Excalidraw site guide
-
-
-
-
 
 ### Phase 111: Connectors & Arrows
 **Goal**: Users can create connected, labeled arrows between shapes with routing and endpoint control
@@ -164,10 +156,10 @@ Plans:
   3. User can ask FSB to change font size, font family, and text alignment on text elements
   4. User can ask FSB to align multiple elements (left, right, top, bottom, center) and distribute them evenly
   5. User can ask FSB to change layer ordering (bring forward, send back, bring to front, send to back)
-**Plans**: 2 plans
+**Plans**: 1 plan
 Plans:
-- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
-- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
+- [ ] 112-01-PLAN.md -- Add STYLING and ALIGNMENT AND LAYOUT sections to Excalidraw site guide
+
 
 ### Phase 113: Export
 **Goal**: Users can export their Excalidraw drawings in common formats
@@ -204,10 +196,10 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 107. Engine Fixes & Session Foundation | 2/2 | Complete    | 2026-03-24 |
-| 108. Drawing Primitives & Text Entry | 2/2 | Complete    | 2026-03-24 |
+| 112. Styling & Layout | 0/1 | Not started | - |
 | 109. Canvas Operations | 1/1 | Complete    | 2026-03-24 |
 | 110. Element Editing | 1/1 | Complete    | 2026-03-24 |
-| 111. Connectors & Arrows | 1/1 | Complete   | 2026-03-24 |
+| 111. Connectors & Arrows | 1/1 | Complete    | 2026-03-24 |
 | 112. Styling & Layout | 0/? | Not started | - |
 | 113. Export | 0/? | Not started | - |
 | 114. Natural Language Diagrams | 0/? | Not started | - |
