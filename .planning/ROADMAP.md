@@ -69,7 +69,7 @@ Plans:
 - [x] **Phase 108: Drawing Primitives & Text Entry** - All shape types drawable, standalone and in-shape text entry via transient textarea (completed 2026-03-24)
 - [x] **Phase 109: Canvas Operations** - Undo/redo, clear, zoom, pan, select all, zoom-to-fit (completed 2026-03-24)
 - [x] **Phase 110: Element Editing** - Select, move, delete, duplicate, resize, rotate, group, lock, style copy (completed 2026-03-24)
-- [ ] **Phase 111: Connectors & Arrows** - Auto-binding arrows, elbow routing, arrowhead styles, labeled connectors
+- [x] **Phase 111: Connectors & Arrows** - Auto-binding arrows, elbow routing, arrowhead styles, labeled connectors (completed 2026-03-24)
 - [ ] **Phase 112: Styling & Layout** - Stroke/fill colors, width, style, fill pattern, opacity, fonts, alignment, distribution, layer ordering
 - [ ] **Phase 113: Export** - PNG to clipboard, SVG export, clipboard copy
 - [ ] **Phase 114: Natural Language Diagrams** - Flowcharts, architecture diagrams, mind maps from descriptions with grid-based layout
@@ -152,7 +152,7 @@ Plans:
   4. User can ask FSB to add a text label to an arrow or connector
 **Plans**: 1 plan
 Plans:
-- [ ] 111-01-PLAN.md -- Add connectors and arrows guidance to Excalidraw site guide
+- [x] 111-01-PLAN.md -- Add connectors and arrows guidance to Excalidraw site guide
 
 ### Phase 112: Styling & Layout
 **Goal**: Users can control the visual appearance and spatial arrangement of elements on the Excalidraw canvas
@@ -207,7 +207,7 @@ Plans:
 | 108. Drawing Primitives & Text Entry | 2/2 | Complete    | 2026-03-24 |
 | 109. Canvas Operations | 1/1 | Complete    | 2026-03-24 |
 | 110. Element Editing | 1/1 | Complete    | 2026-03-24 |
-| 111. Connectors & Arrows | 0/1 | Not started | - |
+| 111. Connectors & Arrows | 1/1 | Complete   | 2026-03-24 |
 | 112. Styling & Layout | 0/? | Not started | - |
 | 113. Export | 0/? | Not started | - |
 | 114. Natural Language Diagrams | 0/? | Not started | - |

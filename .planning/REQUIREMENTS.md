@@ -51,10 +51,10 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 
 ### Connectors & Arrows
 
-- [ ] **CONN-01**: User can draw arrows that auto-bind to shape edges
-- [ ] **CONN-02**: User can create elbow (orthogonal) arrow routing
-- [ ] **CONN-03**: User can change arrowhead styles (arrow/bar/dot/triangle/none)
-- [ ] **CONN-04**: User can add labels to arrows/connectors
+- [x] **CONN-01**: User can draw arrows that auto-bind to shape edges
+- [x] **CONN-02**: User can create elbow (orthogonal) arrow routing
+- [x] **CONN-03**: User can change arrowhead styles (arrow/bar/dot/triangle/none)
+- [x] **CONN-04**: User can add labels to arrows/connectors
 
 ### Styling
 
@@ -143,10 +143,10 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 | EDIT-06 | Phase 110 | Complete |
 | EDIT-07 | Phase 110 | Complete |
 | EDIT-08 | Phase 110 | Complete |
-| CONN-01 | Phase 111 | Pending |
-| CONN-02 | Phase 111 | Pending |
-| CONN-03 | Phase 111 | Pending |
-| CONN-04 | Phase 111 | Pending |
+| CONN-01 | Phase 111 | Complete |
+| CONN-02 | Phase 111 | Complete |
+| CONN-03 | Phase 111 | Complete |
+| CONN-04 | Phase 111 | Complete |
 | STYLE-01 | Phase 112 | Pending |
 | STYLE-02 | Phase 112 | Pending |
 | STYLE-03 | Phase 112 | Pending |

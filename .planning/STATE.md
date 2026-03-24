@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: unknown
-stopped_at: Completed 110-01-PLAN.md
-last_updated: "2026-03-24T07:23:11Z"
+stopped_at: Completed 111-01-PLAN.md
+last_updated: "2026-03-24T07:31:34.894Z"
 progress:
   total_phases: 2
   completed_phases: 0
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 110 — Element Editing (COMPLETE)
+**Current focus:** Phase 111 — Connectors & Arrows
 
 ## Current Position
 
-Phase: 110 (Element Editing) — COMPLETE
-Plan: 1 of 1 (done)
+Phase: 111 (Connectors & Arrows) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Plan: 1 of 1 (done)
 | Phase 108 P02 | 1min | 1 tasks | 1 files |
 | Phase 109 P01 | 1min | 1 tasks | 1 files |
 | Phase 110 P01 | 2min | 1 tasks | 1 files |
+| Phase 111 P01 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,7 @@ Recent decisions affecting current work:
 - [Phase 108]: Three text entry modes documented: standalone (T+click), in-shape (double-click/select+Enter), edit existing (click+Enter+select-all)
 - [Phase 109]: Canvas operations use keyboard shortcuts exclusively -- no toolbar DOM clicks needed for undo/redo/zoom/pan
 - [Phase 110]: Element editing uses keyboard shortcuts + cdpDrag; lock/unlock via context menu (no keyboard shortcut); resize/rotate handles targeted via coordinate offsets
+- [Phase 111]: Edge coordinate formula documented inline for AI to calculate arrow start/end points from shape position and size
 
 ### Roadmap Evolution
 
@@ -91,6 +93,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T07:23:11Z
-Stopped at: Completed 110-01-PLAN.md
+Last session: 2026-03-24T07:31:34.892Z
+Stopped at: Completed 111-01-PLAN.md
 Resume file: None
