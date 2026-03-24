@@ -4905,6 +4905,7 @@ function validateCompletion(session, aiResponse, context) {
   // Canvas apps (TradingView), media players, and games have continuous DOM mutations.
   // If AI explicitly claims completion with a meaningful result, trust it on first attempt.
   const dynamicPageTypes = ['media', 'gaming'];
+  // NOTE: Keep in sync with isCanvasEditorUrl() around line 11074
   const canvasUrl = /tradingview\.com|figma\.com|canva\.com|draw\.io|excalidraw/i;
   const isDynamicPage = dynamicPageTypes.includes(taskType) ||
     canvasUrl.test(sessionUrl) ||
@@ -11073,7 +11074,7 @@ async function startAutomationLoop(sessionId) {
     // Helper: detect canvas-based editors where DOM doesn't reflect content changes
     function isCanvasEditorUrl(url) {
       if (!url) return false;
-      return /docs\.google\.com\/(spreadsheets|document|presentation)\/d\//i.test(url);
+      return /docs\.google\.com\/(spreadsheets|document|presentation)\/d\/|excalidraw\.com/i.test(url);
     }
     // This counter does NOT reset on URL changes like stuckCounter does
     const iterationActions = session.actionHistory.filter(a => a.iteration === session.iterationCount);
@@ -11098,10 +11099,10 @@ async function startAutomationLoop(sessionId) {
       iterationStats.urlChanged ||
       iterationStats.hadNavigation ||
       iterationStats.hadEffect ||
-      // Canvas-based editors (Sheets, Docs): successful type/keyPress actions count as progress
+      // Canvas-based editors (Sheets, Docs, Excalidraw): successful type/keyPress/CDP actions count as progress
       // because canvas rendering doesn't update DOM elements
       (isCanvasEditorUrl(currentUrl) &&
-       iterationActions.some(a => ['type', 'keyPress'].includes(a.tool) && a.result?.success) &&
+       iterationActions.some(a => ['type', 'keyPress', 'press_key', 'cdpDrag', 'cdpClickAt', 'cdpInsertText', 'cdpDragVariableSpeed'].includes(a.tool) && a.result?.success) &&
        iterationStats.actionsSucceeded > 0) ||
       // Use changeSignals channels to distinguish meaningful changes from noise
       (changeSignals.changed && changeSignals.channels.some(
