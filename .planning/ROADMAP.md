@@ -117,8 +117,6 @@ Plans:
 **Plans**: 1 plan
 Plans:
 - [x] 109-01-PLAN.md -- Add canvas operations guidance and workflows to Excalidraw site guide
-
-
 ### Phase 110: Element Editing
 **Goal**: Users can manipulate existing elements on the Excalidraw canvas -- select, move, resize, rotate, duplicate, delete, group, lock, copy style
 **Depends on**: Phase 109
@@ -159,8 +157,6 @@ Plans:
 **Plans**: 1 plan
 Plans:
 - [x] 112-01-PLAN.md -- Add STYLING and ALIGNMENT AND LAYOUT sections to Excalidraw site guide
-
-
 ### Phase 113: Export
 **Goal**: Users can export their Excalidraw drawings in common formats
 **Depends on**: Phase 112
@@ -183,11 +179,9 @@ Plans:
   3. User can describe a mind map (e.g., "draw a mind map for project planning with 4 branches") and FSB produces a radial layout with labeled nodes
   4. Generated diagrams use consistent spacing (approximately 150px horizontal, 120px vertical) so shapes do not overlap or cluster
   5. Every shape and connector in a generated diagram has a text label
-**Plans**: 2 plans
+**Plans**: 1 plan
 Plans:
-- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
-- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
-
+- [ ] 114-01-PLAN.md -- Add NATURAL LANGUAGE DIAGRAM GENERATION section with layout templates for flowcharts, architecture diagrams, and mind maps
 ## Progress
 
 **Execution Order:** 107 -> 108 -> 109 -> 110 -> 111 -> 112 -> 113 -> 114
@@ -200,8 +194,8 @@ Plans:
 | 110. Element Editing | 1/1 | Complete    | 2026-03-24 |
 | 111. Connectors & Arrows | 1/1 | Complete    | 2026-03-24 |
 | 112. Styling & Layout | 0/? | Not started | - |
-| 113. Export | 1/1 | Complete | 2026-03-24 |
-| 114. Natural Language Diagrams | 0/? | Not started | - |
+| 113. Export | 1/1 | Complete    | 2026-03-24 |
+| 114. Natural Language Diagrams | 0/1 | Not started | - |
 
 ---
 
