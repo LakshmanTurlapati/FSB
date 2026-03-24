@@ -15,13 +15,13 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 
 ### Drawing Primitives
 
-- [ ] **DRAW-01**: User can draw rectangles on Excalidraw canvas
-- [ ] **DRAW-02**: User can draw ellipses/circles on Excalidraw canvas
-- [ ] **DRAW-03**: User can draw diamonds on Excalidraw canvas
-- [ ] **DRAW-04**: User can draw straight lines on Excalidraw canvas
-- [ ] **DRAW-05**: User can draw arrows on Excalidraw canvas
-- [ ] **DRAW-06**: User can freedraw with pen tool on Excalidraw canvas
-- [ ] **DRAW-07**: User can draw frames (containers) on Excalidraw canvas
+- [x] **DRAW-01**: User can draw rectangles on Excalidraw canvas
+- [x] **DRAW-02**: User can draw ellipses/circles on Excalidraw canvas
+- [x] **DRAW-03**: User can draw diamonds on Excalidraw canvas
+- [x] **DRAW-04**: User can draw straight lines on Excalidraw canvas
+- [x] **DRAW-05**: User can draw arrows on Excalidraw canvas
+- [x] **DRAW-06**: User can freedraw with pen tool on Excalidraw canvas
+- [x] **DRAW-07**: User can draw frames (containers) on Excalidraw canvas
 
 ### Text Entry
 
@@ -119,13 +119,13 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 | ENGINE-01 | Phase 107 | Complete |
 | ENGINE-02 | Phase 107 | Complete |
 | ENGINE-03 | Phase 107 | Complete |
-| DRAW-01 | Phase 108 | Pending |
-| DRAW-02 | Phase 108 | Pending |
-| DRAW-03 | Phase 108 | Pending |
-| DRAW-04 | Phase 108 | Pending |
-| DRAW-05 | Phase 108 | Pending |
-| DRAW-06 | Phase 108 | Pending |
-| DRAW-07 | Phase 108 | Pending |
+| DRAW-01 | Phase 108 | Complete |
+| DRAW-02 | Phase 108 | Complete |
+| DRAW-03 | Phase 108 | Complete |
+| DRAW-04 | Phase 108 | Complete |
+| DRAW-05 | Phase 108 | Complete |
+| DRAW-06 | Phase 108 | Complete |
+| DRAW-07 | Phase 108 | Complete |
 | TEXT-01 | Phase 108 | Pending |
 | TEXT-02 | Phase 108 | Pending |
 | TEXT-03 | Phase 108 | Pending |

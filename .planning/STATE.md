@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: unknown
-stopped_at: Completed 107-02-PLAN.md
-last_updated: "2026-03-24T06:53:25.126Z"
+stopped_at: Completed 108-01-PLAN.md
+last_updated: "2026-03-24T07:04:02.587Z"
 progress:
   total_phases: 2
   completed_phases: 0
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 107 — Engine Fixes & Session Foundation
+**Current focus:** Phase 108 — Drawing Primitives & Text Entry
 
 ## Current Position
 
-Phase: 107 (Engine Fixes & Session Foundation) — EXECUTING
+Phase: 108 (Drawing Primitives & Text Entry) — EXECUTING
 Plan: 2 of 2
 
 ## Performance Metrics
@@ -48,6 +48,7 @@ Plan: 2 of 2
 *Updated after each plan completion*
 | Phase 107 P01 | 1min | 2 tasks | 2 files |
 | Phase 107 P02 | 2min | 1 tasks | 1 files |
+| Phase 108 P01 | 1min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,7 @@ Recent decisions affecting current work:
 - [Phase 107]: Include all CDP tools as canvas progress signals for Excalidraw, not just type/keyPress
 - [Phase 107]: Detect self-hosted Excalidraw via DOM markers in addition to hostname
 - [Phase 107]: Session setup uses keyboard shortcuts (Escape, Ctrl+A, Delete, Ctrl+0) not API calls for canvas initialization
+- [Phase 108]: Standardized all 7 Excalidraw shape workflows to consistent 4-step pattern; updated min drag 30px->50px per research
 
 ### Roadmap Evolution
 
@@ -83,6 +85,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T06:53:25.124Z
-Stopped at: Completed 107-02-PLAN.md
+Last session: 2026-03-24T07:04:02.585Z
+Stopped at: Completed 108-01-PLAN.md
 Resume file: None

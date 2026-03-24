@@ -37,7 +37,10 @@
   3. `npm run prepublishOnly` compiles TypeScript without errors
   4. GitHub Actions workflow triggers on release tag and publishes to npm registry
   5. `npx -y fsb-mcp-server` downloads and starts the MCP server on a clean machine
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [x] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
+- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 ### Phase 106: Documentation
 **Goal**: Users can configure the FSB MCP server in their preferred MCP client by following the README
@@ -47,7 +50,10 @@
   1. README.md in the mcp-server directory has FSB branding (logo, badges) and matches the main project style
   2. A user can copy-paste the Claude Desktop JSON config, the Claude Code CLI command, or the Cursor config and connect to the server
   3. All 42+ exposed MCP tools are listed in the README by category with brief descriptions
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
+- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 </details>
 
@@ -93,7 +99,10 @@ Plans:
   3. User can ask FSB to add text inside a shape (via double-click) and the text renders within the shape boundary
   4. User can ask FSB to edit existing text on a shape and the updated text replaces the original
   5. The Excalidraw site guide documents keyboard shortcuts, tool-key re-press rules, and the transient textarea workflow
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
+- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 ### Phase 109: Canvas Operations
 **Goal**: Users can control the Excalidraw canvas state -- undo, redo, clear, zoom, pan, select all
@@ -105,7 +114,10 @@ Plans:
   3. User can ask FSB to zoom in, zoom out, reset zoom, and zoom to fit content
   4. User can ask FSB to pan the canvas and the viewport shifts
   5. User can ask FSB to select all elements and every element on canvas becomes selected
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
+- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 ### Phase 110: Element Editing
 **Goal**: Users can manipulate existing elements on the Excalidraw canvas -- select, move, resize, rotate, duplicate, delete, group, lock, copy style
@@ -117,7 +129,10 @@ Plans:
   3. User can ask FSB to group multiple elements and then ungroup them
   4. User can ask FSB to lock an element (preventing accidental moves) and unlock it
   5. User can ask FSB to copy the style from one element and paste it onto another
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
+- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 ### Phase 111: Connectors & Arrows
 **Goal**: Users can create connected, labeled arrows between shapes with routing and endpoint control
@@ -128,7 +143,10 @@ Plans:
   2. User can ask FSB to create an elbow (orthogonal) arrow between shapes
   3. User can ask FSB to change arrowhead styles (arrow, bar, dot, triangle, none) on existing arrows
   4. User can ask FSB to add a text label to an arrow or connector
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
+- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 ### Phase 112: Styling & Layout
 **Goal**: Users can control the visual appearance and spatial arrangement of elements on the Excalidraw canvas
@@ -140,7 +158,10 @@ Plans:
   3. User can ask FSB to change font size, font family, and text alignment on text elements
   4. User can ask FSB to align multiple elements (left, right, top, bottom, center) and distribute them evenly
   5. User can ask FSB to change layer ordering (bring forward, send back, bring to front, send to back)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
+- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 ### Phase 113: Export
 **Goal**: Users can export their Excalidraw drawings in common formats
@@ -150,7 +171,10 @@ Plans:
   1. User can ask FSB to export the drawing as PNG to clipboard
   2. User can ask FSB to export the drawing as SVG
   3. User can ask FSB to copy the drawing to clipboard for pasting into other applications
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
+- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 ### Phase 114: Natural Language Diagrams
 **Goal**: Users can describe a diagram in plain English and FSB autonomously plans layout, draws shapes, adds labels, and connects elements on Excalidraw
@@ -162,7 +186,10 @@ Plans:
   3. User can describe a mind map (e.g., "draw a mind map for project planning with 4 branches") and FSB produces a radial layout with labeled nodes
   4. Generated diagrams use consistent spacing (approximately 150px horizontal, 120px vertical) so shapes do not overlap or cluster
   5. Every shape and connector in a generated diagram has a text label
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
+- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 ## Progress
 
@@ -170,8 +197,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 107. Engine Fixes & Session Foundation | 2/2 | Complete   | 2026-03-24 |
-| 108. Drawing Primitives & Text Entry | 0/? | Not started | - |
+| 107. Engine Fixes & Session Foundation | 2/2 | Complete    | 2026-03-24 |
+| 108. Drawing Primitives & Text Entry | 1/2 | In Progress|  |
 | 109. Canvas Operations | 0/? | Not started | - |
 | 110. Element Editing | 0/? | Not started | - |
 | 111. Connectors & Arrows | 0/? | Not started | - |
