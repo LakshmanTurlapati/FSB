@@ -23,6 +23,14 @@ registerSiteGuide({
 - [canvas] Multi-select: Ctrl+A (all) or shift+click_at on each shape; rubber-band must fully enclose
 - [canvas] Alignment buttons are standard DOM elements -- use regular click, not CDP events
 - [canvas] React DOM can be very large -- use targeted data-testid selectors to reduce tokens
+- [canvas] ALWAYS run session setup first: Escape, Ctrl+A, Delete, Ctrl+0 -- clears modals, old content, and zoom
+
+SESSION SETUP (MANDATORY -- run before ANY drawing):
+  Step 1: press_key Escape                   -- dismiss any welcome modal or dialog
+  Step 2: press_key a ctrl=true              -- select all existing elements (Ctrl+A)
+  Step 3: press_key Delete                   -- delete selected elements (clear canvas)
+  Step 4: press_key 0 ctrl=true              -- reset zoom to 100% (Ctrl+0)
+  WHY: Excalidraw auto-saves to localStorage. Without clearing, previous session content contaminates new diagrams. Modals from first visit block all keyboard shortcuts. Zoom/pan state affects all coordinate calculations.
 
 EXCALIDRAW-SPECIFIC INTELLIGENCE:
 
@@ -70,6 +78,14 @@ DRAWING SHAPES ON CANVAS:
 - Minimum drag distance should be 30+ pixels for Excalidraw to register as a shape (not a click)
 - After drawing, Excalidraw auto-switches back to selection tool (V) -- re-press R before each rectangle
 - Shapes appear as DOM-accessible SVG-like objects tracked by Excalidraw internal state
+
+TEXT ENTRY WORKFLOW (for typing text on Excalidraw canvas):
+  Step 1: Activate text mode -- either press T (standalone text) or double-click a shape via cdpClickAt (in-shape text)
+  Step 2: Wait 300ms for the transient textarea to mount (Excalidraw creates textarea.excalidraw-wysiwyg dynamically)
+  Step 3: Use cdpInsertText to type the text (NOT the type tool -- the textarea is ephemeral and not in DOM snapshots)
+  Step 4: Press Escape via press_key to commit the text and close the textarea
+  IMPORTANT: The textarea auto-focuses on creation. Do NOT try to find or click it. Just wait and use cdpInsertText.
+  IMPORTANT: Never use the type tool for Excalidraw text -- it cannot find the transient textarea reliably.
 
 MULTI-SELECT SHAPES:
 Method 1 (recommended): Ctrl+A via press_key with key=a, ctrl=true -- selects ALL shapes on canvas
@@ -126,6 +142,13 @@ PROPERTY PANELS:
     layerUI: '.layer-ui__wrapper, [class*="layer-ui"]'
   },
   workflows: {
+    sessionSetup: [
+      'Press Escape via press_key to dismiss any welcome modal or dialog',
+      'Press Ctrl+A via press_key(a, ctrl=true) to select all existing elements',
+      'Press Delete via press_key to delete all selected elements (clear canvas)',
+      'Press Ctrl+0 via press_key(0, ctrl=true) to reset zoom to 100%',
+      'Canvas is now clean and ready for drawing'
+    ],
     createFrame: [
       'Dismiss any welcome dialog or modal (press Escape or click outside)',
       'Press F key via press_key to activate frame tool',
@@ -152,7 +175,7 @@ PROPERTY PANELS:
     ],
     fullFrameAlignmentWorkflow: [
       'Navigate to excalidraw.com and wait for canvas to load',
-      'Dismiss any welcome dialogs (Escape key or click outside)',
+      'Run session setup: press Escape (dismiss modals), Ctrl+A then Delete (clear canvas), Ctrl+0 (reset zoom)',
       'Create a frame: press F, then cdpDrag to define frame bounds',
       'Draw rectangle 1: press R, cdpDrag inside frame area (upper-left region)',
       'Draw rectangle 2: press R, cdpDrag inside frame area (middle region, deliberately offset)',
@@ -161,6 +184,13 @@ PROPERTY PANELS:
       'Get DOM snapshot to find alignment toolbar buttons',
       'Click align-left or center-horizontally button via DOM click',
       'Verify alignment applied by checking shape positions or visual state'
+    ],
+    textEntry: [
+      'Activate text mode: press T for standalone text, or double-click shape center via cdpClickAt for in-shape text',
+      'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
+      'Type text using cdpInsertText (NOT the type tool)',
+      'Press Escape via press_key to commit text and close textarea',
+      'Text is now rendered on the canvas'
     ]
   },
   warnings: [
@@ -171,7 +201,8 @@ PROPERTY PANELS:
     'Ctrl+A selects ALL shapes including the frame -- if only specific shapes are needed, use shift+click instead',
     'Excalidraw DOM snapshots can be large due to React virtual DOM -- use targeted selectors to minimize token usage',
     'Frame tool (F key) may not be available in all Excalidraw versions -- use large rectangle as fallback',
-    'Alignment buttons are standard HTML DOM elements in the toolbar -- use regular click, not CDP events'
+    'Alignment buttons are standard HTML DOM elements in the toolbar -- use regular click, not CDP events',
+    'ALWAYS run session setup (Escape, Ctrl+A, Delete, Ctrl+0) before any Excalidraw automation -- skipping causes stale content, blocked shortcuts, and coordinate errors'
   ],
-  toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
+  toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'cdpInsertText', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
 });
