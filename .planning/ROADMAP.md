@@ -40,7 +40,7 @@
 **Plans**: 2 plans
 Plans:
 - [x] 105-01-PLAN.md -- Package metadata, files whitelist, .npmignore, and prepublishOnly script
-- [ ] 105-02-PLAN.md -- GitHub Actions publish workflow and end-to-end local verification
+- [x] 105-02-PLAN.md -- GitHub Actions publish workflow and end-to-end local verification
 
 ### Phase 106: Documentation
 **Goal**: Users can configure the FSB MCP server in their preferred MCP client by following the README
@@ -200,5 +200,5 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 105. Package & Distribution | 1/2 | In Progress|  |
+| 105. Package & Distribution | 2/2 | Complete   | 2026-03-24 |
 | 106. Documentation | 0/? | Not started | - |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: unknown
-stopped_at: Completed 105-01-PLAN.md
-last_updated: "2026-03-24T08:59:42.200Z"
+stopped_at: Completed 105-02-PLAN.md
+last_updated: "2026-03-24T09:03:29.128Z"
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -57,6 +57,7 @@ Plan: 2 of 2
 | Phase 113 P01 | 2min | 1 tasks | 1 files |
 | Phase 114 P01 | 2min | 1 tasks | 1 files |
 | Phase 105 P01 | 1min | 2 tasks | 2 files |
+| Phase 105 P02 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,7 @@ Recent decisions affecting current work:
 - [Phase 113]: Shift+Alt+C is the primary PNG export (zero DOM interaction), SVG uses menu navigation, Ctrl+C copies element data not rendered image
 - [Phase 114]: Coordinate templates use concrete pixel values for direct AI follow-through without calculation
 - [Phase 105]: Version 0.1.0 signals beta status; files whitelist + .npmignore for defense-in-depth publish filtering
+- [Phase 105]: v* tag trigger only, no GitHub Release creation; npm ci for reproducible CI builds; shebang/pack verification before publish
 
 ### Roadmap Evolution
 
@@ -101,6 +103,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T08:59:42.198Z
-Stopped at: Completed 105-01-PLAN.md
+Last session: 2026-03-24T09:03:29.126Z
+Stopped at: Completed 105-02-PLAN.md
 Resume file: None
