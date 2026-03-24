@@ -169,10 +169,9 @@ Plans:
   1. User can ask FSB to export the drawing as PNG to clipboard
   2. User can ask FSB to export the drawing as SVG
   3. User can ask FSB to copy the drawing to clipboard for pasting into other applications
-**Plans**: 2 plans
+**Plans**: 1 plan
 Plans:
-- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
-- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
+- [ ] 113-01-PLAN.md -- Add EXPORT section with PNG clipboard, SVG export, and clipboard copy workflows
 
 ### Phase 114: Natural Language Diagrams
 **Goal**: Users can describe a diagram in plain English and FSB autonomously plans layout, draws shapes, adds labels, and connects elements on Excalidraw
@@ -196,12 +195,12 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 107. Engine Fixes & Session Foundation | 2/2 | Complete    | 2026-03-24 |
-| 112. Styling & Layout | 1/1 | Complete   | 2026-03-24 |
+| 112. Styling & Layout | 1/1 | Complete    | 2026-03-24 |
 | 109. Canvas Operations | 1/1 | Complete    | 2026-03-24 |
 | 110. Element Editing | 1/1 | Complete    | 2026-03-24 |
 | 111. Connectors & Arrows | 1/1 | Complete    | 2026-03-24 |
 | 112. Styling & Layout | 0/? | Not started | - |
-| 113. Export | 0/? | Not started | - |
+| 113. Export | 0/1 | In progress | - |
 | 114. Natural Language Diagrams | 0/? | Not started | - |
 
 ---
