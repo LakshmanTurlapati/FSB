@@ -159,6 +159,48 @@ ELEMENT EDITING (keyboard shortcuts + cdpDrag):
       NOTE: Style includes stroke color, fill color, stroke width, stroke style, fill pattern, opacity, font properties.
       NOTE: Copy/paste style works across different shape types (e.g., copy rectangle style to ellipse).
 
+CONNECTORS AND ARROWS:
+
+  1. ARROW BINDING TO SHAPES (CONN-01):
+    Step 1: Draw two shapes first (e.g., rectangles at known coordinates)
+    Step 2: press_key A to activate arrow tool
+    Step 3: cdpDrag from the SOURCE shape EDGE to the TARGET shape EDGE using steps=20, stepDelayMs=20
+    CRITICAL: Start the drag at the edge midpoint of the source shape, NOT the center. For a 150x80 shape at (200,200): right edge midpoint is (275, 240), bottom edge midpoint is (275, 280), left edge midpoint is (200, 240), top edge midpoint is (237, 200).
+    Edge coordinate formula: for a shape with top-left at (x,y) and size (w,h): right-edge=(x+w, y+h/2), left-edge=(x, y+h/2), top-edge=(x+w/2, y), bottom-edge=(x+w/2, y+h).
+    Similarly, end the drag at the target shape edge midpoint, not center.
+    Endpoints must land within ~5px of shape boundary for Excalidraw to auto-bind.
+    NOTE: When bound, moving either shape will keep the arrow attached. Unbound arrows stay fixed in place.
+    NOTE: Tool auto-switches to V after drawing -- re-press A before each subsequent arrow.
+
+  2. ELBOW / ORTHOGONAL ROUTING (CONN-02):
+    Step 1: Draw an arrow between two shapes (using binding workflow above)
+    Step 2: Click the arrow via cdpClickAt at the arrow midpoint to select it
+    Step 3: In the properties panel that appears, look for the routing/line-type buttons. Excalidraw shows line type options: straight line, curved, and elbow (orthogonal/sharp right-angle segments).
+    Step 4: Click the elbow/orthogonal routing button. Selector hints: look for [aria-label*="Elbow"], [aria-label*="elbowed"], or the third line-type icon in the properties panel group. Also try [data-testid*="elbow"] or [data-testid*="sharp"].
+    Step 5: The arrow redraws with right-angle segments that route around obstacles.
+    NOTE: Elbow routing only applies to arrows/connectors, not to plain lines (L tool).
+    NOTE: Default arrow type in Excalidraw is "round" (curved). Elbow is the third option (after straight and round).
+
+  3. ARROWHEAD STYLES (CONN-03):
+    Step 1: Click the arrow via cdpClickAt at the arrow midpoint to select it
+    Step 2: In the properties panel, look for arrowhead endpoint buttons. Excalidraw shows start-point and end-point arrowhead selectors separately.
+    Step 3: Click the desired arrowhead style button. Available styles: arrow (default pointed), bar (flat line perpendicular to arrow), dot (circle at endpoint), triangle (filled triangle), none (no arrowhead).
+    Selector hints: look for [aria-label*="Arrowhead"], [data-testid*="arrowhead"], or button groups labeled "Start" and "End" in the arrow properties section. The buttons typically show small icons of each arrowhead shape.
+    Step 4: To change the START arrowhead (the tail end), click the corresponding button in the start arrowhead group.
+    Step 5: To change the END arrowhead (the tip), click the corresponding button in the end arrowhead group.
+    NOTE: By default arrows have "none" at start and "arrow" (pointed) at end.
+    NOTE: Use arrowhead styles to create: one-way arrows (none/arrow), bidirectional arrows (arrow/arrow), association lines (none/none), or connector-bar diagrams (bar/arrow).
+
+  4. LABELED ARROWS / CONNECTORS (CONN-04):
+    Step 1: Click the arrow via cdpClickAt at the arrow midpoint to select it
+    Step 2: Double-click the arrow via two rapid cdpClickAt calls 50ms apart at the arrow midpoint, OR press_key Enter after selecting the arrow
+    Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
+    Step 4: cdpInsertText "label text" to add the label
+    Step 5: press_key Escape to commit the text
+    NOTE: The label appears centered on the arrow midpoint. It moves with the arrow when endpoints are dragged.
+    NOTE: To edit an existing arrow label, click arrow to select, press Enter, wait 300ms, Ctrl+A to select existing text, cdpInsertText replacement, Escape to commit -- same as TEXT-03 edit workflow.
+    NOTE: Arrow labels use the same transient textarea as shape text -- ALWAYS use cdpInsertText, NEVER the type tool.
+
 CANVAS ELEMENT:
 - The main drawing canvas is rendered as an HTML5 <canvas> element
 - Canvas selector: canvas.interactive (the primary interactive canvas layer)
@@ -474,6 +516,37 @@ PROPERTY PANELS:
       'Click target element via cdpClickAt(targetX, targetY) to select it',
       'Paste style: press_key(v, ctrl=true, alt=true) -- Ctrl+Alt+V',
       'Copies stroke color, fill, width, style, opacity, and font properties'
+    ],
+    arrowBindToShapes: [
+      'Draw source and target shapes first (e.g., press R, cdpDrag for each rectangle)',
+      'Press A via press_key to activate arrow tool',
+      'Calculate source shape edge midpoint: for shape at (x,y) size (w,h), right-edge is (x+w, y+h/2)',
+      'Calculate target shape edge midpoint similarly',
+      'cdpDrag(sourceEdgeX, sourceEdgeY, targetEdgeX, targetEdgeY, steps=20, stepDelayMs=20) -- must land within ~5px of shape boundary for auto-bind',
+      'Tool auto-switches to V after draw -- re-press A before next arrow',
+      'Verify binding: moving a shape should keep the arrow attached'
+    ],
+    elbowRouting: [
+      'Draw or select an arrow between two shapes',
+      'Click arrow midpoint via cdpClickAt to select it -- properties panel appears',
+      'Find line-type/routing buttons in properties panel: look for [aria-label*="Elbow"] or [data-testid*="elbow"]',
+      'Click elbow/orthogonal button (third line-type option after straight and round)',
+      'Arrow redraws with right-angle segments routing around obstacles'
+    ],
+    changeArrowhead: [
+      'Click arrow midpoint via cdpClickAt to select it -- properties panel appears',
+      'Find arrowhead buttons: look for [aria-label*="Arrowhead"] or [data-testid*="arrowhead"]',
+      'Two groups: Start arrowhead (tail) and End arrowhead (tip)',
+      'Click desired style: arrow (pointed), bar (flat perpendicular), dot (circle), triangle (filled), none',
+      'Default is none at start and arrow at end'
+    ],
+    labelArrow: [
+      'Click arrow via cdpClickAt at arrow midpoint to select it',
+      'Double-click arrow via two rapid cdpClickAt calls 50ms apart, or select arrow then press_key Enter',
+      'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
+      'Type label using cdpInsertText (NOT the type tool)',
+      'Press Escape via press_key to commit label text',
+      'Label appears centered on arrow and moves with it when endpoints change'
     ]
   },
   warnings: [
@@ -488,7 +561,9 @@ PROPERTY PANELS:
     'ALWAYS run session setup (Escape, Ctrl+A, Delete, Ctrl+0) before any Excalidraw automation -- skipping causes stale content, blocked shortcuts, and coordinate errors',
     'For in-shape text (double-click), ensure the cdpClickAt coordinates target the CENTER of the shape, not an edge -- edge clicks may start a resize or connector instead of opening the text editor',
     'Pan (Space+drag) requires holding Space before starting cdpDrag -- releasing Space mid-drag cancels pan mode',
-    'Resize and rotate handles are canvas-rendered (not DOM elements) -- use coordinate offsets from the element bounding box center to target them with cdpDrag'
+    'Resize and rotate handles are canvas-rendered (not DOM elements) -- use coordinate offsets from the element bounding box center to target them with cdpDrag',
+    'Arrow binding requires starting/ending cdpDrag at shape EDGE midpoints, not shape centers -- use edge coordinate formula: right-edge=(x+w, y+h/2), left-edge=(x, y+h/2), top-edge=(x+w/2, y), bottom-edge=(x+w/2, y+h)',
+    'Arrow labels use the same transient textarea as shape text -- double-click or select+Enter to open editor, cdpInsertText to type, Escape to commit'
   ],
   toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'cdpInsertText', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
 });
