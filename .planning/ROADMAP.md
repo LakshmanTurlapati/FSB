@@ -39,8 +39,8 @@
   5. `npx -y fsb-mcp-server` downloads and starts the MCP server on a clean machine
 **Plans**: 2 plans
 Plans:
-- [x] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
-- [x] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
+- [ ] 105-01-PLAN.md -- Package metadata, files whitelist, .npmignore, and prepublishOnly script
+- [ ] 105-02-PLAN.md -- GitHub Actions publish workflow and end-to-end local verification
 
 ### Phase 106: Documentation
 **Goal**: Users can configure the FSB MCP server in their preferred MCP client by following the README
@@ -50,10 +50,7 @@ Plans:
   1. README.md in the mcp-server directory has FSB branding (logo, badges) and matches the main project style
   2. A user can copy-paste the Claude Desktop JSON config, the Claude Code CLI command, or the Cursor config and connect to the server
   3. All 42+ exposed MCP tools are listed in the README by category with brief descriptions
-**Plans**: 2 plans
-Plans:
-- [x] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
-- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
+**Plans**: [to be planned]
 
 </details>
 
@@ -101,8 +98,8 @@ Plans:
   5. The Excalidraw site guide documents keyboard shortcuts, tool-key re-press rules, and the transient textarea workflow
 **Plans**: 2 plans
 Plans:
-- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
-- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
+- [x] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
+- [x] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 ### Phase 109: Canvas Operations
 **Goal**: Users can control the Excalidraw canvas state -- undo, redo, clear, zoom, pan, select all
@@ -189,13 +186,13 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 107. Engine Fixes & Session Foundation | 2/2 | Complete    | 2026-03-24 |
-| 112. Styling & Layout | 1/1 | Complete    | 2026-03-24 |
+| 108. Drawing Primitives & Text Entry | 2/2 | Complete    | 2026-03-24 |
 | 109. Canvas Operations | 1/1 | Complete    | 2026-03-24 |
 | 110. Element Editing | 1/1 | Complete    | 2026-03-24 |
 | 111. Connectors & Arrows | 1/1 | Complete    | 2026-03-24 |
-| 112. Styling & Layout | 0/? | Not started | - |
+| 112. Styling & Layout | 1/1 | Complete    | 2026-03-24 |
 | 113. Export | 1/1 | Complete    | 2026-03-24 |
-| 114. Natural Language Diagrams | 1/1 | Complete   | 2026-03-24 |
+| 114. Natural Language Diagrams | 1/1 | Complete    | 2026-03-24 |
 
 ---
 
@@ -203,5 +200,5 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 105. Package & Distribution | 0/? | Not started | - |
+| 105. Package & Distribution | 0/2 | Not started | - |
 | 106. Documentation | 0/? | Not started | - |
