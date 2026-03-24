@@ -1,0 +1,26 @@
+# Source files (compiled output is in build/)
+src/
+
+# TypeScript config
+tsconfig.json
+
+# Development tools
+.eslintrc*
+.prettierrc*
+.editorconfig
+
+# Test files
+__tests__/
+*.test.ts
+*.spec.ts
+coverage/
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+
+# Dev artifacts
+*.tsbuildinfo
+.env
+.env.*
