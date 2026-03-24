@@ -1,15 +1,38 @@
 {
   "name": "fsb-mcp-server",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "FSB Browser Automation MCP Server",
+  "license": "MIT",
+  "author": "Lakshman Turlapati",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakshmanturlapati/FSB.git",
+    "directory": "mcp-server"
+  },
+  "keywords": [
+    "mcp",
+    "browser-automation",
+    "chrome",
+    "fsb",
+    "model-context-protocol",
+    "ai-agent"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "type": "module",
   "main": "build/index.js",
   "bin": {
     "fsb-mcp": "build/index.js"
   },
+  "files": [
+    "build/",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "tsc"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
