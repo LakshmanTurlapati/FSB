@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: unknown
-stopped_at: Completed 108-01-PLAN.md
-last_updated: "2026-03-24T07:04:02.587Z"
+stopped_at: Completed 108-02-PLAN.md
+last_updated: "2026-03-24T07:06:51.609Z"
 progress:
   total_phases: 2
   completed_phases: 0
@@ -49,6 +49,7 @@ Plan: 2 of 2
 | Phase 107 P01 | 1min | 2 tasks | 2 files |
 | Phase 107 P02 | 2min | 1 tasks | 1 files |
 | Phase 108 P01 | 1min | 1 tasks | 1 files |
+| Phase 108 P02 | 1min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,7 @@ Recent decisions affecting current work:
 - [Phase 107]: Detect self-hosted Excalidraw via DOM markers in addition to hostname
 - [Phase 107]: Session setup uses keyboard shortcuts (Escape, Ctrl+A, Delete, Ctrl+0) not API calls for canvas initialization
 - [Phase 108]: Standardized all 7 Excalidraw shape workflows to consistent 4-step pattern; updated min drag 30px->50px per research
+- [Phase 108]: Three text entry modes documented: standalone (T+click), in-shape (double-click/select+Enter), edit existing (click+Enter+select-all)
 
 ### Roadmap Evolution
 
@@ -85,6 +87,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T07:04:02.585Z
-Stopped at: Completed 108-01-PLAN.md
+Last session: 2026-03-24T07:06:51.607Z
+Stopped at: Completed 108-02-PLAN.md
 Resume file: None

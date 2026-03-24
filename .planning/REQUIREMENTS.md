@@ -25,9 +25,9 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 
 ### Text Entry
 
-- [ ] **TEXT-01**: User can add standalone text labels on Excalidraw canvas
-- [ ] **TEXT-02**: User can add text inside shapes (double-click shape or select+Enter)
-- [ ] **TEXT-03**: User can edit existing text on shapes
+- [x] **TEXT-01**: User can add standalone text labels on Excalidraw canvas
+- [x] **TEXT-02**: User can add text inside shapes (double-click shape or select+Enter)
+- [x] **TEXT-03**: User can edit existing text on shapes
 
 ### Canvas Operations
 
@@ -126,9 +126,9 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 | DRAW-05 | Phase 108 | Complete |
 | DRAW-06 | Phase 108 | Complete |
 | DRAW-07 | Phase 108 | Complete |
-| TEXT-01 | Phase 108 | Pending |
-| TEXT-02 | Phase 108 | Pending |
-| TEXT-03 | Phase 108 | Pending |
+| TEXT-01 | Phase 108 | Complete |
+| TEXT-02 | Phase 108 | Complete |
+| TEXT-03 | Phase 108 | Complete |
 | CANVAS-01 | Phase 109 | Pending |
 | CANVAS-02 | Phase 109 | Pending |
 | CANVAS-03 | Phase 109 | Pending |

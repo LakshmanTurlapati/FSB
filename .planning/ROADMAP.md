@@ -40,7 +40,7 @@
 **Plans**: 2 plans
 Plans:
 - [x] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
-- [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
+- [x] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 ### Phase 106: Documentation
 **Goal**: Users can configure the FSB MCP server in their preferred MCP client by following the README
@@ -52,7 +52,7 @@ Plans:
   3. All 42+ exposed MCP tools are listed in the README by category with brief descriptions
 **Plans**: 2 plans
 Plans:
-- [ ] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
+- [x] 108-01-PLAN.md -- Add drawing primitive workflows for all 7 shape types
 - [ ] 108-02-PLAN.md -- Expand text entry with standalone, in-shape, and edit workflows
 
 </details>
@@ -66,7 +66,7 @@ Plans:
 ## Phases
 
 - [x] **Phase 107: Engine Fixes & Session Foundation** - Fix gating bugs in progress detection and text entry routing, establish clean session setup (completed 2026-03-24)
-- [ ] **Phase 108: Drawing Primitives & Text Entry** - All shape types drawable, standalone and in-shape text entry via transient textarea
+- [x] **Phase 108: Drawing Primitives & Text Entry** - All shape types drawable, standalone and in-shape text entry via transient textarea (completed 2026-03-24)
 - [ ] **Phase 109: Canvas Operations** - Undo/redo, clear, zoom, pan, select all, zoom-to-fit
 - [ ] **Phase 110: Element Editing** - Select, move, delete, duplicate, resize, rotate, group, lock, style copy
 - [ ] **Phase 111: Connectors & Arrows** - Auto-binding arrows, elbow routing, arrowhead styles, labeled connectors
@@ -198,7 +198,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 107. Engine Fixes & Session Foundation | 2/2 | Complete    | 2026-03-24 |
-| 108. Drawing Primitives & Text Entry | 1/2 | In Progress|  |
+| 108. Drawing Primitives & Text Entry | 2/2 | Complete   | 2026-03-24 |
 | 109. Canvas Operations | 0/? | Not started | - |
 | 110. Element Editing | 0/? | Not started | - |
 | 111. Connectors & Arrows | 0/? | Not started | - |
