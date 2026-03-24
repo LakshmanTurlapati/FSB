@@ -201,6 +201,95 @@ CONNECTORS AND ARROWS:
     NOTE: To edit an existing arrow label, click arrow to select, press Enter, wait 300ms, Ctrl+A to select existing text, cdpInsertText replacement, Escape to commit -- same as TEXT-03 edit workflow.
     NOTE: Arrow labels use the same transient textarea as shape text -- ALWAYS use cdpInsertText, NEVER the type tool.
 
+STYLING (element visual properties):
+
+  STROKE COLOR (STYLE-01):
+    Step 1: cdpClickAt(elementX, elementY) to select the element
+    Step 2: press_key s to open stroke color picker (keyboard shortcut S)
+    Step 3: Click desired color swatch in the color picker panel, OR type hex value in the hex input field
+    Step 4: press_key Escape to close color picker
+    Step 5: Click canvas to deselect (cdpClickAt on empty area)
+    Selector hints: [data-testid="color-stroke"], color picker panel buttons are standard DOM elements
+    NOTE: S shortcut toggles the stroke color picker. Clicking a swatch immediately applies the color.
+
+  BACKGROUND/FILL COLOR (STYLE-02):
+    Step 1: cdpClickAt(elementX, elementY) to select the element
+    Step 2: press_key g to open background color picker (keyboard shortcut G -- NOT B)
+    Step 3: Click desired color swatch or type hex value in hex input
+    Step 4: press_key Escape to close color picker
+    Step 5: Click canvas to deselect
+    Selector hints: [data-testid="color-background"], color picker swatches
+    NOTE: G shortcut toggles the background color picker. Background color only visible if fill pattern is not transparent.
+
+  STROKE WIDTH (STYLE-03):
+    Step 1: cdpClickAt(elementX, elementY) to select the element
+    Step 2: In the properties panel (left side), find stroke width buttons: Thin (1), Bold (2), Extra Bold (3-4)
+    Step 3: Click the desired stroke width button
+    Selector hints: [data-testid="strokeWidth-thin"], [data-testid="strokeWidth-bold"], [data-testid="strokeWidth-extraBold"], or button group with [aria-label*="Stroke width"] or [aria-label*="stroke width"]
+    NOTE: These are standard DOM buttons -- use regular click, not CDP events.
+
+  STROKE STYLE (STYLE-04):
+    Step 1: cdpClickAt(elementX, elementY) to select the element
+    Step 2: In the properties panel, find stroke style buttons: Solid, Dashed, Dotted
+    Step 3: Click the desired stroke style button
+    Selector hints: [data-testid="strokeStyle-solid"], [data-testid="strokeStyle-dashed"], [data-testid="strokeStyle-dotted"], or button group with [aria-label*="Stroke style"]
+    NOTE: Standard DOM buttons -- use regular click.
+
+  FILL PATTERN (STYLE-05):
+    Step 1: cdpClickAt(elementX, elementY) to select the element
+    Step 2: In the properties panel, find fill pattern buttons: Hachure (default), Cross-hatch, Solid, Transparent
+    Step 3: Click the desired fill pattern button
+    Selector hints: [data-testid="fill-hachure"], [data-testid="fill-cross-hatch"], [data-testid="fill-solid"], [data-testid="fill-transparent"], or button group with [aria-label*="Fill"]
+    NOTE: Standard DOM buttons. Transparent fill hides background color. Hachure is hand-drawn diagonal lines. Cross-hatch is overlapping diagonal lines.
+
+  OPACITY (STYLE-06):
+    Step 1: cdpClickAt(elementX, elementY) to select the element
+    Step 2: In the properties panel, find the opacity slider or input field
+    Step 3: Click the opacity slider/input, clear it, and type the desired value (0-100)
+    Selector hints: [data-testid="opacity"], input[type="range"] near opacity label, or [aria-label*="Opacity"]
+    NOTE: Opacity 100 = fully opaque, 0 = fully transparent. Applies to the entire element (stroke + fill + text).
+
+  FONT PROPERTIES (STYLE-07):
+    Font size: Select text element, find font size buttons in properties panel: Small (S), Medium (M), Large (L), Extra Large (XL). Selector hints: [data-testid="fontSize-small"], [data-testid="fontSize-medium"], [data-testid="fontSize-large"], [data-testid="fontSize-extraLarge"], or button group with [aria-label*="Font size"]
+    Font family: Select text element, find font family radio buttons: Virgil (hand-drawn), Helvetica (clean), Cascadia (monospace). Selector hints: [data-testid="font-family-virgil"], [data-testid="font-family-helvetica"], [data-testid="font-family-cascadia"], or [data-testid="font-family-normal"], [data-testid="font-family-code"]
+    Text alignment: Select text element, find alignment buttons: Left, Center, Right. Selector hints: [data-testid="align-left"], [data-testid="align-center"], [data-testid="align-right"], or [aria-label*="Text align"] buttons
+    NOTE: Font properties only apply to text elements and shapes containing text. All are standard DOM buttons.
+
+ALIGNMENT AND LAYOUT (multi-element arrangement):
+
+  ALIGN ELEMENTS (ALIGN-01):
+    Step 1: Multi-select 2+ elements via Ctrl+A (all) or shift+cdpClickAt on each element
+    Step 2: After multi-select, alignment buttons appear in the top toolbar/properties bar
+    Step 3: Click the desired alignment button:
+      - Align left: aligns all elements to the leftmost element's left edge
+      - Align center horizontally: centers all elements on the horizontal midpoint
+      - Align right: aligns all elements to the rightmost element's right edge
+      - Align top: aligns all elements to the topmost element's top edge
+      - Align center vertically: centers all elements on the vertical midpoint
+      - Align bottom: aligns all elements to the bottommost element's bottom edge
+    Selector hints: [aria-label="Align left"], [aria-label="Center horizontally"], [aria-label="Align right"], [aria-label="Align top"], [aria-label="Center vertically"], [aria-label="Align bottom"]
+    NOTE: Standard DOM buttons -- use regular click, not CDP. Requires 2+ elements selected.
+    Alternative keyboard shortcuts: Ctrl+Shift+Left (align left), Ctrl+Shift+Right (align right), Ctrl+Shift+Up (align top), Ctrl+Shift+Down (align bottom)
+
+  DISTRIBUTE ELEMENTS (ALIGN-02):
+    Step 1: Multi-select 3+ elements via Ctrl+A (all) or shift+cdpClickAt on each
+    Step 2: After multi-select of 3+ elements, distribute buttons appear in the toolbar
+    Step 3: Click the desired distribute button:
+      - Distribute horizontally: spaces elements evenly along horizontal axis
+      - Distribute vertically: spaces elements evenly along vertical axis
+    Selector hints: [aria-label="Distribute horizontally"], [aria-label="Distribute vertically"], [data-testid="distribute-horizontally"], [data-testid="distribute-vertically"]
+    NOTE: Requires 3+ elements selected. Distribution uses equal spacing between element edges, not centers.
+
+  LAYER ORDERING (ALIGN-03):
+    Step 1: cdpClickAt(elementX, elementY) to select the element to reorder
+    Step 2: Use keyboard shortcuts to change layer position:
+      - Bring forward one layer: press_key ] ctrl=true (Ctrl+])
+      - Send backward one layer: press_key [ ctrl=true (Ctrl+[)
+      - Bring to front (topmost): press_key ] ctrl=true shift=true (Ctrl+Shift+])
+      - Send to back (bottommost): press_key [ ctrl=true shift=true (Ctrl+Shift+[)
+    NOTE: Layer ordering determines which elements render on top of others. Useful when shapes overlap.
+    NOTE: These are keyboard shortcuts, not DOM buttons -- use press_key.
+
 CANVAS ELEMENT:
 - The main drawing canvas is rendered as an HTML5 <canvas> element
 - Canvas selector: canvas.interactive (the primary interactive canvas layer)
@@ -329,7 +418,30 @@ PROPERTY PANELS:
     backgroundColor: '[data-testid="background-color"]',
     strokeColor: '[data-testid="stroke-color"]',
     layerUI: '.layer-ui__wrapper, [class*="layer-ui"]',
-    textareaWysiwyg: 'textarea.excalidraw-wysiwyg, textarea[data-type="wysiwyg"]'
+    textareaWysiwyg: 'textarea.excalidraw-wysiwyg, textarea[data-type="wysiwyg"]',
+    strokeColorPicker: '[data-testid="color-stroke"], [data-testid="stroke-color"]',
+    backgroundColorPicker: '[data-testid="color-background"], [data-testid="background-color"]',
+    strokeWidthThin: '[data-testid="strokeWidth-thin"]',
+    strokeWidthBold: '[data-testid="strokeWidth-bold"]',
+    strokeWidthExtraBold: '[data-testid="strokeWidth-extraBold"]',
+    strokeStyleSolid: '[data-testid="strokeStyle-solid"]',
+    strokeStyleDashed: '[data-testid="strokeStyle-dashed"]',
+    strokeStyleDotted: '[data-testid="strokeStyle-dotted"]',
+    fillHachure: '[data-testid="fill-hachure"]',
+    fillCrossHatch: '[data-testid="fill-cross-hatch"]',
+    fillSolid: '[data-testid="fill-solid"]',
+    fillTransparent: '[data-testid="fill-transparent"]',
+    opacitySlider: '[data-testid="opacity"], input[aria-label*="Opacity"]',
+    fontSizeSmall: '[data-testid="fontSize-small"]',
+    fontSizeMedium: '[data-testid="fontSize-medium"]',
+    fontSizeLarge: '[data-testid="fontSize-large"]',
+    fontSizeExtraLarge: '[data-testid="fontSize-extraLarge"]',
+    fontFamilyVirgil: '[data-testid="font-family-virgil"], [data-testid="font-family-normal"]',
+    fontFamilyHelvetica: '[data-testid="font-family-helvetica"]',
+    fontFamilyCascadia: '[data-testid="font-family-cascadia"], [data-testid="font-family-code"]',
+    textAlignLeft: '[data-testid="text-align-left"], [aria-label*="Align text left"]',
+    textAlignCenter: '[data-testid="text-align-center"], [aria-label*="Align text center"]',
+    textAlignRight: '[data-testid="text-align-right"], [aria-label*="Align text right"]'
   },
   workflows: {
     sessionSetup: [
@@ -547,6 +659,71 @@ PROPERTY PANELS:
       'Type label using cdpInsertText (NOT the type tool)',
       'Press Escape via press_key to commit label text',
       'Label appears centered on arrow and moves with it when endpoints change'
+    ],
+    changeStrokeColor: [
+      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Press S via press_key to open stroke color picker',
+      'Click desired color swatch in picker panel, or type hex in hex input field',
+      'Press Escape via press_key to close color picker',
+      'Click empty canvas area to deselect'
+    ],
+    changeFillColor: [
+      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Press G via press_key to open background color picker',
+      'Click desired color swatch in picker panel, or type hex in hex input field',
+      'Press Escape via press_key to close color picker',
+      'Ensure fill pattern is not transparent -- background color only visible with hachure, cross-hatch, or solid fill'
+    ],
+    changeStrokeWidth: [
+      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Find stroke width buttons in properties panel: Thin, Bold, Extra Bold',
+      'Click desired width button via DOM click (not CDP) -- [data-testid="strokeWidth-thin"] or similar',
+      'Width applies immediately to selected element'
+    ],
+    changeStrokeStyle: [
+      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Find stroke style buttons in properties panel: Solid, Dashed, Dotted',
+      'Click desired style button via DOM click (not CDP) -- [data-testid="strokeStyle-solid"] or similar',
+      'Style applies immediately to selected element'
+    ],
+    changeFillPattern: [
+      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Find fill pattern buttons in properties panel: Hachure, Cross-hatch, Solid, Transparent',
+      'Click desired pattern button via DOM click (not CDP) -- [data-testid="fill-hachure"] or similar',
+      'Pattern applies immediately -- transparent hides background color, others show it'
+    ],
+    changeOpacity: [
+      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Find opacity slider or input in properties panel -- [data-testid="opacity"] or [aria-label*="Opacity"]',
+      'Set desired opacity value (0-100): click input, select all text, type new value',
+      'Opacity 100 = fully opaque, 0 = fully transparent'
+    ],
+    changeFontProperties: [
+      'Click text element or shape with text via cdpClickAt(elementX, elementY) to select it',
+      'For font SIZE: click Small/Medium/Large/XL button in properties panel',
+      'For font FAMILY: click Virgil (hand-drawn) / Helvetica (clean) / Cascadia (mono) radio button',
+      'For text ALIGNMENT: click Left/Center/Right button in properties panel',
+      'All font property buttons are standard DOM elements -- use regular click, not CDP'
+    ],
+    alignElements: [
+      'Multi-select 2+ elements: press_key(a, ctrl=true) for all, or shift+cdpClickAt each element',
+      'Alignment buttons appear in top toolbar after multi-select',
+      'Click desired alignment button via DOM click: [aria-label="Align left"], [aria-label="Center horizontally"], etc.',
+      'Alternative: Ctrl+Shift+Arrow keys for directional alignment',
+      'Alignment snaps selected elements to same edge or center coordinate'
+    ],
+    distributeElements: [
+      'Multi-select 3+ elements: press_key(a, ctrl=true) for all, or shift+cdpClickAt each element',
+      'Distribute buttons appear in toolbar after selecting 3+ elements',
+      'Click distribute button via DOM click: [aria-label="Distribute horizontally"] or [aria-label="Distribute vertically"]',
+      'Elements are spaced evenly along the chosen axis'
+    ],
+    changeLayerOrder: [
+      'Click element via cdpClickAt(elementX, elementY) to select it',
+      'Bring forward one layer: press_key(], ctrl=true) -- Ctrl+]',
+      'Send backward one layer: press_key([, ctrl=true) -- Ctrl+[',
+      'Bring to front: press_key(], ctrl=true, shift=true) -- Ctrl+Shift+]',
+      'Send to back: press_key([, ctrl=true, shift=true) -- Ctrl+Shift+['
     ]
   },
   warnings: [
@@ -563,7 +740,13 @@ PROPERTY PANELS:
     'Pan (Space+drag) requires holding Space before starting cdpDrag -- releasing Space mid-drag cancels pan mode',
     'Resize and rotate handles are canvas-rendered (not DOM elements) -- use coordinate offsets from the element bounding box center to target them with cdpDrag',
     'Arrow binding requires starting/ending cdpDrag at shape EDGE midpoints, not shape centers -- use edge coordinate formula: right-edge=(x+w, y+h/2), left-edge=(x, y+h/2), top-edge=(x+w/2, y), bottom-edge=(x+w/2, y+h)',
-    'Arrow labels use the same transient textarea as shape text -- double-click or select+Enter to open editor, cdpInsertText to type, Escape to commit'
+    'Arrow labels use the same transient textarea as shape text -- double-click or select+Enter to open editor, cdpInsertText to type, Escape to commit',
+    'Stroke color shortcut is S, background color shortcut is G -- do not confuse them. B does NOT open background picker.',
+    'Fill pattern must be non-transparent (hachure, cross-hatch, or solid) for background color to be visible',
+    'Font property buttons (size, family, alignment) only appear when a text element or shape with text is selected',
+    'Layer ordering shortcuts use bracket keys: Ctrl+] forward, Ctrl+[ backward, add Shift for front/back',
+    'Distribute requires 3+ elements selected -- with only 2 elements the distribute buttons do not appear',
+    'Alignment and distribute buttons are standard DOM elements in the toolbar -- use regular click tool, not CDP events'
   ],
   toolPreferences: ['click', 'press_key', 'cdpClickAt', 'cdpDrag', 'cdpInsertText', 'waitForDOMStable', 'navigate', 'hover', 'getAttribute']
 });
