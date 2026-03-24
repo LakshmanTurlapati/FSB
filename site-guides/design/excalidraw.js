@@ -194,9 +194,9 @@ CONNECTORS AND ARROWS:
     NOTE: Use arrowhead styles to create: one-way arrows (none/arrow), bidirectional arrows (arrow/arrow), association lines (none/none), or connector-bar diagrams (bar/arrow).
 
   4. LABELED ARROWS / CONNECTORS (CONN-04):
-    Step 1: Click the arrow via clickat at the arrow midpoint to select it
-    Step 2: Double-click the arrow via two rapid clickat calls 50ms apart at the arrow midpoint, OR key Enter after selecting the arrow
-    Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
+    Step 1: dblclickat x y -- double-click arrow midpoint to select and open text editor
+    Alternative: clickat x y to select arrow, then key Enter to open text editor
+    Step 2: waitstable -- wait for transient textarea to mount and auto-focus
     Step 4: inserttext "label text" to add the label
     Step 5: key Escape to commit the text
     NOTE: The label appears centered on the arrow midpoint. It moves with the arrow when endpoints are dragged.
@@ -344,8 +344,8 @@ TEXT ENTRY WORKFLOW (3 modes):
     NOTE: After placing text, tool auto-switches to V. Re-press T before placing the next standalone text.
 
   MODE 2 -- TEXT INSIDE A SHAPE (TEXT-02):
-    Step 1: Double-click shape center via two rapid clickat calls 50ms apart -- opens in-shape text editor
-    Alternative: clickat to select shape, then key Enter to open text editor
+    Step 1: dblclickat x y -- double-click shape center to open in-shape text editor
+    Alternative: clickat x y to select shape, then key Enter to open text editor
     Step 2: waitstable -- wait for transient textarea to mount and auto-focus
     Step 3: inserttext "your label text" -- text appears inside the shape
     Step 4: key Escape -- commit the text and close the textarea

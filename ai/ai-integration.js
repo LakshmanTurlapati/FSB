@@ -141,6 +141,7 @@ CDP COORDINATE TOOLS (for canvas, maps, non-DOM elements -- use viewport pixel c
 | dragvariablespeed | startX startY endX endY [--steps n] [--mindelay ms] [--maxdelay ms] | CDP drag with speed variation | dragvariablespeed 100 200 500 200 --steps 20 --mindelay 5 --maxdelay 40 |
 | scrollat | x y [--dx pixels] [--dy pixels] | CDP scroll at specific coordinates | scrollat 400 300 --dy -120 |
 | inserttext | "text" | CDP direct text insertion into focused element (canvas editors, contenteditable) | inserttext "Hello World" |
+| dblclickat | x y | CDP double-click at viewport coordinates (opens text editors on canvas shapes) | dblclickat 375 240 |
 
 TEXT SELECTION & FILE TOOLS:
 | Verb | Args | Description | Example |
@@ -4467,8 +4468,8 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
       // CDP coordinate tools (v0.9.8 -- tool parity with MCP)
       'cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt',
 
-      // CDP text insertion (v0.9.9 -- canvas text entry)
-      'cdpInsertText',
+      // CDP text insertion and double-click (v0.9.9 -- canvas text entry)
+      'cdpInsertText', 'cdpDoubleClickAt',
 
       // Text selection and file tools (v0.9.8 -- tool parity with MCP)
       'selectTextRange', 'dropfile'
@@ -4908,7 +4909,7 @@ CAPTCHA present: ${domState.captchaPresent || false}`;
     switch (taskType) {
       case 'canvas':
         priorityBlock = `PRIORITY TOOLS for this canvas/drawing task:
-PREFER CDP coordinate tools (clickat, drag, scrollat, clickandhold, dragvariablespeed, inserttext). Canvas elements have no DOM refs -- always use viewport coordinates from element position data. For TEXT on canvas editors (Excalidraw, Google Docs): use inserttext "text" to type into the focused editor element -- do NOT use the type tool which fails on canvas textareas. Use DOM tools (click, type) only for non-canvas UI elements like toolbars and menus.
+PREFER CDP coordinate tools (clickat, dblclickat, drag, scrollat, clickandhold, dragvariablespeed, inserttext). Canvas elements have no DOM refs -- always use viewport coordinates from element position data. For TEXT on canvas editors (Excalidraw, Google Docs): use dblclickat x y to open the text editor on a shape, then inserttext "text" to type -- do NOT use the type tool which fails on canvas textareas. Use DOM tools (click, type) only for non-canvas UI elements like toolbars and menus.
 `;
         break;
       case 'form':

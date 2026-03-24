@@ -260,6 +260,8 @@ const COMMAND_REGISTRY = {
   // -- CDP coordinate tools (v0.9.8 -- tool parity with MCP) --
   clickat:              { tool: 'cdpClickAt',           args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
   cdpclickat:           { tool: 'cdpClickAt',           args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
+  dblclickat:           { tool: 'cdpDoubleClickAt',     args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
+  doubleclickat:        { tool: 'cdpDoubleClickAt',     args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
   clickandhold:         { tool: 'cdpClickAndHold',      args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
   cdpclickandhold:      { tool: 'cdpClickAndHold',      args: [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }] },
   drag:                 { tool: 'cdpDrag',              args: [{ name: 'startX', type: 'number' }, { name: 'startY', type: 'number' }, { name: 'endX', type: 'number' }, { name: 'endY', type: 'number' }] },

@@ -3588,7 +3588,7 @@ function generateRecoveryStrategies(patterns, session) {
 
   // Classify recent tool types for bidirectional recovery (ROBUST-02)
   const recentActions = (session.actionHistory || []).slice(-5);
-  const cdpTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt', 'cdpInsertText'];
+  const cdpTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt', 'cdpInsertText', 'cdpDoubleClickAt'];
   const recentCdpCount = recentActions.filter(a => cdpTools.includes(a.tool)).length;
   const recentDomCount = recentActions.filter(a => a.tool && !cdpTools.includes(a.tool) && a.tool !== 'navigate' && a.tool !== 'done' && a.tool !== 'fail').length;
 
@@ -4914,7 +4914,7 @@ function validateCompletion(session, aiResponse, context) {
   const isDynamicPage = dynamicPageTypes.includes(taskType) ||
     canvasUrl.test(sessionUrl) ||
     taskType === 'general' && session.actionHistory?.some(a =>
-      ['cdpClickAt', 'cdpDrag', 'cdpScrollAt', 'cdpDragVariableSpeed', 'cdpClickAndHold', 'cdpInsertText'].includes(a.tool)
+      ['cdpClickAt', 'cdpDrag', 'cdpScrollAt', 'cdpDragVariableSpeed', 'cdpClickAndHold', 'cdpInsertText', 'cdpDoubleClickAt'].includes(a.tool)
     );
 
   if (isDynamicPage && aiResponse.taskComplete && aiResponse.result?.trim().length >= minLength) {
@@ -7238,7 +7238,7 @@ async function executeBatchActions(batchActions, session, tabId) {
   const multiTabActions = ['openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab'];
   const backgroundDataTools = ['storeJobData', 'getStoredJobs', 'fillSheetData'];
   const navigationTools = ['navigate', 'searchGoogle', 'goBack', 'goForward'];
-  const cdpBackgroundTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt', 'cdpInsertText'];
+  const cdpBackgroundTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt', 'cdpInsertText', 'cdpDoubleClickAt'];
 
   automationLogger.info('Starting AI-declared batch execution', {
     sessionId,
@@ -10665,7 +10665,7 @@ async function startAutomationLoop(sessionId) {
 
         let actionResult;
 
-        const cdpBackgroundTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt', 'cdpInsertText'];
+        const cdpBackgroundTools = ['cdpClickAt', 'cdpClickAndHold', 'cdpDrag', 'cdpDragVariableSpeed', 'cdpScrollAt', 'cdpInsertText', 'cdpDoubleClickAt'];
 
         if (multiTabActions.includes(action.tool)) {
           // Handle multi-tab actions directly in background script
@@ -11116,7 +11116,7 @@ async function startAutomationLoop(sessionId) {
       // Canvas-based editors (Sheets, Docs, Excalidraw): successful type/keyPress/CDP actions count as progress
       // because canvas rendering doesn't update DOM elements
       (isCanvasEditorUrl(currentUrl) &&
-       iterationActions.some(a => ['type', 'keyPress', 'press_key', 'cdpDrag', 'cdpClickAt', 'cdpInsertText', 'cdpDragVariableSpeed'].includes(a.tool) && a.result?.success) &&
+       iterationActions.some(a => ['type', 'keyPress', 'press_key', 'cdpDrag', 'cdpClickAt', 'cdpInsertText', 'cdpDragVariableSpeed', 'cdpDoubleClickAt'].includes(a.tool) && a.result?.success) &&
        iterationStats.actionsSucceeded > 0) ||
       // Use changeSignals channels to distinguish meaningful changes from noise
       (changeSignals.changed && changeSignals.channels.some(
@@ -12368,6 +12368,30 @@ async function executeCDPToolDirect(action, tabId) {
         const text = p.text || '';
         await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text });
         return { success: true, text, length: text.length, method: 'cdp_inserttext_direct' };
+      }
+
+      case 'cdpDoubleClickAt': {
+        let modifiers = 0;
+        if (p.altKey) modifiers |= 1;
+        if (p.ctrlKey) modifiers |= 2;
+        if (p.shiftKey) modifiers |= 8;
+        // First click
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1, modifiers
+        });
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1, modifiers
+        });
+        // Brief pause between clicks (50ms)
+        await new Promise(r => setTimeout(r, 50));
+        // Second click with clickCount=2
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 2, modifiers
+        });
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 2, modifiers
+        });
+        return { success: true, x: p.x, y: p.y, method: 'cdp_doubleclick_direct' };
       }
 
       default:
