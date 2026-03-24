@@ -72,7 +72,7 @@ Plans:
 - [x] **Phase 111: Connectors & Arrows** - Auto-binding arrows, elbow routing, arrowhead styles, labeled connectors (completed 2026-03-24)
 - [x] **Phase 112: Styling & Layout** - Stroke/fill colors, width, style, fill pattern, opacity, fonts, alignment, distribution, layer ordering (completed 2026-03-24)
 - [x] **Phase 113: Export** - PNG to clipboard, SVG export, clipboard copy (completed 2026-03-24)
-- [ ] **Phase 114: Natural Language Diagrams** - Flowcharts, architecture diagrams, mind maps from descriptions with grid-based layout
+- [x] **Phase 114: Natural Language Diagrams** - Flowcharts, architecture diagrams, mind maps from descriptions with grid-based layout (completed 2026-03-24)
 
 ## Phase Details
 
@@ -181,7 +181,7 @@ Plans:
   5. Every shape and connector in a generated diagram has a text label
 **Plans**: 1 plan
 Plans:
-- [ ] 114-01-PLAN.md -- Add NATURAL LANGUAGE DIAGRAM GENERATION section with layout templates for flowcharts, architecture diagrams, and mind maps
+- [x] 114-01-PLAN.md -- Add NATURAL LANGUAGE DIAGRAM GENERATION section with layout templates for flowcharts, architecture diagrams, and mind maps
 ## Progress
 
 **Execution Order:** 107 -> 108 -> 109 -> 110 -> 111 -> 112 -> 113 -> 114
@@ -195,7 +195,7 @@ Plans:
 | 111. Connectors & Arrows | 1/1 | Complete    | 2026-03-24 |
 | 112. Styling & Layout | 0/? | Not started | - |
 | 113. Export | 1/1 | Complete    | 2026-03-24 |
-| 114. Natural Language Diagrams | 0/1 | Not started | - |
+| 114. Natural Language Diagrams | 1/1 | Complete   | 2026-03-24 |
 
 ---
 

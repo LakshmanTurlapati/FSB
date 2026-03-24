@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: unknown
-stopped_at: Completed 113-01-PLAN.md
-last_updated: "2026-03-24T07:47:30Z"
+stopped_at: Completed 114-01-PLAN.md
+last_updated: "2026-03-24T07:57:08.184Z"
 progress:
   total_phases: 2
   completed_phases: 0
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 113 — Export
+**Current focus:** Phase 114 — Natural Language Diagrams
 
 ## Current Position
 
-Phase: 113 (Export) — COMPLETE
-Plan: 1 of 1 (done)
+Phase: 114 (Natural Language Diagrams) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Plan: 1 of 1 (done)
 | Phase 111 P01 | 2min | 1 tasks | 1 files |
 | Phase 112 P01 | 2min | 1 tasks | 1 files |
 | Phase 113 P01 | 2min | 1 tasks | 1 files |
+| Phase 114 P01 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,7 @@ Recent decisions affecting current work:
 - [Phase 111]: Edge coordinate formula documented inline for AI to calculate arrow start/end points from shape position and size
 - [Phase 112]: Color pickers opened via keyboard shortcuts S (stroke) and G (background), DOM clicks for property panel buttons
 - [Phase 113]: Shift+Alt+C is the primary PNG export (zero DOM interaction), SVG uses menu navigation, Ctrl+C copies element data not rendered image
+- [Phase 114]: Coordinate templates use concrete pixel values for direct AI follow-through without calculation
 
 ### Roadmap Evolution
 
@@ -97,6 +99,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T07:47:30Z
-Stopped at: Completed 113-01-PLAN.md
+Last session: 2026-03-24T07:57:08.182Z
+Stopped at: Completed 114-01-PLAN.md
 Resume file: None

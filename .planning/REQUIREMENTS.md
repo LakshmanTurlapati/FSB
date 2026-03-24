@@ -80,11 +80,11 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 
 ### Natural Language Diagrams
 
-- [ ] **NL-01**: User can generate a flowchart from a natural language description
-- [ ] **NL-02**: User can generate an architecture diagram from a natural language description
-- [ ] **NL-03**: User can generate a mind map from a natural language description
-- [ ] **NL-04**: Generated diagrams have consistent spacing using a coordinate grid convention
-- [ ] **NL-05**: Generated diagrams include text labels on all shapes and connectors
+- [x] **NL-01**: User can generate a flowchart from a natural language description
+- [x] **NL-02**: User can generate an architecture diagram from a natural language description
+- [x] **NL-03**: User can generate a mind map from a natural language description
+- [x] **NL-04**: Generated diagrams have consistent spacing using a coordinate grid convention
+- [x] **NL-05**: Generated diagrams include text labels on all shapes and connectors
 
 ## Future Requirements
 
@@ -160,11 +160,11 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 | EXPORT-01 | Phase 113 | Complete |
 | EXPORT-02 | Phase 113 | Complete |
 | EXPORT-03 | Phase 113 | Complete |
-| NL-01 | Phase 114 | Pending |
-| NL-02 | Phase 114 | Pending |
-| NL-03 | Phase 114 | Pending |
-| NL-04 | Phase 114 | Pending |
-| NL-05 | Phase 114 | Pending |
+| NL-01 | Phase 114 | Complete |
+| NL-02 | Phase 114 | Complete |
+| NL-03 | Phase 114 | Complete |
+| NL-04 | Phase 114 | Complete |
+| NL-05 | Phase 114 | Complete |
 
 **Coverage:**
 - v0.9.9 requirements: 49 total
