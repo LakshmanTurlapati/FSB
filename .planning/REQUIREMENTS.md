@@ -40,14 +40,14 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 
 ### Element Editing
 
-- [ ] **EDIT-01**: User can select and move elements
-- [ ] **EDIT-02**: User can delete elements
-- [ ] **EDIT-03**: User can duplicate elements
-- [ ] **EDIT-04**: User can resize elements
-- [ ] **EDIT-05**: User can rotate elements
-- [ ] **EDIT-06**: User can group and ungroup elements
-- [ ] **EDIT-07**: User can lock and unlock elements
-- [ ] **EDIT-08**: User can copy and paste style between elements
+- [x] **EDIT-01**: User can select and move elements
+- [x] **EDIT-02**: User can delete elements
+- [x] **EDIT-03**: User can duplicate elements
+- [x] **EDIT-04**: User can resize elements
+- [x] **EDIT-05**: User can rotate elements
+- [x] **EDIT-06**: User can group and ungroup elements
+- [x] **EDIT-07**: User can lock and unlock elements
+- [x] **EDIT-08**: User can copy and paste style between elements
 
 ### Connectors & Arrows
 
@@ -135,14 +135,14 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 | CANVAS-04 | Phase 109 | Complete |
 | CANVAS-05 | Phase 109 | Complete |
 | CANVAS-06 | Phase 109 | Complete |
-| EDIT-01 | Phase 110 | Pending |
-| EDIT-02 | Phase 110 | Pending |
-| EDIT-03 | Phase 110 | Pending |
-| EDIT-04 | Phase 110 | Pending |
-| EDIT-05 | Phase 110 | Pending |
-| EDIT-06 | Phase 110 | Pending |
-| EDIT-07 | Phase 110 | Pending |
-| EDIT-08 | Phase 110 | Pending |
+| EDIT-01 | Phase 110 | Complete |
+| EDIT-02 | Phase 110 | Complete |
+| EDIT-03 | Phase 110 | Complete |
+| EDIT-04 | Phase 110 | Complete |
+| EDIT-05 | Phase 110 | Complete |
+| EDIT-06 | Phase 110 | Complete |
+| EDIT-07 | Phase 110 | Complete |
+| EDIT-08 | Phase 110 | Complete |
 | CONN-01 | Phase 111 | Pending |
 | CONN-02 | Phase 111 | Pending |
 | CONN-03 | Phase 111 | Pending |

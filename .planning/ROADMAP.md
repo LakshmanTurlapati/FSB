@@ -135,7 +135,7 @@ Plans:
   5. User can ask FSB to copy the style from one element and paste it onto another
 **Plans**: 1 plan
 Plans:
-- [ ] 110-01-PLAN.md -- Add element editing guidance and workflow arrays to Excalidraw site guide
+- [x] 110-01-PLAN.md -- Add element editing guidance and workflow arrays to Excalidraw site guide
 
 
 
@@ -207,7 +207,7 @@ Plans:
 | 107. Engine Fixes & Session Foundation | 2/2 | Complete    | 2026-03-24 |
 | 108. Drawing Primitives & Text Entry | 2/2 | Complete    | 2026-03-24 |
 | 109. Canvas Operations | 1/1 | Complete    | 2026-03-24 |
-| 110. Element Editing | 0/1 | In progress | - |
+| 110. Element Editing | 1/1 | Complete    | 2026-03-24 |
 | 111. Connectors & Arrows | 0/? | Not started | - |
 | 112. Styling & Layout | 0/? | Not started | - |
 | 113. Export | 0/? | Not started | - |
