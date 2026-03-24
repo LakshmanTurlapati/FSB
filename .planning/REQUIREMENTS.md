@@ -1,105 +1,176 @@
-# Requirements: FSB v0.9.8 Autopilot Refinement
+# Requirements: FSB v0.9.9 Excalidraw Mastery
 
-**Defined:** 2026-03-22
+**Defined:** 2026-03-23
 **Core Value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
 
-## v0.9.8 Requirements
+## v0.9.9 Requirements
 
-Make the autopilot mode perform as flawlessly as MCP manual mode. The AI (Grok 4.1) is capable -- the gap is tooling, prompting, and memory. Bridge it.
+Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 
-### Tool Parity
+### Engine Fixes
 
-- [x] **TOOL-01**: Autopilot CLI_COMMAND_TABLE documents all 33 browser action tools including 7 new ones (clickat, clickandhold, drag, dragvariablespeed, scrollat, selecttextrange, dropfile) with usage examples
-- [x] **TOOL-02**: CLI parser COMMAND_REGISTRY maps all 7 new verbs to correct FSB.tools functions with full parameter specs and aliases
-- [x] **TOOL-03**: isValidTool() validator accepts all 7 new tool names (cdpClickAt, cdpClickAndHold, cdpDrag, cdpDragVariableSpeed, cdpScrollAt, selectTextRange, dropfile)
-- [x] **TOOL-04**: dragdrop registry entry includes optional steps, holdMs, stepDelayMs parameters matching MCP manual mode capabilities
+- [x] **ENGINE-01**: FSB recognizes Excalidraw as a canvas editor for progress detection (isCanvasEditorUrl)
+- [x] **ENGINE-02**: FSB uses CDP direct path for text entry on Excalidraw (isCanvasBasedEditor)
+- [x] **ENGINE-03**: Every Excalidraw session begins with modal dismissal, canvas clear, and zoom reset
 
-### Prompt Engineering
+### Drawing Primitives
 
-- [x] **PROMPT-01**: System prompt groups tools by interaction type (DOM element, CDP coordinate, text range, file upload) with "when to use which" decision guidance
-- [x] **PROMPT-02**: Task-type detection triggers tool-specific prompt sections -- canvas/map tasks prioritize CDP tools, form tasks prioritize DOM tools, text tasks prioritize selection tools
-- [x] **PROMPT-03**: v0.9.7 autopilot diagnostic recommendations (500+) wired into site guide files as strategy hints for autopilot mode
+- [ ] **DRAW-01**: User can draw rectangles on Excalidraw canvas
+- [ ] **DRAW-02**: User can draw ellipses/circles on Excalidraw canvas
+- [ ] **DRAW-03**: User can draw diamonds on Excalidraw canvas
+- [ ] **DRAW-04**: User can draw straight lines on Excalidraw canvas
+- [ ] **DRAW-05**: User can draw arrows on Excalidraw canvas
+- [ ] **DRAW-06**: User can freedraw with pen tool on Excalidraw canvas
+- [ ] **DRAW-07**: User can draw frames (containers) on Excalidraw canvas
 
-### Memory
+### Text Entry
 
-- [x] **MEM-01**: Procedural memory creation -- extract successful action sequences from completed Task memories, store as replayable playbooks with site, task type, and action steps
-- [x] **MEM-02**: Procedural memory injection -- when autopilot encounters matching site + task type, inject known-good action sequence into prompt as recommended approach
-- [x] **MEM-03**: Auto-consolidation triggers after every 10 sessions or when memory count exceeds 80% of capacity limit, without requiring manual user action
-- [x] **MEM-04**: Cross-domain memory search -- when no memories exist for current domain, search by task type pattern across all domains to transfer learned strategies
-- [x] **MEM-05**: Memory refresh on domain change mid-session -- refetch relevant memories when navigation crosses domain boundaries during multi-site tasks
-- [x] **MEM-06**: Remove dead episodic memory code paths (schemas, consolidator references) that are defined but never created, replaced entirely by Task memory
+- [ ] **TEXT-01**: User can add standalone text labels on Excalidraw canvas
+- [ ] **TEXT-02**: User can add text inside shapes (double-click shape or select+Enter)
+- [ ] **TEXT-03**: User can edit existing text on shapes
 
-### Robustness
+### Canvas Operations
 
-- [x] **ROBUST-01**: Coordinate validation rejects out-of-viewport CDP tool parameters before execution, returning descriptive error with viewport dimensions
-- [x] **ROBUST-02**: Stuck detection distinguishes coordinate-based failures from DOM interaction failures, with bidirectional recovery (coordinate stuck suggests DOM fallback, DOM stuck suggests coordinate approach)
-- [x] **ROBUST-03**: Progressive prompt trimming on heavy DOM pages reduces context in stages (trim examples, then trim element count, then memory) instead of timing out
-- [x] **ROBUST-04**: CLI parse failure triggers automatic retry with simplified prompt hint ("respond with exactly one CLI command per line") instead of aborting the action batch
+- [ ] **CANVAS-01**: User can undo and redo actions (Ctrl+Z / Ctrl+Y)
+- [ ] **CANVAS-02**: User can clear the entire canvas
+- [ ] **CANVAS-03**: User can zoom in, zoom out, and reset zoom
+- [ ] **CANVAS-04**: User can pan the canvas
+- [ ] **CANVAS-05**: User can select all elements
+- [ ] **CANVAS-06**: User can zoom to fit all content (Shift+1)
 
-### Validation
+### Element Editing
 
-- [x] **VALID-01**: Run all 50 v0.9.7 edge case prompts (CANVAS-01 through DARK-10) through autopilot mode with documented pass/fail outcomes
-- [x] **VALID-02**: Achieve 90%+ pass rate (45/50 minimum) across all 50 edge case autopilot runs
-- [x] **VALID-03**: Autopilot CLI parse failure rate measured below 5% across all 50 test runs
-- [x] **VALID-04**: Autopilot completion validation correctly identifies task done/not-done with 90%+ accuracy across all 50 test cases
+- [ ] **EDIT-01**: User can select and move elements
+- [ ] **EDIT-02**: User can delete elements
+- [ ] **EDIT-03**: User can duplicate elements
+- [ ] **EDIT-04**: User can resize elements
+- [ ] **EDIT-05**: User can rotate elements
+- [ ] **EDIT-06**: User can group and ungroup elements
+- [ ] **EDIT-07**: User can lock and unlock elements
+- [ ] **EDIT-08**: User can copy and paste style between elements
 
-### Verification Mechanics Fix
+### Connectors & Arrows
 
-- [x] **VMFIX-01**: CDP coordinate tool calls (cdpClickAt, cdpDrag, cdpScrollAt, cdpClickAndHold, cdpDragVariableSpeed) report success=true when CDP dispatch completes without error, bypassing DOM mutation verification that is irrelevant for coordinate-based interactions
-- [x] **VMFIX-02**: Completion validator honors AI done/fail commands within 2 iterations even on pages with continuous DOM changes (real-time charts, animations, live data feeds) by prioritizing explicit AI completion signals over DOM stability signals
-- [x] **VMFIX-03**: Stale autopilot sessions auto-expire after 5 minutes of no AI iteration progress, cleaning up session state and freeing the tab for new task launches
+- [ ] **CONN-01**: User can draw arrows that auto-bind to shape edges
+- [ ] **CONN-02**: User can create elbow (orthogonal) arrow routing
+- [ ] **CONN-03**: User can change arrowhead styles (arrow/bar/dot/triangle/none)
+- [ ] **CONN-04**: User can add labels to arrows/connectors
 
-## Future Requirements (v0.9.9+)
+### Styling
 
-- **EMBED-01**: Semantic vector embeddings for memory search (replace keyword matching with cosine similarity)
-- **REPLAY-01**: Full procedural memory replay without AI -- execute stored action sequences directly, re-engage AI only on failure
-- **BRIDGE-01**: WebSocket bridge health check and auto-reconnect for MCP server stability
+- [ ] **STYLE-01**: User can change stroke color of elements
+- [ ] **STYLE-02**: User can change fill/background color of elements
+- [ ] **STYLE-03**: User can change stroke width of elements
+- [ ] **STYLE-04**: User can change stroke style (solid/dashed/dotted)
+- [ ] **STYLE-05**: User can change fill pattern (transparent/solid/hachure/cross-hatch)
+- [ ] **STYLE-06**: User can change element opacity
+- [ ] **STYLE-07**: User can change font size, family, and text alignment
+
+### Alignment & Layout
+
+- [ ] **ALIGN-01**: User can align multiple elements (left/right/top/bottom/center)
+- [ ] **ALIGN-02**: User can distribute elements evenly (horizontal/vertical)
+- [ ] **ALIGN-03**: User can change layer ordering (bring forward/back, front/back)
+
+### Export
+
+- [ ] **EXPORT-01**: User can export drawing as PNG to clipboard
+- [ ] **EXPORT-02**: User can export drawing as SVG
+- [ ] **EXPORT-03**: User can copy drawing to clipboard
+
+### Natural Language Diagrams
+
+- [ ] **NL-01**: User can generate a flowchart from a natural language description
+- [ ] **NL-02**: User can generate an architecture diagram from a natural language description
+- [ ] **NL-03**: User can generate a mind map from a natural language description
+- [ ] **NL-04**: Generated diagrams have consistent spacing using a coordinate grid convention
+- [ ] **NL-05**: Generated diagrams include text labels on all shapes and connectors
+
+## Future Requirements
+
+### Advanced Diagram Types
+
+- **NL-06**: User can generate sequence diagrams from natural language
+- **NL-07**: User can generate ER diagrams from natural language
+- **NL-08**: User can generate swimlane diagrams from natural language
+
+### Advanced Features
+
+- **ADV-01**: Image insertion on Excalidraw canvas
+- **ADV-02**: Custom library shape import
+- **ADV-03**: Mermaid/PlantUML import conversion
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Semantic vector embeddings | Infrastructure cost vs marginal gain over improved keyword + cross-domain search |
-| Autopilot pass rate below 90% acceptable | 45/50 minimum -- this is the milestone gate |
-| New MCP tool creation | v0.9.7 tools are sufficient -- this milestone wires them to autopilot |
-| WebSocket bridge auto-reconnect | Infrastructure concern separate from autopilot logic |
-| Vision/screenshot interaction | DOM-only per project constraint |
-| Episodic memory resurrection | Task memory fully replaced it -- clean up, don't rebuild |
+| Pixel-perfect layout | Canvas coordinates are approximate; AI cannot pixel-match a reference image |
+| Screenshot verification | No screenshot analysis pipeline exists; action counting suffices |
+| Excalidraw API injection | Content scripts cannot access page JS context (isolated world) |
+| Real-time collaboration | Out of scope, requires authentication |
+| Excalidraw+ paid features | Authentication-gated |
+| Pressure-sensitive drawing | Hardware-dependent, not automatable via CDP |
+| EyeDropper color picking | OS-level UI, not automatable |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TOOL-01 | Phase 97 | Complete |
-| TOOL-02 | Phase 97 | Complete |
-| TOOL-03 | Phase 97 | Complete |
-| TOOL-04 | Phase 97 | Complete |
-| PROMPT-01 | Phase 98 | Complete |
-| PROMPT-02 | Phase 98 | Complete |
-| PROMPT-03 | Phase 99 | Complete |
-| MEM-01 | Phase 100 | Complete |
-| MEM-02 | Phase 100 | Complete |
-| MEM-03 | Phase 101 | Complete |
-| MEM-04 | Phase 101 | Complete |
-| MEM-05 | Phase 101 | Complete |
-| MEM-06 | Phase 101 | Complete |
-| ROBUST-01 | Phase 102 | Complete |
-| ROBUST-02 | Phase 102 | Complete |
-| ROBUST-03 | Phase 102 | Complete |
-| ROBUST-04 | Phase 102 | Complete |
-| VALID-01 | Phase 103 | Complete |
-| VALID-02 | Phase 103 | Complete |
-| VALID-03 | Phase 103 | Complete |
-| VALID-04 | Phase 103 | Complete |
-| VMFIX-01 | Phase 104 | Complete |
-| VMFIX-02 | Phase 104 | Complete |
-| VMFIX-03 | Phase 104 | Complete |
+| ENGINE-01 | Phase 107 | Complete |
+| ENGINE-02 | Phase 107 | Complete |
+| ENGINE-03 | Phase 107 | Complete |
+| DRAW-01 | Phase 108 | Pending |
+| DRAW-02 | Phase 108 | Pending |
+| DRAW-03 | Phase 108 | Pending |
+| DRAW-04 | Phase 108 | Pending |
+| DRAW-05 | Phase 108 | Pending |
+| DRAW-06 | Phase 108 | Pending |
+| DRAW-07 | Phase 108 | Pending |
+| TEXT-01 | Phase 108 | Pending |
+| TEXT-02 | Phase 108 | Pending |
+| TEXT-03 | Phase 108 | Pending |
+| CANVAS-01 | Phase 109 | Pending |
+| CANVAS-02 | Phase 109 | Pending |
+| CANVAS-03 | Phase 109 | Pending |
+| CANVAS-04 | Phase 109 | Pending |
+| CANVAS-05 | Phase 109 | Pending |
+| CANVAS-06 | Phase 109 | Pending |
+| EDIT-01 | Phase 110 | Pending |
+| EDIT-02 | Phase 110 | Pending |
+| EDIT-03 | Phase 110 | Pending |
+| EDIT-04 | Phase 110 | Pending |
+| EDIT-05 | Phase 110 | Pending |
+| EDIT-06 | Phase 110 | Pending |
+| EDIT-07 | Phase 110 | Pending |
+| EDIT-08 | Phase 110 | Pending |
+| CONN-01 | Phase 111 | Pending |
+| CONN-02 | Phase 111 | Pending |
+| CONN-03 | Phase 111 | Pending |
+| CONN-04 | Phase 111 | Pending |
+| STYLE-01 | Phase 112 | Pending |
+| STYLE-02 | Phase 112 | Pending |
+| STYLE-03 | Phase 112 | Pending |
+| STYLE-04 | Phase 112 | Pending |
+| STYLE-05 | Phase 112 | Pending |
+| STYLE-06 | Phase 112 | Pending |
+| STYLE-07 | Phase 112 | Pending |
+| ALIGN-01 | Phase 112 | Pending |
+| ALIGN-02 | Phase 112 | Pending |
+| ALIGN-03 | Phase 112 | Pending |
+| EXPORT-01 | Phase 113 | Pending |
+| EXPORT-02 | Phase 113 | Pending |
+| EXPORT-03 | Phase 113 | Pending |
+| NL-01 | Phase 114 | Pending |
+| NL-02 | Phase 114 | Pending |
+| NL-03 | Phase 114 | Pending |
+| NL-04 | Phase 114 | Pending |
+| NL-05 | Phase 114 | Pending |
 
 **Coverage:**
-- v0.9.8 requirements: 24 total
-- Mapped to phases: 24
+- v0.9.9 requirements: 49 total
+- Mapped to phases: 49
 - Unmapped: 0
 
 ---
-*Requirements defined: 2026-03-22*
-*Last updated: 2026-03-22 after roadmap creation (traceability populated)*
+*Requirements defined: 2026-03-23*
+*Last updated: 2026-03-23 after roadmap creation*

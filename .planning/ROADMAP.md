@@ -59,7 +59,7 @@
 
 ## Phases
 
-- [ ] **Phase 107: Engine Fixes & Session Foundation** - Fix gating bugs in progress detection and text entry routing, establish clean session setup
+- [x] **Phase 107: Engine Fixes & Session Foundation** - Fix gating bugs in progress detection and text entry routing, establish clean session setup (completed 2026-03-24)
 - [ ] **Phase 108: Drawing Primitives & Text Entry** - All shape types drawable, standalone and in-shape text entry via transient textarea
 - [ ] **Phase 109: Canvas Operations** - Undo/redo, clear, zoom, pan, select all, zoom-to-fit
 - [ ] **Phase 110: Element Editing** - Select, move, delete, duplicate, resize, rotate, group, lock, style copy
@@ -80,8 +80,8 @@
   3. Every new Excalidraw session starts with modals dismissed, canvas cleared, and zoom reset to default
 **Plans**: 2 plans
 Plans:
-- [ ] 107-01-PLAN.md -- Fix isCanvasEditorUrl and isCanvasBasedEditor for Excalidraw detection
-- [ ] 107-02-PLAN.md -- Add session setup sequence and text entry workflow to site guide
+- [x] 107-01-PLAN.md -- Fix isCanvasEditorUrl and isCanvasBasedEditor for Excalidraw detection
+- [x] 107-02-PLAN.md -- Add session setup sequence and text entry workflow to site guide
 
 ### Phase 108: Drawing Primitives & Text Entry
 **Goal**: Users can draw any shape type and add text labels on the Excalidraw canvas through FSB automation
@@ -170,7 +170,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 107. Engine Fixes & Session Foundation | 0/2 | Planning complete | - |
+| 107. Engine Fixes & Session Foundation | 2/2 | Complete   | 2026-03-24 |
 | 108. Drawing Primitives & Text Entry | 0/? | Not started | - |
 | 109. Canvas Operations | 0/? | Not started | - |
 | 110. Element Editing | 0/? | Not started | - |
