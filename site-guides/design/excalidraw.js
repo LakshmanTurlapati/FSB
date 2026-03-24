@@ -91,7 +91,7 @@ CANVAS OPERATIONS (keyboard shortcuts):
     NOTE: Only useful when elements exist on canvas. On empty canvas this is a no-op.
 
   PAN CANVAS (CANVAS-04):
-    Hold Space then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) to pan the viewport.
+    Hold Space then drag startX startY endX endY --steps 15 --delay 15 to pan the viewport.
     Implementation: key Space (keyDown only, do not release), then drag to pan, then release Space.
     Alternative: Use scroll wheel -- scroll(deltaX, deltaY) on the canvas element pans when not over a shape.
     NOTE: Panning shifts the viewport without moving elements. Coordinates in subsequent actions are viewport-relative.
@@ -104,36 +104,36 @@ ELEMENT EDITING (keyboard shortcuts + drag):
 
     SELECT AND MOVE (EDIT-01):
       Step 1: key V (or 1) to activate selection tool
-      Step 2: clickatelementX, elementY) to select the element -- selection handles appear around it
-      Step 3: drag(elementX, elementY, newX, newY, steps=15, stepDelayMs=15) to move the element to new position
+      Step 2: clickat x y to select the element -- selection handles appear around it
+      Step 3: drag elementX, elementY, newX, newY, steps=15, stepDelayMs=15 to move the element to new position
       NOTE: For multi-select before move, use Ctrl+click (click_at with --ctrl) or rubber-band drag with V tool.
       NOTE: Moving snaps to grid when grid is visible. Hold Alt during drag to disable snapping.
 
     DELETE ELEMENT (EDIT-02):
-      Step 1: clickatelementX, elementY) to select the element
+      Step 1: clickat x y to select the element
       Step 2: key Delete to delete the selected element
       Alternative: key Backspace also works but Delete is more reliable
       NOTE: For bulk delete, Ctrl+A then Delete clears everything (same as clearCanvas workflow).
 
     DUPLICATE ELEMENT (EDIT-03):
-      Step 1: clickatelementX, elementY) to select the element
+      Step 1: clickat x y to select the element
       Step 2: key d --ctrl (Ctrl+D) to duplicate -- clone appears offset ~10px right and down
       Alternative: Alt+drag to duplicate and place in one motion -- hold Alt, then drag from element to destination
       NOTE: Duplicate preserves all styles, text, and properties of the original.
 
     RESIZE ELEMENT (EDIT-04):
-      Step 1: clickatelementX, elementY) to select the element -- 8 resize handles appear at corners and midpoints
+      Step 1: clickat x y to select the element -- 8 resize handles appear at corners and midpoints
       Step 2: Identify the resize handle position. Handles are at the element bounding box corners and edge midpoints.
         - Bottom-right corner handle is at approximately (elementX + width/2, elementY + height/2) relative to element center
         - Top-left corner handle is at approximately (elementX - width/2, elementY - height/2)
-      Step 3: drag(handleX, handleY, newHandleX, newHandleY, steps=10, stepDelayMs=15) from the handle to the desired new position
+      Step 3: drag handleX, handleY, newHandleX, newHandleY, steps=10, stepDelayMs=15 from the handle to the desired new position
       NOTE: Corner handles resize proportionally. Edge midpoint handles resize in one dimension only.
       NOTE: Hold Shift during resize to maintain aspect ratio. Hold Alt to resize from center.
 
     ROTATE ELEMENT (EDIT-05):
-      Step 1: clickatelementX, elementY) to select the element
+      Step 1: clickat x y to select the element
       Step 2: The rotation handle appears as a small circle above the top edge of the selection box, approximately 20-25px above the top-center
-      Step 3: drag(rotateHandleX, rotateHandleY, targetX, targetY, steps=15, stepDelayMs=15) in a circular arc to rotate
+      Step 3: drag rotateHandleX, rotateHandleY, targetX, targetY, steps=15, stepDelayMs=15 in a circular arc to rotate
       NOTE: Rotation handle position is approximately (elementCenterX, elementTop - 25). Drag clockwise to rotate clockwise.
       NOTE: Hold Shift while dragging to snap rotation to 15-degree increments.
 
@@ -145,7 +145,7 @@ ELEMENT EDITING (keyboard shortcuts + drag):
       NOTE: Groups can be nested (group of groups).
 
     LOCK ELEMENT (EDIT-07):
-      Step 1: clickatelementX, elementY) to select the element
+      Step 1: clickat x y to select the element
       Step 2: Right-click the element to open context menu (or look for lock icon in the properties toolbar)
       Step 3: Click the "Lock" option in context menu, or click the lock icon button in the toolbar
       Alternative keyboard shortcut: There is no dedicated keyboard shortcut for lock in default Excalidraw -- use context menu
@@ -154,9 +154,9 @@ ELEMENT EDITING (keyboard shortcuts + drag):
       NOTE: Lock icon selector: look for [aria-label*="Lock"] or [data-testid*="lock"] in toolbar/context menu.
 
     COPY/PASTE STYLE (EDIT-08):
-      Step 1: clickatsourceX, sourceY) to select the source element (the one whose style you want to copy)
+      Step 1: clickat x y to select the source element (the one whose style you want to copy)
       Step 2: key c --ctrl --alt (Ctrl+Alt+C) to copy style from the selected element
-      Step 3: clickattargetX, targetY) to select the target element (the one to apply the style to)
+      Step 3: clickat x y to select the target element (the one to apply the style to)
       Step 4: key v --ctrl --alt (Ctrl+Alt+V) to paste style onto the target element
       NOTE: Style includes stroke color, fill color, stroke width, stroke style, fill pattern, opacity, font properties.
       NOTE: Copy/paste style works across different shape types (e.g., copy rectangle style to ellipse).
@@ -206,7 +206,7 @@ CONNECTORS AND ARROWS:
 STYLING (element visual properties):
 
   STROKE COLOR (STYLE-01):
-    Step 1: clickatelementX, elementY) to select the element
+    Step 1: clickat x y to select the element
     Step 2: key s to open stroke color picker (keyboard shortcut S)
     Step 3: Click desired color swatch in the color picker panel, OR type hex value in the hex input field
     Step 4: key Escape to close color picker
@@ -215,7 +215,7 @@ STYLING (element visual properties):
     NOTE: S shortcut toggles the stroke color picker. Clicking a swatch immediately applies the color.
 
   BACKGROUND/FILL COLOR (STYLE-02):
-    Step 1: clickatelementX, elementY) to select the element
+    Step 1: clickat x y to select the element
     Step 2: key g to open background color picker (keyboard shortcut G -- NOT B)
     Step 3: Click desired color swatch or type hex value in hex input
     Step 4: key Escape to close color picker
@@ -224,28 +224,28 @@ STYLING (element visual properties):
     NOTE: G shortcut toggles the background color picker. Background color only visible if fill pattern is not transparent.
 
   STROKE WIDTH (STYLE-03):
-    Step 1: clickatelementX, elementY) to select the element
+    Step 1: clickat x y to select the element
     Step 2: In the properties panel (left side), find stroke width buttons: Thin (1), Bold (2), Extra Bold (3-4)
     Step 3: Click the desired stroke width button
     Selector hints: [data-testid="strokeWidth-thin"], [data-testid="strokeWidth-bold"], [data-testid="strokeWidth-extraBold"], or button group with [aria-label*="Stroke width"] or [aria-label*="stroke width"]
     NOTE: These are standard DOM buttons -- use regular click, not CDP events.
 
   STROKE STYLE (STYLE-04):
-    Step 1: clickatelementX, elementY) to select the element
+    Step 1: clickat x y to select the element
     Step 2: In the properties panel, find stroke style buttons: Solid, Dashed, Dotted
     Step 3: Click the desired stroke style button
     Selector hints: [data-testid="strokeStyle-solid"], [data-testid="strokeStyle-dashed"], [data-testid="strokeStyle-dotted"], or button group with [aria-label*="Stroke style"]
     NOTE: Standard DOM buttons -- use regular click.
 
   FILL PATTERN (STYLE-05):
-    Step 1: clickatelementX, elementY) to select the element
+    Step 1: clickat x y to select the element
     Step 2: In the properties panel, find fill pattern buttons: Hachure (default), Cross-hatch, Solid, Transparent
     Step 3: Click the desired fill pattern button
     Selector hints: [data-testid="fill-hachure"], [data-testid="fill-cross-hatch"], [data-testid="fill-solid"], [data-testid="fill-transparent"], or button group with [aria-label*="Fill"]
     NOTE: Standard DOM buttons. Transparent fill hides background color. Hachure is hand-drawn diagonal lines. Cross-hatch is overlapping diagonal lines.
 
   OPACITY (STYLE-06):
-    Step 1: clickatelementX, elementY) to select the element
+    Step 1: clickat x y to select the element
     Step 2: In the properties panel, find the opacity slider or input field
     Step 3: Click the opacity slider/input, clear it, and type the desired value (0-100)
     Selector hints: [data-testid="opacity"], input[type="range"] near opacity label, or [aria-label*="Opacity"]
@@ -283,7 +283,7 @@ ALIGNMENT AND LAYOUT (multi-element arrangement):
     NOTE: Requires 3+ elements selected. Distribution uses equal spacing between element edges, not centers.
 
   LAYER ORDERING (ALIGN-03):
-    Step 1: clickatelementX, elementY) to select the element to reorder
+    Step 1: clickat x y to select the element to reorder
     Step 2: Use keyboard shortcuts to change layer position:
       - Bring forward one layer: key ] --ctrl (Ctrl+])
       - Send backward one layer: key [ --ctrl (Ctrl+[)
@@ -315,19 +315,19 @@ FRAME TOOL:
 
 DRAWING SHAPES ON CANVAS:
 - Activate the tool via keyboard shortcut (e.g., press R for rectangle)
-- Draw the shape by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15)
+- Draw the shape by dragging on canvas: drag startX startY endX endY --steps 15 --delay 15
 - Minimum drag distance should be 50+ pixels for Excalidraw to register as a shape (not a click)
 - After drawing, Excalidraw auto-switches back to selection tool (V) -- re-press R before each rectangle
 - Shapes appear as DOM-accessible SVG-like objects tracked by Excalidraw internal state
 
 DRAWING PRIMITIVES (per-shape workflows):
-  RECTANGLE (DRAW-01): key R, then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press R before next rectangle.
-  ELLIPSE (DRAW-02): key O, then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press O before next ellipse.
-  DIAMOND (DRAW-03): key D, then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press D before next diamond.
-  LINE (DRAW-04): key L, then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Min 50px drag. Tool auto-switches to V after draw -- re-press L before next line.
-  ARROW (DRAW-05): key A, then drag(startX, startY, endX, endY, steps=20, stepDelayMs=20). Use 20+ steps for reliable arrow binding to shapes. Min 50px drag. Tool auto-switches to V after draw -- re-press A before next arrow.
-  FREEDRAW (DRAW-06): key P, then drag(startX, startY, endX, endY, steps=30, stepDelayMs=10). Use 30+ steps for smooth freehand stroke. Tool auto-switches to V after draw -- re-press P before next stroke.
-  FRAME (DRAW-07): key F, then drag(startX, startY, endX, endY, steps=15, stepDelayMs=15). Frames act as named containers for shapes inside them. Double-click frame label to rename. Tool auto-switches to V after draw -- re-press F before next frame.
+  RECTANGLE (DRAW-01): key R, then drag startX startY endX endY --steps 15 --delay 15. Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press R before next rectangle.
+  ELLIPSE (DRAW-02): key O, then drag startX startY endX endY --steps 15 --delay 15. Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press O before next ellipse.
+  DIAMOND (DRAW-03): key D, then drag startX startY endX endY --steps 15 --delay 15. Min 50px drag in both axes. Tool auto-switches to V after draw -- re-press D before next diamond.
+  LINE (DRAW-04): key L, then drag startX startY endX endY --steps 15 --delay 15. Min 50px drag. Tool auto-switches to V after draw -- re-press L before next line.
+  ARROW (DRAW-05): key A, then drag startX startY endX endY --steps 20 --delay 20. Use 20+ steps for reliable arrow binding to shapes. Min 50px drag. Tool auto-switches to V after draw -- re-press A before next arrow.
+  FREEDRAW (DRAW-06): key P, then drag startX startY endX endY --steps 30 --delay 10. Use 30+ steps for smooth freehand stroke. Tool auto-switches to V after draw -- re-press P before next stroke.
+  FRAME (DRAW-07): key F, then drag startX startY endX endY --steps 15 --delay 15. Frames act as named containers for shapes inside them. Double-click frame label to rename. Tool auto-switches to V after draw -- re-press F before next frame.
 
   CRITICAL RULE: Excalidraw auto-switches to selection tool (V) after EVERY shape draw. You MUST re-press the tool key (R, O, D, L, A, P, F) before each subsequent shape. Without re-pressing, drag creates a selection box instead of a shape. CDP reports success either way so the error is silent.
 
@@ -337,34 +337,34 @@ TEXT ENTRY WORKFLOW (3 modes):
 
   MODE 1 -- STANDALONE TEXT LABEL (TEXT-01):
     Step 1: key T to activate text tool
-    Step 2: clickatx, y) on the canvas where the text should appear -- this creates a new text element and opens the editor
-    Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
+    Step 2: clickat x y -- click canvas position where text should appear, opens text editor
+    Step 3: waitstable -- wait for transient textarea to mount and auto-focus
     Step 4: inserttext "your text here" -- text appears in the textarea
-    Step 5: key Escape to commit the text and close the textarea
+    Step 5: key Escape -- commit the text and close the textarea
     NOTE: After placing text, tool auto-switches to V. Re-press T before placing the next standalone text.
 
   MODE 2 -- TEXT INSIDE A SHAPE (TEXT-02):
-    Step 1: Double-click the shape center via two rapid clickatshapeX, shapeY) calls (50ms apart) -- this opens the in-shape text editor
-    Alternative: Click the shape once via clickat to select it, then key Enter to open the text editor
-    Step 2: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus
+    Step 1: Double-click shape center via two rapid clickat calls 50ms apart -- opens in-shape text editor
+    Alternative: clickat to select shape, then key Enter to open text editor
+    Step 2: waitstable -- wait for transient textarea to mount and auto-focus
     Step 3: inserttext "your label text" -- text appears inside the shape
-    Step 4: key Escape to commit the text and close the textarea
+    Step 4: key Escape -- commit the text and close the textarea
     NOTE: The text will be centered within the shape boundary automatically.
 
   MODE 3 -- EDIT EXISTING TEXT (TEXT-03):
-    Step 1: Click the text element or shape with text via clickatelementX, elementY) to select it
-    Step 2: key Enter to re-open the text editor on the selected element
-    Step 3: Wait 300ms for transient textarea.excalidraw-wysiwyg to mount -- it will contain the existing text
-    Step 4: Select all existing text: key a --ctrl (Ctrl+A inside the textarea selects textarea content, not canvas elements)
+    Step 1: clickat on the text element or shape with text to select it
+    Step 2: key Enter -- re-open the text editor on the selected element
+    Step 3: waitstable -- wait for transient textarea to mount with existing text
+    Step 4: key a --ctrl -- select all existing text (Ctrl+A selects textarea content, not canvas)
     Step 5: inserttext "replacement text" -- overwrites the selected text
-    Step 6: key Escape to commit the updated text
+    Step 6: key Escape -- commit the updated text
     NOTE: To append instead of replace, skip Step 4 and just inserttext the additional text.
 
   COMMON RULES FOR ALL TEXT MODES:
     - ALWAYS use inserttext, NEVER use the type tool -- the textarea is transient and not in DOM snapshots
-    - ALWAYS wait 300ms after activating text mode before inserttext
+    - ALWAYS use waitstable after activating text mode before inserttext
     - ALWAYS press Escape to commit -- clicking elsewhere may lose the text
-    - For multi-line text, use key Enter (without ctrl) between lines within the textarea
+    - For multi-line text, use key Enter (without --ctrl) between lines within the textarea
     - The textarea class is excalidraw-wysiwyg -- if you need to verify it mounted, check for this class in DOM
 
 MULTI-SELECT SHAPES:
@@ -543,43 +543,43 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
     ],
     createFrame: [
       'Press F via key to activate frame tool',
-      'Draw frame by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'Draw frame by dragging on canvas: drag startX startY endX endY --steps 15 --delay 15 -- minimum 50px drag in both axes',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press F before drawing the next frame',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawRectangle: [
       'Press R via key to activate rectangle tool',
-      'Draw rectangle by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'Draw rectangle by dragging on canvas: drag startX startY endX endY --steps 15 --delay 15 -- minimum 50px drag in both axes',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press R before drawing the next rectangle',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawEllipse: [
       'Press O via key to activate ellipse tool',
-      'Draw ellipse by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'Draw ellipse by dragging on canvas: drag startX startY endX endY --steps 15 --delay 15 -- minimum 50px drag in both axes',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press O before drawing the next ellipse',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawDiamond: [
       'Press D via key to activate diamond tool',
-      'Draw diamond by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag in both axes',
+      'Draw diamond by dragging on canvas: drag startX startY endX endY --steps 15 --delay 15 -- minimum 50px drag in both axes',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press D before drawing the next diamond',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawLine: [
       'Press L via key to activate line tool',
-      'Draw line by dragging on canvas: drag(startX, startY, endX, endY, steps=15, stepDelayMs=15) -- minimum 50px drag',
+      'Draw line by dragging on canvas: drag startX startY endX endY --steps 15 --delay 15 -- minimum 50px drag',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press L before drawing the next line',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawArrow: [
       'Press A via key to activate arrow tool',
-      'Draw arrow by dragging on canvas: drag(startX, startY, endX, endY, steps=20, stepDelayMs=20) -- minimum 50px drag, use 20+ steps for reliable arrow binding to shapes',
+      'Draw arrow by dragging on canvas: drag startX startY endX endY --steps 20 --delay 20 -- minimum 50px drag, use 20+ steps for reliable arrow binding to shapes',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press A before drawing the next arrow',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
     drawFreedraw: [
       'Press P via key to activate freedraw (pencil) tool',
-      'Draw freehand stroke by dragging on canvas: drag(startX, startY, endX, endY, steps=30, stepDelayMs=10) -- use 30+ steps for smooth freehand stroke',
+      'Draw freehand stroke by dragging on canvas: drag startX startY endX endY --steps 30 --delay 10 -- use 30+ steps for smooth freehand stroke',
       'After drawing, Excalidraw auto-switches to selection tool (V) -- re-press P before drawing the next stroke',
       'Use 150px horizontal spacing and 120px vertical spacing between shapes for consistent layouts'
     ],
@@ -613,14 +613,14 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
     ],
     textStandalone: [
       'Press T via key to activate text tool',
-      'Click canvas position via clickatx, y) to create text element and open editor',
+      'Click canvas position via clickat x, y) to create text element and open editor',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
       'Type text using inserttext (NOT the type tool)',
       'Press Escape via key to commit text and close textarea',
       'Tool auto-switches to V after text placement -- re-press T for next standalone text'
     ],
     textInShape: [
-      'Double-click shape center via two rapid clickatshapeX, shapeY) calls 50ms apart to open in-shape text editor',
+      'Double-click shape center via two rapid clickat x y calls 50ms apart to open in-shape text editor',
       'Alternative: click shape once via clickat to select, then key Enter to open text editor',
       'Wait 300ms for transient textarea.excalidraw-wysiwyg to mount and auto-focus',
       'Type label text using inserttext (NOT the type tool)',
@@ -661,7 +661,7 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Viewport adjusts to show all elements -- no-op on empty canvas'
     ],
     panCanvas: [
-      'Hold Space key then drag to pan: key Space (hold), drag(startX, startY, endX, endY, steps=15, stepDelayMs=15), release Space',
+      'Hold Space key then drag to pan: key Space (hold), drag startX startY endX endY --steps 15 --delay 15, release Space',
       'Alternative: scroll on canvas element to pan viewport',
       'Panning shifts viewport without moving elements -- subsequent coordinates are viewport-relative'
     ],
@@ -672,31 +672,31 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
     ],
     selectAndMove: [
       'Press V via key to activate selection tool',
-      'Click element via clickatelementX, elementY) to select it -- selection handles appear',
-      'Drag element to new position via drag(elementX, elementY, newX, newY, steps=15, stepDelayMs=15)',
+      'Click element via clickat x y to select it -- selection handles appear',
+      'Drag element to new position via drag elementX, elementY, newX, newY, steps=15, stepDelayMs=15',
       'For multi-select: use Ctrl+A (all) or shift+clickat on each element before dragging'
     ],
     deleteElement: [
-      'Click element via clickatelementX, elementY) to select it',
+      'Click element via clickat x y to select it',
       'Press Delete via key to delete the selected element',
       'For bulk delete: key(a, --ctrl) then key Delete'
     ],
     duplicateElement: [
-      'Click element via clickatelementX, elementY) to select it',
+      'Click element via clickat x y to select it',
       'Press Ctrl+D via key(d, --ctrl) to duplicate -- clone appears offset ~10px right and down',
       'Alternative: Alt+drag to duplicate and position in one motion'
     ],
     resizeElement: [
-      'Click element via clickatelementX, elementY) to select it -- 8 resize handles appear',
+      'Click element via clickat x y to select it -- 8 resize handles appear',
       'Identify target resize handle at corner or edge midpoint of selection box',
-      'Drag handle via drag(handleX, handleY, newHandleX, newHandleY, steps=10, stepDelayMs=15)',
+      'Drag handle via drag handleX, handleY, newHandleX, newHandleY, steps=10, stepDelayMs=15',
       'Corner handles resize proportionally; edge handles resize one dimension only',
       'Hold Shift to maintain aspect ratio; hold Alt to resize from center'
     ],
     rotateElement: [
-      'Click element via clickatelementX, elementY) to select it',
+      'Click element via clickat x y to select it',
       'Rotation handle is a small circle ~25px above the top-center of the selection box',
-      'Drag rotation handle via drag(handleX, handleY, targetX, targetY, steps=15, stepDelayMs=15) in circular arc',
+      'Drag rotation handle via drag handleX, handleY, targetX, targetY, steps=15, stepDelayMs=15 in circular arc',
       'Hold Shift to snap rotation to 15-degree increments'
     ],
     groupElements: [
@@ -706,16 +706,16 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Double-click a group to enter it and select individual elements inside'
     ],
     lockElement: [
-      'Click element via clickatelementX, elementY) to select it',
+      'Click element via clickat x y to select it',
       'Right-click element to open context menu or find lock icon in properties toolbar',
       'Click Lock option in context menu or lock icon button',
       'To unlock: select locked element, right-click, choose Unlock',
       'Locked elements cannot be moved, resized, or rotated but can be selected and deleted'
     ],
     copyPasteStyle: [
-      'Click source element via clickatsourceX, sourceY) to select it',
+      'Click source element via clickat x y to select it',
       'Copy style: key(c, --ctrl, --alt) -- Ctrl+Alt+C',
-      'Click target element via clickattargetX, targetY) to select it',
+      'Click target element via clickat x y to select it',
       'Paste style: key(v, --ctrl, --alt) -- Ctrl+Alt+V',
       'Copies stroke color, fill, width, style, opacity, and font properties'
     ],
@@ -724,7 +724,7 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Press A via key to activate arrow tool',
       'Calculate source shape edge midpoint: for shape at (x,y) size (w,h), right-edge is (x+w, y+h/2)',
       'Calculate target shape edge midpoint similarly',
-      'drag(sourceEdgeX, sourceEdgeY, targetEdgeX, targetEdgeY, steps=20, stepDelayMs=20) -- must land within ~5px of shape boundary for auto-bind',
+      'drag sourceEdgeX, sourceEdgeY, targetEdgeX, targetEdgeY, steps=20, stepDelayMs=20 -- must land within ~5px of shape boundary for auto-bind',
       'Tool auto-switches to V after draw -- re-press A before next arrow',
       'Verify binding: moving a shape should keep the arrow attached'
     ],
@@ -751,45 +751,45 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Label appears centered on arrow and moves with it when endpoints change'
     ],
     changeStrokeColor: [
-      'Click element via clickatelementX, elementY) to select it',
+      'Click element via clickat x y to select it',
       'Press S via key to open stroke color picker',
       'Click desired color swatch in picker panel, or type hex in hex input field',
       'Press Escape via key to close color picker',
       'Click empty canvas area to deselect'
     ],
     changeFillColor: [
-      'Click element via clickatelementX, elementY) to select it',
+      'Click element via clickat x y to select it',
       'Press G via key to open background color picker',
       'Click desired color swatch in picker panel, or type hex in hex input field',
       'Press Escape via key to close color picker',
       'Ensure fill pattern is not transparent -- background color only visible with hachure, cross-hatch, or solid fill'
     ],
     changeStrokeWidth: [
-      'Click element via clickatelementX, elementY) to select it',
+      'Click element via clickat x y to select it',
       'Find stroke width buttons in properties panel: Thin, Bold, Extra Bold',
       'Click desired width button via DOM click (not CDP) -- [data-testid="strokeWidth-thin"] or similar',
       'Width applies immediately to selected element'
     ],
     changeStrokeStyle: [
-      'Click element via clickatelementX, elementY) to select it',
+      'Click element via clickat x y to select it',
       'Find stroke style buttons in properties panel: Solid, Dashed, Dotted',
       'Click desired style button via DOM click (not CDP) -- [data-testid="strokeStyle-solid"] or similar',
       'Style applies immediately to selected element'
     ],
     changeFillPattern: [
-      'Click element via clickatelementX, elementY) to select it',
+      'Click element via clickat x y to select it',
       'Find fill pattern buttons in properties panel: Hachure, Cross-hatch, Solid, Transparent',
       'Click desired pattern button via DOM click (not CDP) -- [data-testid="fill-hachure"] or similar',
       'Pattern applies immediately -- transparent hides background color, others show it'
     ],
     changeOpacity: [
-      'Click element via clickatelementX, elementY) to select it',
+      'Click element via clickat x y to select it',
       'Find opacity slider or input in properties panel -- [data-testid="opacity"] or [aria-label*="Opacity"]',
       'Set desired opacity value (0-100): click input, select all text, type new value',
       'Opacity 100 = fully opaque, 0 = fully transparent'
     ],
     changeFontProperties: [
-      'Click text element or shape with text via clickatelementX, elementY) to select it',
+      'Click text element or shape with text via clickat x y to select it',
       'For font SIZE: click Small/Medium/Large/XL button in properties panel',
       'For font FAMILY: click Virgil (hand-drawn) / Helvetica (clean) / Cascadia (mono) radio button',
       'For text ALIGNMENT: click Left/Center/Right button in properties panel',
@@ -809,7 +809,7 @@ NATURAL LANGUAGE DIAGRAM GENERATION (NL-01 through NL-05):
       'Elements are spaced evenly along the chosen axis'
     ],
     changeLayerOrder: [
-      'Click element via clickatelementX, elementY) to select it',
+      'Click element via clickat x y to select it',
       'Bring forward one layer: key(], --ctrl) -- Ctrl+]',
       'Send backward one layer: key([, --ctrl) -- Ctrl+[',
       'Bring to front: key(], --ctrl, --shift) -- Ctrl+Shift+]',
