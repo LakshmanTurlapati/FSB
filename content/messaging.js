@@ -212,11 +212,15 @@
   // ============================================================================
 
   /**
-   * Detect canvas-based editors (Google Docs, Sheets, Slides, etc.)
+   * Detect canvas-based editors (Google Docs, Sheets, Slides, Excalidraw, etc.)
    */
   function isCanvasBasedEditor() {
     const host = window.location.hostname;
     if (host === 'docs.google.com') return true;
+    // Check for Excalidraw canvas editor
+    if (host === 'excalidraw.com' || host.endsWith('.excalidraw.com')) return true;
+    // Check for Excalidraw DOM markers (self-hosted instances)
+    if (document.querySelector('.excalidraw, canvas.interactive')) return true;
     // Check for Google Docs kix classes or the text event target iframe
     if (document.querySelector('.kix-appview-editor, .kix-page, .docs-texteventtarget-iframe')) return true;
     // Check for Google Sheets waffle classes
