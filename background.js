@@ -7313,6 +7313,12 @@ async function executeBatchActions(batchActions, session, tabId) {
       success: actionResult?.success, batchIndex: i
     });
 
+    // Small inter-action delay for CDP sequences (tool selection -> draw)
+    // Canvas editors need brief pauses for tool activation between keyPress and cdpDrag
+    if (i < actions.length - 1 && actionResult?.success && cdpBackgroundTools.includes(action.tool)) {
+      await new Promise(r => setTimeout(r, 50));
+    }
+
     // STOP ON FAILURE
     if (!actionResult?.success) {
       automationLogger.warn('Batch action failed, stopping batch', {
