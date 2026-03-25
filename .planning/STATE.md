@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: unknown
-stopped_at: Completed 105-02-PLAN.md
-last_updated: "2026-03-24T09:03:29.128Z"
+stopped_at: Completed 115-01-PLAN.md
+last_updated: "2026-03-25T17:39:10.986Z"
 progress:
   total_phases: 2
   completed_phases: 1
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 105 — package-distribution
+**Current focus:** Phase 115 — Canvas Vision
 
 ## Current Position
 
-Phase: 105 (package-distribution) — EXECUTING
-Plan: 2 of 2
+Phase: 115 (Canvas Vision) — EXECUTING
+Plan: 3 of 4
 
 ## Performance Metrics
 
@@ -58,6 +58,8 @@ Plan: 2 of 2
 | Phase 114 P01 | 2min | 1 tasks | 1 files |
 | Phase 105 P01 | 1min | 2 tasks | 2 files |
 | Phase 105 P02 | 2min | 2 tasks | 1 files |
+| Phase 115 P02 | 2min | 1 tasks | 1 files |
+| Phase 115 P01 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -85,11 +87,13 @@ Recent decisions affecting current work:
 - [Phase 114]: Coordinate templates use concrete pixel values for direct AI follow-through without calculation
 - [Phase 105]: Version 0.1.0 signals beta status; files whitelist + .npmignore for defense-in-depth publish filtering
 - [Phase 105]: v* tag trigger only, no GitHub Release creation; npm ci for reproducible CI builds; shebang/pack verification before publish
+- [Phase 115]: CDP expression generator pattern: getCanvasPixelFallback returns self-contained IIFE string for Runtime.evaluate
 
 ### Roadmap Evolution
 
 - v0.9.8.1 npm Publishing shelved to backlog (running in parallel outside GSD)
 - v0.9.9 Excalidraw Mastery roadmap created with 8 phases (107-114), 49 requirements
+- Phase 115 added: Canvas Vision -- analyze and convert HTML5 canvas content into structured text so FSB can see what is drawn on any canvas-based app
 
 ### Pending Todos
 
@@ -103,6 +107,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-24T09:03:29.126Z
-Stopped at: Completed 105-02-PLAN.md
+Last session: 2026-03-25T17:39:10.984Z
+Stopped at: Completed 115-01-PLAN.md
 Resume file: None

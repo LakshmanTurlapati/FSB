@@ -194,7 +194,7 @@ Plans:
 | 112. Styling & Layout | 1/1 | Complete    | 2026-03-24 |
 | 113. Export | 1/1 | Complete    | 2026-03-24 |
 | 114. Natural Language Diagrams | 1/1 | Complete    | 2026-03-24 |
-| 115. Canvas Vision | 0/4 | Not started | - |
+| 115. Canvas Vision | 2/4 | In Progress|  |
 
 ### Phase 115: Canvas Vision
 **Goal**: FSB can see what is drawn on HTML5 canvas elements by intercepting draw calls and converting them to structured text, enabling the AI to read, verify, and reason about canvas content on any Canvas 2D app
@@ -209,8 +209,8 @@ Plans:
   6. Canvas vision works on at least 10 of 15 canvas apps in FSB scope
 **Plans**: 4 plans
 Plans:
-- [ ] 115-01-PLAN.md -- Canvas interceptor script (prototype wrapping, getCanvasScene, re-render trigger)
-- [ ] 115-02-PLAN.md -- Pixel fallback (color grid + edge detection via Runtime.evaluate)
+- [x] 115-01-PLAN.md -- Canvas interceptor script (prototype wrapping, getCanvasScene, re-render trigger)
+- [x] 115-02-PLAN.md -- Pixel fallback (color grid + edge detection via Runtime.evaluate)
 - [ ] 115-03-PLAN.md -- DOM snapshot integration (wire interceptor + fallback into markdown pipeline)
 - [ ] 115-04-PLAN.md -- Testing and validation (structural tests + manual Excalidraw verification)
 

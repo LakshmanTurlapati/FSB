@@ -86,6 +86,16 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 - [x] **NL-04**: Generated diagrams have consistent spacing using a coordinate grid convention
 - [x] **NL-05**: Generated diagrams include text labels on all shapes and connectors
 
+### Canvas Vision
+
+- [x] **VISION-01**: FSB intercepts Canvas 2D draw calls (fillRect, fillText, lineTo, arc, etc.) via prototype proxy injected at document_start in MAIN world
+- [ ] **VISION-02**: Draw call log is summarized into structured text (texts, rectangles, paths with coordinates and colors) and injected into DOM snapshots
+- [x] **VISION-03**: For already-loaded pages, FSB triggers canvas re-render (resize event) to capture draw calls retroactively
+- [x] **VISION-04**: Pixel-based fallback extracts color regions and edge outlines when draw call interception is unavailable
+- [ ] **VISION-05**: Canvas scene description appears in every DOM snapshot markdown so the AI sees canvas content on every iteration
+- [ ] **VISION-06**: FSB can verify its own drawing actions by reading the canvas state after drawing
+- [ ] **VISION-07**: Canvas vision works on at least 10 of the 15 canvas-based apps in FSB scope
+
 ## Future Requirements
 
 ### Advanced Diagram Types
