@@ -770,6 +770,15 @@
           });
           break;
 
+        case 'getCanvasPixelFallback':
+          const fallbackExpr = FSB.getCanvasPixelFallback ? FSB.getCanvasPixelFallback() : null;
+          if (fallbackExpr) {
+            sendResponse({ success: true, expression: fallbackExpr });
+          } else {
+            sendResponse({ success: false, error: 'getCanvasPixelFallback not available' });
+          }
+          break;
+
         case 'readPage':
           const rpStart = Date.now();
           const rpSelector = request.params?.selector || null;
