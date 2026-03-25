@@ -12450,12 +12450,16 @@ async function executeCDPToolDirect(action, tabId) {
  * @returns {Object|null} Canvas scene data or null if no canvas
  */
 async function fetchCanvasScene(tabId) {
+  // Try to attach debugger -- if already attached (e.g., by KeyboardEmulator during automation),
+  // just use the existing connection. Do NOT detach+reattach as that breaks the emulator.
+  let ownedDebugger = false;
   try {
     await chrome.debugger.attach({ tabId }, '1.3');
+    ownedDebugger = true;
   } catch (attachErr) {
     if (attachErr.message?.includes('Already attached')) {
-      try { await chrome.debugger.detach({ tabId }); } catch (_) {}
-      try { await chrome.debugger.attach({ tabId }, '1.3'); } catch (_) { return null; }
+      // Another component has it attached -- reuse the connection
+      ownedDebugger = false;
     } else {
       return null;
     }
@@ -12463,6 +12467,7 @@ async function fetchCanvasScene(tabId) {
 
   try {
     // Step 1: Check if interceptor is installed and has data
+    automationLogger.debug('fetchCanvasScene: checking interceptor', { tabId, ownedDebugger });
     const interceptCheck = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
       expression: `(() => {
         if (!window.__canvasInterceptorInstalled) return JSON.stringify({ installed: false });
@@ -12525,7 +12530,10 @@ async function fetchCanvasScene(tabId) {
     automationLogger.debug('fetchCanvasScene failed', { tabId, error: err.message });
     return null;
   } finally {
-    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+    // Only detach if WE attached the debugger -- don't break other components' connections
+    if (ownedDebugger) {
+      try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+    }
   }
 }
 
