@@ -70,6 +70,7 @@ Plans:
 - [x] **Phase 112: Styling & Layout** - Stroke/fill colors, width, style, fill pattern, opacity, fonts, alignment, distribution, layer ordering (completed 2026-03-24)
 - [x] **Phase 113: Export** - PNG to clipboard, SVG export, clipboard copy (completed 2026-03-24)
 - [x] **Phase 114: Natural Language Diagrams** - Flowcharts, architecture diagrams, mind maps from descriptions with grid-based layout (completed 2026-03-24)
+- [ ] **Phase 115: Canvas Vision** - Analyze and convert HTML5 canvas content into structured text so FSB can see what is drawn on any canvas-based app
 
 ## Phase Details
 
@@ -181,7 +182,7 @@ Plans:
 - [x] 114-01-PLAN.md -- Add NATURAL LANGUAGE DIAGRAM GENERATION section with layout templates for flowcharts, architecture diagrams, and mind maps
 ## Progress
 
-**Execution Order:** 107 -> 108 -> 109 -> 110 -> 111 -> 112 -> 113 -> 114
+**Execution Order:** 107 -> 108 -> 109 -> 110 -> 111 -> 112 -> 113 -> 114 -> 115
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -193,6 +194,25 @@ Plans:
 | 112. Styling & Layout | 1/1 | Complete    | 2026-03-24 |
 | 113. Export | 1/1 | Complete    | 2026-03-24 |
 | 114. Natural Language Diagrams | 1/1 | Complete    | 2026-03-24 |
+| 115. Canvas Vision | 0/4 | Not started | - |
+
+### Phase 115: Canvas Vision
+**Goal**: FSB can see what is drawn on HTML5 canvas elements by intercepting draw calls and converting them to structured text, enabling the AI to read, verify, and reason about canvas content on any Canvas 2D app
+**Depends on**: Phase 114
+**Requirements**: VISION-01, VISION-02, VISION-03, VISION-04, VISION-05, VISION-06, VISION-07
+**Success Criteria** (what must be TRUE):
+  1. A canvas-interceptor.js content script (world: MAIN, run_at: document_start) wraps Canvas 2D prototype methods and logs draw calls
+  2. Draw call logs are summarized into structured text (texts, rectangles, paths) and appear in DOM snapshot markdown as a CANVAS SCENE section
+  3. Already-loaded pages get a re-render trigger so interception captures existing content
+  4. A pixel-based fallback (color grid + edge detection) works when interception is unavailable
+  5. The AI can read canvas content on every iteration and use it to verify drawings or extract information
+  6. Canvas vision works on at least 10 of 15 canvas apps in FSB scope
+**Plans**: 4 plans
+Plans:
+- [ ] 115-01-PLAN.md -- Canvas interceptor script (prototype wrapping, getCanvasScene, re-render trigger)
+- [ ] 115-02-PLAN.md -- Pixel fallback (color grid + edge detection via Runtime.evaluate)
+- [ ] 115-03-PLAN.md -- DOM snapshot integration (wire interceptor + fallback into markdown pipeline)
+- [ ] 115-04-PLAN.md -- Testing and validation (structural tests + manual Excalidraw verification)
 
 ---
 
