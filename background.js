@@ -9732,11 +9732,14 @@ async function startAutomationLoop(sessionId) {
       }
     }
 
-    // Canvas scene injection -- runs regardless of how the markdown snapshot was obtained
-    // (prefetch, fresh fetch, or already attached from content script)
+    // Canvas scene injection -- only attempt on pages that have canvas elements
+    // Skip on non-canvas pages to avoid unnecessary CDP overhead
     const hasSnapshot = !!(domResponse?.success && domResponse?.structuredDOM?._markdownSnapshot);
-    automationLogger.debug('Canvas scene check', { sessionId, hasSnapshot, snapshotLength: domResponse?.structuredDOM?._markdownSnapshot?.length || 0 });
-    if (hasSnapshot) {
+    const pageHasCanvas = domResponse?.structuredDOM?.elements?.some(
+      el => el.type === 'canvas' || (el.class || '').includes('canvas') ||
+      (el.selectors || []).some(s => s.includes('canvas'))
+    ) || /excalidraw|tradingview|photopea|draw\.io|figma|canva\.com/i.test(session.url || '');
+    if (hasSnapshot && pageHasCanvas) {
       try {
         const canvasScene = await fetchCanvasScene(session.tabId);
         if (canvasScene) {
@@ -9749,12 +9752,11 @@ async function startAutomationLoop(sessionId) {
               const headerPart = snapshot.substring(0, splitIdx);
               const bodyPart = snapshot.substring(splitIdx);
               domResponse.structuredDOM._markdownSnapshot = headerPart + canvasMarkdown + '\n\n' + bodyPart;
-              automationLogger.debug('Canvas scene injected into markdown snapshot', {
+              automationLogger.debug('Canvas scene injected', {
                 sessionId,
                 source: canvasScene.source,
-                texts: canvasScene.texts?.length || 0,
-                rects: canvasScene.rects?.length || 0,
-                paths: canvasScene.paths?.length || 0
+                shapes: canvasScene.shapes?.length || 0,
+                texts: canvasScene.texts?.length || 0
               });
             }
           }
@@ -12464,7 +12466,6 @@ async function fetchCanvasScene(tabId) {
 
   try {
     // Step 1: Check if interceptor is installed and has data
-    automationLogger.debug('fetchCanvasScene: checking interceptor', { tabId, ownedDebugger });
     const interceptCheck = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
       expression: `(() => {
         if (!window.__canvasInterceptorInstalled) return JSON.stringify({ installed: false });

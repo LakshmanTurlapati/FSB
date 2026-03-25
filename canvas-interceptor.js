@@ -129,36 +129,43 @@
 
     // --- FILTERING ---
 
-    // Filter out background clears (fillRect covering >80% of canvas with white/near-white fill)
-    const isBackground = (r) => {
-      if (r.type !== 'fillRect') return false;
-      if (r.w * r.h < cw * ch * 0.5) return false;
-      const f = (r.fill || '').toLowerCase();
-      return f === '#ffffff' || f === '#fff' || f === 'white' || f === 'rgba(255,255,255,1)' || f === 'rgb(255,255,255)';
+    const isWhiteish = (c) => {
+      if (!c) return false;
+      const f = c.toLowerCase();
+      return f === '#ffffff' || f === '#fff' || f === 'white' ||
+        f === 'rgba(255,255,255,1)' || f === 'rgb(255,255,255)' ||
+        f === 'rgba(0, 0, 0, 0)' || f === 'transparent';
     };
-    const rects = rawRects.filter(r => !isBackground(r));
 
-    // Filter out white-fill-only paths (canvas clear paths)
-    const isWhiteFill = (p) => {
-      if (!p.fill) return false;
-      const f = p.fill.toLowerCase();
-      return (f === '#ffffff' || f === '#fff' || f === 'white') && !p.stroke;
-    };
-    const contentPaths = rawPaths.filter(p => !isWhiteFill(p));
+    // Filter background clears (fillRect covering >50% canvas area with white fill)
+    const rects = rawRects.filter(r => {
+      if (r.type === 'fillRect' && r.w * r.h >= cw * ch * 0.5 && isWhiteish(r.fill)) return false;
+      if (r.w < 5 || r.h < 5) return false; // skip tiny artifacts
+      return true;
+    });
 
-    // Deduplicate texts (same text at same position)
-    const textKey = (t) => `${t.text}@${t.x},${t.y}`;
+    // Filter white-fill-only paths
+    const contentPaths = rawPaths.filter(p => !(isWhiteish(p.fill) && !p.stroke));
+
+    // Deduplicate texts (same text at ~same position within 5px)
     const seenTexts = new Set();
     const texts = rawTexts.filter(t => {
-      const k = textKey(t);
+      const k = `${t.text}@${Math.round(t.x / 5) * 5},${Math.round(t.y / 5) * 5}`;
       if (seenTexts.has(k)) return false;
       seenTexts.add(k);
       return true;
     });
 
+    // Deduplicate rects (same position+size within 2px tolerance)
+    const seenRects = new Set();
+    const uniqueRects = rects.filter(r => {
+      const k = `${Math.round(r.x / 2) * 2},${Math.round(r.y / 2) * 2},${Math.round(r.w / 2) * 2},${Math.round(r.h / 2) * 2}`;
+      if (seenRects.has(k)) return false;
+      seenRects.add(k);
+      return true;
+    });
+
     // --- SHAPE DETECTION ---
-    // Group nearby paths by bounding box proximity and color into "shapes"
-    // roughjs draws each shape as multiple path segments with randomized jitter
 
     function pathBBox(p) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -176,7 +183,7 @@
              a.minY - margin <= b.maxY && a.maxY + margin >= b.minY;
     }
 
-    // Cluster paths: merge paths whose bounding boxes overlap (within 20px margin)
+    // Cluster paths whose bounding boxes overlap (within 15px margin)
     const clusters = [];
     const used = new Set();
     for (let i = 0; i < contentPaths.length; i++) {
@@ -184,6 +191,7 @@
       const cluster = [i];
       used.add(i);
       const bbox = pathBBox(contentPaths[i]);
+      if (!isFinite(bbox.minX)) continue; // skip degenerate paths
       let merged = { ...bbox };
       let changed = true;
       while (changed) {
@@ -191,7 +199,8 @@
         for (let j = 0; j < contentPaths.length; j++) {
           if (used.has(j)) continue;
           const jBox = pathBBox(contentPaths[j]);
-          if (bboxOverlap(merged, jBox, 20)) {
+          if (!isFinite(jBox.minX)) continue;
+          if (bboxOverlap(merged, jBox, 15)) {
             cluster.push(j);
             used.add(j);
             merged.minX = Math.min(merged.minX, jBox.minX);
@@ -202,24 +211,32 @@
           }
         }
       }
-      const clusterPaths = cluster.map(idx => contentPaths[idx]);
-      const colors = new Set();
-      clusterPaths.forEach(p => { if (p.stroke) colors.add(p.stroke); if (p.fill && p.fill !== '#ffffff') colors.add(p.fill); });
-      const hasArc = clusterPaths.some(p => p.points.some(pt => pt.isArc || pt.isEllipse));
       const w = merged.maxX - merged.minX;
       const h = merged.maxY - merged.minY;
+      if (w < 5 && h < 5) continue; // skip tiny clusters
 
-      // Guess shape type from geometry
+      const clusterPaths = cluster.map(idx => contentPaths[idx]);
+      const colors = new Set();
+      clusterPaths.forEach(p => {
+        if (p.stroke && !isWhiteish(p.stroke)) colors.add(p.stroke);
+        if (p.fill && !isWhiteish(p.fill)) colors.add(p.fill);
+      });
+      const hasArc = clusterPaths.some(p => p.points.some(pt => pt.isArc || pt.isEllipse));
+
+      // Classify shape type from geometry
       let shapeType = 'shape';
-      if (hasArc && Math.abs(w - h) < 30) shapeType = 'circle';
+      const aspectRatio = w > 0 ? h / w : 1;
+      if (hasArc && aspectRatio > 0.7 && aspectRatio < 1.3) shapeType = 'circle';
       else if (hasArc) shapeType = 'ellipse';
-      else if (w > h * 3 || h > w * 3) shapeType = 'line';
-      else if (w > 30 && h > 30) shapeType = 'rectangle';
+      else if (w > h * 4 || h > w * 4) shapeType = 'line';
+      else if (w > 20 && h > 20 && aspectRatio > 0.3 && aspectRatio < 3) shapeType = 'rectangle';
+      else if (w > 10 || h > 10) shapeType = 'shape';
+      else continue; // too small to be meaningful
 
-      // Find text labels near this shape
+      // Find text labels inside or near this shape
       const nearTexts = texts.filter(t =>
-        t.x >= merged.minX - 30 && t.x <= merged.maxX + 30 &&
-        t.y >= merged.minY - 30 && t.y <= merged.maxY + 30
+        t.x >= merged.minX - 20 && t.x <= merged.maxX + 20 &&
+        t.y >= merged.minY - 20 && t.y <= merged.maxY + 20
       );
 
       clusters.push({
@@ -228,17 +245,15 @@
         y: Math.round(merged.minY),
         w: Math.round(w),
         h: Math.round(h),
-        color: [...colors].join(', ') || 'black',
+        color: [...colors].slice(0, 2).join(', ') || 'black',
         pathCount: cluster.length,
-        label: nearTexts.map(t => t.text).join(' ') || null
+        label: nearTexts.map(t => t.text).join(' ').substring(0, 80) || null
       });
     }
 
-    // Also add standalone rects as shapes (non-roughjs apps use fillRect/strokeRect directly)
-    for (const r of rects) {
-      // Skip tiny rects (UI artifacts) and very large rects (panels)
-      if (r.w < 10 || r.h < 10) continue;
-      if (r.w > cw * 0.8 && r.h > ch * 0.8) continue;
+    // Add standalone rects (non-roughjs apps use fillRect/strokeRect directly)
+    for (const r of uniqueRects) {
+      if (r.w > cw * 0.8 && r.h > ch * 0.8) continue; // skip full-canvas rects
       const nearTexts = texts.filter(t =>
         t.x >= r.x - 10 && t.x <= r.x + r.w + 10 &&
         t.y >= r.y - 10 && t.y <= r.y + r.h + 10
@@ -246,27 +261,42 @@
       clusters.push({
         type: 'rectangle',
         x: r.x, y: r.y, w: r.w, h: r.h,
-        color: r.fill !== '#ffffff' && r.fill !== 'white' ? r.fill : r.stroke || 'black',
+        color: !isWhiteish(r.fill) ? r.fill : r.stroke || 'black',
         pathCount: 1,
-        label: nearTexts.map(t => t.text).join(' ') || null
+        label: nearTexts.map(t => t.text).join(' ').substring(0, 80) || null
       });
     }
 
-    // Sort shapes by position (top to bottom, left to right)
+    // Sort by position, deduplicate overlapping shapes
     clusters.sort((a, b) => a.y - b.y || a.x - b.x);
+    const seenShapes = new Set();
+    const uniqueShapes = clusters.filter(s => {
+      const k = `${Math.round(s.x / 10) * 10},${Math.round(s.y / 10) * 10},${Math.round(s.w / 10) * 10},${Math.round(s.h / 10) * 10}`;
+      if (seenShapes.has(k)) return false;
+      seenShapes.add(k);
+      return true;
+    });
+
+    // Cap output to prevent bloating the AI prompt
+    const MAX_SHAPES = 15;
+    const MAX_TEXTS = 20;
+    const cappedShapes = uniqueShapes.slice(0, MAX_SHAPES);
+    const cappedTexts = texts.slice(0, MAX_TEXTS);
 
     // Build summary
-    const shapeCount = clusters.length;
+    const shapeCount = uniqueShapes.length;
     const textCount = texts.length;
-    const labeledCount = clusters.filter(s => s.label).length;
+    const labeledCount = uniqueShapes.filter(s => s.label).length;
     let summary = `${shapeCount} shape${shapeCount !== 1 ? 's' : ''}`;
     if (textCount > 0) summary += `, ${textCount} text label${textCount !== 1 ? 's' : ''}`;
     if (labeledCount > 0) summary += ` (${labeledCount} labeled)`;
+    if (shapeCount > MAX_SHAPES) summary += ` (showing first ${MAX_SHAPES})`;
+    if (textCount > MAX_TEXTS) summary += ` (showing first ${MAX_TEXTS} texts)`;
     if (shapeCount === 0 && textCount === 0) summary = 'Canvas appears empty (no drawn content detected)';
 
     return {
-      texts: texts,
-      shapes: clusters,
+      texts: cappedTexts,
+      shapes: cappedShapes,
       totalCalls: window.__canvasCallCount,
       logSize: log.length,
       capped: log.length >= MAX_LOG,
