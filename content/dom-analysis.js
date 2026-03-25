@@ -3335,6 +3335,139 @@
     return domStructure;
   }
 
+  /**
+   * Returns a Runtime.evaluate expression string that extracts canvas pixel data
+   * as a color grid + edge detection fallback when draw call interception is unavailable.
+   * Used when the interceptor fails (WebGL, CORS taint, page loaded before extension).
+   * @returns {string} JavaScript expression for Runtime.evaluate
+   */
+  function getCanvasPixelFallback() {
+    return `(() => {
+      const canvases = document.querySelectorAll('canvas');
+      if (!canvases.length) return JSON.stringify({ error: 'NO_CANVAS_FOUND', scenes: [] });
+
+      function colorName(r, g, b) {
+        if (r > 220 && g > 220 && b > 220) return 'white';
+        if (r < 40 && g < 40 && b < 40) return 'black';
+        if (r > 150 && g < 80 && b < 80) return 'red';
+        if (r < 80 && g > 150 && b < 80) return 'green';
+        if (r < 80 && g < 80 && b > 150) return 'blue';
+        if (r > 150 && g > 150 && b < 80) return 'yellow';
+        if (r > 100 && g > 150 && b > 200) return 'light-blue';
+        if (r > 150 && g > 100 && b < 80) return 'orange';
+        if (r > 150 && g < 100 && b > 150) return 'purple';
+        if (r > 120 && g > 120 && b > 120) return 'gray';
+        return 'other';
+      }
+
+      const scenes = [];
+
+      for (let ci = 0; ci < Math.min(canvases.length, 3); ci++) {
+        const canvas = canvases[ci];
+        let ctx;
+        try { ctx = canvas.getContext('2d'); } catch(e) { continue; }
+        if (!ctx) continue;
+
+        const w = canvas.width, h = canvas.height;
+        if (w < 10 || h < 10) continue;
+
+        let data;
+        try { data = ctx.getImageData(0, 0, w, h).data; } catch(e) {
+          scenes.push({ canvas: ci, error: 'CORS_TAINTED', width: w, height: h });
+          continue;
+        }
+
+        // --- Color Grid: 8x6 regions ---
+        const gridCols = 8, gridRows = 6;
+        const cellW = Math.floor(w / gridCols), cellH = Math.floor(h / gridRows);
+        const colorRegions = [];
+
+        for (let row = 0; row < gridRows; row++) {
+          for (let col = 0; col < gridCols; col++) {
+            const x0 = col * cellW, y0 = row * cellH;
+            const counts = {};
+            const step = Math.max(4, Math.floor(Math.min(cellW, cellH) / 8));
+            let total = 0;
+            for (let py = y0; py < y0 + cellH; py += step) {
+              for (let px = x0; px < x0 + cellW; px += step) {
+                const idx = (py * w + px) * 4;
+                const name = colorName(data[idx], data[idx+1], data[idx+2]);
+                counts[name] = (counts[name] || 0) + 1;
+                total++;
+              }
+            }
+            const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+            const dominant = sorted[0][0];
+            const pct = Math.round(sorted[0][1] / total * 100);
+            if (dominant !== 'white' || pct < 85) {
+              const rowNames = ['top','upper','mid-upper','mid-lower','lower','bottom'];
+              const colNames = ['far-left','left','center-left','center','center-right','right','far-right','edge'];
+              colorRegions.push({
+                pos: rowNames[row] + ' ' + colNames[col],
+                color: dominant,
+                pct: pct,
+                secondary: sorted.length > 1 && sorted[1][1]/total > 0.08 ? sorted[1][0] : null
+              });
+            }
+          }
+        }
+
+        // --- Edge Detection: Sobel-like ---
+        const edgeCols = 80, edgeRows = 30;
+        const eCellW = w / edgeCols, eCellH = h / edgeRows;
+        const threshold = 0.15;
+        let edgeLines = [];
+        let edgeCount = 0;
+
+        for (let row = 0; row < edgeRows; row++) {
+          let line = '';
+          for (let col = 0; col < edgeCols; col++) {
+            const cx = Math.floor(col * eCellW + eCellW / 2);
+            const cy = Math.floor(row * eCellH + eCellH / 2);
+
+            function bright(px, py) {
+              const xx = Math.min(Math.max(px, 0), w - 1);
+              const yy = Math.min(Math.max(py, 0), h - 1);
+              const i = (yy * w + xx) * 4;
+              return (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114) / 255;
+            }
+
+            const gx = bright(cx + Math.floor(eCellW), cy) - bright(cx - Math.floor(eCellW), cy);
+            const gy = bright(cx, cy + Math.floor(eCellH)) - bright(cx, cy - Math.floor(eCellH));
+            const mag = Math.sqrt(gx * gx + gy * gy);
+
+            if (mag < threshold) {
+              line += ' ';
+            } else {
+              edgeCount++;
+              const angle = Math.atan2(gy, gx) * 180 / Math.PI;
+              if (angle >= -22.5 && angle < 22.5) line += '|';
+              else if (angle >= 22.5 && angle < 67.5) line += '/';
+              else if (angle >= 67.5 && angle < 112.5) line += '-';
+              else if (angle >= 112.5 || angle < -112.5) line += '|';
+              else if (angle >= -67.5 && angle < -22.5) line += '\\\\';
+              else line += '-';
+            }
+          }
+          if (line.trim().length > 0) {
+            edgeLines.push(line.replace(/\\s+$/, ''));
+          }
+        }
+
+        scenes.push({
+          canvas: ci,
+          width: w,
+          height: h,
+          colorRegions: colorRegions,
+          edgeLineCount: edgeCount,
+          edges: edgeLines.length > 0 ? edgeLines.join('\\n') : null
+        });
+      }
+
+      return JSON.stringify({ scenes: scenes });
+    })()`;
+  }
+
   // ============================================================================
   // EXPORT TO NAMESPACE
   // ============================================================================
@@ -3368,6 +3501,7 @@
   FSB.buildMarkdownSnapshot = buildMarkdownSnapshot;
   FSB.extractPageText = extractPageText;
   FSB.getStructuredDOM = getStructuredDOM;
+  FSB.getCanvasPixelFallback = getCanvasPixelFallback;
 
   window.FSB._modules['dom-analysis'] = { loaded: true, timestamp: Date.now() };
 })();
