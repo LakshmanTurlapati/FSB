@@ -12476,7 +12476,7 @@ async function fetchCanvasScene(tabId) {
 
     if (interceptCheck?.result?.value) {
       const parsed = JSON.parse(interceptCheck.result.value);
-      if (parsed.installed && parsed.scene && (parsed.scene.texts.length > 0 || parsed.scene.rects.length > 0 || parsed.scene.paths.length > 0)) {
+      if (parsed.installed && parsed.scene && (parsed.scene.texts?.length > 0 || parsed.scene.shapes?.length > 0 || parsed.scene.rects?.length > 0 || parsed.scene.paths?.length > 0)) {
         return { source: 'interceptor', ...parsed.scene };
       }
 
@@ -12495,7 +12495,7 @@ async function fetchCanvasScene(tabId) {
           });
           if (sceneAfter?.result?.value) {
             const scene2 = JSON.parse(sceneAfter.result.value);
-            if (scene2.texts.length > 0 || scene2.rects.length > 0 || scene2.paths.length > 0) {
+            if (scene2.texts?.length > 0 || scene2.shapes?.length > 0 || scene2.rects?.length > 0 || scene2.paths?.length > 0) {
               return { source: 'interceptor-rerender', ...scene2 };
             }
           }
