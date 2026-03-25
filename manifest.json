@@ -44,5 +44,13 @@
       "resources": ["assets/icon48.png", "site-maps/*.json", "test-data/**/*"],
       "matches": ["<all_urls>"]
     }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["canvas-interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
   ]
 }
