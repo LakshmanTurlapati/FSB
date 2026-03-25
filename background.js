@@ -9734,7 +9734,9 @@ async function startAutomationLoop(sessionId) {
 
     // Canvas scene injection -- runs regardless of how the markdown snapshot was obtained
     // (prefetch, fresh fetch, or already attached from content script)
-    if (domResponse?.success && domResponse?.structuredDOM?._markdownSnapshot) {
+    const hasSnapshot = !!(domResponse?.success && domResponse?.structuredDOM?._markdownSnapshot);
+    automationLogger.debug('Canvas scene check', { sessionId, hasSnapshot, snapshotLength: domResponse?.structuredDOM?._markdownSnapshot?.length || 0 });
+    if (hasSnapshot) {
       try {
         const canvasScene = await fetchCanvasScene(session.tabId);
         if (canvasScene) {
