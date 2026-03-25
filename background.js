@@ -1911,25 +1911,8 @@ async function prefetchDOM(tabId, options = {}, guideSelectors = null) {
             response.structuredDOM._markdownElementCount = mdResponse.elementCount;
             response.structuredDOM._markdownRefGeneration = mdResponse.refGeneration;
 
-            // Fetch canvas scene and inject into markdown snapshot
-            try {
-              const canvasScene = await fetchCanvasScene(tabId);
-              if (canvasScene) {
-                const canvasMarkdown = formatCanvasSceneMarkdown(canvasScene);
-                if (canvasMarkdown) {
-                  const snapshot = response.structuredDOM._markdownSnapshot;
-                  const doubleNewline = snapshot.indexOf('\n\n');
-                  const splitIdx = doubleNewline > 0 ? doubleNewline + 2 : snapshot.indexOf('\n') + 1;
-                  if (splitIdx > 0) {
-                    const headerPart = snapshot.substring(0, splitIdx);
-                    const bodyPart = snapshot.substring(splitIdx);
-                    response.structuredDOM._markdownSnapshot = headerPart + canvasMarkdown + '\n\n' + bodyPart;
-                  }
-                }
-              }
-            } catch (canvasErr) {
-              automationLogger.debug('Canvas scene injection failed (non-blocking)', { error: canvasErr.message });
-            }
+            // Canvas scene injection happens in the main automation loop (after DOM fetch),
+            // not here in prefetch -- avoids duplicate CANVAS SCENE sections
           } else if (mdResponse && !mdResponse.success) {
             automationLogger.warn('Markdown snapshot prefetch returned error', { tabId, error: mdResponse.error });
           }
@@ -9740,25 +9723,7 @@ async function startAutomationLoop(sessionId) {
           domResponse.structuredDOM._markdownElementCount = mdResponse.elementCount;
           domResponse.structuredDOM._markdownRefGeneration = mdResponse.refGeneration;
 
-          // Fetch canvas scene and inject into markdown snapshot
-          try {
-            const canvasScene = await fetchCanvasScene(session.tabId);
-            if (canvasScene) {
-              const canvasMarkdown = formatCanvasSceneMarkdown(canvasScene);
-              if (canvasMarkdown) {
-                const snapshot = domResponse.structuredDOM._markdownSnapshot;
-                const doubleNewline = snapshot.indexOf('\n\n');
-                const splitIdx = doubleNewline > 0 ? doubleNewline + 2 : snapshot.indexOf('\n') + 1;
-                if (splitIdx > 0) {
-                  const headerPart = snapshot.substring(0, splitIdx);
-                  const bodyPart = snapshot.substring(splitIdx);
-                  domResponse.structuredDOM._markdownSnapshot = headerPart + canvasMarkdown + '\n\n' + bodyPart;
-                }
-              }
-            }
-          } catch (canvasErr) {
-            automationLogger.debug('Canvas scene injection failed (non-blocking)', { error: canvasErr.message });
-          }
+          // Canvas scene injection handled below (after this block) to avoid duplicates
         } else if (mdResponse && !mdResponse.success) {
           automationLogger.warn('Markdown snapshot returned error, falling back to compact', { error: mdResponse.error });
         }
@@ -12579,45 +12544,30 @@ function formatCanvasSceneMarkdown(scene) {
   const lines = ['## CANVAS SCENE'];
 
   if (scene.source === 'interceptor' || scene.source === 'interceptor-rerender') {
-    lines.push(`> Source: draw call interception | Calls: ${scene.totalCalls || 0} | Logged: ${scene.logSize || 0}${scene.capped ? ' (capped at 5000)' : ''}`);
+    lines.push(`> ${scene.summary || 'Canvas content detected'}`);
 
-    // Texts
-    if (scene.texts && scene.texts.length > 0) {
+    // Shapes (clustered from paths + rects)
+    if (scene.shapes && scene.shapes.length > 0) {
       lines.push('');
-      lines.push('### Text Labels');
-      for (const t of scene.texts.slice(0, 50)) {
-        lines.push(`- "${t.text}" at (${t.x},${t.y}) color:${t.color} font:${t.font}`);
+      for (const s of scene.shapes.slice(0, 30)) {
+        const label = s.label ? ` "${s.label}"` : '';
+        lines.push(`- ${s.type}${label} at (${s.x},${s.y}) ${s.w}x${s.h} color:${s.color}`);
       }
     }
 
-    // Rects
-    if (scene.rects && scene.rects.length > 0) {
+    // Standalone text labels (not associated with shapes)
+    const shapeLabelTexts = new Set();
+    if (scene.shapes) scene.shapes.forEach(s => { if (s.label) s.label.split(' ').forEach(t => shapeLabelTexts.add(t)); });
+    const standaloneTexts = (scene.texts || []).filter(t => !shapeLabelTexts.has(t.text));
+    if (standaloneTexts.length > 0) {
       lines.push('');
-      lines.push('### Rectangles');
-      for (const r of scene.rects.slice(0, 30)) {
-        const fillInfo = r.fill && r.fill !== 'transparent' && r.fill !== 'rgba(0, 0, 0, 0)' ? ` fill:${r.fill}` : '';
-        lines.push(`- ${r.type} at (${r.x},${r.y}) ${r.w}x${r.h}${fillInfo}`);
+      lines.push('Text:');
+      for (const t of standaloneTexts.slice(0, 20)) {
+        lines.push(`- "${t.text}" at (${t.x},${t.y}) color:${t.color}`);
       }
     }
 
-    // Paths
-    if (scene.paths && scene.paths.length > 0) {
-      lines.push('');
-      lines.push(`### Paths (${scene.paths.length} total)`);
-      for (const p of scene.paths.slice(0, 30)) {
-        const pts = p.points || [];
-        const startPt = pts.find(pt => pt.op === 'M');
-        const endPt = pts[pts.length - 1];
-        const colorInfo = p.fill ? `fill:${p.fill}` : (p.stroke ? `stroke:${p.stroke}` : '');
-        if (startPt && endPt) {
-          lines.push(`- path (${pts.length} pts) from (${startPt.x},${startPt.y}) to (${endPt.x || endPt.cx || '?'},${endPt.y || endPt.cy || '?'}) ${colorInfo}`);
-        } else {
-          lines.push(`- path (${pts.length} pts) ${colorInfo}`);
-        }
-      }
-    }
-
-    if ((!scene.texts || scene.texts.length === 0) && (!scene.rects || scene.rects.length === 0) && (!scene.paths || scene.paths.length === 0)) {
+    if ((!scene.shapes || scene.shapes.length === 0) && (!scene.texts || scene.texts.length === 0)) {
       return null; // No meaningful data
     }
   } else if (scene.source === 'pixel-fallback') {
