@@ -4,7 +4,7 @@ milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: unknown
 stopped_at: Completed 115-03-PLAN.md
-last_updated: "2026-03-25T17:43:11.019Z"
+last_updated: "2026-03-25T20:34:11.880Z"
 progress:
   total_phases: 2
   completed_phases: 1

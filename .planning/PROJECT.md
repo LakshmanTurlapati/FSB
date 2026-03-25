@@ -71,9 +71,26 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ 6 new CDP tools (scroll_at, click_and_hold, drag_drop, select_text_range, drop_file, drag_variable_speed) -- v0.9.7
 - ✓ 30+ site guides created/updated with real-world automation intelligence -- v0.9.7
 - ✓ 50 autopilot diagnostic reports with 500+ recommendations catalogued -- v0.9.7
+- ✓ Autopilot CLI command table, parser registry, and isValidTool validator include all 7 CDP tools (cdpClickAt, cdpClickAndHold, cdpDrag, cdpDragVariableSpeed, cdpScrollAt, selectTextRange, dropfile) -- v0.9.8/P97
+- ✓ Tool-aware system prompt with TOOL SELECTION GUIDE, canvas task type detection, PRIORITY TOOLS conditional injection, and text-selection/file-upload sub-pattern hints -- v0.9.8/P98
+- ✓ 500+ v0.9.7 diagnostic recommendations embedded as prepended strategy hints in 49 site guide files across 5 categories (canvas, micro, scroll, context, dark) -- v0.9.8/P99
+- ✓ Procedural memory extraction from successful sessions and RECOMMENDED APPROACH injection into autopilot prompts with per-domain cap of 5 -- v0.9.8/P100
+- ✓ Autonomous memory intelligence: auto-consolidation (10-session/80% triggers), cross-domain strategy transfer with taskType matching, domain-change memory refresh, dead episodic code removed -- v0.9.8/P101
+- ✓ Robustness hardening: viewport bounds validation for CDP tools, bidirectional stuck recovery, 3-stage progressive prompt trimming, 2-stage CLI parse retry with simplified hint -- v0.9.8/P102
+- ✓ Validation test harness with 50 autopilot-adapted edge case prompts, results tracking, and milestone gate metrics (VALID-02/03/04) -- v0.9.8/P103 (harness built, manual execution pending)
+- ✓ Verification mechanics fix: CDP direct routing bypasses broken round-trip, dynamic-page completion fast-path, 5-minute session inactivity timeout -- v0.9.8/P104
+
+- ✓ Full Excalidraw mastery: text entry (inserttext + dblclickat), all drawing primitives, styling, connectors, alignment, export, NL diagram generation -- v0.9.9
+- ✓ Universal Canvas Vision: draw call interception via Canvas2D prototype proxy, structured CANVAS SCENE in DOM snapshots, pixel fallback, 12/15 canvas apps covered -- v0.9.9/P115
+- ✓ 9 systemic fixes: inserttext CLI command, batch CDP routing, debugger contention, guidance truncation 500->3000, fast-path threshold 3->6 for editors -- v0.9.9
 
 ### Active
 
+(None -- define in next milestone)
+
+### Backlog (Active from previous milestones)
+
+- [ ] Publish MCP server to npm for easy `npx` installation (shelved from v0.9.8.1, running in parallel)
 - [ ] Server relay on fly.io — WebSocket coordinator connecting all FSB instances
 - [ ] Showcase/dashboard site on fly.io — public landing page + QR-authenticated control center
 - [ ] QR code pairing — FSB generates unique hash per user, dashboard scans to pair
@@ -95,6 +112,14 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - Headless server-side execution -- server is relay only, user's browser must stay active
 - Video/screenshot streaming -- DOM cloning with CDN images, not visual capture
 
+## Previous Milestone: v0.9.9 Shipped
+
+**Shipped:** 2026-03-25. Excalidraw Mastery -- full drawing tool mastery (all primitives, text entry, styling, connectors, alignment, export, NL diagram generation) plus universal Canvas Vision system (draw call interception for 12/15 canvas apps). 9 phases, 14 plans, 56 requirements.
+
+## Previous Milestone: v0.9.8 Shipped
+
+**Shipped:** 2026-03-23. Autopilot Refinement -- bridged tool gap with MCP manual mode, refined prompting with tool selection guide and canvas task detection, embedded 500+ diagnostic recommendations in 49 site guides, added procedural memory extraction and cross-domain strategy transfer, hardened robustness (viewport validation, prompt trimming, parse retry), fixed CDP direct routing and completion detection. 8 phases, 14 plans.
+
 ## Previous Milestone: v0.9.7 Shipped
 
 **Shipped:** 2026-03-22. MCP Edge Case Validation -- 50 edge case prompts tested via MCP manual mode across canvas, micro-interaction, infinite scroll, context bloat, and dark pattern categories. 6 new CDP tools added, 30+ site guides created, 50 diagnostic reports generated. Evidence base built for autopilot refinement.
@@ -105,7 +130,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Context
 
-**Previous milestones:** v0.9 (Reliability), v9.0.2 (AI Situational Awareness), v9.3 (Tech Debt), v9.4 (Career Search), v10.0 (CLI Architecture), v0.9.2 (Productivity Sites), v0.9.3 (Memory Tab), v0.9.4 (AI Quality), v0.9.5 (Progress Overlay Intelligence), v0.9.6 (Agents & Remote Control), v0.9.7 (MCP Edge Case Validation)
+**Previous milestones:** v0.9 (Reliability), v9.0.2 (AI Situational Awareness), v9.3 (Tech Debt), v9.4 (Career Search), v10.0 (CLI Architecture), v0.9.2 (Productivity Sites), v0.9.3 (Memory Tab), v0.9.4 (AI Quality), v0.9.5 (Progress Overlay Intelligence), v0.9.6 (Agents & Remote Control), v0.9.7 (MCP Edge Case Validation), v0.9.9 (Excalidraw Mastery + Canvas Vision)
 
 **Tech stack:** Chrome Extension Manifest V3, vanilla JavaScript (ES2021+), xAI Grok / OpenAI / Anthropic / Gemini / OpenRouter APIs.
 **Codebase:** background.js (~11K lines), ai-integration.js (~5K lines), content/ modules (10 files), 50+ site guide files, CLI parser (cli-parser.js), Task Memory system.
@@ -162,5 +187,22 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 | Fire-and-forget AI summaries | generateActionSummary never awaited, 2.5s timeout | Good -- zero impact on automation speed |
 | 300ms phase label debounce | Only debounce generic labels, bypass for explicit statusText | Good -- no flicker, AI summaries still instant |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? -> Move to Out of Scope with reason
+2. Requirements validated? -> Move to Validated with phase reference
+3. New requirements emerged? -> Add to Active
+4. Decisions to log? -> Add to Key Decisions
+5. "What This Is" still accurate? -> Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check -- still the right priority?
+3. Audit Out of Scope -- reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-03-22 after v0.9.7 milestone*
+*Last updated: 2026-03-25 after v0.9.9 Excalidraw Mastery milestone shipped*

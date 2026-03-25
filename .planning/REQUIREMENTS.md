@@ -94,7 +94,7 @@ Requirements for full Excalidraw mastery. Each maps to roadmap phases.
 - [x] **VISION-04**: Pixel-based fallback extracts color regions and edge outlines when draw call interception is unavailable
 - [x] **VISION-05**: Canvas scene description appears in every DOM snapshot markdown so the AI sees canvas content on every iteration
 - [x] **VISION-06**: FSB can verify its own drawing actions by reading the canvas state after drawing
-- [ ] **VISION-07**: Canvas vision works on at least 10 of the 15 canvas-based apps in FSB scope
+- [x] **VISION-07**: Canvas vision works on at least 10 of the 15 canvas-based apps in FSB scope
 
 ## Future Requirements
 

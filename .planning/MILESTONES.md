@@ -1,5 +1,42 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.9 Excalidraw Mastery (Shipped: 2026-03-25)
+
+**Phases completed:** 9 phases, 14 plans, 56 requirements
+
+**Key accomplishments:**
+
+- Fixed 2 gating engine bugs (isCanvasEditorUrl, isCanvasBasedEditor) preventing multi-step Excalidraw automation; added inserttext CLI command, dblclickat CDP tool, and batch CDP direct routing
+- Expanded Excalidraw site guide from ~60 to ~893 lines covering all drawing primitives, text entry (3 modes), canvas operations, element editing, connectors/arrows, styling, alignment, export, and natural language diagram generation
+- Built universal Canvas Vision system: canvas-interceptor.js wraps CanvasRenderingContext2D prototype at document_start in MAIN world, captures all draw calls (fillRect, fillText, lineTo, arc etc.), and injects structured CANVAS SCENE section into DOM snapshots
+- Canvas Vision proven on 3 live apps (Excalidraw, TradingView, Photopea) with architectural coverage for 12/15 canvas apps; AI can now read canvas content without screenshots
+- Added pixel-based fallback (color grid + edge detection) for when draw call interception is unavailable
+- Fixed 9 systemic issues found during deep testing: debugger contention, guidance truncation (500->3000 for canvas), dynamic page fast-path threshold (3->6 iterations for editors), site guide CLI verb format, batch action CDP routing
+
+---
+
+## v0.9.8 Autopilot Refinement (Shipped: 2026-03-23)
+
+**Phases completed:** 8 phases, 14 plans, 27 tasks
+
+**Key accomplishments:**
+
+- Procedural memory auto-extraction from successful sessions with RECOMMENDED APPROACH injection into autopilot prompts for proven action replay
+- Auto-consolidation fires after every 10 sessions or at 80% per-type capacity via fire-and-forget pattern; all dead EPISODIC code removed from 5 files leaving 3 clean memory types
+- Cross-domain procedural memory fallback with [from domain] attribution and mid-session domain-change memory refresh
+- CDP tools reject out-of-viewport coordinates before execution; stuck recovery suggests opposite interaction paradigm (coordinate vs DOM) based on recent action history
+- Progressive 3-stage prompt trimming at 200K char threshold and two-stage CLI parse failure recovery with simplified hint before full reformat
+- Direct CDP tool dispatch in background automation loop, bypassing broken nested content-to-background message round-trip that caused 100% false failure reporting
+- Dynamic page completion fast-path accepting AI done signals within 2 iterations for media/gaming/canvas tasks, plus 5-minute running session inactivity auto-expiry
+- Registered 7 new CDP/interaction tools in CLI_COMMAND_TABLE prompt reference and isValidTool validator for autopilot tool parity with MCP
+- 7 new COMMAND_REGISTRY verb entries for CDP/text/file tools plus enhanced dragdrop with MCP-parity optional parameters
+- TOOL SELECTION GUIDE decision table and canvas task-type-aware PRIORITY TOOLS injection for autopilot system prompt
+- 20 site guides enriched with distilled AUTOPILOT STRATEGY HINTS from v0.9.7 CANVAS and MICRO-INTERACTION diagnostic reports, prepended within 500-char continuation prompt window
+- 20 site guides enriched with distilled autopilot strategy hints from SCROLL (phases 67-76) and CONTEXT (phases 77-86) diagnostic reports, prepended within the 500-char continuation prompt window
+- 10 dark pattern site guides enriched with AUTOPILOT STRATEGY HINTS from diagnostic DARK-01 through DARK-10 reports -- countermeasure intelligence prepended at top of guidance strings for continuation prompt visibility
+
+---
+
 ## v0.9.7 MCP Edge Case Validation (Shipped: 2026-03-22)
 
 **Phases completed:** 50 phases, 100 plans, 183 tasks
