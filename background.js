@@ -9767,6 +9767,36 @@ async function startAutomationLoop(sessionId) {
       }
     }
 
+    // Canvas scene injection -- runs regardless of how the markdown snapshot was obtained
+    // (prefetch, fresh fetch, or already attached from content script)
+    if (domResponse?.success && domResponse?.structuredDOM?._markdownSnapshot) {
+      try {
+        const canvasScene = await fetchCanvasScene(session.tabId);
+        if (canvasScene) {
+          const canvasMarkdown = formatCanvasSceneMarkdown(canvasScene);
+          if (canvasMarkdown) {
+            const snapshot = domResponse.structuredDOM._markdownSnapshot;
+            const doubleNewline = snapshot.indexOf('\n\n');
+            const splitIdx = doubleNewline > 0 ? doubleNewline + 2 : snapshot.indexOf('\n') + 1;
+            if (splitIdx > 0) {
+              const headerPart = snapshot.substring(0, splitIdx);
+              const bodyPart = snapshot.substring(splitIdx);
+              domResponse.structuredDOM._markdownSnapshot = headerPart + canvasMarkdown + '\n\n' + bodyPart;
+              automationLogger.debug('Canvas scene injected into markdown snapshot', {
+                sessionId,
+                source: canvasScene.source,
+                texts: canvasScene.texts?.length || 0,
+                rects: canvasScene.rects?.length || 0,
+                paths: canvasScene.paths?.length || 0
+              });
+            }
+          }
+        }
+      } catch (canvasErr) {
+        automationLogger.debug('Canvas scene injection failed (non-blocking)', { sessionId, error: canvasErr.message });
+      }
+    }
+
     // Log DOM response details
     const domData = domResponse.structuredDOM;
     automationLogger.logDOMOperation(sessionId, 'received', {
