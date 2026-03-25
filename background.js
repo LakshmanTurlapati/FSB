@@ -1910,6 +1910,26 @@ async function prefetchDOM(tabId, options = {}, guideSelectors = null) {
             response.structuredDOM._markdownSnapshot = mdResponse.markdownSnapshot;
             response.structuredDOM._markdownElementCount = mdResponse.elementCount;
             response.structuredDOM._markdownRefGeneration = mdResponse.refGeneration;
+
+            // Fetch canvas scene and inject into markdown snapshot
+            try {
+              const canvasScene = await fetchCanvasScene(tabId);
+              if (canvasScene) {
+                const canvasMarkdown = formatCanvasSceneMarkdown(canvasScene);
+                if (canvasMarkdown) {
+                  const snapshot = response.structuredDOM._markdownSnapshot;
+                  const doubleNewline = snapshot.indexOf('\n\n');
+                  const splitIdx = doubleNewline > 0 ? doubleNewline + 2 : snapshot.indexOf('\n') + 1;
+                  if (splitIdx > 0) {
+                    const headerPart = snapshot.substring(0, splitIdx);
+                    const bodyPart = snapshot.substring(splitIdx);
+                    response.structuredDOM._markdownSnapshot = headerPart + canvasMarkdown + '\n\n' + bodyPart;
+                  }
+                }
+              }
+            } catch (canvasErr) {
+              automationLogger.debug('Canvas scene injection failed (non-blocking)', { error: canvasErr.message });
+            }
           } else if (mdResponse && !mdResponse.success) {
             automationLogger.warn('Markdown snapshot prefetch returned error', { tabId, error: mdResponse.error });
           }
@@ -9719,6 +9739,26 @@ async function startAutomationLoop(sessionId) {
           domResponse.structuredDOM._markdownSnapshot = mdResponse.markdownSnapshot;
           domResponse.structuredDOM._markdownElementCount = mdResponse.elementCount;
           domResponse.structuredDOM._markdownRefGeneration = mdResponse.refGeneration;
+
+          // Fetch canvas scene and inject into markdown snapshot
+          try {
+            const canvasScene = await fetchCanvasScene(session.tabId);
+            if (canvasScene) {
+              const canvasMarkdown = formatCanvasSceneMarkdown(canvasScene);
+              if (canvasMarkdown) {
+                const snapshot = domResponse.structuredDOM._markdownSnapshot;
+                const doubleNewline = snapshot.indexOf('\n\n');
+                const splitIdx = doubleNewline > 0 ? doubleNewline + 2 : snapshot.indexOf('\n') + 1;
+                if (splitIdx > 0) {
+                  const headerPart = snapshot.substring(0, splitIdx);
+                  const bodyPart = snapshot.substring(splitIdx);
+                  domResponse.structuredDOM._markdownSnapshot = headerPart + canvasMarkdown + '\n\n' + bodyPart;
+                }
+              }
+            }
+          } catch (canvasErr) {
+            automationLogger.debug('Canvas scene injection failed (non-blocking)', { error: canvasErr.message });
+          }
         } else if (mdResponse && !mdResponse.success) {
           automationLogger.warn('Markdown snapshot returned error, falling back to compact', { error: mdResponse.error });
         }
@@ -12400,6 +12440,176 @@ async function executeCDPToolDirect(action, tabId) {
   } finally {
     try { await chrome.debugger.detach({ tabId }); } catch (_) {}
   }
+}
+
+/**
+ * Reads canvas scene data via CDP Runtime.evaluate.
+ * First tries intercepted draw call log via getCanvasScene() which reads window.__canvasCallLog,
+ * then attempts triggerCanvasRerender(), and falls back to pixel analysis.
+ * @param {number} tabId - Tab to read canvas from
+ * @returns {Object|null} Canvas scene data or null if no canvas
+ */
+async function fetchCanvasScene(tabId) {
+  try {
+    await chrome.debugger.attach({ tabId }, '1.3');
+  } catch (attachErr) {
+    if (attachErr.message?.includes('Already attached')) {
+      try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+      try { await chrome.debugger.attach({ tabId }, '1.3'); } catch (_) { return null; }
+    } else {
+      return null;
+    }
+  }
+
+  try {
+    // Step 1: Check if interceptor is installed and has data
+    const interceptCheck = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+      expression: `(() => {
+        if (!window.__canvasInterceptorInstalled) return JSON.stringify({ installed: false });
+        const scene = window.getCanvasScene();
+        return JSON.stringify({ installed: true, scene: scene });
+      })()`,
+      returnByValue: true
+    });
+
+    if (interceptCheck?.result?.value) {
+      const parsed = JSON.parse(interceptCheck.result.value);
+      if (parsed.installed && parsed.scene && (parsed.scene.texts.length > 0 || parsed.scene.rects.length > 0 || parsed.scene.paths.length > 0)) {
+        return { source: 'interceptor', ...parsed.scene };
+      }
+
+      // Interceptor installed but no data -- try re-render trigger
+      if (parsed.installed && parsed.scene && parsed.scene.totalCalls === 0) {
+        const rerender = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+          expression: `window.triggerCanvasRerender().then(r => JSON.stringify(r))`,
+          returnByValue: true,
+          awaitPromise: true
+        });
+        // After re-render, read scene again
+        if (rerender?.result?.value) {
+          const sceneAfter = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+            expression: `JSON.stringify(window.getCanvasScene())`,
+            returnByValue: true
+          });
+          if (sceneAfter?.result?.value) {
+            const scene2 = JSON.parse(sceneAfter.result.value);
+            if (scene2.texts.length > 0 || scene2.rects.length > 0 || scene2.paths.length > 0) {
+              return { source: 'interceptor-rerender', ...scene2 };
+            }
+          }
+        }
+      }
+    }
+
+    // Step 2: Fallback to pixel analysis
+    // Get the pixel fallback expression from content script
+    const pixelExpr = await chrome.tabs.sendMessage(tabId, {
+      action: 'getCanvasPixelFallback'
+    }, { frameId: 0 });
+
+    if (pixelExpr?.expression) {
+      const pixelResult = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+        expression: pixelExpr.expression,
+        returnByValue: true
+      });
+      if (pixelResult?.result?.value) {
+        const pixelData = JSON.parse(pixelResult.result.value);
+        if (pixelData.scenes && pixelData.scenes.length > 0) {
+          return { source: 'pixel-fallback', ...pixelData };
+        }
+      }
+    }
+
+    return null;
+  } catch (err) {
+    automationLogger.debug('fetchCanvasScene failed', { tabId, error: err.message });
+    return null;
+  } finally {
+    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+  }
+}
+
+/**
+ * Converts canvas scene data into markdown text for the DOM snapshot.
+ * Target: 200-500 tokens for typical diagrams.
+ * @param {Object} scene - Canvas scene from fetchCanvasScene
+ * @returns {string|null} Markdown section or null if empty
+ */
+function formatCanvasSceneMarkdown(scene) {
+  if (!scene) return null;
+
+  const lines = ['## CANVAS SCENE'];
+
+  if (scene.source === 'interceptor' || scene.source === 'interceptor-rerender') {
+    lines.push(`> Source: draw call interception | Calls: ${scene.totalCalls || 0} | Logged: ${scene.logSize || 0}${scene.capped ? ' (capped at 5000)' : ''}`);
+
+    // Texts
+    if (scene.texts && scene.texts.length > 0) {
+      lines.push('');
+      lines.push('### Text Labels');
+      for (const t of scene.texts.slice(0, 50)) {
+        lines.push(`- "${t.text}" at (${t.x},${t.y}) color:${t.color} font:${t.font}`);
+      }
+    }
+
+    // Rects
+    if (scene.rects && scene.rects.length > 0) {
+      lines.push('');
+      lines.push('### Rectangles');
+      for (const r of scene.rects.slice(0, 30)) {
+        const fillInfo = r.fill && r.fill !== 'transparent' && r.fill !== 'rgba(0, 0, 0, 0)' ? ` fill:${r.fill}` : '';
+        lines.push(`- ${r.type} at (${r.x},${r.y}) ${r.w}x${r.h}${fillInfo}`);
+      }
+    }
+
+    // Paths
+    if (scene.paths && scene.paths.length > 0) {
+      lines.push('');
+      lines.push(`### Paths (${scene.paths.length} total)`);
+      for (const p of scene.paths.slice(0, 30)) {
+        const pts = p.points || [];
+        const startPt = pts.find(pt => pt.op === 'M');
+        const endPt = pts[pts.length - 1];
+        const colorInfo = p.fill ? `fill:${p.fill}` : (p.stroke ? `stroke:${p.stroke}` : '');
+        if (startPt && endPt) {
+          lines.push(`- path (${pts.length} pts) from (${startPt.x},${startPt.y}) to (${endPt.x || endPt.cx || '?'},${endPt.y || endPt.cy || '?'}) ${colorInfo}`);
+        } else {
+          lines.push(`- path (${pts.length} pts) ${colorInfo}`);
+        }
+      }
+    }
+
+    if ((!scene.texts || scene.texts.length === 0) && (!scene.rects || scene.rects.length === 0) && (!scene.paths || scene.paths.length === 0)) {
+      return null; // No meaningful data
+    }
+  } else if (scene.source === 'pixel-fallback') {
+    lines.push('> Source: pixel analysis (no draw call data available)');
+
+    if (scene.scenes) {
+      for (const s of scene.scenes) {
+        if (s.error) {
+          lines.push(`Canvas ${s.canvas}: ${s.error} (${s.width}x${s.height})`);
+          continue;
+        }
+        lines.push(`\nCanvas ${s.canvas} (${s.width}x${s.height}):`);
+        if (s.colorRegions && s.colorRegions.length > 0) {
+          lines.push('Color regions:');
+          for (const r of s.colorRegions) {
+            const sec = r.secondary ? `, ${r.secondary}` : '';
+            lines.push(`- ${r.pos}: ${r.pct}% ${r.color}${sec}`);
+          }
+        }
+        if (s.edges) {
+          lines.push('Edge wireframe:');
+          lines.push('```');
+          lines.push(s.edges);
+          lines.push('```');
+        }
+      }
+    }
+  }
+
+  return lines.join('\n');
 }
 
 /**
