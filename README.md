@@ -26,6 +26,8 @@
 ![Browser Actions](https://img.shields.io/badge/Browser_Actions-47-F97316?style=flat-square)
 ![Site Guides](https://img.shields.io/badge/Site_Guides-9_Categories-22C55E?style=flat-square)
 ![MCP](https://img.shields.io/badge/MCP-Server-00B4D8?style=flat-square)
+![npm](https://img.shields.io/npm/v/fsb-mcp-server?style=flat-square&label=npm&color=CB3837)
+![Mem0 Inspired](https://img.shields.io/badge/Memory-Mem0_Inspired-7C3AED?style=flat-square)
 ![xAI](https://img.shields.io/badge/xAI-Grok-000000?style=flat-square&logo=x&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/OpenAI-GPT-412991?style=flat-square&logo=openai&logoColor=white)
 ![Anthropic](https://img.shields.io/badge/Anthropic-Claude-D4A574?style=flat-square&logo=anthropic&logoColor=white)
@@ -222,26 +224,40 @@ Within MCP, FSB offers two operating modes:
 - `monitor-page`: Watch for changes and report
 - `navigate-and-read`: Go to a URL and extract specific content
 
-### Setup
+### Install
 
-1. **Build the MCP server**
-   ```bash
-   cd mcp-server && npm install && npm run build
-   ```
+Install from [npm](https://www.npmjs.com/package/fsb-mcp-server) -- no cloning or building required:
 
-2. **Add FSB to your MCP client config** (e.g., `claude_desktop_config.json`):
-   ```json
-   {
-     "mcpServers": {
-       "fsb": {
-         "command": "node",
-         "args": ["/path/to/FSB/mcp-server/build/index.js"]
-       }
-     }
-   }
-   ```
+**Claude Desktop** -- add to `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "fsb": {
+      "command": "npx",
+      "args": ["-y", "fsb-mcp-server"]
+    }
+  }
+}
+```
 
-3. **Run the extension**: make sure the FSB Chrome extension is loaded and active. The MCP server connects to it via WebSocket on port 7225.
+**Claude Code:**
+```bash
+claude mcp add fsb -- npx -y fsb-mcp-server
+```
+
+**Cursor** -- add to `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "fsb": {
+      "command": "npx",
+      "args": ["-y", "fsb-mcp-server"]
+    }
+  }
+}
+```
+
+Make sure the FSB Chrome extension is loaded and active. The MCP server connects to it via WebSocket on port 7225.
 
 ### Communication Flow
 
@@ -876,7 +892,7 @@ Site guides reduce token usage by 30-40% by providing focused context instead of
 
 ## Long-Term Memory System
 
-FSB maintains a persistent memory system that learns from automation sessions and improves over time.
+FSB maintains a persistent memory system that learns from automation sessions and improves over time. Architecture inspired by [Mem0](https://mem0.ai/), adapted for Chrome extensions.
 
 ### Memory Types
 
