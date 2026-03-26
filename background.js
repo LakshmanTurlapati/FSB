@@ -13342,6 +13342,54 @@ async function handleMCPMessage(msg) {
           return;
         }
         console.log(`[FSB MCP] execute-action: tab=${tab.id} url=${tab.url} tool=${payload.tool}`);
+
+        // Navigation tools that work without content scripts -- handle directly in background
+        // This prevents the dead-end where a crashed/error tab blocks all MCP actions
+        const bgNavTools = ['navigate', 'openNewTab', 'switchToTab', 'listTabs'];
+        if (bgNavTools.includes(payload.tool)) {
+          try {
+            let result;
+            switch (payload.tool) {
+              case 'navigate': {
+                const url = payload.params?.url;
+                if (!url) { sendMCPResponse(id, { success: false, error: 'No URL provided' }); return; }
+                const fromUrl = tab.url;
+                await chrome.tabs.update(tab.id, { url });
+                // Wait briefly for navigation to start
+                await new Promise(r => setTimeout(r, 500));
+                result = { success: true, hadEffect: true, navigatingTo: url, fromUrl, verification: { note: 'Navigation initiated - verification will occur after page load', expectedUrl: url }, tool: 'navigate', executionTime: 1 };
+                break;
+              }
+              case 'openNewTab': {
+                const url = payload.params?.url || 'about:blank';
+                const newTab = await chrome.tabs.create({ url, active: payload.params?.active !== false });
+                result = { success: true, tabId: newTab.id, url, active: payload.params?.active !== false };
+                break;
+              }
+              case 'switchToTab': {
+                const tabId = payload.params?.tabId;
+                if (!tabId) { sendMCPResponse(id, { success: false, error: 'Tab ID is required' }); return; }
+                await chrome.tabs.update(tabId, { active: true });
+                const tabWindow = await chrome.tabs.get(tabId);
+                if (tabWindow.windowId) await chrome.windows.update(tabWindow.windowId, { focused: true });
+                result = { success: true, tabId };
+                break;
+              }
+              case 'listTabs': {
+                const allTabs = await chrome.tabs.query({});
+                result = { success: true, tabs: allTabs.map(t => ({ id: t.id, title: t.title, url: t.url, active: t.active, windowId: t.windowId })) };
+                break;
+              }
+            }
+            console.log(`[FSB MCP] execute-action: bg-nav ${payload.tool} success`);
+            sendMCPResponse(id, result);
+          } catch (navErr) {
+            console.error(`[FSB MCP] execute-action: bg-nav ${payload.tool} FAILED:`, navErr.message);
+            sendMCPResponse(id, { success: false, error: navErr.message });
+          }
+          break;
+        }
+
         try {
           const injected = await ensureContentScriptInjected(tab.id);
           console.log(`[FSB MCP] execute-action: ensureContentScript result=${injected}`);
