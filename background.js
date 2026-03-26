@@ -9735,10 +9735,12 @@ async function startAutomationLoop(sessionId) {
     // Canvas scene injection -- only attempt on pages that have canvas elements
     // Skip on non-canvas pages to avoid unnecessary CDP overhead
     const hasSnapshot = !!(domResponse?.success && domResponse?.structuredDOM?._markdownSnapshot);
+    const canvasCheckUrl = domResponse?.structuredDOM?.url || session.lastUrl || '';
     const pageHasCanvas = domResponse?.structuredDOM?.elements?.some(
       el => el.type === 'canvas' || (el.class || '').includes('canvas') ||
       (el.selectors || []).some(s => s.includes('canvas'))
-    ) || /excalidraw|tradingview|photopea|draw\.io|figma|canva\.com/i.test(session.url || '');
+    ) || /excalidraw|tradingview|photopea|draw\.io|figma|canva\.com/i.test(canvasCheckUrl);
+    automationLogger.debug('Canvas vision check', { sessionId, hasSnapshot, pageHasCanvas });
     if (hasSnapshot && pageHasCanvas) {
       try {
         const canvasScene = await fetchCanvasScene(session.tabId);
