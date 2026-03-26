@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: unknown
-stopped_at: Completed 115-03-PLAN.md
-last_updated: "2026-03-25T20:34:11.880Z"
+stopped_at: Completed 115-04-PLAN.md
+last_updated: "2026-03-26T02:11:38.100Z"
 progress:
   total_phases: 2
   completed_phases: 1
@@ -16,15 +16,15 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-23)
+See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 115 — Canvas Vision
+**Current focus:** Phase 115 — canvas-vision
 
 ## Current Position
 
-Phase: 115 (Canvas Vision) — EXECUTING
-Plan: 4 of 4
+Phase: 115 (canvas-vision) — EXECUTING
+Plan: 2 of 4
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Plan: 4 of 4
 | Phase 115 P02 | 2min | 1 tasks | 1 files |
 | Phase 115 P01 | 2min | 2 tasks | 2 files |
 | Phase 115 P03 | 2min | 2 tasks | 2 files |
+| Phase 115 P04 | 15min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,7 @@ Recent decisions affecting current work:
 - [Phase 105]: v* tag trigger only, no GitHub Release creation; npm ci for reproducible CI builds; shebang/pack verification before publish
 - [Phase 115]: CDP expression generator pattern: getCanvasPixelFallback returns self-contained IIFE string for Runtime.evaluate
 - [Phase 115]: Canvas scene reads via getCanvasScene() with three-stage cascade: interceptor, rerender trigger, pixel fallback
+- [Phase 115]: session.url does not exist -- use domResponse.structuredDOM.url with session.lastUrl fallback for canvas URL detection
 
 ### Roadmap Evolution
 
@@ -109,6 +111,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-25T17:43:11.017Z
-Stopped at: Completed 115-03-PLAN.md
+Last session: 2026-03-26T02:11:38.098Z
+Stopped at: Completed 115-04-PLAN.md
 Resume file: None
