@@ -9736,10 +9736,27 @@ async function startAutomationLoop(sessionId) {
     // Skip on non-canvas pages to avoid unnecessary CDP overhead
     const hasSnapshot = !!(domResponse?.success && domResponse?.structuredDOM?._markdownSnapshot);
     const canvasCheckUrl = domResponse?.structuredDOM?.url || session.lastUrl || '';
-    const pageHasCanvas = domResponse?.structuredDOM?.elements?.some(
+    let pageHasCanvas = domResponse?.structuredDOM?.elements?.some(
       el => el.type === 'canvas' || (el.class || '').includes('canvas') ||
       (el.selectors || []).some(s => s.includes('canvas'))
     ) || /excalidraw|tradingview|photopea|draw\.io|figma|canva\.com/i.test(canvasCheckUrl);
+
+    // Stage 2: CDP fallback for generic canvas apps not in URL regex
+    if (!pageHasCanvas && hasSnapshot) {
+      try {
+        const cdpResult = await chrome.debugger.sendCommand(
+          { tabId: session.tabId }, 'Runtime.evaluate',
+          { expression: 'document.querySelectorAll("canvas").length > 0', returnByValue: true }
+        );
+        if (cdpResult?.result?.value === true) {
+          pageHasCanvas = true;
+          automationLogger.debug('Canvas detected via CDP fallback', { sessionId });
+        }
+      } catch (_) {
+        // Debugger not attached or other error -- skip silently
+      }
+    }
+
     automationLogger.debug('Canvas vision check', { sessionId, hasSnapshot, pageHasCanvas });
     if (hasSnapshot && pageHasCanvas) {
       try {

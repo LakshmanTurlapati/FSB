@@ -70,7 +70,7 @@ Plans:
 - [x] **Phase 112: Styling & Layout** - Stroke/fill colors, width, style, fill pattern, opacity, fonts, alignment, distribution, layer ordering (completed 2026-03-24)
 - [x] **Phase 113: Export** - PNG to clipboard, SVG export, clipboard copy (completed 2026-03-24)
 - [x] **Phase 114: Natural Language Diagrams** - Flowcharts, architecture diagrams, mind maps from descriptions with grid-based layout (completed 2026-03-24)
-- [x] **Phase 115: Canvas Vision** - Analyze and convert HTML5 canvas content into structured text so FSB can see what is drawn on any canvas-based app (completed 2026-03-26)
+- [ ] **Phase 115: Canvas Vision** - Analyze and convert HTML5 canvas content into structured text so FSB can see what is drawn on any canvas-based app (gap closure in progress)
 
 ## Phase Details
 
@@ -194,7 +194,7 @@ Plans:
 | 112. Styling & Layout | 1/1 | Complete    | 2026-03-24 |
 | 113. Export | 1/1 | Complete    | 2026-03-24 |
 | 114. Natural Language Diagrams | 1/1 | Complete    | 2026-03-24 |
-| 115. Canvas Vision | 4/4 | Complete   | 2026-03-26 |
+| 115. Canvas Vision | 4/5 | Gap closure    | - |
 
 ### Phase 115: Canvas Vision
 **Goal**: FSB can see what is drawn on HTML5 canvas elements by intercepting draw calls and converting them to structured text, enabling the AI to read, verify, and reason about canvas content on any Canvas 2D app
@@ -207,12 +207,13 @@ Plans:
   4. A pixel-based fallback (color grid + edge detection) works when interception is unavailable
   5. The AI can read canvas content on every iteration and use it to verify drawings or extract information
   6. Canvas vision works on at least 10 of 15 canvas apps in FSB scope
-**Plans**: 4 plans
+**Plans**: 5 plans
 Plans:
 - [x] 115-01-PLAN.md -- Canvas interceptor script (prototype wrapping, getCanvasScene, re-render trigger)
 - [x] 115-02-PLAN.md -- Pixel fallback (color grid + edge detection via Runtime.evaluate)
 - [x] 115-03-PLAN.md -- DOM snapshot integration (wire interceptor + fallback into markdown pipeline)
 - [x] 115-04-PLAN.md -- Testing and validation (structural tests + manual Excalidraw verification)
+- [ ] 115-05-PLAN.md -- Gap closure: CDP canvas element detection for generic canvas apps
 
 ---
 
