@@ -9742,8 +9742,16 @@ async function startAutomationLoop(sessionId) {
     ) || /excalidraw|tradingview|photopea|draw\.io|figma|canva\.com/i.test(canvasCheckUrl);
 
     // Stage 2: CDP fallback for generic canvas apps not in URL regex
+    // Attach debugger temporarily if needed (same pattern as fetchCanvasScene)
     if (!pageHasCanvas && hasSnapshot) {
+      let ownedDebugger = false;
       try {
+        try {
+          await chrome.debugger.attach({ tabId: session.tabId }, '1.3');
+          ownedDebugger = true;
+        } catch (attachErr) {
+          if (!attachErr.message?.includes('Already attached')) throw attachErr;
+        }
         const cdpResult = await chrome.debugger.sendCommand(
           { tabId: session.tabId }, 'Runtime.evaluate',
           { expression: 'document.querySelectorAll("canvas").length > 0', returnByValue: true }
@@ -9753,7 +9761,11 @@ async function startAutomationLoop(sessionId) {
           automationLogger.debug('Canvas detected via CDP fallback', { sessionId });
         }
       } catch (_) {
-        // Debugger not attached or other error -- skip silently
+        // CDP unavailable -- skip silently
+      } finally {
+        if (ownedDebugger) {
+          try { await chrome.debugger.detach({ tabId: session.tabId }); } catch (_) {}
+        }
       }
     }
 
