@@ -1548,13 +1548,16 @@ function initAgentTab() {
   // Wire toolbar buttons
   const createBtn = document.getElementById('btnCreateAgentSP');
   if (createBtn) {
-    createBtn.addEventListener('click', () => startAgentWizard());
+    createBtn.addEventListener('click', () => showAgentFormSP());
   }
 
   const refreshBtn = document.getElementById('btnRefreshAgentsSP');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => loadAgentListUI());
   }
+
+  // Initialize form listeners
+  initAgentFormListeners();
 }
 
 async function loadAgentListUI() {
@@ -1804,5 +1807,167 @@ async function handleAgentAction(event) {
     } catch (e) {
       console.warn('Delete agent failed:', e);
     }
+  }
+}
+
+// ==========================================
+// Agent Create/Edit Form
+// ==========================================
+
+function showAgentFormSP(editAgent = null) {
+  const form = document.getElementById('agentFormSP');
+  const title = document.getElementById('agentFormTitleSP');
+  if (!form) return;
+  form.style.display = 'block';
+
+  // Hide any previous error
+  const errEl = form.querySelector('.agent-form-error');
+  if (errEl) errEl.style.display = 'none';
+
+  if (editAgent) {
+    title.textContent = 'Edit Agent';
+    document.getElementById('agentFormIdSP').value = editAgent.agentId;
+    document.getElementById('agentNameSP').value = editAgent.name || '';
+    document.getElementById('agentTaskSP').value = editAgent.task || '';
+    document.getElementById('agentUrlSP').value = editAgent.targetUrl || '';
+    document.getElementById('agentScheduleTypeSP').value = editAgent.schedule?.type || 'interval';
+    updateScheduleParamsSP(editAgent.schedule?.type || 'interval');
+    if (editAgent.schedule?.intervalMinutes) document.getElementById('agentIntervalSP').value = editAgent.schedule.intervalMinutes;
+    if (editAgent.schedule?.dailyTime) document.getElementById('agentDailyTimeSP').value = editAgent.schedule.dailyTime;
+    if (editAgent.schedule?.cronExpression) document.getElementById('agentCronSP').value = editAgent.schedule.cronExpression;
+  } else {
+    title.textContent = 'Create Agent';
+    document.getElementById('agentFormIdSP').value = '';
+    document.getElementById('agentNameSP').value = '';
+    document.getElementById('agentTaskSP').value = '';
+    document.getElementById('agentUrlSP').value = '';
+    document.getElementById('agentScheduleTypeSP').value = 'interval';
+    document.getElementById('agentIntervalSP').value = '60';
+    document.getElementById('agentDailyTimeSP').value = '09:00';
+    document.getElementById('agentCronSP').value = '';
+    updateScheduleParamsSP('interval');
+
+    // Auto-fill current tab URL when creating
+    try {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs?.[0]?.url) {
+          document.getElementById('agentUrlSP').value = tabs[0].url;
+        }
+      });
+    } catch (e) {
+      // Ignore - URL field stays empty
+    }
+  }
+}
+
+function updateScheduleParamsSP(type) {
+  const intervalEl = document.getElementById('intervalParamsSP');
+  const dailyEl = document.getElementById('dailyParamsSP');
+  const cronEl = document.getElementById('cronParamsSP');
+  if (intervalEl) intervalEl.style.display = type === 'interval' ? '' : 'none';
+  if (dailyEl) dailyEl.style.display = type === 'daily' ? '' : 'none';
+  if (cronEl) cronEl.style.display = type === 'cron' ? '' : 'none';
+}
+
+async function saveAgentSP() {
+  const form = document.getElementById('agentFormSP');
+  const name = document.getElementById('agentNameSP').value.trim();
+  const task = document.getElementById('agentTaskSP').value.trim();
+  const targetUrl = document.getElementById('agentUrlSP').value.trim();
+  const scheduleType = document.getElementById('agentScheduleTypeSP').value;
+  const agentId = document.getElementById('agentFormIdSP').value;
+
+  // Validation
+  if (!name) return showFormError('Name is required');
+  if (!task) return showFormError('Task description is required');
+  if (!targetUrl || !targetUrl.startsWith('http')) return showFormError('Valid URL is required (starts with http)');
+
+  // Build schedule
+  const schedule = { type: scheduleType };
+  if (scheduleType === 'interval') {
+    schedule.intervalMinutes = parseInt(document.getElementById('agentIntervalSP').value) || 60;
+  } else if (scheduleType === 'daily') {
+    schedule.dailyTime = document.getElementById('agentDailyTimeSP').value || '09:00';
+  } else if (scheduleType === 'cron') {
+    schedule.cronExpression = document.getElementById('agentCronSP').value.trim();
+    if (!schedule.cronExpression) return showFormError('Cron expression is required');
+  }
+
+  const saveBtn = document.getElementById('btnSaveAgentSP');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+  }
+
+  try {
+    let response;
+    if (agentId) {
+      // Edit mode
+      response = await new Promise(resolve => {
+        chrome.runtime.sendMessage({
+          action: 'updateAgent',
+          agentId,
+          updates: { name, task, targetUrl, schedule }
+        }, resolve);
+      });
+    } else {
+      // Create mode
+      response = await new Promise(resolve => {
+        chrome.runtime.sendMessage({
+          action: 'createAgent',
+          params: { name, task, targetUrl, schedule }
+        }, resolve);
+      });
+    }
+
+    if (response?.success) {
+      form.style.display = 'none';
+      loadAgentListUI();
+    } else {
+      showFormError(response?.error || 'Failed to save agent');
+    }
+  } catch (err) {
+    showFormError('Error: ' + err.message);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Agent';
+    }
+  }
+}
+
+function showFormError(msg) {
+  let errEl = document.querySelector('#agentFormSP .agent-form-error');
+  if (!errEl) {
+    errEl = document.createElement('div');
+    errEl.className = 'agent-form-error';
+    document.querySelector('#agentFormSP .form-actions')?.after(errEl);
+  }
+  errEl.textContent = msg;
+  errEl.style.display = 'block';
+}
+
+function initAgentFormListeners() {
+  // Schedule type switcher
+  const scheduleSelect = document.getElementById('agentScheduleTypeSP');
+  if (scheduleSelect) {
+    scheduleSelect.addEventListener('change', (e) => updateScheduleParamsSP(e.target.value));
+  }
+
+  // Save button
+  const saveBtn = document.getElementById('btnSaveAgentSP');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => saveAgentSP());
+  }
+
+  // Cancel / close buttons
+  const cancelBtn = document.getElementById('btnCancelAgentSP');
+  const closeBtn = document.getElementById('btnCloseAgentFormSP');
+  const form = document.getElementById('agentFormSP');
+  if (cancelBtn && form) {
+    cancelBtn.addEventListener('click', () => { form.style.display = 'none'; });
+  }
+  if (closeBtn && form) {
+    closeBtn.addEventListener('click', () => { form.style.display = 'none'; });
   }
 }

@@ -88,6 +88,54 @@
           <i class="fa fa-refresh"></i>
         </button>
       </div>
+      <div id="agentFormSP" class="agent-form" style="display:none;">
+        <div class="agent-form-header">
+          <h3 id="agentFormTitleSP">Create Agent</h3>
+          <button id="btnCloseAgentFormSP" class="icon-btn"><i class="fa fa-times"></i></button>
+        </div>
+        <div class="agent-form-body">
+          <input type="hidden" id="agentFormIdSP" value="">
+          <div class="form-group">
+            <label for="agentNameSP">Name</label>
+            <input type="text" id="agentNameSP" placeholder="e.g., Check email" maxlength="50">
+          </div>
+          <div class="form-group">
+            <label for="agentTaskSP">Task</label>
+            <textarea id="agentTaskSP" placeholder="Describe what the agent should do..." rows="3" maxlength="500"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="agentUrlSP">Target URL</label>
+            <input type="url" id="agentUrlSP" placeholder="https://example.com">
+          </div>
+          <div class="form-group">
+            <label for="agentScheduleTypeSP">Schedule</label>
+            <select id="agentScheduleTypeSP">
+              <option value="interval">Every X minutes</option>
+              <option value="daily">Daily at time</option>
+              <option value="cron">Cron expression</option>
+              <option value="once">Run once</option>
+            </select>
+          </div>
+          <div id="scheduleParamsSP" class="schedule-params">
+            <div id="intervalParamsSP" class="schedule-param-group">
+              <label for="agentIntervalSP">Minutes</label>
+              <input type="number" id="agentIntervalSP" value="60" min="1" max="10080">
+            </div>
+            <div id="dailyParamsSP" class="schedule-param-group" style="display:none;">
+              <label for="agentDailyTimeSP">Time</label>
+              <input type="time" id="agentDailyTimeSP" value="09:00">
+            </div>
+            <div id="cronParamsSP" class="schedule-param-group" style="display:none;">
+              <label for="agentCronSP">Expression</label>
+              <input type="text" id="agentCronSP" placeholder="0 9 * * 1-5">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button id="btnCancelAgentSP" class="agent-form-btn secondary">Cancel</button>
+            <button id="btnSaveAgentSP" class="agent-form-btn primary">Save Agent</button>
+          </div>
+        </div>
+      </div>
       <div id="agentListSP" class="agent-list">
         <!-- Agent rows rendered dynamically -->
       </div>

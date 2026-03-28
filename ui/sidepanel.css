@@ -1522,6 +1522,106 @@ body {
   font-size: 12px;
 }
 
+/* Agent create/edit form */
+.agent-form {
+  background: var(--bg-primary, #fff);
+  border-bottom: 1px solid var(--border-color, #ddd);
+  padding: 12px;
+  overflow-y: auto;
+  max-height: 60vh;
+  flex-shrink: 0;
+}
+
+.agent-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.agent-form-header h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.form-group {
+  margin-bottom: 10px;
+}
+
+.agent-form .form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+}
+
+.agent-form .form-group input,
+.agent-form .form-group textarea,
+.agent-form .form-group select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #333);
+  box-sizing: border-box;
+}
+
+.agent-form .form-group textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+.schedule-params {
+  margin-top: 4px;
+}
+
+.schedule-param-group {
+  margin-top: 6px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.agent-form-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+}
+
+.agent-form-btn.primary {
+  background: var(--primary-color, #4A90D9);
+  color: white;
+}
+
+.agent-form-btn.primary:hover {
+  filter: brightness(1.1);
+}
+
+.agent-form-btn.secondary {
+  background: var(--bg-secondary, #f0f0f0);
+  color: var(--text-primary);
+}
+
+.agent-form-btn.secondary:hover {
+  filter: brightness(0.95);
+}
+
+.agent-form-error {
+  color: #c62828;
+  font-size: 12px;
+  margin-top: 8px;
+  display: none;
+}
+
 /* Agent live progress indicator */
 .agent-progress {
   padding: 4px 8px;
