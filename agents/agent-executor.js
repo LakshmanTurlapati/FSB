@@ -109,7 +109,7 @@ class AgentExecutor {
         if (replayResult.success) {
           // Replay succeeded -- zero cost
           const duration = Date.now() - startTime;
-          const costSaved = agent.recordedScript.estimatedCostPerRun || 0.002;
+          const costSaved = agent.recordedScript.estimatedCostPerRun || 0;
           console.log('[FSB Executor] Replay succeeded for agent:', agent.agentId,
             'duration:', duration + 'ms', 'costSaved: $' + costSaved);
 
@@ -321,7 +321,7 @@ class AgentExecutor {
     if (meaningfulSteps.length === 0) return null;
 
     const estimatedDuration = steps.reduce((sum, s) => sum + s.delayAfter + 200, 0);
-    const estimatedCostPerRun = result.costUsd || 0.002;
+    const estimatedCostPerRun = result.costUsd || 0;
 
     return {
       version: '1.0',
@@ -352,36 +352,48 @@ class AgentExecutor {
       if (step.isReadOnly) continue;
 
       let stepSuccess = false;
+      const MAX_STEP_RETRIES = 3; // initial + 2 retries
       let attempt = 0;
+      let lastError = null;
 
       try {
-        // Send the action to the content script
-        const actionResult = await sendMessageWithRetry(tabId, {
-          action: 'executeAction',
-          tool: step.tool,
-          params: step.params
-        });
+        // Step-level retry loop: retry individual steps before full AI fallback
+        for (attempt = 1; attempt <= MAX_STEP_RETRIES; attempt++) {
+          const actionResult = await sendMessageWithRetry(tabId, {
+            action: 'executeAction',
+            tool: step.tool,
+            params: step.params
+          });
 
-        attempt = 1;
+          if (actionResult && actionResult.success !== false) {
+            stepSuccess = true;
+            break;
+          }
 
-        if (!actionResult || actionResult.success === false) {
+          lastError = actionResult?.error || 'action returned failure';
+
+          // Don't retry on last attempt
+          if (attempt < MAX_STEP_RETRIES) {
+            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+          }
+        }
+
+        if (!stepSuccess) {
           stepResults.push({
             stepNumber: step.stepNumber,
             tool: step.tool,
             success: false,
-            attempts: attempt
+            attempts: attempt,
+            retriesUsed: attempt - 1
           });
           return {
             success: false,
             failedAtStep: step.stepNumber,
-            error: 'Step ' + step.stepNumber + ' (' + step.tool + ') failed: ' +
-              (actionResult?.error || 'action returned failure'),
+            error: 'Step ' + step.stepNumber + ' (' + step.tool + ') failed after ' + attempt + ' attempts: ' + lastError,
             duration: Date.now() - replayStart,
             stepResults
           };
         }
-
-        stepSuccess = true;
 
         // After navigation steps, wait for page to settle
         if (step.isNavigation) {
@@ -416,9 +428,12 @@ class AgentExecutor {
           }
         }
 
-        // Wait the prescribed delay before the next step
-        if (step.delayAfter > 0) {
-          await new Promise(resolve => setTimeout(resolve, step.delayAfter));
+        // Smart replay timing: use recorded original duration (clamped) or fall back to delayAfter
+        const replayDelay = step.metadata?.originalDuration > 0
+          ? Math.max(200, Math.min(step.metadata.originalDuration, 5000))
+          : step.delayAfter;
+        if (replayDelay > 0) {
+          await new Promise(resolve => setTimeout(resolve, replayDelay));
         }
 
         stepResults.push({
