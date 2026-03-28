@@ -67,7 +67,10 @@ Plans:
   2. Failed agent runs are retried with exponential backoff (1min, 5min, 15min) up to 3 attempts
   3. Server sync queue persists to `chrome.storage.local` and resumes after service worker restart
   4. Agent scheduler validates and displays human-readable schedule descriptions
-**Plans**: [to be planned]
+**Plans**: 2 plans
+Plans:
+- [ ] 118-01-PLAN.md -- Cron expression support and human-readable schedule descriptions
+- [ ] 118-02-PLAN.md -- Retry-on-failure with exponential backoff and persistent sync queue
 
 ### Phase 119: Replay Intelligence
 **Goal**: Agent replay uses smart timing and recovers from individual step failures without full AI fallback
