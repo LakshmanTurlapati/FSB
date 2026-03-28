@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: unknown
-stopped_at: Completed 115-04-PLAN.md
-last_updated: "2026-03-26T02:11:38.100Z"
+stopped_at: Completed 119-01-PLAN.md
+last_updated: "2026-03-28T10:15:07Z"
 progress:
   total_phases: 2
   completed_phases: 1
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 115 — canvas-vision
+**Current focus:** Phase 119 — replay-intelligence
 
 ## Current Position
 
-Phase: 115 (canvas-vision) — EXECUTING
-Plan: 2 of 4
+Phase: 119 (replay-intelligence) — EXECUTING
+Plan: 1 of 2
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Plan: 2 of 4
 | Phase 115 P01 | 2min | 2 tasks | 2 files |
 | Phase 115 P03 | 2min | 2 tasks | 2 files |
 | Phase 115 P04 | 15min | 2 tasks | 2 files |
+| Phase 119 P01 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,7 @@ Recent decisions affecting current work:
 - [Phase 115]: CDP expression generator pattern: getCanvasPixelFallback returns self-contained IIFE string for Runtime.evaluate
 - [Phase 115]: Canvas scene reads via getCanvasScene() with three-stage cascade: interceptor, rerender trigger, pixel fallback
 - [Phase 115]: session.url does not exist -- use domResponse.structuredDOM.url with session.lastUrl fallback for canvas URL detection
+- [Phase 119]: Replay timing uses originalDuration clamped 200-5000ms with delayAfter fallback; costSaved reports 0 not 0.002 when no real data
 
 ### Roadmap Evolution
 
@@ -111,6 +113,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-26T02:11:38.098Z
-Stopped at: Completed 115-04-PLAN.md
+Last session: 2026-03-28T10:15:07Z
+Stopped at: Completed 119-01-PLAN.md
 Resume file: None
