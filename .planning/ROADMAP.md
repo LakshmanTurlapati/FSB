@@ -81,7 +81,10 @@ Plans:
   2. When a single replay step fails, the executor retries that step up to 2 times before falling back to AI
   3. Per-step success rates are tracked and steps below 50% success rate trigger automatic script re-recording
   4. Replay cost savings (AI cost avoided) are accurately calculated from real cost data
-**Plans**: [to be planned]
+**Plans**: 2 plans
+Plans:
+- [ ] 119-01-PLAN.md -- Smart replay timing, step-level retry, accurate cost savings
+- [ ] 119-02-PLAN.md -- Per-step success rate tracking and re-record trigger
 
 ### Phase 120: Sidepanel Agents UI
 **Goal**: Users can manage all background agents from the sidepanel without opening the options page
