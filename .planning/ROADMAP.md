@@ -25,7 +25,7 @@
 ### Phases (v0.9.10)
 
 - [x] **Phase 116: MCP Agent Tools** - Expose create/list/run/stop/delete agent operations as MCP tools so external clients (Claude Code, Cursor, etc.) can manage background agents (completed 2026-03-28)
-- [ ] **Phase 117: Cost & Metrics Pipeline** - Thread real token count and cost data from AI integration through executeAutomationTask into agent run history and recorded scripts
+- [x] **Phase 117: Cost & Metrics Pipeline** - Thread real token count and cost data from AI integration through executeAutomationTask into agent run history and recorded scripts (completed 2026-03-28)
 - [ ] **Phase 118: Scheduling Enhancements** - Add cron expression support, weekly schedules, retry-on-failure with exponential backoff, and persistent server sync queue
 - [ ] **Phase 119: Replay Intelligence** - Use recorded original action durations for replay timing, add step-level error recovery (retry individual steps before full AI fallback), track replay success rates per step
 - [ ] **Phase 120: Sidepanel Agents UI** - Dedicated Agents tab in sidepanel with agent list, status indicators, run history, create/edit form, and one-click run
@@ -111,7 +111,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 116. MCP Agent Tools | 2/2 | Complete | 2026-03-28 |
-| 117. Cost & Metrics Pipeline | -/- | Pending | - |
+| 117. Cost & Metrics Pipeline | -/- | Complete    | 2026-03-28 |
 | 118. Scheduling Enhancements | -/- | Pending | - |
 | 119. Replay Intelligence | -/- | Pending | - |
 | 120. Sidepanel Agents UI | -/- | Pending | - |
