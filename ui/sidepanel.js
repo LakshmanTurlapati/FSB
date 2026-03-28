@@ -1000,6 +1000,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return;
 
     case 'agentRunComplete':
+      // Clear running state and refresh
+      if (request.agentId) {
+        runningAgentIds.delete(request.agentId);
+      }
       // Refresh agent list if Agents tab is currently visible
       if (document.getElementById('agentsTab')?.style.display !== 'none') {
         loadAgentListUI();
@@ -1512,6 +1516,9 @@ function formatScheduleShort(schedule) {
 // Agents Tab -- Tab Switching, List, Actions
 // ==========================================
 
+// Cache of last-fetched agents for edit form access
+let cachedAgentsSP = [];
+
 function initAgentTab() {
   const tabBtns = document.querySelectorAll('.tab-btn');
   const chatTab = document.getElementById('chatTab');
@@ -1571,21 +1578,50 @@ async function loadAgentListUI() {
     }
 
     emptyEl.style.display = 'none';
+    cachedAgentsSP = agents;
     listEl.innerHTML = agents.map(agent => renderAgentRow(agent)).join('');
 
     // Attach event listeners to action buttons
     listEl.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', handleAgentAction);
     });
+
+    // Attach expansion handlers to agent row headers
+    listEl.querySelectorAll('[data-expand-agent]').forEach(header => {
+      header.addEventListener('click', (e) => {
+        // Don't expand if clicking an action button
+        if (e.target.closest('[data-action]')) return;
+        const agentId = header.dataset.expandAgent;
+        const row = header.closest('.agent-row');
+        if (!row) return;
+        const detail = row.querySelector('.agent-row-detail');
+        if (!detail) return;
+
+        const isExpanded = row.classList.contains('expanded');
+        if (isExpanded) {
+          row.classList.remove('expanded');
+        } else {
+          row.classList.add('expanded');
+          // Load history on first expand
+          if (!detail.dataset.loaded) {
+            detail.dataset.loaded = '1';
+            loadAgentHistory(agentId, detail);
+          }
+        }
+      });
+    });
   } catch (error) {
     listEl.innerHTML = '<div style="padding:20px;color:#c62828;">Failed to load agents</div>';
   }
 }
 
+// Track running agents for live progress
+const runningAgentIds = new Set();
+
 function renderAgentRow(agent) {
   // Determine status
   let status, badgeClass, badgeLabel;
-  if (agent.lastRunStatus === 'running') {
+  if (runningAgentIds.has(agent.agentId) || agent.lastRunStatus === 'running') {
     status = 'running';
     badgeClass = 'badge-running';
     badgeLabel = 'Running';
@@ -1605,12 +1641,15 @@ function renderAgentRow(agent) {
   const toggleLabel = agent.enabled ? 'Pause' : 'Resume';
   const safeId = escapeHtml(agent.agentId);
   const safeName = escapeHtml(agent.name || 'Unnamed Agent');
+  const isRunning = runningAgentIds.has(agent.agentId) || agent.lastRunStatus === 'running';
 
   return `<div class="agent-row" data-agent-id="${safeId}">
-    <div class="agent-row-header">
+    <div class="agent-row-header" data-expand-agent="${safeId}">
       <span class="agent-name">${safeName}</span>
       <span class="agent-status-badge ${badgeClass}">${badgeLabel}</span>
+      <i class="fa fa-chevron-down agent-expand-icon"></i>
     </div>
+    ${isRunning ? '<div class="agent-progress"><i class="fa fa-spinner fa-spin"></i> Running...</div>' : ''}
     <div class="agent-row-info">
       <span><i class="fa fa-clock"></i> ${escapeHtml(schedule)}</span>
       <span><i class="fa fa-history"></i> ${escapeHtml(lastRun)}</span>
@@ -1618,10 +1657,71 @@ function renderAgentRow(agent) {
     </div>
     <div class="agent-row-actions">
       <button class="agent-action-btn" data-action="run" data-agent-id="${safeId}"><i class="fa fa-play"></i> Run</button>
+      <button class="agent-action-btn" data-action="edit" data-agent-id="${safeId}"><i class="fa fa-pen"></i></button>
       <button class="agent-action-btn" data-action="toggle" data-agent-id="${safeId}"><i class="fa ${toggleIcon}"></i> ${toggleLabel}</button>
       <button class="agent-action-btn danger" data-action="delete" data-agent-id="${safeId}"><i class="fa fa-trash"></i></button>
     </div>
     <div class="agent-row-detail"></div>
+  </div>`;
+}
+
+// Time ago helper for history rows
+function timeAgo(timestamp) {
+  if (!timestamp) return '';
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return 'just now';
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return mins + 'm ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + 'h ago';
+  const days = Math.floor(hours / 24);
+  if (days < 7) return days + 'd ago';
+  return new Date(timestamp).toLocaleDateString();
+}
+
+// Load run history for an agent into its detail container
+async function loadAgentHistory(agentId, containerEl) {
+  containerEl.innerHTML = '<div style="padding:8px;text-align:center;"><i class="fa fa-spinner fa-spin"></i></div>';
+  try {
+    const response = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'getAgentRunHistory', agentId, limit: 10 }, resolve);
+    });
+    const history = response?.history || [];
+    if (history.length === 0) {
+      containerEl.innerHTML = '<div class="agent-history-empty">No runs yet</div>';
+      return;
+    }
+    containerEl.innerHTML = '<div class="agent-history-header">Recent Runs</div>' +
+      history.map(run => renderHistoryRow(run)).join('');
+  } catch (err) {
+    containerEl.innerHTML = '<div style="padding:8px;color:#c62828;">Failed to load history</div>';
+  }
+}
+
+// Render a single history row
+function renderHistoryRow(run) {
+  const success = run.status === 'success' || run.status === 'completed';
+  const statusIcon = success
+    ? '<span class="agent-history-status status-success"><i class="fa fa-check"></i></span>'
+    : '<span class="agent-history-status status-failed"><i class="fa fa-times"></i></span>';
+  const ts = timeAgo(run.timestamp);
+  const duration = run.durationMs ? (run.durationMs / 1000).toFixed(1) + 's' : '-';
+  const cost = '$' + (run.costUsd?.toFixed(4) || '0.0000');
+  const isReplay = run.executionMode && run.executionMode.toLowerCase().includes('replay');
+  const modeBadge = isReplay
+    ? '<span class="agent-history-mode mode-replay">Replay</span>'
+    : '<span class="agent-history-mode">AI</span>';
+  const savedHtml = (run.costSaved && run.costSaved > 0)
+    ? ' <span class="agent-history-saved">saved $' + run.costSaved.toFixed(2) + '</span>'
+    : '';
+
+  return `<div class="agent-history-row">
+    ${statusIcon}
+    <span style="flex:1">${escapeHtml(ts)}</span>
+    <span>${escapeHtml(duration)}</span>
+    <span>${escapeHtml(cost)}</span>
+    ${modeBadge}${savedHtml}
   </div>`;
 }
 
@@ -1654,12 +1754,23 @@ async function handleAgentAction(event) {
   if (!agentId) return;
 
   if (action === 'run') {
-    // Visually indicate running
+    // Track running state and show progress
+    runningAgentIds.add(agentId);
     const row = btn.closest('.agent-row');
     const badge = row?.querySelector('.agent-status-badge');
     if (badge) {
       badge.className = 'agent-status-badge badge-running';
       badge.textContent = 'Running';
+    }
+    // Insert progress indicator if not present
+    if (row && !row.querySelector('.agent-progress')) {
+      const info = row.querySelector('.agent-row-info');
+      if (info) {
+        const prog = document.createElement('div');
+        prog.className = 'agent-progress';
+        prog.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Running...';
+        info.before(prog);
+      }
     }
     try {
       await new Promise(resolve => {
@@ -1667,6 +1778,12 @@ async function handleAgentAction(event) {
       });
     } catch (e) {
       console.warn('Run agent failed:', e);
+    }
+  } else if (action === 'edit') {
+    // Find agent in cached list and open edit form
+    const agent = cachedAgentsSP.find(a => a.agentId === agentId);
+    if (agent) {
+      showAgentFormSP(agent);
     }
   } else if (action === 'toggle') {
     try {
