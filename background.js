@@ -13573,6 +13573,135 @@ async function handleMCPMessage(msg) {
         break;
       }
 
+      case 'mcp:create-agent': {
+        const { name, task, targetUrl, schedule, maxIterations } = payload;
+        if (!name || !task || !targetUrl || !schedule) {
+          sendMCPResponse(id, { success: false, error: 'Missing required fields: name, task, targetUrl, schedule' });
+          break;
+        }
+        const newAgent = await agentManager.createAgent({ name, task, targetUrl, schedule, maxIterations });
+        if (newAgent.enabled) {
+          await agentScheduler.scheduleAgent(newAgent);
+        }
+        sendMCPResponse(id, { success: true, agent: newAgent });
+        break;
+      }
+
+      case 'mcp:list-agents': {
+        const agents = await agentManager.listAgents();
+        const summaries = agents.map(a => ({
+          agentId: a.agentId,
+          name: a.name,
+          task: a.task,
+          targetUrl: a.targetUrl,
+          enabled: a.enabled,
+          schedule: a.schedule,
+          lastRunAt: a.lastRunAt,
+          lastRunStatus: a.lastRunStatus,
+          runCount: a.runCount,
+          replayEnabled: a.replayEnabled !== false
+        }));
+        sendMCPResponse(id, { success: true, agents: summaries });
+        break;
+      }
+
+      case 'mcp:run-agent': {
+        const runAgentId = payload.agentId;
+        if (!runAgentId) {
+          sendMCPResponse(id, { success: false, error: 'Missing agentId' });
+          break;
+        }
+        const runAgent = await agentManager.getAgent(runAgentId);
+        if (!runAgent) {
+          sendMCPResponse(id, { success: false, error: `Agent not found: ${runAgentId}` });
+          break;
+        }
+        // Store MCP message id for progress forwarding
+        mcpProgressCallbacks.set(`agent:${runAgentId}`, id);
+        try {
+          const execResult = await agentExecutor.execute(runAgent);
+          await agentManager.recordRun(runAgentId, {
+            status: execResult.success ? 'success' : 'failed',
+            result: execResult.summary || null,
+            error: execResult.error || null,
+            iterations: execResult.iterations || 0,
+            tokensUsed: execResult.tokensUsed || 0,
+            costUsd: execResult.costUsd || 0,
+            durationMs: execResult.durationMs || 0,
+            executionMode: execResult.executionMode || 'ai_initial',
+            costSaved: execResult.costSaved || 0
+          });
+          sendMCPResponse(id, {
+            success: execResult.success !== false,
+            summary: execResult.summary || '',
+            iterations: execResult.iterations || 0,
+            durationMs: execResult.durationMs || 0,
+            executionMode: execResult.executionMode || 'ai_initial'
+          });
+        } finally {
+          mcpProgressCallbacks.delete(`agent:${runAgentId}`);
+        }
+        break;
+      }
+
+      case 'mcp:stop-agent': {
+        const stopAgentId = payload.agentId;
+        if (!stopAgentId) {
+          sendMCPResponse(id, { success: false, error: 'Missing agentId' });
+          break;
+        }
+        await agentExecutor.forceStop(stopAgentId);
+        sendMCPResponse(id, { success: true, message: `Agent ${stopAgentId} stopped` });
+        break;
+      }
+
+      case 'mcp:delete-agent': {
+        const delAgentId = payload.agentId;
+        if (!delAgentId) {
+          sendMCPResponse(id, { success: false, error: 'Missing agentId' });
+          break;
+        }
+        await agentScheduler.clearAlarm(delAgentId);
+        await agentExecutor.forceStop(delAgentId);
+        const deleted = await agentManager.deleteAgent(delAgentId);
+        sendMCPResponse(id, { success: deleted, message: deleted ? `Agent ${delAgentId} deleted` : `Agent ${delAgentId} not found` });
+        break;
+      }
+
+      case 'mcp:toggle-agent': {
+        const toggleAgentId = payload.agentId;
+        if (!toggleAgentId) {
+          sendMCPResponse(id, { success: false, error: 'Missing agentId' });
+          break;
+        }
+        const toggledAgent = await agentManager.toggleAgent(toggleAgentId);
+        if (toggledAgent.enabled) {
+          await agentScheduler.scheduleAgent(toggledAgent);
+        } else {
+          await agentScheduler.clearAlarm(toggledAgent.agentId);
+        }
+        sendMCPResponse(id, { success: true, agent: { agentId: toggledAgent.agentId, name: toggledAgent.name, enabled: toggledAgent.enabled } });
+        break;
+      }
+
+      case 'mcp:get-agent-stats': {
+        const agentStats = await agentManager.getStats();
+        sendMCPResponse(id, { success: true, stats: agentStats });
+        break;
+      }
+
+      case 'mcp:get-agent-history': {
+        const histAgentId = payload.agentId;
+        if (!histAgentId) {
+          sendMCPResponse(id, { success: false, error: 'Missing agentId' });
+          break;
+        }
+        const limit = payload.limit || 10;
+        const history = await agentManager.getRunHistory(histAgentId, limit);
+        sendMCPResponse(id, { success: true, history });
+        break;
+      }
+
       default:
         sendMCPResponse(id, { success: false, error: `Unknown MCP message type: ${type}` });
     }
