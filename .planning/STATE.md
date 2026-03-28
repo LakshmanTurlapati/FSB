@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
-status: unknown
-stopped_at: Completed 115-04-PLAN.md
-last_updated: "2026-03-26T02:11:38.100Z"
+status: Ready to execute
+stopped_at: Completed 116-01-PLAN.md
+last_updated: "2026-03-28T09:27:01.174Z"
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 2
-  completed_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-25)
 ## Current Position
 
 Phase: 115 (canvas-vision) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Plan: 2 of 4
 | Phase 115 P01 | 2min | 2 tasks | 2 files |
 | Phase 115 P03 | 2min | 2 tasks | 2 files |
 | Phase 115 P04 | 15min | 2 tasks | 2 files |
+| Phase 116 P01 | 2min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,7 @@ Recent decisions affecting current work:
 - [Phase 115]: CDP expression generator pattern: getCanvasPixelFallback returns self-contained IIFE string for Runtime.evaluate
 - [Phase 115]: Canvas scene reads via getCanvasScene() with three-stage cascade: interceptor, rerender trigger, pixel fallback
 - [Phase 115]: session.url does not exist -- use domResponse.structuredDOM.url with session.lastUrl fallback for canvas URL detection
+- [Phase 116]: Flat schedule params assembled into nested object in handler; run_agent uses 300s timeout with progress streaming; 3 read-only agent tools bypass queue
 
 ### Roadmap Evolution
 
@@ -111,6 +113,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-26T02:11:38.098Z
-Stopped at: Completed 115-04-PLAN.md
+Last session: 2026-03-28T09:27:01.158Z
+Stopped at: Completed 116-01-PLAN.md
 Resume file: None
