@@ -109,7 +109,7 @@ class AgentExecutor {
         if (replayResult.success) {
           // Replay succeeded -- zero cost
           const duration = Date.now() - startTime;
-          const costSaved = agent.recordedScript.estimatedCostPerRun || 0;
+          const costSaved = agent.recordedScript.estimatedCostPerRun || 0.002;
           console.log('[FSB Executor] Replay succeeded for agent:', agent.agentId,
             'duration:', duration + 'ms', 'costSaved: $' + costSaved);
 
@@ -123,7 +123,8 @@ class AgentExecutor {
             costUsd: 0,
             iterations: 0,
             executionMode: 'replay',
-            costSaved
+            costSaved,
+            stepResults: replayResult.stepResults || []
           };
         }
 
@@ -171,6 +172,12 @@ class AgentExecutor {
             try {
               await agentManager.saveRecordedScript(agent.agentId, newScript);
               console.log('[FSB Executor] Updated recorded script after AI fallback for agent:', agent.agentId);
+              // Clear needsReRecord flag since we have a fresh script
+              if (agent.replayStats?.needsReRecord) {
+                await agentManager.updateAgent(agent.agentId, {
+                  replayStats: { ...agent.replayStats, needsReRecord: false, stepSuccessRates: {} }
+                });
+              }
             } catch (e) {
               console.error('[FSB Executor] Failed to save updated script:', e.message);
             }
@@ -188,6 +195,7 @@ class AgentExecutor {
           iterations: aiResult.iterations || 0,
           executionMode: 'ai_fallback',
           replayFailedAtStep: replayResult.failedAtStep,
+          stepResults: replayResult.stepResults || [],
           costSaved: 0
         };
       }
@@ -217,6 +225,12 @@ class AgentExecutor {
             await agentManager.saveRecordedScript(agent.agentId, script);
             console.log('[FSB Executor] Saved initial recorded script for agent:', agent.agentId,
               'steps:', script.totalSteps);
+            // Clear needsReRecord flag since we have a fresh script
+            if (agent.replayStats?.needsReRecord) {
+              await agentManager.updateAgent(agent.agentId, {
+                replayStats: { ...agent.replayStats, needsReRecord: false, stepSuccessRates: {} }
+              });
+            }
           } catch (e) {
             console.error('[FSB Executor] Failed to save script:', e.message);
           }
@@ -331,85 +345,103 @@ class AgentExecutor {
    */
   async _executeReplayScript(tabId, script, agent) {
     const replayStart = Date.now();
-    const MAX_STEP_RETRIES = 2;
+    const stepResults = [];
 
     for (const step of script.steps) {
       // Skip read-only steps -- they were for AI reasoning
       if (step.isReadOnly) continue;
 
       let stepSuccess = false;
-      let lastError = null;
+      let attempt = 0;
 
-      for (let attempt = 0; attempt <= MAX_STEP_RETRIES; attempt++) {
-        if (attempt > 0) {
-          console.log('[FSB Executor] Retrying step', step.stepNumber, 'attempt', attempt + 1);
-          await new Promise(r => setTimeout(r, 500));
-        }
+      try {
+        // Send the action to the content script
+        const actionResult = await sendMessageWithRetry(tabId, {
+          action: 'executeAction',
+          tool: step.tool,
+          params: step.params
+        });
 
-        try {
-          // Send the action to the content script
-          const actionResult = await sendMessageWithRetry(tabId, {
-            action: 'executeAction',
+        attempt = 1;
+
+        if (!actionResult || actionResult.success === false) {
+          stepResults.push({
+            stepNumber: step.stepNumber,
             tool: step.tool,
-            params: step.params
+            success: false,
+            attempts: attempt
           });
-
-          if (actionResult && actionResult.success !== false) {
-            stepSuccess = true;
-            break;
-          }
-          lastError = actionResult?.error || 'action returned failure';
-        } catch (error) {
-          lastError = error.message;
+          return {
+            success: false,
+            failedAtStep: step.stepNumber,
+            error: 'Step ' + step.stepNumber + ' (' + step.tool + ') failed: ' +
+              (actionResult?.error || 'action returned failure'),
+            duration: Date.now() - replayStart,
+            stepResults
+          };
         }
-      }
 
-      if (!stepSuccess) {
+        stepSuccess = true;
+
+        // After navigation steps, wait for page to settle
+        if (step.isNavigation) {
+          try {
+            await pageLoadWatcher.waitForPageReady(tabId, { maxWait: 8000 });
+          } catch (e) {
+            // Page load timeout is not necessarily fatal -- continue
+            console.log('[FSB Executor] Page load wait timed out after navigation replay step:', step.stepNumber);
+          }
+
+          // Re-check content script after navigation
+          try {
+            await waitForContentScriptReady(tabId, 5000);
+          } catch (e) {
+            await ensureContentScriptInjected(tabId);
+            const ready = await waitForContentScriptReady(tabId, 3000);
+            if (!ready) {
+              stepResults.push({
+                stepNumber: step.stepNumber,
+                tool: step.tool,
+                success: false,
+                attempts: attempt
+              });
+              return {
+                success: false,
+                failedAtStep: step.stepNumber,
+                error: 'Content script lost after navigation at step ' + step.stepNumber,
+                duration: Date.now() - replayStart,
+                stepResults
+              };
+            }
+          }
+        }
+
+        // Wait the prescribed delay before the next step
+        if (step.delayAfter > 0) {
+          await new Promise(resolve => setTimeout(resolve, step.delayAfter));
+        }
+
+        stepResults.push({
+          stepNumber: step.stepNumber,
+          tool: step.tool,
+          success: stepSuccess,
+          attempts: attempt
+        });
+
+      } catch (error) {
+        stepResults.push({
+          stepNumber: step.stepNumber,
+          tool: step.tool,
+          success: false,
+          attempts: attempt + 1
+        });
         return {
           success: false,
           failedAtStep: step.stepNumber,
-          retriesUsed: MAX_STEP_RETRIES,
-          error: 'Step ' + step.stepNumber + ' (' + step.tool + ') failed after ' +
-            (MAX_STEP_RETRIES + 1) + ' attempts: ' + lastError,
-          duration: Date.now() - replayStart
+          error: 'Step ' + step.stepNumber + ' (' + step.tool + ') threw: ' + error.message,
+          duration: Date.now() - replayStart,
+          stepResults
         };
-      }
-
-      // After navigation steps, wait for page to settle
-      if (step.isNavigation) {
-        try {
-          await pageLoadWatcher.waitForPageReady(tabId, { maxWait: 8000 });
-        } catch (e) {
-          // Page load timeout is not necessarily fatal -- continue
-          console.log('[FSB Executor] Page load wait timed out after navigation replay step:', step.stepNumber);
-        }
-
-        // Re-check content script after navigation
-        try {
-          await waitForContentScriptReady(tabId, 5000);
-        } catch (e) {
-          await ensureContentScriptInjected(tabId);
-          const ready = await waitForContentScriptReady(tabId, 3000);
-          if (!ready) {
-            return {
-              success: false,
-              failedAtStep: step.stepNumber,
-              retriesUsed: 0,
-              error: 'Content script lost after navigation at step ' + step.stepNumber,
-              duration: Date.now() - replayStart
-            };
-          }
-        }
-      }
-
-      // Smart timing: use recorded originalDuration (clamped 200ms-5000ms),
-      // fall back to hardcoded delayAfter if originalDuration is missing/zero
-      const replayDelay = step.metadata?.originalDuration > 0
-        ? Math.max(200, Math.min(step.metadata.originalDuration, 5000))
-        : step.delayAfter;
-
-      if (replayDelay > 0) {
-        await new Promise(resolve => setTimeout(resolve, replayDelay));
       }
     }
 
@@ -417,7 +449,8 @@ class AgentExecutor {
       success: true,
       failedAtStep: null,
       error: null,
-      duration: Date.now() - replayStart
+      duration: Date.now() - replayStart,
+      stepResults
     };
   }
 
