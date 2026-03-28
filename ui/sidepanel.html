@@ -30,119 +30,45 @@
       </div>
     </header>
 
-    <div class="tab-bar">
-      <button class="tab-btn active" data-tab="chat"><i class="fa fa-comments"></i> Chat</button>
-      <button class="tab-btn" data-tab="agents"><i class="fa fa-robot"></i> Agents</button>
-    </div>
-
-    <div id="chatTab" class="tab-content active">
-      <div id="historyView" class="history-view hidden">
-        <div class="history-header">
-          <h3>Session History</h3>
-          <button id="clearAllHistoryBtn" class="history-clear-all-btn" title="Delete All Sessions">
-            <i class="fa fa-trash"></i>
-            <span>Clear All</span>
-          </button>
-        </div>
-        <div class="history-list" id="historyList">
-          <!-- Session items rendered dynamically -->
-        </div>
+    <div id="historyView" class="history-view hidden">
+      <div class="history-header">
+        <h3>Session History</h3>
+        <button id="clearAllHistoryBtn" class="history-clear-all-btn" title="Delete All Sessions">
+          <i class="fa fa-trash"></i>
+          <span>Clear All</span>
+        </button>
       </div>
-
-      <div class="chat-messages-area">
-        <div id="chatMessages" class="chat-messages">
-          <!-- Messages will be dynamically added here -->
-        </div>
-      </div>
-
-      <div class="chat-input-area">
-        <div class="input-container">
-          <div class="input-wrapper">
-            <div
-              id="chatInput"
-              class="chat-input"
-              contenteditable="true"
-              data-placeholder="Ask me to automate something..."
-              role="textbox"
-              aria-multiline="true"
-            ></div>
-            <div class="input-actions">
-              <button id="micBtn" class="mic-btn" title="Voice input">
-                <i class="fa fa-microphone"></i>
-              </button>
-              <button id="sendBtn" class="send-btn" title="Send Message">
-                <i class="fa fa-arrow-up"></i>
-              </button>
-            </div>
-          </div>
-        </div>
+      <div class="history-list" id="historyList">
+        <!-- Session items rendered dynamically -->
       </div>
     </div>
 
-    <div id="agentsTab" class="tab-content" style="display:none;">
-      <div class="agents-toolbar">
-        <button id="btnCreateAgentSP" class="agents-toolbar-btn" title="Create Agent">
-          <i class="fa fa-plus"></i> New Agent
-        </button>
-        <button id="btnRefreshAgentsSP" class="agents-toolbar-btn" title="Refresh">
-          <i class="fa fa-refresh"></i>
-        </button>
+    <div class="chat-messages-area">
+      <div id="chatMessages" class="chat-messages">
+        <!-- Messages will be dynamically added here -->
       </div>
-      <div id="agentFormSP" class="agent-form" style="display:none;">
-        <div class="agent-form-header">
-          <h3 id="agentFormTitleSP">Create Agent</h3>
-          <button id="btnCloseAgentFormSP" class="icon-btn"><i class="fa fa-times"></i></button>
-        </div>
-        <div class="agent-form-body">
-          <input type="hidden" id="agentFormIdSP" value="">
-          <div class="form-group">
-            <label for="agentNameSP">Name</label>
-            <input type="text" id="agentNameSP" placeholder="e.g., Check email" maxlength="50">
-          </div>
-          <div class="form-group">
-            <label for="agentTaskSP">Task</label>
-            <textarea id="agentTaskSP" placeholder="Describe what the agent should do..." rows="3" maxlength="500"></textarea>
-          </div>
-          <div class="form-group">
-            <label for="agentUrlSP">Target URL</label>
-            <input type="url" id="agentUrlSP" placeholder="https://example.com">
-          </div>
-          <div class="form-group">
-            <label for="agentScheduleTypeSP">Schedule</label>
-            <select id="agentScheduleTypeSP">
-              <option value="interval">Every X minutes</option>
-              <option value="daily">Daily at time</option>
-              <option value="cron">Cron expression</option>
-              <option value="once">Run once</option>
-            </select>
-          </div>
-          <div id="scheduleParamsSP" class="schedule-params">
-            <div id="intervalParamsSP" class="schedule-param-group">
-              <label for="agentIntervalSP">Minutes</label>
-              <input type="number" id="agentIntervalSP" value="60" min="1" max="10080">
-            </div>
-            <div id="dailyParamsSP" class="schedule-param-group" style="display:none;">
-              <label for="agentDailyTimeSP">Time</label>
-              <input type="time" id="agentDailyTimeSP" value="09:00">
-            </div>
-            <div id="cronParamsSP" class="schedule-param-group" style="display:none;">
-              <label for="agentCronSP">Expression</label>
-              <input type="text" id="agentCronSP" placeholder="0 9 * * 1-5">
-            </div>
-          </div>
-          <div class="form-actions">
-            <button id="btnCancelAgentSP" class="agent-form-btn secondary">Cancel</button>
-            <button id="btnSaveAgentSP" class="agent-form-btn primary">Save Agent</button>
+    </div>
+    
+    <div class="chat-input-area">
+      <div class="input-container">
+        <div class="input-wrapper">
+          <div 
+            id="chatInput" 
+            class="chat-input" 
+            contenteditable="true" 
+            data-placeholder="Ask me to automate something..."
+            role="textbox"
+            aria-multiline="true"
+          ></div>
+          <div class="input-actions">
+            <button id="micBtn" class="mic-btn" title="Voice input">
+              <i class="fa fa-microphone"></i>
+            </button>
+            <button id="sendBtn" class="send-btn" title="Send Message">
+              <i class="fa fa-arrow-up"></i>
+            </button>
           </div>
         </div>
-      </div>
-      <div id="agentListSP" class="agent-list">
-        <!-- Agent rows rendered dynamically -->
-      </div>
-      <div id="agentEmptyState" class="agent-empty-state" style="display:none;">
-        <i class="fa fa-robot"></i>
-        <p>No agents yet</p>
-        <p class="agent-empty-hint">Create an agent to automate recurring tasks</p>
       </div>
     </div>
     
