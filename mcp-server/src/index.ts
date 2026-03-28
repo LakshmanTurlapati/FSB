@@ -8,6 +8,7 @@ import { registerAutopilotTools } from './tools/autopilot.js';
 import { registerManualTools } from './tools/manual.js';
 import { registerReadOnlyTools } from './tools/read-only.js';
 import { registerObservabilityTools } from './tools/observability.js';
+import { registerAgentTools } from './tools/agents.js';
 import { registerResources } from './resources/index.js';
 import { registerPrompts } from './prompts/index.js';
 
@@ -21,6 +22,7 @@ async function main(): Promise<void> {
   registerManualTools(server, bridge, queue);
   registerReadOnlyTools(server, bridge, queue);
   registerObservabilityTools(server, bridge, queue);
+  registerAgentTools(server, bridge, queue);
 
   // Register resources and prompt templates
   registerResources(server, bridge);
