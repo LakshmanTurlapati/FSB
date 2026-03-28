@@ -1167,6 +1167,274 @@ body {
   line-height: 1.5;
 }
 
+/* ==========================================
+   Tab Bar & Agents Tab
+   ========================================== */
+
+/* Tab bar */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  background: var(--bg-primary);
+}
+
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.tab-btn.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* Tab content */
+.tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Agents toolbar */
+.agents-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.agents-toolbar-btn {
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.agents-toolbar-btn:hover {
+  background: var(--bg-secondary);
+}
+
+/* Agent list */
+.agent-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.agent-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.agent-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.agent-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.agent-list::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Agent row */
+.agent-row {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: box-shadow 0.2s ease;
+}
+
+.agent-row:hover {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .agent-row {
+  background: var(--bg-secondary);
+}
+
+[data-theme="dark"] .agent-row:hover {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Agent row header */
+.agent-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-name {
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+/* Agent status badge */
+.agent-status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.badge-active {
+  background: rgba(30, 126, 52, 0.12);
+  color: #1e7e34;
+}
+
+[data-theme="dark"] .badge-active {
+  background: rgba(30, 126, 52, 0.2);
+  color: #81c784;
+}
+
+.badge-paused {
+  background: rgba(0, 0, 0, 0.06);
+  color: #666;
+}
+
+[data-theme="dark"] .badge-paused {
+  background: rgba(255, 255, 255, 0.08);
+  color: #999;
+}
+
+.badge-running {
+  background: rgba(21, 101, 192, 0.12);
+  color: #1565c0;
+}
+
+[data-theme="dark"] .badge-running {
+  background: rgba(21, 101, 192, 0.2);
+  color: #90caf9;
+}
+
+/* Agent row info */
+.agent-row-info {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.agent-row-info span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Agent row actions */
+.agent-row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.agent-action-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-primary);
+  transition: all 0.15s ease;
+}
+
+.agent-action-btn:hover {
+  background: var(--bg-secondary);
+}
+
+[data-theme="dark"] .agent-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.agent-action-btn.danger:hover {
+  background: #fee2e2;
+  border-color: #e57373;
+  color: #c62828;
+}
+
+[data-theme="dark"] .agent-action-btn.danger:hover {
+  background: rgba(229, 115, 115, 0.15);
+  border-color: #e57373;
+  color: #ef9a9a;
+}
+
+/* Agent row detail (expandable, filled by Plan 02) */
+.agent-row-detail {
+  display: none;
+}
+
+/* Agent empty state */
+.agent-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  gap: 8px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.agent-empty-state i {
+  font-size: 48px;
+  opacity: 0.3;
+}
+
+.agent-empty-state p {
+  font-size: 14px;
+  margin: 0;
+}
+
+.agent-empty-hint {
+  font-size: 12px !important;
+  opacity: 0.7;
+}
+
 /* Responsive adjustments for history */
 @media (max-width: 350px) {
   .history-item-task {
