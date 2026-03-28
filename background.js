@@ -826,7 +826,7 @@ var _dashboardTaskTabId = null; // Tab ID for active dashboard task (used for DO
  * @param {Object} session - Active automation session with _isDashboardTask flag
  */
 function broadcastDashboardProgress(session) {
-  if (!session._isDashboardTask) return;
+  if (!session._isDashboardTask && !session.agentId) return;
   // Throttle to max 1/second
   var now = Date.now();
   if (now - _lastDashboardBroadcast < 1000) return;
@@ -840,6 +840,19 @@ function broadcastDashboardProgress(session) {
   var actionText = session._lastActionSummary
     || (lastAction ? getActionStatus(lastAction.tool, lastAction.params) : null)
     || 'Working...';
+
+  // Broadcast to sidepanel UI for agent runs
+  if (session.agentId) {
+    chrome.runtime.sendMessage({
+      action: 'agentProgress',
+      agentId: session.agentId,
+      iteration: session.iterationCount || 0,
+      currentAction: actionText,
+      progress: progress.progressPercent
+    }).catch(() => {}); // sidepanel may not be open
+  }
+
+  if (!session._isDashboardTask) return;
 
   fsbWebSocket.send('ext:task-progress', {
     progress: progress.progressPercent,
@@ -10551,7 +10564,7 @@ async function startAutomationLoop(sessionId) {
       generateActionSummary(aiResponse.actions[0], session, settings).then(aiSummary => {
         if (aiSummary && !isSessionTerminating(sessionId)) {
           session.lastActionStatusText = aiSummary;
-          if (session._isDashboardTask) session._lastActionSummary = aiSummary;
+          if (session._isDashboardTask || session.agentId) session._lastActionSummary = aiSummary;
           sendSessionStatus(session.tabId, {
             phase: 'acting',
             taskName: session.task,
@@ -10706,7 +10719,7 @@ async function startAutomationLoop(sessionId) {
           if (aiSummary && !isSessionTerminating(sessionId)) {
             // Update session's last status text with the AI summary
             session.lastActionStatusText = aiSummary;
-            if (session._isDashboardTask) session._lastActionSummary = aiSummary;
+            if (session._isDashboardTask || session.agentId) session._lastActionSummary = aiSummary;
 
             // Update content overlay with AI-generated contextual description
             sendSessionStatus(session.tabId, {

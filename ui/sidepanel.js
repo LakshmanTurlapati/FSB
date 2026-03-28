@@ -999,6 +999,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
       return;
 
+    case 'agentProgress':
+      // Update live progress for running agent
+      if (request.agentId) {
+        const progressDiv = document.querySelector('.agent-row[data-agent-id="' + request.agentId + '"] .agent-progress');
+        if (progressDiv) {
+          progressDiv.innerHTML = '<span class="agent-spinner"></span> Iteration ' + (request.iteration || 0) + ' \u2014 ' + (request.currentAction || 'Working...');
+        }
+      }
+      return;
+
     case 'agentRunComplete':
       // Clear running state and refresh
       if (request.agentId) {
