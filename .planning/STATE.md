@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.8.1
-milestone_name: npm Publishing
-status: Ready to execute
-stopped_at: Completed 120-01-PLAN.md
-last_updated: "2026-03-28T20:03:04.021Z"
+milestone: v0.9.10
+milestone_name: Agent Intelligence
+status: Executing Phase 120
+stopped_at: Completed 119-02-PLAN.md
+last_updated: "2026-03-28T19:57:53.377Z"
 progress:
-  total_phases: 2
-  completed_phases: 0
-  total_plans: 2
-  completed_plans: 1
+  total_phases: 6
+  completed_phases: 4
+  total_plans: 9
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 115 — canvas-vision
+**Current focus:** Phase 120 — sidepanel-agents-ui
 
 ## Current Position
 
-Phase: 115 (canvas-vision) — EXECUTING
-Plan: 3 of 4
+Phase: 120 (sidepanel-agents-ui) — EXECUTING
+Plan: 1 of 2
 
 ## Performance Metrics
 
@@ -62,7 +62,7 @@ Plan: 3 of 4
 | Phase 115 P01 | 2min | 2 tasks | 2 files |
 | Phase 115 P03 | 2min | 2 tasks | 2 files |
 | Phase 115 P04 | 15min | 2 tasks | 2 files |
-| Phase 120 P01 | 3min | 2 tasks | 3 files |
+| Phase 119 P02 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -93,8 +93,7 @@ Recent decisions affecting current work:
 - [Phase 115]: CDP expression generator pattern: getCanvasPixelFallback returns self-contained IIFE string for Runtime.evaluate
 - [Phase 115]: Canvas scene reads via getCanvasScene() with three-stage cascade: interceptor, rerender trigger, pixel fallback
 - [Phase 115]: session.url does not exist -- use domResponse.structuredDOM.url with session.lastUrl fallback for canvas URL detection
-- [Phase 120]: Tab switching uses display flex/none toggle on chatTab and agentsTab containers
-- [Phase 120]: Agent rows use data-action and data-agent-id attributes with event delegation for action handling
+- [Phase 119]: 50% success rate threshold with 4-run minimum for re-record trigger
 
 ### Roadmap Evolution
 
@@ -114,6 +113,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-28T20:03:04.008Z
-Stopped at: Completed 120-01-PLAN.md
+Last session: 2026-03-28T10:21:14.310Z
+Stopped at: Completed 119-02-PLAN.md
 Resume file: None
