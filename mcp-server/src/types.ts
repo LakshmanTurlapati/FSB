@@ -19,7 +19,15 @@ export type MCPMessageType =
   | 'mcp:list-sessions'       // List all past session summaries
   | 'mcp:get-session'         // Get full session detail by ID
   | 'mcp:get-logs'            // Get recent logs or session-specific logs
-  | 'mcp:search-memory';      // Search memories with query and filters
+  | 'mcp:search-memory'       // Search memories with query and filters
+  | 'mcp:create-agent'        // Create a new background agent
+  | 'mcp:list-agents'         // List all background agents
+  | 'mcp:run-agent'           // Trigger immediate agent execution
+  | 'mcp:stop-agent'          // Stop a running agent
+  | 'mcp:delete-agent'        // Delete an agent permanently
+  | 'mcp:toggle-agent'        // Enable/disable an agent
+  | 'mcp:get-agent-stats'     // Get aggregate agent statistics
+  | 'mcp:get-agent-history';  // Get run history for an agent
 
 // Messages FROM extension TO MCP server (responses)
 export interface MCPResponse {

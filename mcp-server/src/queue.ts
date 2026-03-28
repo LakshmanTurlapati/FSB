@@ -22,6 +22,9 @@ export class TaskQueue {
     'get_logs',
     'search_memory',
     'get_memory_stats',
+    'list_agents',
+    'get_agent_stats',
+    'get_agent_history',
   ]);
 
   /**
