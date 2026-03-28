@@ -28,7 +28,7 @@
 - [x] **Phase 117: Cost & Metrics Pipeline** - Thread real token count and cost data from AI integration through executeAutomationTask into agent run history and recorded scripts (completed 2026-03-28)
 - [x] **Phase 118: Scheduling Enhancements** - Add cron expression support, weekly schedules, retry-on-failure with exponential backoff, and persistent server sync queue (completed 2026-03-28)
 - [x] **Phase 119: Replay Intelligence** - Use recorded original action durations for replay timing, add step-level error recovery (retry individual steps before full AI fallback), track replay success rates per step (completed 2026-03-28)
-- [ ] **Phase 120: Sidepanel Agents UI** - Dedicated Agents tab in sidepanel with agent list, status indicators, run history, create/edit form, and one-click run
+- [x] **Phase 120: Sidepanel Agents UI** - Dedicated Agents tab in sidepanel with agent list, status indicators, run history, create/edit form, and one-click run (completed 2026-03-28)
 - [ ] **Phase 121: DOM Cloning Verification** - Formal E2E verification of Phase 44 DOM cloning stream (snapshot fidelity, mutation sync, scroll tracking, overlay positioning, iframe scaling)
 
 ### Phase 116: MCP Agent Tools
@@ -123,5 +123,5 @@ Plans:
 | 117. Cost & Metrics Pipeline | -/- | Complete    | 2026-03-28 |
 | 118. Scheduling Enhancements | 1/2 | Complete    | 2026-03-28 |
 | 119. Replay Intelligence | -/- | Complete    | 2026-03-28 |
-| 120. Sidepanel Agents UI | 0/2 | Pending | - |
+| 120. Sidepanel Agents UI | 0/2 | Complete    | 2026-03-28 |
 | 121. DOM Cloning Verification | -/- | Pending | - |
