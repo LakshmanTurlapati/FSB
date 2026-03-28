@@ -1,4 +1,4 @@
-// Side Panel Script for FSB v0.9.4.0 - Persistent UI
+// Side Panel Script for FSB v0.9.8.1 - Persistent UI
 
 let currentSessionId = null;
 let conversationId = null;
@@ -188,7 +188,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 // Initialize side panel
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('FSB v0.9.4.0 side panel loaded');
+  console.log('FSB v0.9.8.1 side panel loaded');
 
   // Apply theme first
   applyTheme();
@@ -1394,7 +1394,7 @@ function escapeHtml(str) {
 }
 
 
-console.log('FSB v0.9.4.0 side panel script loaded');
+console.log('FSB v0.9.8.1 side panel script loaded');
 
 // ==========================================
 // /agent Slash Command Handler

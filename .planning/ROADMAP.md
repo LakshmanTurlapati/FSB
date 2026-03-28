@@ -324,7 +324,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 116. MCP Agent Tools | 0/2 | Planning | - |
+| 116. MCP Agent Tools | 0/2 | Complete    | 2026-03-28 |
 | 117. Cost & Metrics Pipeline | -/- | Pending | - |
 | 118. Scheduling Enhancements | -/- | Pending | - |
 | 119. Replay Intelligence | -/- | Pending | - |

@@ -86,18 +86,24 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ### Active
 
-(None -- define in next milestone)
+- [ ] MCP agent tools — create/list/run/stop/delete agents via MCP -- v0.9.10/P116
+- [ ] Cost & metrics pipeline — real token/cost data in agent history -- v0.9.10/P117
+- [ ] Scheduling enhancements — cron expressions, retry with backoff -- v0.9.10/P118
+- [ ] Replay intelligence — dynamic timing, step-level recovery -- v0.9.10/P119
+- [ ] Sidepanel agents UI — dedicated tab for agent management -- v0.9.10/P120
+- [ ] DOM cloning stream verification — formal E2E verification of Phase 44 -- v0.9.10
+
+### Backlog (Completed from previous milestones — v0.9.6)
+
+- [x] Server relay on fly.io — WebSocket coordinator connecting all FSB instances -- v0.9.6/P40
+- [x] Showcase/dashboard site on fly.io — public landing page + QR-authenticated control center -- v0.9.6/P43
+- [x] QR code pairing — FSB generates unique hash per user, dashboard scans to pair -- v0.9.6/P41
+- [x] DOM cloning stream — real-time DOM reconstruction on dashboard (code complete, unverified) -- v0.9.6/P44
+- [x] Remote task control — create and monitor tasks from dashboard, see FSB working live -- v0.9.6/P42
 
 ### Backlog (Active from previous milestones)
 
 - [ ] Publish MCP server to npm for easy `npx` installation (shelved from v0.9.8.1, running in parallel)
-- [ ] Server relay on fly.io — WebSocket coordinator connecting all FSB instances
-- [ ] Showcase/dashboard site on fly.io — public landing page + QR-authenticated control center
-- [ ] QR code pairing — FSB generates unique hash per user, dashboard scans to pair
-- [ ] DOM cloning stream — real-time DOM reconstruction on dashboard (images via CDN, not proxied)
-- [ ] Remote task control — create and monitor tasks from dashboard, see FSB working live
-- [ ] Background polling agents — cron-like tasks (price monitoring etc.) with default safe refresh rates, user's browser stays active
-- [ ] Automation replay agents — save successful action selectors, replay without AI, AI re-engages on errors/page changes
 
 ### Backlog
 

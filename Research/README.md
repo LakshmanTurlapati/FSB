@@ -73,4 +73,4 @@ This folder contains comprehensive research on Claude for Chrome, Model Context 
 ---
 
 *Last Updated: February 2026*
-*Part of FSB v0.9.4.0 Research Initiative*
+*Part of FSB v0.9.8.1 Research Initiative*
