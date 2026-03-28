@@ -108,7 +108,10 @@ class BackgroundAgentManager {
         totalAISaves: 0,
         estimatedCostSaved: 0
       },
-      runHistory: []
+      runHistory: [],
+      retryCount: 0,
+      retryMaxAttempts: 3,
+      lastRetryAt: null
     };
 
     agents[agentId] = agent;
@@ -276,6 +279,34 @@ class BackgroundAgentManager {
 
     console.log('[FSB AgentManager] Run recorded for agent:', agentId, 'success:', runResult.success);
     return agent;
+  }
+
+  /**
+   * Reset retry counter for an agent (on success or max retries reached)
+   * @param {string} agentId
+   * @returns {Promise<Object|null>}
+   */
+  async resetRetry(agentId) {
+    const agents = await this.loadAgents();
+    if (!agents[agentId]) return null;
+    agents[agentId].retryCount = 0;
+    agents[agentId].lastRetryAt = null;
+    await this.saveAgents(agents);
+    return agents[agentId];
+  }
+
+  /**
+   * Increment retry counter for an agent
+   * @param {string} agentId
+   * @returns {Promise<Object|null>}
+   */
+  async incrementRetry(agentId) {
+    const agents = await this.loadAgents();
+    if (!agents[agentId]) return null;
+    agents[agentId].retryCount = (agents[agentId].retryCount || 0) + 1;
+    agents[agentId].lastRetryAt = Date.now();
+    await this.saveAgents(agents);
+    return agents[agentId];
   }
 
   /**

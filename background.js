@@ -12982,36 +12982,70 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 // --- Background Agent Alarm Handler ---
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  const agentId = agentScheduler.getAgentIdFromAlarm(alarm.name);
-  if (!agentId) return; // Not an FSB agent alarm
 
-  console.log('[FSB] Agent alarm fired:', alarm.name);
+// Agent retry configuration
+const AGENT_RETRY_DELAYS = [1, 5, 15]; // minutes: exponential backoff
+const AGENT_RETRY_PREFIX = 'fsb_agent_retry_';
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  // Check if this is a retry alarm
+  let isRetry = false;
+  let retryAgentId = null;
+  if (alarm.name.startsWith(AGENT_RETRY_PREFIX)) {
+    retryAgentId = alarm.name.substring(AGENT_RETRY_PREFIX.length);
+    isRetry = true;
+  }
+
+  const scheduledAgentId = agentScheduler.getAgentIdFromAlarm(alarm.name);
+  const effectiveAgentId = isRetry ? retryAgentId : scheduledAgentId;
+  if (!effectiveAgentId) return; // Not an FSB agent alarm
+
+  console.log('[FSB] Agent alarm fired:', alarm.name, isRetry ? '(retry)' : '');
 
   try {
-    const agent = await agentManager.getAgent(agentId);
+    const agent = await agentManager.getAgent(effectiveAgentId);
     if (!agent) {
-      console.warn('[FSB] Agent not found for alarm, clearing:', agentId);
-      await agentScheduler.clearAlarm(agentId);
+      console.warn('[FSB] Agent not found for alarm, clearing:', effectiveAgentId);
+      if (!isRetry) await agentScheduler.clearAlarm(effectiveAgentId);
       return;
     }
 
     if (!agent.enabled) {
-      console.log('[FSB] Agent disabled, skipping:', agentId);
+      console.log('[FSB] Agent disabled, skipping:', effectiveAgentId);
       return;
     }
 
-    // Guard against double-runs
-    if (!agentScheduler.isValidAlarmFire(agent)) {
-      console.log('[FSB] Agent alarm fired too soon, skipping:', agentId);
+    // Guard against double-runs (skip for retry alarms)
+    if (!isRetry && !agentScheduler.isValidAlarmFire(agent)) {
+      console.log('[FSB] Agent alarm fired too soon, skipping:', effectiveAgentId);
       return;
     }
 
     // Execute the agent
     const result = await agentExecutor.execute(agent);
 
+    // Handle failed runs with retry
+    if (!result.success) {
+      const currentRetry = agent.retryCount || 0;
+      if (currentRetry < (agent.retryMaxAttempts || 3)) {
+        const delayMinutes = AGENT_RETRY_DELAYS[currentRetry] || 15;
+        await agentManager.incrementRetry(effectiveAgentId);
+        const retryAlarmName = AGENT_RETRY_PREFIX + effectiveAgentId;
+        await chrome.alarms.create(retryAlarmName, { delayInMinutes: delayMinutes });
+        console.log('[FSB] Agent run failed, scheduling retry', currentRetry + 1, 'in', delayMinutes, 'min:', effectiveAgentId);
+      } else {
+        console.log('[FSB] Agent run failed, max retries reached:', effectiveAgentId);
+        await agentManager.resetRetry(effectiveAgentId);
+      }
+    } else {
+      // Success - reset retry counter
+      if (agent.retryCount > 0) {
+        await agentManager.resetRetry(effectiveAgentId);
+      }
+    }
+
     // Record the run
-    const updatedAgent = await agentManager.recordRun(agentId, result);
+    const updatedAgent = await agentManager.recordRun(effectiveAgentId, result);
 
     // Reschedule daily agents for their next occurrence
     if (agent.schedule.type === 'daily') {
@@ -13020,14 +13054,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
     // Disable once-type agents after execution
     if (agent.schedule.type === 'once') {
-      await agentManager.updateAgent(agentId, { enabled: false });
-      await agentScheduler.clearAlarm(agentId);
+      await agentManager.updateAgent(effectiveAgentId, { enabled: false });
+      await agentScheduler.clearAlarm(effectiveAgentId);
     }
 
     // Notify any open UI about the run completion
     chrome.runtime.sendMessage({
       action: 'agentRunComplete',
-      agentId: agentId,
+      agentId: effectiveAgentId,
       result: {
         success: result.success,
         duration: result.duration,
