@@ -70,7 +70,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [ ] 118-01-PLAN.md -- Cron expression support and human-readable schedule descriptions
-- [ ] 118-02-PLAN.md -- Retry-on-failure with exponential backoff and persistent sync queue
+- [x] 118-02-PLAN.md -- Retry-on-failure with exponential backoff and persistent sync queue
 
 ### Phase 119: Replay Intelligence
 **Goal**: Agent replay uses smart timing and recovers from individual step failures without full AI fallback
@@ -115,7 +115,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 116. MCP Agent Tools | 2/2 | Complete | 2026-03-28 |
 | 117. Cost & Metrics Pipeline | -/- | Complete    | 2026-03-28 |
-| 118. Scheduling Enhancements | -/- | Pending | - |
+| 118. Scheduling Enhancements | 1/2 | In Progress | - |
 | 119. Replay Intelligence | -/- | Pending | - |
 | 120. Sidepanel Agents UI | -/- | Pending | - |
 | 121. DOM Cloning Verification | -/- | Pending | - |
