@@ -54,7 +54,9 @@ Plans:
   1. `executeAutomationTask` resolve object includes real `tokensUsed` and `costUsd` from the AI provider response
   2. Agent `recordedScript.estimatedCostPerRun` reflects actual cost of the recording run
   3. Agent stats dashboard (options page) shows accurate cumulative cost and tokens
-**Plans**: [to be planned]
+**Plans**: 1 plan
+Plans:
+- [ ] 117-01-PLAN.md -- Wire session cost data into executeAutomationTask resolve paths
 
 ### Phase 118: Scheduling Enhancements
 **Goal**: Agents can run on flexible schedules with automatic retry on failure
