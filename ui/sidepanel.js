@@ -288,6 +288,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearAllHistoryBtn.addEventListener('click', clearAllHistorySessions);
   }
 
+  // Initialize Agents tab
+  initAgentTab();
+
   // Add welcome message
   addMessage('Welcome to FSB. How can I help?', 'system');
 
@@ -995,6 +998,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ received: true });
       }
       return;
+
+    case 'agentRunComplete':
+      // Refresh agent list if Agents tab is currently visible
+      if (document.getElementById('agentsTab')?.style.display !== 'none') {
+        loadAgentListUI();
+      }
+      break;
   }
 });
 
@@ -1495,5 +1505,187 @@ function formatScheduleShort(schedule) {
       return 'Run once';
     default:
       return schedule.type;
+  }
+}
+
+// ==========================================
+// Agents Tab -- Tab Switching, List, Actions
+// ==========================================
+
+function initAgentTab() {
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const chatTab = document.getElementById('chatTab');
+  const agentsTab = document.getElementById('agentsTab');
+
+  if (!tabBtns.length || !chatTab || !agentsTab) return;
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      // Update active tab button
+      tabBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Show/hide tab content
+      const tab = btn.dataset.tab;
+      if (tab === 'chat') {
+        chatTab.style.display = 'flex';
+        agentsTab.style.display = 'none';
+      } else if (tab === 'agents') {
+        chatTab.style.display = 'none';
+        agentsTab.style.display = 'flex';
+        loadAgentListUI();
+      }
+    });
+  });
+
+  // Wire toolbar buttons
+  const createBtn = document.getElementById('btnCreateAgentSP');
+  if (createBtn) {
+    createBtn.addEventListener('click', () => startAgentWizard());
+  }
+
+  const refreshBtn = document.getElementById('btnRefreshAgentsSP');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => loadAgentListUI());
+  }
+}
+
+async function loadAgentListUI() {
+  const listEl = document.getElementById('agentListSP');
+  const emptyEl = document.getElementById('agentEmptyState');
+  if (!listEl) return;
+
+  listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-secondary)"><i class="fa fa-spinner fa-spin"></i> Loading...</div>';
+  emptyEl.style.display = 'none';
+
+  try {
+    const response = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'listAgents' }, resolve);
+    });
+    const agents = response?.agents || [];
+
+    if (agents.length === 0) {
+      listEl.innerHTML = '';
+      emptyEl.style.display = 'flex';
+      return;
+    }
+
+    emptyEl.style.display = 'none';
+    listEl.innerHTML = agents.map(agent => renderAgentRow(agent)).join('');
+
+    // Attach event listeners to action buttons
+    listEl.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', handleAgentAction);
+    });
+  } catch (error) {
+    listEl.innerHTML = '<div style="padding:20px;color:#c62828;">Failed to load agents</div>';
+  }
+}
+
+function renderAgentRow(agent) {
+  // Determine status
+  let status, badgeClass, badgeLabel;
+  if (agent.lastRunStatus === 'running') {
+    status = 'running';
+    badgeClass = 'badge-running';
+    badgeLabel = 'Running';
+  } else if (agent.enabled) {
+    status = 'active';
+    badgeClass = 'badge-active';
+    badgeLabel = 'Active';
+  } else {
+    status = 'paused';
+    badgeClass = 'badge-paused';
+    badgeLabel = 'Paused';
+  }
+
+  const schedule = formatScheduleShort(agent.schedule);
+  const lastRun = agent.lastRunAt ? formatRelativeTime(agent.lastRunAt) : 'Never';
+  const toggleIcon = agent.enabled ? 'fa-pause' : 'fa-play-circle';
+  const toggleLabel = agent.enabled ? 'Pause' : 'Resume';
+  const safeId = escapeHtml(agent.agentId);
+  const safeName = escapeHtml(agent.name || 'Unnamed Agent');
+
+  return `<div class="agent-row" data-agent-id="${safeId}">
+    <div class="agent-row-header">
+      <span class="agent-name">${safeName}</span>
+      <span class="agent-status-badge ${badgeClass}">${badgeLabel}</span>
+    </div>
+    <div class="agent-row-info">
+      <span><i class="fa fa-clock"></i> ${escapeHtml(schedule)}</span>
+      <span><i class="fa fa-history"></i> ${escapeHtml(lastRun)}</span>
+      <span><i class="fa fa-repeat"></i> ${agent.runCount || 0} runs</span>
+    </div>
+    <div class="agent-row-actions">
+      <button class="agent-action-btn" data-action="run" data-agent-id="${safeId}"><i class="fa fa-play"></i> Run</button>
+      <button class="agent-action-btn" data-action="toggle" data-agent-id="${safeId}"><i class="fa ${toggleIcon}"></i> ${toggleLabel}</button>
+      <button class="agent-action-btn danger" data-action="delete" data-agent-id="${safeId}"><i class="fa fa-trash"></i></button>
+    </div>
+    <div class="agent-row-detail"></div>
+  </div>`;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[<>&"']/g, c => ({
+    '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function formatRelativeTime(timestamp) {
+  if (!timestamp) return 'Never';
+  const diff = Date.now() - timestamp;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return mins + 'm ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + 'h ago';
+  const days = Math.floor(hours / 24);
+  return days + 'd ago';
+}
+
+async function handleAgentAction(event) {
+  // Walk up to find button with data-action (in case icon was clicked)
+  const btn = event.target.closest('[data-action]');
+  if (!btn) return;
+
+  const action = btn.dataset.action;
+  const agentId = btn.dataset.agentId;
+  if (!agentId) return;
+
+  if (action === 'run') {
+    // Visually indicate running
+    const row = btn.closest('.agent-row');
+    const badge = row?.querySelector('.agent-status-badge');
+    if (badge) {
+      badge.className = 'agent-status-badge badge-running';
+      badge.textContent = 'Running';
+    }
+    try {
+      await new Promise(resolve => {
+        chrome.runtime.sendMessage({ action: 'runAgentNow', agentId }, resolve);
+      });
+    } catch (e) {
+      console.warn('Run agent failed:', e);
+    }
+  } else if (action === 'toggle') {
+    try {
+      await new Promise(resolve => {
+        chrome.runtime.sendMessage({ action: 'toggleAgent', agentId }, resolve);
+      });
+      loadAgentListUI();
+    } catch (e) {
+      console.warn('Toggle agent failed:', e);
+    }
+  } else if (action === 'delete') {
+    if (!confirm('Delete this agent?')) return;
+    try {
+      await new Promise(resolve => {
+        chrome.runtime.sendMessage({ action: 'deleteAgent', agentId }, resolve);
+      });
+      loadAgentListUI();
+    } catch (e) {
+      console.warn('Delete agent failed:', e);
+    }
   }
 }
