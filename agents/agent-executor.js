@@ -123,7 +123,8 @@ class AgentExecutor {
             costUsd: 0,
             iterations: 0,
             executionMode: 'replay',
-            costSaved
+            costSaved,
+            stepResults: replayResult.stepResults || []
           };
         }
 
@@ -171,6 +172,12 @@ class AgentExecutor {
             try {
               await agentManager.saveRecordedScript(agent.agentId, newScript);
               console.log('[FSB Executor] Updated recorded script after AI fallback for agent:', agent.agentId);
+              // Clear needsReRecord flag since we have a fresh script
+              if (agent.replayStats?.needsReRecord) {
+                await agentManager.updateAgent(agent.agentId, {
+                  replayStats: { ...agent.replayStats, needsReRecord: false, stepSuccessRates: {} }
+                });
+              }
             } catch (e) {
               console.error('[FSB Executor] Failed to save updated script:', e.message);
             }
@@ -188,6 +195,7 @@ class AgentExecutor {
           iterations: aiResult.iterations || 0,
           executionMode: 'ai_fallback',
           replayFailedAtStep: replayResult.failedAtStep,
+          stepResults: replayResult.stepResults || [],
           costSaved: 0
         };
       }
@@ -217,6 +225,12 @@ class AgentExecutor {
             await agentManager.saveRecordedScript(agent.agentId, script);
             console.log('[FSB Executor] Saved initial recorded script for agent:', agent.agentId,
               'steps:', script.totalSteps);
+            // Clear needsReRecord flag since we have a fresh script
+            if (agent.replayStats?.needsReRecord) {
+              await agentManager.updateAgent(agent.agentId, {
+                replayStats: { ...agent.replayStats, needsReRecord: false, stepSuccessRates: {} }
+              });
+            }
           } catch (e) {
             console.error('[FSB Executor] Failed to save script:', e.message);
           }
@@ -331,10 +345,14 @@ class AgentExecutor {
    */
   async _executeReplayScript(tabId, script, agent) {
     const replayStart = Date.now();
+    const stepResults = [];
 
     for (const step of script.steps) {
       // Skip read-only steps -- they were for AI reasoning
       if (step.isReadOnly) continue;
+
+      let stepSuccess = false;
+      let attempt = 0;
 
       try {
         // Send the action to the content script
@@ -344,15 +362,26 @@ class AgentExecutor {
           params: step.params
         });
 
+        attempt = 1;
+
         if (!actionResult || actionResult.success === false) {
+          stepResults.push({
+            stepNumber: step.stepNumber,
+            tool: step.tool,
+            success: false,
+            attempts: attempt
+          });
           return {
             success: false,
             failedAtStep: step.stepNumber,
             error: 'Step ' + step.stepNumber + ' (' + step.tool + ') failed: ' +
               (actionResult?.error || 'action returned failure'),
-            duration: Date.now() - replayStart
+            duration: Date.now() - replayStart,
+            stepResults
           };
         }
+
+        stepSuccess = true;
 
         // After navigation steps, wait for page to settle
         if (step.isNavigation) {
@@ -370,11 +399,18 @@ class AgentExecutor {
             await ensureContentScriptInjected(tabId);
             const ready = await waitForContentScriptReady(tabId, 3000);
             if (!ready) {
+              stepResults.push({
+                stepNumber: step.stepNumber,
+                tool: step.tool,
+                success: false,
+                attempts: attempt
+              });
               return {
                 success: false,
                 failedAtStep: step.stepNumber,
                 error: 'Content script lost after navigation at step ' + step.stepNumber,
-                duration: Date.now() - replayStart
+                duration: Date.now() - replayStart,
+                stepResults
               };
             }
           }
@@ -385,12 +421,26 @@ class AgentExecutor {
           await new Promise(resolve => setTimeout(resolve, step.delayAfter));
         }
 
+        stepResults.push({
+          stepNumber: step.stepNumber,
+          tool: step.tool,
+          success: stepSuccess,
+          attempts: attempt
+        });
+
       } catch (error) {
+        stepResults.push({
+          stepNumber: step.stepNumber,
+          tool: step.tool,
+          success: false,
+          attempts: attempt + 1
+        });
         return {
           success: false,
           failedAtStep: step.stepNumber,
           error: 'Step ' + step.stepNumber + ' (' + step.tool + ') threw: ' + error.message,
-          duration: Date.now() - replayStart
+          duration: Date.now() - replayStart,
+          stepResults
         };
       }
     }
@@ -399,7 +449,8 @@ class AgentExecutor {
       success: true,
       failedAtStep: null,
       error: null,
-      duration: Date.now() - replayStart
+      duration: Date.now() - replayStart,
+      stepResults
     };
   }
 
