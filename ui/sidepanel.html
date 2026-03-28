@@ -30,45 +30,71 @@
       </div>
     </header>
 
-    <div id="historyView" class="history-view hidden">
-      <div class="history-header">
-        <h3>Session History</h3>
-        <button id="clearAllHistoryBtn" class="history-clear-all-btn" title="Delete All Sessions">
-          <i class="fa fa-trash"></i>
-          <span>Clear All</span>
-        </button>
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="chat"><i class="fa fa-comments"></i> Chat</button>
+      <button class="tab-btn" data-tab="agents"><i class="fa fa-robot"></i> Agents</button>
+    </div>
+
+    <div id="chatTab" class="tab-content active">
+      <div id="historyView" class="history-view hidden">
+        <div class="history-header">
+          <h3>Session History</h3>
+          <button id="clearAllHistoryBtn" class="history-clear-all-btn" title="Delete All Sessions">
+            <i class="fa fa-trash"></i>
+            <span>Clear All</span>
+          </button>
+        </div>
+        <div class="history-list" id="historyList">
+          <!-- Session items rendered dynamically -->
+        </div>
       </div>
-      <div class="history-list" id="historyList">
-        <!-- Session items rendered dynamically -->
+
+      <div class="chat-messages-area">
+        <div id="chatMessages" class="chat-messages">
+          <!-- Messages will be dynamically added here -->
+        </div>
+      </div>
+
+      <div class="chat-input-area">
+        <div class="input-container">
+          <div class="input-wrapper">
+            <div
+              id="chatInput"
+              class="chat-input"
+              contenteditable="true"
+              data-placeholder="Ask me to automate something..."
+              role="textbox"
+              aria-multiline="true"
+            ></div>
+            <div class="input-actions">
+              <button id="micBtn" class="mic-btn" title="Voice input">
+                <i class="fa fa-microphone"></i>
+              </button>
+              <button id="sendBtn" class="send-btn" title="Send Message">
+                <i class="fa fa-arrow-up"></i>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="chat-messages-area">
-      <div id="chatMessages" class="chat-messages">
-        <!-- Messages will be dynamically added here -->
+    <div id="agentsTab" class="tab-content" style="display:none;">
+      <div class="agents-toolbar">
+        <button id="btnCreateAgentSP" class="agents-toolbar-btn" title="Create Agent">
+          <i class="fa fa-plus"></i> New Agent
+        </button>
+        <button id="btnRefreshAgentsSP" class="agents-toolbar-btn" title="Refresh">
+          <i class="fa fa-refresh"></i>
+        </button>
       </div>
-    </div>
-    
-    <div class="chat-input-area">
-      <div class="input-container">
-        <div class="input-wrapper">
-          <div 
-            id="chatInput" 
-            class="chat-input" 
-            contenteditable="true" 
-            data-placeholder="Ask me to automate something..."
-            role="textbox"
-            aria-multiline="true"
-          ></div>
-          <div class="input-actions">
-            <button id="micBtn" class="mic-btn" title="Voice input">
-              <i class="fa fa-microphone"></i>
-            </button>
-            <button id="sendBtn" class="send-btn" title="Send Message">
-              <i class="fa fa-arrow-up"></i>
-            </button>
-          </div>
-        </div>
+      <div id="agentListSP" class="agent-list">
+        <!-- Agent rows rendered dynamically -->
+      </div>
+      <div id="agentEmptyState" class="agent-empty-state" style="display:none;">
+        <i class="fa fa-robot"></i>
+        <p>No agents yet</p>
+        <p class="agent-empty-hint">Create an agent to automate recurring tasks</p>
       </div>
     </div>
     
