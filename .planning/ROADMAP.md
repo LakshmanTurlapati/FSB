@@ -96,7 +96,10 @@ Plans:
   3. Expanding an agent shows run history (last 10 runs) with status, duration, cost, and execution mode (AI/replay)
   4. A create/edit form allows setting agent name, task description, target URL, and schedule
   5. Running agents show live progress (iteration count, current action) via status updates
-**Plans**: [to be planned]
+**Plans**: 2 plans
+Plans:
+- [ ] 120-01-PLAN.md -- Agents tab with agent list, status badges, and quick actions (run/pause/delete)
+- [ ] 120-02-PLAN.md -- Expandable run history, inline create/edit form, live progress indicators
 
 ### Phase 121: DOM Cloning Verification
 **Goal**: Formally verify that the Phase 44 DOM cloning stream works end-to-end (extension → relay → dashboard)
@@ -120,5 +123,5 @@ Plans:
 | 117. Cost & Metrics Pipeline | -/- | Complete    | 2026-03-28 |
 | 118. Scheduling Enhancements | 1/2 | Complete    | 2026-03-28 |
 | 119. Replay Intelligence | -/- | Complete    | 2026-03-28 |
-| 120. Sidepanel Agents UI | -/- | Pending | - |
+| 120. Sidepanel Agents UI | 0/2 | Pending | - |
 | 121. DOM Cloning Verification | -/- | Pending | - |
