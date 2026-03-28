@@ -106,7 +106,9 @@ class BackgroundAgentManager {
       replayStats: {
         totalReplays: 0,
         totalAISaves: 0,
-        estimatedCostSaved: 0
+        estimatedCostSaved: 0,
+        stepSuccessRates: {},
+        needsReRecord: false
       },
       runHistory: []
     };
@@ -255,13 +257,48 @@ class BackgroundAgentManager {
 
     // Update replay stats
     if (!agent.replayStats) {
-      agent.replayStats = { totalReplays: 0, totalAISaves: 0, estimatedCostSaved: 0 };
+      agent.replayStats = { totalReplays: 0, totalAISaves: 0, estimatedCostSaved: 0, stepSuccessRates: {}, needsReRecord: false };
+    }
+    if (!agent.replayStats.stepSuccessRates) {
+      agent.replayStats.stepSuccessRates = {};
     }
     if (runEntry.executionMode === 'replay') {
       agent.replayStats.totalReplays++;
       agent.replayStats.estimatedCostSaved += runEntry.costSaved || 0;
+
+      // Track per-step success rates
+      if (runResult.stepResults) {
+        for (const sr of runResult.stepResults) {
+          const key = String(sr.stepNumber);
+          const existing = agent.replayStats.stepSuccessRates[key] || { successes: 0, total: 0 };
+          existing.total++;
+          if (sr.success) existing.successes++;
+          agent.replayStats.stepSuccessRates[key] = existing;
+        }
+      }
+
+      // Check for unreliable steps (below 50% success rate with >= 4 data points)
+      const unreliableSteps = Object.entries(agent.replayStats.stepSuccessRates)
+        .filter(([_, s]) => s.total >= 4 && (s.successes / s.total) < 0.5);
+
+      if (unreliableSteps.length > 0) {
+        agent.replayStats.needsReRecord = true;
+        console.log('[FSB Agent] Steps below 50% success rate:', unreliableSteps.map(([k]) => k).join(', '),
+          '-- flagging for re-record');
+      }
     } else if (runEntry.executionMode === 'ai_fallback') {
       agent.replayStats.totalAISaves++;
+      // If AI fallback succeeded with a new script, reset step tracking
+      if (runResult.success) {
+        agent.replayStats.stepSuccessRates = {};
+        agent.replayStats.needsReRecord = false;
+      }
+    } else if (runEntry.executionMode === 'ai_initial') {
+      // Fresh AI run with new script -- reset step tracking
+      if (runResult.success) {
+        agent.replayStats.stepSuccessRates = {};
+        agent.replayStats.needsReRecord = false;
+      }
     }
 
     // Add to history, cap at MAX_HISTORY
