@@ -2,13 +2,14 @@
  * Server Sync for FSB Background Agents
  * Extension-side HTTP client for syncing agent results to the backend server.
  * Fully optional - extension works without server.
+ * Queue persists to chrome.storage.local to survive service worker restarts.
  */
 
 class ServerSync {
   constructor() {
     this.MAX_RETRIES = 3;
     this.RETRY_DELAYS = [1000, 3000, 8000]; // Exponential backoff
-    this._queue = []; // Queue for failed syncs
+    this.QUEUE_STORAGE_KEY = 'fsb_sync_queue';
     this._syncing = false;
   }
 
@@ -26,6 +27,31 @@ class ServerSync {
       };
     } catch {
       return { url: '', hashKey: '', enabled: false };
+    }
+  }
+
+  /**
+   * Load sync queue from persistent storage
+   * @returns {Promise<Array>}
+   */
+  async _loadQueue() {
+    try {
+      const stored = await chrome.storage.local.get([this.QUEUE_STORAGE_KEY]);
+      return stored[this.QUEUE_STORAGE_KEY] || [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Save sync queue to persistent storage
+   * @param {Array} queue
+   */
+  async _saveQueue(queue) {
+    try {
+      await chrome.storage.local.set({ [this.QUEUE_STORAGE_KEY]: queue });
+    } catch (error) {
+      console.error('[FSB Sync] Failed to persist queue:', error.message);
     }
   }
 
@@ -101,8 +127,8 @@ class ServerSync {
       }
     }
 
-    // All retries failed - queue for later
-    this._queueSync(payload, config);
+    // All retries failed - queue for later (persistent)
+    await this._queueSync(payload);
     return false;
   }
 
@@ -141,24 +167,25 @@ class ServerSync {
   }
 
   /**
-   * Queue a failed sync for later retry
+   * Queue a failed sync for later retry (persistent)
    * @param {Object} payload
-   * @param {Object} config
    */
-  _queueSync(payload, config) {
-    this._queue.push({ payload, config, timestamp: Date.now() });
+  async _queueSync(payload) {
+    const queue = await this._loadQueue();
+    queue.push({ payload, timestamp: Date.now() });
     // Cap queue size
-    if (this._queue.length > 100) {
-      this._queue = this._queue.slice(-50);
-    }
-    console.log('[FSB Sync] Queued sync, queue size:', this._queue.length);
+    const trimmed = queue.length > 100 ? queue.slice(-50) : queue;
+    await this._saveQueue(trimmed);
+    console.log('[FSB Sync] Queued sync, queue size:', trimmed.length);
   }
 
   /**
    * Process queued syncs (call periodically or when server becomes reachable)
    */
   async processQueue() {
-    if (this._syncing || this._queue.length === 0) return;
+    if (this._syncing) return;
+    const queue = await this._loadQueue();
+    if (queue.length === 0) return;
     this._syncing = true;
 
     const config = await this.getConfig();
@@ -168,7 +195,7 @@ class ServerSync {
     }
 
     const failed = [];
-    for (const item of this._queue) {
+    for (const item of queue) {
       try {
         const resp = await fetch(config.url + '/api/agents/' + item.payload.agentId + '/runs', {
           method: 'POST',
@@ -187,11 +214,20 @@ class ServerSync {
       }
     }
 
-    this._queue = failed;
+    await this._saveQueue(failed);
     this._syncing = false;
     if (failed.length > 0) {
       console.log('[FSB Sync] Queue processed, remaining:', failed.length);
     }
+  }
+
+  /**
+   * Get current queue size for diagnostics
+   * @returns {Promise<number>}
+   */
+  async getQueueSize() {
+    const queue = await this._loadQueue();
+    return queue.length;
   }
 
   _delay(ms) {
