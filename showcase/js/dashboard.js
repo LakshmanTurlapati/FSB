@@ -95,6 +95,9 @@
   var taskRetryBtn = document.getElementById('dash-task-retry');
   var taskInputRetry = document.getElementById('dash-task-input-retry');
   var taskSubmitRetry = document.getElementById('dash-task-submit-retry');
+  var taskStopBtn = document.getElementById('dash-task-stop');
+  var taskTimeoutTimer = null;
+  var TASK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   // DOM preview refs
   var previewContainer = document.getElementById('dash-preview');
@@ -219,6 +222,15 @@
   if (taskRetryBtn) {
     taskRetryBtn.addEventListener('click', function () {
       if (taskText) submitTask(taskText);
+    });
+  }
+
+  if (taskStopBtn) {
+    taskStopBtn.addEventListener('click', function () {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'dash:stop-task', payload: {}, ts: Date.now() }));
+      }
+      setTaskState('failed', { error: 'Stopped by user' });
     });
   }
 
@@ -348,6 +360,10 @@
     taskState = newState;
     data = data || {};
 
+    // Clear task timeout
+    if (taskTimeoutTimer) { clearTimeout(taskTimeoutTimer); taskTimeoutTimer = null; }
+    // Hide stop button for non-running states
+    if (newState !== 'running' && taskStopBtn) taskStopBtn.style.display = 'none';
     // Clear elapsed timer
     if (taskElapsedTimer) {
       clearInterval(taskElapsedTimer);
@@ -380,12 +396,20 @@
         if (taskEta) taskEta.textContent = '';
         if (taskElapsed) taskElapsed.textContent = 'Running for 0s';
         if (taskAction) { taskAction.textContent = 'Working...'; taskAction.style.display = ''; }
+        if (taskStopBtn) taskStopBtn.style.display = '';
         // Start elapsed timer
         taskElapsedTimer = setInterval(function () {
           if (taskElapsed && taskStartTime) {
             taskElapsed.textContent = 'Running for ' + formatDuration(Date.now() - taskStartTime);
           }
         }, 1000);
+        // Start task timeout
+        if (taskTimeoutTimer) clearTimeout(taskTimeoutTimer);
+        taskTimeoutTimer = setTimeout(function () {
+          if (taskState === 'running') {
+            setTaskState('failed', { error: 'Task timed out (5 minutes)' });
+          }
+        }, TASK_TIMEOUT_MS);
         // Disable all task inputs during run
         disableAllTaskInputs(true);
         hideSaveAsAgent();
@@ -553,6 +577,10 @@
       taskArea.classList.add('dash-task-offline');
       if (taskState === 'idle' && taskInput) {
         taskInput.placeholder = 'Extension offline...';
+      }
+      // If extension goes offline mid-task, fail it
+      if (taskState === 'running') {
+        setTaskState('failed', { error: 'Extension disconnected' });
       }
     } else {
       taskArea.classList.remove('dash-task-offline');

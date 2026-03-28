@@ -601,6 +601,23 @@
   font-weight: 600;
 }
 
+.dash-task-stop-btn {
+  margin-top: 12px;
+  padding: 6px 16px;
+  border: 1px solid var(--danger, #ef4444);
+  color: var(--danger, #ef4444);
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dash-task-stop-btn:hover {
+  background: var(--danger, #ef4444);
+  color: #fff;
+}
+
 /* Success state */
 .dash-task-status {
   font-size: 14px;

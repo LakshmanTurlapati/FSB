@@ -204,6 +204,9 @@ class FSBWebSocket {
       case 'dash:task-submit':
         this._handleDashboardTask(msg.payload);
         break;
+      case 'dash:stop-task':
+        this._handleStopTask();
+        break;
       case 'dash:agent-run-now':
         this._handleAgentRunNow(msg.payload);
         break;
@@ -257,6 +260,29 @@ class FSBWebSocket {
       startDashboardTask(tab.id, task);
     } catch (err) {
       this.send('ext:task-complete', { success: false, error: err.message, elapsed: 0 });
+    }
+  }
+
+  /**
+   * Handle stop task request from the dashboard.
+   * Finds the active dashboard session and stops it.
+   */
+  _handleStopTask() {
+    if (typeof activeSessions === 'undefined') return;
+    for (const [sessionId, session] of activeSessions) {
+      if (session._isDashboardTask && session.status === 'running') {
+        session.status = 'stopped';
+        if (session._completionCallback) {
+          session._completionCallback({
+            success: false,
+            error: 'Stopped by dashboard user',
+            tokensUsed: 0,
+            costUsd: 0
+          });
+        }
+        this.send('ext:task-complete', { success: false, error: 'Stopped by user', elapsed: Date.now() - session.startTime });
+        return;
+      }
     }
   }
 
