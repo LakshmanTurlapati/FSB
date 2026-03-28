@@ -109,7 +109,7 @@ class AgentExecutor {
         if (replayResult.success) {
           // Replay succeeded -- zero cost
           const duration = Date.now() - startTime;
-          const costSaved = agent.recordedScript.estimatedCostPerRun || 0.002;
+          const costSaved = agent.recordedScript.estimatedCostPerRun || 0;
           console.log('[FSB Executor] Replay succeeded for agent:', agent.agentId,
             'duration:', duration + 'ms', 'costSaved: $' + costSaved);
 
@@ -331,67 +331,85 @@ class AgentExecutor {
    */
   async _executeReplayScript(tabId, script, agent) {
     const replayStart = Date.now();
+    const MAX_STEP_RETRIES = 2;
 
     for (const step of script.steps) {
       // Skip read-only steps -- they were for AI reasoning
       if (step.isReadOnly) continue;
 
-      try {
-        // Send the action to the content script
-        const actionResult = await sendMessageWithRetry(tabId, {
-          action: 'executeAction',
-          tool: step.tool,
-          params: step.params
-        });
+      let stepSuccess = false;
+      let lastError = null;
 
-        if (!actionResult || actionResult.success === false) {
-          return {
-            success: false,
-            failedAtStep: step.stepNumber,
-            error: 'Step ' + step.stepNumber + ' (' + step.tool + ') failed: ' +
-              (actionResult?.error || 'action returned failure'),
-            duration: Date.now() - replayStart
-          };
+      for (let attempt = 0; attempt <= MAX_STEP_RETRIES; attempt++) {
+        if (attempt > 0) {
+          console.log('[FSB Executor] Retrying step', step.stepNumber, 'attempt', attempt + 1);
+          await new Promise(r => setTimeout(r, 500));
         }
 
-        // After navigation steps, wait for page to settle
-        if (step.isNavigation) {
-          try {
-            await pageLoadWatcher.waitForPageReady(tabId, { maxWait: 8000 });
-          } catch (e) {
-            // Page load timeout is not necessarily fatal -- continue
-            console.log('[FSB Executor] Page load wait timed out after navigation replay step:', step.stepNumber);
+        try {
+          // Send the action to the content script
+          const actionResult = await sendMessageWithRetry(tabId, {
+            action: 'executeAction',
+            tool: step.tool,
+            params: step.params
+          });
+
+          if (actionResult && actionResult.success !== false) {
+            stepSuccess = true;
+            break;
           }
-
-          // Re-check content script after navigation
-          try {
-            await waitForContentScriptReady(tabId, 5000);
-          } catch (e) {
-            await ensureContentScriptInjected(tabId);
-            const ready = await waitForContentScriptReady(tabId, 3000);
-            if (!ready) {
-              return {
-                success: false,
-                failedAtStep: step.stepNumber,
-                error: 'Content script lost after navigation at step ' + step.stepNumber,
-                duration: Date.now() - replayStart
-              };
-            }
-          }
+          lastError = actionResult?.error || 'action returned failure';
+        } catch (error) {
+          lastError = error.message;
         }
+      }
 
-        // Wait the prescribed delay before the next step
-        if (step.delayAfter > 0) {
-          await new Promise(resolve => setTimeout(resolve, step.delayAfter));
-        }
-
-      } catch (error) {
+      if (!stepSuccess) {
         return {
           success: false,
           failedAtStep: step.stepNumber,
-          error: 'Step ' + step.stepNumber + ' (' + step.tool + ') threw: ' + error.message,
+          retriesUsed: MAX_STEP_RETRIES,
+          error: 'Step ' + step.stepNumber + ' (' + step.tool + ') failed after ' +
+            (MAX_STEP_RETRIES + 1) + ' attempts: ' + lastError,
           duration: Date.now() - replayStart
         };
+      }
+
+      // After navigation steps, wait for page to settle
+      if (step.isNavigation) {
+        try {
+          await pageLoadWatcher.waitForPageReady(tabId, { maxWait: 8000 });
+        } catch (e) {
+          // Page load timeout is not necessarily fatal -- continue
+          console.log('[FSB Executor] Page load wait timed out after navigation replay step:', step.stepNumber);
+        }
+
+        // Re-check content script after navigation
+        try {
+          await waitForContentScriptReady(tabId, 5000);
+        } catch (e) {
+          await ensureContentScriptInjected(tabId);
+          const ready = await waitForContentScriptReady(tabId, 3000);
+          if (!ready) {
+            return {
+              success: false,
+              failedAtStep: step.stepNumber,
+              retriesUsed: 0,
+              error: 'Content script lost after navigation at step ' + step.stepNumber,
+              duration: Date.now() - replayStart
+            };
+          }
+        }
+      }
+
+      // Smart timing: use recorded originalDuration (clamped 200ms-5000ms),
+      // fall back to hardcoded delayAfter if originalDuration is missing/zero
+      const replayDelay = step.metadata?.originalDuration > 0
+        ? Math.max(200, Math.min(step.metadata.originalDuration, 5000))
+        : step.delayAfter;
+
+      if (replayDelay > 0) {
+        await new Promise(resolve => setTimeout(resolve, replayDelay));
       }
     }
 
