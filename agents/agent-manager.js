@@ -77,8 +77,11 @@ class BackgroundAgentManager {
     if (!schedule || !schedule.type) {
       throw new Error('Agent requires a schedule with type');
     }
-    if (!['interval', 'daily', 'once'].includes(schedule.type)) {
-      throw new Error('Schedule type must be interval, daily, or once');
+    if (!['interval', 'daily', 'once', 'cron'].includes(schedule.type)) {
+      throw new Error('Schedule type must be interval, daily, once, or cron');
+    }
+    if (schedule.type === 'cron' && !schedule.cronExpression) {
+      throw new Error('Cron schedule requires a cronExpression field');
     }
 
     const agents = await this.loadAgents();

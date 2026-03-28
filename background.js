@@ -13052,6 +13052,11 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       await agentScheduler.rescheduleDaily(updatedAgent);
     }
 
+    // Reschedule cron agents for their next occurrence
+    if (agent.schedule.type === 'cron') {
+      await agentScheduler.rescheduleCron(updatedAgent);
+    }
+
     // Disable once-type agents after execution
     if (agent.schedule.type === 'once') {
       await agentManager.updateAgent(effectiveAgentId, { enabled: false });
