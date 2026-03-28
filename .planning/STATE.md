@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
-status: Milestone complete
-stopped_at: Completed 115-04-PLAN.md
-last_updated: "2026-03-28T09:33:13.293Z"
+status: Ready to execute
+stopped_at: Completed 117-01-PLAN.md
+last_updated: "2026-03-28T09:47:10.793Z"
 progress:
   total_phases: 2
   completed_phases: 0
@@ -16,15 +16,15 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-28)
+See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 116 — mcp-agent-tools
+**Current focus:** Phase 115 — canvas-vision
 
 ## Current Position
 
-Phase: 116
-Plan: Not started
+Phase: 115 (canvas-vision) — EXECUTING
+Plan: 3 of 4
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Plan: Not started
 | Phase 115 P01 | 2min | 2 tasks | 2 files |
 | Phase 115 P03 | 2min | 2 tasks | 2 files |
 | Phase 115 P04 | 15min | 2 tasks | 2 files |
+| Phase 117 P01 | 1min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,7 @@ Recent decisions affecting current work:
 - [Phase 115]: CDP expression generator pattern: getCanvasPixelFallback returns self-contained IIFE string for Runtime.evaluate
 - [Phase 115]: Canvas scene reads via getCanvasScene() with three-stage cascade: interceptor, rerender trigger, pixel fallback
 - [Phase 115]: session.url does not exist -- use domResponse.structuredDOM.url with session.lastUrl fallback for canvas URL detection
+- [Phase 117]: Session cost fields (totalCost, totalInputTokens, totalOutputTokens) are the single source of truth for all cost consumers
 
 ### Roadmap Evolution
 
@@ -111,6 +113,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-26T02:11:38.098Z
-Stopped at: Completed 115-04-PLAN.md
+Last session: 2026-03-28T09:47:10.781Z
+Stopped at: Completed 117-01-PLAN.md
 Resume file: None

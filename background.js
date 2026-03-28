@@ -6462,8 +6462,8 @@ async function executeAutomationTask(tabId, task, options = {}) {
             result: message.result || null,
             error: message.error || (message.partial ? 'Task completed partially: ' + (message.reason || 'unknown') : null),
             duration,
-            tokensUsed: metrics?.totalActions || 0,
-            costUsd: 0,
+            tokensUsed: (session.totalInputTokens || 0) + (session.totalOutputTokens || 0),
+            costUsd: session.totalCost || 0,
             iterations: session.iterationCount || 0,
             actionHistory: session.actionHistory || []
           });
@@ -6478,8 +6478,8 @@ async function executeAutomationTask(tabId, task, options = {}) {
             result: null,
             error: message.error || 'Automation error',
             duration,
-            tokensUsed: 0,
-            costUsd: 0,
+            tokensUsed: (sessionData.totalInputTokens || 0) + (sessionData.totalOutputTokens || 0),
+            costUsd: sessionData.totalCost || 0,
             iterations: sessionData.iterationCount || 0
           });
         }
@@ -6496,8 +6496,8 @@ async function executeAutomationTask(tabId, task, options = {}) {
           result: null,
           error: 'Execution safety timeout reached',
           duration,
-          tokensUsed: 0,
-          costUsd: 0,
+          tokensUsed: (sessionData.totalInputTokens || 0) + (sessionData.totalOutputTokens || 0),
+          costUsd: sessionData.totalCost || 0,
           iterations: sessionData.iterationCount || 0
         });
       }, Math.min(maxIterations * 30000, 4 * 60 * 1000));
