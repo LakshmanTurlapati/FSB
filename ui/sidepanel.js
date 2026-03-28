@@ -1,4 +1,4 @@
-// Side Panel Script for FSB v0.9.8.1 - Persistent UI
+// Side Panel Script for FSB v0.9.4.0 - Persistent UI
 
 let currentSessionId = null;
 let conversationId = null;
@@ -188,7 +188,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 // Initialize side panel
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('FSB v0.9.8.1 side panel loaded');
+  console.log('FSB v0.9.4.0 side panel loaded');
 
   // Apply theme first
   applyTheme();
@@ -1000,6 +1000,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return;
 
     case 'agentRunComplete':
+      // Clear running state and refresh
+      if (request.agentId) {
+        runningAgentIds.delete(request.agentId);
+      }
       // Refresh agent list if Agents tab is currently visible
       if (document.getElementById('agentsTab')?.style.display !== 'none') {
         loadAgentListUI();
@@ -1404,7 +1408,7 @@ function escapeHtml(str) {
 }
 
 
-console.log('FSB v0.9.8.1 side panel script loaded');
+console.log('FSB v0.9.4.0 side panel script loaded');
 
 // ==========================================
 // /agent Slash Command Handler
@@ -1512,6 +1516,9 @@ function formatScheduleShort(schedule) {
 // Agents Tab -- Tab Switching, List, Actions
 // ==========================================
 
+// Cache of last-fetched agents for edit form access
+let cachedAgentsSP = [];
+
 function initAgentTab() {
   const tabBtns = document.querySelectorAll('.tab-btn');
   const chatTab = document.getElementById('chatTab');
@@ -1541,13 +1548,16 @@ function initAgentTab() {
   // Wire toolbar buttons
   const createBtn = document.getElementById('btnCreateAgentSP');
   if (createBtn) {
-    createBtn.addEventListener('click', () => startAgentWizard());
+    createBtn.addEventListener('click', () => showAgentFormSP());
   }
 
   const refreshBtn = document.getElementById('btnRefreshAgentsSP');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => loadAgentListUI());
   }
+
+  // Initialize form listeners
+  initAgentFormListeners();
 }
 
 async function loadAgentListUI() {
@@ -1571,21 +1581,50 @@ async function loadAgentListUI() {
     }
 
     emptyEl.style.display = 'none';
+    cachedAgentsSP = agents;
     listEl.innerHTML = agents.map(agent => renderAgentRow(agent)).join('');
 
     // Attach event listeners to action buttons
     listEl.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', handleAgentAction);
     });
+
+    // Attach expansion handlers to agent row headers
+    listEl.querySelectorAll('[data-expand-agent]').forEach(header => {
+      header.addEventListener('click', (e) => {
+        // Don't expand if clicking an action button
+        if (e.target.closest('[data-action]')) return;
+        const agentId = header.dataset.expandAgent;
+        const row = header.closest('.agent-row');
+        if (!row) return;
+        const detail = row.querySelector('.agent-row-detail');
+        if (!detail) return;
+
+        const isExpanded = row.classList.contains('expanded');
+        if (isExpanded) {
+          row.classList.remove('expanded');
+        } else {
+          row.classList.add('expanded');
+          // Load history on first expand
+          if (!detail.dataset.loaded) {
+            detail.dataset.loaded = '1';
+            loadAgentHistory(agentId, detail);
+          }
+        }
+      });
+    });
   } catch (error) {
     listEl.innerHTML = '<div style="padding:20px;color:#c62828;">Failed to load agents</div>';
   }
 }
 
+// Track running agents for live progress
+const runningAgentIds = new Set();
+
 function renderAgentRow(agent) {
   // Determine status
   let status, badgeClass, badgeLabel;
-  if (agent.lastRunStatus === 'running') {
+  if (runningAgentIds.has(agent.agentId) || agent.lastRunStatus === 'running') {
     status = 'running';
     badgeClass = 'badge-running';
     badgeLabel = 'Running';
@@ -1605,12 +1644,15 @@ function renderAgentRow(agent) {
   const toggleLabel = agent.enabled ? 'Pause' : 'Resume';
   const safeId = escapeHtml(agent.agentId);
   const safeName = escapeHtml(agent.name || 'Unnamed Agent');
+  const isRunning = runningAgentIds.has(agent.agentId) || agent.lastRunStatus === 'running';
 
   return `<div class="agent-row" data-agent-id="${safeId}">
-    <div class="agent-row-header">
+    <div class="agent-row-header" data-expand-agent="${safeId}">
       <span class="agent-name">${safeName}</span>
       <span class="agent-status-badge ${badgeClass}">${badgeLabel}</span>
+      <i class="fa fa-chevron-down agent-expand-icon"></i>
     </div>
+    ${isRunning ? '<div class="agent-progress"><i class="fa fa-spinner fa-spin"></i> Running...</div>' : ''}
     <div class="agent-row-info">
       <span><i class="fa fa-clock"></i> ${escapeHtml(schedule)}</span>
       <span><i class="fa fa-history"></i> ${escapeHtml(lastRun)}</span>
@@ -1618,10 +1660,71 @@ function renderAgentRow(agent) {
     </div>
     <div class="agent-row-actions">
       <button class="agent-action-btn" data-action="run" data-agent-id="${safeId}"><i class="fa fa-play"></i> Run</button>
+      <button class="agent-action-btn" data-action="edit" data-agent-id="${safeId}"><i class="fa fa-pen"></i></button>
       <button class="agent-action-btn" data-action="toggle" data-agent-id="${safeId}"><i class="fa ${toggleIcon}"></i> ${toggleLabel}</button>
       <button class="agent-action-btn danger" data-action="delete" data-agent-id="${safeId}"><i class="fa fa-trash"></i></button>
     </div>
     <div class="agent-row-detail"></div>
+  </div>`;
+}
+
+// Time ago helper for history rows
+function timeAgo(timestamp) {
+  if (!timestamp) return '';
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return 'just now';
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return mins + 'm ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + 'h ago';
+  const days = Math.floor(hours / 24);
+  if (days < 7) return days + 'd ago';
+  return new Date(timestamp).toLocaleDateString();
+}
+
+// Load run history for an agent into its detail container
+async function loadAgentHistory(agentId, containerEl) {
+  containerEl.innerHTML = '<div style="padding:8px;text-align:center;"><i class="fa fa-spinner fa-spin"></i></div>';
+  try {
+    const response = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'getAgentRunHistory', agentId, limit: 10 }, resolve);
+    });
+    const history = response?.history || [];
+    if (history.length === 0) {
+      containerEl.innerHTML = '<div class="agent-history-empty">No runs yet</div>';
+      return;
+    }
+    containerEl.innerHTML = '<div class="agent-history-header">Recent Runs</div>' +
+      history.map(run => renderHistoryRow(run)).join('');
+  } catch (err) {
+    containerEl.innerHTML = '<div style="padding:8px;color:#c62828;">Failed to load history</div>';
+  }
+}
+
+// Render a single history row
+function renderHistoryRow(run) {
+  const success = run.status === 'success' || run.status === 'completed';
+  const statusIcon = success
+    ? '<span class="agent-history-status status-success"><i class="fa fa-check"></i></span>'
+    : '<span class="agent-history-status status-failed"><i class="fa fa-times"></i></span>';
+  const ts = timeAgo(run.timestamp);
+  const duration = run.durationMs ? (run.durationMs / 1000).toFixed(1) + 's' : '-';
+  const cost = '$' + (run.costUsd?.toFixed(4) || '0.0000');
+  const isReplay = run.executionMode && run.executionMode.toLowerCase().includes('replay');
+  const modeBadge = isReplay
+    ? '<span class="agent-history-mode mode-replay">Replay</span>'
+    : '<span class="agent-history-mode">AI</span>';
+  const savedHtml = (run.costSaved && run.costSaved > 0)
+    ? ' <span class="agent-history-saved">saved $' + run.costSaved.toFixed(2) + '</span>'
+    : '';
+
+  return `<div class="agent-history-row">
+    ${statusIcon}
+    <span style="flex:1">${escapeHtml(ts)}</span>
+    <span>${escapeHtml(duration)}</span>
+    <span>${escapeHtml(cost)}</span>
+    ${modeBadge}${savedHtml}
   </div>`;
 }
 
@@ -1654,12 +1757,23 @@ async function handleAgentAction(event) {
   if (!agentId) return;
 
   if (action === 'run') {
-    // Visually indicate running
+    // Track running state and show progress
+    runningAgentIds.add(agentId);
     const row = btn.closest('.agent-row');
     const badge = row?.querySelector('.agent-status-badge');
     if (badge) {
       badge.className = 'agent-status-badge badge-running';
       badge.textContent = 'Running';
+    }
+    // Insert progress indicator if not present
+    if (row && !row.querySelector('.agent-progress')) {
+      const info = row.querySelector('.agent-row-info');
+      if (info) {
+        const prog = document.createElement('div');
+        prog.className = 'agent-progress';
+        prog.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Running...';
+        info.before(prog);
+      }
     }
     try {
       await new Promise(resolve => {
@@ -1667,6 +1781,12 @@ async function handleAgentAction(event) {
       });
     } catch (e) {
       console.warn('Run agent failed:', e);
+    }
+  } else if (action === 'edit') {
+    // Find agent in cached list and open edit form
+    const agent = cachedAgentsSP.find(a => a.agentId === agentId);
+    if (agent) {
+      showAgentFormSP(agent);
     }
   } else if (action === 'toggle') {
     try {
@@ -1687,5 +1807,167 @@ async function handleAgentAction(event) {
     } catch (e) {
       console.warn('Delete agent failed:', e);
     }
+  }
+}
+
+// ==========================================
+// Agent Create/Edit Form
+// ==========================================
+
+function showAgentFormSP(editAgent = null) {
+  const form = document.getElementById('agentFormSP');
+  const title = document.getElementById('agentFormTitleSP');
+  if (!form) return;
+  form.style.display = 'block';
+
+  // Hide any previous error
+  const errEl = form.querySelector('.agent-form-error');
+  if (errEl) errEl.style.display = 'none';
+
+  if (editAgent) {
+    title.textContent = 'Edit Agent';
+    document.getElementById('agentFormIdSP').value = editAgent.agentId;
+    document.getElementById('agentNameSP').value = editAgent.name || '';
+    document.getElementById('agentTaskSP').value = editAgent.task || '';
+    document.getElementById('agentUrlSP').value = editAgent.targetUrl || '';
+    document.getElementById('agentScheduleTypeSP').value = editAgent.schedule?.type || 'interval';
+    updateScheduleParamsSP(editAgent.schedule?.type || 'interval');
+    if (editAgent.schedule?.intervalMinutes) document.getElementById('agentIntervalSP').value = editAgent.schedule.intervalMinutes;
+    if (editAgent.schedule?.dailyTime) document.getElementById('agentDailyTimeSP').value = editAgent.schedule.dailyTime;
+    if (editAgent.schedule?.cronExpression) document.getElementById('agentCronSP').value = editAgent.schedule.cronExpression;
+  } else {
+    title.textContent = 'Create Agent';
+    document.getElementById('agentFormIdSP').value = '';
+    document.getElementById('agentNameSP').value = '';
+    document.getElementById('agentTaskSP').value = '';
+    document.getElementById('agentUrlSP').value = '';
+    document.getElementById('agentScheduleTypeSP').value = 'interval';
+    document.getElementById('agentIntervalSP').value = '60';
+    document.getElementById('agentDailyTimeSP').value = '09:00';
+    document.getElementById('agentCronSP').value = '';
+    updateScheduleParamsSP('interval');
+
+    // Auto-fill current tab URL when creating
+    try {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs?.[0]?.url) {
+          document.getElementById('agentUrlSP').value = tabs[0].url;
+        }
+      });
+    } catch (e) {
+      // Ignore - URL field stays empty
+    }
+  }
+}
+
+function updateScheduleParamsSP(type) {
+  const intervalEl = document.getElementById('intervalParamsSP');
+  const dailyEl = document.getElementById('dailyParamsSP');
+  const cronEl = document.getElementById('cronParamsSP');
+  if (intervalEl) intervalEl.style.display = type === 'interval' ? '' : 'none';
+  if (dailyEl) dailyEl.style.display = type === 'daily' ? '' : 'none';
+  if (cronEl) cronEl.style.display = type === 'cron' ? '' : 'none';
+}
+
+async function saveAgentSP() {
+  const form = document.getElementById('agentFormSP');
+  const name = document.getElementById('agentNameSP').value.trim();
+  const task = document.getElementById('agentTaskSP').value.trim();
+  const targetUrl = document.getElementById('agentUrlSP').value.trim();
+  const scheduleType = document.getElementById('agentScheduleTypeSP').value;
+  const agentId = document.getElementById('agentFormIdSP').value;
+
+  // Validation
+  if (!name) return showFormError('Name is required');
+  if (!task) return showFormError('Task description is required');
+  if (!targetUrl || !targetUrl.startsWith('http')) return showFormError('Valid URL is required (starts with http)');
+
+  // Build schedule
+  const schedule = { type: scheduleType };
+  if (scheduleType === 'interval') {
+    schedule.intervalMinutes = parseInt(document.getElementById('agentIntervalSP').value) || 60;
+  } else if (scheduleType === 'daily') {
+    schedule.dailyTime = document.getElementById('agentDailyTimeSP').value || '09:00';
+  } else if (scheduleType === 'cron') {
+    schedule.cronExpression = document.getElementById('agentCronSP').value.trim();
+    if (!schedule.cronExpression) return showFormError('Cron expression is required');
+  }
+
+  const saveBtn = document.getElementById('btnSaveAgentSP');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+  }
+
+  try {
+    let response;
+    if (agentId) {
+      // Edit mode
+      response = await new Promise(resolve => {
+        chrome.runtime.sendMessage({
+          action: 'updateAgent',
+          agentId,
+          updates: { name, task, targetUrl, schedule }
+        }, resolve);
+      });
+    } else {
+      // Create mode
+      response = await new Promise(resolve => {
+        chrome.runtime.sendMessage({
+          action: 'createAgent',
+          params: { name, task, targetUrl, schedule }
+        }, resolve);
+      });
+    }
+
+    if (response?.success) {
+      form.style.display = 'none';
+      loadAgentListUI();
+    } else {
+      showFormError(response?.error || 'Failed to save agent');
+    }
+  } catch (err) {
+    showFormError('Error: ' + err.message);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Agent';
+    }
+  }
+}
+
+function showFormError(msg) {
+  let errEl = document.querySelector('#agentFormSP .agent-form-error');
+  if (!errEl) {
+    errEl = document.createElement('div');
+    errEl.className = 'agent-form-error';
+    document.querySelector('#agentFormSP .form-actions')?.after(errEl);
+  }
+  errEl.textContent = msg;
+  errEl.style.display = 'block';
+}
+
+function initAgentFormListeners() {
+  // Schedule type switcher
+  const scheduleSelect = document.getElementById('agentScheduleTypeSP');
+  if (scheduleSelect) {
+    scheduleSelect.addEventListener('change', (e) => updateScheduleParamsSP(e.target.value));
+  }
+
+  // Save button
+  const saveBtn = document.getElementById('btnSaveAgentSP');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => saveAgentSP());
+  }
+
+  // Cancel / close buttons
+  const cancelBtn = document.getElementById('btnCancelAgentSP');
+  const closeBtn = document.getElementById('btnCloseAgentFormSP');
+  const form = document.getElementById('agentFormSP');
+  if (cancelBtn && form) {
+    cancelBtn.addEventListener('click', () => { form.style.display = 'none'; });
+  }
+  if (closeBtn && form) {
+    closeBtn.addEventListener('click', () => { form.style.display = 'none'; });
   }
 }
