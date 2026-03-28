@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.8.1
-milestone_name: npm Publishing
-status: unknown
-stopped_at: Completed 115-04-PLAN.md
-last_updated: "2026-03-26T02:11:38.100Z"
+milestone: v0.9.10
+milestone_name: Agent Intelligence
+status: Ready to execute
+stopped_at: Completed 120-02-PLAN.md
+last_updated: "2026-03-28T20:11:33.805Z"
 progress:
-  total_phases: 2
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_phases: 6
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 115 — canvas-vision
+**Current focus:** Phase 120 — sidepanel-agents-ui
 
 ## Current Position
 
-Phase: 115 (canvas-vision) — EXECUTING
-Plan: 2 of 4
+Phase: 120 (sidepanel-agents-ui) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -62,6 +62,8 @@ Plan: 2 of 4
 | Phase 115 P01 | 2min | 2 tasks | 2 files |
 | Phase 115 P03 | 2min | 2 tasks | 2 files |
 | Phase 115 P04 | 15min | 2 tasks | 2 files |
+| Phase 119 P02 | 2min | 2 tasks | 2 files |
+| Phase 120 P02 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -92,6 +94,8 @@ Recent decisions affecting current work:
 - [Phase 115]: CDP expression generator pattern: getCanvasPixelFallback returns self-contained IIFE string for Runtime.evaluate
 - [Phase 115]: Canvas scene reads via getCanvasScene() with three-stage cascade: interceptor, rerender trigger, pixel fallback
 - [Phase 115]: session.url does not exist -- use domResponse.structuredDOM.url with session.lastUrl fallback for canvas URL detection
+- [Phase 119]: 50% success rate threshold with 4-run minimum for re-record trigger
+- [Phase 120]: Expandable agent rows with lazy-loaded history, inline create/edit form with schedule switching
 
 ### Roadmap Evolution
 
@@ -111,6 +115,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-26T02:11:38.098Z
-Stopped at: Completed 115-04-PLAN.md
+Last session: 2026-03-28T20:11:33.791Z
+Stopped at: Completed 120-02-PLAN.md
 Resume file: None
