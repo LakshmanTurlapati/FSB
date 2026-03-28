@@ -19,9 +19,9 @@ class ServerSync {
    */
   async getConfig() {
     try {
-      const stored = await chrome.storage.local.get(['serverUrl', 'serverHashKey', 'serverSyncEnabled']);
+      const stored = await chrome.storage.local.get(['serverHashKey', 'serverSyncEnabled']);
       return {
-        url: stored.serverUrl || 'https://fsb-server.fly.dev',
+        url: 'https://fsb-server.fly.dev',
         hashKey: stored.serverHashKey || '',
         enabled: stored.serverSyncEnabled || false
       };

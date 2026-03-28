@@ -4,6 +4,8 @@
  * and exponential backoff reconnection.
  */
 
+const FSB_SERVER_URL = 'https://fsb-server.fly.dev';
+
 class FSBWebSocket {
   constructor() {
     this.ws = null;
@@ -17,16 +19,30 @@ class FSBWebSocket {
 
   /**
    * Connect to the relay server WebSocket endpoint.
-   * Reads config from chrome.storage.local; no-ops if no serverHashKey.
+   * Auto-registers a hash key on first run if none exists.
    */
   async connect() {
-    const { serverUrl, serverHashKey } = await chrome.storage.local.get([
-      'serverUrl', 'serverHashKey'
-    ]);
+    let { serverHashKey } = await chrome.storage.local.get(['serverHashKey']);
 
+    // Auto-register with the server if no hash key exists
     if (!serverHashKey) {
-      this._clearBadge();
-      return;
+      try {
+        const resp = await fetch(FSB_SERVER_URL + '/api/auth/register', { method: 'POST' });
+        if (resp.ok) {
+          const data = await resp.json();
+          serverHashKey = data.hashKey;
+          await chrome.storage.local.set({ serverHashKey });
+          console.log('[FSB WS] Auto-registered with server');
+        } else {
+          console.warn('[FSB WS] Auto-register failed:', resp.status);
+          this._scheduleReconnect();
+          return;
+        }
+      } catch (err) {
+        console.warn('[FSB WS] Auto-register failed:', err.message);
+        this._scheduleReconnect();
+        return;
+      }
     }
 
     // Close any existing connection before opening a new one
@@ -35,8 +51,7 @@ class FSBWebSocket {
       this.ws = null;
     }
 
-    const baseUrl = (serverUrl || 'https://fsb-server.fly.dev').replace(/^http/, 'ws');
-    const wsUrl = baseUrl + '/ws?key=' + encodeURIComponent(serverHashKey) + '&role=extension';
+    const wsUrl = FSB_SERVER_URL.replace(/^http/, 'ws') + '/ws?key=' + encodeURIComponent(serverHashKey) + '&role=extension';
 
     this.intentionalClose = false;
 

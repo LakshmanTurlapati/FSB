@@ -3955,12 +3955,14 @@ function escapeHtml(text) {
 }
 
 // Server sync functions
+const FSB_SERVER_URL_OPTIONS = 'https://fsb-server.fly.dev';
+
 async function loadServerSettings() {
   try {
-    const stored = await chrome.storage.local.get(['serverUrl', 'serverHashKey']);
-    const urlInput = document.getElementById('serverUrl');
+    const stored = await chrome.storage.local.get(['serverHashKey']);
+    const urlDisplay = document.getElementById('serverUrl');
     const keyInput = document.getElementById('serverHashKey');
-    if (urlInput && stored.serverUrl) urlInput.value = stored.serverUrl;
+    if (urlDisplay) { urlDisplay.value = FSB_SERVER_URL_OPTIONS; urlDisplay.readOnly = true; }
     if (keyInput && stored.serverHashKey) keyInput.value = stored.serverHashKey;
   } catch (e) {
     // Ignore
@@ -3968,18 +3970,12 @@ async function loadServerSettings() {
 }
 
 async function generateHashKey() {
-  const serverUrl = document.getElementById('serverUrl')?.value?.trim();
-  if (!serverUrl) {
-    showToast('Please enter a server URL first', 'error');
-    return;
-  }
-
   try {
-    const resp = await fetch(serverUrl + '/api/auth/register', { method: 'POST' });
+    const resp = await fetch(FSB_SERVER_URL_OPTIONS + '/api/auth/register', { method: 'POST' });
     const data = await resp.json();
     if (data.hashKey) {
       document.getElementById('serverHashKey').value = data.hashKey;
-      await chrome.storage.local.set({ serverUrl, serverHashKey: data.hashKey });
+      await chrome.storage.local.set({ serverHashKey: data.hashKey });
       showToast('Hash key generated and saved', 'success');
     } else {
       showToast('Failed to generate hash key', 'error');
@@ -4004,19 +4000,18 @@ async function copyHashKey() {
 }
 
 async function testServerConnection() {
-  const serverUrl = document.getElementById('serverUrl')?.value?.trim();
   const hashKey = document.getElementById('serverHashKey')?.value?.trim();
   const statusEl = document.getElementById('connectionStatus');
 
-  if (!serverUrl || !hashKey) {
-    showToast('Please enter server URL and hash key', 'error');
+  if (!hashKey) {
+    showToast('No hash key — extension auto-registers on startup', 'error');
     return;
   }
 
   if (statusEl) statusEl.textContent = 'Testing...';
 
   try {
-    const resp = await fetch(serverUrl + '/api/auth/validate', {
+    const resp = await fetch(FSB_SERVER_URL_OPTIONS + '/api/auth/validate', {
       headers: { 'X-FSB-Hash-Key': hashKey }
     });
     const data = await resp.json();
@@ -4040,7 +4035,6 @@ async function testServerConnection() {
 var pairingCountdownTimer = null;
 
 async function showPairingQR() {
-  const serverUrl = document.getElementById('serverUrl')?.value?.trim();
   const hashKey = document.getElementById('serverHashKey')?.value?.trim();
   const btn = document.getElementById('btnPairDashboard');
   const container = document.getElementById('pairingQROverlay');
@@ -4048,8 +4042,8 @@ async function showPairingQR() {
   const countdownEl = document.getElementById('pairingCountdown');
   const messageEl = document.getElementById('pairingQRMessage');
 
-  if (!serverUrl || !hashKey) {
-    showToast('Set server URL and generate a hash key first', 'error');
+  if (!hashKey) {
+    showToast('No hash key yet — restart extension to auto-register', 'error');
     return;
   }
 
@@ -4060,7 +4054,7 @@ async function showPairingQR() {
   messageEl.className = 'pairing-qr-message';
 
   try {
-    const resp = await fetch(serverUrl + '/api/pair/generate', {
+    const resp = await fetch(FSB_SERVER_URL_OPTIONS + '/api/pair/generate', {
       method: 'POST',
       headers: { 'X-FSB-Hash-Key': hashKey }
     });
@@ -4073,7 +4067,7 @@ async function showPairingQR() {
 
     // Generate QR code using qrcode-generator
     var qr = qrcode(0, 'M');
-    qr.addData(JSON.stringify({ t: token, s: serverUrl }));
+    qr.addData(JSON.stringify({ t: token, s: FSB_SERVER_URL_OPTIONS }));
     qr.make();
 
     // Render SVG into container
