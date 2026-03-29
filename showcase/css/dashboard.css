@@ -115,6 +115,7 @@
   border-radius: 20px;
   font-size: 0.8rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .dash-sse-badge {
@@ -123,6 +124,7 @@
   border-radius: 20px;
   font-size: 0.75rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .dash-sse-connected {
@@ -1319,16 +1321,8 @@
   }
 
   .dash-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .dash-task-input-row {
-    flex-direction: column;
-  }
-
-  .dash-task-submit {
-    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .dash-task-meta {
@@ -1372,18 +1366,6 @@
   .dash-header-left {
     flex-wrap: wrap;
     gap: 8px;
-  }
-
-  .dash-header-left h2 {
-    width: 100%;
-  }
-
-  .dash-new-agent-btn {
-    width: 100%;
-  }
-
-  .dash-disconnect-btn {
-    width: 100%;
   }
 
   .dash-login-section {
@@ -1518,6 +1500,7 @@
   color: #22c55e;
   background: rgba(34, 197, 94, 0.15);
   border-radius: 999px;
+  white-space: nowrap;
 }
 
 /* Disconnect button hover → destructive red */
@@ -1564,7 +1547,7 @@
 .dash-preview {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  min-height: 60vh;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
