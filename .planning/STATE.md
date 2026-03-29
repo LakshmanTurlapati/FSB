@@ -102,6 +102,7 @@ Recent decisions affecting current work:
 - v0.9.8.1 npm Publishing shelved to backlog (running in parallel outside GSD)
 - v0.9.9 Excalidraw Mastery roadmap created with 8 phases (107-114), 49 requirements
 - Phase 115 added: Canvas Vision -- analyze and convert HTML5 canvas content into structured text so FSB can see what is drawn on any canvas-based app
+- Phase 122 added: Dashboard WebSocket Reliability -- fix dashboard↔extension WS connectivity (keepalive pings, zombie cleanup, accurate extensionOnline status)
 
 ### Pending Todos
 

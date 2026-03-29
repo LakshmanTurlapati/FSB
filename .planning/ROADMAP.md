@@ -125,3 +125,13 @@ Plans:
 | 119. Replay Intelligence | -/- | Complete    | 2026-03-28 |
 | 120. Sidepanel Agents UI | 0/2 | Complete    | 2026-03-28 |
 | 121. DOM Cloning Verification | -/- | Complete    | 2026-03-28 |
+
+### Phase 122: Dashboard WebSocket Reliability
+
+**Goal:** Dashboard↔extension WS connectivity works reliably — keepalive pings prevent Fly.io proxy idle timeout, zombie connections are detected and cleaned, and extensionOnline status is always accurate
+**Requirements**: TBD
+**Depends on:** Nothing (independent, bug fix)
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 122 to break down)

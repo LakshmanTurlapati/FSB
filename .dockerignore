@@ -1,9 +1,12 @@
-node_modules
-.git
-.planning
-server-py
+# Ignore everything by default
+*
+
+# Allow only what we need for the server deployment
+!server/
+!showcase/
+
+# Re-ignore things inside those dirs we don't need
 server/node_modules
 server/fsb-data.db
 server/.env
-*.md
-.gitignore
+server/*.log
