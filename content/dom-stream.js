@@ -602,20 +602,19 @@
     var glow = null;
     var progress = null;
 
-    // Read HighlightManager active highlight position
+    // Read glow position from ActionGlowOverlay (used during automation) or HighlightManager (fallback)
     try {
-      if (FSB.highlightManager && FSB.highlightManager.activeHighlight) {
-        var el = FSB.highlightManager.activeHighlight;
-        if (el && el.getBoundingClientRect) {
-          var rect = el.getBoundingClientRect();
-          glow = {
-            x: rect.x,
-            y: rect.y,
-            w: rect.width,
-            h: rect.height,
-            state: 'active'
-          };
-        }
+      var glowSource = (FSB.actionGlowOverlay && FSB.actionGlowOverlay.targetElement)
+        || (FSB.highlightManager && FSB.highlightManager.activeHighlight);
+      if (glowSource && glowSource.getBoundingClientRect) {
+        var rect = glowSource.getBoundingClientRect();
+        glow = {
+          x: rect.x,
+          y: rect.y,
+          w: rect.width,
+          h: rect.height,
+          state: 'active'
+        };
       }
     } catch (e) { /* ignore */ }
 
