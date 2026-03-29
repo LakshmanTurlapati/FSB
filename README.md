@@ -1,4 +1,4 @@
-# FSB v0.9.8.1: Full Self-Browsing
+# FSB v9.0.2: Full Self-Browsing
 
 <div align="center">
 
@@ -10,7 +10,7 @@
 
 <!-- Row 1: Identity badges -->
 ![FSB](https://img.shields.io/badge/FSB-Full_Self--Browsing-000000?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-0.9.8.1-0078D4?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-9.0.2-0078D4?style=for-the-badge)
 ![Manifest V3](https://img.shields.io/badge/Manifest_V3-Chrome-34A853?style=for-the-badge&logo=googlechrome&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-F5C518?style=for-the-badge)
 
@@ -22,8 +22,8 @@
 ![Repo Size](https://img.shields.io/github/repo-size/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Repo%20Size)
 
 <!-- Row 3: Project stats + provider brands -->
-![AI Models](https://img.shields.io/badge/AI_Models-21-8B5CF6?style=flat-square)
-![Browser Actions](https://img.shields.io/badge/Browser_Actions-47-F97316?style=flat-square)
+![AI Models](https://img.shields.io/badge/AI_Models-20+-8B5CF6?style=flat-square)
+![Browser Actions](https://img.shields.io/badge/Browser_Actions-50+-F97316?style=flat-square)
 ![Site Guides](https://img.shields.io/badge/Site_Guides-9_Categories-22C55E?style=flat-square)
 ![MCP](https://img.shields.io/badge/MCP-Server-00B4D8?style=flat-square)
 ![npm](https://img.shields.io/npm/v/fsb-mcp-server?style=flat-square&label=npm&color=CB3837)
@@ -47,18 +47,18 @@
 
 ## Overview
 
-> **Note**: While FSB v0.9.8.1 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
+> **Note**: While FSB v9.0.2 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
 
-FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers**: xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini, with 21 models. FSB can run as a **standalone Chrome extension** or be controlled by any MCP-compatible AI client (Claude Code, Cursor, Windsurf, and others) through its built-in **MCP server**: in manual mode for fine-grained control, or autopilot mode where FSB handles everything.
+FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **five AI providers**: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini, and OpenRouter (200+ models), with 20+ models built in. FSB can run as a **standalone Chrome extension** or be controlled by any MCP-compatible AI client (Claude Code, Cursor, Windsurf, and others) through its built-in **MCP server**: in manual mode for fine-grained control, or autopilot mode where FSB handles everything.
 
 <details>
 <summary><b>All features (detailed list)</b></summary>
 
-- **Multi-Model AI Support**: Four fully integrated providers: xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini, with 21 models
+- **Multi-Model AI Support**: Five fully integrated providers: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini, and OpenRouter (200+ models), with 20+ models built in
 - **Universal Provider Architecture**: Model-agnostic engine that works with any OpenAI-compatible API, with automatic parameter discovery and self-healing
 - **Natural Language Interface**: Describe tasks in plain English, no scripting required
 - **Smart DOM Analysis**: Advanced webpage structure analysis with incremental diffing and element identification
-- **Comprehensive Action Library**: 47 browser actions: click, type, scroll, navigate, multi-tab control, form handling, and more
+- **Comprehensive Action Library**: 50+ browser actions: click, type, scroll, navigate, multi-tab control, form handling, and more
 - **Site-Specific Intelligence**: Domain-specific guides for e-commerce, finance, social media, travel, coding, email, career, gaming, and productivity platforms
 - **Long-Term Memory**: Episodic, semantic, and procedural memory with AI-enriched extraction and consolidation across sessions
 - **Background Agents**: Scheduled automation tasks with chrome.alarms, run history, and session replay
@@ -76,7 +76,7 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 - **Secure Configuration**: AES-GCM encrypted API key storage
 - **Smart Recovery**: Automatic stuck detection with DOM hashing, action pattern analysis, and adaptive behavior
 - **Multiple UI Modes**: Popup chat and persistent side panel interfaces
-- **MCP Server**: Built-in Model Context Protocol server with 42+ tools: any MCP-compatible AI client can control FSB
+- **MCP Server**: Built-in Model Context Protocol server with 50+ tools: any MCP-compatible AI client can control FSB
 - **Dual Operation Modes**: Use FSB standalone or through MCP, with manual (tool-by-tool) and autopilot (AI-driven) modes
 - **WebSocket Bridge**: Hub/relay architecture for MCP-to-extension communication with automatic failover and multi-instance support
 - **Remote Streaming**: Optional relay server connection for remote monitoring and control
@@ -97,6 +97,47 @@ FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered b
 - **Background Monitoring**: Schedule recurring agents to check prices, track changes, or gather data
 
 > **Tip**: Always monitor automation results and start with simple tasks to build familiarity. Your feedback helps improve accuracy!
+
+---
+
+## How FSB Compares
+
+Every major browser agent today relies on **screenshots and computer vision** to understand web pages. FSB takes a fundamentally different approach: **pure DOM intelligence**. It reads the actual page structure -- elements, attributes, selectors, state -- directly. No screenshots. No vision models. No pixel guessing.
+
+The result: faster, cheaper, more accurate, and capable of interacting with elements that vision-based agents literally cannot see.
+
+<div align="center">
+
+![FSB](https://img.shields.io/badge/FSB-DOM--Based-000000?style=for-the-badge)
+![Google](https://img.shields.io/badge/Project_Mariner-Vision-4285F4?style=for-the-badge&logo=google&logoColor=white)
+![Anthropic](https://img.shields.io/badge/Computer_Use-Vision-D4A574?style=for-the-badge&logo=anthropic&logoColor=white)
+![OpenAI](https://img.shields.io/badge/CUA_/_Operator-Vision-412991?style=for-the-badge&logo=openai&logoColor=white)
+![browser-use](https://img.shields.io/badge/browser--use-Vision-24292e?style=for-the-badge&logo=github&logoColor=white)
+
+</div>
+
+| | **FSB** | **Project Mariner** | **Claude Computer Use** | **OpenAI CUA** | **browser-use** |
+|---|---|---|---|---|---|
+| **Approach** | DOM analysis | Screenshot + Gemini vision | Screenshot + Claude vision | Screenshot + GPT-4o vision | Screenshot + LLM vision |
+| **Vision required** | No | Yes | Yes | Yes | Yes |
+| **Open source** | Yes (MIT) | No | No | No | Yes |
+| **Speed (per step)** | 50-200ms | 1-3s | 1-3s | 1-3s | 1-3s |
+| **Cost (per 100 steps)** | ~$0.03 | ~$0.18 | ~$0.18 | ~$0.18 | ~$0.15 |
+| **Hidden elements** | Yes | No | No | No | No |
+| **Multi-provider AI** | 5 providers, 20+ models | Gemini only | Claude only | GPT only | Limited |
+| **MCP server** | Yes (50+ tools) | No | No | No | No |
+| **Local extension** | Yes | No (cloud VM) | No (Docker) | No (cloud) | No (Playwright) |
+| **Works offline** | With local models | No | No | No | No |
+
+### The MCP Advantage: Works WITH All of Them
+
+FSB does not just compete with these tools -- it **works alongside them**. Through its MCP server, any AI client can use FSB as its browser automation layer:
+
+- **Claude Code / Claude Desktop** can call FSB's 50+ browser tools instead of using screenshot-based Computer Use
+- **Cursor / Windsurf** can drive FSB for web testing and research without leaving the IDE
+- **Any MCP-compatible agent** gets instant access to DOM-based browser automation
+
+This means you get the intelligence of Claude, GPT, or Gemini combined with the precision of FSB's DOM engine -- the best of both worlds.
 
 ---
 
@@ -198,7 +239,7 @@ FSB includes a built-in [Model Context Protocol](https://modelcontextprotocol.io
 
 Within MCP, FSB offers two operating modes:
 
-**Manual Mode**: Direct browser control through 42+ individual tools. The AI client decides what to do; FSB executes each action.
+**Manual Mode**: Direct browser control through 50+ individual tools. The AI client decides what to do; FSB executes each action.
 
 **Autopilot Mode**: Delegate an entire task to FSB. When an AI API key is configured in the extension, `run_task` hands the goal to FSB's built-in AI loop, which plans, executes, recovers from errors, and reports back with progress updates. The external client just watches.
 
@@ -305,7 +346,7 @@ graph TB
     end
 
     subgraph Intelligence["Intelligence Layer"]
-        UP["Universal Provider<br/>21 Models, 4 Providers"]
+        UP["Universal Provider<br/>20+ Models, 5 Providers"]
         AI["AI Integration<br/>Prompt Engineering"]
         SG["Site Guides<br/>9 Domain Categories"]
         MEM["Memory System<br/>Episodic / Semantic / Procedural"]
@@ -316,7 +357,7 @@ graph TB
 
     subgraph Content["Content Scripts"]
         DOM["DOM Analysis<br/>Incremental Diffing"]
-        ACT["Actions Engine<br/>47 Browser Actions"]
+        ACT["Actions Engine<br/>50+ Browser Actions"]
         SEL["Selector Generator<br/>Multi-Strategy CSS"]
         VF["Visual Feedback<br/>Glow + Highlights"]
         AV["Action Verification<br/>State Validation"]
@@ -358,7 +399,7 @@ graph TB
 
 **Content Script Layer (12 modular files):**
 - **DOM Analysis**: Advanced webpage structure parsing with incremental diffing (`dom-analysis.js`, `dom-state.js`)
-- **Action Execution**: 47 browser actions with smart delays and error handling (`actions.js`)
+- **Action Execution**: 50+ browser actions with smart delays and error handling (`actions.js`)
 - **Selector Generation**: Multiple CSS selector strategies for reliability (`selectors.js`)
 - **Action Verification**: Post-action state validation to confirm intended effects (`utils/action-verification.js`)
 - **Visual Feedback System**: Viewport glow, element highlights, and progress overlay (`visual-feedback.js`)
@@ -382,13 +423,13 @@ graph TB
 - **Server Sync**: Optional synchronization with Node.js or Python server backends (`agents/server-sync.js`)
 
 **MCP Layer:**
-- **MCP Server**: Exposes FSB to external AI clients via stdio transport with 42+ tools across 4 categories (`mcp-server/src/`)
+- **MCP Server**: Exposes FSB to external AI clients via stdio transport with 50+ tools across 4 categories (`mcp-server/src/`)
 - **WebSocket Bridge**: Hub/relay architecture connecting the MCP server to the Chrome extension on port 7225 (`mcp-server/src/bridge.ts`)
 - **Task Queue**: Serializes mutations to prevent race conditions; read-only tools bypass the queue for concurrent access (`mcp-server/src/queue.ts`)
 - **Remote Streaming**: Optional relay server connection for remote monitoring and control (`ws/ws-client.js`)
 
 **External Services:**
-- **AI APIs**: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini
+- **AI APIs**: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini, OpenRouter
 - **MCP Clients**: Claude Code, Cursor, Windsurf, or any MCP-compatible AI client
 - **CAPTCHA Services**: Optional integration for automated CAPTCHA solving
 - **Server Backends**: Optional Node.js (`server/`) and Python/Flask (`server-py/`) backends for agent data persistence
@@ -408,7 +449,7 @@ graph TB
 | `config/secure-config.js` | AES-GCM encrypted API key storage |
 | `config/init-config.js` | First-run setup and configuration migration |
 | `content/` | 10 modular content script files (see Content Script Layer above) |
-| `content/actions.js` | 47 browser action tools |
+| `content/actions.js` | 50+ browser action tools |
 | `content/dom-analysis.js` | DOM traversal and element extraction |
 | `content/visual-feedback.js` | Viewport glow, element highlights, progress overlay |
 | `lib/memory/` | Long-term memory system (9 modules) |
@@ -511,7 +552,7 @@ Access settings through the extension popup or options page:
 ### Supported Models
 
 <details>
-<summary><b>View all 21 models with pricing</b></summary>
+<summary><b>View all models with pricing</b></summary>
 
 #### xAI Grok
 | Model | Description | Cost (per 1M tokens) |
@@ -602,7 +643,7 @@ FSB/
     secure-config.js            # AES-GCM encrypted storage
   content/                      # Content script modules (12 files)
     accessibility.js            # Accessibility helpers
-    actions.js                  # 47 browser action tools
+    actions.js                  # 50+ browser action tools
     dom-analysis.js             # DOM traversal and element extraction
     dom-state.js                # DOM state tracking and diffing
     dom-stream.js               # Real-time DOM change streaming
@@ -748,7 +789,7 @@ No build step or npm install is required: FSB runs directly as a Chrome extensio
 
 </div>
 
-FSB supports four AI providers through a universal, model-agnostic architecture. Each provider has unique strengths for browser automation.
+FSB supports five AI providers through a universal, model-agnostic architecture. Each provider has unique strengths for browser automation.
 
 ### Supported AI Providers
 
@@ -793,7 +834,7 @@ FSB's universal provider eliminates the need for provider-specific code:
 ### Comprehensive Action Library
 
 <details>
-<summary><b>View all 47 browser actions by category</b></summary>
+<summary><b>View all 50+ browser actions by category</b></summary>
 
 **Navigation**
 - `navigate`: Go to a URL
@@ -1004,9 +1045,9 @@ FSB provides real-time visual indicators during automation:
 
 ## Roadmap
 
-### Completed in v0.9.8.1
+### Completed in v9.0.2
 - Full automation engine with smart iteration and stuck recovery
-- Four AI providers (xAI, OpenAI, Anthropic, Gemini) with 21 models
+- Five AI providers (xAI, OpenAI, Anthropic, Gemini, OpenRouter) with 20+ models
 - Universal model-agnostic provider architecture
 - Modern chat UI with markdown, mermaid, and Chart.js rendering
 - Site-specific intelligence with 9 domain guide categories
@@ -1029,7 +1070,7 @@ FSB provides real-time visual indicators during automation:
 - Site guides viewer with consolidated 3D knowledge graph visualization
 
 ### Completed in v9.4 to v9.7
-- MCP server with 42+ tools across 4 categories (autopilot, manual, read-only, observability)
+- MCP server with 50+ tools across 4 categories (autopilot, manual, read-only, observability)
 - WebSocket hub/relay bridge for MCP-to-extension communication
 - CDP (Chrome DevTools Protocol) click_at and drag tools for canvas interaction
 - MCP resources (DOM snapshot, tabs, site guides) and prompt templates

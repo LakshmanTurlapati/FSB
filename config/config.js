@@ -49,7 +49,7 @@ class Config {
       sttProvider: 'browser', // 'browser' (Web Speech API) or 'whisper' (OpenAI)
 
       // Background Agents Server
-      serverUrl: 'https://fsb-server.fly.dev',
+      serverUrl: 'https://full-selfbrowsing.com',
       serverHashKey: '',
       serverSyncEnabled: false
     };

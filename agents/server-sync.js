@@ -21,7 +21,7 @@ class ServerSync {
     try {
       const stored = await chrome.storage.local.get(['serverHashKey', 'serverSyncEnabled']);
       return {
-        url: 'https://fsb-server.fly.dev',
+        url: 'https://full-selfbrowsing.com',
         hashKey: stored.serverHashKey || '',
         enabled: stored.serverSyncEnabled || false
       };

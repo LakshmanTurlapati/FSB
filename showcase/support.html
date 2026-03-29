@@ -81,7 +81,7 @@
             </div>
             <div class="faq-answer">
               <div class="faq-answer-inner">
-                <p>We recommend <strong>xAI Grok 4.1 Fast</strong> for the best balance of speed and accuracy. It has a 2M token context window and costs $0.20/$0.50 per million tokens. For a free option, try <strong>Gemini 2.0 Flash</strong> (experimental). For maximum quality, use <strong>Claude Opus 4.1</strong> or <strong>Grok 4.1</strong>.</p>
+                <p>We recommend <strong>xAI Grok 4.1 Fast</strong> for the best balance of speed and accuracy. It has a 2M token context window and costs $0.20/$0.50 per million tokens. For a free option, try <strong>Gemini 2.0 Flash</strong> (experimental). For maximum quality, use <strong>Claude Opus 4.1</strong> or <strong>Grok 4.1</strong>. You can also use <strong>OpenRouter</strong> to access 200+ models through a single API key.</p>
               </div>
             </div>
           </div>
@@ -141,7 +141,7 @@
             </div>
             <div class="faq-answer">
               <div class="faq-answer-inner">
-                <p>FSB can detect CAPTCHAs and will pause automation when one is encountered. Full CAPTCHA solver integration (supporting services like 2Captcha and CapSolver) is planned for a future release. For now, you can solve the CAPTCHA manually and then resume.</p>
+                <p>FSB can detect CAPTCHAs and includes 2Captcha integration supporting reCAPTCHA v2, hCaptcha, and Cloudflare Turnstile. Enable it in Options with your 2Captcha API key. Slider CAPTCHAs are handled with dedicated CDP drag tools. If automatic solving is not configured, FSB pauses so you can solve manually and then resume.</p>
               </div>
             </div>
           </div>
@@ -178,6 +178,66 @@
             <div class="faq-answer">
               <div class="faq-answer-inner">
                 <p>FSB is open source under the MIT License. Fork the repository, make your changes, and submit a pull request. Check the CLAUDE.md file for architecture details and coding guidelines. Contributions of all kinds are welcome -- code, documentation, bug reports, and feature suggestions.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>What are Background Agents?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>Background Agents let you schedule automated tasks to run on a recurring basis -- every N minutes, daily at a specific time, or as a one-shot. FSB can also record your automation workflows and replay them without AI calls, dramatically reducing costs. Agent run history, success rates, and cost savings are tracked in the dashboard.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>What is MCP and how do I use it?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>MCP (Model Context Protocol) lets you control FSB from AI coding tools like Claude Code or Cursor. Install the <code>fsb-mcp-server</code> npm package, add it to your MCP client configuration, and you can automate browsers directly from your IDE. FSB exposes 50+ browser actions as MCP tools.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Can I control FSB remotely?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>Yes. The Remote Dashboard at <a href="https://full-selfbrowsing.com/dashboard.html">full-selfbrowsing.com</a> lets you pair with your FSB extension via QR code, then send tasks, view a live DOM preview of the browser, and monitor agent runs -- all from any device with a web browser.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Does FSB learn from my usage?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>FSB has a local memory system with three layers: semantic memory (site navigation patterns), episodic memory (past action sequences), and procedural memory (successful workflows). This data stays on your device and helps FSB navigate familiar sites faster and avoid repeating mistakes. Memory auto-consolidates after enough sessions.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Can FSB automate canvas and drawing apps?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>Yes. FSB has full Excalidraw mastery and a Universal Canvas Vision system that intercepts canvas draw calls to understand what is on screen. It supports text entry, drawing primitives, styling, connectors, alignment, and export across 12+ canvas-based applications including Excalidraw, Photopea, and Miro.</p>
               </div>
             </div>
           </div>
@@ -261,7 +321,7 @@
       </div>
       <div class="footer-bottom">
         <p>Made by Lakshman Turlapati</p>
-        <p>FSB v0.9</p>
+        <p>FSB v9.0.2</p>
       </div>
     </div>
   </footer>

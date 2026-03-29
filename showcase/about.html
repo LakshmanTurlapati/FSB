@@ -253,13 +253,16 @@
                   <i class="fa-solid fa-lock"></i> Passwords <span class="rec-badge-beta">Beta</span>
                 </div>
                 <div class="rec-sidebar-item">
+                  <i class="fa-solid fa-robot"></i> Background Agents
+                </div>
+                <div class="rec-sidebar-item">
                   <i class="fa-solid fa-sliders-h"></i> Advanced Settings
                 </div>
                 <div class="rec-sidebar-item">
-                  <i class="fa-solid fa-terminal"></i> Logs & Debugging
+                  <i class="fa-solid fa-database"></i> Memory
                 </div>
                 <div class="rec-sidebar-item">
-                  <i class="fa-solid fa-question-circle"></i> Help & Documentation
+                  <i class="fa-solid fa-terminal"></i> Logs & Debugging
                 </div>
               </div>
 
@@ -458,7 +461,7 @@
         <p>How FSB's components communicate to automate browser tasks.</p>
       </div>
       <div class="arch-diagram reveal">
-        <!-- Row 1: User interfaces -->
+        <!-- Row 1: Entry points -->
         <div class="arch-row">
           <div class="arch-box">
             <div class="arch-icon"><i class="fa-solid fa-message"></i></div>
@@ -475,16 +478,60 @@
             <h4>Options Dashboard</h4>
             <p>Settings and analytics</p>
           </div>
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-plug"></i></div>
+            <h4>MCP Server</h4>
+            <p>IDE integration (Claude Code, Cursor)</p>
+          </div>
         </div>
 
         <div class="arch-arrow"><i class="fa-solid fa-arrow-down"></i></div>
 
-        <!-- Row 2: Background -->
+        <!-- Row 2: Background core -->
         <div class="arch-row">
           <div class="arch-box primary">
             <div class="arch-icon"><i class="fa-solid fa-server"></i></div>
             <h4>Background Service Worker</h4>
             <p>Session management, AI communication, message routing</p>
+          </div>
+        </div>
+
+        <div class="arch-row" style="gap: 40px; justify-content: center;">
+          <div style="text-align: center;">
+            <div class="arch-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+          </div>
+          <div style="text-align: center;">
+            <div class="arch-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+          </div>
+          <div style="text-align: center;">
+            <div class="arch-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+          </div>
+          <div style="text-align: center;">
+            <div class="arch-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+          </div>
+        </div>
+
+        <!-- Row 3: Subsystems -->
+        <div class="arch-row">
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-code"></i></div>
+            <h4>Content Script</h4>
+            <p>DOM analysis, action execution, credential fill</p>
+          </div>
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-brain"></i></div>
+            <h4>AI Provider</h4>
+            <p>xAI / OpenAI / Anthropic / Gemini / OpenRouter</p>
+          </div>
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-robot"></i></div>
+            <h4>Background Agents</h4>
+            <p>Scheduling, recording, replay</p>
+          </div>
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-database"></i></div>
+            <h4>Memory System</h4>
+            <p>Site patterns, procedural memory</p>
           </div>
         </div>
 
@@ -497,30 +544,17 @@
           </div>
         </div>
 
-        <!-- Row 3: Content Script + AI -->
+        <!-- Row 4: Targets -->
         <div class="arch-row">
-          <div class="arch-box">
-            <div class="arch-icon"><i class="fa-solid fa-code"></i></div>
-            <h4>Content Script</h4>
-            <p>DOM analysis, action execution, direct credential fill</p>
-          </div>
-          <div class="arch-box">
-            <div class="arch-icon"><i class="fa-solid fa-brain"></i></div>
-            <h4>AI Provider</h4>
-            <p>xAI / OpenAI / Anthropic / Gemini</p>
-          </div>
-        </div>
-
-        <div class="arch-row" style="justify-content: flex-start; padding-left: calc(50% - 100px);">
-          <div class="arch-arrow"><i class="fa-solid fa-arrow-down"></i></div>
-        </div>
-
-        <!-- Row 4: Web Page -->
-        <div class="arch-row" style="justify-content: flex-start; padding-left: calc(50% - 100px);">
           <div class="arch-box">
             <div class="arch-icon"><i class="fa-solid fa-globe"></i></div>
             <h4>Web Page</h4>
             <p>Target page DOM</p>
+          </div>
+          <div class="arch-box">
+            <div class="arch-icon"><i class="fa-solid fa-tower-broadcast"></i></div>
+            <h4>Remote Dashboard</h4>
+            <p>WebSocket relay, live DOM preview</p>
           </div>
         </div>
       </div>
@@ -532,7 +566,7 @@
     <div class="container">
       <div class="section-header reveal">
         <h2>Action Library</h2>
-        <p>40+ browser actions organized by category, all executable through natural language.</p>
+        <p>50+ browser actions organized by category, all executable through natural language.</p>
       </div>
       <div class="action-categories">
         <div class="action-category reveal delay-1">
@@ -543,6 +577,7 @@
             <span class="action-tag">refresh</span>
             <span class="action-tag">goBack</span>
             <span class="action-tag">goForward</span>
+            <span class="action-tag">spaNavigation</span>
           </div>
         </div>
         <div class="action-category reveal delay-2">
@@ -582,6 +617,7 @@
             <span class="action-tag">getText</span>
             <span class="action-tag">getAttribute</span>
             <span class="action-tag">setAttribute</span>
+            <span class="action-tag">readPage</span>
           </div>
         </div>
         <div class="action-category reveal delay-6">
@@ -621,6 +657,27 @@
             <span class="action-tag">screenshot</span>
           </div>
         </div>
+        <div class="action-category reveal delay-1">
+          <h4><i class="fa-solid fa-pen-nib"></i> Canvas &amp; Drawing</h4>
+          <div class="action-list">
+            <span class="action-tag">insertText</span>
+            <span class="action-tag">dblClickAt</span>
+            <span class="action-tag">drawShape</span>
+            <span class="action-tag">monacoEditorInsert</span>
+          </div>
+        </div>
+        <div class="action-category reveal delay-2">
+          <h4><i class="fa-solid fa-crosshairs"></i> CDP Tools</h4>
+          <div class="action-list">
+            <span class="action-tag">cdpMouseClick</span>
+            <span class="action-tag">cdpMouseDrag</span>
+            <span class="action-tag">cdpMouseWheel</span>
+            <span class="action-tag">cdpClickAndHold</span>
+            <span class="action-tag">dragDrop</span>
+            <span class="action-tag">dropFile</span>
+            <span class="action-tag">selectTextRange</span>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -652,7 +709,7 @@
       </div>
       <div class="footer-bottom">
         <p>Made by Lakshman Turlapati</p>
-        <p>FSB v0.9</p>
+        <p>FSB v9.0.2</p>
       </div>
     </div>
   </footer>

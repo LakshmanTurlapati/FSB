@@ -3955,7 +3955,7 @@ function escapeHtml(text) {
 }
 
 // Server sync functions
-const FSB_SERVER_URL_OPTIONS = 'https://fsb-server.fly.dev';
+const FSB_SERVER_URL_OPTIONS = 'https://full-selfbrowsing.com';
 
 async function loadServerSettings() {
   try {

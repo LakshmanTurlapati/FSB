@@ -80,7 +80,10 @@ Plans:
   2. User can navigate to different pages in their browser and the preview updates continuously, even when no automation task is running
   3. If the user's internet drops and reconnects, the preview recovers automatically with a fresh full snapshot
   4. A status badge in the preview container shows green/yellow/red for connected/buffering/disconnected
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 122-01-PLAN.md -- Extension-side active tab tracking, stream-aware forwarding, decouple stream from task lifecycle
+- [ ] 122-02-PLAN.md -- Dashboard auto-start on page-ready, toggle button, recovery logic, status badge enhancement
 
 ### Phase 123: Layout Modes
 **Goal**: User can view the live preview in the size and mode that fits their workflow -- from inline thumbnail to fullscreen takeover
@@ -121,7 +124,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 122. Connection & Auto-Start | 1/2 | In Progress | - |
+| 122. Connection & Auto-Start | 0/2 | Planned | - |
 | 123. Layout Modes | 0/? | Not started | - |
 | 124. Visual Fidelity | 0/? | Not started | - |
 | 125. Remote Control | 0/? | Not started | - |

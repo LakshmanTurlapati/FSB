@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.9.1
-milestone_name: Phantom Stream
+milestone: v0.9.8.1
+milestone_name: npm Publishing
 status: executing
-stopped_at: Completed 122-01-PLAN.md
-last_updated: "2026-03-29T11:49:46.000Z"
-last_activity: 2026-03-29 -- Completed 122-01 (extension-side active tab tracking)
+stopped_at: Roadmap created -- ready to plan Phase 122
+last_updated: "2026-03-29T11:47:18.974Z"
+last_activity: 2026-03-29 -- Phase 122 execution started
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 2
-  completed_plans: 1
-  percent: 10
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 122 -- connection-auto-start (Plan 2 of 2)
+**Current focus:** Phase 122 — connection-auto-start
 
 ## Current Position
 
-Phase: 1 of 4 (Phase 122: Connection & Auto-Start)
-Plan: 2 of 2
+Phase: 122 (connection-auto-start) — EXECUTING
+Plan: 1 of 2
 Status: Executing Phase 122
-Last activity: 2026-03-29 -- Completed 122-01 (extension-side active tab tracking)
+Last activity: 2026-03-29 -- Phase 122 execution started
 
-Progress: [#.........] 10%
+Progress: [..........] 0%
 
 ## Performance Metrics
 
@@ -50,10 +50,6 @@ Recent decisions affecting current work:
 - [v0.9.9.1]: Preview iframe scales to fit both dimensions (min of scaleX, scaleY)
 - [v0.9.9.1]: Phase 44 DOM Cloning Stream infrastructure is the foundation (dom-stream.js, ws-client.js, dashboard.js, dashboard.css)
 - [v0.9.9.1]: Stream must start on WS connect, not on task run (current gap)
-- [122-01]: Stream decoupled from task lifecycle -- broadcastDashboardComplete no longer stops stream
-- [122-01]: _streamingTabId > _dashboardTaskTabId > active tab query fallback chain for forwarding
-- [122-01]: 300ms debounce on tab switch prevents rapid-fire snapshots
-- [122-01]: Pause does not clear _streamingActive (paused is still conceptually active)
 
 ### Roadmap Evolution
 
@@ -72,5 +68,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-03-29
-Stopped at: Completed 122-01-PLAN.md
+Stopped at: Roadmap created -- ready to plan Phase 122
 Resume file: None

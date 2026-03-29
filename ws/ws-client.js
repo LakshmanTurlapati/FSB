@@ -4,7 +4,7 @@
  * and exponential backoff reconnection.
  */
 
-const FSB_SERVER_URL = 'https://fsb-server.fly.dev';
+const FSB_SERVER_URL = 'https://full-selfbrowsing.com';
 
 class FSBWebSocket {
   constructor() {

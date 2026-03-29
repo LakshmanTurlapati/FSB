@@ -55,7 +55,7 @@
     <div class="container">
       <div class="privacy-content">
         <h1>Privacy Policy</h1>
-        <p class="privacy-date">Last updated: February 2026</p>
+        <p class="privacy-date">Last updated: March 2026</p>
 
         <div class="privacy-section reveal">
           <h2><i class="fa-solid fa-database"></i> Data Collection</h2>
@@ -82,9 +82,9 @@
           <h2><i class="fa-solid fa-cloud"></i> External Services</h2>
           <p>FSB communicates with external AI providers only when you configure and use them. The choice of provider and what data is sent is under your control.</p>
           <ul>
-            <li>API calls are made only to the provider you select (xAI, OpenAI, Anthropic, or Google)</li>
+            <li>API calls are made only to the provider you select (xAI, OpenAI, Anthropic, Google, or OpenRouter)</li>
             <li>Sent data includes: task description, DOM structure summary, and action context</li>
-            <li>No data is sent to FSB servers -- there are none</li>
+            <li>If you use the Remote Dashboard or Background Agents sync, an optional relay server handles WebSocket messages and stores agent run metadata (task name, cost, duration, success/fail). No page content, DOM data, or AI responses are stored on the server. This is opt-in only</li>
             <li>Each provider has their own privacy policy governing how they handle API requests</li>
           </ul>
         </div>
@@ -130,6 +130,29 @@
         </div>
 
         <div class="privacy-section reveal">
+          <h2><i class="fa-solid fa-robot"></i> Background Agents &amp; Server Sync</h2>
+          <p>If you opt into Background Agents server sync or Remote Dashboard pairing, a relay server facilitates communication between your extension and the dashboard.</p>
+          <ul>
+            <li>The server stores: agent definitions (name, schedule, target URL), run metrics (token count, cost, duration, success/fail status), and session pairing tokens</li>
+            <li>The server does NOT store: page content, DOM data, browsing history, AI prompts, AI responses, or any data from the pages you visit</li>
+            <li>Authentication uses hash keys (generated locally) and session tokens that expire after 24 hours</li>
+            <li>One-time pairing tokens expire after 60 seconds and cannot be reused</li>
+            <li>Server sync is disabled by default -- you must explicitly enable it in Options</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section reveal">
+          <h2><i class="fa-solid fa-database"></i> Memory System</h2>
+          <p>FSB's memory system stores navigation patterns and site intelligence to improve automation over time.</p>
+          <ul>
+            <li>All memory data (semantic, episodic, procedural) is stored locally in <code>chrome.storage.local</code></li>
+            <li>No memory data is sent to any external server</li>
+            <li>Memory can be viewed and cleared at any time from the Options dashboard</li>
+            <li>Site maps and navigation patterns are domain-specific and isolated from each other</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section reveal">
           <h2><i class="fa-solid fa-code-branch"></i> Open Source</h2>
           <p>FSB is fully open source under the MIT License. You can audit every line of code to verify these privacy claims. The source code is available on GitHub.</p>
           <p><a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">View the source code on GitHub</a></p>
@@ -137,7 +160,7 @@
 
         <div class="privacy-highlight reveal">
           <h3>Summary</h3>
-          <p>FSB processes data locally, encrypts sensitive information, never exposes passwords to AI models, defends against prompt injection attacks, communicates only with AI providers you choose, includes no tracking, and is fully auditable as open source software.</p>
+          <p>FSB processes data locally, encrypts sensitive information, never exposes passwords to AI models, defends against prompt injection attacks, communicates only with AI providers you choose, stores memory data locally, keeps server sync opt-in and minimal, includes no tracking, and is fully auditable as open source software.</p>
         </div>
       </div>
     </div>
@@ -170,7 +193,7 @@
       </div>
       <div class="footer-bottom">
         <p>Made by Lakshman Turlapati</p>
-        <p>FSB v0.9</p>
+        <p>FSB v9.0.2</p>
       </div>
     </div>
   </footer>
