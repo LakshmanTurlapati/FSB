@@ -1888,18 +1888,15 @@
       console.log('[FSB-DASH] WS connected');
       wsReconnectDelay = 0;
       setWsState('connected');
-      // Auto-request stream start if toggle is on (covers reconnect recovery per CONN-03)
+      // Always request stream on connect -- don't wait for ext:page-ready
+      // The extension will respond with a snapshot if a content script is ready
       if (streamToggleOn) {
-        // If we had a previous session (pageReady was true), request fresh snapshot immediately
-        if (pageReady) {
-          ws.send(JSON.stringify({
-            type: 'dash:dom-stream-start',
-            payload: {},
-            ts: Date.now()
-          }));
-          setPreviewState('loading');
-        }
-        // Otherwise, preview stays hidden until ext:page-ready arrives
+        ws.send(JSON.stringify({
+          type: 'dash:dom-stream-start',
+          payload: {},
+          ts: Date.now()
+        }));
+        setPreviewState('loading');
       }
     };
 
