@@ -29,7 +29,16 @@
     'flexDirection', 'alignItems', 'justifyContent', 'gap',
     'gridTemplateColumns', 'gridTemplateRows', 'transform',
     'boxShadow', 'textAlign', 'lineHeight', 'fontWeight',
-    'zIndex', 'maxWidth', 'minHeight'
+    'zIndex', 'maxWidth', 'minHeight',
+    'flexWrap', 'flexGrow', 'flexShrink', 'flexBasis', 'order',
+    'gridColumn', 'gridRow', 'gridGap', 'gridAutoFlow',
+    'whiteSpace', 'textOverflow', 'textDecoration',
+    'float', 'clear',
+    'top', 'left', 'right', 'bottom',
+    'minWidth', 'maxHeight',
+    'letterSpacing', 'verticalAlign',
+    'backgroundImage', 'backgroundSize', 'backgroundPosition',
+    'overflowX', 'overflowY', 'objectFit'
   ];
 
   // CSS property name mapping (camelCase -> kebab-case)
@@ -40,7 +49,16 @@
     'flex-direction', 'align-items', 'justify-content', 'gap',
     'grid-template-columns', 'grid-template-rows', 'transform',
     'box-shadow', 'text-align', 'line-height', 'font-weight',
-    'z-index', 'max-width', 'min-height'
+    'z-index', 'max-width', 'min-height',
+    'flex-wrap', 'flex-grow', 'flex-shrink', 'flex-basis', 'order',
+    'grid-column', 'grid-row', 'grid-gap', 'grid-auto-flow',
+    'white-space', 'text-overflow', 'text-decoration',
+    'float', 'clear',
+    'top', 'left', 'right', 'bottom',
+    'min-width', 'max-height',
+    'letter-spacing', 'vertical-align',
+    'background-image', 'background-size', 'background-position',
+    'overflow-x', 'overflow-y', 'object-fit'
   ];
 
   // Default computed style values to skip (reduces payload size)
@@ -116,8 +134,6 @@
    * @param {Element} clone - The cloned element to set inline styles on
    */
   function captureComputedStyles(original, clone) {
-    // Heuristic: only capture computed styles if element has style attr or classes
-    if (!original.getAttribute('style') && !original.className) return;
 
     try {
       var computed = window.getComputedStyle(original);
@@ -293,6 +309,16 @@
       }
     }
 
+    // Collect inline <style> tags from document.head
+    var inlineStyles = [];
+    var styleTags = document.querySelectorAll('head style');
+    for (var st = 0; st < styleTags.length; st++) {
+      var cssText = styleTags[st].textContent;
+      if (cssText && cssText.length < 500000) {
+        inlineStyles.push(cssText);
+      }
+    }
+
     var html = clone.innerHTML;
     var truncated = false;
 
@@ -322,6 +348,7 @@
       html: html,
       truncated: truncated,
       stylesheets: stylesheets,
+      inlineStyles: inlineStyles,
       scrollX: window.scrollX,
       scrollY: window.scrollY,
       viewportWidth: window.innerWidth,

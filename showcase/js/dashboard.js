@@ -1662,9 +1662,14 @@
         return '<link rel="stylesheet" href="' + url.replace(/"/g, '&quot;') + '">';
       }).join('\n');
 
+      var inlineStyleTags = (payload.inlineStyles || []).map(function(css) {
+        return '<style>' + css + '</style>';
+      }).join('\n');
+
       var fullHTML = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
         '<meta name="viewport" content="width=' + (payload.viewportWidth || 1920) + '">' +
         stylesheetLinks +
+        inlineStyleTags +
         '<style>body { margin: 0; overflow: hidden; } *::selection { background: transparent; } ::-webkit-scrollbar { display: none; }</style>' +
         '</head><body>' + payload.html + '</body></html>';
 
