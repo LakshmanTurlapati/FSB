@@ -819,6 +819,57 @@ async function sendSessionStatus(tabId, statusData) {
 
 var _lastDashboardBroadcast = 0; // Throttle: max 1 WS broadcast per second
 var _dashboardTaskTabId = null; // Tab ID for active dashboard task (used for DOM stream stop)
+var _streamingTabId = null; // Tab ID currently being streamed to dashboard (always-on, independent of tasks)
+var _streamingActive = false; // Whether dashboard has requested DOM streaming
+var _tabSwitchTimer = null; // Debounce timer for tab switch stream re-targeting
+
+/**
+ * Listen for tab activations to re-target the DOM stream to the new active tab.
+ * Debounced at 300ms to avoid rapid-fire snapshots during quick tab cycling.
+ */
+chrome.tabs.onActivated.addListener(function(activeInfo) {
+  if (!_streamingActive) return;
+  var newTabId = activeInfo.tabId;
+  clearTimeout(_tabSwitchTimer);
+  _tabSwitchTimer = setTimeout(function() {
+    _handleStreamTabSwitch(newTabId);
+  }, 300);
+});
+
+/**
+ * Handle switching the DOM stream to a new tab.
+ * Stops stream on old tab, validates the new tab is a real page,
+ * starts stream on new tab, and notifies dashboard of the switch.
+ * @param {number} newTabId - The tab ID to switch streaming to
+ */
+async function _handleStreamTabSwitch(newTabId) {
+  // Stop stream on old tab
+  if (_streamingTabId && _streamingTabId !== newTabId) {
+    try {
+      await chrome.tabs.sendMessage(_streamingTabId, { action: 'domStreamStop' }, { frameId: 0 });
+    } catch (e) { /* tab may be closed */ }
+  }
+  // Check if new tab is a real page (not chrome://, about:, edge://, etc.)
+  try {
+    var tab = await chrome.tabs.get(newTabId);
+    if (!tab.url || /^(chrome|about|edge|brave|chrome-extension):/.test(tab.url)) {
+      // Not a real page -- send page-not-ready signal
+      fsbWebSocket.send('ext:stream-tab-info', { tabId: newTabId, url: tab.url || '', ready: false });
+      return;
+    }
+    _streamingTabId = newTabId;
+    // Start stream on new tab
+    chrome.tabs.sendMessage(newTabId, { action: 'domStreamStart' }, { frameId: 0 })
+      .catch(function() {
+        // Content script may not be injected yet -- will retry on domStreamReady signal
+        console.warn('[FSB] Content script not ready on tab', newTabId, '-- will retry');
+      });
+    // Notify dashboard of tab switch
+    fsbWebSocket.send('ext:stream-tab-info', { tabId: newTabId, url: tab.url, title: tab.title, ready: true });
+  } catch (e) {
+    console.warn('[FSB] Tab switch stream error:', e.message);
+  }
+}
 
 /**
  * Broadcast task progress to the dashboard via WebSocket.
@@ -892,14 +943,8 @@ function broadcastDashboardComplete(result) {
     });
   }
 
-  // Stop DOM streaming when task completes
-  if (_dashboardTaskTabId) {
-    try {
-      chrome.tabs.sendMessage(_dashboardTaskTabId, { action: 'domStreamStop' }, { frameId: 0 })
-        .catch(function() {});
-    } catch (e) { /* ignore */ }
-    _dashboardTaskTabId = null;
-  }
+  // Clear dashboard task tab reference (stream continues independently)
+  _dashboardTaskTabId = null;
 }
 
 /**
@@ -5828,6 +5873,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ ok: true });
       })();
       return true;
+
+    // --- DOM Stream: page-ready signal from content script ---
+    case 'domStreamReady':
+      // Content script reports it loaded on a real page -- update streaming tab
+      _streamingTabId = sender.tab?.id || _streamingTabId;
+      if (_streamingActive) {
+        // Auto-start stream on this tab
+        chrome.tabs.sendMessage(_streamingTabId, { action: 'domStreamStart' }, { frameId: 0 })
+          .catch(function() {});
+      }
+      fsbWebSocket.send('ext:page-ready', { tabId: _streamingTabId, url: sender.tab?.url || '' });
+      sendResponse({ success: true });
+      break;
 
     // --- DOM Stream forwarding: content script -> dashboard via WS ---
     case 'domStreamSnapshot':
