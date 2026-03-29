@@ -198,7 +198,15 @@
 
       <!-- Live DOM Preview -->
       <div id="dash-preview" class="dash-preview" style="display: none;">
-        <div class="dash-preview-status" id="dash-preview-status"></div>
+        <div class="dash-preview-header">
+          <div class="dash-preview-status-wrap">
+            <div class="dash-preview-status" id="dash-preview-status"></div>
+            <span class="dash-preview-tooltip" id="dash-preview-tooltip">No stream data</span>
+          </div>
+          <button class="dash-preview-toggle" id="dash-preview-toggle" title="Pause stream">
+            <i class="fa-solid fa-pause"></i>
+          </button>
+        </div>
         <div class="dash-preview-loading" id="dash-preview-loading">
           <div class="dash-spinner"></div>
           <span>Connecting to browser...</span>
