@@ -1123,7 +1123,8 @@
               progress: progressPercent !== undefined
                 ? progressPercent
                 : (maxIterations ? (iteration / maxIterations) * 100 : 0),
-              eta: estimatedTimeRemaining
+              eta: estimatedTimeRemaining,
+              phase: phase || 'Working'
             });
 
             // UX-03: Debounce phase label to prevent flicker on rapid transitions

@@ -420,8 +420,13 @@
      * @param {string} data.stepText - Step description
      * @param {number} data.progress - Progress percentage (0-100)
      */
-    update({ taskName, taskSummary, stepNumber, totalSteps, stepText, progress, eta }) {
+    update({ taskName, taskSummary, stepNumber, totalSteps, stepText, progress, eta, phase }) {
       if (!this.container) return;
+
+      // Store state for DOM stream overlay reading (broadcastOverlayState reads these)
+      if (progress !== undefined) this._percent = progress;
+      if (phase !== undefined) this._phase = phase;
+      if (eta !== undefined) this._eta = eta;
 
       if (taskName !== undefined) {
         this.container.querySelector('.fsb-task').textContent = taskName;
@@ -443,6 +448,11 @@
       if (eta !== undefined) {
         const etaEl = this.container.querySelector('.fsb-eta');
         if (etaEl) etaEl.textContent = eta || '';
+      }
+
+      // Auto-broadcast overlay state to dashboard if streaming
+      if (window.FSB && window.FSB.domStream && window.FSB.domStream.isStreaming()) {
+        window.FSB.domStream.broadcastOverlayState();
       }
     }
 
