@@ -1712,12 +1712,8 @@
       previewContainer.style.height = computedHeight + 'px';
     }
 
-    // Scale to fit both dimensions -- use min of width and height scale
-    var scaleX = containerWidth / pageWidth;
-    var scaleY = (previewLayoutMode === 'inline' || previewLayoutMode === 'pip')
-      ? computedHeight / pageHeight
-      : previewContainer.clientHeight / pageHeight;
-    previewScale = Math.min(scaleX, scaleY);
+    // Scale to fit width -- overflow clips bottom (prevents responsive text reflow)
+    previewScale = containerWidth / pageWidth;
 
     previewIframe.style.width = pageWidth + 'px';
     previewIframe.style.height = pageHeight + 'px';
