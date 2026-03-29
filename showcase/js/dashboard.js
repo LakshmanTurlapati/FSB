@@ -1888,8 +1888,9 @@
       console.log('[FSB-DASH] WS connected');
       wsReconnectDelay = 0;
       setWsState('connected');
-      // Always request stream on connect -- don't wait for ext:page-ready
-      // The extension will respond with a snapshot if a content script is ready
+      // Request current extension state (restores task progress if running)
+      ws.send(JSON.stringify({ type: 'dash:request-status', payload: {}, ts: Date.now() }));
+      // Always request stream on connect
       if (streamToggleOn) {
         ws.send(JSON.stringify({
           type: 'dash:dom-stream-start',

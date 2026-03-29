@@ -229,6 +229,9 @@ class FSBWebSocket {
       case 'dash:stop-task':
         this._handleStopTask();
         break;
+      case 'dash:request-status':
+        this._sendStateSnapshot();
+        break;
       case 'dash:agent-run-now':
         this._handleAgentRunNow(msg.payload);
         break;
