@@ -66,6 +66,7 @@ Plans:
 
 - [ ] **Phase 122: Connection & Auto-Start** - Stream starts on WS connect, stays alive between tasks, recovers from disconnects, shows health status
 - [ ] **Phase 122.1: Stream Overlay Fix** - Fix glow overlay not appearing in DOM stream preview during automation (INSERTED)
+- [ ] **Phase 122.2: Stop Signal & Final Outcome** - Dashboard stop button doesn't halt FSB automation, and task completion/failure result not relayed back to dashboard (INSERTED)
 - [ ] **Phase 123: Layout Modes** - Maximize/minimize toggle, viewport-adaptive resize, picture-in-picture, fullscreen preview
 - [ ] **Phase 124: Visual Fidelity** - Dialog/modal mirroring, CSS animation replication, rAF-synced mutation batching, computed style capture
 - [ ] **Phase 125: Remote Control** - Click/type/scroll through preview to control the real browser, plus task stop button
@@ -94,6 +95,15 @@ Plans:
   1. When FSB targets an element during automation, the orange glow rect appears on the corresponding element in the dashboard preview
   2. The glow follows element changes as FSB moves between targets
   3. The glow disappears when no element is actively targeted
+**Plans**: 1 plan
+
+### Phase 122.2: Stop Signal & Final Outcome (INSERTED)
+**Goal**: Dashboard stop button halts FSB automation, and task completion/failure result is relayed back to the dashboard
+**Depends on**: Phase 122
+**Success Criteria** (what must be TRUE):
+  1. Clicking Stop Task on the dashboard stops the running automation in the extension
+  2. Task completion (success or failure) updates the dashboard UI with the final result
+  3. Dashboard shows the correct final state (success summary or error message) after task ends
 **Plans**: 0 plans (not yet planned)
 
 ### Phase 123: Layout Modes
