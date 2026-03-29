@@ -1562,7 +1562,7 @@
 .dash-preview {
   position: relative;
   width: 100%;
-  min-height: 60vh;
+  min-height: 200px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -1747,6 +1747,14 @@
   display: block !important;
 }
 
+.dash-preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.dash-preview-btn,
 .dash-preview-toggle {
   pointer-events: auto;
   background: rgba(0, 0, 0, 0.5);
@@ -1766,27 +1774,109 @@
   -webkit-backdrop-filter: blur(4px);
 }
 
+.dash-preview:hover .dash-preview-btn,
 .dash-preview:hover .dash-preview-toggle {
   opacity: 1;
 }
 
+.dash-preview-btn:hover,
 .dash-preview-toggle:hover {
   background: rgba(0, 0, 0, 0.7);
 }
 
-/* Responsive: 4:3 on mobile */
+/* Responsive: mobile */
 @media (max-width: 768px) {
   .dash-preview {
-    min-height: 40vh;
+    min-height: 200px;
   }
 }
 
 @media (max-width: 480px) {
   .dash-preview {
-    min-height: 30vh;
+    min-height: 200px;
   }
   .dash-preview-progress {
     display: none;
   }
+}
+
+/* --- Layout Mode: Maximized --- */
+.dash-preview-maximized {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 100 !important;
+  min-height: 100vh !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+.dash-preview-maximized .dash-preview-btn {
+  opacity: 1;
+}
+
+.dash-preview-maximized ~ .dash-task-progress,
+.dash-preview-maximized ~ .dash-stats-bar {
+  display: none;
+}
+
+body.dash-layout-maximized #dash-task-progress {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 101;
+  border-radius: 0;
+}
+
+/* --- Layout Mode: PiP (stub for Plan 02) --- */
+.dash-preview-pip {
+  position: fixed !important;
+  bottom: 16px !important;
+  right: 16px !important;
+  width: 400px !important;
+  min-height: auto !important;
+  z-index: 50 !important;
+  border-radius: var(--radius-lg) !important;
+  resize: both !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dash-preview-pip .dash-preview-btn {
+  opacity: 1;
+}
+
+/* --- Fullscreen Exit Overlay --- */
+.dash-preview-fs-exit {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.dash-preview:fullscreen .dash-preview-fs-exit {
+  display: block;
+}
+
+.dash-preview-fs-exit-btn {
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.dash-preview-fs-exit-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
 }
 

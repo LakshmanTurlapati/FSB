@@ -48,6 +48,7 @@
 
   // DOM preview state
   var previewState = 'hidden'; // 'hidden' | 'loading' | 'streaming' | 'disconnected' | 'error'
+  var previewLayoutMode = 'inline'; // 'inline' | 'maximized' | 'pip' | 'fullscreen'
   var previewScale = 1;
   var previewHideTimer = null;
   var previewSnapshotData = null; // Last snapshot for reconnect
@@ -114,6 +115,10 @@
   var previewError = document.getElementById('dash-preview-error');
   var previewToggle = document.getElementById('dash-preview-toggle');
   var previewTooltip = document.getElementById('dash-preview-tooltip');
+  var previewPipBtn = document.getElementById('dash-preview-pip-btn');
+  var previewMaximizeBtn = document.getElementById('dash-preview-maximize-btn');
+  var previewFullscreenBtn = document.getElementById('dash-preview-fullscreen-btn');
+  var previewFsExit = document.getElementById('dash-preview-fs-exit');
 
   // Agent management DOM refs
   var newAgentBtn = document.getElementById('dash-new-agent-btn');
@@ -1689,17 +1694,80 @@
     if (!previewIframe || !previewContainer || !previewSnapshotData) return;
 
     var containerWidth = previewContainer.clientWidth;
-    var containerHeight = previewContainer.clientHeight;
     var pageWidth = previewSnapshotData.viewportWidth || previewSnapshotData.pageWidth || 1920;
     var pageHeight = previewSnapshotData.viewportHeight || 1080;
 
-    // Scale to fit width -- overflow clips bottom (no visible gap)
-    previewScale = containerWidth / pageWidth;
+    // Dynamic container height from viewport aspect ratio (LAYOUT-03)
+    var computedHeight = (pageHeight / pageWidth) * containerWidth;
+    // Floor at 200px, cap at 90vh for inline mode
+    if (previewLayoutMode === 'inline') {
+      computedHeight = Math.max(200, Math.min(computedHeight, window.innerHeight * 0.9));
+    }
+    // In maximized/fullscreen, use full available height
+    if (previewLayoutMode === 'maximized' || previewLayoutMode === 'fullscreen') {
+      computedHeight = previewContainer.clientHeight; // CSS handles it (100vh)
+    }
 
-    // Size iframe to original page dimensions, then scale down
+    if (previewLayoutMode === 'inline' || previewLayoutMode === 'pip') {
+      previewContainer.style.height = computedHeight + 'px';
+    }
+
+    // Scale to fit both dimensions -- use min of width and height scale
+    var scaleX = containerWidth / pageWidth;
+    var scaleY = (previewLayoutMode === 'inline' || previewLayoutMode === 'pip')
+      ? computedHeight / pageHeight
+      : previewContainer.clientHeight / pageHeight;
+    previewScale = Math.min(scaleX, scaleY);
+
     previewIframe.style.width = pageWidth + 'px';
     previewIframe.style.height = pageHeight + 'px';
     previewIframe.style.transform = 'scale(' + previewScale + ')';
+  }
+
+  function setPreviewLayout(mode) {
+    // Remove all layout classes
+    if (previewContainer) {
+      previewContainer.classList.remove('dash-preview-maximized', 'dash-preview-pip');
+    }
+    document.body.classList.remove('dash-layout-maximized');
+
+    previewLayoutMode = mode;
+
+    switch (mode) {
+      case 'maximized':
+        if (previewContainer) previewContainer.classList.add('dash-preview-maximized');
+        document.body.classList.add('dash-layout-maximized');
+        if (previewMaximizeBtn) previewMaximizeBtn.innerHTML = '<i class="fa-solid fa-compress"></i>';
+        if (previewMaximizeBtn) previewMaximizeBtn.title = 'Minimize';
+        break;
+
+      case 'pip':
+        if (previewContainer) previewContainer.classList.add('dash-preview-pip');
+        if (previewPipBtn) previewPipBtn.innerHTML = '<i class="fa-solid fa-arrow-down-left-and-up-right-to-center"></i>';
+        if (previewPipBtn) previewPipBtn.title = 'Exit picture-in-picture';
+        break;
+
+      case 'inline':
+      default:
+        // Reset button icons
+        if (previewMaximizeBtn) previewMaximizeBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+        if (previewMaximizeBtn) previewMaximizeBtn.title = 'Maximize';
+        if (previewPipBtn) previewPipBtn.innerHTML = '<i class="fa-solid fa-window-restore"></i>';
+        if (previewPipBtn) previewPipBtn.title = 'Picture-in-picture';
+        break;
+    }
+
+    // Recalculate scale after layout change
+    setTimeout(function() { updatePreviewScale(); }, 50);
+  }
+
+  function toggleMaximize() {
+    if (previewLayoutMode === 'maximized') {
+      setPreviewLayout('inline');
+    } else {
+      // Exit any other mode first
+      setPreviewLayout('maximized');
+    }
   }
 
   window.addEventListener('resize', function() {
@@ -1861,6 +1929,20 @@
       }
     });
   }
+
+  // Maximize button
+  if (previewMaximizeBtn) {
+    previewMaximizeBtn.addEventListener('click', function() {
+      toggleMaximize();
+    });
+  }
+
+  // Escape key exits maximized mode
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && previewLayoutMode === 'maximized') {
+      setPreviewLayout('inline');
+    }
+  });
 
   function updatePreviewTooltip() {
     if (!previewTooltip) return;

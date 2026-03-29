@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: executing
-stopped_at: Completed 122-02 autonomous tasks, checkpoint pending
-last_updated: "2026-03-29T14:31:44.455Z"
-last_activity: 2026-03-29 -- Phase 123 execution started
+stopped_at: Completed 123-01-PLAN.md
+last_updated: "2026-03-29T14:37:08.362Z"
+last_activity: 2026-03-29 -- Completed 123-01 layout mode buttons and maximize toggle
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 2
-  completed_plans: 2
-  percent: 0
+  completed_plans: 1
+  percent: 50
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 123 — layout-modes
+**Current focus:** v0.9.9.1 Phantom Stream -- Phase 122 ready to plan
 
 ## Current Position
 
-Phase: 123 (layout-modes) — EXECUTING
-Plan: 1 of 2
+Phase: 123 (layout-modes) -- EXECUTING
+Plan: 2 of 2
 Status: Executing Phase 123
-Last activity: 2026-03-29 -- Phase 123 execution started
+Last activity: 2026-03-29 -- Completed 123-01 layout mode buttons and maximize toggle
 
-Progress: [..........] 0%
+Progress: [#####.....] 50%
 
 ## Performance Metrics
 
@@ -52,6 +52,8 @@ Recent decisions affecting current work:
 - [v0.9.9.1]: Stream must start on WS connect, not on task run (current gap)
 - [Phase 122]: Stream lifecycle decoupled from task state -- setTaskState no longer controls preview
 - [Phase 122]: pageReady flag gates auto-start -- prevents streaming restricted/blank pages
+- [Phase 123]: Shared .dash-preview-btn class for all header buttons with .dash-preview-toggle alias for backward compat
+- [Phase 123]: Dynamic container height from viewport aspect ratio, min(scaleX, scaleY) for bidirectional fit
 
 ### Roadmap Evolution
 
@@ -70,6 +72,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-29T12:03:30.214Z
-Stopped at: Completed 122-02 autonomous tasks, checkpoint pending
+Last session: 2026-03-29T14:37:08.360Z
+Stopped at: Completed 123-01-PLAN.md
 Resume file: None
