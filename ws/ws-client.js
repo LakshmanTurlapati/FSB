@@ -192,22 +192,43 @@ class FSBWebSocket {
     this.send('ext:snapshot', snapshotPayload);
 
     // Send ext:page-ready for current active tab so dashboard can start streaming
-    // Uses _streamingTabId if set, otherwise queries active tab (fresh extension load)
     try {
       var readyTabId = (typeof _streamingTabId !== 'undefined' && _streamingTabId) ? _streamingTabId : null;
       var readyUrl = '';
+
+      // Verify streaming tab is still valid
       if (readyTabId) {
-        var existingTab = await chrome.tabs.get(readyTabId);
-        readyUrl = existingTab?.url || '';
-      } else {
+        try {
+          var et = await chrome.tabs.get(readyTabId);
+          readyUrl = et?.url || '';
+          if (!readyUrl || /^(chrome|about|edge|brave|chrome-extension):/.test(readyUrl)) {
+            readyTabId = null;
+            readyUrl = '';
+          }
+        } catch (e) { readyTabId = null; }
+      }
+
+      // Fallback: find any real page tab
+      if (!readyTabId) {
         var tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        if (tabs[0] && tabs[0].id) {
-          readyTabId = tabs[0].id;
-          readyUrl = tabs[0].url || '';
+        var t = tabs[0];
+        if (t && t.url && !/^(chrome|about|edge|brave|chrome-extension):/.test(t.url)) {
+          readyTabId = t.id;
+          readyUrl = t.url;
         }
       }
-      // Only send page-ready and set streaming tab for real pages (not chrome://, about://, etc.)
-      if (readyTabId && readyUrl && !/^(chrome|about|edge|brave|chrome-extension):/.test(readyUrl)) {
+      if (!readyTabId) {
+        var allActive = await chrome.tabs.query({ active: true });
+        for (var ai = 0; ai < allActive.length; ai++) {
+          if (allActive[ai].url && !/^(chrome|about|edge|brave|chrome-extension):/.test(allActive[ai].url)) {
+            readyTabId = allActive[ai].id;
+            readyUrl = allActive[ai].url;
+            break;
+          }
+        }
+      }
+
+      if (readyTabId && readyUrl) {
         if (typeof _streamingTabId !== 'undefined') _streamingTabId = readyTabId;
         this.send('ext:page-ready', { tabId: readyTabId, url: readyUrl });
       }
@@ -276,15 +297,42 @@ class FSBWebSocket {
       }
     }
 
-    // Use streaming tab if available (more reliable than active tab query from service worker)
+    // Find the best tab for automation: streaming tab > active tab > any real tab
     try {
       var tabId = (typeof _streamingTabId !== 'undefined' && _streamingTabId) ? _streamingTabId : null;
-      if (!tabId) {
-        var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        tabId = tabs[0]?.id;
+
+      // Verify streaming tab is still a real page
+      if (tabId) {
+        try {
+          var sTab = await chrome.tabs.get(tabId);
+          if (!sTab || !sTab.url || /^(chrome|about|edge|brave|chrome-extension):/.test(sTab.url)) {
+            tabId = null; // Stale or restricted
+          }
+        } catch (e) { tabId = null; }
       }
+
+      // Fallback 1: active tab in last focused window
       if (!tabId) {
-        this.send('ext:task-complete', { success: false, error: 'No active browser tab', elapsed: 0 });
+        var tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        var t = tabs[0];
+        if (t && t.url && !/^(chrome|about|edge|brave|chrome-extension):/.test(t.url)) {
+          tabId = t.id;
+        }
+      }
+
+      // Fallback 2: any active tab in any window
+      if (!tabId) {
+        var allActive = await chrome.tabs.query({ active: true });
+        for (var i = 0; i < allActive.length; i++) {
+          if (allActive[i].url && !/^(chrome|about|edge|brave|chrome-extension):/.test(allActive[i].url)) {
+            tabId = allActive[i].id;
+            break;
+          }
+        }
+      }
+
+      if (!tabId) {
+        this.send('ext:task-complete', { success: false, error: 'No active browser tab with a real page', elapsed: 0 });
         return;
       }
       startDashboardTask(tabId, task);
