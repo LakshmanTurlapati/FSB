@@ -1368,6 +1368,29 @@
   .dash-tab {
     padding: 8px 16px;
   }
+
+  .dash-header-left {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .dash-header-left h2 {
+    width: 100%;
+  }
+
+  .dash-new-agent-btn {
+    width: 100%;
+  }
+
+  .dash-disconnect-btn {
+    width: 100%;
+  }
+
+  .dash-login-section {
+    min-height: auto;
+    padding-top: calc(var(--nav-height) + 24px);
+    padding-bottom: 40px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1386,6 +1409,40 @@
 
   .dash-task-area {
     padding: 16px;
+  }
+
+  .dash-agent-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-login-card {
+    padding: 24px 16px;
+  }
+
+  .dash-tab {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+
+  .dash-stat-label {
+    font-size: 0.7rem;
+  }
+
+  .dash-login-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 1.2rem;
+  }
+
+  .dash-header-left h2 {
+    font-size: 1.25rem;
+  }
+
+  .dash-badge,
+  .dash-sse-badge,
+  .dash-paired-badge {
+    font-size: 0.7rem;
+    padding: 3px 8px;
   }
 }
 
@@ -1514,6 +1571,18 @@
   overflow: hidden;
   margin-bottom: 24px;
   animation: dashTaskFadeIn 200ms ease;
+  transition: box-shadow 300ms ease, border-color 300ms ease;
+}
+
+.dash-preview-automating {
+  border-color: rgba(255, 140, 0, 0.6);
+  box-shadow: 0 0 12px rgba(255, 140, 0, 0.4), 0 0 24px rgba(255, 140, 0, 0.2);
+  animation: dashPreviewAutomate 2s ease-in-out infinite;
+}
+
+@keyframes dashPreviewAutomate {
+  0%, 100% { box-shadow: 0 0 12px rgba(255, 140, 0, 0.4), 0 0 24px rgba(255, 140, 0, 0.2); border-color: rgba(255, 140, 0, 0.5); }
+  50% { box-shadow: 0 0 20px rgba(255, 140, 0, 0.6), 0 0 40px rgba(255, 140, 0, 0.3); border-color: rgba(255, 140, 0, 0.8); }
 }
 
 .dash-preview-iframe {

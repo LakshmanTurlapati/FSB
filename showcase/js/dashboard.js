@@ -390,7 +390,7 @@
         // Reset progress bar
         if (taskBarFill) { taskBarFill.style.width = '0%'; taskBarFill.className = 'dash-task-bar-fill'; }
         hideSaveAsAgent();
-        // Preview is independent of task state -- stream continues (CONN-02)
+        if (previewContainer) previewContainer.classList.remove('dash-preview-automating');
         break;
 
       case 'running':
@@ -419,7 +419,7 @@
         // Disable all task inputs during run
         disableAllTaskInputs(true);
         hideSaveAsAgent();
-        // Stream is managed independently -- no start/stop here (CONN-02)
+        if (previewContainer) previewContainer.classList.add('dash-preview-automating');
         break;
 
       case 'success':
@@ -442,7 +442,7 @@
         if (taskInputNext) { taskInputNext.value = ''; }
         // Show save-as-agent option
         showSaveAsAgent();
-        // Stream continues independently -- no stop/hide here (CONN-02)
+        if (previewContainer) previewContainer.classList.remove('dash-preview-automating');
         break;
 
       case 'failed':
@@ -462,7 +462,7 @@
         disableAllTaskInputs(false);
         if (taskInputRetry) { taskInputRetry.value = ''; }
         if (taskSubmitRetry) taskSubmitRetry.disabled = true;
-        // Stream continues independently -- no stop/hide here (CONN-02)
+        if (previewContainer) previewContainer.classList.remove('dash-preview-automating');
         break;
     }
   }
