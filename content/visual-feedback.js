@@ -953,6 +953,11 @@
 
       // Start position tracking
       this._startTracking();
+
+      // Broadcast glow position to dashboard DOM stream
+      if (window.FSB && window.FSB.domStream && window.FSB.domStream.isStreaming()) {
+        window.FSB.domStream.broadcastOverlayState();
+      }
     }
 
     _updatePosition() {
@@ -1002,6 +1007,12 @@
     }
 
     hide() {
+      // Broadcast glow removal to dashboard DOM stream before clearing
+      if (window.FSB && window.FSB.domStream && window.FSB.domStream.isStreaming()) {
+        this.targetElement = null;
+        window.FSB.domStream.broadcastOverlayState();
+      }
+
       this._stopTracking();
 
       if (this.overlay) {
@@ -1023,6 +1034,12 @@
     }
 
     destroy() {
+      // Broadcast glow removal to dashboard DOM stream
+      if (window.FSB && window.FSB.domStream && window.FSB.domStream.isStreaming()) {
+        this.targetElement = null;
+        window.FSB.domStream.broadcastOverlayState();
+      }
+
       this._stopTracking();
       if (this.host) {
         demoteFromTopLayer(this.host);
