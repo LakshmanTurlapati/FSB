@@ -86,12 +86,17 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ### Active
 
+- [ ] Auto-start DOM stream on WS connection -- v0.9.9.1
+- [ ] Maximize/minimize preview toggle -- v0.9.9.1
+- [ ] Viewport-adaptive preview resize -- v0.9.9.1
+- [ ] Full visual fidelity (dialogs, modals, overlays mirrored) -- v0.9.9.1
+- [ ] Display-matched frame rate (rAF-synced mutation batching) -- v0.9.9.1
+- [ ] Remote control mode (interact through preview iframe) -- v0.9.9.1
 - [ ] MCP agent tools — create/list/run/stop/delete agents via MCP -- v0.9.10/P116
 - [ ] Cost & metrics pipeline — real token/cost data in agent history -- v0.9.10/P117
 - [ ] Scheduling enhancements — cron expressions, retry with backoff -- v0.9.10/P118
 - [ ] Replay intelligence — dynamic timing, step-level recovery -- v0.9.10/P119
 - [ ] Sidepanel agents UI — dedicated tab for agent management -- v0.9.10/P120
-- [ ] DOM cloning stream verification — formal E2E verification of Phase 44 -- v0.9.10
 
 ### Backlog (Completed from previous milestones — v0.9.6)
 
@@ -116,7 +121,19 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - CAPTCHA solving -- third-party integration complexity, users can solve manually
 - Offline mode -- AI requires connectivity, not feasible for core functionality
 - Headless server-side execution -- server is relay only, user's browser must stay active
-- Video/screenshot streaming -- DOM cloning with CDN images, not visual capture
+- Video/screenshot streaming -- DOM cloning with CDN images, not pixel capture
+
+## Current Milestone: v0.9.9.1 Phantom Stream
+
+**Goal:** Make the dashboard DOM stream actually work -- auto-connect, full-fidelity live preview with viewport-adaptive resize, display-matched frame rate, and remote browser control from the dashboard.
+
+**Target features:**
+- Auto-start streaming on WS connection (eliminate "Connecting to browser..." dead state)
+- Maximize/minimize toggle for the preview panel
+- Viewport-adaptive resize (preview reshapes to match actual browser viewport dimensions)
+- Full visual fidelity (dialogs, modals, popups, CSS animations, overlays all mirrored in clone)
+- Display-matched frame rate (mutation batching synced to requestAnimationFrame for smooth updates)
+- Remote control mode: click/type/scroll through the preview iframe to control the actual browser
 
 ## Previous Milestone: v0.9.9 Shipped
 
