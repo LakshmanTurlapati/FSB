@@ -65,6 +65,7 @@ Plans:
 ### Phases (v0.9.9.1)
 
 - [ ] **Phase 122: Connection & Auto-Start** - Stream starts on WS connect, stays alive between tasks, recovers from disconnects, shows health status
+- [ ] **Phase 122.1: Stream Overlay Fix** - Fix glow overlay not appearing in DOM stream preview during automation (INSERTED)
 - [ ] **Phase 123: Layout Modes** - Maximize/minimize toggle, viewport-adaptive resize, picture-in-picture, fullscreen preview
 - [ ] **Phase 124: Visual Fidelity** - Dialog/modal mirroring, CSS animation replication, rAF-synced mutation batching, computed style capture
 - [ ] **Phase 125: Remote Control** - Click/type/scroll through preview to control the real browser, plus task stop button
@@ -84,6 +85,16 @@ Plans:
 Plans:
 - [ ] 122-01-PLAN.md -- Extension-side active tab tracking, stream-aware forwarding, decouple stream from task lifecycle
 - [ ] 122-02-PLAN.md -- Dashboard auto-start on page-ready, toggle button, recovery logic, status badge enhancement
+
+### Phase 122.1: Stream Overlay Fix (INSERTED)
+**Goal**: The orange glow highlighting the element FSB is interacting with appears in the dashboard DOM stream preview during automation
+**Depends on**: Phase 122
+**Requirements**: FIDELITY-01 (partial -- glow overlay only)
+**Success Criteria** (what must be TRUE):
+  1. When FSB targets an element during automation, the orange glow rect appears on the corresponding element in the dashboard preview
+  2. The glow follows element changes as FSB moves between targets
+  3. The glow disappears when no element is actively targeted
+**Plans**: 0 plans (not yet planned)
 
 ### Phase 123: Layout Modes
 **Goal**: User can view the live preview in the size and mode that fits their workflow -- from inline thumbnail to fullscreen takeover

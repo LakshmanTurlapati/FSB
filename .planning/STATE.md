@@ -57,6 +57,7 @@ Recent decisions affecting current work:
 
 - v0.9.9 Excalidraw Mastery archived 2026-03-29
 - v0.9.9.1 Phantom Stream roadmap created 2026-03-29 (Phases 122-125)
+- Phase 122.1 inserted after Phase 122: Stream Overlay Fix (URGENT) -- glow overlay reads wrong object, auto-broadcast timing broken
 - v0.9.8.1 npm Publishing continues in parallel
 
 ### Pending Todos
