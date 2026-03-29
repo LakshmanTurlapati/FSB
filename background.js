@@ -903,9 +903,12 @@ function broadcastDashboardProgress(session) {
     }).catch(() => {}); // sidepanel may not be open
   }
 
-  if (!session._isDashboardTask) return;
+  if (!session._isDashboardTask) {
+    console.log('[FSB] broadcastDashboardProgress: skipped -- not dashboard task');
+    return;
+  }
 
-  fsbWebSocket.send('ext:task-progress', {
+  var sent = fsbWebSocket.send('ext:task-progress', {
     progress: progress.progressPercent,
     phase: phase,
     eta: progress.estimatedTimeRemaining || null,
@@ -913,6 +916,7 @@ function broadcastDashboardProgress(session) {
     action: actionText,
     status: 'running'
   });
+  console.log('[FSB] broadcastDashboardProgress:', sent ? 'SENT' : 'WS_CLOSED', 'progress=' + progress.progressPercent);
 
   // Forward progress to MCP server for autopilot tasks
   broadcastMCPProgress(session);
@@ -929,19 +933,22 @@ function broadcastDashboardProgress(session) {
  * @param {Object} result - Return value from executeAutomationTask
  */
 function broadcastDashboardComplete(result) {
+  var payload;
   if (result.success) {
-    fsbWebSocket.send('ext:task-complete', {
+    payload = {
       success: true,
       summary: result.result || 'Task completed',
       elapsed: result.duration || 0
-    });
+    };
   } else {
-    fsbWebSocket.send('ext:task-complete', {
+    payload = {
       success: false,
       error: result.error || 'Task failed',
       elapsed: result.duration || 0
-    });
+    };
   }
+  var sent = fsbWebSocket.send('ext:task-complete', payload);
+  console.log('[FSB] broadcastDashboardComplete:', sent ? 'SENT' : 'WS_CLOSED', JSON.stringify(payload).slice(0, 200));
 
   // Clear dashboard task tab reference (stream continues independently)
   _dashboardTaskTabId = null;
