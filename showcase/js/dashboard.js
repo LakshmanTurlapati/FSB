@@ -52,6 +52,10 @@
   var previewHideTimer = null;
   var previewSnapshotData = null; // Last snapshot for reconnect
   var lastPreviewScroll = { x: 0, y: 0 }; // Last known scroll position for maintenance after mutations
+  var streamToggleOn = true;        // User toggle: on by default
+  var streamTabUrl = '';             // Current streaming tab URL
+  var lastSnapshotTime = 0;         // Timestamp of last snapshot received
+  var pageReady = false;            // Extension reported a real page is loaded
 
   // DOM refs
   var loginSection = document.getElementById('dash-login');
@@ -108,6 +112,8 @@
   var previewStatus = document.getElementById('dash-preview-status');
   var previewDisconnected = document.getElementById('dash-preview-disconnected');
   var previewError = document.getElementById('dash-preview-error');
+  var previewToggle = document.getElementById('dash-preview-toggle');
+  var previewTooltip = document.getElementById('dash-preview-tooltip');
 
   // Agent management DOM refs
   var newAgentBtn = document.getElementById('dash-new-agent-btn');
@@ -384,7 +390,7 @@
         // Reset progress bar
         if (taskBarFill) { taskBarFill.style.width = '0%'; taskBarFill.className = 'dash-task-bar-fill'; }
         hideSaveAsAgent();
-        setPreviewState('hidden');
+        // Preview is independent of task state -- stream continues (CONN-02)
         break;
 
       case 'running':
@@ -413,15 +419,7 @@
         // Disable all task inputs during run
         disableAllTaskInputs(true);
         hideSaveAsAgent();
-        // Start DOM stream
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'dash:dom-stream-start',
-            payload: {},
-            ts: Date.now()
-          }));
-          setPreviewState('loading');
-        }
+        // Stream is managed independently -- no start/stop here (CONN-02)
         break;
 
       case 'success':
@@ -444,18 +442,7 @@
         if (taskInputNext) { taskInputNext.value = ''; }
         // Show save-as-agent option
         showSaveAsAgent();
-        // Stop DOM stream, keep preview visible briefly
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'dash:dom-stream-stop',
-            payload: {},
-            ts: Date.now()
-          }));
-        }
-        // Hide preview after 5 seconds
-        previewHideTimer = setTimeout(function() {
-          setPreviewState('hidden');
-        }, 5000);
+        // Stream continues independently -- no stop/hide here (CONN-02)
         break;
 
       case 'failed':
@@ -475,17 +462,7 @@
         disableAllTaskInputs(false);
         if (taskInputRetry) { taskInputRetry.value = ''; }
         if (taskSubmitRetry) taskSubmitRetry.disabled = true;
-        // Stop DOM stream, hide preview
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'dash:dom-stream-stop',
-            payload: {},
-            ts: Date.now()
-          }));
-        }
-        previewHideTimer = setTimeout(function() {
-          setPreviewState('hidden');
-        }, 5000);
+        // Stream continues independently -- no stop/hide here (CONN-02)
         break;
     }
   }
@@ -1619,6 +1596,10 @@
       case 'loading':
         if (previewContainer) previewContainer.style.display = '';
         if (previewLoading) previewLoading.style.display = 'flex';
+        if (previewStatus) {
+          previewStatus.className = 'dash-preview-status dash-preview-status-buffering';
+          previewStatus.style.display = '';
+        }
         break;
 
       case 'streaming':
@@ -1636,6 +1617,15 @@
         if (previewDisconnected) previewDisconnected.style.display = 'flex';
         if (previewStatus) {
           previewStatus.className = 'dash-preview-status dash-preview-status-disconnected';
+          previewStatus.style.display = '';
+        }
+        break;
+
+      case 'paused':
+        if (previewContainer) previewContainer.style.display = '';
+        if (previewIframe) previewIframe.style.display = ''; // Show last content frozen
+        if (previewStatus) {
+          previewStatus.className = 'dash-preview-status dash-preview-status-paused';
           previewStatus.style.display = '';
         }
         break;
@@ -1658,6 +1648,8 @@
     if (previewProgress) previewProgress.style.display = 'none';
 
     previewSnapshotData = payload;
+    lastSnapshotTime = Date.now();
+    updatePreviewTooltip();
 
     try {
       // Build full HTML document for iframe
@@ -1828,10 +1820,10 @@
   }
 
   document.addEventListener('visibilitychange', function() {
-    if (previewState === 'hidden' || previewState === 'error') return;
+    if (previewState === 'hidden' || previewState === 'error' || previewState === 'paused') return;
 
     if (document.hidden) {
-      // Tab hidden -- pause stream
+      // Tab hidden -- pause stream (only if user toggle is on; if user paused, already handled)
       if (ws && ws.readyState === WebSocket.OPEN && previewState === 'streaming') {
         ws.send(JSON.stringify({
           type: 'dash:dom-stream-pause',
@@ -1841,7 +1833,7 @@
       }
     } else {
       // Tab visible -- resume stream (triggers fresh snapshot)
-      if (ws && ws.readyState === WebSocket.OPEN && (previewState === 'streaming' || previewState === 'disconnected')) {
+      if (streamToggleOn && ws && ws.readyState === WebSocket.OPEN && (previewState === 'streaming' || previewState === 'disconnected')) {
         ws.send(JSON.stringify({
           type: 'dash:dom-stream-resume',
           payload: {},
@@ -1851,6 +1843,34 @@
       }
     }
   });
+
+  // Stream toggle button
+  if (previewToggle) {
+    previewToggle.addEventListener('click', function() {
+      streamToggleOn = !streamToggleOn;
+      previewToggle.title = streamToggleOn ? 'Pause stream' : 'Resume stream';
+      previewToggle.innerHTML = streamToggleOn
+        ? '<i class="fa-solid fa-pause"></i>'
+        : '<i class="fa-solid fa-play"></i>';
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        if (streamToggleOn) {
+          ws.send(JSON.stringify({ type: 'dash:dom-stream-resume', payload: {}, ts: Date.now() }));
+          setPreviewState('loading');
+        } else {
+          ws.send(JSON.stringify({ type: 'dash:dom-stream-pause', payload: {}, ts: Date.now() }));
+          setPreviewState('paused');
+        }
+      }
+    });
+  }
+
+  function updatePreviewTooltip() {
+    if (!previewTooltip) return;
+    var parts = [];
+    if (streamTabUrl) parts.push(streamTabUrl.length > 60 ? streamTabUrl.substring(0, 60) + '...' : streamTabUrl);
+    if (lastSnapshotTime) parts.push('Last snapshot: ' + new Date(lastSnapshotTime).toLocaleTimeString());
+    previewTooltip.textContent = parts.join(' | ') || 'No stream data';
+  }
 
   // --- WebSocket ---
 
@@ -1868,14 +1888,18 @@
       console.log('[FSB-DASH] WS connected');
       wsReconnectDelay = 0;
       setWsState('connected');
-      // If preview was disconnected and a task is still running, request fresh snapshot
-      if (previewState === 'disconnected' && taskState === 'running') {
-        ws.send(JSON.stringify({
-          type: 'dash:dom-stream-resume',
-          payload: {},
-          ts: Date.now()
-        }));
-        setPreviewState('loading');
+      // Auto-request stream start if toggle is on (covers reconnect recovery per CONN-03)
+      if (streamToggleOn) {
+        // If we had a previous session (pageReady was true), request fresh snapshot immediately
+        if (pageReady) {
+          ws.send(JSON.stringify({
+            type: 'dash:dom-stream-start',
+            payload: {},
+            ts: Date.now()
+          }));
+          setPreviewState('loading');
+        }
+        // Otherwise, preview stays hidden until ext:page-ready arrives
       }
     };
 
@@ -1889,6 +1913,7 @@
 
     ws.onclose = function (e) {
       console.log('[FSB-DASH] WS closed, code:', e.code, 'reason:', e.reason);
+      pageReady = false; // Reset so reconnect waits for fresh page-ready signal
       setWsState('disconnected');
       if (previewState === 'streaming' || previewState === 'loading') {
         setPreviewState('disconnected');
@@ -2041,6 +2066,38 @@
 
     if (msg.type === 'ext:dom-overlay') {
       handleDOMOverlay(msg.payload);
+      return;
+    }
+
+    if (msg.type === 'ext:page-ready') {
+      pageReady = true;
+      streamTabUrl = (msg.payload && msg.payload.url) || '';
+      // Auto-start stream if toggle is on and WS is connected
+      if (streamToggleOn && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'dash:dom-stream-start',
+          payload: {},
+          ts: Date.now()
+        }));
+        setPreviewState('loading');
+      }
+      updatePreviewTooltip();
+      return;
+    }
+
+    if (msg.type === 'ext:stream-tab-info') {
+      var info = msg.payload || {};
+      streamTabUrl = info.url || '';
+      if (info.ready) {
+        pageReady = true;
+        setPreviewState('loading'); // New tab snapshot incoming
+      } else {
+        // Restricted page -- show disconnected state with info
+        if (previewState === 'streaming') {
+          setPreviewState('disconnected');
+        }
+      }
+      updatePreviewTooltip();
       return;
     }
 
