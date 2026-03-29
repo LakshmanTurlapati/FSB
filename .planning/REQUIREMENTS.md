@@ -64,28 +64,29 @@ Requirements for making the dashboard DOM stream fully functional with high fide
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONN-01 | TBD | Pending |
-| CONN-02 | TBD | Pending |
-| CONN-03 | TBD | Pending |
-| CONN-04 | TBD | Pending |
-| LAYOUT-01 | TBD | Pending |
-| LAYOUT-02 | TBD | Pending |
-| LAYOUT-03 | TBD | Pending |
-| LAYOUT-04 | TBD | Pending |
-| LAYOUT-05 | TBD | Pending |
-| FIDELITY-01 | TBD | Pending |
-| FIDELITY-02 | TBD | Pending |
-| FIDELITY-03 | TBD | Pending |
-| FIDELITY-04 | TBD | Pending |
-| CONTROL-01 | TBD | Pending |
-| CONTROL-02 | TBD | Pending |
-| CONTROL-03 | TBD | Pending |
-| CONTROL-04 | TBD | Pending |
+| CONN-01 | Phase 122 | Pending |
+| CONN-02 | Phase 122 | Pending |
+| CONN-03 | Phase 122 | Pending |
+| CONN-04 | Phase 122 | Pending |
+| LAYOUT-01 | Phase 123 | Pending |
+| LAYOUT-02 | Phase 123 | Pending |
+| LAYOUT-03 | Phase 123 | Pending |
+| LAYOUT-04 | Phase 123 | Pending |
+| LAYOUT-05 | Phase 123 | Pending |
+| FIDELITY-01 | Phase 124 | Pending |
+| FIDELITY-02 | Phase 124 | Pending |
+| FIDELITY-03 | Phase 124 | Pending |
+| FIDELITY-04 | Phase 124 | Pending |
+| CONTROL-01 | Phase 125 | Pending |
+| CONTROL-02 | Phase 125 | Pending |
+| CONTROL-03 | Phase 125 | Pending |
+| CONTROL-04 | Phase 125 | Pending |
 
 **Coverage:**
 - v0.9.9.1 requirements: 17 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 17
+- Mapped to phases: 17
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-29*
+*Traceability updated: 2026-03-29*
