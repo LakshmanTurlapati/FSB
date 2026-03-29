@@ -1660,7 +1660,7 @@
       var fullHTML = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
         '<meta name="viewport" content="width=' + (payload.viewportWidth || 1920) + '">' +
         stylesheetLinks +
-        '<style>body { margin: 0; overflow: auto; } *::selection { background: transparent; }</style>' +
+        '<style>body { margin: 0; overflow: hidden; } *::selection { background: transparent; } ::-webkit-scrollbar { display: none; }</style>' +
         '</head><body>' + payload.html + '</body></html>';
 
       // Write to iframe via srcdoc

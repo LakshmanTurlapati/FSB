@@ -1662,7 +1662,7 @@
 }
 
 .dash-preview-tooltip {
-  display: none;
+  display: none !important;
   font-size: 11px;
   color: var(--text-secondary);
   background: rgba(0, 0, 0, 0.75);
@@ -1677,7 +1677,7 @@
 }
 
 .dash-preview-status-wrap:hover .dash-preview-tooltip {
-  display: block;
+  display: block !important;
 }
 
 .dash-preview-toggle {
