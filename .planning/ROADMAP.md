@@ -68,6 +68,7 @@ Plans:
 - [ ] **Phase 122.1: Stream Overlay Fix** - Fix glow overlay not appearing in DOM stream preview during automation (INSERTED)
 - [ ] **Phase 122.2: Stop Signal & Final Outcome** - Dashboard stop button doesn't halt FSB automation, and task completion/failure result not relayed back to dashboard (INSERTED)
 - [ ] **Phase 123: Layout Modes** - Maximize/minimize toggle, viewport-adaptive resize, picture-in-picture, fullscreen preview
+- [ ] **Phase 123.1: Stream Fidelity Fix** - DOM clone has broken layouts on complex sites -- CSS not loading properly, elements overlapping, content jumbled in iframe (INSERTED)
 - [ ] **Phase 124: Visual Fidelity** - Dialog/modal mirroring, CSS animation replication, rAF-synced mutation batching, computed style capture
 - [ ] **Phase 125: Remote Control** - Click/type/scroll through preview to control the real browser, plus task stop button
 
@@ -116,6 +117,15 @@ Plans:
   3. User can pop the preview into a floating draggable window (picture-in-picture) that stays on top while using other dashboard tabs
   4. User can enter fullscreen mode where the preview fills the entire screen, and press Escape to exit back to normal layout
 **UI hint**: yes
+
+### Phase 123.1: Stream Fidelity Fix (INSERTED)
+**Goal**: DOM clone renders complex sites (Google, YouTube, etc.) with correct layouts -- all CSS loads, elements don't overlap, content matches the original page structure
+**Depends on**: Phase 123
+**Success Criteria** (what must be TRUE):
+  1. Google search results page renders in the preview with correct layout (no overlapping text, proper grid/flex positioning)
+  2. External stylesheets from CDNs load correctly in the sandboxed iframe
+  3. Inline computed styles preserve element positioning, sizing, and layout properties
+**Plans**: 0 plans (not yet planned)
 
 ### Phase 124: Visual Fidelity
 **Goal**: The cloned preview is a pixel-accurate mirror of the real browser -- dialogs, animations, and computed styles all appear correctly
