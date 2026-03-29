@@ -1539,14 +1539,12 @@
 }
 
 .dash-preview-status {
-  position: absolute;
-  top: 8px;
-  right: 8px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   z-index: 5;
   display: none;
+  flex-shrink: 0;
 }
 
 .dash-preview-status-streaming {
@@ -1555,8 +1553,19 @@
   animation: dashPreviewPulse 2000ms ease-in-out infinite;
 }
 
-.dash-preview-status-disconnected {
+.dash-preview-status-buffering {
   background: #eab308;
+  display: block;
+  animation: dashPreviewPulse 1000ms ease-in-out infinite;
+}
+
+.dash-preview-status-disconnected {
+  background: #ef4444;
+  display: block;
+}
+
+.dash-preview-status-paused {
+  background: #6b7280;
   display: block;
 }
 
@@ -1630,6 +1639,72 @@
 .dash-preview-error span {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.dash-preview-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.dash-preview-status-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.dash-preview-tooltip {
+  display: none;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.75);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.dash-preview-status-wrap:hover .dash-preview-tooltip {
+  display: block;
+}
+
+.dash-preview-toggle {
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: var(--text-primary);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.dash-preview:hover .dash-preview-toggle {
+  opacity: 1;
+}
+
+.dash-preview-toggle:hover {
+  background: rgba(0, 0, 0, 0.7);
 }
 
 /* Responsive: 4:3 on mobile */

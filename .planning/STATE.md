@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
-status: executing
-stopped_at: Roadmap created -- ready to plan Phase 122
-last_updated: "2026-03-29T11:47:18.974Z"
-last_activity: 2026-03-29 -- Phase 122 execution started
+status: planning
+stopped_at: Completed 122-02 autonomous tasks, checkpoint pending
+last_updated: "2026-03-29T12:03:30.217Z"
+last_activity: 2026-03-29 -- Roadmap created (4 phases, 17 requirements)
 progress:
-  total_phases: 4
+  total_phases: 2
   completed_phases: 0
   total_plans: 2
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 122 — connection-auto-start
+**Current focus:** v0.9.9.1 Phantom Stream -- Phase 122 ready to plan
 
 ## Current Position
 
-Phase: 122 (connection-auto-start) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 122
-Last activity: 2026-03-29 -- Phase 122 execution started
+Phase: 1 of 4 (Phase 122: Connection & Auto-Start)
+Plan: --
+Status: Ready to plan
+Last activity: 2026-03-29 -- Roadmap created (4 phases, 17 requirements)
 
 Progress: [..........] 0%
 
@@ -50,6 +50,8 @@ Recent decisions affecting current work:
 - [v0.9.9.1]: Preview iframe scales to fit both dimensions (min of scaleX, scaleY)
 - [v0.9.9.1]: Phase 44 DOM Cloning Stream infrastructure is the foundation (dom-stream.js, ws-client.js, dashboard.js, dashboard.css)
 - [v0.9.9.1]: Stream must start on WS connect, not on task run (current gap)
+- [Phase 122]: Stream lifecycle decoupled from task state -- setTaskState no longer controls preview
+- [Phase 122]: pageReady flag gates auto-start -- prevents streaming restricted/blank pages
 
 ### Roadmap Evolution
 
@@ -67,6 +69,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-29
-Stopped at: Roadmap created -- ready to plan Phase 122
+Last session: 2026-03-29T12:03:30.214Z
+Stopped at: Completed 122-02 autonomous tasks, checkpoint pending
 Resume file: None

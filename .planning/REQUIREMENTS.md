@@ -9,10 +9,10 @@ Requirements for making the dashboard DOM stream fully functional with high fide
 
 ### Connection
 
-- [ ] **CONN-01**: Dashboard DOM stream starts automatically when WebSocket connects (no task submission needed)
-- [ ] **CONN-02**: Stream stays active between tasks showing live browser state continuously
-- [ ] **CONN-03**: Stream auto-recovers after WebSocket disconnect with a fresh snapshot on reconnect
-- [ ] **CONN-04**: Visual status badge shows stream health (connected/buffering/disconnected) in the preview container
+- [x] **CONN-01**: Dashboard DOM stream starts automatically when WebSocket connects (no task submission needed)
+- [x] **CONN-02**: Stream stays active between tasks showing live browser state continuously
+- [x] **CONN-03**: Stream auto-recovers after WebSocket disconnect with a fresh snapshot on reconnect
+- [x] **CONN-04**: Visual status badge shows stream health (connected/buffering/disconnected) in the preview container
 
 ### Layout
 
@@ -64,10 +64,10 @@ Requirements for making the dashboard DOM stream fully functional with high fide
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONN-01 | Phase 122 | Pending |
-| CONN-02 | Phase 122 | Pending |
-| CONN-03 | Phase 122 | Pending |
-| CONN-04 | Phase 122 | Pending |
+| CONN-01 | Phase 122 | Complete |
+| CONN-02 | Phase 122 | Complete |
+| CONN-03 | Phase 122 | Complete |
+| CONN-04 | Phase 122 | Complete |
 | LAYOUT-01 | Phase 123 | Pending |
 | LAYOUT-02 | Phase 123 | Pending |
 | LAYOUT-03 | Phase 123 | Pending |
