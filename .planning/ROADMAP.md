@@ -146,6 +146,6 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 122. Connection & Auto-Start | 0/2 | Planned | - |
-| 123. Layout Modes | 0/? | Not started | - |
+| 123. Layout Modes | 1/2 | In progress | - |
 | 124. Visual Fidelity | 0/? | Not started | - |
 | 125. Remote Control | 0/? | Not started | - |

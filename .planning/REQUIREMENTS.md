@@ -16,9 +16,9 @@ Requirements for making the dashboard DOM stream fully functional with high fide
 
 ### Layout
 
-- [ ] **LAYOUT-01**: User can maximize preview to fill the full dashboard content area
-- [ ] **LAYOUT-02**: User can minimize preview back to inline thumbnail size
-- [ ] **LAYOUT-03**: Preview container reshapes dynamically to match actual browser viewport dimensions (not fixed 16:9)
+- [x] **LAYOUT-01**: User can maximize preview to fill the full dashboard content area
+- [x] **LAYOUT-02**: User can minimize preview back to inline thumbnail size
+- [x] **LAYOUT-03**: Preview container reshapes dynamically to match actual browser viewport dimensions (not fixed 16:9)
 - [ ] **LAYOUT-04**: User can enter picture-in-picture mode with a floating draggable preview
 - [ ] **LAYOUT-05**: User can enter fullscreen preview mode (Escape to exit)
 
@@ -68,9 +68,9 @@ Requirements for making the dashboard DOM stream fully functional with high fide
 | CONN-02 | Phase 122 | Complete |
 | CONN-03 | Phase 122 | Complete |
 | CONN-04 | Phase 122 | Complete |
-| LAYOUT-01 | Phase 123 | Pending |
-| LAYOUT-02 | Phase 123 | Pending |
-| LAYOUT-03 | Phase 123 | Pending |
+| LAYOUT-01 | Phase 123 | Complete |
+| LAYOUT-02 | Phase 123 | Complete |
+| LAYOUT-03 | Phase 123 | Complete |
 | LAYOUT-04 | Phase 123 | Pending |
 | LAYOUT-05 | Phase 123 | Pending |
 | FIDELITY-01 | Phase 124 | Pending |

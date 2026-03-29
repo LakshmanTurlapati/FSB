@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
-status: planning
-stopped_at: Completed 122-02 autonomous tasks, checkpoint pending
-last_updated: "2026-03-29T12:03:30.217Z"
-last_activity: 2026-03-29 -- Roadmap created (4 phases, 17 requirements)
+status: executing
+stopped_at: Completed 123-01-PLAN.md
+last_updated: "2026-03-29T14:37:08.362Z"
+last_activity: 2026-03-29 -- Completed 123-01 layout mode buttons and maximize toggle
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 2
   completed_plans: 1
-  percent: 0
+  percent: 50
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 ## Current Position
 
-Phase: 1 of 4 (Phase 122: Connection & Auto-Start)
-Plan: --
-Status: Ready to plan
-Last activity: 2026-03-29 -- Roadmap created (4 phases, 17 requirements)
+Phase: 123 (layout-modes) -- EXECUTING
+Plan: 2 of 2
+Status: Executing Phase 123
+Last activity: 2026-03-29 -- Completed 123-01 layout mode buttons and maximize toggle
 
-Progress: [..........] 0%
+Progress: [#####.....] 50%
 
 ## Performance Metrics
 
@@ -52,6 +52,8 @@ Recent decisions affecting current work:
 - [v0.9.9.1]: Stream must start on WS connect, not on task run (current gap)
 - [Phase 122]: Stream lifecycle decoupled from task state -- setTaskState no longer controls preview
 - [Phase 122]: pageReady flag gates auto-start -- prevents streaming restricted/blank pages
+- [Phase 123]: Shared .dash-preview-btn class for all header buttons with .dash-preview-toggle alias for backward compat
+- [Phase 123]: Dynamic container height from viewport aspect ratio, min(scaleX, scaleY) for bidirectional fit
 
 ### Roadmap Evolution
 
@@ -70,6 +72,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-29T12:03:30.214Z
-Stopped at: Completed 122-02 autonomous tasks, checkpoint pending
+Last session: 2026-03-29T14:37:08.360Z
+Stopped at: Completed 123-01-PLAN.md
 Resume file: None
