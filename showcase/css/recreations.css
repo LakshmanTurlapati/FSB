@@ -1244,3 +1244,39 @@
     padding: 3px 6px;
   }
 }
+
+@media (max-width: 480px) {
+  .rec-progress-overlay {
+    width: 180px;
+    padding: 8px 10px;
+  }
+
+  .browser-content {
+    min-height: 300px;
+  }
+
+  .rec-contact-form {
+    max-width: 100%;
+  }
+
+  .rec-form-page {
+    padding: 16px;
+  }
+
+  .rec-google-nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .rec-analytics-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .rec-metric-value {
+    font-size: 1rem;
+  }
+
+  .rec-sidepanel {
+    max-height: 220px;
+  }
+}

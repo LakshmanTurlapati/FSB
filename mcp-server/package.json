@@ -2,7 +2,7 @@
   "name": "fsb-mcp-server",
   "version": "0.1.1",
   "description": "FSB Browser Automation MCP Server",
-  "license": "MIT",
+  "license": "BUSL-1.1",
   "author": "Lakshman Turlapati",
   "repository": {
     "type": "git",

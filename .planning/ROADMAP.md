@@ -115,6 +115,10 @@ Plans:
   2. Preview container aspect ratio dynamically matches the actual browser viewport (e.g., 1920x1080 becomes 16:9, 1280x800 becomes 16:10) rather than being fixed
   3. User can pop the preview into a floating draggable window (picture-in-picture) that stays on top while using other dashboard tabs
   4. User can enter fullscreen mode where the preview fills the entire screen, and press Escape to exit back to normal layout
+**Plans**: 2 plans
+Plans:
+- [ ] 123-01-PLAN.md -- Buttons, maximize/minimize toggle, viewport-adaptive dynamic resize
+- [ ] 123-02-PLAN.md -- Picture-in-picture with drag, fullscreen with auto-hiding exit overlay
 **UI hint**: yes
 
 ### Phase 124: Visual Fidelity
@@ -146,6 +150,6 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 122. Connection & Auto-Start | 0/2 | Planned | - |
-| 123. Layout Modes | 0/? | Not started | - |
+| 123. Layout Modes | 0/2 | Planned | - |
 | 124. Visual Fidelity | 0/? | Not started | - |
 | 125. Remote Control | 0/? | Not started | - |

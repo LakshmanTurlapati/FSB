@@ -12,7 +12,7 @@
 ![FSB](https://img.shields.io/badge/FSB-Full_Self--Browsing-000000?style=for-the-badge)
 ![Version](https://img.shields.io/badge/version-9.0.2-0078D4?style=for-the-badge)
 ![Manifest V3](https://img.shields.io/badge/Manifest_V3-Chrome-34A853?style=for-the-badge&logo=googlechrome&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-F5C518?style=for-the-badge)
+![License](https://img.shields.io/badge/license-BSL_1.1-F5C518?style=for-the-badge)
 
 <!-- Row 2: Dynamic GitHub stats -->
 ![Stars](https://img.shields.io/github/stars/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Stars)
@@ -120,7 +120,7 @@ The result: faster, cheaper, more accurate, and capable of interacting with elem
 |---|---|---|---|---|---|
 | **Approach** | DOM analysis | Screenshot + Gemini vision | Screenshot + Claude vision | Screenshot + GPT-4o vision | Screenshot + LLM vision |
 | **Vision required** | No | Yes | Yes | Yes | Yes |
-| **Open source** | Yes (MIT) | No | No | No | Yes |
+| **Open source** | Yes (BSL 1.1) | No | No | No | Yes |
 | **Speed (per step)** | 50-200ms | 1-3s | 1-3s | 1-3s | 1-3s |
 | **Cost (per 100 steps)** | ~$0.03 | ~$0.18 | ~$0.18 | ~$0.18 | ~$0.15 |
 | **Hidden elements** | Yes | No | No | No | No |
@@ -1112,7 +1112,24 @@ Every contributor, tester, and community member helps transform FSB into a bette
 
 ## License
 
-This project is licensed under the MIT License: see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **[Business Source License 1.1 (BSL 1.1)](LICENSE)**.
+
+| Parameter | Value |
+|-----------|-------|
+| **Licensor** | Lakshman Turlapati |
+| **Licensed Work** | FSB v9.0.2 (Full Self-Browsing Chrome Extension) |
+| **Additional Use Grant** | None |
+| **Change Date** | 2028-03-29 |
+| **Change License** | Apache License, Version 2.0 |
+
+**What this means:**
+
+- You may copy, modify, create derivative works, redistribute, and make **non-production use** of FSB freely.
+- **Production use** requires a commercial license from the Licensor until the Change Date.
+- On **2028-03-29**, the license automatically converts to the **Apache License 2.0**, granting full production use rights.
+- For commercial licensing inquiries, contact the Licensor.
+
+See the [LICENSE](LICENSE) file for the full legal text.
 
 ---
 

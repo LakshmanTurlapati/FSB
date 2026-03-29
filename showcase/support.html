@@ -136,18 +136,6 @@
 
           <div class="faq-item reveal">
             <div class="faq-question">
-              <h3>Can FSB handle CAPTCHAs?</h3>
-              <i class="fa-solid fa-chevron-down faq-icon"></i>
-            </div>
-            <div class="faq-answer">
-              <div class="faq-answer-inner">
-                <p>FSB can detect CAPTCHAs and includes 2Captcha integration supporting reCAPTCHA v2, hCaptcha, and Cloudflare Turnstile. Enable it in Options with your 2Captcha API key. Slider CAPTCHAs are handled with dedicated CDP drag tools. If automatic solving is not configured, FSB pauses so you can solve manually and then resume.</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="faq-item reveal">
-            <div class="faq-question">
               <h3>Is FSB safe to use?</h3>
               <i class="fa-solid fa-chevron-down faq-icon"></i>
             </div>
@@ -166,18 +154,6 @@
             <div class="faq-answer">
               <div class="faq-answer-inner">
                 <p>Open an issue on the <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">GitHub Issues</a> page. Include the website URL, your task description, and any error messages from the FSB chat or browser console. Session logs from the Debug tab in Options can also help.</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="faq-item reveal">
-            <div class="faq-question">
-              <h3>How can I contribute?</h3>
-              <i class="fa-solid fa-chevron-down faq-icon"></i>
-            </div>
-            <div class="faq-answer">
-              <div class="faq-answer-inner">
-                <p>FSB is open source under the MIT License. Fork the repository, make your changes, and submit a pull request. Check the CLAUDE.md file for architecture details and coding guidelines. Contributions of all kinds are welcome -- code, documentation, bug reports, and feature suggestions.</p>
               </div>
             </div>
           </div>
@@ -232,12 +208,36 @@
 
           <div class="faq-item reveal">
             <div class="faq-question">
-              <h3>Can FSB automate canvas and drawing apps?</h3>
+              <h3>How do I set up FSB's MCP server with my IDE?</h3>
               <i class="fa-solid fa-chevron-down faq-icon"></i>
             </div>
             <div class="faq-answer">
               <div class="faq-answer-inner">
-                <p>Yes. FSB has full Excalidraw mastery and a Universal Canvas Vision system that intercepts canvas draw calls to understand what is on screen. It supports text entry, drawing primitives, styling, connectors, alignment, and export across 12+ canvas-based applications including Excalidraw, Photopea, and Miro.</p>
+                <p>Install the server with <code>npm install -g fsb-mcp-server</code>, then add it to your MCP client config (Claude Code, Cursor, Windsurf, etc.). In the FSB extension, open Options and enable the MCP bridge -- it will listen for connections on a local WebSocket. Once connected, your AI coding assistant can call any of FSB's browser tools directly from your editor.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>What can I do with FSB through MCP tools?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>FSB exposes two modes through MCP. <strong>Manual mode</strong> gives you 50+ granular tools -- navigate, click, type, scroll, read page content, take screenshots, fill spreadsheets, and more. <strong>Autopilot mode</strong> lets you describe a task in natural language and FSB's AI handles the step-by-step execution. You also get read-only tools like <code>read_page</code>, <code>get_dom_snapshot</code>, and <code>list_sessions</code> for observing browser state without changing it.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Does FSB work without an internet connection?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>The extension itself runs locally, but AI-powered automation requires an internet connection to reach your chosen AI provider's API. MCP manual tools (click, type, navigate) work as long as the FSB extension and MCP server are connected -- no external AI call is needed for those. Recorded workflow replays also run fully offline since they skip AI calls entirely.</p>
               </div>
             </div>
           </div>
@@ -315,7 +315,7 @@
             <h4>Project</h4>
             <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>
             <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">Issues</a>
-            <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+            <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">BSL 1.1 License</a>
           </div>
         </div>
       </div>

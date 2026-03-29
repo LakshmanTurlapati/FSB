@@ -51,120 +51,144 @@
     <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub</a>
   </div>
 
-  <section class="privacy-page">
+  <!-- Privacy Policy -->
+  <main class="privacy-page">
     <div class="container">
-      <div class="privacy-content">
+      <div class="privacy-header">
+        <div class="section-label">Legal</div>
         <h1>Privacy Policy</h1>
-        <p class="privacy-date">Last updated: March 2026</p>
+        <p class="privacy-last-updated">Last updated: March 2026</p>
+      </div>
 
-        <div class="privacy-section reveal">
-          <h2><i class="fa-solid fa-database"></i> Data Collection</h2>
-          <p>FSB operates entirely within your browser. The extension only accesses the DOM (Document Object Model) of the currently active tab when you initiate an automation task.</p>
-          <ul>
-            <li>No browsing history is collected or stored beyond the current session</li>
-            <li>DOM data is analyzed locally and discarded after each automation step</li>
-            <li>No personal information is harvested from pages you visit</li>
-          </ul>
+      <div class="privacy-content">
+
+        <!-- TLDR -->
+        <div class="privacy-callout">
+          <p><strong>TLDR</strong> FSB operates entirely within your browser. No browsing data is collected. API keys are encrypted locally with AES-GCM. AI calls go directly from your browser to the provider you choose. The optional relay server for Background Agents stores only run metadata, never page content. Memory data stays on your device. Everything is open source and auditable.</p>
         </div>
 
-        <div class="privacy-section reveal">
-          <h2><i class="fa-solid fa-hard-drive"></i> Data Storage</h2>
-          <p>All settings and data are stored locally in Chrome's extension storage. FSB uses AES-GCM encryption for sensitive data like API keys.</p>
-          <ul>
-            <li>Configuration is stored in <code>chrome.storage.local</code></li>
-            <li>API keys are encrypted before storage using AES-GCM</li>
-            <li>Session logs are stored locally and can be cleared at any time</li>
-            <li>Analytics data (task counts, success rates) stays on your device</li>
-          </ul>
-        </div>
+        <!-- Data Collection -->
+        <h2>Data Collection</h2>
+        <p>FSB operates entirely within your browser. The extension only accesses the DOM (Document Object Model) of the currently active tab when you initiate an automation task.</p>
+        <ul>
+          <li>No browsing history is collected or stored beyond the current session</li>
+          <li>DOM data is analyzed locally and discarded after each automation step</li>
+          <li>No personal information is harvested from pages you visit</li>
+        </ul>
 
-        <div class="privacy-section reveal">
-          <h2><i class="fa-solid fa-cloud"></i> External Services</h2>
-          <p>FSB communicates with external AI providers only when you configure and use them. The choice of provider and what data is sent is under your control.</p>
-          <ul>
-            <li>API calls are made only to the provider you select (xAI, OpenAI, Anthropic, Google, or OpenRouter)</li>
-            <li>Sent data includes: task description, DOM structure summary, and action context</li>
-            <li>If you use the Remote Dashboard or Background Agents sync, an optional relay server handles WebSocket messages and stores agent run metadata (task name, cost, duration, success/fail). No page content, DOM data, or AI responses are stored on the server. This is opt-in only</li>
-            <li>Each provider has their own privacy policy governing how they handle API requests</li>
-          </ul>
-        </div>
+        <!-- Data Storage -->
+        <h2>Data Storage</h2>
+        <p>All settings and data are stored locally in Chrome's extension storage. FSB uses AES-GCM encryption for sensitive data like API keys.</p>
+        <ul>
+          <li>Configuration is stored in <code>chrome.storage.local</code></li>
+          <li>API keys are encrypted before storage using AES-GCM</li>
+          <li>Session logs are stored locally and can be cleared at any time</li>
+          <li>Analytics data (task counts, success rates) stays on your device</li>
+        </ul>
 
-        <div class="privacy-section reveal">
-          <h2><i class="fa-solid fa-chart-simple"></i> No Tracking</h2>
-          <p>FSB does not include any analytics, telemetry, or tracking services. There are no cookies, no fingerprinting, and no third-party scripts beyond the AI provider APIs you explicitly configure.</p>
-        </div>
+        <!-- External Services -->
+        <h2>External Services</h2>
+        <p>FSB communicates with external AI providers only when you configure and use them. The choice of provider and what data is sent is under your control.</p>
+        <ul>
+          <li>API calls are made only to the provider you select (xAI, OpenAI, Anthropic, Google, or OpenRouter)</li>
+          <li>Sent data includes: task description, DOM structure summary, and action context</li>
+          <li>If you use the Remote Dashboard or Background Agents sync, an optional relay server handles WebSocket messages and stores agent run metadata (task name, cost, duration, success/fail). No page content, DOM data, or AI responses are stored on the server. This is opt-in only</li>
+          <li>Each provider has their own privacy policy governing how they handle API requests</li>
+        </ul>
 
-        <div class="privacy-section reveal">
-          <h2><i class="fa-solid fa-key"></i> API Keys</h2>
-          <p>Your API keys are encrypted locally using AES-GCM before being stored. They are never transmitted anywhere except to the AI provider you configured, and only as authentication headers in API requests.</p>
-          <ul>
-            <li>Keys are encrypted at rest in Chrome storage</li>
-            <li>Decryption only happens in-memory when making API calls</li>
-            <li>Keys are never logged, exported, or shared</li>
-          </ul>
-        </div>
+        <!-- No Tracking -->
+        <h2>No Tracking</h2>
+        <p>FSB does not include any analytics, telemetry, or tracking services. There are no cookies, no fingerprinting, and no third-party scripts beyond the AI provider APIs you explicitly configure.</p>
 
-        <div class="privacy-section reveal">
-          <h2><i class="fa-solid fa-lock"></i> Auto-Passwords <span class="privacy-badge-beta">Beta</span></h2>
-          <p>FSB includes an optional credential manager that stores login credentials encrypted on your device. Passwords are never exposed to AI models -- they are filled directly into pages by the content script, bypassing the AI entirely.</p>
-          <ul>
-            <li>Credentials are encrypted at rest using AES-GCM with 256-bit keys and PBKDF2 key derivation</li>
-            <li>When the AI analyzes a page, password field values are replaced with <code>[hidden]</code> -- the actual password is never included in any AI prompt</li>
-            <li>Auto-fill is performed by the content script injecting values directly into the DOM, with no AI involvement in the credential flow</li>
-            <li>The credential list view only shows usernames and domains -- passwords are decrypted individually and only when needed for auto-fill</li>
-            <li>Credentials are stored per-domain with parent domain fallback (e.g., accounts.google.com inherits from google.com)</li>
-          </ul>
-        </div>
+        <!-- API Keys -->
+        <h2>API Keys</h2>
+        <p>Your API keys are encrypted locally using AES-GCM before being stored. They are never transmitted anywhere except to the AI provider you configured, and only as authentication headers in API requests.</p>
+        <ul>
+          <li>Keys are encrypted at rest in Chrome storage</li>
+          <li>Decryption only happens in-memory when making API calls</li>
+          <li>Keys are never logged, exported, or shared</li>
+        </ul>
 
-        <div class="privacy-section reveal">
-          <h2><i class="fa-solid fa-shield-halved"></i> Prompt Injection Prevention</h2>
-          <p>Web pages can contain hidden text designed to hijack AI agents. FSB implements multi-layered defenses to ensure the AI only follows your instructions, never instructions embedded in page content.</p>
-          <ul>
-            <li>All page content is wrapped in <code>[PAGE_CONTENT]</code> boundary markers, and the AI is instructed to never follow instructions found within these markers</li>
-            <li>A sanitization engine strips known injection patterns (e.g., "ignore previous instructions", fake system prompts, override attempts) from all page content before it reaches the AI</li>
-            <li>AI-generated actions are validated before execution -- dangerous URLs (<code>javascript:</code>, <code>data:</code>) and script injection attempts are blocked</li>
-            <li>Only a strict allowlist of 30+ known tools can be executed -- the AI cannot invent or call arbitrary actions</li>
-            <li>Content size is capped (500 chars per value, 15K total prompt cap) to limit payload delivery</li>
-            <li>Invisible Unicode control characters that websites embed are stripped before processing</li>
-          </ul>
-        </div>
+        <!-- Auto-Passwords -->
+        <h2>Auto-Passwords</h2>
+        <p>FSB includes an optional credential manager that stores login credentials encrypted on your device. Passwords are never exposed to AI models. They are filled directly into pages by the content script, bypassing the AI entirely.</p>
+        <ul>
+          <li>Credentials are encrypted at rest using AES-GCM with 256-bit keys and PBKDF2 key derivation</li>
+          <li>When the AI analyzes a page, password field values are replaced with <code>[hidden]</code>. The actual password is never included in any AI prompt</li>
+          <li>Auto-fill is performed by the content script injecting values directly into the DOM, with no AI involvement in the credential flow</li>
+          <li>The credential list view only shows usernames and domains. Passwords are decrypted individually and only when needed for auto-fill</li>
+          <li>Credentials are stored per-domain with parent domain fallback (e.g., accounts.google.com inherits from google.com)</li>
+        </ul>
 
-        <div class="privacy-section reveal">
-          <h2><i class="fa-solid fa-robot"></i> Background Agents &amp; Server Sync</h2>
-          <p>If you opt into Background Agents server sync or Remote Dashboard pairing, a relay server facilitates communication between your extension and the dashboard.</p>
-          <ul>
-            <li>The server stores: agent definitions (name, schedule, target URL), run metrics (token count, cost, duration, success/fail status), and session pairing tokens</li>
-            <li>The server does NOT store: page content, DOM data, browsing history, AI prompts, AI responses, or any data from the pages you visit</li>
-            <li>Authentication uses hash keys (generated locally) and session tokens that expire after 24 hours</li>
-            <li>One-time pairing tokens expire after 60 seconds and cannot be reused</li>
-            <li>Server sync is disabled by default -- you must explicitly enable it in Options</li>
-          </ul>
-        </div>
+        <!-- Prompt Injection Prevention -->
+        <h2>Prompt Injection Prevention</h2>
+        <p>Web pages can contain hidden text designed to hijack AI agents. FSB implements multi-layered defenses to ensure the AI only follows your instructions, never instructions embedded in page content.</p>
+        <ul>
+          <li>All page content is wrapped in <code>[PAGE_CONTENT]</code> boundary markers, and the AI is instructed to never follow instructions found within these markers</li>
+          <li>A sanitization engine strips known injection patterns (e.g., "ignore previous instructions", fake system prompts, override attempts) from all page content before it reaches the AI</li>
+          <li>AI-generated actions are validated before execution. Dangerous URLs (<code>javascript:</code>, <code>data:</code>) and script injection attempts are blocked</li>
+          <li>Only a strict allowlist of 50+ known tools can be executed. The AI cannot invent or call arbitrary actions</li>
+          <li>Content size is capped (500 chars per value, 15K total prompt cap) to limit payload delivery</li>
+          <li>Invisible Unicode control characters that websites embed are stripped before processing</li>
+        </ul>
 
-        <div class="privacy-section reveal">
-          <h2><i class="fa-solid fa-database"></i> Memory System</h2>
-          <p>FSB's memory system stores navigation patterns and site intelligence to improve automation over time.</p>
-          <ul>
-            <li>All memory data (semantic, episodic, procedural) is stored locally in <code>chrome.storage.local</code></li>
-            <li>No memory data is sent to any external server</li>
-            <li>Memory can be viewed and cleared at any time from the Options dashboard</li>
-            <li>Site maps and navigation patterns are domain-specific and isolated from each other</li>
-          </ul>
-        </div>
+        <!-- Background Agents & Server Sync -->
+        <h2>Background Agents and Server Sync</h2>
+        <p>If you opt into Background Agents server sync or Remote Dashboard pairing, a relay server facilitates communication between your extension and the dashboard.</p>
+        <ul>
+          <li>The server stores: agent definitions (name, schedule, target URL), run metrics (token count, cost, duration, success/fail status), and session pairing tokens</li>
+          <li>The server does NOT store: page content, DOM data, browsing history, AI prompts, AI responses, or any data from the pages you visit</li>
+          <li>Authentication uses hash keys (generated locally) and session tokens that expire after 24 hours</li>
+          <li>One-time pairing tokens expire after 60 seconds and cannot be reused</li>
+          <li>Server sync is disabled by default. You must explicitly enable it in Options</li>
+        </ul>
 
-        <div class="privacy-section reveal">
-          <h2><i class="fa-solid fa-code-branch"></i> Open Source</h2>
-          <p>FSB is fully open source under the MIT License. You can audit every line of code to verify these privacy claims. The source code is available on GitHub.</p>
-          <p><a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">View the source code on GitHub</a></p>
-        </div>
+        <!-- Memory System -->
+        <h2>Memory System</h2>
+        <p>FSB's memory system stores navigation patterns and site intelligence to improve automation over time.</p>
+        <ul>
+          <li>All memory data (semantic, episodic, procedural) is stored locally in <code>chrome.storage.local</code></li>
+          <li>No memory data is sent to any external server</li>
+          <li>Memory can be viewed and cleared at any time from the Options dashboard</li>
+          <li>Site maps and navigation patterns are domain-specific and isolated from each other</li>
+        </ul>
 
-        <div class="privacy-highlight reveal">
-          <h3>Summary</h3>
-          <p>FSB processes data locally, encrypts sensitive information, never exposes passwords to AI models, defends against prompt injection attacks, communicates only with AI providers you choose, stores memory data locally, keeps server sync opt-in and minimal, includes no tracking, and is fully auditable as open source software.</p>
-        </div>
+        <!-- Open Source -->
+        <h2>Open Source</h2>
+        <p>FSB is fully open source under the BSL 1.1 License. You can audit every line of code to verify these privacy claims. The source code is available on <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>.</p>
+
+        <!-- Changes -->
+        <h2>Changes to This Policy</h2>
+        <p>If this policy is updated, the changes will be reflected by the "Last updated" date at the top of this page. Significant changes will also be noted in the project's GitHub release notes.</p>
+
+        <!-- Contact -->
+        <h2>Contact</h2>
+        <p>If you have questions about this privacy policy or FSB's data handling, please open an issue on <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">GitHub Issues</a>.</p>
+
+        <!-- Policy History -->
+        <h2>Policy History</h2>
+        <details class="policy-version">
+          <summary>
+            <span class="policy-version-date">March 2026</span>
+            v9.0.2 &mdash; Background Agents, Memory System, Server Sync
+          </summary>
+          <div class="policy-version-body">
+            <p>Added sections for Background Agents and Server Sync (optional relay server for dashboard pairing and agent run metadata). Added Memory System section (all local storage). Updated External Services to acknowledge optional server. Updated action count to 50+. Added OpenRouter as supported provider.</p>
+          </div>
+        </details>
+        <details class="policy-version">
+          <summary>
+            <span class="policy-version-date">February 2026</span>
+            v0.9 &mdash; Initial privacy policy
+          </summary>
+          <div class="policy-version-body">
+            <p>Initial privacy policy covering data collection, storage, external services, API key encryption, auto-passwords, prompt injection prevention, and open source transparency. Four AI providers supported (xAI, OpenAI, Anthropic, Google Gemini).</p>
+          </div>
+        </details>
+
       </div>
     </div>
-  </section>
+  </main>
 
   <!-- Footer -->
   <footer class="footer">
@@ -187,7 +211,7 @@
             <h4>Project</h4>
             <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>
             <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">Issues</a>
-            <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+            <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">BSL 1.1 License</a>
           </div>
         </div>
       </div>

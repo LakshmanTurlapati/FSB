@@ -52,7 +52,7 @@
       "url": "https://github.com/lakshmanturlapati"
     }
   ],
-  "license": "MIT",
+  "license": "BUSL-1.1",
   "engines": {
     "node": ">=16.0.0",
     "chrome": ">=88.0.0"
