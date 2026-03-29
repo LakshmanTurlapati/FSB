@@ -1846,6 +1846,25 @@ body.dash-layout-maximized #dash-task-progress {
   opacity: 1;
 }
 
+.dash-preview-pip .dash-preview-header {
+  cursor: grab;
+}
+
+/* --- Layout Mode: Fullscreen --- */
+.dash-preview:fullscreen {
+  background: #000;
+}
+.dash-preview:fullscreen .dash-preview-iframe {
+  transform-origin: center center;
+}
+.dash-preview:fullscreen .dash-preview-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+}
+
 /* --- Fullscreen Exit Overlay --- */
 .dash-preview-fs-exit {
   position: absolute;
@@ -1854,6 +1873,7 @@ body.dash-layout-maximized #dash-task-progress {
   z-index: 20;
   opacity: 0;
   transition: opacity 300ms ease;
+  pointer-events: auto;
 }
 
 .dash-preview:fullscreen .dash-preview-fs-exit {
