@@ -191,15 +191,26 @@ class FSBWebSocket {
 
     this.send('ext:snapshot', snapshotPayload);
 
-    // Re-send ext:page-ready if a tab is being streamed (dashboard resets pageReady on WS close)
-    if (typeof _streamingTabId !== 'undefined' && _streamingTabId) {
-      try {
-        var tab = await chrome.tabs.get(_streamingTabId);
-        if (tab && tab.url && !/^(chrome|about|edge|brave|chrome-extension):/.test(tab.url)) {
-          this.send('ext:page-ready', { tabId: _streamingTabId, url: tab.url });
+    // Send ext:page-ready for current active tab so dashboard can start streaming
+    // Uses _streamingTabId if set, otherwise queries active tab (fresh extension load)
+    try {
+      var readyTabId = (typeof _streamingTabId !== 'undefined' && _streamingTabId) ? _streamingTabId : null;
+      var readyUrl = '';
+      if (readyTabId) {
+        var existingTab = await chrome.tabs.get(readyTabId);
+        readyUrl = existingTab?.url || '';
+      } else {
+        var tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        if (tabs[0] && tabs[0].id) {
+          readyTabId = tabs[0].id;
+          readyUrl = tabs[0].url || '';
+          if (typeof _streamingTabId !== 'undefined') _streamingTabId = readyTabId;
         }
-      } catch (e) { /* tab may be closed */ }
-    }
+      }
+      if (readyTabId && readyUrl && !/^(chrome|about|edge|brave|chrome-extension):/.test(readyUrl)) {
+        this.send('ext:page-ready', { tabId: readyTabId, url: readyUrl });
+      }
+    } catch (e) { /* ignore */ }
   }
 
   /**
