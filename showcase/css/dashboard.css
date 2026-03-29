@@ -1368,6 +1368,21 @@
     gap: 8px;
   }
 
+  .dash-disconnect-label {
+    display: none;
+  }
+
+  .dash-disconnect-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+
   .dash-login-section {
     min-height: auto;
     padding-top: calc(var(--nav-height) + 24px);
@@ -1762,11 +1777,14 @@
 /* Responsive: 4:3 on mobile */
 @media (max-width: 768px) {
   .dash-preview {
-    aspect-ratio: 4 / 3;
+    min-height: 40vh;
   }
 }
 
 @media (max-width: 480px) {
+  .dash-preview {
+    min-height: 30vh;
+  }
   .dash-preview-progress {
     display: none;
   }

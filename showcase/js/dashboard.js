@@ -1693,10 +1693,8 @@
     var pageWidth = previewSnapshotData.viewportWidth || previewSnapshotData.pageWidth || 1920;
     var pageHeight = previewSnapshotData.viewportHeight || 1080;
 
-    // Scale to fit both dimensions so nothing gets clipped
-    var scaleX = containerWidth / pageWidth;
-    var scaleY = containerHeight / pageHeight;
-    previewScale = Math.min(scaleX, scaleY);
+    // Scale to fit width -- overflow clips bottom (no visible gap)
+    previewScale = containerWidth / pageWidth;
 
     // Size iframe to original page dimensions, then scale down
     previewIframe.style.width = pageWidth + 'px';
