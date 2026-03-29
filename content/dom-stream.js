@@ -722,5 +722,11 @@
 
   window.FSB._modules['dom-stream'] = { loaded: true, timestamp: Date.now() };
 
+  // Signal background.js that this page has a DOM stream module ready
+  // This triggers the ext:page-ready -> dash:dom-stream-start auto-start chain
+  try {
+    chrome.runtime.sendMessage({ action: 'domStreamReady' }).catch(function() {});
+  } catch (e) { /* ignore -- background may not be listening yet */ }
+
   logger.info('[DOM Stream] Module loaded');
 })();
