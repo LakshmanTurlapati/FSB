@@ -165,7 +165,7 @@ class FSBWebSocket {
   /**
    * Send a state snapshot on connect/reconnect for dashboard sync.
    */
-  _sendStateSnapshot() {
+  async _sendStateSnapshot() {
     var snapshotPayload = {
       version: chrome.runtime.getManifest().version,
       timestamp: Date.now()
@@ -190,6 +190,16 @@ class FSBWebSocket {
     }
 
     this.send('ext:snapshot', snapshotPayload);
+
+    // Re-send ext:page-ready if a tab is being streamed (dashboard resets pageReady on WS close)
+    if (typeof _streamingTabId !== 'undefined' && _streamingTabId) {
+      try {
+        var tab = await chrome.tabs.get(_streamingTabId);
+        if (tab && tab.url && !/^(chrome|about|edge|brave|chrome-extension):/.test(tab.url)) {
+          this.send('ext:page-ready', { tabId: _streamingTabId, url: tab.url });
+        }
+      } catch (e) { /* tab may be closed */ }
+    }
   }
 
   /**
@@ -251,15 +261,18 @@ class FSBWebSocket {
       }
     }
 
-    // Get the user's active tab to run automation on
+    // Use streaming tab if available (more reliable than active tab query from service worker)
     try {
-      var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      var tab = tabs[0];
-      if (!tab || !tab.id) {
+      var tabId = (typeof _streamingTabId !== 'undefined' && _streamingTabId) ? _streamingTabId : null;
+      if (!tabId) {
+        var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        tabId = tabs[0]?.id;
+      }
+      if (!tabId) {
         this.send('ext:task-complete', { success: false, error: 'No active browser tab', elapsed: 0 });
         return;
       }
-      startDashboardTask(tab.id, task);
+      startDashboardTask(tabId, task);
     } catch (err) {
       this.send('ext:task-complete', { success: false, error: err.message, elapsed: 0 });
     }
@@ -270,9 +283,16 @@ class FSBWebSocket {
    * Finds the active dashboard session and stops it.
    */
   _handleStopTask() {
-    if (typeof activeSessions === 'undefined') return;
+    console.log('[FSB WS] Stop task received');
+    if (typeof activeSessions === 'undefined') {
+      console.log('[FSB WS] Stop: activeSessions not defined');
+      return;
+    }
+    var found = false;
     for (const [sessionId, session] of activeSessions) {
+      console.log('[FSB WS] Stop: checking session', sessionId, 'isDashboard:', session._isDashboardTask, 'status:', session.status);
       if (session._isDashboardTask && session.status === 'running') {
+        found = true;
         session.status = 'stopped';
         if (session._completionCallback) {
           session._completionCallback({
@@ -283,9 +303,11 @@ class FSBWebSocket {
           });
         }
         this.send('ext:task-complete', { success: false, error: 'Stopped by user', elapsed: Date.now() - session.startTime });
+        console.log('[FSB WS] Stop: session stopped successfully', sessionId);
         return;
       }
     }
+    if (!found) console.log('[FSB WS] Stop: no matching dashboard session found');
   }
 
   /**
