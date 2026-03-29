@@ -204,10 +204,11 @@ class FSBWebSocket {
         if (tabs[0] && tabs[0].id) {
           readyTabId = tabs[0].id;
           readyUrl = tabs[0].url || '';
-          if (typeof _streamingTabId !== 'undefined') _streamingTabId = readyTabId;
         }
       }
+      // Only send page-ready and set streaming tab for real pages (not chrome://, about://, etc.)
       if (readyTabId && readyUrl && !/^(chrome|about|edge|brave|chrome-extension):/.test(readyUrl)) {
+        if (typeof _streamingTabId !== 'undefined') _streamingTabId = readyTabId;
         this.send('ext:page-ready', { tabId: readyTabId, url: readyUrl });
       }
     } catch (e) { /* ignore */ }
