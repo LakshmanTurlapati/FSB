@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.10
-milestone_name: Agent Intelligence
-status: Milestone complete
-stopped_at: Completed 120-02-PLAN.md
-last_updated: "2026-03-28T20:24:50.866Z"
+milestone: v0.9.8.1
+milestone_name: npm Publishing
+status: unknown
+stopped_at: Completed 115-04-PLAN.md
+last_updated: "2026-03-26T02:15:29.492Z"
 progress:
-  total_phases: 6
-  completed_phases: 5
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 2
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 120 — sidepanel-agents-ui
+**Current focus:** Phase 115 — canvas-vision
 
 ## Current Position
 
-Phase: 121
+Phase: 115
 Plan: Not started
 
 ## Performance Metrics
@@ -62,8 +62,6 @@ Plan: Not started
 | Phase 115 P01 | 2min | 2 tasks | 2 files |
 | Phase 115 P03 | 2min | 2 tasks | 2 files |
 | Phase 115 P04 | 15min | 2 tasks | 2 files |
-| Phase 119 P02 | 2min | 2 tasks | 2 files |
-| Phase 120 P02 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -94,15 +92,13 @@ Recent decisions affecting current work:
 - [Phase 115]: CDP expression generator pattern: getCanvasPixelFallback returns self-contained IIFE string for Runtime.evaluate
 - [Phase 115]: Canvas scene reads via getCanvasScene() with three-stage cascade: interceptor, rerender trigger, pixel fallback
 - [Phase 115]: session.url does not exist -- use domResponse.structuredDOM.url with session.lastUrl fallback for canvas URL detection
-- [Phase 119]: 50% success rate threshold with 4-run minimum for re-record trigger
-- [Phase 120]: Expandable agent rows with lazy-loaded history, inline create/edit form with schedule switching
 
 ### Roadmap Evolution
 
 - v0.9.8.1 npm Publishing shelved to backlog (running in parallel outside GSD)
 - v0.9.9 Excalidraw Mastery roadmap created with 8 phases (107-114), 49 requirements
 - Phase 115 added: Canvas Vision -- analyze and convert HTML5 canvas content into structured text so FSB can see what is drawn on any canvas-based app
-- Phase 122 added: Dashboard WebSocket Reliability -- fix dashboard↔extension WS connectivity (keepalive pings, zombie cleanup, accurate extensionOnline status)
+- Phase 115.1 inserted after Phase 115: MCP tab recovery -- navigate/openTab/switchTab/listTabs work from crashed tabs and stale sessions (URGENT)
 
 ### Pending Todos
 
@@ -116,6 +112,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-28T20:11:33.791Z
-Stopped at: Completed 120-02-PLAN.md
+Last session: 2026-03-26T02:11:38.098Z
+Stopped at: Completed 115-04-PLAN.md
 Resume file: None

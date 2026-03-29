@@ -323,10 +323,15 @@ class FSBWebSocket {
    */
   async _forwardToContentScript(action, payload) {
     try {
-      var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      var tab = tabs[0];
-      if (tab && tab.id) {
-        chrome.tabs.sendMessage(tab.id, { action: action, ...payload }, { frameId: 0 })
+      // Use the known dashboard task tab if available (set by startDashboardTask)
+      var tabId = typeof _dashboardTaskTabId !== 'undefined' ? _dashboardTaskTabId : null;
+      if (!tabId) {
+        // Fallback: query active tab (unreliable from service worker)
+        var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        tabId = tabs[0]?.id;
+      }
+      if (tabId) {
+        chrome.tabs.sendMessage(tabId, { action: action, ...payload }, { frameId: 0 })
           .catch(function() {}); // Ignore if content script not ready
       }
     } catch (e) {

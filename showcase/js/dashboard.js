@@ -1697,13 +1697,18 @@
     if (!previewIframe || !previewContainer || !previewSnapshotData) return;
 
     var containerWidth = previewContainer.clientWidth;
+    var containerHeight = previewContainer.clientHeight;
     var pageWidth = previewSnapshotData.viewportWidth || previewSnapshotData.pageWidth || 1920;
+    var pageHeight = previewSnapshotData.viewportHeight || 1080;
 
-    previewScale = containerWidth / pageWidth;
+    // Scale to fit both dimensions so nothing gets clipped
+    var scaleX = containerWidth / pageWidth;
+    var scaleY = containerHeight / pageHeight;
+    previewScale = Math.min(scaleX, scaleY);
 
     // Size iframe to original page dimensions, then scale down
     previewIframe.style.width = pageWidth + 'px';
-    previewIframe.style.height = (previewSnapshotData.viewportHeight || 1080) + 'px';
+    previewIframe.style.height = pageHeight + 'px';
     previewIframe.style.transform = 'scale(' + previewScale + ')';
   }
 
