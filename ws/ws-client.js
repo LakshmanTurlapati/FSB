@@ -211,9 +211,11 @@ class FSBWebSocket {
         this._handleAgentRunNow(msg.payload);
         break;
       case 'dash:dom-stream-start':
+        if (typeof _streamingActive !== 'undefined') _streamingActive = true;
         this._forwardToContentScript('domStreamStart', msg.payload);
         break;
       case 'dash:dom-stream-stop':
+        if (typeof _streamingActive !== 'undefined') _streamingActive = false;
         this._forwardToContentScript('domStreamStop', msg.payload);
         break;
       case 'dash:dom-stream-pause':
@@ -323,10 +325,12 @@ class FSBWebSocket {
    */
   async _forwardToContentScript(action, payload) {
     try {
-      // Use the known dashboard task tab if available (set by startDashboardTask)
-      var tabId = typeof _dashboardTaskTabId !== 'undefined' ? _dashboardTaskTabId : null;
+      // Prefer streaming tab (always-on), fall back to dashboard task tab, then active tab query
+      var tabId = (typeof _streamingTabId !== 'undefined' && _streamingTabId)
+        ? _streamingTabId
+        : (typeof _dashboardTaskTabId !== 'undefined' ? _dashboardTaskTabId : null);
       if (!tabId) {
-        // Fallback: query active tab (unreliable from service worker)
+        // Last resort: query active tab (unreliable from service worker)
         var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         tabId = tabs[0]?.id;
       }
