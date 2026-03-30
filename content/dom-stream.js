@@ -34,11 +34,13 @@
     'gridColumn', 'gridRow', 'gridGap', 'gridAutoFlow',
     'whiteSpace', 'textOverflow', 'textDecoration',
     'float', 'clear',
-    'top', 'left', 'right', 'bottom',
+    'top', 'left', 'right', 'bottom', 'inset',
     'minWidth', 'maxHeight',
-    'letterSpacing', 'verticalAlign',
+    'letterSpacing', 'wordSpacing', 'verticalAlign',
     'backgroundImage', 'backgroundSize', 'backgroundPosition',
-    'overflowX', 'overflowY', 'objectFit'
+    'borderTop', 'borderBottom', 'borderLeft', 'borderRight',
+    'overflowX', 'overflowY', 'cursor', 'pointerEvents',
+    'objectFit', 'objectPosition'
   ];
 
   // CSS property name mapping (camelCase -> kebab-case)
@@ -54,11 +56,13 @@
     'grid-column', 'grid-row', 'grid-gap', 'grid-auto-flow',
     'white-space', 'text-overflow', 'text-decoration',
     'float', 'clear',
-    'top', 'left', 'right', 'bottom',
+    'top', 'left', 'right', 'bottom', 'inset',
     'min-width', 'max-height',
-    'letter-spacing', 'vertical-align',
+    'letter-spacing', 'word-spacing', 'vertical-align',
     'background-image', 'background-size', 'background-position',
-    'overflow-x', 'overflow-y', 'object-fit'
+    'border-top', 'border-bottom', 'border-left', 'border-right',
+    'overflow-x', 'overflow-y', 'cursor', 'pointer-events',
+    'object-fit', 'object-position'
   ];
 
   // Default computed style values to skip (reduces payload size)
