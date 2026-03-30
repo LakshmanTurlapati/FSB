@@ -68,7 +68,7 @@ Plans:
 - [x] **Phase 122.1: Stream Overlay Fix** - Fix glow overlay not appearing in DOM stream preview during automation (INSERTED) (completed 2026-03-29)
 - [x] **Phase 122.2: Stop Signal & Final Outcome** - Dashboard stop button doesn't halt FSB automation, and task completion/failure result not relayed back to dashboard (INSERTED) (completed 2026-03-30)
 - [ ] **Phase 123: Layout Modes** - Maximize/minimize toggle, viewport-adaptive resize, picture-in-picture, fullscreen preview
-- [ ] **Phase 123.1: Stream Fidelity Fix** - DOM clone has broken layouts on complex sites -- CSS not loading properly, elements overlapping, content jumbled in iframe (INSERTED)
+- [x] **Phase 123.1: Stream Fidelity Fix** - DOM clone has broken layouts on complex sites -- CSS not loading properly, elements overlapping, content jumbled in iframe (INSERTED) (completed 2026-03-30)
 - [ ] **Phase 124: Visual Fidelity** - Dialog/modal mirroring, CSS animation replication, rAF-synced mutation batching, computed style capture
 - [ ] **Phase 125: Remote Control** - Click/type/scroll through preview to control the real browser, plus task stop button
 
@@ -158,7 +158,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 122. Connection & Auto-Start | 0/2 | Planned | - |
-| 122.2. Stop Signal & Final Outcome | 1/1 | Complete   | 2026-03-30 |
+| 122.2. Stop Signal & Final Outcome | 1/1 | Complete    | 2026-03-30 |
 | 123. Layout Modes | 1/2 | In progress | - |
 | 124. Visual Fidelity | 0/? | Not started | - |
 | 125. Remote Control | 0/? | Not started | - |

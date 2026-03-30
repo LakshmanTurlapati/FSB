@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: verifying
-stopped_at: Completed 122.2-01-PLAN.md
-last_updated: "2026-03-30T19:14:05.241Z"
+stopped_at: Completed 123.1-01-PLAN.md
+last_updated: "2026-03-30T19:31:43.516Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 2
@@ -21,11 +21,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 122.2 — stop-signal-fix
+**Current focus:** Phase 123.1 — stream-fidelity-fix
 
 ## Current Position
 
-Phase: 122.2 (stop-signal-fix) — EXECUTING
+Phase: 123.1 (stream-fidelity-fix) — EXECUTING
 Plan: 1 of 1
 Status: Phase complete — ready for verification
 Last activity: 2026-03-30
@@ -58,6 +58,7 @@ Recent decisions affecting current work:
 - [Phase 123]: Fullscreen exit overlay uses opacity transition with 2s auto-hide timer
 - [Phase 122.2]: Added first-active-session fallback in handleStopAutomation when no sessionId provided
 - [Phase 122.2]: Used _dashStopSent dedup flag to prevent duplicate ext:task-complete messages on stop
+- [Phase 123.1]: 9 additional CSS properties (inset, word-spacing, border-top/bottom/left/right, cursor, pointer-events, object-position) added to STYLE_PROPS for full stream fidelity
 
 ### Roadmap Evolution
 
@@ -76,6 +77,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-30T19:14:05.239Z
-Stopped at: Completed 122.2-01-PLAN.md
+Last session: 2026-03-30T19:31:43.513Z
+Stopped at: Completed 123.1-01-PLAN.md
 Resume file: None
