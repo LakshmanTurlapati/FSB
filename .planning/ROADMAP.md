@@ -138,6 +138,10 @@ Plans:
   2. CSS transitions (e.g., hover effects, slide-ins) and keyframe animations (e.g., spinners, progress bars) play in the preview matching the real browser
   3. DOM mutations arrive at the preview in smooth batches synced to requestAnimationFrame, with no visible jank or stale frames
   4. Elements in the preview have correct colors, fonts, sizes, and spacing because inline computed styles are captured during serialization
+**Plans**: 2 plans
+Plans:
+- [ ] 124-01-PLAN.md -- Full computed style capture, rAF mutation batching, live iframe rendering in dom-stream.js
+- [ ] 124-02-PLAN.md -- Native dialog interception pipeline (page script, content relay, WS forwarding, dashboard card rendering)
 **UI hint**: yes
 
 ### Phase 125: Remote Control
@@ -160,5 +164,5 @@ Plans:
 | 122. Connection & Auto-Start | 0/2 | Planned | - |
 | 122.2. Stop Signal & Final Outcome | 1/1 | Complete    | 2026-03-30 |
 | 123. Layout Modes | 1/2 | In progress | - |
-| 124. Visual Fidelity | 0/? | Not started | - |
+| 124. Visual Fidelity | 0/2 | Planned | - |
 | 125. Remote Control | 0/? | Not started | - |
