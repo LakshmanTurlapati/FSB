@@ -17,6 +17,7 @@
   var nextNodeId = 1;
   var scrollHandler = null;
   var lastScrollSend = 0;
+  var dialogRelayActive = false;
 
   // Attributes that need URL absolutification
   var URL_ATTRS = ['src', 'href', 'action', 'poster', 'data'];
@@ -72,6 +73,100 @@
     boxShadow: 'none',
     zIndex: 'auto'
   };
+
+  // =========================================================================
+  // 0. Dialog Interception (D-01/D-03)
+  // =========================================================================
+
+  /**
+   * Inject a page-level script that monkey-patches window.alert, window.confirm,
+   * and window.prompt to fire CustomEvents the content script can listen for.
+   * Per D-01/D-03: intercept native dialogs and relay to dashboard.
+   */
+  function injectDialogInterceptor() {
+    // Only inject once
+    if (document.getElementById('fsb-dialog-interceptor')) return;
+
+    var script = document.createElement('script');
+    script.id = 'fsb-dialog-interceptor';
+    script.textContent = '(' + function() {
+      var origAlert = window.alert;
+      var origConfirm = window.confirm;
+      var origPrompt = window.prompt;
+
+      window.alert = function(message) {
+        document.dispatchEvent(new CustomEvent('fsb-dialog', {
+          detail: { type: 'alert', message: String(message || '') }
+        }));
+        var result = origAlert.call(window, message);
+        document.dispatchEvent(new CustomEvent('fsb-dialog-dismiss', {
+          detail: { type: 'alert' }
+        }));
+        return result;
+      };
+
+      window.confirm = function(message) {
+        document.dispatchEvent(new CustomEvent('fsb-dialog', {
+          detail: { type: 'confirm', message: String(message || '') }
+        }));
+        var result = origConfirm.call(window, message);
+        document.dispatchEvent(new CustomEvent('fsb-dialog-dismiss', {
+          detail: { type: 'confirm', result: result }
+        }));
+        return result;
+      };
+
+      window.prompt = function(message, defaultValue) {
+        document.dispatchEvent(new CustomEvent('fsb-dialog', {
+          detail: { type: 'prompt', message: String(message || ''), defaultValue: defaultValue || '' }
+        }));
+        var result = origPrompt.call(window, message, defaultValue);
+        document.dispatchEvent(new CustomEvent('fsb-dialog-dismiss', {
+          detail: { type: 'prompt', result: result }
+        }));
+        return result;
+      };
+    } + ')();';
+
+    (document.head || document.documentElement).appendChild(script);
+  }
+
+  /**
+   * Listen for dialog events from the page-level interceptor and relay to background.js.
+   */
+  function setupDialogRelay() {
+    if (dialogRelayActive) return;
+    dialogRelayActive = true;
+
+    document.addEventListener('fsb-dialog', function(e) {
+      var detail = e.detail || {};
+      try {
+        chrome.runtime.sendMessage({
+          action: 'domStreamDialog',
+          dialog: {
+            type: detail.type,
+            message: detail.message,
+            defaultValue: detail.defaultValue,
+            state: 'open'
+          }
+        }).catch(function() {});
+      } catch (err) { /* extension context invalidated */ }
+    });
+
+    document.addEventListener('fsb-dialog-dismiss', function(e) {
+      var detail = e.detail || {};
+      try {
+        chrome.runtime.sendMessage({
+          action: 'domStreamDialog',
+          dialog: {
+            type: detail.type,
+            result: detail.result,
+            state: 'closed'
+          }
+        }).catch(function() {});
+      } catch (err) { /* extension context invalidated */ }
+    });
+  }
 
   // =========================================================================
   // 1. DOM Serializer
@@ -676,6 +771,8 @@
     switch (request.action) {
       case 'domStreamStart':
         logger.info('[DOM Stream] Start requested');
+        injectDialogInterceptor();
+        setupDialogRelay();
         // Re-injection guard: stop existing stream before restarting
         if (streaming) {
           stopMutationStream();
