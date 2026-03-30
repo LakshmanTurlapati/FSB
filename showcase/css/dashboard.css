@@ -1669,6 +1669,56 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
+/* --- Dialog overlay card --- */
+.dash-preview-dialog {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.dash-preview-dialog-card {
+  background: var(--bg-card, #1e1e2e);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 320px;
+  width: 80%;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.dash-preview-dialog-icon {
+  font-size: 28px;
+  color: var(--accent-color, #f59e0b);
+  margin-bottom: 12px;
+}
+
+.dash-preview-dialog-type {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary, #888);
+  margin-bottom: 8px;
+}
+
+.dash-preview-dialog-message {
+  font-size: 14px;
+  color: var(--text-primary, #e0e0e0);
+  line-height: 1.5;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
 .dash-preview-disconnected {
   position: absolute;
   inset: 0;

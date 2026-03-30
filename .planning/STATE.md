@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: verifying
-stopped_at: Completed 124-01-PLAN.md
-last_updated: "2026-03-30T20:54:38.159Z"
+stopped_at: Completed 124-02-PLAN.md
+last_updated: "2026-03-30T20:54:24.947Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 2
@@ -56,9 +56,9 @@ Recent decisions affecting current work:
 - [Phase 123]: Dynamic container height from viewport aspect ratio, min(scaleX, scaleY) for bidirectional fit
 - [Phase 123]: PiP drag uses mousedown/mousemove/mouseup on header -- simpler than HTML Drag API
 - [Phase 123]: Fullscreen exit overlay uses opacity transition with 2s auto-hide timer
-- [Phase 124]: Iterate ALL computed properties (300+) instead of curated 66-entry list for maximum fidelity
-- [Phase 124]: requestAnimationFrame replaces setTimeout(150ms) for paint-cycle-synced mutation delivery
-- [Phase 124]: Iframes render live in preview with absolutified src and pointer-events:none security
+- [Phase 124]: Page-level script injection with idempotent guard for dialog monkey-patching
+- [Phase 124]: CustomEvent relay pattern (fsb-dialog / fsb-dialog-dismiss) bridges page-world to content-script-world
+- [Phase 124]: Dialog card resets on new DOM snapshot to prevent stale overlays
 
 ### Roadmap Evolution
 
@@ -77,6 +77,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-30T20:54:38.156Z
-Stopped at: Completed 124-01-PLAN.md
+Last session: 2026-03-30T20:54:24.945Z
+Stopped at: Completed 124-02-PLAN.md
 Resume file: None

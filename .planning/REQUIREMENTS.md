@@ -24,10 +24,10 @@ Requirements for making the dashboard DOM stream fully functional with high fide
 
 ### Fidelity
 
-- [ ] **FIDELITY-01**: Alert dialogs, confirm boxes, and modal overlays visible in the page appear in the cloned preview
-- [x] **FIDELITY-02**: CSS transitions and keyframe animations are mirrored in the cloned preview
-- [x] **FIDELITY-03**: Mutation batching is synced to requestAnimationFrame for smooth display-matched updates
-- [x] **FIDELITY-04**: Snapshot captures inline computed styles for pixel-accurate clone rendering
+- [x] **FIDELITY-01**: Alert dialogs, confirm boxes, and modal overlays visible in the page appear in the cloned preview
+- [ ] **FIDELITY-02**: CSS transitions and keyframe animations are mirrored in the cloned preview
+- [ ] **FIDELITY-03**: Mutation batching is synced to requestAnimationFrame for smooth display-matched updates
+- [ ] **FIDELITY-04**: Snapshot captures inline computed styles for pixel-accurate clone rendering
 
 ### Control
 
@@ -73,10 +73,10 @@ Requirements for making the dashboard DOM stream fully functional with high fide
 | LAYOUT-03 | Phase 123 | Complete |
 | LAYOUT-04 | Phase 123 | Complete |
 | LAYOUT-05 | Phase 123 | Complete |
-| FIDELITY-01 | Phase 124 | Pending |
-| FIDELITY-02 | Phase 124 | Complete |
-| FIDELITY-03 | Phase 124 | Complete |
-| FIDELITY-04 | Phase 124 | Complete |
+| FIDELITY-01 | Phase 124 | Complete |
+| FIDELITY-02 | Phase 124 | Pending |
+| FIDELITY-03 | Phase 124 | Pending |
+| FIDELITY-04 | Phase 124 | Pending |
 | CONTROL-01 | Phase 125 | Pending |
 | CONTROL-02 | Phase 125 | Pending |
 | CONTROL-03 | Phase 125 | Pending |

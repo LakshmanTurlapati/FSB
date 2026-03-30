@@ -5922,6 +5922,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: true });
       break;
 
+    case 'domStreamDialog':
+      fsbWebSocket.send('ext:dom-dialog', { dialog: request.dialog });
+      sendResponse({ success: true });
+      break;
+
     default:
       sendResponse({ error: 'Unknown action' });
   }
