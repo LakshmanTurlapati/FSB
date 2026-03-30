@@ -933,6 +933,13 @@ function broadcastDashboardProgress(session) {
  * @param {Object} result - Return value from executeAutomationTask
  */
 function broadcastDashboardComplete(result) {
+  // Dedup: if stop handler already sent completion, skip
+  if (fsbWebSocket && fsbWebSocket._dashStopSent) {
+    fsbWebSocket._dashStopSent = false;
+    _dashboardTaskTabId = null;
+    console.log('[FSB] broadcastDashboardComplete: skipped (stop already sent)');
+    return;
+  }
   var payload;
   if (result.success) {
     payload = {
@@ -6690,7 +6697,13 @@ async function startAgentRunNow(agentId) {
 
 // Handle automation stop
 async function handleStopAutomation(request, sender, sendResponse) {
-  const { sessionId } = request;
+  var sessionId = request.sessionId;
+
+  // Fallback: if no sessionId provided, grab the first active session (dashboard/MCP stop pattern)
+  if (!sessionId && activeSessions.size > 0) {
+    sessionId = activeSessions.keys().next().value;
+    automationLogger.info('No sessionId in stop request, using first active session', { sessionId });
+  }
 
   automationLogger.info('Stop automation request received', { sessionId, activeSessions: Array.from(activeSessions.keys()) });
 
@@ -6723,6 +6736,15 @@ async function handleStopAutomation(request, sender, sendResponse) {
 
     session.status = 'stopped';
 
+    // Capture last action summary before cleanup (per D-06)
+    var lastAction = session._lastActionSummary || null;
+    if (!lastAction && session.actionHistory && session.actionHistory.length > 0) {
+      var last = session.actionHistory[session.actionHistory.length - 1];
+      lastAction = (typeof getActionStatus === 'function')
+        ? getActionStatus(last.tool, last.params)
+        : (last.tool || 'Unknown action');
+    }
+
     // Log and save session before cleanup
     const duration = Date.now() - session.startTime;
     automationLogger.logSessionEnd(sessionId, 'stopped', session.actionHistory.length, duration);
@@ -6738,7 +6760,9 @@ async function handleStopAutomation(request, sender, sendResponse) {
     automationLogger.info('Session stopped and removed', { sessionId });
     sendResponse({
       success: true,
-      message: 'Automation stopped'
+      message: 'Automation stopped',
+      lastAction: lastAction,
+      duration: duration
     });
   } else {
     automationLogger.warn('Session not found in memory or storage', { sessionId });

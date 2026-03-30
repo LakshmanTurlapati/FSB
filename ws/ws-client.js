@@ -346,31 +346,38 @@ class FSBWebSocket {
    * Finds the active dashboard session and stops it.
    */
   _handleStopTask() {
-    console.log('[FSB WS] Stop task received');
-    if (typeof activeSessions === 'undefined') {
-      console.log('[FSB WS] Stop: activeSessions not defined');
-      return;
-    }
-    var found = false;
-    for (const [sessionId, session] of activeSessions) {
-      console.log('[FSB WS] Stop: checking session', sessionId, 'isDashboard:', session._isDashboardTask, 'status:', session.status);
-      if (session._isDashboardTask && session.status === 'running') {
-        found = true;
-        session.status = 'stopped';
-        if (session._completionCallback) {
-          session._completionCallback({
+    console.log('[FSB WS] Stop task received from dashboard');
+
+    // Per D-03: stop ANY running automation, not just dashboard tasks
+    // Mirror the mcp:stop-automation pattern from background.js
+    this._dashStopSent = true;
+    handleStopAutomation(
+      { action: 'stopAutomation' },
+      { id: chrome.runtime.id },
+      (result) => {
+        console.log('[FSB WS] Stop result:', JSON.stringify(result));
+        if (result && result.success) {
+          // Build the last action text from the session that was just stopped
+          // handleStopAutomation already cleaned up, so send completion now
+          this.send('ext:task-complete', {
             success: false,
-            error: 'Stopped by dashboard user',
-            tokensUsed: 0,
-            costUsd: 0
+            error: 'Stopped by user',
+            elapsed: result.duration || 0,
+            stopped: true,
+            lastAction: result.lastAction || null
+          });
+        } else {
+          // No session found or already stopped -- still acknowledge
+          this.send('ext:task-complete', {
+            success: false,
+            error: 'Stopped by user',
+            elapsed: 0,
+            stopped: true,
+            lastAction: null
           });
         }
-        this.send('ext:task-complete', { success: false, error: 'Stopped by user', elapsed: Date.now() - session.startTime });
-        console.log('[FSB WS] Stop: session stopped successfully', sessionId);
-        return;
       }
-    }
-    if (!found) console.log('[FSB WS] Stop: no matching dashboard session found');
+    );
   }
 
   /**
