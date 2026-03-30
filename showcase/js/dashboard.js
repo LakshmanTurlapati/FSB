@@ -113,6 +113,9 @@
   var previewStatus = document.getElementById('dash-preview-status');
   var previewDisconnected = document.getElementById('dash-preview-disconnected');
   var previewError = document.getElementById('dash-preview-error');
+  var previewDialog = document.getElementById('dash-preview-dialog');
+  var previewDialogType = document.getElementById('dash-preview-dialog-type');
+  var previewDialogMessage = document.getElementById('dash-preview-dialog-message');
   var previewToggle = document.getElementById('dash-preview-toggle');
   var previewTooltip = document.getElementById('dash-preview-tooltip');
   var previewPipBtn = document.getElementById('dash-preview-pip-btn');
@@ -1589,6 +1592,7 @@
     if (previewIframe) previewIframe.style.display = 'none';
     if (previewGlow) previewGlow.style.display = 'none';
     if (previewProgress) previewProgress.style.display = 'none';
+    if (previewDialog) previewDialog.style.display = 'none';
     if (previewStatus) { previewStatus.style.display = 'none'; previewStatus.className = 'dash-preview-status'; }
     if (previewDisconnected) previewDisconnected.style.display = 'none';
     if (previewError) previewError.style.display = 'none';
@@ -1648,9 +1652,10 @@
       return;
     }
 
-    // Reset glow and progress overlays on new snapshot
+    // Reset glow, progress, and dialog overlays on new snapshot
     if (previewGlow) previewGlow.style.display = 'none';
     if (previewProgress) previewProgress.style.display = 'none';
+    if (previewDialog) previewDialog.style.display = 'none';
 
     previewSnapshotData = payload;
     lastSnapshotTime = Date.now();
@@ -2000,6 +2005,45 @@
     }
   }
 
+  function handleDOMDialog(payload) {
+    var dialog = payload.dialog || payload;
+    if (!dialog) return;
+
+    if (dialog.state === 'open') {
+      // Show dialog card overlay
+      if (previewDialogType) {
+        var typeLabel = (dialog.type || 'alert').charAt(0).toUpperCase() + (dialog.type || 'alert').slice(1);
+        previewDialogType.textContent = typeLabel;
+      }
+      if (previewDialogMessage) {
+        previewDialogMessage.textContent = dialog.message || '';
+      }
+      if (previewDialog) {
+        // Set icon based on dialog type
+        var iconEl = previewDialog.querySelector('.dash-preview-dialog-icon i');
+        if (iconEl) {
+          switch (dialog.type) {
+            case 'confirm':
+              iconEl.className = 'fa-solid fa-circle-question';
+              break;
+            case 'prompt':
+              iconEl.className = 'fa-solid fa-keyboard';
+              break;
+            default: // alert
+              iconEl.className = 'fa-solid fa-triangle-exclamation';
+              break;
+          }
+        }
+        previewDialog.style.display = 'flex';
+      }
+    } else if (dialog.state === 'closed') {
+      // Hide dialog card overlay
+      if (previewDialog) {
+        previewDialog.style.display = 'none';
+      }
+    }
+  }
+
   document.addEventListener('visibilitychange', function() {
     if (previewState === 'hidden' || previewState === 'error' || previewState === 'paused') return;
 
@@ -2273,6 +2317,11 @@
 
     if (msg.type === 'ext:dom-overlay') {
       handleDOMOverlay(msg.payload);
+      return;
+    }
+
+    if (msg.type === 'ext:dom-dialog') {
+      handleDOMDialog(msg.payload);
       return;
     }
 
