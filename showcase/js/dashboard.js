@@ -34,6 +34,7 @@
   var taskText = '';
   var taskStartTime = 0;
   var taskElapsedTimer = null;
+  var lastProgressAction = '';
 
   // Agent management state
   var detailAgentId = null;         // Currently open detail panel agent
@@ -241,7 +242,12 @@
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'dash:stop-task', payload: {}, ts: Date.now() }));
       }
-      setTaskState('failed', { error: 'Stopped by user' });
+      // Show brief "Stopping..." state while extension processes the stop
+      if (taskAction) {
+        taskAction.style.display = '';
+        taskAction.textContent = 'Stopping...';
+      }
+      if (taskStopBtn) taskStopBtn.disabled = true;
     });
   }
 
@@ -460,8 +466,13 @@
         if (taskEta) taskEta.textContent = '';
         if (taskElapsed) taskElapsed.textContent = '';
         if (taskAction) taskAction.style.display = 'none';
-        // Render failure info
-        if (taskFailedStatus) taskFailedStatus.innerHTML = '\u2717 Failed';
+        // Render failure info with elapsed time
+        var failedElapsed = data.elapsed || (taskStartTime ? Date.now() - taskStartTime : 0);
+        if (taskFailedStatus) {
+          var statusText = '\u2717 Failed';
+          if (failedElapsed > 0) statusText += ' \u00b7 ' + formatDuration(failedElapsed);
+          taskFailedStatus.innerHTML = statusText;
+        }
         if (taskErrorText) taskErrorText.textContent = data.error || 'Task could not be completed';
         // Show retry + next-task input
         disableAllTaskInputs(false);
@@ -505,6 +516,7 @@
     if (taskAction && payload.action) {
       taskAction.style.display = '';
       taskAction.textContent = payload.action;
+      lastProgressAction = payload.action;
     }
   }
 
@@ -522,9 +534,23 @@
       return;
     }
 
+    // Re-enable stop button for next task
+    if (taskStopBtn) taskStopBtn.disabled = false;
+
     if (payload.success) {
       setTaskState('success', {
         summary: payload.summary || '',
+        elapsed: payload.elapsed || 0
+      });
+    } else if (payload.stopped) {
+      // User-initiated stop (per D-06): show "Stopped by user" + last action context
+      var stopMsg = 'Stopped by user';
+      var actionContext = payload.lastAction || lastProgressAction;
+      if (actionContext) {
+        stopMsg += ' -- was: ' + actionContext;
+      }
+      setTaskState('failed', {
+        error: stopMsg,
         elapsed: payload.elapsed || 0
       });
     } else {
@@ -533,6 +559,9 @@
         elapsed: payload.elapsed || 0
       });
     }
+
+    // Reset last progress action for next task
+    lastProgressAction = '';
   }
 
   function disableAllTaskInputs(disabled) {
