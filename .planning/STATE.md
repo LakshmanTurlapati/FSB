@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: verifying
-stopped_at: Completed 123-02 Task 1, checkpoint pending
-last_updated: "2026-03-29T14:43:50.879Z"
-last_activity: 2026-03-29
+stopped_at: Completed 124-01-PLAN.md
+last_updated: "2026-03-30T20:54:38.159Z"
+last_activity: 2026-03-30
 progress:
   total_phases: 2
   completed_phases: 0
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 Phase: 123 (layout-modes) -- EXECUTING
 Plan: 2 of 2
 Status: Phase complete — ready for verification
-Last activity: 2026-03-29
+Last activity: 2026-03-30
 
 Progress: [#####.....] 50%
 
@@ -56,6 +56,9 @@ Recent decisions affecting current work:
 - [Phase 123]: Dynamic container height from viewport aspect ratio, min(scaleX, scaleY) for bidirectional fit
 - [Phase 123]: PiP drag uses mousedown/mousemove/mouseup on header -- simpler than HTML Drag API
 - [Phase 123]: Fullscreen exit overlay uses opacity transition with 2s auto-hide timer
+- [Phase 124]: Iterate ALL computed properties (300+) instead of curated 66-entry list for maximum fidelity
+- [Phase 124]: requestAnimationFrame replaces setTimeout(150ms) for paint-cycle-synced mutation delivery
+- [Phase 124]: Iframes render live in preview with absolutified src and pointer-events:none security
 
 ### Roadmap Evolution
 
@@ -74,6 +77,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-29T14:43:50.877Z
-Stopped at: Completed 123-02 Task 1, checkpoint pending
+Last session: 2026-03-30T20:54:38.156Z
+Stopped at: Completed 124-01-PLAN.md
 Resume file: None
