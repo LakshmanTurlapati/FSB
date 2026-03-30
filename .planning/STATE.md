@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: verifying
-stopped_at: Completed 123.1-01-PLAN.md
-last_updated: "2026-03-30T19:31:43.516Z"
+stopped_at: Completed 124-01-PLAN.md
+last_updated: "2026-03-30T20:54:38.159Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 2
-  completed_plans: 2
+  completed_plans: 1
   percent: 50
 ---
 
@@ -21,12 +21,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 123.1 — stream-fidelity-fix
+**Current focus:** v0.9.9.1 Phantom Stream -- Phase 122 ready to plan
 
 ## Current Position
 
-Phase: 123.1 (stream-fidelity-fix) — EXECUTING
-Plan: 1 of 1
+Phase: 123 (layout-modes) -- EXECUTING
+Plan: 2 of 2
 Status: Phase complete — ready for verification
 Last activity: 2026-03-30
 
@@ -56,9 +56,9 @@ Recent decisions affecting current work:
 - [Phase 123]: Dynamic container height from viewport aspect ratio, min(scaleX, scaleY) for bidirectional fit
 - [Phase 123]: PiP drag uses mousedown/mousemove/mouseup on header -- simpler than HTML Drag API
 - [Phase 123]: Fullscreen exit overlay uses opacity transition with 2s auto-hide timer
-- [Phase 122.2]: Added first-active-session fallback in handleStopAutomation when no sessionId provided
-- [Phase 122.2]: Used _dashStopSent dedup flag to prevent duplicate ext:task-complete messages on stop
-- [Phase 123.1]: 9 additional CSS properties (inset, word-spacing, border-top/bottom/left/right, cursor, pointer-events, object-position) added to STYLE_PROPS for full stream fidelity
+- [Phase 124]: Iterate ALL computed properties (300+) instead of curated 66-entry list for maximum fidelity
+- [Phase 124]: requestAnimationFrame replaces setTimeout(150ms) for paint-cycle-synced mutation delivery
+- [Phase 124]: Iframes render live in preview with absolutified src and pointer-events:none security
 
 ### Roadmap Evolution
 
@@ -77,6 +77,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-30T19:31:43.513Z
-Stopped at: Completed 123.1-01-PLAN.md
+Last session: 2026-03-30T20:54:38.156Z
+Stopped at: Completed 124-01-PLAN.md
 Resume file: None
