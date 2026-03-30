@@ -140,7 +140,7 @@
   /**
    * Serialize the full DOM body into a clean HTML string.
    * Strips scripts, absolutifies URLs, assigns data-fsb-nid attributes,
-   * replaces iframes with placeholders, and captures computed styles.
+   * renders iframes live with absolutified src, and captures ALL computed styles.
    *
    * @returns {Object} { html, stylesheets, scrollX, scrollY, viewportWidth, viewportHeight,
    *                     pageWidth, pageHeight, url, title }
