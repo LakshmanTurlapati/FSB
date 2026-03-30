@@ -200,12 +200,19 @@
         continue;
       }
 
-      // Replace iframes with placeholder
+      // Keep iframes live with absolutified src (D-04)
       if (tag === 'iframe') {
-        var placeholder = createIframePlaceholder(clone.ownerDocument || document);
-        if (cl.parentNode) {
-          cl.parentNode.replaceChild(placeholder, cl);
+        var iframeSrc = cl.getAttribute('src');
+        if (iframeSrc) {
+          cl.setAttribute('src', absolutifyUrl(iframeSrc));
         }
+        // Security: prevent interaction with embedded content (D-05)
+        var existingStyle = cl.getAttribute('style') || '';
+        cl.setAttribute('style', existingStyle + ';pointer-events:none');
+        // Assign nid for mutation tracking
+        cl.setAttribute('data-fsb-nid', String(nextNodeId++));
+        // Capture computed styles for sizing/positioning
+        captureComputedStyles(orig, cl);
         continue;
       }
 
@@ -474,7 +481,7 @@
 
   /**
    * Start the MutationObserver stream on document.body.
-   * Batches mutations on a 150ms debounce timer.
+   * Batches mutations via requestAnimationFrame for display-matched delivery (D-06).
    */
   function startMutationStream() {
     if (mutationObserver) {
@@ -489,9 +496,9 @@
         pendingMutations.push(mutations[i]);
       }
 
-      // Debounce: clear existing timer, set new 150ms timer
-      if (batchTimer) clearTimeout(batchTimer);
-      batchTimer = setTimeout(flushMutations, 150);
+      // Batch flush synced to browser paint cycle via rAF (FIDELITY-03)
+      if (batchTimer) cancelAnimationFrame(batchTimer);
+      batchTimer = requestAnimationFrame(flushMutations);
     });
 
     mutationObserver.observe(document.body, {
@@ -510,7 +517,7 @@
    */
   function stopMutationStream() {
     if (batchTimer) {
-      clearTimeout(batchTimer);
+      cancelAnimationFrame(batchTimer);
       batchTimer = null;
     }
 
