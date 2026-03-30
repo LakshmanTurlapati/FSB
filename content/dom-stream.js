@@ -21,56 +21,33 @@
   // Attributes that need URL absolutification
   var URL_ATTRS = ['src', 'href', 'action', 'poster', 'data'];
 
-  // Computed style properties to capture for visual fidelity
-  var STYLE_PROPS = [
-    'display', 'position', 'width', 'height', 'margin', 'padding',
-    'background', 'color', 'fontSize', 'fontFamily', 'border',
-    'borderRadius', 'opacity', 'visibility', 'overflow',
-    'flexDirection', 'alignItems', 'justifyContent', 'gap',
-    'gridTemplateColumns', 'gridTemplateRows', 'transform',
-    'boxShadow', 'textAlign', 'lineHeight', 'fontWeight',
-    'zIndex', 'maxWidth', 'minHeight',
-    'flexWrap', 'flexGrow', 'flexShrink', 'flexBasis', 'order',
-    'gridColumn', 'gridRow', 'gridGap', 'gridAutoFlow',
-    'whiteSpace', 'textOverflow', 'textDecoration',
-    'float', 'clear',
-    'top', 'left', 'right', 'bottom',
-    'minWidth', 'maxHeight',
-    'letterSpacing', 'verticalAlign',
-    'backgroundImage', 'backgroundSize', 'backgroundPosition',
-    'overflowX', 'overflowY', 'objectFit'
-  ];
-
-  // CSS property name mapping (camelCase -> kebab-case)
-  var STYLE_PROP_CSS = [
-    'display', 'position', 'width', 'height', 'margin', 'padding',
-    'background', 'color', 'font-size', 'font-family', 'border',
-    'border-radius', 'opacity', 'visibility', 'overflow',
-    'flex-direction', 'align-items', 'justify-content', 'gap',
-    'grid-template-columns', 'grid-template-rows', 'transform',
-    'box-shadow', 'text-align', 'line-height', 'font-weight',
-    'z-index', 'max-width', 'min-height',
-    'flex-wrap', 'flex-grow', 'flex-shrink', 'flex-basis', 'order',
-    'grid-column', 'grid-row', 'grid-gap', 'grid-auto-flow',
-    'white-space', 'text-overflow', 'text-decoration',
-    'float', 'clear',
-    'top', 'left', 'right', 'bottom',
-    'min-width', 'max-height',
-    'letter-spacing', 'vertical-align',
-    'background-image', 'background-size', 'background-position',
-    'overflow-x', 'overflow-y', 'object-fit'
-  ];
-
   // Default computed style values to skip (reduces payload size)
+  // Keys are kebab-case to match getComputedStyle property iteration
   var STYLE_DEFAULTS = {
-    display: 'block',
-    position: 'static',
-    opacity: '1',
-    visibility: 'visible',
-    overflow: 'visible',
-    transform: 'none',
-    boxShadow: 'none',
-    zIndex: 'auto'
+    'display': 'block',
+    'position': 'static',
+    'opacity': '1',
+    'visibility': 'visible',
+    'overflow': 'visible',
+    'transform': 'none',
+    'box-shadow': 'none',
+    'z-index': 'auto',
+    'float': 'none',
+    'clear': 'none',
+    'cursor': 'auto',
+    'pointer-events': 'auto',
+    'text-decoration': 'none solid rgb(0, 0, 0)',
+    'text-align': 'start',
+    'vertical-align': 'baseline',
+    'font-style': 'normal',
+    'font-variant': 'normal',
+    'text-transform': 'none',
+    'white-space': 'normal',
+    'word-break': 'normal',
+    'overflow-wrap': 'normal',
+    'list-style-type': 'disc',
+    'border-collapse': 'separate',
+    'resize': 'none'
   };
 
   // =========================================================================
@@ -128,25 +105,28 @@
   }
 
   /**
-   * Capture key computed styles for an element that has non-default styling.
-   * Only captures styles for elements that have a style attribute or classes.
+   * Capture ALL computed styles for an element via full property iteration.
+   * Iterates every property from getComputedStyle (300+ properties) and
+   * skips common defaults to reduce payload size (D-07, D-08).
    * @param {Element} original - The original DOM element (for getComputedStyle)
    * @param {Element} clone - The cloned element to set inline styles on
    */
   function captureComputedStyles(original, clone) {
-
     try {
       var computed = window.getComputedStyle(original);
       var styles = [];
 
-      for (var i = 0; i < STYLE_PROPS.length; i++) {
-        var val = computed[STYLE_PROPS[i]];
-        if (!val || val === '' || val === STYLE_DEFAULTS[STYLE_PROPS[i]]) continue;
-        // Skip values that are just the default 0px/normal/etc
-        if (val === '0px' || val === 'normal' || val === 'none' || val === 'auto') {
-          if (!STYLE_DEFAULTS[STYLE_PROPS[i]]) continue;
+      for (var i = 0; i < computed.length; i++) {
+        var prop = computed[i]; // kebab-case property name
+        var val = computed.getPropertyValue(prop);
+        if (!val || val === '') continue;
+        // Skip common defaults to reduce payload (per D-08)
+        if (STYLE_DEFAULTS[prop] === val) continue;
+        // Skip values that are just browser defaults for most elements
+        if (val === '0px' || val === 'normal' || val === 'none' || val === 'auto' || val === '0s' || val === '0px 0px') {
+          if (!STYLE_DEFAULTS[prop]) continue;
         }
-        styles.push(STYLE_PROP_CSS[i] + ':' + val);
+        styles.push(prop + ':' + val);
       }
 
       if (styles.length > 0) {
@@ -155,22 +135,6 @@
     } catch (e) {
       // getComputedStyle can fail for detached elements
     }
-  }
-
-  /**
-   * Create an iframe placeholder div element.
-   * @param {Document} doc - The document to create the element in
-   * @returns {Element}
-   */
-  function createIframePlaceholder(doc) {
-    var div = doc.createElement('div');
-    div.setAttribute('data-fsb-iframe-placeholder', '');
-    div.setAttribute('style',
-      'width:100%;height:200px;background:#e5e7eb;border:1px dashed #9ca3af;' +
-      'display:flex;align-items:center;justify-content:center;color:#6b7280;font-size:14px;'
-    );
-    div.textContent = 'iframe';
-    return div;
   }
 
   /**
