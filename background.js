@@ -1738,6 +1738,12 @@ async function cleanupSession(sessionId) {
       session.pendingTimeout = null;
     }
 
+    // Clear safety timeout to prevent zombie promise resolution after stop
+    if (session._safetyTimeout) {
+      clearTimeout(session._safetyTimeout);
+      session._safetyTimeout = null;
+    }
+
     // Clean up orphaned login handler if session had one
     if (session._loginHandler) {
       chrome.runtime.onMessage.removeListener(session._loginHandler.handler);
@@ -6737,7 +6743,15 @@ async function handleStopAutomation(request, sender, sendResponse) {
     }
   }
 
+  // Idempotency guard: skip if this session is already being stopped
+  if (session && (session.status === 'stopped' || session._stopInFlight)) {
+    automationLogger.info('Stop already in progress, skipping duplicate', { sessionId });
+    sendResponse({ success: true, message: 'Stop already in progress', duplicate: true });
+    return;
+  }
+
   if (session) {
+    session._stopInFlight = true; // Set BEFORE status change to close re-entry window
     automationLogger.debug('Found session to stop', { sessionId, status: session.status });
 
     session.status = 'stopped';
@@ -6759,6 +6773,18 @@ async function handleStopAutomation(request, sender, sendResponse) {
 
     // Tell content script to clean up visual overlays (covers previousTabId if set)
     await endSessionOverlays(session, 'stopped');
+
+    // Resolve the executeAutomationTask promise so startDashboardTask can complete.
+    // Without this, the completionListener inside executeAutomationTask never fires
+    // and the promise hangs until the safety timeout (up to 4 minutes).
+    chrome.runtime.sendMessage({
+      action: 'automationComplete',
+      sessionId: sessionId,
+      result: 'Stopped by user' + (lastAction ? ' -- was: ' + lastAction : ''),
+      partial: true,
+      reason: 'stopped',
+      task: session.task
+    }).catch(() => {});
 
     finalizeSessionMetrics(sessionId, false); // Stopped, not completed
     await cleanupSession(sessionId); // Await to ensure full cleanup before responding
