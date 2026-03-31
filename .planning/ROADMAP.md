@@ -66,11 +66,11 @@ Plans:
 
 - [ ] **Phase 122: Connection & Auto-Start** - Stream starts on WS connect, stays alive between tasks, recovers from disconnects, shows health status
 - [x] **Phase 122.1: Stream Overlay Fix** - Fix glow overlay not appearing in DOM stream preview during automation (INSERTED) (completed 2026-03-29)
-- [x] **Phase 122.2: Stop Signal & Final Outcome** - Dashboard stop button doesn't halt FSB automation, and task completion/failure result not relayed back to dashboard (INSERTED) (completed 2026-03-30)
+- [ ] **Phase 122.2: Stop Signal & Final Outcome** - Dashboard stop button doesn't halt FSB automation, and task completion/failure result not relayed back to dashboard (INSERTED)
 - [ ] **Phase 123: Layout Modes** - Maximize/minimize toggle, viewport-adaptive resize, picture-in-picture, fullscreen preview
 - [x] **Phase 123.1: Stream Fidelity Fix** - DOM clone has broken layouts on complex sites -- CSS not loading properly, elements overlapping, content jumbled in iframe (INSERTED) (completed 2026-03-30)
 - [x] **Phase 124: Visual Fidelity** - Dialog/modal mirroring, CSS animation replication, rAF-synced mutation batching, computed style capture (completed 2026-03-30)
-- [ ] **Phase 125: Remote Control** - Click/type/scroll through preview to control the real browser, plus task stop button
+- [x] **Phase 125: Remote Control** - Click/type/scroll through preview to control the real browser, plus task stop button (completed 2026-03-31)
 
 ### Phase Details (v0.9.9.1)
 
@@ -105,9 +105,10 @@ Plans:
   1. Clicking Stop Task on the dashboard stops the running automation in the extension
   2. Task completion (success or failure) updates the dashboard UI with the final result
   3. Dashboard shows the correct final state (success summary or error message) after task ends
-**Plans**: 1 plan
+**Plans**: 2 plans
 Plans:
 - [x] 122.2-01-PLAN.md -- Rewire stop signal to handleStopAutomation, completion relay on all exit paths, dashboard stopped state display
+- [ ] 122.2-02-PLAN.md -- Gap closure: idempotency guards, resolve executeAutomationTask on stop, single ext:task-complete delivery
 
 ### Phase 123: Layout Modes
 **Goal**: User can view the live preview in the size and mode that fits their workflow -- from inline thumbnail to fullscreen takeover
@@ -166,7 +167,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 122. Connection & Auto-Start | 0/2 | Planned | - |
-| 122.2. Stop Signal & Final Outcome | 1/1 | Complete    | 2026-03-30 |
+| 122.2. Stop Signal & Final Outcome | 1/2 | Gap closure | - |
 | 123. Layout Modes | 1/2 | In progress | - |
 | 124. Visual Fidelity | 0/2 | Complete    | 2026-03-30 |
-| 125. Remote Control | 1/2 | In Progress|  |
+| 125. Remote Control | 1/2 | Complete    | 2026-03-31 |
