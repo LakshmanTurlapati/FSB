@@ -16,6 +16,7 @@
 - v0.9.8.1 npm Publishing (in progress, parallel)
 - v0.9.9.1 Phantom Stream (in progress, parallel)
 - v0.9.11 MCP Tool Quality (shipped 2026-03-31) -- [archive](milestones/v0.9.11-ROADMAP.md)
+- v0.9.12 MCP Developer Experience (in progress)
 
 ---
 
@@ -203,5 +204,56 @@ Plans:
 | 124. Visual Fidelity | 0/2 | Complete    | 2026-03-30 |
 | 125. Remote Control | 1/2 | Complete    | 2026-03-31 |
 
+---
 
+## v0.9.12 MCP Developer Experience
 
+**Milestone Goal:** Make every FSB MCP tool self-documenting so any AI connecting via MCP can use the tools effectively without reading source code -- through enriched tool descriptions, discoverable MCP prompts, and actionable error recovery hints.
+
+### Phases (v0.9.12)
+
+- [ ] **Phase 132: Tool Description Enrichment** - Every tool description includes usage context hints, related tool references, accurate behavior descriptions, and parameter examples
+- [ ] **Phase 133: MCP Prompts** - Discoverable prompts registered via server.prompt() that teach the read-then-act workflow and provide a categorized tool reference
+- [ ] **Phase 134: Error Recovery Hints** - Tool failures include actionable recovery suggestions, and descriptions document fallback tools for common failure scenarios
+
+### Phase Details (v0.9.12)
+
+### Phase 132: Tool Description Enrichment
+**Goal**: An AI reading any FSB tool's MCP description knows when to use it, what tools to combine it with, and how to fill in each parameter -- without needing external documentation
+**Depends on**: Nothing (first phase of milestone)
+**Requirements**: DESC-01, DESC-02, DESC-03, DESC-04
+**Success Criteria** (what must be TRUE):
+  1. Every tool description contains a "When to use" sentence that distinguishes it from similar tools (e.g., click vs click_at vs cdp_click_at)
+  2. Every tool description references at least one related tool with a brief explanation of the relationship (e.g., "Use get_dom_snapshot first to find selectors")
+  3. The search tool description accurately states it uses the site's own search bar (not Google redirect), matching the v0.9.11 behavior
+  4. Every parameter with a non-obvious format includes a concrete example value in its description
+**Plans**: TBD
+
+### Phase 133: MCP Prompts
+**Goal**: An MCP client can discover and invoke FSB prompts that teach the AI how to approach browser automation tasks, without the user having to explain the workflow
+**Depends on**: Phase 132 (prompts reference tool names from enriched descriptions)
+**Requirements**: PROMPT-01, PROMPT-02, PROMPT-03
+**Success Criteria** (what must be TRUE):
+  1. An MCP client listing prompts sees "browser-automation-guide" and "tool-reference" in the available prompts
+  2. The "browser-automation-guide" prompt teaches the read-then-act pattern: call get_dom_snapshot, find the target element, then call the appropriate action tool
+  3. The "tool-reference" prompt returns a categorized tool list (navigation, interaction, extraction, waiting) with usage examples and tool relationships
+**Plans**: TBD
+
+### Phase 134: Error Recovery Hints
+**Goal**: When a tool call fails, the AI receives specific guidance on what to try next instead of a generic error message
+**Depends on**: Phase 132 (error hints reference related tools already documented in descriptions)
+**Requirements**: ERR-01, ERR-02
+**Success Criteria** (what must be TRUE):
+  1. When click fails on a selector, the error response includes a hint like "Element not found -- try get_dom_snapshot to refresh selectors, or use click_at with viewport coordinates"
+  2. Tool descriptions for tools with common failure modes mention their fallback tools (e.g., click description mentions click_at as coordinate-based fallback)
+**Plans**: TBD
+
+---
+
+### v0.9.12 MCP Developer Experience Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 132. Tool Description Enrichment | 0/? | Not started | - |
+| 133. MCP Prompts | 0/? | Not started | - |
+| 134. Error Recovery Hints | 0/? | Not started | - |
