@@ -90,15 +90,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INTR-01 | Phase 128 | Complete |
 | INTR-02 | Phase 128 | Complete |
 | INTR-04 | Phase 128 | Complete |
-| INTR-03 | Phase 129 | Pending |
-| OVLY-01 | Phase 130 | Pending |
-| OVLY-02 | Phase 130 | Pending |
-| OVLY-03 | Phase 130 | Pending |
-| OVLY-04 | Phase 130 | Pending |
-| SRCH-01 | Phase 131 | Pending |
-| SRCH-02 | Phase 131 | Pending |
-| SRCH-03 | Phase 131 | Pending |
-| SRCH-04 | Phase 131 | Pending |
+| INTR-03 | Phase 129 | Complete |
+| OVLY-01 | Phase 130 | Complete |
+| OVLY-02 | Phase 130 | Complete |
+| OVLY-03 | Phase 130 | Complete |
+| OVLY-04 | Phase 130 | Complete |
+| SRCH-01 | Phase 131 | Complete |
+| SRCH-02 | Phase 131 | Complete |
+| SRCH-03 | Phase 131 | Complete |
+| SRCH-04 | Phase 131 | Complete |
 
 **Coverage:**
 - v1 requirements: 21 total
