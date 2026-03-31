@@ -1590,6 +1590,7 @@
   pointer-events: none;
   background: white;
   transform-origin: top left;
+  overflow: hidden;
 }
 
 .dash-preview-loading {
