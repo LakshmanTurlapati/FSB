@@ -1,6 +1,6 @@
 {
   "name": "fsb-mcp-server",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "FSB Browser Automation MCP Server",
   "license": "BUSL-1.1",
   "author": "Lakshman Turlapati",
@@ -23,6 +23,7 @@
   "type": "module",
   "main": "build/index.js",
   "bin": {
+    "fsb-mcp-server": "build/index.js",
     "fsb-mcp": "build/index.js"
   },
   "files": [
