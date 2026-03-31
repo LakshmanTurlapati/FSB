@@ -2374,10 +2374,26 @@
 
     ws.onmessage = function (event) {
       try {
-        var msg = JSON.parse(event.data);
-        console.log('[FSB-DASH] WS msg:', msg.type, msg.payload ? JSON.stringify(msg.payload).substring(0, 100) : '');
+        var envelope = JSON.parse(event.data);
+        var msg;
+        // Detect compressed payload from extension
+        if (envelope._lz && envelope.d && typeof LZString !== 'undefined') {
+          var decompressed = LZString.decompressFromBase64(envelope.d);
+          if (!decompressed) {
+            console.warn('[FSB-DASH] Failed to decompress WS message');
+            return;
+          }
+          msg = JSON.parse(decompressed);
+          console.log('[FSB-DASH] WS msg (decompressed):', msg.type, msg.payload ? JSON.stringify(msg.payload).substring(0, 100) : '');
+        } else {
+          // Uncompressed message (backward compatibility or small payloads)
+          msg = envelope;
+          console.log('[FSB-DASH] WS msg:', msg.type, msg.payload ? JSON.stringify(msg.payload).substring(0, 100) : '');
+        }
         handleWSMessage(msg);
-      } catch (e) { /* ignore parse errors */ }
+      } catch (e) {
+        console.warn('[FSB-DASH] WS parse error:', e.message);
+      }
     };
 
     ws.onclose = function (e) {
