@@ -3591,13 +3591,12 @@ const tools = {
       // Wait for page stability after submit
       await waitForPageStability({ maxWait: 3000, stableTime: 500 });
 
-      // If URL did not change, try submit button fallback
+      // If URL did not change, try submit button fallback (reuse Phase 129 findSubmitButton)
       if (window.location.href === preUrl) {
         const form = searchInput.closest('form');
         if (form) {
-          const submitBtn = form.querySelector(
-            'button[type="submit"], input[type="submit"], button:not([type]), [role="button"][aria-label*="search" i]'
-          );
+          const submitBtn = findSubmitButton(form) ||
+            form.querySelector('[role="button"][aria-label*="search" i]');
           if (submitBtn) {
             submitBtn.click();
             await waitForPageStability({ maxWait: 3000, stableTime: 500 });
