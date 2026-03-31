@@ -752,6 +752,36 @@
       result.obscuredBy = obscuredBy;
     }
 
+    // Detect if obstruction is caused by a fixed/sticky positioned element (header, navbar, etc.)
+    if (!passed && obscuredBy) {
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const obscuringElement = document.elementFromPoint(centerX, centerY);
+
+      if (obscuringElement && obscuringElement !== element && !element.contains(obscuringElement)) {
+        const obscStyle = getComputedStyle(obscuringElement);
+        let isFixedOrSticky = obscStyle.position === 'fixed' || obscStyle.position === 'sticky';
+
+        // Also check ancestors -- the obscuring element might be inside a fixed container
+        if (!isFixedOrSticky) {
+          let ancestor = obscuringElement.parentElement;
+          while (ancestor && ancestor !== document.body) {
+            const aStyle = getComputedStyle(ancestor);
+            if (aStyle.position === 'fixed' || aStyle.position === 'sticky') {
+              isFixedOrSticky = true;
+              break;
+            }
+            ancestor = ancestor.parentElement;
+          }
+        }
+
+        if (isFixedOrSticky) {
+          result.obscuredByFixedHeader = true;
+          result.reason = `Element obscured by fixed/sticky element: ${obscuredBy}`;
+        }
+      }
+    }
+
     return result;
   }
 
@@ -973,8 +1003,9 @@
                      style.visibility !== 'hidden' &&
                      parseFloat(style.opacity) > 0;
 
-    // Check 4: In viewport
-    checks.inViewport = rect.top >= 0 &&
+    // Check 4: In viewport (account for fixed/sticky headers at the top)
+    const quickStickyHeight = getStickyHeaderHeight();
+    checks.inViewport = rect.top >= quickStickyHeight &&
                         rect.bottom <= window.innerHeight &&
                         rect.left >= 0 &&
                         rect.right <= window.innerWidth;
@@ -1116,11 +1147,34 @@
     }
 
     // 5. Check receives events - not obscured
-    const eventsCheck = checkElementReceivesEvents(element);
+    let eventsCheck = checkElementReceivesEvents(element);
+
+    // Retry if obscured by fixed/sticky header -- scroll to clear and re-check
+    if (!eventsCheck.passed && eventsCheck.obscuredByFixedHeader) {
+      const headerHeight = getStickyHeaderHeight();
+      if (headerHeight > 0) {
+        // First attempt: scroll element below the header
+        const r = element.getBoundingClientRect();
+        window.scrollBy(0, r.top - headerHeight - 20);
+        await new Promise(resolve => setTimeout(resolve, 150));
+        eventsCheck = checkElementReceivesEvents(element);
+
+        // Second attempt if still obscured
+        if (!eventsCheck.passed && eventsCheck.obscuredByFixedHeader) {
+          const r2 = element.getBoundingClientRect();
+          window.scrollBy(0, r2.top - headerHeight - 30);
+          await new Promise(resolve => setTimeout(resolve, 150));
+          eventsCheck = checkElementReceivesEvents(element);
+        }
+      }
+    }
+
     result.checks.receivesEvents = eventsCheck;
     if (!eventsCheck.passed) {
       result.ready = false;
-      result.failureReason = eventsCheck.reason;
+      result.failureReason = eventsCheck.obscuredByFixedHeader
+        ? `Element obscured by fixed/sticky element: ${eventsCheck.obscuredBy || 'unknown'}`
+        : eventsCheck.reason;
       result.failureDetails = eventsCheck.details;
       if (eventsCheck.obscuredBy) {
         result.failureDetails.obscuredBy = eventsCheck.obscuredBy;
@@ -1155,6 +1209,7 @@
   FSB.isElementActionable = isElementActionable;
 
   // Element readiness check functions
+  FSB.getStickyHeaderHeight = getStickyHeaderHeight;
   FSB.checkElementVisibility = checkElementVisibility;
   FSB.checkElementEnabled = checkElementEnabled;
   FSB.checkElementStable = checkElementStable;
