@@ -822,6 +822,7 @@ var _dashboardTaskTabId = null; // Tab ID for active dashboard task (used for DO
 var _streamingTabId = null; // Tab ID currently being streamed to dashboard (always-on, independent of tasks)
 var _streamingActive = false; // Whether dashboard has requested DOM streaming
 var _tabSwitchTimer = null; // Debounce timer for tab switch stream re-targeting
+var _remoteControlDebuggerTabId = null; // Tab ID with debugger attached for remote control (null = not active)
 
 /**
  * Listen for tab activations to re-target the DOM stream to the new active tab.
@@ -12428,6 +12429,121 @@ function initializeKeyboardEmulator() {
     keyboardEmulator = new KeyboardEmulator();
   }
   return keyboardEmulator;
+}
+
+// --- Remote Control CDP dispatch functions ---
+// Called by ws-client.js when dashboard sends dash:remote-* messages.
+// Debugger is attached once on start and detached on stop (no per-event attach/detach).
+
+/**
+ * Start remote control session: attach debugger to the streaming tab.
+ */
+async function handleRemoteControlStart() {
+  if (!_streamingTabId) {
+    console.warn('[FSB Remote] Cannot start remote control -- no streaming tab');
+    return;
+  }
+  try {
+    await chrome.debugger.attach({ tabId: _streamingTabId }, '1.3');
+  } catch (err) {
+    if (err.message && err.message.includes('Already attached')) {
+      console.log('[FSB Remote] Debugger already attached to tab ' + _streamingTabId + ' -- reusing');
+    } else {
+      console.error('[FSB Remote] Failed to attach debugger:', err.message);
+      return;
+    }
+  }
+  _remoteControlDebuggerTabId = _streamingTabId;
+  console.log('[FSB Remote] Debugger attached to tab ' + _streamingTabId + ' for remote control');
+}
+
+/**
+ * Stop remote control session: detach debugger from the tab.
+ */
+async function handleRemoteControlStop() {
+  if (_remoteControlDebuggerTabId === null) return;
+  try {
+    await chrome.debugger.detach({ tabId: _remoteControlDebuggerTabId });
+  } catch (_) {
+    // Ignore -- tab may have closed
+  }
+  console.log('[FSB Remote] Debugger detached -- remote control stopped');
+  _remoteControlDebuggerTabId = null;
+}
+
+/**
+ * Dispatch a remote click via CDP on the streaming tab.
+ * @param {Object} payload - { x: number, y: number, button: 'left'|'right', modifiers: number }
+ */
+async function handleRemoteClick(payload) {
+  if (_remoteControlDebuggerTabId === null) {
+    console.warn('[FSB Remote] Click ignored -- remote control not active');
+    return;
+  }
+  try {
+    var btn = payload.button || 'left';
+    var mods = payload.modifiers || 0;
+    await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchMouseEvent', {
+      type: 'mousePressed', x: payload.x, y: payload.y, button: btn, clickCount: 1, modifiers: mods
+    });
+    await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x: payload.x, y: payload.y, button: btn, clickCount: 1, modifiers: mods
+    });
+    console.log('[FSB Remote] Click dispatched at (' + payload.x + ', ' + payload.y + ')');
+  } catch (err) {
+    console.error('[FSB Remote] Click failed:', err.message);
+    _remoteControlDebuggerTabId = null;
+  }
+}
+
+/**
+ * Dispatch a remote key event via CDP on the streaming tab.
+ * @param {Object} payload - { type: 'keyDown'|'keyUp'|'char', key: string, code: string, text: string, modifiers: number }
+ */
+async function handleRemoteKey(payload) {
+  if (_remoteControlDebuggerTabId === null) {
+    console.warn('[FSB Remote] Key ignored -- remote control not active');
+    return;
+  }
+  try {
+    if (payload.type === 'char') {
+      await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchKeyEvent', {
+        type: 'char', text: payload.text || payload.key
+      });
+    } else if (payload.type === 'keyDown') {
+      await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchKeyEvent', {
+        type: 'keyDown', key: payload.key, code: payload.code, text: payload.text || '', modifiers: payload.modifiers || 0
+      });
+    } else if (payload.type === 'keyUp') {
+      await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchKeyEvent', {
+        type: 'keyUp', key: payload.key, code: payload.code, modifiers: payload.modifiers || 0
+      });
+    }
+    console.log('[FSB Remote] Key dispatched: ' + payload.type + ' ' + payload.key);
+  } catch (err) {
+    console.error('[FSB Remote] Key failed:', err.message);
+    _remoteControlDebuggerTabId = null;
+  }
+}
+
+/**
+ * Dispatch a remote scroll via CDP on the streaming tab.
+ * @param {Object} payload - { x: number, y: number, deltaX: number, deltaY: number }
+ */
+async function handleRemoteScroll(payload) {
+  if (_remoteControlDebuggerTabId === null) {
+    console.warn('[FSB Remote] Scroll ignored -- remote control not active');
+    return;
+  }
+  try {
+    await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseWheel', x: payload.x, y: payload.y,
+      deltaX: payload.deltaX || 0, deltaY: payload.deltaY || 0
+    });
+  } catch (err) {
+    console.error('[FSB Remote] Scroll failed:', err.message);
+    _remoteControlDebuggerTabId = null;
+  }
 }
 
 /**
