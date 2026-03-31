@@ -1,5 +1,21 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.11 MCP Tool Quality (Shipped: 2026-03-31)
+
+**Phases completed:** 6 phases, 7 plans, 13 tasks
+
+**Key accomplishments:**
+
+- Main-content-first extraction with 8K MCP cap via findMainContentRoot selector cascade and fixed full flag passthrough
+- Quick-extract-then-retry-if-sparse pattern in readPage handler: auto-waits up to 3s for DOM stability on JS-heavy SPA pages returning sparse content
+- Content script auto-reconnects port on BF cache restore via pageshow listener, and MCP execute-action returns navigation info instead of cryptic port errors when clicks trigger page transitions
+- Header-aware scroll pipeline with fixed/sticky detection, post-scroll compensation, obstruction recovery retries, and accurate fast-path viewport checks
+- pressEnter handler now auto-discovers and clicks submit buttons when Enter key dispatch has no observable effect on form elements
+- 3-tier cookie consent detection (6 CMPs + generic + text fallback) with reject-preferring dismiss, wired proactively into readPage and smartEnsureReady pipelines
+- 5-tier DOM heuristic cascade detecting site search inputs (type=search, role=search, name=q, placeholder, form action) with visibility filtering and Google fallback
+
+---
+
 ## v0.9.9 Excalidraw Mastery (Shipped: 2026-03-25)
 
 **Phases completed:** 9 phases, 14 plans, 56 requirements

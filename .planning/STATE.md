@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.11
-milestone_name: MCP Tool Quality
-status: in_progress
-stopped_at: All 6 phases committed, pending verification
-last_updated: "2026-03-31T19:00:00.000Z"
+milestone: v0.9.8.1
+milestone_name: npm Publishing
+status: All 6 phases committed (126-131)
+stopped_at: Completed 128-01-PLAN.md (Viewport-Aware Interaction)
+last_updated: "2026-03-31T20:25:04.268Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 6
   completed_phases: 6
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 7
+  completed_plans: 7
   percent: 100
 ---
 
