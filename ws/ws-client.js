@@ -270,6 +270,21 @@ class FSBWebSocket {
       case 'dash:dom-stream-resume':
         this._forwardToContentScript('domStreamResume', msg.payload);
         break;
+      case 'dash:remote-control-start':
+        handleRemoteControlStart();
+        break;
+      case 'dash:remote-control-stop':
+        handleRemoteControlStop();
+        break;
+      case 'dash:remote-click':
+        handleRemoteClick(msg.payload);
+        break;
+      case 'dash:remote-key':
+        handleRemoteKey(msg.payload);
+        break;
+      case 'dash:remote-scroll':
+        handleRemoteScroll(msg.payload);
+        break;
       default:
         console.log('[FSB WS] Received: ' + msg.type);
         break;
