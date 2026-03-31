@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: executing
-stopped_at: Completed 125-01-PLAN.md
-last_updated: "2026-03-31T03:41:34.021Z"
+stopped_at: Completed 125-02-PLAN.md (Task 2 checkpoint pending human-verify)
+last_updated: "2026-03-31T03:45:04Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 2
   completed_plans: 2
-  percent: 50
+  percent: 100
 ---
 
 # Project State
@@ -25,18 +25,18 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 ## Current Position
 
-Phase: 125 (remote-control) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
+Phase: 125 (remote-control) — EXECUTING (Task 2 checkpoint pending)
+Plan: 2 of 2 (Task 1 complete, Task 2 human-verify pending)
+Status: Awaiting human verification
 Last activity: 2026-03-31
 
-Progress: [#####.....] 50%
+Progress: [##########] 100% (implementation complete, verification pending)
 
 ## Performance Metrics
 
 **Recent Trend (from v0.9.9):**
 
-- Last 5 plans: 2min, 2min, 2min, 2min, 15min
+- Last 5 plans: 2min, 2min, 2min, 2min, 2min
 - Trend: Stable
 
 ## Accumulated Context
@@ -60,6 +60,9 @@ Recent decisions affecting current work:
 - [Phase 124]: CustomEvent relay pattern (fsb-dialog / fsb-dialog-dismiss) bridges page-world to content-script-world
 - [Phase 124]: Dialog card resets on new DOM snapshot to prevent stale overlays
 - [Phase 125]: Debugger attached once on remote control start, detached on stop -- no per-event overhead
+- [Phase 125]: Overlay event capture with pointer-events toggle for cross-origin iframe interaction
+- [Phase 125]: Coordinate reverse-scaling (realCoord = previewCoord / previewScale) for accurate mapping
+- [Phase 125]: Blue border (#3b82f6) for remote control active state, distinct from orange automation border
 
 ### Roadmap Evolution
 
@@ -78,6 +81,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-31T03:41:34.019Z
-Stopped at: Completed 125-01-PLAN.md
+Last session: 2026-03-31T03:45:04Z
+Stopped at: Completed 125-02-PLAN.md (Task 2 checkpoint:human-verify pending)
 Resume file: None
