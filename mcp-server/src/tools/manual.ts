@@ -62,9 +62,9 @@ export function registerManualTools(
 
   server.tool(
     'search',
-    'Trigger a search on the current page. Use when the page has a search function and you need to find specific content. Returns search results status.',
+    'Search for content. Automatically uses the current site\'s own search bar (Amazon, YouTube, GitHub, etc.) when available, falling back to Google search only when no site search input is found. Returns search results status.',
     { query: z.string().describe('Search query text') },
-    async ({ query }) => execAction(bridge, queue, 'search', 'searchGoogle', { query }),
+    async ({ query }) => execAction(bridge, queue, 'search', 'siteSearch', { query }),
   );
 
   server.tool(
