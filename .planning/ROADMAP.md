@@ -214,9 +214,9 @@ Plans:
 - [x] **Phase 126: Content Extraction Reliability** - read_page auto-waits for DOM stability, prioritizes main content, caps output intelligently (completed 2026-03-31)
 - [x] **Phase 127: BF Cache Resilience** - Click survives page transitions via proactive content script re-injection and port recovery (completed 2026-03-31)
 - [x] **Phase 128: Viewport-Aware Interaction** - Click/hover scroll elements into view accounting for fixed headers, verify visibility before acting (completed 2026-03-31)
-- [ ] **Phase 129: Smart Enter Fallback** - press_enter auto-clicks submit button when Enter key has no effect on the form
-- [ ] **Phase 130: Cookie Consent Auto-Dismiss** - Detect and dismiss cookie consent overlays proactively before they block interaction tools
-- [ ] **Phase 131: Site-Aware Search** - Search tool uses site's own search input instead of always redirecting to Google
+- [x] **Phase 129: Smart Enter Fallback** - press_enter auto-clicks submit button when Enter key has no effect on the form (committed 2026-03-31)
+- [x] **Phase 130: Cookie Consent Auto-Dismiss** - Detect and dismiss cookie consent overlays proactively before they block interaction tools (committed 2026-03-31)
+- [x] **Phase 131: Site-Aware Search** - Search tool uses site's own search input instead of always redirecting to Google (committed 2026-03-31)
 
 ### Phase Details (v0.9.11)
 
@@ -266,7 +266,9 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. User presses Enter on an Indeed/Amazon search form and the search submits successfully -- either via Enter key effect or automatic fallback to clicking the submit button
   2. The fallback only triggers when Enter key produces no observable effect (no navigation, no form submission, no DOM change) -- it does not interfere with forms where Enter works correctly
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [x] 129-01-PLAN.md -- findSubmitButton helper and submit-button fallback in pressEnter handler
 
 ### Phase 130: Cookie Consent Auto-Dismiss
 **Goal**: Cookie consent overlays are cleared proactively so they never block MCP tool interactions -- without accidentally dismissing login prompts, newsletter popups, or other non-cookie overlays
@@ -277,7 +279,9 @@ Plans:
   2. Cookie dismiss clicks the reject/decline/necessary-only button (not "Accept All") to minimize tracking
   3. A login prompt, newsletter signup popup, or paywall overlay on the same page is NOT dismissed -- only cookie consent overlays are targeted
   4. Cookie dismiss runs proactively before read_page and interaction tools, preventing the "invisible blocker" problem where the AI cannot see or work around the overlay
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [x] 130-01-PLAN.md -- dismissCookieConsent function with 3-tier CMP detection, reject-preferring dismiss, proactive wiring into readPage and smartEnsureReady
 
 ### Phase 131: Site-Aware Search
 **Goal**: The search tool finds and uses the site's own search input on any website, falling back to Google only when no site search exists
@@ -288,7 +292,9 @@ Plans:
   2. The search tool detects the site's search input via deterministic DOM heuristics (input[type=search], [role=search], placeholder text matching) without AI calls
   3. After typing the query, the search form is submitted (via Enter key or submit button click) and the user sees site-native search results
   4. On a site with no search input (e.g., a static landing page), the search tool falls back to Google as a last resort and the user sees Google results for the query
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [x] 131-01-PLAN.md -- detectSiteSearchInput heuristic cascade, tools.siteSearch with site-first + Google fallback, MCP verb rerouting
 
 ---
 
@@ -299,6 +305,6 @@ Plans:
 | 126. Content Extraction Reliability | 2/2 | Complete    | 2026-03-31 |
 | 127. BF Cache Resilience | 1/1 | Complete    | 2026-03-31 |
 | 128. Viewport-Aware Interaction | 1/1 | Complete    | 2026-03-31 |
-| 129. Smart Enter Fallback | 0/? | Not started | - |
-| 130. Cookie Consent Auto-Dismiss | 0/? | Not started | - |
-| 131. Site-Aware Search | 0/? | Not started | - |
+| 129. Smart Enter Fallback | 1/1 | Complete    | 2026-03-31 |
+| 130. Cookie Consent Auto-Dismiss | 1/1 | Complete    | 2026-03-31 |
+| 131. Site-Aware Search | 1/1 | Complete    | 2026-03-31 |
