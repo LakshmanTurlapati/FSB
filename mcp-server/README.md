@@ -197,16 +197,30 @@ The MCP server communicates with the FSB Chrome Extension over a local WebSocket
 
 ### How it works
 
-```
-MCP Client (Claude/Cursor/etc.)
-    |
-    | stdio (JSON-RPC 2.0)
-    |
-FSB MCP Server (this package)
-    |
-    | WebSocket (port 7225)
-    |
-FSB Chrome Extension (your browser)
+```mermaid
+graph TD
+    A["MCP Client\n(Claude Desktop / Claude Code / Cursor / Windsurf)"] -->|"stdio (JSON-RPC 2.0)"| B["FSB MCP Server\n(this package)"]
+    B -->|"WebSocket (port 7225)"| C["FSB Chrome Extension\n(your browser)"]
+    C -->|"DOM Analysis + Action Execution"| D["Any Website"]
+
+    subgraph tools ["44 MCP Tools"]
+        direction LR
+        T1["Autopilot\n3 tools"]
+        T2["Navigation\n5 tools"]
+        T3["Interaction\n14 tools"]
+        T4["Scrolling\n4 tools"]
+        T5["CDP\n6 tools"]
+        T6["Read-Only\n5 tools"]
+        T7["Observability\n5 tools"]
+    end
+
+    B --- tools
+
+    style A fill:#6366f1,stroke:#4f46e5,color:#fff
+    style B fill:#f97316,stroke:#ea580c,color:#fff
+    style C fill:#22c55e,stroke:#16a34a,color:#fff
+    style D fill:#64748b,stroke:#475569,color:#fff
+    style tools fill:#1e293b,stroke:#334155,color:#f8fafc
 ```
 
 ### Hub/Relay Architecture
