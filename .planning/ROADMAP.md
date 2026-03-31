@@ -211,8 +211,8 @@ Plans:
 
 ### Phases (v0.9.11)
 
-- [ ] **Phase 126: Content Extraction Reliability** - read_page auto-waits for DOM stability, prioritizes main content, caps output intelligently
-- [ ] **Phase 127: BF Cache Resilience** - Click survives page transitions via proactive content script re-injection and port recovery
+- [x] **Phase 126: Content Extraction Reliability** - read_page auto-waits for DOM stability, prioritizes main content, caps output intelligently (completed 2026-03-31)
+- [x] **Phase 127: BF Cache Resilience** - Click survives page transitions via proactive content script re-injection and port recovery (completed 2026-03-31)
 - [ ] **Phase 128: Viewport-Aware Interaction** - Click/hover scroll elements into view accounting for fixed headers, verify visibility before acting
 - [ ] **Phase 129: Smart Enter Fallback** - press_enter auto-clicks submit button when Enter key has no effect on the form
 - [ ] **Phase 130: Cookie Consent Auto-Dismiss** - Detect and dismiss cookie consent overlays proactively before they block interaction tools
@@ -231,8 +231,8 @@ Plans:
   4. On fast-loading sites, read_page returns immediately without unnecessary stability delays (quick-extract-then-retry only triggers when initial extraction is sparse)
 **Plans**: 2 plans
 Plans:
-- [ ] 126-01-PLAN.md -- Main content prioritization, 8K char cap, full flag fix, MCP timeout increase
-- [ ] 126-02-PLAN.md -- Quick-extract-then-retry-if-sparse DOM stability wrapper
+- [x] 126-01-PLAN.md -- Main content prioritization, 8K char cap, full flag fix, MCP timeout increase
+- [x] 126-02-PLAN.md -- Quick-extract-then-retry-if-sparse DOM stability wrapper
 
 ### Phase 127: BF Cache Resilience
 **Goal**: Click actions that cause page navigation return success with navigation info instead of cryptic BF cache errors, and the content script stays connected across back/forward transitions
@@ -243,7 +243,9 @@ Plans:
   2. User presses browser Back button and then interacts with the restored page -- content script is alive and responds to tool calls without requiring a page refresh
   3. After a BF cache page restoration, the content script re-establishes its communication port with the background service worker automatically
   4. MCP caller receives an actionable response (success + URL change info, or clear error with recovery hint) from every click -- never an opaque "port disconnected" error
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [x] 127-01-PLAN.md -- pageshow BF cache listener in content script, MCP execute-action BF cache recovery in background.js
 
 ### Phase 128: Viewport-Aware Interaction
 **Goal**: Click and hover work on any element regardless of its position on the page -- off-viewport elements are scrolled into the visible area accounting for fixed headers before interaction
@@ -292,8 +294,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 126. Content Extraction Reliability | 0/2 | Planned | - |
-| 127. BF Cache Resilience | 0/? | Not started | - |
+| 126. Content Extraction Reliability | 2/2 | Complete    | 2026-03-31 |
+| 127. BF Cache Resilience | 1/1 | Complete   | 2026-03-31 |
 | 128. Viewport-Aware Interaction | 0/? | Not started | - |
 | 129. Smart Enter Fallback | 0/? | Not started | - |
 | 130. Cookie Consent Auto-Dismiss | 0/? | Not started | - |

@@ -16,18 +16,18 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Content Extraction
 
-- [ ] **CONT-01**: `read_page` automatically waits for DOM stability before extracting text (no separate wait_for_stable call needed)
-- [ ] **CONT-02**: `read_page` uses quick-extract-then-retry pattern: if initial extraction returns <200 chars, wait for DOM stability and re-extract
-- [ ] **CONT-03**: `read_page` prioritizes main content area (`<main>`, `[role=main]`, `#content`, article) over sidebar/nav/footer
-- [ ] **CONT-04**: `read_page` caps output at ~8K chars with intelligent truncation (main content first, then supplementary)
-- [ ] **CONT-05**: Sites that previously returned <200 chars (Airbnb, Booking.com, Kayak) return meaningful content after stability wait
+- [x] **CONT-01**: `read_page` automatically waits for DOM stability before extracting text (no separate wait_for_stable call needed)
+- [x] **CONT-02**: `read_page` uses quick-extract-then-retry pattern: if initial extraction returns <200 chars, wait for DOM stability and re-extract
+- [x] **CONT-03**: `read_page` prioritizes main content area (`<main>`, `[role=main]`, `#content`, article) over sidebar/nav/footer
+- [x] **CONT-04**: `read_page` caps output at ~8K chars with intelligent truncation (main content first, then supplementary)
+- [x] **CONT-05**: Sites that previously returned <200 chars (Airbnb, Booking.com, Kayak) return meaningful content after stability wait
 
 ### Navigation Resilience
 
-- [ ] **NAV-01**: Content script survives BF cache transitions via `pageshow` event listener with `event.persisted` detection
-- [ ] **NAV-02**: Click that causes page navigation returns success with navigation info instead of a BF cache error
-- [ ] **NAV-03**: After BF cache restoration, content script re-establishes communication port with background service worker
-- [ ] **NAV-04**: MCP caller receives actionable response from click even when page transitions (not an opaque error)
+- [x] **NAV-01**: Content script survives BF cache transitions via `pageshow` event listener with `event.persisted` detection
+- [x] **NAV-02**: Click that causes page navigation returns success with navigation info instead of a BF cache error
+- [x] **NAV-03**: After BF cache restoration, content script re-establishes communication port with background service worker
+- [x] **NAV-04**: MCP caller receives actionable response from click even when page transitions (not an opaque error)
 
 ### Interaction Reliability
 
@@ -78,15 +78,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONT-01 | Phase 126 | Pending |
-| CONT-02 | Phase 126 | Pending |
-| CONT-03 | Phase 126 | Pending |
-| CONT-04 | Phase 126 | Pending |
-| CONT-05 | Phase 126 | Pending |
-| NAV-01 | Phase 127 | Pending |
-| NAV-02 | Phase 127 | Pending |
-| NAV-03 | Phase 127 | Pending |
-| NAV-04 | Phase 127 | Pending |
+| CONT-01 | Phase 126 | Complete |
+| CONT-02 | Phase 126 | Complete |
+| CONT-03 | Phase 126 | Complete |
+| CONT-04 | Phase 126 | Complete |
+| CONT-05 | Phase 126 | Complete |
+| NAV-01 | Phase 127 | Complete |
+| NAV-02 | Phase 127 | Complete |
+| NAV-03 | Phase 127 | Complete |
+| NAV-04 | Phase 127 | Complete |
 | INTR-01 | Phase 128 | Pending |
 | INTR-02 | Phase 128 | Pending |
 | INTR-04 | Phase 128 | Pending |
