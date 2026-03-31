@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: verifying
-stopped_at: Completed 127-01-PLAN.md (BF Cache Resilience)
-last_updated: "2026-03-31T12:07:38.792Z"
+stopped_at: Completed 128-01-PLAN.md (Viewport-Aware Interaction)
+last_updated: "2026-03-31T12:19:45Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 2
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 122.4 -- dashboard-relay-fix
+**Current focus:** Phase 128 -- viewport-aware-interaction
 
 ## Current Position
 
-Phase: 126
-Plan: Not started
-Status: Phase complete -- ready for verification
+Phase: 128
+Plan: 01 complete
+Status: Phase complete -- viewport-aware interaction shipped
 Last activity: 2026-03-31
 
-Progress: [##########] 100% (implementation complete, verification pending)
+Progress: [##########] 100% (128-01 complete)
 
 ## Performance Metrics
 
@@ -74,6 +74,10 @@ Recent decisions affecting current work:
 - [Phase 126]: 8K default MCP char cap, 50K for autopilot; main content extracted first via 11 semantic selectors
 - [Phase 127]: Port-only reconnection on BF cache restore -- FSB namespace survives, only port is re-established via pageshow listener
 - [Phase 127]: MCP execute-action catches BF cache errors, returns navigationTriggered success or actionable hint on failure
+- [Phase 128]: getStickyHeaderHeight queries 7 selectors and filters by position fixed/sticky + top < 10px
+- [Phase 128]: Post-scroll header compensation uses window.scrollBy with negative offset to clear fixed headers
+- [Phase 128]: checkElementReceivesEvents marks obscuredByFixedHeader flag, ensureElementReady retries scroll up to 2 times
+- [Phase 128]: performQuickReadinessCheck uses getStickyHeaderHeight to prevent false fast-path approval
 
 ### Roadmap Evolution
 
@@ -93,6 +97,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-31T12:07:38.789Z
-Stopped at: Completed 127-01-PLAN.md (BF Cache Resilience)
+Last session: 2026-03-31T12:19:45Z
+Stopped at: Completed 128-01-PLAN.md (Viewport-Aware Interaction)
 Resume file: None

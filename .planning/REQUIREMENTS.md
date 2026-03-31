@@ -31,10 +31,10 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Interaction Reliability
 
-- [ ] **INTR-01**: Click and hover scroll elements into view accounting for fixed/sticky headers (not just raw scrollIntoView)
-- [ ] **INTR-02**: After scrolling, click verifies element is actually visible via elementFromPoint check before clicking
+- [x] **INTR-01**: Click and hover scroll elements into view accounting for fixed/sticky headers (not just raw scrollIntoView)
+- [x] **INTR-02**: After scrolling, click verifies element is actually visible via elementFromPoint check before clicking
 - [ ] **INTR-03**: `press_enter` automatically falls back to clicking the form's submit button when Enter key has no effect
-- [ ] **INTR-04**: Off-viewport elements that get_text/get_attribute can access are also clickable/hoverable after scroll
+- [x] **INTR-04**: Off-viewport elements that get_text/get_attribute can access are also clickable/hoverable after scroll
 
 ### Overlay Handling
 
@@ -87,9 +87,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NAV-02 | Phase 127 | Complete |
 | NAV-03 | Phase 127 | Complete |
 | NAV-04 | Phase 127 | Complete |
-| INTR-01 | Phase 128 | Pending |
-| INTR-02 | Phase 128 | Pending |
-| INTR-04 | Phase 128 | Pending |
+| INTR-01 | Phase 128 | Complete |
+| INTR-02 | Phase 128 | Complete |
+| INTR-04 | Phase 128 | Complete |
 | INTR-03 | Phase 129 | Pending |
 | OVLY-01 | Phase 130 | Pending |
 | OVLY-02 | Phase 130 | Pending |

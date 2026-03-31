@@ -213,7 +213,7 @@ Plans:
 
 - [x] **Phase 126: Content Extraction Reliability** - read_page auto-waits for DOM stability, prioritizes main content, caps output intelligently (completed 2026-03-31)
 - [x] **Phase 127: BF Cache Resilience** - Click survives page transitions via proactive content script re-injection and port recovery (completed 2026-03-31)
-- [ ] **Phase 128: Viewport-Aware Interaction** - Click/hover scroll elements into view accounting for fixed headers, verify visibility before acting
+- [x] **Phase 128: Viewport-Aware Interaction** - Click/hover scroll elements into view accounting for fixed headers, verify visibility before acting (completed 2026-03-31)
 - [ ] **Phase 129: Smart Enter Fallback** - press_enter auto-clicks submit button when Enter key has no effect on the form
 - [ ] **Phase 130: Cookie Consent Auto-Dismiss** - Detect and dismiss cookie consent overlays proactively before they block interaction tools
 - [ ] **Phase 131: Site-Aware Search** - Search tool uses site's own search input instead of always redirecting to Google
@@ -249,13 +249,15 @@ Plans:
 
 ### Phase 128: Viewport-Aware Interaction
 **Goal**: Click and hover work on any element regardless of its position on the page -- off-viewport elements are scrolled into the visible area accounting for fixed headers before interaction
-**Depends on**: Nothing (independent; content script actions.js changes)
+**Depends on**: Nothing (independent; content script accessibility.js changes)
 **Requirements**: INTR-01, INTR-02, INTR-04
 **Success Criteria** (what must be TRUE):
   1. User clicks an element below the fold and it scrolls into view with enough clearance that fixed/sticky headers do not obscure it
   2. After scrolling an element into view, a visibility check (elementFromPoint) confirms the target element is actually exposed before the click fires
   3. Any element that get_text or get_attribute can access is also clickable and hoverable -- there is no class of "readable but not clickable" elements due to scroll position
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [x] 128-01-PLAN.md -- getStickyHeaderHeight helper, header-aware scrollIntoViewIfNeeded, fixed-header obstruction recovery in checkElementReceivesEvents
 
 ### Phase 129: Smart Enter Fallback
 **Goal**: press_enter reliably submits forms even when the Enter key has no effect -- automatically detecting and clicking the submit button as a fallback
@@ -295,8 +297,8 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 126. Content Extraction Reliability | 2/2 | Complete    | 2026-03-31 |
-| 127. BF Cache Resilience | 1/1 | Complete   | 2026-03-31 |
-| 128. Viewport-Aware Interaction | 0/? | Not started | - |
+| 127. BF Cache Resilience | 1/1 | Complete    | 2026-03-31 |
+| 128. Viewport-Aware Interaction | 1/1 | Complete    | 2026-03-31 |
 | 129. Smart Enter Fallback | 0/? | Not started | - |
 | 130. Cookie Consent Auto-Dismiss | 0/? | Not started | - |
 | 131. Site-Aware Search | 0/? | Not started | - |
