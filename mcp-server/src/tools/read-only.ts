@@ -25,7 +25,7 @@ export function registerReadOnlyTools(
       return queue.enqueue('read_page', async () => {
         const result = await bridge.sendAndWait(
           { type: 'mcp:read-page', payload: { full } },
-          { timeout: 30_000 },
+          { timeout: 45_000 },
         );
         return mapFSBError(result);
       });

@@ -13815,7 +13815,10 @@ async function handleMCPMessage(msg) {
         try {
           const pageContent = await chrome.tabs.sendMessage(tab.id, {
             action: 'readPage',
-            full: payload.full || false
+            params: {
+              full: payload.full || false,
+              maxChars: payload.full ? 50000 : 8000
+            }
           });
           console.log(`[FSB MCP] read-page: result success=${pageContent?.success}, chars=${pageContent?.charCount || 'N/A'}`);
           sendMCPResponse(id, pageContent || { success: false, error: 'No page content response (result was null/undefined)' });

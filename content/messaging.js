@@ -783,6 +783,7 @@
           const rpStart = Date.now();
           const rpSelector = request.params?.selector || null;
           const rpFull = request.params?.flags?.full || request.params?.full || false;
+          const rpMaxChars = request.params?.maxChars || (rpFull ? 50000 : 50000);
           const rpRoot = rpSelector ? document.querySelector(rpSelector) : document.body;
           if (!rpRoot) {
             sendResponse({ success: true, text: '[Selector not found: ' + rpSelector + ']', charCount: 0 });
@@ -790,12 +791,14 @@
           }
           const rpText = FSB.extractPageText(rpRoot, {
             viewportOnly: !rpFull,
-            format: 'markdown-lite'
+            format: 'markdown-lite',
+            maxChars: rpMaxChars
           });
           const rpTime = Date.now() - rpStart;
           logger.logTiming(FSB.sessionId, 'DOM', 'extractPageText', rpTime, {
             selector: rpSelector,
             full: rpFull,
+            maxChars: rpMaxChars,
             charCount: rpText.length
           });
           sendResponse({
