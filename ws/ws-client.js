@@ -297,6 +297,10 @@ class FSBWebSocket {
    * @param {Object} payload - { task: string }
    */
   async _handleDashboardTask(payload) {
+    // Reset stop flags for new task
+    this._dashStopSent = false;
+    this._stopInFlight = false;
+
     var task = payload?.task;
     if (!task) {
       this.send('ext:task-complete', { success: false, error: 'No task provided', elapsed: 0 });
@@ -361,6 +365,13 @@ class FSBWebSocket {
    * Finds the active dashboard session and stops it.
    */
   _handleStopTask() {
+    // Idempotency: ignore if a stop is already in-flight
+    if (this._stopInFlight) {
+      console.log('[FSB WS] Stop already in-flight, ignoring duplicate dash:stop-task');
+      return;
+    }
+    this._stopInFlight = true;
+
     console.log('[FSB WS] Stop task received from dashboard');
 
     // Per D-03: stop ANY running automation, not just dashboard tasks
@@ -371,6 +382,14 @@ class FSBWebSocket {
       { id: chrome.runtime.id },
       (result) => {
         console.log('[FSB WS] Stop result:', JSON.stringify(result));
+
+        // Skip sending if this was a duplicate (handleStopAutomation already handled it)
+        if (result && result.duplicate) {
+          console.log('[FSB WS] Duplicate stop -- not sending ext:task-complete again');
+          this._stopInFlight = false;
+          return;
+        }
+
         if (result && result.success) {
           // Build the last action text from the session that was just stopped
           // handleStopAutomation already cleaned up, so send completion now
@@ -391,6 +410,9 @@ class FSBWebSocket {
             lastAction: null
           });
         }
+
+        // Reset for next task
+        this._stopInFlight = false;
       }
     );
   }
