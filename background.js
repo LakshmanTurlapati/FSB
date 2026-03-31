@@ -13708,6 +13708,14 @@ async function handleMCPMessage(msg) {
           sendMCPResponse(id, { success: false, error: `Content script injection failed: ${injectErr.message}` });
           return;
         }
+        // Capture URL before action -- used to detect navigation-triggering clicks (per D-05)
+        let previousUrl = null;
+        try {
+          previousUrl = tab.url;
+        } catch (e) {
+          // tab.url already available from the query above
+        }
+
         try {
           const result = await chrome.tabs.sendMessage(tab.id, {
             action: 'executeAction',
@@ -13718,8 +13726,73 @@ async function handleMCPMessage(msg) {
           console.log(`[FSB MCP] execute-action: result success=${result?.success}`, result?.error ? `error=${result.error}` : '');
           sendMCPResponse(id, result || { success: false, error: 'No response from content script (result was null/undefined)' });
         } catch (msgErr) {
-          console.error(`[FSB MCP] execute-action: sendMessage FAILED:`, msgErr.message);
-          sendMCPResponse(id, { success: false, error: `Content script communication failed: ${msgErr.message}` });
+          console.warn(`[FSB MCP] execute-action: sendMessage error: ${msgErr.message}`);
+
+          // Classify the error to detect BF cache specifically (per D-06)
+          const failureType = classifyFailure(msgErr);
+
+          if (failureType === FAILURE_TYPES.BF_CACHE) {
+            console.log('[FSB MCP] execute-action: BF cache error detected, checking for navigation...');
+
+            // Check if URL changed -- click-triggered navigation means the action succeeded (per D-04)
+            try {
+              const currentTab = await chrome.tabs.get(tab.id);
+              const currentUrl = currentTab?.url;
+
+              if (previousUrl && currentUrl && currentUrl !== previousUrl) {
+                console.log(`[FSB MCP] execute-action: navigation detected ${previousUrl} -> ${currentUrl}`);
+                sendMCPResponse(id, {
+                  success: true,
+                  navigationTriggered: true,
+                  previousUrl: previousUrl,
+                  newUrl: currentUrl,
+                  note: 'Click triggered page navigation. Content script will reconnect automatically via pageshow handler.',
+                  tool: payload.tool
+                });
+                return;
+              }
+            } catch (urlCheckErr) {
+              console.warn('[FSB MCP] execute-action: URL check failed:', urlCheckErr.message);
+            }
+
+            // URL did not change -- page restored from BF cache without navigation
+            // Wake tab, wait for content script pageshow reconnection, retry once
+            console.log('[FSB MCP] execute-action: BF cache without navigation, attempting recovery...');
+            try {
+              await chrome.tabs.update(tab.id, { active: true });
+              // Give the pageshow handler in lifecycle.js time to re-establish the port
+              await new Promise(r => setTimeout(r, 1500));
+              await ensureContentScriptInjected(tab.id);
+
+              const retryResult = await chrome.tabs.sendMessage(tab.id, {
+                action: 'executeAction',
+                tool: payload.tool,
+                params: payload.params || {},
+                source: 'mcp-manual'
+              });
+              console.log(`[FSB MCP] execute-action: BF cache retry success=${retryResult?.success}`);
+              sendMCPResponse(id, retryResult || { success: false, error: 'No response after BF cache recovery' });
+            } catch (retryErr) {
+              console.error('[FSB MCP] execute-action: BF cache recovery failed:', retryErr.message);
+              sendMCPResponse(id, {
+                success: false,
+                error: `Content script communication failed after BF cache recovery: ${retryErr.message}`,
+                recovery: 'bf_cache_retry_failed',
+                hint: 'Try calling read_page to re-establish connection, then retry the action'
+              });
+            }
+          } else {
+            // Non-BF-cache error -- return as-is with recovery hint (per D-04 actionable response)
+            console.error(`[FSB MCP] execute-action: sendMessage FAILED (${failureType}):`, msgErr.message);
+            sendMCPResponse(id, {
+              success: false,
+              error: `Content script communication failed: ${msgErr.message}`,
+              failureType: failureType,
+              hint: failureType === FAILURE_TYPES.COMMUNICATION
+                ? 'Content script may need re-injection. Try navigating to the page again.'
+                : 'Unexpected error. Try read_page to check page state.'
+            });
+          }
         }
         break;
       }
