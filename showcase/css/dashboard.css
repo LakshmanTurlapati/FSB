@@ -1991,7 +1991,7 @@ body.dash-layout-maximized #dash-task-progress {
 
 .dash-remote-overlay.active {
   pointer-events: auto; /* Captures all events when active */
-  cursor: crosshair;
+  cursor: default;
 }
 
 /* Blue border when remote control is active */
