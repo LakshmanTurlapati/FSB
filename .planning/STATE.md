@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: verifying
-stopped_at: Completed 122.4-01-PLAN.md (Dashboard Relay Fix)
-last_updated: "2026-03-31T10:39:56.186Z"
+stopped_at: Completed 126-01-PLAN.md (Content Extraction Priority)
+last_updated: "2026-03-31T11:45:40.934Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 2
-  completed_plans: 2
+  completed_plans: 1
   percent: 100
 ---
 
@@ -71,6 +71,7 @@ Recent decisions affecting current work:
 - [Phase 122.4]: Added .catch to all 7 unguarded automationComplete sendMessage calls to prevent silent MV3 rejection kills
 - [Phase 122.4]: Curated ~85 CSS properties for DOM stream instead of all 300+ computed properties (D-04)
 - [Phase 122.4]: 500ms throttle on broadcastOverlayState to prevent WS flooding (D-05)
+- [Phase 126]: 8K default MCP char cap, 50K for autopilot; main content extracted first via 11 semantic selectors
 
 ### Roadmap Evolution
 
@@ -90,6 +91,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-31T10:39:56.183Z
-Stopped at: Completed 122.4-01-PLAN.md (Dashboard Relay Fix)
+Last session: 2026-03-31T11:45:40.932Z
+Stopped at: Completed 126-01-PLAN.md (Content Extraction Priority)
 Resume file: None
