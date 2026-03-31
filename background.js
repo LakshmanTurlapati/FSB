@@ -200,6 +200,8 @@ importScripts('agents/agent-manager.js');
 importScripts('agents/agent-scheduler.js');
 importScripts('agents/agent-executor.js');
 importScripts('agents/server-sync.js');
+// Compression for WS payloads (used by ws-client.js)
+importScripts('lib/lz-string.min.js');
 importScripts('ws/ws-client.js');
 
 // Memory layer modules

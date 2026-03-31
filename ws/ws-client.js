@@ -122,7 +122,18 @@ class FSBWebSocket {
    */
   send(type, payload) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
-    this.ws.send(JSON.stringify({ type, payload, ts: Date.now() }));
+    var raw = JSON.stringify({ type, payload, ts: Date.now() });
+    // Compress payloads larger than 1KB to avoid relay message size limits
+    if (raw.length > 1024 && typeof LZString !== 'undefined') {
+      var compressed = LZString.compressToBase64(raw);
+      // Only use compression if it actually reduces size
+      if (compressed.length < raw.length) {
+        console.log('[FSB WS] Compressed ' + type + ': ' + raw.length + ' -> ' + compressed.length + ' bytes (' + Math.round(compressed.length / raw.length * 100) + '%)');
+        this.ws.send(JSON.stringify({ _lz: true, d: compressed }));
+        return true;
+      }
+    }
+    this.ws.send(raw);
     return true;
   }
 

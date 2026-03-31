@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: executing
-stopped_at: Completed 125-02-PLAN.md (Task 2 checkpoint pending human-verify)
-last_updated: "2026-03-31T03:45:04Z"
+stopped_at: Completed 122.2-02-PLAN.md (stop signal gap closure)
+last_updated: "2026-03-31T09:17:55.017Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 2
-  completed_phases: 2
+  completed_phases: 1
   total_plans: 2
   completed_plans: 2
   percent: 100
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 125 — remote-control
+**Current focus:** Phase 122.2 — stop-signal-fix
 
 ## Current Position
 
-Phase: 125 (remote-control) — EXECUTING (Task 2 checkpoint pending)
-Plan: 2 of 2 (Task 1 complete, Task 2 human-verify pending)
-Status: Awaiting human verification
+Phase: 122.2 (stop-signal-fix) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-03-31
 
 Progress: [##########] 100% (implementation complete, verification pending)
@@ -63,6 +63,9 @@ Recent decisions affecting current work:
 - [Phase 125]: Overlay event capture with pointer-events toggle for cross-origin iframe interaction
 - [Phase 125]: Coordinate reverse-scaling (realCoord = previewCoord / previewScale) for accurate mapping
 - [Phase 125]: Blue border (#3b82f6) for remote control active state, distinct from orange automation border
+- [Phase 122.2]: _stopInFlight flag set BEFORE session.status change to close re-entry race window in handleStopAutomation
+- [Phase 122.2]: automationComplete sent BEFORE cleanupSession so completionListener resolves executeAutomationTask while session still exists
+- [Phase 122.2]: result.duplicate flag from handleStopAutomation tells _handleStopTask to skip redundant ext:task-complete
 
 ### Roadmap Evolution
 
@@ -81,6 +84,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-31T03:45:04Z
-Stopped at: Completed 125-02-PLAN.md (Task 2 checkpoint:human-verify pending)
+Last session: 2026-03-31T09:17:55.014Z
+Stopped at: Completed 122.2-02-PLAN.md (stop signal gap closure)
 Resume file: None
