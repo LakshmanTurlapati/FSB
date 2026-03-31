@@ -2693,15 +2693,39 @@
    * @param {Object} options
    * @param {boolean} options.viewportOnly - If true, only extract visible viewport text (default true)
    * @param {string} options.format - Output format (default 'markdown-lite')
+   * @param {number} options.maxChars - Maximum characters to extract (default 50000)
    * @returns {string} Markdown-formatted page text
    */
+
+  /**
+   * Find the main content root element of the page using semantic selectors.
+   * Tries selectors in priority order and returns the first match with >100 chars of text.
+   * @param {Element} root - Root element to search within
+   * @returns {Element|null} Main content element or null if not found
+   */
+  function findMainContentRoot(root) {
+    const mainSelectors = [
+      'main', '[role="main"]', '#main-content', '#content',
+      'article', '.post-content', '.article-content', '.entry-content',
+      '#primary', '.main-content', '.content'
+    ];
+    for (const sel of mainSelectors) {
+      try {
+        const el = root.querySelector(sel);
+        if (el && el.textContent.trim().length > 100) return el;
+      } catch { /* invalid selector, skip */ }
+    }
+    return null; // no main content root found, caller uses full root
+  }
+
   function extractPageText(root, options = {}) {
     const {
       viewportOnly = true,
-      format = 'markdown-lite'
+      format = 'markdown-lite',
+      maxChars = 50000
     } = options;
 
-    const MAX_CHARS = 50000;
+    const MAX_CHARS = maxChars;
     const vpTop = viewportOnly ? window.scrollY : -Infinity;
     const vpBottom = viewportOnly ? window.scrollY + window.innerHeight : Infinity;
 
@@ -2869,8 +2893,33 @@
       if (isBlockElement(tag)) flushLine();
     }
 
-    visit(root || document.body);
+    // Main content prioritization when truncating (MCP path uses maxChars < 50000)
+    const mainRoot = (maxChars < 50000) ? findMainContentRoot(root || document.body) : null;
+    const extractionRoot = mainRoot || root || document.body;
+
+    visit(extractionRoot);
     flushLine();
+
+    // If we used a main content root and have budget left, add supplementary content
+    if (mainRoot && !truncated && totalChars < maxChars * 0.9) {
+      const supplementaryVisit = (node) => {
+        if (truncated) return;
+        if (node === mainRoot) return; // skip already-extracted main
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const tag = node.tagName.toLowerCase();
+          // Skip noise elements for supplementary content
+          if (['nav', 'footer', 'aside', 'header'].includes(tag)) return;
+          if (node.getAttribute('role') === 'navigation') return;
+          if (node.getAttribute('role') === 'complementary') return;
+        }
+        // Use existing visit for actual extraction
+        visit(node);
+      };
+      for (const child of (root || document.body).childNodes) {
+        supplementaryVisit(child);
+      }
+      flushLine();
+    }
 
     let result = lines.join('\n');
     // Collapse 3+ blank lines
@@ -2878,7 +2927,15 @@
     result = result.trim();
 
     if (truncated) {
-      result += '\n\n[...text truncated at 50K chars]';
+      result += `\n\n[...text truncated at ${Math.round(maxChars / 1000)}K chars]`;
+    }
+
+    // Prepend page title/URL header when main content was detected for MCP callers
+    if (mainRoot && maxChars < 50000) {
+      const title = document.title || '';
+      const url = window.location.href || '';
+      const header = `# ${title}\nURL: ${url}\n\n`;
+      result = header + result;
     }
 
     return result;
@@ -3499,6 +3556,7 @@
   FSB.getFilteredElements = getFilteredElements;
   FSB.findElementByStrategies = findElementByStrategies;
   FSB.buildMarkdownSnapshot = buildMarkdownSnapshot;
+  FSB.findMainContentRoot = findMainContentRoot;
   FSB.extractPageText = extractPageText;
   FSB.getStructuredDOM = getStructuredDOM;
   FSB.getCanvasPixelFallback = getCanvasPixelFallback;
