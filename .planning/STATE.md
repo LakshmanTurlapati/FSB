@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
-status: executing
-stopped_at: Completed 122.2-02-PLAN.md (stop signal gap closure)
-last_updated: "2026-03-31T09:17:55.017Z"
+status: verifying
+stopped_at: Completed 122.3-01-PLAN.md (WS payload compression)
+last_updated: "2026-03-31T09:46:58.618Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 2
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 122.2 — stop-signal-fix
+**Current focus:** Phase 122.3 — ws-payload-compression
 
 ## Current Position
 
-Phase: 122.2 (stop-signal-fix) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
+Phase: 122.3 (ws-payload-compression) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
 Last activity: 2026-03-31
 
 Progress: [##########] 100% (implementation complete, verification pending)
@@ -66,6 +66,8 @@ Recent decisions affecting current work:
 - [Phase 122.2]: _stopInFlight flag set BEFORE session.status change to close re-entry race window in handleStopAutomation
 - [Phase 122.2]: automationComplete sent BEFORE cleanupSession so completionListener resolves executeAutomationTask while session still exists
 - [Phase 122.2]: result.duplicate flag from handleStopAutomation tells _handleStopTask to skip redundant ext:task-complete
+- [Phase 122.3]: 1KB threshold for WS compression -- pings/progress skip, dom-snapshots get compressed via LZString.compressToBase64
+- [Phase 122.3]: Envelope format { _lz: true, d: base64 } -- relay sees small JSON, dashboard detects _lz flag and decompresses
 
 ### Roadmap Evolution
 
@@ -73,6 +75,7 @@ Recent decisions affecting current work:
 - v0.9.9.1 Phantom Stream roadmap created 2026-03-29 (Phases 122-125)
 - Phase 122.1 inserted after Phase 122: Stream Overlay Fix (URGENT) -- glow overlay reads wrong object, auto-broadcast timing broken
 - v0.9.8.1 npm Publishing continues in parallel
+- Phase 122.3 inserted after Phase 122.2: WS Payload Compression (URGENT) -- relay drops 100KB+ snapshots, task results never reach dashboard
 
 ### Pending Todos
 
@@ -84,6 +87,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-31T09:17:55.014Z
-Stopped at: Completed 122.2-02-PLAN.md (stop signal gap closure)
+Last session: 2026-03-31T09:46:58.616Z
+Stopped at: Completed 122.3-01-PLAN.md (WS payload compression)
 Resume file: None
