@@ -9,11 +9,11 @@
 </picture>
 
 ![FSB](https://img.shields.io/badge/FSB-Full_Self--Browsing-000000?style=for-the-badge)
-![npm](https://img.shields.io/npm/v/fsb-mcp-server?style=for-the-badge&color=0078D4)
+[![npm](https://img.shields.io/npm/v/fsb-mcp-server?style=for-the-badge&color=0078D4)](https://www.npmjs.com/package/fsb-mcp-server)
 ![MCP](https://img.shields.io/badge/MCP-Server-00B4D8?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-F5C518?style=for-the-badge)
 
-![npm downloads](https://img.shields.io/npm/dm/fsb-mcp-server?style=flat-square&label=Downloads)
+[![npm downloads](https://img.shields.io/npm/dm/fsb-mcp-server?style=flat-square&label=Downloads)](https://www.npmjs.com/package/fsb-mcp-server)
 ![GitHub Stars](https://img.shields.io/github/stars/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Stars)
 ![Tools](https://img.shields.io/badge/MCP_Tools-44-F97316?style=flat-square)
 ![Node](https://img.shields.io/badge/Node-18+-339933?style=flat-square&logo=nodedotjs&logoColor=white)
