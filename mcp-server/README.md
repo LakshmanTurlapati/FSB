@@ -215,12 +215,6 @@ graph TD
     end
 
     B --- tools
-
-    style A fill:#6366f1,stroke:#4f46e5,color:#fff
-    style B fill:#f97316,stroke:#ea580c,color:#fff
-    style C fill:#22c55e,stroke:#16a34a,color:#fff
-    style D fill:#64748b,stroke:#475569,color:#fff
-    style tools fill:#1e293b,stroke:#334155,color:#f8fafc
 ```
 
 ### Hub/Relay Architecture
