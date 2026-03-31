@@ -442,8 +442,26 @@ class FSBWebSocket {
         tabId = tabs[0]?.id;
       }
       if (tabId) {
-        chrome.tabs.sendMessage(tabId, { action: action, ...payload }, { frameId: 0 })
-          .catch(function() {}); // Ignore if content script not ready
+        try {
+          await chrome.tabs.sendMessage(tabId, { action: action, ...payload }, { frameId: 0 });
+        } catch (sendErr) {
+          // Content script not injected yet -- inject it and retry once
+          console.log('[FSB WS] Content script not ready on tab', tabId, '-- injecting and retrying', action);
+          try {
+            var scriptFiles = (typeof CONTENT_SCRIPT_FILES !== 'undefined')
+              ? CONTENT_SCRIPT_FILES
+              : ['content/init.js', 'content/utils.js', 'content/dom-stream.js', 'content/messaging.js', 'content/lifecycle.js'];
+            await chrome.scripting.executeScript({
+              target: { tabId: tabId, allFrames: false },
+              files: scriptFiles
+            });
+            // Brief delay for script initialization
+            await new Promise(function(r) { setTimeout(r, 300); });
+            await chrome.tabs.sendMessage(tabId, { action: action, ...payload }, { frameId: 0 });
+          } catch (injectErr) {
+            console.warn('[FSB WS] Failed to inject content script on tab', tabId, ':', injectErr.message);
+          }
+        }
       }
     } catch (e) {
       console.warn('[FSB WS] Failed to forward to content script:', action, e.message);
