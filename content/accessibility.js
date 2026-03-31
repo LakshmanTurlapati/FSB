@@ -1041,6 +1041,180 @@
     };
   }
 
+  // =============================================================================
+  // COOKIE CONSENT AUTO-DISMISS (OVLY-01 through OVLY-04)
+  // =============================================================================
+
+  /**
+   * Detect and dismiss cookie consent overlays proactively.
+   * 3-tier detection: CMP-specific, generic overlay patterns, text-based fallback.
+   * Prefers reject/decline buttons over Accept All to minimize tracking.
+   * Idempotent: safe to call multiple times on the same page.
+   */
+  async function dismissCookieConsent() {
+    if (window.__FSB_COOKIE_DISMISSED__) {
+      return { dismissed: false, method: null, cmp: null, skipped: true, reason: 'already dismissed on this page' };
+    }
+    const currentURL = window.location.href;
+    if (FSB._lastCookieDismissURL === currentURL &&
+        FSB._lastCookieDismissTime && (Date.now() - FSB._lastCookieDismissTime) < 5000) {
+      return { dismissed: false, method: null, cmp: null, skipped: true, reason: 'cooldown (same URL within 5s)' };
+    }
+    FSB._lastCookieDismissURL = currentURL;
+    FSB._lastCookieDismissTime = Date.now();
+
+    const CMP_CONFIGS = [
+      {
+        name: 'onetrust',
+        containers: ['#onetrust-consent-sdk', '#onetrust-banner-sdk'],
+        rejectButtons: ['button[class*="ot-pc-refuse-all-handler"]', '.onetrust-close-btn-handler[aria-label*="reject" i]', '#onetrust-reject-all-handler'],
+        acceptButtons: ['#onetrust-accept-btn-handler']
+      },
+      {
+        name: 'cookiebot',
+        containers: ['#CybotCookiebotDialog'],
+        rejectButtons: ['#CybotCookiebotDialogBodyButtonDecline', '#CybotCookiebotDialogBodyLevelButtonLevelOptinDeclineAll', 'a[id*="Decline"]'],
+        acceptButtons: ['#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll']
+      },
+      {
+        name: 'trustarc',
+        containers: ['#truste_overlay', '#consent_blackbar'],
+        rejectButtons: ['.trustarc-manage-btn', '#truste-consent-required'],
+        acceptButtons: ['#truste-consent-button']
+      },
+      {
+        name: 'quantcast',
+        containers: ['#qc-cmp2-container', '.qc-cmp2-main'],
+        rejectButtons: ['.qc-cmp2-summary-buttons button:last-child', 'button[mode="secondary"]'],
+        acceptButtons: ['.qc-cmp2-summary-buttons button:first-child', 'button[mode="primary"]']
+      },
+      {
+        name: 'didomi',
+        containers: ['#didomi-popup', '#didomi-notice'],
+        rejectButtons: ['#didomi-notice-disagree-button', 'button.didomi-components-button--secondary'],
+        acceptButtons: ['#didomi-notice-agree-button']
+      },
+      {
+        name: 'sourcepoint',
+        containers: ['div[class*="sp_veil"]', 'div.message-overlay'],
+        rejectButtons: ['button[title*="Reject" i]', 'button[title*="Ablehnen" i]', 'button[title*="Refuser" i]', 'button.sp_choice_type_REJECT_ALL'],
+        acceptButtons: ['button.sp_choice_type_11']
+      }
+    ];
+
+    const NON_COOKIE_KEYWORDS = ['password', 'log in', 'login', 'sign in', 'signin', 'age verification', 'over 18', 'over 21'];
+    const COOKIE_TEXT_KEYWORDS = ['cookie', 'consent', 'gdpr', 'privacy policy', 'data protection', 'we use cookies', 'this site uses cookies', 'datenschutz', 'protection des donnees', 'informativa sulla privacy'];
+    const REJECT_TEXT_PATTERN = /^(reject|decline|refuse|deny|necessary only|essential only|tout refuser|ablehnen|rifiuta|rechazar|refuser|nur notwendige|solo necessari|solo esenciales)$/i;
+    const ACCEPT_TEXT_PATTERN = /^(accept|agree|ok|got it|allow|i understand|j'accepte|akzeptieren|accetta|aceptar|accept all|allow all)$/i;
+
+    function isVisibleEl(el) { return el.offsetWidth > 0 && el.offsetHeight > 0; }
+    function hasOverlayPos(el) {
+      const style = getComputedStyle(el);
+      return style.position === 'fixed' || style.position === 'sticky' || (parseInt(style.zIndex) || 0) >= 999;
+    }
+    function isInsideMain(el) { return !!el.closest('main, [role="main"]'); }
+    function hasNonCookieKW(el) {
+      const text = (el.innerText || '').substring(0, 500).toLowerCase();
+      return NON_COOKIE_KEYWORDS.some(kw => text.includes(kw));
+    }
+    function hasCookieText(el) {
+      const text = (el.innerText || '').substring(0, 1000).toLowerCase();
+      return COOKIE_TEXT_KEYWORDS.some(kw => text.includes(kw));
+    }
+    function isValidCookieOverlay(el) {
+      return isVisibleEl(el) && hasOverlayPos(el) && !isInsideMain(el) && !hasNonCookieKW(el);
+    }
+    function findBtnBySelectors(container, selectors) {
+      for (const sel of selectors) {
+        try { const btn = container.querySelector(sel); if (btn && isVisibleEl(btn)) return btn; } catch (e) {}
+      }
+      return null;
+    }
+    function findBtnByText(container, pattern) {
+      const btns = container.querySelectorAll('button, a[role="button"], a[href="#"], input[type="button"], input[type="submit"]');
+      for (const btn of btns) {
+        const text = (btn.innerText || btn.value || '').trim();
+        if (text && pattern.test(text) && isVisibleEl(btn)) return btn;
+      }
+      return null;
+    }
+    function findCloseBtn(container) {
+      const sels = ['button[aria-label*="close" i]', 'button[aria-label*="dismiss" i]', '.close-button', '[class*="close"]'];
+      for (const sel of sels) {
+        try { const btn = container.querySelector(sel); if (btn && isVisibleEl(btn)) return btn; } catch (e) {}
+      }
+      return null;
+    }
+
+    async function tryDismiss(container, cmpName, rejectSelectors, acceptSelectors) {
+      // Priority 1: Reject/decline buttons (from CMP config or text match)
+      let btn = rejectSelectors ? findBtnBySelectors(container, rejectSelectors) : null;
+      let method = 'reject';
+      if (!btn) { btn = findBtnByText(container, REJECT_TEXT_PATTERN); method = 'reject-text'; }
+      // Priority 2: Accept as last resort
+      if (!btn) {
+        btn = acceptSelectors ? findBtnBySelectors(container, acceptSelectors) : null;
+        method = 'accept-fallback';
+      }
+      if (!btn) { btn = findBtnByText(container, ACCEPT_TEXT_PATTERN); method = 'accept-text'; }
+      // Priority 3: Close/X button
+      if (!btn) { btn = findCloseBtn(container); method = 'close'; }
+      if (!btn) return { dismissed: false, method: null, cmp: cmpName, skipped: false, reason: 'no dismiss button found' };
+
+      btn.click();
+      await new Promise(r => setTimeout(r, 500));
+      if (!isVisibleEl(container) || container.offsetParent === null) {
+        window.__FSB_COOKIE_DISMISSED__ = true;
+        return { dismissed: true, method, cmp: cmpName, skipped: false, reason: null };
+      }
+      return { dismissed: false, method, cmp: cmpName, skipped: false, reason: 'overlay persisted after click' };
+    }
+
+    // Tier 1: CMP-specific detection
+    for (const cmp of CMP_CONFIGS) {
+      for (const sel of cmp.containers) {
+        try {
+          const container = document.querySelector(sel);
+          if (container && isValidCookieOverlay(container)) {
+            return await tryDismiss(container, cmp.name, cmp.rejectButtons, cmp.acceptButtons);
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Tier 2: Generic overlay detection
+    const genericSelectors = [
+      'div[role="dialog"][class*="cookie" i]', 'div[class*="consent-banner" i]',
+      'div[class*="cookie-banner" i]', 'div[id*="cookie-banner" i]',
+      'div[id*="cookie-notice" i]', 'div[id*="consent-banner" i]',
+      'div[class*="cookie-consent" i]', 'div[class*="gdpr" i]',
+      'div[id*="gdpr" i]', 'div[class*="cookie-notice" i]'
+    ];
+    for (const sel of genericSelectors) {
+      try {
+        const container = document.querySelector(sel);
+        if (container && isValidCookieOverlay(container) && hasCookieText(container)) {
+          return await tryDismiss(container, 'generic', null, null);
+        }
+      } catch (e) {}
+    }
+
+    // Tier 3: Text-based fallback (scan direct children of body only, cap at 20)
+    const bodyChildren = document.querySelectorAll('body > div, body > aside, body > section');
+    let scanned = 0;
+    for (const el of bodyChildren) {
+      if (scanned >= 20) break;
+      scanned++;
+      try {
+        if (isValidCookieOverlay(el) && hasCookieText(el)) {
+          return await tryDismiss(el, 'text-fallback', null, null);
+        }
+      } catch (e) {}
+    }
+
+    return { dismissed: false, method: null, cmp: null, skipped: false, reason: 'no cookie consent overlay detected' };
+  }
+
   /**
    * Smart element readiness wrapper that uses fast-path when possible
    * SPEED-05: Bypass full ensureElementReady when quick check passes
@@ -1049,6 +1223,9 @@
    * @returns {Promise<Object>} Readiness result object
    */
   async function smartEnsureReady(element, actionType = 'click') {
+    // Proactively dismiss cookie consent overlays before readiness checks (OVLY-03)
+    try { await dismissCookieConsent(); } catch (e) { /* non-fatal */ }
+
     // Perform quick readiness check
     const quickCheck = performQuickReadinessCheck(element);
 
@@ -1218,6 +1395,7 @@
   FSB.checkElementEditable = checkElementEditable;
   FSB.scrollIntoViewIfNeeded = scrollIntoViewIfNeeded;
   FSB.performQuickReadinessCheck = performQuickReadinessCheck;
+  FSB.dismissCookieConsent = dismissCookieConsent;
   FSB.smartEnsureReady = smartEnsureReady;
   FSB.ensureElementReady = ensureElementReady;
 

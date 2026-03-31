@@ -790,6 +790,23 @@
             break;
           }
 
+          // Step 0: Proactively dismiss cookie consent overlays before extraction (OVLY-03)
+          if (FSB.dismissCookieConsent) {
+            try {
+              const cookieResult = await FSB.dismissCookieConsent();
+              if (cookieResult.dismissed) {
+                logger.logAction(FSB.sessionId, 'dismissCookieConsent', 'readPage-proactive', true, {
+                  cmp: cookieResult.cmp,
+                  method: cookieResult.method
+                });
+              }
+            } catch (cookieErr) {
+              logger.logComm(FSB.sessionId, 'warn', 'readPage-cookieDismiss-failed', false, {
+                error: cookieErr.message
+              });
+            }
+          }
+
           const rpExtractOpts = {
             viewportOnly: !rpFull,
             format: 'markdown-lite',
