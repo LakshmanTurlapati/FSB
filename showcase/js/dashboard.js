@@ -27,6 +27,7 @@
   var wsReconnectDelay = 0;
   var wsMaxReconnectDelay = 30000;
   var wsReconnectTimer = null;
+  var wsPingTimer = null;
   var extensionOnline = false;
 
   // Task control state
@@ -2370,6 +2371,13 @@
         }));
         setPreviewState('loading');
       }
+      // Dashboard-side keepalive -- prevents fly.io from closing idle WS connections
+      if (wsPingTimer) clearInterval(wsPingTimer);
+      wsPingTimer = setInterval(function () {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
+        }
+      }, 20000);
     };
 
     ws.onmessage = function (event) {

@@ -73,8 +73,14 @@ const showcasePath = path.join(__dirname, '..', 'showcase');
 const staticPath = require('fs').existsSync(publicPath) ? publicPath : showcasePath;
 
 app.use(express.static(staticPath, {
-  maxAge: '1d',
-  etag: true
+  maxAge: 0,
+  etag: true,
+  setHeaders: function(res, filePath) {
+    // Prevent stale JS/CSS from being served -- dashboard updates must take effect immediately
+    if (filePath.endsWith('.js') || filePath.endsWith('.css') || filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    }
+  }
 }));
 
 // SPA fallback - serve index.html for dashboard routes
