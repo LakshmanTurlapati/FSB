@@ -142,6 +142,35 @@
   color: #eab308;
 }
 
+.dash-wake-btn {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 200ms ease;
+  animation: dashWakePulse 2s ease-in-out infinite;
+}
+
+.dash-wake-btn:hover {
+  background: rgba(234, 179, 8, 0.25);
+  border-color: #eab308;
+}
+
+.dash-wake-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+  animation: none;
+}
+
+@keyframes dashWakePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 /* --- Stats Bar --- */
 .dash-stats-bar {
   display: grid;

@@ -69,6 +69,7 @@
   var disconnectBtn = document.getElementById('dash-disconnect-btn');
   var agentCountEl = document.getElementById('dash-agent-count');
   var sseStatusEl = document.getElementById('dash-sse-status');
+  var wakeBtn = document.getElementById('dash-wake-btn');
   var agentGrid = document.getElementById('dash-agent-grid');
   var emptyState = document.getElementById('dash-empty');
   var tabScan = document.getElementById('dash-tab-scan');
@@ -608,13 +609,39 @@
       if (taskState === 'running') {
         setTaskState('failed', { error: 'Extension disconnected' });
       }
+      // Show wake button when WS connected but extension offline
+      if (wakeBtn && ws && ws.readyState === WebSocket.OPEN) {
+        wakeBtn.style.display = 'inline-flex';
+      }
     } else {
       taskArea.classList.remove('dash-task-offline');
       if (taskState === 'idle' && taskInput) {
         taskInput.placeholder = 'What should FSB do?';
         taskInput.disabled = false;
       }
+      // Hide wake button when extension comes online
+      if (wakeBtn) wakeBtn.style.display = 'none';
     }
+  }
+
+  // Wake Extension button -- sends status request to poke the service worker awake
+  if (wakeBtn) {
+    wakeBtn.addEventListener('click', function () {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      wakeBtn.disabled = true;
+      wakeBtn.innerHTML = '<span class="dash-spinner"></span> Waking...';
+      // Send status request which wakes the service worker via WS message
+      ws.send(JSON.stringify({ type: 'dash:request-status', payload: {}, ts: Date.now() }));
+      // Also request stream start in case it's needed
+      ws.send(JSON.stringify({ type: 'dash:dom-stream-start', payload: {}, ts: Date.now() }));
+      // Reset button after 5s if extension doesn't respond
+      setTimeout(function () {
+        if (wakeBtn && !extensionOnline) {
+          wakeBtn.disabled = false;
+          wakeBtn.innerHTML = '<i class="fa-solid fa-bell"></i> Wake Extension';
+        }
+      }, 5000);
+    });
   }
 
   // --- Auth ---

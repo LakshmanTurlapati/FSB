@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: verifying
-stopped_at: Completed 122.3-01-PLAN.md (WS payload compression)
-last_updated: "2026-03-31T09:46:58.618Z"
+stopped_at: Completed 122.4-01-PLAN.md (Dashboard Relay Fix)
+last_updated: "2026-03-31T10:39:56.186Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 2
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 122.3 — ws-payload-compression
+**Current focus:** Phase 122.4 -- dashboard-relay-fix
 
 ## Current Position
 
-Phase: 122.3 (ws-payload-compression) — EXECUTING
-Plan: 1 of 1
-Status: Phase complete — ready for verification
+Phase: 122.4
+Plan: 01 complete
+Status: Phase complete -- ready for verification
 Last activity: 2026-03-31
 
 Progress: [##########] 100% (implementation complete, verification pending)
@@ -68,6 +68,9 @@ Recent decisions affecting current work:
 - [Phase 122.2]: result.duplicate flag from handleStopAutomation tells _handleStopTask to skip redundant ext:task-complete
 - [Phase 122.3]: 1KB threshold for WS compression -- pings/progress skip, dom-snapshots get compressed via LZString.compressToBase64
 - [Phase 122.3]: Envelope format { _lz: true, d: base64 } -- relay sees small JSON, dashboard detects _lz flag and decompresses
+- [Phase 122.4]: Added .catch to all 7 unguarded automationComplete sendMessage calls to prevent silent MV3 rejection kills
+- [Phase 122.4]: Curated ~85 CSS properties for DOM stream instead of all 300+ computed properties (D-04)
+- [Phase 122.4]: 500ms throttle on broadcastOverlayState to prevent WS flooding (D-05)
 
 ### Roadmap Evolution
 
@@ -87,6 +90,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-31T09:46:58.616Z
-Stopped at: Completed 122.3-01-PLAN.md (WS payload compression)
+Last session: 2026-03-31T10:39:56.183Z
+Stopped at: Completed 122.4-01-PLAN.md (Dashboard Relay Fix)
 Resume file: None
