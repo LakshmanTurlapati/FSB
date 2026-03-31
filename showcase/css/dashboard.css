@@ -1950,3 +1950,38 @@ body.dash-layout-maximized #dash-task-progress {
   background: rgba(0, 0, 0, 0.8);
 }
 
+/* --- Remote Control Overlay --- */
+.dash-remote-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6; /* Above iframe (z:0), glow (z:5), below header (z:10) */
+  pointer-events: none; /* Default: view-only, events pass through */
+  cursor: default;
+}
+
+.dash-remote-overlay.active {
+  pointer-events: auto; /* Captures all events when active */
+  cursor: crosshair;
+}
+
+/* Blue border when remote control is active */
+.dash-preview.dash-rc-active {
+  border: 2px solid #3b82f6 !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Toggle button active state */
+.dash-preview-btn.dash-rc-on {
+  background: rgba(59, 130, 246, 0.7) !important;
+  color: #fff !important;
+}
+
+.dash-preview-btn.dash-rc-on:hover {
+  background: rgba(59, 130, 246, 0.9) !important;
+}
+
+/* Disabled state for toggle when no stream */
+#dash-preview-rc-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}

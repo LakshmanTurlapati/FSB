@@ -69,7 +69,7 @@ Plans:
 - [x] **Phase 122.2: Stop Signal & Final Outcome** - Dashboard stop button doesn't halt FSB automation, and task completion/failure result not relayed back to dashboard (INSERTED) (completed 2026-03-30)
 - [ ] **Phase 123: Layout Modes** - Maximize/minimize toggle, viewport-adaptive resize, picture-in-picture, fullscreen preview
 - [x] **Phase 123.1: Stream Fidelity Fix** - DOM clone has broken layouts on complex sites -- CSS not loading properly, elements overlapping, content jumbled in iframe (INSERTED) (completed 2026-03-30)
-- [ ] **Phase 124: Visual Fidelity** - Dialog/modal mirroring, CSS animation replication, rAF-synced mutation batching, computed style capture
+- [x] **Phase 124: Visual Fidelity** - Dialog/modal mirroring, CSS animation replication, rAF-synced mutation batching, computed style capture (completed 2026-03-30)
 - [ ] **Phase 125: Remote Control** - Click/type/scroll through preview to control the real browser, plus task stop button
 
 ### Phase Details (v0.9.9.1)
@@ -153,6 +153,10 @@ Plans:
   2. User clicks an input field in the preview and types text that appears in the real browser's input field
   3. User scrolls the preview (mousewheel or trackpad) and the real browser page scrolls accordingly
   4. User can click a stop button on the preview overlay to halt a running automation task
+**Plans**: 2 plans
+Plans:
+- [x] 125-01-PLAN.md -- Extension-side WS message routing and CDP dispatch for remote click, key, and scroll events
+- [ ] 125-02-PLAN.md -- Dashboard toggle button, transparent overlay, event capture, coordinate reverse-scaling, and WS forwarding
 **UI hint**: yes
 
 ---
@@ -164,5 +168,5 @@ Plans:
 | 122. Connection & Auto-Start | 0/2 | Planned | - |
 | 122.2. Stop Signal & Final Outcome | 1/1 | Complete    | 2026-03-30 |
 | 123. Layout Modes | 1/2 | In progress | - |
-| 124. Visual Fidelity | 0/2 | Planned | - |
-| 125. Remote Control | 0/? | Not started | - |
+| 124. Visual Fidelity | 0/2 | Complete    | 2026-03-30 |
+| 125. Remote Control | 1/2 | In Progress|  |

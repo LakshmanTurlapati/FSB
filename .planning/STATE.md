@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
-status: verifying
-stopped_at: Completed 124-02-PLAN.md
-last_updated: "2026-03-30T20:54:24.947Z"
-last_activity: 2026-03-30
+status: executing
+stopped_at: Completed 125-01-PLAN.md
+last_updated: "2026-03-31T03:41:34.021Z"
+last_activity: 2026-03-31
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
   percent: 50
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** v0.9.9.1 Phantom Stream -- Phase 122 ready to plan
+**Current focus:** Phase 125 — remote-control
 
 ## Current Position
 
-Phase: 123 (layout-modes) -- EXECUTING
+Phase: 125 (remote-control) — EXECUTING
 Plan: 2 of 2
-Status: Phase complete — ready for verification
-Last activity: 2026-03-30
+Status: Ready to execute
+Last activity: 2026-03-31
 
 Progress: [#####.....] 50%
 
@@ -59,6 +59,7 @@ Recent decisions affecting current work:
 - [Phase 124]: Page-level script injection with idempotent guard for dialog monkey-patching
 - [Phase 124]: CustomEvent relay pattern (fsb-dialog / fsb-dialog-dismiss) bridges page-world to content-script-world
 - [Phase 124]: Dialog card resets on new DOM snapshot to prevent stale overlays
+- [Phase 125]: Debugger attached once on remote control start, detached on stop -- no per-event overhead
 
 ### Roadmap Evolution
 
@@ -77,6 +78,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-30T20:54:24.945Z
-Stopped at: Completed 124-02-PLAN.md
+Last session: 2026-03-31T03:41:34.019Z
+Stopped at: Completed 125-01-PLAN.md
 Resume file: None

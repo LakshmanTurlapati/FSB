@@ -25,16 +25,16 @@ Requirements for making the dashboard DOM stream fully functional with high fide
 ### Fidelity
 
 - [x] **FIDELITY-01**: Alert dialogs, confirm boxes, and modal overlays visible in the page appear in the cloned preview
-- [ ] **FIDELITY-02**: CSS transitions and keyframe animations are mirrored in the cloned preview
-- [ ] **FIDELITY-03**: Mutation batching is synced to requestAnimationFrame for smooth display-matched updates
-- [ ] **FIDELITY-04**: Snapshot captures inline computed styles for pixel-accurate clone rendering
+- [x] **FIDELITY-02**: CSS transitions and keyframe animations are mirrored in the cloned preview
+- [x] **FIDELITY-03**: Mutation batching is synced to requestAnimationFrame for smooth display-matched updates
+- [x] **FIDELITY-04**: Snapshot captures inline computed styles for pixel-accurate clone rendering
 
 ### Control
 
-- [ ] **CONTROL-01**: User can click elements in the preview to trigger clicks on the corresponding element in the real browser
-- [ ] **CONTROL-02**: User can type in preview input fields to type in the corresponding field in the real browser
-- [ ] **CONTROL-03**: User can scroll the preview to scroll the real browser page
-- [ ] **CONTROL-04**: User can stop a running automation task from the preview overlay
+- [x] **CONTROL-01**: User can click elements in the preview to trigger clicks on the corresponding element in the real browser
+- [x] **CONTROL-02**: User can type in preview input fields to type in the corresponding field in the real browser
+- [x] **CONTROL-03**: User can scroll the preview to scroll the real browser page
+- [x] **CONTROL-04**: User can stop a running automation task from the preview overlay
 
 ## Future Requirements
 
@@ -74,13 +74,13 @@ Requirements for making the dashboard DOM stream fully functional with high fide
 | LAYOUT-04 | Phase 123 | Complete |
 | LAYOUT-05 | Phase 123 | Complete |
 | FIDELITY-01 | Phase 124 | Complete |
-| FIDELITY-02 | Phase 124 | Pending |
-| FIDELITY-03 | Phase 124 | Pending |
-| FIDELITY-04 | Phase 124 | Pending |
-| CONTROL-01 | Phase 125 | Pending |
-| CONTROL-02 | Phase 125 | Pending |
-| CONTROL-03 | Phase 125 | Pending |
-| CONTROL-04 | Phase 125 | Pending |
+| FIDELITY-02 | Phase 124 | Complete |
+| FIDELITY-03 | Phase 124 | Complete |
+| FIDELITY-04 | Phase 124 | Complete |
+| CONTROL-01 | Phase 125 | Complete |
+| CONTROL-02 | Phase 125 | Complete |
+| CONTROL-03 | Phase 125 | Complete |
+| CONTROL-04 | Phase 125 | Complete |
 
 **Coverage:**
 - v0.9.9.1 requirements: 17 total

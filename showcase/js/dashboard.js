@@ -58,6 +58,7 @@
   var streamTabUrl = '';             // Current streaming tab URL
   var lastSnapshotTime = 0;         // Timestamp of last snapshot received
   var pageReady = false;            // Extension reported a real page is loaded
+  var remoteControlOn = false;      // Remote control mode toggle
 
   // DOM refs
   var loginSection = document.getElementById('dash-login');
@@ -122,6 +123,8 @@
   var previewPipBtn = document.getElementById('dash-preview-pip-btn');
   var previewMaximizeBtn = document.getElementById('dash-preview-maximize-btn');
   var previewFullscreenBtn = document.getElementById('dash-preview-fullscreen-btn');
+  var previewRcBtn = document.getElementById('dash-preview-rc-btn');
+  var remoteOverlay = document.getElementById('dash-remote-overlay');
   var previewFsExit = document.getElementById('dash-preview-fs-exit');
 
   // Agent management DOM refs
@@ -251,6 +254,14 @@
         taskAction.textContent = 'Stopping...';
       }
       if (taskStopBtn) taskStopBtn.disabled = true;
+    });
+  }
+
+  // Remote control toggle
+  if (previewRcBtn) {
+    previewRcBtn.addEventListener('click', function () {
+      if (previewState !== 'streaming') return;
+      setRemoteControl(!remoteControlOn);
     });
   }
 
@@ -1609,6 +1620,15 @@
   function setPreviewState(newState) {
     previewState = newState;
 
+    // Enable remote control button only when streaming
+    if (previewRcBtn) {
+      previewRcBtn.disabled = (newState !== 'streaming');
+      // Auto-disable remote control if stream stops
+      if (newState !== 'streaming' && remoteControlOn) {
+        setRemoteControl(false);
+      }
+    }
+
     // Clear any pending hide timer
     if (previewHideTimer) {
       clearTimeout(previewHideTimer);
@@ -1757,6 +1777,44 @@
     previewIframe.style.width = pageWidth + 'px';
     previewIframe.style.height = pageHeight + 'px';
     previewIframe.style.transform = 'scale(' + previewScale + ')';
+  }
+
+  function setRemoteControl(on) {
+    remoteControlOn = on;
+    if (remoteOverlay) {
+      remoteOverlay.style.display = on ? '' : 'none';
+      if (on) {
+        remoteOverlay.classList.add('active');
+      } else {
+        remoteOverlay.classList.remove('active');
+      }
+    }
+    if (previewContainer) {
+      if (on) {
+        previewContainer.classList.add('dash-rc-active');
+      } else {
+        previewContainer.classList.remove('dash-rc-active');
+      }
+    }
+    if (previewRcBtn) {
+      if (on) {
+        previewRcBtn.classList.add('dash-rc-on');
+        previewRcBtn.title = 'Disable remote control';
+        previewRcBtn.innerHTML = '<i class="fa-solid fa-hand-pointer"></i>';
+      } else {
+        previewRcBtn.classList.remove('dash-rc-on');
+        previewRcBtn.title = 'Remote control';
+        previewRcBtn.innerHTML = '<i class="fa-solid fa-hand-pointer"></i>';
+      }
+    }
+    // Notify extension to attach/detach debugger
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: on ? 'dash:remote-control-start' : 'dash:remote-control-stop',
+        payload: {},
+        ts: Date.now()
+      }));
+    }
   }
 
   function setPreviewLayout(mode) {
@@ -1917,6 +1975,137 @@
         }
       });
     }
+  })();
+
+  // Remote control event forwarding
+  (function initRemoteControl() {
+    if (!remoteOverlay) return;
+
+    // --- CLICK forwarding (CONTROL-01) ---
+    remoteOverlay.addEventListener('mousedown', function (e) {
+      if (!remoteControlOn || !ws || ws.readyState !== WebSocket.OPEN) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Get click position relative to the preview container
+      var rect = remoteOverlay.getBoundingClientRect();
+      var clickX = e.clientX - rect.left;
+      var clickY = e.clientY - rect.top;
+
+      // Reverse-scale to real browser coordinates
+      var realX = Math.round(clickX / previewScale);
+      var realY = Math.round(clickY / previewScale);
+
+      // Build modifiers bitmask
+      var modifiers = 0;
+      if (e.altKey) modifiers |= 1;
+      if (e.ctrlKey) modifiers |= 2;
+      if (e.metaKey) modifiers |= 4;
+      if (e.shiftKey) modifiers |= 8;
+
+      ws.send(JSON.stringify({
+        type: 'dash:remote-click',
+        payload: { x: realX, y: realY, button: 'left', modifiers: modifiers },
+        ts: Date.now()
+      }));
+    });
+
+    // --- KEYBOARD forwarding (CONTROL-02) ---
+    // Keyboard events captured at document level since overlay div does not receive keyboard focus
+    document.addEventListener('keydown', function (e) {
+      if (!remoteControlOn || !ws || ws.readyState !== WebSocket.OPEN) return;
+      // Do not capture if user is typing in a dashboard input field
+      var activeTag = document.activeElement ? document.activeElement.tagName : '';
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
+
+      e.preventDefault();
+
+      var modifiers = 0;
+      if (e.altKey) modifiers |= 1;
+      if (e.ctrlKey) modifiers |= 2;
+      if (e.metaKey) modifiers |= 4;
+      if (e.shiftKey) modifiers |= 8;
+
+      ws.send(JSON.stringify({
+        type: 'dash:remote-key',
+        payload: {
+          type: 'keyDown',
+          key: e.key,
+          code: e.code,
+          text: e.key.length === 1 ? e.key : '',
+          modifiers: modifiers
+        },
+        ts: Date.now()
+      }));
+
+      // For printable characters, also send a char event for text input
+      if (e.key.length === 1) {
+        ws.send(JSON.stringify({
+          type: 'dash:remote-key',
+          payload: {
+            type: 'char',
+            key: e.key,
+            code: e.code,
+            text: e.key,
+            modifiers: modifiers
+          },
+          ts: Date.now()
+        }));
+      }
+    });
+
+    document.addEventListener('keyup', function (e) {
+      if (!remoteControlOn || !ws || ws.readyState !== WebSocket.OPEN) return;
+      var activeTag = document.activeElement ? document.activeElement.tagName : '';
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
+
+      e.preventDefault();
+
+      var modifiers = 0;
+      if (e.altKey) modifiers |= 1;
+      if (e.ctrlKey) modifiers |= 2;
+      if (e.metaKey) modifiers |= 4;
+      if (e.shiftKey) modifiers |= 8;
+
+      ws.send(JSON.stringify({
+        type: 'dash:remote-key',
+        payload: {
+          type: 'keyUp',
+          key: e.key,
+          code: e.code,
+          text: '',
+          modifiers: modifiers
+        },
+        ts: Date.now()
+      }));
+    });
+
+    // --- SCROLL forwarding (CONTROL-03) ---
+    // Throttle scroll events to ~60fps (16ms) to avoid overwhelming the WS connection
+    var scrollThrottleTimer = null;
+    remoteOverlay.addEventListener('wheel', function (e) {
+      if (!remoteControlOn || !ws || ws.readyState !== WebSocket.OPEN) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (scrollThrottleTimer) return;
+      scrollThrottleTimer = setTimeout(function () { scrollThrottleTimer = null; }, 16);
+
+      // Get scroll position relative to the preview
+      var rect = remoteOverlay.getBoundingClientRect();
+      var scrollX = e.clientX - rect.left;
+      var scrollY = e.clientY - rect.top;
+
+      // Reverse-scale coordinates
+      var realX = Math.round(scrollX / previewScale);
+      var realY = Math.round(scrollY / previewScale);
+
+      ws.send(JSON.stringify({
+        type: 'dash:remote-scroll',
+        payload: { x: realX, y: realY, deltaX: Math.round(e.deltaX), deltaY: Math.round(e.deltaY) },
+        ts: Date.now()
+      }));
+    }, { passive: false }); // passive: false required to call preventDefault on wheel
   })();
 
   window.addEventListener('resize', function() {

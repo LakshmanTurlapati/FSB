@@ -204,6 +204,9 @@
             <span class="dash-preview-tooltip" id="dash-preview-tooltip">No stream data</span>
           </div>
           <div class="dash-preview-controls">
+            <button class="dash-preview-btn" id="dash-preview-rc-btn" title="Remote control" disabled>
+              <i class="fa-solid fa-hand-pointer"></i>
+            </button>
             <button class="dash-preview-btn" id="dash-preview-pip-btn" title="Picture-in-picture">
               <i class="fa-solid fa-window-restore"></i>
             </button>
@@ -224,6 +227,7 @@
         </div>
         <iframe id="dash-preview-iframe" class="dash-preview-iframe" sandbox="allow-same-origin" title="Live page preview"></iframe>
         <div id="dash-preview-glow" class="dash-preview-glow" style="display: none;"></div>
+        <div id="dash-remote-overlay" class="dash-remote-overlay" style="display: none;"></div>
         <div id="dash-preview-progress" class="dash-preview-progress" style="display: none;"></div>
         <div id="dash-preview-dialog" class="dash-preview-dialog" style="display: none;">
           <div class="dash-preview-dialog-card">
