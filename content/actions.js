@@ -1444,6 +1444,82 @@ async function waitForStability(profile = 'click', overrides = {}) {
   return waitForPageStability({ ...base, ...overrides });
 }
 
+/**
+ * Find the submit button within a form element using priority-ordered selectors.
+ * Priority: button[type=submit] > input[type=submit] > last non-reset button > input[type=image]
+ * @param {HTMLFormElement} formElement - The form to search within
+ * @returns {HTMLElement|null} The submit button or null if not found
+ */
+function findSubmitButton(formElement) {
+  if (!formElement) return null;
+  // Priority 1: explicit submit buttons
+  const explicitSubmit = formElement.querySelector('button[type="submit"], input[type="submit"]');
+  if (explicitSubmit && !explicitSubmit.disabled) return explicitSubmit;
+  // Priority 2: last non-reset, non-button-type button (common pattern)
+  const buttons = formElement.querySelectorAll('button:not([type="reset"]):not([type="button"])');
+  for (let i = buttons.length - 1; i >= 0; i--) {
+    if (!buttons[i].disabled) return buttons[i];
+  }
+  // Priority 3: input[type=image] (rare submit variant)
+  const imageSubmit = formElement.querySelector('input[type="image"]');
+  if (imageSubmit && !imageSubmit.disabled) return imageSubmit;
+  return null;
+}
+
+/**
+ * Detect the current site's search input using a 5-tier DOM heuristic cascade.
+ * No AI calls -- pure DOM queries with visibility filtering.
+ *
+ * Tier 1: input[type="search"]
+ * Tier 2: [role="search"] input/textarea
+ * Tier 3: input[name="q"], input[name="query"], etc.
+ * Tier 4: input[placeholder*="Search" i], input[aria-label*="search" i], etc.
+ * Tier 5: form[action*="search"] input[type="text"], form[action*="search"] input:not([type])
+ *
+ * @returns {Object|null} { element, tier, selector } or null if no visible match
+ */
+function detectSiteSearchInput() {
+  const tiers = [
+    { tier: 1, selector: 'input[type="search"]' },
+    { tier: 2, selector: '[role="search"] input, [role="search"] textarea' },
+    { tier: 3, selector: 'input[name="q"], input[name="query"], input[name="search_query"], input[name="search"], input[name="keyword"], input[name="keywords"]' },
+    { tier: 4, selector: 'input[placeholder*="Search" i], input[aria-label*="search" i], textarea[placeholder*="Search" i]' },
+    { tier: 5, selector: 'form[action*="search"] input[type="text"], form[action*="search"] input:not([type])' }
+  ];
+
+  for (const { tier, selector } of tiers) {
+    const candidates = document.querySelectorAll(selector);
+    if (candidates.length === 0) continue;
+
+    // Filter by visibility: offsetParent !== null OR computed display !== 'none'
+    const visible = Array.from(candidates).filter(el => {
+      if (el.offsetParent === null) {
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        // offsetParent can be null for position:fixed elements -- check explicitly
+        if (style.position !== 'fixed' && style.position !== 'sticky') return false;
+      }
+      return true;
+    });
+
+    if (visible.length === 0) continue;
+
+    // Prefer elements in viewport
+    const inViewport = visible.filter(el => {
+      const rect = el.getBoundingClientRect();
+      return rect.top >= 0 && rect.left >= 0 &&
+             rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+             rect.right <= (window.innerWidth || document.documentElement.clientWidth) &&
+             rect.width > 0 && rect.height > 0;
+    });
+
+    const bestMatch = inViewport.length > 0 ? inViewport[0] : visible[0];
+    return { element: bestMatch, tier, selector };
+  }
+
+  return null;
+}
+
 // Tool functions for browser automation
 const tools = {
   // Scroll the page - supports direction ("up"/"down") or raw amount
@@ -3125,7 +3201,50 @@ const tools = {
         lastVerification = verification;
 
         if (!verification.verified && isInsideForm) {
-          lastAttemptError = `Enter key pressed but form submission had no effect`;
+          // Phase 129: Enter had no effect -- try clicking the submit button as fallback
+          const submitButton = findSubmitButton(formElement);
+          if (submitButton) {
+            const fallbackPreState = captureActionState(submitButton, 'click');
+            submitButton.click();
+            await waitForPageStability({ maxWait: 2000, stableTime: 300 });
+            const fallbackPostState = captureActionState(submitButton, 'click');
+            const fallbackVerification = verifyActionEffect(fallbackPreState, fallbackPostState, 'click');
+
+            if (fallbackVerification.verified) {
+              actionRecorder.record(null, 'pressEnter', params, {
+                selectorTried: params.selector,
+                selectorUsed: currentSelector,
+                elementFound: true,
+                elementDetails: captureElementDetails(submitButton),
+                coordinatesUsed: null,
+                coordinateSource: null,
+                success: true,
+                hadEffect: true,
+                usedSubmitFallback: true,
+                effectDetails: fallbackVerification.changes,
+                duration: Date.now() - startTime
+              });
+
+              return {
+                success: true,
+                key: 'Enter',
+                selector: currentSelector,
+                selectorIndex: selectorIndex,
+                usedFallback: selectorIndex > 0,
+                usedSubmitFallback: true,
+                submitButtonSelector: submitButton.id ? `#${submitButton.id}` : submitButton.className ? `.${submitButton.className.split(' ')[0]}` : submitButton.tagName.toLowerCase(),
+                hadEffect: true,
+                isInsideForm: true,
+                verification: {
+                  verified: true,
+                  reason: 'Submit button click fallback triggered form submission',
+                  changes: fallbackVerification.changes
+                }
+              };
+            }
+          }
+          // Submit button not found or click had no effect either -- continue to next selector
+          lastAttemptError = `Enter key pressed but form submission had no effect${submitButton ? ' (submit button fallback also failed)' : ' (no submit button found in form)'}`;
           continue;
         }
 
@@ -3414,6 +3533,95 @@ const tools = {
 
     window.location.href = googleSearchUrl;
     return { success: true, searchingFor: params.query, url: googleSearchUrl };
+  },
+
+  // Site-aware search: uses the current site's own search input when available,
+  // falling back to Google search only when no site search input is found.
+  siteSearch: async (params) => {
+    if (!params.query) {
+      return { success: false, error: 'No search query provided' };
+    }
+
+    const detected = detectSiteSearchInput();
+
+    // Fallback to Google if no site search input found
+    if (!detected) {
+      const googleResult = tools.searchGoogle(params);
+      return { ...googleResult, method: 'google-fallback' };
+    }
+
+    const { element: searchInput, tier, selector: matchedSelector } = detected;
+
+    try {
+      // Ensure element is ready (also dismisses cookie consent per Phase 130)
+      if (typeof FSB.smartEnsureReady === 'function') {
+        await FSB.smartEnsureReady(searchInput, 'click');
+      }
+
+      // Focus and click the search input
+      searchInput.focus();
+      searchInput.click();
+
+      // Clear existing text
+      searchInput.value = '';
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // Type the query (set value directly + dispatch input event)
+      searchInput.value = params.query;
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // Wait 200ms for autocomplete to populate
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Capture pre-submit state for verifying effect
+      const preUrl = window.location.href;
+
+      // Submit via Enter keydown + keyup
+      const enterDown = new KeyboardEvent('keydown', {
+        key: 'Enter', code: 'Enter', keyCode: 13, which: 13,
+        bubbles: true, cancelable: true
+      });
+      const enterUp = new KeyboardEvent('keyup', {
+        key: 'Enter', code: 'Enter', keyCode: 13, which: 13,
+        bubbles: true, cancelable: true
+      });
+      searchInput.dispatchEvent(enterDown);
+      searchInput.dispatchEvent(enterUp);
+
+      // Wait for page stability after submit
+      await waitForPageStability({ maxWait: 3000, stableTime: 500 });
+
+      // If URL did not change, try submit button fallback
+      if (window.location.href === preUrl) {
+        const form = searchInput.closest('form');
+        if (form) {
+          const submitBtn = form.querySelector(
+            'button[type="submit"], input[type="submit"], button:not([type]), [role="button"][aria-label*="search" i]'
+          );
+          if (submitBtn) {
+            submitBtn.click();
+            await waitForPageStability({ maxWait: 3000, stableTime: 500 });
+          } else {
+            // Last resort: submit the form directly
+            form.submit();
+            await waitForPageStability({ maxWait: 3000, stableTime: 500 });
+          }
+        }
+      }
+
+      return {
+        success: true,
+        query: params.query,
+        method: 'site-search',
+        searchInputSelector: matchedSelector,
+        tier,
+        url: window.location.href
+      };
+    } catch (error) {
+      // On error, fall back to Google
+      const googleResult = tools.searchGoogle(params);
+      return { ...googleResult, method: 'google-fallback', siteSearchError: error.message };
+    }
   },
 
   // Wait for element to appear
@@ -5369,6 +5577,8 @@ const tools = {
   FSB.waitForPageStability = waitForPageStability;
   FSB.waitForStability = waitForStability;
   FSB.STABILITY_PROFILES = STABILITY_PROFILES;
+  FSB.detectSiteSearchInput = detectSiteSearchInput;
+  FSB.findSubmitButton = findSubmitButton;
   FSB.tools = tools;
 
   window.FSB._modules['actions'] = { loaded: true, timestamp: Date.now() };
