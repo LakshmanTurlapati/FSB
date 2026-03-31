@@ -1,384 +1,503 @@
-# Technology Stack: v0.9.9 Excalidraw Mastery
-
-**Project:** FSB v0.9.9 - Full Excalidraw drawing mastery via CDP automation
-**Researched:** 2026-03-23
-**Constraint:** Vanilla JS Chrome Extension MV3 (no build system), existing CDP tools, keyboard emulator
-**Overall confidence:** HIGH (Excalidraw source verified, CDP mechanisms proven in existing codebase)
-
----
-
-## Executive Summary
-
-This milestone requires NO new libraries, frameworks, or external dependencies. Everything needed for full Excalidraw mastery is already in FSB's toolbox. The work is entirely about *intelligence* -- teaching the AI the right keyboard shortcuts, CDP event sequences, and DOM selectors for every Excalidraw operation.
-
-The critical discovery: Excalidraw's text editor creates a standard `<textarea>` element (class `excalidraw-wysiwyg`, `data-type="wysiwyg"`) positioned absolutely over the canvas. This means FSB's existing `Input.insertText` CDP method (already implemented as `cdpInsertText`) will work directly once the textarea is focused. The text entry problem is NOT a contenteditable issue -- it's a focus/activation sequence issue.
-
-**Key principle: Keyboard shortcuts over DOM clicks.** Excalidraw has comprehensive keyboard shortcuts for nearly every operation. CDP `press_key` dispatching shortcuts is faster, more reliable, and avoids the fragile React DOM selectors that change across versions.
-
----
-
-## Recommended Stack
-
-### Existing Tools -- No Changes Needed
-
-| Tool | Purpose in Excalidraw Context | Status |
-|------|-------------------------------|--------|
-| `press_key` (keyboard emulator) | Tool selection (R, D, O, A, L, P, T, F, E), shortcuts for all operations | Existing, proven |
-| `cdpDrag` | Drawing shapes on canvas, creating selection boxes | Existing, proven in CANVAS-02 |
-| `cdpDragVariableSpeed` | Smooth connector/arrow drawing for natural-looking paths | Existing |
-| `cdpClickAt` | Clicking on canvas elements, toolbar buttons at coordinates | Existing, proven |
-| `cdpInsertText` | Text entry into Excalidraw's WYSIWYG textarea | Existing but UNTESTED on Excalidraw |
-| `Input.insertText` | Direct text insertion into focused textarea | Existing in background.js |
-| `click` (DOM) | Toolbar buttons, menu items, color swatches, alignment buttons | Existing |
-| `waitForDOMStable` | Wait for Excalidraw React re-renders after actions | Existing |
-| `navigate` | Navigate to excalidraw.com | Existing |
-| `getAttribute` / `getText` | Verify DOM state, read element properties | Existing |
-
-### Stack Additions Required
-
-**None.** Zero new npm packages, zero new Chrome APIs, zero new tools to build.
-
-### What IS Needed (Site Guide Intelligence Only)
-
-| Addition | Type | Purpose |
-|----------|------|---------|
-| Expanded Excalidraw site guide | Site guide update | Complete keyboard shortcut map, text entry workflow, styling selectors, export workflow, connector patterns |
-| Text entry workflow documentation | Site guide section | Activate text mode -> double-click/Enter -> wait for textarea -> cdpInsertText -> Escape to commit |
-| Color/styling selector map | Site guide section | Keyboard shortcuts S (stroke) and G (background) to open pickers, DOM selectors for color swatches |
-| Export workflow steps | Site guide section | Menu button -> Export image -> format selection -> download/copy |
-| Connector/arrow patterns | Site guide section | Arrow tool (A) -> drag from shape edge to shape edge for auto-binding |
-| Verification selectors | Site guide section | textarea.excalidraw-wysiwyg presence, .layer-ui__wrapper state, toolbar active states |
-
----
-
-## Critical Technical Findings
-
-### 1. Text Entry on Excalidraw (THE Key Problem to Solve)
-
-**Discovery:** Excalidraw uses a standard `<textarea>` element, NOT a contenteditable div.
-
-**Source:** Excalidraw source `packages/excalidraw/wysiwyg/textWysiwyg.tsx`
-
-**DOM element details:**
-- Element type: `<textarea>`
-- CSS class: `excalidraw-wysiwyg`
-- Data attribute: `data-type="wysiwyg"`
-- Positioning: `position: absolute` with calculated viewport coordinates
-- Transform: scaled/rotated based on zoom and element angle
-
-**Text entry workflow for FSB:**
-1. Activate text tool: `press_key T`
-2. Click on canvas where text should go: `cdpClickAt x y` (creates new text element)
-   - OR: Double-click existing shape to add label: `cdpClickAt x y` twice rapidly
-   - OR: Select existing text element and press Enter to edit
-3. Wait for textarea to appear: check for `textarea.excalidraw-wysiwyg` in DOM
-4. The textarea auto-receives focus when created
-5. Insert text: `cdpInsertText "your text here"`
-6. Commit text: `press_key Escape` or `press_key Enter` with ctrl=true
-7. Excalidraw calls `onSubmit` which mutates the canvas element via `app.scene.mutateElement()`
-
-**Why the existing `type` tool fails:** FSB's `type` tool targets standard input/textarea elements found via DOM selectors. But Excalidraw's textarea is:
-- Created dynamically (not in initial DOM)
-- Positioned absolutely over the canvas
-- Removed from DOM after text is committed
-- Has no stable ID, only class `excalidraw-wysiwyg`
-
-**Solution:** Use `cdpInsertText` which uses `Input.insertText` CDP command. This inserts text into whatever element currently has focus. Since Excalidraw's textarea auto-focuses when created, the sequence is: activate text mode -> click canvas -> wait for textarea -> `cdpInsertText`.
-
-**Newlines in text:** Excalidraw uses `Shift+Enter` for new lines in text elements (standard Enter commits the text or, in some contexts, creates a new line). The shortcut `Q` is documented as creating new lines in the text editor. Use `press_key q` for multi-line text.
-
-**Confidence:** HIGH -- verified from Excalidraw source code (textWysiwyg.tsx)
-
-### 2. Complete Keyboard Shortcuts Reference
-
-**Confidence:** HIGH -- verified from multiple sources including official docs
-
-#### Tool Selection (single key press, no modifiers)
-| Key | Tool | Notes |
-|-----|------|-------|
-| V or 1 | Selection/Pointer | Also deselects current tool |
-| R or 2 | Rectangle | Auto-returns to V after drawing |
-| D or 3 | Diamond | Auto-returns to V after drawing |
-| O or 4 | Ellipse/Oval | Auto-returns to V after drawing |
-| A or 5 | Arrow | Auto-returns to V after drawing |
-| L or 6 | Line | Auto-returns to V after drawing |
-| P or 7 | Pencil/Free draw | Auto-returns to V after drawing |
-| T or 8 | Text | Auto-returns to V after placing |
-| 9 | Insert image | Opens file picker |
-| E or 0 | Eraser | Click elements to erase |
-| F | Frame | Draw a container frame |
-| H | Hand/Pan | Drag to pan canvas |
-| K | Laser pointer | Presentation mode pointer |
-| I or Shift+S or Shift+G | Color picker (eyedropper) | Pick color from canvas |
-
-#### Canvas Operations
-| Shortcut | Action |
-|----------|--------|
-| Ctrl+Z | Undo |
-| Ctrl+Y or Ctrl+Shift+Z | Redo |
-| Ctrl+A | Select all |
-| Ctrl+Delete | Clear/reset canvas |
-| Delete or Backspace | Delete selected |
-| Escape | Deselect / cancel tool |
-
-#### Element Manipulation
-| Shortcut | Action |
-|----------|--------|
-| Ctrl+D | Duplicate selected |
-| Ctrl+G | Group selected |
-| Ctrl+Shift+G | Ungroup |
-| Ctrl+Shift+L | Lock/unlock element |
-| Shift+H | Flip horizontal |
-| Shift+V | Flip vertical |
-| Ctrl+C | Copy |
-| Ctrl+X | Cut |
-| Ctrl+V | Paste |
-| Ctrl+Shift+V | Paste as plaintext |
-| Enter | Edit text / add label to shape |
-| Ctrl+Enter | Edit line/arrow points |
-
-#### Layer Ordering
-| Shortcut | Action |
-|----------|--------|
-| Ctrl+] | Bring forward one layer |
-| Ctrl+[ | Send backward one layer |
-| Ctrl+Shift+] | Bring to front |
-| Ctrl+Shift+[ | Send to back |
-
-#### Alignment (multi-select required)
-| Shortcut | Action |
-|----------|--------|
-| Ctrl+Shift+ArrowUp | Align top |
-| Ctrl+Shift+ArrowDown | Align bottom |
-| Ctrl+Shift+ArrowLeft | Align left |
-| Ctrl+Shift+ArrowRight | Align right |
-
-#### Zoom & View
-| Shortcut | Action |
-|----------|--------|
-| Ctrl++ | Zoom in |
-| Ctrl+- | Zoom out |
-| Ctrl+0 | Reset zoom |
-| Shift+1 | Zoom to fit all elements |
-| Shift+2 | Zoom to selection |
-| Alt+Z | Zen mode (hide UI) |
-| Alt+R | View mode (read-only) |
-| Ctrl+' | Show grid |
-
-#### Styling Shortcuts
-| Shortcut | Action |
-|----------|--------|
-| S | Show stroke color picker |
-| G | Show background color picker |
-| Ctrl+Alt+C | Copy styles |
-| Ctrl+Alt+V | Paste styles |
-| Ctrl+Shift+< | Decrease font size |
-| Ctrl+Shift+> | Increase font size |
-
-#### Clipboard/Export
-| Shortcut | Action |
-|----------|--------|
-| Shift+Alt+C | Copy as PNG to clipboard |
-| Ctrl+/ | Open command palette |
-| Shift+/ (?) | Show keyboard shortcuts |
-
-### 3. Toolbar and Menu DOM Structure
-
-**Main menu (hamburger):**
-- Trigger: top-left hamburger icon button
-- Key menu items with data-testid:
-  - `data-testid="load-button"` -- Load scene
-  - `data-testid="save-button"` -- Save to active file
-  - `data-testid="image-export-button"` -- Save as image (export dialog)
-  - `data-testid="json-export-button"` -- Export to JSON
-  - `data-testid="clear-canvas-button"` -- Clear canvas
-  - `data-testid="toggle-dark-mode"` -- Toggle theme
-  - `data-testid="command-palette-button"` -- Command palette
-  - `data-testid="help-menu-item"` -- Help/shortcuts
-  - `data-testid="search-menu-button"` -- Search
-
-**Toolbar (shape tools):**
-- Container: `.App-toolbar`, `.Island`
-- Tool buttons use: `[data-testid="toolbar-{toolname}"]`
-  - `toolbar-selection`, `toolbar-rectangle`, `toolbar-diamond`, `toolbar-ellipse`
-  - `toolbar-arrow`, `toolbar-line`, `toolbar-text`, `toolbar-frame`, `toolbar-eraser`
-
-**Properties panel (left side when shape selected):**
-- Stroke color trigger: color swatch button for stroke
-- Background color trigger: color swatch button for background
-- Fill style: RadioSelection buttons (solid, hachure, cross-hatch)
-- Stroke width: RadioSelection buttons (thin, bold, extra bold)
-- Stroke style: RadioSelection buttons (solid, dashed, dotted)
-- Roundness: RadioSelection buttons (sharp, round)
-- Arrow type: RadioSelection (sharp, round, elbow)
-- Font family: FontPicker dropdown (Virgil/hand-drawn, Helvetica, Cascadia/code, Nunito, Excalifont)
-- Font size: RadioSelection (S, M, L, XL)
-- Text alignment: RadioSelection (left, center, right)
-- Opacity: Range slider
-- Arrowheads: RadioSelection for start/end (none, arrow, bar, dot, triangle)
-
-**Color picker popup:**
-- Opens when clicking stroke/background color swatch
-- Contains color grid (palette) and top picks row
-- Also supports hex input via `ColorInput` component
-- CSS class on trigger: various including `is-transparent`, `has-outline`
-
-**Alignment buttons (appear with 2+ elements selected):**
-- `[aria-label="Align left"]`, `[aria-label="Align right"]`
-- `[aria-label="Align top"]`, `[aria-label="Align bottom"]`
-- `[aria-label="Center horizontally"]`, `[aria-label="Center vertically"]`
-- `[aria-label="Distribute horizontally"]`, `[aria-label="Distribute vertically"]`
-
-**Confidence:** MEDIUM -- data-testid values verified from source DefaultItems.tsx; property panel structure from DeepWiki analysis of Actions.tsx. Exact CSS classes may vary by version.
-
-### 4. Export Mechanisms
-
-**Method 1: Copy as PNG keyboard shortcut (FASTEST)**
-- `Shift+Alt+C` copies current selection (or entire canvas if nothing selected) as PNG to clipboard
-- No dialog, instant clipboard copy
-- Best for automation: single keyboard shortcut, no DOM interaction needed
-
-**Method 2: Menu-based export dialog**
-1. Click hamburger menu (top-left)
-2. Click "Save as image" (`data-testid="image-export-button"`)
-3. Export dialog opens with format options (PNG, SVG)
-4. Select format, toggle background, set scale
-5. Click export/download button
-
-**Method 3: Command palette**
-- `Ctrl+/` opens command palette
-- Type "export" to filter export commands
-- Select desired export action
-
-**Method 4: Right-click context menu**
-- Right-click on selected elements
-- "Copy to clipboard as PNG" or "Copy to clipboard as SVG"
-
-**Recommendation for automation:** Use `Shift+Alt+C` (copy as PNG) as the primary export method. It requires zero DOM interaction and works instantly. For SVG export, use the menu-based flow since there's no direct SVG keyboard shortcut.
-
-**Confidence:** MEDIUM -- Shift+Alt+C confirmed from keyboard shortcut documentation; menu data-testid from source. Export dialog internal selectors not fully mapped.
-
-### 5. Connectors and Arrows
-
-**Creating a connected arrow between two shapes:**
-1. Press `A` to activate arrow tool
-2. Move cursor near the edge of source shape -- Excalidraw shows a faint outline when binding is available
-3. Click and drag from source shape edge toward target shape
-4. When cursor is near target shape edge, Excalidraw shows binding indicator
-5. Release mouse on target shape -- arrow is now bound to both shapes
-6. Shapes can be moved and arrow auto-routes to follow
-
-**CDP automation pattern:**
-1. `press_key a` -- activate arrow tool
-2. `cdpDrag sourceEdgeX sourceEdgeY targetEdgeX targetEdgeY steps=20 stepDelayMs=20`
-   - Start coordinates should be on the edge/border of the source shape
-   - End coordinates should be on the edge/border of the target shape
-   - Use more steps (20+) and slower delay for reliable binding detection
-
-**Arrow types (selectable after drawing):**
-- Sharp (default): straight segments with sharp corners
-- Round: curved path
-- Elbow: orthogonal 90-degree routing (auto-routes around obstacles)
-
-**Endpoint styles (arrowheads):**
-- Start arrowhead: none, arrow, bar, dot, triangle
-- End arrowhead: none, arrow, bar, dot, triangle
-- Accessible via properties panel RadioSelection buttons when arrow is selected
-
-**Multi-point arrows (curved/segmented):**
-- Click-click-click pattern: `A` then click multiple points, double-click or Escape to finish
-- For CDP: use multiple `cdpClickAt` calls for each vertex, then `press_key Escape` to finish
-
-**Prevent binding (draw arrow without connecting):**
-- Hold Ctrl/Cmd while drawing to prevent auto-binding to shapes
-
-**Labeled arrows:**
-- Select arrow, press Enter to add text label
-- Label appears at midpoint of arrow
-- Edit label: double-click arrow or select + Enter
-
-**Confidence:** HIGH -- binding behavior confirmed from Excalidraw team's official communications and source PRs
-
-### 6. Verification and Drawing State
-
-**Problem:** Excalidraw renders on `<canvas>` -- individual shapes are NOT DOM elements. You cannot query "how many rectangles are on the canvas" via DOM selectors.
-
-**What IS observable via DOM:**
-
-| What to Check | Selector / Method | What It Tells You |
-|---------------|-------------------|-------------------|
-| Text editor is active | `textarea.excalidraw-wysiwyg` exists in DOM | Text input mode is active |
-| WYSIWYG editor content | `textarea.excalidraw-wysiwyg` value | Current text being edited |
-| Toolbar active tool | `[data-testid="toolbar-*"].selected` or `[aria-checked="true"]` | Which tool is currently active |
-| Properties panel visible | `.layer-ui__wrapper` children for property fieldsets | Shape is selected (panel appears) |
-| Alignment buttons visible | `[aria-label="Align left"]` exists | 2+ elements are selected |
-| Menu open | `[data-testid="image-export-button"]` visible | Hamburger menu is expanded |
-| Dialog open | `[class*="Modal"]`, `[class*="Dialog"]` | Export/settings dialog is showing |
-| Color picker open | Color picker popup content in DOM | Color selection is active |
-| Canvas element | `canvas.interactive` | Canvas is loaded and ready |
-| Layer UI wrapper | `.layer-ui__wrapper` | Excalidraw UI has fully rendered |
-
-**What is NOT observable via DOM:**
-- Number of shapes on canvas
-- Shape positions, sizes, colors
-- Whether shapes are connected by arrows
-- Whether alignment was applied correctly
-
-**Verification strategies for non-DOM state:**
-1. **Action count heuristic:** Track how many draw operations were issued -- if 3 rectangles were drawn with 3 cdpDrag calls, assume 3 exist
-2. **Undo stack:** If undo (Ctrl+Z) removes the last shape, the draw succeeded
-3. **Export verification:** Copy as PNG (Shift+Alt+C) and check clipboard has content
-4. **Stats for nerds:** `Alt+/` opens element statistics panel showing element count -- this IS a DOM element that can be read
-
-**Confidence:** HIGH for DOM-observable items; MEDIUM for verification strategies (need live testing)
-
----
-
-## Alternatives Considered
-
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Text entry | cdpInsertText on auto-focused textarea | DOM-based type on textarea selector | cdpInsertText is simpler and doesn't need selector; textarea is ephemeral |
-| Tool selection | press_key shortcuts (R, D, O, etc.) | DOM click on toolbar buttons | Keyboard shortcuts are faster, more reliable, version-stable |
-| Color selection | Keyboard S/G to open picker + DOM click on swatch | cdpClickAt on color swatch coordinates | DOM click on swatches is more reliable than coordinate guessing |
-| Export | Shift+Alt+C (copy as PNG) | Menu navigation to export dialog | Single shortcut vs multi-step menu flow |
-| Alignment | Keyboard shortcuts (Ctrl+Shift+Arrow) | DOM click on alignment buttons | Shortcuts work without needing to find alignment button selectors |
-| Arrow creation | cdpDrag from shape edge to shape edge | Multi-click pattern | Drag is simpler for straight connectors |
-
----
-
-## Anti-Stack (What NOT to Add)
-
-| Temptation | Why Not |
-|------------|---------|
-| Screenshot-based visual verification | Adds complexity, slow, and FSB has no screenshot analysis pipeline |
-| Excalidraw API injection (window.excalidrawAPI) | Content scripts run in isolated world, cannot access page JS objects |
-| MCP Excalidraw server (npm package exists) | Separate concern -- FSB automates the browser, not the API |
-| rrweb or canvas capture | Overkill for verification; DOM-based checks plus action counting suffices |
-| New CDP tools | All needed CDP tools already exist (click_at, drag, insertText, press_key) |
-| Build system / TypeScript | Project constraint: vanilla JS, no transpilation |
-
----
-
-## Installation
-
-```bash
-# No installation needed -- zero new dependencies
-# All capabilities exist in current FSB codebase
+# Technology Stack: v0.9.11 MCP Tool Quality
+
+**Project:** FSB (Full Self-Browsing) -- MCP Tool Quality Fixes
+**Researched:** 2026-03-31
+**Mode:** Ecosystem (Chrome Extension APIs and patterns for 7 specific fixes)
+
+## Existing Stack (No Changes)
+
+The core stack remains unchanged. No new npm dependencies, no build system changes, no new frameworks. Every fix below uses APIs and patterns already available in the Chrome Extension MV3 platform.
+
+| Technology | Version | Purpose | Status |
+|------------|---------|---------|--------|
+| Chrome Extension MV3 | Chrome 123+ | Extension platform | Existing |
+| Vanilla JavaScript ES2021+ | N/A | All implementation | Existing |
+| chrome.scripting API | MV3 | Content script injection | Existing |
+| chrome.webNavigation API | MV3 | Navigation event handling | Existing, needs expansion |
+| MutationObserver | Web API | DOM stability detection | Existing |
+| Chrome DevTools Protocol | via chrome.debugger | Trusted input events | Existing |
+| WebSocket bridge | Custom | MCP server <-> extension | Existing |
+
+## Chrome APIs Needed Per Fix
+
+### Fix 1: BF Cache Resilience for click
+
+**Problem:** After back/forward navigation, the content script's port to the background is dead. `chrome.tabs.sendMessage` fails because the content script's port was proactively closed when the page entered BF cache -- the page was restored from BF cache, not freshly loaded, so content script re-injection does not help (the JS context is preserved, but the messaging channel is dead).
+
+**API:** `pageshow` event with `event.persisted` check (Web Platform API, available in all Chrome versions)
+
+**Why this approach:**
+- Chrome 123+ proactively closes extension message ports when a page enters BF cache ([Chrome Developer Blog](https://developer.chrome.com/blog/bfcache-extension-messaging-changes))
+- The `pageshow` event fires when a page is restored from BF cache, with `event.persisted === true`
+- `chrome.webNavigation.onCommitted` fires for BF cache restores but **skips** `onDOMContentLoaded` -- this makes BF cache restores detectable from the background side, but the content script `pageshow` handler is the simpler fix
+- The content script's `window.FSB` namespace survives BF cache (the page's JS context is preserved). The MutationObserver survives. The module state survives. Only the `chrome.runtime.connect()` port is dead.
+
+**Implementation pattern (content script side -- content/lifecycle.js):**
+```javascript
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    // Page restored from BF cache -- port is dead, re-establish
+    establishBackgroundConnection();
+    // Re-send ready signal so background knows we're alive
+    chrome.runtime.sendMessage({
+      action: 'contentScriptReady',
+      timestamp: Date.now(),
+      url: window.location.href,
+      readyState: document.readyState,
+      bfCacheRestore: true
+    }).catch(() => {});
+  }
+});
 ```
 
+**Background side (background.js) -- no structural changes needed:**
+- The existing `contentScriptReady` message handler already processes ready signals
+- Just accept the `bfCacheRestore: true` flag for logging/diagnostics
+- The existing `FAILURE_TYPES.BF_CACHE` recovery handler in the `sendMessageToContentScript` retry loop already handles the wake-and-retry pattern -- the `pageshow` handler makes this recovery faster by proactively re-establishing the port before the next MCP command arrives
+
+**Why NOT `chrome.webNavigation.onDOMContentLoaded` absence detection:**
+- Fragile -- requires correlating multiple events across time windows
+- The content script `pageshow` handler is simpler, more reliable, and proactive
+- The content script already has `establishBackgroundConnection()` -- just call it again
+
+**Confidence:** HIGH -- Chrome Developer Blog explicitly documents this pattern for extensions
+
+**Integration notes:**
+- `content/lifecycle.js` already has `establishBackgroundConnection()` at line 494
+- `content/init.js` has `__FSB_CONTENT_SCRIPT_LOADED__` guard -- BF cache restores do NOT re-inject scripts, the guard stays set, which is correct (we don't want double initialization)
+- The MutationObserver started in lifecycle.js survives BF cache restore -- no need to restart it
+- The `window.FSB` namespace and all module registrations survive -- all state is preserved
+
 ---
+
+### Fix 2: Site-Aware Search Tool
+
+**Problem:** The `search` MCP tool always redirects to Google (`searchGoogle` verb in `content/actions.js:3407` navigates to `google.com/search?q=...`). When the user is already on Amazon, GitHub, YouTube, etc. and wants to search within that site, navigating away is wrong.
+
+**API:** No new Chrome APIs needed. Pure DOM heuristics in the content script.
+
+**Why this approach:**
+- Search inputs follow strong accessibility and HTML conventions: `input[type="search"]`, `[role="search"]`, `aria-label` containing "search"
+- The content script already has full DOM access and `FSB.findElementByStrategies()`
+- A selector priority list covers 90%+ of real-world sites without any per-site configuration
+
+**Search input detection heuristic (priority order):**
+```javascript
+const SEARCH_SELECTORS = [
+  // 1. Semantic HTML -- most reliable, W3C standard
+  'input[type="search"]',
+  // 2. ARIA landmark role -- second most reliable
+  '[role="search"] input:not([type="hidden"])',
+  '[role="search"] textarea',
+  // 3. ARIA labels -- broad coverage across accessible sites
+  'input[aria-label*="search" i]',
+  'textarea[aria-label*="search" i]',
+  // 4. Common name/ID conventions
+  'input[name="q"]',             // Google, many sites
+  'input[name="search"]',
+  'input[name="query"]',
+  'input[name="search_query"]',  // YouTube
+  'input[id="search"]',
+  'input[id="searchbox"]',
+  'input[id="search-input"]',
+  'input[id="twotabsearchtextbox"]',  // Amazon
+  // 5. Placeholder text -- fallback
+  'input[placeholder*="Search" i]',
+  'textarea[placeholder*="Search" i]',
+  // 6. Data attributes -- framework patterns
+  'input[data-testid*="search" i]',
+];
+```
+
+**Decision logic (content script side, new function `findSiteSearchInput`):**
+1. Run selectors in priority order
+2. For each match: check visibility (`offsetParent !== null` AND `getBoundingClientRect().width > 0`)
+3. Return first visible match, or `null` if no match
+
+**MCP tool routing (background.js):**
+1. MCP `search` tool arrives -> send `siteSearch` message to content script
+2. Content script runs `findSiteSearchInput()`
+3. If found: focus input, clear it, type query, press Enter -> return `{ success: true, method: 'site_search' }`
+4. If not found: fall back to `searchGoogle` behavior (navigate to Google)
+
+**Confidence:** HIGH -- standard accessibility patterns, well-understood DOM heuristics
+
+**What NOT to do:**
+- Do NOT maintain a per-site search selector database (breaks on redesigns, maintenance burden)
+- Do NOT use a library -- 20 lines of selector priority is sufficient
+- Do NOT try to detect search results pages -- just find the input and type
+
+---
+
+### Fix 3: Content Script Re-injection After Navigation
+
+**Problem:** After navigating to a new page (not BF cache), `ensureContentScriptInjected` sometimes fails to inject quickly enough, or the content script isn't responsive by the time the first MCP action arrives.
+
+**API:** Already using `chrome.scripting.executeScript` and `chrome.webNavigation.onCommitted`. No new APIs needed.
+
+**Why the existing approach needs refinement, not replacement:**
+- `ensureContentScriptInjected` (background.js:2625) is already robust: port check -> ready signal check -> health check -> inject -> wait for ready signal
+- The problem is a race condition: the MCP tool sends a command immediately after navigation, before the content script has finished initializing
+- The fix is a blocking `waitForContentScriptReady` wrapper in the MCP message handlers
+
+**Pattern (background.js, new helper):**
+```javascript
+async function waitForContentScriptReady(tabId, maxWait = 3000) {
+  // 1. Quick check: port alive and recent heartbeat?
+  const portInfo = contentScriptPorts.get(tabId);
+  if (portInfo && Date.now() - portInfo.lastHeartbeat < 5000) return true;
+
+  // 2. Inject if needed
+  await ensureContentScriptInjected(tabId);
+
+  // 3. Wait for ready signal with polling
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    const p = contentScriptPorts.get(tabId);
+    if (p && Date.now() - p.lastHeartbeat < 5000) return true;
+    const rs = contentScriptReadyStatus.get(tabId);
+    if (rs?.ready) return true;
+    await new Promise(r => setTimeout(r, 50));
+  }
+  return false;
+}
+```
+
+**Integration point:** Call `waitForContentScriptReady` in the MCP handlers (`mcp:execute-action`, `mcp:get-dom`, `mcp:read-page`) instead of the current `ensureContentScriptInjected` call.
+
+**Confidence:** HIGH -- refinement of existing proven pattern
+
+**What NOT to do:**
+- Do NOT use `chrome.scripting.registerContentScripts` for always-on injection -- programmatic injection gives more control and the `__FSB_CONTENT_SCRIPT_LOADED__` guard prevents double-init
+- Do NOT add `document_start` injection timing for content scripts -- they depend on `document.body` existing
+
+---
+
+### Fix 4: read_page Auto-Stability (Merge wait_for_stable into read_page)
+
+**Problem:** On JS-heavy sites (SPAs, React apps), `read_page` returns content before the page has finished rendering. The AI user has to manually call `wait_for_stable` then `read_page` -- two tool calls when one should suffice.
+
+**API:** No new APIs. Compose existing `waitForPageStability()` from `content/actions.js:1138` with `extractPageText()` from `content/dom-analysis.js:2698`.
+
+**Implementation (content/messaging.js, in the `readPage` case handler at line 782):**
+```javascript
+case 'readPage':
+  const rpStart = Date.now();
+  // AUTO-STABILITY: Wait for DOM to settle before extracting
+  await FSB.waitForPageStability({
+    maxWait: 2000,      // Cap at 2s -- don't block forever
+    stableTime: 300,    // DOM unchanged for 300ms = "settled"
+    networkQuietTime: 200
+  });
+  // Then extract as before
+  const rpText = FSB.extractPageText(rpRoot, { ... });
+```
+
+**Why 2000ms maxWait:**
+- Most SPA renders complete within 500ms-1500ms
+- 2s catches lazy-loaded content without blocking the MCP workflow
+- The existing `waitForPageStability` returns early when stable before timeout
+- `stableTime: 300` means 300ms of zero DOM mutations -- good balance between speed and completeness
+
+**Also apply to the `mcp:read-page` handler in background.js** (line 13800): The auto-stability happens in the content script, transparent to the MCP server and background.
+
+**Confidence:** HIGH -- composing two existing functions that are individually well-tested
+
+**What NOT to do:**
+- Do NOT add a separate `read_page_stable` MCP tool -- merge into existing `read_page`
+- Do NOT wait for complete network idle -- too slow, many sites have ongoing XHR/WebSocket/analytics
+- Do NOT increase timeout beyond 2s -- the MCP agent can always call `wait_for_stable` explicitly if it needs more time
+
+---
+
+### Fix 5: Intelligent Content Truncation (Cap read_page)
+
+**Problem:** `extractPageText` has a 50K char limit (`MAX_CHARS = 50000` at `content/dom-analysis.js:2704`). For MCP tool responses, 50K is far too much -- it overwhelms the AI context window and most of it is noise (nav bars, footers, ads, boilerplate).
+
+**API:** No new APIs. Refine `extractPageText` in `content/dom-analysis.js`.
+
+**Strategy -- Main Content Prioritization:**
+```javascript
+function findMainContentRoot() {
+  // Try semantic landmarks first
+  const main = document.querySelector('main, [role="main"]');
+  if (main && main.textContent.trim().length > 100) return main;
+
+  const article = document.querySelector('article');
+  if (article && article.textContent.trim().length > 100) return article;
+
+  // No landmark -- use full body
+  return document.body;
+}
+```
+
+**Truncation limits:**
+| Mode | Current Limit | New Limit | Rationale |
+|------|---------------|-----------|-----------|
+| Default (viewport) | 50,000 chars | 5,000 chars | Enough for AI to read visible content, fits in prompt budget |
+| Full page (`full: true`) | 50,000 chars | 15,000 chars | Extended extraction, still fits in context window |
+| Autopilot (internal) | 50,000 chars | No change | Autopilot has its own prompt budget management |
+
+**Skip selectors (strip before extraction):**
+```javascript
+const NOISE_SELECTORS = [
+  'nav', '[role="navigation"]',
+  'header', '[role="banner"]',
+  'footer', '[role="contentinfo"]',
+  'aside', '[role="complementary"]',
+  '[role="search"]',
+  '[aria-hidden="true"]',
+  'script', 'style', 'noscript',
+  // Cookie/consent overlaps with Fix 7
+  '[class*="cookie" i]', '[id*="cookie" i]',
+  '[class*="consent" i]', '[id*="consent" i]',
+];
+```
+
+**Implementation approach:** Do NOT delete nodes from the DOM. Instead, check each node during the `visit()` traversal in `extractPageText` and skip nodes matching `NOISE_SELECTORS` when the caller is MCP (pass a flag like `{ stripNoise: true }`).
+
+**Confidence:** HIGH -- straightforward DOM traversal refinement
+
+**What NOT to do:**
+- Do NOT import Readability.js -- adds a ~15KB dependency, overkill for this use case
+- Do NOT use ML-based content extraction -- heuristic landmarks are sufficient
+- Do NOT remove the hard cap entirely -- it prevents OOM on massive DOM trees
+
+---
+
+### Fix 6: Smart press_enter Fallback (Auto-Click Submit)
+
+**Problem:** When the AI calls `press_enter` on a form field and the synthetic Enter key dispatch doesn't trigger submission (common in React/SPA forms that intercept keydown), there's no fallback.
+
+**API:** No new APIs. Add fallback logic in the existing `pressEnter` handler in `content/actions.js`.
+
+**Fallback strategy (inside existing pressEnter tool, after Enter key dispatch and verification):**
+```javascript
+// After dispatching Enter key events and verifying
+const postState = captureActionState(element, 'pressEnter');
+const verification = verifyActionEffect(preState, postState, 'pressEnter');
+
+if (!verification.verified) {
+  // Enter had no effect -- try finding and clicking submit button
+  const submitBtn = findNearestSubmitButton(element);
+  if (submitBtn) {
+    submitBtn.click();
+    await waitForPageStability({ maxWait: 2000, stableTime: 300 });
+    return {
+      success: true,
+      method: 'submit_button_fallback',
+      buttonText: submitBtn.textContent?.trim()?.substring(0, 50)
+    };
+  }
+}
+```
+
+**Submit button finder (new helper function):**
+```javascript
+function findNearestSubmitButton(inputElement) {
+  // 1. Check if input is inside a <form>
+  const form = inputElement.closest('form');
+  if (form) {
+    const submitBtn = form.querySelector(
+      'button[type="submit"], input[type="submit"], ' +
+      'button:not([type="button"]):not([type="reset"])'
+    );
+    if (submitBtn && submitBtn.offsetParent !== null) return submitBtn;
+  }
+
+  // 2. No form or no submit button in form -- look for nearby button
+  const container = inputElement.closest('div, section, fieldset') || document.body;
+  const buttons = container.querySelectorAll('button, [role="button"]');
+  const submitRegex = /^(submit|send|go|search|sign.?in|log.?in|register|save|apply|continue|next|ok|confirm)$/i;
+
+  for (const btn of buttons) {
+    const text = btn.textContent?.trim();
+    if (text && submitRegex.test(text) && btn.offsetParent !== null) {
+      return btn;
+    }
+  }
+
+  return null;
+}
+```
+
+**Confidence:** HIGH -- well-defined DOM traversal, integrates with existing verification infrastructure
+
+**What NOT to do:**
+- Do NOT always click submit instead of Enter -- Enter is the correct primary behavior for most sites
+- Do NOT call `form.submit()` programmatically -- bypasses validation listeners and event handlers
+- Do NOT search the entire document for submit buttons -- scope to the containing form or nearest container
+
+---
+
+### Fix 7: Cookie Consent Auto-Dismiss
+
+**Problem:** Cookie consent overlays block interaction with page elements. The AI wastes tokens figuring out how to dismiss them, and sometimes fails entirely because the overlay intercepts clicks.
+
+**API:** No new Chrome APIs. DOM heuristic detection + auto-click in content script.
+
+**Why NOT use a library:**
+- Cookie consent extensions (Cookie Guardian, "I don't care about cookies", etc.) are full extensions with their own manifest and lifecycle
+- We need approximately 50-70 lines of heuristic detection, not an external dependency
+- The detection pattern is straightforward: find a fixed/sticky overlay with cookie-related identifiers, click the accept/dismiss button
+
+**Detection heuristic (new function `detectAndDismissCookieConsent`):**
+
+**Phase 1 -- Find the banner container (CMP-specific selectors cover ~65% of sites):**
+```javascript
+const BANNER_SELECTORS = [
+  '#onetrust-banner-sdk',              // OneTrust
+  '#CybotCookiebotDialog',             // Cookiebot
+  '#usercentrics-root',                // Usercentrics
+  '.didomi-popup-container',           // Didomi
+  '#truste-consent-track',             // TrustArc
+  '#cookie-law-info-bar',              // CookieYes
+  '#iubenda-cs-banner',               // Iubenda
+  '.cc-window',                        // osano/cookieconsent
+  // Generic patterns (covers ~25% more)
+  '[class*="cookie-banner" i]',
+  '[class*="cookie-consent" i]',
+  '[class*="cookie-notice" i]',
+  '[id*="cookie-banner" i]',
+  '[id*="cookie-consent" i]',
+  '[id*="gdpr" i]',
+  '[class*="consent-banner" i]',
+];
+```
+
+**Phase 2 -- Find accept/dismiss button within the banner:**
+```javascript
+const ACCEPT_SELECTORS = [
+  '#onetrust-accept-btn-handler',
+  '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
+  'button[class*="accept" i]',
+  'button[class*="agree" i]',
+  'button[class*="allow" i]',
+  'button[id*="accept" i]',
+  'a[class*="accept" i]',
+];
+
+// Text-based fallback
+const ACCEPT_TEXT = /^(accept|accept all|agree|allow|allow all|ok|got it|i agree|i understand|continue|dismiss)$/i;
+```
+
+**Phase 3 -- Safety checks before clicking:**
+1. Banner container must be fixed or sticky positioned (`position: fixed|sticky` OR `z-index > 1000`)
+2. Must contain cookie/consent/privacy-related text (regex check on `textContent`)
+3. Must NOT look like a login dialog, terms acceptance, or age gate
+
+**Trigger points:**
+1. On content script initialization -- delayed 1500ms to catch async-loaded CMP banners
+2. Via MutationObserver -- if a new high-z-index fixed-position element appears with cookie-related content
+3. Manually via new `dismiss_overlay` MCP tool
+4. Automatically before `read_page` extraction (if an overlay is blocking content)
+
+**Integration:**
+- Add detection function to `content/lifecycle.js`
+- Expose as `FSB.dismissCookieConsent()` for programmatic invocation
+- Add `dismiss_overlay` MCP tool for explicit AI use
+
+**Confidence:** MEDIUM-HIGH -- CMP-specific selectors are HIGH confidence (IDs are stable across versions), generic text matching is MEDIUM (potential false positives with non-cookie "Accept" buttons)
+
+**Safeguards against false positives:**
+1. Only target elements with fixed/sticky positioning or very high z-index
+2. Require cookie/consent/privacy text in the container
+3. Never auto-dismiss if the overlay text mentions "terms of service", "age verification", "sign in", or "subscribe"
+
+**What NOT to do:**
+- Do NOT import cookie consent libraries as npm dependencies
+- Do NOT try to detect all ~50+ CMP platforms -- the top 8 by market share cover 65%+ of sites
+- Do NOT use Shadow DOM piercing -- most CMPs use regular DOM
+- Do NOT auto-reject cookies -- always click "Accept All" or "Dismiss" (least disruptive to automation flow)
+
+---
+
+## Viewport-Aware Click/Hover Fix (Fix 4b -- Supplementary)
+
+**Problem:** `scrollIntoView` in `smartEnsureReady` / `ensureElementReady` (content/accessibility.js) sometimes leaves elements behind sticky headers or at the very bottom edge of the viewport.
+
+**API:** Already using `Element.scrollIntoView()` and `Element.getBoundingClientRect()`. No new APIs.
+
+**Refinement -- add sticky header compensation:**
+```javascript
+function detectStickyHeaderHeight() {
+  const candidates = document.querySelectorAll(
+    'header, nav, [role="banner"], [class*="header" i], [class*="navbar" i]'
+  );
+  let maxHeight = 0;
+  for (const el of candidates) {
+    const style = getComputedStyle(el);
+    if (style.position === 'fixed' || style.position === 'sticky') {
+      maxHeight = Math.max(maxHeight, el.getBoundingClientRect().height);
+    }
+  }
+  return maxHeight;
+}
+
+// After scrollIntoView, verify and adjust
+element.scrollIntoView({ behavior: 'instant', block: 'center' });
+const rect = element.getBoundingClientRect();
+const stickyH = detectStickyHeaderHeight();
+if (rect.top < stickyH + 10) {
+  window.scrollBy(0, -(stickyH + 20));
+}
+```
+
+**Integration:** Add to `ensureElementReady` in `content/accessibility.js` after the existing `scrollIntoView` call (around line 1050+).
+
+**Confidence:** HIGH -- standard DOM geometry calculations
+
+---
+
+## Summary: What NOT to Add
+
+| Temptation | Why Avoid |
+|------------|-----------|
+| Readability.js for content extraction | External dependency (~15KB), overkill for content prioritization |
+| Cookie consent extension/library | Adds dependency lifecycle; 50-70 lines of selectors suffice |
+| Per-site search selector database | Breaks on redesigns; generic heuristics are more resilient |
+| `chrome.scripting.registerContentScripts` | Adds complexity; programmatic injection gives more control |
+| Shadow DOM piercing for cookie banners | Very few CMPs use Shadow DOM; handle if encountered later |
+| Network idle detection for stability | Too slow; sites with WebSocket/polling never go idle |
+| Separate `read_page_stable` MCP tool | Adds tool count; merge behavior into existing `read_page` |
+| Third-party DOM diffing library | Existing MutationObserver is sufficient |
+| `form.submit()` as fallback | Bypasses validation and event listeners; `.click()` on submit button is safer |
+
+## File Touch Map
+
+| File | Fix(es) | Change Type |
+|------|---------|-------------|
+| `content/lifecycle.js` | 1, 7 | Add `pageshow` listener for BF cache; add cookie consent auto-dismiss |
+| `content/messaging.js` | 4 | Add auto-stability wait before `readPage` extraction |
+| `content/dom-analysis.js` | 5 | Add `findMainContentRoot()`, reduce `MAX_CHARS`, add `NOISE_SELECTORS` skip list |
+| `content/actions.js` | 2, 6 | Add `findSiteSearchInput()`, add `siteSearch` tool, add `findNearestSubmitButton()` + submit fallback in pressEnter |
+| `content/accessibility.js` | 4b | Add sticky header detection and scroll compensation in `ensureElementReady` |
+| `background.js` | 1, 2, 3 | Accept `bfCacheRestore` ready signal, route `siteSearch` verb, add `waitForContentScriptReady` |
+| `mcp-server/src/tools/manual.ts` | 2 | Update `search` tool description (behavior change is transparent) |
+| `mcp-server/src/tools/read-only.ts` | 4, 5 | Update `read_page` description to note auto-stability and smart truncation |
+
+## Chrome API Version Requirements
+
+| API | Minimum Chrome | Our Minimum | Notes |
+|-----|---------------|-------------|-------|
+| `pageshow` event | All versions | Chrome 88 | Standard web platform API |
+| `event.persisted` | All versions | Chrome 88 | Standard web platform API |
+| `chrome.scripting.executeScript` | Chrome 88 | Chrome 88 | Already using |
+| `chrome.webNavigation.onCommitted` | Chrome 88 | Chrome 88 | Already using |
+| `MutationObserver` | All versions | Chrome 88 | Already using |
+| `Element.scrollIntoView` | All versions | Chrome 88 | Already using |
+| `document.elementFromPoint` | All versions | Chrome 88 | Already using |
+| `getComputedStyle` | All versions | Chrome 88 | Already using |
+
+No new Chrome API permissions required. The `manifest.json` already has `webNavigation`, `scripting`, `tabs`, and `<all_urls>` host permissions.
 
 ## Sources
 
-- [Excalidraw source: textWysiwyg.tsx](https://github.com/excalidraw/excalidraw/blob/master/packages/excalidraw/wysiwyg/textWysiwyg.tsx) -- HIGH confidence
-- [Excalidraw source: DefaultItems.tsx](https://github.com/excalidraw/excalidraw/blob/master/packages/excalidraw/components/main-menu/DefaultItems.tsx) -- HIGH confidence
-- [Excalidraw keyboard shortcuts (csswolf.com)](https://csswolf.com/excalidraw-keyboard-shortcuts-pdf/) -- MEDIUM confidence (third-party compilation)
-- [DeepWiki: Excalidraw export system](https://deepwiki.com/excalidraw/excalidraw/6.6-export-system) -- MEDIUM confidence
-- [DeepWiki: Properties and color picker](https://deepwiki.com/zsviczian/excalidraw/4.6-properties-and-color-picker) -- MEDIUM confidence
-- [DeepWiki: Actions and toolbars](https://deepwiki.com/excalidraw/excalidraw/4.1-actions-and-toolbars) -- MEDIUM confidence
-- [Excalidraw MainMenu docs](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/api/children-components/main-menu) -- HIGH confidence
-- [Excalidraw arrow binding behavior](https://x.com/excalidraw/status/1786055557645824177) -- HIGH confidence (official team)
-- [1337skills Excalidraw cheatsheet](https://1337skills.com/cheatsheets/excalidraw/) -- MEDIUM confidence
-- [HackMD Excalidraw guide](https://hackmd.io/@alkemio/SJuewkPwn) -- MEDIUM confidence
-- [CDP Input domain](https://chromedevtools.github.io/devtools-protocol/tot/Input/) -- HIGH confidence (official Chrome docs)
+- [Chrome Developer Blog: BFCache Extension Messaging Changes](https://developer.chrome.com/blog/bfcache-extension-messaging-changes) -- Chrome 123+ BF cache port behavior (HIGH confidence)
+- [web.dev: Back/Forward Cache](https://web.dev/articles/bfcache) -- General BF cache lifecycle (HIGH confidence)
+- [Chrome webNavigation API Reference](https://developer.chrome.com/docs/extensions/reference/api/webNavigation) -- Event sequence for BF cache restores, transitionType/transitionQualifiers (HIGH confidence)
+- [Chrome scripting API Reference](https://developer.chrome.com/docs/extensions/reference/api/scripting) -- executeScript options (HIGH confidence)
+- [Chrome Content Scripts Docs](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) -- Injection timing, isolated world (HIGH confidence)
+- [Cookie Guardian (GitHub)](https://github.com/ardatrkl35/Cookie-guardian) -- CMP detection patterns, heuristic scoring reference (MEDIUM confidence)
+- [Cookie Decliner (GitHub)](https://github.com/RuneVed/cookie-decliner) -- TCF API + DOM analysis approach (MEDIUM confidence)
+- [CHI 2025: Cross-Country Analysis of GDPR Cookie Banners](https://dl.acm.org/doi/10.1145/3706598.3713648) -- Word corpus + heuristic F1=0.96 finding (MEDIUM confidence)

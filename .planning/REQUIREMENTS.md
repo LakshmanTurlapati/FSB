@@ -1,92 +1,110 @@
-# Requirements: FSB v0.9.9.1 Phantom Stream
+# Requirements: FSB v0.9.11 MCP Tool Quality
 
-**Defined:** 2026-03-29
+**Defined:** 2026-03-31
 **Core Value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
 
-## v0.9.9.1 Requirements
+## v1 Requirements
 
-Requirements for making the dashboard DOM stream fully functional with high fidelity and remote control.
+Requirements for this milestone. Each maps to roadmap phases.
 
-### Connection
+### Search Reliability
 
-- [x] **CONN-01**: Dashboard DOM stream starts automatically when WebSocket connects (no task submission needed)
-- [x] **CONN-02**: Stream stays active between tasks showing live browser state continuously
-- [x] **CONN-03**: Stream auto-recovers after WebSocket disconnect with a fresh snapshot on reconnect
-- [x] **CONN-04**: Visual status badge shows stream health (connected/buffering/disconnected) in the preview container
+- [ ] **SRCH-01**: User can use the `search` tool on any site and it types the query into the site's own search input instead of redirecting to Google
+- [ ] **SRCH-02**: Search tool detects the site's search input via DOM heuristics (input[type=search], [role=search] input, input[name=q], placeholder matching)
+- [ ] **SRCH-03**: Search tool submits the search form after typing (Enter key or submit button click)
+- [ ] **SRCH-04**: Search tool falls back to Google only when no site search input is detected
 
-### Layout
+### Content Extraction
 
-- [x] **LAYOUT-01**: User can maximize preview to fill the full dashboard content area
-- [x] **LAYOUT-02**: User can minimize preview back to inline thumbnail size
-- [x] **LAYOUT-03**: Preview container reshapes dynamically to match actual browser viewport dimensions (not fixed 16:9)
-- [x] **LAYOUT-04**: User can enter picture-in-picture mode with a floating draggable preview
-- [x] **LAYOUT-05**: User can enter fullscreen preview mode (Escape to exit)
+- [ ] **CONT-01**: `read_page` automatically waits for DOM stability before extracting text (no separate wait_for_stable call needed)
+- [ ] **CONT-02**: `read_page` uses quick-extract-then-retry pattern: if initial extraction returns <200 chars, wait for DOM stability and re-extract
+- [ ] **CONT-03**: `read_page` prioritizes main content area (`<main>`, `[role=main]`, `#content`, article) over sidebar/nav/footer
+- [ ] **CONT-04**: `read_page` caps output at ~8K chars with intelligent truncation (main content first, then supplementary)
+- [ ] **CONT-05**: Sites that previously returned <200 chars (Airbnb, Booking.com, Kayak) return meaningful content after stability wait
 
-### Fidelity
+### Navigation Resilience
 
-- [x] **FIDELITY-01**: Alert dialogs, confirm boxes, and modal overlays visible in the page appear in the cloned preview
-- [x] **FIDELITY-02**: CSS transitions and keyframe animations are mirrored in the cloned preview
-- [x] **FIDELITY-03**: Mutation batching is synced to requestAnimationFrame for smooth display-matched updates
-- [x] **FIDELITY-04**: Snapshot captures inline computed styles for pixel-accurate clone rendering
+- [ ] **NAV-01**: Content script survives BF cache transitions via `pageshow` event listener with `event.persisted` detection
+- [ ] **NAV-02**: Click that causes page navigation returns success with navigation info instead of a BF cache error
+- [ ] **NAV-03**: After BF cache restoration, content script re-establishes communication port with background service worker
+- [ ] **NAV-04**: MCP caller receives actionable response from click even when page transitions (not an opaque error)
 
-### Control
+### Interaction Reliability
 
-- [x] **CONTROL-01**: User can click elements in the preview to trigger clicks on the corresponding element in the real browser
-- [x] **CONTROL-02**: User can type in preview input fields to type in the corresponding field in the real browser
-- [x] **CONTROL-03**: User can scroll the preview to scroll the real browser page
-- [x] **CONTROL-04**: User can stop a running automation task from the preview overlay
+- [ ] **INTR-01**: Click and hover scroll elements into view accounting for fixed/sticky headers (not just raw scrollIntoView)
+- [ ] **INTR-02**: After scrolling, click verifies element is actually visible via elementFromPoint check before clicking
+- [ ] **INTR-03**: `press_enter` automatically falls back to clicking the form's submit button when Enter key has no effect
+- [ ] **INTR-04**: Off-viewport elements that get_text/get_attribute can access are also clickable/hoverable after scroll
 
-## Future Requirements
+### Overlay Handling
 
-### Advanced Control
+- [ ] **OVLY-01**: Cookie consent overlays are automatically detected via CMP framework identifiers (OneTrust, Cookiebot, TrustArc class/ID patterns)
+- [ ] **OVLY-02**: Detected cookie consent overlays are dismissed by clicking reject/decline/necessary-only buttons
+- [ ] **OVLY-03**: Cookie dismiss runs proactively before read_page and interaction tools, not only reactively
+- [ ] **OVLY-04**: Non-cookie overlays (login prompts, newsletter popups, paywalls) are NOT dismissed -- only cookie consent
 
-- **CONTROL-05**: Right-click context menu forwarding
-- **CONTROL-06**: Keyboard shortcut passthrough (Ctrl+C, Ctrl+V, etc.)
-- **CONTROL-07**: Multi-touch gesture forwarding
+## v2 Requirements
 
-### Advanced Fidelity
+Deferred to future release. Tracked but not in current roadmap.
 
-- **FIDELITY-05**: Canvas element content mirroring (toDataURL snapshots)
-- **FIDELITY-06**: Video element poster frame capture
-- **FIDELITY-07**: Shadow DOM content serialization
+### Content Extraction (Advanced)
+
+- **CONT-06**: Configurable maxChars parameter on read_page MCP tool (currently fixed default)
+- **CONT-07**: Canvas/chart element data extraction (SVG labels, axis values from chart sites like TradingView, Finviz)
+
+### Search (Advanced)
+
+- **SRCH-05**: Site-guide selector integration for search inputs on known sites (higher coverage on Amazon, YouTube, etc.)
+- **SRCH-06**: Autocomplete handling -- dismiss autocomplete dropdown before submitting search
+
+### Overlay Handling (Advanced)
+
+- **OVLY-05**: Newsletter/email signup popup auto-dismiss
+- **OVLY-06**: Paywall detection and notification to user
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Pixel-level screenshot streaming | DOM cloning approach is lower bandwidth; pixel capture would require WebRTC or similar |
-| Audio forwarding | No audio capture API in content scripts |
-| WebGL/3D content mirroring | Canvas-based rendering not serializable via DOM cloning |
-| Multi-tab simultaneous streaming | Single tab stream keeps complexity manageable for v0.9.9.1 |
-| Mobile responsive preview | Dashboard is desktop-only for now |
+| Full Readability.js library integration | Lightweight heuristic (~100 lines) sufficient; library adds bundle size and maintenance |
+| AI-powered search input detection | Too slow; deterministic DOM heuristics cover 90%+ of sites |
+| Headless browser fallback for JS rendering | Architecture constraint -- FSB runs in user's browser, not server-side |
+| Multi-tab search coordination | Separate feature, not part of tool quality fixes |
+| Screenshot-based content extraction | Out of scope -- DOM text extraction approach maintained |
 
 ## Traceability
 
+Which phases cover which requirements. Updated during roadmap creation.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONN-01 | Phase 122 | Complete |
-| CONN-02 | Phase 122 | Complete |
-| CONN-03 | Phase 122 | Complete |
-| CONN-04 | Phase 122 | Complete |
-| LAYOUT-01 | Phase 123 | Complete |
-| LAYOUT-02 | Phase 123 | Complete |
-| LAYOUT-03 | Phase 123 | Complete |
-| LAYOUT-04 | Phase 123 | Complete |
-| LAYOUT-05 | Phase 123 | Complete |
-| FIDELITY-01 | Phase 124 | Complete |
-| FIDELITY-02 | Phase 124 | Complete |
-| FIDELITY-03 | Phase 124 | Complete |
-| FIDELITY-04 | Phase 124 | Complete |
-| CONTROL-01 | Phase 125 | Complete |
-| CONTROL-02 | Phase 125 | Complete |
-| CONTROL-03 | Phase 125 | Complete |
-| CONTROL-04 | Phase 125 | Complete |
+| CONT-01 | Phase 126 | Pending |
+| CONT-02 | Phase 126 | Pending |
+| CONT-03 | Phase 126 | Pending |
+| CONT-04 | Phase 126 | Pending |
+| CONT-05 | Phase 126 | Pending |
+| NAV-01 | Phase 127 | Pending |
+| NAV-02 | Phase 127 | Pending |
+| NAV-03 | Phase 127 | Pending |
+| NAV-04 | Phase 127 | Pending |
+| INTR-01 | Phase 128 | Pending |
+| INTR-02 | Phase 128 | Pending |
+| INTR-04 | Phase 128 | Pending |
+| INTR-03 | Phase 129 | Pending |
+| OVLY-01 | Phase 130 | Pending |
+| OVLY-02 | Phase 130 | Pending |
+| OVLY-03 | Phase 130 | Pending |
+| OVLY-04 | Phase 130 | Pending |
+| SRCH-01 | Phase 131 | Pending |
+| SRCH-02 | Phase 131 | Pending |
+| SRCH-03 | Phase 131 | Pending |
+| SRCH-04 | Phase 131 | Pending |
 
 **Coverage:**
-- v0.9.9.1 requirements: 17 total
-- Mapped to phases: 17
+- v1 requirements: 21 total
+- Mapped to phases: 21
 - Unmapped: 0
 
 ---
-*Requirements defined: 2026-03-29*
-*Traceability updated: 2026-03-29*
+*Requirements defined: 2026-03-31*
+*Last updated: 2026-03-31 after roadmap creation (all 21 requirements mapped to phases 126-131)*

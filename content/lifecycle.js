@@ -566,6 +566,43 @@
   }
 
   // ============================================================================
+  // BF CACHE RECOVERY (pageshow / pagehide)
+  // ============================================================================
+
+  // When Chrome moves a page into BF cache (Chrome 123+), it proactively closes
+  // all extension message ports. The JS context survives -- FSB namespace,
+  // MutationObserver, DOM state are all intact (per D-03). Only the port dies.
+  // On restore, pageshow fires with event.persisted=true. We reset the port
+  // and reconnect immediately, bypassing the onDisconnect exponential backoff.
+
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      logger.info('[FSB Content] BF cache restore detected via pageshow', {
+        url: window.location.href,
+        hadPort: !!backgroundPort,
+        fsbHealthy: !!(window.FSB && window.FSB._modules)
+      });
+
+      // Port is dead from BF cache entry -- null it and reset backoff counter
+      backgroundPort = null;
+      reconnectAttempts = 0;
+
+      // Re-establish port immediately (not via onDisconnect backoff)
+      establishBackgroundConnection();
+    }
+  });
+
+  window.addEventListener('pagehide', (event) => {
+    if (event.persisted) {
+      logger.debug('[FSB Content] Page entering BF cache (pagehide persisted)', {
+        url: window.location.href
+      });
+      // Port will be closed by Chrome -- nothing to do here except log.
+      // The pageshow handler above will reconnect when restored.
+    }
+  });
+
+  // ============================================================================
   // READY SIGNAL
   // ============================================================================
 

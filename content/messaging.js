@@ -789,22 +789,57 @@
             sendResponse({ success: true, text: '[Selector not found: ' + rpSelector + ']', charCount: 0 });
             break;
           }
-          const rpText = FSB.extractPageText(rpRoot, {
+
+          const rpExtractOpts = {
             viewportOnly: !rpFull,
             format: 'markdown-lite',
             maxChars: rpMaxChars
-          });
+          };
+
+          // Step 1: Quick extract (no stability wait) -- per D-01
+          let rpText = FSB.extractPageText(rpRoot, rpExtractOpts);
+          let rpStabilityWaited = false;
+
+          // Step 2: If sparse, wait for DOM stability and re-extract -- per D-02, D-03
+          // Sparse threshold: <200 chars (per D-02: Airbnb=0, Booking=173, Kayak=233)
+          // Guard: only retry if page has non-trivial DOM (>5 child elements)
+          // to avoid waiting on genuinely empty pages like about:blank
+          if (rpText.length < 200 && document.body.childElementCount > 5) {
+            try {
+              const stabilityResult = await FSB.waitForPageStability({
+                maxWait: 3000,     // per D-03: 3 second max wait
+                stableTime: 300,   // DOM stable for 300ms
+                networkQuietTime: 200 // network quiet for 200ms
+              });
+              rpStabilityWaited = true;
+              logger.logTiming(FSB.sessionId, 'DOM', 'readPage-stabilityWait', stabilityResult.waitTime, {
+                stable: stabilityResult.stable,
+                timedOut: stabilityResult.timedOut
+              });
+            } catch (stabilityErr) {
+              // Non-fatal: proceed with whatever we have
+              rpStabilityWaited = true;
+              logger.logComm(FSB.sessionId, 'warn', 'readPage-stabilityWait-failed', false, {
+                error: stabilityErr.message
+              });
+            }
+            // Re-extract after stability wait
+            rpText = FSB.extractPageText(rpRoot, rpExtractOpts);
+          }
+
           const rpTime = Date.now() - rpStart;
           logger.logTiming(FSB.sessionId, 'DOM', 'extractPageText', rpTime, {
             selector: rpSelector,
             full: rpFull,
             maxChars: rpMaxChars,
-            charCount: rpText.length
+            charCount: rpText.length,
+            stabilityWaited: rpStabilityWaited
           });
           sendResponse({
             success: true,
             text: rpText || '[No readable text content on page]',
-            charCount: rpText ? rpText.length : 0
+            charCount: rpText ? rpText.length : 0,
+            stabilityWaited: rpStabilityWaited
           });
           break;
 

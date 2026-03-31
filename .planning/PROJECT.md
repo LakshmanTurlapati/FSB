@@ -86,17 +86,24 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ### Active
 
+- [ ] Site-aware search tool (use site's own search input, not Google redirect) -- v0.9.11
+- [ ] read_page auto-stability (merge wait_for_stable into read_page for JS-heavy sites) -- v0.9.11
+- [ ] BF cache resilience for click (re-inject content script after page transitions) -- v0.9.11
+- [ ] Viewport-aware click/hover (fix scrollIntoView for off-screen elements) -- v0.9.11
+- [ ] Smart press_enter fallback (auto-click submit button when Enter fails) -- v0.9.11
+- [ ] Intelligent content truncation (cap read_page, prioritize main content) -- v0.9.11
+- [ ] Cookie consent auto-dismiss (clear overlays blocking interaction) -- v0.9.11
 - [ ] Auto-start DOM stream on WS connection -- v0.9.9.1
 - [ ] Maximize/minimize preview toggle -- v0.9.9.1
 - [ ] Viewport-adaptive preview resize -- v0.9.9.1
 - [ ] Full visual fidelity (dialogs, modals, overlays mirrored) -- v0.9.9.1
 - [ ] Display-matched frame rate (rAF-synced mutation batching) -- v0.9.9.1
 - [ ] Remote control mode (interact through preview iframe) -- v0.9.9.1
-- [ ] MCP agent tools — create/list/run/stop/delete agents via MCP -- v0.9.10/P116
-- [ ] Cost & metrics pipeline — real token/cost data in agent history -- v0.9.10/P117
-- [ ] Scheduling enhancements — cron expressions, retry with backoff -- v0.9.10/P118
-- [ ] Replay intelligence — dynamic timing, step-level recovery -- v0.9.10/P119
-- [ ] Sidepanel agents UI — dedicated tab for agent management -- v0.9.10/P120
+- [ ] MCP agent tools -- create/list/run/stop/delete agents via MCP -- v0.9.10/P116
+- [ ] Cost & metrics pipeline -- real token/cost data in agent history -- v0.9.10/P117
+- [ ] Scheduling enhancements -- cron expressions, retry with backoff -- v0.9.10/P118
+- [ ] Replay intelligence -- dynamic timing, step-level recovery -- v0.9.10/P119
+- [ ] Sidepanel agents UI -- dedicated tab for agent management -- v0.9.10/P120
 
 ### Backlog (Completed from previous milestones — v0.9.6)
 
@@ -123,17 +130,22 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - Headless server-side execution -- server is relay only, user's browser must stay active
 - Video/screenshot streaming -- DOM cloning with CDN images, not pixel capture
 
-## Current Milestone: v0.9.9.1 Phantom Stream
+## Current Milestone: v0.9.11 MCP Tool Quality
 
-**Goal:** Make the dashboard DOM stream actually work -- auto-connect, full-fidelity live preview with viewport-adaptive resize, display-matched frame rate, and remote browser control from the dashboard.
+**Goal:** Fix the 7 systemic MCP tool issues discovered during the 30-site audit so manual-mode browsing works reliably on any website.
 
 **Target features:**
-- Auto-start streaming on WS connection (eliminate "Connecting to browser..." dead state)
-- Maximize/minimize toggle for the preview panel
-- Viewport-adaptive resize (preview reshapes to match actual browser viewport dimensions)
-- Full visual fidelity (dialogs, modals, popups, CSS animations, overlays all mirrored in clone)
-- Display-matched frame rate (mutation batching synced to requestAnimationFrame for smooth updates)
-- Remote control mode: click/type/scroll through the preview iframe to control the actual browser
+- Site-aware search (use site's own search input instead of always redirecting to Google)
+- read_page + wait_for_stable merge (auto-wait for DOM stability before extraction)
+- BF cache resilience for click (re-inject content script after page transitions)
+- Viewport-aware click/hover (fix scrollIntoView for off-screen elements)
+- Smart press_enter fallback (auto-click submit button when Enter fails)
+- Intelligent content truncation (cap read_page at ~5K, prioritize main content)
+- Cookie consent auto-dismiss (clear overlays blocking interaction)
+
+## Previous Milestone: v0.9.9.1 Phantom Stream (in progress, parallel)
+
+**Goal:** Make the dashboard DOM stream actually work -- auto-connect, full-fidelity live preview with viewport-adaptive resize, display-matched frame rate, and remote browser control from the dashboard.
 
 ## Previous Milestone: v0.9.9 Shipped
 
@@ -228,4 +240,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-25 after v0.9.9 Excalidraw Mastery milestone shipped*
+*Last updated: 2026-03-31 after v0.9.11 MCP Tool Quality milestone started*
