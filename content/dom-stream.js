@@ -18,6 +18,7 @@
   var scrollHandler = null;
   var lastScrollSend = 0;
   var dialogRelayActive = false;
+  var lastOverlayBroadcast = 0;
 
   // Attributes that need URL absolutification
   var URL_ATTRS = ['src', 'href', 'action', 'poster', 'data'];
@@ -50,6 +51,51 @@
     'border-collapse': 'separate',
     'resize': 'none'
   };
+
+  // Curated list of ~85 CSS properties that matter for visual fidelity.
+  // Replaces iterating all 300+ computed properties which crushed performance
+  // on heavy pages (YouTube DOM fetch took 45s). Per D-04.
+  var CURATED_PROPS = [
+    // Layout & Box Model
+    'display', 'position', 'top', 'right', 'bottom', 'left',
+    'float', 'clear', 'box-sizing',
+    'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
+    'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    // Flexbox
+    'flex-direction', 'flex-wrap', 'justify-content', 'align-items', 'align-self',
+    'align-content', 'flex-grow', 'flex-shrink', 'flex-basis', 'order', 'gap',
+    // Grid
+    'grid-template-columns', 'grid-template-rows', 'grid-column', 'grid-row',
+    'grid-auto-flow', 'grid-gap', 'column-gap', 'row-gap',
+    // Visual
+    'background-color', 'background-image', 'background-position', 'background-size',
+    'background-repeat', 'color', 'opacity', 'visibility',
+    'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+    'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
+    'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+    'border-radius',
+    'border-top-left-radius', 'border-top-right-radius',
+    'border-bottom-left-radius', 'border-bottom-right-radius',
+    'box-shadow', 'outline', 'outline-color', 'outline-style', 'outline-width',
+    // Typography
+    'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant',
+    'line-height', 'letter-spacing', 'word-spacing', 'text-align', 'text-decoration',
+    'text-transform', 'text-indent', 'text-overflow', 'white-space', 'word-break',
+    'overflow-wrap',
+    // Overflow & Clipping
+    'overflow', 'overflow-x', 'overflow-y', 'clip', 'clip-path',
+    // Transform & Transition
+    'transform', 'transform-origin', 'transition', 'animation',
+    // Table
+    'border-collapse', 'border-spacing', 'table-layout',
+    // List
+    'list-style-type', 'list-style-position',
+    // Misc
+    'z-index', 'cursor', 'pointer-events', 'user-select',
+    'vertical-align', 'resize', 'object-fit', 'object-position',
+    'content', 'direction', 'unicode-bidi'
+  ];
 
   // =========================================================================
   // 0. Dialog Interception (D-01/D-03)
@@ -201,8 +247,8 @@
 
   /**
    * Capture ALL computed styles for an element via full property iteration.
-   * Iterates every property from getComputedStyle (300+ properties) and
-   * skips common defaults to reduce payload size (D-07, D-08).
+   * Iterates CURATED_PROPS (~85 visual-fidelity properties) instead of all 300+
+   * computed properties. Skips common defaults to reduce payload size (D-04, D-07, D-08).
    * @param {Element} original - The original DOM element (for getComputedStyle)
    * @param {Element} clone - The cloned element to set inline styles on
    */
@@ -211,8 +257,8 @@
       var computed = window.getComputedStyle(original);
       var styles = [];
 
-      for (var i = 0; i < computed.length; i++) {
-        var prop = computed[i]; // kebab-case property name
+      for (var i = 0; i < CURATED_PROPS.length; i++) {
+        var prop = CURATED_PROPS[i];
         var val = computed.getPropertyValue(prop);
         if (!val || val === '') continue;
         // Skip common defaults to reduce payload (per D-08)
@@ -235,7 +281,7 @@
   /**
    * Serialize the full DOM body into a clean HTML string.
    * Strips scripts, absolutifies URLs, assigns data-fsb-nid attributes,
-   * renders iframes live with absolutified src, and captures ALL computed styles.
+   * renders iframes live with absolutified src, and captures curated computed styles.
    *
    * @returns {Object} { html, stylesheets, scrollX, scrollY, viewportWidth, viewportHeight,
    *                     pageWidth, pageHeight, url, title }
@@ -692,6 +738,11 @@
    * Called by the background script via domStreamRequestOverlay message.
    */
   function broadcastOverlayState() {
+    // Throttle to max 1 broadcast per 500ms (per D-05)
+    var now = Date.now();
+    if (now - lastOverlayBroadcast < 500) return;
+    lastOverlayBroadcast = now;
+
     var glow = null;
     var progress = null;
 
