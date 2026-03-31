@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.8.1
-milestone_name: npm Publishing
-status: All 6 phases committed (126-131)
-stopped_at: Completed 128-01-PLAN.md (Viewport-Aware Interaction)
-last_updated: "2026-03-31T20:25:04.268Z"
+milestone: v0.9.12
+milestone_name: MCP Developer Experience
+status: defining_requirements
+stopped_at: Milestone started
+last_updated: "2026-03-31T22:00:00.000Z"
 last_activity: 2026-03-31
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** v0.9.11 MCP Tool Quality -- all phases committed, pending milestone lifecycle
+**Current focus:** v0.9.12 MCP Developer Experience -- defining requirements
 
 ## Current Position
 
-Phase: 131
-Plan: All plans complete
-Status: All 6 phases committed (126-131)
-Last activity: 2026-03-31
+Phase: Not started (defining requirements)
+Plan: --
+Status: Defining requirements
+Last activity: 2026-03-31 -- Milestone v0.9.12 started
 
-Progress: [##########] 100% (all plans committed)
+Progress: [----------] 0%
 
 ## Performance Metrics
 

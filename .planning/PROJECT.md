@@ -84,15 +84,15 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Universal Canvas Vision: draw call interception via Canvas2D prototype proxy, structured CANVAS SCENE in DOM snapshots, pixel fallback, 12/15 canvas apps covered -- v0.9.9/P115
 - ✓ 9 systemic fixes: inserttext CLI command, batch CDP routing, debugger contention, guidance truncation 500->3000, fast-path threshold 3->6 for editors -- v0.9.9
 
-### Active
+- ✓ Site-aware search tool (use site's own search input, not Google redirect) -- v0.9.11
+- ✓ read_page auto-stability (merge wait_for_stable into read_page for JS-heavy sites) -- v0.9.11
+- ✓ BF cache resilience for click (re-inject content script after page transitions) -- v0.9.11
+- ✓ Viewport-aware click/hover (fix scrollIntoView for off-screen elements) -- v0.9.11
+- ✓ Smart press_enter fallback (auto-click submit button when Enter fails) -- v0.9.11
+- ✓ Intelligent content truncation (cap read_page, prioritize main content) -- v0.9.11
+- ✓ Cookie consent auto-dismiss (clear overlays blocking interaction) -- v0.9.11
 
-- [ ] Site-aware search tool (use site's own search input, not Google redirect) -- v0.9.11
-- [ ] read_page auto-stability (merge wait_for_stable into read_page for JS-heavy sites) -- v0.9.11
-- [ ] BF cache resilience for click (re-inject content script after page transitions) -- v0.9.11
-- [ ] Viewport-aware click/hover (fix scrollIntoView for off-screen elements) -- v0.9.11
-- [ ] Smart press_enter fallback (auto-click submit button when Enter fails) -- v0.9.11
-- [ ] Intelligent content truncation (cap read_page, prioritize main content) -- v0.9.11
-- [ ] Cookie consent auto-dismiss (clear overlays blocking interaction) -- v0.9.11
+### Active
 - [ ] Auto-start DOM stream on WS connection -- v0.9.9.1
 - [ ] Maximize/minimize preview toggle -- v0.9.9.1
 - [ ] Viewport-adaptive preview resize -- v0.9.9.1
@@ -130,18 +130,20 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - Headless server-side execution -- server is relay only, user's browser must stay active
 - Video/screenshot streaming -- DOM cloning with CDN images, not pixel capture
 
-## Current Milestone: v0.9.11 MCP Tool Quality
+## Current Milestone: v0.9.12 MCP Developer Experience
 
-**Goal:** Fix the 7 systemic MCP tool issues discovered during the 30-site audit so manual-mode browsing works reliably on any website.
+**Goal:** Make FSB MCP tools self-documenting so any AI client can use them effectively without source code access.
 
 **Target features:**
-- Site-aware search (use site's own search input instead of always redirecting to Google)
-- read_page + wait_for_stable merge (auto-wait for DOM stability before extraction)
-- BF cache resilience for click (re-inject content script after page transitions)
-- Viewport-aware click/hover (fix scrollIntoView for off-screen elements)
-- Smart press_enter fallback (auto-click submit button when Enter fails)
-- Intelligent content truncation (cap read_page at ~5K, prioritize main content)
-- Cookie consent auto-dismiss (clear overlays blocking interaction)
+- Enriched tool descriptions with usage hints, relationships, and when-to-use guidance
+- MCP prompts (workflow guides: read-then-act, error recovery, canvas tools)
+- Fix stale descriptions (search, etc.) to reflect current behavior
+- Tool relationship documentation (get_dom_snapshot refs -> click/type)
+- Error recovery hints in tool descriptions
+
+## Previous Milestone: v0.9.11 MCP Tool Quality (shipped 2026-03-31)
+
+**Shipped:** Site-aware search, cookie consent auto-dismiss, smart Enter fallback, viewport-aware interaction, BF cache resilience, content extraction reliability. 6 phases, 8 plans, 21 requirements.
 
 ## Previous Milestone: v0.9.9.1 Phantom Stream (in progress, parallel)
 
