@@ -3069,7 +3069,7 @@ async function executeReplaySequence(replaySessionId) {
         action: 'automationComplete',
         sessionId: replaySessionId,
         result: `Replay complete: ${successCount}/${session.totalSteps} steps executed successfully.${failedCount > 0 ? ` ${failedCount} steps skipped.` : ''}`
-      });
+      }).catch(() => {});
     } catch (e) { /* UI may not be listening */ }
   } else if (session.status === 'replay_failed') {
     // Send error message to UI
@@ -6631,18 +6631,36 @@ async function executeAutomationTask(tabId, task, options = {}) {
  */
 async function startDashboardTask(tabId, task) {
   _dashboardTaskTabId = tabId;
+  var _completionSent = false;
+  // Fallback: if broadcastDashboardComplete hasn't fired 5s after executeAutomationTask resolves, send directly (per D-03)
+  var _fallbackTimer = null;
   try {
     var result = await executeAutomationTask(tabId, task, {
       maxIterations: 20,
       isDashboardTask: true
     });
+    console.log('[FSB] startDashboardTask: executeAutomationTask resolved, result.success=', result && result.success);
     broadcastDashboardComplete(result);
+    _completionSent = true;
   } catch (err) {
+    console.warn('[FSB] startDashboardTask: executeAutomationTask threw', err.message);
     fsbWebSocket.send('ext:task-complete', {
       success: false,
       error: err.message || 'Task execution failed',
       elapsed: 0
     });
+    _completionSent = true;
+  }
+  // Safety net: if for any reason the above didn't send, fire after 5s
+  if (!_completionSent) {
+    _fallbackTimer = setTimeout(function() {
+      console.warn('[FSB] startDashboardTask: fallback timer fired -- sending ext:task-complete directly');
+      fsbWebSocket.send('ext:task-complete', {
+        success: false,
+        error: 'Completion delivery timeout -- result may have been lost',
+        elapsed: 0
+      });
+    }, 5000);
   }
 }
 
@@ -11396,7 +11414,7 @@ async function startAutomationLoop(sessionId) {
             action: 'automationComplete',
             sessionId,
             result: session.multiSiteResult
-          });
+          }).catch(() => {});
           return;
         }
       }
@@ -11437,7 +11455,7 @@ async function startAutomationLoop(sessionId) {
         partial: true,
         reason: 'no_progress',
         task: session.task
-      });
+      }).catch(() => {});
 
       return;
     }
@@ -11478,7 +11496,7 @@ async function startAutomationLoop(sessionId) {
           sessionId,
           result: session.multiSiteResult || repeatedResult,
           navigatedTo: currentUrl
-        });
+        }).catch(() => {});
 
         // Transition to idle for follow-up continuation
         endSessionOverlays(session, 'complete');
@@ -11525,7 +11543,7 @@ async function startAutomationLoop(sessionId) {
             action: 'automationComplete',
             sessionId,
             result: session.multiSiteResult
-          });
+          }).catch(() => {});
           return;
         }
       }
@@ -11568,7 +11586,7 @@ async function startAutomationLoop(sessionId) {
         result: finalResult,
         partial: true,
         task: session.task
-      });
+      }).catch(() => {});
 
       return;
     }
@@ -11712,11 +11730,13 @@ async function startAutomationLoop(sessionId) {
       idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
 
       // Notify popup
+      console.log('[FSB] automationComplete FIRING for session', sessionId, 'result:', typeof aiResponse.result === 'string' ? aiResponse.result.substring(0, 120) : aiResponse.result);
       chrome.runtime.sendMessage({
         action: 'automationComplete',
         sessionId,
         result: aiResponse.result
-      });
+      }).catch(() => {});
+      console.log('[FSB] automationComplete SENT for session', sessionId);
     } else {
       // Dynamic delay based on stuck counter - optimized for speed
       // FSB TIMING: Log iteration end

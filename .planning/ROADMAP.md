@@ -68,6 +68,7 @@ Plans:
 - [x] **Phase 122.1: Stream Overlay Fix** - Fix glow overlay not appearing in DOM stream preview during automation (INSERTED) (completed 2026-03-29)
 - [x] **Phase 122.2: Stop Signal & Final Outcome** - Dashboard stop button doesn't halt FSB automation, and task completion/failure result not relayed back to dashboard (INSERTED) (completed 2026-03-31)
 - [x] **Phase 122.3: WS Payload Compression** - DOM stream snapshots and task results reliably reach dashboard by compressing WS payloads client-side before sending through relay (INSERTED) (completed 2026-03-31)
+- [ ] **Phase 122.4: Dashboard Relay Fix** - End-to-end investigation and fix for dashboard not receiving task results, stream not rendering, and relay message delivery failures (INSERTED)
 - [ ] **Phase 123: Layout Modes** - Maximize/minimize toggle, viewport-adaptive resize, picture-in-picture, fullscreen preview
 - [x] **Phase 123.1: Stream Fidelity Fix** - DOM clone has broken layouts on complex sites -- CSS not loading properly, elements overlapping, content jumbled in iframe (INSERTED) (completed 2026-03-30)
 - [x] **Phase 124: Visual Fidelity** - Dialog/modal mirroring, CSS animation replication, rAF-synced mutation batching, computed style capture (completed 2026-03-30)
@@ -121,6 +122,18 @@ Plans:
 **Plans**: 1 plan
 Plans:
 - [x] 122.3-01-PLAN.md -- Vendor lz-string, compress in ws-client.js send(), decompress in dashboard.js ws.onmessage
+
+### Phase 122.4: Dashboard Relay Fix (INSERTED)
+**Goal**: End-to-end investigation and fix for dashboard not receiving task results, stream not rendering, and relay message delivery failures
+**Depends on**: Phase 122.3
+**Success Criteria** (what must be TRUE):
+  1. Dashboard preview shows live browser content (not stuck on "Connecting to browser...")
+  2. Task completion result (success summary or error) appears in dashboard UI after task finishes
+  3. All WS message types (ext:dom-snapshot, ext:task-complete, ext:task-progress) reliably reach dashboard
+  4. Compressed _lz envelope messages are correctly decompressed and processed by dashboard
+**Plans**: 1 plan
+Plans:
+- [ ] 122.4-01-PLAN.md -- automationComplete .catch guards, startDashboardTask fallback timer, curated computed styles, overlay throttle
 
 ### Phase 123: Layout Modes
 **Goal**: User can view the live preview in the size and mode that fits their workflow -- from inline thumbnail to fullscreen takeover
@@ -180,7 +193,8 @@ Plans:
 |-------|----------------|--------|-----------|
 | 122. Connection & Auto-Start | 0/2 | Planned | - |
 | 122.2. Stop Signal & Final Outcome | 2/2 | Complete   | 2026-03-31 |
-| 122.3. WS Payload Compression | 1/1 | Complete   | 2026-03-31 |
+| 122.3. WS Payload Compression | 1/1 | Complete    | 2026-03-31 |
+| 122.4. Dashboard Relay Fix | 0/1 | Planned | - |
 | 123. Layout Modes | 1/2 | In progress | - |
 | 124. Visual Fidelity | 0/2 | Complete    | 2026-03-30 |
 | 125. Remote Control | 1/2 | Complete    | 2026-03-31 |
