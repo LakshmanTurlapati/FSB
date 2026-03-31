@@ -821,6 +821,32 @@
   }
 
   /**
+   * Detect the total height of fixed/sticky headers anchored at the top of the viewport.
+   * Queries common header/nav selectors and checks computed position + top offset.
+   * @returns {number} The bottom edge of the tallest fixed/sticky top-anchored element, or 0 if none.
+   */
+  function getStickyHeaderHeight() {
+    const candidates = document.querySelectorAll(
+      'header, nav, [role="banner"], [class*="header"], [class*="navbar"], [class*="topbar"], [class*="app-bar"]'
+    );
+    let maxBottom = 0;
+    for (const el of candidates) {
+      try {
+        const style = getComputedStyle(el);
+        if (style.position !== 'fixed' && style.position !== 'sticky') continue;
+        const rect = el.getBoundingClientRect();
+        // Only consider elements anchored at the top of the viewport (not sticky footers or sidebars)
+        if (rect.top < 10) {
+          maxBottom = Math.max(maxBottom, rect.bottom);
+        }
+      } catch (e) {
+        // Skip elements that throw on getComputedStyle (e.g., disconnected nodes)
+      }
+    }
+    return maxBottom;
+  }
+
+  /**
    * Scroll element into view only if needed (not fully visible or center not visible)
    * @param {Element} element - The DOM element to scroll into view
    * @returns {Promise<Object>} { scrolled: boolean, details: object }
@@ -830,8 +856,9 @@
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    // Check if element is fully visible in viewport
-    const wasFullyVisible = rect.top >= 0 &&
+    // Check if element is fully visible in viewport (account for fixed/sticky headers)
+    const stickyHeaderHeight = getStickyHeaderHeight();
+    const wasFullyVisible = rect.top >= stickyHeaderHeight &&
                             rect.left >= 0 &&
                             rect.bottom <= viewportHeight &&
                             rect.right <= viewportWidth;
@@ -871,6 +898,18 @@
     // Wait for scroll animation (300ms)
     await new Promise(r => setTimeout(r, 300));
 
+    // Compensate for fixed/sticky headers: if element is behind a header, scroll to clear it
+    const postScrollHeaderHeight = getStickyHeaderHeight();
+    if (postScrollHeaderHeight > 0) {
+      const postScrollRect = element.getBoundingClientRect();
+      if (postScrollRect.top < postScrollHeaderHeight + 8) {
+        // Element is behind the fixed header -- scroll the page upward so element moves down in viewport
+        window.scrollBy(0, postScrollRect.top - postScrollHeaderHeight - 16);
+        // Wait for the adjustment scroll
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+
     // Get final rect
     const finalRectRaw = element.getBoundingClientRect();
     const finalRect = {
@@ -888,7 +927,8 @@
         initialRect,
         finalRect,
         wasFullyVisible,
-        wasCenterVisible
+        wasCenterVisible,
+        stickyHeaderHeight: postScrollHeaderHeight
       }
     };
   }
