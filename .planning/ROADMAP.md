@@ -270,7 +270,7 @@ Plans:
 **Requirements**: CTX-01, CTX-02, CTX-03, CTX-04, PROG-01, PROG-02, PROG-03
 **Plans**: 2 plans
 Plans:
-- [ ] 138-01-PLAN.md -- Register 3 on-demand tools, local interception in agent loop, sliding-window history compression, Anthropic prompt caching
+- [x] 138-01-PLAN.md -- Register 3 on-demand tools, local interception in agent loop, sliding-window history compression, Anthropic prompt caching
 - [ ] 138-02-PLAN.md -- Progress overlay enrichment with cost display, AI reasoning fields, dashboard broadcast wiring
 
 ### v0.9.20 Autopilot Agent Architecture Rewrite Progress
@@ -280,5 +280,5 @@ Plans:
 | 135. Provider Format Adapters & Tool Registry | 2/2 | Complete | 2026-04-01 |
 | 136. Unified Tool Executor & MCP Migration | 1/2 | In progress | - |
 | 137. Agent Loop Core & Safety Mechanisms | 0/? | Complete    | 2026-04-01 |
-| 138. Context Management & On-Demand Tools | 0/2 | Planned | - |
+| 138. Context Management & On-Demand Tools | 1/2 | In progress | - |
 | 139. Dead Code Removal & Polish | 0/? | Not started | - |

@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.8.1
-milestone_name: npm Publishing
+milestone: v0.9.20
+milestone_name: Autopilot Agent Architecture Rewrite
 status: executing
-stopped_at: Completed 137-01-PLAN.md
-last_updated: "2026-04-01T09:46:52.982Z"
+stopped_at: Completed 138-01-PLAN.md
+last_updated: "2026-04-01T10:16:03Z"
 last_activity: 2026-04-01
 progress:
-  total_phases: 2
-  completed_phases: 0
-  total_plans: 2
-  completed_plans: 1
-  percent: 10
+  total_phases: 5
+  completed_phases: 2
+  total_plans: 7
+  completed_plans: 4
+  percent: 40
 ---
 
 # Project State
@@ -21,23 +21,27 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** v0.9.20 Autopilot Agent Architecture Rewrite -- Phase 136 executing
+**Current focus:** v0.9.20 Autopilot Agent Architecture Rewrite -- Phase 138 Plan 01 complete
 
 ## Current Position
 
-Phase: 136 (Unified Tool Executor MCP Migration)
-Plan: 2 of 2 complete
-Status: Ready to execute
+Phase: 138 (Context Management & On-Demand Tools)
+Plan: 1 of 2 complete
+Status: Executing
 Last activity: 2026-04-01
 
-Progress: [#---------] 10%
+Progress: [####------] 40%
 
 ## Performance Metrics
 
-**Recent Trend (from v0.9.11):**
+**Recent Trend (from v0.9.20):**
 
-- Last 5 plans: 2min, 2min, 2min, 2min, 2min
+- Last 5 plans: 2min, 2min, 2min, 2min, 3min
 - Trend: Stable
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 138 | 01 | 3min | 2 | 2 |
 
 ## Accumulated Context
 
@@ -55,12 +59,15 @@ Recent decisions affecting current work:
 - [136-01]: get_dom_snapshot special-cased with mcp:get-dom message type (no _contentVerb)
 - [Phase 137]: setTimeout-chaining pattern: each iteration ends with setTimeout(100ms) for Chrome MV3 SW survival
 - [Phase 137]: Callback injection: runAgentLoop receives background.js functions as options to avoid tight coupling
+- [138-01]: On-demand DOM snapshot replaces per-iteration auto-injection (D-01/D-03)
+- [138-01]: 80% token budget threshold triggers sliding-window history compaction (D-07)
+- [138-01]: Anthropic cache_control on system prompt and last tool definition (D-14)
 
 ### Roadmap Evolution
 
 - v0.9.11 MCP Tool Quality shipped 2026-03-31
 - v0.9.12 MCP Developer Experience milestone started 2026-03-31
-- v0.9.20 Autopilot Agent Architecture Rewrite in parallel (defining requirements)
+- v0.9.20 Autopilot Agent Architecture Rewrite in progress (Phase 138)
 - v0.9.9.1 Phantom Stream continues in parallel
 - v0.9.8.1 npm Publishing continues in parallel
 
@@ -74,6 +81,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-01T09:46:52.980Z
-Stopped at: Completed 137-01-PLAN.md
+Last session: 2026-04-01T10:16:03Z
+Stopped at: Completed 138-01-PLAN.md
 Resume file: None

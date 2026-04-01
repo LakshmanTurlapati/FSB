@@ -45,15 +45,15 @@ Requirements for autopilot architecture rewrite. Each maps to roadmap phases.
 
 ### Context Management
 
-- [ ] **CTX-01**: DOM snapshot is an on-demand tool -- AI calls get_page_snapshot when needed
-- [ ] **CTX-02**: Site guides are a queryable tool -- AI calls get_site_guide(domain) when needed
-- [ ] **CTX-03**: Sliding window history management compacts old tool_results at 80% token budget
-- [ ] **CTX-04**: Prompt caching enabled for system prompt + tool definitions (Anthropic, others where supported)
+- [x] **CTX-01**: DOM snapshot is an on-demand tool -- AI calls get_page_snapshot when needed
+- [x] **CTX-02**: Site guides are a queryable tool -- AI calls get_site_guide(domain) when needed
+- [x] **CTX-03**: Sliding window history management compacts old tool_results at 80% token budget
+- [x] **CTX-04**: Prompt caching enabled for system prompt + tool definitions (Anthropic, others where supported)
 
 ### Progress
 
 - [ ] **PROG-01**: Progress overlay shows current tool being executed and AI reasoning
-- [ ] **PROG-02**: AI can update progress text via report_progress tool
+- [x] **PROG-02**: AI can update progress text via report_progress tool
 - [ ] **PROG-03**: Cost tracking displays estimated session cost in real-time
 
 ### Cleanup
@@ -108,12 +108,12 @@ Requirements for autopilot architecture rewrite. Each maps to roadmap phases.
 | SAFE-02 | Phase 137 | Pending |
 | SAFE-03 | Phase 137 | Pending |
 | SAFE-04 | Phase 137 | Complete |
-| CTX-01 | Phase 138 | Pending |
-| CTX-02 | Phase 138 | Pending |
-| CTX-03 | Phase 138 | Pending |
-| CTX-04 | Phase 138 | Pending |
+| CTX-01 | Phase 138 | Complete |
+| CTX-02 | Phase 138 | Complete |
+| CTX-03 | Phase 138 | Complete |
+| CTX-04 | Phase 138 | Complete |
 | PROG-01 | Phase 138 | Pending |
-| PROG-02 | Phase 138 | Pending |
+| PROG-02 | Phase 138 | Complete |
 | PROG-03 | Phase 138 | Pending |
 | CLN-01 | Phase 139 | Pending |
 | CLN-02 | Phase 139 | Pending |
