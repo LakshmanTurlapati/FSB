@@ -6477,7 +6477,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       automationLogger.debug('Could not reset DOM state', { sessionId, error: e.message });
     }
 
-    // Start the agent loop (Phase 137 -- replaces startAutomationLoop for tool_use protocol)
+    // Start the agent loop
     runAgentLoop(sessionId, {
       activeSessions,
       persistSession,
@@ -6638,7 +6638,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
       // Store timeout for cleanup
       sessionData._safetyTimeout = safetyTimeout;
 
-      // Start the agent loop (replaces startAutomationLoop -- all entry points now use runAgentLoop)
+      // Start the agent loop
       runAgentLoop(sessionId, {
         activeSessions,
         persistSession,
@@ -8593,8 +8593,17 @@ async function launchNextCompanySearch(sessionId, session, companyName) {
   // Persist updated session state
   persistSession(sessionId, session);
 
-  // Small delay for page transition before restarting loop
-  setTimeout(() => startAutomationLoop(sessionId), 500);
+  // Small delay for page transition before starting agent loop
+  setTimeout(() => runAgentLoop(sessionId, {
+    activeSessions,
+    persistSession,
+    sendSessionStatus,
+    broadcastDashboardProgress,
+    endSessionOverlays,
+    startKeepAlive,
+    executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
+    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+  }), 500);
   return true;
 }
 
@@ -9058,8 +9067,17 @@ async function startSheetsDataEntry(sessionId, session) {
   // 13. Persist session state
   persistSession(sessionId, session);
 
-  // 12. Start automation loop with transition delay
-  setTimeout(() => startAutomationLoop(sessionId), 500);
+  // 12. Start agent loop with transition delay
+  setTimeout(() => runAgentLoop(sessionId, {
+    activeSessions,
+    persistSession,
+    sendSessionStatus,
+    broadcastDashboardProgress,
+    endSessionOverlays,
+    startKeepAlive,
+    executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
+    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+  }), 500);
 
   automationLogger.info('Sheets data entry session launched', {
     sessionId,
@@ -9148,9 +9166,18 @@ async function startSheetsFormatting(sessionId, session) {
     estimatedTimeRemaining: null
   });
 
-  // Persist and launch
+  // Persist and launch agent loop
   persistSession(sessionId, session);
-  setTimeout(() => startAutomationLoop(sessionId), 500);
+  setTimeout(() => runAgentLoop(sessionId, {
+    activeSessions,
+    persistSession,
+    sendSessionStatus,
+    broadcastDashboardProgress,
+    endSessionOverlays,
+    startKeepAlive,
+    executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
+    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+  }), 500);
 
   automationLogger.info('Sheets formatting session launched', {
     sessionId,
