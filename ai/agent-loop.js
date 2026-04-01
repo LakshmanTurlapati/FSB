@@ -916,7 +916,9 @@ async function runAgentIteration(sessionId, options) {
       } else {
         // Standard tool: dispatch through unified executor
         result = await _executeTool(call.name, call.args, session.tabId, {
-          cdpHandler: executeCDPToolDirect,
+          cdpHandler: executeCDPToolDirect
+            ? (verb, params, tabId) => executeCDPToolDirect({ tool: verb, params }, tabId)
+            : null,
           dataHandler: handleDataTool
         });
       }
