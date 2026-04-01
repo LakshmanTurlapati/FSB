@@ -227,7 +227,9 @@ Plans:
   2. Every tool description references at least one related tool with a brief explanation of the relationship (e.g., "Use get_dom_snapshot first to find selectors")
   3. The search tool description accurately states it uses the site's own search bar (not Google redirect), matching the v0.9.11 behavior
   4. Every parameter with a non-obvious format includes a concrete example value in its description
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 139.1-01-PLAN.md -- Delete dead code from ai-integration.js (~760 lines) and CLI validation section from options.js (~430 lines)
 
 ### Phase 133: MCP Prompts
 **Goal**: An MCP client can discover and invoke FSB prompts that teach the AI how to approach browser automation tasks, without the user having to explain the workflow
@@ -237,7 +239,9 @@ Plans:
   1. An MCP client listing prompts sees "browser-automation-guide" and "tool-reference" in the available prompts
   2. The "browser-automation-guide" prompt teaches the read-then-act pattern: call get_dom_snapshot, find the target element, then call the appropriate action tool
   3. The "tool-reference" prompt returns a categorized tool list (navigation, interaction, extraction, waiting) with usage examples and tool relationships
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 139.1-01-PLAN.md -- Delete dead code from ai-integration.js (~760 lines) and CLI validation section from options.js (~430 lines)
 
 ### Phase 134: Error Recovery Hints
 **Goal**: When a tool call fails, the AI receives specific guidance on what to try next instead of a generic error message
@@ -246,7 +250,9 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. When click fails on a selector, the error response includes a hint like "Element not found -- try get_dom_snapshot to refresh selectors, or use click_at with viewport coordinates"
   2. Tool descriptions for tools with common failure modes mention their fallback tools (e.g., click description mentions click_at as coordinate-based fallback)
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 139.1-01-PLAN.md -- Delete dead code from ai-integration.js (~760 lines) and CLI validation section from options.js (~430 lines)
 
 ---
 
@@ -282,12 +288,27 @@ Plans:
 - [x] 139-01-PLAN.md -- Rewire executeAutomationTask to call runAgentLoop, making startAutomationLoop fully dead code
 - [x] 139-02-PLAN.md -- Delete startAutomationLoop, completion validators, prefetchDOM, and supporting dead code
 
+### Phase 139.1: ai-integration.js Dead Code Cleanup (GAP CLOSURE)
+**Goal**: Remove all remaining dead code from ai-integration.js and options.js left after Phase 139, achieving full CLN-01 and CLN-02 satisfaction
+**Depends on**: Phase 139
+**Requirements**: CLN-01, CLN-02
+**Gap Closure**: Closes gaps from v0.9.20 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. CLI_COMMAND_TABLE, TASK_PROMPTS, buildPrompt, buildMinimalUpdate, and all related constants/methods are deleted from ai-integration.js
+  2. No remaining references to parseCliResponse in ai-integration.js
+  3. CLIValidator references removed from options.js
+  4. grep for CLI_COMMAND_TABLE, TASK_PROMPTS, buildPrompt, parseCliResponse returns zero matches in active codebase
+**Plans**: 1 plan
+Plans:
+- [ ] 139.1-01-PLAN.md -- Delete dead code from ai-integration.js (~760 lines) and CLI validation section from options.js (~430 lines)
+
 ### v0.9.20 Autopilot Agent Architecture Rewrite Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 135. Provider Format Adapters & Tool Registry | 2/2 | Complete | 2026-04-01 |
-| 136. Unified Tool Executor & MCP Migration | 1/2 | In progress | - |
-| 137. Agent Loop Core & Safety Mechanisms | 0/? | Complete    | 2026-04-01 |
-| 138. Context Management & On-Demand Tools | 2/2 | Complete    | 2026-04-01 |
-| 139. Dead Code Removal & Polish | 2/2 | Complete   | 2026-04-01 |
+| 136. Unified Tool Executor & MCP Migration | 2/2 | Complete | 2026-04-01 |
+| 137. Agent Loop Core & Safety Mechanisms | 2/2 | Complete | 2026-04-01 |
+| 138. Context Management & On-Demand Tools | 2/2 | Complete | 2026-04-01 |
+| 139. Dead Code Removal & Polish | 2/2 | Complete | 2026-04-01 |
+| 139.1. ai-integration.js Dead Code Cleanup | 0/1 | Planned | - |
