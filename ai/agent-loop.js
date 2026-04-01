@@ -734,7 +734,8 @@ async function runAgentIteration(sessionId, options) {
       sendStatus(session.tabId, {
         phase: 'ended', reason: 'safety',
         taskName: session.task,
-        statusText: safety.reason
+        statusText: safety.reason,
+        cost: (session.agentState.totalCost || 0).toFixed(4)
       });
     }
     if (typeof endSessionOverlays === 'function') {
@@ -748,13 +749,14 @@ async function runAgentIteration(sessionId, options) {
   session.agentState.iterationCount++;
   const iterNum = session.agentState.iterationCount;
 
-  // d. Send analyzing status
+  // d. Send analyzing status with cost (PROG-01, PROG-03)
   if (typeof sendStatus === 'function') {
     sendStatus(session.tabId, {
       phase: 'analyzing',
       taskName: session.task,
       statusText: `Iteration ${iterNum}: analyzing...`,
-      iteration: iterNum
+      iteration: iterNum,
+      cost: (session.agentState.totalCost || 0).toFixed(4)
     });
   }
 
@@ -824,7 +826,8 @@ async function runAgentIteration(sessionId, options) {
           phase: 'complete',
           taskName: session.task,
           statusText: finalText.substring(0, 200),
-          iteration: iterNum
+          iteration: iterNum,
+          cost: (session.agentState.totalCost || 0).toFixed(4)
         });
       }
 
@@ -896,14 +899,16 @@ async function runAgentIteration(sessionId, options) {
             result: { domain, guidance: `No site guide available for ${domain}.` } };
         }
       } else if (call.name === 'report_progress') {
-        // PROG-02: Update progress overlay
+        // PROG-02: Update progress overlay with AI reasoning and cost
         const msg = call.args?.message || '';
         if (typeof sendStatus === 'function') {
           sendStatus(session.tabId, {
             phase: 'progress',
             taskName: session.task,
             statusText: msg,
-            iteration: iterNum
+            iteration: iterNum,
+            cost: (session.agentState.totalCost || 0).toFixed(4),
+            aiReasoning: msg
           });
         }
         result = { success: true, hadEffect: false, error: null, navigationTriggered: false, result: { displayed: true } };
@@ -927,14 +932,15 @@ async function runAgentIteration(sessionId, options) {
         iteration: iterNum
       });
 
-      // Send per-tool progress update (PROG-01: shows current tool being executed)
+      // Send per-tool progress update (PROG-01, PROG-03: shows current tool and cost)
       if (typeof sendStatus === 'function') {
-        const costStr = `$${(session.agentState.totalCost || 0).toFixed(4)}`;
         sendStatus(session.tabId, {
           phase: 'executing',
           taskName: session.task,
-          statusText: `${call.name}${call.args?.selector ? ' ' + call.args.selector : ''} [${costStr}]`,
-          iteration: iterNum
+          statusText: `${call.name}${call.args?.selector ? ' ' + call.args.selector : ''}`,
+          iteration: iterNum,
+          cost: (session.agentState.totalCost || 0).toFixed(4),
+          currentTool: call.name
         });
       }
     }
@@ -989,7 +995,8 @@ async function runAgentIteration(sessionId, options) {
           phase: 'error',
           taskName: session.task,
           statusText: session.error,
-          iteration: iterNum
+          iteration: iterNum,
+          cost: (session.agentState.totalCost || 0).toFixed(4)
         });
       }
       await persist(sessionId, session);
@@ -1025,7 +1032,8 @@ async function runAgentIteration(sessionId, options) {
         phase: 'error',
         taskName: session.task,
         statusText: session.error,
-        iteration: iterNum
+        iteration: iterNum,
+        cost: (session.agentState.totalCost || 0).toFixed(4)
       });
     }
     await persist(sessionId, session);
