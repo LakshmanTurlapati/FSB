@@ -6810,6 +6810,12 @@ async function handleStopAutomation(request, sender, sendResponse) {
 
     session.status = 'stopped';
 
+    // Cancel pending agent loop iteration if scheduled (Phase 137)
+    if (session._nextIterationTimer) {
+      clearTimeout(session._nextIterationTimer);
+      session._nextIterationTimer = null;
+    }
+
     // Capture last action summary before cleanup (per D-06)
     var lastAction = session._lastActionSummary || null;
     if (!lastAction && session.actionHistory && session.actionHistory.length > 0) {
