@@ -1,3 +1,18 @@
+import { createRequire } from 'module';
+import path from 'path';
+
+// ---------------------------------------------------------------------------
+// Import read-only tool names from canonical registry (CJS -> ESM bridge)
+// ---------------------------------------------------------------------------
+
+const require = createRequire(import.meta.url);
+const toolDefs = require(path.resolve(import.meta.dirname, '../ai/tool-definitions.js'));
+const registryReadOnly: string[] = toolDefs.getReadOnlyTools().map((t: { name: string }) => t.name);
+
+// ---------------------------------------------------------------------------
+// TaskQueue
+// ---------------------------------------------------------------------------
+
 type QueueItem = {
   execute: () => Promise<unknown>;
   resolve: (value: unknown) => void;
@@ -7,13 +22,13 @@ type QueueItem = {
 export class TaskQueue {
   private queue: QueueItem[] = [];
   private running = false;
+
+  // Derived from tool-definitions.js registry + non-registry read-only tools
+  // (observability, agents, etc. registered by agents.ts and observability.ts)
   private readonly readOnlyTools = new Set([
-    'get_dom_snapshot',
-    'list_tabs',
+    ...registryReadOnly,
+    // Non-registry read-only tools
     'get_task_status',
-    'read_page',
-    'get_text',
-    'get_attribute',
     'get_site_guides',
     'get_memory',
     'get_extension_config',
