@@ -17,6 +17,7 @@
 - v0.9.9.1 Phantom Stream (in progress, parallel)
 - v0.9.11 MCP Tool Quality (shipped 2026-03-31) -- [archive](milestones/v0.9.11-ROADMAP.md)
 - v0.9.12 MCP Developer Experience (in progress)
+- v0.9.20 Autopilot Agent Architecture Rewrite (in progress)
 
 ---
 
@@ -257,3 +258,90 @@ Plans:
 | 132. Tool Description Enrichment | 1/1 | Complete | 2026-03-31 |
 | 133. MCP Prompts | 1/1 | Complete | 2026-03-31 |
 | 134. Error Recovery Hints | 1/1 | Complete | 2026-03-31 |
+
+---
+
+## v0.9.20 Autopilot Agent Architecture Rewrite
+
+**Milestone Goal:** Replace the custom iteration loop + CLI text parsing autopilot with a native tool_use agent loop -- the same pattern Claude Code, Computer Use API, and MCP clients all use -- so the built-in autopilot performs at MCP-level speed and intelligence.
+
+### Phases (v0.9.20)
+
+- [ ] **Phase 135: Provider Format Adapters & Tool Registry** - Canonical tool definitions in JSON Schema shared between autopilot and MCP, plus provider-specific format adapters for xAI/OpenAI, Anthropic, and Gemini
+- [ ] **Phase 136: Unified Tool Executor & MCP Migration** - Single executeTool() dispatch function replacing two parallel execution paths, with MCP server importing from shared registry
+- [ ] **Phase 137: Agent Loop Core & Safety Mechanisms** - Native tool_use agent loop with setTimeout-chaining, cost circuit breaker, time limit, external stuck detection, and session persistence
+- [ ] **Phase 138: Context Management & On-Demand Tools** - DOM snapshot and site guides as on-demand tools, sliding window history compression, progress reporting, and prompt caching
+- [ ] **Phase 139: Dead Code Removal & Polish** - Remove ~3,100 lines of CLI parser, prompt templates, completion validator, and per-iteration DOM fetching
+
+### Phase Details (v0.9.20)
+
+### Phase 135: Provider Format Adapters & Tool Registry
+**Goal**: All 42 browser tools are defined once in JSON Schema with routing metadata, and every supported AI provider can send/receive tool_use messages in its native format
+**Depends on**: Nothing (first phase of milestone)
+**Requirements**: PROV-01, PROV-02, PROV-03, PROV-04, PROV-05, PROV-06, TOOL-01, TOOL-02
+**Success Criteria** (what must be TRUE):
+  1. User can start an autopilot session with xAI Grok and the AI returns structured tool_use blocks (not CLI text) that the extension parses correctly
+  2. User can switch to OpenAI, Anthropic, or Gemini and the same tool definitions produce valid tool_use responses from each provider
+  3. Tool definitions exist in one file (tool-definitions.js) and include routing metadata indicating whether each tool runs in content script, CDP, background, or data layer
+  4. OpenRouter and custom OpenAI-compatible endpoints work through the same adapter as xAI/OpenAI without additional code
+**Plans**: 2 plans
+Plans:
+- [x] 135-01-PLAN.md -- Canonical tool registry (42 tools) in ai/tool-definitions.js with JSON Schema and routing metadata
+- [ ] 135-02-PLAN.md -- Provider format adapter in ai/tool-use-adapter.js with 5 functions for OpenAI/Anthropic/Gemini formats
+
+### Phase 136: Unified Tool Executor & MCP Migration
+**Goal**: Autopilot and MCP execute tools through the same code path, so a tool call produces identical results regardless of whether it came from the agent loop or an MCP client
+**Depends on**: Phase 135
+**Requirements**: TOOL-03, EXEC-01, EXEC-02, EXEC-03
+**Success Criteria** (what must be TRUE):
+  1. A single executeTool(name, params) function dispatches click, type, navigate, and all other tools to the correct handler -- same function called by both autopilot and MCP
+  2. Every tool execution returns a structured result object with success/hadEffect/error/navigationTriggered fields that the AI can reason about
+  3. Read-only tools (get_dom_snapshot, read_page, get_text) execute immediately without waiting for the mutation queue
+  4. MCP server imports tool schemas from the shared tool-definitions.js registry instead of defining them inline with Zod
+**Plans**: TBD
+
+### Phase 137: Agent Loop Core & Safety Mechanisms
+**Goal**: User can run an autopilot task end-to-end using the native tool_use protocol, with the AI controlling iteration and safety mechanisms preventing runaway sessions
+**Depends on**: Phase 135, Phase 136
+**Requirements**: LOOP-01, LOOP-02, LOOP-03, LOOP-04, LOOP-05, SAFE-01, SAFE-02, SAFE-03, SAFE-04
+**Success Criteria** (what must be TRUE):
+  1. User types a task in the sidepanel and the autopilot executes it by sending messages with tool definitions, receiving tool_use blocks, executing them, and feeding tool_result back until the AI emits end_turn
+  2. The session survives Chrome's 5-minute service worker kill because the loop uses setTimeout-chaining (not a blocking while-loop) and persists state after every iteration
+  3. A session that exceeds $2 estimated cost or 10 minutes duration is automatically stopped with a clear message to the user
+  4. When the AI makes 3+ consecutive tool calls that produce no DOM change, a recovery hint is injected into the next tool_result suggesting alternative approaches
+  5. User can click the stop button in the sidepanel at any point and the automation halts within one iteration
+**Plans**: TBD
+
+### Phase 138: Context Management & On-Demand Tools
+**Goal**: The AI fetches page context and site intelligence only when needed, conversation history stays within token budget, and the user sees live progress and cost
+**Depends on**: Phase 137
+**Requirements**: CTX-01, CTX-02, CTX-03, CTX-04, PROG-01, PROG-02, PROG-03
+**Success Criteria** (what must be TRUE):
+  1. The AI calls get_page_snapshot as a tool when it needs DOM context -- the system no longer auto-injects a snapshot every iteration
+  2. The AI calls get_site_guide(domain) as a tool to fetch site-specific intelligence -- guides are no longer always injected into the system prompt
+  3. On a 30+ step task, old tool_results are compacted when conversation history reaches 80% of the token budget, and the AI continues without losing critical context
+  4. The progress overlay shows the current tool being executed, the AI's reasoning via report_progress, and the estimated session cost in real-time
+**Plans**: TBD
+
+### Phase 139: Dead Code Removal & Polish
+**Goal**: All legacy autopilot infrastructure is removed after the new agent loop is proven stable, leaving a cleaner codebase with ~3,100 fewer lines
+**Depends on**: Phase 137, Phase 138
+**Requirements**: CLN-01, CLN-02, CLN-03, CLN-04
+**Success Criteria** (what must be TRUE):
+  1. cli-parser.js and CLI_COMMAND_TABLE are deleted and no remaining code references them
+  2. The old buildPrompt/TASK_PROMPTS template system is deleted and the system prompt is a minimal ~1-2KB description
+  3. The multi-signal completion validator is deleted and task completion is determined solely by the AI's stop_reason/end_turn signal
+  4. Autopilot no longer fetches a DOM snapshot before every iteration -- the only DOM access is through the on-demand get_page_snapshot tool
+**Plans**: TBD
+
+---
+
+### v0.9.20 Autopilot Agent Architecture Rewrite Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 135. Provider Format Adapters & Tool Registry | 1/2 | In Progress|  |
+| 136. Unified Tool Executor & MCP Migration | 0/? | Not started | - |
+| 137. Agent Loop Core & Safety Mechanisms | 0/? | Not started | - |
+| 138. Context Management & On-Demand Tools | 0/? | Not started | - |
+| 139. Dead Code Removal & Polish | 0/? | Not started | - |
