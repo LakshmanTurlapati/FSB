@@ -273,6 +273,15 @@ Plans:
 - [x] 138-01-PLAN.md -- Register 3 on-demand tools, local interception in agent loop, sliding-window history compression, Anthropic prompt caching
 - [x] 138-02-PLAN.md -- Progress overlay enrichment with cost display, AI reasoning fields, dashboard broadcast wiring
 
+### Phase 139: Dead Code Removal & Polish
+**Goal**: All legacy autopilot infrastructure is removed after the new agent loop is proven stable, leaving a cleaner codebase with ~3,100 fewer lines
+**Depends on**: Phase 138
+**Requirements**: CLN-01, CLN-02, CLN-03, CLN-04
+**Plans**: 2 plans
+Plans:
+- [ ] 139-01-PLAN.md -- Delete cli-parser.js, cli-validator.js, CLI_COMMAND_TABLE, TASK_PROMPTS, buildPrompt, buildMinimalUpdate, and all prompt template constants
+- [ ] 139-02-PLAN.md -- Rewire callers to runAgentLoop, delete startAutomationLoop, completion validators, prefetchDOM, and supporting dead code
+
 ### v0.9.20 Autopilot Agent Architecture Rewrite Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -280,5 +289,5 @@ Plans:
 | 135. Provider Format Adapters & Tool Registry | 2/2 | Complete | 2026-04-01 |
 | 136. Unified Tool Executor & MCP Migration | 1/2 | In progress | - |
 | 137. Agent Loop Core & Safety Mechanisms | 0/? | Complete    | 2026-04-01 |
-| 138. Context Management & On-Demand Tools | 2/2 | Complete | 2026-04-01 |
-| 139. Dead Code Removal & Polish | 0/? | Not started | - |
+| 138. Context Management & On-Demand Tools | 2/2 | Complete    | 2026-04-01 |
+| 139. Dead Code Removal & Polish | 0/2 | Not started | - |
