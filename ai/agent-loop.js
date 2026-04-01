@@ -32,30 +32,31 @@ if (typeof importScripts !== 'undefined') {
   }
 }
 
-// Node.js require for testing
-let _toolDefs, _adapter, _executor, _provider;
+// Node.js require for testing -- use var to avoid redeclaration with tool-executor.js in shared scope
+var _al_toolDefs, _al_adapter, _al_executor, _al_provider;
 if (typeof require !== 'undefined') {
   try {
-    _toolDefs = require('./tool-definitions.js');
-    _adapter = require('./tool-use-adapter.js');
-    _executor = require('./tool-executor.js');
-    _provider = require('./universal-provider.js');
+    _al_toolDefs = require('./tool-definitions.js');
+    _al_adapter = require('./tool-use-adapter.js');
+    _al_executor = require('./tool-executor.js');
+    _al_provider = require('./universal-provider.js');
   } catch (_e) {
     // Running in Chrome extension context -- globals already available
   }
 }
 
 // Resolve references for both Chrome (globals) and Node (require)
-const _TOOL_REGISTRY = (typeof TOOL_REGISTRY !== 'undefined') ? TOOL_REGISTRY : (_toolDefs?.TOOL_REGISTRY || []);
-const _formatToolsForProvider = (typeof formatToolsForProvider !== 'undefined') ? formatToolsForProvider : (_adapter?.formatToolsForProvider || (() => []));
-const _parseToolCalls = (typeof parseToolCalls !== 'undefined') ? parseToolCalls : (_adapter?.parseToolCalls || (() => []));
-const _formatToolResult = (typeof formatToolResult !== 'undefined') ? formatToolResult : (_adapter?.formatToolResult || (() => ({})));
-const _isToolCallResponse = (typeof isToolCallResponse !== 'undefined') ? isToolCallResponse : (_adapter?.isToolCallResponse || (() => false));
-const _formatAssistantMessage = (typeof formatAssistantMessage !== 'undefined') ? formatAssistantMessage : (_adapter?.formatAssistantMessage || (() => ({})));
-const _extractUsage = (typeof extractUsage !== 'undefined') ? extractUsage : (_adapter?.extractUsage || (() => ({ input: 0, output: 0 })));
-const _executeTool = (typeof executeTool !== 'undefined') ? executeTool : (_executor?.executeTool || (async () => ({ success: false, error: 'executeTool not available' })));
-const _UniversalProvider = (typeof UniversalProvider !== 'undefined') ? UniversalProvider : (_provider?.UniversalProvider || null);
-const _PROVIDER_CONFIGS = (typeof PROVIDER_CONFIGS !== 'undefined') ? PROVIDER_CONFIGS : (_provider?.PROVIDER_CONFIGS || {});
+// Use var throughout to avoid const/let redeclaration errors in importScripts shared scope
+var _al_TOOL_REGISTRY = (typeof TOOL_REGISTRY !== 'undefined') ? TOOL_REGISTRY : (_al_toolDefs?.TOOL_REGISTRY || []);
+var _formatToolsForProvider = (typeof formatToolsForProvider !== 'undefined') ? formatToolsForProvider : (_al_adapter?.formatToolsForProvider || (() => []));
+var _parseToolCalls = (typeof parseToolCalls !== 'undefined') ? parseToolCalls : (_al_adapter?.parseToolCalls || (() => []));
+var _formatToolResult = (typeof formatToolResult !== 'undefined') ? formatToolResult : (_al_adapter?.formatToolResult || (() => ({})));
+var _isToolCallResponse = (typeof isToolCallResponse !== 'undefined') ? isToolCallResponse : (_al_adapter?.isToolCallResponse || (() => false));
+var _formatAssistantMessage = (typeof formatAssistantMessage !== 'undefined') ? formatAssistantMessage : (_al_adapter?.formatAssistantMessage || (() => ({})));
+var _extractUsage = (typeof extractUsage !== 'undefined') ? extractUsage : (_al_adapter?.extractUsage || (() => ({ input: 0, output: 0 })));
+var _executeTool = (typeof executeTool !== 'undefined') ? executeTool : (_al_executor?.executeTool || (async () => ({ success: false, error: 'executeTool not available' })));
+var _UniversalProvider = (typeof UniversalProvider !== 'undefined') ? UniversalProvider : (_al_provider?.UniversalProvider || null);
+var _PROVIDER_CONFIGS = (typeof PROVIDER_CONFIGS !== 'undefined') ? PROVIDER_CONFIGS : (_al_provider?.PROVIDER_CONFIGS || {});
 
 
 // ---------------------------------------------------------------------------
@@ -352,7 +353,7 @@ function compactHistory(messages, tokenBudget = 128000) {
  * @returns {Array<{name: string, description: string, inputSchema: Object}>}
  */
 function getPublicTools() {
-  return _TOOL_REGISTRY.map(t => ({
+  return _al_TOOL_REGISTRY.map(t => ({
     name: t.name,
     description: t.description,
     inputSchema: t.inputSchema

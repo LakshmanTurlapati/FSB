@@ -20,11 +20,11 @@
 // In Chrome extension importScripts context, TOOL_REGISTRY and getToolByName
 // are already globals from tool-definitions.js loaded before this file.
 // In Node.js/test context, fall back to require().
-const _toolDefs = (typeof TOOL_REGISTRY !== 'undefined')
+// Prefix with _te_ to avoid collisions with agent-loop.js in shared global scope.
+var _te_defs = (typeof TOOL_REGISTRY !== 'undefined')
   ? { TOOL_REGISTRY, getToolByName }
   : require('./tool-definitions.js');
-const _TOOL_REGISTRY = _toolDefs.TOOL_REGISTRY;
-const _getToolByName = _toolDefs.getToolByName;
+var _te_getToolByName = _te_defs.getToolByName;
 
 // ---------------------------------------------------------------------------
 // Structured result factory
@@ -332,7 +332,7 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
  * @returns {Promise<Object>} Structured result: {success, hadEffect, error, navigationTriggered, result}
  */
 async function executeTool(name, params, tabId, options = {}) {
-  const tool = _getToolByName(name);
+  const tool = _te_getToolByName(name);
 
   if (!tool) {
     return makeResult({
@@ -368,7 +368,7 @@ async function executeTool(name, params, tabId, options = {}) {
  * @returns {boolean} True if tool is read-only, false otherwise
  */
 function isReadOnly(name) {
-  const tool = _getToolByName(name);
+  const tool = _te_getToolByName(name);
   return tool ? tool._readOnly === true : false;
 }
 
