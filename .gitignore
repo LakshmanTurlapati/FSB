@@ -36,3 +36,4 @@ config/secrets.json
 Logs/
 Extenive logs, multiple scenariaos.txt
 server/fsb-data.db
+Research/
