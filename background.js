@@ -6462,7 +6462,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       });
 
       // Non-blocking task complexity estimation (runs in parallel with first iteration)
-      // Results consumed in startAutomationLoop to set dynamic thresholds
+      // Results consumed by agent loop to set dynamic thresholds
       const s = activeSessions.get(sessionId);
       if (s) {
         s._complexityEstimate = estimateTaskComplexity(task, tabInfo?.url || '', settings);
@@ -6638,8 +6638,17 @@ async function executeAutomationTask(tabId, task, options = {}) {
       // Store timeout for cleanup
       sessionData._safetyTimeout = safetyTimeout;
 
-      // Start the automation loop
-      startAutomationLoop(sessionId);
+      // Start the agent loop (replaces startAutomationLoop -- all entry points now use runAgentLoop)
+      runAgentLoop(sessionId, {
+        activeSessions,
+        persistSession,
+        sendSessionStatus,
+        broadcastDashboardProgress,
+        endSessionOverlays,
+        startKeepAlive,
+        executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
+        handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+      });
 
     } catch (error) {
       resolve({
