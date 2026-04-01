@@ -474,6 +474,7 @@ class UniversalProvider {
     } catch (error) {
       // Check if error is due to unsupported parameters
       if (error.status === 400 && error.responseText) {
+        console.warn('[UniversalProvider] 400 error from API:', error.responseText.substring(0, 500));
         const unsupportedParam = this.extractUnsupportedParameter(error.responseText);
         if (unsupportedParam && !retry) {
           console.log(`Parameter '${unsupportedParam}' not supported, retrying without it`);
@@ -502,17 +503,27 @@ class UniversalProvider {
       /(\w+).*?not.*?supported/i,
       /argument.*?(\w+).*?invalid/i
     ];
-    
+
+    // Words that appear in error messages but are NOT parameter names
+    const blocklist = new Set([
+      'un', 'the', 'is', 'not', 'are', 'was', 'has', 'this', 'that', 'for',
+      'unsupported', 'unknown', 'invalid', 'argument', 'parameter', 'error',
+      'request', 'body', 'field', 'type', 'value', 'expected', 'received',
+      'unrecognized', 'property', 'object', 'array', 'string', 'number',
+      'required', 'missing', 'extra', 'additional'
+    ]);
+
     for (const pattern of patterns) {
       const match = errorText.match(pattern);
       if (match) {
-        // Convert camelCase to snake_case if needed
-        const param = match[1];
+        const param = match[1].toLowerCase();
+        // Skip if too short (< 3 chars) or a common error word
+        if (param.length < 3 || blocklist.has(param)) continue;
         const snakeCase = param.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         return snakeCase;
       }
     }
-    
+
     return null;
   }
   

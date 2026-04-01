@@ -1018,6 +1018,28 @@ async function runAgentIteration(sessionId, options) {
       return;
     }
 
+    // Bad request (400): terminal -- tool format or schema issue, don't retry
+    if (errStatus === 400) {
+      const errorDetail = (error.responseText || errMsg).substring(0, 300);
+      session.status = 'error';
+      session.error = `API rejected request (400): ${errorDetail}`;
+      console.error('[AgentLoop] 400 Bad Request -- check tool definitions or request format:', errorDetail);
+      if (typeof endSessionOverlays === 'function') {
+        await endSessionOverlays(session, 'error');
+      }
+      if (typeof sendStatus === 'function') {
+        sendStatus(session.tabId, {
+          phase: 'error',
+          taskName: session.task,
+          statusText: `Request rejected by API: ${errorDetail.substring(0, 100)}`,
+          iteration: iterNum,
+          cost: (session.agentState.totalCost || 0).toFixed(4)
+        });
+      }
+      await persist(sessionId, session);
+      return;
+    }
+
     // Rate limit (429): wait 5s and retry once
     // (UniversalProvider handles retries internally, so this is a last-resort catch)
     if (errStatus === 429 || error.isRateLimited) {
