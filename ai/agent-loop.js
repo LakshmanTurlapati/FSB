@@ -616,9 +616,9 @@ async function runAgentLoop(sessionId, options) {
       consecutiveNoChangeCount: 0
     };
 
-    // Initialize safety thresholds from chrome.storage.sync (SAFE-01, SAFE-02)
+    // Initialize safety thresholds from chrome.storage.local (SAFE-01, SAFE-02)
     try {
-      const storedSettings = await chrome.storage.sync.get({
+      const storedSettings = await chrome.storage.local.get({
         costLimit: 2.00,
         timeLimit: 10
       });
@@ -634,10 +634,10 @@ async function runAgentLoop(sessionId, options) {
     // Get public tool definitions (cached for the session)
     session.tools = getPublicTools();
 
-    // Get provider configuration from chrome.storage.sync
+    // Get provider configuration from chrome.storage.local (where options page saves them)
     let settings = {};
     try {
-      const stored = await chrome.storage.sync.get([
+      const stored = await chrome.storage.local.get([
         'provider', 'modelProvider', 'modelName', 'model',
         'apiKey', 'openaiApiKey', 'anthropicApiKey', 'geminiApiKey', 'openrouterApiKey', 'customApiKey',
         'customEndpoint'
