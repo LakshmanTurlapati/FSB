@@ -4,7 +4,6 @@
 importScripts('config/config.js');
 importScripts('config/init-config.js');
 importScripts('config/secure-config.js');
-importScripts('ai/cli-parser.js');
 importScripts('ai/ai-integration.js');
 importScripts('ai/tool-definitions.js');
 importScripts('ai/tool-use-adapter.js');
