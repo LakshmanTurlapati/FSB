@@ -1,351 +1,202 @@
-# Feature Landscape: v0.9.11 MCP Tool Quality
+# Feature Landscape: v0.9.20 Native tool_use Agent Loop
 
-**Domain:** Browser automation tool reliability improvements (Chrome Extension MCP tools)
+**Domain:** Replacing custom CLI-parsing autopilot iteration loop with native tool_use agent loop
 **Researched:** 2026-03-31
+**Confidence:** HIGH (Anthropic, OpenAI, xAI, Gemini all document the same pattern)
+
+## How tool_use Agent Loops Work in Production
+
+The pattern is identical across all four providers FSB supports. Understanding this is critical because the new architecture replaces ~2000 lines of custom iteration/parsing/stuck-detection code with ~200 lines of generic loop logic.
+
+### The Universal Pattern
+
+```
+1. Send messages[] + tools[] to AI provider
+2. AI returns response with stop_reason
+3. If stop_reason == "tool_use" (or "tool_calls"):
+   a. Extract tool_use blocks (name, id, input)
+   b. Execute each tool locally
+   c. Append assistant response + tool_result blocks to messages[]
+   d. Go to step 1
+4. If stop_reason == "end_turn" (or "stop"):
+   a. Extract text response -- task is done
+   b. Return result to user
+```
+
+**Key insight:** The AI decides when to stop. There is no iteration counter, no stuck detection, no completion validator. The AI calls tools until it decides the task is done, then it emits a text response and sets stop_reason to "end_turn".
+
+### Provider-Specific Formats (All OpenAI-Compatible)
+
+| Provider | Tool Definition | Response Signal | Result Format |
+|----------|----------------|-----------------|---------------|
+| Anthropic | `tools[].input_schema` (JSON Schema) | `stop_reason: "tool_use"` | `tool_result` in user message |
+| OpenAI | `tools[].function.parameters` (JSON Schema) | `finish_reason: "tool_calls"` | `tool` role message |
+| xAI (Grok) | Same as OpenAI (OpenAI-compatible) | Same as OpenAI | Same as OpenAI |
+| Gemini | `functionDeclarations[].parameters` (OpenAPI-like) | `functionCall` parts in response | `functionResponse` parts |
+
+**FSB already has a universal provider class that adapts to any OpenAI-compatible API.** The Anthropic format differs but is well-documented. The key difference is message structure, not loop logic.
 
 ## Table Stakes
 
-Features users expect from any competent browser automation tool. Missing = tool feels broken.
+Features the tool_use agent loop MUST have. Missing any = the autopilot is broken or worse than the current system.
 
-| # | Feature | Why Expected | Complexity | Existing Architecture Dependency | Notes |
-|---|---------|--------------|------------|----------------------------------|-------|
-| 1 | Site-aware search | Every site has its own search box; redirecting to Google is wrong for "search this site" intent | Medium | `actions.js:searchGoogle` hardcodes Google URL; `lifecycle.js:explorerDetectLayout` already detects `[role="search"]` | Playwright/Puppeteer never impose a search engine -- they type into whatever input the user targets |
-| 2 | DOM stability before read_page | JS-heavy sites (React, Next.js, SPA) show skeleton/loading states; reading before hydration returns garbage | Low | `waitForPageStability()` in `actions.js` already exists with MutationObserver + network tracking; `readPage` does NOT call it | Playwright auto-waits before every action; Puppeteer has `networkidle0/2` for page.goto |
-| 3 | Click survives page transitions (BF cache) | Clicking a link navigates away; content script dies; next action fails with "extension not responding" | Medium | `background.js` has BF_CACHE failure type + recovery handler; `sendMessageWithRetry` detects BFCache but recovery is reactive, not proactive | Chrome 123+ proactively closes message ports on BFCache entry; `pageshow` event with `event.persisted` is the canonical detection |
-| 4 | Scroll-before-interact for off-viewport elements | Click/hover on elements below the fold must work; user expects "click the footer link" to just work | Low | `accessibility.js:scrollIntoViewIfNeeded` exists and runs in `ensureElementReady`; hover calls `smartEnsureReady` which includes scroll | Current implementation works for click; verify hover path actually scrolls (it calls `smartEnsureReady` at line 4117) |
-| 5 | press_enter submits forms reliably | After filling a form, Enter should submit; autocomplete dropdowns intercept Enter for selection instead | Low | `actions.js:pressEnter` dispatches KeyboardEvent; no fallback to submit button detection | Playwright's `page.press('Enter')` also just sends the key -- but Playwright tests explicitly click submit buttons |
-| 6 | Content extraction returns useful text, not 50K of noise | read_page returning entire page DOM text overwhelms AI context window; AI cannot find the answer | Medium | `extractPageText` has 50K char MAX_CHARS; no main-content detection; no Readability-style scoring | Mozilla Readability (401K weekly npm downloads) is the standard; Defuddle (by Obsidian team, 2025) improves on it with mobile-style analysis |
-| 7 | Cookie consent banners do not block interaction | GDPR/CCPA banners overlay the entire page; clicking through them wastes AI actions and confuses flow | Medium | `ai-integration.js` has "PHASE 0 -- COOKIE BANNER DISMISSAL" in autopilot prompt; site-guides have OneTrust/Quantcast/Cookiebot selectors; NO automatic detection in MCP mode | DuckDuckGo's `autoconsent` library (200+ CMPs) and Consent-O-Matic (200+ CMPs) are production-grade solutions |
+| # | Feature | Why Required | Complexity | Dependency on Existing Code | Notes |
+|---|---------|-------------|------------|---------------------------|-------|
+| T1 | Basic agent loop (send -> tool_use -> execute -> tool_result -> repeat) | This IS the architecture. Without it, nothing works. | Low | `ai-integration.js` UniversalProvider already handles API calls; needs `tools` parameter added | Standard pattern: check stop_reason, branch on tool_use vs end_turn. ~100 lines of loop code |
+| T2 | Unified tool definitions (JSON Schema) shared between autopilot and MCP | Single source of truth for all 25+ tools. Prevents MCP tools from diverging from autopilot tools. | Medium | MCP server already has Zod schemas in `manual.ts` + `read-only.ts`; CLI parser has `COMMAND_REGISTRY` with arg schemas | Convert Zod schemas to JSON Schema (trivial -- `zod-to-json-schema` already in MCP deps), or define in JSON Schema and derive both |
+| T3 | Tool execution path: same code for autopilot and MCP | When autopilot calls `click({selector: "e5"})`, it runs the exact same handler as MCP `click`. No duplicate dispatch logic. | Medium | MCP uses `bridge.sendAndWait({type: 'mcp:execute-action', payload: {tool, params}})` -> content script; autopilot uses `sendMessageToTab({action: tool, ...params})` -> content script. Two paths, same destination | Unify into a single `executeTool(tabId, toolName, params)` function called by both |
+| T4 | stop_reason-based completion (AI decides when done) | Replaces the 400+ lines of multi-signal completion validator, task-type classifiers, and weighted scoring. The AI returns `end_turn` when it believes the task is complete. | Low | Current `validateCompletion()` with gatherCompletionSignals, computeCompletionScore, 9 task-type validators | DELETE the completion validator entirely. Trust the AI's stop_reason. If stop_reason != tool_use, the task is done |
+| T5 | Structured tool_result responses | Each tool execution must return a well-formatted result that the AI can reason about. Success/failure, what changed, what the element contained. | Medium | Content script tools already return `{success, error, ...metadata}`. Need to serialize to the tool_result format expected by each provider | Return concise, high-signal results. Not raw DOM dumps. e.g., `click(e5) -> {success: true, clicked: "Submit", newUrl: "..."}` |
+| T6 | DOM snapshot as an on-demand tool (not auto-injected) | Currently DOM is fetched EVERY iteration (~200-500ms + ~2-8K tokens). In tool_use, AI calls `get_dom_snapshot` only when needed. Massive token savings. | Low | `getDOM` message handler in content script already works; markdown snapshot generator exists | Register as tool with description "Call this to see what's on the page. Returns structured elements with refs." AI will call it when uncertain about page state |
+| T7 | Conversation context (messages array) management | The messages array grows every turn. Without management, it exceeds context window after ~15-20 tool calls on rich pages. | High | No existing equivalent -- current system rebuilds prompt from scratch each iteration (stateless). New system is stateful (conversation persists). | Implement sliding window: keep system prompt + first user message + last N turns. Summarize/drop old tool_results. Budget ~80% of context for conversation, ~20% for tools |
+| T8 | Safety timeout (total session duration) | Even though AI controls iteration count, sessions must not run forever. A hard time limit prevents runaway API costs. | Low | Current `MAX_SESSION_DURATION` (5 min default) and `maxSessionDuration` logic | Keep the existing time-based safety net. If session exceeds time limit, inject a final user message "Time limit reached, please summarize what you accomplished" and let AI respond with end_turn |
+| T9 | Session abort / stop button | User must be able to stop automation at any point. In tool_use loop, this means canceling the in-flight API call and not sending the next request. | Low | Current `_stopAbortController` + AbortController pattern + `isSessionTerminating()` | Same mechanism: abort the fetch, set session status to stopped, do not re-enter loop |
+| T10 | Error handling in tool execution | When a tool fails (element not found, timeout, restricted page), return `is_error: true` in tool_result so the AI can decide what to do next. | Low | Content script tools already return `{success: false, error: "..."}`. Need to map to `is_error` tool_result format | Critical: give descriptive errors. "Element e5 not found. Page may have changed -- try get_dom_snapshot to refresh." Not just "failed" |
+| T11 | Multi-provider tool_use format adaptation | xAI, OpenAI, Anthropic, Gemini each have slightly different tool call/result formats. The loop must normalize across all four. | Medium | `UniversalProvider` in `ai-integration.js` already adapts request format; needs to adapt tool_use response parsing too | Anthropic: `stop_reason: "tool_use"`, content blocks. OpenAI/xAI: `finish_reason: "tool_calls"`, tool_calls array. Gemini: `functionCall` parts. Normalize in provider adapter |
+| T12 | Minimal system prompt (~1-2KB) | Current system prompt is 30-50KB with embedded tool docs, site guides, strategy hints, and prompt engineering. tool_use architecture moves tool docs into the `tools[]` definitions and uses on-demand tools for site intelligence. | Medium | Current `buildPrompt()` in `ai-integration.js` is enormous. Need to strip to: task description, current URL, behavioral rules only | System prompt should be: "You are a browser automation agent. Execute the user's task using the provided tools. Call get_dom_snapshot to see the page. Call get_site_guide for site-specific tips." ~500-1000 tokens |
 
 ## Differentiators
 
-Features that set FSB apart from basic browser automation. Not expected, but valued.
+Features that make FSB's tool_use loop better than a naive implementation. Not required for functionality, but significantly improve quality.
 
-| # | Feature | Value Proposition | Complexity | Existing Dependency | Notes |
-|---|---------|-------------------|------------|---------------------|-------|
-| D1 | Smart search routing (site-specific vs Google) | AI-level intelligence: "search for X" on amazon.com uses Amazon's search bar, not Google; "google X" explicitly uses Google | High | Site guides already have per-site search selectors (e.g., Amazon `#twotabsearchtextbox`); `explorerDetectLayout` finds `[role="search"]` | No automation tool does this well -- Playwright/Puppeteer leave it to the test author; this is uniquely valuable for AI agents |
-| D2 | Proactive content script re-injection | Instead of failing then recovering, pre-emptively re-inject content script on navigation events via `webNavigation.onCommitted` | Medium | `ensureContentScriptInjected` exists in background.js; currently reactive only | Chrome's `webNavigation.onCommitted` with `documentId` prevents duplicate injection; `pageshow` event in content script handles BFCache restore |
-| D3 | Readability-scored content extraction | Extract only the "article" or "main content" using DOM scoring, not the entire page | High | `extractPageText` walks the entire DOM; no scoring system exists | Readability.js scores elements by text density, comma frequency, link density, class name patterns; Defuddle adds mobile-style analysis and site-specific extractors |
-| D4 | Cookie consent auto-dismiss with CMP detection | Detect which CMP platform (OneTrust, Cookiebot, Quantcast, etc.) is present and click the right reject/accept button automatically | High | `cookie-opt-out.js` site guide has extensive CMP selector knowledge; `dom-analysis.js` already skips cookie/consent elements in snapshots | Could port autoconsent's rule engine (JSON-based, 200+ CMPs) or build a lighter version using existing site guide selectors |
+| # | Feature | Value Proposition | Complexity | Dependency on Existing Code | Notes |
+|---|---------|-------------------|------------|---------------------------|-------|
+| D1 | Site guide as queryable tool | Instead of injecting 50+ site guides into every prompt (tokens), register `get_site_guide(domain)` as a tool. AI calls it when it needs site-specific intelligence. | Low | 50+ site guide files already exist in `guides/`; just need a tool that reads the right file and returns its content | Massive token savings. AI calls it on first visit to a site, caches the knowledge in conversation context. Never injected for sites it already knows |
+| D2 | Procedural memory as queryable tool | AI can query "how did I handle this type of task before?" to get learned strategies without them always being in the system prompt | Low | Procedural memory extraction and storage already built (v0.9.8). Currently injected into prompt with per-domain cap of 5 | Register `get_task_memory(taskType, domain)` tool. Returns relevant procedural memories. AI uses them if helpful |
+| D3 | Progress overlay integration | Report tool execution status to the visual overlay so users see what the AI is doing. In tool_use loop, extract from tool_result and assistant text blocks. | Medium | Existing progress overlay with phase detection, ETA, task summary. Existing `sendSessionStatus()` and `broadcastDashboardProgress()` | After each tool execution, update overlay: "Clicked Submit button", "Reading page content", "Navigating to amazon.com". Extract from tool name + params |
+| D4 | Prompt caching for system prompt + tools | System prompt and tool definitions are identical across turns. Caching them saves ~85% latency on subsequent calls (Anthropic measured 11.5s -> 2.4s for 100K context). | Low | No existing prompt caching. New with tool_use architecture since system prompt is now stable across turns | Anthropic: `cache_control` on system prompt. OpenAI: automatic caching. xAI: follows OpenAI pattern. Gemini: `cached_content`. Only needs to be set once |
+| D5 | Parallel tool execution | When AI requests multiple tools in one turn (e.g., "click e5" + "type e7 'hello'"), execute them in parallel or batch sequence instead of one-at-a-time. | Medium | Current `executeBatchActions()` handles sequential batch execution. Need to handle provider-specific parallel tool_use blocks | Anthropic and OpenAI both support multiple tool_use blocks in a single response. Execute them, return all tool_results in one user message |
+| D6 | Context window budget tracking | Track cumulative token usage across the conversation. When approaching the limit, trigger compaction (summarize old turns, drop stale tool_results). | High | `analytics.js` tracks per-request tokens. No cumulative tracking across conversation turns | Implement token counting per message. When total > 70% of model's context window, compact: summarize turns 2..N-5 into a single assistant message, keep last 5 turns verbatim |
+| D7 | Action verification as tool_result enrichment | After executing a tool, automatically check if it had the expected effect (URL changed, element state changed) and include verification in the tool_result. AI gets richer signal without needing to call another tool. | Medium | Current action verification system with state capture and effect validation (v0.9). `verifyActionOutcome()` exists | After click: check URL change, DOM change, new elements. Append to tool_result: "Clicked 'Submit'. URL changed to /success. New elements: confirmation message visible." |
+| D8 | Cost tracking per session | Track API cost across all turns in the tool_use loop. Display in overlay and store in session history. | Low | `analytics.js` already tracks cost per API call. Session has `totalCost`, `totalInputTokens`, `totalOutputTokens` | Same mechanism, just increment across conversation turns instead of single-shot calls. Show in overlay: "$0.03 spent, 15 tool calls" |
+| D9 | Streaming tool_use responses | Stream the AI's response to show real-time thinking/reasoning in the overlay before tool execution begins. Reduces perceived latency. | Medium | No existing streaming. Current system waits for complete response. | All four providers support streaming tool_use. Show text blocks in overlay as they arrive, then execute tool_use blocks when complete |
 
 ## Anti-Features
 
-Features to explicitly NOT build for this milestone.
+Features to explicitly NOT build for the tool_use agent loop. Building these would add complexity, reduce reliability, or fight the architecture.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| Full Readability.js library integration | 27KB library, requires JSDOM or document cloning, adds significant bundle size to content script | Implement a lightweight scoring heuristic inspired by Readability's algorithm: find `<article>`, `<main>`, `[role="main"]`, then fall back to highest-scoring `<div>` by text density. ~100 lines vs 27KB library |
-| Cookie consent preference management | Full GDPR-compliant "reject all non-essential" requires multi-step CMP navigation (open preferences, toggle categories, save) -- complex and fragile | Simple dismiss: click the most prominent dismiss/accept/reject button. Goal is clearing the overlay, not privacy optimization. User can manage preferences manually |
-| Full autoconsent library integration | 200+ CMP rules, complex rule engine, ongoing maintenance burden | Build a tiered selector approach: check 8-10 common CMP selectors covering ~90% of sites (OneTrust, Cookiebot, Quantcast, TrustArc, Didomi, Sourcepoint + generic patterns) |
-| AI-powered search box detection | Using the AI model to identify search inputs adds latency and cost per page load | Use deterministic DOM heuristics: `[role="search"]`, `input[type="search"]`, `form[action*="search"]`, `input[name*="search"]`, `input[placeholder*="search" i]` -- these cover 95%+ of sites |
-| Headless browser page.goto-style waiting | Puppeteer's `networkidle0` monitors at the browser level (all network connections); content scripts cannot see all network traffic | Existing `waitForPageStability` already monitors fetch/XHR + MutationObserver, which is the best a content script can do. Enhance, do not replace |
-| Multi-step BFCache recovery chains | Complex retry-wake-reinject-verify chains with multiple fallback strategies | Single proactive path: listen for `webNavigation.onCommitted` in background.js, re-inject content script, verify with ping. One path, not five fallbacks |
-
-## Feature Details and Ecosystem Patterns
-
-### 1. Site-Aware Search
-
-**Current behavior:** `search` MCP tool always calls `searchGoogle()` which navigates to `google.com/search?q=...`. When the AI says "search for wireless mouse" while on amazon.com, it leaves Amazon and goes to Google.
-
-**How Playwright/Puppeteer handle it:** They do not have a "search" concept. Test authors explicitly find the search input, type text, and press Enter. The decision of where to search is made by the human writing the test.
-
-**What FSB should do (because it has an AI agent making decisions):**
-
-Detection heuristic (ordered by specificity):
-1. `input[type="search"]` -- semantic HTML search input
-2. `[role="search"] input, [role="search"] textarea` -- ARIA search landmark containing input
-3. `form[action*="search"] input[type="text"], form[action*="search"] input:not([type])` -- form with search action
-4. `input[name*="search" i], input[name*="query" i], input[name="q"]` -- common search parameter names
-5. `input[placeholder*="search" i], input[aria-label*="search" i]` -- labeled search inputs
-6. Fall through to Google as explicit fallback
-
-**Confidence:** HIGH -- MDN documents `input[type="search"]` and `[role="search"]` as standard patterns. Every major site uses at least one of these.
-
-**Architecture dependency:** New logic in `actions.js` replacing `searchGoogle`. MCP tool `search` in `manual.ts` changes verb from `searchGoogle` to new `siteSearch` verb. Background.js routing unchanged (already passes through `executeAction`).
-
-**Complexity:** Medium. The detection is straightforward; the tricky part is handling autocomplete dropdowns (Amazon, YouTube) that intercept Enter key.
-
----
-
-### 2. DOM Stability Before read_page
-
-**Current behavior:** `readPage` immediately extracts text. On JS-heavy sites (React SPAs, Next.js with hydration), this captures skeleton screens, loading spinners, or partially-rendered content.
-
-**How Playwright handles it:**
-- Every action auto-waits for the element to be visible, stable, and enabled
-- `page.waitForLoadState('networkidle')` waits for zero network connections for 500ms (discouraged in 2025 -- too brittle)
-- `page.waitForLoadState('domcontentloaded')` waits for initial HTML parse
-- Recommended: use locator assertions that auto-retry until condition met
-
-**How Puppeteer handles it:**
-- `page.goto(url, { waitUntil: 'networkidle2' })` -- no more than 2 connections for 500ms
-- `page.waitForSelector(selector)` -- wait for specific element
-- `page.waitForFunction(() => condition)` -- arbitrary JS condition
-
-**What FSB should do:**
-Call `waitForPageStability()` inside `readPage()` before extraction, with a lightweight profile:
-```javascript
-// Before extracting text
-await waitForPageStability({
-  maxWait: 3000,      // Cap at 3s -- don't block forever
-  stableTime: 300,    // DOM quiet for 300ms
-  networkQuietTime: 200 // Network quiet for 200ms
-});
-```
-
-**Confidence:** HIGH -- `waitForPageStability` is already implemented and battle-tested in FSB. This is purely wiring it into `readPage`.
-
-**Architecture dependency:** `actions.js:readPage` needs to become `async` (currently synchronous). `messaging.js` handler at line 782 already awaits the action result, so this is safe.
-
-**Complexity:** Low. Single function call addition. The stability function already exists with proper cleanup.
-
----
-
-### 3. Click Navigation Resilience (BF Cache)
-
-**Current behavior:** Click triggers page navigation. Content script in old page is destroyed. Background.js tries to send next action to dead content script, gets communication failure. Recovery handler (`FAILURE_TYPES.BF_CACHE`) then tries to wake the page and re-inject. This reactive approach means every navigation-click wastes one action cycle on failure + recovery.
-
-**How Chrome extensions should handle it (Chrome 123+ pattern):**
-
-Background.js side:
-```javascript
-// Listen for navigation completions proactively
-chrome.webNavigation.onCommitted.addListener(async (details) => {
-  if (details.frameId === 0) { // Main frame only
-    await ensureContentScriptInjected(details.tabId);
-    // Verify script is responsive
-    await pageLoadWatcher.pingContentScript(details.tabId, 2000);
-  }
-});
-```
-
-Content script side:
-```javascript
-// Handle BFCache restore
-window.addEventListener('pageshow', (event) => {
-  if (event.persisted) {
-    // Page restored from BFCache -- reconnect to extension
-    chrome.runtime.connect(); // Fresh port
-    // Re-initialize any state
-  }
-});
-```
-
-**Key Chrome 123+ detail:** When a page with an open extension message port enters BFCache, Chrome now proactively closes the port from the content script side. The extension receives `onDisconnect`. When the user navigates back, the page is restored but the port stays closed -- the content script must reconnect via `pageshow`.
-
-**Confidence:** HIGH -- Chrome's official documentation explicitly describes this pattern. FSB already has `ensureContentScriptInjected` and `pingContentScript`.
-
-**Architecture dependency:** `background.js` needs `webNavigation.onCommitted` listener (manifest already has `webNavigation` permission). `content/init.js` needs `pageshow` event listener. `content/messaging.js` needs reconnection logic.
-
-**Complexity:** Medium. The individual pieces exist; wiring them together proactively instead of reactively requires careful ordering (inject after commit, wait for load before ping).
-
----
-
-### 4. Viewport-Aware Click/Hover
-
-**Current behavior:** `smartEnsureReady` (accessibility.js line 980) calls `scrollIntoViewIfNeeded` at step 3. Both `click` and `hover` call `smartEnsureReady`. The diagnostic at actions.js line 595 checks `inViewport` and suggests scrolling.
-
-**How Playwright handles it:**
-- `scrollIntoViewIfNeeded` is a built-in action that only checks "Stable" (element not animating)
-- Before click, Playwright scrolls the element into view automatically
-- "Element is outside of the viewport" error occurs when scroll fails (e.g., element in a non-scrollable overflow:hidden container)
-
-**What FSB should verify:**
-The path `hover` -> `smartEnsureReady` -> `ensureElementReady` -> `scrollIntoViewIfNeeded` at accessibility.js line 1057 should already handle this. The reported bug may be that:
-1. `scrollIntoView({ behavior: 'instant', block: 'center' })` can fail for elements inside scrollable containers (not the main document scroll)
-2. After scrolling, the element may need a stability re-check before the hover fires
-3. Fixed-position overlays (headers, cookie banners) may cover the element after scroll
-
-**Confidence:** MEDIUM -- Need to verify actual failure mode. The architecture supports viewport scrolling; the bug may be in edge cases (nested scrollable containers, sticky headers eating viewport space).
-
-**Architecture dependency:** `accessibility.js:scrollIntoViewIfNeeded`. May need enhancement to handle nested scroll containers.
-
-**Complexity:** Low if the fix is just ensuring hover uses the same path as click. Medium if nested scroll containers need addressing.
-
----
-
-### 5. Smart press_enter Fallback
-
-**Current behavior:** `pressEnter` dispatches `keydown`/`keyup` KeyboardEvent for Enter key. Works on simple forms. Fails when autocomplete dropdowns (Google, Amazon, combobox patterns) intercept Enter to select the highlighted suggestion instead of submitting the form.
-
-**How Playwright handles it:**
-Playwright does not solve this automatically. Test authors explicitly choose between:
-- `page.keyboard.press('Enter')` -- sends the key
-- `page.click('button[type="submit"]')` -- clicks submit button
-The human decides which is appropriate for the context.
-
-**What FSB should do (because the AI agent needs a reliable submit path):**
-
-After Enter key dispatch, check if a form was actually submitted:
-1. Check if URL changed (navigation = submission succeeded)
-2. Check if a success message appeared
-3. If neither, look for a submit button:
-   - `button[type="submit"]`
-   - `input[type="submit"]`
-   - `button:has-text("Submit")`, `button:has-text("Search")`, `button:has-text("Go")`
-   - The form's own submit button within the same `<form>` element
-4. Click the found submit button as fallback
-
-**Confidence:** HIGH -- The pattern is simple and deterministic. Form submission is well-understood.
-
-**Architecture dependency:** `actions.js:pressEnter` handler. Needs to become async (check post-state). May need the form detection logic from `lifecycle.js:explorerDetectLayout` which already finds `[role="form"]`.
-
-**Complexity:** Low. Check URL change after Enter, if no change look for submit button, click it.
-
----
-
-### 6. Intelligent Content Truncation for read_page
-
-**Current behavior:** `extractPageText` walks entire DOM (or viewport), outputs markdown-lite text, caps at 50K characters. No prioritization of main content vs. navigation, sidebar, footer, ads.
-
-**How content extraction libraries work:**
-
-**Mozilla Readability (standard, 401K weekly npm downloads):**
-1. Score leaf nodes (paragraphs, pre, td) by text quality: comma frequency, text length, link density penalty
-2. Propagate scores upward to parent containers with decreasing weight
-3. Select "top candidate" container with highest accumulated score
-4. Merge sibling elements with substantial text
-5. Clean up: remove scripts, styles, empty elements, fix URLs
-
-**Defuddle (2025, by Obsidian/Kepano):**
-- Multi-pass detection with recovery on empty results
-- Extractor Registry for known sites (site-specific extractors)
-- Uses page's mobile styles to identify removable elements
-- Outputs standardized markdown (not raw HTML like Readability)
-
-**What FSB should do (lightweight, no external library):**
-
-A content-scoring heuristic inspired by Readability, ~100-150 lines:
-1. Try semantic containers first: `<article>`, `<main>`, `[role="main"]`, `#content`, `#main-content`, `.post-content`, `.article-body`
-2. If none found, score top-level `<div>` elements by:
-   - Text density (text length / total inner length including tags)
-   - Paragraph count (more `<p>` tags = more likely content)
-   - Link density penalty (high link ratio = navigation, not content)
-   - Class/ID bonus: "content", "article", "post", "body" patterns
-   - Class/ID penalty: "sidebar", "nav", "footer", "header", "comment", "ad", "widget"
-3. Extract from winning container
-4. Cap at ~8K characters (enough for AI context, not overwhelming)
-5. Include truncation note if capped
-
-**Confidence:** MEDIUM -- The heuristic approach works well for article-style pages but may struggle with non-article pages (dashboards, email clients, social feeds). The semantic container approach (`<article>`, `<main>`) has high confidence as it follows web standards.
-
-**Architecture dependency:** `dom-analysis.js:extractPageText`. New scoring function. The existing `isVisibleForSnapshot` and viewport filtering can be reused.
-
-**Complexity:** Medium. The scoring algorithm is non-trivial to tune, but a "good enough" version covering 80% of cases is straightforward.
-
----
-
-### 7. Cookie Consent Auto-Dismiss
-
-**Current behavior:** In autopilot mode, the AI prompt includes "PHASE 0 -- COOKIE BANNER DISMISSAL" instructions. In MCP manual mode, cookie banners block interaction and the AI must manually detect and dismiss them, wasting actions. The `dom-analysis.js` at line 1221 already skips cookie/consent elements in snapshots, making them invisible to the AI.
-
-**How production tools handle this:**
-
-**DuckDuckGo autoconsent (github.com/duckduckgo/autoconsent):**
-- Library of rules for 200+ CMPs
-- Three rule types: JSON rulesets, AutoCMP interface classes, Consent-O-Matic compatible rules
-- Each rule defines: CMP detection (is this CMP present?), popup visibility check, opt-in/opt-out steps
-- Used in DuckDuckGo browser for automatic handling
-
-**Consent-O-Matic (github.com/cavi-au/Consent-O-Matic):**
-- 200+ CMP rules in a single Rules.json file
-- DOM selection with parent/target, CSS selectors, text/style/display filters
-- JSON entries per CMP: detectors (present + showing matchers), ordered methods (actions)
-- Supports iframe checks and shadow DOM
-
-**"I Don't Care About Cookies" extension:**
-- Maintains a curated list of CSS selectors per site
-- In most cases, just hides the banner via CSS
-- When hiding breaks functionality, clicks Accept automatically
-- User reporting mechanism for uncovered sites
-
-**What FSB should do (tiered approach for MCP mode):**
-
-Run once on page load (or on first MCP tool call per page):
-1. **Tier 1 -- Known CMP selectors (covers ~80% of consent banners):**
-   ```
-   OneTrust:    #onetrust-accept-btn-handler, .onetrust-close-btn-handler
-   Cookiebot:   #CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll, #CybotCookiebotDialogBodyButtonAccept
-   Quantcast:   .qc-cmp2-summary-buttons button[mode="primary"], button.css-47sehv
-   TrustArc:    #truste-consent-button, .truste-consent-close
-   Didomi:      #didomi-notice-agree-button, button[class*="didomi"]
-   Sourcepoint: button.sp_choice_type_11, button[title="Accept"]
-   ```
-2. **Tier 2 -- Generic patterns (covers additional ~15%):**
-   ```
-   button[id*="accept" i][id*="cookie" i]
-   button[class*="accept" i][class*="cookie" i]
-   button[aria-label*="accept" i][aria-label*="cookie" i]
-   [class*="consent"] button[class*="accept" i]
-   [class*="cookie-banner"] button:first-of-type
-   ```
-3. **Tier 3 -- Overlay dismissal (last resort):**
-   - Detect full-page overlay (`position:fixed` with high z-index covering >50% viewport)
-   - Find any button inside it with dismiss-like text ("OK", "Accept", "Got it", "Continue", "Agree")
-   - Click it
-
-**Confidence:** HIGH for Tier 1 (well-documented CMP selectors from existing site guide). MEDIUM for Tier 2/3 (generic patterns may have false positives).
-
-**Architecture dependency:** New function in `content/actions.js` or new module. Called from `background.js` after page load detection (in `webNavigation.onCompleted` or after `waitForPageStability`). MCP mode: called automatically before first tool execution per page.
-
-**Complexity:** Medium. The selector lists are straightforward; the challenge is timing (banners may load asynchronously after initial page load) and avoiding false positives (not every overlay is a cookie banner).
+| Built-in stuck detection | The entire point of tool_use is that the AI manages its own iteration. Adding stuck detection re-creates the problem we are solving: the extension second-guessing the AI. If the AI is stuck, it will either call tools to investigate or give up with end_turn. | Trust the AI. If it calls the same tool 5 times, it knows and will adapt. Safety timeout catches true runaways |
+| Fixed iteration cap (maxIterations) | Artificial caps force premature termination of complex tasks. A 20-step Sheets data entry task needs 40+ iterations. A simple navigation needs 3. The AI knows better than a fixed number. | Safety timeout (time-based, not iteration-based). Let the AI iterate as many times as needed within the time budget |
+| CLI text parsing for AI responses | The current CLI parser (tokenizer + command registry + mapper) exists because the old architecture needed to extract structured commands from free-text AI output. tool_use returns structured JSON natively. CLI parsing is obsolete. | Use the structured tool_use blocks directly. `block.name` is the tool, `block.input` is the params. Zero parsing needed |
+| Per-iteration DOM fetching | Current loop fetches DOM every iteration, prefetches next iteration's DOM during AI call, and includes it in every prompt. This is wasteful -- most of the time the DOM has not changed. | DOM is a tool. AI calls `get_dom_snapshot` when it needs to see the page. After navigation, after expecting changes, before complex interactions. Not every turn |
+| Multi-signal completion validation | The weighted scoring system (URL signals 0.20, DOM signals 0.20, AI self-report 0.30, action chain 0.15, page stability 0.10) with 9 task-type validators exists because the old architecture could not trust the AI's completion signal. In tool_use, completion IS the stop_reason. | Let `end_turn` / `stop` be the only completion signal. The AI's response text becomes the task result |
+| Task-type classification for prompt selection | Current `classifyTask()` routes to different prompt templates (search, form, extraction, navigation, etc.). In tool_use, the AI has the full tool catalog and decides which tools to use based on the task and page state. | Single system prompt for all tasks. Tool descriptions tell the AI when to use each tool. No task-type branching |
+| Conversation history duplication in system prompt | Current system injects previous actions, reasoning, and context into every prompt from scratch. In tool_use, the conversation IS the history -- messages array accumulates naturally. | Let the messages array be the history. System prompt is static. No "here's what you did so far" injection |
+| Aggressive prompt trimming (3-stage progressive) | Current system has progressive prompt trimming when approaching token limits: drop reasoning, drop history, drop tool docs. In tool_use, context management is a clean sliding window, not emergency trimming. | Proactive context window management: count tokens, compact old turns before hitting limits. Not reactive trimming |
+| DOM hash-based change detection | Current system hashes DOM each iteration to detect changes and drive stuck detection. With no per-iteration DOM fetching and no stuck detection, DOM hashing serves no purpose. | Remove entirely. If AI needs to know if page changed, it calls `get_dom_snapshot` again and sees for itself |
+| Custom response format enforcement (CLI grammar) | Current system requires AI to respond in a specific CLI grammar with exact command syntax. tool_use responses are structured by the provider -- the AI fills in the tool's JSON Schema input. No format to enforce. | Tool input_schema defines the format. Provider validates it (Anthropic has `strict: true`, OpenAI has `strict: true`). Zero format issues |
 
 ## Feature Dependencies
 
 ```
-Site-aware search (1) -- standalone, no dependencies
-
-read_page stability (2) --> Content truncation (6)
-  (stability must work before truncation logic runs on stable content)
-
-BF cache resilience (3) -- standalone, but benefits all click-based features
-
-Viewport scroll (4) -- standalone, already mostly works
-
-press_enter fallback (5) -- standalone, no dependencies
-
-Content truncation (6) -- depends on (2) for stable input
-
-Cookie dismiss (7) --> All other features
-  (must clear overlays before any interaction tool works properly)
+T1 (Agent loop) <-- everything depends on this
+  |
+  +-- T2 (Unified tool defs) <-- T3 (Single execution path)
+  |     |
+  |     +-- T6 (DOM as tool)
+  |     +-- D1 (Site guide tool)
+  |     +-- D2 (Memory tool)
+  |
+  +-- T4 (stop_reason completion) <-- enables removing completion validator
+  |
+  +-- T5 (Structured tool_result) <-- D7 (Verification enrichment)
+  |
+  +-- T11 (Multi-provider format) <-- must work before any provider testing
+  |
+  +-- T7 (Context management) <-- D6 (Budget tracking)
+  |
+  +-- T12 (Minimal system prompt) <-- D4 (Prompt caching)
+  |
+  +-- T8 (Safety timeout) -- independent, keep existing
+  +-- T9 (Stop button) -- independent, keep existing
+  +-- T10 (Error handling) -- independent, straightforward
 ```
+
+Critical path: T11 -> T2 -> T3 -> T1 -> T12 -> T5 -> T4 -> T7
 
 ## MVP Recommendation
 
-**Implement in this order (dependency + impact):**
+### Phase 1: Foundation (must ship together)
 
-1. **Cookie consent auto-dismiss (7)** -- Unblocks all other tools on GDPR sites. Without this, click/hover/type all fail when an overlay is present. Highest impact per line of code. Start with Tier 1 selectors only (8 CMP patterns, ~50 lines).
+Build these as a unit -- they form the minimum viable agent loop:
 
-2. **read_page + stability merge (2)** -- Single-line wiring change (add `await waitForPageStability()` call inside `readPage`). Highest reliability improvement for lowest effort. Already-existing function just needs to be called.
+1. **T11 - Multi-provider tool_use format adaptation** -- without this, the loop cannot send/receive tool calls
+2. **T2 - Unified tool definitions** -- single source of truth for all tools, shared by autopilot and MCP
+3. **T3 - Single execution path** -- one `executeTool()` function, no duplication
+4. **T1 - Basic agent loop** -- the core while loop: send, check stop_reason, execute tools, feed results back
+5. **T12 - Minimal system prompt** -- strip the 30KB prompt down to ~1KB
+6. **T5 - Structured tool_result** -- format results so the AI can reason about them
+7. **T4 - stop_reason completion** -- AI decides when done
+8. **T10 - Error handling** -- `is_error` in tool_results
+9. **T8 - Safety timeout** -- keep existing time-based safety net
+10. **T9 - Stop button** -- keep existing abort mechanism
 
-3. **Site-aware search (1)** -- Replace `searchGoogle` with site-search-first heuristic. The DOM detection heuristics are deterministic and well-understood. High visibility improvement for MCP users.
+### Phase 2: Context Management (critical for real-world tasks)
 
-4. **BF cache proactive re-injection (3)** -- Add `webNavigation.onCommitted` listener and `pageshow` handler. Eliminates the most common MCP failure mode (click succeeds but next action fails).
+11. **T7 - Conversation context management** -- sliding window, old turn compaction
+12. **T6 - DOM snapshot as tool** -- AI calls when needed, not every turn
+13. **D1 - Site guide as tool** -- on-demand site intelligence
 
-5. **Smart press_enter fallback (5)** -- Check if Enter submitted, if not find submit button. Small change, clear logic.
+### Phase 3: Quality (differentiators)
 
-6. **Content truncation (6)** -- Implement lightweight content scoring. Depends on (2) being done. More complex but high value for AI context quality.
+14. **D3 - Progress overlay integration** -- user sees what the AI is doing
+15. **D7 - Action verification enrichment** -- richer tool_results
+16. **D4 - Prompt caching** -- massive latency reduction
+17. **D8 - Cost tracking** -- session-level cost visibility
 
-7. **Viewport-aware hover fix (4)** -- Verify existing scroll path works for hover. May be as simple as confirming `smartEnsureReady` is called (it already is at actions.js line 4117). Lowest priority because it may already work.
+### Defer
 
-**Defer:** Full Readability.js integration, full autoconsent library, AI-powered search detection. These are over-engineered for the problem scope.
+- **D2 - Procedural memory tool** -- nice to have, not critical for loop architecture
+- **D5 - Parallel tool execution** -- add after basic loop is proven stable
+- **D6 - Context budget tracking** -- add after basic sliding window is working
+- **D9 - Streaming** -- add after loop is stable, purely UX improvement
+
+## What Gets Deleted
+
+The tool_use architecture makes these existing systems obsolete. Removing them is a significant simplification:
+
+| Existing System | Lines (est.) | Why Removed | Replacement |
+|----------------|--------------|-------------|-------------|
+| CLI parser (`ai/cli-parser.js`) | ~950 | tool_use returns structured JSON, no text parsing needed | Direct `block.input` access |
+| CLI command registry + tokenizer | ~400 | Tool definitions in JSON Schema replace command table | `tools[]` parameter in API call |
+| Multi-signal completion validator | ~400 | stop_reason replaces weighted scoring | `stop_reason == "end_turn"` |
+| Task-type classifier | ~100 | AI decides tool selection, no routing needed | Tool descriptions guide selection |
+| Per-iteration DOM fetching + prefetch | ~200 | DOM is a tool called on demand | `get_dom_snapshot` tool |
+| Progressive prompt trimming | ~150 | Sliding window context management replaces emergency trimming | Token counting + compaction |
+| DOM hash + stuck detection | ~300 | AI manages its own iteration, no external monitoring | Safety timeout only |
+| buildPrompt() template system | ~500 | Minimal static system prompt replaces per-iteration prompt construction | Static string, ~1KB |
+| Task complexity estimator | ~100 | No iteration cap means no need to estimate iterations | Safety timeout only |
+| **Total estimated removal** | **~3100** | | |
+
+## What Gets Kept
+
+Existing systems that remain valuable in the new architecture:
+
+| Existing System | Why Kept | How It Fits |
+|----------------|----------|-------------|
+| Content script tool handlers (25+) | The actual browser actions -- click, type, navigate, scroll, etc. These are the tools the AI calls | Wrapped in unified tool definitions, same execution path |
+| CDP tools (7 tools) | Canvas interactions, coordinate-based actions. Still needed for Excalidraw, etc. | Registered as additional tools in the tool catalog |
+| Site guide files (50+) | Domain-specific automation intelligence. Now queryable via tool instead of always-injected | Served by `get_site_guide(domain)` tool |
+| Progress overlay | Visual feedback for users. Updated from tool execution events instead of iteration counting | `sendSessionStatus()` called after each tool execution |
+| Analytics / cost tracking | Token and cost accounting. Works the same, just across conversation turns | Increment per API call as before |
+| Session management | Session ID, tab tracking, state persistence. Still needed | Same session structure, fewer fields (no stuckCounter, no iterationCount limits) |
+| Service worker keep-alive | Chrome MV3 service worker lifecycle management | Still needed -- long-running agent loops need keep-alive |
+| Action verification | Checks if actions had expected effect. Feeds into tool_result enrichment | Called after tool execution, result appended to tool_result |
+| Memory extraction | Post-session learning. Still useful for building procedural memory | Called at session end, same as before |
+| BF cache recovery + content script re-injection | Pages still transition, content scripts still die | Still needed in tool execution path |
 
 ## Sources
 
-- [Playwright Auto-waiting / Actionability Checks](https://playwright.dev/docs/actionability)
-- [BrowserStack: Playwright Wait Types 2026](https://www.browserstack.com/guide/playwright-wait-types)
-- [BrowserStack: Playwright waitForLoadState 2026](https://www.browserstack.com/guide/playwright-waitforloadstate)
-- [Puppeteer waitForNavigation](https://www.webshare.io/academy-article/puppeteer-waitfornavigation)
-- [Puppeteer waitUntil options](https://www.browserless.io/blog/waituntil-option-for-puppeteer-and-playwright)
-- [Mozilla Readability Algorithm Explained](https://webcrawlerapi.com/blog/mozilla-readability-algorithm-readabilityjs)
-- [Mozilla Readability GitHub (10.3K stars, 401K weekly downloads)](https://github.com/mozilla/readability)
-- [Defuddle -- Modern Alternative to Readability](https://github.com/kepano/defuddle)
-- [Defuddle vs Postlight Parser Comparison](https://jocmp.com/2025/07/12/full-content-extractors-comparing-defuddle/)
-- [Chrome BFCache Extension Messaging Changes (Chrome 123+)](https://developer.chrome.com/blog/bfcache-extension-messaging-changes)
-- [Chrome webNavigation API](https://developer.chrome.com/docs/extensions/reference/api/webNavigation)
-- [Chrome Content Scripts](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts)
-- [DuckDuckGo autoconsent (200+ CMP rules)](https://github.com/duckduckgo/autoconsent)
-- [Consent-O-Matic Rules.json](https://github.com/cavi-au/Consent-O-Matic/blob/master/Rules.json)
-- [MDN: ARIA search role](https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/search_role)
-- [MDN: input type="search"](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/search)
-- [npm trends: Readability vs Mercury Parser](https://npmtrends.com/@mozilla/readability-vs-@postlight/mercury-parser-vs-html-to-text-vs-node-readability)
+- [Anthropic: How to implement tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use) -- HIGH confidence
+- [Anthropic: Handle tool calls](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls) -- HIGH confidence
+- [Anthropic: Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) -- HIGH confidence
+- [Anthropic: Advanced tool use](https://www.anthropic.com/engineering/advanced-tool-use) -- HIGH confidence
+- [OpenAI: Function calling guide](https://developers.openai.com/api/docs/guides/function-calling) -- HIGH confidence
+- [xAI: Function calling docs](https://docs.x.ai/docs/guides/function-calling) -- HIGH confidence
+- [Google: Gemini function calling](https://ai.google.dev/gemini-api/docs/function-calling) -- HIGH confidence
+- [Temporal: Basic agentic loop with tool calling](https://docs.temporal.io/ai-cookbook/agentic-loop-tool-call-openai-python) -- MEDIUM confidence
+- [Strands Agents: Context Management](https://strandsagents.com/0.1.x/documentation/docs/user-guide/concepts/agents/context-management/) -- MEDIUM confidence
+- [Agent Browser: Context window optimization](https://medium.com/@richardhightower/agent-browser-ai-first-browser-automation-that-saves-93-of-your-context-window-7a2c52562f8c) -- MEDIUM confidence
+- [Promptfoo: Prompting best practices for tool use](https://community.openai.com/t/prompting-best-practices-for-tool-use-function-calling/1123036) -- MEDIUM confidence

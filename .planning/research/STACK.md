@@ -1,503 +1,629 @@
-# Technology Stack: v0.9.11 MCP Tool Quality
+# Technology Stack: v0.9.20 Native tool_use Agent Loop
 
-**Project:** FSB (Full Self-Browsing) -- MCP Tool Quality Fixes
+**Project:** FSB (Full Self-Browsing) -- Native tool_use/function calling across all 4 providers
 **Researched:** 2026-03-31
-**Mode:** Ecosystem (Chrome Extension APIs and patterns for 7 specific fixes)
+**Mode:** Ecosystem (API format mapping for xAI, OpenAI, Anthropic, Gemini function calling)
 
-## Existing Stack (No Changes)
+## Executive Summary
 
-The core stack remains unchanged. No new npm dependencies, no build system changes, no new frameworks. Every fix below uses APIs and patterns already available in the Chrome Extension MV3 platform.
+All four providers FSB supports now have mature tool_use/function calling APIs. The critical finding is that three providers (xAI, OpenAI, OpenRouter) share the OpenAI chat/completions format, while Anthropic and Gemini each have their own. The existing `UniversalProvider` class already handles per-provider request formatting (`formatForProvider`) and response parsing (`parseResponse`) -- the tool_use extension follows the same pattern: define tools once in a canonical format, translate per-provider on send, normalize per-provider on receive.
 
-| Technology | Version | Purpose | Status |
-|------------|---------|---------|--------|
-| Chrome Extension MV3 | Chrome 123+ | Extension platform | Existing |
-| Vanilla JavaScript ES2021+ | N/A | All implementation | Existing |
-| chrome.scripting API | MV3 | Content script injection | Existing |
-| chrome.webNavigation API | MV3 | Navigation event handling | Existing, needs expansion |
-| MutationObserver | Web API | DOM stability detection | Existing |
-| Chrome DevTools Protocol | via chrome.debugger | Trusted input events | Existing |
-| WebSocket bridge | Custom | MCP server <-> extension | Existing |
+**Key decision: Use xAI chat/completions (not xAI Responses API) because it is OpenAI-compatible, meaning xAI and OpenAI share identical tool handling code. The Responses API is newer but uses different formats that would require a third translation layer for minimal benefit.**
 
-## Chrome APIs Needed Per Fix
+## Provider API Format Comparison
 
-### Fix 1: BF Cache Resilience for click
+### Tool Definition Formats
 
-**Problem:** After back/forward navigation, the content script's port to the background is dead. `chrome.tabs.sendMessage` fails because the content script's port was proactively closed when the page entered BF cache -- the page was restored from BF cache, not freshly loaded, so content script re-injection does not help (the JS context is preserved, but the messaging channel is dead).
+All providers use JSON Schema for parameter definitions. The wrapper differs.
 
-**API:** `pageshow` event with `event.persisted` check (Web Platform API, available in all Chrome versions)
+#### Canonical (Internal) Format -- What FSB stores
 
-**Why this approach:**
-- Chrome 123+ proactively closes extension message ports when a page enters BF cache ([Chrome Developer Blog](https://developer.chrome.com/blog/bfcache-extension-messaging-changes))
-- The `pageshow` event fires when a page is restored from BF cache, with `event.persisted === true`
-- `chrome.webNavigation.onCommitted` fires for BF cache restores but **skips** `onDOMContentLoaded` -- this makes BF cache restores detectable from the background side, but the content script `pageshow` handler is the simpler fix
-- The content script's `window.FSB` namespace survives BF cache (the page's JS context is preserved). The MutationObserver survives. The module state survives. Only the `chrome.runtime.connect()` port is dead.
-
-**Implementation pattern (content script side -- content/lifecycle.js):**
 ```javascript
-window.addEventListener('pageshow', (event) => {
-  if (event.persisted) {
-    // Page restored from BF cache -- port is dead, re-establish
-    establishBackgroundConnection();
-    // Re-send ready signal so background knows we're alive
-    chrome.runtime.sendMessage({
-      action: 'contentScriptReady',
-      timestamp: Date.now(),
-      url: window.location.href,
-      readyState: document.readyState,
-      bfCacheRestore: true
-    }).catch(() => {});
-  }
-});
-```
-
-**Background side (background.js) -- no structural changes needed:**
-- The existing `contentScriptReady` message handler already processes ready signals
-- Just accept the `bfCacheRestore: true` flag for logging/diagnostics
-- The existing `FAILURE_TYPES.BF_CACHE` recovery handler in the `sendMessageToContentScript` retry loop already handles the wake-and-retry pattern -- the `pageshow` handler makes this recovery faster by proactively re-establishing the port before the next MCP command arrives
-
-**Why NOT `chrome.webNavigation.onDOMContentLoaded` absence detection:**
-- Fragile -- requires correlating multiple events across time windows
-- The content script `pageshow` handler is simpler, more reliable, and proactive
-- The content script already has `establishBackgroundConnection()` -- just call it again
-
-**Confidence:** HIGH -- Chrome Developer Blog explicitly documents this pattern for extensions
-
-**Integration notes:**
-- `content/lifecycle.js` already has `establishBackgroundConnection()` at line 494
-- `content/init.js` has `__FSB_CONTENT_SCRIPT_LOADED__` guard -- BF cache restores do NOT re-inject scripts, the guard stays set, which is correct (we don't want double initialization)
-- The MutationObserver started in lifecycle.js survives BF cache restore -- no need to restart it
-- The `window.FSB` namespace and all module registrations survive -- all state is preserved
-
----
-
-### Fix 2: Site-Aware Search Tool
-
-**Problem:** The `search` MCP tool always redirects to Google (`searchGoogle` verb in `content/actions.js:3407` navigates to `google.com/search?q=...`). When the user is already on Amazon, GitHub, YouTube, etc. and wants to search within that site, navigating away is wrong.
-
-**API:** No new Chrome APIs needed. Pure DOM heuristics in the content script.
-
-**Why this approach:**
-- Search inputs follow strong accessibility and HTML conventions: `input[type="search"]`, `[role="search"]`, `aria-label` containing "search"
-- The content script already has full DOM access and `FSB.findElementByStrategies()`
-- A selector priority list covers 90%+ of real-world sites without any per-site configuration
-
-**Search input detection heuristic (priority order):**
-```javascript
-const SEARCH_SELECTORS = [
-  // 1. Semantic HTML -- most reliable, W3C standard
-  'input[type="search"]',
-  // 2. ARIA landmark role -- second most reliable
-  '[role="search"] input:not([type="hidden"])',
-  '[role="search"] textarea',
-  // 3. ARIA labels -- broad coverage across accessible sites
-  'input[aria-label*="search" i]',
-  'textarea[aria-label*="search" i]',
-  // 4. Common name/ID conventions
-  'input[name="q"]',             // Google, many sites
-  'input[name="search"]',
-  'input[name="query"]',
-  'input[name="search_query"]',  // YouTube
-  'input[id="search"]',
-  'input[id="searchbox"]',
-  'input[id="search-input"]',
-  'input[id="twotabsearchtextbox"]',  // Amazon
-  // 5. Placeholder text -- fallback
-  'input[placeholder*="Search" i]',
-  'textarea[placeholder*="Search" i]',
-  // 6. Data attributes -- framework patterns
-  'input[data-testid*="search" i]',
-];
-```
-
-**Decision logic (content script side, new function `findSiteSearchInput`):**
-1. Run selectors in priority order
-2. For each match: check visibility (`offsetParent !== null` AND `getBoundingClientRect().width > 0`)
-3. Return first visible match, or `null` if no match
-
-**MCP tool routing (background.js):**
-1. MCP `search` tool arrives -> send `siteSearch` message to content script
-2. Content script runs `findSiteSearchInput()`
-3. If found: focus input, clear it, type query, press Enter -> return `{ success: true, method: 'site_search' }`
-4. If not found: fall back to `searchGoogle` behavior (navigate to Google)
-
-**Confidence:** HIGH -- standard accessibility patterns, well-understood DOM heuristics
-
-**What NOT to do:**
-- Do NOT maintain a per-site search selector database (breaks on redesigns, maintenance burden)
-- Do NOT use a library -- 20 lines of selector priority is sufficient
-- Do NOT try to detect search results pages -- just find the input and type
-
----
-
-### Fix 3: Content Script Re-injection After Navigation
-
-**Problem:** After navigating to a new page (not BF cache), `ensureContentScriptInjected` sometimes fails to inject quickly enough, or the content script isn't responsive by the time the first MCP action arrives.
-
-**API:** Already using `chrome.scripting.executeScript` and `chrome.webNavigation.onCommitted`. No new APIs needed.
-
-**Why the existing approach needs refinement, not replacement:**
-- `ensureContentScriptInjected` (background.js:2625) is already robust: port check -> ready signal check -> health check -> inject -> wait for ready signal
-- The problem is a race condition: the MCP tool sends a command immediately after navigation, before the content script has finished initializing
-- The fix is a blocking `waitForContentScriptReady` wrapper in the MCP message handlers
-
-**Pattern (background.js, new helper):**
-```javascript
-async function waitForContentScriptReady(tabId, maxWait = 3000) {
-  // 1. Quick check: port alive and recent heartbeat?
-  const portInfo = contentScriptPorts.get(tabId);
-  if (portInfo && Date.now() - portInfo.lastHeartbeat < 5000) return true;
-
-  // 2. Inject if needed
-  await ensureContentScriptInjected(tabId);
-
-  // 3. Wait for ready signal with polling
-  const start = Date.now();
-  while (Date.now() - start < maxWait) {
-    const p = contentScriptPorts.get(tabId);
-    if (p && Date.now() - p.lastHeartbeat < 5000) return true;
-    const rs = contentScriptReadyStatus.get(tabId);
-    if (rs?.ready) return true;
-    await new Promise(r => setTimeout(r, 50));
-  }
-  return false;
-}
-```
-
-**Integration point:** Call `waitForContentScriptReady` in the MCP handlers (`mcp:execute-action`, `mcp:get-dom`, `mcp:read-page`) instead of the current `ensureContentScriptInjected` call.
-
-**Confidence:** HIGH -- refinement of existing proven pattern
-
-**What NOT to do:**
-- Do NOT use `chrome.scripting.registerContentScripts` for always-on injection -- programmatic injection gives more control and the `__FSB_CONTENT_SCRIPT_LOADED__` guard prevents double-init
-- Do NOT add `document_start` injection timing for content scripts -- they depend on `document.body` existing
-
----
-
-### Fix 4: read_page Auto-Stability (Merge wait_for_stable into read_page)
-
-**Problem:** On JS-heavy sites (SPAs, React apps), `read_page` returns content before the page has finished rendering. The AI user has to manually call `wait_for_stable` then `read_page` -- two tool calls when one should suffice.
-
-**API:** No new APIs. Compose existing `waitForPageStability()` from `content/actions.js:1138` with `extractPageText()` from `content/dom-analysis.js:2698`.
-
-**Implementation (content/messaging.js, in the `readPage` case handler at line 782):**
-```javascript
-case 'readPage':
-  const rpStart = Date.now();
-  // AUTO-STABILITY: Wait for DOM to settle before extracting
-  await FSB.waitForPageStability({
-    maxWait: 2000,      // Cap at 2s -- don't block forever
-    stableTime: 300,    // DOM unchanged for 300ms = "settled"
-    networkQuietTime: 200
-  });
-  // Then extract as before
-  const rpText = FSB.extractPageText(rpRoot, { ... });
-```
-
-**Why 2000ms maxWait:**
-- Most SPA renders complete within 500ms-1500ms
-- 2s catches lazy-loaded content without blocking the MCP workflow
-- The existing `waitForPageStability` returns early when stable before timeout
-- `stableTime: 300` means 300ms of zero DOM mutations -- good balance between speed and completeness
-
-**Also apply to the `mcp:read-page` handler in background.js** (line 13800): The auto-stability happens in the content script, transparent to the MCP server and background.
-
-**Confidence:** HIGH -- composing two existing functions that are individually well-tested
-
-**What NOT to do:**
-- Do NOT add a separate `read_page_stable` MCP tool -- merge into existing `read_page`
-- Do NOT wait for complete network idle -- too slow, many sites have ongoing XHR/WebSocket/analytics
-- Do NOT increase timeout beyond 2s -- the MCP agent can always call `wait_for_stable` explicitly if it needs more time
-
----
-
-### Fix 5: Intelligent Content Truncation (Cap read_page)
-
-**Problem:** `extractPageText` has a 50K char limit (`MAX_CHARS = 50000` at `content/dom-analysis.js:2704`). For MCP tool responses, 50K is far too much -- it overwhelms the AI context window and most of it is noise (nav bars, footers, ads, boilerplate).
-
-**API:** No new APIs. Refine `extractPageText` in `content/dom-analysis.js`.
-
-**Strategy -- Main Content Prioritization:**
-```javascript
-function findMainContentRoot() {
-  // Try semantic landmarks first
-  const main = document.querySelector('main, [role="main"]');
-  if (main && main.textContent.trim().length > 100) return main;
-
-  const article = document.querySelector('article');
-  if (article && article.textContent.trim().length > 100) return article;
-
-  // No landmark -- use full body
-  return document.body;
-}
-```
-
-**Truncation limits:**
-| Mode | Current Limit | New Limit | Rationale |
-|------|---------------|-----------|-----------|
-| Default (viewport) | 50,000 chars | 5,000 chars | Enough for AI to read visible content, fits in prompt budget |
-| Full page (`full: true`) | 50,000 chars | 15,000 chars | Extended extraction, still fits in context window |
-| Autopilot (internal) | 50,000 chars | No change | Autopilot has its own prompt budget management |
-
-**Skip selectors (strip before extraction):**
-```javascript
-const NOISE_SELECTORS = [
-  'nav', '[role="navigation"]',
-  'header', '[role="banner"]',
-  'footer', '[role="contentinfo"]',
-  'aside', '[role="complementary"]',
-  '[role="search"]',
-  '[aria-hidden="true"]',
-  'script', 'style', 'noscript',
-  // Cookie/consent overlaps with Fix 7
-  '[class*="cookie" i]', '[id*="cookie" i]',
-  '[class*="consent" i]', '[id*="consent" i]',
-];
-```
-
-**Implementation approach:** Do NOT delete nodes from the DOM. Instead, check each node during the `visit()` traversal in `extractPageText` and skip nodes matching `NOISE_SELECTORS` when the caller is MCP (pass a flag like `{ stripNoise: true }`).
-
-**Confidence:** HIGH -- straightforward DOM traversal refinement
-
-**What NOT to do:**
-- Do NOT import Readability.js -- adds a ~15KB dependency, overkill for this use case
-- Do NOT use ML-based content extraction -- heuristic landmarks are sufficient
-- Do NOT remove the hard cap entirely -- it prevents OOM on massive DOM trees
-
----
-
-### Fix 6: Smart press_enter Fallback (Auto-Click Submit)
-
-**Problem:** When the AI calls `press_enter` on a form field and the synthetic Enter key dispatch doesn't trigger submission (common in React/SPA forms that intercept keydown), there's no fallback.
-
-**API:** No new APIs. Add fallback logic in the existing `pressEnter` handler in `content/actions.js`.
-
-**Fallback strategy (inside existing pressEnter tool, after Enter key dispatch and verification):**
-```javascript
-// After dispatching Enter key events and verifying
-const postState = captureActionState(element, 'pressEnter');
-const verification = verifyActionEffect(preState, postState, 'pressEnter');
-
-if (!verification.verified) {
-  // Enter had no effect -- try finding and clicking submit button
-  const submitBtn = findNearestSubmitButton(element);
-  if (submitBtn) {
-    submitBtn.click();
-    await waitForPageStability({ maxWait: 2000, stableTime: 300 });
-    return {
-      success: true,
-      method: 'submit_button_fallback',
-      buttonText: submitBtn.textContent?.trim()?.substring(0, 50)
-    };
+// One tool definition used everywhere (autopilot + MCP)
+{
+  name: 'click',
+  description: 'Click an element by CSS selector or element reference.',
+  parameters: {
+    type: 'object',
+    properties: {
+      selector: { type: 'string', description: 'CSS selector or element ref (e.g., "e5")' }
+    },
+    required: ['selector']
   }
 }
 ```
 
-**Submit button finder (new helper function):**
-```javascript
-function findNearestSubmitButton(inputElement) {
-  // 1. Check if input is inside a <form>
-  const form = inputElement.closest('form');
-  if (form) {
-    const submitBtn = form.querySelector(
-      'button[type="submit"], input[type="submit"], ' +
-      'button:not([type="button"]):not([type="reset"])'
-    );
-    if (submitBtn && submitBtn.offsetParent !== null) return submitBtn;
-  }
+#### OpenAI / xAI (chat/completions) -- Identical format
 
-  // 2. No form or no submit button in form -- look for nearby button
-  const container = inputElement.closest('div, section, fieldset') || document.body;
-  const buttons = container.querySelectorAll('button, [role="button"]');
-  const submitRegex = /^(submit|send|go|search|sign.?in|log.?in|register|save|apply|continue|next|ok|confirm)$/i;
-
-  for (const btn of buttons) {
-    const text = btn.textContent?.trim();
-    if (text && submitRegex.test(text) && btn.offsetParent !== null) {
-      return btn;
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "click",
+    "description": "Click an element by CSS selector or element reference.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "selector": { "type": "string", "description": "CSS selector or element ref" }
+      },
+      "required": ["selector"]
     }
   }
-
-  return null;
 }
 ```
 
-**Confidence:** HIGH -- well-defined DOM traversal, integrates with existing verification infrastructure
+**Confidence:** HIGH -- verified via [xAI REST API reference](https://docs.x.ai/developers/rest-api-reference/inference/chat) and [OpenAI function calling docs](https://developers.openai.com/api/docs/guides/function-calling).
 
-**What NOT to do:**
-- Do NOT always click submit instead of Enter -- Enter is the correct primary behavior for most sites
-- Do NOT call `form.submit()` programmatically -- bypasses validation listeners and event handlers
-- Do NOT search the entire document for submit buttons -- scope to the containing form or nearest container
+**Key details:**
+- Wrap each tool in `{ type: "function", function: { ...canonical } }`
+- Max 128 tools (xAI), no documented limit for OpenAI
+- `tool_choice`: `"auto"` (default) | `"required"` | `"none"` | `{ type: "function", function: { name: "..." } }`
+- `parallel_tool_calls`: boolean, defaults to `true` -- set to `false` for sequential execution
+- Arguments in response are JSON-stringified strings, must `JSON.parse()`
 
----
+#### Anthropic (Messages API)
 
-### Fix 7: Cookie Consent Auto-Dismiss
-
-**Problem:** Cookie consent overlays block interaction with page elements. The AI wastes tokens figuring out how to dismiss them, and sometimes fails entirely because the overlay intercepts clicks.
-
-**API:** No new Chrome APIs. DOM heuristic detection + auto-click in content script.
-
-**Why NOT use a library:**
-- Cookie consent extensions (Cookie Guardian, "I don't care about cookies", etc.) are full extensions with their own manifest and lifecycle
-- We need approximately 50-70 lines of heuristic detection, not an external dependency
-- The detection pattern is straightforward: find a fixed/sticky overlay with cookie-related identifiers, click the accept/dismiss button
-
-**Detection heuristic (new function `detectAndDismissCookieConsent`):**
-
-**Phase 1 -- Find the banner container (CMP-specific selectors cover ~65% of sites):**
-```javascript
-const BANNER_SELECTORS = [
-  '#onetrust-banner-sdk',              // OneTrust
-  '#CybotCookiebotDialog',             // Cookiebot
-  '#usercentrics-root',                // Usercentrics
-  '.didomi-popup-container',           // Didomi
-  '#truste-consent-track',             // TrustArc
-  '#cookie-law-info-bar',              // CookieYes
-  '#iubenda-cs-banner',               // Iubenda
-  '.cc-window',                        // osano/cookieconsent
-  // Generic patterns (covers ~25% more)
-  '[class*="cookie-banner" i]',
-  '[class*="cookie-consent" i]',
-  '[class*="cookie-notice" i]',
-  '[id*="cookie-banner" i]',
-  '[id*="cookie-consent" i]',
-  '[id*="gdpr" i]',
-  '[class*="consent-banner" i]',
-];
+```json
+{
+  "name": "click",
+  "description": "Click an element by CSS selector or element reference.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "selector": { "type": "string", "description": "CSS selector or element ref" }
+    },
+    "required": ["selector"]
+  }
+}
 ```
 
-**Phase 2 -- Find accept/dismiss button within the banner:**
-```javascript
-const ACCEPT_SELECTORS = [
-  '#onetrust-accept-btn-handler',
-  '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
-  'button[class*="accept" i]',
-  'button[class*="agree" i]',
-  'button[class*="allow" i]',
-  'button[id*="accept" i]',
-  'a[class*="accept" i]',
-];
+**Confidence:** HIGH -- verified via [Anthropic tool use docs](https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use).
 
-// Text-based fallback
-const ACCEPT_TEXT = /^(accept|accept all|agree|allow|allow all|ok|got it|i agree|i understand|continue|dismiss)$/i;
-```
+**Key differences from OpenAI format:**
+- No `type: "function"` wrapper -- tools are bare objects in the `tools` array
+- Schema field is `input_schema` (not `parameters`)
+- Optional: `strict: true` for guaranteed schema conformance
+- Optional: `input_examples` array for complex tools
+- `tool_choice`: `{ type: "auto" }` | `{ type: "any" }` | `{ type: "tool", name: "..." }` | `{ type: "none" }` -- NOTE: object format, not string
+- No `parallel_tool_calls` parameter -- Anthropic decides autonomously
 
-**Phase 3 -- Safety checks before clicking:**
-1. Banner container must be fixed or sticky positioned (`position: fixed|sticky` OR `z-index > 1000`)
-2. Must contain cookie/consent/privacy-related text (regex check on `textContent`)
-3. Must NOT look like a login dialog, terms acceptance, or age gate
+#### Gemini (generateContent API)
 
-**Trigger points:**
-1. On content script initialization -- delayed 1500ms to catch async-loaded CMP banners
-2. Via MutationObserver -- if a new high-z-index fixed-position element appears with cookie-related content
-3. Manually via new `dismiss_overlay` MCP tool
-4. Automatically before `read_page` extraction (if an overlay is blocking content)
-
-**Integration:**
-- Add detection function to `content/lifecycle.js`
-- Expose as `FSB.dismissCookieConsent()` for programmatic invocation
-- Add `dismiss_overlay` MCP tool for explicit AI use
-
-**Confidence:** MEDIUM-HIGH -- CMP-specific selectors are HIGH confidence (IDs are stable across versions), generic text matching is MEDIUM (potential false positives with non-cookie "Accept" buttons)
-
-**Safeguards against false positives:**
-1. Only target elements with fixed/sticky positioning or very high z-index
-2. Require cookie/consent/privacy text in the container
-3. Never auto-dismiss if the overlay text mentions "terms of service", "age verification", "sign in", or "subscribe"
-
-**What NOT to do:**
-- Do NOT import cookie consent libraries as npm dependencies
-- Do NOT try to detect all ~50+ CMP platforms -- the top 8 by market share cover 65%+ of sites
-- Do NOT use Shadow DOM piercing -- most CMPs use regular DOM
-- Do NOT auto-reject cookies -- always click "Accept All" or "Dismiss" (least disruptive to automation flow)
-
----
-
-## Viewport-Aware Click/Hover Fix (Fix 4b -- Supplementary)
-
-**Problem:** `scrollIntoView` in `smartEnsureReady` / `ensureElementReady` (content/accessibility.js) sometimes leaves elements behind sticky headers or at the very bottom edge of the viewport.
-
-**API:** Already using `Element.scrollIntoView()` and `Element.getBoundingClientRect()`. No new APIs.
-
-**Refinement -- add sticky header compensation:**
-```javascript
-function detectStickyHeaderHeight() {
-  const candidates = document.querySelectorAll(
-    'header, nav, [role="banner"], [class*="header" i], [class*="navbar" i]'
-  );
-  let maxHeight = 0;
-  for (const el of candidates) {
-    const style = getComputedStyle(el);
-    if (style.position === 'fixed' || style.position === 'sticky') {
-      maxHeight = Math.max(maxHeight, el.getBoundingClientRect().height);
+```json
+{
+  "tools": [{
+    "functionDeclarations": [{
+      "name": "click",
+      "description": "Click an element by CSS selector or element reference.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "selector": { "type": "string", "description": "CSS selector or element ref" }
+        },
+        "required": ["selector"]
+      }
+    }]
+  }],
+  "toolConfig": {
+    "functionCallingConfig": {
+      "mode": "AUTO"
     }
   }
-  return maxHeight;
-}
-
-// After scrollIntoView, verify and adjust
-element.scrollIntoView({ behavior: 'instant', block: 'center' });
-const rect = element.getBoundingClientRect();
-const stickyH = detectStickyHeaderHeight();
-if (rect.top < stickyH + 10) {
-  window.scrollBy(0, -(stickyH + 20));
 }
 ```
 
-**Integration:** Add to `ensureElementReady` in `content/accessibility.js` after the existing `scrollIntoView` call (around line 1050+).
+**Confidence:** HIGH -- verified via [Gemini function calling docs](https://ai.google.dev/gemini-api/docs/function-calling).
 
-**Confidence:** HIGH -- standard DOM geometry calculations
+**Key differences from OpenAI format:**
+- Tools wrapped in `tools[].functionDeclarations[]` (double nesting)
+- Schema field is `parameters` (same name as OpenAI but different wrapper)
+- Control via `toolConfig.functionCallingConfig.mode`: `"AUTO"` | `"ANY"` | `"NONE"` | `"VALIDATED"`
+- No `parallel_tool_calls` parameter -- Gemini decides autonomously
+- Gemini supports parallel calls natively
 
----
+### Tool Call Response Formats
 
-## Summary: What NOT to Add
+This is the critical part -- how each provider signals "I want to call a tool" and how FSB must parse it.
 
-| Temptation | Why Avoid |
-|------------|-----------|
-| Readability.js for content extraction | External dependency (~15KB), overkill for content prioritization |
-| Cookie consent extension/library | Adds dependency lifecycle; 50-70 lines of selectors suffice |
-| Per-site search selector database | Breaks on redesigns; generic heuristics are more resilient |
-| `chrome.scripting.registerContentScripts` | Adds complexity; programmatic injection gives more control |
-| Shadow DOM piercing for cookie banners | Very few CMPs use Shadow DOM; handle if encountered later |
-| Network idle detection for stability | Too slow; sites with WebSocket/polling never go idle |
-| Separate `read_page_stable` MCP tool | Adds tool count; merge behavior into existing `read_page` |
-| Third-party DOM diffing library | Existing MutationObserver is sufficient |
-| `form.submit()` as fallback | Bypasses validation and event listeners; `.click()` on submit button is safer |
+#### OpenAI / xAI Response
 
-## File Touch Map
+```json
+{
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [{
+        "id": "call_abc123",
+        "type": "function",
+        "function": {
+          "name": "click",
+          "arguments": "{\"selector\": \"e5\"}"
+        }
+      }]
+    },
+    "finish_reason": "tool_calls"
+  }],
+  "usage": { "prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120 }
+}
+```
 
-| File | Fix(es) | Change Type |
-|------|---------|-------------|
-| `content/lifecycle.js` | 1, 7 | Add `pageshow` listener for BF cache; add cookie consent auto-dismiss |
-| `content/messaging.js` | 4 | Add auto-stability wait before `readPage` extraction |
-| `content/dom-analysis.js` | 5 | Add `findMainContentRoot()`, reduce `MAX_CHARS`, add `NOISE_SELECTORS` skip list |
-| `content/actions.js` | 2, 6 | Add `findSiteSearchInput()`, add `siteSearch` tool, add `findNearestSubmitButton()` + submit fallback in pressEnter |
-| `content/accessibility.js` | 4b | Add sticky header detection and scroll compensation in `ensureElementReady` |
-| `background.js` | 1, 2, 3 | Accept `bfCacheRestore` ready signal, route `siteSearch` verb, add `waitForContentScriptReady` |
-| `mcp-server/src/tools/manual.ts` | 2 | Update `search` tool description (behavior change is transparent) |
-| `mcp-server/src/tools/read-only.ts` | 4, 5 | Update `read_page` description to note auto-stability and smart truncation |
+**Parsing logic:**
+- Check `finish_reason === "tool_calls"` (not `"stop"`)
+- Tool calls in `choices[0].message.tool_calls[]`
+- Each has `id` (for matching results), `function.name`, `function.arguments` (JSON string -- must parse)
+- `content` may be null or may contain text alongside tool calls
+- Multiple tool_calls possible if `parallel_tool_calls` is true
 
-## Chrome API Version Requirements
+**Confidence:** HIGH -- verified via xAI REST API schema and OpenAI docs.
 
-| API | Minimum Chrome | Our Minimum | Notes |
-|-----|---------------|-------------|-------|
-| `pageshow` event | All versions | Chrome 88 | Standard web platform API |
-| `event.persisted` | All versions | Chrome 88 | Standard web platform API |
-| `chrome.scripting.executeScript` | Chrome 88 | Chrome 88 | Already using |
-| `chrome.webNavigation.onCommitted` | Chrome 88 | Chrome 88 | Already using |
-| `MutationObserver` | All versions | Chrome 88 | Already using |
-| `Element.scrollIntoView` | All versions | Chrome 88 | Already using |
-| `document.elementFromPoint` | All versions | Chrome 88 | Already using |
-| `getComputedStyle` | All versions | Chrome 88 | Already using |
+**QUIRK (xAI):** The xAI docs list finish_reason values as "stop", "length", "end_turn" -- but for tool calls the OpenAI-compatible endpoint uses `"tool_calls"` as finish_reason. This matches the OpenAI convention. Verified from the REST API schema.
 
-No new Chrome API permissions required. The `manifest.json` already has `webNavigation`, `scripting`, `tabs`, and `<all_urls>` host permissions.
+#### Anthropic Response
+
+```json
+{
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "I'll click that element for you."
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_01A09q90qw90lq917835lq9",
+      "name": "click",
+      "input": { "selector": "e5" }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "usage": { "input_tokens": 100, "output_tokens": 50 }
+}
+```
+
+**Parsing logic:**
+- Check `stop_reason === "tool_use"` (not `"end_turn"`)
+- Tool calls are content blocks with `type: "tool_use"` in the `content` array
+- Each has `id`, `name`, `input` (already parsed object -- NOT a JSON string)
+- Text content blocks may appear alongside tool_use blocks
+- Multiple tool_use blocks possible in one response
+
+**Confidence:** HIGH -- verified via Anthropic docs.
+
+**CRITICAL DIFFERENCE:** Anthropic's `input` is a parsed object, not a JSON string. OpenAI/xAI `arguments` is a JSON string that needs `JSON.parse()`. This is the biggest parsing difference.
+
+#### Gemini Response
+
+```json
+{
+  "candidates": [{
+    "content": {
+      "parts": [{
+        "functionCall": {
+          "name": "click",
+          "id": "8f2b1a3c",
+          "args": { "param": "value" }
+        }
+      }]
+    },
+    "finishReason": "STOP"
+  }],
+  "usageMetadata": { "promptTokenCount": 100, "candidatesTokenCount": 20, "totalTokenCount": 120 }
+}
+```
+
+**Parsing logic:**
+- Check `parts[]` for objects with `functionCall` property
+- Each `functionCall` has `name`, `id`, and `args` (parsed object, not JSON string)
+- `finishReason` is `"STOP"` even for function calls (Gemini does not have a separate finish reason)
+- Multiple `functionCall` parts possible in one response (parallel calls)
+- `args` is an already-parsed object (like Anthropic, unlike OpenAI/xAI)
+
+**Confidence:** HIGH -- verified via Gemini docs. The `id` field is guaranteed for Gemini 3+ models.
+
+**QUIRK (Gemini):** Gemini uses `finishReason: "STOP"` even when calling functions. You must inspect the parts for `functionCall` presence, not rely on finish reason.
+
+### Tool Result Formats (Sending Results Back)
+
+After executing a tool, FSB must send the result back. Each provider has a different format.
+
+#### OpenAI / xAI Result
+
+Append two messages to the conversation history:
+
+```json
+[
+  {
+    "role": "assistant",
+    "content": null,
+    "tool_calls": [{ "id": "call_abc123", "type": "function", "function": { "name": "click", "arguments": "{...}" } }]
+  },
+  {
+    "role": "tool",
+    "tool_call_id": "call_abc123",
+    "content": "{\"success\": true, \"message\": \"Clicked element e5\"}"
+  }
+]
+```
+
+**Key details:**
+- Role `"tool"` (not `"user"`)
+- `tool_call_id` must match the `id` from the tool call
+- `content` is a string (JSON-stringified result)
+- One tool message per tool call (multiple if parallel calls)
+
+#### Anthropic Result
+
+Append assistant message then user message with tool_result:
+
+```json
+[
+  {
+    "role": "assistant",
+    "content": [
+      { "type": "text", "text": "I'll click that." },
+      { "type": "tool_use", "id": "toolu_01A09q", "name": "click", "input": { "selector": "e5" } }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "tool_result",
+        "tool_use_id": "toolu_01A09q",
+        "content": "Clicked element e5 successfully"
+      }
+    ]
+  }
+]
+```
+
+**Key differences:**
+- Tool results go in a `"user"` role message (not a dedicated `"tool"` role)
+- Content block type is `"tool_result"` with `tool_use_id` (not `tool_call_id`)
+- `content` can be a string or an array of content blocks
+- For errors: add `"is_error": true` to the tool_result block
+- Must include the full assistant message (including any text blocks) before the user tool_result
+
+#### Gemini Result
+
+Append model turn then user turn with functionResponse:
+
+```json
+[
+  {
+    "role": "model",
+    "parts": [{ "functionCall": { "name": "click", "id": "8f2b1a3c", "args": { "selector": "e5" } } }]
+  },
+  {
+    "role": "user",
+    "parts": [{
+      "functionResponse": {
+        "name": "click",
+        "id": "8f2b1a3c",
+        "response": { "success": true, "message": "Clicked element e5" }
+      }
+    }]
+  }
+]
+```
+
+**Key differences:**
+- Uses `"model"` role (not `"assistant"`)
+- Tool results in a `"user"` role message (like Anthropic, unlike OpenAI)
+- Uses `functionResponse` with `name`, `id`, and `response` (an object, not stringified)
+- `id` must match the function call's `id`
+- Response order doesn't matter for parallel calls (matched by ID)
+
+## Recommended Translation Architecture
+
+### Why NOT a full abstraction layer
+
+The existing `UniversalProvider` already has `formatForProvider()` and `parseResponse()` methods that handle per-provider differences. Adding tool_use follows the same pattern. There is no need for a new abstraction -- extend what exists.
+
+### The Translation Pattern
+
+```
+Canonical tool defs -----> formatToolsForProvider() -----> Provider-specific tools
+                                                              (in request body)
+
+Provider response   -----> parseToolCalls()         -----> Normalized tool calls
+                                                              [{id, name, args}]
+
+Execution result    -----> formatToolResult()        -----> Provider-specific result
+                                                              (appended to messages)
+```
+
+Three new methods on UniversalProvider. That is the entire API surface.
+
+### Method 1: formatToolsForProvider(canonicalTools)
+
+```javascript
+formatToolsForProvider(tools) {
+  switch (this.provider) {
+    case 'anthropic':
+      return tools.map(t => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.parameters
+      }));
+
+    case 'gemini':
+      return [{
+        functionDeclarations: tools.map(t => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters
+        }))
+      }];
+
+    default: // openai, xai, openrouter
+      return tools.map(t => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters
+        }
+      }));
+  }
+}
+```
+
+### Method 2: parseToolCalls(response) -> normalized array
+
+```javascript
+parseToolCalls(response) {
+  switch (this.provider) {
+    case 'anthropic': {
+      const blocks = response.content.filter(b => b.type === 'tool_use');
+      return blocks.map(b => ({ id: b.id, name: b.name, args: b.input }));
+      // args is already parsed object
+    }
+
+    case 'gemini': {
+      const parts = response.candidates[0].content.parts
+        .filter(p => p.functionCall);
+      return parts.map(p => ({
+        id: p.functionCall.id,
+        name: p.functionCall.name,
+        args: p.functionCall.args  // already parsed object
+      }));
+    }
+
+    default: { // openai, xai, openrouter
+      const calls = response.choices[0].message.tool_calls || [];
+      return calls.map(c => ({
+        id: c.id,
+        name: c.function.name,
+        args: JSON.parse(c.function.arguments)  // MUST parse JSON string
+      }));
+    }
+  }
+}
+```
+
+### Method 3: formatToolResult(toolCallId, toolName, result, isError) -> message to append
+
+```javascript
+formatToolResult(callId, name, result, isError = false) {
+  const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+
+  switch (this.provider) {
+    case 'anthropic':
+      return {
+        role: 'user',
+        content: [{
+          type: 'tool_result',
+          tool_use_id: callId,
+          content: resultStr,
+          ...(isError ? { is_error: true } : {})
+        }]
+      };
+
+    case 'gemini':
+      return {
+        role: 'user',
+        parts: [{
+          functionResponse: {
+            name,
+            id: callId,
+            response: typeof result === 'string' ? { result } : result
+          }
+        }]
+      };
+
+    default: // openai, xai, openrouter
+      return {
+        role: 'tool',
+        tool_call_id: callId,
+        content: resultStr
+      };
+  }
+}
+```
+
+### Loop Termination Detection
+
+```javascript
+isToolCallResponse(response) {
+  switch (this.provider) {
+    case 'anthropic':
+      return response.stop_reason === 'tool_use';
+
+    case 'gemini':
+      // Gemini does NOT use a separate finish reason
+      return response.candidates?.[0]?.content?.parts?.some(p => p.functionCall);
+
+    default: // openai, xai, openrouter
+      return response.choices?.[0]?.finish_reason === 'tool_calls';
+  }
+}
+```
+
+### Assistant Message Preservation
+
+For the agent loop, the assistant's response must be appended to conversation history before the tool result. Each provider formats this differently:
+
+```javascript
+formatAssistantMessage(response) {
+  switch (this.provider) {
+    case 'anthropic':
+      return { role: 'assistant', content: response.content };
+
+    case 'gemini':
+      return {
+        role: 'model',
+        parts: response.candidates[0].content.parts
+      };
+
+    default: // openai, xai, openrouter
+      return response.choices[0].message;
+      // Includes tool_calls, content, role -- pass through as-is
+  }
+}
+```
+
+## Provider-Specific Quirks and Pitfalls
+
+### xAI Quirks
+| Quirk | Impact | Mitigation |
+|-------|--------|------------|
+| Max 128 tools per request | FSB has ~35 tools, well under limit | No action needed |
+| `parallel_tool_calls` defaults to true | May return multiple tool calls | Set `false` for sequential browser actions |
+| Chat/completions marked "legacy" | Responses API is newer | Use chat/completions anyway -- it is OpenAI-compatible and simpler; Responses API format diverges |
+| Arguments are JSON strings | Must parse | `JSON.parse(c.function.arguments)` |
+| finish_reason `"tool_calls"` not documented in their finish_reason list | Could cause confusion | Test empirically; fall back to checking `tool_calls` array presence |
+
+**Confidence:** MEDIUM on finish_reason value. The xAI REST schema shows "stop", "length", "end_turn" but the OpenAI-compatible behavior should use "tool_calls". Needs empirical verification.
+
+### OpenAI Quirks
+| Quirk | Impact | Mitigation |
+|-------|--------|------------|
+| `strict: true` available for structured outputs | Guarantees schema match | Use if reliability issues arise; adds latency |
+| `parallel_tool_calls` defaults to true | Multiple calls per turn | Set `false` for browser actions |
+| Arguments are JSON strings | Must parse | Same as xAI |
+| GPT-4o sometimes returns malformed JSON in arguments | Parse failures | Wrap `JSON.parse()` in try/catch, re-request on failure |
+
+**Confidence:** HIGH -- well-documented, widely used.
+
+### Anthropic Quirks
+| Quirk | Impact | Mitigation |
+|-------|--------|------------|
+| `input` is parsed object (not JSON string) | Different from OpenAI | No `JSON.parse` needed for Anthropic |
+| Tool results use `"user"` role | Must match expected format | Format correctly in `formatToolResult` |
+| `stop_reason` is `"tool_use"` (not `"tool_calls"`) | Different signal name | Handle in `isToolCallResponse` |
+| May include text blocks alongside tool_use | Text explains what model is doing | Preserve in conversation history |
+| `tool_choice` is object `{type: "auto"}` not string `"auto"` | Different from OpenAI | Format in request builder |
+| `strict: true` available for guaranteed schema conformance | Schema validation | Use if needed |
+| System prompt is separate field (not in messages) | Already handled by existing `formatAnthropicRequest` | No new work |
+
+**Confidence:** HIGH -- verified directly from official docs.
+
+### Gemini Quirks
+| Quirk | Impact | Mitigation |
+|-------|--------|------------|
+| `functionCall` not `tool_calls` | Completely different key names | Handle in parser |
+| `args` is parsed object (not JSON string) | Like Anthropic, unlike OpenAI | No `JSON.parse` needed |
+| `finishReason: "STOP"` even for function calls | Cannot rely on finish reason | Must inspect parts for `functionCall` |
+| Uses `"model"` role (not `"assistant"`) | Already handled by existing Gemini formatter | No new work |
+| System prompt via `systemInstruction` (not in messages) | Must handle separately | Already handled by existing `formatGeminiRequest` |
+| `functionDeclarations` double-nested in `tools[]` | Different wrapping | Handle in `formatToolsForProvider` |
+| `id` field only in Gemini 3+ models | Older models may not return IDs | Generate synthetic IDs for older models as fallback |
+| `toolConfig.functionCallingConfig.mode` for control | Different from `tool_choice` | Map in request builder |
+
+**Confidence:** HIGH -- verified from Gemini function calling docs.
+
+## Streaming Considerations
+
+### Current State
+FSB does NOT use streaming for the autopilot loop. Each AI call is a single request-response cycle (non-streamed). The current `sendRequest` method uses `fetch` and `response.json()`.
+
+### Recommendation: Do NOT add streaming for v0.9.20
+
+**Why:**
+1. Browser actions are sequential -- you cannot start executing a tool while it is still being streamed
+2. The agent loop needs the complete tool call (name + all arguments) before execution
+3. Streaming adds complexity (SSE parsing, partial JSON accumulation) with zero benefit for tool_use
+4. Each provider has a different streaming format (SSE event types differ)
+5. The existing non-streamed approach works and is simpler
+
+**When streaming would matter (future):**
+- If adding a "thinking" indicator showing the model's reasoning text before tool calls
+- If implementing partial tool argument preview in the UI
+- Neither of these is in scope for v0.9.20
+
+**Confidence:** HIGH -- this is an architectural judgment based on the sequential nature of browser automation.
+
+## Tool Choice Configuration
+
+For the FSB agent loop, the recommended `tool_choice` settings:
+
+| Provider | Setting | Format | Rationale |
+|----------|---------|--------|-----------|
+| OpenAI/xAI | `"auto"` | `tool_choice: "auto"` | Let model decide when to call tools vs respond with text |
+| Anthropic | `auto` | `tool_choice: { type: "auto" }` | Same intent, object format |
+| Gemini | `AUTO` | `toolConfig: { functionCallingConfig: { mode: "AUTO" } }` | Same intent, different structure |
+
+**For parallel tool calls:**
+
+| Provider | Setting | Rationale |
+|----------|---------|-----------|
+| OpenAI/xAI | `parallel_tool_calls: false` | Browser actions must execute sequentially |
+| Anthropic | N/A (no parameter) | Model decides; FSB processes calls sequentially regardless |
+| Gemini | N/A (no parameter) | Model decides; FSB processes calls sequentially regardless |
+
+Even when parallel calls are returned (Anthropic/Gemini), FSB should process them sequentially because browser actions depend on DOM state from previous actions.
+
+## Integration with Existing UniversalProvider
+
+### What changes in UniversalProvider
+
+| Method | Change |
+|--------|--------|
+| `buildRequest()` | Accept optional `tools` array and `toolChoice` param; add formatted tools to request |
+| `formatForProvider()` | Already exists; extend to handle tools in the request body |
+| `formatGeminiRequest()` | Add `tools` and `toolConfig` fields |
+| `formatAnthropicRequest()` | Add `tools` and `tool_choice` fields |
+| `parseResponse()` | Extend to detect tool calls vs text response; return structured result |
+| NEW: `formatToolsForProvider()` | Translate canonical tool defs to provider format |
+| NEW: `parseToolCalls()` | Extract normalized `[{id, name, args}]` from response |
+| NEW: `formatToolResult()` | Build provider-specific tool result message |
+| NEW: `isToolCallResponse()` | Check if response contains tool calls |
+| NEW: `formatAssistantMessage()` | Extract assistant message for conversation history |
+
+### What does NOT change
+
+- `getEndpoint()` -- same endpoints
+- `getHeaders()` -- same auth
+- `sendRequest()` -- same HTTP logic, timeout, retry
+- `testConnection()` -- no tools needed for connection test
+- Rate limit handling -- unchanged
+- Parameter caching -- unchanged
+
+## Versions and Compatibility
+
+| Provider | API Endpoint | Min Model for tool_use | Recommended Model |
+|----------|-------------|----------------------|-------------------|
+| xAI | `v1/chat/completions` | grok-3 | grok-4-1-fast (2M context, optimized for tool calling) |
+| OpenAI | `v1/chat/completions` | gpt-4o-mini | gpt-4o |
+| Anthropic | `v1/messages` | claude-haiku-4.5 | claude-sonnet-4 or claude-sonnet-4.5 |
+| Gemini | `v1beta/models/{model}:generateContent` | gemini-2.0-flash | gemini-2.5-flash |
+
+**Confidence:** MEDIUM on model minimum versions. Most current-generation models support tool_use but exact minimum versions may vary.
 
 ## Sources
 
-- [Chrome Developer Blog: BFCache Extension Messaging Changes](https://developer.chrome.com/blog/bfcache-extension-messaging-changes) -- Chrome 123+ BF cache port behavior (HIGH confidence)
-- [web.dev: Back/Forward Cache](https://web.dev/articles/bfcache) -- General BF cache lifecycle (HIGH confidence)
-- [Chrome webNavigation API Reference](https://developer.chrome.com/docs/extensions/reference/api/webNavigation) -- Event sequence for BF cache restores, transitionType/transitionQualifiers (HIGH confidence)
-- [Chrome scripting API Reference](https://developer.chrome.com/docs/extensions/reference/api/scripting) -- executeScript options (HIGH confidence)
-- [Chrome Content Scripts Docs](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) -- Injection timing, isolated world (HIGH confidence)
-- [Cookie Guardian (GitHub)](https://github.com/ardatrkl35/Cookie-guardian) -- CMP detection patterns, heuristic scoring reference (MEDIUM confidence)
-- [Cookie Decliner (GitHub)](https://github.com/RuneVed/cookie-decliner) -- TCF API + DOM analysis approach (MEDIUM confidence)
-- [CHI 2025: Cross-Country Analysis of GDPR Cookie Banners](https://dl.acm.org/doi/10.1145/3706598.3713648) -- Word corpus + heuristic F1=0.96 finding (MEDIUM confidence)
+### Primary (Official Documentation)
+- [xAI Function Calling](https://docs.x.ai/docs/guides/function-calling) -- tool definition format and calling guide
+- [xAI REST API Reference](https://docs.x.ai/developers/rest-api-reference/inference/chat) -- exact request/response schema
+- [xAI Chat Completions (Legacy)](https://docs.x.ai/developers/model-capabilities/legacy/chat-completions) -- OpenAI-compatible endpoint
+- [OpenAI Function Calling](https://developers.openai.com/api/docs/guides/function-calling) -- tool definition, response, and tool_choice
+- [Anthropic Tool Use Overview](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview) -- architecture and pricing
+- [Anthropic Define Tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use) -- tool schema, input_schema, tool_choice
+- [Gemini Function Calling](https://ai.google.dev/gemini-api/docs/function-calling) -- functionDeclarations, toolConfig, id mapping
+
+### Secondary (Cross-references)
+- [xAI Responses API vs Chat Completions](https://docs.x.ai/developers/model-capabilities/text/comparison) -- why we chose chat/completions
+- [OpenAI Parallel Tool Calls Discussion](https://community.openai.com/t/parallel-tool-use-documentation-for-api-models/1304519)
+- [OpenRouter Tool Calling](https://openrouter.ai/docs/guides/features/tool-calling) -- confirms OpenAI-compatible format
