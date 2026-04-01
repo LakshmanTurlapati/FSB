@@ -131,6 +131,94 @@ function estimateCost(model, inputTokens, outputTokens) {
 
 
 // ---------------------------------------------------------------------------
+// Safety Breakers (SAFE-01, SAFE-02)
+// ---------------------------------------------------------------------------
+
+/**
+ * Check cost and time safety limits before each iteration.
+ * Called at the START of runAgentIteration, BEFORE the API call.
+ *
+ * @param {Object} session - Session object with agentState and safetyConfig
+ * @returns {{ shouldStop: boolean, reason: string|null }}
+ */
+function checkSafetyBreakers(session) {
+  const state = session.agentState || {};
+
+  // Cost circuit breaker (SAFE-01, D-01)
+  const costLimit = session.safetyConfig?.costLimit || 2.00;
+  if ((state.totalCost || 0) >= costLimit) {
+    return {
+      shouldStop: true,
+      reason: `Session cost ($${(state.totalCost || 0).toFixed(2)}) exceeded limit ($${costLimit.toFixed(2)}). Stopping to prevent excess spending.`
+    };
+  }
+
+  // Time limit (SAFE-02, D-02)
+  const timeLimit = session.safetyConfig?.timeLimit || 10 * 60 * 1000; // Default 10 minutes
+  const elapsed = Date.now() - (state.startTime || Date.now());
+  if (elapsed >= timeLimit) {
+    const minutes = Math.floor(elapsed / 60000);
+    return {
+      shouldStop: true,
+      reason: `Session duration (${minutes} min) exceeded limit (${Math.floor(timeLimit / 60000)} min). Stopping automation.`
+    };
+  }
+
+  return { shouldStop: false, reason: null };
+}
+
+
+// ---------------------------------------------------------------------------
+// Stuck Detection (SAFE-03, D-03, P8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect whether the AI is stuck (consecutive tool calls with no DOM change).
+ * Called AFTER tool execution, BEFORE scheduling the next iteration.
+ *
+ * @param {Object} session - Session object with agentState and actionHistory
+ * @param {Array<{callId: string, name: string, result: Object}>} toolResults - Results from this iteration
+ * @returns {{ isStuck: boolean, hint: string|null }}
+ */
+function detectStuck(session, toolResults) {
+  const state = session.agentState || {};
+
+  // Check if ANY tool result had effect -- if yes, reset counter
+  const anyEffect = toolResults.some(tr => tr.result && tr.result.hadEffect === true);
+
+  if (anyEffect) {
+    state.consecutiveNoChangeCount = 0;
+    return { isStuck: false, hint: null };
+  }
+
+  // No tool had effect -- increment counter
+  state.consecutiveNoChangeCount = (state.consecutiveNoChangeCount || 0) + 1;
+
+  if (state.consecutiveNoChangeCount >= 3) {
+    // Build recent actions summary from actionHistory
+    const history = session.actionHistory || [];
+    const recentEntries = history.slice(-5);
+    const recentActions = recentEntries.map(entry => {
+      const paramStr = entry.params?.selector || entry.params?.text || entry.params?.url || '';
+      return paramStr ? `${entry.tool}(${paramStr})` : entry.tool;
+    });
+
+    return {
+      isStuck: true,
+      hint: `WARNING: The last ${state.consecutiveNoChangeCount} tool calls produced no visible change on the page. ` +
+        `Previous actions: [${recentActions.join(', ')}]. ` +
+        `Suggestions: (1) Call get_dom_snapshot to refresh your view of the page -- elements may have changed. ` +
+        `(2) Try scrolling to reveal hidden elements. ` +
+        `(3) Try a completely different approach to the task. ` +
+        `(4) If the task appears complete, respond with a summary instead of calling more tools.`
+    };
+  }
+
+  return { isStuck: false, hint: null };
+}
+
+
+// ---------------------------------------------------------------------------
 // getPublicTools -- strip internal routing metadata from tool definitions
 // ---------------------------------------------------------------------------
 
@@ -385,6 +473,21 @@ async function runAgentLoop(sessionId, options) {
       consecutiveNoChangeCount: 0
     };
 
+    // Initialize safety thresholds from chrome.storage.sync (SAFE-01, SAFE-02)
+    try {
+      const storedSettings = await chrome.storage.sync.get({
+        costLimit: 2.00,
+        timeLimit: 10
+      });
+      session.safetyConfig = {
+        costLimit: parseFloat(storedSettings.costLimit) || 2.00,
+        timeLimit: (parseInt(storedSettings.timeLimit) || 10) * 60 * 1000 // Convert minutes to ms
+      };
+    } catch (_e) {
+      // Fallback to defaults if storage unavailable
+      session.safetyConfig = { costLimit: 2.00, timeLimit: 10 * 60 * 1000 };
+    }
+
     // Get public tool definitions (cached for the session)
     session.tools = getPublicTools();
 
@@ -479,6 +582,24 @@ async function runAgentIteration(sessionId, options) {
   // b. Guard: session must exist and be running
   if (!session || session.status !== 'running') {
     return;
+  }
+
+  // b2. Safety breaker check (SAFE-01 cost, SAFE-02 time)
+  const safety = checkSafetyBreakers(session);
+  if (safety.shouldStop) {
+    session.status = 'stopped';
+    if (typeof sendStatus === 'function') {
+      sendStatus(session.tabId, {
+        phase: 'ended', reason: 'safety',
+        taskName: session.task,
+        statusText: safety.reason
+      });
+    }
+    if (typeof endSessionOverlays === 'function') {
+      await endSessionOverlays(session, 'safety');
+    }
+    await persist(sessionId, session);
+    return; // Do NOT schedule next iteration
   }
 
   // c. Increment iteration count
@@ -585,7 +706,7 @@ async function runAgentIteration(sessionId, options) {
       console.warn('[AgentLoop] isToolCallResponse=true but no tool calls parsed', { sessionId, iteration: iterNum });
       session.messages.push({ role: 'user', content: 'No tool calls were detected. Please either call a tool or provide your final answer.' });
       await persist(sessionId, session);
-      setTimeout(() => runAgentIteration(sessionId, options), 100);
+      session._nextIterationTimer = setTimeout(() => runAgentIteration(sessionId, options), 100);
       return;
     }
 
@@ -631,13 +752,23 @@ async function runAgentIteration(sessionId, options) {
       session.messages.push(resultMsg);
     }
 
-    // n. Persist session state after every iteration (per SAFE-04, D-09)
+    // n. Stuck detection -- inject recovery hint if AI is stuck (SAFE-03, D-03)
+    const stuckCheck = detectStuck(session, toolResults);
+    if (stuckCheck.isStuck && stuckCheck.hint) {
+      // Inject recovery hint as an additional message after tool results
+      session.messages.push({
+        role: 'user',
+        content: stuckCheck.hint
+      });
+    }
+
+    // o. Persist session state after every iteration (per SAFE-04, D-09)
     await persist(sessionId, session);
 
-    // o. Schedule next iteration via setTimeout (per D-08, P4)
+    // p. Schedule next iteration via setTimeout (per D-08, P4)
     // 100ms delay: fast enough for responsive automation,
     // long enough to yield the event loop and reset Chrome's execution timer
-    setTimeout(() => runAgentIteration(sessionId, options), 100);
+    session._nextIterationTimer = setTimeout(() => runAgentIteration(sessionId, options), 100);
 
   } catch (error) {
     // Error handling for API call failures
@@ -671,7 +802,7 @@ async function runAgentIteration(sessionId, options) {
     // (UniversalProvider handles retries internally, so this is a last-resort catch)
     if (errStatus === 429 || error.isRateLimited) {
       console.warn('[AgentLoop] Rate limited, waiting 5s before retry', { sessionId });
-      setTimeout(() => runAgentIteration(sessionId, options), 5000);
+      session._nextIterationTimer = setTimeout(() => runAgentIteration(sessionId, options), 5000);
       return;
     }
 
@@ -681,7 +812,7 @@ async function runAgentIteration(sessionId, options) {
       // Decrement iteration count since this will be retried
       session.agentState.iterationCount--;
       console.warn('[AgentLoop] Network error, retrying in 2s', { sessionId, error: errMsg });
-      setTimeout(() => runAgentIteration(sessionId, options), 2000);
+      session._nextIterationTimer = setTimeout(() => runAgentIteration(sessionId, options), 2000);
       return;
     }
 
@@ -710,5 +841,5 @@ async function runAgentIteration(sessionId, options) {
 
 // CommonJS for Node.js testing
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { runAgentLoop, runAgentIteration, buildSystemPrompt, callProviderWithTools, estimateCost, getPublicTools };
+  module.exports = { runAgentLoop, runAgentIteration, buildSystemPrompt, callProviderWithTools, estimateCost, getPublicTools, checkSafetyBreakers, detectStuck };
 }
