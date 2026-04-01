@@ -267,7 +267,7 @@ Plans:
 
 ### Phases (v0.9.20)
 
-- [ ] **Phase 135: Provider Format Adapters & Tool Registry** - Canonical tool definitions in JSON Schema shared between autopilot and MCP, plus provider-specific format adapters for xAI/OpenAI, Anthropic, and Gemini
+- [x] **Phase 135: Provider Format Adapters & Tool Registry** - Canonical tool definitions in JSON Schema shared between autopilot and MCP, plus provider-specific format adapters for xAI/OpenAI, Anthropic, and Gemini (completed 2026-04-01)
 - [ ] **Phase 136: Unified Tool Executor & MCP Migration** - Single executeTool() dispatch function replacing two parallel execution paths, with MCP server importing from shared registry
 - [ ] **Phase 137: Agent Loop Core & Safety Mechanisms** - Native tool_use agent loop with setTimeout-chaining, cost circuit breaker, time limit, external stuck detection, and session persistence
 - [ ] **Phase 138: Context Management & On-Demand Tools** - DOM snapshot and site guides as on-demand tools, sliding window history compression, progress reporting, and prompt caching
@@ -287,7 +287,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 135-01-PLAN.md -- Canonical tool registry (42 tools) in ai/tool-definitions.js with JSON Schema and routing metadata
-- [ ] 135-02-PLAN.md -- Provider format adapter in ai/tool-use-adapter.js with 5 functions for OpenAI/Anthropic/Gemini formats
+- [x] 135-02-PLAN.md -- Provider format adapter in ai/tool-use-adapter.js with 5 functions for OpenAI/Anthropic/Gemini formats
 
 ### Phase 136: Unified Tool Executor & MCP Migration
 **Goal**: Autopilot and MCP execute tools through the same code path, so a tool call produces identical results regardless of whether it came from the agent loop or an MCP client
@@ -340,7 +340,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 135. Provider Format Adapters & Tool Registry | 1/2 | In Progress|  |
+| 135. Provider Format Adapters & Tool Registry | 2/2 | Complete   | 2026-04-01 |
 | 136. Unified Tool Executor & MCP Migration | 0/? | Not started | - |
 | 137. Agent Loop Core & Safety Mechanisms | 0/? | Not started | - |
 | 138. Context Management & On-Demand Tools | 0/? | Not started | - |

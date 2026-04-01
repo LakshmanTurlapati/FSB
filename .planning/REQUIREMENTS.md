@@ -9,12 +9,12 @@ Requirements for autopilot architecture rewrite. Each maps to roadmap phases.
 
 ### Provider Adapters
 
-- [ ] **PROV-01**: User can run autopilot with xAI Grok using native tool_use (not CLI text)
-- [ ] **PROV-02**: User can run autopilot with OpenAI GPT-4o using native tool_use
-- [ ] **PROV-03**: User can run autopilot with Anthropic Claude using native tool_use
-- [ ] **PROV-04**: User can run autopilot with Google Gemini using native tool_use
-- [ ] **PROV-05**: User can run autopilot with OpenRouter models using native tool_use
-- [ ] **PROV-06**: User can run autopilot with custom OpenAI-compatible endpoints using native tool_use
+- [x] **PROV-01**: User can run autopilot with xAI Grok using native tool_use (not CLI text)
+- [x] **PROV-02**: User can run autopilot with OpenAI GPT-4o using native tool_use
+- [x] **PROV-03**: User can run autopilot with Anthropic Claude using native tool_use
+- [x] **PROV-04**: User can run autopilot with Google Gemini using native tool_use
+- [x] **PROV-05**: User can run autopilot with OpenRouter models using native tool_use
+- [x] **PROV-06**: User can run autopilot with custom OpenAI-compatible endpoints using native tool_use
 
 ### Tool Registry
 
@@ -87,12 +87,12 @@ Requirements for autopilot architecture rewrite. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PROV-01 | Phase 135 | Pending |
-| PROV-02 | Phase 135 | Pending |
-| PROV-03 | Phase 135 | Pending |
-| PROV-04 | Phase 135 | Pending |
-| PROV-05 | Phase 135 | Pending |
-| PROV-06 | Phase 135 | Pending |
+| PROV-01 | Phase 135 | Complete |
+| PROV-02 | Phase 135 | Complete |
+| PROV-03 | Phase 135 | Complete |
+| PROV-04 | Phase 135 | Complete |
+| PROV-05 | Phase 135 | Complete |
+| PROV-06 | Phase 135 | Complete |
 | TOOL-01 | Phase 135 | Complete |
 | TOOL-02 | Phase 135 | Complete |
 | TOOL-03 | Phase 136 | Pending |
