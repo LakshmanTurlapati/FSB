@@ -6,6 +6,10 @@ importScripts('config/init-config.js');
 importScripts('config/secure-config.js');
 importScripts('ai/cli-parser.js');
 importScripts('ai/ai-integration.js');
+importScripts('ai/tool-definitions.js');
+importScripts('ai/tool-use-adapter.js');
+importScripts('ai/tool-executor.js');
+importScripts('ai/agent-loop.js');
 importScripts('utils/automation-logger.js');
 importScripts('utils/analytics.js');
 importScripts('utils/keyboard-emulator.js');
@@ -2035,6 +2039,13 @@ async function persistSession(sessionId, session) {
       conversationId: session.conversationId || null,
       commandCount: session.commandCount || 1,
       // Don't persist: loopPromise, pendingTimeout, DOM hashes, etc. (non-serializable or transient)
+      // Agent loop state for service worker resurrection (Phase 137 / SAFE-04)
+      agentIterationCount: session.agentState?.iterationCount || 0,
+      agentTotalCost: session.agentState?.totalCost || 0,
+      agentTotalInputTokens: session.agentState?.totalInputTokens || 0,
+      agentTotalOutputTokens: session.agentState?.totalOutputTokens || 0,
+      // Persist last 5 messages for minimal context on SW restart
+      agentLastMessages: (session.messages || []).slice(-5),
     };
 
     // Persist multi-site orchestration state for service worker restart recovery
@@ -6136,7 +6147,16 @@ async function handleStartAutomation(request, sender, sendResponse) {
           automationLogger.debug('Could not reset DOM state for follow-up', { sessionId, error: e.message });
         }
 
-        startAutomationLoop(sessionId);
+        runAgentLoop(sessionId, {
+          activeSessions,
+          persistSession,
+          sendSessionStatus,
+          broadcastDashboardProgress,
+          endSessionOverlays,
+          startKeepAlive,
+          executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
+          handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+        });
         return;
       }
     }
@@ -6290,7 +6310,12 @@ async function handleStartAutomation(request, sender, sendResponse) {
       totalInputTokens: 0,
       totalOutputTokens: 0,
       // Locale context: detect once at session start, reuse for all AI calls
-      userLocale: getUserLocale()
+      userLocale: getUserLocale(),
+      // Agent loop state (Phase 137) -- initialized by runAgentLoop
+      agentState: null,
+      messages: null,
+      tools: null,
+      providerConfig: null
     };
 
     activeSessions.set(sessionId, sessionData);
@@ -6452,8 +6477,17 @@ async function handleStartAutomation(request, sender, sendResponse) {
       automationLogger.debug('Could not reset DOM state', { sessionId, error: e.message });
     }
 
-    // Start the automation loop
-    startAutomationLoop(sessionId);
+    // Start the agent loop (Phase 137 -- replaces startAutomationLoop for tool_use protocol)
+    runAgentLoop(sessionId, {
+      activeSessions,
+      persistSession,
+      sendSessionStatus,
+      broadcastDashboardProgress,
+      endSessionOverlays,
+      startKeepAlive,
+      executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
+      handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+    });
 
   } catch (error) {
     automationLogger.error('Error starting automation', { error: error.message, isChromePage: error.isChromePage || false });
