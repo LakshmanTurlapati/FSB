@@ -676,7 +676,8 @@ async function runAgentLoop(sessionId, options) {
       provider: providerKey,
       model: modelName,
       toolCount: session.tools.length,
-      tabUrl: tabUrl.substring(0, 80)
+      tabUrl: tabUrl.substring(0, 80),
+      endpoint: providerInstance.getEndpoint()
     });
 
     // Kick off the first iteration
@@ -993,7 +994,8 @@ async function runAgentIteration(sessionId, options) {
     const errStatus = error.status;
 
     console.error('[AgentLoop] Iteration error', {
-      sessionId, iteration: iterNum, error: errMsg, status: errStatus
+      sessionId, iteration: iterNum, error: errMsg, status: errStatus,
+      responseText: error.responseText || 'no response body'
     });
 
     // Auth errors (401/403): terminal

@@ -37,13 +37,23 @@ function formatToolsForProvider(tools, provider) {
     return [];
   }
 
+  // Helper: clean inputSchema by stripping empty required arrays (xAI/OpenAI reject them)
+  function cleanSchema(schema) {
+    if (!schema) return { type: 'object', properties: {} };
+    const cleaned = { ...schema };
+    if (Array.isArray(cleaned.required) && cleaned.required.length === 0) {
+      delete cleaned.required;
+    }
+    return cleaned;
+  }
+
   switch (provider) {
     case 'anthropic':
       // Anthropic: { name, description, input_schema }
       return tools.map(t => ({
         name: t.name,
         description: t.description,
-        input_schema: t.inputSchema
+        input_schema: cleanSchema(t.inputSchema)
       }));
 
     case 'gemini':
@@ -52,7 +62,7 @@ function formatToolsForProvider(tools, provider) {
         functionDeclarations: tools.map(t => ({
           name: t.name,
           description: t.description,
-          parameters: t.inputSchema
+          parameters: cleanSchema(t.inputSchema)
         }))
       }];
 
@@ -63,7 +73,7 @@ function formatToolsForProvider(tools, provider) {
         function: {
           name: t.name,
           description: t.description,
-          parameters: t.inputSchema
+          parameters: cleanSchema(t.inputSchema)
         }
       }));
   }
