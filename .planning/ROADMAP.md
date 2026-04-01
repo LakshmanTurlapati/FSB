@@ -257,3 +257,19 @@ Plans:
 | 132. Tool Description Enrichment | 1/1 | Complete | 2026-03-31 |
 | 133. MCP Prompts | 1/1 | Complete | 2026-03-31 |
 | 134. Error Recovery Hints | 1/1 | Complete | 2026-03-31 |
+
+---
+
+## v0.9.20 Autopilot Agent Architecture Rewrite
+
+**Milestone Goal:** Replace the custom iteration loop + CLI text parsing autopilot with a native tool_use agent loop -- the same pattern Claude Code, Computer Use API, and MCP clients all use.
+
+### v0.9.20 Autopilot Agent Architecture Rewrite Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 135. Provider Format Adapters & Tool Registry | 2/2 | Complete | 2026-04-01 |
+| 136. Unified Tool Executor & MCP Migration | 1/2 | In progress | - |
+| 137. Agent Loop Core & Safety Mechanisms | 0/? | Not started | - |
+| 138. Context Management & On-Demand Tools | 0/? | Not started | - |
+| 139. Dead Code Removal & Polish | 0/? | Not started | - |
