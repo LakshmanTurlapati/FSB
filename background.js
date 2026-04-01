@@ -4530,61 +4530,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleReplaySession(request, sender, sendResponse);
       return true; // Will respond asynchronously
 
-    // --- CLI Validation Live Test ---
-    case 'CLI_VALIDATION_LIVE_TEST':
-      (async () => {
-        try {
-          // Rate limit guard: minimum 3 seconds between live test calls
-          const now = Date.now();
-          if (typeof _cliValidationLastCall !== 'undefined' && now - _cliValidationLastCall < 3000) {
-            const waitMs = 3000 - (now - _cliValidationLastCall);
-            await new Promise(resolve => setTimeout(resolve, waitMs));
-          }
-          _cliValidationLastCall = Date.now();
-
-          const { provider, systemPrompt, userMessage, domSnapshot } = request;
-          console.log('[CLI Validation] Live test request for provider:', provider || 'current');
-
-          // Load settings to get API keys
-          const settings = await chrome.storage.local.get(null);
-
-          // Build prompt in the format AIIntegration.callAPI expects
-          const prompt = {
-            systemPrompt: systemPrompt || '',
-            userPrompt: (userMessage || '') + (domSnapshot ? '\n\n' + domSnapshot : '')
-          };
-
-          const ai = new AIIntegration(settings);
-          const rawText = await ai.callAPI(prompt);
-
-          console.log('[CLI Validation] Live test response received, length:', (rawText || '').length);
-          sendResponse({ success: true, response: rawText, provider: provider || settings.modelProvider });
-        } catch (error) {
-          console.error('[CLI Validation] Live test error:', error.message);
-          sendResponse({ success: false, error: error.message, provider: request.provider });
-        }
-      })();
-      return true;
-
-    case 'CLI_VALIDATION_GET_PROMPT':
-      (async () => {
-        try {
-          const settings = await chrome.storage.local.get(null);
-          const ai = new AIIntegration(settings);
-          // Build a representative system prompt by calling buildPrompt with minimal context
-          const prompt = ai.buildPrompt(
-            'Test task for CLI validation',
-            { elements: [], scrollPosition: { x: 0, y: 0 }, viewport: { width: 1920, height: 1080 } },
-            null
-          );
-          sendResponse({ success: true, systemPrompt: prompt.systemPrompt });
-        } catch (error) {
-          console.error('[CLI Validation] Get prompt error:', error.message);
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
     case 'stt-start':
       (async () => {
         try {
@@ -4677,8 +4622,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // Rate limit tracker for CLI validation live tests
-let _cliValidationLastCall = 0;
-
 /**
  * Handles the start of a new automation session
  * @param {Object} request - The automation start request
