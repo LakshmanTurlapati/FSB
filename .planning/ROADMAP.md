@@ -280,7 +280,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 139-01-PLAN.md -- Rewire executeAutomationTask to call runAgentLoop, making startAutomationLoop fully dead code
-- [ ] 139-02-PLAN.md -- Delete startAutomationLoop, completion validators, prefetchDOM, and supporting dead code
+- [x] 139-02-PLAN.md -- Delete startAutomationLoop, completion validators, prefetchDOM, and supporting dead code
 
 ### v0.9.20 Autopilot Agent Architecture Rewrite Progress
 
@@ -290,4 +290,4 @@ Plans:
 | 136. Unified Tool Executor & MCP Migration | 1/2 | In progress | - |
 | 137. Agent Loop Core & Safety Mechanisms | 0/? | Complete    | 2026-04-01 |
 | 138. Context Management & On-Demand Tools | 2/2 | Complete    | 2026-04-01 |
-| 139. Dead Code Removal & Polish | 1/2 | In progress | - |
+| 139. Dead Code Removal & Polish | 2/2 | Complete   | 2026-04-01 |

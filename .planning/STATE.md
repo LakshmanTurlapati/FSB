@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.20
-milestone_name: Autopilot Agent Architecture Rewrite
+milestone: v0.9.8.1
+milestone_name: npm Publishing
 status: executing
-stopped_at: Completed 139-01-PLAN.md
-last_updated: "2026-04-01T10:48:06Z"
+stopped_at: Completed 139-02-PLAN.md
+last_updated: "2026-04-01T11:04:36.554Z"
 last_activity: 2026-04-01
 progress:
-  total_phases: 5
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 6
+  total_phases: 2
+  completed_phases: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 71
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-03-31)
 ## Current Position
 
 Phase: 139 (Dead Code Removal & Polish) -- plan 1 of 2 complete
-Plan: 1 of 2 complete
-Status: Executing
+Plan: 2 of 2 complete
+Status: Ready to execute
 Last activity: 2026-04-01
 
 Progress: [#######---] 71%
@@ -44,6 +44,7 @@ Progress: [#######---] 71%
 | 138 | 01 | 3min | 2 | 2 |
 | 138 | 02 | 2min | 2 | 1 |
 | 139 | 01 | 1min | 1 | 1 |
+| Phase 139 P02 | 12min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,7 @@ Recent decisions affecting current work:
 - [138-01]: Anthropic cache_control on system prompt and last tool definition (D-14)
 - [138-02]: Cost moved from inline statusText to dedicated structured `cost` field (PROG-03)
 - [138-02]: session.currentTool and session.lastAiReasoning for dashboard readers
+- [Phase 139]: Deleted startAutomationLoop and 4528 lines of dead code; runAgentLoop is sole autopilot path
 
 ### Roadmap Evolution
 
@@ -85,6 +87,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-01T10:48:06Z
-Stopped at: Completed 139-01-PLAN.md
+Last session: 2026-04-01T11:04:36.551Z
+Stopped at: Completed 139-02-PLAN.md
 Resume file: None

@@ -60,8 +60,8 @@ Requirements for autopilot architecture rewrite. Each maps to roadmap phases.
 
 - [ ] **CLN-01**: cli-parser.js and CLI_COMMAND_TABLE removed
 - [ ] **CLN-02**: Old TASK_PROMPTS and buildPrompt templates removed
-- [ ] **CLN-03**: Multi-signal completion validator removed (replaced by stop_reason)
-- [ ] **CLN-04**: Per-iteration automatic DOM fetching removed (replaced by on-demand tool)
+- [x] **CLN-03**: Multi-signal completion validator removed (replaced by stop_reason)
+- [x] **CLN-04**: Per-iteration automatic DOM fetching removed (replaced by on-demand tool)
 
 ## Future Requirements
 
@@ -117,8 +117,8 @@ Requirements for autopilot architecture rewrite. Each maps to roadmap phases.
 | PROG-03 | Phase 138 | Complete |
 | CLN-01 | Phase 139 | Pending |
 | CLN-02 | Phase 139 | Pending |
-| CLN-03 | Phase 139 | Pending |
-| CLN-04 | Phase 139 | Pending |
+| CLN-03 | Phase 139 | Complete |
+| CLN-04 | Phase 139 | Complete |
 
 **Coverage:**
 - v0.9.20 requirements: 32 total
