@@ -751,8 +751,9 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
   }
 
   // Create singleton and attach to globalThis (works in both service workers and content scripts)
+  // Do NOT call loadLogs() eagerly -- chrome.storage may not be ready during importScripts init.
+  // Logs load lazily on first addLog/getLogs call, or when explicitly triggered.
   globalThis.automationLogger = new AutomationLogger();
-  globalThis.automationLogger.loadLogs();
 }
 
 // Export from globalThis - use var because it can be re-declared safely
