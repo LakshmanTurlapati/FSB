@@ -264,12 +264,21 @@ Plans:
 
 **Milestone Goal:** Replace the custom iteration loop + CLI text parsing autopilot with a native tool_use agent loop -- the same pattern Claude Code, Computer Use API, and MCP clients all use.
 
+### Phase 138: Context Management & On-Demand Tools
+**Goal**: The AI fetches page context and site intelligence only when needed, conversation history stays within token budget, and the user sees live progress and cost
+**Depends on**: Phase 137
+**Requirements**: CTX-01, CTX-02, CTX-03, CTX-04, PROG-01, PROG-02, PROG-03
+**Plans**: 2 plans
+Plans:
+- [ ] 138-01-PLAN.md -- Register 3 on-demand tools, local interception in agent loop, sliding-window history compression, Anthropic prompt caching
+- [ ] 138-02-PLAN.md -- Progress overlay enrichment with cost display, AI reasoning fields, dashboard broadcast wiring
+
 ### v0.9.20 Autopilot Agent Architecture Rewrite Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 135. Provider Format Adapters & Tool Registry | 2/2 | Complete | 2026-04-01 |
 | 136. Unified Tool Executor & MCP Migration | 1/2 | In progress | - |
-| 137. Agent Loop Core & Safety Mechanisms | 0/? | Not started | - |
-| 138. Context Management & On-Demand Tools | 0/? | Not started | - |
+| 137. Agent Loop Core & Safety Mechanisms | 0/? | Complete    | 2026-04-01 |
+| 138. Context Management & On-Demand Tools | 0/2 | Planned | - |
 | 139. Dead Code Removal & Polish | 0/? | Not started | - |
