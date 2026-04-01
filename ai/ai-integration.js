@@ -2041,9 +2041,10 @@ class AIIntegration {
     }
   }
   
-  // JSON parsing pipeline deleted (Phase 18) -- parseCliResponse is the sole parser
+  // JSON parsing pipeline deleted (Phase 18) -- CLI parser in cli-parser.js is the sole parser
   // Methods removed: parseResponse, parseCleanJSON, parseWithMarkdownBlocks,
   //   parseWithJSONExtraction, parseWithAdvancedCleaning, normalizeResponse, isValidParsedResponse
+  // Additional deletions (Phase 139.1): processQueue which called parseCliResponse was removed
   
   // Check if tool name is valid
   isValidTool(tool) {
