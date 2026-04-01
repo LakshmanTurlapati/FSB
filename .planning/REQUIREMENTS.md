@@ -30,10 +30,10 @@ Requirements for autopilot architecture rewrite. Each maps to roadmap phases.
 
 ### Agent Loop
 
-- [ ] **LOOP-01**: Agent loop sends messages with tool definitions, receives tool_use blocks, executes, feeds tool_result back
-- [ ] **LOOP-02**: Loop uses setTimeout-chaining (not while-loop) for Chrome MV3 service worker compatibility
-- [ ] **LOOP-03**: AI controls iteration -- no fixed iteration cap, completion via stop_reason/end_turn
-- [ ] **LOOP-04**: System prompt is minimal (~1-2KB task description + page URL)
+- [x] **LOOP-01**: Agent loop sends messages with tool definitions, receives tool_use blocks, executes, feeds tool_result back
+- [x] **LOOP-02**: Loop uses setTimeout-chaining (not while-loop) for Chrome MV3 service worker compatibility
+- [x] **LOOP-03**: AI controls iteration -- no fixed iteration cap, completion via stop_reason/end_turn
+- [x] **LOOP-04**: System prompt is minimal (~1-2KB task description + page URL)
 - [ ] **LOOP-05**: User can stop running autopilot session via sidepanel stop button
 
 ### Safety
@@ -41,7 +41,7 @@ Requirements for autopilot architecture rewrite. Each maps to roadmap phases.
 - [ ] **SAFE-01**: Cost-based circuit breaker stops session when estimated cost exceeds threshold (default $2)
 - [ ] **SAFE-02**: Session time limit stops automation after configurable duration (default 10 min)
 - [ ] **SAFE-03**: External stuck detection injects recovery hints when 3+ consecutive tool calls produce no DOM change
-- [ ] **SAFE-04**: Session state persisted after every iteration for service worker resurrection
+- [x] **SAFE-04**: Session state persisted after every iteration for service worker resurrection
 
 ### Context Management
 
@@ -99,15 +99,15 @@ Requirements for autopilot architecture rewrite. Each maps to roadmap phases.
 | EXEC-01 | Phase 136 | Pending |
 | EXEC-02 | Phase 136 | Pending |
 | EXEC-03 | Phase 136 | Pending |
-| LOOP-01 | Phase 137 | Pending |
-| LOOP-02 | Phase 137 | Pending |
-| LOOP-03 | Phase 137 | Pending |
-| LOOP-04 | Phase 137 | Pending |
+| LOOP-01 | Phase 137 | Complete |
+| LOOP-02 | Phase 137 | Complete |
+| LOOP-03 | Phase 137 | Complete |
+| LOOP-04 | Phase 137 | Complete |
 | LOOP-05 | Phase 137 | Pending |
 | SAFE-01 | Phase 137 | Pending |
 | SAFE-02 | Phase 137 | Pending |
 | SAFE-03 | Phase 137 | Pending |
-| SAFE-04 | Phase 137 | Pending |
+| SAFE-04 | Phase 137 | Complete |
 | CTX-01 | Phase 138 | Pending |
 | CTX-02 | Phase 138 | Pending |
 | CTX-03 | Phase 138 | Pending |

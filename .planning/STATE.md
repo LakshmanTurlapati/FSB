@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.12
-milestone_name: MCP Developer Experience
+milestone: v0.9.8.1
+milestone_name: npm Publishing
 status: executing
-stopped_at: Completed 136-01-PLAN.md (unified tool executor)
-last_updated: "2026-04-01T08:58:02.000Z"
+stopped_at: Completed 137-01-PLAN.md
+last_updated: "2026-04-01T09:46:52.982Z"
 last_activity: 2026-04-01
 progress:
-  total_phases: 3
+  total_phases: 2
   completed_phases: 0
   total_plans: 2
   completed_plans: 1
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-31)
 ## Current Position
 
 Phase: 136 (Unified Tool Executor MCP Migration)
-Plan: 1 of 2 complete
-Status: Executing
-Last activity: 2026-04-01 -- Completed 136-01 unified tool executor
+Plan: 2 of 2 complete
+Status: Ready to execute
+Last activity: 2026-04-01
 
 Progress: [#---------] 10%
 
@@ -53,6 +53,8 @@ Recent decisions affecting current work:
 - [136-01]: Routing layer only for tool executor -- CDP/data handlers injected via callbacks
 - [136-01]: BF cache detection on content tool failures returns navigationTriggered=true
 - [136-01]: get_dom_snapshot special-cased with mcp:get-dom message type (no _contentVerb)
+- [Phase 137]: setTimeout-chaining pattern: each iteration ends with setTimeout(100ms) for Chrome MV3 SW survival
+- [Phase 137]: Callback injection: runAgentLoop receives background.js functions as options to avoid tight coupling
 
 ### Roadmap Evolution
 
@@ -72,6 +74,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-01T08:58:02Z
-Stopped at: Completed 136-01-PLAN.md
+Last session: 2026-04-01T09:46:52.980Z
+Stopped at: Completed 137-01-PLAN.md
 Resume file: None
