@@ -374,19 +374,30 @@ function getPublicTools() {
  * @returns {string} System prompt string
  */
 function buildSystemPrompt(task, pageUrl) {
-  return `You are a browser automation agent. You control a web browser by calling tools.
+  return `You are a browser automation agent. Your job is to COMPLETE the user's task end-to-end, not just browse.
 
-Current task: ${task}
-Current page: ${pageUrl}
+TASK: ${task}
+CURRENT PAGE: ${pageUrl}
 
-Instructions:
-- Call get_page_snapshot to see the current page elements before interacting.
-- Call get_site_guide with the domain if you need site-specific selectors or tips.
-- Call tools to interact with the page. Each tool returns a structured result.
-- Use report_progress to tell the user what you are doing before complex operations.
-- When the task is complete, respond with a text message summarizing what you accomplished. Do NOT call any more tools.
-- If you cannot complete the task, explain why in a text message.
-- Do not ask the user questions. Execute the task autonomously.`;
+WORKFLOW -- follow these steps in order:
+1. Navigate to the relevant page if not already there.
+2. Use read_page to extract the actual text content of the page. This is how you read what's on screen.
+3. Use get_page_snapshot ONLY when you need to find element selectors for clicking or typing.
+4. Perform actions (click, type, scroll, select_option) to interact with the page.
+5. If the task involves collecting data: use read_page to extract ALL data, scroll and read again for more.
+6. If the task involves entering data into Google Sheets: open a new sheet (navigate to sheets.google.com/create), then use fill_sheet with CSV data.
+7. Use report_progress to keep the user informed of what you are doing.
+8. Call complete_task with a summary when the FULL task is done.
+9. Call fail_task with a reason if you cannot complete it.
+
+CRITICAL RULES:
+- Do NOT stop after just navigating and scrolling. That is only the first step.
+- Do NOT end your turn with a text message. Always call complete_task or fail_task when done.
+- read_page gives you the actual text content (titles, descriptions, data to extract).
+- get_page_snapshot gives you DOM element IDs and selectors (for click/type targets).
+- For data collection: scroll through ALL results, reading each page of content.
+- For Google Sheets entry: use fill_sheet tool with startCell and csvData parameters.
+- Execute autonomously. Do not ask the user questions.`;
 }
 
 
@@ -812,7 +823,8 @@ async function runAgentIteration(sessionId, options) {
       }
 
       console.log('[AgentLoop] AI signaled end_turn', {
-        sessionId, iteration: iterNum, finalTextLength: finalText.length
+        sessionId, iteration: iterNum, finalTextLength: finalText.length,
+        finalText: finalText.substring(0, 500)
       });
 
       // End session
@@ -900,6 +912,46 @@ async function runAgentIteration(sessionId, options) {
           result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
             result: { domain, guidance: `No site guide available for ${domain}.` } };
         }
+      } else if (call.name === 'complete_task') {
+        // Task lifecycle: complete
+        const summary = call.args?.summary || 'Task completed';
+        console.log('[AgentLoop] Task completed:', summary);
+        session.status = 'completed';
+        session.result = summary;
+        if (typeof sendStatus === 'function') {
+          sendStatus(session.tabId, {
+            phase: 'complete',
+            taskName: session.task,
+            statusText: summary,
+            iteration: iterNum,
+            cost: (session.agentState.totalCost || 0).toFixed(4)
+          });
+        }
+        if (typeof endSessionOverlays === 'function') {
+          await endSessionOverlays(session, 'complete');
+        }
+        await persist(sessionId, session);
+        return; // End the loop -- task is done
+      } else if (call.name === 'fail_task') {
+        // Task lifecycle: failure
+        const reason = call.args?.reason || 'Task failed';
+        console.log('[AgentLoop] Task failed:', reason);
+        session.status = 'error';
+        session.error = reason;
+        if (typeof sendStatus === 'function') {
+          sendStatus(session.tabId, {
+            phase: 'error',
+            taskName: session.task,
+            statusText: reason,
+            iteration: iterNum,
+            cost: (session.agentState.totalCost || 0).toFixed(4)
+          });
+        }
+        if (typeof endSessionOverlays === 'function') {
+          await endSessionOverlays(session, 'error');
+        }
+        await persist(sessionId, session);
+        return; // End the loop -- task failed
       } else if (call.name === 'report_progress') {
         // PROG-02: Update progress overlay with AI reasoning and cost
         const msg = call.args?.message || '';

@@ -824,6 +824,42 @@ const TOOL_REGISTRY = [
     _readOnly: true,
     _contentVerb: null,
     _cdpVerb: null
+  },
+
+  // =========================================================================
+  // TASK LIFECYCLE TOOLS (2 tools)
+  // =========================================================================
+
+  {
+    name: 'complete_task',
+    description: 'Signal that the task is fully complete. ONLY call this when the user\'s requested task has been fully achieved -- all data collected, all entries made, all actions performed. Include a summary of what was accomplished.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string', description: 'Summary of what was accomplished (e.g. "Found 50 Tesla internships and added them to Google Sheet with title, department, location columns")' }
+      },
+      required: ['summary']
+    },
+    _route: 'background',
+    _readOnly: true,
+    _contentVerb: null,
+    _cdpVerb: null
+  },
+
+  {
+    name: 'fail_task',
+    description: 'Signal that the task cannot be completed. Include the reason why. Call this instead of just stopping when you encounter an unrecoverable problem.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why the task cannot be completed (e.g. "Page requires login", "Data not found on page")' }
+      },
+      required: ['reason']
+    },
+    _route: 'background',
+    _readOnly: true,
+    _contentVerb: null,
+    _cdpVerb: null
   }
 ];
 
