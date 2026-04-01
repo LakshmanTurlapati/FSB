@@ -977,6 +977,23 @@ async function runAgentIteration(sessionId, options) {
         });
       }
 
+      // Tab-switching tools: update session.tabId so subsequent tools target the new tab
+      if ((call.name === 'open_tab' || call.name === 'switch_tab') && result.success && result.result?.tabId) {
+        const newTabId = result.result.tabId;
+        console.log('[AgentLoop] Tab changed', { from: session.tabId, to: newTabId, tool: call.name });
+        session.tabId = newTabId;
+
+        // Ensure content script is injected on the new tab
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: newTabId },
+            files: ['content/messaging.js']
+          });
+        } catch (_e) {
+          // Content script may already be injected or tab may be restricted
+        }
+      }
+
       toolResults.push({ callId: call.id, name: call.name, result });
 
       // Update action history for progress tracking
