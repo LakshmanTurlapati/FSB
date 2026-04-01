@@ -18,7 +18,7 @@ export function registerAutopilotTools(
   // run_task -- execute a natural language automation task
   server.tool(
     'run_task',
-    'Execute a browser automation task using FSB\'s AI. Describe what you want done in natural language and FSB\'s AI decides the steps. Returns a completion summary with success status and action log.',
+    'Execute a browser automation task using FSB\'s AI. Describe what you want done in natural language and FSB\'s AI decides the steps. Returns a completion summary with success status and action log. When to use: for complex multi-step tasks that are easier to describe in natural language than to script step-by-step. FSB\'s built-in AI handles navigation, element finding, clicking, typing, and verification. Related: For fine-grained control, use manual tools (navigate, read_page, click, type_text) instead.',
     { task: z.string().describe('Natural language description of the task to perform') },
     async ({ task }, extra) => {
       if (!bridge.isConnected) {
@@ -65,7 +65,7 @@ export function registerAutopilotTools(
   // stop_task -- cancel the currently running automation
   server.tool(
     'stop_task',
-    'Cancel the currently running automation task. Use when a task is taking too long or heading in the wrong direction. Returns confirmation of cancellation.',
+    'Cancel the currently running automation task. Returns confirmation of cancellation. When to use: when run_task is taking too long, heading in the wrong direction, or you need to regain manual control. Related: get_task_status (check progress before deciding to stop), run_task (the task being cancelled).',
     {},
     async () => {
       if (!bridge.isConnected) {
@@ -82,7 +82,7 @@ export function registerAutopilotTools(
   // get_task_status -- check running task progress (read-only, bypasses queue)
   server.tool(
     'get_task_status',
-    'Check whether a task is currently running and its progress. Use to poll status when not receiving progress notifications. Returns percent complete, current phase, and ETA.',
+    'Check whether a task is currently running and its progress. Use to poll status when not receiving progress notifications. Returns percent complete, current phase, and ETA. Related: run_task (the task being monitored), stop_task (cancel if needed).',
     {},
     async () => {
       if (!bridge.isConnected) {

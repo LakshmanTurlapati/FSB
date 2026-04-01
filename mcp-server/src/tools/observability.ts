@@ -18,7 +18,7 @@ export function registerObservabilityTools(
 ): void {
   server.tool(
     'list_sessions',
-    'List all past FSB automation sessions with summary info (task, status, duration, action count, cost). Use to find session IDs for deeper inspection with get_session_detail.',
+    'List all past FSB automation sessions with summary info (task, status, duration, action count, cost). Use to find session IDs for deeper inspection with get_session_detail. Related: get_session_detail (inspect a specific session), get_logs (get raw logs).',
     { limit: z.number().optional().describe('Max sessions to return (default: all, max 50)') },
     async ({ limit }) => {
       if (!bridge.isConnected) {
@@ -36,7 +36,7 @@ export function registerObservabilityTools(
 
   server.tool(
     'get_session_detail',
-    'Get full detail for a past automation session including logs, action history, and timing. Use after list_sessions to inspect what happened. Returns structured JSON or human-readable text report.',
+    'Get full detail for a past automation session including logs, action history, and timing. Use after list_sessions to inspect what happened. Returns structured JSON or human-readable text report. Related: list_sessions (find session IDs first), get_logs (get raw log entries).',
     {
       sessionId: z.string().describe('Session ID from list_sessions'),
       format: z.enum(['json', 'text']).optional().describe('Output format: json (structured, default) or text (human-readable report)'),
@@ -78,7 +78,7 @@ export function registerObservabilityTools(
 
   server.tool(
     'search_memory',
-    'Search FSB\'s memory system for relevant past experiences. Returns memories ranked by relevance with keyword matching and recency scoring. Use to find what FSB learned from previous tasks on similar sites or domains.',
+    'Search FSB\'s memory system for relevant past experiences. Returns memories ranked by relevance with keyword matching and recency scoring. Use to find what FSB learned from previous tasks on similar sites or domains. When to use: before automating a site to check if FSB has learned relevant patterns from past sessions. Related: get_memory_stats (check memory size), list_sessions (find specific sessions).',
     {
       query: z.string().describe('Natural language search query'),
       domain: z.string().optional().describe('Filter by domain (e.g., "amazon.com")'),

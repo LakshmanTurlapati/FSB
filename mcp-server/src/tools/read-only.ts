@@ -16,7 +16,7 @@ export function registerReadOnlyTools(
 ): void {
   server.tool(
     'read_page',
-    'Read the text content of the current page. Use to understand what is on the page before interacting. Returns page text with structure preserved.',
+    'Read the text content of the current page. When to use: as the FIRST step after navigating to understand what is on the page. Automatically waits for DOM stability on JS-heavy sites. Returns main content prioritized over sidebars/nav/footer, capped at ~8K chars. Related: get_dom_snapshot (get structured element data with selectors for interaction), navigate (go to a page first), scroll (scroll to load more content before reading).',
     { full: z.boolean().optional().describe('If true, read entire page; if false (default), read visible viewport only') },
     async ({ full }) => {
       if (!bridge.isConnected) {
@@ -34,8 +34,8 @@ export function registerReadOnlyTools(
 
   server.tool(
     'get_text',
-    'Get the text content of a specific element. Use to read a particular section or value on the page. Returns the element\'s text.',
-    { selector: z.string().describe('CSS selector or element reference to get text from') },
+    'Get the text content of a specific element. Returns the element\'s text. When to use: to read a specific element\'s text without reading the whole page. Related: read_page (read full page), get_attribute (read element attributes like href, src).',
+    { selector: z.string().describe('CSS selector or element ref (e.g., "#price", ".title", or "e3" from get_dom_snapshot)') },
     async ({ selector }) => {
       if (!bridge.isConnected) {
         return mapFSBError({ success: false, error: 'extension_not_connected' });
@@ -52,9 +52,9 @@ export function registerReadOnlyTools(
 
   server.tool(
     'get_attribute',
-    'Get an HTML attribute value from an element. Use to read href, src, value, or other attributes. Returns the attribute value.',
+    'Get an HTML attribute value from an element. Returns the attribute value. When to use: to read href, src, value, data attributes, or ARIA properties from an element. Related: get_text (read element text content), get_dom_snapshot (find element selectors).',
     {
-      selector: z.string().describe('CSS selector or element reference'),
+      selector: z.string().describe('CSS selector or element ref (e.g., "#link", "a.nav-item", or "e7" from get_dom_snapshot)'),
       attribute: z.string().describe('HTML attribute name (e.g., \'href\', \'src\', \'value\')'),
     },
     async ({ selector, attribute }) => {
@@ -73,7 +73,7 @@ export function registerReadOnlyTools(
 
   server.tool(
     'get_dom_snapshot',
-    'Get a structured DOM snapshot of the current page with element references. Use to understand page structure and find selectors. Returns JSON with elements, selectors, and form data.',
+    'Get a structured DOM snapshot with element references (e.g., e1, e2, e3). When to use: BEFORE any interaction tool (click, type_text, etc.) to find the right selector or element ref. Returns elements with tag, text, attributes, and position data. Element refs like \'e5\' can be passed directly to click, type_text, hover, and other tools. Related: read_page (quick text content), click/type_text/hover (use refs from this snapshot).',
     { maxElements: z.number().optional().describe('Maximum elements to include (default: 2000)') },
     async ({ maxElements }) => {
       if (!bridge.isConnected) {
@@ -91,7 +91,7 @@ export function registerReadOnlyTools(
 
   server.tool(
     'list_tabs',
-    'List all open browser tabs with title, URL, and active status. Use to see what tabs are available. Returns array of tab objects.',
+    'List all open browser tabs with title, URL, and active status. Returns array of tab objects. When to use: to see all open tabs before switching. Related: switch_tab (switch to a tab by ID), open_tab (open a new tab).',
     {},
     async () => {
       if (!bridge.isConnected) {

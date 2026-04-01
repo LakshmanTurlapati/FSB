@@ -55,35 +55,35 @@ export function registerManualTools(
 
   server.tool(
     'navigate',
-    'Open a URL in the active browser tab. Use to go to a specific page before interacting with it. Returns the final URL after any redirects.',
+    'Open a URL in the active browser tab. Returns the final URL after any redirects. When to use: as the first step to reach a target website. Related: read_page (read content after navigating), list_tabs (see what tabs are already open).',
     { url: z.string().describe('URL to navigate to') },
     async ({ url }) => execAction(bridge, queue, 'navigate', 'navigate', { url }),
   );
 
   server.tool(
     'search',
-    'Search for content. Automatically uses the current site\'s own search bar (Amazon, YouTube, GitHub, etc.) when available, falling back to Google search only when no site search input is found. Returns search results status.',
+    'Search for content on the current site or web. When to use: to find content on the current site or web. Automatically detects the site\'s search input (Amazon, YouTube, GitHub, etc.) via DOM heuristics -- only falls back to Google when no site search exists. Returns search results status. Related: read_page (read search results after searching), click (click a specific search result).',
     { query: z.string().describe('Search query text') },
     async ({ query }) => execAction(bridge, queue, 'search', 'siteSearch', { query }),
   );
 
   server.tool(
     'go_back',
-    'Navigate back one page in browser history. Use to return to the previous page. Returns the new URL.',
+    'Navigate back one page in browser history. Returns the new URL. When to use: to return to the previous page after following a link or navigating away. Related: go_forward (undo a go_back), navigate (go to a specific URL instead).',
     {},
     async () => execAction(bridge, queue, 'go_back', 'goBack', {}),
   );
 
   server.tool(
     'go_forward',
-    'Navigate forward one page in browser history. Use after going back. Returns the new URL.',
+    'Navigate forward one page in browser history. Returns the new URL. When to use: after using go_back, to move forward again. Related: go_back (go back in history), navigate (go to a specific URL instead).',
     {},
     async () => execAction(bridge, queue, 'go_forward', 'goForward', {}),
   );
 
   server.tool(
     'refresh',
-    'Reload the current page. Use when page content may be stale. Returns the refreshed URL.',
+    'Reload the current page. Returns the refreshed URL. When to use: when page content may be stale, after errors, or to reset page state. Related: navigate (go to a different URL), wait_for_stable (wait for page to settle after refresh).',
     {},
     async () => execAction(bridge, queue, 'refresh', 'refresh', {}),
   );
@@ -92,16 +92,16 @@ export function registerManualTools(
 
   server.tool(
     'click',
-    'Click an element on the page by CSS selector or element reference. Use to press buttons, follow links, or activate controls. Returns whether the click succeeded.',
-    { selector: z.string().describe('CSS selector or element reference (e.g., \'e5\', \'#submit-btn\')') },
+    'Click an element on the page. When to use: to press buttons, follow links, activate controls, or select items. Get selectors from get_dom_snapshot first. If click fails, try refreshing selectors with get_dom_snapshot or use click_at with viewport coordinates. Returns whether the click succeeded. Related: get_dom_snapshot (find element selectors/refs), click_at (coordinate-based fallback for canvas/overlay elements), hover (for menus that need hover before click).',
+    { selector: z.string().describe('CSS selector or element reference from get_dom_snapshot (e.g., "#submit-btn", ".nav-link", or element ref "e5")') },
     async ({ selector }) => execAction(bridge, queue, 'click', 'click', { selector }),
   );
 
   server.tool(
     'type_text',
-    'Type text into an input field by selector. Use to fill text inputs, search boxes, or text areas. Returns confirmation of typed text.',
+    'Type text into an input field by selector. When to use: to fill text inputs, search boxes, or text areas. Use clear_input first if the field already has text. Returns confirmation of typed text. Related: clear_input (clear field before typing), press_enter (submit after typing), get_dom_snapshot (find input selectors).',
     {
-      selector: z.string().describe('CSS selector or element reference for the input field'),
+      selector: z.string().describe('CSS selector or element ref for the input field (e.g., "#email", "input[name=search]", or "e12" from get_dom_snapshot)'),
       text: z.string().describe('Text to type into the field'),
     },
     async ({ selector, text }) => execAction(bridge, queue, 'type_text', 'type', { selector, text }),
@@ -109,14 +109,14 @@ export function registerManualTools(
 
   server.tool(
     'press_enter',
-    'Press the Enter key, optionally on a specific element. Use to submit forms or confirm input. Returns key press confirmation.',
+    'Press the Enter key to submit a form or confirm input. When to use: after typing into a search box or form field. Automatically falls back to clicking the submit button if Enter has no effect. Returns key press confirmation. Related: type_text (type before pressing Enter), click (click submit button directly).',
     { selector: z.string().optional().describe('Optional CSS selector or element reference to press Enter on') },
     async ({ selector }) => execAction(bridge, queue, 'press_enter', 'pressEnter', { selector }),
   );
 
   server.tool(
     'press_key',
-    'Press a keyboard key with optional modifiers (ctrl, shift, alt). Use for keyboard shortcuts or special key input. Returns key press confirmation.',
+    'Press a keyboard key with optional modifiers (ctrl, shift, alt). Returns key press confirmation. When to use: for keyboard shortcuts (Ctrl+C, Ctrl+V), special keys (Escape, Tab, ArrowDown), or key combinations. Related: press_enter (dedicated Enter key tool), type_text (type full strings), focus (focus element before sending keys).',
     {
       key: z.string().describe('Key to press (e.g., \'Escape\', \'Tab\', \'ArrowDown\')'),
       ctrl: z.boolean().optional().describe('Hold Ctrl'),
@@ -135,45 +135,45 @@ export function registerManualTools(
 
   server.tool(
     'select_option',
-    'Select an option from a dropdown by value. Use to choose from select menus. Returns the selected value.',
+    'Select an option from a dropdown by value. When to use: to choose from <select> dropdown menus. Returns the selected value. Related: get_dom_snapshot (find select element selectors), click (for custom non-native dropdowns).',
     {
-      selector: z.string().describe('CSS selector or element reference for the select dropdown'),
-      value: z.string().describe('Option value or visible text to select'),
+      selector: z.string().describe('CSS selector or element ref for the <select> dropdown (e.g., "#country", "select[name=size]", or "e8")'),
+      value: z.string().describe('Option value attribute or visible text (e.g., "US", "Large", "Option 3")'),
     },
     async ({ selector, value }) => execAction(bridge, queue, 'select_option', 'selectOption', { selector, value }),
   );
 
   server.tool(
     'check_box',
-    'Toggle a checkbox element. Use to check or uncheck form checkboxes. Returns the new checked state.',
+    'Toggle a checkbox element. Returns the new checked state. When to use: to check or uncheck form checkboxes or toggle switches. Related: get_dom_snapshot (find checkbox selectors), click (alternative for custom checkbox UI components).',
     { selector: z.string().describe('CSS selector or element reference for the checkbox') },
     async ({ selector }) => execAction(bridge, queue, 'check_box', 'toggleCheckbox', { selector }),
   );
 
   server.tool(
     'hover',
-    'Move the mouse over an element. Use to trigger hover menus, tooltips, or hover states. Returns hover confirmation.',
+    'Move the mouse over an element. Returns hover confirmation. When to use: to reveal dropdown menus, tooltips, or hover-activated content before clicking. Related: click (click revealed menu item after hover), get_dom_snapshot (find element selectors).',
     { selector: z.string().describe('CSS selector or element reference to hover over') },
     async ({ selector }) => execAction(bridge, queue, 'hover', 'hover', { selector }),
   );
 
   server.tool(
     'right_click',
-    'Open context menu on an element. Use to access right-click options. Returns context menu confirmation.',
+    'Open context menu on an element. Returns context menu confirmation. When to use: to access right-click context menu options on an element. Related: click (standard left-click), get_dom_snapshot (find element selectors).',
     { selector: z.string().describe('CSS selector or element reference to right-click') },
     async ({ selector }) => execAction(bridge, queue, 'right_click', 'rightClick', { selector }),
   );
 
   server.tool(
     'double_click',
-    'Double-click an element. Use for actions requiring double-click like text selection or opening items. Returns click confirmation.',
+    'Double-click an element. Returns click confirmation. When to use: for actions requiring double-click such as selecting a word, opening items in file managers, or activating edit mode. Related: click (single click), select_text_range (precise text selection by offsets), get_dom_snapshot (find element selectors).',
     { selector: z.string().describe('CSS selector or element reference to double-click') },
     async ({ selector }) => execAction(bridge, queue, 'double_click', 'doubleClick', { selector }),
   );
 
   server.tool(
     'select_text_range',
-    'Select a specific substring within a DOM element by character offsets. Uses the Range API to highlight text from startOffset to endOffset within the element\'s text content. Essential for precise text selection like highlighting a specific sentence in a paragraph. Returns the selected text for verification. For selecting an entire element\'s text, use double-click instead.',
+    'Select a specific substring within a DOM element by character offsets. Uses the Range API to highlight text from startOffset to endOffset within the element\'s text content. Essential for precise text selection like highlighting a specific sentence in a paragraph. Returns the selected text for verification. For selecting an entire element\'s text, use double-click instead. Related: double_click (select entire word/element text), get_text (read element text to determine offsets), get_dom_snapshot (find container selectors).',
     {
       selector: z.string().describe('CSS selector or element reference for the container element (e.g., "#mw-content-text p:nth-of-type(3)" for third paragraph)'),
       startOffset: z.number().describe('Character offset where selection starts (0-based, counting from start of element text content)'),
@@ -185,7 +185,7 @@ export function registerManualTools(
 
   server.tool(
     'drag_drop',
-    'Drag and drop one DOM element onto another using element references. Tries three methods in order: HTML5 DragEvent (dragstart/drop), PointerEvent sequence (for react-beautiful-dnd and similar libraries), and MouseEvent sequence (basic fallback). Use for Kanban card reordering, sortable lists, file drag targets, or any drag-and-drop interaction between two identifiable DOM elements. Returns which method succeeded. For canvas/coordinate-based drag, use the drag tool instead.',
+    'Drag and drop one DOM element onto another using element references. Tries three methods in order: HTML5 DragEvent (dragstart/drop), PointerEvent sequence (for react-beautiful-dnd and similar libraries), and MouseEvent sequence (basic fallback). Use for Kanban card reordering, sortable lists, file drag targets, or any drag-and-drop interaction between two identifiable DOM elements. Returns which method succeeded. For canvas/coordinate-based drag, use the drag tool instead. Related: drag (coordinate-based drag for canvas/map), drop_file (drop files onto upload zones), get_dom_snapshot (find source and target element refs).',
     {
       sourceSelector: z.string().describe('CSS selector or element reference (e.g., "e5", "#card-1") for the element to drag'),
       targetSelector: z.string().describe('CSS selector or element reference (e.g., "e12", "#column-2") for the drop target element'),
@@ -205,7 +205,7 @@ export function registerManualTools(
 
   server.tool(
     'drop_file',
-    'Simulate dropping a file onto a dropzone element. Creates a synthetic File with the given name, content, and MIME type, then dispatches HTML5 DragEvent sequence (dragenter, dragover, drop) on the target element. Use for file upload dropzones (Dropzone.js, react-dropzone, native HTML5 drop handlers). For drag-and-drop of DOM elements (not files), use drag_drop instead.',
+    'Simulate dropping a file onto a dropzone element. Creates a synthetic File with the given name, content, and MIME type, then dispatches HTML5 DragEvent sequence (dragenter, dragover, drop) on the target element. Use for file upload dropzones (Dropzone.js, react-dropzone, native HTML5 drop handlers). For drag-and-drop of DOM elements (not files), use drag_drop instead. Related: drag_drop (drag DOM elements between containers), get_dom_snapshot (find dropzone selectors).',
     {
       selector: z.string().describe('CSS selector for the dropzone element (the area where files are dropped)'),
       fileName: z.string().optional().default('test-upload.txt').describe('Name of the synthetic file to drop (e.g., "photo.jpg", "document.pdf")'),
@@ -218,14 +218,14 @@ export function registerManualTools(
 
   server.tool(
     'focus',
-    'Move keyboard focus to an element. Use to prepare an element for keyboard input. Returns focus confirmation.',
+    'Move keyboard focus to an element. Returns focus confirmation. When to use: to prepare an element for keyboard input, or to bring an element into the accessibility focus ring. Related: type_text (type into a focused input), press_key (send keystrokes to focused element), click (also focuses the clicked element).',
     { selector: z.string().describe('CSS selector or element reference to focus') },
     async ({ selector }) => execAction(bridge, queue, 'focus', 'focus', { selector }),
   );
 
   server.tool(
     'clear_input',
-    'Clear the contents of an input field. Use before typing new text into an already-filled field. Returns clear confirmation.',
+    'Clear the contents of an input field. Returns clear confirmation. When to use: before typing new text into an already-filled field to remove existing content. Related: type_text (type new text after clearing), get_dom_snapshot (find input selectors).',
     { selector: z.string().describe('CSS selector or element reference for the input to clear') },
     async ({ selector }) => execAction(bridge, queue, 'clear_input', 'clearInput', { selector }),
   );
@@ -234,7 +234,7 @@ export function registerManualTools(
 
   server.tool(
     'scroll',
-    'Scroll the page up or down by a specified amount. Use to bring off-screen content into view. Returns new scroll position.',
+    'Scroll the page up or down by a specified amount. Returns new scroll position. When to use: to bring off-screen content into view, load lazy-loaded content, or navigate long pages. Related: scroll_to_top, scroll_to_bottom (quick jumps), read_page (read content after scrolling).',
     {
       direction: z.enum(['up', 'down']).describe('Scroll direction'),
       amount: z.number().optional().describe('Scroll amount in pixels (default: one viewport)'),
@@ -244,14 +244,14 @@ export function registerManualTools(
 
   server.tool(
     'scroll_to_top',
-    'Scroll to the top of the page. Use to return to the beginning of the page. Returns confirmation.',
+    'Scroll to the top of the page. Returns confirmation. When to use: to return to the beginning of the page or reset scroll position. Related: scroll_to_bottom (jump to end), scroll (scroll by specific amount), read_page (read content after scrolling).',
     {},
     async () => execAction(bridge, queue, 'scroll_to_top', 'scrollToTop', {}),
   );
 
   server.tool(
     'scroll_to_bottom',
-    'Scroll to the bottom of the page. Use to reach the end of the page or load lazy content. Returns confirmation.',
+    'Scroll to the bottom of the page. Returns confirmation. When to use: to reach the end of the page, load lazy content, or trigger infinite scroll. Related: scroll_to_top (jump to beginning), scroll (scroll by specific amount), read_page (read content after scrolling).',
     {},
     async () => execAction(bridge, queue, 'scroll_to_bottom', 'scrollToBottom', {}),
   );
@@ -260,14 +260,14 @@ export function registerManualTools(
 
   server.tool(
     'wait_for_element',
-    'Wait until an element matching the selector appears on the page. Use after navigation or actions that load new content. Returns when element is found or times out.',
-    { selector: z.string().describe('CSS selector to wait for (not element reference -- must be a CSS selector)') },
+    'Wait until an element matching the selector appears on the page. Returns when element is found or times out. When to use: after navigation or actions that load new content asynchronously. Related: wait_for_stable (wait for all DOM changes to settle), read_page (read content after element appears).',
+    { selector: z.string().describe('CSS selector to wait for (e.g., ".results-loaded", "#content", "table.data") -- must be CSS, not element ref') },
     async ({ selector }) => execAction(bridge, queue, 'wait_for_element', 'waitForElement', { selector }),
   );
 
   server.tool(
     'wait_for_stable',
-    'Wait until the page stops changing (no DOM mutations). Use after actions that trigger dynamic content loading. Returns when page is stable.',
+    'Wait until the page stops changing (no DOM mutations). Returns when page is stable. When to use: after actions that trigger dynamic content loading, animations, or AJAX requests. Note: read_page already auto-waits for stability internally. Related: wait_for_element (wait for a specific element), read_page (read content after page stabilizes).',
     {},
     async () => execAction(bridge, queue, 'wait_for_stable', 'waitForDOMStable', {}),
   );
@@ -276,15 +276,15 @@ export function registerManualTools(
 
   server.tool(
     'open_tab',
-    'Open a new browser tab with the given URL. Use when you need to work in a separate tab. Returns the new tab ID.',
+    'Open a new browser tab with the given URL. Returns the new tab ID. When to use: when you need to work on a different site without losing the current page. Related: switch_tab (switch between open tabs), list_tabs (see all open tabs), navigate (change URL in current tab instead).',
     { url: z.string().describe('URL to open in new tab') },
     async ({ url }) => execAction(bridge, queue, 'open_tab', 'openNewTab', { url }),
   );
 
   server.tool(
     'switch_tab',
-    'Switch the active browser tab by tab ID. Use to move between open tabs. Returns confirmation with the new active tab info.',
-    { tabId: z.number().describe('Tab ID to switch to (from list_tabs)') },
+    'Switch the active browser tab by tab ID. Returns confirmation with the new active tab info. When to use: to move between open tabs for multi-tab workflows. Related: list_tabs (get available tab IDs first), open_tab (open a new tab).',
+    { tabId: z.number().describe('Tab ID to switch to (get IDs from list_tabs tool)') },
     async ({ tabId }) => execAction(bridge, queue, 'switch_tab', 'switchToTab', { tabId }),
   );
 
@@ -292,9 +292,9 @@ export function registerManualTools(
 
   server.tool(
     'fill_sheet',
-    'Fill cells in a spreadsheet starting from a given cell with CSV data. Use for bulk data entry into Google Sheets or similar. Returns fill confirmation.',
+    'Fill cells in a spreadsheet starting from a given cell with CSV data. Returns fill confirmation. When to use: for bulk data entry into Google Sheets. Related: read_sheet (read existing data before filling), navigate (go to the spreadsheet first).',
     {
-      startCell: z.string().describe('Starting cell reference (e.g., \'A1\')'),
+      startCell: z.string().describe('Starting cell reference (e.g., "A1", "B5", "D10")'),
       csvData: z.string().describe('CSV data with \\n for row breaks'),
       sheetName: z.string().optional().describe('Optional sheet name to set'),
     },
@@ -304,7 +304,7 @@ export function registerManualTools(
 
   server.tool(
     'read_sheet',
-    'Read cell values from a spreadsheet range. Use to extract tabular data from Google Sheets or similar. Returns cell values as array.',
+    'Read cell values from a spreadsheet range. Returns cell values as array. When to use: to extract tabular data from a spreadsheet. Related: fill_sheet (write data), navigate (go to the spreadsheet first).',
     { range: z.string().describe('Cell range to read (e.g., \'A1:C5\')') },
     async ({ range }) => execAction(bridge, queue, 'read_sheet', 'readsheet', { range }),
   );
@@ -313,7 +313,7 @@ export function registerManualTools(
 
   server.tool(
     'click_at',
-    'Click at specific viewport coordinates using CDP trusted events. Use for canvas elements, overlays, or any element where DOM-based click does not work. Supports modifier keys for shift+click (multi-select), ctrl+click, alt+click. Coordinates are CSS pixels relative to the browser viewport (use getBoundingClientRect() values). Returns success/failure with method used.',
+    'Click at specific viewport coordinates using CDP trusted events. Supports modifier keys for shift+click (multi-select), ctrl+click, alt+click. Coordinates are CSS pixels relative to the browser viewport (use getBoundingClientRect() values). Returns success/failure with method used. When to use: for canvas elements, SVG graphics, overlays, or any element where DOM-based click (click tool) does not work. Fallback for click failures. Related: click (preferred for DOM elements -- use click_at only when click fails), get_dom_snapshot (check element coordinates via position data), drag (for click-and-drag interactions).',
     {
       x: z.number().describe('X coordinate in viewport CSS pixels'),
       y: z.number().describe('Y coordinate in viewport CSS pixels'),
@@ -331,7 +331,7 @@ export function registerManualTools(
 
   server.tool(
     'click_and_hold',
-    'Click and hold at specific viewport coordinates for a specified duration using CDP trusted events. Dispatches mousePressed, waits holdMs milliseconds, then dispatches mouseReleased at the same position. Use for record buttons, long-press menus, or any UI that requires sustained mouse press. Coordinates are CSS pixels relative to the browser viewport.',
+    'Click and hold at specific viewport coordinates for a specified duration using CDP trusted events. Dispatches mousePressed, waits holdMs milliseconds, then dispatches mouseReleased at the same position. Coordinates are CSS pixels relative to the browser viewport. When to use: for record buttons, long-press menus, or any UI that requires sustained mouse press. Related: click_at (simple click without hold), drag (click, move, and release for dragging interactions).',
     {
       x: z.number().describe('X coordinate in viewport CSS pixels'),
       y: z.number().describe('Y coordinate in viewport CSS pixels'),
@@ -342,7 +342,7 @@ export function registerManualTools(
 
   server.tool(
     'drag',
-    'Drag from one viewport coordinate to another using CDP trusted events. Produces mousePressed at start, N intermediate mouseMoved events, then mouseReleased at end. Essential for canvas drawing tools, sliders, and map interactions where DOM drag events are ignored. Supports modifier keys for constrained drawing (shift+drag). Coordinates are CSS pixels relative to the browser viewport.',
+    'Drag from one viewport coordinate to another using CDP trusted events. Produces mousePressed at start, N intermediate mouseMoved events, then mouseReleased at end. Essential for canvas drawing tools, sliders, and map interactions where DOM drag events are ignored. Supports modifier keys for constrained drawing (shift+drag). Coordinates are CSS pixels relative to the browser viewport. Related: drag_drop (DOM element-to-element drag using selectors), drag_variable_speed (human-like variable-speed drag for CAPTCHAs), click_at (simple click at coordinates), click_and_hold (press and hold without moving).',
     {
       startX: z.number().describe('Start X coordinate in viewport CSS pixels'),
       startY: z.number().describe('Start Y coordinate in viewport CSS pixels'),
@@ -365,7 +365,7 @@ export function registerManualTools(
 
   server.tool(
     'drag_variable_speed',
-    'Drag from one viewport coordinate to another at variable speed using an ease-in-out timing curve. Produces mousePressed at start, N intermediate mouseMoved events with varying delays (slow-fast-slow), then mouseReleased at end. The speed curve mimics human drag behavior: slow acceleration at start, peak speed in the middle, slow deceleration at end. Essential for slider CAPTCHAs and puzzle CAPTCHAs where constant-speed drag is detected as bot behavior. For uniform-speed drag (canvas drawing, map panning), use the regular drag tool instead.',
+    'Drag from one viewport coordinate to another at variable speed using an ease-in-out timing curve. Produces mousePressed at start, N intermediate mouseMoved events with varying delays (slow-fast-slow), then mouseReleased at end. The speed curve mimics human drag behavior: slow acceleration at start, peak speed in the middle, slow deceleration at end. Essential for slider CAPTCHAs and puzzle CAPTCHAs where constant-speed drag is detected as bot behavior. For uniform-speed drag (canvas drawing, map panning), use the regular drag tool instead. Related: drag (uniform-speed drag for canvas/maps), drag_drop (DOM element-to-element drag).',
     {
       startX: z.number().describe('Start X coordinate in viewport CSS pixels (slider thumb position)'),
       startY: z.number().describe('Start Y coordinate in viewport CSS pixels (slider thumb position)'),
@@ -383,7 +383,7 @@ export function registerManualTools(
 
   server.tool(
     'scroll_at',
-    'Scroll (mouse wheel) at specific viewport coordinates using CDP trusted events. Use for map zoom (Google Maps, Leaflet), canvas zoom, or any element where page-level scrolling does not trigger the desired zoom/scroll behavior. Negative deltaY = zoom in / scroll up, positive deltaY = zoom out / scroll down. Each call dispatches one wheel tick; call multiple times for more zoom. Coordinates are CSS pixels relative to the browser viewport.',
+    'Scroll (mouse wheel) at specific viewport coordinates using CDP trusted events. Negative deltaY = zoom in / scroll up, positive deltaY = zoom out / scroll down. Each call dispatches one wheel tick; call multiple times for more zoom. Coordinates are CSS pixels relative to the browser viewport. When to use: for map zoom (Google Maps, Leaflet), canvas zoom, or any element where page-level scrolling does not trigger the desired zoom/scroll behavior. Related: scroll (page-level scroll up/down), scroll_to_top/scroll_to_bottom (quick page jumps).',
     {
       x: z.number().describe('X coordinate in viewport CSS pixels (center of zoom target)'),
       y: z.number().describe('Y coordinate in viewport CSS pixels (center of zoom target)'),
