@@ -219,6 +219,129 @@ function detectStuck(session, toolResults) {
 
 
 // ---------------------------------------------------------------------------
+// History Compression (CTX-03, D-07 through D-10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Estimate token count for a message array using char/4 heuristic.
+ * @param {Array<Object>} messages - Conversation messages
+ * @returns {number} Estimated token count
+ */
+function estimateTokens(messages) {
+  let chars = 0;
+  for (const msg of messages) {
+    if (typeof msg.content === 'string') {
+      chars += msg.content.length;
+    } else if (Array.isArray(msg.content)) {
+      for (const block of msg.content) {
+        chars += JSON.stringify(block).length;
+      }
+    } else if (msg.parts) {
+      // Gemini format
+      chars += JSON.stringify(msg.parts).length;
+    }
+    // Tool call messages (OpenAI format)
+    if (msg.tool_calls) {
+      chars += JSON.stringify(msg.tool_calls).length;
+    }
+  }
+  return Math.ceil(chars / 4);
+}
+
+/**
+ * Compact old tool_result messages when history exceeds 80% of token budget.
+ * Per D-08: Keep the most recent 5 tool_result messages intact.
+ * Per D-09: System prompt and current iteration messages are never compressed.
+ * Per D-10: Token estimation uses char/4 heuristic.
+ *
+ * @param {Array<Object>} messages - Conversation history (mutated in place)
+ * @param {number} tokenBudget - Max token budget for the model (default 128000)
+ * @returns {{ compacted: boolean, removedCount: number, estimatedTokens: number }}
+ */
+function compactHistory(messages, tokenBudget = 128000) {
+  const threshold = tokenBudget * 0.8;
+  const currentTokens = estimateTokens(messages);
+
+  if (currentTokens <= threshold) {
+    return { compacted: false, removedCount: 0, estimatedTokens: currentTokens };
+  }
+
+  // Find all tool_result messages (role: 'tool' for OpenAI, or content array with type: 'tool_result' for Anthropic)
+  // Also find Gemini functionResponse messages
+  const toolResultIndices = [];
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (msg.role === 'tool') {
+      toolResultIndices.push(i);
+    } else if (Array.isArray(msg.content) && msg.content.some(b => b.type === 'tool_result')) {
+      toolResultIndices.push(i);
+    } else if (msg.role === 'user' && msg.parts && msg.parts.some(p => p.functionResponse)) {
+      toolResultIndices.push(i);
+    }
+  }
+
+  // Keep the most recent 5 tool_result messages intact (per D-08)
+  const compactableIndices = toolResultIndices.slice(0, -5);
+
+  if (compactableIndices.length === 0) {
+    return { compacted: false, removedCount: 0, estimatedTokens: currentTokens };
+  }
+
+  // Compact each old tool_result to a one-liner summary
+  let removedCount = 0;
+  for (const idx of compactableIndices) {
+    const msg = messages[idx];
+    let toolName = 'unknown_tool';
+    let status = 'completed';
+
+    // Extract tool name and status from various formats
+    if (msg.role === 'tool') {
+      toolName = msg.name || 'unknown_tool';
+      try {
+        const parsed = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
+        status = parsed?.success === false ? 'error' : 'success';
+      } catch (_) { /* keep default */ }
+    } else if (Array.isArray(msg.content)) {
+      const resultBlock = msg.content.find(b => b.type === 'tool_result');
+      if (resultBlock) {
+        toolName = resultBlock.name || 'unknown_tool';
+        try {
+          const parsed = typeof resultBlock.content === 'string' ? JSON.parse(resultBlock.content) : resultBlock.content;
+          status = parsed?.success === false ? 'error' : 'success';
+        } catch (_) { /* keep default */ }
+      }
+    } else if (msg.parts) {
+      const frPart = msg.parts.find(p => p.functionResponse);
+      if (frPart) {
+        toolName = frPart.functionResponse.name || 'unknown_tool';
+        const resp = frPart.functionResponse.response;
+        status = resp?.success === false ? 'error' : 'success';
+      }
+    }
+
+    // Replace with compact summary (per D-08)
+    const summary = `${toolName} returned ${status}`;
+    if (msg.role === 'tool') {
+      msg.content = summary;
+    } else if (Array.isArray(msg.content)) {
+      msg.content = [{ type: 'tool_result', tool_use_id: msg.content[0]?.tool_use_id || '', content: summary }];
+    } else if (msg.parts) {
+      const frPart = msg.parts.find(p => p.functionResponse);
+      if (frPart) {
+        frPart.functionResponse.response = { result: summary };
+      }
+    }
+    removedCount++;
+  }
+
+  const newTokens = estimateTokens(messages);
+  console.log(`[AgentLoop] History compacted: removed ${removedCount} old tool results, tokens ${currentTokens} -> ${newTokens}`);
+
+  return { compacted: true, removedCount, estimatedTokens: newTokens };
+}
+
+
+// ---------------------------------------------------------------------------
 // getPublicTools -- strip internal routing metadata from tool definitions
 // ---------------------------------------------------------------------------
 
@@ -379,11 +502,28 @@ async function callProviderWithTools(providerInstance, model, apiKey, messages, 
       // Anthropic: system prompt separate, messages without system, tools as top-level
       const systemMsg = messages.find(m => m.role === 'system');
       const conversationMsgs = messages.filter(m => m.role !== 'system');
+
+      // CTX-04 / D-14: Enable prompt caching for system prompt and tool definitions
+      const systemContent = systemMsg ? systemMsg.content : '';
+      const cachedSystem = [{
+        type: 'text',
+        text: systemContent,
+        cache_control: { type: 'ephemeral' }
+      }];
+
+      // Mark last tool definition for caching (Anthropic caches up to the marked block)
+      const cachedTools = formattedTools.map((tool, i) => {
+        if (i === formattedTools.length - 1) {
+          return { ...tool, cache_control: { type: 'ephemeral' } };
+        }
+        return tool;
+      });
+
       requestBody = {
         model,
-        system: systemMsg ? systemMsg.content : '',
+        system: cachedSystem,
         messages: conversationMsgs,
-        tools: formattedTools,
+        tools: cachedTools,
         max_tokens: 4096
       };
       break;
@@ -626,6 +766,9 @@ async function runAgentIteration(sessionId, options) {
   try {
     // f. Get provider settings from cached session config
     const { providerKey, model, providerInstance } = session.providerConfig;
+
+    // f2. Compact history if approaching token budget (CTX-03)
+    compactHistory(session.messages);
 
     // g. Make API call with tool definitions
     const response = await callProviderWithTools(
