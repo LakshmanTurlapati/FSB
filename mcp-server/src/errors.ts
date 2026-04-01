@@ -22,6 +22,46 @@ export const FSB_ERROR_MESSAGES: Record<string, string> = {
 };
 
 /**
+ * Generate actionable recovery hints based on error message content.
+ * Helps AI clients understand what to try next when a tool fails.
+ */
+function getRecoveryHint(error: string): string {
+  const lower = error.toLowerCase();
+
+  // Element not found errors
+  if (lower.includes('not found') || lower.includes('no element') || lower.includes('null')) {
+    return ' [Recovery: Call get_dom_snapshot to refresh element references, then retry with an updated selector. Element refs (e1, e2...) expire after page changes.]';
+  }
+
+  // Element not visible / not interactable
+  if (lower.includes('not visible') || lower.includes('not interactable') || lower.includes('obscured') || lower.includes('covered')) {
+    return ' [Recovery: The element may be behind a fixed header or overlay. Try scroll(direction="down") to reposition, or use click_at with viewport coordinates as a fallback.]';
+  }
+
+  // Extension not connected
+  if (lower.includes('extension_not_connected') || lower.includes('not connected') || lower.includes('bridge')) {
+    return ' [Recovery: The FSB Chrome Extension is not running or not connected. Make sure the extension is installed and active in Chrome, then retry.]';
+  }
+
+  // Timeout errors
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return ' [Recovery: The page may be loading slowly. Try wait_for_stable first, then retry. For JS-heavy sites, read_page auto-waits for DOM stability.]';
+  }
+
+  // Navigation / page changed
+  if (lower.includes('navigation') || lower.includes('page changed') || lower.includes('detached') || lower.includes('stale')) {
+    return ' [Recovery: The page has changed since the last snapshot. Call get_dom_snapshot or read_page to get fresh content before retrying.]';
+  }
+
+  // Port disconnected / BF cache
+  if (lower.includes('port') || lower.includes('disconnected') || lower.includes('bf cache')) {
+    return ' [Recovery: Page navigation caused a disconnect. The content script will auto-reconnect. Wait a moment and retry the action.]';
+  }
+
+  return '';
+}
+
+/**
  * Map an FSB result object to an MCP tool content response.
  * Successful results are JSON-stringified; failures are mapped to
  * human-readable error messages with contextual placeholders filled in.
@@ -64,6 +104,12 @@ export function mapFSBError(
   // Always append the raw error for debugging transparency
   if (errorMsg && !text.includes(errorMsg)) {
     text += `\n\n[Raw error: ${errorMsg}]`;
+  }
+
+  // Append actionable recovery hint based on error patterns
+  const hint = getRecoveryHint(text);
+  if (hint) {
+    text += hint;
   }
 
   // Log to stderr for MCP server-side debugging
