@@ -298,7 +298,10 @@ Plans:
   2. Every tool execution returns a structured result object with success/hadEffect/error/navigationTriggered fields that the AI can reason about
   3. Read-only tools (get_dom_snapshot, read_page, get_text) execute immediately without waiting for the mutation queue
   4. MCP server imports tool schemas from the shared tool-definitions.js registry instead of defining them inline with Zod
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 136-01-PLAN.md -- Unified tool executor (ai/tool-executor.js) with executeTool dispatch and structured results
+- [ ] 136-02-PLAN.md -- MCP schema migration: manual.ts, read-only.ts, queue.ts import from shared tool-definitions.js registry
 
 ### Phase 137: Agent Loop Core & Safety Mechanisms
 **Goal**: User can run an autopilot task end-to-end using the native tool_use protocol, with the AI controlling iteration and safety mechanisms preventing runaway sessions
@@ -340,8 +343,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 135. Provider Format Adapters & Tool Registry | 2/2 | Complete   | 2026-04-01 |
-| 136. Unified Tool Executor & MCP Migration | 0/? | Not started | - |
+| 135. Provider Format Adapters & Tool Registry | 2/2 | Complete    | 2026-04-01 |
+| 136. Unified Tool Executor & MCP Migration | 0/2 | Planned | - |
 | 137. Agent Loop Core & Safety Mechanisms | 0/? | Not started | - |
 | 138. Context Management & On-Demand Tools | 0/? | Not started | - |
 | 139. Dead Code Removal & Polish | 0/? | Not started | - |
