@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.9.20
 milestone_name: Autopilot Agent Architecture Rewrite
 status: executing
-stopped_at: Completed 138-01-PLAN.md
-last_updated: "2026-04-01T10:16:03Z"
+stopped_at: Completed 138-02-PLAN.md
+last_updated: "2026-04-01T10:21:40Z"
 last_activity: 2026-04-01
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 4
-  percent: 40
+  completed_plans: 5
+  percent: 57
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** v0.9.20 Autopilot Agent Architecture Rewrite -- Phase 138 Plan 01 complete
+**Current focus:** v0.9.20 Autopilot Agent Architecture Rewrite -- Phase 138 complete
 
 ## Current Position
 
-Phase: 138 (Context Management & On-Demand Tools)
-Plan: 1 of 2 complete
+Phase: 138 (Context Management & On-Demand Tools) -- complete
+Plan: 2 of 2 complete
 Status: Executing
 Last activity: 2026-04-01
 
-Progress: [####------] 40%
+Progress: [#####-----] 57%
 
 ## Performance Metrics
 
@@ -42,6 +42,7 @@ Progress: [####------] 40%
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 138 | 01 | 3min | 2 | 2 |
+| 138 | 02 | 2min | 2 | 1 |
 
 ## Accumulated Context
 
@@ -62,6 +63,8 @@ Recent decisions affecting current work:
 - [138-01]: On-demand DOM snapshot replaces per-iteration auto-injection (D-01/D-03)
 - [138-01]: 80% token budget threshold triggers sliding-window history compaction (D-07)
 - [138-01]: Anthropic cache_control on system prompt and last tool definition (D-14)
+- [138-02]: Cost moved from inline statusText to dedicated structured `cost` field (PROG-03)
+- [138-02]: session.currentTool and session.lastAiReasoning for dashboard readers
 
 ### Roadmap Evolution
 
@@ -81,6 +84,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-01T10:16:03Z
-Stopped at: Completed 138-01-PLAN.md
+Last session: 2026-04-01T10:21:40Z
+Stopped at: Completed 138-02-PLAN.md
 Resume file: None

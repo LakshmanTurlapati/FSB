@@ -52,9 +52,9 @@ Requirements for autopilot architecture rewrite. Each maps to roadmap phases.
 
 ### Progress
 
-- [ ] **PROG-01**: Progress overlay shows current tool being executed and AI reasoning
+- [x] **PROG-01**: Progress overlay shows current tool being executed and AI reasoning
 - [x] **PROG-02**: AI can update progress text via report_progress tool
-- [ ] **PROG-03**: Cost tracking displays estimated session cost in real-time
+- [x] **PROG-03**: Cost tracking displays estimated session cost in real-time
 
 ### Cleanup
 
@@ -112,9 +112,9 @@ Requirements for autopilot architecture rewrite. Each maps to roadmap phases.
 | CTX-02 | Phase 138 | Complete |
 | CTX-03 | Phase 138 | Complete |
 | CTX-04 | Phase 138 | Complete |
-| PROG-01 | Phase 138 | Pending |
+| PROG-01 | Phase 138 | Complete |
 | PROG-02 | Phase 138 | Complete |
-| PROG-03 | Phase 138 | Pending |
+| PROG-03 | Phase 138 | Complete |
 | CLN-01 | Phase 139 | Pending |
 | CLN-02 | Phase 139 | Pending |
 | CLN-03 | Phase 139 | Pending |
