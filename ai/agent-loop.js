@@ -911,6 +911,7 @@ async function runAgentIteration(sessionId, options) {
             aiReasoning: msg
           });
         }
+        session.lastAiReasoning = msg;
         result = { success: true, hadEffect: false, error: null, navigationTriggered: false, result: { displayed: true } };
       } else {
         // Standard tool: dispatch through unified executor
@@ -945,6 +946,10 @@ async function runAgentIteration(sessionId, options) {
       }
     }
 
+    // m2. Update session progress fields for dashboard broadcast (PROG-03)
+    session.currentTool = toolResults.length > 0 ? toolResults[toolResults.length - 1].name : null;
+    if (!session.lastAiReasoning) session.lastAiReasoning = null; // Reset if not set by report_progress
+
     // m. Format tool results into messages and push to history
     for (const tr of toolResults) {
       const resultMsg = _formatToolResult(
@@ -964,6 +969,11 @@ async function runAgentIteration(sessionId, options) {
         role: 'user',
         content: stuckCheck.hint
       });
+    }
+
+    // o2. Broadcast updated progress to dashboard (includes cost from session.totalCost)
+    if (typeof broadcastDashboardProgress === 'function') {
+      broadcastDashboardProgress(session);
     }
 
     // o. Persist session state after every iteration (per SAFE-04, D-09)
