@@ -256,8 +256,10 @@ Current task: ${task}
 Current page: ${pageUrl}
 
 Instructions:
+- Call get_page_snapshot to see the current page elements before interacting.
+- Call get_site_guide with the domain if you need site-specific selectors or tips.
 - Call tools to interact with the page. Each tool returns a structured result.
-- Call get_dom_snapshot to see page elements before interacting.
+- Use report_progress to tell the user what you are doing before complex operations.
 - When the task is complete, respond with a text message summarizing what you accomplished. Do NOT call any more tools.
 - If you cannot complete the task, explain why in a text message.
 - Do not ask the user questions. Execute the task autonomously.`;
@@ -713,10 +715,62 @@ async function runAgentIteration(sessionId, options) {
     // l. Execute each tool call SEQUENTIALLY (browser actions must be serial)
     const toolResults = [];
     for (const call of toolCalls) {
-      const result = await _executeTool(call.name, call.args, session.tabId, {
-        cdpHandler: executeCDPToolDirect,
-        dataHandler: handleDataTool
-      });
+      let result;
+
+      // --- Local tool interception (Phase 138 on-demand context) ---
+      if (call.name === 'get_page_snapshot') {
+        // CTX-01: Fetch markdown snapshot from content script
+        try {
+          const mdResponse = await chrome.tabs.sendMessage(session.tabId, {
+            action: 'getMarkdownSnapshot',
+            options: { charBudget: 12000, maxElements: 80 }
+          }, { frameId: 0 });
+          if (mdResponse?.success && mdResponse.markdownSnapshot) {
+            result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
+              result: { snapshot: mdResponse.markdownSnapshot, elementCount: mdResponse.elementCount || 0 } };
+          } else {
+            result = { success: false, hadEffect: false, error: mdResponse?.error || 'Snapshot unavailable', navigationTriggered: false, result: null };
+          }
+        } catch (err) {
+          result = { success: false, hadEffect: false, error: `get_page_snapshot failed: ${err.message}`, navigationTriggered: false, result: null };
+        }
+      } else if (call.name === 'get_site_guide') {
+        // CTX-02: Load site guide for domain
+        const domain = call.args?.domain || '';
+        try {
+          const guide = (typeof getGuideForTask === 'function')
+            ? getGuideForTask('', `https://${domain}`)
+            : null;
+          if (guide) {
+            result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
+              result: { domain, site: guide.site || guide.name || domain, guidance: JSON.stringify(guide.selectors || guide) } };
+          } else {
+            result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
+              result: { domain, guidance: `No site guide available for ${domain}. Use get_page_snapshot and get_dom_snapshot to discover elements.` } };
+          }
+        } catch (err) {
+          result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
+            result: { domain, guidance: `No site guide available for ${domain}.` } };
+        }
+      } else if (call.name === 'report_progress') {
+        // PROG-02: Update progress overlay
+        const msg = call.args?.message || '';
+        if (typeof sendStatus === 'function') {
+          sendStatus(session.tabId, {
+            phase: 'progress',
+            taskName: session.task,
+            statusText: msg,
+            iteration: iterNum
+          });
+        }
+        result = { success: true, hadEffect: false, error: null, navigationTriggered: false, result: { displayed: true } };
+      } else {
+        // Standard tool: dispatch through unified executor
+        result = await _executeTool(call.name, call.args, session.tabId, {
+          cdpHandler: executeCDPToolDirect,
+          dataHandler: handleDataTool
+        });
+      }
 
       toolResults.push({ callId: call.id, name: call.name, result });
 
@@ -730,12 +784,13 @@ async function runAgentIteration(sessionId, options) {
         iteration: iterNum
       });
 
-      // Send per-tool progress update
+      // Send per-tool progress update (PROG-01: shows current tool being executed)
       if (typeof sendStatus === 'function') {
+        const costStr = `$${(session.agentState.totalCost || 0).toFixed(4)}`;
         sendStatus(session.tabId, {
           phase: 'executing',
           taskName: session.task,
-          statusText: `${call.name}${call.args?.selector ? ' ' + call.args.selector : ''}`,
+          statusText: `${call.name}${call.args?.selector ? ' ' + call.args.selector : ''} [${costStr}]`,
           iteration: iterNum
         });
       }

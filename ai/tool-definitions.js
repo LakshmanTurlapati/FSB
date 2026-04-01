@@ -768,6 +768,62 @@ const TOOL_REGISTRY = [
     _readOnly: true,
     _contentVerb: null,
     _cdpVerb: null
+  },
+
+  // =========================================================================
+  // ON-DEMAND CONTEXT TOOLS (3 tools) -- Phase 138
+  // =========================================================================
+
+  {
+    name: 'get_page_snapshot',
+    description: 'Get a markdown snapshot of the current page DOM. Returns interactive elements with ref IDs for targeting. When to use: BEFORE any click/type/interaction to see current page state. Call this at the start of each new page or when you need to find elements. Related: read_page (plain text content), get_text (single element text).',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: []
+    },
+    _route: 'content',
+    _readOnly: true,
+    _contentVerb: null,
+    _cdpVerb: null
+  },
+
+  {
+    name: 'get_site_guide',
+    description: 'Get site-specific automation guidance for a domain. Returns selectors, navigation patterns, and tips for automating the site. When to use: when starting work on a new site or when standard selectors fail. Related: get_page_snapshot (see current elements), get_dom_snapshot (raw DOM).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domain: {
+          type: 'string',
+          description: 'Domain name to get guide for (e.g. "google.com", "github.com")'
+        }
+      },
+      required: ['domain']
+    },
+    _route: 'background',
+    _readOnly: true,
+    _contentVerb: null,
+    _cdpVerb: null
+  },
+
+  {
+    name: 'report_progress',
+    description: 'Update the progress overlay with a status message visible to the user. When to use: before complex multi-step operations to inform the user what you are doing. Related: all action tools (call report_progress before sequences of actions).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          description: 'Progress message to display to the user (e.g. "Filling out the contact form", "Searching for flights")'
+        }
+      },
+      required: ['message']
+    },
+    _route: 'background',
+    _readOnly: true,
+    _contentVerb: null,
+    _cdpVerb: null
   }
 ];
 
