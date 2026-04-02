@@ -30,6 +30,21 @@ if (typeof importScripts !== 'undefined') {
   } catch (_e) {
     // Already loaded -- ignore
   }
+  // Phase 156-158 modules
+  try {
+    if (typeof CostTracker === 'undefined') importScripts('ai/cost-tracker.js');
+    if (typeof TranscriptStore === 'undefined') importScripts('ai/transcript-store.js');
+    if (typeof HookPipeline === 'undefined') importScripts('ai/hook-pipeline.js');
+    if (typeof createTurnResult === 'undefined') importScripts('ai/turn-result.js');
+    if (typeof ActionHistory === 'undefined') importScripts('ai/action-history.js');
+    if (typeof SESSION_DEFAULTS === 'undefined') importScripts('ai/engine-config.js');
+    if (typeof PermissionContext === 'undefined') importScripts('ai/permission-context.js');
+    if (typeof createSafetyBreakerHook === 'undefined') importScripts('ai/hooks/safety-hooks.js');
+    if (typeof createPermissionHook === 'undefined') importScripts('ai/hooks/permission-hook.js');
+    if (typeof createToolProgressHook === 'undefined') importScripts('ai/hooks/progress-hook.js');
+  } catch (_e) {
+    // Already loaded -- ignore
+  }
 }
 
 // Node.js require for testing -- use var to avoid redeclaration with tool-executor.js in shared scope
@@ -42,6 +57,25 @@ if (typeof require !== 'undefined') {
     _al_provider = require('./universal-provider.js');
   } catch (_e) {
     // Running in Chrome extension context -- globals already available
+  }
+}
+
+// Phase 156-158 Node.js require for testing
+var _al_costTracker, _al_transcriptStore, _al_hookPipeline, _al_turnResult, _al_actionHistory, _al_engineConfig, _al_permCtx, _al_safetyHooks, _al_permHook, _al_progressHook;
+if (typeof require !== 'undefined') {
+  try {
+    _al_costTracker = require('./cost-tracker.js');
+    _al_transcriptStore = require('./transcript-store.js');
+    _al_hookPipeline = require('./hook-pipeline.js');
+    _al_turnResult = require('./turn-result.js');
+    _al_actionHistory = require('./action-history.js');
+    _al_engineConfig = require('./engine-config.js');
+    _al_permCtx = require('./permission-context.js');
+    _al_safetyHooks = require('./hooks/safety-hooks.js');
+    _al_permHook = require('./hooks/permission-hook.js');
+    _al_progressHook = require('./hooks/progress-hook.js');
+  } catch (_e) {
+    // Running in Chrome extension context
   }
 }
 
@@ -58,110 +92,61 @@ var _executeTool = (typeof executeTool !== 'undefined') ? executeTool : (_al_exe
 var _UniversalProvider = (typeof UniversalProvider !== 'undefined') ? UniversalProvider : (_al_provider?.UniversalProvider || null);
 var _PROVIDER_CONFIGS = (typeof PROVIDER_CONFIGS !== 'undefined') ? PROVIDER_CONFIGS : (_al_provider?.PROVIDER_CONFIGS || {});
 
-
-// ---------------------------------------------------------------------------
-// Model pricing for cost estimation
-// ---------------------------------------------------------------------------
-
-/**
- * Pricing per 1M tokens (input / output) by model name.
- * Matches background.js analytics calculateCost pricing table.
- */
-const MODEL_PRICING = {
-  // xAI Current models
-  'grok-4-0709':                    { input: 3.00, output: 15.00 },
-  'grok-4-1-fast-reasoning':        { input: 0.20, output: 0.50 },
-  'grok-4-1-fast-non-reasoning':    { input: 0.20, output: 0.50 },
-  'grok-4-fast-reasoning':          { input: 3.00, output: 15.00 },
-  'grok-4-fast-non-reasoning':      { input: 3.00, output: 15.00 },
-  'grok-code-fast-1':               { input: 0.20, output: 1.50 },
-  'grok-3':                         { input: 5.00, output: 25.00 },
-  'grok-3-mini':                    { input: 0.30, output: 0.50 },
-  // xAI Legacy
-  'grok-4-1-fast':                  { input: 0.20, output: 0.50 },
-  'grok-4-1':                       { input: 3.00, output: 15.00 },
-  'grok-4':                         { input: 3.00, output: 15.00 },
-  'grok-4-fast':                    { input: 3.00, output: 15.00 },
-  'grok-3-fast':                    { input: 0.50, output: 2.50 },
-  'grok-3-mini-beta':               { input: 0.30, output: 0.50 },
-  'grok-3-mini-fast-beta':          { input: 0.20, output: 0.50 },
-  // OpenAI
-  'gpt-4o':                         { input: 2.50, output: 10.00 },
-  'gpt-4o-mini':                    { input: 0.15, output: 0.60 },
-  'chatgpt-4o-latest':              { input: 2.50, output: 10.00 },
-  'gpt-4-turbo':                    { input: 10.00, output: 30.00 },
-  // Anthropic
-  'claude-sonnet-4-5-20250514':     { input: 3.00, output: 15.00 },
-  'claude-haiku-4-5-20250514':      { input: 1.00, output: 5.00 },
-  'claude-opus-4-1-20250414':       { input: 15.00, output: 75.00 },
-  // Gemini
-  'gemini-2.5-flash':               { input: 0.30, output: 2.50 },
-  'gemini-2.5-flash-lite':          { input: 0.10, output: 0.40 },
-  'gemini-2.5-pro':                 { input: 1.25, output: 10.00 },
-  'gemini-2.0-flash':               { input: 0.00, output: 0.00 }
-};
-
-/**
- * Estimate cost for an API call based on token usage.
- * @param {string} model - Model name (e.g. 'grok-4-1-fast')
- * @param {number} inputTokens - Number of input tokens
- * @param {number} outputTokens - Number of output tokens
- * @returns {number} Estimated cost in USD
- */
-function estimateCost(model, inputTokens, outputTokens) {
-  // Try exact match first, then prefix match for versioned model names
-  let pricing = MODEL_PRICING[model];
-  if (!pricing) {
-    const modelLower = (model || '').toLowerCase();
-    for (const [key, value] of Object.entries(MODEL_PRICING)) {
-      if (modelLower.startsWith(key) || modelLower.includes(key)) {
-        pricing = value;
-        break;
-      }
-    }
-  }
-  // Default to grok-4-1-fast pricing if model not found
-  if (!pricing) {
-    pricing = MODEL_PRICING['grok-4-1-fast-reasoning'] || { input: 0.20, output: 0.50 };
-  }
-
-  const inputCost = (inputTokens / 1_000_000) * pricing.input;
-  const outputCost = (outputTokens / 1_000_000) * pricing.output;
-  return inputCost + outputCost;
-}
+// Phase 156-158 module references
+var _al_estimateCost = (typeof estimateCost !== 'undefined') ? estimateCost : (_al_costTracker?.estimateCost || function() { return 0; });
+var _al_CostTracker = (typeof CostTracker !== 'undefined') ? CostTracker : (_al_costTracker?.CostTracker || null);
+var _al_TranscriptStore = (typeof TranscriptStore !== 'undefined') ? TranscriptStore : (_al_transcriptStore?.TranscriptStore || null);
+var _al_estimateTokens = (typeof estimateTokens !== 'undefined') ? estimateTokens : (_al_transcriptStore?.estimateTokens || function() { return 0; });
+var _al_HookPipeline = (typeof HookPipeline !== 'undefined') ? HookPipeline : (_al_hookPipeline?.HookPipeline || null);
+var _al_LIFECYCLE_EVENTS = (typeof LIFECYCLE_EVENTS !== 'undefined') ? LIFECYCLE_EVENTS : (_al_hookPipeline?.LIFECYCLE_EVENTS || {});
+var _al_createTurnResult = (typeof createTurnResult !== 'undefined') ? createTurnResult : (_al_turnResult?.createTurnResult || function() { return {}; });
+var _al_STOP_REASONS = (typeof STOP_REASONS !== 'undefined') ? STOP_REASONS : (_al_turnResult?.STOP_REASONS || {});
+var _al_ActionHistory = (typeof ActionHistory !== 'undefined') ? ActionHistory : (_al_actionHistory?.ActionHistory || null);
+var _al_createActionEvent = (typeof createActionEvent !== 'undefined') ? createActionEvent : (_al_actionHistory?.createActionEvent || function(f) { return f || {}; });
+var _al_SESSION_DEFAULTS = (typeof SESSION_DEFAULTS !== 'undefined') ? SESSION_DEFAULTS : (_al_engineConfig?.SESSION_DEFAULTS || {});
+var _al_loadSessionConfig = (typeof loadSessionConfig !== 'undefined') ? loadSessionConfig : (_al_engineConfig?.loadSessionConfig || async function() { return {}; });
+var _al_PermissionContext = (typeof PermissionContext !== 'undefined') ? PermissionContext : (_al_permCtx?.PermissionContext || null);
+var _al_createSafetyBreakerHook = (typeof createSafetyBreakerHook !== 'undefined') ? createSafetyBreakerHook : (_al_safetyHooks?.createSafetyBreakerHook || null);
+var _al_createStuckDetectionHook = (typeof createStuckDetectionHook !== 'undefined') ? createStuckDetectionHook : (_al_safetyHooks?.createStuckDetectionHook || null);
+var _al_createPermissionHook = (typeof createPermissionHook !== 'undefined') ? createPermissionHook : (_al_permHook?.createPermissionHook || null);
+var _al_createToolProgressHook = (typeof createToolProgressHook !== 'undefined') ? createToolProgressHook : (_al_progressHook?.createToolProgressHook || null);
+var _al_createIterationProgressHook = (typeof createIterationProgressHook !== 'undefined') ? createIterationProgressHook : (_al_progressHook?.createIterationProgressHook || null);
+var _al_createCompletionProgressHook = (typeof createCompletionProgressHook !== 'undefined') ? createCompletionProgressHook : (_al_progressHook?.createCompletionProgressHook || null);
+var _al_createErrorProgressHook = (typeof createErrorProgressHook !== 'undefined') ? createErrorProgressHook : (_al_progressHook?.createErrorProgressHook || null);
 
 
 // ---------------------------------------------------------------------------
-// Safety Breakers (SAFE-01, SAFE-02)
+// Safety Breakers (SAFE-01, SAFE-02) -- kept for hook factory closure params
 // ---------------------------------------------------------------------------
 
 /**
  * Check cost and time safety limits before each iteration.
  * Called at the START of runAgentIteration, BEFORE the API call.
+ * Kept in this file because safety-hooks.js receives it via closure factory.
  *
  * @param {Object} session - Session object with agentState and safetyConfig
  * @returns {{ shouldStop: boolean, reason: string|null }}
  */
 function checkSafetyBreakers(session) {
-  const state = session.agentState || {};
+  var state = session.agentState || {};
 
   // Cost circuit breaker (SAFE-01, D-01)
-  const costLimit = session.safetyConfig?.costLimit || 2.00;
+  var costLimit = (session.safetyConfig && session.safetyConfig.costLimit) || _al_SESSION_DEFAULTS.costLimit || 2.00;
   if ((state.totalCost || 0) >= costLimit) {
     return {
       shouldStop: true,
-      reason: `Session cost ($${(state.totalCost || 0).toFixed(2)}) exceeded limit ($${costLimit.toFixed(2)}). Stopping to prevent excess spending.`
+      reason: 'Session cost ($' + (state.totalCost || 0).toFixed(2) + ') exceeded limit ($' + costLimit.toFixed(2) + '). Stopping to prevent excess spending.'
     };
   }
 
   // Time limit (SAFE-02, D-02)
-  const timeLimit = session.safetyConfig?.timeLimit || 10 * 60 * 1000; // Default 10 minutes
-  const elapsed = Date.now() - (state.startTime || Date.now());
+  var timeLimit = (session.safetyConfig && session.safetyConfig.timeLimit) || _al_SESSION_DEFAULTS.timeLimit || 600000;
+  var elapsed = Date.now() - (state.startTime || Date.now());
   if (elapsed >= timeLimit) {
-    const minutes = Math.floor(elapsed / 60000);
+    var minutes = Math.floor(elapsed / 60000);
     return {
       shouldStop: true,
-      reason: `Session duration (${minutes} min) exceeded limit (${Math.floor(timeLimit / 60000)} min). Stopping automation.`
+      reason: 'Session duration (' + minutes + ' min) exceeded limit (' + Math.floor(timeLimit / 60000) + ' min). Stopping automation.'
     };
   }
 
@@ -218,128 +203,6 @@ function detectStuck(session, toolResults) {
   return { isStuck: false, hint: null };
 }
 
-
-// ---------------------------------------------------------------------------
-// History Compression (CTX-03, D-07 through D-10)
-// ---------------------------------------------------------------------------
-
-/**
- * Estimate token count for a message array using char/4 heuristic.
- * @param {Array<Object>} messages - Conversation messages
- * @returns {number} Estimated token count
- */
-function estimateTokens(messages) {
-  let chars = 0;
-  for (const msg of messages) {
-    if (typeof msg.content === 'string') {
-      chars += msg.content.length;
-    } else if (Array.isArray(msg.content)) {
-      for (const block of msg.content) {
-        chars += JSON.stringify(block).length;
-      }
-    } else if (msg.parts) {
-      // Gemini format
-      chars += JSON.stringify(msg.parts).length;
-    }
-    // Tool call messages (OpenAI format)
-    if (msg.tool_calls) {
-      chars += JSON.stringify(msg.tool_calls).length;
-    }
-  }
-  return Math.ceil(chars / 4);
-}
-
-/**
- * Compact old tool_result messages when history exceeds 80% of token budget.
- * Per D-08: Keep the most recent 5 tool_result messages intact.
- * Per D-09: System prompt and current iteration messages are never compressed.
- * Per D-10: Token estimation uses char/4 heuristic.
- *
- * @param {Array<Object>} messages - Conversation history (mutated in place)
- * @param {number} tokenBudget - Max token budget for the model (default 128000)
- * @returns {{ compacted: boolean, removedCount: number, estimatedTokens: number }}
- */
-function compactHistory(messages, tokenBudget = 128000) {
-  const threshold = tokenBudget * 0.8;
-  const currentTokens = estimateTokens(messages);
-
-  if (currentTokens <= threshold) {
-    return { compacted: false, removedCount: 0, estimatedTokens: currentTokens };
-  }
-
-  // Find all tool_result messages (role: 'tool' for OpenAI, or content array with type: 'tool_result' for Anthropic)
-  // Also find Gemini functionResponse messages
-  const toolResultIndices = [];
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-    if (msg.role === 'tool') {
-      toolResultIndices.push(i);
-    } else if (Array.isArray(msg.content) && msg.content.some(b => b.type === 'tool_result')) {
-      toolResultIndices.push(i);
-    } else if (msg.role === 'user' && msg.parts && msg.parts.some(p => p.functionResponse)) {
-      toolResultIndices.push(i);
-    }
-  }
-
-  // Keep the most recent 5 tool_result messages intact (per D-08)
-  const compactableIndices = toolResultIndices.slice(0, -5);
-
-  if (compactableIndices.length === 0) {
-    return { compacted: false, removedCount: 0, estimatedTokens: currentTokens };
-  }
-
-  // Compact each old tool_result to a one-liner summary
-  let removedCount = 0;
-  for (const idx of compactableIndices) {
-    const msg = messages[idx];
-    let toolName = 'unknown_tool';
-    let status = 'completed';
-
-    // Extract tool name and status from various formats
-    if (msg.role === 'tool') {
-      toolName = msg.name || 'unknown_tool';
-      try {
-        const parsed = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
-        status = parsed?.success === false ? 'error' : 'success';
-      } catch (_) { /* keep default */ }
-    } else if (Array.isArray(msg.content)) {
-      const resultBlock = msg.content.find(b => b.type === 'tool_result');
-      if (resultBlock) {
-        toolName = resultBlock.name || 'unknown_tool';
-        try {
-          const parsed = typeof resultBlock.content === 'string' ? JSON.parse(resultBlock.content) : resultBlock.content;
-          status = parsed?.success === false ? 'error' : 'success';
-        } catch (_) { /* keep default */ }
-      }
-    } else if (msg.parts) {
-      const frPart = msg.parts.find(p => p.functionResponse);
-      if (frPart) {
-        toolName = frPart.functionResponse.name || 'unknown_tool';
-        const resp = frPart.functionResponse.response;
-        status = resp?.success === false ? 'error' : 'success';
-      }
-    }
-
-    // Replace with compact summary (per D-08)
-    const summary = `${toolName} returned ${status}`;
-    if (msg.role === 'tool') {
-      msg.content = summary;
-    } else if (Array.isArray(msg.content)) {
-      msg.content = [{ type: 'tool_result', tool_use_id: msg.content[0]?.tool_use_id || '', content: summary }];
-    } else if (msg.parts) {
-      const frPart = msg.parts.find(p => p.functionResponse);
-      if (frPart) {
-        frPart.functionResponse.response = { result: summary };
-      }
-    }
-    removedCount++;
-  }
-
-  const newTokens = estimateTokens(messages);
-  console.log(`[AgentLoop] History compacted: removed ${removedCount} old tool results, tokens ${currentTokens} -> ${newTokens}`);
-
-  return { compacted: true, removedCount, estimatedTokens: newTokens };
-}
 
 const TURN_WINDOW_MESSAGES = 12;
 const TURN_WINDOW_SUMMARY_LINES = 8;
