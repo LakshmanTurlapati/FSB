@@ -1080,7 +1080,9 @@
   pointer-events: auto;
 }
 
-.rec-step > * {
+.rec-step > .rec-google-home,
+.rec-step > .rec-google-page,
+.rec-step > .rec-article-page {
   height: 100%;
 }
 
