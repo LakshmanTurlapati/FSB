@@ -67,7 +67,7 @@ class FSBWebSocket {
       this.reconnectDelay = 0;
       this.connected = true;
       this._startKeepalive();
-      this._sendStateSnapshot();
+      this._sendStateSnapshot('connect');
       this._updateBadge(true);
       console.log('[FSB WS] Connected');
     };
@@ -176,10 +176,12 @@ class FSBWebSocket {
   /**
    * Send a state snapshot on connect/reconnect for dashboard sync.
    */
-  async _sendStateSnapshot() {
+  async _sendStateSnapshot(snapshotSource) {
+    snapshotSource = snapshotSource || 'dash:request-status';
     var snapshotPayload = {
       version: chrome.runtime.getManifest().version,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      snapshotSource: snapshotSource
     };
 
     // Include current dashboard task state for reconnection recovery
@@ -200,50 +202,171 @@ class FSBWebSocket {
       }
     }
 
+    var candidate = await this._resolveStreamCandidate();
+    var streamIntentActive = (typeof _streamingActive !== 'undefined') && !!_streamingActive;
+    var streamStatus = candidate.ready
+      ? (streamIntentActive ? 'recovering' : 'ready')
+      : 'not-ready';
+    var streamReason = candidate.ready
+      ? (streamIntentActive ? 'waiting-for-page-ready' : '')
+      : (candidate.reason || 'no-streamable-tab');
+
+    snapshotPayload.streamIntentActive = streamIntentActive;
+    snapshotPayload.streamTabId = typeof candidate.tabId === 'number' ? candidate.tabId : null;
+    snapshotPayload.streamTabUrl = candidate.url || '';
+    snapshotPayload.streamStatus = streamStatus;
+    snapshotPayload.streamReason = streamReason;
+
     this.send('ext:snapshot', snapshotPayload);
 
-    // Send ext:page-ready for current active tab so dashboard can start streaming
-    try {
-      var readyTabId = (typeof _streamingTabId !== 'undefined' && _streamingTabId) ? _streamingTabId : null;
-      var readyUrl = '';
-
-      // Verify streaming tab is still valid
-      if (readyTabId) {
-        try {
-          var et = await chrome.tabs.get(readyTabId);
-          readyUrl = et?.url || '';
-          if (!readyUrl || /^(chrome|about|edge|brave|chrome-extension):/.test(readyUrl)) {
-            readyTabId = null;
-            readyUrl = '';
-          }
-        } catch (e) { readyTabId = null; }
+    if (candidate.ready) {
+      if (typeof _rememberStreamState === 'function') {
+        _rememberStreamState(streamStatus, streamReason, candidate.tabId, candidate.url, snapshotSource + ':snapshot');
       }
+      if (typeof _streamingTabId !== 'undefined') _streamingTabId = candidate.tabId;
+      this.send('ext:page-ready', { tabId: candidate.tabId, url: candidate.url });
+      return;
+    }
 
-      // Fallback: find any real page tab
-      if (!readyTabId) {
-        var tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        var t = tabs[0];
-        if (t && t.url && !/^(chrome|about|edge|brave|chrome-extension):/.test(t.url)) {
-          readyTabId = t.id;
-          readyUrl = t.url;
+    this._emitStreamState('not-ready', streamReason, {
+      tabId: candidate.tabId,
+      url: candidate.url || '',
+      source: snapshotSource + ':snapshot'
+    });
+  }
+
+  async _resolveStreamCandidate() {
+    var seenTabIds = new Set();
+    var fallback = {
+      ready: false,
+      reason: 'no-streamable-tab',
+      tabId: null,
+      url: '',
+      source: 'no-streamable-tab'
+    };
+    var preferredTabId = (typeof _streamingTabId !== 'undefined' && _streamingTabId) ? _streamingTabId : null;
+
+    if (preferredTabId) {
+      try {
+        var preferredTab = await chrome.tabs.get(preferredTabId);
+        seenTabIds.add(preferredTab.id);
+        if (this._isStreamableTab(preferredTab)) {
+          return {
+            ready: true,
+            tabId: preferredTab.id,
+            url: preferredTab.url || '',
+            source: 'streaming-tab'
+          };
+        }
+        fallback = {
+          ready: false,
+          reason: 'restricted-tab',
+          tabId: preferredTab.id || preferredTabId,
+          url: preferredTab.url || '',
+          source: 'streaming-tab'
+        };
+      } catch (err) {
+        fallback = {
+          ready: false,
+          reason: 'tab-closed',
+          tabId: preferredTabId,
+          url: '',
+          source: 'streaming-tab'
+        };
+      }
+    }
+
+    var queries = [
+      { source: 'last-focused-active', query: { active: true, lastFocusedWindow: true } },
+      { source: 'any-active', query: { active: true } }
+    ];
+
+    for (var i = 0; i < queries.length; i++) {
+      var tabs = await chrome.tabs.query(queries[i].query);
+      for (var j = 0; j < tabs.length; j++) {
+        var tab = tabs[j];
+        if (!tab || typeof tab.id !== 'number' || seenTabIds.has(tab.id)) continue;
+        seenTabIds.add(tab.id);
+
+        if (this._isStreamableTab(tab)) {
+          return {
+            ready: true,
+            tabId: tab.id,
+            url: tab.url || '',
+            source: queries[i].source
+          };
+        }
+
+        if (fallback.reason === 'no-streamable-tab' || fallback.reason === 'tab-closed') {
+          fallback = {
+            ready: false,
+            reason: 'restricted-tab',
+            tabId: tab.id,
+            url: tab.url || '',
+            source: queries[i].source
+          };
         }
       }
-      if (!readyTabId) {
-        var allActive = await chrome.tabs.query({ active: true });
-        for (var ai = 0; ai < allActive.length; ai++) {
-          if (allActive[ai].url && !/^(chrome|about|edge|brave|chrome-extension):/.test(allActive[ai].url)) {
-            readyTabId = allActive[ai].id;
-            readyUrl = allActive[ai].url;
-            break;
-          }
-        }
-      }
+    }
 
-      if (readyTabId && readyUrl) {
-        if (typeof _streamingTabId !== 'undefined') _streamingTabId = readyTabId;
-        this.send('ext:page-ready', { tabId: readyTabId, url: readyUrl });
-      }
-    } catch (e) { /* ignore */ }
+    return fallback;
+  }
+
+  _isStreamableTab(tab) {
+    return !!tab
+      && typeof tab.id === 'number'
+      && !!tab.url
+      && (typeof _isStreamableTabUrl === 'function'
+        ? _isStreamableTabUrl(tab.url)
+        : !/^(chrome|about|edge|brave|chrome-extension):/.test(tab.url));
+  }
+
+  _emitStreamState(status, reason, details) {
+    var payload = details || {};
+    var source = payload.source || 'ws-client';
+
+    if (typeof _sendStreamState === 'function') {
+      _sendStreamState(status, reason, {
+        tabId: payload.tabId,
+        url: payload.url || '',
+        source: source
+      });
+      return;
+    }
+
+    if (typeof _rememberStreamState === 'function') {
+      _rememberStreamState(status, reason, payload.tabId, payload.url || '', source);
+    }
+
+    this.send('ext:stream-state', {
+      status: status,
+      reason: reason || '',
+      streamIntentActive: (typeof _streamingActive !== 'undefined') && !!_streamingActive,
+      tabId: typeof payload.tabId === 'number' ? payload.tabId : null,
+      url: payload.url || '',
+      source: source
+    });
+  }
+
+  async _handleDashboardStreamStart(payload) {
+    var candidate = await this._resolveStreamCandidate();
+
+    if (!candidate.ready) {
+      this._emitStreamState('not-ready', candidate.reason || 'no-streamable-tab', {
+        tabId: candidate.tabId,
+        url: candidate.url || '',
+        source: 'dash:dom-stream-start'
+      });
+      return;
+    }
+
+    if (typeof _streamingTabId !== 'undefined') _streamingTabId = candidate.tabId;
+    this._emitStreamState('recovering', 'waiting-for-page-ready', {
+      tabId: candidate.tabId,
+      url: candidate.url || '',
+      source: 'dash:dom-stream-start'
+    });
+    this._forwardToContentScript('domStreamStart', payload);
   }
 
   /**
@@ -262,14 +385,14 @@ class FSBWebSocket {
         this._handleStopTask();
         break;
       case 'dash:request-status':
-        this._sendStateSnapshot();
+        this._sendStateSnapshot('dash:request-status');
         break;
       case 'dash:agent-run-now':
         this._handleAgentRunNow(msg.payload);
         break;
       case 'dash:dom-stream-start':
         if (typeof _streamingActive !== 'undefined') _streamingActive = true;
-        this._forwardToContentScript('domStreamStart', msg.payload);
+        this._handleDashboardStreamStart(msg.payload);
         break;
       case 'dash:dom-stream-stop':
         if (typeof _streamingActive !== 'undefined') _streamingActive = false;

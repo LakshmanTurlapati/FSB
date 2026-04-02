@@ -877,6 +877,45 @@ var _streamingTabId = null; // Tab ID currently being streamed to dashboard (alw
 var _streamingActive = false; // Whether dashboard has requested DOM streaming
 var _tabSwitchTimer = null; // Debounce timer for tab switch stream re-targeting
 var _remoteControlDebuggerTabId = null; // Tab ID with debugger attached for remote control (null = not active)
+var _streamTabUrl = ''; // Last known URL for the streaming tab or not-ready tab candidate
+var _streamStatus = 'not-ready'; // ready | not-ready | recovering
+var _streamReason = 'no-streamable-tab'; // restricted-tab | no-streamable-tab | waiting-for-page-ready | tab-closed
+var _streamStateSource = 'bootstrap';
+
+function _isStreamableTabUrl(url) {
+  return !!url && !/^(chrome|about|edge|brave|chrome-extension):/.test(url);
+}
+
+function _rememberStreamState(status, reason, tabId, url, source) {
+  _streamStatus = status || 'not-ready';
+  _streamReason = reason || '';
+  _streamTabUrl = url || '';
+  _streamStateSource = source || 'background';
+
+  if (_streamStatus === 'ready' || _streamStatus === 'recovering') {
+    _streamingTabId = typeof tabId === 'number' ? tabId : null;
+  } else if (_streamStatus === 'not-ready') {
+    _streamingTabId = null;
+  }
+}
+
+function _sendStreamState(status, reason, details) {
+  var payload = details || {};
+  var tabId = Object.prototype.hasOwnProperty.call(payload, 'tabId') ? payload.tabId : _streamingTabId;
+  var url = Object.prototype.hasOwnProperty.call(payload, 'url') ? payload.url : _streamTabUrl;
+  var source = payload.source || 'background';
+
+  _rememberStreamState(status, reason, tabId, url, source);
+
+  fsbWebSocket.send('ext:stream-state', {
+    status: status,
+    reason: reason || '',
+    streamIntentActive: !!_streamingActive,
+    tabId: typeof tabId === 'number' ? tabId : null,
+    url: url || '',
+    source: source
+  });
+}
 
 /**
  * Listen for tab activations to re-target the DOM stream to the new active tab.
@@ -904,27 +943,49 @@ async function _handleStreamTabSwitch(newTabId) {
       await chrome.tabs.sendMessage(_streamingTabId, { action: 'domStreamStop' }, { frameId: 0 });
     } catch (e) { /* tab may be closed */ }
   }
-  // Check if new tab is a real page (not chrome://, about:, edge://, etc.)
+
   try {
     var tab = await chrome.tabs.get(newTabId);
-    if (!tab.url || /^(chrome|about|edge|brave|chrome-extension):/.test(tab.url)) {
-      // Not a real page -- send page-not-ready signal
-      fsbWebSocket.send('ext:stream-tab-info', { tabId: newTabId, url: tab.url || '', ready: false });
+    if (!_isStreamableTabUrl(tab.url)) {
+      _sendStreamState('not-ready', 'restricted-tab', {
+        tabId: newTabId,
+        url: tab.url || '',
+        source: 'tab-switch'
+      });
       return;
     }
-    _streamingTabId = newTabId;
+
+    _sendStreamState('recovering', 'waiting-for-page-ready', {
+      tabId: newTabId,
+      url: tab.url || '',
+      source: 'tab-switch'
+    });
+
     // Start stream on new tab
     chrome.tabs.sendMessage(newTabId, { action: 'domStreamStart' }, { frameId: 0 })
       .catch(function() {
         // Content script may not be injected yet -- will retry on domStreamReady signal
         console.warn('[FSB] Content script not ready on tab', newTabId, '-- will retry');
       });
-    // Notify dashboard of tab switch
-    fsbWebSocket.send('ext:stream-tab-info', { tabId: newTabId, url: tab.url, title: tab.title, ready: true });
   } catch (e) {
+    _sendStreamState('not-ready', 'tab-closed', {
+      tabId: newTabId,
+      url: '',
+      source: 'tab-switch'
+    });
     console.warn('[FSB] Tab switch stream error:', e.message);
   }
 }
+
+chrome.tabs.onRemoved.addListener(function(tabId) {
+  if (tabId !== _streamingTabId) return;
+
+  _sendStreamState('not-ready', 'tab-closed', {
+    tabId: tabId,
+    url: _streamTabUrl || '',
+    source: 'tab-removed'
+  });
+});
 
 /**
  * Broadcast task progress to the dashboard via WebSocket.
@@ -4747,6 +4808,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'domStreamReady':
       // Content script reports it loaded on a real page -- update streaming tab
       _streamingTabId = sender.tab?.id || _streamingTabId;
+      _sendStreamState('ready', '', {
+        tabId: _streamingTabId,
+        url: sender.tab?.url || '',
+        source: 'domStreamReady'
+      });
       if (_streamingActive) {
         // Auto-start stream on this tab
         chrome.tabs.sendMessage(_streamingTabId, { action: 'domStreamStart' }, { frameId: 0 })
