@@ -60,6 +60,10 @@
   var lastSnapshotTime = 0;         // Timestamp of last snapshot received
   var pageReady = false;            // Extension reported a real page is loaded
   var remoteControlOn = false;      // Remote control mode toggle
+  var previewLoadStartedAt = 0;     // Timestamp for the current preview recovery attempt
+  var previewNotReadyReason = '';   // Last explicit not-ready reason from extension recovery
+  var lastRecoveredStreamState = ''; // ready | recovering | not-ready | streaming
+  var pendingStreamRecovery = null; // Watchdog timer for reconnect recovery
 
   // DOM refs
   var loginSection = document.getElementById('dash-login');
@@ -1645,6 +1649,137 @@
 
   // --- DOM Preview ---
 
+  function setPreviewLoadingText(text) {
+    if (!previewLoading) return;
+    var label = previewLoading.querySelector('span');
+    if (label) label.textContent = text || 'Connecting to browser...';
+  }
+
+  function setPreviewDisconnectedText(text) {
+    if (!previewDisconnected) return;
+    var label = previewDisconnected.querySelector('span');
+    if (label) label.textContent = text || 'Stream disconnected';
+  }
+
+  function getPreviewNotReadyText(reason) {
+    switch (reason) {
+      case 'restricted-tab':
+        return 'Open a normal browser page to resume preview';
+      case 'tab-closed':
+        return 'The streaming tab was closed. Open another page to resume preview';
+      case 'waiting-for-page-ready':
+        return 'Waiting for the browser page to finish loading';
+      case 'no-streamable-tab':
+      default:
+        return 'Open a browser tab with a normal web page to start preview';
+    }
+  }
+
+  function clearPendingStreamRecovery() {
+    if (pendingStreamRecovery) {
+      clearTimeout(pendingStreamRecovery);
+      pendingStreamRecovery = null;
+    }
+  }
+
+  function armPreviewRecoveryWatchdog(trigger) {
+    clearPendingStreamRecovery();
+
+    if (!streamToggleOn) return;
+
+    pendingStreamRecovery = setTimeout(function() {
+      pendingStreamRecovery = null;
+
+      if (!streamToggleOn || previewState === 'streaming') return;
+      if (lastRecoveredStreamState === 'not-ready') return;
+
+      lastRecoveredStreamState = 'not-ready';
+      pageReady = false;
+      previewNotReadyReason = previewNotReadyReason || 'waiting-for-page-ready';
+      setPreviewDisconnectedText(getPreviewNotReadyText(previewNotReadyReason));
+      setPreviewState('disconnected');
+      updatePreviewTooltip();
+      console.warn('[FSB-DASH] Stream recovery watchdog expired:', trigger);
+    }, 5000);
+  }
+
+  function scheduleStreamRecovery(trigger) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'dash:request-status',
+        payload: { trigger: trigger },
+        ts: Date.now()
+      }));
+    }
+
+    if (!streamToggleOn) {
+      clearPendingStreamRecovery();
+      updatePreviewTooltip();
+      return;
+    }
+
+    previewLoadStartedAt = Date.now();
+    previewNotReadyReason = '';
+    pageReady = false;
+    lastRecoveredStreamState = 'recovering';
+    setPreviewLoadingText(trigger === 'extension-online'
+      ? 'Reconnecting to browser preview...'
+      : 'Connecting to browser...');
+    setPreviewDisconnectedText('Stream disconnected');
+    setPreviewState('loading');
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'dash:dom-stream-start',
+        payload: { trigger: trigger },
+        ts: Date.now()
+      }));
+    }
+
+    armPreviewRecoveryWatchdog(trigger);
+    updatePreviewTooltip();
+  }
+
+  function handleRecoveredStreamState(payload) {
+    var status = payload.status || 'not-ready';
+    var streamIntentActive = payload.streamIntentActive !== false;
+    streamTabUrl = payload.url || '';
+    lastRecoveredStreamState = status;
+    previewNotReadyReason = payload.reason || '';
+
+    if (status === 'not-ready') {
+      pageReady = false;
+      clearPendingStreamRecovery();
+      setPreviewDisconnectedText(getPreviewNotReadyText(previewNotReadyReason));
+      setPreviewState('disconnected');
+      updatePreviewTooltip();
+      return;
+    }
+
+    if (!streamToggleOn || !streamIntentActive) {
+      if (!streamToggleOn) clearPendingStreamRecovery();
+      updatePreviewTooltip();
+      return;
+    }
+
+    if (status === 'ready') {
+      pageReady = true;
+      previewNotReadyReason = '';
+      previewLoadStartedAt = previewLoadStartedAt || Date.now();
+      setPreviewLoadingText('Waiting for live page preview...');
+      if (previewState !== 'streaming') setPreviewState('loading');
+      if (!pendingStreamRecovery) armPreviewRecoveryWatchdog('stream-state:ready');
+    } else if (status === 'recovering') {
+      pageReady = false;
+      previewLoadStartedAt = Date.now();
+      setPreviewLoadingText('Recovering browser preview...');
+      if (previewState !== 'streaming') setPreviewState('loading');
+      if (!pendingStreamRecovery) armPreviewRecoveryWatchdog('stream-state:recovering');
+    }
+
+    updatePreviewTooltip();
+  }
+
   function setPreviewState(newState) {
     previewState = newState;
 
@@ -1677,6 +1812,7 @@
     switch (newState) {
       case 'hidden':
         // Container not visible
+        if (previewStatus) previewStatus.textContent = '';
         break;
 
       case 'loading':
@@ -1684,6 +1820,7 @@
         if (previewLoading) previewLoading.style.display = 'flex';
         if (previewStatus) {
           previewStatus.className = 'dash-preview-status dash-preview-status-buffering';
+          previewStatus.textContent = lastRecoveredStreamState === 'recovering' ? 'recovering' : 'loading';
           previewStatus.style.display = '';
         }
         break;
@@ -1693,6 +1830,7 @@
         if (previewIframe) previewIframe.style.display = '';
         if (previewStatus) {
           previewStatus.className = 'dash-preview-status dash-preview-status-streaming';
+          previewStatus.textContent = 'streaming';
           previewStatus.style.display = '';
         }
         break;
@@ -1703,6 +1841,7 @@
         if (previewDisconnected) previewDisconnected.style.display = 'flex';
         if (previewStatus) {
           previewStatus.className = 'dash-preview-status dash-preview-status-disconnected';
+          previewStatus.textContent = previewNotReadyReason ? 'not ready' : 'disconnected';
           previewStatus.style.display = '';
         }
         break;
@@ -1712,6 +1851,7 @@
         if (previewIframe) previewIframe.style.display = ''; // Show last content frozen
         if (previewStatus) {
           previewStatus.className = 'dash-preview-status dash-preview-status-paused';
+          previewStatus.textContent = 'paused';
           previewStatus.style.display = '';
         }
         break;
@@ -1736,6 +1876,11 @@
 
     previewSnapshotData = payload;
     lastSnapshotTime = Date.now();
+    previewLoadStartedAt = 0;
+    pageReady = true;
+    lastRecoveredStreamState = 'streaming';
+    previewNotReadyReason = '';
+    clearPendingStreamRecovery();
     updatePreviewTooltip();
 
     try {
@@ -2319,7 +2464,7 @@
           payload: {},
           ts: Date.now()
         }));
-        setPreviewState('loading');
+        scheduleStreamRecovery('visibility-resume');
       }
     }
   });
@@ -2335,8 +2480,9 @@
       if (ws && ws.readyState === WebSocket.OPEN) {
         if (streamToggleOn) {
           ws.send(JSON.stringify({ type: 'dash:dom-stream-resume', payload: {}, ts: Date.now() }));
-          setPreviewState('loading');
+          scheduleStreamRecovery('toggle-resume');
         } else {
+          clearPendingStreamRecovery();
           ws.send(JSON.stringify({ type: 'dash:dom-stream-pause', payload: {}, ts: Date.now() }));
           setPreviewState('paused');
         }
@@ -2377,6 +2523,11 @@
     var parts = [];
     if (streamTabUrl) parts.push(streamTabUrl.length > 60 ? streamTabUrl.substring(0, 60) + '...' : streamTabUrl);
     if (lastSnapshotTime) parts.push('Last snapshot: ' + new Date(lastSnapshotTime).toLocaleTimeString());
+    if (lastRecoveredStreamState) parts.push('State: ' + lastRecoveredStreamState);
+    if (previewNotReadyReason) parts.push('Reason: ' + previewNotReadyReason);
+    if (previewLoadStartedAt && previewState === 'loading') {
+      parts.push('Recovering for ' + Math.max(1, Math.round((Date.now() - previewLoadStartedAt) / 1000)) + 's');
+    }
     previewTooltip.textContent = parts.join(' | ') || 'No stream data';
   }
 
@@ -2396,17 +2547,6 @@
       console.log('[FSB-DASH] WS connected');
       wsReconnectDelay = 0;
       setWsState('connected');
-      // Request current extension state (restores task progress if running)
-      ws.send(JSON.stringify({ type: 'dash:request-status', payload: {}, ts: Date.now() }));
-      // Always request stream on connect
-      if (streamToggleOn) {
-        ws.send(JSON.stringify({
-          type: 'dash:dom-stream-start',
-          payload: {},
-          ts: Date.now()
-        }));
-        setPreviewState('loading');
-      }
       // Dashboard-side keepalive -- prevents fly.io from closing idle WS connections
       if (wsPingTimer) clearInterval(wsPingTimer);
       wsPingTimer = setInterval(function () {
@@ -2414,6 +2554,7 @@
           ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
         }
       }, 20000);
+      scheduleStreamRecovery('ws-open');
     };
 
     ws.onmessage = function (event) {
@@ -2442,8 +2583,15 @@
 
     ws.onclose = function (e) {
       console.log('[FSB-DASH] WS closed, code:', e.code, 'reason:', e.reason);
+      extensionOnline = false;
       pageReady = false; // Reset so reconnect waits for fresh page-ready signal
+      clearPendingStreamRecovery();
+      if (wsPingTimer) {
+        clearInterval(wsPingTimer);
+        wsPingTimer = null;
+      }
       setWsState('disconnected');
+      updateTaskOfflineState();
       if (previewState === 'streaming' || previewState === 'loading') {
         setPreviewState('disconnected');
       }
@@ -2454,9 +2602,14 @@
   }
 
   function disconnectWS() {
+    clearPendingStreamRecovery();
     if (wsReconnectTimer) {
       clearTimeout(wsReconnectTimer);
       wsReconnectTimer = null;
+    }
+    if (wsPingTimer) {
+      clearInterval(wsPingTimer);
+      wsPingTimer = null;
     }
     if (ws) {
       ws.onclose = null; // Prevent reconnect on intentional close
@@ -2507,6 +2660,7 @@
     }
 
     if (msg.type === 'ext:status') {
+      var wasExtensionOnline = extensionOnline;
       extensionOnline = msg.payload && msg.payload.online;
       updateTaskOfflineState();
       // Update agent count area to show extension status
@@ -2516,24 +2670,60 @@
         agentCountEl.textContent = countText +
           (extensionOnline ? '' : ' - extension offline');
       }
+      if (!wasExtensionOnline && extensionOnline) {
+        scheduleStreamRecovery('extension-online');
+      }
+      if (!extensionOnline) {
+        pageReady = false;
+      }
       return;
     }
 
     if (msg.type === 'ext:snapshot') {
+      var snapshot = msg.payload || {};
+      var snapshotIntentActive = snapshot.streamIntentActive !== false;
       extensionOnline = true;
       loadData(); // Refresh dashboard data on extension reconnect
       // Restore task state on reconnection
-      if (msg.payload && msg.payload.taskRunning) {
-        taskText = msg.payload.task || '';
-        taskStartTime = Date.now() - (msg.payload.elapsed || 0);
-        setTaskState('running', { task: msg.payload.task });
+      if (snapshot.taskRunning) {
+        taskText = snapshot.task || '';
+        taskStartTime = Date.now() - (snapshot.elapsed || 0);
+        setTaskState('running', { task: snapshot.task });
         updateTaskProgress({
-          progress: msg.payload.progress || 0,
-          phase: msg.payload.phase || '',
-          elapsed: msg.payload.elapsed || 0,
+          progress: snapshot.progress || 0,
+          phase: snapshot.phase || '',
+          elapsed: snapshot.elapsed || 0,
           action: 'Reconnected...'
         });
       }
+
+      streamTabUrl = snapshot.streamTabUrl || '';
+      lastRecoveredStreamState = snapshot.streamStatus || lastRecoveredStreamState;
+      previewNotReadyReason = snapshot.streamReason || '';
+
+      if (!streamToggleOn) {
+        clearPendingStreamRecovery();
+        setPreviewState('paused');
+      } else if (snapshot.streamStatus === 'not-ready') {
+        pageReady = false;
+        clearPendingStreamRecovery();
+        setPreviewDisconnectedText(getPreviewNotReadyText(previewNotReadyReason));
+        setPreviewState('disconnected');
+      } else if (!snapshotIntentActive) {
+        updatePreviewTooltip();
+      } else if (snapshot.streamStatus === 'ready' || snapshot.streamStatus === 'recovering') {
+        pageReady = snapshot.streamStatus === 'ready';
+        previewLoadStartedAt = Date.now();
+        setPreviewLoadingText(snapshot.streamStatus === 'recovering'
+          ? 'Recovering browser preview...'
+          : 'Waiting for live page preview...');
+        setPreviewState('loading');
+        if (!pendingStreamRecovery) {
+          armPreviewRecoveryWatchdog('snapshot:' + (snapshot.snapshotSource || 'unknown'));
+        }
+      }
+
+      updatePreviewTooltip();
       updateTaskOfflineState();
       return;
     }
@@ -2603,8 +2793,15 @@
       return;
     }
 
+    if (msg.type === 'ext:stream-state') {
+      handleRecoveredStreamState(msg.payload || {});
+      return;
+    }
+
     if (msg.type === 'ext:page-ready') {
       pageReady = true;
+      lastRecoveredStreamState = 'ready';
+      previewNotReadyReason = '';
       streamTabUrl = (msg.payload && msg.payload.url) || '';
       // Auto-start stream if toggle is on and WS is connected
       if (streamToggleOn && ws && ws.readyState === WebSocket.OPEN) {
@@ -2613,7 +2810,12 @@
           payload: {},
           ts: Date.now()
         }));
-        setPreviewState('loading');
+        previewLoadStartedAt = Date.now();
+        setPreviewLoadingText('Waiting for live page preview...');
+        if (previewState !== 'streaming') setPreviewState('loading');
+        if (!pendingStreamRecovery) {
+          armPreviewRecoveryWatchdog('page-ready');
+        }
       }
       updatePreviewTooltip();
       return;
@@ -2621,17 +2823,13 @@
 
     if (msg.type === 'ext:stream-tab-info') {
       var info = msg.payload || {};
-      streamTabUrl = info.url || '';
-      if (info.ready) {
-        pageReady = true;
-        setPreviewState('loading'); // New tab snapshot incoming
-      } else {
-        // Restricted page -- show disconnected state with info
-        if (previewState === 'streaming') {
-          setPreviewState('disconnected');
-        }
-      }
-      updatePreviewTooltip();
+      handleRecoveredStreamState({
+        status: info.ready ? 'ready' : 'not-ready',
+        reason: info.ready ? '' : 'restricted-tab',
+        url: info.url || '',
+        tabId: info.tabId || null,
+        source: 'legacy:stream-tab-info'
+      });
       return;
     }
 
