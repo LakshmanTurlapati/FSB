@@ -63,8 +63,8 @@
   <section class="recreation-section section">
     <div class="container">
       <div class="section-header reveal">
-        <h2>FSB on Google Search</h2>
-        <p>FSB searches for information and clicks through results autonomously.</p>
+        <h2>Search &amp; Navigate Autonomously</h2>
+        <p>Tell FSB what you need and watch it search, click, and read through results on its own.</p>
       </div>
       <div class="browser-frame reveal-scale" role="img" aria-label="Recreation of FSB automating a Google search with the sidepanel overlay">
         <div class="browser-topbar">
@@ -75,7 +75,7 @@
           </div>
           <div class="browser-address">
             <i class="fa-solid fa-lock" style="margin-right: 6px; font-size: 10px;"></i>
-            www.google.com/search?q=latest+AI+news
+            www.google.com/search?q=latest+AI+tools+2025
           </div>
         </div>
         <div class="browser-content">
@@ -97,7 +97,7 @@
                 <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png" alt="Google" />
               </div>
               <div class="rec-google-searchbar">
-                <span class="rec-searchbar-text">latest AI news</span>
+                <span class="rec-searchbar-text">latest AI tools 2025</span>
                 <span class="rec-searchbar-clear">&#x2715;</span>
                 <span class="rec-searchbar-divider"></span>
                 <i class="fa-solid fa-microphone rec-searchbar-icon"></i>
@@ -125,33 +125,33 @@
                   <span class="rec-result-favicon" style="background: #0a9e28;">T</span>
                   <div class="rec-result-site-info">
                     <span class="rec-result-site-name">TechCrunch</span>
-                    <span class="rec-result-url">https://techcrunch.com &rsaquo; ai-news</span>
+                    <span class="rec-result-url">https://techcrunch.com &rsaquo; ai-tools-2025</span>
                   </div>
                 </div>
-                <div class="rec-result-title">Latest AI News and Breakthroughs - TechCrunch</div>
-                <div class="rec-result-snippet">The latest developments in artificial intelligence, including new model releases, industry partnerships, and research breakthroughs...</div>
+                <div class="rec-result-title">Best AI Tools in 2025 -- The Definitive List</div>
+                <div class="rec-result-snippet">A curated list of the most impactful AI tools released in 2025, from code assistants to image generators, video editors, and autonomous agents...</div>
               </div>
               <div class="rec-google-result">
                 <div class="rec-result-site">
-                  <span class="rec-result-favicon" style="background: #f26522;">R</span>
+                  <span class="rec-result-favicon" style="background: #6366f1;">F</span>
                   <div class="rec-result-site-info">
-                    <span class="rec-result-site-name">Reuters</span>
-                    <span class="rec-result-url">https://reuters.com &rsaquo; technology &rsaquo; ai</span>
+                    <span class="rec-result-site-name">FutureTools</span>
+                    <span class="rec-result-url">https://futuretools.io &rsaquo; best-ai-tools</span>
                   </div>
                 </div>
-                <div class="rec-result-title">AI Industry Updates and Analysis - Reuters</div>
-                <div class="rec-result-snippet">Comprehensive coverage of artificial intelligence trends, policy developments, and enterprise adoption across global markets...</div>
+                <div class="rec-result-title">Top 50 AI Tools You Need to Try - FutureTools</div>
+                <div class="rec-result-snippet">Discover the most popular AI tools across categories: writing, coding, design, research, automation, and productivity...</div>
               </div>
               <div class="rec-google-result">
                 <div class="rec-result-site">
-                  <span class="rec-result-favicon" style="background: #ff4500;">A</span>
+                  <span class="rec-result-favicon" style="background: #e11d48;">P</span>
                   <div class="rec-result-site-info">
-                    <span class="rec-result-site-name">Ars Technica</span>
-                    <span class="rec-result-url">https://arstechnica.com &rsaquo; ai</span>
+                    <span class="rec-result-site-name">Product Hunt</span>
+                    <span class="rec-result-url">https://producthunt.com &rsaquo; topics &rsaquo; ai</span>
                   </div>
                 </div>
-                <div class="rec-result-title">AI Research and Applications - Ars Technica</div>
-                <div class="rec-result-snippet">In-depth analysis of AI research papers, model benchmarks, and practical applications shaping the future of technology...</div>
+                <div class="rec-result-title">AI Tools -- Trending on Product Hunt</div>
+                <div class="rec-result-snippet">Browse and discover the latest AI-powered products launched by makers worldwide. Upvote your favorites and find tools for every workflow...</div>
               </div>
             </div>
           </div>
@@ -177,18 +177,25 @@
               </div>
             </div>
             <div class="rec-messages">
-              <div class="rec-msg user">Search for the latest AI news and summarize the top 3 results</div>
+              <div class="rec-msg user">Search for all relevant latest AI tools and download them</div>
               <div class="rec-msg system">Session started -- connected to active tab</div>
-              <div class="rec-msg action">searchGoogle("latest AI news")</div>
-              <div class="rec-msg ai">Found 3 relevant results on Google. Clicking the first link from TechCrunch to read the full article...</div>
-              <div class="rec-msg action">click("[data-result='1'] a.result-title")</div>
+              <div class="rec-msg action">type_text(selector: "textarea[name='q']", text: "latest AI tools 2025")</div>
+              <div class="rec-msg action">press_enter()</div>
+              <div class="rec-msg ai">I can see the Google search results for latest AI tools. I'll click through the top results to find relevant tools. Starting with the first result from TechCrunch.</div>
+              <div class="rec-msg action">click(selector: "a h3", text: "Latest AI News and Breakthroughs")</div>
               <div class="rec-msg status">
-                <div class="rec-typing-dots">
-                  <span></span>
-                  <span></span>
-                  <span></span>
+                <div class="rec-status-content">
+                  <div class="rec-typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <span class="rec-status-label">Reading page content...</span>
                 </div>
-                <span>Reading page content...</span>
+                <div class="rec-progress-bar">
+                  <div class="rec-progress-fill" style="width: 42%"></div>
+                </div>
+                <span class="rec-progress-label">42%</span>
               </div>
             </div>
             <div class="rec-sp-input">
@@ -464,19 +471,26 @@
               </div>
             </div>
             <div class="rec-messages">
-              <div class="rec-msg user">Fill out the contact form with test data</div>
+              <div class="rec-msg user">Fill out the contact form with my details and submit it</div>
               <div class="rec-msg system">Session started -- connected to active tab</div>
-              <div class="rec-msg ai">I can see a contact form with Name, Email, and Message fields. I'll fill them in order.</div>
-              <div class="rec-msg action">click("#name-input")</div>
-              <div class="rec-msg action">type("John Doe")</div>
-              <div class="rec-msg action">click("#email-input")</div>
+              <div class="rec-msg ai">I can see a contact form with Name, Email, and Message fields. I'll fill each field and then submit.</div>
+              <div class="rec-msg action">click(selector: "#name")</div>
+              <div class="rec-msg action">type_text(selector: "#name", text: "John Doe")</div>
+              <div class="rec-msg action">click(selector: "#email")</div>
+              <div class="rec-msg action">type_text(selector: "#email", text: "john@example.com")</div>
               <div class="rec-msg status">
-                <div class="rec-typing-dots">
-                  <span></span>
-                  <span></span>
-                  <span></span>
+                <div class="rec-status-content">
+                  <div class="rec-typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <span class="rec-status-label">Filling message field...</span>
                 </div>
-                <span>Typing email address...</span>
+                <div class="rec-progress-bar">
+                  <div class="rec-progress-fill" style="width: 68%"></div>
+                </div>
+                <span class="rec-progress-label">68%</span>
               </div>
             </div>
             <div class="rec-sp-input">
