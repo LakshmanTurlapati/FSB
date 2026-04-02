@@ -5,6 +5,110 @@
  */
 
 const FSB_SERVER_URL = 'https://full-selfbrowsing.com';
+var FSB_TRANSPORT_DIAGNOSTIC_LIMIT = 100;
+var FSB_TRANSPORT_TRACKED_TYPES = {
+  'dash:request-status': true,
+  'dash:dom-stream-start': true,
+  'ext:snapshot': true,
+  'ext:page-ready': true,
+  'ext:stream-state': true,
+  'ext:dom-snapshot': true,
+  'ext:dom-mutations': true,
+  'ext:dom-scroll': true,
+  'ext:dom-overlay': true,
+  'ext:dom-dialog': true
+};
+
+function getCurrentTransportTabId() {
+  if (typeof _streamingTabId !== 'undefined' && typeof _streamingTabId === 'number') {
+    return _streamingTabId;
+  }
+  if (typeof _dashboardTaskTabId !== 'undefined' && typeof _dashboardTaskTabId === 'number') {
+    return _dashboardTaskTabId;
+  }
+  return null;
+}
+
+function getFSBTransportDiagnostics() {
+  if (!globalThis.__FSBTransportDiagnostics || typeof globalThis.__FSBTransportDiagnostics !== 'object') {
+    globalThis.__FSBTransportDiagnostics = {
+      sentByType: {},
+      receivedByType: {},
+      forwardFailures: [],
+      reconnects: [],
+      lastSnapshot: null,
+      events: []
+    };
+  }
+
+  var diagnostics = globalThis.__FSBTransportDiagnostics;
+  diagnostics.sentByType = diagnostics.sentByType && typeof diagnostics.sentByType === 'object'
+    ? diagnostics.sentByType
+    : {};
+  diagnostics.receivedByType = diagnostics.receivedByType && typeof diagnostics.receivedByType === 'object'
+    ? diagnostics.receivedByType
+    : {};
+  diagnostics.forwardFailures = Array.isArray(diagnostics.forwardFailures)
+    ? diagnostics.forwardFailures
+    : [];
+  diagnostics.reconnects = Array.isArray(diagnostics.reconnects)
+    ? diagnostics.reconnects
+    : [];
+  diagnostics.events = Array.isArray(diagnostics.events)
+    ? diagnostics.events
+    : [];
+  if (!Object.prototype.hasOwnProperty.call(diagnostics, 'lastSnapshot')) diagnostics.lastSnapshot = null;
+  return diagnostics;
+}
+
+function pushFSBTransportEntry(bucket, entry) {
+  var diagnostics = getFSBTransportDiagnostics();
+  diagnostics[bucket].push(entry);
+  if (diagnostics[bucket].length > FSB_TRANSPORT_DIAGNOSTIC_LIMIT) {
+    diagnostics[bucket].shift();
+  }
+  return entry;
+}
+
+function recordFSBTransportCount(bucket, type) {
+  if (!type || !FSB_TRANSPORT_TRACKED_TYPES[type]) return;
+  var diagnostics = getFSBTransportDiagnostics();
+  diagnostics[bucket][type] = (diagnostics[bucket][type] || 0) + 1;
+}
+
+function recordFSBTransportEvent(eventName, details) {
+  return pushFSBTransportEntry('events', Object.assign({
+    event: eventName,
+    ts: Date.now()
+  }, details || {}));
+}
+
+function recordFSBTransportFailure(eventName, details) {
+  return pushFSBTransportEntry('forwardFailures', Object.assign({
+    event: eventName,
+    ts: Date.now(),
+    type: '',
+    target: '',
+    tabId: getCurrentTransportTabId(),
+    readyState: null,
+    error: ''
+  }, details || {}));
+}
+
+function recordFSBTransportReconnect(eventName, details) {
+  return pushFSBTransportEntry('reconnects', Object.assign({
+    event: eventName,
+    ts: Date.now()
+  }, details || {}));
+}
+
+function setFSBTransportLastSnapshot(snapshot) {
+  getFSBTransportDiagnostics().lastSnapshot = Object.assign({
+    ts: Date.now()
+  }, snapshot || {});
+}
+
+getFSBTransportDiagnostics();
 
 class FSBWebSocket {
   constructor() {
@@ -67,6 +171,9 @@ class FSBWebSocket {
       this.reconnectDelay = 0;
       this.connected = true;
       this._startKeepalive();
+      recordFSBTransportReconnect('ws-open', {
+        readyState: this.ws ? this.ws.readyState : null
+      });
       this._sendStateSnapshot('connect');
       this._updateBadge(true);
       console.log('[FSB WS] Connected');
@@ -81,10 +188,15 @@ class FSBWebSocket {
       }
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (event) => {
       this.connected = false;
       this._stopKeepalive();
       this._updateBadge(false);
+      recordFSBTransportReconnect('ws-close', {
+        readyState: this.ws ? this.ws.readyState : null,
+        closeCode: event && typeof event.code === 'number' ? event.code : null,
+        closeReason: event && event.reason ? event.reason : ''
+      });
       if (!this.intentionalClose) {
         this._scheduleReconnect();
       }
@@ -121,20 +233,43 @@ class FSBWebSocket {
    * @returns {boolean} true if sent, false if not connected
    */
   send(type, payload) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
-    var raw = JSON.stringify({ type, payload, ts: Date.now() });
-    // Compress payloads larger than 1KB to avoid relay message size limits
-    if (raw.length > 1024 && typeof LZString !== 'undefined') {
-      var compressed = LZString.compressToBase64(raw);
-      // Only use compression if it actually reduces size
-      if (compressed.length < raw.length) {
-        console.log('[FSB WS] Compressed ' + type + ': ' + raw.length + ' -> ' + compressed.length + ' bytes (' + Math.round(compressed.length / raw.length * 100) + '%)');
-        this.ws.send(JSON.stringify({ _lz: true, d: compressed }));
-        return true;
-      }
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      recordFSBTransportFailure('message-send-failed', {
+        type: type,
+        target: 'relay',
+        tabId: getCurrentTransportTabId(),
+        readyState: this.ws ? this.ws.readyState : 'missing',
+        error: 'WebSocket not open'
+      });
+      return false;
     }
-    this.ws.send(raw);
-    return true;
+
+    try {
+      var raw = JSON.stringify({ type, payload, ts: Date.now() });
+      // Compress payloads larger than 1KB to avoid relay message size limits
+      if (raw.length > 1024 && typeof LZString !== 'undefined') {
+        var compressed = LZString.compressToBase64(raw);
+        // Only use compression if it actually reduces size
+        if (compressed.length < raw.length) {
+          console.log('[FSB WS] Compressed ' + type + ': ' + raw.length + ' -> ' + compressed.length + ' bytes (' + Math.round(compressed.length / raw.length * 100) + '%)');
+          this.ws.send(JSON.stringify({ _lz: true, d: compressed }));
+          recordFSBTransportCount('sentByType', type);
+          return true;
+        }
+      }
+      this.ws.send(raw);
+      recordFSBTransportCount('sentByType', type);
+      return true;
+    } catch (err) {
+      recordFSBTransportFailure('message-send-failed', {
+        type: type,
+        target: 'relay',
+        tabId: getCurrentTransportTabId(),
+        readyState: this.ws ? this.ws.readyState : 'missing',
+        error: err && err.message ? err.message : 'WebSocket send failed'
+      });
+      return false;
+    }
   }
 
   /**
@@ -162,6 +297,10 @@ class FSBWebSocket {
    * First retry is immediate, then 1s, 2s, 4s, 8s, 16s, capped at 30s.
    */
   _scheduleReconnect() {
+    recordFSBTransportReconnect('ws-reconnect-scheduled', {
+      delayMs: this.reconnectDelay === 0 ? 0 : this.reconnectDelay,
+      readyState: this.ws ? this.ws.readyState : 'missing'
+    });
     if (this.reconnectDelay === 0) {
       this.reconnectDelay = 1000;
       console.log('[FSB WS] Reconnecting immediately');
@@ -216,6 +355,7 @@ class FSBWebSocket {
     snapshotPayload.streamTabUrl = candidate.url || '';
     snapshotPayload.streamStatus = streamStatus;
     snapshotPayload.streamReason = streamReason;
+    setFSBTransportLastSnapshot(snapshotPayload);
 
     this.send('ext:snapshot', snapshotPayload);
 
@@ -228,6 +368,13 @@ class FSBWebSocket {
       return;
     }
 
+    recordFSBTransportFailure('stream-tab-not-ready', {
+      type: 'ext:snapshot',
+      target: 'stream-candidate',
+      tabId: typeof candidate.tabId === 'number' ? candidate.tabId : null,
+      readyState: 'not-ready',
+      error: streamReason
+    });
     this._emitStreamState('not-ready', streamReason, {
       tabId: candidate.tabId,
       url: candidate.url || '',
@@ -352,6 +499,13 @@ class FSBWebSocket {
     var candidate = await this._resolveStreamCandidate();
 
     if (!candidate.ready) {
+      recordFSBTransportFailure('stream-tab-not-ready', {
+        type: 'dash:dom-stream-start',
+        target: 'stream-candidate',
+        tabId: typeof candidate.tabId === 'number' ? candidate.tabId : null,
+        readyState: 'not-ready',
+        error: candidate.reason || 'no-streamable-tab'
+      });
       this._emitStreamState('not-ready', candidate.reason || 'no-streamable-tab', {
         tabId: candidate.tabId,
         url: candidate.url || '',
@@ -374,6 +528,8 @@ class FSBWebSocket {
    * @param {Object} msg - Parsed message { type, payload, ts }
    */
   _handleMessage(msg) {
+    recordFSBTransportCount('receivedByType', msg && msg.type);
+
     switch (msg.type) {
       case 'pong':
         // Server responded to our ping -- connection is healthy
@@ -603,30 +759,67 @@ class FSBWebSocket {
         var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         tabId = tabs[0]?.id;
       }
-      if (tabId) {
+      if (!tabId) {
+        recordFSBTransportFailure('dom-forward-failed', {
+          type: action,
+          target: 'content-script',
+          tabId: null,
+          readyState: 'no-tab',
+          error: 'No tab resolved for DOM forward'
+        });
+        return;
+      }
+
+      try {
+        await chrome.tabs.sendMessage(tabId, { action: action, ...payload }, { frameId: 0 });
+      } catch (sendErr) {
+        recordFSBTransportFailure('dom-forward-failed', {
+          type: action,
+          target: 'content-script',
+          tabId: tabId,
+          readyState: 'sendMessage-rejected',
+          error: sendErr && sendErr.message ? sendErr.message : 'DOM forward failed'
+        });
+        // Content script not injected yet -- inject it and retry once
+        console.log('[FSB WS] Content script not ready on tab', tabId, '-- injecting and retrying', action);
+        recordFSBTransportFailure('dom-forward-reinject', {
+          type: action,
+          target: 'content-script',
+          tabId: tabId,
+          readyState: 'reinjection-attempted',
+          error: sendErr && sendErr.message ? sendErr.message : 'Content script not ready'
+        });
         try {
+          var scriptFiles = (typeof CONTENT_SCRIPT_FILES !== 'undefined')
+            ? CONTENT_SCRIPT_FILES
+            : ['content/init.js', 'content/utils.js', 'content/dom-stream.js', 'content/messaging.js', 'content/lifecycle.js'];
+          await chrome.scripting.executeScript({
+            target: { tabId: tabId, allFrames: false },
+            files: scriptFiles
+          });
+          // Brief delay for script initialization
+          await new Promise(function(r) { setTimeout(r, 300); });
           await chrome.tabs.sendMessage(tabId, { action: action, ...payload }, { frameId: 0 });
-        } catch (sendErr) {
-          // Content script not injected yet -- inject it and retry once
-          console.log('[FSB WS] Content script not ready on tab', tabId, '-- injecting and retrying', action);
-          try {
-            var scriptFiles = (typeof CONTENT_SCRIPT_FILES !== 'undefined')
-              ? CONTENT_SCRIPT_FILES
-              : ['content/init.js', 'content/utils.js', 'content/dom-stream.js', 'content/messaging.js', 'content/lifecycle.js'];
-            await chrome.scripting.executeScript({
-              target: { tabId: tabId, allFrames: false },
-              files: scriptFiles
-            });
-            // Brief delay for script initialization
-            await new Promise(function(r) { setTimeout(r, 300); });
-            await chrome.tabs.sendMessage(tabId, { action: action, ...payload }, { frameId: 0 });
-          } catch (injectErr) {
-            console.warn('[FSB WS] Failed to inject content script on tab', tabId, ':', injectErr.message);
-          }
+        } catch (injectErr) {
+          console.warn('[FSB WS] Failed to inject content script on tab', tabId, ':', injectErr.message);
+          recordFSBTransportFailure('dom-forward-failed', {
+            type: action,
+            target: 'content-script',
+            tabId: tabId,
+            readyState: 'inject-retry-failed',
+            error: injectErr && injectErr.message ? injectErr.message : 'Content script reinjection failed'
+          });
         }
       }
     } catch (e) {
       console.warn('[FSB WS] Failed to forward to content script:', action, e.message);
+      recordFSBTransportFailure('dom-forward-failed', {
+        type: action,
+        target: 'content-script',
+        tabId: getCurrentTransportTabId(),
+        readyState: 'forward-exception',
+        error: e && e.message ? e.message : 'Failed to forward to content script'
+      });
     }
   }
 

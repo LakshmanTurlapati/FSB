@@ -917,6 +917,24 @@ function _sendStreamState(status, reason, details) {
   });
 }
 
+function _recordStreamTransportEvent(eventName, details) {
+  if (typeof recordFSBTransportEvent !== 'function') return;
+  recordFSBTransportEvent(eventName, Object.assign({
+    streamIntentActive: !!_streamingActive
+  }, details || {}));
+}
+
+function _recordStreamTransportFailure(eventName, tabId, reason, readyState, target) {
+  if (typeof recordFSBTransportFailure !== 'function') return;
+  recordFSBTransportFailure(eventName, {
+    type: 'ext:stream-state',
+    target: target || 'stream-tab',
+    tabId: typeof tabId === 'number' ? tabId : null,
+    readyState: readyState,
+    error: reason || ''
+  });
+}
+
 /**
  * Listen for tab activations to re-target the DOM stream to the new active tab.
  * Debounced at 300ms to avoid rapid-fire snapshots during quick tab cycling.
@@ -937,6 +955,7 @@ chrome.tabs.onActivated.addListener(function(activeInfo) {
  * @param {number} newTabId - The tab ID to switch streaming to
  */
 async function _handleStreamTabSwitch(newTabId) {
+  var previousTabId = _streamingTabId;
   // Stop stream on old tab
   if (_streamingTabId && _streamingTabId !== newTabId) {
     try {
@@ -946,7 +965,19 @@ async function _handleStreamTabSwitch(newTabId) {
 
   try {
     var tab = await chrome.tabs.get(newTabId);
+    _recordStreamTransportEvent('stream-tab-switch', {
+      tabId: newTabId,
+      previousTabId: typeof previousTabId === 'number' ? previousTabId : null,
+      url: tab.url || ''
+    });
     if (!_isStreamableTabUrl(tab.url)) {
+      _recordStreamTransportEvent('stream-tab-not-ready', {
+        tabId: newTabId,
+        previousTabId: typeof previousTabId === 'number' ? previousTabId : null,
+        url: tab.url || '',
+        reason: 'restricted-tab'
+      });
+      _recordStreamTransportFailure('stream-tab-not-ready', newTabId, 'restricted-tab', 'not-ready');
       _sendStreamState('not-ready', 'restricted-tab', {
         tabId: newTabId,
         url: tab.url || '',
@@ -963,11 +994,26 @@ async function _handleStreamTabSwitch(newTabId) {
 
     // Start stream on new tab
     chrome.tabs.sendMessage(newTabId, { action: 'domStreamStart' }, { frameId: 0 })
-      .catch(function() {
+      .catch(function(err) {
         // Content script may not be injected yet -- will retry on domStreamReady signal
+        if (typeof recordFSBTransportFailure === 'function') {
+          recordFSBTransportFailure('dom-forward-failed', {
+            type: 'domStreamStart',
+            target: 'content-script',
+            tabId: newTabId,
+            readyState: 'tab-switch-start-failed',
+            error: err && err.message ? err.message : 'domStreamStart sendMessage failed during tab switch'
+          });
+        }
         console.warn('[FSB] Content script not ready on tab', newTabId, '-- will retry');
       });
   } catch (e) {
+    _recordStreamTransportEvent('stream-tab-closed', {
+      tabId: newTabId,
+      previousTabId: typeof previousTabId === 'number' ? previousTabId : null,
+      reason: 'tab-closed'
+    });
+    _recordStreamTransportFailure('stream-tab-closed', newTabId, 'tab-closed', 'closed');
     _sendStreamState('not-ready', 'tab-closed', {
       tabId: newTabId,
       url: '',
@@ -980,6 +1026,12 @@ async function _handleStreamTabSwitch(newTabId) {
 chrome.tabs.onRemoved.addListener(function(tabId) {
   if (tabId !== _streamingTabId) return;
 
+  _recordStreamTransportEvent('stream-tab-closed', {
+    tabId: tabId,
+    reason: 'tab-closed',
+    url: _streamTabUrl || ''
+  });
+  _recordStreamTransportFailure('stream-tab-closed', tabId, 'tab-closed', 'closed');
   _sendStreamState('not-ready', 'tab-closed', {
     tabId: tabId,
     url: _streamTabUrl || '',
@@ -4808,6 +4860,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'domStreamReady':
       // Content script reports it loaded on a real page -- update streaming tab
       _streamingTabId = sender.tab?.id || _streamingTabId;
+      _recordStreamTransportEvent('dom-stream-ready', {
+        tabId: _streamingTabId,
+        url: sender.tab?.url || ''
+      });
       _sendStreamState('ready', '', {
         tabId: _streamingTabId,
         url: sender.tab?.url || '',
@@ -4816,7 +4872,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (_streamingActive) {
         // Auto-start stream on this tab
         chrome.tabs.sendMessage(_streamingTabId, { action: 'domStreamStart' }, { frameId: 0 })
-          .catch(function() {});
+          .catch(function(err) {
+            if (typeof recordFSBTransportFailure === 'function') {
+              recordFSBTransportFailure('dom-forward-failed', {
+                type: 'domStreamStart',
+                target: 'content-script',
+                tabId: _streamingTabId,
+                readyState: 'page-ready-start-failed',
+                error: err && err.message ? err.message : 'domStreamStart sendMessage failed after page ready'
+              });
+            }
+          });
       }
       fsbWebSocket.send('ext:page-ready', { tabId: _streamingTabId, url: sender.tab?.url || '' });
       sendResponse({ success: true });

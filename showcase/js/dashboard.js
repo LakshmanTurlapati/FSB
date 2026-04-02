@@ -64,6 +64,103 @@
   var previewNotReadyReason = '';   // Last explicit not-ready reason from extension recovery
   var lastRecoveredStreamState = ''; // ready | recovering | not-ready | streaming
   var pendingStreamRecovery = null; // Watchdog timer for reconnect recovery
+  var DASHBOARD_TRANSPORT_DIAGNOSTIC_LIMIT = 100;
+
+  function getDashboardTransportDiagnostics() {
+    if (!window.__FSBDashboardTransportDiagnostics || typeof window.__FSBDashboardTransportDiagnostics !== 'object') {
+      window.__FSBDashboardTransportDiagnostics = {
+        events: [],
+        counters: {
+          byEvent: {},
+          sentByType: {},
+          receivedByType: {}
+        },
+        lastError: null,
+        lastSnapshotRecovery: null
+      };
+    }
+
+    var diagnostics = window.__FSBDashboardTransportDiagnostics;
+    diagnostics.events = Array.isArray(diagnostics.events) ? diagnostics.events : [];
+    diagnostics.counters = diagnostics.counters && typeof diagnostics.counters === 'object'
+      ? diagnostics.counters
+      : {};
+    diagnostics.counters.byEvent = diagnostics.counters.byEvent && typeof diagnostics.counters.byEvent === 'object'
+      ? diagnostics.counters.byEvent
+      : {};
+    diagnostics.counters.sentByType = diagnostics.counters.sentByType && typeof diagnostics.counters.sentByType === 'object'
+      ? diagnostics.counters.sentByType
+      : {};
+    diagnostics.counters.receivedByType = diagnostics.counters.receivedByType && typeof diagnostics.counters.receivedByType === 'object'
+      ? diagnostics.counters.receivedByType
+      : {};
+    if (!Object.prototype.hasOwnProperty.call(diagnostics, 'lastError')) diagnostics.lastError = null;
+    if (!Object.prototype.hasOwnProperty.call(diagnostics, 'lastSnapshotRecovery')) diagnostics.lastSnapshotRecovery = null;
+    return diagnostics;
+  }
+
+  function bumpDashboardTransportCounter(bucket, key) {
+    if (!key) return;
+    var diagnostics = getDashboardTransportDiagnostics();
+    diagnostics.counters[bucket][key] = (diagnostics.counters[bucket][key] || 0) + 1;
+  }
+
+  function recordDashboardTransportEvent(eventName, details) {
+    var diagnostics = getDashboardTransportDiagnostics();
+    var entry = Object.assign({ event: eventName, ts: Date.now() }, details || {});
+    diagnostics.events.push(entry);
+    if (diagnostics.events.length > DASHBOARD_TRANSPORT_DIAGNOSTIC_LIMIT) {
+      diagnostics.events.shift();
+    }
+    bumpDashboardTransportCounter('byEvent', eventName);
+    return entry;
+  }
+
+  function recordDashboardTransportMessage(direction, type) {
+    if (!type) return;
+    bumpDashboardTransportCounter(direction === 'sent' ? 'sentByType' : 'receivedByType', type);
+  }
+
+  function recordDashboardTransportError(eventName, errorMessage, details) {
+    var entry = recordDashboardTransportEvent(eventName, Object.assign({
+      error: errorMessage || 'Unknown dashboard transport error'
+    }, details || {}));
+    getDashboardTransportDiagnostics().lastError = {
+      event: eventName,
+      error: entry.error,
+      ts: entry.ts,
+      type: entry.type || '',
+      readyState: entry.readyState,
+      context: entry.context || ''
+    };
+    return entry;
+  }
+
+  function recordDashboardSnapshotRecovery(details) {
+    getDashboardTransportDiagnostics().lastSnapshotRecovery = Object.assign({
+      ts: Date.now()
+    }, details || {});
+  }
+
+  function sendDashboardWSMessage(type, payload) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      recordDashboardTransportError('message-send-failed', 'Dashboard WebSocket not open', {
+        type: type,
+        readyState: ws ? ws.readyState : 'missing'
+      });
+      return false;
+    }
+
+    recordDashboardTransportMessage('sent', type);
+    ws.send(JSON.stringify({
+      type: type,
+      payload: payload || {},
+      ts: Date.now()
+    }));
+    return true;
+  }
+
+  getDashboardTransportDiagnostics();
 
   // DOM refs
   var loginSection = document.getElementById('dash-login');
@@ -251,9 +348,7 @@
 
   if (taskStopBtn) {
     taskStopBtn.addEventListener('click', function () {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'dash:stop-task', payload: {}, ts: Date.now() }));
-      }
+      sendDashboardWSMessage('dash:stop-task', {});
       // Show brief "Stopping..." state while extension processes the stop
       if (taskAction) {
         taskAction.style.display = '';
@@ -635,9 +730,14 @@
       wakeBtn.disabled = true;
       wakeBtn.innerHTML = '<span class="dash-spinner"></span> Waking...';
       // Send status request which wakes the service worker via WS message
-      ws.send(JSON.stringify({ type: 'dash:request-status', payload: {}, ts: Date.now() }));
+      sendDashboardWSMessage('dash:request-status', { trigger: 'wake-button' });
       // Also request stream start in case it's needed
-      ws.send(JSON.stringify({ type: 'dash:dom-stream-start', payload: {}, ts: Date.now() }));
+      sendDashboardWSMessage('dash:dom-stream-start', { trigger: 'wake-button' });
+      recordDashboardTransportEvent('recovery-request-sent', {
+        trigger: 'wake-button',
+        requestStatusSent: true,
+        streamStartSent: true
+      });
       // Reset button after 5s if extension doesn't respond
       setTimeout(function () {
         if (wakeBtn && !extensionOnline) {
@@ -1704,13 +1804,7 @@
   }
 
   function scheduleStreamRecovery(trigger) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'dash:request-status',
-        payload: { trigger: trigger },
-        ts: Date.now()
-      }));
-    }
+    var requestStatusSent = sendDashboardWSMessage('dash:request-status', { trigger: trigger });
 
     if (!streamToggleOn) {
       clearPendingStreamRecovery();
@@ -1727,14 +1821,13 @@
       : 'Connecting to browser...');
     setPreviewDisconnectedText('Stream disconnected');
     setPreviewState('loading');
-
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'dash:dom-stream-start',
-        payload: { trigger: trigger },
-        ts: Date.now()
-      }));
-    }
+    var streamStartSent = sendDashboardWSMessage('dash:dom-stream-start', { trigger: trigger });
+    recordDashboardTransportEvent('recovery-request-sent', {
+      trigger: trigger,
+      requestStatusSent: requestStatusSent,
+      streamStartSent: streamStartSent,
+      streamToggleOn: streamToggleOn
+    });
 
     armPreviewRecoveryWatchdog(trigger);
     updatePreviewTooltip();
@@ -1748,6 +1841,12 @@
     previewNotReadyReason = payload.reason || '';
 
     if (status === 'not-ready') {
+      recordDashboardTransportEvent('stream-state-not-ready', {
+        type: 'ext:stream-state',
+        reason: previewNotReadyReason || '',
+        tabId: payload.tabId || null,
+        source: payload.source || ''
+      });
       pageReady = false;
       clearPendingStreamRecovery();
       setPreviewDisconnectedText(getPreviewNotReadyText(previewNotReadyReason));
@@ -1763,6 +1862,12 @@
     }
 
     if (status === 'ready') {
+      recordDashboardTransportEvent('stream-state-ready', {
+        type: 'ext:stream-state',
+        reason: previewNotReadyReason || '',
+        tabId: payload.tabId || null,
+        source: payload.source || ''
+      });
       pageReady = true;
       previewNotReadyReason = '';
       previewLoadStartedAt = previewLoadStartedAt || Date.now();
@@ -1770,6 +1875,12 @@
       if (previewState !== 'streaming') setPreviewState('loading');
       if (!pendingStreamRecovery) armPreviewRecoveryWatchdog('stream-state:ready');
     } else if (status === 'recovering') {
+      recordDashboardTransportEvent('stream-state-recovering', {
+        type: 'ext:stream-state',
+        reason: previewNotReadyReason || '',
+        tabId: payload.tabId || null,
+        source: payload.source || ''
+      });
       pageReady = false;
       previewLoadStartedAt = Date.now();
       setPreviewLoadingText('Recovering browser preview...');
@@ -1865,9 +1976,19 @@
 
   function handleDOMSnapshot(payload) {
     if (!payload || !payload.html) {
+      recordDashboardTransportError('dom-snapshot-invalid', 'DOM snapshot missing html payload', {
+        type: 'ext:dom-snapshot'
+      });
       setPreviewState('error');
       return;
     }
+
+    recordDashboardTransportEvent('dom-snapshot-received', {
+      type: 'ext:dom-snapshot',
+      mutationCount: 0,
+      viewportWidth: payload.viewportWidth || 0,
+      viewportHeight: payload.viewportHeight || 0
+    });
 
     // Reset glow, progress, and dialog overlays on new snapshot
     if (previewGlow) previewGlow.style.display = 'none';
@@ -1913,11 +2034,17 @@
           setPreviewState('streaming');
         };
         previewIframe.onerror = function() {
+          recordDashboardTransportError('dom-snapshot-render-failed', 'Iframe failed to load dashboard snapshot', {
+            type: 'ext:dom-snapshot'
+          });
           setPreviewState('error');
         };
       }
     } catch (e) {
       console.warn('[FSB-DASH] DOM snapshot render failed:', e.message);
+      recordDashboardTransportError('dom-snapshot-render-failed', e.message, {
+        type: 'ext:dom-snapshot'
+      });
       setPreviewState('error');
     }
   }
@@ -2346,6 +2473,11 @@
             }
           }
         } catch (e) {
+          recordDashboardTransportError('dom-mutation-apply-failed', e.message, {
+            type: 'ext:dom-mutations',
+            op: m && m.op ? m.op : '',
+            nid: m && (m.nid || m.parentNid || m.beforeNid || '') ? (m.nid || m.parentNid || m.beforeNid || '') : ''
+          });
           // Skip individual mutation errors -- don't break the whole batch
         }
       });
@@ -2356,6 +2488,10 @@
       } catch (e) { /* ignore */ }
     } catch (e) {
       console.warn('[FSB-DASH] Mutation apply error:', e.message);
+      recordDashboardTransportError('dom-mutation-apply-failed', e.message, {
+        type: 'ext:dom-mutations',
+        mutationCount: payload && payload.mutations ? payload.mutations.length : 0
+      });
       // Don't change state -- keep showing last good content
     }
   }
@@ -2450,20 +2586,12 @@
     if (document.hidden) {
       // Tab hidden -- pause stream (only if user toggle is on; if user paused, already handled)
       if (ws && ws.readyState === WebSocket.OPEN && previewState === 'streaming') {
-        ws.send(JSON.stringify({
-          type: 'dash:dom-stream-pause',
-          payload: {},
-          ts: Date.now()
-        }));
+        sendDashboardWSMessage('dash:dom-stream-pause', {});
       }
     } else {
       // Tab visible -- resume stream (triggers fresh snapshot)
       if (streamToggleOn && ws && ws.readyState === WebSocket.OPEN && (previewState === 'streaming' || previewState === 'disconnected')) {
-        ws.send(JSON.stringify({
-          type: 'dash:dom-stream-resume',
-          payload: {},
-          ts: Date.now()
-        }));
+        sendDashboardWSMessage('dash:dom-stream-resume', {});
         scheduleStreamRecovery('visibility-resume');
       }
     }
@@ -2479,11 +2607,11 @@
         : '<i class="fa-solid fa-play"></i>';
       if (ws && ws.readyState === WebSocket.OPEN) {
         if (streamToggleOn) {
-          ws.send(JSON.stringify({ type: 'dash:dom-stream-resume', payload: {}, ts: Date.now() }));
+          sendDashboardWSMessage('dash:dom-stream-resume', {});
           scheduleStreamRecovery('toggle-resume');
         } else {
           clearPendingStreamRecovery();
-          ws.send(JSON.stringify({ type: 'dash:dom-stream-pause', payload: {}, ts: Date.now() }));
+          sendDashboardWSMessage('dash:dom-stream-pause', {});
           setPreviewState('paused');
         }
       }
@@ -2545,6 +2673,9 @@
 
     ws.onopen = function () {
       console.log('[FSB-DASH] WS connected');
+      recordDashboardTransportEvent('ws-open', {
+        readyState: ws ? ws.readyState : 'missing'
+      });
       wsReconnectDelay = 0;
       setWsState('connected');
       // Dashboard-side keepalive -- prevents fly.io from closing idle WS connections
@@ -2566,6 +2697,11 @@
           var decompressed = LZString.decompressFromBase64(envelope.d);
           if (!decompressed) {
             console.warn('[FSB-DASH] Failed to decompress WS message');
+            recordDashboardTransportError('message-parse-failed', 'Failed to decompress dashboard WS message', {
+              type: 'compressed',
+              readyState: ws ? ws.readyState : 'missing',
+              context: 'decompress'
+            });
             return;
           }
           msg = JSON.parse(decompressed);
@@ -2575,14 +2711,25 @@
           msg = envelope;
           console.log('[FSB-DASH] WS msg:', msg.type, msg.payload ? JSON.stringify(msg.payload).substring(0, 100) : '');
         }
+        recordDashboardTransportMessage('received', msg.type);
         handleWSMessage(msg);
       } catch (e) {
         console.warn('[FSB-DASH] WS parse error:', e.message);
+        recordDashboardTransportError('message-parse-failed', e.message, {
+          type: 'unknown',
+          readyState: ws ? ws.readyState : 'missing',
+          context: 'parse'
+        });
       }
     };
 
     ws.onclose = function (e) {
       console.log('[FSB-DASH] WS closed, code:', e.code, 'reason:', e.reason);
+      recordDashboardTransportEvent('ws-close', {
+        closeCode: e.code,
+        closeReason: e.reason || '',
+        readyState: ws ? ws.readyState : 'closed'
+      });
       extensionOnline = false;
       pageReady = false; // Reset so reconnect waits for fresh page-ready signal
       clearPendingStreamRecovery();
@@ -2623,9 +2770,15 @@
     if (!hashKey) return;
     if (wsReconnectDelay === 0) {
       wsReconnectDelay = 1000;
+      recordDashboardTransportEvent('ws-reconnect-scheduled', {
+        delayMs: 0
+      });
       connectWS();
       return;
     }
+    recordDashboardTransportEvent('ws-reconnect-scheduled', {
+      delayMs: wsReconnectDelay
+    });
     wsReconnectTimer = setTimeout(function () {
       connectWS();
     }, wsReconnectDelay);
@@ -2684,6 +2837,23 @@
       var snapshotIntentActive = snapshot.streamIntentActive !== false;
       extensionOnline = true;
       loadData(); // Refresh dashboard data on extension reconnect
+      recordDashboardTransportEvent('snapshot-recovered', {
+        type: 'ext:snapshot',
+        status: snapshot.streamStatus || '',
+        reason: snapshot.streamReason || '',
+        streamIntentActive: snapshotIntentActive,
+        tabId: snapshot.streamTabId || null,
+        source: snapshot.snapshotSource || ''
+      });
+      recordDashboardSnapshotRecovery({
+        type: 'ext:snapshot',
+        status: snapshot.streamStatus || '',
+        reason: snapshot.streamReason || '',
+        streamIntentActive: snapshotIntentActive,
+        tabId: snapshot.streamTabId || null,
+        url: snapshot.streamTabUrl || '',
+        source: snapshot.snapshotSource || ''
+      });
       // Restore task state on reconnection
       if (snapshot.taskRunning) {
         taskText = snapshot.task || '';
@@ -2799,17 +2969,25 @@
     }
 
     if (msg.type === 'ext:page-ready') {
+      recordDashboardTransportEvent('page-ready-received', {
+        type: 'ext:page-ready',
+        tabId: msg.payload && msg.payload.tabId ? msg.payload.tabId : null
+      });
       pageReady = true;
       lastRecoveredStreamState = 'ready';
       previewNotReadyReason = '';
       streamTabUrl = (msg.payload && msg.payload.url) || '';
+      recordDashboardSnapshotRecovery({
+        type: 'ext:page-ready',
+        status: 'ready',
+        reason: '',
+        tabId: msg.payload && msg.payload.tabId ? msg.payload.tabId : null,
+        url: streamTabUrl,
+        source: 'ext:page-ready'
+      });
       // Auto-start stream if toggle is on and WS is connected
       if (streamToggleOn && ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'dash:dom-stream-start',
-          payload: {},
-          ts: Date.now()
-        }));
+        sendDashboardWSMessage('dash:dom-stream-start', {});
         previewLoadStartedAt = Date.now();
         setPreviewLoadingText('Waiting for live page preview...');
         if (previewState !== 'streaming') setPreviewState('loading');

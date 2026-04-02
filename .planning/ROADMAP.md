@@ -293,7 +293,9 @@ Plans:
   1. A side-by-side comparison of each replica against the real extension in both dark and light themes shows no obvious visual discrepancies
   2. Each replica section in about.html includes a version-stamped sync comment (e.g., <!-- Replica of: ui/sidepanel.html | Last synced: v0.9.22 -->) for future drift detection
   3. Accessibility attributes (role="img", aria-label, aria-hidden="true" on internals) are present on all replica containers
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 149-01-PLAN.md -- Sync comments, accessibility attributes, and side-by-side fidelity check
 
 ---
 
@@ -304,7 +306,7 @@ Plans:
 | 145. Fresh UI Audit & Token Baseline | 1/1 | Complete    | 2026-04-02 |
 | 146. Sidepanel Replica | 1/1 | Complete    | 2026-04-02 |
 | 147. Control Panel Replica | 1/1 | Complete    | 2026-04-02 |
-| 148. MCP Terminal Examples | 1/1 | Complete   | 2026-04-02 |
+| 148. MCP Terminal Examples | 1/1 | Complete    | 2026-04-02 |
 | 149. Final Verification & Sync Comments | 0/? | Not started | - |
 
 ---
