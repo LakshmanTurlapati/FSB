@@ -312,6 +312,24 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
 }
 
 // ---------------------------------------------------------------------------
+// Parameter transforms (tool-definitions param names -> content script names)
+// ---------------------------------------------------------------------------
+
+/**
+ * Transforms for tools where tool-definitions.js parameter names differ from
+ * the content script handler's expected parameter names.
+ *
+ * fill_sheet: tool-definitions uses {csvData}, content/actions.js expects {data}
+ */
+const AUTOPILOT_PARAM_TRANSFORMS = {
+  fill_sheet: (p) => ({
+    startCell: p.startCell,
+    data: p.csvData,
+    sheetName: p.sheetName,
+  }),
+};
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -341,15 +359,19 @@ async function executeTool(name, params, tabId, options = {}) {
     });
   }
 
+  // Apply parameter transforms (e.g., fill_sheet csvData -> data)
+  const transform = AUTOPILOT_PARAM_TRANSFORMS[name];
+  const finalParams = transform ? transform(params) : params;
+
   switch (tool._route) {
     case 'content':
-      return executeContentTool(tool, params, tabId);
+      return executeContentTool(tool, finalParams, tabId);
 
     case 'cdp':
-      return executeCdpTool(tool, params, tabId, options.cdpHandler);
+      return executeCdpTool(tool, finalParams, tabId, options.cdpHandler);
 
     case 'background':
-      return executeBackgroundTool(tool, params, tabId, options.dataHandler);
+      return executeBackgroundTool(tool, finalParams, tabId, options.dataHandler);
 
     default:
       return makeResult({

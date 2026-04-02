@@ -159,4 +159,9 @@ export const PARAM_TRANSFORMS: Record<
     ctrlKey: p.ctrl ?? false,
     altKey: p.alt ?? false,
   }),
+  fill_sheet: (p) => ({
+    startCell: p.startCell,
+    data: p.csvData,
+    sheetName: p.sheetName,
+  }),
 };
