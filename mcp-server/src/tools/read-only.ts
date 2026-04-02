@@ -80,7 +80,6 @@ export function registerReadOnlyTools(
     const messageBuilder = MESSAGE_TYPE_MAP[tool.name];
 
     if (!messageBuilder) {
-      console.error(`[FSB ReadOnly] No message type mapping for ${tool.name}, skipping`);
       continue;
     }
 

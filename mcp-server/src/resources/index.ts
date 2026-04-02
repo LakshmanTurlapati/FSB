@@ -7,7 +7,7 @@ import type { WebSocketBridge } from '../bridge.js';
  */
 export function registerResources(server: McpServer, bridge: WebSocketBridge): void {
   const notConnectedText =
-    'Extension not connected. The FSB Chrome extension must be running and connected via Native Messaging.';
+    'Extension not connected. The FSB Chrome extension must be running and connected to the local FSB MCP bridge.';
 
   // 1. Current Page DOM
   server.registerResource(

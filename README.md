@@ -237,20 +237,23 @@ FSB includes a built-in [Model Context Protocol](https://modelcontextprotocol.io
 
 ### MCP Operating Modes
 
-Within MCP, FSB offers two operating modes:
+Within MCP, FSB offers three operating modes:
 
 **Manual Mode**: Direct browser control through 50+ individual tools. The AI client decides what to do; FSB executes each action.
 
 **Autopilot Mode**: Delegate an entire task to FSB. When an AI API key is configured in the extension, `run_task` hands the goal to FSB's built-in AI loop, which plans, executes, recovers from errors, and reports back with progress updates. The external client just watches.
+
+**Agent Mode**: Create, run, inspect, and manage scheduled background agents directly from an MCP client without using the extension UI.
 
 ### MCP Tool Categories
 
 | Category | Tools | Description |
 |----------|-------|-------------|
 | **Autopilot** | `run_task`, `stop_task`, `get_task_status` | Delegate full tasks to FSB's AI loop |
-| **Manual** | 25+ tools (`navigate`, `click`, `type_text`, `scroll`, etc.) | Individual browser actions with direct control |
+| **Manual** | 35+ tools (`navigate`, `click`, `type_text`, `scroll`, `insert_text`, etc.) | Individual browser actions with direct control |
 | **Read-Only** | `read_page`, `get_text`, `get_dom_snapshot`, `list_tabs`, etc. | Information gathering: bypasses the mutation queue for concurrent reads |
 | **Observability** | `list_sessions`, `get_session_detail`, `get_logs`, `search_memory`, `get_memory_stats` | Inspect past sessions, logs, and memory state |
+| **Agents** | `create_agent`, `list_agents`, `run_agent`, `get_agent_history`, etc. | Manage and execute scheduled background agents over MCP |
 
 ### MCP Resources and Prompts
 
@@ -268,6 +271,11 @@ Within MCP, FSB offers two operating modes:
 ### Install
 
 Install from [npm](https://www.npmjs.com/package/fsb-mcp-server) -- no cloning or building required:
+
+**New in `fsb-mcp-server@0.4.0`:**
+- Optional local Streamable HTTP mode on `http://127.0.0.1:7226/mcp`
+- Built-in install and diagnostics commands: `setup`, `status`, `doctor`, `wait-for-extension`
+- No extension pairing change: the extension still uses `ws://localhost:7225`
 
 **Claude Desktop** -- add to `claude_desktop_config.json`:
 ```json
@@ -298,20 +306,38 @@ claude mcp add fsb -- npx -y fsb-mcp-server
 }
 ```
 
-Make sure the FSB Chrome extension is loaded and active. The MCP server connects to it via WebSocket on port 7225.
+**Local Streamable HTTP** -- if your MCP host supports HTTP transports:
+```bash
+npx -y fsb-mcp-server serve
+```
+
+Default endpoint:
+```text
+http://127.0.0.1:7226/mcp
+```
+
+**Install / diagnostics helpers:**
+```bash
+npx -y fsb-mcp-server setup
+npx -y fsb-mcp-server status
+npx -y fsb-mcp-server doctor
+npx -y fsb-mcp-server wait-for-extension
+```
+
+Make sure the FSB Chrome extension is loaded and active. The MCP server still connects to it locally via WebSocket on port 7225; the new HTTP endpoint on port 7226 is only for MCP clients.
 
 ### Communication Flow
 
 ```mermaid
 graph LR
-    MC["MCP Client<br/>(Claude Code, Cursor, etc.)"] -->|stdio<br/>JSON-RPC 2.0| MS["MCP Server"]
+    MC["MCP Client<br/>(Claude Code, Cursor, etc.)"] -->|stdio or local HTTP<br/>JSON-RPC 2.0| MS["MCP Server"]
     MS -->|WebSocket<br/>port 7225| WSB["WebSocket Bridge<br/>Hub / Relay"]
     WSB --> BG["Background Worker<br/>Chrome Extension"]
     BG --> CS["Content Scripts"]
     CS --> WP["Web Page"]
 ```
 
-- **MCP transport**: stdio (JSON-RPC 2.0) between the AI client and the MCP server
+- **MCP transport**: stdio or local Streamable HTTP between the AI client and the MCP server
 - **WebSocket bridge**: Connects the MCP server to the Chrome extension on port 7225
 - **Hub/relay pattern**: First MCP instance becomes the hub; additional instances connect as relays with automatic promotion on hub failure
 - **Mutation serialization**: A task queue ensures one mutation at a time; read-only tools bypass the queue for concurrent access
@@ -328,7 +354,7 @@ FSB follows a modular architecture designed for reliability and extensibility:
 graph TB
     subgraph MCP["MCP Layer"]
         MCPC["MCP Clients<br/>Claude Code, Cursor, etc."]
-        MCPS["MCP Server<br/>stdio + WebSocket"]
+        MCPS["MCP Server<br/>stdio or HTTP + WebSocket"]
         WSB["WebSocket Bridge<br/>Hub / Relay"]
         TQ["Task Queue<br/>Mutation Serialization"]
     end
@@ -423,7 +449,7 @@ graph TB
 - **Server Sync**: Optional synchronization with Node.js or Python server backends (`agents/server-sync.js`)
 
 **MCP Layer:**
-- **MCP Server**: Exposes FSB to external AI clients via stdio transport with 50+ tools across 4 categories (`mcp-server/src/`)
+- **MCP Server**: Exposes FSB to external AI clients via stdio or local Streamable HTTP with 50+ tools across 4 categories (`mcp-server/src/`)
 - **WebSocket Bridge**: Hub/relay architecture connecting the MCP server to the Chrome extension on port 7225 (`mcp-server/src/bridge.ts`)
 - **Task Queue**: Serializes mutations to prevent race conditions; read-only tools bypass the queue for concurrent access (`mcp-server/src/queue.ts`)
 - **Remote Streaming**: Optional relay server connection for remote monitoring and control (`ws/ws-client.js`)
@@ -675,7 +701,7 @@ FSB/
     purify.min.js               # DOMPurify for XSS protection
   mcp-server/                     # MCP server (TypeScript)
     src/
-      index.ts                    # Entry point: stdio + WebSocket bridge
+      index.ts                    # Entry point: CLI, stdio, HTTP, and WebSocket bridge
       server.ts                   # MCP server factory
       bridge.ts                   # WebSocket hub/relay bridge
       queue.ts                    # Task queue for mutation serialization

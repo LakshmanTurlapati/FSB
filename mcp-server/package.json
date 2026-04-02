@@ -1,9 +1,10 @@
 {
   "name": "fsb-mcp-server",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "FSB Browser Automation MCP Server",
   "license": "BUSL-1.1",
   "author": "Lakshman Turlapati",
+  "mcpName": "io.github.lakshmanturlapati/fsb-mcp-server",
   "repository": {
     "type": "git",
     "url": "https://github.com/lakshmanturlapati/FSB.git",
@@ -29,11 +30,17 @@
   "files": [
     "build/",
     "ai/",
-    "README.md"
+    "README.md",
+    "server.json"
   ],
   "scripts": {
     "build": "tsc && cp ../ai/tool-definitions.js ai/tool-definitions.cjs",
     "dev": "tsx src/index.ts",
+    "doctor": "node build/index.js doctor",
+    "serve": "node build/index.js serve",
+    "setup": "node build/index.js setup",
+    "status": "node build/index.js status",
+    "wait-for-extension": "node build/index.js wait-for-extension",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

@@ -15,14 +15,14 @@
 
 [![npm downloads](https://img.shields.io/npm/dm/fsb-mcp-server?style=flat-square&label=Downloads)](https://www.npmjs.com/package/fsb-mcp-server)
 ![GitHub Stars](https://img.shields.io/github/stars/LakshmanTurlapati/FSB?style=flat-square&logo=github&label=Stars)
-![Tools](https://img.shields.io/badge/MCP_Tools-44-F97316?style=flat-square)
+![Tools](https://img.shields.io/badge/MCP_Tools-58-F97316?style=flat-square)
 ![Node](https://img.shields.io/badge/Node-18+-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 
 **Control your browser from any MCP client**
 
-*44 tools for browser automation: manual control, autopilot mode, and full observability*
+*58 tools for browser automation: manual control, autopilot mode, agents, and full observability*
 
-[Quick Start](#quick-start) | [Tools](#tools-44-total) | [Configuration](#configuration) | [FSB Extension](https://github.com/LakshmanTurlapati/FSB)
+[Quick Start](#quick-start) | [Tools](#tools-58-total) | [Configuration](#configuration) | [FSB Extension](https://github.com/LakshmanTurlapati/FSB)
 
 </div>
 
@@ -30,10 +30,11 @@
 
 ## What is this?
 
-FSB MCP Server connects any MCP-compatible AI client (Claude Desktop, Claude Code, Cursor, Windsurf, etc.) to the [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB) for browser automation. Control your browser with 44 tools across two modes:
+FSB MCP Server connects any MCP-compatible AI client (Claude Desktop, Claude Code, Cursor, Windsurf, etc.) to the [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB) for browser automation. Control your browser with 58 tools across three operating styles:
 
 - **Manual mode**: fine-grained control with click, type, scroll, navigate, read page content
 - **Autopilot mode**: describe a task in natural language and FSB's AI handles every step
+- **Agent mode**: create, run, inspect, and manage scheduled background agents from any MCP client
 
 ## Prerequisites
 
@@ -41,6 +42,17 @@ FSB MCP Server connects any MCP-compatible AI client (Claude Desktop, Claude Cod
 - **FSB Chrome Extension** installed and active ([install from GitHub](https://github.com/LakshmanTurlapati/FSB))
 
 ## Quick Start
+
+### Transport Overview
+
+FSB uses two local endpoints with different roles:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `ws://localhost:7225` | Existing extension bridge. The browser extension connects here. |
+| `http://127.0.0.1:7226/mcp` | Optional local Streamable HTTP MCP endpoint for MCP clients. |
+
+The extension pairing contract did **not** change in `0.4.0`. The new HTTP server is only an additional MCP client entrypoint.
 
 ### Claude Desktop
 
@@ -86,9 +98,46 @@ Any client that supports stdio MCP servers works. The command is:
 npx -y fsb-mcp-server
 ```
 
+### Local Streamable HTTP
+
+If your MCP client supports Streamable HTTP, you can run a local HTTP companion instead of a spawned stdio process:
+
+```bash
+npx -y fsb-mcp-server serve
+```
+
+Default endpoint:
+
+```text
+http://127.0.0.1:7226/mcp
+```
+
+Health check:
+
+```text
+http://127.0.0.1:7226/health
+```
+
+### Install Helpers
+
+The server now includes setup and diagnostics helpers:
+
+```bash
+npx -y fsb-mcp-server setup
+npx -y fsb-mcp-server status
+npx -y fsb-mcp-server doctor
+npx -y fsb-mcp-server wait-for-extension
+```
+
+### New In `0.4.0`
+
+- Added local Streamable HTTP mode for MCP clients that prefer URL-based local servers
+- Added built-in install and health helpers: `setup`, `status`, `doctor`, `wait-for-extension`
+- Kept the browser extension bridge unchanged on `ws://localhost:7225`
+
 ---
 
-## Tools (44 total)
+## Tools (58 total)
 
 ### Autopilot (3 tools)
 
@@ -129,13 +178,14 @@ Let FSB's AI handle the entire task autonomously.
 | `focus` | Move keyboard focus to an element. |
 | `clear_input` | Clear the contents of an input field. |
 
-### Manual: Scrolling (4 tools)
+### Manual: Scrolling (5 tools)
 
 | Tool | Description |
 |------|-------------|
 | `scroll` | Scroll up or down by a specified amount. |
 | `scroll_to_top` | Scroll to the top of the page. |
 | `scroll_to_bottom` | Scroll to the bottom of the page. |
+| `scroll_to_element` | Scroll a specific element into view. |
 | `wait_for_stable` | Wait until the page stops changing (no DOM mutations). |
 
 ### Manual: Tabs (2 tools)
@@ -152,7 +202,7 @@ Let FSB's AI handle the entire task autonomously.
 | `fill_sheet` | Fill spreadsheet cells with CSV data starting from a given cell. |
 | `read_sheet` | Read cell values from a spreadsheet range. |
 
-### Manual: CDP Coordinate Tools (6 tools)
+### Manual: CDP Coordinate Tools (8 tools)
 
 For canvas elements, overlays, and elements where DOM selectors don't work.
 
@@ -163,7 +213,15 @@ For canvas elements, overlays, and elements where DOM selectors don't work.
 | `drag` | Drag between two viewport coordinates (canvas drawing, sliders, maps). |
 | `drag_variable_speed` | Drag with ease-in-out timing curve (CAPTCHA-resistant, human-like motion). |
 | `scroll_at` | Mouse wheel at coordinates (map zoom, canvas zoom). |
+| `double_click_at` | Double-click at viewport coordinates using CDP trusted events. |
+| `insert_text` | Insert text via CDP into the currently focused editable target. |
 | `wait_for_element` | Wait until an element matching a selector appears on the page. |
+
+### Manual: DOM Mutation Helper (1 tool)
+
+| Tool | Description |
+|------|-------------|
+| `set_attribute` | Set an HTML attribute value on a specific element. |
 
 ### Read-Only (5 tools)
 
@@ -189,35 +247,58 @@ Inspect past sessions and FSB's learned memory.
 | `search_memory` | Search FSB's memory for past experiences on similar sites. |
 | `get_memory_stats` | Get memory system statistics: count, types, storage usage. |
 
+### Agents (8 tools)
+
+Manage and run scheduled background agents directly over MCP.
+
+| Tool | Description |
+|------|-------------|
+| `create_agent` | Create a new background agent with schedule and start mode. |
+| `list_agents` | List all configured background agents. |
+| `run_agent` | Trigger immediate execution of an agent. |
+| `stop_agent` | Stop a currently running agent execution. |
+| `delete_agent` | Permanently delete an agent. |
+| `toggle_agent` | Enable or disable an agent. |
+| `get_agent_stats` | Get aggregate stats across all agents. |
+| `get_agent_history` | Get recent run history for one agent. |
+
 ---
 
 ## Configuration
 
-The MCP server communicates with the FSB Chrome Extension over a local WebSocket connection on port **7225**. No configuration needed, just make sure the extension is running.
+The MCP server communicates with the FSB Chrome Extension over a local WebSocket connection on port **7225**. No configuration is needed for the extension bridge; just make sure the extension is installed, enabled, and the browser is running.
+
+If you run local Streamable HTTP mode, the MCP client talks to `http://127.0.0.1:7226/mcp` by default while the extension continues to use `ws://localhost:7225`.
 
 ### How it works
 
 ```mermaid
 graph TD
-    A["MCP Client\n(Claude Desktop / Claude Code / Cursor / Windsurf)"] -->|"stdio (JSON-RPC 2.0)"| B["FSB MCP Server\n(this package)"]
+    A["MCP Client\n(Claude Desktop / Claude Code / Cursor / Windsurf)"] -->|"stdio or local Streamable HTTP"| B["FSB MCP Server\n(this package)"]
     B -->|"WebSocket (port 7225)"| C["FSB Chrome Extension\n(your browser)"]
     C -->|"DOM Analysis + Action Execution"| D["Any Website"]
 
-    subgraph tools ["44 MCP Tools"]
+    subgraph tools ["58 MCP Tools"]
         direction LR
         T1["Autopilot\n3 tools"]
-        T2["Navigation\n5 tools"]
-        T3["Interaction\n14 tools"]
-        T4["Scrolling\n4 tools"]
-        T5["CDP\n6 tools"]
+        T2["Manual\n37 tools"]
         T6["Read-Only\n5 tools"]
         T7["Observability\n5 tools"]
+        T8["Agents\n8 tools"]
     end
 
     B --- tools
 ```
 
 ### Hub/Relay Architecture
+
+FSB still uses the same local bridge contract:
+
+- The MCP client talks to this package over stdio or Streamable HTTP
+- This package talks to the extension over `ws://localhost:7225`
+- The browser extension remains unchanged
+
+This keeps installation simple while avoiding any MCP-specific changes inside the extension.
 
 Multiple MCP clients can connect simultaneously. The first server instance becomes the **hub** (listens on port 7225). Additional instances connect as **relay clients** to the hub. If the hub disconnects, a relay automatically promotes to hub.
 

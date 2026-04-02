@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { FSB_MCP_VERSION, FSB_SERVER_NAME } from './version.js';
 
 /**
  * Create and return the FSB MCP server instance.
@@ -7,7 +8,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
  */
 export function createServer(): McpServer {
   return new McpServer(
-    { name: 'fsb', version: '1.0.0' },
+    { name: FSB_SERVER_NAME, version: FSB_MCP_VERSION },
     {
       capabilities: {
         tools: {},

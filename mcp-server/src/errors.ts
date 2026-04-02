@@ -1,6 +1,8 @@
+import { FSB_EXTENSION_BRIDGE_URL } from './version.js';
+
 export const FSB_ERROR_MESSAGES: Record<string, string> = {
   'extension_not_connected':
-    'Extension WebSocket not connected. The FSB Chrome extension must be running with a WebSocket connection to ws://localhost:7225. Verify the extension is installed and running.',
+    `Extension WebSocket not connected. The FSB Chrome extension must be running with a WebSocket connection to ${FSB_EXTENSION_BRIDGE_URL}. Verify the extension is installed, enabled, and the browser is open.`,
   'no_active_tab':
     'No active browser tab found. Open a browser tab or use the navigate tool to go to a URL first.',
   'task_already_running':
@@ -87,6 +89,8 @@ export function mapFSBError(
     errorKey = 'no_active_tab';
   else if (errorMsg.includes('timeout') || errorMsg.includes('timed out'))
     errorKey = 'task_timeout';
+  else if (errorMsg.includes('extension_not_connected') || errorMsg.includes('Bridge disconnected'))
+    errorKey = 'extension_not_connected';
   else if (errorMsg.includes('Content script communication failed') || errorMsg.includes('Receiving end does not exist'))
     errorKey = 'content_script_failed';
   else if (errorMsg.includes('injection failed') || errorMsg.includes('Content script injection'))
