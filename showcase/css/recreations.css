@@ -807,6 +807,23 @@
   background: var(--rec-main-bg);
 }
 
+.rec-section-header {
+  margin-bottom: 16px;
+}
+
+.rec-section-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--rec-text-heading);
+  margin: 0 0 4px 0;
+}
+
+.rec-section-header p {
+  font-size: 13px;
+  color: var(--rec-text-secondary);
+  margin: 0;
+}
+
 /* Analytics hero card */
 .rec-analytics-hero {
   background: var(--primary);
