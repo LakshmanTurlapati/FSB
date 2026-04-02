@@ -311,7 +311,10 @@ class KeyboardEmulator {
       // instead of firing the shortcut action.
       const hasShortcutModifier = modifiers.ctrl || modifiers.control || modifiers.meta || modifiers.cmd || modifiers.command || modifiers.alt;
       if ((type === 'char' || type === 'keyDown') && isPrintableKey(keyData.key) && !hasShortcutModifier) {
-        params.text = keyData.key;
+        // When Shift is active and key is a letter (a-z), emit uppercase text.
+        // KEY_MAPPINGS stores lowercase key values, but Shift+a should produce 'A'.
+        const isLetter = /^[a-z]$/.test(keyData.key);
+        params.text = (modifiers.shift && isLetter) ? keyData.key.toUpperCase() : keyData.key;
       }
 
       await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', params);
