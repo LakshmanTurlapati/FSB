@@ -65,7 +65,10 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
   3. Each agent iteration returns a structured turn result carrying prompt tokens, output tokens, matched tools, permission denials, usage metrics, and stop reason -- not ad-hoc property reads from the session object
   4. Action history consists of structured event objects (not scattered session property mutations) that can be replayed and diffed between turns
   5. Session state transitions (idle, running, paused, completed, failed) broadcast to all subscribers (sidepanel, dashboard, analytics) through a single event emitter instead of scattered sendStatus calls
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 156-01-PLAN.md -- Typed session schema with hot/warm tiering + state event emitter
+- [ ] 156-02-PLAN.md -- Transcript store, structured turn results, and action history modules
 **Note**: Research reference: `Research/claude-code/src/transcript.py`, `Research/claude-code/src/session_store.py`, `Research/claude-code/src/runtime.py`. Pitfall 1 (SW state loss) and Pitfall 3 (storage quota) must be addressed here.
 
 ### Phase 157: Engine Configuration
@@ -120,7 +123,7 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 156. State Foundation | 0/? | Not started | - |
+| 156. State Foundation | 0/2 | Not started | - |
 | 157. Engine Configuration | 0/? | Not started | - |
 | 158. Hook Pipeline | 0/? | Not started | - |
 | 159. Agent Loop Refactor | 0/? | Not started | - |
