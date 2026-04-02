@@ -2,6 +2,8 @@
 
 let currentSessionId = null;
 let conversationId = null;
+let activeConversationId = null;
+let historySessionId = null;
 let isRunning = false;
 let stopRequested = false;
 let isHistoryViewActive = false;
@@ -33,6 +35,35 @@ async function initConversationId() {
     // Fallback: generate without persistence
     conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   }
+}
+
+async function restoreSidepanelThreadState() {
+  try {
+    const stored = await chrome.storage.session.get([
+      'fsbSidepanelActiveConversationId',
+      'fsbSidepanelHistorySessionId'
+    ]);
+    activeConversationId = stored.fsbSidepanelActiveConversationId || null;
+    historySessionId = stored.fsbSidepanelHistorySessionId || null;
+  } catch (e) {
+    activeConversationId = null;
+    historySessionId = null;
+  }
+}
+
+function persistSidepanelThreadState() {
+  chrome.storage.session.set({
+    fsbSidepanelActiveConversationId: activeConversationId || null,
+    fsbSidepanelHistorySessionId: historySessionId || null
+  }).catch(() => {});
+}
+
+function persistSidepanelConversationId() {
+  chrome.storage.session.set({ fsbSidepanelConversationId: conversationId }).catch(() => {});
+}
+
+function getSelectedConversationId() {
+  return activeConversationId || conversationId;
 }
 
 // DOM elements - adapted for side panel
@@ -287,6 +318,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Initialize conversation ID for session continuity
   await initConversationId();
+  await restoreSidepanelThreadState();
 
   // Initialize analytics
   initializeSidepanelAnalytics();
@@ -321,12 +353,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log('Background script not ready yet');
       return;
     }
-    if (response && response.activeSessions > 0) {
-      setRunningState();
-      // Recover sessionId from background if UI lost it (e.g., after service worker restart)
-      if (!currentSessionId && response.currentSessionId) {
-        currentSessionId = response.currentSessionId;
-        console.log('FSB: Recovered sessionId from background:', currentSessionId);
+    const surfaceSession = response?.sessionsBySurface?.sidepanel;
+    if (surfaceSession?.sessionId) {
+      if (!currentSessionId) {
+        currentSessionId = surfaceSession.sessionId;
+        console.log('FSB: Recovered sidepanel sessionId from background:', currentSessionId);
+      }
+      if (!activeConversationId && surfaceSession.conversationId) {
+        activeConversationId = surfaceSession.conversationId;
+      }
+      if (!historySessionId && surfaceSession.historySessionId) {
+        historySessionId = surfaceSession.historySessionId;
+      }
+      persistSidepanelThreadState();
+      if (surfaceSession.status === 'running' || surfaceSession.status === 'replaying') {
+        setRunningState();
       }
     }
   });
@@ -488,6 +529,9 @@ async function handleSendMessage() {
       action: 'startAutomation',
       task: message,
       tabId: tab.id,
+      uiSurface: 'sidepanel',
+      selectedConversationId: getSelectedConversationId(),
+      historySessionId: historySessionId,
       conversationId: conversationId
     }, (response) => {
       if (chrome.runtime.lastError) {
@@ -497,6 +541,9 @@ async function handleSendMessage() {
 
       if (response && response.success) {
         currentSessionId = response.sessionId;
+        activeConversationId = response.conversationId || getSelectedConversationId();
+        historySessionId = response.historySessionId || historySessionId || response.sessionId;
+        persistSidepanelThreadState();
         setRunningState();
         addStatusMessage(response.continued ? 'Continuing...' : 'Starting automation...');
       } else {
@@ -580,10 +627,13 @@ function startNewChat() {
   // Reset session state
   currentSessionId = null;
   stopRequested = false;
+  activeConversationId = null;
+  historySessionId = null;
+  persistSidepanelThreadState();
 
   // Generate new conversationId for new chat
   conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  chrome.storage.session.set({ fsbSidepanelConversationId: conversationId }).catch(() => {});
+  persistSidepanelConversationId();
 
   // Clear chat messages
   chatMessages.innerHTML = '';
@@ -1439,14 +1489,20 @@ async function deleteHistorySession(sessionId) {
 
 async function loadSessionView(sessionId) {
   try {
-    const stored = await chrome.storage.local.get(['fsbSessionLogs']);
+    const stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex']);
     const sessionStorage = stored.fsbSessionLogs || {};
+    const sessionIndex = stored.fsbSessionIndex || [];
     const session = sessionStorage[sessionId];
+    const sessionMeta = sessionIndex.find(function(entry) { return entry.id === sessionId; }) || null;
 
     if (!session) {
       addMessage('Session data not found.', 'error');
       return;
     }
+
+    activeConversationId = session.conversationId || sessionMeta?.conversationId || null;
+    historySessionId = session.historySessionId || sessionMeta?.historySessionId || sessionId;
+    persistSidepanelThreadState();
 
     // Switch to chat view and clear existing messages
     showChatView();
@@ -1554,11 +1610,11 @@ async function showAgentList() {
 
     const agents = response?.agents || [];
     if (agents.length === 0) {
-      addMessage('No background agents configured. Use /agent to create one.', 'system');
+      addMessage('No agents configured. Use /agent to create one.', 'system');
       return;
     }
 
-    let listText = 'Background Agents:\n';
+    let listText = 'Agents:\n';
     for (const agent of agents) {
       const status = agent.enabled ? '[ON]' : '[OFF]';
       const lastRun = agent.lastRunAt ? new Date(agent.lastRunAt).toLocaleString() : 'Never';

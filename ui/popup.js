@@ -24,6 +24,10 @@ async function initConversationId() {
   }
 }
 
+function persistPopupConversationId() {
+  chrome.storage.session.set({ fsbPopupConversationId: conversationId }).catch(() => {});
+}
+
 // DOM elements - updated for new chat interface
 const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
@@ -143,12 +147,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Check current status
   chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
-    if (response && response.activeSessions > 0) {
-      setRunningState();
-      // Recover sessionId from background if UI lost it (e.g., after service worker restart)
-      if (!currentSessionId && response.currentSessionId) {
-        currentSessionId = response.currentSessionId;
-        console.log('FSB: Recovered sessionId from background:', currentSessionId);
+    const surfaceSession = response?.sessionsBySurface?.popup;
+    if (surfaceSession?.sessionId) {
+      if (!currentSessionId) {
+        currentSessionId = surfaceSession.sessionId;
+        console.log('FSB: Recovered popup sessionId from background:', currentSessionId);
+      }
+      if (surfaceSession.conversationId) {
+        conversationId = surfaceSession.conversationId;
+        persistPopupConversationId();
+      }
+      if (surfaceSession.status === 'running' || surfaceSession.status === 'replaying') {
+        setRunningState();
       }
     }
   });
@@ -263,10 +273,17 @@ async function handleSendMessage() {
       action: 'startAutomation',
       task: message,
       tabId: tab.id,
+      uiSurface: 'popup',
+      selectedConversationId: conversationId,
+      historySessionId: null,
       conversationId: conversationId
     }, (response) => {
       if (response.success) {
         currentSessionId = response.sessionId;
+        if (response.conversationId) {
+          conversationId = response.conversationId;
+          persistPopupConversationId();
+        }
         setRunningState();
         addStatusMessage(response.continued ? 'Continuing...' : 'Starting automation...');
       } else {
@@ -940,11 +957,11 @@ async function showAgentList() {
 
     const agents = response?.agents || [];
     if (agents.length === 0) {
-      addMessage('No background agents configured. Use /agent to create one.', 'system');
+      addMessage('No agents configured. Use /agent to create one.', 'system');
       return;
     }
 
-    let listText = 'Background Agents:\n';
+    let listText = 'Agents:\n';
     for (const agent of agents) {
       const status = agent.enabled ? '[ON]' : '[OFF]';
       const lastRun = agent.lastRunAt ? new Date(agent.lastRunAt).toLocaleString() : 'Never';

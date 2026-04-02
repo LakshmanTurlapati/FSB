@@ -2325,6 +2325,97 @@ function removeConversationThread(sessionId, conversationId = null) {
   }
 }
 
+function findConversationThreadByHistorySessionId(historySessionId) {
+  if (!historySessionId) {
+    return null;
+  }
+
+  for (const entry of conversationSessions.values()) {
+    if (entry.historySessionId === historySessionId || entry.sessionId === historySessionId) {
+      return entry;
+    }
+  }
+
+  return null;
+}
+
+function resolveRequestedConversationThread({ uiSurface, selectedConversationId, historySessionId, conversationId }) {
+  const normalizedSurface = normalizeUiSurface(uiSurface);
+
+  if (historySessionId) {
+    const historyThread = findConversationThreadByHistorySessionId(historySessionId);
+    if (historyThread) {
+      return {
+        uiSurface: normalizedSurface,
+        conversationId: historyThread.conversationId,
+        historySessionId: historyThread.historySessionId || historySessionId,
+        threadRecord: historyThread
+      };
+    }
+  }
+
+  if (selectedConversationId) {
+    const selectedThread = conversationSessions.has(selectedConversationId)
+      ? conversationSessions.get(selectedConversationId)
+      : null;
+
+    return {
+      uiSurface: normalizedSurface,
+      conversationId: selectedThread?.conversationId || selectedConversationId,
+      historySessionId: selectedThread?.historySessionId || historySessionId || null,
+      threadRecord: selectedThread
+    };
+  }
+
+  if (conversationId) {
+    const fallbackThread = conversationSessions.has(conversationId)
+      ? conversationSessions.get(conversationId)
+      : null;
+
+    return {
+      uiSurface: normalizedSurface,
+      conversationId: fallbackThread?.conversationId || conversationId,
+      historySessionId: fallbackThread?.historySessionId || historySessionId || null,
+      threadRecord: fallbackThread
+    };
+  }
+
+  return {
+    uiSurface: normalizedSurface,
+    conversationId: null,
+    historySessionId: historySessionId || null,
+    threadRecord: null
+  };
+}
+
+function buildSessionsBySurface() {
+  const sessionsBySurface = {};
+
+  for (const session of activeSessions.values()) {
+    const uiSurface = normalizeUiSurface(session.uiSurface);
+    if (uiSurface === 'unknown') {
+      continue;
+    }
+
+    const entry = {
+      sessionId: session.sessionId || null,
+      conversationId: session.conversationId || null,
+      historySessionId: session.historySessionId || session.sessionId || null,
+      task: session.task || null,
+      startTime: session.startTime || null,
+      status: session.status || null,
+      commandCount: session.commandCount || 1,
+      lastCommandAt: session.lastCommandAt || session.startTime || 0
+    };
+
+    if (!sessionsBySurface[uiSurface] || entry.lastCommandAt >= (sessionsBySurface[uiSurface].lastCommandAt || 0)) {
+      sessionsBySurface[uiSurface] = entry;
+    }
+  }
+
+  return sessionsBySurface;
+}
+
 // Session persistence helpers - survive service worker restarts
 // Persists essential session data to chrome.storage.session
 async function persistSession(sessionId, session) {
@@ -4521,10 +4612,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // Return sessionIds so UI can recover after service worker restart
       const sessionIds = Array.from(activeSessions.keys());
       const firstSession = sessionIds.length > 0 ? activeSessions.get(sessionIds[0]) : null;
+      const sessionsBySurface = buildSessionsBySurface();
       sendResponse({
         status: 'ready',
         activeSessions: activeSessions.size,
         sessionIds: sessionIds,
+        sessionsBySurface,
         currentSessionId: sessionIds[0] || null,  // First active session for UI recovery
         currentTask: firstSession?.task || null,
         currentStartTime: firstSession?.startTime || null,
@@ -5390,24 +5483,40 @@ async function handleSolveCaptcha(request, sender, sendResponse) {
 }
 
 async function handleStartAutomation(request, sender, sendResponse) {
-  const { task, tabId, conversationId, uiSurface: requestedUiSurface, historySessionId: requestedHistorySessionId } = request;
+  const {
+    task,
+    tabId,
+    conversationId,
+    uiSurface: requestedUiSurface,
+    selectedConversationId,
+    historySessionId: requestedHistorySessionId
+  } = request;
 
   try {
     // Get the target tab ID (may be updated by smart tab management below)
     let targetTabId = tabId || sender.tab?.id;
     const triggerSource = request._triggerSource || 'extension';
-    const uiSurface = inferUiSurface(request, sender, triggerSource);
+    const uiSurface = inferUiSurface({ ...request, uiSurface: requestedUiSurface }, sender, triggerSource);
+    const requestedThread = resolveRequestedConversationThread({
+      uiSurface,
+      selectedConversationId,
+      historySessionId: requestedHistorySessionId,
+      conversationId
+    });
+    const resolvedConversationId = requestedThread.conversationId;
+    const resolvedHistorySessionId = requestedThread.historySessionId || requestedHistorySessionId || null;
 
     // Check for existing conversation session for follow-up reuse
-    if (conversationId && conversationSessions.has(conversationId)) {
-      const convEntry = conversationSessions.get(conversationId);
+    if (resolvedConversationId && conversationSessions.has(resolvedConversationId)) {
+      const convEntry = conversationSessions.get(resolvedConversationId);
       const existingSession = activeSessions.get(convEntry.sessionId);
       if (existingSession && existingSession.status === 'idle') {
         // Reactivate the existing session
         reactivateSession(existingSession, task);
         const sessionId = convEntry.sessionId;
+        existingSession.conversationId = resolvedConversationId;
         existingSession.uiSurface = uiSurface;
-        existingSession.historySessionId = existingSession.historySessionId || convEntry.historySessionId || requestedHistorySessionId || sessionId;
+        existingSession.historySessionId = existingSession.historySessionId || convEntry.historySessionId || resolvedHistorySessionId || sessionId;
         const threadRecord = upsertConversationThread(existingSession);
 
         // Inject follow-up context into AI
@@ -5421,7 +5530,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
 
         automationLogger.info('Reactivating conversation session', {
           sessionId,
-          conversationId,
+          conversationId: resolvedConversationId,
           historySessionId: threadRecord?.historySessionId || existingSession.historySessionId || null,
           uiSurface,
           commandCount: existingSession.commandCount
@@ -5433,6 +5542,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
         sendResponse({
           success: true,
           sessionId,
+          conversationId: resolvedConversationId,
+          historySessionId: threadRecord?.historySessionId || existingSession.historySessionId || sessionId,
+          uiSurface,
           message: 'Continuing conversation session',
           continued: true
         });
@@ -5530,8 +5642,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
       animatedActionHighlights: storedSettings.animatedActionHighlights ?? true,
       // Session continuity fields
       conversationId: conversationId || null,
+      selectedConversationId: selectedConversationId || null,
       uiSurface,
-      historySessionId: requestedHistorySessionId || sessionId,
+      historySessionId: resolvedHistorySessionId || sessionId,
       lastTask: task,
       lastCommandAt: Date.now(),
       commandCount: 1,
@@ -5554,6 +5667,8 @@ async function handleStartAutomation(request, sender, sendResponse) {
       tools: null,
       providerConfig: null
     };
+
+    sessionData.conversationId = resolvedConversationId || null;
 
     sessionData.continuity = serializeSessionContinuity(sessionData);
 
@@ -5597,7 +5712,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
     persistSession(sessionId, sessionData);
 
     // Register in conversation sessions for follow-up reuse
-    if (conversationId) {
+    if (sessionData.conversationId) {
       upsertConversationThread(sessionData);
     }
 
@@ -5607,7 +5722,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       sessionId,
       tabId: sessionData.tabId,
       activeSessions: activeSessions.size,
-      conversationId: conversationId || null,
+      conversationId: sessionData.conversationId || null,
       historySessionId: sessionData.historySessionId,
       uiSurface
     });
@@ -5618,6 +5733,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
     sendResponse({
       success: true,
       sessionId,
+      conversationId: sessionData.conversationId || null,
+      historySessionId: sessionData.historySessionId || sessionId,
+      uiSurface,
       message: navigationMessage || 'Automation started',
       navigationPerformed: navigationPerformed
     });
