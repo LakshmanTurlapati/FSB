@@ -311,4 +311,6 @@ Plans:
 | 137. Agent Loop Core & Safety Mechanisms | 2/2 | Complete | 2026-04-01 |
 | 138. Context Management & On-Demand Tools | 2/2 | Complete | 2026-04-01 |
 | 139. Dead Code Removal & Polish | 2/2 | Complete | 2026-04-01 |
-| 139.1. ai-integration.js Dead Code Cleanup | 0/1 | Planned | - |
+| 139.1. ai-integration.js Dead Code Cleanup | 1/1 | Complete | 2026-04-01 |
+| 139.2. Fill Sheet Case Fix & Autopilot Sheets | 1/1 | Complete | 2026-04-02 |
+| 139.3. Agent Loop Session Logging | 0/? | Not started | - |

@@ -732,6 +732,17 @@ async function runAgentIteration(sessionId, options) {
     handleDataTool
   } = options;
 
+  // Helper: save session to automation logger so MCP list_sessions/get_session_detail can find it
+  function saveToLogger(sid, sess, status) {
+    try {
+      if (typeof automationLogger !== 'undefined' && automationLogger.saveSession) {
+        const duration = Date.now() - (sess.startTime || Date.now());
+        automationLogger.logSessionEnd(sid, status, (sess.actionHistory || []).length, duration);
+        automationLogger.saveSession(sid, sess);
+      }
+    } catch (_e) { /* non-fatal */ }
+  }
+
   // a. Retrieve session
   const session = activeSessions.get(sessionId);
 
@@ -847,6 +858,7 @@ async function runAgentIteration(sessionId, options) {
       }
 
       await persist(sessionId, session);
+      saveToLogger(sessionId, session, 'completed');
 
       // Broadcast completion
       if (typeof broadcastDashboardProgress === 'function') {
@@ -932,6 +944,7 @@ async function runAgentIteration(sessionId, options) {
           await endSessionOverlays(session, 'complete');
         }
         await persist(sessionId, session);
+        saveToLogger(sessionId, session, 'completed');
         return; // End the loop -- task is done
       } else if (call.name === 'fail_task') {
         // Task lifecycle: failure
@@ -952,6 +965,7 @@ async function runAgentIteration(sessionId, options) {
           await endSessionOverlays(session, 'error');
         }
         await persist(sessionId, session);
+        saveToLogger(sessionId, session, 'error');
         return; // End the loop -- task failed
       } else if (call.name === 'report_progress') {
         // PROG-02: Update progress overlay with AI reasoning and cost
@@ -1085,6 +1099,7 @@ async function runAgentIteration(sessionId, options) {
         });
       }
       await persist(sessionId, session);
+      saveToLogger(sessionId, session, 'error');
       return;
     }
 
@@ -1107,6 +1122,7 @@ async function runAgentIteration(sessionId, options) {
         });
       }
       await persist(sessionId, session);
+      saveToLogger(sessionId, session, 'error');
       return;
     }
 
@@ -1144,6 +1160,7 @@ async function runAgentIteration(sessionId, options) {
       });
     }
     await persist(sessionId, session);
+    saveToLogger(sessionId, session, 'error');
   }
 }
 
