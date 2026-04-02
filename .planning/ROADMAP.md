@@ -17,7 +17,7 @@
 - v0.9.9.1 Phantom Stream (shipped 2026-03-31)
 - v0.9.11 MCP Tool Quality (shipped 2026-03-31) -- [archive](milestones/v0.9.11-ROADMAP.md)
 - v0.9.20 Autopilot Agent Architecture Rewrite (shipped 2026-04-02) -- [archive](milestones/v0.9.20-ROADMAP.md)
-- v0.9.21 UI Retouch & Cohesion (deferred)
+- v0.9.21 UI Retouch & Cohesion (shipped 2026-04-02) -- [archive](milestones/v0.9.21-ROADMAP.md)
 - v0.9.22 Showcase High-Fidelity Replicas (superseded after Phase 145)
 - v0.9.23 Dashboard Stream & Remote Control Reliability (in progress)
 
@@ -211,96 +211,9 @@ Plans:
 
 ---
 
-## v0.9.21 UI Retouch & Cohesion (Deferred)
+## v0.9.21 UI Retouch & Cohesion
 
-**Milestone Goal:** Retouch the existing FSB UI so the sidepanel, popup, control panel, dashboard, and automation highlight feedback feel cohesive, polished, and precise without changing the product's overall aesthetic direction.
-
-### Phases (v0.9.21)
-
-- [x] **Phase 140: Shared Surface Audit & Design Corrections** - Normalize shared visual primitives, remove cross-surface styling drift, and define the retouch baseline without redesigning FSB (completed 2026-04-02)
-- [x] **Phase 141: Sidepanel & Popup Retouch** - Polish the operator-facing chat surfaces, including header states, history/composer treatments, and shared action controls (completed 2026-04-02)
-- [ ] **Phase 142: Control Panel & Dashboard Retouch** - Polish settings and monitoring surfaces by fixing layout drift, card inconsistencies, and awkward responsive states
-- [ ] **Phase 143: Context-Aware Overlay Feedback** - Refine automation highlight feedback so links/text and larger controls get more precise, visually appropriate target emphasis
-- [ ] **Phase 144: UI Sweep & Regression Cleanup** - Perform a final consistency pass across touched surfaces to remove leftover polish issues and prevent UI regressions
-
-### Phase Details (v0.9.21)
-
-### Phase 140: Shared Surface Audit & Design Corrections
-**Goal**: Shared UI building blocks look and feel consistent across audited FSB surfaces while preserving the existing brand aesthetic
-**Depends on**: Nothing (first phase of milestone)
-**Requirements**: COH-01, COH-02, COH-03
-**Success Criteria** (what must be TRUE):
-  1. Shared buttons, badges, cards, headers, and status indicators follow one visual treatment across popup, sidepanel, control panel, and dashboard
-  2. The retouch keeps FSB's existing tone and color direction rather than introducing a different visual language
-  3. Audited surfaces no longer show obvious spacing, sizing, or typographic drift in their default states
-**Plans**: 2 plans
-Plans:
-- [x] 140-01-PLAN.md -- Audit repeated UI primitives and define the retouch baseline across shared surfaces
-- [x] 140-02-PLAN.md -- Implement shared style corrections for buttons, cards, badges, spacing, and core surface chrome
-
-### Phase 141: Sidepanel & Popup Retouch
-**Goal**: The sidepanel and popup feel like polished versions of the same product surface, with cleaner hierarchy, spacing, and state feedback
-**Depends on**: Phase 140
-**Requirements**: SID-01, SID-02, POP-01, POP-02
-**Success Criteria** (what must be TRUE):
-  1. Sidepanel header, history view, composer, and footer present a cleaner, more consistent hierarchy with no clipped or awkward states
-  2. Popup controls, status display, and composer styling align with the sidepanel where patterns are shared
-  3. Hover, active, disabled, and busy states on buttons and controls feel deliberate instead of visually inconsistent
-  4. High-frequency chat interactions look polished without changing existing behavior
-**Plans**: 2 plans
-Plans:
-- [x] 141-01-PLAN.md -- Retouch sidepanel layout, header/actions, history surface, and chat composer states
-- [x] 141-02-PLAN.md -- Align popup hierarchy and shared control styling with the sidepanel retouch baseline
-
-### Phase 142: Control Panel & Dashboard Retouch
-**Goal**: Settings and monitoring surfaces feel cohesive with the rest of FSB while fixing visual noise, card drift, and awkward responsive composition
-**Depends on**: Phase 140
-**Requirements**: CP-01, CP-02, DSH-01
-**Success Criteria** (what must be TRUE):
-  1. Control panel navigation, headers, cards, forms, analytics, and utility sections use a consistent visual system
-  2. Settings and dashboard areas no longer show broken spacing, mismatched surfaces, or low-quality responsive behavior
-  3. The showcase dashboard keeps the same FSB aesthetic while feeling more polished and internally consistent
-**Plans**: 2 plans
-Plans:
-- [ ] 142-01-PLAN.md -- Retouch control panel navigation, content sections, cards, forms, and settings composition
-- [ ] 142-02-PLAN.md -- Retouch showcase dashboard controls, task surfaces, preview chrome, and responsive polish issues
-
-### Phase 143: Context-Aware Overlay Feedback
-**Goal**: Automation highlight feedback looks precise and appropriate for the target type rather than relying on one padded rectangle treatment
-**Depends on**: Phase 140
-**Requirements**: OVR-01, OVR-02, OVR-03
-**Success Criteria** (what must be TRUE):
-  1. Link and inline text targets can be emphasized in a way that reads like text highlighting rather than an oversized field box
-  2. Larger controls such as inputs and buttons still receive clear, well-fitted target overlays
-  3. The highlight animation remains smooth and consistent in both the live page and dashboard DOM stream
-**Plans**: 2 plans
-Plans:
-- [ ] 143-01-PLAN.md -- Redesign highlight target selection and presentation rules for text-centric versus control-centric targets
-- [ ] 143-02-PLAN.md -- Implement and verify overlay animation, positioning, and DOM stream parity for the new highlight behavior
-
-### Phase 144: UI Sweep & Regression Cleanup
-**Goal**: The milestone ends with a visible quality uplift across all touched surfaces and no obvious regressions from the retouch
-**Depends on**: Phase 141, Phase 142, Phase 143
-**Requirements**: QA-01, QA-02
-**Success Criteria** (what must be TRUE):
-  1. All touched UI surfaces remain fully usable after the retouch with no interaction or theme regressions
-  2. Obvious visual inconsistencies and low-quality states identified during the milestone are resolved before ship
-  3. The final UI pass feels cohesive across extension and dashboard surfaces rather than like isolated one-off fixes
-**Plans**: 1 plan
-Plans:
-- [ ] 144-01-PLAN.md -- Run a full UI consistency sweep, close polish gaps, and fix regressions across touched surfaces
-
----
-
-### v0.9.21 UI Retouch & Cohesion Progress
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 140. Shared Surface Audit & Design Corrections | 2/2 | Complete   | 2026-04-02 |
-| 141. Sidepanel & Popup Retouch | 2/2 | Complete   | 2026-04-02 |
-| 142. Control Panel & Dashboard Retouch | 0/2 | Not started | - |
-| 143. Context-Aware Overlay Feedback | 0/2 | Not started | - |
-| 144. UI Sweep & Regression Cleanup | 0/1 | Not started | - |
+Shipped 2026-04-02. Shared UI baseline, sidepanel/popup retouch, control-panel/dashboard cleanup, context-aware overlay feedback, and final regression sweep completed. [archive](milestones/v0.9.21-ROADMAP.md)
 
 ---
 
@@ -353,7 +266,9 @@ Plans:
   2. Switching the showcase theme toggle between dark and light renders the control panel replica with accurate warm-gray tokens from options.css and fsb-ui-core.css in both modes
   3. Scrolling the control panel replica into view triggers animated counters and SVG chart line draw
   4. No visual element from the real Dashboard view is missing or obviously wrong in the replica
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 147-01-PLAN.md -- Update dashboard CSS dimensions/tokens, replace HTML with pixel-accurate structure, add SVG chart draw animation
 **UI hint**: yes
 
 ### Phase 148: MCP Terminal Examples
@@ -385,8 +300,8 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 145. Fresh UI Audit & Token Baseline | 1/1 | Complete    | 2026-04-02 |
-| 146. Sidepanel Replica | 1/1 | Complete   | 2026-04-02 |
-| 147. Control Panel Replica | 0/? | Not started | - |
+| 146. Sidepanel Replica | 1/1 | Complete    | 2026-04-02 |
+| 147. Control Panel Replica | 0/1 | Not started | - |
 | 148. MCP Terminal Examples | 0/? | Not started | - |
 | 149. Final Verification & Sync Comments | 0/? | Not started | - |
 

@@ -703,7 +703,7 @@
 }
 
 .rec-sidebar {
-  width: 200px;
+  width: 220px;
   background: var(--rec-sidebar-bg);
   border-right: 1px solid var(--rec-sp-border);
   padding: 12px 8px;
@@ -714,24 +714,26 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 14px;
-  font-size: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
   color: var(--rec-text-secondary);
   cursor: default;
   transition: all 0.15s ease;
-  border-radius: 8px;
+  border-radius: 10px;
   white-space: nowrap;
 }
 
 .rec-sidebar-item.active {
   color: var(--primary);
-  background: rgba(255, 107, 53, 0.08);
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.10), rgba(255, 140, 66, 0.08));
+  border: 1px solid rgba(255, 107, 53, 0.24);
+  font-weight: 600;
 }
 
 .rec-sidebar-item i {
-  width: 16px;
+  width: 1.1rem;
   text-align: center;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /* Beta badge for Passwords nav item */
@@ -764,12 +766,12 @@
 
 /* Analytics hero card */
 .rec-analytics-hero {
-  background: linear-gradient(135deg, #1f1f1f, #2d2d2d);
-  border-radius: 12px;
+  background: var(--primary);
+  border-radius: 16px;
   padding: 24px;
   margin-bottom: 20px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 16px;
 }
 
@@ -782,24 +784,25 @@
 }
 
 .rec-metric-value {
-  font-size: 1.8rem;
+  font-size: 2rem;
   font-weight: 700;
   color: #fff;
   margin-bottom: 4px;
 }
 
 .rec-metric-label {
-  font-size: 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.5px;
   color: rgba(255, 255, 255, 0.75);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 /* Chart card */
 .rec-chart {
   background: var(--rec-chart-bg);
   border: 1px solid var(--rec-chart-border);
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 16px;
   margin-bottom: 16px;
 }
@@ -893,6 +896,91 @@
 .rec-session-badge.stopped {
   background: rgba(245, 158, 11, 0.15);
   color: #fbbf24;
+}
+
+[data-theme="light"] .rec-session-badge.completed {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+[data-theme="light"] .rec-session-badge.stopped {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.rec-session-badge.failed {
+  background: rgba(220, 38, 38, 0.15);
+  color: #f87171;
+}
+
+[data-theme="light"] .rec-session-badge.failed {
+  background: rgba(220, 38, 38, 0.10);
+  color: #dc2626;
+}
+
+.rec-session-badge.in-progress {
+  background: rgba(8, 145, 178, 0.15);
+  color: #67e8f9;
+}
+
+[data-theme="light"] .rec-session-badge.in-progress {
+  background: rgba(8, 145, 178, 0.10);
+  color: #0891b2;
+}
+
+/* Cost breakdown in analytics hero */
+.rec-cost-breakdown {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  padding: 8px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 10px;
+  grid-column: 1 / -1;
+}
+
+.rec-cost-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.rec-cost-label {
+  font-size: 0.7em;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rec-cost-value {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* SVG chart draw animation */
+@keyframes recChartDraw {
+  from { stroke-dashoffset: 800; }
+  to { stroke-dashoffset: 0; }
+}
+
+.rec-line-svg polyline {
+  stroke-dasharray: 800;
+  stroke-dashoffset: 800;
+}
+
+.rec-line-svg.animate polyline {
+  animation: recChartDraw 1.5s ease-out forwards;
+}
+
+.rec-line-svg polygon {
+  opacity: 0;
+  transition: opacity 0.8s ease-out 1s;
+}
+
+.rec-line-svg.animate polygon {
+  opacity: 1;
 }
 
 /* --- Google Search Mockup (1:1 Replica) --- */
@@ -1334,6 +1422,10 @@
     font-size: 10px;
     padding: 3px 6px;
   }
+
+  .rec-cost-breakdown {
+    gap: 16px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1369,5 +1461,11 @@
 
   .rec-sidepanel {
     max-height: 220px;
+  }
+
+  .rec-cost-breakdown {
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
   }
 }
