@@ -49,7 +49,7 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 
 - [x] **Phase 156: State Foundation** - Typed session schema, transcript store, structured turn results, action history events, and state change emitter (completed 2026-04-02)
 - [x] **Phase 157: Engine Configuration** - Cost tracker extraction, permission context stub, session limits config, and execution mode formalization (completed 2026-04-02)
-- [ ] **Phase 158: Hook Pipeline** - Lifecycle event system with safety breakers, tool permission pre-checks, and progress notification consolidation
+- [x] **Phase 158: Hook Pipeline** - Lifecycle event system with safety breakers, tool permission pre-checks, and progress notification consolidation (completed 2026-04-02)
 - [ ] **Phase 159: Agent Loop Refactor** - Wire extracted modules into agent-loop.js, enable session resumption, replace inline conditionals with hook calls
 - [ ] **Phase 160: Bootstrap Pipeline** - Structured service worker startup with ordered phases and deferred initialization for non-essential subsystems
 
@@ -96,10 +96,10 @@ Plans:
   2. Cost limit, time limit, and stuck detection checks run as hook handlers registered on afterIteration -- not as inline if-statements in the iteration function
   3. Before every tool execution, a permission hook checks the permission context and blocks denied tools with a structured denial result that the AI receives as a tool_result error
   4. All progress notifications (action summaries, phase updates, cost updates) flow through a single progress hook on afterToolExecution and afterIteration, replacing scattered sendStatus and sendUpdate calls
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 158-01-PLAN.md -- HookPipeline class with 7 lifecycle events and register/emit/unregister API
-- [ ] 158-02-PLAN.md -- Safety breaker hooks, permission pre-execution hook, and progress notification hooks
+- [x] 158-02-PLAN.md -- Safety breaker hooks, permission pre-execution hook, and progress notification hooks
 **Note**: Research reference: `Research/claude-code/src/costHook.py`, `Research/claude-code/src/reference_data/subsystems/hooks.json`. Pitfall 4 (cross-process hooks) -- all initial hooks are background-only; content-requiring hooks deferred.
 
 ### Phase 159: Agent Loop Refactor
@@ -131,6 +131,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 156. State Foundation | 2/2 | Complete    | 2026-04-02 |
 | 157. Engine Configuration | 2/2 | Complete    | 2026-04-02 |
-| 158. Hook Pipeline | 1/2 | In Progress|  |
+| 158. Hook Pipeline | 2/2 | Complete   | 2026-04-02 |
 | 159. Agent Loop Refactor | 0/? | Not started | - |
 | 160. Bootstrap Pipeline | 0/? | Not started | - |

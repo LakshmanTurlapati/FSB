@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.23
 milestone_name: Dashboard Stream & Remote Control Reliability
-status: executing
-stopped_at: Completed 158-01-PLAN.md
-last_updated: "2026-04-02T17:44:27.315Z"
+status: verifying
+stopped_at: Completed 158-02-PLAN.md
+last_updated: "2026-04-02T17:48:30.728Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 157
-  completed_phases: 151
+  completed_phases: 152
   total_plans: 307
-  completed_plans: 303
+  completed_plans: 304
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-02)
 
 Phase: 158 (hook-pipeline) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-02
 
 Progress: [----------] 0%
@@ -50,6 +50,7 @@ Progress: [----------] 0%
 | Phase 157 P02 | 1min | 1 tasks | 1 files |
 | Phase 157 P01 | 2min | 2 tasks | 2 files |
 | Phase 158 PP01 | 2min | 2 tasks | 1 files |
+| Phase 158 P02 | 1min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,7 @@ Recent decisions affecting current work:
 - [Phase 157]: D-02/D-03: PermissionContext stub with isAllowed always true; future deny-list via chrome.storage.local with Chrome match patterns
 - [Phase 157]: Pure extraction of MODEL_PRICING/estimateCost into ai/cost-tracker.js; SESSION_DEFAULTS centralizes 9 constants; 4 EXECUTION_MODES formalized in ai/engine-config.js
 - [Phase 158]: HookPipeline uses arrays (not Sets) for handler storage -- preserves registration order per D-01; async emit with try/catch error isolation per D-05; only shouldStop:true halts pipeline
+- [Phase 158]: 4 separate progress hook factories (tool/iteration/completion/error) instead of 1 multi-event handler for cleaner Phase 159 registration
 
 ### Roadmap Evolution
 
@@ -89,6 +91,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T17:44:27.307Z
-Stopped at: Completed 158-01-PLAN.md
+Last session: 2026-04-02T17:48:30.720Z
+Stopped at: Completed 158-02-PLAN.md
 Resume file: None

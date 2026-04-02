@@ -25,9 +25,9 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 ### Hook Pipeline
 
 - [x] **HOOK-01**: Hook pipeline defines 7 named lifecycle events (beforeIteration, afterApiResponse, beforeToolExecution, afterToolExecution, afterIteration, onCompletion, onError) with register/emit/unregister API
-- [ ] **HOOK-02**: Safety breaker hooks extract cost limit, time limit, and stuck detection from inline agent-loop.js code into composable hook handlers registered on appropriate lifecycle events
-- [ ] **HOOK-03**: Tool permission pre-execution hook checks permission context before every tool execution, blocking denied tools with structured denial result
-- [ ] **HOOK-04**: Progress notification hook consolidates scattered sendStatus/sendUpdate calls into a unified pipeline that emits structured progress events
+- [x] **HOOK-02**: Safety breaker hooks extract cost limit, time limit, and stuck detection from inline agent-loop.js code into composable hook handlers registered on appropriate lifecycle events
+- [x] **HOOK-03**: Tool permission pre-execution hook checks permission context before every tool execution, blocking denied tools with structured denial result
+- [x] **HOOK-04**: Progress notification hook consolidates scattered sendStatus/sendUpdate calls into a unified pipeline that emits structured progress events
 
 ### Agent Loop Refactor
 
@@ -83,9 +83,9 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 | ENGINE-04 | Phase 157 | Complete |
 | MODE-01 | Phase 157 | Complete |
 | HOOK-01 | Phase 158 | Complete |
-| HOOK-02 | Phase 158 | Pending |
-| HOOK-03 | Phase 158 | Pending |
-| HOOK-04 | Phase 158 | Pending |
+| HOOK-02 | Phase 158 | Complete |
+| HOOK-03 | Phase 158 | Complete |
+| HOOK-04 | Phase 158 | Complete |
 | LOOP-01 | Phase 159 | Pending |
 | LOOP-02 | Phase 159 | Pending |
 | LOOP-03 | Phase 159 | Pending |
