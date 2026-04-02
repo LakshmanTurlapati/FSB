@@ -506,14 +506,14 @@
     </div>
   </section>
 
-  <!-- Recreation 3: FSB Automating a Form -->
+  <!-- Recreation 3: FSB Shopping on Amazon (captured live via MCP) -->
   <section class="recreation-section section">
     <div class="container">
       <div class="section-header reveal">
-        <h2>FSB Automating a Form</h2>
-        <p>Watch FSB fill out forms intelligently, field by field, with visual feedback.</p>
+        <h2>E-Commerce Automation</h2>
+        <p>FSB navigates Amazon, finds products, and adds them to cart -- all from a single instruction.</p>
       </div>
-      <div class="browser-frame reveal-scale" role="img" aria-label="Recreation of FSB automating a web form with the sidepanel overlay">
+      <div class="browser-frame reveal-scale rec-amazon-replay-frame" role="img" aria-label="Animated recreation of FSB buying a PlayStation 5 on Amazon">
         <div class="browser-topbar">
           <div class="browser-dots" aria-hidden="true">
             <span class="dot-red"></span>
@@ -522,60 +522,152 @@
           </div>
           <div class="browser-address">
             <i class="fa-solid fa-lock" style="margin-right: 6px; font-size: 10px;"></i>
-            https://example.com/contact
+            <span class="rec-amz-address-text">amazon.com</span>
           </div>
         </div>
         <div class="browser-content">
-          <!-- Replica of: Generic form interaction (visual approximation) | Last synced: v0.9.22 -->
-          <!-- Contact form page -->
-          <div class="rec-form-page">
-            <!-- Viewport glow -->
-            <div class="rec-viewport-glow">
-              <div class="rec-glow-ambient"></div>
-              <div class="rec-glow-bar top"></div>
-              <div class="rec-glow-bar right"></div>
-              <div class="rec-glow-bar bottom"></div>
-              <div class="rec-glow-bar left"></div>
+          <div class="rec-step-container">
+
+            <!-- Step 1-2: Amazon Homepage (captured live from amazon.com) -->
+            <div class="rec-step active" data-page="amz-home">
+              <div class="rec-viewport-glow">
+                <div class="rec-glow-ambient"></div>
+                <div class="rec-glow-bar top"></div>
+                <div class="rec-glow-bar right"></div>
+                <div class="rec-glow-bar bottom"></div>
+                <div class="rec-glow-bar left"></div>
+              </div>
+              <div class="rec-progress-overlay rec-amz-replay-overlay" style="display: none;"></div>
+              <div class="rec-amz-home">
+                <div class="rec-amz-nav">
+                  <img class="rec-amz-logo" src="https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg" alt="Amazon" />
+                  <div class="rec-amz-deliver">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <div><span class="rec-amz-deliver-label">Delivering to</span><br><strong>Little Elm 75068</strong></div>
+                  </div>
+                  <div class="rec-amz-searchbar">
+                    <select class="rec-amz-search-dept">
+                      <option>All</option>
+                    </select>
+                    <span class="rec-amz-search-text"></span>
+                    <span class="rec-amz-cursor"></span>
+                    <button class="rec-amz-search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+                  </div>
+                  <div class="rec-amz-nav-right">
+                    <div class="rec-amz-nav-link"><span class="rec-amz-small">Hello, sign in</span><strong>Account &amp; Lists</strong></div>
+                    <div class="rec-amz-nav-link"><span class="rec-amz-small">Returns</span><strong>&amp; Orders</strong></div>
+                    <div class="rec-amz-cart"><i class="fa-solid fa-cart-shopping"></i> <strong>0</strong></div>
+                  </div>
+                </div>
+                <div class="rec-amz-subnav">
+                  <span><i class="fa-solid fa-bars"></i> All</span>
+                  <span>Today's Deals</span>
+                  <span>Prime</span>
+                  <span>Gift Cards</span>
+                  <span>Best Sellers</span>
+                  <span>Groceries</span>
+                </div>
+                <div class="rec-amz-hero">
+                  <div class="rec-amz-hero-text">Deals on tech</div>
+                  <div class="rec-amz-hero-cats">
+                    <span>PC</span>
+                    <span>Wireless</span>
+                    <span>Software</span>
+                    <span>Home entertainment</span>
+                  </div>
+                  <a class="rec-amz-hero-link">Shop all tech deals</a>
+                </div>
+              </div>
             </div>
 
-            <!-- Progress overlay -->
-            <div class="rec-progress-overlay">
-              <div class="rec-overlay-header">
-                <img class="rec-overlay-logo" src="assets/icon48.png" alt="FSB">
-                <span class="rec-overlay-title">FSB Automating</span>
+            <!-- Step 3-4: Amazon Search Results (captured live from amazon.com/s?k=PlayStation+5+console) -->
+            <div class="rec-step" data-page="amz-results">
+              <div class="rec-viewport-glow">
+                <div class="rec-glow-ambient"></div>
+                <div class="rec-glow-bar top"></div>
+                <div class="rec-glow-bar right"></div>
+                <div class="rec-glow-bar bottom"></div>
+                <div class="rec-glow-bar left"></div>
               </div>
-              <div class="rec-overlay-task">Fill out the contact form with my details and submit it</div>
-              <div class="rec-overlay-step">
-                <span class="rec-overlay-step-badge">Iter 3/6</span>
-                <span class="rec-overlay-step-text">Typing email address...</span>
-              </div>
-              <div class="rec-progress-track">
-                <div class="rec-progress-fill" data-width="50%"></div>
+              <div class="rec-progress-overlay rec-amz-replay-overlay"></div>
+              <div class="rec-amz-results-page">
+                <div class="rec-amz-nav rec-amz-nav-compact">
+                  <img class="rec-amz-logo" src="https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg" alt="Amazon" />
+                  <div class="rec-amz-searchbar rec-amz-searchbar-filled">
+                    <select class="rec-amz-search-dept"><option>All</option></select>
+                    <span class="rec-amz-search-text">PlayStation 5 console</span>
+                    <button class="rec-amz-search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+                  </div>
+                  <div class="rec-amz-cart"><i class="fa-solid fa-cart-shopping"></i> <strong>0</strong></div>
+                </div>
+                <div class="rec-amz-results-count">1-16 of over 10,000 results for <strong>"PlayStation 5 console"</strong></div>
+                <div class="rec-amz-results-list">
+                  <div class="rec-amz-product rec-amz-replay-result-1">
+                    <div class="rec-amz-product-badge">Overall Pick</div>
+                    <div class="rec-amz-product-img"><i class="fa-solid fa-gamepad" style="font-size: 48px; color: #0066c0;"></i></div>
+                    <div class="rec-amz-product-info">
+                      <div class="rec-amz-product-title">PlayStation&reg;5 console -- 1TB</div>
+                      <div class="rec-amz-product-by">by PlayStation</div>
+                      <div class="rec-amz-product-rating"><span class="rec-amz-stars">&#9733;&#9733;&#9733;&#9733;&#9734;</span> 4.7 (575)</div>
+                      <div class="rec-amz-product-bought">6K+ bought in past month</div>
+                      <div class="rec-amz-product-price">$549<span class="rec-amz-price-cents">.00</span></div>
+                      <div class="rec-amz-product-delivery">FREE delivery <strong>Tue, Apr 7</strong></div>
+                    </div>
+                  </div>
+                  <div class="rec-amz-product">
+                    <div class="rec-amz-product-img"><i class="fa-solid fa-gamepad" style="font-size: 48px; color: #0066c0;"></i></div>
+                    <div class="rec-amz-product-info">
+                      <div class="rec-amz-product-title">PlayStation 5 Disc Edition Console (slim)</div>
+                      <div class="rec-amz-product-by">by PlayStation</div>
+                      <div class="rec-amz-product-rating"><span class="rec-amz-stars">&#9733;&#9733;&#9733;&#9733;&#9734;</span> 4.7 (5.2K)</div>
+                      <div class="rec-amz-product-price">$449<span class="rec-amz-price-cents">.99</span></div>
+                      <div class="rec-amz-product-delivery">FREE delivery <strong>Wed, Apr 8</strong></div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div class="rec-contact-form">
-              <div class="rec-form-title">Contact Us</div>
-              <div class="rec-form-group">
-                <label class="rec-form-label">Full Name</label>
-                <div class="rec-form-input filled">John Doe</div>
+            <!-- Step 5-6: Product Page (captured live from amazon.com PS5 product page) -->
+            <div class="rec-step" data-page="amz-product">
+              <div class="rec-viewport-glow">
+                <div class="rec-glow-ambient"></div>
+                <div class="rec-glow-bar top"></div>
+                <div class="rec-glow-bar right"></div>
+                <div class="rec-glow-bar bottom"></div>
+                <div class="rec-glow-bar left"></div>
               </div>
-              <div class="rec-form-group">
-                <label class="rec-form-label">Email Address</label>
-                <div class="rec-form-input filled highlighted rec-element-highlight">john.doe@email.c</div>
-              </div>
-              <div class="rec-form-group">
-                <label class="rec-form-label">Message</label>
-                <div class="rec-form-textarea">Write your message here...</div>
-              </div>
-              <div class="rec-form-submit">
-                <i class="fa-solid fa-paper-plane"></i> Submit
+              <div class="rec-progress-overlay rec-amz-replay-overlay"></div>
+              <div class="rec-amz-product-page">
+                <div class="rec-amz-nav rec-amz-nav-compact">
+                  <img class="rec-amz-logo" src="https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg" alt="Amazon" />
+                  <div class="rec-amz-searchbar rec-amz-searchbar-filled">
+                    <select class="rec-amz-search-dept"><option>All</option></select>
+                    <span class="rec-amz-search-text">PlayStation 5 console</span>
+                    <button class="rec-amz-search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+                  </div>
+                  <div class="rec-amz-cart"><i class="fa-solid fa-cart-shopping"></i> <strong>0</strong></div>
+                </div>
+                <div class="rec-amz-breadcrumb">Video Games &rsaquo; PlayStation 5 &rsaquo; Consoles</div>
+                <div class="rec-amz-pdp">
+                  <div class="rec-amz-pdp-image"><i class="fa-solid fa-gamepad" style="font-size: 80px; color: #0066c0;"></i></div>
+                  <div class="rec-amz-pdp-details">
+                    <h1 class="rec-amz-pdp-title rec-amz-replay-pdp-title">PlayStation&reg;5 console -- 1TB</h1>
+                    <div class="rec-amz-pdp-store">Visit the PlayStation Store</div>
+                    <div class="rec-amz-pdp-rating"><span class="rec-amz-stars">&#9733;&#9733;&#9733;&#9733;&#9734;</span> 4.7 out of 5 stars (575 ratings)</div>
+                    <div class="rec-amz-pdp-badge">Overall Pick | 6K+ bought in past month</div>
+                    <div class="rec-amz-pdp-price">$549<span class="rec-amz-price-cents">.00</span></div>
+                    <div class="rec-amz-pdp-delivery">FREE delivery <strong>Tuesday, April 7</strong></div>
+                    <div class="rec-amz-pdp-stock">In Stock</div>
+                    <button class="rec-amz-add-to-cart rec-amz-replay-atc">Add to Cart</button>
+                    <button class="rec-amz-buy-now">Buy Now</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- FSB Side Panel -->
-          <!-- Replica of: ui/sidepanel.html | Last synced: v0.9.22 -->
+          <!-- FSB Side Panel (shared, updated by JS) -->
           <div class="rec-sidepanel">
             <div class="rec-sp-header">
               <div class="rec-sp-header-info">
@@ -584,8 +676,8 @@
                   <span class="rec-sp-subtitle">Persistent workspace</span>
                 </div>
                 <div class="rec-sp-status">
-                  <i class="fa-solid fa-circle rec-status-dot running"></i>
-                  <span class="rec-status-text">Automating</span>
+                  <i class="fa-solid fa-circle rec-status-dot rec-amz-replay-status-dot"></i>
+                  <span class="rec-status-text rec-amz-replay-status-text">Ready</span>
                 </div>
               </div>
               <div class="rec-sp-actions">
@@ -594,17 +686,7 @@
                 <div class="rec-sp-icon-btn"><i class="fa-solid fa-cog"></i></div>
               </div>
             </div>
-            <div class="rec-messages">
-              <div class="rec-msg user">Fill out the contact form with my details and submit it</div>
-              <div class="rec-msg status">
-                <div class="rec-typing-dots">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
-                <span>Typing email address...</span>
-              </div>
-            </div>
+            <div class="rec-messages rec-amz-replay-messages"></div>
             <div class="rec-sp-input">
               <div class="rec-sp-input-inner">
                 <span class="rec-sp-input-text">Type a message...</span>

@@ -1992,6 +1992,166 @@
   }
 }
 
+/* --- Amazon pages (captured live via MCP) --- */
+.rec-amz-home, .rec-amz-results-page, .rec-amz-product-page {
+  height: 100%;
+  background: #0f1111;
+  font-family: "Amazon Ember", Arial, sans-serif;
+  color: #e3e6e6;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+[data-theme="light"] .rec-amz-home,
+[data-theme="light"] .rec-amz-results-page,
+[data-theme="light"] .rec-amz-product-page {
+  background: #fff;
+  color: #0f1111;
+}
+
+.rec-amz-nav {
+  background: #131921;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 10px;
+  color: #fff;
+}
+
+.rec-amz-logo { height: 24px; width: auto; filter: brightness(0) invert(1); }
+
+.rec-amz-deliver { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #ccc; }
+.rec-amz-deliver-label { font-size: 10px; color: #999; }
+
+.rec-amz-searchbar {
+  flex: 1; display: flex; align-items: center;
+  background: #fff; border-radius: 4px; overflow: hidden; height: 32px;
+}
+
+.rec-amz-search-dept {
+  background: #e6e6e6; border: none; padding: 0 6px;
+  font-size: 11px; height: 100%; color: #555; border-right: 1px solid #ccc;
+}
+
+.rec-amz-search-text { flex: 1; padding: 0 8px; font-size: 13px; color: #111; }
+
+.rec-amz-cursor { width: 1px; height: 18px; background: #f90; animation: recCursorBlink 1s step-end infinite; }
+
+.rec-amz-search-btn {
+  background: #febd69; border: none; width: 36px; height: 100%;
+  color: #333; font-size: 14px; cursor: default;
+}
+
+.rec-amz-nav-right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: #fff; }
+.rec-amz-nav-link { line-height: 1.2; }
+.rec-amz-small { font-size: 10px; color: #ccc; display: block; }
+.rec-amz-cart { font-size: 16px; color: #fff; }
+
+.rec-amz-subnav {
+  background: #232f3e; display: flex; align-items: center;
+  gap: 14px; padding: 6px 12px; font-size: 12px; color: #fff;
+}
+
+.rec-amz-hero {
+  background: linear-gradient(180deg, #232f3e 0%, #0f1111 100%);
+  padding: 24px 20px; text-align: center;
+}
+
+.rec-amz-hero-text { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+.rec-amz-hero-cats { display: flex; justify-content: center; gap: 16px; font-size: 13px; color: #ccc; margin-bottom: 12px; }
+.rec-amz-hero-link { color: #56b4e9; font-size: 13px; }
+
+.rec-amz-nav-compact { padding: 6px 12px; }
+
+.rec-amz-results-count {
+  padding: 8px 16px; font-size: 13px; color: #999;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+[data-theme="light"] .rec-amz-results-count { color: #565959; border-bottom-color: #e7e7e7; }
+
+.rec-amz-results-list { padding: 8px 16px; }
+
+.rec-amz-product {
+  display: flex; gap: 14px; padding: 14px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06); position: relative;
+}
+[data-theme="light"] .rec-amz-product { border-bottom-color: #e7e7e7; }
+
+.rec-amz-product-badge {
+  position: absolute; top: 14px; left: 0;
+  background: #002f36; color: #ffa41c;
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px;
+}
+[data-theme="light"] .rec-amz-product-badge { background: #f0f2f2; color: #007185; }
+
+.rec-amz-product-img {
+  width: 120px; height: 120px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.03); border-radius: 4px; flex-shrink: 0;
+}
+[data-theme="light"] .rec-amz-product-img { background: #f7f7f7; }
+
+.rec-amz-product-title { font-size: 15px; color: #56b4e9; margin-bottom: 2px; }
+[data-theme="light"] .rec-amz-product-title { color: #007185; }
+
+.rec-amz-product-by { font-size: 12px; color: #999; margin-bottom: 4px; }
+[data-theme="light"] .rec-amz-product-by { color: #565959; }
+
+.rec-amz-product-rating { font-size: 12px; margin-bottom: 2px; }
+.rec-amz-stars { color: #ffa41c; letter-spacing: 1px; }
+
+.rec-amz-product-bought { font-size: 12px; color: #999; margin-bottom: 4px; }
+[data-theme="light"] .rec-amz-product-bought { color: #565959; }
+
+.rec-amz-product-price { font-size: 22px; font-weight: 400; color: #fff; margin-bottom: 2px; }
+[data-theme="light"] .rec-amz-product-price { color: #0f1111; }
+
+.rec-amz-price-cents { font-size: 12px; vertical-align: super; }
+
+.rec-amz-product-delivery { font-size: 12px; color: #999; }
+[data-theme="light"] .rec-amz-product-delivery { color: #565959; }
+
+.rec-amz-breadcrumb { padding: 8px 16px; font-size: 12px; color: #999; }
+[data-theme="light"] .rec-amz-breadcrumb { color: #565959; }
+
+.rec-amz-pdp { display: flex; gap: 20px; padding: 12px 16px; }
+
+.rec-amz-pdp-image {
+  width: 240px; height: 240px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.03); border-radius: 4px; flex-shrink: 0;
+}
+[data-theme="light"] .rec-amz-pdp-image { background: #f7f7f7; }
+
+.rec-amz-pdp-details { flex: 1; }
+
+.rec-amz-pdp-title { font-size: 20px; font-weight: 400; line-height: 1.3; color: #e3e6e6; margin: 0 0 4px 0; }
+[data-theme="light"] .rec-amz-pdp-title { color: #0f1111; }
+
+.rec-amz-pdp-store { font-size: 12px; color: #56b4e9; margin-bottom: 6px; }
+[data-theme="light"] .rec-amz-pdp-store { color: #007185; }
+
+.rec-amz-pdp-rating { font-size: 13px; margin-bottom: 4px; }
+.rec-amz-pdp-badge { font-size: 12px; color: #ffa41c; margin-bottom: 8px; }
+
+.rec-amz-pdp-price { font-size: 28px; font-weight: 400; color: #fff; margin-bottom: 4px; }
+[data-theme="light"] .rec-amz-pdp-price { color: #0f1111; }
+
+.rec-amz-pdp-delivery { font-size: 13px; color: #999; margin-bottom: 4px; }
+[data-theme="light"] .rec-amz-pdp-delivery { color: #565959; }
+
+.rec-amz-pdp-stock { font-size: 14px; font-weight: 600; color: #00a650; margin-bottom: 10px; }
+
+.rec-amz-add-to-cart {
+  display: block; width: 100%; max-width: 240px;
+  background: #ffd814; color: #0f1111; border: none; border-radius: 20px;
+  padding: 8px 0; font-size: 13px; font-weight: 500; cursor: default; margin-bottom: 6px;
+}
+
+.rec-amz-buy-now {
+  display: block; width: 100%; max-width: 240px;
+  background: #ffa41c; color: #0f1111; border: none; border-radius: 20px;
+  padding: 8px 0; font-size: 13px; font-weight: 500; cursor: default;
+}
+
 /* --- Contact Form Mockup --- */
 .rec-form-page {
   flex: 1;
