@@ -311,10 +311,25 @@ class KeyboardEmulator {
       // instead of firing the shortcut action.
       const hasShortcutModifier = modifiers.ctrl || modifiers.control || modifiers.meta || modifiers.cmd || modifiers.command || modifiers.alt;
       if ((type === 'char' || type === 'keyDown') && isPrintableKey(keyData.key) && !hasShortcutModifier) {
-        // When Shift is active and key is a letter (a-z), emit uppercase text.
-        // KEY_MAPPINGS stores lowercase key values, but Shift+a should produce 'A'.
-        const isLetter = /^[a-z]$/.test(keyData.key);
-        params.text = (modifiers.shift && isLetter) ? keyData.key.toUpperCase() : keyData.key;
+        if (modifiers.shift) {
+          // Shift+letter: uppercase
+          const isLetter = /^[a-z]$/.test(keyData.key);
+          if (isLetter) {
+            params.text = keyData.key.toUpperCase();
+          } else {
+            // Shift+number/symbol: produce the shifted character
+            // e.g., shift+9 = '(', shift+7 = '&', shift+1 = '!'
+            const SHIFT_CHAR_MAP = {
+              '1': '!', '2': '@', '3': '#', '4': '$', '5': '%',
+              '6': '^', '7': '&', '8': '*', '9': '(', '0': ')',
+              '-': '_', '=': '+', '[': '{', ']': '}', '\\': '|',
+              ';': ':', "'": '"', ',': '<', '.': '>', '/': '?', '`': '~'
+            };
+            params.text = SHIFT_CHAR_MAP[keyData.key] || keyData.key;
+          }
+        } else {
+          params.text = keyData.key;
+        }
       }
 
       await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', params);

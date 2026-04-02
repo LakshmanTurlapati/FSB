@@ -743,6 +743,20 @@ async function runAgentIteration(sessionId, options) {
     } catch (_e) { /* non-fatal */ }
   }
 
+  // Helper: notify sidepanel that automation is done (sidepanel listens for 'automationComplete')
+  function notifySidepanel(sid, sess, resultText, isError) {
+    try {
+      chrome.runtime.sendMessage({
+        action: 'automationComplete',
+        sessionId: sid,
+        result: resultText || (isError ? sess.error : sess.completionMessage) || 'Task completed.',
+        partial: isError,
+        reason: isError ? 'error' : 'completed',
+        task: sess.task
+      }).catch(() => {});
+    } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
+  }
+
   // a. Retrieve session
   const session = activeSessions.get(sessionId);
 
@@ -859,6 +873,7 @@ async function runAgentIteration(sessionId, options) {
 
       await persist(sessionId, session);
       saveToLogger(sessionId, session, 'completed');
+      notifySidepanel(sessionId, session, finalText.substring(0, 500), false);
 
       // Broadcast completion
       if (typeof broadcastDashboardProgress === 'function') {
@@ -945,6 +960,7 @@ async function runAgentIteration(sessionId, options) {
         }
         await persist(sessionId, session);
         saveToLogger(sessionId, session, 'completed');
+        notifySidepanel(sessionId, session, summary, false);
         return; // End the loop -- task is done
       } else if (call.name === 'fail_task') {
         // Task lifecycle: failure
@@ -966,6 +982,7 @@ async function runAgentIteration(sessionId, options) {
         }
         await persist(sessionId, session);
         saveToLogger(sessionId, session, 'error');
+        notifySidepanel(sessionId, session, reason, true);
         return; // End the loop -- task failed
       } else if (call.name === 'report_progress') {
         // PROG-02: Update progress overlay with AI reasoning and cost
@@ -1100,6 +1117,7 @@ async function runAgentIteration(sessionId, options) {
       }
       await persist(sessionId, session);
       saveToLogger(sessionId, session, 'error');
+      notifySidepanel(sessionId, session, session.error, true);
       return;
     }
 
@@ -1123,6 +1141,7 @@ async function runAgentIteration(sessionId, options) {
       }
       await persist(sessionId, session);
       saveToLogger(sessionId, session, 'error');
+      notifySidepanel(sessionId, session, session.error, true);
       return;
     }
 
@@ -1161,6 +1180,7 @@ async function runAgentIteration(sessionId, options) {
     }
     await persist(sessionId, session);
     saveToLogger(sessionId, session, 'error');
+    notifySidepanel(sessionId, session, session.error, true);
   }
 }
 
