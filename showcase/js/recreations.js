@@ -212,6 +212,29 @@
     // CSS handles the animation
   }
 
+  // --- SVG line chart draw animation ---
+  function initChartDraw() {
+    var svgs = document.querySelectorAll('.rec-line-svg');
+    if (!svgs.length) return;
+
+    svgs.forEach(function (svg) {
+      var drawn = false;
+
+      if ('IntersectionObserver' in window) {
+        var observer = new IntersectionObserver(function (entries) {
+          if (entries[0].isIntersecting && !drawn) {
+            drawn = true;
+            svg.classList.add('animate');
+            observer.disconnect();
+          }
+        }, { threshold: 0.3 });
+        observer.observe(svg);
+      } else {
+        svg.classList.add('animate');
+      }
+    });
+  }
+
   // --- FAQ Accordion ---
   function initFAQ() {
     var questions = document.querySelectorAll('.faq-question');
@@ -241,6 +264,7 @@
     initMessageCascade();
     initProgressBars();
     initChartBars();
+    initChartDraw();
     initCounters();
     initStatusDots();
     initFAQ();
