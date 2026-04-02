@@ -8,6 +8,21 @@ importScripts('ai/ai-integration.js');
 importScripts('ai/tool-definitions.js');
 importScripts('ai/tool-use-adapter.js');
 importScripts('ai/tool-executor.js');
+
+// Phase 156-158: extracted architecture modules (loaded before agent-loop.js)
+importScripts('ai/session-schema.js');
+importScripts('ai/state-emitter.js');
+importScripts('ai/transcript-store.js');
+importScripts('ai/turn-result.js');
+importScripts('ai/action-history.js');
+importScripts('ai/cost-tracker.js');
+importScripts('ai/engine-config.js');
+importScripts('ai/permission-context.js');
+importScripts('ai/hook-pipeline.js');
+importScripts('ai/hooks/safety-hooks.js');
+importScripts('ai/hooks/permission-hook.js');
+importScripts('ai/hooks/progress-hook.js');
+
 importScripts('ai/agent-loop.js');
 importScripts('utils/task-router.js');
 importScripts('utils/automation-logger.js');
