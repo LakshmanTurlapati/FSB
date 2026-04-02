@@ -64,7 +64,14 @@
   var previewNotReadyReason = '';   // Last explicit not-ready reason from extension recovery
   var lastRecoveredStreamState = ''; // ready | recovering | not-ready | streaming
   var pendingStreamRecovery = null; // Watchdog timer for reconnect recovery
+  var activePreviewStreamSessionId = '';
+  var activePreviewSnapshotId = 0;
+  var activePreviewTabId = null;
+  var staleMutationCount = 0;
+  var mutationApplyFailures = 0;
+  var previewResyncPending = false;
   var DASHBOARD_TRANSPORT_DIAGNOSTIC_LIMIT = 100;
+  var lastTaskStateUpdatedAt = 0;
 
   function getDashboardTransportDiagnostics() {
     if (!window.__FSBDashboardTransportDiagnostics || typeof window.__FSBDashboardTransportDiagnostics !== 'object') {
@@ -158,6 +165,98 @@
       ts: Date.now()
     }));
     return true;
+  }
+
+  function getPreviewMessageIdentity(payload) {
+    return {
+      streamSessionId: payload && payload.streamSessionId ? payload.streamSessionId : '',
+      snapshotId: payload && payload.snapshotId ? payload.snapshotId : 0,
+      tabId: payload && typeof payload.tabId === 'number' ? payload.tabId : null
+    };
+  }
+
+  function resetPreviewGenerationState() {
+    staleMutationCount = 0;
+    mutationApplyFailures = 0;
+    previewResyncPending = false;
+  }
+
+  function shouldAcceptPreviewMessage(payload, messageType) {
+    var identity = getPreviewMessageIdentity(payload);
+
+    if (!activePreviewStreamSessionId && !activePreviewSnapshotId) return true;
+    if (!identity.streamSessionId && !identity.snapshotId) return true;
+
+    if (identity.streamSessionId && activePreviewStreamSessionId && identity.streamSessionId !== activePreviewStreamSessionId) {
+      recordDashboardTransportEvent('stale-preview-message-ignored', {
+        type: messageType,
+        streamSessionId: identity.streamSessionId,
+        activeStreamSessionId: activePreviewStreamSessionId,
+        snapshotId: identity.snapshotId,
+        activeSnapshotId: activePreviewSnapshotId
+      });
+      return false;
+    }
+
+    if (identity.snapshotId && activePreviewSnapshotId && identity.snapshotId !== activePreviewSnapshotId) {
+      recordDashboardTransportEvent('stale-preview-message-ignored', {
+        type: messageType,
+        streamSessionId: identity.streamSessionId || activePreviewStreamSessionId,
+        activeStreamSessionId: activePreviewStreamSessionId,
+        snapshotId: identity.snapshotId,
+        activeSnapshotId: activePreviewSnapshotId
+      });
+      return false;
+    }
+
+    if (identity.tabId && activePreviewTabId && identity.tabId !== activePreviewTabId) {
+      recordDashboardTransportEvent('stale-preview-message-ignored', {
+        type: messageType,
+        tabId: identity.tabId,
+        activeTabId: activePreviewTabId,
+        streamSessionId: identity.streamSessionId || activePreviewStreamSessionId,
+        snapshotId: identity.snapshotId || activePreviewSnapshotId
+      });
+      return false;
+    }
+
+    return true;
+  }
+
+  function requestPreviewResync(reason, details) {
+    if (previewResyncPending) return false;
+    previewResyncPending = true;
+    previewLoadStartedAt = Date.now();
+    lastRecoveredStreamState = 'recovering';
+    recordDashboardTransportEvent('mutation-resync-requested', Object.assign({
+      reason: reason || 'unknown'
+    }, details || {}));
+    setPreviewLoadingText('Refreshing browser preview...');
+    if (previewState !== 'streaming') {
+      setPreviewState('loading');
+    } else {
+      setPreviewState('loading');
+    }
+    var statusSent = sendDashboardWSMessage('dash:request-status', {
+      trigger: 'preview-resync',
+      reason: reason || 'unknown'
+    });
+    var streamStartSent = sendDashboardWSMessage('dash:dom-stream-start', {
+      trigger: 'preview-resync',
+      reason: reason || 'unknown'
+    });
+    if (!statusSent && !streamStartSent) {
+      previewResyncPending = false;
+      return false;
+    }
+    if (!pendingStreamRecovery) {
+      armPreviewRecoveryWatchdog('preview-resync:' + (reason || 'unknown'));
+    }
+    return true;
+  }
+
+  function getTaskPayloadUpdatedAt(payload) {
+    return payload && (payload.updatedAt || payload.taskUpdatedAt) ? (payload.updatedAt || payload.taskUpdatedAt) : 0;
   }
 
   getDashboardTransportDiagnostics();
@@ -478,6 +577,7 @@
 
     taskText = text;
     taskStartTime = Date.now();
+    lastTaskStateUpdatedAt = taskStartTime;
 
     ws.send(JSON.stringify({
       type: 'dash:task-submit',
@@ -510,6 +610,7 @@
 
     switch (newState) {
       case 'idle':
+        lastTaskStateUpdatedAt = 0;
         if (taskInputRow) taskInputRow.style.display = 'flex';
         if (taskInput) { taskInput.value = ''; taskInput.disabled = false; }
         if (taskSubmitBtn) taskSubmitBtn.disabled = false;
@@ -599,6 +700,9 @@
   }
 
   function updateTaskProgress(payload) {
+    var payloadUpdatedAt = getTaskPayloadUpdatedAt(payload);
+    if (payloadUpdatedAt && lastTaskStateUpdatedAt && payloadUpdatedAt < lastTaskStateUpdatedAt) return;
+    if (payloadUpdatedAt) lastTaskStateUpdatedAt = payloadUpdatedAt;
     if (taskState !== 'running') return;
 
     var progress = payload.progress || 0;
@@ -636,6 +740,9 @@
   }
 
   function handleTaskComplete(payload) {
+    var payloadUpdatedAt = getTaskPayloadUpdatedAt(payload);
+    if (payloadUpdatedAt && lastTaskStateUpdatedAt && payloadUpdatedAt < lastTaskStateUpdatedAt) return;
+    if (payloadUpdatedAt) lastTaskStateUpdatedAt = payloadUpdatedAt;
     // Handle immediate rejections (extension busy, no tab, etc.)
     if (taskState === 'idle' && !payload.success) {
       // Briefly show the error in the task area without full state transition
@@ -679,6 +786,57 @@
     lastProgressAction = '';
   }
 
+  function applyRecoveredTaskState(snapshot) {
+    if (!snapshot) return;
+
+    var recoveredStatus = snapshot.taskStatus || (snapshot.taskRunning ? 'running' : 'idle');
+    var recoveredUpdatedAt = getTaskPayloadUpdatedAt(snapshot);
+    if (recoveredUpdatedAt && lastTaskStateUpdatedAt && recoveredUpdatedAt < lastTaskStateUpdatedAt) return;
+    if (recoveredUpdatedAt) lastTaskStateUpdatedAt = recoveredUpdatedAt;
+
+    if (snapshot.task) taskText = snapshot.task;
+
+    if (recoveredStatus === 'running') {
+      taskStartTime = Date.now() - (snapshot.elapsed || 0);
+      setTaskState('running', { task: snapshot.task || taskText || '' });
+      updateTaskProgress({
+        progress: snapshot.progress || 0,
+        phase: snapshot.phase || '',
+        eta: snapshot.eta || null,
+        elapsed: snapshot.elapsed || 0,
+        action: snapshot.action || snapshot.lastAction || 'Reconnected...',
+        updatedAt: recoveredUpdatedAt || Date.now()
+      });
+      return;
+    }
+
+    if (recoveredStatus === 'success') {
+      setTaskState('success', {
+        summary: snapshot.summary || '',
+        elapsed: snapshot.elapsed || 0
+      });
+      return;
+    }
+
+    if (recoveredStatus === 'stopped') {
+      var stoppedMessage = 'Stopped by user';
+      var stoppedAction = snapshot.lastAction || snapshot.action || lastProgressAction;
+      if (stoppedAction) stoppedMessage += ' -- was: ' + stoppedAction;
+      setTaskState('failed', {
+        error: stoppedMessage,
+        elapsed: snapshot.elapsed || 0
+      });
+      return;
+    }
+
+    if (recoveredStatus === 'failed') {
+      setTaskState('failed', {
+        error: snapshot.error || 'Task could not be completed',
+        elapsed: snapshot.elapsed || 0
+      });
+    }
+  }
+
   function disableAllTaskInputs(disabled) {
     var inputs = [taskInput, taskInputNext, taskInputRetry];
     var btns = [taskSubmitBtn, taskSubmitNext, taskSubmitRetry];
@@ -704,8 +862,13 @@
       if (taskState === 'idle' && taskInput) {
         taskInput.placeholder = 'Extension offline...';
       }
-      // If extension goes offline mid-task, fail it
-      if (taskState === 'running') {
+      // If the relay disconnected but recovery is in progress, keep the running task UI alive.
+      if (taskState === 'running' && (!ws || ws.readyState !== WebSocket.OPEN)) {
+        if (taskAction) {
+          taskAction.style.display = '';
+          taskAction.textContent = 'Reconnecting to extension...';
+        }
+      } else if (taskState === 'running') {
         setTaskState('failed', { error: 'Extension disconnected' });
       }
       // Show wake button when WS connected but extension offline
@@ -1837,6 +2000,7 @@
     var status = payload.status || 'not-ready';
     var streamIntentActive = payload.streamIntentActive !== false;
     streamTabUrl = payload.url || '';
+    activePreviewTabId = typeof payload.tabId === 'number' ? payload.tabId : activePreviewTabId;
     lastRecoveredStreamState = status;
     previewNotReadyReason = payload.reason || '';
 
@@ -1848,6 +2012,7 @@
         source: payload.source || ''
       });
       pageReady = false;
+      resetPreviewGenerationState();
       clearPendingStreamRecovery();
       setPreviewDisconnectedText(getPreviewNotReadyText(previewNotReadyReason));
       setPreviewState('disconnected');
@@ -1986,14 +2151,44 @@
     recordDashboardTransportEvent('dom-snapshot-received', {
       type: 'ext:dom-snapshot',
       mutationCount: 0,
+      streamSessionId: payload.streamSessionId || '',
+      snapshotId: payload.snapshotId || 0,
+      tabId: typeof payload.tabId === 'number' ? payload.tabId : null,
       viewportWidth: payload.viewportWidth || 0,
       viewportHeight: payload.viewportHeight || 0
     });
+
+    var identity = getPreviewMessageIdentity(payload);
+    var replacingPreviewStream = false;
+    if (identity.streamSessionId && activePreviewStreamSessionId && identity.streamSessionId !== activePreviewStreamSessionId) {
+      replacingPreviewStream = true;
+    }
+    if (identity.snapshotId && activePreviewSnapshotId && identity.snapshotId !== activePreviewSnapshotId) {
+      replacingPreviewStream = true;
+    }
+    if (identity.tabId && activePreviewTabId && identity.tabId !== activePreviewTabId) {
+      replacingPreviewStream = true;
+    }
+
+    activePreviewStreamSessionId = identity.streamSessionId || '';
+    activePreviewSnapshotId = identity.snapshotId || 0;
+    activePreviewTabId = identity.tabId;
+    resetPreviewGenerationState();
+    lastPreviewScroll.x = payload.scrollX || 0;
+    lastPreviewScroll.y = payload.scrollY || 0;
 
     // Reset glow, progress, and dialog overlays on new snapshot
     if (previewGlow) previewGlow.style.display = 'none';
     if (previewProgress) previewProgress.style.display = 'none';
     if (previewDialog) previewDialog.style.display = 'none';
+    if (replacingPreviewStream) {
+      recordDashboardTransportEvent('preview-stream-replaced', {
+        type: 'ext:dom-snapshot',
+        streamSessionId: activePreviewStreamSessionId,
+        snapshotId: activePreviewSnapshotId,
+        tabId: activePreviewTabId
+      });
+    }
 
     previewSnapshotData = payload;
     lastSnapshotTime = Date.now();
@@ -2424,6 +2619,7 @@
   }
 
   function handleDOMMutations(payload) {
+    if (!shouldAcceptPreviewMessage(payload, 'ext:dom-mutations')) return;
     if (previewState !== 'streaming' || !previewIframe) return;
 
     try {
@@ -2436,7 +2632,24 @@
           switch (m.op) {
             case 'add': {
               var parent = doc.querySelector('[data-fsb-nid="' + m.parentNid + '"]');
-              if (!parent) { console.debug('[FSB-DASH] Stale parentNid:', m.parentNid); break; }
+              if (!parent) {
+                staleMutationCount += 1;
+                recordDashboardTransportEvent('stale-mutation-parent', {
+                  type: 'ext:dom-mutations',
+                  parentNid: m.parentNid || '',
+                  streamSessionId: payload.streamSessionId || activePreviewStreamSessionId,
+                  snapshotId: payload.snapshotId || activePreviewSnapshotId,
+                  staleMutationCount: staleMutationCount
+                });
+                if (staleMutationCount >= 3) {
+                  requestPreviewResync('stale-mutation-parent', {
+                    parentNid: m.parentNid || '',
+                    streamSessionId: payload.streamSessionId || activePreviewStreamSessionId,
+                    snapshotId: payload.snapshotId || activePreviewSnapshotId
+                  });
+                }
+                break;
+              }
               var temp = doc.createElement('div');
               temp.innerHTML = m.html;
               var newNode = temp.firstElementChild;
@@ -2451,13 +2664,43 @@
             }
             case 'rm': {
               var el = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
-              if (!el) { console.debug('[FSB-DASH] Stale rm nid:', m.nid); break; }
+              if (!el) {
+                staleMutationCount += 1;
+                recordDashboardTransportEvent('stale-mutation-target', {
+                  type: 'ext:dom-mutations',
+                  op: 'rm',
+                  nid: m.nid || '',
+                  staleMutationCount: staleMutationCount
+                });
+                if (staleMutationCount >= 3) {
+                  requestPreviewResync('stale-mutation-target', {
+                    op: 'rm',
+                    nid: m.nid || ''
+                  });
+                }
+                break;
+              }
               if (el.parentNode) el.parentNode.removeChild(el);
               break;
             }
             case 'attr': {
               var target = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
-              if (!target) { console.debug('[FSB-DASH] Stale attr nid:', m.nid); break; }
+              if (!target) {
+                staleMutationCount += 1;
+                recordDashboardTransportEvent('stale-mutation-target', {
+                  type: 'ext:dom-mutations',
+                  op: 'attr',
+                  nid: m.nid || '',
+                  staleMutationCount: staleMutationCount
+                });
+                if (staleMutationCount >= 3) {
+                  requestPreviewResync('stale-mutation-target', {
+                    op: 'attr',
+                    nid: m.nid || ''
+                  });
+                }
+                break;
+              }
               if (m.val === null) {
                 target.removeAttribute(m.attr);
               } else {
@@ -2467,18 +2710,41 @@
             }
             case 'text': {
               var textTarget = doc.querySelector('[data-fsb-nid="' + m.nid + '"]');
-              if (!textTarget) { console.debug('[FSB-DASH] Stale text nid:', m.nid); break; }
+              if (!textTarget) {
+                staleMutationCount += 1;
+                recordDashboardTransportEvent('stale-mutation-target', {
+                  type: 'ext:dom-mutations',
+                  op: 'text',
+                  nid: m.nid || '',
+                  staleMutationCount: staleMutationCount
+                });
+                if (staleMutationCount >= 3) {
+                  requestPreviewResync('stale-mutation-target', {
+                    op: 'text',
+                    nid: m.nid || ''
+                  });
+                }
+                break;
+              }
               textTarget.textContent = m.text;
               break;
             }
           }
         } catch (e) {
+          mutationApplyFailures += 1;
           recordDashboardTransportError('dom-mutation-apply-failed', e.message, {
             type: 'ext:dom-mutations',
             op: m && m.op ? m.op : '',
-            nid: m && (m.nid || m.parentNid || m.beforeNid || '') ? (m.nid || m.parentNid || m.beforeNid || '') : ''
+            nid: m && (m.nid || m.parentNid || m.beforeNid || '') ? (m.nid || m.parentNid || m.beforeNid || '') : '',
+            mutationApplyFailures: mutationApplyFailures
           });
           // Skip individual mutation errors -- don't break the whole batch
+          if (mutationApplyFailures >= 2) {
+            requestPreviewResync('dom-mutation-apply-failed', {
+              op: m && m.op ? m.op : '',
+              nid: m && (m.nid || m.parentNid || m.beforeNid || '') ? (m.nid || m.parentNid || m.beforeNid || '') : ''
+            });
+          }
         }
       });
 
@@ -2488,15 +2754,21 @@
       } catch (e) { /* ignore */ }
     } catch (e) {
       console.warn('[FSB-DASH] Mutation apply error:', e.message);
+      mutationApplyFailures += 1;
       recordDashboardTransportError('dom-mutation-apply-failed', e.message, {
         type: 'ext:dom-mutations',
-        mutationCount: payload && payload.mutations ? payload.mutations.length : 0
+        mutationCount: payload && payload.mutations ? payload.mutations.length : 0,
+        mutationApplyFailures: mutationApplyFailures
       });
       // Don't change state -- keep showing last good content
+      requestPreviewResync('dom-mutation-batch-failed', {
+        mutationCount: payload && payload.mutations ? payload.mutations.length : 0
+      });
     }
   }
 
   function handleDOMScroll(payload) {
+    if (!shouldAcceptPreviewMessage(payload, 'ext:dom-scroll')) return;
     // Store last scroll position for maintenance after mutations
     lastPreviewScroll.x = payload.scrollX || 0;
     lastPreviewScroll.y = payload.scrollY || 0;
@@ -2512,6 +2784,7 @@
   }
 
   function handleDOMOverlay(payload) {
+    if (!shouldAcceptPreviewMessage(payload, 'ext:dom-overlay')) return;
     if (previewState !== 'streaming') return;
 
     // Update glow rect
@@ -2542,6 +2815,7 @@
   }
 
   function handleDOMDialog(payload) {
+    if (!shouldAcceptPreviewMessage(payload, 'ext:dom-dialog')) return;
     var dialog = payload.dialog || payload;
     if (!dialog) return;
 
@@ -2854,20 +3128,10 @@
         url: snapshot.streamTabUrl || '',
         source: snapshot.snapshotSource || ''
       });
-      // Restore task state on reconnection
-      if (snapshot.taskRunning) {
-        taskText = snapshot.task || '';
-        taskStartTime = Date.now() - (snapshot.elapsed || 0);
-        setTaskState('running', { task: snapshot.task });
-        updateTaskProgress({
-          progress: snapshot.progress || 0,
-          phase: snapshot.phase || '',
-          elapsed: snapshot.elapsed || 0,
-          action: 'Reconnected...'
-        });
-      }
+      applyRecoveredTaskState(snapshot);
 
       streamTabUrl = snapshot.streamTabUrl || '';
+      activePreviewTabId = typeof snapshot.streamTabId === 'number' ? snapshot.streamTabId : activePreviewTabId;
       lastRecoveredStreamState = snapshot.streamStatus || lastRecoveredStreamState;
       previewNotReadyReason = snapshot.streamReason || '';
 

@@ -19,6 +19,8 @@
   var lastScrollSend = 0;
   var dialogRelayActive = false;
   var lastOverlayBroadcast = 0;
+  var streamSessionId = '';
+  var currentSnapshotId = 0;
 
   // Attributes that need URL absolutification
   var URL_ATTRS = ['src', 'href', 'action', 'poster', 'data'];
@@ -97,6 +99,37 @@
     'content', 'direction', 'unicode-bidi'
   ];
 
+  function createStreamSessionId() {
+    return 'stream_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+  }
+
+  function beginStreamSession() {
+    streamSessionId = createStreamSessionId();
+    currentSnapshotId = Date.now();
+  }
+
+  function getCurrentStreamMetadata() {
+    return {
+      streamSessionId: streamSessionId || '',
+      snapshotId: currentSnapshotId || 0
+    };
+  }
+
+  function attachStreamMetadata(payload) {
+    return Object.assign({}, payload || {}, getCurrentStreamMetadata());
+  }
+
+  function assignNodeId(original, clone) {
+    var nid = String(nextNodeId++);
+    if (original && original.nodeType === Node.ELEMENT_NODE) {
+      original.setAttribute('data-fsb-nid', nid);
+    }
+    if (clone && clone.nodeType === Node.ELEMENT_NODE) {
+      clone.setAttribute('data-fsb-nid', nid);
+    }
+    return nid;
+  }
+
   // =========================================================================
   // 0. Dialog Interception (D-01/D-03)
   // =========================================================================
@@ -166,12 +199,12 @@
       try {
         chrome.runtime.sendMessage({
           action: 'domStreamDialog',
-          dialog: {
+          dialog: attachStreamMetadata({
             type: detail.type,
             message: detail.message,
             defaultValue: detail.defaultValue,
             state: 'open'
-          }
+          })
         }).catch(function() {});
       } catch (err) { /* extension context invalidated */ }
     });
@@ -181,11 +214,11 @@
       try {
         chrome.runtime.sendMessage({
           action: 'domStreamDialog',
-          dialog: {
+          dialog: attachStreamMetadata({
             type: detail.type,
             result: detail.result,
             state: 'closed'
-          }
+          })
         }).catch(function() {});
       } catch (err) { /* extension context invalidated */ }
     });
@@ -343,6 +376,7 @@
 
       // Keep iframes live with absolutified src (D-04)
       if (tag === 'iframe') {
+        assignNodeId(orig, cl);
         var iframeSrc = cl.getAttribute('src');
         if (iframeSrc) {
           cl.setAttribute('src', absolutifyUrl(iframeSrc));
@@ -350,15 +384,13 @@
         // Security: prevent interaction with embedded content (D-05)
         var existingStyle = cl.getAttribute('style') || '';
         cl.setAttribute('style', existingStyle + ';pointer-events:none');
-        // Assign nid for mutation tracking
-        cl.setAttribute('data-fsb-nid', String(nextNodeId++));
         // Capture computed styles for sizing/positioning
         captureComputedStyles(orig, cl);
         continue;
       }
 
-      // Assign data-fsb-nid
-      cl.setAttribute('data-fsb-nid', String(nextNodeId++));
+      // Assign stable node IDs on both the live DOM and the serialized clone.
+      var nid = assignNodeId(orig, cl);
 
       // Canvas-to-img conversion: capture canvas content before it's lost in the clone
       if (tag === 'canvas') {
@@ -366,14 +398,14 @@
           var dataUrl = orig.toDataURL('image/png');
           var img = clone.ownerDocument.createElement('img');
           img.src = dataUrl;
-          img.setAttribute('data-fsb-nid', String(nextNodeId++));
+          img.setAttribute('data-fsb-nid', nid);
           img.setAttribute('style', 'width:' + (orig.width || 300) + 'px;height:' + (orig.height || 150) + 'px;');
           if (cl.parentNode) {
             cl.parentNode.replaceChild(img, cl);
           }
         } catch (e) {
           // Tainted canvas or security error -- leave as empty canvas
-          cl.setAttribute('data-fsb-nid', String(nextNodeId - 1 >= 1 ? nextNodeId - 1 : nextNodeId++));
+          cl.setAttribute('data-fsb-nid', nid);
         }
         continue;
       }
@@ -468,7 +500,9 @@
       pageWidth: document.documentElement.scrollWidth,
       pageHeight: document.documentElement.scrollHeight,
       url: location.href,
-      title: document.title
+      title: document.title,
+      streamSessionId: streamSessionId || '',
+      snapshotId: currentSnapshotId || 0
     };
   }
 
@@ -613,7 +647,9 @@
     try {
       chrome.runtime.sendMessage({
         action: 'domStreamMutations',
-        mutations: diffs
+        mutations: diffs,
+        streamSessionId: streamSessionId || '',
+        snapshotId: currentSnapshotId || 0
       }).catch(function() {});
     } catch (e) {
       // Extension context may be invalidated
@@ -676,7 +712,9 @@
         try {
           chrome.runtime.sendMessage({
             action: 'domStreamMutations',
-            mutations: diffs
+            mutations: diffs,
+            streamSessionId: streamSessionId || '',
+            snapshotId: currentSnapshotId || 0
           }).catch(function() {});
         } catch (e) { /* ignore */ }
       }
@@ -709,7 +747,9 @@
         chrome.runtime.sendMessage({
           action: 'domStreamScroll',
           scrollX: window.scrollX,
-          scrollY: window.scrollY
+          scrollY: window.scrollY,
+          streamSessionId: streamSessionId || '',
+          snapshotId: currentSnapshotId || 0
         }).catch(function() {});
       } catch (e) { /* ignore */ }
     };
@@ -748,17 +788,24 @@
 
     // Read glow position from ActionGlowOverlay (used during automation) or HighlightManager (fallback)
     try {
-      var glowSource = (FSB.actionGlowOverlay && FSB.actionGlowOverlay.targetElement)
-        || (FSB.highlightManager && FSB.highlightManager.activeHighlight);
-      if (glowSource && glowSource.getBoundingClientRect) {
-        var rect = glowSource.getBoundingClientRect();
-        glow = {
-          x: rect.x,
-          y: rect.y,
-          w: rect.width,
-          h: rect.height,
-          state: 'active'
-        };
+      if (FSB.actionGlowOverlay && typeof FSB.actionGlowOverlay.getStreamState === 'function') {
+        glow = FSB.actionGlowOverlay.getStreamState();
+      }
+
+      if (!glow) {
+        var glowSource = (FSB.actionGlowOverlay && FSB.actionGlowOverlay.targetElement)
+          || (FSB.highlightManager && FSB.highlightManager.activeHighlight);
+        if (glowSource && glowSource.getBoundingClientRect) {
+          var rect = glowSource.getBoundingClientRect();
+          glow = {
+            x: rect.x,
+            y: rect.y,
+            w: rect.width,
+            h: rect.height,
+            state: 'active',
+            mode: 'box'
+          };
+        }
       }
     } catch (e) { /* ignore */ }
 
@@ -781,7 +828,9 @@
       chrome.runtime.sendMessage({
         action: 'domStreamOverlay',
         glow: glow,
-        progress: progress
+        progress: progress,
+        streamSessionId: streamSessionId || '',
+        snapshotId: currentSnapshotId || 0
       }).catch(function() {});
     } catch (e) { /* ignore */ }
   }
@@ -801,6 +850,7 @@
           stopMutationStream();
           stopScrollTracker();
         }
+        beginStreamSession();
         var snapshot = serializeDOM();
         try {
           chrome.runtime.sendMessage({
@@ -832,6 +882,7 @@
 
       case 'domStreamResume':
         logger.info('[DOM Stream] Resume requested -- sending fresh snapshot');
+        beginStreamSession();
         var freshSnapshot = serializeDOM();
         try {
           chrome.runtime.sendMessage({

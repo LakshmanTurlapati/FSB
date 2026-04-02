@@ -323,22 +323,52 @@ class FSBWebSocket {
       snapshotSource: snapshotSource
     };
 
-    // Include current dashboard task state for reconnection recovery
-    if (typeof activeSessions !== 'undefined') {
+    // Include current or recently completed dashboard task state for reconnection recovery.
+    var recoverableTask = typeof _getDashboardTaskRecoverySnapshot === 'function'
+      ? _getDashboardTaskRecoverySnapshot()
+      : null;
+    if (!recoverableTask && typeof activeSessions !== 'undefined') {
       var dashSession = null;
       activeSessions.forEach(function(s) {
         if (s._isDashboardTask && s.status === 'running') dashSession = s;
       });
       if (dashSession) {
-        var progress = typeof calculateProgress === 'function' ? calculateProgress(dashSession) : { progressPercent: 0 };
-        snapshotPayload.taskRunning = true;
-        snapshotPayload.task = dashSession.task;
-        snapshotPayload.progress = progress.progressPercent;
-        snapshotPayload.phase = typeof detectTaskPhase === 'function' ? detectTaskPhase(dashSession) : 'unknown';
-        snapshotPayload.elapsed = Date.now() - dashSession.startTime;
-      } else {
-        snapshotPayload.taskRunning = false;
+        var progress = typeof calculateProgress === 'function' ? calculateProgress(dashSession) : { progressPercent: 0, estimatedTimeRemaining: null };
+        recoverableTask = {
+          taskStatus: 'running',
+          task: dashSession.task || '',
+          progress: progress.progressPercent,
+          phase: typeof detectTaskPhase === 'function' ? detectTaskPhase(dashSession) : 'unknown',
+          eta: progress.estimatedTimeRemaining || null,
+          elapsed: Date.now() - dashSession.startTime,
+          action: dashSession._lastActionSummary || 'Working...',
+          lastAction: dashSession._lastActionSummary || '',
+          summary: '',
+          error: '',
+          stopped: false,
+          tabId: typeof dashSession.tabId === 'number' ? dashSession.tabId : null,
+          updatedAt: Date.now()
+        };
       }
+    }
+
+    if (recoverableTask) {
+      snapshotPayload.taskStatus = recoverableTask.taskStatus || 'idle';
+      snapshotPayload.taskRunning = snapshotPayload.taskStatus === 'running';
+      snapshotPayload.task = recoverableTask.task || '';
+      snapshotPayload.progress = typeof recoverableTask.progress === 'number' ? recoverableTask.progress : 0;
+      snapshotPayload.phase = recoverableTask.phase || '';
+      snapshotPayload.eta = recoverableTask.eta || null;
+      snapshotPayload.elapsed = recoverableTask.elapsed || 0;
+      snapshotPayload.action = recoverableTask.action || '';
+      snapshotPayload.lastAction = recoverableTask.lastAction || '';
+      snapshotPayload.summary = recoverableTask.summary || '';
+      snapshotPayload.error = recoverableTask.error || '';
+      snapshotPayload.stopped = !!recoverableTask.stopped;
+      snapshotPayload.taskUpdatedAt = recoverableTask.updatedAt || snapshotPayload.timestamp;
+    } else {
+      snapshotPayload.taskRunning = false;
+      snapshotPayload.taskStatus = 'idle';
     }
 
     var candidate = await this._resolveStreamCandidate();
@@ -592,8 +622,16 @@ class FSBWebSocket {
     this._stopInFlight = false;
 
     var task = payload?.task;
+    var now = Date.now();
     if (!task) {
-      this.send('ext:task-complete', { success: false, error: 'No task provided', elapsed: 0 });
+      this.send('ext:task-complete', {
+        success: false,
+        error: 'No task provided',
+        elapsed: 0,
+        taskStatus: 'failed',
+        updatedAt: now,
+        lastAction: ''
+      });
       return;
     }
 
@@ -601,7 +639,14 @@ class FSBWebSocket {
     if (typeof activeSessions !== 'undefined') {
       var hasRunning = [...activeSessions.values()].some(function(s) { return s.status === 'running'; });
       if (hasRunning) {
-        this.send('ext:task-complete', { success: false, error: 'Another task is already running', elapsed: 0 });
+        this.send('ext:task-complete', {
+          success: false,
+          error: 'Another task is already running',
+          elapsed: 0,
+          taskStatus: 'failed',
+          updatedAt: now,
+          lastAction: ''
+        });
         return;
       }
     }
@@ -647,12 +692,26 @@ class FSBWebSocket {
       }
 
       if (!tabId) {
-        this.send('ext:task-complete', { success: false, error: 'No usable browser tab found for automation', elapsed: 0 });
+        this.send('ext:task-complete', {
+          success: false,
+          error: 'No usable browser tab found for automation',
+          elapsed: 0,
+          taskStatus: 'failed',
+          updatedAt: now,
+          lastAction: ''
+        });
         return;
       }
       startDashboardTask(tabId, task);
     } catch (err) {
-      this.send('ext:task-complete', { success: false, error: err.message, elapsed: 0 });
+      this.send('ext:task-complete', {
+        success: false,
+        error: err.message,
+        elapsed: 0,
+        taskStatus: 'failed',
+        updatedAt: Date.now(),
+        lastAction: ''
+      });
     }
   }
 
@@ -678,6 +737,10 @@ class FSBWebSocket {
       { id: chrome.runtime.id },
       (result) => {
         console.log('[FSB WS] Stop result:', JSON.stringify(result));
+        var recoveryTask = typeof _getDashboardTaskRecoverySnapshot === 'function'
+          ? _getDashboardTaskRecoverySnapshot()
+          : null;
+        var completionTimestamp = Date.now();
 
         // Skip sending if this was a duplicate (handleStopAutomation already handled it)
         if (result && result.duplicate) {
@@ -694,7 +757,10 @@ class FSBWebSocket {
             error: 'Stopped by user',
             elapsed: result.duration || 0,
             stopped: true,
-            lastAction: result.lastAction || null
+            task: recoveryTask && recoveryTask.task ? recoveryTask.task : '',
+            taskStatus: 'stopped',
+            updatedAt: recoveryTask && recoveryTask.updatedAt ? recoveryTask.updatedAt : completionTimestamp,
+            lastAction: result.lastAction || (recoveryTask && recoveryTask.lastAction ? recoveryTask.lastAction : null)
           });
         } else {
           // No session found or already stopped -- still acknowledge
@@ -703,7 +769,10 @@ class FSBWebSocket {
             error: 'Stopped by user',
             elapsed: 0,
             stopped: true,
-            lastAction: null
+            task: recoveryTask && recoveryTask.task ? recoveryTask.task : '',
+            taskStatus: 'stopped',
+            updatedAt: recoveryTask && recoveryTask.updatedAt ? recoveryTask.updatedAt : completionTimestamp,
+            lastAction: recoveryTask && recoveryTask.lastAction ? recoveryTask.lastAction : null
           });
         }
 

@@ -873,6 +873,7 @@ async function sendSessionStatus(tabId, statusData) {
 
 var _lastDashboardBroadcast = 0; // Throttle: max 1 WS broadcast per second
 var _dashboardTaskTabId = null; // Tab ID for active dashboard task (used for DOM stream stop)
+var _lastDashboardTaskSnapshot = null; // Recoverable dashboard task state for reconnect snapshots
 var _streamingTabId = null; // Tab ID currently being streamed to dashboard (always-on, independent of tasks)
 var _streamingActive = false; // Whether dashboard has requested DOM streaming
 var _tabSwitchTimer = null; // Debounce timer for tab switch stream re-targeting
@@ -881,6 +882,42 @@ var _streamTabUrl = ''; // Last known URL for the streaming tab or not-ready tab
 var _streamStatus = 'not-ready'; // ready | not-ready | recovering
 var _streamReason = 'no-streamable-tab'; // restricted-tab | no-streamable-tab | waiting-for-page-ready | tab-closed
 var _streamStateSource = 'bootstrap';
+var DASHBOARD_TASK_SNAPSHOT_STORAGE_KEY = 'fsb_dashboard_task_snapshot';
+var DASHBOARD_TASK_SNAPSHOT_MAX_AGE_MS = 15 * 60 * 1000;
+
+function _persistDashboardTaskSnapshot() {
+  try {
+    chrome.storage.session.set({
+      [DASHBOARD_TASK_SNAPSHOT_STORAGE_KEY]: _lastDashboardTaskSnapshot
+    }).catch(function() {});
+  } catch (e) { /* ignore */ }
+}
+
+function _rememberDashboardTaskSnapshot(details) {
+  _lastDashboardTaskSnapshot = Object.assign({}, _lastDashboardTaskSnapshot || {}, details || {}, {
+    updatedAt: Date.now()
+  });
+  _persistDashboardTaskSnapshot();
+  return Object.assign({}, _lastDashboardTaskSnapshot);
+}
+
+function _getDashboardTaskRecoverySnapshot() {
+  if (!_lastDashboardTaskSnapshot) return null;
+  var age = Date.now() - (_lastDashboardTaskSnapshot.updatedAt || 0);
+  if (_lastDashboardTaskSnapshot.taskStatus !== 'running' && age > DASHBOARD_TASK_SNAPSHOT_MAX_AGE_MS) {
+    return null;
+  }
+  return Object.assign({}, _lastDashboardTaskSnapshot);
+}
+
+try {
+  chrome.storage.session.get(DASHBOARD_TASK_SNAPSHOT_STORAGE_KEY).then(function(result) {
+    var stored = result && result[DASHBOARD_TASK_SNAPSHOT_STORAGE_KEY];
+    if (stored && typeof stored === 'object') {
+      _lastDashboardTaskSnapshot = stored;
+    }
+  }).catch(function() {});
+} catch (e) { /* ignore */ }
 
 function _isStreamableTabUrl(url) {
   return !!url && !/^(chrome|about|edge|brave|chrome-extension):/.test(url);
@@ -1076,13 +1113,32 @@ function broadcastDashboardProgress(session) {
     return;
   }
 
+  var taskPayload = _rememberDashboardTaskSnapshot({
+    taskStatus: 'running',
+    task: session.task || '',
+    progress: progress.progressPercent,
+    phase: phase,
+    eta: progress.estimatedTimeRemaining || null,
+    elapsed: Date.now() - session.startTime,
+    action: actionText,
+    lastAction: actionText,
+    summary: '',
+    error: '',
+    stopped: false,
+    tabId: typeof session.tabId === 'number' ? session.tabId : null
+  });
+
   var sent = fsbWebSocket.send('ext:task-progress', {
     progress: progress.progressPercent,
     phase: phase,
     eta: progress.estimatedTimeRemaining || null,
     elapsed: Date.now() - session.startTime,
     action: actionText,
-    status: 'running'
+    status: 'running',
+    task: session.task || '',
+    taskStatus: taskPayload.taskStatus,
+    lastAction: taskPayload.lastAction || '',
+    updatedAt: taskPayload.updatedAt
   });
   console.log('[FSB] broadcastDashboardProgress:', sent ? 'SENT' : 'WS_CLOSED', 'progress=' + progress.progressPercent);
 
@@ -1108,20 +1164,42 @@ function broadcastDashboardComplete(result) {
     console.log('[FSB] broadcastDashboardComplete: skipped (stop already sent)');
     return;
   }
+  var previousTask = _getDashboardTaskRecoverySnapshot();
   var payload;
   if (result.success) {
     payload = {
       success: true,
       summary: result.result || 'Task completed',
-      elapsed: result.duration || 0
+      elapsed: result.duration || 0,
+      taskStatus: 'success'
     };
   } else {
     payload = {
       success: false,
       error: result.error || 'Task failed',
-      elapsed: result.duration || 0
+      elapsed: result.duration || 0,
+      taskStatus: 'failed'
     };
   }
+  var rememberedPayload = _rememberDashboardTaskSnapshot({
+    taskStatus: payload.taskStatus,
+    task: previousTask && previousTask.task ? previousTask.task : '',
+    progress: result.success ? 100 : (previousTask && typeof previousTask.progress === 'number' ? previousTask.progress : 0),
+    phase: previousTask && previousTask.phase ? previousTask.phase : '',
+    eta: null,
+    elapsed: payload.elapsed || 0,
+    action: previousTask && previousTask.action ? previousTask.action : '',
+    lastAction: previousTask && previousTask.lastAction ? previousTask.lastAction : '',
+    summary: payload.summary || '',
+    error: payload.error || '',
+    stopped: false,
+    tabId: previousTask && typeof previousTask.tabId === 'number' ? previousTask.tabId : null
+  });
+  payload.task = rememberedPayload.task || '';
+  payload.progress = typeof rememberedPayload.progress === 'number' ? rememberedPayload.progress : 0;
+  payload.phase = rememberedPayload.phase || '';
+  payload.lastAction = rememberedPayload.lastAction || '';
+  payload.updatedAt = rememberedPayload.updatedAt;
   var sent = fsbWebSocket.send('ext:task-complete', payload);
   console.log('[FSB] broadcastDashboardComplete:', sent ? 'SENT' : 'WS_CLOSED', JSON.stringify(payload).slice(0, 200));
 
@@ -4890,27 +4968,56 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     // --- DOM Stream forwarding: content script -> dashboard via WS ---
     case 'domStreamSnapshot':
-      fsbWebSocket.send('ext:dom-snapshot', request.snapshot);
+      fsbWebSocket.send('ext:dom-snapshot', Object.assign({}, request.snapshot || {}, {
+        tabId: sender.tab?.id || null,
+        tabUrl: sender.tab?.url || ''
+      }));
       sendResponse({ success: true });
       break;
 
     case 'domStreamMutations':
-      fsbWebSocket.send('ext:dom-mutations', { mutations: request.mutations });
+      fsbWebSocket.send('ext:dom-mutations', {
+        mutations: request.mutations,
+        streamSessionId: request.streamSessionId || '',
+        snapshotId: request.snapshotId || 0,
+        tabId: sender.tab?.id || null,
+        tabUrl: sender.tab?.url || ''
+      });
       sendResponse({ success: true });
       break;
 
     case 'domStreamScroll':
-      fsbWebSocket.send('ext:dom-scroll', { scrollX: request.scrollX, scrollY: request.scrollY });
+      fsbWebSocket.send('ext:dom-scroll', {
+        scrollX: request.scrollX,
+        scrollY: request.scrollY,
+        streamSessionId: request.streamSessionId || '',
+        snapshotId: request.snapshotId || 0,
+        tabId: sender.tab?.id || null,
+        tabUrl: sender.tab?.url || ''
+      });
       sendResponse({ success: true });
       break;
 
     case 'domStreamOverlay':
-      fsbWebSocket.send('ext:dom-overlay', { glow: request.glow, progress: request.progress });
+      fsbWebSocket.send('ext:dom-overlay', {
+        glow: request.glow,
+        progress: request.progress,
+        streamSessionId: request.streamSessionId || '',
+        snapshotId: request.snapshotId || 0,
+        tabId: sender.tab?.id || null,
+        tabUrl: sender.tab?.url || ''
+      });
       sendResponse({ success: true });
       break;
 
     case 'domStreamDialog':
-      fsbWebSocket.send('ext:dom-dialog', { dialog: request.dialog });
+      fsbWebSocket.send('ext:dom-dialog', {
+        dialog: request.dialog,
+        streamSessionId: request.dialog && request.dialog.streamSessionId ? request.dialog.streamSessionId : '',
+        snapshotId: request.dialog && request.dialog.snapshotId ? request.dialog.snapshotId : 0,
+        tabId: sender.tab?.id || null,
+        tabUrl: sender.tab?.url || ''
+      });
       sendResponse({ success: true });
       break;
 
@@ -5600,6 +5707,20 @@ async function executeAutomationTask(tabId, task, options = {}) {
  */
 async function startDashboardTask(tabId, task) {
   _dashboardTaskTabId = tabId;
+  _rememberDashboardTaskSnapshot({
+    taskStatus: 'running',
+    task: task || '',
+    progress: 0,
+    phase: '',
+    eta: null,
+    elapsed: 0,
+    action: 'Working...',
+    lastAction: '',
+    summary: '',
+    error: '',
+    stopped: false,
+    tabId: typeof tabId === 'number' ? tabId : null
+  });
   var _completionSent = false;
   // Fallback: if broadcastDashboardComplete hasn't fired 5s after executeAutomationTask resolves, send directly (per D-03)
   var _fallbackTimer = null;
@@ -5614,10 +5735,28 @@ async function startDashboardTask(tabId, task) {
     _completionSent = true;
   } catch (err) {
     console.warn('[FSB] startDashboardTask: executeAutomationTask threw', err.message);
+    var failedPayload = _rememberDashboardTaskSnapshot({
+      taskStatus: 'failed',
+      task: task || '',
+      progress: 0,
+      phase: '',
+      eta: null,
+      elapsed: 0,
+      action: '',
+      lastAction: '',
+      summary: '',
+      error: err.message || 'Task execution failed',
+      stopped: false,
+      tabId: typeof tabId === 'number' ? tabId : null
+    });
     fsbWebSocket.send('ext:task-complete', {
       success: false,
       error: err.message || 'Task execution failed',
-      elapsed: 0
+      elapsed: 0,
+      task: failedPayload.task || '',
+      taskStatus: failedPayload.taskStatus,
+      updatedAt: failedPayload.updatedAt,
+      lastAction: failedPayload.lastAction || ''
     });
     _completionSent = true;
   }
@@ -5625,10 +5764,28 @@ async function startDashboardTask(tabId, task) {
   if (!_completionSent) {
     _fallbackTimer = setTimeout(function() {
       console.warn('[FSB] startDashboardTask: fallback timer fired -- sending ext:task-complete directly');
+      var fallbackPayload = _rememberDashboardTaskSnapshot({
+        taskStatus: 'failed',
+        task: task || '',
+        progress: 0,
+        phase: '',
+        eta: null,
+        elapsed: 0,
+        action: '',
+        lastAction: '',
+        summary: '',
+        error: 'Completion delivery timeout -- result may have been lost',
+        stopped: false,
+        tabId: typeof tabId === 'number' ? tabId : null
+      });
       fsbWebSocket.send('ext:task-complete', {
         success: false,
         error: 'Completion delivery timeout -- result may have been lost',
-        elapsed: 0
+        elapsed: 0,
+        task: fallbackPayload.task || '',
+        taskStatus: fallbackPayload.taskStatus,
+        updatedAt: fallbackPayload.updatedAt,
+        lastAction: fallbackPayload.lastAction || ''
       });
     }, 5000);
   }
@@ -5760,6 +5917,20 @@ async function handleStopAutomation(request, sender, sendResponse) {
         ? getActionStatus(last.tool, last.params)
         : (last.tool || 'Unknown action');
     }
+    _rememberDashboardTaskSnapshot({
+      taskStatus: 'stopped',
+      task: session.task || '',
+      progress: typeof calculateProgress === 'function' ? calculateProgress(session).progressPercent : 0,
+      phase: typeof detectTaskPhase === 'function' ? detectTaskPhase(session) : '',
+      eta: null,
+      elapsed: Date.now() - session.startTime,
+      action: lastAction || '',
+      lastAction: lastAction || '',
+      summary: '',
+      error: 'Stopped by user',
+      stopped: true,
+      tabId: typeof session.tabId === 'number' ? session.tabId : null
+    });
 
     // Log and save session before cleanup
     const duration = Date.now() - session.startTime;
