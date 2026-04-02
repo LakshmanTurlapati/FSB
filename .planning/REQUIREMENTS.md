@@ -9,11 +9,11 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 ### State Foundation
 
-- [ ] **STATE-01**: Session schema defines typed session objects with hot/warm state tiering -- hot state (Promises, setTimeout handles) is transient and accepted as lost on service worker kill, warm state (messages, iteration count, cost) persists to chrome.storage.session after every state change
+- [x] **STATE-01**: Session schema defines typed session objects with hot/warm state tiering -- hot state (Promises, setTimeout handles) is transient and accepted as lost on service worker kill, warm state (messages, iteration count, cost) persists to chrome.storage.session after every state change
 - [ ] **STATE-02**: Transcript store class extracts conversation history management from agent-loop.js with append/compact/replay/flush methods, preserving FSB's existing token-budget-aware compaction (80% trigger, keep recent 5 intact, replace old results with one-liners)
 - [ ] **STATE-03**: Structured turn result -- each agent iteration returns a typed result object carrying prompt, output, matched tools, permission denials, usage metrics, and stop reason
 - [ ] **STATE-04**: Action history uses structured event objects instead of ad-hoc session property mutations, enabling replay and diff between turns
-- [ ] **STATE-05**: State change event emitter broadcasts session state transitions to subscribers (sidepanel, dashboard, analytics) replacing scattered sendStatus calls
+- [x] **STATE-05**: State change event emitter broadcasts session state transitions to subscribers (sidepanel, dashboard, analytics) replacing scattered sendStatus calls
 
 ### Engine Configuration
 
@@ -72,11 +72,11 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STATE-01 | Phase 156 | Pending |
+| STATE-01 | Phase 156 | Complete |
 | STATE-02 | Phase 156 | Pending |
 | STATE-03 | Phase 156 | Pending |
 | STATE-04 | Phase 156 | Pending |
-| STATE-05 | Phase 156 | Pending |
+| STATE-05 | Phase 156 | Complete |
 | ENGINE-01 | Phase 157 | Pending |
 | ENGINE-02 | Phase 157 | Pending |
 | ENGINE-03 | Phase 157 | Pending |
