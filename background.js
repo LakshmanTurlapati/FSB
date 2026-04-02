@@ -2945,10 +2945,10 @@ async function restoreSessionsFromStorage() {
   }
 }
 
-// Immediately restore sessions when service worker wakes up
-// This handles both service worker restarts and browser startups
-restoreSessionsFromStorage().catch(err => {
-  console.warn('FSB: Failed to restore sessions on wake:', err);
+// Run bootstrap pipeline on service worker wake
+// Handles settings, environment, tools, and session restoration in order
+swBootstrap('wake').catch(function(err) {
+  console.warn('FSB: Bootstrap failed on wake:', err);
 });
 
 // Periodic cleanup of stale sessions (every 5 minutes)
@@ -3016,8 +3016,13 @@ setInterval(async () => {
 // Track content script ready status per tab
 let contentScriptReadyStatus = new Map();
 
-// Global analytics instance
-let globalAnalytics = null;
+// Analytics instance managed by getAnalytics() lazy guard via _analyticsInstance (var, declared below)
+
+// Bootstrap pipeline guards (var for importScripts compatibility)
+var _bootstrapDone = false;
+var _analyticsInstance = null;
+var _wsInitDone = false;
+var _deferredInitDone = false;
 
 // Content script communication health tracking
 let contentScriptHealth = new Map();
@@ -4467,7 +4472,7 @@ function finalizeSessionMetrics(sessionId, successful = false) {
 function accumulateSessionCost(sessionId, model, inputTokens, outputTokens) {
   const session = activeSessions.get(sessionId);
   if (!session) return;
-  const analytics = initializeAnalytics();
+  const analytics = getAnalytics();
   const cost = analytics.calculateCost(model, inputTokens, outputTokens);
   session.totalCost = (session.totalCost || 0) + cost;
   session.totalInputTokens = (session.totalInputTokens || 0) + (inputTokens || 0);
@@ -4986,13 +4991,99 @@ class BackgroundAnalytics {
   }
 }
 
-// Initialize analytics
-function initializeAnalytics() {
-  if (!globalAnalytics) {
-    globalAnalytics = new BackgroundAnalytics();
-    automationLogger.logInit('background_analytics', 'ready', {});
+// Lazy analytics guard -- replaces eager initializeAnalytics()
+function getAnalytics() {
+  if (!_analyticsInstance) {
+    _analyticsInstance = new BackgroundAnalytics();
+    automationLogger.logInit('background_analytics', 'lazy_init', {});
   }
-  return globalAnalytics;
+  return _analyticsInstance;
+}
+
+// Lazy WebSocket guard -- defers connection until first UI interaction
+function ensureWsConnected() {
+  if (_wsInitDone) return;
+  _wsInitDone = true;
+  fsbWebSocket.connect();
+}
+
+// Deferred init trigger -- fires analytics + WS on first UI message or MCP session
+function maybeRunDeferredInit(request, sender) {
+  if (_deferredInitDone) return;
+  // Only trigger on extension page messages (popup, sidepanel, options)
+  // Content scripts always have sender.tab set
+  if (sender && sender.tab) return;
+  // STT broadcasts from content scripts
+  if (request.from === 'content-stt') return;
+
+  _deferredInitDone = true;
+  automationLogger.logInit('deferred', 'start', { trigger: request.action || 'unknown' });
+
+  getAnalytics();
+  ensureWsConnected();
+
+  automationLogger.logInit('deferred', 'complete', { trigger: request.action || 'unknown' });
+}
+
+// Bootstrap pipeline: 4 sequential phases for structured service worker startup
+async function swBootstrap(trigger) {
+  if (_bootstrapDone) return;
+  _bootstrapDone = true;
+
+  var bsStart = Date.now();
+  automationLogger.logInit('bootstrap', 'start', { trigger: trigger });
+
+  // Phase 1: SETTINGS
+  var t0 = Date.now();
+  automationLogger.logInit('bootstrap:SETTINGS', 'start', {});
+  try {
+    await loadDebugMode();
+    automationLogger.logInit('bootstrap:SETTINGS', 'complete', { durationMs: Date.now() - t0 });
+  } catch (err) {
+    automationLogger.logInit('bootstrap:SETTINGS', 'failed', { error: err.message, durationMs: Date.now() - t0 });
+  }
+
+  // Phase 2: ENVIRONMENT
+  t0 = Date.now();
+  automationLogger.logInit('bootstrap:ENVIRONMENT', 'start', {});
+  try {
+    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    automationLogger.logInit('bootstrap:ENVIRONMENT', 'complete', { durationMs: Date.now() - t0 });
+  } catch (err) {
+    automationLogger.logInit('bootstrap:ENVIRONMENT', 'complete', {
+      durationMs: Date.now() - t0, sidePanelFallback: true
+    });
+  }
+
+  // Phase 3: TOOLS
+  t0 = Date.now();
+  automationLogger.logInit('bootstrap:TOOLS', 'start', {});
+  try {
+    agentScheduler.rescheduleAllAgents();
+    automationLogger.logInit('bootstrap:TOOLS', 'complete', { durationMs: Date.now() - t0 });
+  } catch (err) {
+    automationLogger.logInit('bootstrap:TOOLS', 'failed', { error: err.message, durationMs: Date.now() - t0 });
+  }
+
+  // Phase 4: SESSIONS
+  t0 = Date.now();
+  automationLogger.logInit('bootstrap:SESSIONS', 'start', {});
+  try {
+    await restoreSessionsFromStorage();
+    automationLogger.logInit('bootstrap:SESSIONS', 'complete', {
+      durationMs: Date.now() - t0,
+      restoredSessions: activeSessions.size
+    });
+  } catch (err) {
+    automationLogger.logInit('bootstrap:SESSIONS', 'failed', { error: err.message, durationMs: Date.now() - t0 });
+  }
+
+  automationLogger.logInit('bootstrap', 'complete', {
+    trigger: trigger,
+    durationMs: Date.now() - bsStart,
+    phases: 4
+  });
+  automationLogger.flush();
 }
 
 // Listen for messages from popup and content scripts
@@ -5003,6 +5094,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ success: false, error: 'Unauthorized sender' });
     return;
   }
+
+  // Deferred init: trigger analytics + WS on first UI message
+  maybeRunDeferredInit(request, sender);
 
   automationLogger.logComm(null, 'receive', request.action || 'unknown', true, { tabId: sender.tab?.id });
 
@@ -5898,6 +5992,9 @@ async function handleSolveCaptcha(request, sender, sendResponse) {
 }
 
 async function handleStartAutomation(request, sender, sendResponse) {
+  // Secondary deferred init trigger for MCP-initiated sessions (D-03)
+  maybeRunDeferredInit(request, sender || {});
+
   const {
     task,
     tabId,
@@ -8572,7 +8669,7 @@ function handleTrackUsage(request, sender, sendResponse) {
   automationLogger.debug('Usage tracking request received', {});
 
   // Initialize analytics if not already done
-  const analytics = initializeAnalytics();
+  const analytics = getAnalytics();
 
   const { model, inputTokens, outputTokens, success, tokenSource, timestamp } = request.data;
 
@@ -10103,47 +10200,21 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 chrome.runtime.onInstalled.addListener(async () => {
   automationLogger.logInit('extension', 'installed', { version: 'v0.9.20' });
 
-  // Initialize analytics
-  initializeAnalytics();
-
-  // Load debug mode setting
-  await loadDebugMode();
-
-  // Set default UI mode if not set
-  const { uiMode } = await chrome.storage.local.get(['uiMode']);
-  if (!uiMode) {
+  // Install-specific: Set default UI mode if not set
+  var stored = await chrome.storage.local.get(['uiMode']);
+  if (!stored.uiMode) {
     await chrome.storage.local.set({ uiMode: 'sidepanel' });
     automationLogger.debug('Default UI mode set to sidepanel', {});
   }
 
-  // Configure side panel to open automatically on action click
-  try {
-    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
-    automationLogger.debug('Side panel behavior configured', { autoOpen: true });
-  } catch (error) {
-    automationLogger.debug('Side panel API not available', { chromeVersion: 'below 114' });
-  }
-
-  // Reschedule all background agents
-  agentScheduler.rescheduleAllAgents();
-
-  // Initialize WebSocket connection (connect() checks for serverHashKey internally)
-  fsbWebSocket.connect();
+  // Run shared bootstrap (SETTINGS, ENVIRONMENT, TOOLS, SESSIONS)
+  await swBootstrap('installed');
 });
 
 // Initialize analytics and restore sessions on startup
 chrome.runtime.onStartup.addListener(async () => {
   automationLogger.logServiceWorker('startup', {});
-  initializeAnalytics();
-  // Load debug mode setting
-  await loadDebugMode();
-  // Restore sessions from storage so stop button works after service worker restart
-  await restoreSessionsFromStorage();
-  // Reschedule all background agents
-  agentScheduler.rescheduleAllAgents();
-
-  // Initialize WebSocket connection (connect() checks for serverHashKey internally)
-  fsbWebSocket.connect();
+  await swBootstrap('startup');
 });
 
 // Listen for debug mode changes so toggling takes effect immediately

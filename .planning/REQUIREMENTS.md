@@ -9,40 +9,40 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 ### State Foundation
 
-- [x] **STATE-01**: Session schema defines typed session objects with hot/warm state tiering -- hot state (Promises, setTimeout handles) is transient and accepted as lost on service worker kill, warm state (messages, iteration count, cost) persists to chrome.storage.session after every state change
-- [x] **STATE-02**: Transcript store class extracts conversation history management from agent-loop.js with append/compact/replay/flush methods, preserving FSB's existing token-budget-aware compaction (80% trigger, keep recent 5 intact, replace old results with one-liners)
-- [x] **STATE-03**: Structured turn result -- each agent iteration returns a typed result object carrying prompt, output, matched tools, permission denials, usage metrics, and stop reason
-- [x] **STATE-04**: Action history uses structured event objects instead of ad-hoc session property mutations, enabling replay and diff between turns
-- [x] **STATE-05**: State change event emitter broadcasts session state transitions to subscribers (sidepanel, dashboard, analytics) replacing scattered sendStatus calls
+- [ ] **STATE-01**: Session schema defines typed session objects with hot/warm state tiering -- hot state (Promises, setTimeout handles) is transient and accepted as lost on service worker kill, warm state (messages, iteration count, cost) persists to chrome.storage.session after every state change
+- [ ] **STATE-02**: Transcript store class extracts conversation history management from agent-loop.js with append/compact/replay/flush methods, preserving FSB's existing token-budget-aware compaction (80% trigger, keep recent 5 intact, replace old results with one-liners)
+- [ ] **STATE-03**: Structured turn result -- each agent iteration returns a typed result object carrying prompt, output, matched tools, permission denials, usage metrics, and stop reason
+- [ ] **STATE-04**: Action history uses structured event objects instead of ad-hoc session property mutations, enabling replay and diff between turns
+- [ ] **STATE-05**: State change event emitter broadcasts session state transitions to subscribers (sidepanel, dashboard, analytics) replacing scattered sendStatus calls
 
 ### Engine Configuration
 
-- [x] **ENGINE-01**: Tool pool assembles per-session filtered tool sets based on task type and permissions, reducing the 47 tools sent on every API call to a relevant subset of 12-20 tools
-- [x] **ENGINE-02**: Permission context implements deny-list gating per tool name with origin-aware rules using Chrome match patterns -- not file-path prefixes
-- [x] **ENGINE-03**: Cost tracker extracts cost tracking into a standalone module with token budget enforcement alongside the existing $2 dollar budget breaker
-- [x] **ENGINE-04**: Engine config provides configurable session limits (max_turns, token budget, compact threshold) replacing hardcoded constants scattered through agent-loop.js and background.js
+- [ ] **ENGINE-01**: Tool pool assembles per-session filtered tool sets based on task type and permissions, reducing the 47 tools sent on every API call to a relevant subset of 12-20 tools
+- [ ] **ENGINE-02**: Permission context implements deny-list gating per tool name with origin-aware rules using Chrome match patterns -- not file-path prefixes
+- [ ] **ENGINE-03**: Cost tracker extracts cost tracking into a standalone module with token budget enforcement alongside the existing $2 dollar budget breaker
+- [ ] **ENGINE-04**: Engine config provides configurable session limits (max_turns, token budget, compact threshold) replacing hardcoded constants scattered through agent-loop.js and background.js
 
 ### Hook Pipeline
 
-- [x] **HOOK-01**: Hook pipeline defines 7 named lifecycle events (beforeIteration, afterApiResponse, beforeToolExecution, afterToolExecution, afterIteration, onCompletion, onError) with register/emit/unregister API
-- [x] **HOOK-02**: Safety breaker hooks extract cost limit, time limit, and stuck detection from inline agent-loop.js code into composable hook handlers registered on appropriate lifecycle events
-- [x] **HOOK-03**: Tool permission pre-execution hook checks permission context before every tool execution, blocking denied tools with structured denial result
-- [x] **HOOK-04**: Progress notification hook consolidates scattered sendStatus/sendUpdate calls into a unified pipeline that emits structured progress events
+- [ ] **HOOK-01**: Hook pipeline defines 7 named lifecycle events (beforeIteration, afterApiResponse, beforeToolExecution, afterToolExecution, afterIteration, onCompletion, onError) with register/emit/unregister API
+- [ ] **HOOK-02**: Safety breaker hooks extract cost limit, time limit, and stuck detection from inline agent-loop.js code into composable hook handlers registered on appropriate lifecycle events
+- [ ] **HOOK-03**: Tool permission pre-execution hook checks permission context before every tool execution, blocking denied tools with structured denial result
+- [ ] **HOOK-04**: Progress notification hook consolidates scattered sendStatus/sendUpdate calls into a unified pipeline that emits structured progress events
 
 ### Agent Loop Refactor
 
-- [x] **LOOP-01**: Agent loop integrates transcript store, tool pool, permission context, and hook pipeline -- replacing inline code with module calls, reducing agent-loop.js from ~1200 to ~700 lines
-- [x] **LOOP-02**: Session resumption -- restored sessions after service worker kill can continue automation from the last completed tool result instead of only displaying status and allowing stop
-- [x] **LOOP-03**: Hook-driven cross-cutting concerns -- all safety checks, progress updates, and permission gates execute through the hook pipeline, not as inline conditionals in the iteration function
+- [ ] **LOOP-01**: Agent loop integrates transcript store, tool pool, permission context, and hook pipeline -- replacing inline code with module calls, reducing agent-loop.js from ~1200 to ~700 lines
+- [ ] **LOOP-02**: Session resumption -- restored sessions after service worker kill can continue automation from the last completed tool result instead of only displaying status and allowing stop
+- [ ] **LOOP-03**: Hook-driven cross-cutting concerns -- all safety checks, progress updates, and permission gates execute through the hook pipeline, not as inline conditionals in the iteration function
 
 ### Bootstrap Pipeline
 
-- [ ] **BOOT-01**: Structured service worker startup with explicit ordered phases -- settings prefetch, environment detection, tool registration, session restoration -- enabling debugging of startup failures
-- [ ] **BOOT-02**: Deferred initialization delays non-essential loading (site guides, memory extraction, analytics prefetch) until after first user interaction, preserving eager loading for all tool definitions and core modules
+- [x] **BOOT-01**: Structured service worker startup with explicit ordered phases -- settings prefetch, environment detection, tool registration, session restoration -- enabling debugging of startup failures
+- [x] **BOOT-02**: Deferred initialization delays non-essential loading (site guides, memory extraction, analytics prefetch) until after first user interaction, preserving eager loading for all tool definitions and core modules
 
 ### Mode Routing
 
-- [x] **MODE-01**: Formalize FSB's existing execution modes (autopilot, mcp-manual, mcp-agent, dashboard-remote) as named mode objects with per-mode tool pool configuration, safety limits, and UI feedback channel routing
+- [ ] **MODE-01**: Formalize FSB's existing execution modes (autopilot, mcp-manual, mcp-agent, dashboard-remote) as named mode objects with per-mode tool pool configuration, safety limits, and UI feedback channel routing
 
 ## Future Requirements (v0.9.25+)
 
@@ -72,25 +72,25 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STATE-01 | Phase 156 | Complete |
-| STATE-02 | Phase 156 | Complete |
-| STATE-03 | Phase 156 | Complete |
-| STATE-04 | Phase 156 | Complete |
-| STATE-05 | Phase 156 | Complete |
-| ENGINE-01 | Phase 157 | Complete |
-| ENGINE-02 | Phase 157 | Complete |
-| ENGINE-03 | Phase 157 | Complete |
-| ENGINE-04 | Phase 157 | Complete |
-| MODE-01 | Phase 157 | Complete |
-| HOOK-01 | Phase 158 | Complete |
-| HOOK-02 | Phase 158 | Complete |
-| HOOK-03 | Phase 158 | Complete |
-| HOOK-04 | Phase 158 | Complete |
-| LOOP-01 | Phase 159 | Complete |
-| LOOP-02 | Phase 159 | Complete |
-| LOOP-03 | Phase 159 | Complete |
-| BOOT-01 | Phase 160 | Pending |
-| BOOT-02 | Phase 160 | Pending |
+| STATE-01 | Phase 156 | Pending |
+| STATE-02 | Phase 156 | Pending |
+| STATE-03 | Phase 156 | Pending |
+| STATE-04 | Phase 156 | Pending |
+| STATE-05 | Phase 156 | Pending |
+| ENGINE-01 | Phase 157 | Pending |
+| ENGINE-02 | Phase 157 | Pending |
+| ENGINE-03 | Phase 157 | Pending |
+| ENGINE-04 | Phase 157 | Pending |
+| MODE-01 | Phase 157 | Pending |
+| HOOK-01 | Phase 158 | Pending |
+| HOOK-02 | Phase 158 | Pending |
+| HOOK-03 | Phase 158 | Pending |
+| HOOK-04 | Phase 158 | Pending |
+| LOOP-01 | Phase 159 | Pending |
+| LOOP-02 | Phase 159 | Pending |
+| LOOP-03 | Phase 159 | Pending |
+| BOOT-01 | Phase 160 | Complete |
+| BOOT-02 | Phase 160 | Complete |
 
 **Coverage:**
 - v0.9.24 requirements: 19 total

@@ -47,10 +47,10 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 
 ### Phases (v0.9.24)
 
-- [x] **Phase 156: State Foundation** - Typed session schema, transcript store, structured turn results, action history events, and state change emitter (completed 2026-04-02)
-- [x] **Phase 157: Engine Configuration** - Cost tracker extraction, permission context stub, session limits config, and execution mode formalization (completed 2026-04-02)
-- [x] **Phase 158: Hook Pipeline** - Lifecycle event system with safety breakers, tool permission pre-checks, and progress notification consolidation (completed 2026-04-02)
-- [x] **Phase 159: Agent Loop Refactor** - Wire extracted modules into agent-loop.js, enable session resumption, replace inline conditionals with hook calls (completed 2026-04-02)
+- [ ] **Phase 156: State Foundation** - Typed session schema, transcript store, structured turn results, action history events, and state change emitter
+- [ ] **Phase 157: Engine Configuration** - Tool pool assembly, permission gating, cost tracker extraction, session limits config, and execution mode formalization
+- [ ] **Phase 158: Hook Pipeline** - Lifecycle event system with safety breakers, tool permission pre-checks, and progress notification consolidation
+- [ ] **Phase 159: Agent Loop Refactor** - Wire extracted modules into agent-loop.js, enable session resumption, replace inline conditionals with hook calls
 - [ ] **Phase 160: Bootstrap Pipeline** - Structured service worker startup with ordered phases and deferred initialization for non-essential subsystems
 
 ## Phase Details
@@ -65,10 +65,7 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
   3. Each agent iteration returns a structured turn result carrying prompt tokens, output tokens, matched tools, permission denials, usage metrics, and stop reason -- not ad-hoc property reads from the session object
   4. Action history consists of structured event objects (not scattered session property mutations) that can be replayed and diffed between turns
   5. Session state transitions (idle, running, paused, completed, failed) broadcast to all subscribers (sidepanel, dashboard, analytics) through a single event emitter instead of scattered sendStatus calls
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 156-01-PLAN.md -- Typed session schema with hot/warm tiering + state event emitter
-- [x] 156-02-PLAN.md -- Transcript store, structured turn results, and action history modules
+**Plans**: TBD
 **Note**: Research reference: `Research/claude-code/src/transcript.py`, `Research/claude-code/src/session_store.py`, `Research/claude-code/src/runtime.py`. Pitfall 1 (SW state loss) and Pitfall 3 (storage quota) must be addressed here.
 
 ### Phase 157: Engine Configuration
@@ -81,11 +78,8 @@ Plans:
   3. Cost tracking lives in a standalone module with token budget enforcement alongside the existing $2 dollar budget breaker, not inline in agent-loop.js
   4. Session limits (max_turns, token budget, compact threshold) are read from a config object at session start, not hardcoded as magic numbers in agent-loop.js and background.js
   5. FSB's four execution modes (autopilot, mcp-manual, mcp-agent, dashboard-remote) are formalized as named mode objects with per-mode tool pool configuration, safety limits, and UI feedback channel routing
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 157-01-PLAN.md -- Cost tracker extraction + engine config with session limits and execution modes
-- [x] 157-02-PLAN.md -- Permission context stub + ENGINE-01 documentation (tool pool deferred per D-01)
-**Note**: Research reference: `Research/claude-code/src/tool_pool.py`, `Research/claude-code/src/permissions.py`, `Research/claude-code/src/cost_tracker.py`, `Research/claude-code/src/direct_modes.py`. Pitfall 5 (path-based permissions) must be addressed -- use origin-aware rules. Tool pool filtering deferred per user decision D-01 -- getPublicTools() stays inline.
+**Plans**: TBD
+**Note**: Research reference: `Research/claude-code/src/tool_pool.py`, `Research/claude-code/src/permissions.py`, `Research/claude-code/src/cost_tracker.py`, `Research/claude-code/src/direct_modes.py`. Pitfall 5 (path-based permissions) must be addressed -- use origin-aware rules.
 
 ### Phase 158: Hook Pipeline
 **Goal**: Cross-cutting concerns (safety checks, permission gates, progress updates) execute through a composable hook pipeline instead of inline conditionals scattered through the agent loop
@@ -96,10 +90,7 @@ Plans:
   2. Cost limit, time limit, and stuck detection checks run as hook handlers registered on afterIteration -- not as inline if-statements in the iteration function
   3. Before every tool execution, a permission hook checks the permission context and blocks denied tools with a structured denial result that the AI receives as a tool_result error
   4. All progress notifications (action summaries, phase updates, cost updates) flow through a single progress hook on afterToolExecution and afterIteration, replacing scattered sendStatus and sendUpdate calls
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 158-01-PLAN.md -- HookPipeline class with 7 lifecycle events and register/emit/unregister API
-- [x] 158-02-PLAN.md -- Safety breaker hooks, permission pre-execution hook, and progress notification hooks
+**Plans**: TBD
 **Note**: Research reference: `Research/claude-code/src/costHook.py`, `Research/claude-code/src/reference_data/subsystems/hooks.json`. Pitfall 4 (cross-process hooks) -- all initial hooks are background-only; content-requiring hooks deferred.
 
 ### Phase 159: Agent Loop Refactor
@@ -110,11 +101,7 @@ Plans:
   1. agent-loop.js integrates transcript store, tool pool, permission context, and hook pipeline -- inline code replaced with module calls, file reduced from ~1200 to ~700 lines
   2. A restored session after service worker kill can continue automation from the last completed tool result (resume iteration loop) instead of only displaying status and allowing stop
   3. All safety checks, progress updates, and permission gates execute through the hook pipeline -- no inline conditionals for these concerns remain in the iteration function
-**Plans:** 3/3 plans complete
-Plans:
-- [x] 159-01-PLAN.md -- Refactor agent-loop.js: remove inline code, wire module imports, add 7 hook emissions
-- [x] 159-02-PLAN.md -- Wire background.js: importScripts, hook pipeline factory, auto-resumption from warm state
-- [x] 159-03-PLAN.md -- Gap closure: route pre-iteration safety check through BEFORE_ITERATION hook pipeline
+**Plans**: TBD
 **Note**: Research reference: `Research/claude-code/src/runtime.py`, `Research/claude-code/src/context.py`. Explicitly preserve setTimeout-chaining for MV3 compatibility. Do NOT convert to synchronous loop or async/await iteration.
 
 ### Phase 160: Bootstrap Pipeline
@@ -133,8 +120,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 156. State Foundation | 2/2 | Complete    | 2026-04-02 |
-| 157. Engine Configuration | 2/2 | Complete    | 2026-04-02 |
-| 158. Hook Pipeline | 2/2 | Complete    | 2026-04-02 |
-| 159. Agent Loop Refactor | 3/3 | Complete   | 2026-04-02 |
-| 160. Bootstrap Pipeline | 0/? | Not started | - |
+| 156. State Foundation | 0/? | Not started | - |
+| 157. Engine Configuration | 0/? | Not started | - |
+| 158. Hook Pipeline | 0/? | Not started | - |
+| 159. Agent Loop Refactor | 0/? | Not started | - |
+| 160. Bootstrap Pipeline | 1/1 | Complete | 2026-04-02 |
