@@ -20,7 +20,7 @@
 
 **Control your browser from any MCP client**
 
-*44 tools for browser automation -- manual control, autopilot mode, and full observability*
+*44 tools for browser automation: manual control, autopilot mode, and full observability*
 
 [Quick Start](#quick-start) | [Tools](#tools-44-total) | [Configuration](#configuration) | [FSB Extension](https://github.com/LakshmanTurlapati/FSB)
 
@@ -32,8 +32,8 @@
 
 FSB MCP Server connects any MCP-compatible AI client (Claude Desktop, Claude Code, Cursor, Windsurf, etc.) to the [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB) for browser automation. Control your browser with 44 tools across two modes:
 
-- **Manual mode** -- fine-grained control: click, type, scroll, navigate, read page content
-- **Autopilot mode** -- describe a task in natural language and FSB's AI handles every step
+- **Manual mode**: fine-grained control with click, type, scroll, navigate, read page content
+- **Autopilot mode**: describe a task in natural language and FSB's AI handles every step
 
 ## Prerequisites
 
@@ -100,7 +100,7 @@ Let FSB's AI handle the entire task autonomously.
 | `stop_task` | Cancel the currently running automation task. |
 | `get_task_status` | Check task progress, current phase, and ETA. |
 
-### Manual -- Navigation (5 tools)
+### Manual: Navigation (5 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -110,7 +110,7 @@ Let FSB's AI handle the entire task autonomously.
 | `go_forward` | Navigate forward one page in browser history. |
 | `refresh` | Reload the current page. |
 
-### Manual -- Interaction (14 tools)
+### Manual: Interaction (14 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -129,7 +129,7 @@ Let FSB's AI handle the entire task autonomously.
 | `focus` | Move keyboard focus to an element. |
 | `clear_input` | Clear the contents of an input field. |
 
-### Manual -- Scrolling (4 tools)
+### Manual: Scrolling (4 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -138,21 +138,21 @@ Let FSB's AI handle the entire task autonomously.
 | `scroll_to_bottom` | Scroll to the bottom of the page. |
 | `wait_for_stable` | Wait until the page stops changing (no DOM mutations). |
 
-### Manual -- Tabs (2 tools)
+### Manual: Tabs (2 tools)
 
 | Tool | Description |
 |------|-------------|
 | `open_tab` | Open a new tab with a URL. Returns the tab ID. |
 | `switch_tab` | Switch to a tab by ID. |
 
-### Manual -- Spreadsheets (2 tools)
+### Manual: Spreadsheets (2 tools)
 
 | Tool | Description |
 |------|-------------|
 | `fill_sheet` | Fill spreadsheet cells with CSV data starting from a given cell. |
 | `read_sheet` | Read cell values from a spreadsheet range. |
 
-### Manual -- CDP Coordinate Tools (6 tools)
+### Manual: CDP Coordinate Tools (6 tools)
 
 For canvas elements, overlays, and elements where DOM selectors don't work.
 
@@ -193,7 +193,7 @@ Inspect past sessions and FSB's learned memory.
 
 ## Configuration
 
-The MCP server communicates with the FSB Chrome Extension over a local WebSocket connection on port **7225**. No configuration needed -- just make sure the extension is running.
+The MCP server communicates with the FSB Chrome Extension over a local WebSocket connection on port **7225**. No configuration needed, just make sure the extension is running.
 
 ### How it works
 
@@ -239,9 +239,9 @@ The server also exposes 5 live MCP resources:
 
 ## Links
 
-- [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB) -- the browser extension this server connects to
-- [Issues](https://github.com/LakshmanTurlapati/FSB/issues) -- report bugs or request features
-- [License](https://github.com/LakshmanTurlapati/FSB/blob/main/LICENSE) -- MIT
+- [FSB Chrome Extension](https://github.com/LakshmanTurlapati/FSB): the browser extension this server connects to
+- [Issues](https://github.com/LakshmanTurlapati/FSB/issues): report bugs or request features
+- [License](https://github.com/LakshmanTurlapati/FSB/blob/main/LICENSE): MIT
 
 ---
 
