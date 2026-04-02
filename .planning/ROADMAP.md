@@ -225,7 +225,7 @@ Shipped 2026-04-02. Shared UI baseline, sidepanel/popup retouch, control-panel/d
 
 - [x] **Phase 145: Fresh UI Audit & Token Baseline** - Audit current extension UI state and establish exact color token mappings for all replicas (completed 2026-04-02)
 - [x] **Phase 146: Sidepanel Replica** - Pixel-accurate recreation of the real sidepanel Chat view in the showcase (completed 2026-04-02)
-- [ ] **Phase 147: Control Panel Replica** - Pixel-accurate recreation of the real control panel Dashboard view in the showcase
+- [x] **Phase 147: Control Panel Replica** - Pixel-accurate recreation of the real control panel Dashboard view in the showcase (completed 2026-04-02)
 - [ ] **Phase 148: MCP Terminal Examples** - Claude Code-styled terminal blocks showing autopilot and manual mode MCP usage
 - [ ] **Phase 149: Final Verification & Sync Comments** - Side-by-side fidelity check and version-stamped sync comments for drift detection
 
@@ -268,7 +268,7 @@ Plans:
   4. No visual element from the real Dashboard view is missing or obviously wrong in the replica
 **Plans**: 1 plan
 Plans:
-- [ ] 147-01-PLAN.md -- Update dashboard CSS dimensions/tokens, replace HTML with pixel-accurate structure, add SVG chart draw animation
+- [x] 147-01-PLAN.md -- Update dashboard CSS dimensions/tokens, replace HTML with pixel-accurate structure, add SVG chart draw animation
 **UI hint**: yes
 
 ### Phase 148: MCP Terminal Examples
@@ -301,7 +301,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 145. Fresh UI Audit & Token Baseline | 1/1 | Complete    | 2026-04-02 |
 | 146. Sidepanel Replica | 1/1 | Complete    | 2026-04-02 |
-| 147. Control Panel Replica | 0/1 | Not started | - |
+| 147. Control Panel Replica | 1/1 | Complete   | 2026-04-02 |
 | 148. MCP Terminal Examples | 0/? | Not started | - |
 | 149. Final Verification & Sync Comments | 0/? | Not started | - |
 

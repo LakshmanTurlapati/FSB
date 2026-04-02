@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: verifying
-stopped_at: Completed 146-01-PLAN.md
-last_updated: "2026-04-02T08:35:20.249Z"
+stopped_at: Completed 147-01-PLAN.md
+last_updated: "2026-04-02T08:51:29.848Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 2
@@ -21,11 +21,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 146 — Sidepanel Replica
+**Current focus:** Phase 147 — Control Panel Replica
 
 ## Current Position
 
-Phase: 146 (Sidepanel Replica) — EXECUTING
+Phase: 147 (Control Panel Replica) — EXECUTING
 Plan: 1 of 1
 Status: Phase complete — ready for verification
 Last activity: 2026-04-02
@@ -48,6 +48,7 @@ Progress: [----------] 0%
 | Phase 139.2 P01 | 2min | 4 tasks | 5 files |
 | Phase 145 P01 | 4min | 2 tasks | 2 files |
 | Phase 146 P01 | 3min | 2 tasks | 3 files |
+| Phase 147 P01 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -65,13 +66,15 @@ Recent decisions affecting current work:
 - [Phase 145]: Browser chrome rec- variables (frame-bg, topbar-bg, address-bg) left unchanged -- no real extension counterpart
 - [Phase 146]: Replaced hardcoded hex borders (#2196f3, #4caf50) with theme-aware CSS variables for dark/light mode correctness
 - [Phase 146]: Used FA icon-based status dot (fa-circle) instead of styled div for consistent small-size rendering
+- [Phase 147]: Used flat var(--primary) for dark analytics hero bg instead of gray gradient -- matches real options.css
+- [Phase 147]: Proportionally scaled real dimensions for smaller recreation viewport (sidebar 252->220px, border-radius 18->16px)
 
 ### Roadmap Evolution
 
 - v0.9.23 Dashboard Stream & Remote Control Reliability started 2026-04-02
 - v0.9.22 Showcase High-Fidelity Replicas superseded after Phase 145 baseline audit
 - v0.9.20 Autopilot Agent Architecture Rewrite shipped 2026-04-02
-- v0.9.21 UI Retouch & Cohesion deferred (Phases 142-144 not started)
+- v0.9.21 UI Retouch & Cohesion shipped 2026-04-02
 - v0.9.22 Showcase High-Fidelity Replicas roadmap created 2026-04-02 (5 phases, 145-149)
 
 ### Pending Todos
@@ -84,6 +87,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T08:35:20.245Z
-Stopped at: Completed 146-01-PLAN.md
+Last session: 2026-04-02T08:51:29.846Z
+Stopped at: Completed 147-01-PLAN.md
 Resume file: None
