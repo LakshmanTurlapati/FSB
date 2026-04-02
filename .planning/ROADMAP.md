@@ -325,7 +325,9 @@ Plans:
   1. A documented audit of the current sidepanel.css and options.css color tokens, font sizes, border radii, and shadows exists as the reference for all subsequent phases
   2. The existing rec- CSS variable namespace has been mapped against real extension values, and every stale value is identified with its correct replacement
   3. Structural gaps between the current about.html recreation HTML and the real extension HTML are enumerated (missing elements, wrong icons, incorrect hierarchy)
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 145-01-PLAN.md -- Audit real CSS tokens, fix stale rec- variables, enumerate structural HTML gaps
 
 ### Phase 146: Sidepanel Replica
 **Goal**: Visitors see a showcase sidepanel that is visually indistinguishable from the real FSB sidepanel Chat view in both dark and light themes
@@ -379,7 +381,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 145. Fresh UI Audit & Token Baseline | 0/? | Not started | - |
+| 145. Fresh UI Audit & Token Baseline | 0/1 | Not started | - |
 | 146. Sidepanel Replica | 0/? | Not started | - |
 | 147. Control Panel Replica | 0/? | Not started | - |
 | 148. MCP Terminal Examples | 0/? | Not started | - |
