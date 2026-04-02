@@ -57,7 +57,7 @@
             </li>
             <li class="nav-item" data-section="background-agents">
               <i class="fas fa-server"></i>
-              <span>Background Agents</span>
+              <span>Agents</span>
             </li>
             <li class="nav-item" data-section="api-config">
               <i class="fas fa-key"></i>
@@ -695,10 +695,7 @@
               </div>
             </div>
             <div class="settings-card-content">
-              <div class="form-group">
-                <label for="serverUrl">Server URL</label>
-                <input type="url" id="serverUrl" class="form-input" placeholder="https://full-selfbrowsing.com">
-              </div>
+              <input type="hidden" id="serverUrl">
               <div class="form-group">
                 <label for="serverHashKey">Hash Key</label>
                 <div class="input-with-button">
@@ -842,10 +839,10 @@
             </div>
           </div>
 
-          <!-- Site Explorer -->
+          <!-- Reconnaissance -->
           <div class="explorer-section" style="margin-top: 2rem;">
             <div class="section-header">
-              <h3>Site Explorer</h3>
+              <h3>Reconnaissance</h3>
               <p>Crawl a website to map its interactive structure, navigation, and selectors</p>
             </div>
 
@@ -915,7 +912,7 @@
               <div class="session-list" id="researchList">
                 <div class="session-empty-state">
                   <i class="fas fa-flask"></i>
-                  <p>No research results yet. Use Site Explorer above to crawl a website.</p>
+                  <p>No research results yet. Use Reconnaissance above to crawl a website.</p>
                 </div>
               </div>
               <div class="research-pagination" id="researchPagination"></div>
@@ -1168,7 +1165,7 @@
               </div>
               <h3>Getting Started</h3>
               <p>Learn the basics of browser automation with FSB</p>
-              <a href="https://github.com/LakshmanTurlapati/FSB" target="_blank" class="help-link">View Repository</a>
+              <a href="https://full-selfbrowsing.com" target="_blank" rel="noopener" class="help-link">Visit Website</a>
             </div>
 
             <div class="help-card">
@@ -1182,6 +1179,15 @@
 
             <div class="help-card">
               <div class="help-icon">
+                <i class="fas fa-shield-alt"></i>
+              </div>
+              <h3>Privacy Policy</h3>
+              <p>Read how FSB handles data, storage, and optional server sync</p>
+              <a href="https://full-selfbrowsing.com/privacy.html" target="_blank" rel="noopener" class="help-link">View Privacy Policy</a>
+            </div>
+
+            <div class="help-card">
+              <div class="help-icon">
                 <i class="fas fa-bug"></i>
               </div>
               <h3>Issues</h3>
@@ -1191,7 +1197,7 @@
 
             <div class="help-card">
               <div class="help-icon">
-                <i class="fas fa-github"></i>
+                <i class="fa-brands fa-github"></i>
               </div>
               <h3>Source Code</h3>
               <p>View the source code and contribute to FSB development</p>

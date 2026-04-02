@@ -16,8 +16,9 @@
 - v0.9.8.1 npm Publishing (shipped 2026-04-01)
 - v0.9.9.1 Phantom Stream (shipped 2026-03-31)
 - v0.9.11 MCP Tool Quality (shipped 2026-03-31) -- [archive](milestones/v0.9.11-ROADMAP.md)
-- v0.9.12 MCP Developer Experience (in progress)
 - v0.9.20 Autopilot Agent Architecture Rewrite (shipped 2026-04-02) -- [archive](milestones/v0.9.20-ROADMAP.md)
+- v0.9.21 UI Retouch & Cohesion (in progress)
+- v0.9.22 Showcase High-Fidelity Replicas (in progress)
 
 ---
 
@@ -209,63 +210,180 @@ Plans:
 
 ---
 
-## v0.9.12 MCP Developer Experience
+## v0.9.21 UI Retouch & Cohesion
 
-**Milestone Goal:** Make every FSB MCP tool self-documenting so any AI connecting via MCP can use the tools effectively without reading source code -- through enriched tool descriptions, discoverable MCP prompts, and actionable error recovery hints.
+**Milestone Goal:** Retouch the existing FSB UI so the sidepanel, popup, control panel, dashboard, and automation highlight feedback feel cohesive, polished, and precise without changing the product's overall aesthetic direction.
 
-### Phases (v0.9.12)
+### Phases (v0.9.21)
 
-- [ ] **Phase 132: Tool Description Enrichment** - Every tool description includes usage context hints, related tool references, accurate behavior descriptions, and parameter examples
-- [ ] **Phase 133: MCP Prompts** - Discoverable prompts registered via server.prompt() that teach the read-then-act workflow and provide a categorized tool reference
-- [ ] **Phase 134: Error Recovery Hints** - Tool failures include actionable recovery suggestions, and descriptions document fallback tools for common failure scenarios
+- [x] **Phase 140: Shared Surface Audit & Design Corrections** - Normalize shared visual primitives, remove cross-surface styling drift, and define the retouch baseline without redesigning FSB (completed 2026-04-02)
+- [x] **Phase 141: Sidepanel & Popup Retouch** - Polish the operator-facing chat surfaces, including header states, history/composer treatments, and shared action controls (completed 2026-04-02)
+- [ ] **Phase 142: Control Panel & Dashboard Retouch** - Polish settings and monitoring surfaces by fixing layout drift, card inconsistencies, and awkward responsive states
+- [ ] **Phase 143: Context-Aware Overlay Feedback** - Refine automation highlight feedback so links/text and larger controls get more precise, visually appropriate target emphasis
+- [ ] **Phase 144: UI Sweep & Regression Cleanup** - Perform a final consistency pass across touched surfaces to remove leftover polish issues and prevent UI regressions
 
-### Phase Details (v0.9.12)
+### Phase Details (v0.9.21)
 
-### Phase 132: Tool Description Enrichment
-**Goal**: An AI reading any FSB tool's MCP description knows when to use it, what tools to combine it with, and how to fill in each parameter -- without needing external documentation
+### Phase 140: Shared Surface Audit & Design Corrections
+**Goal**: Shared UI building blocks look and feel consistent across audited FSB surfaces while preserving the existing brand aesthetic
 **Depends on**: Nothing (first phase of milestone)
-**Requirements**: DESC-01, DESC-02, DESC-03, DESC-04
+**Requirements**: COH-01, COH-02, COH-03
 **Success Criteria** (what must be TRUE):
-  1. Every tool description contains a "When to use" sentence that distinguishes it from similar tools (e.g., click vs click_at vs cdp_click_at)
-  2. Every tool description references at least one related tool with a brief explanation of the relationship (e.g., "Use get_dom_snapshot first to find selectors")
-  3. The search tool description accurately states it uses the site's own search bar (not Google redirect), matching the v0.9.11 behavior
-  4. Every parameter with a non-obvious format includes a concrete example value in its description
-**Plans**: 1 plan
+  1. Shared buttons, badges, cards, headers, and status indicators follow one visual treatment across popup, sidepanel, control panel, and dashboard
+  2. The retouch keeps FSB's existing tone and color direction rather than introducing a different visual language
+  3. Audited surfaces no longer show obvious spacing, sizing, or typographic drift in their default states
+**Plans**: 2 plans
 Plans:
-- [ ] 139.1-01-PLAN.md -- Delete dead code from ai-integration.js (~760 lines) and CLI validation section from options.js (~430 lines)
+- [x] 140-01-PLAN.md -- Audit repeated UI primitives and define the retouch baseline across shared surfaces
+- [x] 140-02-PLAN.md -- Implement shared style corrections for buttons, cards, badges, spacing, and core surface chrome
 
-### Phase 133: MCP Prompts
-**Goal**: An MCP client can discover and invoke FSB prompts that teach the AI how to approach browser automation tasks, without the user having to explain the workflow
-**Depends on**: Phase 132 (prompts reference tool names from enriched descriptions)
-**Requirements**: PROMPT-01, PROMPT-02, PROMPT-03
+### Phase 141: Sidepanel & Popup Retouch
+**Goal**: The sidepanel and popup feel like polished versions of the same product surface, with cleaner hierarchy, spacing, and state feedback
+**Depends on**: Phase 140
+**Requirements**: SID-01, SID-02, POP-01, POP-02
 **Success Criteria** (what must be TRUE):
-  1. An MCP client listing prompts sees "browser-automation-guide" and "tool-reference" in the available prompts
-  2. The "browser-automation-guide" prompt teaches the read-then-act pattern: call get_dom_snapshot, find the target element, then call the appropriate action tool
-  3. The "tool-reference" prompt returns a categorized tool list (navigation, interaction, extraction, waiting) with usage examples and tool relationships
-**Plans**: 1 plan
+  1. Sidepanel header, history view, composer, and footer present a cleaner, more consistent hierarchy with no clipped or awkward states
+  2. Popup controls, status display, and composer styling align with the sidepanel where patterns are shared
+  3. Hover, active, disabled, and busy states on buttons and controls feel deliberate instead of visually inconsistent
+  4. High-frequency chat interactions look polished without changing existing behavior
+**Plans**: 2 plans
 Plans:
-- [ ] 139.1-01-PLAN.md -- Delete dead code from ai-integration.js (~760 lines) and CLI validation section from options.js (~430 lines)
+- [x] 141-01-PLAN.md -- Retouch sidepanel layout, header/actions, history surface, and chat composer states
+- [x] 141-02-PLAN.md -- Align popup hierarchy and shared control styling with the sidepanel retouch baseline
 
-### Phase 134: Error Recovery Hints
-**Goal**: When a tool call fails, the AI receives specific guidance on what to try next instead of a generic error message
-**Depends on**: Phase 132 (error hints reference related tools already documented in descriptions)
-**Requirements**: ERR-01, ERR-02
+### Phase 142: Control Panel & Dashboard Retouch
+**Goal**: Settings and monitoring surfaces feel cohesive with the rest of FSB while fixing visual noise, card drift, and awkward responsive composition
+**Depends on**: Phase 140
+**Requirements**: CP-01, CP-02, DSH-01
 **Success Criteria** (what must be TRUE):
-  1. When click fails on a selector, the error response includes a hint like "Element not found -- try get_dom_snapshot to refresh selectors, or use click_at with viewport coordinates"
-  2. Tool descriptions for tools with common failure modes mention their fallback tools (e.g., click description mentions click_at as coordinate-based fallback)
+  1. Control panel navigation, headers, cards, forms, analytics, and utility sections use a consistent visual system
+  2. Settings and dashboard areas no longer show broken spacing, mismatched surfaces, or low-quality responsive behavior
+  3. The showcase dashboard keeps the same FSB aesthetic while feeling more polished and internally consistent
+**Plans**: 2 plans
+Plans:
+- [ ] 142-01-PLAN.md -- Retouch control panel navigation, content sections, cards, forms, and settings composition
+- [ ] 142-02-PLAN.md -- Retouch showcase dashboard controls, task surfaces, preview chrome, and responsive polish issues
+
+### Phase 143: Context-Aware Overlay Feedback
+**Goal**: Automation highlight feedback looks precise and appropriate for the target type rather than relying on one padded rectangle treatment
+**Depends on**: Phase 140
+**Requirements**: OVR-01, OVR-02, OVR-03
+**Success Criteria** (what must be TRUE):
+  1. Link and inline text targets can be emphasized in a way that reads like text highlighting rather than an oversized field box
+  2. Larger controls such as inputs and buttons still receive clear, well-fitted target overlays
+  3. The highlight animation remains smooth and consistent in both the live page and dashboard DOM stream
+**Plans**: 2 plans
+Plans:
+- [ ] 143-01-PLAN.md -- Redesign highlight target selection and presentation rules for text-centric versus control-centric targets
+- [ ] 143-02-PLAN.md -- Implement and verify overlay animation, positioning, and DOM stream parity for the new highlight behavior
+
+### Phase 144: UI Sweep & Regression Cleanup
+**Goal**: The milestone ends with a visible quality uplift across all touched surfaces and no obvious regressions from the retouch
+**Depends on**: Phase 141, Phase 142, Phase 143
+**Requirements**: QA-01, QA-02
+**Success Criteria** (what must be TRUE):
+  1. All touched UI surfaces remain fully usable after the retouch with no interaction or theme regressions
+  2. Obvious visual inconsistencies and low-quality states identified during the milestone are resolved before ship
+  3. The final UI pass feels cohesive across extension and dashboard surfaces rather than like isolated one-off fixes
 **Plans**: 1 plan
 Plans:
-- [ ] 139.1-01-PLAN.md -- Delete dead code from ai-integration.js (~760 lines) and CLI validation section from options.js (~430 lines)
+- [ ] 144-01-PLAN.md -- Run a full UI consistency sweep, close polish gaps, and fix regressions across touched surfaces
 
 ---
 
-### v0.9.12 MCP Developer Experience Progress
+### v0.9.21 UI Retouch & Cohesion Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 132. Tool Description Enrichment | 1/1 | Complete | 2026-03-31 |
-| 133. MCP Prompts | 1/1 | Complete | 2026-03-31 |
-| 134. Error Recovery Hints | 1/1 | Complete | 2026-03-31 |
+| 140. Shared Surface Audit & Design Corrections | 2/2 | Complete   | 2026-04-02 |
+| 141. Sidepanel & Popup Retouch | 2/2 | Complete   | 2026-04-02 |
+| 142. Control Panel & Dashboard Retouch | 0/2 | Not started | - |
+| 143. Context-Aware Overlay Feedback | 0/2 | Not started | - |
+| 144. UI Sweep & Regression Cleanup | 0/1 | Not started | - |
+
+---
+
+## v0.9.22 Showcase High-Fidelity Replicas
+
+**Milestone Goal:** Replace the outdated "See It in Action" renders on the showcase site with pixel-accurate HTML/CSS/JS replicas of the real sidepanel, control panel (options.html), and MCP-in-Claude-Code examples.
+
+### Phases (v0.9.22)
+
+- [ ] **Phase 145: Fresh UI Audit & Token Baseline** - Audit current extension UI state and establish exact color token mappings for all replicas
+- [ ] **Phase 146: Sidepanel Replica** - Pixel-accurate recreation of the real sidepanel Chat view in the showcase
+- [ ] **Phase 147: Control Panel Replica** - Pixel-accurate recreation of the real control panel Dashboard view in the showcase
+- [ ] **Phase 148: MCP Terminal Examples** - Claude Code-styled terminal blocks showing autopilot and manual mode MCP usage
+- [ ] **Phase 149: Final Verification & Sync Comments** - Side-by-side fidelity check and version-stamped sync comments for drift detection
+
+### Phase Details (v0.9.22)
+
+### Phase 145: Fresh UI Audit & Token Baseline
+**Goal**: Every replica built in this milestone starts from an accurate, verified snapshot of the current extension UI -- not stale assumptions or outdated CSS values
+**Depends on**: Nothing (first phase of milestone)
+**Requirements**: AUD-01
+**Success Criteria** (what must be TRUE):
+  1. A documented audit of the current sidepanel.css and options.css color tokens, font sizes, border radii, and shadows exists as the reference for all subsequent phases
+  2. The existing rec- CSS variable namespace has been mapped against real extension values, and every stale value is identified with its correct replacement
+  3. Structural gaps between the current about.html recreation HTML and the real extension HTML are enumerated (missing elements, wrong icons, incorrect hierarchy)
+**Plans**: TBD
+
+### Phase 146: Sidepanel Replica
+**Goal**: Visitors see a showcase sidepanel that is visually indistinguishable from the real FSB sidepanel Chat view in both dark and light themes
+**Depends on**: Phase 145
+**Requirements**: SP-01, SP-02, SP-03
+**Success Criteria** (what must be TRUE):
+  1. The showcase sidepanel replica matches the real sidepanel header (FSB title, status dot, history/new-chat/settings icon buttons), all message bubble types (user/ai/system/action/error), input bar with mic button and model selector, and footer text
+  2. Switching the showcase theme toggle between dark and light renders the sidepanel replica with accurate color tokens from sidepanel.css in both modes
+  3. Scrolling the sidepanel replica into view triggers an animated message cascade using the existing IntersectionObserver pattern
+  4. No visual element from the real sidepanel Chat view is missing or obviously wrong in the replica
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 147: Control Panel Replica
+**Goal**: Visitors see a showcase control panel that is visually indistinguishable from the real FSB options.html Dashboard view in both dark and light themes
+**Depends on**: Phase 145
+**Requirements**: CP-01, CP-02, CP-03
+**Success Criteria** (what must be TRUE):
+  1. The showcase control panel replica matches the real Dashboard view: sidebar nav (8 items with correct icons including fa-brain for Memory and fa-server for Background Agents), analytics hero cards, SVG line chart, and session history cards with status badges
+  2. Switching the showcase theme toggle between dark and light renders the control panel replica with accurate warm-gray tokens from options.css and fsb-ui-core.css in both modes
+  3. Scrolling the control panel replica into view triggers animated counters and SVG chart line draw
+  4. No visual element from the real Dashboard view is missing or obviously wrong in the replica
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 148: MCP Terminal Examples
+**Goal**: Visitors see realistic Claude Code terminal sessions demonstrating FSB MCP tools in action -- showing both autopilot and manual orchestration flows
+**Depends on**: Nothing (independent of sidepanel/control panel replicas; can run after Phase 145 for color consistency but has no hard dependency)
+**Requirements**: MCP-01, MCP-02, MCP-03
+**Success Criteria** (what must be TRUE):
+  1. An autopilot terminal block shows a run_task command with realistic progress output lines and a completion summary, styled as a Claude Code terminal session
+  2. A manual mode terminal block shows a multi-tool orchestration flow (read_page + click + type_text sequence) with tool-use blocks and result blocks, styled as a Claude Code terminal session
+  3. Both terminal blocks use accurate Claude Code dark theme colors, monospace typography, and semantic CSS classes (not inline styles)
+  4. Terminal blocks trigger a typing animation on scroll using IntersectionObserver following the existing recreations.js IIFE pattern
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 149: Final Verification & Sync Comments
+**Goal**: All replicas pass a side-by-side fidelity check against the real extension and are stamped with version metadata for future drift detection
+**Depends on**: Phase 146, Phase 147, Phase 148
+**Requirements**: AUD-02, AUD-03
+**Success Criteria** (what must be TRUE):
+  1. A side-by-side comparison of each replica against the real extension in both dark and light themes shows no obvious visual discrepancies
+  2. Each replica section in about.html includes a version-stamped sync comment (e.g., <!-- Replica of: ui/sidepanel.html | Last synced: v0.9.22 -->) for future drift detection
+  3. Accessibility attributes (role="img", aria-label, aria-hidden="true" on internals) are present on all replica containers
+**Plans**: TBD
+
+---
+
+### v0.9.22 Showcase High-Fidelity Replicas Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 145. Fresh UI Audit & Token Baseline | 0/? | Not started | - |
+| 146. Sidepanel Replica | 0/? | Not started | - |
+| 147. Control Panel Replica | 0/? | Not started | - |
+| 148. MCP Terminal Examples | 0/? | Not started | - |
+| 149. Final Verification & Sync Comments | 0/? | Not started | - |
 
 ---
 

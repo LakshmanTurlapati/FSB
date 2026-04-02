@@ -4,6 +4,9 @@ let currentSessionId = null;
 let conversationId = null;
 let isRunning = false;
 let stopRequested = false;
+const DEFAULT_CHAT_INPUT_HEIGHT = 46;
+const MAX_CHAT_INPUT_HEIGHT = 120;
+let resetInputAnimationTimer = null;
 
 // Initialize or restore conversation ID for session continuity
 async function initConversationId() {
@@ -32,14 +35,22 @@ const pinBtn = document.getElementById('pinBtn');
 const chatMessages = document.getElementById('chatMessages');
 const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
+const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
 // Initialize speech-to-text
 const stt = new FSBSpeechToText(chatInput, micBtn, sendBtn);
 
 // Apply theme based on settings
+function getPreferredTheme() {
+  const savedTheme = localStorage.getItem('fsb-theme');
+  if (savedTheme === 'light' || savedTheme === 'dark') {
+    return savedTheme;
+  }
+  return systemThemeQuery?.matches ? 'dark' : 'light';
+}
+
 function applyTheme() {
-  const savedTheme = localStorage.getItem('fsb-theme') || 'light';
-  document.documentElement.setAttribute('data-theme', savedTheme);
+  document.documentElement.setAttribute('data-theme', getPreferredTheme());
 }
 
 function setUiState(state) {
@@ -56,6 +67,14 @@ window.addEventListener('storage', (e) => {
     applyTheme();
   }
 });
+
+if (systemThemeQuery) {
+  systemThemeQuery.addEventListener('change', () => {
+    if (!localStorage.getItem('fsb-theme')) {
+      applyTheme();
+    }
+  });
+}
 
 // Initialize analytics for popup context
 let popupAnalytics = null;
@@ -117,6 +136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   chrome.storage.local.get(['lastTask'], (data) => {
     if (data.lastTask && data.lastTask.trim()) {
       chatInput.textContent = data.lastTask;
+      adjustInputHeight();
       updateSendButtonState();
     }
   });
@@ -217,6 +237,7 @@ async function handleSendMessage() {
   // Handle /agent slash commands
   if (message.startsWith('/agent')) {
     chatInput.textContent = '';
+    resetInputHeight(true);
     updateSendButtonState();
     addMessage(message, 'user');
     handleAgentCommand(message);
@@ -229,6 +250,7 @@ async function handleSendMessage() {
 
     // Clear input
     chatInput.textContent = '';
+    resetInputHeight(true);
     updateSendButtonState();
     
     // Get current tab
@@ -850,12 +872,41 @@ document.addEventListener('keydown', (e) => {
 
 // Auto-resize chat input based on content
 function adjustInputHeight() {
+  clearTimeout(resetInputAnimationTimer);
+  chatInput.classList.remove('height-animating');
   chatInput.style.height = 'auto';
-  chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+  chatInput.style.height = Math.max(DEFAULT_CHAT_INPUT_HEIGHT, Math.min(chatInput.scrollHeight, MAX_CHAT_INPUT_HEIGHT)) + 'px';
+  chatInput.style.overflowY = chatInput.scrollHeight > MAX_CHAT_INPUT_HEIGHT ? 'auto' : 'hidden';
+}
+
+function resetInputHeight(animated = false) {
+  clearTimeout(resetInputAnimationTimer);
+  const currentHeight = Math.max(chatInput.offsetHeight || DEFAULT_CHAT_INPUT_HEIGHT, DEFAULT_CHAT_INPUT_HEIGHT);
+
+  if (!animated) {
+    chatInput.classList.remove('height-animating');
+    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
+    chatInput.style.overflowY = 'hidden';
+    return;
+  }
+
+  chatInput.classList.add('height-animating');
+  chatInput.style.height = currentHeight + 'px';
+
+  requestAnimationFrame(() => {
+    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
+  });
+
+  resetInputAnimationTimer = setTimeout(() => {
+    chatInput.classList.remove('height-animating');
+    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
+    chatInput.style.overflowY = 'hidden';
+  }, 150);
 }
 
 // Initialize input height adjustment
 chatInput.addEventListener('input', adjustInputHeight);
+resetInputHeight();
 
 // Prevent default drag and drop behavior
 document.addEventListener('dragover', (e) => e.preventDefault());

@@ -1102,7 +1102,7 @@ See the [LICENSE](LICENSE) file for the full legal text.
 
 ### Getting Started
 
-1. **Start Testing**: Download FSB and try it on your favorite websites
+1. **Visit FSB**: Start with [full-selfbrowsing.com](https://full-selfbrowsing.com) to learn the product and access the latest public pages
 2. **Report Your Experience**: Use our [issues page](https://github.com/lakshmanturlapati/FSB/issues) to share feedback
 3. **Join Discussions**: Engage with the community in GitHub discussions
 4. **Pick an Issue**: Look for "good first issue" labels for beginner-friendly tasks
@@ -1116,6 +1116,7 @@ Every contributor helps make FSB better! Contributors are recognized in our ackn
 
 - **GitHub Issues**: [Report bugs or request features](https://github.com/lakshmanturlapati/FSB/issues)
 - **Options Page**: Built-in help section and log viewer for troubleshooting
+- **Privacy Policy**: [Read the privacy policy](https://full-selfbrowsing.com/privacy.html)
 - **Community**: Join discussions in our GitHub repository
 
 ---

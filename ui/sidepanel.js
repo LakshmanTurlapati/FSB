@@ -6,6 +6,18 @@ let isRunning = false;
 let stopRequested = false;
 let isHistoryViewActive = false;
 let showSidepanelProgressEnabled = false;
+const DEFAULT_CHAT_INPUT_HEIGHT = 48;
+const MAX_CHAT_INPUT_HEIGHT = 120;
+const SIDEPANEL_PLACEHOLDERS = [
+  'Let\'s do everything...',
+  'Make this easier...',
+  'Automate the boring part...',
+  'Point me at the mess...',
+  'Give me the next move...',
+  'Let\'s make this disappear...'
+];
+let resetInputAnimationTimer = null;
+let currentPlaceholderIndex = 0;
 
 // Initialize or restore conversation ID for session continuity
 async function initConversationId() {
@@ -33,14 +45,23 @@ const chatMessages = document.getElementById('chatMessages');
 const historyBtn = document.getElementById('historyBtn');
 const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
+const footerVersion = document.getElementById('footerVersion');
+const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
 // Initialize speech-to-text
 const stt = new FSBSpeechToText(chatInput, micBtn, sendBtn);
 
 // Apply theme based on settings
+function getPreferredTheme() {
+  const savedTheme = localStorage.getItem('fsb-theme');
+  if (savedTheme === 'light' || savedTheme === 'dark') {
+    return savedTheme;
+  }
+  return systemThemeQuery?.matches ? 'dark' : 'light';
+}
+
 function applyTheme() {
-  const savedTheme = localStorage.getItem('fsb-theme') || 'light';
-  document.documentElement.setAttribute('data-theme', savedTheme);
+  document.documentElement.setAttribute('data-theme', getPreferredTheme());
 }
 
 function setUiState(state) {
@@ -51,12 +72,63 @@ function setSidepanelView(view) {
   document.body.dataset.sidepanelView = view;
 }
 
+function syncFooterVersion() {
+  if (!footerVersion || !chrome?.runtime?.getManifest) return;
+  footerVersion.textContent = `v${chrome.runtime.getManifest().version}`;
+}
+
+function isChatInputEmpty() {
+  return chatInput.textContent.trim().length === 0;
+}
+
+function canShowPlaceholder() {
+  return !isHistoryViewActive && !document.hidden && isChatInputEmpty();
+}
+
+function setChatPlaceholder(text) {
+  chatInput.dataset.placeholder = text;
+}
+
+function showCurrentPlaceholder() {
+  setChatPlaceholder(SIDEPANEL_PLACEHOLDERS[currentPlaceholderIndex] || '');
+}
+
+function clearChatPlaceholder() {
+  setChatPlaceholder('');
+}
+
+function advancePlaceholder() {
+  currentPlaceholderIndex = (currentPlaceholderIndex + 1) % SIDEPANEL_PLACEHOLDERS.length;
+}
+
+function syncPlaceholder({ resetIndex = false, advance = false } = {}) {
+  if (resetIndex) {
+    currentPlaceholderIndex = 0;
+  } else if (advance) {
+    advancePlaceholder();
+  }
+
+  if (canShowPlaceholder()) {
+    showCurrentPlaceholder();
+  } else if (!isChatInputEmpty()) {
+    clearChatPlaceholder();
+  }
+}
+
 // Listen for theme changes from options page
 window.addEventListener('storage', (e) => {
   if (e.key === 'fsb-theme') {
     applyTheme();
   }
 });
+
+if (systemThemeQuery) {
+  systemThemeQuery.addEventListener('change', () => {
+    if (!localStorage.getItem('fsb-theme')) {
+      applyTheme();
+    }
+  });
+}
 
 // Initialize analytics for sidepanel context
 let sidepanelAnalytics = null;
@@ -202,6 +274,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyTheme();
   setUiState('idle');
   setSidepanelView('chat');
+  syncFooterVersion();
+  syncPlaceholder({ resetIndex: true });
 
   // Load sidepanel progress setting
   try {
@@ -235,7 +309,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   chrome.storage.local.get(['lastTask'], (data) => {
     if (data.lastTask && data.lastTask.trim()) {
       chatInput.textContent = data.lastTask;
+      adjustInputHeight();
       updateSendButtonState();
+      syncPlaceholder();
     }
   });
   
@@ -349,6 +425,7 @@ function debouncedSaveTask() {
 chatInput.addEventListener('input', () => {
   updateSendButtonState();
   debouncedSaveTask();
+  syncPlaceholder();
 });
 
 chatInput.addEventListener('keydown', (e) => {
@@ -383,7 +460,9 @@ async function handleSendMessage() {
   // Handle /agent slash commands
   if (message.startsWith('/agent')) {
     chatInput.textContent = '';
+    resetInputHeight(true);
     updateSendButtonState();
+    syncPlaceholder({ advance: true });
     addMessage(message, 'user');
     handleAgentCommand(message);
     return;
@@ -395,7 +474,9 @@ async function handleSendMessage() {
 
     // Clear input
     chatInput.textContent = '';
+    resetInputHeight(true);
     updateSendButtonState();
+    syncPlaceholder({ advance: true });
     
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -515,7 +596,9 @@ function startNewChat() {
   
   // Clear input field
   chatInput.textContent = '';
+  resetInputHeight();
   updateSendButtonState();
+  syncPlaceholder({ advance: true });
   
   // Add fresh welcome message
   addMessage('Welcome to FSB. How can I help?', 'system');
@@ -1164,12 +1247,41 @@ document.addEventListener('keydown', (e) => {
 
 // Auto-resize chat input based on content
 function adjustInputHeight() {
+  clearTimeout(resetInputAnimationTimer);
+  chatInput.classList.remove('height-animating');
   chatInput.style.height = 'auto';
-  chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+  chatInput.style.height = Math.max(DEFAULT_CHAT_INPUT_HEIGHT, Math.min(chatInput.scrollHeight, MAX_CHAT_INPUT_HEIGHT)) + 'px';
+  chatInput.style.overflowY = chatInput.scrollHeight > MAX_CHAT_INPUT_HEIGHT ? 'auto' : 'hidden';
+}
+
+function resetInputHeight(animated = false) {
+  clearTimeout(resetInputAnimationTimer);
+  const currentHeight = Math.max(chatInput.offsetHeight || DEFAULT_CHAT_INPUT_HEIGHT, DEFAULT_CHAT_INPUT_HEIGHT);
+
+  if (!animated) {
+    chatInput.classList.remove('height-animating');
+    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
+    chatInput.style.overflowY = 'hidden';
+    return;
+  }
+
+  chatInput.classList.add('height-animating');
+  chatInput.style.height = currentHeight + 'px';
+
+  requestAnimationFrame(() => {
+    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
+  });
+
+  resetInputAnimationTimer = setTimeout(() => {
+    chatInput.classList.remove('height-animating');
+    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
+    chatInput.style.overflowY = 'hidden';
+  }, 150);
 }
 
 // Initialize input height adjustment
 chatInput.addEventListener('input', adjustInputHeight);
+resetInputHeight();
 
 // Prevent default drag and drop behavior
 document.addEventListener('dragover', (e) => e.preventDefault());
@@ -1177,10 +1289,11 @@ document.addEventListener('drop', (e) => e.preventDefault());
 
 // Handle side panel specific events
 document.addEventListener('visibilitychange', () => {
+  // Side panel became visible - refresh status if needed
   if (!document.hidden) {
-    // Side panel became visible - refresh status if needed
     console.log('Side panel became visible');
   }
+  syncPlaceholder();
 });
 
 
@@ -1203,6 +1316,7 @@ function showHistoryView() {
   historyBtn.classList.add('active');
   setSidepanelView('history');
   isHistoryViewActive = true;
+  syncPlaceholder();
   loadHistoryList();
 }
 
@@ -1213,6 +1327,7 @@ function showChatView() {
   historyBtn.classList.remove('active');
   setSidepanelView('chat');
   isHistoryViewActive = false;
+  syncPlaceholder();
 }
 
 async function loadHistoryList() {

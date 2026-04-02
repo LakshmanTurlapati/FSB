@@ -93,6 +93,14 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Cookie consent auto-dismiss (clear overlays blocking interaction) -- v0.9.11
 
 ### Active
+- [ ] 1:1 sidepanel replica in showcase "See It in Action" section -- v0.9.22
+- [ ] 1:1 control panel (options.html) replica in showcase "See It in Action" section -- v0.9.22
+- [ ] MCP-in-Claude-Code usage examples in showcase "See It in Action" section -- v0.9.22
+- [ ] Audit and fix gaps in showcase "See It in Action" renders vs real extension -- v0.9.22
+- [ ] UI retouch across sidepanel, popup, control panel, and dashboard without changing FSB's core aesthetic -- v0.9.21
+- [ ] Shared visual cohesion pass for spacing, cards, buttons, iconography, and state styling across extension surfaces -- v0.9.21
+- [ ] Context-aware automation highlight feedback for links/text versus box-shaped controls -- v0.9.21
+- [ ] Final UI consistency sweep to remove obvious styling errors and polish regressions on touched surfaces -- v0.9.21
 - [ ] Auto-start DOM stream on WS connection -- v0.9.9.1
 - [ ] Maximize/minimize preview toggle -- v0.9.9.1
 - [ ] Viewport-adaptive preview resize -- v0.9.9.1
@@ -130,16 +138,23 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - Headless server-side execution -- server is relay only, user's browser must stay active
 - Video/screenshot streaming -- DOM cloning with CDN images, not pixel capture
 
-## Current Milestone: v0.9.12 MCP Developer Experience
+## Current Milestone: v0.9.22 Showcase High-Fidelity Replicas
 
-**Goal:** Make FSB MCP tools self-documenting so any AI client can use them effectively without source code access.
+**Goal:** Replace the outdated "See It in Action" renders on the showcase site with pixel-accurate HTML/CSS/JS replicas of the real sidepanel, control panel (options.html), and MCP-in-Claude-Code examples.
 
 **Target features:**
-- Enriched tool descriptions with usage hints, relationships, and when-to-use guidance
-- MCP prompts (workflow guides: read-then-act, error recovery, canvas tools)
-- Fix stale descriptions (search, etc.) to reflect current behavior
-- Tool relationship documentation (get_dom_snapshot refs -> click/type)
-- Error recovery hints in tool descriptions
+- 1:1 sidepanel replica -- analyze real sidepanel styling and recreate it as a static high-fidelity HTML/CSS render in the showcase
+- 1:1 control panel replica -- analyze real options.html styling and recreate it as a static high-fidelity HTML/CSS render in the showcase
+- MCP-in-Claude-Code examples -- realistic rendered examples showing FSB MCP tools being used in a Claude Code terminal session
+- Audit existing "See It in Action" section for anything outdated or missing, fix gaps
+
+## Previous Milestone: v0.9.21 UI Retouch & Cohesion (not started, deferred)
+
+**Goal:** Polish the existing FSB UI across primary surfaces without redesigning it.
+
+## Previous Milestone: v0.9.20 Autopilot Agent Architecture Rewrite (shipped 2026-04-02)
+
+**Shipped:** Native tool_use agent loop, canonical shared tool registry, unified execution pipeline, on-demand context tools, safety controls, and dead-code cleanup. 8 phases, 11 plans, 32 requirements.
 
 ## Previous Milestone: v0.9.11 MCP Tool Quality (shipped 2026-03-31)
 
@@ -167,7 +182,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Context
 
-**Previous milestones:** v0.9 (Reliability), v9.0.2 (AI Situational Awareness), v9.3 (Tech Debt), v9.4 (Career Search), v10.0 (CLI Architecture), v0.9.2 (Productivity Sites), v0.9.3 (Memory Tab), v0.9.4 (AI Quality), v0.9.5 (Progress Overlay Intelligence), v0.9.6 (Agents & Remote Control), v0.9.7 (MCP Edge Case Validation), v0.9.9 (Excalidraw Mastery + Canvas Vision)
+**Previous milestones:** v0.9 (Reliability), v9.0.2 (AI Situational Awareness), v9.3 (Tech Debt), v9.4 (Career Search), v10.0 (CLI Architecture), v0.9.2 (Productivity Sites), v0.9.3 (Memory Tab), v0.9.4 (AI Quality), v0.9.5 (Progress Overlay Intelligence), v0.9.6 (Agents & Remote Control), v0.9.7 (MCP Edge Case Validation), v0.9.9 (Excalidraw Mastery + Canvas Vision), v0.9.20 (Autopilot Agent Architecture Rewrite)
 
 **Tech stack:** Chrome Extension Manifest V3, vanilla JavaScript (ES2021+), xAI Grok / OpenAI / Anthropic / Gemini / OpenRouter APIs.
 **Codebase:** background.js (~11K lines), ai-integration.js (~5K lines), content/ modules (10 files), 50+ site guide files, CLI parser (cli-parser.js), Task Memory system.
@@ -176,6 +191,8 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - `uiReadySelector` option in waitForPageStability implemented but no caller wires it yet
 - Site Guides Viewer design mismatch (displays as accordion, should match memory-style list with mind maps)
 - fsbElements use data-fsbLabel annotation path vs [hint:] tags from buildGuideAnnotations
+- UI surfaces have styling drift between sidepanel, popup, control panel, and dashboard despite sharing the same product aesthetic
+- Action glow currently favors padded rectangular overlays, which looks wrong on inline links and text-centric targets
 
 ## Constraints
 
@@ -242,4 +259,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-31 after v0.9.11 MCP Tool Quality milestone started*
+*Last updated: 2026-04-02 after v0.9.22 Showcase High-Fidelity Replicas milestone started*

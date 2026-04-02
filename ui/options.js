@@ -70,6 +70,7 @@ const statsData = {
 
 // DOM elements
 const elements = {};
+const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', initializeDashboard);
@@ -119,7 +120,7 @@ function initializeDashboard() {
   // Initialize session history
   setTimeout(initializeSessionHistory, 500);
 
-  // Initialize site explorer
+  // Initialize reconnaissance
   setTimeout(initializeSiteExplorer, 600);
 
   console.log('FSB Control Panel initialized successfully');
@@ -195,7 +196,7 @@ function cacheElements() {
   // Status toast
   elements.statusToast = document.getElementById('statusToast');
 
-  // Site Explorer
+  // Reconnaissance
   elements.explorerUrl = document.getElementById('explorerUrl');
   elements.explorerGoBtn = document.getElementById('explorerGoBtn');
   elements.explorerStopAllBtn = document.getElementById('explorerStopAllBtn');
@@ -1016,16 +1017,31 @@ function exportSettings() {
 }
 
 function setupTheme() {
-  const savedTheme = localStorage.getItem('fsb-theme') || 'light';
-  applyTheme(savedTheme);
+  applyTheme(getPreferredTheme());
+
+  if (systemThemeQuery) {
+    systemThemeQuery.addEventListener('change', () => {
+      if (!localStorage.getItem('fsb-theme')) {
+        applyTheme(getPreferredTheme());
+      }
+    });
+  }
 }
 
 function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+  const currentTheme = document.documentElement.getAttribute('data-theme') || getPreferredTheme();
   const newTheme = currentTheme === 'light' ? 'dark' : 'light';
   applyTheme(newTheme);
   localStorage.setItem('fsb-theme', newTheme);
   showToast(`Switched to ${newTheme} theme`, 'info');
+}
+
+function getPreferredTheme() {
+  const savedTheme = localStorage.getItem('fsb-theme');
+  if (savedTheme === 'light' || savedTheme === 'dark') {
+    return savedTheme;
+  }
+  return systemThemeQuery?.matches ? 'dark' : 'light';
 }
 
 function updateFooterLogo(theme) {
@@ -2946,7 +2962,7 @@ function initializeSiteExplorer() {
 async function startExplorer() {
   const url = (elements.explorerUrl?.value || '').trim();
   if (!url) {
-    showToast('Please enter a URL to explore', 'error');
+    showToast('Please enter a URL to run reconnaissance', 'error');
     return;
   }
 
@@ -2974,22 +2990,22 @@ async function startExplorer() {
     });
 
     if (!response || !response.success) {
-      showToast('Failed to start explorer: ' + (response?.error || 'Unknown error'), 'error');
+      showToast('Failed to start reconnaissance: ' + (response?.error || 'Unknown error'), 'error');
     } else {
-      addLog('info', 'Site Explorer started for ' + testUrl);
+      addLog('info', 'Reconnaissance started for ' + testUrl);
       // Clear input for next URL, show Stop All
       if (elements.explorerUrl) elements.explorerUrl.value = '';
       updateStopAllVisibility();
     }
   } catch (error) {
-    showToast('Failed to start explorer: ' + error.message, 'error');
+    showToast('Failed to start reconnaissance: ' + error.message, 'error');
   }
 }
 
 async function stopAllExplorers() {
   try {
     await chrome.runtime.sendMessage({ action: 'stopExplorer' });
-    addLog('info', 'All Site Explorers stopped');
+    addLog('info', 'All reconnaissance crawlers stopped');
     showToast('All crawlers stopped', 'info');
   } catch (error) {
     console.error('Failed to stop explorers:', error);
@@ -3081,10 +3097,10 @@ function updateExplorerProgress(data) {
     }
 
     if (data.status === 'completed') {
-      showToast('Crawl completed: ' + data.pagesCollected + ' pages from ' + (data.domain || ''), 'success');
-      addLog('info', 'Site Explorer completed: ' + data.pagesCollected + ' pages from ' + data.domain);
+      showToast('Reconnaissance complete: ' + data.pagesCollected + ' pages from ' + (data.domain || ''), 'success');
+      addLog('info', 'Reconnaissance completed: ' + data.pagesCollected + ' pages from ' + data.domain);
     } else if (data.status === 'error') {
-      showToast('Crawl failed for ' + (data.domain || 'unknown'), 'error');
+      showToast('Reconnaissance failed for ' + (data.domain || 'unknown'), 'error');
     }
 
     // Refresh research list
@@ -3111,7 +3127,7 @@ async function loadResearchList(page) {
       elements.researchList.innerHTML = `
         <div class="session-empty-state">
           <i class="fas fa-flask"></i>
-          <p>No research results yet. Use Site Explorer above to crawl a website.</p>
+          <p>No research results yet. Use Reconnaissance above to crawl a website.</p>
         </div>
       `;
       renderResearchPagination(0, researchPageSize, 0);
@@ -4098,7 +4114,7 @@ async function showPairingQR() {
     qr.make();
 
     // Render SVG into container
-    qrCodeEl.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2 });
+    qrCodeEl.innerHTML = qr.createSvgTag({ cellSize: 8, margin: 3 });
 
     // Show container, update button
     container.style.display = 'flex';
