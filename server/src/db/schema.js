@@ -21,6 +21,7 @@ function initializeDatabase(db) {
       agent_id TEXT NOT NULL,
       name TEXT NOT NULL,
       task TEXT NOT NULL,
+      start_mode TEXT NOT NULL DEFAULT 'pinned',
       target_url TEXT NOT NULL,
       schedule_type TEXT NOT NULL,
       schedule_config TEXT DEFAULT '{}',
@@ -77,6 +78,9 @@ function initializeDatabase(db) {
   } catch { /* column already exists */ }
   try {
     db.exec(`ALTER TABLE agent_runs ADD COLUMN cost_saved REAL DEFAULT 0`);
+  } catch { /* column already exists */ }
+  try {
+    db.exec(`ALTER TABLE agents ADD COLUMN start_mode TEXT NOT NULL DEFAULT 'pinned'`);
   } catch { /* column already exists */ }
 
   console.log('[FSB Server] Database schema initialized');

@@ -1,5 +1,61 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.9.1 Phantom Stream (Shipped: 2026-03-31)
+
+**Phases completed:** 9 phases (5 planned + 4 inserted fixes), 16 plans
+
+**Key accomplishments:**
+
+- Auto-connect DOM stream on WebSocket handshake with active tab tracking, recovery on disconnect, and 4-state health badge
+- LZ-string compression for WS payloads (90%+ reduction on 100KB+ DOM snapshots) with envelope-based backward compat
+- 4-mode layout system (inline, maximized, PiP with drag-to-reposition, fullscreen with mouse-tracked exit overlay)
+- Full computed style capture (66 CSS properties) fixing broken layouts on complex sites like Google and YouTube
+- Native alert/confirm/prompt dialog mirroring to dashboard with styled overlay cards
+- Remote browser control (click/type/scroll) through preview with coordinate reverse-scaling and blue border active state
+- Idempotent stop signals with promise resolution, eliminating hanging promises and duplicate task-complete messages
+- Orange glow overlay broadcast during automation for visual element targeting in preview
+
+**Stats:**
+
+- 9 phases, 16 plans
+- Key files: dashboard.js (2,718 lines), dom-stream.js (878 lines), ws-client.js (527 lines)
+
+---
+
+## v0.9.8.1 npm Publishing (Shipped: 2026-04-01)
+
+**Phases completed:** 2 phases, 2 plans
+
+**Key accomplishments:**
+
+- npm-ready package with metadata, files whitelist, .npmignore, prepublishOnly script, and GitHub Actions publish workflow
+- Users can install and run FSB MCP server via `npx -y fsb-mcp-server` without cloning the repo
+- End-to-end local verification of package installation
+
+---
+
+## v0.9.20 Autopilot Agent Architecture Rewrite (Shipped: 2026-04-02)
+
+**Phases completed:** 8 phases (5 planned + 3 gap closures), 11 plans, 32 requirements
+
+**Key accomplishments:**
+
+- Replaced custom CLI text parsing autopilot with native tool_use agent loop -- the same pattern Claude Code, Computer Use API, and MCP clients all use. AI returns structured tool_use blocks, extension executes via unified tool-executor.js, feeds tool_result back, loops until AI emits end_turn.
+- Canonical tool registry (tool-definitions.js, 47 tools in JSON Schema) shared between autopilot and MCP server via CJS-to-ESM schema-bridge.ts. MCP manual.ts reduced from 374 to 78 lines.
+- Provider format adapter (tool-use-adapter.js) supporting all 6 providers (xAI, OpenAI, Anthropic, Gemini, OpenRouter, Custom) with native tool_use format translation. No more CLI text parsing or 5-strategy response fallbacks.
+- Safety mechanisms: $2 cost circuit breaker, 10-minute time limit, 3-strike stuck detection with recovery hint injection, setTimeout-chained iterations for Chrome MV3 service worker compatibility, session persistence for SW resurrection.
+- On-demand DOM snapshots and site guides (AI calls tools when needed instead of auto-injection every iteration), sliding window history compression at 80% token budget, Anthropic prompt caching.
+- Net -11,184 lines removed (14,489 deleted, 3,305 added). background.js 14K->9.7K, ai-integration.js 5.2K->2.6K. cli-parser.js and cli-validator.js deleted entirely.
+
+**Stats:**
+
+- 33 files changed
+- 3,305 lines added, 14,489 lines removed (net -11,184)
+- 8 phases, 11 plans, 32 requirements (100% satisfied)
+- 12 post-phase bug fix commits (importScripts scope, storage API, keyboard emulator, overlay cleanup, sidepanel notification)
+
+---
+
 ## v0.9.11 MCP Tool Quality (Shipped: 2026-03-31)
 
 **Phases completed:** 6 phases, 7 plans, 13 tasks

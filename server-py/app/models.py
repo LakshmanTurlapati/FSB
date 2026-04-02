@@ -22,7 +22,8 @@ class AgentUpsert(BaseModel):
     agentId: str
     name: str
     task: str
-    targetUrl: str
+    startMode: str = "pinned"
+    targetUrl: str = ""
     scheduleType: str = "interval"
     scheduleConfig: str = "{}"
     enabled: bool = True
@@ -62,6 +63,7 @@ class RunReportPayload(BaseModel):
     """Body for POST /api/agents/{agentId}/runs -- includes agent upsert fields + run."""
     name: str | None = None
     task: str | None = None
+    startMode: str = "pinned"
     targetUrl: str | None = None
     scheduleType: str = "interval"
     scheduleConfig: str = "{}"

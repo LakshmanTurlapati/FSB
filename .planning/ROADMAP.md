@@ -13,10 +13,11 @@
 - v0.9.7 MCP Edge Case Validation (shipped 2026-03-22) -- [archive](milestones/v0.9.7-ROADMAP.md)
 - v0.9.8 Autopilot Refinement (shipped 2026-03-23) -- [archive](milestones/v0.9.8-ROADMAP.md)
 - v0.9.9 Excalidraw Mastery (shipped 2026-03-25) -- [archive](milestones/v0.9.9-ROADMAP.md)
-- v0.9.8.1 npm Publishing (in progress, parallel)
-- v0.9.9.1 Phantom Stream (in progress, parallel)
+- v0.9.8.1 npm Publishing (shipped 2026-04-01)
+- v0.9.9.1 Phantom Stream (shipped 2026-03-31)
 - v0.9.11 MCP Tool Quality (shipped 2026-03-31) -- [archive](milestones/v0.9.11-ROADMAP.md)
 - v0.9.12 MCP Developer Experience (in progress)
+- v0.9.20 Autopilot Agent Architecture Rewrite (shipped 2026-04-02) -- [archive](milestones/v0.9.20-ROADMAP.md)
 
 ---
 
@@ -27,7 +28,7 @@
 ### Phases (v0.9.8.1)
 
 - [x] **Phase 105: Package & Distribution** - npm-ready package with metadata, build pipeline, CI publish, and npx installation (completed 2026-03-24)
-- [ ] **Phase 106: Documentation** - README with FSB branding, MCP client config examples, and full tool reference
+- [x] **Phase 106: Documentation** - README with FSB branding, MCP client config examples, and full tool reference (completed 2026-04-01)
 
 <details>
 <summary>Phase Details (v0.9.8.1)</summary>
@@ -56,7 +57,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 105. Package & Distribution | 2/2 | Complete   | 2026-03-24 |
-| 106. Documentation | 0/? | Not started | - |
+| 106. Documentation | 0/0 | Complete | 2026-04-01 |
 
 ---
 
@@ -66,12 +67,12 @@ Plans:
 
 ### Phases (v0.9.9.1)
 
-- [ ] **Phase 122: Connection & Auto-Start** - Stream starts on WS connect, stays alive between tasks, recovers from disconnects, shows health status
+- [x] **Phase 122: Connection & Auto-Start** - Stream starts on WS connect, stays alive between tasks, recovers from disconnects, shows health status (completed 2026-03-29)
 - [x] **Phase 122.1: Stream Overlay Fix** - Fix glow overlay not appearing in DOM stream preview during automation (INSERTED) (completed 2026-03-29)
 - [x] **Phase 122.2: Stop Signal & Final Outcome** - Dashboard stop button doesn't halt FSB automation, and task completion/failure result not relayed back to dashboard (INSERTED) (completed 2026-03-31)
 - [x] **Phase 122.3: WS Payload Compression** - DOM stream snapshots and task results reliably reach dashboard by compressing WS payloads client-side before sending through relay (INSERTED) (completed 2026-03-31)
 - [x] **Phase 122.4: Dashboard Relay Fix** - End-to-end investigation and fix for dashboard not receiving task results, stream not rendering, and relay message delivery failures (INSERTED) (completed 2026-03-31)
-- [ ] **Phase 123: Layout Modes** - Maximize/minimize toggle, viewport-adaptive resize, picture-in-picture, fullscreen preview
+- [x] **Phase 123: Layout Modes** - Maximize/minimize toggle, viewport-adaptive resize, picture-in-picture, fullscreen preview (completed 2026-03-31)
 - [x] **Phase 123.1: Stream Fidelity Fix** - DOM clone has broken layouts on complex sites -- CSS not loading properly, elements overlapping, content jumbled in iframe (INSERTED) (completed 2026-03-30)
 - [x] **Phase 124: Visual Fidelity** - Dialog/modal mirroring, CSS animation replication, rAF-synced mutation batching, computed style capture (completed 2026-03-30)
 - [x] **Phase 125: Remote Control** - Click/type/scroll through preview to control the real browser, plus task stop button (completed 2026-03-31)
@@ -90,8 +91,8 @@ Plans:
   4. A status badge in the preview container shows green/yellow/red for connected/buffering/disconnected
 **Plans**: 2 plans
 Plans:
-- [ ] 122-01-PLAN.md -- Extension-side active tab tracking, stream-aware forwarding, decouple stream from task lifecycle
-- [ ] 122-02-PLAN.md -- Dashboard auto-start on page-ready, toggle button, recovery logic, status badge enhancement
+- [x] 122-01-PLAN.md -- Extension-side active tab tracking, stream-aware forwarding, decouple stream from task lifecycle
+- [x] 122-02-PLAN.md -- Dashboard auto-start on page-ready, toggle button, recovery logic, status badge enhancement
 
 ### Phase 122.1: Stream Overlay Fix (INSERTED)
 **Goal**: The orange glow highlighting the element FSB is interacting with appears in the dashboard DOM stream preview during automation
@@ -169,8 +170,8 @@ Plans:
   4. Elements in the preview have correct colors, fonts, sizes, and spacing because inline computed styles are captured during serialization
 **Plans**: 2 plans
 Plans:
-- [ ] 124-01-PLAN.md -- Full computed style capture, rAF mutation batching, live iframe rendering in dom-stream.js
-- [ ] 124-02-PLAN.md -- Native dialog interception pipeline (page script, content relay, WS forwarding, dashboard card rendering)
+- [x] 124-01-PLAN.md -- Full computed style capture, rAF mutation batching, live iframe rendering in dom-stream.js
+- [x] 124-02-PLAN.md -- Native dialog interception pipeline (page script, content relay, WS forwarding, dashboard card rendering)
 **UI hint**: yes
 
 ### Phase 125: Remote Control
@@ -185,7 +186,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 125-01-PLAN.md -- Extension-side WS message routing and CDP dispatch for remote click, key, and scroll events
-- [ ] 125-02-PLAN.md -- Dashboard toggle button, transparent overlay, event capture, coordinate reverse-scaling, and WS forwarding
+- [x] 125-02-PLAN.md -- Dashboard toggle button, transparent overlay, event capture, coordinate reverse-scaling, and WS forwarding
 **UI hint**: yes
 
 </details>
@@ -196,13 +197,15 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 122. Connection & Auto-Start | 0/2 | Planned | - |
-| 122.2. Stop Signal & Final Outcome | 2/2 | Complete   | 2026-03-31 |
-| 122.3. WS Payload Compression | 1/1 | Complete    | 2026-03-31 |
-| 122.4. Dashboard Relay Fix | 1/1 | Complete   | 2026-03-31 |
-| 123. Layout Modes | 1/2 | In progress | - |
-| 124. Visual Fidelity | 0/2 | Complete    | 2026-03-30 |
-| 125. Remote Control | 1/2 | Complete    | 2026-03-31 |
+| 122. Connection & Auto-Start | 2/2 | Complete | 2026-03-29 |
+| 122.1. Stream Overlay Fix | 1/1 | Complete | 2026-03-29 |
+| 122.2. Stop Signal & Final Outcome | 2/2 | Complete | 2026-03-31 |
+| 122.3. WS Payload Compression | 1/1 | Complete | 2026-03-31 |
+| 122.4. Dashboard Relay Fix | 1/1 | Complete | 2026-03-31 |
+| 123. Layout Modes | 2/2 | Complete | 2026-03-31 |
+| 123.1. Stream Fidelity Fix | 1/1 | Complete | 2026-03-30 |
+| 124. Visual Fidelity | 2/2 | Complete | 2026-03-30 |
+| 125. Remote Control | 2/2 | Complete | 2026-03-31 |
 
 ---
 

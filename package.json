@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "echo \"Chrome extension - no build required\"",
-    "test": "node tests/test-agent-scheduler-cron.js && node tests/test-overlay-state.js",
+    "test": "node tests/test-agent-scheduler-cron.js && node tests/test-overlay-state.js && node tests/task-router.test.js && node tests/agent-manager-start-mode.test.js",
     "lint": "echo \"Linting not configured yet\"",
     "clean": "rm -f config/dev-settings.json",
     "package": "zip -r fsb-v0.9.20.zip . -x '*.git*' 'node_modules/*' 'config/dev-*'"

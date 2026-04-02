@@ -17,14 +17,20 @@ function createAgentsRouter(queries) {
   // POST /api/agents - Upsert agent definition
   router.post('/', (req, res) => {
     try {
-      const { agentId, name, task, targetUrl, scheduleType, scheduleConfig, enabled } = req.body;
+      const { agentId, name, task, startMode, targetUrl, scheduleType, scheduleConfig, enabled } = req.body;
+      const effectiveStartMode = startMode || (targetUrl ? 'pinned' : 'ai_routed');
 
-      if (!agentId || !name || !task || !targetUrl) {
-        return res.status(400).json({ error: 'Missing required fields: agentId, name, task, targetUrl' });
+      if (!agentId || !name || !task) {
+        return res.status(400).json({ error: 'Missing required fields: agentId, name, task' });
+      }
+      if (effectiveStartMode === 'pinned' && !targetUrl) {
+        return res.status(400).json({ error: 'Pinned agents require targetUrl' });
       }
 
       queries.upsertAgentData(req.hashKey, {
-        agentId, name, task, targetUrl,
+        agentId, name, task,
+        startMode: effectiveStartMode,
+        targetUrl: targetUrl || '',
         scheduleType: scheduleType || 'interval',
         scheduleConfig: scheduleConfig || '{}',
         enabled: enabled !== false
@@ -78,12 +84,13 @@ function createAgentsRouter(queries) {
       const body = req.body;
 
       // Upsert agent data if provided
-      if (body.name && body.task && body.targetUrl) {
+      if (body.name && body.task && body.targetUrl !== undefined) {
         queries.upsertAgentData(req.hashKey, {
           agentId,
           name: body.name,
           task: body.task,
-          targetUrl: body.targetUrl,
+          startMode: body.startMode || (body.targetUrl ? 'pinned' : 'ai_routed'),
+          targetUrl: body.targetUrl || '',
           scheduleType: body.scheduleType || 'interval',
           scheduleConfig: body.scheduleConfig || '{}',
           enabled: body.enabled !== false

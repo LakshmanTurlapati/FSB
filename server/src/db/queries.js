@@ -22,11 +22,12 @@ class Queries {
 
     // Agents
     this.upsertAgent = this.db.prepare(`
-      INSERT INTO agents (hash_key, agent_id, name, task, target_url, schedule_type, schedule_config, enabled)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO agents (hash_key, agent_id, name, task, start_mode, target_url, schedule_type, schedule_config, enabled)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(hash_key, agent_id) DO UPDATE SET
         name = excluded.name,
         task = excluded.task,
+        start_mode = excluded.start_mode,
         target_url = excluded.target_url,
         schedule_type = excluded.schedule_type,
         schedule_config = excluded.schedule_config,
@@ -151,7 +152,9 @@ class Queries {
   upsertAgentData(hashKey, data) {
     return this.upsertAgent.run(
       hashKey, data.agentId, data.name, data.task,
-      data.targetUrl, data.scheduleType, data.scheduleConfig || '{}',
+      data.startMode || 'pinned',
+      data.targetUrl || '',
+      data.scheduleType, data.scheduleConfig || '{}',
       data.enabled ? 1 : 0
     );
   }

@@ -20,6 +20,59 @@ class BackgroundAgentManager {
     return 'agent_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
   }
 
+  _normalizeTargetUrl(targetUrl) {
+    return typeof targetUrl === 'string' ? targetUrl.trim() : '';
+  }
+
+  _normalizeStartMode(startMode, targetUrl) {
+    if (startMode === 'pinned' || startMode === 'ai_routed') return startMode;
+    return this._normalizeTargetUrl(targetUrl) ? 'pinned' : 'ai_routed';
+  }
+
+  _validateStartConfig(startMode, targetUrl) {
+    const normalizedTargetUrl = this._normalizeTargetUrl(targetUrl);
+    const normalizedStartMode = this._normalizeStartMode(startMode, normalizedTargetUrl);
+
+    if (normalizedStartMode === 'pinned') {
+      if (!normalizedTargetUrl) {
+        throw new Error('Pinned agents require a targetUrl');
+      }
+      let parsed;
+      try {
+        parsed = new URL(normalizedTargetUrl);
+      } catch {
+        throw new Error('Pinned agents require a valid http/https targetUrl');
+      }
+      if (!/^https?:$/i.test(parsed.protocol)) {
+        throw new Error('Pinned agents require a valid http/https targetUrl');
+      }
+      return {
+        startMode: 'pinned',
+        targetUrl: parsed.toString()
+      };
+    }
+
+    return {
+      startMode: 'ai_routed',
+      targetUrl: ''
+    };
+  }
+
+  _normalizeAgent(agent) {
+    if (!agent || typeof agent !== 'object') return agent;
+    const normalizedStartMode = this._normalizeStartMode(agent.startMode, agent.targetUrl);
+    const normalizedTargetUrl = normalizedStartMode === 'pinned'
+      ? this._normalizeTargetUrl(agent.targetUrl)
+      : '';
+
+    return {
+      ...agent,
+      startMode: normalizedStartMode,
+      targetUrl: normalizedTargetUrl,
+      replayEnabled: agent.replayEnabled !== false
+    };
+  }
+
   /**
    * Load all agents from storage
    * @returns {Promise<Object>} Map of agentId -> agent data
@@ -30,7 +83,12 @@ class BackgroundAgentManager {
     }
     try {
       const result = await chrome.storage.local.get(this.STORAGE_KEY);
-      this._cache = result[this.STORAGE_KEY] || {};
+      const storedAgents = result[this.STORAGE_KEY] || {};
+      const normalizedAgents = {};
+      for (const [agentId, agent] of Object.entries(storedAgents)) {
+        normalizedAgents[agentId] = this._normalizeAgent(agent);
+      }
+      this._cache = normalizedAgents;
       this._cacheTime = Date.now();
       return this._cache;
     } catch (error) {
@@ -45,8 +103,12 @@ class BackgroundAgentManager {
    */
   async saveAgents(agents) {
     try {
-      await chrome.storage.local.set({ [this.STORAGE_KEY]: agents });
-      this._cache = agents;
+      const normalizedAgents = {};
+      for (const [agentId, agent] of Object.entries(agents || {})) {
+        normalizedAgents[agentId] = this._normalizeAgent(agent);
+      }
+      await chrome.storage.local.set({ [this.STORAGE_KEY]: normalizedAgents });
+      this._cache = normalizedAgents;
       this._cacheTime = Date.now();
     } catch (error) {
       console.error('[FSB AgentManager] Failed to save agents:', error.message);
@@ -59,7 +121,8 @@ class BackgroundAgentManager {
    * @param {Object} params - Agent configuration
    * @param {string} params.name - Agent display name
    * @param {string} params.task - Task description for the AI
-   * @param {string} params.targetUrl - URL to navigate to before executing
+   * @param {string} [params.startMode='pinned'] - 'pinned' or 'ai_routed'
+   * @param {string} [params.targetUrl] - URL to navigate to before executing when pinned
    * @param {Object} params.schedule - Schedule configuration
    * @param {string} params.schedule.type - 'interval' | 'daily' | 'once'
    * @param {number} [params.schedule.intervalMinutes] - Minutes between runs (for interval type)
@@ -69,10 +132,10 @@ class BackgroundAgentManager {
    * @returns {Promise<Object>} The created agent
    */
   async createAgent(params) {
-    const { name, task, targetUrl, schedule, maxIterations = 15, replayEnabled = true } = params;
+    const { name, task, targetUrl, startMode, schedule, maxIterations = 15, replayEnabled = true } = params;
 
-    if (!name || !task || !targetUrl) {
-      throw new Error('Agent requires name, task, and targetUrl');
+    if (!name || !task) {
+      throw new Error('Agent requires name and task');
     }
     if (!schedule || !schedule.type) {
       throw new Error('Agent requires a schedule with type');
@@ -86,12 +149,14 @@ class BackgroundAgentManager {
 
     const agents = await this.loadAgents();
     const agentId = this._generateId();
+    const startConfig = this._validateStartConfig(startMode, targetUrl);
 
     const agent = {
       agentId,
       name: name.trim(),
       task: task.trim(),
-      targetUrl: targetUrl.trim(),
+      startMode: startConfig.startMode,
+      targetUrl: startConfig.targetUrl,
       schedule: { ...schedule },
       enabled: true,
       createdAt: Date.now(),
@@ -141,20 +206,32 @@ class BackgroundAgentManager {
 
     // Fields that can be updated
     const allowedFields = [
-      'name', 'task', 'targetUrl', 'schedule', 'enabled',
+      'name', 'task', 'startMode', 'targetUrl', 'schedule', 'enabled',
       'maxIterations', 'serverHashKey', 'syncEnabled',
       'replayEnabled', 'recordedScript', 'replayStats'
     ];
+
+    const startConfig = this._validateStartConfig(
+      updates.startMode !== undefined ? updates.startMode : agent.startMode,
+      updates.targetUrl !== undefined ? updates.targetUrl : agent.targetUrl
+    );
 
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
         if (field === 'maxIterations') {
           agent[field] = Math.min(Math.max(1, updates[field]), 50);
+        } else if (field === 'name' || field === 'task') {
+          agent[field] = typeof updates[field] === 'string' ? updates[field].trim() : updates[field];
+        } else if (field === 'startMode' || field === 'targetUrl') {
+          // Applied after validating the combined start config.
         } else {
           agent[field] = updates[field];
         }
       }
     }
+
+    agent.startMode = startConfig.startMode;
+    agent.targetUrl = startConfig.targetUrl;
 
     agents[agentId] = agent;
     await this.saveAgents(agents);

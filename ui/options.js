@@ -3451,6 +3451,11 @@ function initializeAgentSection() {
     });
   }
 
+  const startMode = document.getElementById('agentStartMode');
+  if (startMode) {
+    startMode.addEventListener('change', syncAgentStartModeUI);
+  }
+
   // Server sync buttons
   const btnGenerate = document.getElementById('btnGenerateHashKey');
   const btnCopy = document.getElementById('btnCopyHashKey');
@@ -3502,6 +3507,19 @@ function initializeAgentSection() {
   });
 }
 
+function syncAgentStartModeUI() {
+  const startMode = document.getElementById('agentStartMode')?.value || 'pinned';
+  const targetUrlGroup = document.getElementById('agentTargetUrlGroup');
+  const targetUrlInput = document.getElementById('agentTargetUrl');
+  const isPinned = startMode === 'pinned';
+
+  if (targetUrlGroup) targetUrlGroup.style.display = isPinned ? '' : 'none';
+  if (targetUrlInput) {
+    targetUrlInput.disabled = !isPinned;
+    targetUrlInput.required = isPinned;
+  }
+}
+
 function showAgentForm(editAgent) {
   const form = document.getElementById('agentFormCard');
   const title = document.getElementById('agentFormTitle');
@@ -3513,6 +3531,7 @@ function showAgentForm(editAgent) {
     document.getElementById('agentFormId').value = editAgent.agentId;
     document.getElementById('agentName').value = editAgent.name || '';
     document.getElementById('agentTask').value = editAgent.task || '';
+    document.getElementById('agentStartMode').value = editAgent.startMode || (editAgent.targetUrl ? 'pinned' : 'ai_routed');
     document.getElementById('agentTargetUrl').value = editAgent.targetUrl || '';
     document.getElementById('agentScheduleType').value = editAgent.schedule?.type || 'interval';
     document.getElementById('agentInterval').value = editAgent.schedule?.intervalMinutes || 30;
@@ -3533,6 +3552,7 @@ function showAgentForm(editAgent) {
     }
 
     // Trigger schedule type change to show/hide fields
+    syncAgentStartModeUI();
     document.getElementById('agentScheduleType').dispatchEvent(new Event('change'));
   } else {
     // Create mode
@@ -3540,6 +3560,7 @@ function showAgentForm(editAgent) {
     document.getElementById('agentFormId').value = '';
     document.getElementById('agentName').value = '';
     document.getElementById('agentTask').value = '';
+    document.getElementById('agentStartMode').value = 'pinned';
     document.getElementById('agentTargetUrl').value = '';
     document.getElementById('agentScheduleType').value = 'interval';
     document.getElementById('agentInterval').value = 30;
@@ -3547,6 +3568,7 @@ function showAgentForm(editAgent) {
     document.getElementById('agentMaxIterations').value = 15;
     const replayToggleCreate = document.getElementById('agentReplayEnabled');
     if (replayToggleCreate) replayToggleCreate.checked = true;
+    syncAgentStartModeUI();
     document.getElementById('agentScheduleType').dispatchEvent(new Event('change'));
   }
 
@@ -3562,13 +3584,14 @@ async function saveAgent() {
   const agentId = document.getElementById('agentFormId').value;
   const name = document.getElementById('agentName').value.trim();
   const task = document.getElementById('agentTask').value.trim();
+  const startMode = document.getElementById('agentStartMode').value || 'pinned';
   const targetUrl = document.getElementById('agentTargetUrl').value.trim();
   const scheduleType = document.getElementById('agentScheduleType').value;
   const intervalMinutes = parseInt(document.getElementById('agentInterval').value) || 30;
   const dailyTime = document.getElementById('agentDailyTime').value;
   const maxIterations = parseInt(document.getElementById('agentMaxIterations').value) || 15;
 
-  if (!name || !task || !targetUrl) {
+  if (!name || !task || (startMode === 'pinned' && !targetUrl)) {
     showToast('Please fill in all required fields', 'error');
     return;
   }
@@ -3592,8 +3615,8 @@ async function saveAgent() {
 
   const action = agentId ? 'updateAgent' : 'createAgent';
   const payload = agentId
-    ? { action, agentId, updates: { name, task, targetUrl, schedule, maxIterations, replayEnabled } }
-    : { action, params: { name, task, targetUrl, schedule, maxIterations, replayEnabled } };
+    ? { action, agentId, updates: { name, task, startMode, targetUrl: startMode === 'pinned' ? targetUrl : '', schedule, maxIterations, replayEnabled } }
+    : { action, params: { name, task, startMode, targetUrl: startMode === 'pinned' ? targetUrl : '', schedule, maxIterations, replayEnabled } };
 
   try {
     const response = await new Promise((resolve) => {
@@ -3665,6 +3688,10 @@ function createAgentCard(agent) {
   const costSavedText = replayStats.estimatedCostSaved > 0
     ? '$' + replayStats.estimatedCostSaved.toFixed(4)
     : '$0';
+  const startMode = agent.startMode || (agent.targetUrl ? 'pinned' : 'ai_routed');
+  const startValue = startMode === 'ai_routed'
+    ? 'AI decides the start site from the task'
+    : (agent.targetUrl || 'Pinned URL');
 
   card.innerHTML = `
     <div class="agent-card-header">
@@ -3683,8 +3710,8 @@ function createAgentCard(agent) {
         <span class="agent-detail-value">${escapeHtml(agent.task.substring(0, 100))}${agent.task.length > 100 ? '...' : ''}</span>
       </div>
       <div class="agent-card-detail">
-        <span class="agent-detail-label">URL:</span>
-        <span class="agent-detail-value">${escapeHtml(agent.targetUrl)}</span>
+        <span class="agent-detail-label">Start:</span>
+        <span class="agent-detail-value">${escapeHtml(startValue)}</span>
       </div>
       <div class="agent-card-detail">
         <span class="agent-detail-label">Schedule:</span>

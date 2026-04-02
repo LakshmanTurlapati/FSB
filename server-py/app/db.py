@@ -35,4 +35,7 @@ async def run_migrations() -> None:
         raise RuntimeError("Database pool not initialized")
     async with _pool.acquire() as conn:
         await conn.execute(_SCHEMA_SQL)
+        await conn.execute(
+            "ALTER TABLE agents ADD COLUMN IF NOT EXISTS start_mode TEXT NOT NULL DEFAULT 'pinned'"
+        )
     print("[FSB Server] Database schema initialized")

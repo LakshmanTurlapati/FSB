@@ -327,16 +327,16 @@ class FSBWebSocket {
       }
     }
 
-    // Find the best tab for automation: streaming tab > active tab > any real tab
+    // Find the best tab for automation: streaming tab > active tab > any active tab > create about:blank
     try {
       var tabId = (typeof _streamingTabId !== 'undefined' && _streamingTabId) ? _streamingTabId : null;
 
-      // Verify streaming tab is still a real page
+      // Verify streaming tab still exists. Dashboard tasks may now start from restricted tabs too.
       if (tabId) {
         try {
           var sTab = await chrome.tabs.get(tabId);
-          if (!sTab || !sTab.url || /^(chrome|about|edge|brave|chrome-extension):/.test(sTab.url)) {
-            tabId = null; // Stale or restricted
+          if (!sTab || !sTab.id) {
+            tabId = null;
           }
         } catch (e) { tabId = null; }
       }
@@ -345,7 +345,7 @@ class FSBWebSocket {
       if (!tabId) {
         var tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
         var t = tabs[0];
-        if (t && t.url && !/^(chrome|about|edge|brave|chrome-extension):/.test(t.url)) {
+        if (t && t.id) {
           tabId = t.id;
         }
       }
@@ -354,15 +354,21 @@ class FSBWebSocket {
       if (!tabId) {
         var allActive = await chrome.tabs.query({ active: true });
         for (var i = 0; i < allActive.length; i++) {
-          if (allActive[i].url && !/^(chrome|about|edge|brave|chrome-extension):/.test(allActive[i].url)) {
+          if (allActive[i].id) {
             tabId = allActive[i].id;
             break;
           }
         }
       }
 
+      // Fallback 3: create a neutral tab and let background routing decide the first page
       if (!tabId) {
-        this.send('ext:task-complete', { success: false, error: 'No active browser tab with a real page', elapsed: 0 });
+        var created = await chrome.tabs.create({ url: 'about:blank', active: true });
+        tabId = created && created.id;
+      }
+
+      if (!tabId) {
+        this.send('ext:task-complete', { success: false, error: 'No usable browser tab found for automation', elapsed: 0 });
         return;
       }
       startDashboardTask(tabId, task);

@@ -4,13 +4,13 @@ milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: verifying
 stopped_at: Completed 139.2-01-PLAN.md
-last_updated: "2026-04-02T01:36:18.485Z"
+last_updated: "2026-04-02T01:37:15.876Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
   percent: 71
 ---
 
@@ -25,8 +25,8 @@ See: .planning/PROJECT.md (updated 2026-03-31)
 
 ## Current Position
 
-Phase: 139 (Dead Code Removal & Polish) -- plan 1 of 2 complete
-Plan: 2 of 2 complete
+Phase: 139.2 of 2 (Dead Code Removal & Polish)
+Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-04-02
 

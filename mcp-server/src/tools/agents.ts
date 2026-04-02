@@ -18,31 +18,36 @@ export function registerAgentTools(
   // create_agent -- create a new background agent (mutation)
   server.tool(
     'create_agent',
-    'Create a new background agent. The agent will execute a task on a target URL on a schedule. Returns the created agent with its ID.',
+    'Create a new background agent. The agent can either use a pinned URL or let AI choose its starting site at run time. Returns the created agent with its ID.',
     {
       name: z.string().describe('Agent display name'),
       task: z.string().describe('Natural language task description the agent will execute'),
-      target_url: z.string().url().describe('URL the agent will navigate to before executing'),
+      start_mode: z.enum(['pinned', 'ai_routed']).optional().describe('How the agent chooses its starting page. pinned uses target_url; ai_routed resolves from the task at run time.'),
+      target_url: z.string().url().optional().describe('Pinned start URL. Required when start_mode is pinned; omit for ai_routed.'),
       schedule_type: z.enum(['interval', 'daily', 'once']).describe('Schedule type: interval (every N minutes), daily (at specific time), once (run once then disable)'),
       interval_minutes: z.number().optional().describe('Minutes between runs (required for interval schedule)'),
       daily_time: z.string().optional().describe('Time of day in HH:MM format (required for daily schedule)'),
       days_of_week: z.array(z.number().min(0).max(6)).optional().describe('Days of week 0=Sun..6=Sat (optional for daily schedule, defaults to every day)'),
       max_iterations: z.number().min(1).max(50).optional().describe('Max AI iterations per run (default: 15)'),
     },
-    async ({ name, task, target_url, schedule_type, interval_minutes, daily_time, days_of_week, max_iterations }) => {
+    async ({ name, task, start_mode, target_url, schedule_type, interval_minutes, daily_time, days_of_week, max_iterations }) => {
       if (!bridge.isConnected) {
         return mapFSBError({ success: false, error: 'extension_not_connected' });
       }
       return queue.enqueue('create_agent', async () => {
+        const startMode = start_mode ?? (target_url ? 'pinned' : 'ai_routed');
+        if (startMode === 'pinned' && !target_url) {
+          return mapFSBError({ success: false, error: 'Pinned agents require target_url' });
+        }
         const schedule: Record<string, unknown> = { type: schedule_type };
         if (interval_minutes !== undefined) schedule.intervalMinutes = interval_minutes;
-        if (daily_time !== undefined) schedule.time = daily_time;
+        if (daily_time !== undefined) schedule.dailyTime = daily_time;
         if (days_of_week !== undefined) schedule.daysOfWeek = days_of_week;
 
         const result = await bridge.sendAndWait(
           {
             type: 'mcp:create-agent',
-            payload: { name, task, targetUrl: target_url, schedule, maxIterations: max_iterations },
+            payload: { name, task, startMode, targetUrl: target_url || '', schedule, maxIterations: max_iterations },
           },
           { timeout: 10_000 },
         );

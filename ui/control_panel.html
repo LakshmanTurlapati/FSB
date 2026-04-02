@@ -612,8 +612,17 @@
                 <textarea id="agentTask" class="form-input" rows="3" placeholder="Describe what the agent should do..."></textarea>
               </div>
               <div class="form-group">
+                <label for="agentStartMode">Start Mode</label>
+                <select id="agentStartMode" class="form-select">
+                  <option value="pinned">Pinned URL</option>
+                  <option value="ai_routed">AI decides start site</option>
+                </select>
+                <div class="form-help">Use a pinned URL for deterministic runs, or let AI choose the best starting site from the task each time.</div>
+              </div>
+              <div class="form-group" id="agentTargetUrlGroup">
                 <label for="agentTargetUrl">Target URL</label>
                 <input type="url" id="agentTargetUrl" class="form-input" placeholder="https://example.com">
+                <div class="form-help">Required only for pinned URL mode.</div>
               </div>
               <div class="form-group">
                 <label for="agentScheduleType">Schedule Type</label>

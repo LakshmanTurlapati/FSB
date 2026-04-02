@@ -70,10 +70,22 @@ class AgentExecutor {
 
     try {
       console.log('[FSB Executor] Starting agent:', agent.agentId, agent.name);
+      const startMode = agent.startMode || (agent.targetUrl ? 'pinned' : 'ai_routed');
+      const pinnedTargetUrl = startMode === 'pinned' ? agent.targetUrl : '';
+      const replayTargetUrl = agent.recordedScript?.targetUrl || pinnedTargetUrl || '';
+
+      const hasScript = agent.recordedScript &&
+        agent.recordedScript.steps &&
+        agent.recordedScript.steps.length > 0;
+      const replayEnabled = agent.replayEnabled !== false;
+      const canReplay = hasScript && replayEnabled && !!replayTargetUrl;
+      const initialUrl = canReplay
+        ? replayTargetUrl
+        : (pinnedTargetUrl || 'about:blank');
 
       // Create background tab
       backgroundTab = await chrome.tabs.create({
-        url: agent.targetUrl,
+        url: initialUrl,
         active: false
       });
 
@@ -85,19 +97,12 @@ class AgentExecutor {
       };
       this._running.set(agent.agentId, executionState);
 
-      // Wait for page to load
-      await this._waitForTabLoad(backgroundTab.id, 15000);
+      if (initialUrl !== 'about:blank') {
+        await this._waitForTabLoad(backgroundTab.id, 15000);
+        await this._ensureContentScript(backgroundTab.id);
+      }
 
-      // Wait for content script to be ready
-      await this._ensureContentScript(backgroundTab.id);
-
-      // --- Decision gate: replay or AI? ---
-      const hasScript = agent.recordedScript &&
-        agent.recordedScript.steps &&
-        agent.recordedScript.steps.length > 0;
-      const replayEnabled = agent.replayEnabled !== false;
-
-      if (hasScript && replayEnabled) {
+      if (canReplay) {
         // --- REPLAY PATH ---
         console.log('[FSB Executor] Attempting replay for agent:', agent.agentId,
           'steps:', agent.recordedScript.steps.length);
@@ -140,15 +145,17 @@ class AgentExecutor {
 
         // Open fresh tab for AI fallback
         backgroundTab = await chrome.tabs.create({
-          url: agent.targetUrl,
+          url: pinnedTargetUrl || 'about:blank',
           active: false
         });
 
         // Update running state with new tab
         executionState.tabId = backgroundTab.id;
 
-        await this._waitForTabLoad(backgroundTab.id, 15000);
-        await this._ensureContentScript(backgroundTab.id);
+        if (pinnedTargetUrl) {
+          await this._waitForTabLoad(backgroundTab.id, 15000);
+          await this._ensureContentScript(backgroundTab.id);
+        }
 
         // Run AI fallback
         const aiResult = await this._executeWithTimeout(
@@ -157,7 +164,10 @@ class AgentExecutor {
           {
             maxIterations: agent.maxIterations || 15,
             isBackgroundAgent: true,
-            agentId: agent.agentId
+            agentId: agent.agentId,
+            triggerSource: 'background-agent',
+            reuseMatchingTabs: false,
+            activateTab: false
           }
         );
 
@@ -166,7 +176,7 @@ class AgentExecutor {
         // If AI succeeds, update the recorded script
         if (aiResult.success && aiResult.actionHistory) {
           const newScript = this._extractRecordedScript(
-            aiResult, agent.targetUrl, aiResult.actionHistory
+            aiResult, aiResult.startUrl || pinnedTargetUrl || replayTargetUrl, aiResult.actionHistory
           );
           if (newScript) {
             try {
@@ -207,7 +217,10 @@ class AgentExecutor {
         {
           maxIterations: agent.maxIterations || 15,
           isBackgroundAgent: true,
-          agentId: agent.agentId
+          agentId: agent.agentId,
+          triggerSource: 'background-agent',
+          reuseMatchingTabs: false,
+          activateTab: false
         }
       );
 
@@ -218,7 +231,7 @@ class AgentExecutor {
       // If AI succeeds, extract and save the script for future replays
       if (result.success && result.actionHistory) {
         const script = this._extractRecordedScript(
-          result, agent.targetUrl, result.actionHistory
+          result, result.startUrl || pinnedTargetUrl || replayTargetUrl, result.actionHistory
         );
         if (script) {
           try {
@@ -270,7 +283,7 @@ class AgentExecutor {
    * Extract a recorded script from a successful AI run's action history.
    * Filters to only successful, meaningful actions and assigns delays.
    * @param {Object} result - The AI execution result
-   * @param {string} targetUrl - Agent's target URL
+   * @param {string} targetUrl - Resolved start URL for replay
    * @param {Object[]} actionHistory - Array of action records from the session
    * @returns {Object|null} RecordedScript object, or null if no meaningful steps
    */
