@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
-status: executing
-stopped_at: Completed 139-02-PLAN.md
-last_updated: "2026-04-01T11:04:36.554Z"
-last_activity: 2026-04-01
+status: verifying
+stopped_at: Completed 139.2-01-PLAN.md
+last_updated: "2026-04-02T01:36:18.485Z"
+last_activity: 2026-04-02
 progress:
   total_phases: 2
   completed_phases: 0
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-03-31)
 
 Phase: 139 (Dead Code Removal & Polish) -- plan 1 of 2 complete
 Plan: 2 of 2 complete
-Status: Ready to execute
-Last activity: 2026-04-01
+Status: Phase complete — ready for verification
+Last activity: 2026-04-02
 
 Progress: [#######---] 71%
 
@@ -45,6 +45,7 @@ Progress: [#######---] 71%
 | 138 | 02 | 2min | 2 | 1 |
 | 139 | 01 | 1min | 1 | 1 |
 | Phase 139 P02 | 12min | 2 tasks | 1 files |
+| Phase 139.2 P01 | 2min | 4 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - [138-02]: Cost moved from inline statusText to dedicated structured `cost` field (PROG-03)
 - [138-02]: session.currentTool and session.lastAiReasoning for dashboard readers
 - [Phase 139]: Deleted startAutomationLoop and 4528 lines of dead code; runAgentLoop is sole autopilot path
+- [Phase 139.2]: AUTOPILOT_PARAM_TRANSFORMS in tool-executor.js for autopilot-specific param renaming (parallel to MCP schema-bridge PARAM_TRANSFORMS)
+- [Phase 139.2]: Set-based LONG_TIMEOUT_TOOLS for per-tool MCP timeout overrides (fill_sheet/read_sheet at 120s)
 
 ### Roadmap Evolution
 
@@ -87,6 +90,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-01T11:04:36.551Z
-Stopped at: Completed 139-02-PLAN.md
+Last session: 2026-04-02T01:36:18.483Z
+Stopped at: Completed 139.2-01-PLAN.md
 Resume file: None
