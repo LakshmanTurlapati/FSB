@@ -826,13 +826,18 @@
 
 /* Analytics hero card */
 .rec-analytics-hero {
-  background: var(--primary);
+  background: linear-gradient(135deg, var(--primary), #ff8c42);
   border-radius: 16px;
   padding: 24px;
   margin-bottom: 20px;
+  color: #fff;
+}
+
+.rec-hero-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
+  text-align: center;
 }
 
 [data-theme="light"] .rec-analytics-hero {
