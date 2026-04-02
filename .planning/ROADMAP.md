@@ -338,7 +338,9 @@ Plans:
   2. Switching the showcase theme toggle between dark and light renders the sidepanel replica with accurate color tokens from sidepanel.css in both modes
   3. Scrolling the sidepanel replica into view triggers an animated message cascade using the existing IntersectionObserver pattern
   4. No visual element from the real sidepanel Chat view is missing or obviously wrong in the replica
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 146-01-PLAN.md -- Update sidepanel CSS dimensions/tokens and replace HTML in both recreations with pixel-accurate structure
 **UI hint**: yes
 
 ### Phase 147: Control Panel Replica
@@ -381,8 +383,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 145. Fresh UI Audit & Token Baseline | 1/1 | Complete   | 2026-04-02 |
-| 146. Sidepanel Replica | 0/? | Not started | - |
+| 145. Fresh UI Audit & Token Baseline | 1/1 | Complete    | 2026-04-02 |
+| 146. Sidepanel Replica | 0/1 | Not started | - |
 | 147. Control Panel Replica | 0/? | Not started | - |
 | 148. MCP Terminal Examples | 0/? | Not started | - |
 | 149. Final Verification & Sync Comments | 0/? | Not started | - |
