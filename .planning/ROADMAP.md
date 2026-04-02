@@ -48,7 +48,7 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 ### Phases (v0.9.24)
 
 - [x] **Phase 156: State Foundation** - Typed session schema, transcript store, structured turn results, action history events, and state change emitter (completed 2026-04-02)
-- [ ] **Phase 157: Engine Configuration** - Cost tracker extraction, permission context stub, session limits config, and execution mode formalization
+- [x] **Phase 157: Engine Configuration** - Cost tracker extraction, permission context stub, session limits config, and execution mode formalization (completed 2026-04-02)
 - [ ] **Phase 158: Hook Pipeline** - Lifecycle event system with safety breakers, tool permission pre-checks, and progress notification consolidation
 - [ ] **Phase 159: Agent Loop Refactor** - Wire extracted modules into agent-loop.js, enable session resumption, replace inline conditionals with hook calls
 - [ ] **Phase 160: Bootstrap Pipeline** - Structured service worker startup with ordered phases and deferred initialization for non-essential subsystems
@@ -81,9 +81,9 @@ Plans:
   3. Cost tracking lives in a standalone module with token budget enforcement alongside the existing $2 dollar budget breaker, not inline in agent-loop.js
   4. Session limits (max_turns, token budget, compact threshold) are read from a config object at session start, not hardcoded as magic numbers in agent-loop.js and background.js
   5. FSB's four execution modes (autopilot, mcp-manual, mcp-agent, dashboard-remote) are formalized as named mode objects with per-mode tool pool configuration, safety limits, and UI feedback channel routing
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
-- [ ] 157-01-PLAN.md -- Cost tracker extraction + engine config with session limits and execution modes
+- [x] 157-01-PLAN.md -- Cost tracker extraction + engine config with session limits and execution modes
 - [x] 157-02-PLAN.md -- Permission context stub + ENGINE-01 documentation (tool pool deferred per D-01)
 **Note**: Research reference: `Research/claude-code/src/tool_pool.py`, `Research/claude-code/src/permissions.py`, `Research/claude-code/src/cost_tracker.py`, `Research/claude-code/src/direct_modes.py`. Pitfall 5 (path-based permissions) must be addressed -- use origin-aware rules. Tool pool filtering deferred per user decision D-01 -- getPublicTools() stays inline.
 
@@ -127,7 +127,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 156. State Foundation | 2/2 | Complete    | 2026-04-02 |
-| 157. Engine Configuration | 1/2 | In Progress|  |
+| 157. Engine Configuration | 2/2 | Complete   | 2026-04-02 |
 | 158. Hook Pipeline | 0/? | Not started | - |
 | 159. Agent Loop Refactor | 0/? | Not started | - |
 | 160. Bootstrap Pipeline | 0/? | Not started | - |

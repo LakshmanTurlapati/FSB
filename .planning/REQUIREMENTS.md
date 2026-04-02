@@ -19,8 +19,8 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 - [x] **ENGINE-01**: Tool pool assembles per-session filtered tool sets based on task type and permissions, reducing the 47 tools sent on every API call to a relevant subset of 12-20 tools
 - [x] **ENGINE-02**: Permission context implements deny-list gating per tool name with origin-aware rules using Chrome match patterns -- not file-path prefixes
-- [ ] **ENGINE-03**: Cost tracker extracts cost tracking into a standalone module with token budget enforcement alongside the existing $2 dollar budget breaker
-- [ ] **ENGINE-04**: Engine config provides configurable session limits (max_turns, token budget, compact threshold) replacing hardcoded constants scattered through agent-loop.js and background.js
+- [x] **ENGINE-03**: Cost tracker extracts cost tracking into a standalone module with token budget enforcement alongside the existing $2 dollar budget breaker
+- [x] **ENGINE-04**: Engine config provides configurable session limits (max_turns, token budget, compact threshold) replacing hardcoded constants scattered through agent-loop.js and background.js
 
 ### Hook Pipeline
 
@@ -42,7 +42,7 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 ### Mode Routing
 
-- [ ] **MODE-01**: Formalize FSB's existing execution modes (autopilot, mcp-manual, mcp-agent, dashboard-remote) as named mode objects with per-mode tool pool configuration, safety limits, and UI feedback channel routing
+- [x] **MODE-01**: Formalize FSB's existing execution modes (autopilot, mcp-manual, mcp-agent, dashboard-remote) as named mode objects with per-mode tool pool configuration, safety limits, and UI feedback channel routing
 
 ## Future Requirements (v0.9.25+)
 
@@ -79,9 +79,9 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 | STATE-05 | Phase 156 | Complete |
 | ENGINE-01 | Phase 157 | Complete |
 | ENGINE-02 | Phase 157 | Complete |
-| ENGINE-03 | Phase 157 | Pending |
-| ENGINE-04 | Phase 157 | Pending |
-| MODE-01 | Phase 157 | Pending |
+| ENGINE-03 | Phase 157 | Complete |
+| ENGINE-04 | Phase 157 | Complete |
+| MODE-01 | Phase 157 | Complete |
 | HOOK-01 | Phase 158 | Pending |
 | HOOK-02 | Phase 158 | Pending |
 | HOOK-03 | Phase 158 | Pending |
