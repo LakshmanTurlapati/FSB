@@ -27,7 +27,7 @@ Requirements for replacing outdated "See It in Action" renders with pixel-accura
 
 ### Audit & Fidelity
 
-- [ ] **AUD-01**: All replicas are built from a fresh audit of the current extension UI state (sidepanel, control panel) accounting for recent changes
+- [x] **AUD-01**: All replicas are built from a fresh audit of the current extension UI state (sidepanel, control panel) accounting for recent changes
 - [ ] **AUD-02**: User sees no obvious visual discrepancies between replicas and the real extension in a side-by-side comparison
 - [ ] **AUD-03**: Each replica section includes version-stamped sync comments for future drift detection
 
@@ -54,7 +54,7 @@ Requirements for replacing outdated "See It in Action" renders with pixel-accura
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUD-01 | Phase 145 | Pending |
+| AUD-01 | Phase 145 | Complete |
 | SP-01 | Phase 146 | Pending |
 | SP-02 | Phase 146 | Pending |
 | SP-03 | Phase 146 | Pending |

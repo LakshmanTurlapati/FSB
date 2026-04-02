@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.22
-milestone_name: Showcase High-Fidelity Replicas
-status: ready_to_plan
-stopped_at: Roadmap created, ready to plan Phase 145
-last_updated: "2026-04-02T07:00:00Z"
+milestone: v0.9.8.1
+milestone_name: npm Publishing
+status: verifying
+stopped_at: Completed 145-01-PLAN.md
+last_updated: "2026-04-02T08:17:44.392Z"
 last_activity: 2026-04-02
 progress:
-  total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 2
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** v0.9.22 Showcase High-Fidelity Replicas -- Phase 145 ready to plan
+**Current focus:** Phase 145 — Fresh UI Audit & Token Baseline
 
 ## Current Position
 
-Phase: 1 of 5 (Phase 145: Fresh UI Audit & Token Baseline)
-Plan: --
-Status: Ready to plan
-Last activity: 2026-04-02 -- Roadmap created for v0.9.22
+Phase: 145 (Fresh UI Audit & Token Baseline) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-04-02
 
 Progress: [----------] 0%
 
@@ -46,6 +46,7 @@ Progress: [----------] 0%
 | 139 | 01 | 1min | 1 | 1 |
 | Phase 139 P02 | 12min | 2 tasks | 1 files |
 | Phase 139.2 P01 | 2min | 4 tasks | 5 files |
+| Phase 145 P01 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -59,6 +60,8 @@ Recent decisions affecting current work:
 - [v0.9.22]: MCP examples show FSB tools used inside Claude Code terminal sessions
 - [v0.9.22]: All changes confined to 3 existing files: about.html, recreations.css, recreations.js
 - [v0.9.22]: Never import extension CSS directly -- translate into rec- namespace
+- [Phase 145]: Approximated color-mix() outputs as flat hex for rec- variables (showcase does not import fsb-ui-core.css)
+- [Phase 145]: Browser chrome rec- variables (frame-bg, topbar-bg, address-bg) left unchanged -- no real extension counterpart
 
 ### Roadmap Evolution
 
@@ -76,6 +79,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T07:00:00Z
-Stopped at: Roadmap created for v0.9.22, ready to plan Phase 145
+Last session: 2026-04-02T08:17:44.390Z
+Stopped at: Completed 145-01-PLAN.md
 Resume file: None

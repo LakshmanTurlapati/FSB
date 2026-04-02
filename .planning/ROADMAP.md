@@ -309,7 +309,7 @@ Plans:
 
 ### Phases (v0.9.22)
 
-- [ ] **Phase 145: Fresh UI Audit & Token Baseline** - Audit current extension UI state and establish exact color token mappings for all replicas
+- [x] **Phase 145: Fresh UI Audit & Token Baseline** - Audit current extension UI state and establish exact color token mappings for all replicas (completed 2026-04-02)
 - [ ] **Phase 146: Sidepanel Replica** - Pixel-accurate recreation of the real sidepanel Chat view in the showcase
 - [ ] **Phase 147: Control Panel Replica** - Pixel-accurate recreation of the real control panel Dashboard view in the showcase
 - [ ] **Phase 148: MCP Terminal Examples** - Claude Code-styled terminal blocks showing autopilot and manual mode MCP usage
@@ -327,7 +327,7 @@ Plans:
   3. Structural gaps between the current about.html recreation HTML and the real extension HTML are enumerated (missing elements, wrong icons, incorrect hierarchy)
 **Plans**: 1 plan
 Plans:
-- [ ] 145-01-PLAN.md -- Audit real CSS tokens, fix stale rec- variables, enumerate structural HTML gaps
+- [x] 145-01-PLAN.md -- Audit real CSS tokens, fix stale rec- variables, enumerate structural HTML gaps
 
 ### Phase 146: Sidepanel Replica
 **Goal**: Visitors see a showcase sidepanel that is visually indistinguishable from the real FSB sidepanel Chat view in both dark and light themes
@@ -381,7 +381,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 145. Fresh UI Audit & Token Baseline | 0/1 | Not started | - |
+| 145. Fresh UI Audit & Token Baseline | 1/1 | Complete   | 2026-04-02 |
 | 146. Sidepanel Replica | 0/? | Not started | - |
 | 147. Control Panel Replica | 0/? | Not started | - |
 | 148. MCP Terminal Examples | 0/? | Not started | - |
