@@ -47,7 +47,7 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 
 ### Phases (v0.9.24)
 
-- [ ] **Phase 156: State Foundation** - Typed session schema, transcript store, structured turn results, action history events, and state change emitter
+- [x] **Phase 156: State Foundation** - Typed session schema, transcript store, structured turn results, action history events, and state change emitter (completed 2026-04-02)
 - [ ] **Phase 157: Engine Configuration** - Tool pool assembly, permission gating, cost tracker extraction, session limits config, and execution mode formalization
 - [ ] **Phase 158: Hook Pipeline** - Lifecycle event system with safety breakers, tool permission pre-checks, and progress notification consolidation
 - [ ] **Phase 159: Agent Loop Refactor** - Wire extracted modules into agent-loop.js, enable session resumption, replace inline conditionals with hook calls
@@ -65,10 +65,10 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
   3. Each agent iteration returns a structured turn result carrying prompt tokens, output tokens, matched tools, permission denials, usage metrics, and stop reason -- not ad-hoc property reads from the session object
   4. Action history consists of structured event objects (not scattered session property mutations) that can be replayed and diffed between turns
   5. Session state transitions (idle, running, paused, completed, failed) broadcast to all subscribers (sidepanel, dashboard, analytics) through a single event emitter instead of scattered sendStatus calls
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 156-01-PLAN.md -- Typed session schema with hot/warm tiering + state event emitter
-- [ ] 156-02-PLAN.md -- Transcript store, structured turn results, and action history modules
+- [x] 156-02-PLAN.md -- Transcript store, structured turn results, and action history modules
 **Note**: Research reference: `Research/claude-code/src/transcript.py`, `Research/claude-code/src/session_store.py`, `Research/claude-code/src/runtime.py`. Pitfall 1 (SW state loss) and Pitfall 3 (storage quota) must be addressed here.
 
 ### Phase 157: Engine Configuration
@@ -123,7 +123,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 156. State Foundation | 1/2 | In Progress|  |
+| 156. State Foundation | 2/2 | Complete   | 2026-04-02 |
 | 157. Engine Configuration | 0/? | Not started | - |
 | 158. Hook Pipeline | 0/? | Not started | - |
 | 159. Agent Loop Refactor | 0/? | Not started | - |

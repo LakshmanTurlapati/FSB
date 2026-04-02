@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.23
 milestone_name: Dashboard Stream & Remote Control Reliability
-status: executing
-stopped_at: Completed 156-01-PLAN.md
-last_updated: "2026-04-02T12:21:28.867Z"
+status: verifying
+stopped_at: Completed 156-02-PLAN.md
+last_updated: "2026-04-02T12:27:18.000Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 155
-  completed_phases: 149
+  completed_phases: 150
   total_plans: 303
-  completed_plans: 299
+  completed_plans: 300
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-02)
 
 Phase: 156 (state-foundation) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-02
 
 Progress: [----------] 0%
@@ -46,6 +46,7 @@ Progress: [----------] 0%
 | 150 | P01 | 3min | 3 | 4 |
 | 150 | P02 | 4min | 2 | 3 |
 | Phase 156 P01 | 3min | 2 tasks | 2 files |
+| Phase Phase 156 PP02 | 3min | 3 tasks tasks | 3 files files |
 
 ## Accumulated Context
 
@@ -61,6 +62,8 @@ Recent decisions affecting current work:
 - [v0.9.24]: Origin-aware permission rules (Chrome match patterns) not path-based prefixes
 - [Phase 156]: 57 session fields with 4 hot-tier (transient) and 53 warm-tier (persisted), messages trimmed to last 20 in getWarmFields()
 - [Phase 156]: SessionStateEmitter uses prototype methods (not class syntax) for importScripts compatibility
+- [Phase Phase 156]: TranscriptStore uses function/prototype pattern for importScripts compatibility, preserves FSB token-budget-aware compaction
+- [Phase Phase 156]: TurnResult as factory function (not class) with 7 STOP_REASONS; ActionHistory with queryable event store
 
 ### Roadmap Evolution
 
@@ -79,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T12:21:28.861Z
-Stopped at: Completed 156-01-PLAN.md
+Last session: 2026-04-02T12:27:17.994Z
+Stopped at: Completed 156-02-PLAN.md
 Resume file: None
