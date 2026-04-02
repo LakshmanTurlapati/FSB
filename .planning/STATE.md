@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.23
 milestone_name: Dashboard Stream & Remote Control Reliability
-status: executing
-stopped_at: Completed 159-01-PLAN.md
-last_updated: "2026-04-02T18:54:53.460Z"
+status: verifying
+stopped_at: Completed 159-02-PLAN.md
+last_updated: "2026-04-02T19:01:24.451Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 158
-  completed_phases: 152
+  completed_phases: 153
   total_plans: 309
-  completed_plans: 305
+  completed_plans: 306
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-02)
 
 Phase: 159 (agent-loop-refactor) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-02
 
 Progress: [----------] 0%
@@ -52,6 +52,7 @@ Progress: [----------] 0%
 | Phase 158 PP01 | 2min | 2 tasks | 1 files |
 | Phase 158 P02 | 1min | 2 tasks | 3 files |
 | Phase 159 PP01 | 7min | 2 tasks | 1 files |
+| Phase 159 PP02 | 3min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,7 @@ Recent decisions affecting current work:
 - [Phase 158]: HookPipeline uses arrays (not Sets) for handler storage -- preserves registration order per D-01; async emit with try/catch error isolation per D-05; only shouldStop:true halts pipeline
 - [Phase 158]: 4 separate progress hook factories (tool/iteration/completion/error) instead of 1 multi-event handler for cleaner Phase 159 registration
 - [Phase 159]: Keep checkSafetyBreakers/detectStuck in agent-loop.js as local functions, hook factories receive via closure; TranscriptStore used per-iteration not persisted; onError hook emitted once at catch top; broadcastDashboardProgress kept for dashboard WS compat
+- [Phase 159]: 6 runAgentLoop call sites wired with createSessionHooks factory; D-03 auto-resumption validates tab existence before calling runAgentLoop on SW restart
 
 ### Roadmap Evolution
 
@@ -93,6 +95,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T18:54:53.453Z
-Stopped at: Completed 159-01-PLAN.md
+Last session: 2026-04-02T19:01:24.444Z
+Stopped at: Completed 159-02-PLAN.md
 Resume file: None

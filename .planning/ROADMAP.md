@@ -50,7 +50,7 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 - [x] **Phase 156: State Foundation** - Typed session schema, transcript store, structured turn results, action history events, and state change emitter (completed 2026-04-02)
 - [x] **Phase 157: Engine Configuration** - Cost tracker extraction, permission context stub, session limits config, and execution mode formalization (completed 2026-04-02)
 - [x] **Phase 158: Hook Pipeline** - Lifecycle event system with safety breakers, tool permission pre-checks, and progress notification consolidation (completed 2026-04-02)
-- [ ] **Phase 159: Agent Loop Refactor** - Wire extracted modules into agent-loop.js, enable session resumption, replace inline conditionals with hook calls
+- [x] **Phase 159: Agent Loop Refactor** - Wire extracted modules into agent-loop.js, enable session resumption, replace inline conditionals with hook calls (completed 2026-04-02)
 - [ ] **Phase 160: Bootstrap Pipeline** - Structured service worker startup with ordered phases and deferred initialization for non-essential subsystems
 
 ## Phase Details
@@ -110,10 +110,10 @@ Plans:
   1. agent-loop.js integrates transcript store, tool pool, permission context, and hook pipeline -- inline code replaced with module calls, file reduced from ~1200 to ~700 lines
   2. A restored session after service worker kill can continue automation from the last completed tool result (resume iteration loop) instead of only displaying status and allowing stop
   3. All safety checks, progress updates, and permission gates execute through the hook pipeline -- no inline conditionals for these concerns remain in the iteration function
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 159-01-PLAN.md -- Refactor agent-loop.js: remove inline code, wire module imports, add 7 hook emissions
-- [ ] 159-02-PLAN.md -- Wire background.js: importScripts, hook pipeline factory, auto-resumption from warm state
+- [x] 159-02-PLAN.md -- Wire background.js: importScripts, hook pipeline factory, auto-resumption from warm state
 **Note**: Research reference: `Research/claude-code/src/runtime.py`, `Research/claude-code/src/context.py`. Explicitly preserve setTimeout-chaining for MV3 compatibility. Do NOT convert to synchronous loop or async/await iteration.
 
 ### Phase 160: Bootstrap Pipeline
@@ -135,5 +135,5 @@ Plans:
 | 156. State Foundation | 2/2 | Complete    | 2026-04-02 |
 | 157. Engine Configuration | 2/2 | Complete    | 2026-04-02 |
 | 158. Hook Pipeline | 2/2 | Complete    | 2026-04-02 |
-| 159. Agent Loop Refactor | 1/2 | In Progress|  |
+| 159. Agent Loop Refactor | 2/2 | Complete   | 2026-04-02 |
 | 160. Bootstrap Pipeline | 0/? | Not started | - |
