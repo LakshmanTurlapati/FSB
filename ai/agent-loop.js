@@ -674,7 +674,7 @@ async function callProviderWithTools(providerInstance, model, apiKey, messages, 
  * @param {Function|null} options.handleDataTool - Data tool handler callback
  */
 async function runAgentLoop(sessionId, options) {
-  const { activeSessions, persistSession: persist, sendSessionStatus: sendStatus, startKeepAlive } = options;
+  const { activeSessions, persistSession: persist, sendSessionStatus: sendStatus, startKeepAlive, hooks } = options;
 
   const session = activeSessions.get(sessionId);
   if (!session) {
@@ -696,19 +696,19 @@ async function runAgentLoop(sessionId, options) {
     const systemPrompt = buildSystemPrompt(session.task, tabUrl);
     hydrateAgentRunState(session, systemPrompt);
 
-    // Initialize safety thresholds from chrome.storage.local (SAFE-01, SAFE-02)
+    // Initialize safety thresholds via engine-config (SAFE-01, SAFE-02)
     try {
-      const storedSettings = await chrome.storage.local.get({
-        costLimit: 2.00,
-        timeLimit: 10
-      });
+      var sessionConfig = await _al_loadSessionConfig(session.mode || 'autopilot');
       session.safetyConfig = {
-        costLimit: parseFloat(storedSettings.costLimit) || 2.00,
-        timeLimit: (parseInt(storedSettings.timeLimit) || 10) * 60 * 1000 // Convert minutes to ms
+        costLimit: sessionConfig.costLimit || _al_SESSION_DEFAULTS.costLimit || 2.00,
+        timeLimit: sessionConfig.timeLimit || _al_SESSION_DEFAULTS.timeLimit || 600000
       };
     } catch (_e) {
       // Fallback to defaults if storage unavailable
-      session.safetyConfig = { costLimit: 2.00, timeLimit: 10 * 60 * 1000 };
+      session.safetyConfig = {
+        costLimit: _al_SESSION_DEFAULTS.costLimit || 2.00,
+        timeLimit: _al_SESSION_DEFAULTS.timeLimit || 600000
+      };
     }
 
     // Get provider configuration from chrome.storage.local (where options page saves them)
@@ -796,22 +796,21 @@ async function runAgentLoop(sessionId, options) {
  * @param {Object} options - Background.js callbacks (same as runAgentLoop)
  */
 async function runAgentIteration(sessionId, options) {
-  const {
-    activeSessions,
-    persistSession: persist,
-    sendSessionStatus: sendStatus,
-    broadcastDashboardProgress,
-    endSessionOverlays,
-    cleanupSession,
-    executeCDPToolDirect,
-    handleDataTool
-  } = options;
+  var activeSessions = options.activeSessions;
+  var persist = options.persistSession;
+  var sendStatus = options.sendSessionStatus;
+  var broadcastDashboardProgress = options.broadcastDashboardProgress;
+  var endSessionOverlays = options.endSessionOverlays;
+  var cleanupSession = options.cleanupSession;
+  var executeCDPToolDirect = options.executeCDPToolDirect;
+  var handleDataTool = options.handleDataTool;
+  var hooks = options.hooks;
 
   // Helper: save session to automation logger so MCP list_sessions/get_session_detail can find it
   function saveToLogger(sid, sess, status) {
     try {
       if (typeof automationLogger !== 'undefined' && automationLogger.saveSession) {
-        const duration = Date.now() - (sess.startTime || Date.now());
+        var duration = Date.now() - (sess.startTime || Date.now());
         automationLogger.logSessionEnd(sid, status, (sess.actionHistory || []).length, duration);
         automationLogger.saveSession(sid, sess);
       }
@@ -828,12 +827,12 @@ async function runAgentIteration(sessionId, options) {
         partial: isError,
         reason: isError ? 'error' : 'completed',
         task: sess.task
-      }).catch(() => {});
+      }).catch(function() {});
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
   }
 
   function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(function(resolve) { setTimeout(resolve, ms); });
   }
 
   function describeToolCall(name, args) {
@@ -880,7 +879,7 @@ async function runAgentIteration(sessionId, options) {
   }
 
   // a. Retrieve session
-  const session = activeSessions.get(sessionId);
+  var session = activeSessions.get(sessionId);
 
   // b. Guard: session must exist and be running
   if (!session || session.status !== 'running') {
@@ -888,15 +887,16 @@ async function runAgentIteration(sessionId, options) {
   }
 
   // b2. Safety breaker check (SAFE-01 cost, SAFE-02 time)
-  const safety = checkSafetyBreakers(session);
+  var safety = checkSafetyBreakers(session);
   if (safety.shouldStop) {
     session.status = 'stopped';
-    if (typeof sendStatus === 'function') {
-      sendStatus(session.tabId, {
-        phase: 'ended', reason: 'safety',
-        taskName: session.task,
-        statusText: safety.reason,
-        cost: (session.agentState.totalCost || 0).toFixed(4)
+    // Emit onCompletion hook for safety stop
+    if (hooks) {
+      await hooks.emit(_al_LIFECYCLE_EVENTS.ON_COMPLETION, {
+        session: session, sessionId: sessionId,
+        reason: 'safety', message: safety.reason,
+        iteration: session.agentState.iterationCount,
+        totalCost: session.agentState.totalCost || 0
       });
     }
     if (typeof endSessionOverlays === 'function') {
@@ -908,16 +908,13 @@ async function runAgentIteration(sessionId, options) {
 
   // c. Increment iteration count
   session.agentState.iterationCount++;
-  const iterNum = session.agentState.iterationCount;
+  var iterNum = session.agentState.iterationCount;
 
-  // d. Send analyzing status with cost (PROG-01, PROG-03)
-  if (typeof sendStatus === 'function') {
-    sendStatus(session.tabId, {
-      phase: 'analyzing',
-      taskName: session.task,
-      statusText: 'Reviewing page state',
-      iteration: iterNum,
-      cost: (session.agentState.totalCost || 0).toFixed(4)
+  // c2. Emit beforeIteration hook (LOOP-03)
+  if (hooks) {
+    await hooks.emit(_al_LIFECYCLE_EVENTS.BEFORE_ITERATION, {
+      session: session, sessionId: sessionId,
+      iteration: iterNum
     });
   }
 
@@ -928,24 +925,35 @@ async function runAgentIteration(sessionId, options) {
 
   try {
     // f. Get provider settings from cached session config
-    const { providerKey, model, providerInstance } = session.providerConfig;
+    var providerKey = session.providerConfig.providerKey;
+    var model = session.providerConfig.model;
+    var providerInstance = session.providerConfig.providerInstance;
 
-    // f2. Compact history if approaching token budget (CTX-03)
-    compactHistory(session.messages);
-    const turnMessages = buildTurnMessages(session);
+    // f2. Compact history via TranscriptStore if available (CTX-03)
+    if (_al_TranscriptStore) {
+      var _ts = new _al_TranscriptStore({
+        tokenBudget: _al_SESSION_DEFAULTS.tokenBudget || 128000,
+        compactThreshold: _al_SESSION_DEFAULTS.compactThreshold || 0.8,
+        keepRecentCount: _al_SESSION_DEFAULTS.keepRecentCount || 5
+      });
+      _ts.hydrate(session.messages);
+      _ts.compact();
+      session.messages = _ts.replay();
+    }
+    var turnMessages = buildTurnMessages(session);
 
     // g. Make API call with tool definitions
-    const response = await callProviderWithTools(
+    var response = await callProviderWithTools(
       providerInstance, model, null, turnMessages, session.tools, providerKey
     );
 
     // h. Extract and accumulate usage
-    const usage = _extractUsage(response, providerKey);
-    const inputTokens = usage.input || 0;
-    const outputTokens = usage.output || 0;
+    var usage = _extractUsage(response, providerKey);
+    var inputTokens = usage.input || 0;
+    var outputTokens = usage.output || 0;
     session.agentState.totalInputTokens += inputTokens;
     session.agentState.totalOutputTokens += outputTokens;
-    session.agentState.totalCost += estimateCost(model, inputTokens, outputTokens);
+    session.agentState.totalCost += _al_estimateCost(model, inputTokens, outputTokens);
 
     // Also update session-level counters for backward compatibility
     session.totalInputTokens = session.agentState.totalInputTokens;
@@ -953,26 +961,40 @@ async function runAgentIteration(sessionId, options) {
     session.totalCost = session.agentState.totalCost;
     session.iterationCount = iterNum;
 
+    // h2. Emit afterApiResponse hook
+    if (hooks) {
+      await hooks.emit(_al_LIFECYCLE_EVENTS.AFTER_API_RESPONSE, {
+        session: session, sessionId: sessionId,
+        iteration: iterNum,
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+        totalCost: session.agentState.totalCost,
+        model: model
+      });
+    }
+
     // i. Check if AI is done (end_turn) or wants to call tools
     if (!_isToolCallResponse(response, providerKey)) {
       // AI is done -- extract final text
-      let finalText = '';
+      var finalText = '';
       try {
         if (providerKey === 'anthropic') {
-          const textBlocks = (response.content || []).filter(b => b.type === 'text');
-          finalText = textBlocks.map(b => b.text).join('\n');
+          var textBlocks = (response.content || []).filter(function(b) { return b.type === 'text'; });
+          finalText = textBlocks.map(function(b) { return b.text; }).join('\n');
         } else if (providerKey === 'gemini') {
-          const parts = response.candidates?.[0]?.content?.parts || [];
-          finalText = parts.filter(p => p.text).map(p => p.text).join('\n');
+          var gemParts = response.candidates && response.candidates[0] && response.candidates[0].content
+            ? response.candidates[0].content.parts || [] : [];
+          finalText = gemParts.filter(function(p) { return p.text; }).map(function(p) { return p.text; }).join('\n');
         } else {
-          finalText = response.choices?.[0]?.message?.content || '';
+          finalText = (response.choices && response.choices[0] && response.choices[0].message)
+            ? response.choices[0].message.content || '' : '';
         }
       } catch (_e) {
         finalText = 'Task completed.';
       }
 
       console.log('[AgentLoop] AI signaled end_turn', {
-        sessionId, iteration: iterNum, finalTextLength: finalText.length,
+        sessionId: sessionId, iteration: iterNum, finalTextLength: finalText.length,
         finalText: finalText.substring(0, 500)
       });
 
@@ -980,13 +1002,13 @@ async function runAgentIteration(sessionId, options) {
       session.status = 'completed';
       session.completionMessage = finalText;
 
-      if (typeof sendStatus === 'function') {
-        sendStatus(session.tabId, {
-          phase: 'complete',
-          taskName: session.task,
-          statusText: finalText.substring(0, 200),
-          iteration: iterNum,
-          cost: (session.agentState.totalCost || 0).toFixed(4)
+      // Emit onCompletion hook
+      if (hooks) {
+        await hooks.emit(_al_LIFECYCLE_EVENTS.ON_COMPLETION, {
+          session: session, sessionId: sessionId,
+          iteration: iterNum, message: finalText.substring(0, 200),
+          totalCost: session.agentState.totalCost || 0,
+          reason: 'end_turn'
         });
       }
 
@@ -1003,74 +1025,103 @@ async function runAgentIteration(sessionId, options) {
     }
 
     // j. Push assistant message to history (BEFORE tool results, per Pitfall 5)
-    const assistantMsg = _formatAssistantMessage(response, providerKey);
+    var assistantMsg = _formatAssistantMessage(response, providerKey);
     session.messages.push(assistantMsg);
 
     // k. Parse tool calls
-    const toolCalls = _parseToolCalls(response, providerKey);
+    var toolCalls = _parseToolCalls(response, providerKey);
 
     if (toolCalls.length === 0) {
       // No tool calls parsed but isToolCallResponse was true -- defensive fallback
-      console.warn('[AgentLoop] isToolCallResponse=true but no tool calls parsed', { sessionId, iteration: iterNum });
+      console.warn('[AgentLoop] isToolCallResponse=true but no tool calls parsed', { sessionId: sessionId, iteration: iterNum });
       session.messages.push({ role: 'user', content: 'No tool calls were detected. Please either call a tool or provide your final answer.' });
       await persist(sessionId, session);
-      session._nextIterationTimer = setTimeout(() => runAgentIteration(sessionId, options), 100);
+      session._nextIterationTimer = setTimeout(function() { runAgentIteration(sessionId, options); }, 100);
       return;
     }
 
     // l. Execute each tool call SEQUENTIALLY (browser actions must be serial)
-    const toolResults = [];
-    for (const call of toolCalls) {
-      let result;
+    var toolResults = [];
+    for (var ci = 0; ci < toolCalls.length; ci++) {
+      var call = toolCalls[ci];
+      var result;
+
+      // l2. Emit beforeToolExecution hook (permission check)
+      if (hooks) {
+        var permResult = await hooks.emit(_al_LIFECYCLE_EVENTS.BEFORE_TOOL_EXECUTION, {
+          toolName: call.name,
+          origin: '',
+          session: session, sessionId: sessionId,
+          iteration: iterNum
+        });
+        // If permission denied, skip tool execution and return denial as result
+        var denialResult = (permResult.results || []).find(function(r) { return r && r.denied; });
+        if (denialResult && denialResult.denial) {
+          result = {
+            success: false, hadEffect: false,
+            error: denialResult.denial.reason || 'Tool not permitted',
+            navigationTriggered: false, result: null
+          };
+          toolResults.push({ callId: call.id, name: call.name, result: result });
+          // Push action event for denied tool
+          if (!session.actionHistory) session.actionHistory = [];
+          session.actionHistory.push(_al_createActionEvent({
+            tool: call.name, params: call.args,
+            result: { success: false, hadEffect: false, error: result.error },
+            timestamp: Date.now(), iteration: iterNum
+          }));
+          continue; // Skip to next tool
+        }
+      }
 
       // --- Local tool interception (Phase 138 on-demand context) ---
       if (call.name === 'get_page_snapshot') {
         // CTX-01: Fetch markdown snapshot from content script
         try {
-          const mdResponse = await chrome.tabs.sendMessage(session.tabId, {
+          var mdResponse = await chrome.tabs.sendMessage(session.tabId, {
             action: 'getMarkdownSnapshot',
             options: { charBudget: 12000, maxElements: 80 }
           }, { frameId: 0 });
-          if (mdResponse?.success && mdResponse.markdownSnapshot) {
+          if (mdResponse && mdResponse.success && mdResponse.markdownSnapshot) {
             result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
               result: { snapshot: mdResponse.markdownSnapshot, elementCount: mdResponse.elementCount || 0 } };
           } else {
-            result = { success: false, hadEffect: false, error: mdResponse?.error || 'Snapshot unavailable', navigationTriggered: false, result: null };
+            result = { success: false, hadEffect: false, error: (mdResponse && mdResponse.error) || 'Snapshot unavailable', navigationTriggered: false, result: null };
           }
         } catch (err) {
-          result = { success: false, hadEffect: false, error: `get_page_snapshot failed: ${err.message}`, navigationTriggered: false, result: null };
+          result = { success: false, hadEffect: false, error: 'get_page_snapshot failed: ' + err.message, navigationTriggered: false, result: null };
         }
       } else if (call.name === 'get_site_guide') {
         // CTX-02: Load site guide for domain
-        const domain = call.args?.domain || '';
+        var domain = (call.args && call.args.domain) || '';
         try {
-          const guide = (typeof getGuideForTask === 'function')
-            ? getGuideForTask('', `https://${domain}`)
+          var guide = (typeof getGuideForTask === 'function')
+            ? getGuideForTask('', 'https://' + domain)
             : null;
           if (guide) {
             result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
-              result: { domain, site: guide.site || guide.name || domain, guidance: JSON.stringify(guide.selectors || guide) } };
+              result: { domain: domain, site: guide.site || guide.name || domain, guidance: JSON.stringify(guide.selectors || guide) } };
           } else {
             result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
-              result: { domain, guidance: `No site guide available for ${domain}. Use get_page_snapshot and get_dom_snapshot to discover elements.` } };
+              result: { domain: domain, guidance: 'No site guide available for ' + domain + '. Use get_page_snapshot and get_dom_snapshot to discover elements.' } };
           }
         } catch (err) {
           result = { success: true, hadEffect: false, error: null, navigationTriggered: false,
-            result: { domain, guidance: `No site guide available for ${domain}.` } };
+            result: { domain: domain, guidance: 'No site guide available for ' + domain + '.' } };
         }
       } else if (call.name === 'complete_task') {
         // Task lifecycle: complete
-        const summary = call.args?.summary || 'Task completed';
+        var summary = (call.args && call.args.summary) || 'Task completed';
         console.log('[AgentLoop] Task completed:', summary);
         session.status = 'completed';
         session.result = summary;
-        if (typeof sendStatus === 'function') {
-          sendStatus(session.tabId, {
-            phase: 'complete',
-            taskName: session.task,
-            statusText: summary,
-            iteration: iterNum,
-            cost: (session.agentState.totalCost || 0).toFixed(4)
+        // Emit onCompletion hook
+        if (hooks) {
+          await hooks.emit(_al_LIFECYCLE_EVENTS.ON_COMPLETION, {
+            session: session, sessionId: sessionId,
+            iteration: iterNum, message: summary,
+            totalCost: session.agentState.totalCost || 0,
+            reason: 'complete_task'
           });
         }
         await persist(sessionId, session);
@@ -1078,17 +1129,16 @@ async function runAgentIteration(sessionId, options) {
         return; // End the loop -- task is done
       } else if (call.name === 'fail_task') {
         // Task lifecycle: failure
-        const reason = call.args?.reason || 'Task failed';
+        var reason = (call.args && call.args.reason) || 'Task failed';
         console.log('[AgentLoop] Task failed:', reason);
         session.status = 'error';
         session.error = reason;
-        if (typeof sendStatus === 'function') {
-          sendStatus(session.tabId, {
-            phase: 'error',
-            taskName: session.task,
-            statusText: reason,
-            iteration: iterNum,
-            cost: (session.agentState.totalCost || 0).toFixed(4)
+        // Emit onError hook
+        if (hooks) {
+          await hooks.emit(_al_LIFECYCLE_EVENTS.ON_ERROR, {
+            session: session, sessionId: sessionId,
+            iteration: iterNum, error: reason,
+            totalCost: session.agentState.totalCost || 0
           });
         }
         await persist(sessionId, session);
@@ -1096,43 +1146,22 @@ async function runAgentIteration(sessionId, options) {
         return; // End the loop -- task failed
       } else if (call.name === 'report_progress') {
         // PROG-02: Update progress overlay with AI reasoning and cost
-        const msg = call.args?.message || '';
-        if (typeof sendStatus === 'function') {
-          sendStatus(session.tabId, {
-            phase: 'progress',
-            taskName: session.task,
-            statusText: msg,
-            iteration: iterNum,
-            cost: (session.agentState.totalCost || 0).toFixed(4),
-            aiReasoning: msg
-          });
-        }
+        var msg = (call.args && call.args.message) || '';
         session.lastAiReasoning = msg;
         result = { success: true, hadEffect: false, error: null, navigationTriggered: false, result: { displayed: true } };
       } else {
-        if (typeof sendStatus === 'function') {
-          sendStatus(session.tabId, {
-            phase: (call.name === 'open_tab' || call.name === 'switch_tab') ? 'switching_tab' : 'acting',
-            taskName: session.task,
-            statusText: describeToolCall(call.name, call.args),
-            iteration: iterNum,
-            cost: (session.agentState.totalCost || 0).toFixed(4),
-            currentTool: call.name
-          });
-        }
-
         // Standard tool: dispatch through unified executor
         result = await _executeTool(call.name, call.args, session.tabId, {
           cdpHandler: executeCDPToolDirect
-            ? (verb, params, tabId) => executeCDPToolDirect({ tool: verb, params }, tabId)
+            ? function(verb, params, tabId) { return executeCDPToolDirect({ tool: verb, params: params }, tabId); }
             : null,
           dataHandler: handleDataTool
         });
       }
 
       // Tab-switching tools: update session.tabId so subsequent tools target the new tab
-      if ((call.name === 'open_tab' || call.name === 'switch_tab') && result.success && result.result?.tabId) {
-        const newTabId = result.result.tabId;
+      if ((call.name === 'open_tab' || call.name === 'switch_tab') && result.success && result.result && result.result.tabId) {
+        var newTabId = result.result.tabId;
         console.log('[AgentLoop] Tab changed', { from: session.tabId, to: newTabId, tool: call.name });
         session.tabId = newTabId;
 
@@ -1147,17 +1176,24 @@ async function runAgentIteration(sessionId, options) {
         }
       }
 
-      toolResults.push({ callId: call.id, name: call.name, result });
+      toolResults.push({ callId: call.id, name: call.name, result: result });
 
-      // Update action history for progress tracking
+      // Update action history using createActionEvent
       if (!session.actionHistory) session.actionHistory = [];
-      session.actionHistory.push({
-        tool: call.name,
-        params: call.args,
-        result: { success: result.success, hadEffect: result.hadEffect },
-        timestamp: Date.now(),
-        iteration: iterNum
-      });
+      session.actionHistory.push(_al_createActionEvent({
+        tool: call.name, params: call.args,
+        result: { success: result.success, hadEffect: result.hadEffect, error: result.error || null },
+        timestamp: Date.now(), iteration: iterNum
+      }));
+
+      // Emit afterToolExecution hook
+      if (hooks) {
+        await hooks.emit(_al_LIFECYCLE_EVENTS.AFTER_TOOL_EXECUTION, {
+          toolName: call.name, toolResult: result,
+          session: session, sessionId: sessionId,
+          iteration: iterNum
+        });
+      }
     }
 
     // m2. Update session progress fields for dashboard broadcast (PROG-03)
@@ -1165,8 +1201,9 @@ async function runAgentIteration(sessionId, options) {
     if (!session.lastAiReasoning) session.lastAiReasoning = null; // Reset if not set by report_progress
 
     // m. Format tool results into messages and push to history
-    for (const tr of toolResults) {
-      const resultMsg = _formatToolResult(
+    for (var ti = 0; ti < toolResults.length; ti++) {
+      var tr = toolResults[ti];
+      var resultMsg = _formatToolResult(
         tr.callId,
         JSON.stringify(tr.result),
         providerKey,
@@ -1175,14 +1212,34 @@ async function runAgentIteration(sessionId, options) {
       session.messages.push(resultMsg);
     }
 
-    // n. Stuck detection -- inject recovery hint if AI is stuck (SAFE-03, D-03)
-    const stuckCheck = detectStuck(session, toolResults);
-    if (stuckCheck.isStuck && stuckCheck.hint) {
-      // Inject recovery hint as an additional message after tool results
-      session.messages.push({
-        role: 'user',
-        content: stuckCheck.hint
+    // n. Emit afterIteration hook (stuck detection + safety breakers run as hook handlers)
+    if (hooks) {
+      var afterIterResult = await hooks.emit(_al_LIFECYCLE_EVENTS.AFTER_ITERATION, {
+        session: session, sessionId: sessionId,
+        iteration: iterNum, toolResults: toolResults,
+        totalCost: session.agentState.totalCost,
+        inputTokens: inputTokens, outputTokens: outputTokens
       });
+      // Check if stuck detection hook returned a hint
+      var stuckResult = (afterIterResult.results || []).find(function(r) { return r && r.isStuck; });
+      if (stuckResult && stuckResult.hint) {
+        session.messages.push({ role: 'user', content: stuckResult.hint });
+      }
+      // Check if safety breaker hook stopped the iteration
+      if (afterIterResult.stopped) {
+        session.status = 'stopped';
+        if (typeof endSessionOverlays === 'function') {
+          await endSessionOverlays(session, 'safety');
+        }
+        await persist(sessionId, session);
+        return;
+      }
+    } else {
+      // Fallback: inline stuck detection when no hooks pipeline is available
+      var stuckCheck = detectStuck(session, toolResults);
+      if (stuckCheck.isStuck && stuckCheck.hint) {
+        session.messages.push({ role: 'user', content: stuckCheck.hint });
+      }
     }
 
     // o2. Broadcast updated progress to dashboard (includes cost from session.totalCost)
@@ -1196,31 +1253,32 @@ async function runAgentIteration(sessionId, options) {
     // p. Schedule next iteration via setTimeout (per D-08, P4)
     // 100ms delay: fast enough for responsive automation,
     // long enough to yield the event loop and reset Chrome's execution timer
-    session._nextIterationTimer = setTimeout(() => runAgentIteration(sessionId, options), 100);
+    session._nextIterationTimer = setTimeout(function() { runAgentIteration(sessionId, options); }, 100);
 
   } catch (error) {
     // Error handling for API call failures
-    const errMsg = error.message || String(error);
-    const errStatus = error.status;
+    var errMsg = error.message || String(error);
+    var errStatus = error.status;
 
     console.error('[AgentLoop] Iteration error', {
-      sessionId, iteration: iterNum, error: errMsg, status: errStatus,
+      sessionId: sessionId, iteration: iterNum, error: errMsg, status: errStatus,
       responseText: error.responseText || 'no response body'
     });
+
+    // Emit onError hook for all error types
+    if (hooks) {
+      await hooks.emit(_al_LIFECYCLE_EVENTS.ON_ERROR, {
+        session: session, sessionId: sessionId,
+        iteration: iterNum, error: errMsg,
+        errorStatus: errStatus,
+        totalCost: (session.agentState && session.agentState.totalCost) || 0
+      });
+    }
 
     // Auth errors (401/403): terminal
     if (errStatus === 401 || errStatus === 403) {
       session.status = 'error';
       session.error = 'API key invalid or expired. Please check your API key in settings.';
-      if (typeof sendStatus === 'function') {
-        sendStatus(session.tabId, {
-          phase: 'error',
-          taskName: session.task,
-          statusText: session.error,
-          iteration: iterNum,
-          cost: (session.agentState.totalCost || 0).toFixed(4)
-        });
-      }
       await persist(sessionId, session);
       await finalizeSession(sessionId, session, session.error, true);
       return;
@@ -1228,19 +1286,10 @@ async function runAgentIteration(sessionId, options) {
 
     // Bad request (400): terminal -- tool format or schema issue, don't retry
     if (errStatus === 400) {
-      const errorDetail = (error.responseText || errMsg).substring(0, 300);
+      var errorDetail = (error.responseText || errMsg).substring(0, 300);
       session.status = 'error';
-      session.error = `API rejected request (400): ${errorDetail}`;
+      session.error = 'API rejected request (400): ' + errorDetail;
       console.error('[AgentLoop] 400 Bad Request -- check tool definitions or request format:', errorDetail);
-      if (typeof sendStatus === 'function') {
-        sendStatus(session.tabId, {
-          phase: 'error',
-          taskName: session.task,
-          statusText: `Request rejected by API: ${errorDetail.substring(0, 100)}`,
-          iteration: iterNum,
-          cost: (session.agentState.totalCost || 0).toFixed(4)
-        });
-      }
       await persist(sessionId, session);
       await finalizeSession(sessionId, session, session.error, true);
       return;
@@ -1249,8 +1298,8 @@ async function runAgentIteration(sessionId, options) {
     // Rate limit (429): wait 5s and retry once
     // (UniversalProvider handles retries internally, so this is a last-resort catch)
     if (errStatus === 429 || error.isRateLimited) {
-      console.warn('[AgentLoop] Rate limited, waiting 5s before retry', { sessionId });
-      session._nextIterationTimer = setTimeout(() => runAgentIteration(sessionId, options), 5000);
+      console.warn('[AgentLoop] Rate limited, waiting 5s before retry', { sessionId: sessionId });
+      session._nextIterationTimer = setTimeout(function() { runAgentIteration(sessionId, options); }, 5000);
       return;
     }
 
@@ -1259,23 +1308,14 @@ async function runAgentIteration(sessionId, options) {
       session._lastRetryIteration = iterNum;
       // Decrement iteration count since this will be retried
       session.agentState.iterationCount--;
-      console.warn('[AgentLoop] Network error, retrying in 2s', { sessionId, error: errMsg });
-      session._nextIterationTimer = setTimeout(() => runAgentIteration(sessionId, options), 2000);
+      console.warn('[AgentLoop] Network error, retrying in 2s', { sessionId: sessionId, error: errMsg });
+      session._nextIterationTimer = setTimeout(function() { runAgentIteration(sessionId, options); }, 2000);
       return;
     }
 
     // Second failure on same iteration: terminal error
     session.status = 'error';
-    session.error = `API call failed: ${errMsg}`;
-    if (typeof sendStatus === 'function') {
-      sendStatus(session.tabId, {
-        phase: 'error',
-        taskName: session.task,
-        statusText: session.error,
-        iteration: iterNum,
-        cost: (session.agentState.totalCost || 0).toFixed(4)
-      });
-    }
+    session.error = 'API call failed: ' + errMsg;
     await persist(sessionId, session);
     await finalizeSession(sessionId, session, session.error, true);
   }
@@ -1288,5 +1328,5 @@ async function runAgentIteration(sessionId, options) {
 
 // CommonJS for Node.js testing
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { runAgentLoop, runAgentIteration, buildSystemPrompt, callProviderWithTools, estimateCost, getPublicTools, checkSafetyBreakers, detectStuck };
+  module.exports = { runAgentLoop: runAgentLoop, runAgentIteration: runAgentIteration, buildSystemPrompt: buildSystemPrompt, callProviderWithTools: callProviderWithTools, getPublicTools: getPublicTools, checkSafetyBreakers: checkSafetyBreakers, detectStuck: detectStuck };
 }
