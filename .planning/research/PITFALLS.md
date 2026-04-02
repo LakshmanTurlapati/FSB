@@ -1,293 +1,376 @@
-# Domain Pitfalls: Showcase High-Fidelity Replicas
+# Pitfalls Research: Claude Code Architecture Adaptation to Chrome Extension
 
-**Domain:** Adding pixel-accurate HTML/CSS/JS replicas of a Chrome extension UI and terminal session renders to an existing showcase/landing page
+**Domain:** Adapting a desktop CLI agent architecture (Claude Code) to Chrome Extension MV3 browser automation (FSB)
 **Researched:** 2026-04-02
-**Confidence:** HIGH (based on codebase analysis + verified patterns)
+**Confidence:** HIGH (based on direct source analysis of Research/claude-code/src/ and FSB codebase, verified against Chrome MV3 documentation)
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause visible breakage, require rewrites, or undermine the whole purpose of the replicas.
+Mistakes that cause data loss, broken automation sessions, or require full subsystem rewrites.
 
-### Pitfall 1: CSS Custom Property Collision Between Showcase and Replicas
+### Pitfall 1: RuntimeSession Assumes Process Persistence -- Service Worker Gets Killed Mid-Session
 
-**What goes wrong:** The showcase site (`main.css`) and the real extension UI (`sidepanel.css`, `options.css`, `fsb-ui-core.css`) all define CSS custom properties on `:root` with overlapping names. When replica CSS is added to the showcase page, variable definitions from one system clobber the other. The showcase uses `--text-primary: #f1f5f9` (dark mode) while the sidepanel uses `--text-primary: #333` (light mode) and `fsb-ui-core.css` uses `--text-primary: var(--fsb-text-primary)` which resolves to `#1f1a17`. Whichever loads last wins.
+**What goes wrong:**
+Claude Code's `RuntimeSession` (runtime.py) is a long-lived Python dataclass that accumulates state across the entire session: `history`, `routed_matches`, `turn_result`, `stream_events`, `command_execution_messages`, `tool_execution_messages`. The `PortRuntime.bootstrap_session()` method creates this object once and keeps it alive in-process for the duration of the session. The `run_turn_loop()` method runs up to `max_turns` iterations synchronously.
 
-**Evidence from codebase:**
-- `showcase/css/main.css` defines `--bg-primary`, `--text-primary`, `--text-secondary`, `--border-color`, `--shadow-sm`, `--text-muted` on `:root`
-- `ui/sidepanel.css` defines the **same variable names** on `:root` with **different values**
-- `ui/options.css` defines `--primary-color`, `--bg-primary`, `--text-primary`, `--border-color` on `:root` with yet **different values**
-- `shared/fsb-ui-core.css` creates compatibility aliases like `--primary: var(--fsb-primary)` on `:root`
-- 82 occurrences of these collision-prone variables across 7 showcase CSS files alone
+In FSB's Chrome MV3 context, the service worker can be terminated after 30 seconds of inactivity. A single `RuntimeSession`-style object held in a JavaScript variable (`let activeSessions = new Map()`) is lost on every service worker restart. FSB already has this problem partially -- line 2248 of background.js comments "Restored sessions can only be stopped, not resumed (loop state is lost)".
 
-**Why it happens:** The extension UI files were designed to run in their own `chrome-extension://` context where they are the only stylesheet. The showcase site was designed independently with its own design token names. Both used common, generic variable names.
+Naively porting the RuntimeSession pattern means the entire session context (routing decisions, history log, execution state) vanishes on service worker kill. The session becomes a zombie -- the UI shows "running" but the automation loop is dead.
 
-**Consequences:** Replica text becomes invisible (white text on white background, or dark text on dark background). Borders disappear or become too heavy. Shadows render wrong. The replica looks nothing like the real extension. Worse, the showcase's own nav, footer, and hero section may also break.
+**Why it happens:**
+Claude Code runs as a Node.js process that lives until the user closes it. Developers reading the RuntimeSession pattern see a clean, elegant object that holds all state. They port it directly, storing the equivalent `RuntimeSession` in a service worker global variable, not realizing that global is ephemeral.
 
-**Prevention:**
-- Never load real extension CSS files directly into the showcase. Always use namespaced replica CSS.
-- The existing `rec-` prefix strategy in `recreations.css` is the right approach. Extend it. Every CSS variable used by replicas must be prefixed: `--rec-*` for variables, `.rec-*` for classes.
-- If copying CSS from `sidepanel.css` or `options.css`, replace every `--text-primary` with `--rec-text-primary` (or scope them under a container selector).
-- Consider CSS `@scope` (Baseline since Firefox 146, Jan 2026) for true DOM-subtree scoping, but fallback to BEM-prefixed names for safety since some users may be on older browsers visiting the showcase.
-- Do NOT use `@import` of the real extension CSS files.
+**How to avoid:**
+- Split RuntimeSession into two tiers: **hot state** (transient, in-memory) and **warm state** (serializable, persisted to `chrome.storage.session`).
+- Hot state: WebSocket connections, active setTimeout handles, content script ports, streaming generators. These cannot be persisted. Accept they will be lost and design recovery paths.
+- Warm state: conversation messages, routing decisions, iteration count, token usage, cost tracking. These MUST be persisted after every state change. FSB already does this partially (lines 2194-2233 of background.js) but only persists "essential fields" and the last 5 messages.
+- The `run_turn_loop` synchronous multi-turn pattern must stay as FSB's existing `setTimeout` chaining (line 718 of agent-loop.js: "Uses setTimeout-chaining (not while-loop) for Chrome MV3 service worker compatibility"). Never convert it back to a synchronous loop.
+- Add a `resume()` capability to restored sessions, not just `stop()`. This requires persisting enough conversation context to reconstruct the API call. FSB currently can't do this (line 2248: "Restored sessions can only be stopped, not resumed").
 
-**Detection:** Visual diff -- open showcase in both dark and light modes. If any text is invisible or the wrong color, variable collision is happening.
+**Warning signs:**
+- Sessions show "running" in UI but no actions are executing
+- `session.isRestored === true` with no loop activity
+- `activeSessions.size > 0` but no `setTimeout` handles are active
+- Users report automation "freezing" after long AI response times
 
-
-### Pitfall 2: Showcase Global Reset Corrupting Replica Internals
-
-**What goes wrong:** The showcase's `main.css` applies a universal reset (`*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }`) and blanket typography rules (`h1, h2, h3 { font-weight: 700; line-height: 1.2; }`, `p { color: var(--text-secondary); }`). These cascade into every element inside the replica containers, overriding the extension's own spacing, font sizes, and colors.
-
-**Evidence from codebase:**
-- `main.css` line 72-76: universal box-sizing reset
-- `main.css` line 120-128: blanket heading and paragraph styling
-- `main.css` line 96-100: global `a` color set to `var(--primary)` with transition
-- `main.css` line 130-133: global `p` color set to `var(--text-secondary)`
-- The extension's `options.css` has its own independent reset (line 120-123) with different assumptions
-
-**Why it happens:** Standard practice is to reset once at the top level. Nobody thinks about it until they embed a foreign UI component that had its own reset assumptions.
-
-**Consequences:** Heading sizes inside the dashboard replica get forced to the showcase's clamp() values instead of the extension's pixel-based sizes. Paragraph colors inside replicas inherit the showcase's secondary text color. Links inside replicas get the showcase's orange color and transition instead of the extension's blue links. Spacing collapses or expands unexpectedly.
-
-**Prevention:**
-- Wrap each replica in a container with a specific class (e.g., `.rec-replica-sidepanel`).
-- At the top of the replica's CSS, explicitly reset all inheritable properties on the container: `font-size`, `line-height`, `color`, `letter-spacing`, `word-spacing`, `text-align`, `font-weight`.
-- Override the global `a`, `p`, `h1-h6` rules inside the replica container to match the extension's actual styling.
-- Use `all: initial` on the replica container if desperate, but this breaks CSS variable inheritance too -- so it is a nuclear option with side effects.
-
-**Detection:** Compare font sizes, line heights, and link colors between the real extension and the replica. Any deviation means cascade pollution.
-
-
-### Pitfall 3: Fidelity Drift -- Replicas Falling Out of Sync With Real Extension
-
-**What goes wrong:** The replica HTML/CSS is a snapshot of the extension UI at the time it was built. As the extension evolves (new tabs added to sidepanel, new dashboard sections, restyled buttons from the v0.9.21 UI retouch milestone), the replicas silently become inaccurate. The showcase advertises features that look different from what users actually see, or worse, shows features that no longer exist.
-
-**Why it happens:** The replica and the real extension are completely separate codebases with no shared source of truth. There is no automated check. The person updating `sidepanel.html` does not know to also update `about.html`'s replica. The showcase is deployed on fly.io while the extension ships via Chrome.
-
-**Consequences:** Prospects see the showcase, install the extension, and see a different UI. This destroys trust. "Is this even the same product?" Outdated replicas also accumulate over multiple milestones, making catch-up harder each time.
-
-**Prevention:**
-- Document a "replica sync" checklist in the milestone transition process. Every milestone that touches UI must flag whether replicas need updating.
-- Add a comment block at the top of each replica section: `<!-- Replica of: ui/sidepanel.html | Last synced: v0.9.22 | Sync trigger: any change to sidepanel UI -->`.
-- Keep replica CSS in a single file (`recreations.css`) rather than scattering it, so there is one place to update.
-- If possible, extract shared structural constants (sidebar menu items, tab names, metric labels) into a JS data object that both the extension and the showcase consume. This is complex but prevents content drift.
-- Pragmatic minimum: after each UI milestone, run a manual side-by-side screenshot comparison.
-
-**Detection:** Version mismatch between the sync comment and the current extension version. Visual side-by-side comparison shows differences.
-
-
-### Pitfall 4: Chrome Extension-Specific CSS That Breaks on Regular Web Pages
-
-**What goes wrong:** The real extension UI uses CSS patterns that work inside `chrome-extension://` pages but fail or render differently on a regular web page. Key differences:
-1. Extension pages have no competing stylesheets (no third-party ads, no CMS styles). The showcase does.
-2. Extension uses `100vh` assuming a Chrome side panel viewport (narrow, full height). On the showcase, `100vh` means the entire browser viewport.
-3. The extension's `options.css` uses `html { height: 100vh; }` and `body { height: 100vh; }` which would hijack the entire showcase page layout.
-4. Extension popup/sidepanel dimensions are constrained by Chrome (popup max ~800x600, sidepanel ~400px wide). The replica has no such constraint.
-
-**Evidence from codebase:**
-- `ui/sidepanel.css` line 35-39: `body { width: 100%; height: 100vh; overflow: hidden; }` -- this would hide all showcase content below the fold
-- `ui/options.css` line 127-142: `html/body` at `100vh` with specific `margin: 0; padding: 0;` -- stomps on showcase layout
-- `ui/sidepanel.css` line 43-49: `.sidepanel-container { height: 100vh; }` -- fills entire viewport instead of its replica frame
-
-**Why it happens:** Extension UI pages are standalone HTML documents. They own the entire viewport. Replicas are embedded components within a larger page.
-
-**Consequences:** If extension CSS is copy-pasted without adaptation: the body becomes `overflow: hidden`, hiding the rest of the showcase. The replica container tries to fill the entire screen. Scrolling breaks. The replica bleeds outside its browser frame mockup.
-
-**Prevention:**
-- Never use `100vh` in replica CSS. Replace with explicit pixel heights or `100%` relative to the `.browser-content` container.
-- Never apply styles to `html`, `body`, or `*` in replica CSS. All replica styles must target the replica container class or its descendants.
-- Replace `position: fixed` (used in extension for overlays, toasts) with `position: absolute` relative to the replica container.
-- Ensure the browser frame container has `overflow: hidden` so nothing bleeds out.
-
-**Detection:** Scroll the showcase page. If scrolling stops working, or the replica fills the entire viewport, extension viewport CSS leaked.
-
+**Phase to address:**
+Phase 1 (State and Context Management) -- this is foundational. Every other adaptation depends on sessions surviving service worker restarts.
 
 ---
 
-## Moderate Pitfalls
+### Pitfall 2: TranscriptStore.compact() Discards Critical Context in Token-Constrained Environments
 
-Issues that cause visual degradation or maintenance headaches but are recoverable without rewrites.
+**What goes wrong:**
+Claude Code's `TranscriptStore` (transcript.py) uses a simple `compact(keep_last=10)` that drops all entries except the most recent 10. The `QueryEnginePort` (query_engine.py line 130-132) compounds this: `compact_messages_if_needed()` fires automatically when `mutable_messages` exceeds `compact_after_turns` (default 12). Claude Code can afford aggressive compaction because it operates in a 200K+ token context window where 12 turns of history is generous.
 
-### Pitfall 5: Terminal/CLI Mockup Monospace Font Rendering Inconsistency
+FSB's agent loop already has a more nuanced `compactHistory()` (agent-loop.js line 262) that:
+- Triggers at 80% of token budget (not a turn count)
+- Keeps the 5 most recent tool_result messages intact
+- Replaces old tool results with one-liner summaries
+- Never touches system prompt or current iteration messages
 
-**What goes wrong:** The MCP-in-Claude-Code terminal renders use monospace fonts that render at different sizes across browsers and platforms. Browsers historically render monospace fonts at 13px instead of the expected 16px base size. Mac and Windows render the same monospace font with up to 10px line-height difference. The terminal mockup looks correct on the developer's machine but wrong for visitors.
+If you adopt Claude Code's simpler TranscriptStore.compact() pattern, you overwrite FSB's battle-tested compaction with a dumber version. FSB's 15K prompt budget (with 40/50/10 split for system/context/memory) means every token matters. Dropping messages by turn count rather than token budget wastes context capacity on short turns and blows the budget on long ones.
 
-**Evidence:** The existing showcase already uses monospace: `font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;` (see `home.css` line 118). This font stack is macOS-biased. Windows users will fall back to the generic `monospace` keyword, which may render as Courier New at a different size.
+**Why it happens:**
+The TranscriptStore pattern looks cleaner than FSB's sprawling `compactHistory()` function. A developer sees "keep last N" and thinks it is simpler and more maintainable. They miss that Claude Code's generous token budget (max_budget_tokens is 2000 in the Python port, but the real Claude Code uses 200K+) makes the simplistic approach viable there but not here.
 
-**Why it happens:** Browsers apply a historical quirk where `monospace` alone triggers a smaller default size. Different operating systems have different default monospace fonts with different metrics.
+**How to avoid:**
+- Keep FSB's existing `compactHistory()` approach. It is more sophisticated and better suited to constrained contexts.
+- If adopting any TranscriptStore-like abstraction, the `compact()` method must be token-budget-aware, not turn-count-based.
+- The compaction strategy must differentiate message types: system prompts are sacred, recent tool results are high-value, old navigation results are expendable.
+- Add compaction metrics: track how many tokens were saved per compaction event, and whether compacted sessions still complete successfully.
 
-**Prevention:**
-- Use the double-monospace trick: `font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', 'Roboto Mono', monospace, monospace;` -- the second `monospace` prevents the browser from shrinking the font.
-- Explicitly set `font-size` on all terminal elements (do not inherit).
-- Set `line-height` to a fixed value (e.g., `1.5` or `20px`) rather than relying on the font's natural metrics.
-- Include Windows-friendly fonts (`Cascadia Code`, `Consolas`) before the generic `monospace`.
-- Test on Windows -- this is the most common platform for Chrome extension users.
+**Warning signs:**
+- AI starts repeating actions it already performed (context about previous actions was compacted away)
+- AI asks "what page are we on?" when the current URL was in a compacted message
+- Task completion rate drops on multi-step tasks that exceed 10 iterations
+- Token usage per turn increases (AI is doing redundant work because it lost context)
 
-**Detection:** View the terminal mockup on Windows Chrome. If text is noticeably smaller or line spacing is off compared to the design, this is the cause.
-
-
-### Pitfall 6: Dark/Light Theme Toggle Not Reaching Replica Internals
-
-**What goes wrong:** The showcase toggles themes by setting `data-theme="light"` on the `<html>` element. The recreation CSS already handles this with `[data-theme="light"]` selectors on its `--rec-*` variables. But if new replica sections are added and the developer forgets to add light-mode overrides for the new variables, the replica stays dark when the rest of the showcase goes light (or vice versa).
-
-**Evidence from codebase:**
-- `recreations.css` lines 8-70: has proper dark/light variable sets for `--rec-*` tokens
-- The extension itself uses different theme attribute conventions: sidepanel uses `[data-theme="dark"]` (dark is the non-default), while the showcase uses `[data-theme="light"]` (light is the non-default)
-- `options.css` uses `[data-theme="dark"]` to override its light-mode defaults
-
-**Why it happens:** Theme attribute direction mismatch. The extension treats light as default and dark as the override. The showcase treats dark as default and light as the override. Copy-pasting theme logic without inverting the direction leaves one mode broken.
-
-**Consequences:** Half the replica renders correctly in dark mode but has wrong colors in light mode, or vice versa. Specifically, backgrounds may stay dark when the page goes light, creating a jarring visual.
-
-**Prevention:**
-- Standardize: replicas follow the showcase's theme convention (dark default, `[data-theme="light"]` override).
-- When adapting extension CSS to replica CSS, always invert the theme direction if needed.
-- Test both themes for every replica section before considering it done.
-
-**Detection:** Toggle the theme button on the showcase. If any replica section does not change appearance, theme overrides are missing.
-
-
-### Pitfall 7: Animation/Transition Overload Causing Performance Problems
-
-**What goes wrong:** The existing recreations already use multiple CSS animations (glow bars with `slideRight`/`slideDown` at 2s infinite, element pulse at 1.5s infinite, typing dots, viewport glow ambient). Adding more replicas (sidepanel chat, dashboard charts, terminal typing) multiplies the number of concurrent CSS animations. On lower-end devices or when multiple recreation sections are visible on the about page, this causes jank, increased GPU memory, and battery drain on mobile.
-
-**Evidence from codebase:**
-- `recreations.css`: 6+ `@keyframes` animations, all set to `infinite`
-- `recreations.js`: IntersectionObserver-triggered JS animations (counter counting, message cascading)
-- Every recreation section has a viewport glow with 4 animated border bars running continuously
-
-**Why it happens:** Each animation looks fine in isolation. Nobody profiles the page with all sections scrolled into view simultaneously.
-
-**Consequences:** Scroll jank on the about page, especially on mobile. Battery drain. Some browsers throttle background animations but not all.
-
-**Prevention:**
-- Use IntersectionObserver to pause animations when sections scroll out of view (not just to start them).
-- Consider `animation-play-state: paused` triggered by a `.is-visible` class.
-- Limit infinite animations to one per section (the most visually important one).
-- Use `will-change` sparingly and remove it when animation completes.
-- Measure: open Chrome DevTools > Performance > record a scroll. If frame rate drops below 30fps, cut animations.
-
-**Detection:** Open DevTools Performance tab. Scroll through the about page. Green bars in the timeline indicate paint activity; red bars indicate jank.
-
-
-### Pitfall 8: Responsive Breakpoint Mismatch Between Showcase and Replica
-
-**What goes wrong:** The showcase has responsive breakpoints at 1024px, 768px, and 480px. The real extension UI has different assumptions: sidepanel is always ~400px wide (no responsive needed), options dashboard has its own breakpoints. When the showcase hits its 768px breakpoint and the feature grid goes single-column, the browser frame mockup shrinks but the replica inside it does not adapt, causing horizontal overflow or content clipping.
-
-**Evidence from codebase:**
-- `main.css`: breakpoints at 768px, 480px
-- `home.css`: additional breakpoints at 1024px, 768px, 480px
-- The existing `.rec-sidepanel` has `width: 320px` as a fixed value -- this does not shrink at narrow viewports
-- `.browser-content { min-height: 400px }` -- fixed height on mobile where vertical space is precious
-
-**Why it happens:** The browser frame mockup is designed at desktop scale. On mobile, there is no sensible way to show a "browser window with sidepanel" at 375px viewport width -- the mockup is inherently a desktop concept.
-
-**Prevention:**
-- At mobile breakpoints (below 768px), either: (a) hide the sidepanel portion and show only the page content with a note "Side panel shown on desktop," or (b) stack the page content and sidepanel vertically.
-- Use `min-width: 0` on flex children to prevent the sidepanel from forcing the container wider than the viewport.
-- Test at 375px (iPhone SE), 390px (iPhone 14), and 414px (iPhone Plus).
-- For the dashboard replica: at mobile widths, hide the sidebar and show only the main content area.
-
-**Detection:** View the about page on a phone or use Chrome DevTools responsive mode at 375px. If horizontal scrolling appears or content is clipped, the replica is not responsive.
-
+**Phase to address:**
+Phase 3 (State and Context Management) -- compaction must be designed in tandem with conversation history persistence.
 
 ---
 
-## Minor Pitfalls
+### Pitfall 3: File-System Session Store Pattern Breaks Against chrome.storage Constraints
 
-Issues that cause small visual imperfections or developer friction but are low-impact.
+**What goes wrong:**
+Claude Code's `session_store.py` writes session data to the filesystem as JSON files (`DEFAULT_SESSION_DIR = Path('.port_sessions')`). The `save_session()` and `load_session()` functions use unrestricted file I/O with no size constraints. The `StoredSession` dataclass stores all messages as a tuple of strings.
 
-### Pitfall 9: External Asset Loading Failures in Replicas
+Chrome Extensions have no filesystem access. The storage options are:
+- `chrome.storage.session`: 10MB total, in-memory, survives SW restarts but cleared on browser close
+- `chrome.storage.local`: 10MB default (unlimited with `unlimitedStorage` permission, which FSB has), persisted to disk, async-only
+- IndexedDB: Unlimited but complex API
 
-**What goes wrong:** The existing Google Search recreation loads the Google logo from `https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png`. This external URL can be blocked by ad blockers, CSP policies, or simply be unavailable. The replica shows a broken image.
+FSB currently persists to `chrome.storage.session` (line 2229 of background.js) with a deliberately slim subset: sessionId, task, tabId, status, startTime, conversationId, and only the last 5 messages. This works because sessions are short-lived.
 
-**Why it happens:** Using real URLs for realistic mockups, without considering that showcase visitors may have different network conditions.
+If you adopt the full StoredSession pattern (storing ALL messages), a 20-turn automation session with DOM snapshots in tool results can easily hit 2-5MB per session. With 5 concurrent sessions, you blow through the 10MB session storage limit. Even with `chrome.storage.local` and `unlimitedStorage`, the serialization/deserialization cost of multi-MB JSON blobs on every state change creates perceptible UI jank.
 
-**Prevention:**
-- Host all assets locally in `showcase/assets/`. Never hotlink external images in mockups.
-- Use inline SVGs for logos where possible (already done for the OpenAI logo in the showcase).
-- Add `alt` text and a fallback background color on every image so broken images degrade gracefully.
+**Why it happens:**
+The file-system pattern makes persistence feel "free" -- write a file, read it back later. No size limits, no serialization overhead concerns. Developers porting this pattern to chrome.storage don't realize that every `chrome.storage.session.set()` call serializes the entire value, and reads deserialize it. With large objects, this adds 50-200ms of latency per read/write.
 
-**Detection:** Load the showcase with an ad blocker enabled. Check for broken image icons.
+**How to avoid:**
+- Never store full conversation history in `chrome.storage.session`. Keep the current "last N messages" approach.
+- Use a tiered storage strategy:
+  - `chrome.storage.session`: Minimal session metadata (status, IDs, iteration count, cost). Read on every wake.
+  - `chrome.storage.local`: Conversation history for resumable sessions. Write incrementally (append new messages, don't rewrite all).
+  - IndexedDB: DOM snapshots, large tool results, debug logs. Use for data that doesn't need to be read on every iteration.
+- Implement storage quotas per session: cap stored messages at a byte budget (e.g., 500KB per session), compacting older messages when the budget is exceeded.
+- Profile `chrome.storage.session.set()` latency with realistic payloads before committing to a persistence cadence.
 
+**Warning signs:**
+- `chrome.runtime.lastError` with "QUOTA_BYTES exceeded"
+- Slow session resumption after service worker restart (100ms+ for storage reads)
+- UI freezes during rapid tool execution (storage writes on every iteration)
+- `chrome.storage.session.get(null)` returning multi-MB payloads
 
-### Pitfall 10: Hardcoded Text Content Becoming Stale
-
-**What goes wrong:** The dashboard replica shows metrics like "24,580 Total Tokens" and "142 Requests" and session tasks like "Search for flight prices SF to NYC." These are static, hardcoded values that may look outdated or implausible as the product evolves (e.g., if FSB now processes millions of tokens per session).
-
-**Why it happens:** Mockup data is chosen once at build time and never revisited.
-
-**Prevention:**
-- Choose representative data that is plausible for a new user's first week (not too high, not too low).
-- Add a comment next to hardcoded data: `<!-- Mock data: should represent a typical week of usage -->`.
-- Review mockup data when updating replicas.
-
-**Detection:** Ask: "Does this data still represent realistic usage?" If the product has grown significantly, update the numbers.
-
-
-### Pitfall 11: Accessibility Regression in Decorative Replicas
-
-**What goes wrong:** The replicas are non-interactive decorative elements, but screen readers try to announce every element inside them as if they were functional UI. Users with assistive technology hear a stream of meaningless "button," "text input," "link" announcements from fake UI elements.
-
-**Prevention:**
-- Add `role="img"` and a descriptive `aria-label` to each top-level replica container: `<div class="browser-frame" role="img" aria-label="Screenshot showing FSB automating a Google search">`.
-- Add `aria-hidden="true"` to all elements inside the replica so screen readers skip them.
-- Ensure the section header (`<h2>`) before each replica provides the necessary context for screen reader users.
-
-**Detection:** Test with VoiceOver (macOS) or NVDA (Windows). If the screen reader reads out individual replica elements, accessibility attributes are missing.
-
-
-### Pitfall 12: Terminal ANSI Color Rendering Without Proper Semantic Markup
-
-**What goes wrong:** When creating MCP-in-Claude-Code terminal mockups, developers use `<span style="color: green">` for output coloring. This looks fine but has no semantic meaning, is hard to maintain, and does not adapt to the showcase's dark/light theme toggle.
-
-**Prevention:**
-- Define semantic CSS classes for terminal output types: `.term-prompt`, `.term-command`, `.term-output`, `.term-success`, `.term-error`, `.term-tool-name`, `.term-tool-result`.
-- Map these classes to colors using CSS variables that respond to the theme toggle.
-- Use `<pre><code>` blocks with these classes, not inline styles.
-- For Claude Code output specifically: use a distinct style for tool invocations (e.g., slightly indented with a left border) versus user prompts (with a `>` prefix character).
-
-**Detection:** Toggle the theme. If terminal colors do not change with the rest of the page, inline styles are being used instead of theme-aware variables.
-
+**Phase to address:**
+Phase 1 (State and Context Management) -- storage architecture must be decided before building any higher-level features on top of it.
 
 ---
 
-## Phase-Specific Warnings
+### Pitfall 4: Hook Pipeline Crossing Process Boundaries Creates Latency and Reliability Failures
 
-| Phase Topic | Likely Pitfall | Severity | Mitigation |
-|---|---|---|---|
-| Sidepanel replica creation | CSS variable collision (#1), global reset corruption (#2), 100vh viewport hijack (#4) | Critical | Use `rec-` prefixed variables, scope all styles under `.rec-sidepanel`, never use `100vh` |
-| Control panel (options) replica | Same collisions (#1), plus the options dashboard has a much more complex design token system (60+ variables) making collision surface area huge | Critical | Extract only the visual appearance, do not port the variable system. Rebuild using `rec-` tokens. |
-| MCP terminal session renders | Monospace font inconsistency (#5), ANSI color theming (#12), no semantic structure | Moderate | Double-monospace trick, explicit font-size, semantic `.term-*` classes |
-| Theme support for all replicas | Direction mismatch (#6), missing overrides for new sections | Moderate | Follow showcase convention (dark default), test both themes for every section |
-| Responsive adaptation | Browser frame mockup does not fit mobile (#8) | Moderate | Stack or hide sidepanel at mobile breakpoints, test at 375px |
-| Sync with future UI changes | Fidelity drift (#3) | Critical (long-term) | Version-stamped comments, sync checklist in milestone process |
-| Performance with multiple replicas | Animation overload (#7) | Moderate | Pause off-screen animations, limit infinite animations |
-| Audit of existing replicas | Existing recreations may have pre-existing instances of pitfalls #1-#8 | Moderate | Audit should come first, before adding new replicas, to establish a clean baseline |
+**What goes wrong:**
+Claude Code's hooks subsystem has 104 modules (hooks.json shows `module_count: 104`), including tool permission handlers (`PermissionContext.ts`, `coordinatorHandler.ts`, `interactiveHandler.ts`, `swarmWorkerHandler.ts`), notification hooks, and suggestion hooks. In Claude Code, these are synchronous or near-synchronous local function calls within a single Node.js process. A permission check is a function call that takes microseconds.
+
+In FSB, the equivalent pipeline crosses process boundaries:
+1. Background (service worker) decides to execute a tool
+2. Sends message to content script via `chrome.tabs.sendMessage()` (async, ~5-15ms roundtrip)
+3. Content script executes the action in the page context
+4. Sends result back to background
+
+Adding a pre-execution hook check (e.g., "is this action permitted on this origin?") to this pipeline doubles the message passing if the check also needs content script data (e.g., checking if the target element is in a sensitive form). Post-execution hooks that need to verify page state add another roundtrip.
+
+Worse, Chrome MV3 message passing is unreliable:
+- Content scripts become orphaned after extension updates
+- Port connections timeout after 5 minutes
+- BF cache can make tabs unreachable
+- Service worker restart disconnects all active ports
+
+**Why it happens:**
+Claude Code's hook system looks like a clean pattern: define hooks, register handlers, fire hooks at lifecycle points. But the hooks are designed for in-process execution where failure means a caught exception. In Chrome Extensions, failure means a disconnected message channel that silently drops the hook result.
+
+**How to avoid:**
+- Classify hooks by their execution boundary:
+  - **Background-only hooks**: Permission checks against configuration, cost tracking, rate limiting. These are cheap and reliable -- implement freely.
+  - **Content-requiring hooks**: Anything that needs page DOM data. These are expensive -- batch them with the tool execution, not as separate roundtrips.
+  - **Post-action hooks**: Verification, state capture. Bundle with the tool result response, not as separate messages.
+- Never make a tool execution wait on a cross-process hook response before starting. Use optimistic execution with rollback if the hook fails.
+- Design hooks to be fire-and-forget for non-critical paths (logging, analytics) and only block on critical paths (permission denial).
+- FSB already uses a pattern where tool execution and result capture happen in one `chrome.tabs.sendMessage()` call. Hooks must piggyback on this, not add separate roundtrips.
+
+**Warning signs:**
+- Tool execution latency increases by 2x+ after adding hooks
+- Intermittent "Could not establish connection" errors in hook responses
+- Hooks silently failing on restored sessions (content script was orphaned)
+- Automation "hangs" waiting for a hook response from a tab that navigated away
+
+**Phase to address:**
+Phase 4 (Hooks and Permissions Model) -- but the architecture decision (background-only vs cross-process) must be made in Phase 1 design.
 
 ---
 
-## FSB-Specific Considerations
+### Pitfall 5: Permission Model Assumes Hierarchical File Paths -- Web Origins Are Flat and Dynamic
 
-These pitfalls are informed by patterns unique to this codebase:
+**What goes wrong:**
+Claude Code's `ToolPermissionContext` (permissions.py) uses `deny_names` and `deny_prefixes` to gate tools. The permission model is path-based: deny a tool by name or by prefix match. This maps naturally to filesystem operations where `/home/user/sensitive/` can be denied as a prefix.
 
-1. **Three different variable naming conventions coexist.** The showcase uses unprefixed names (`--primary`, `--text-primary`). The newer shared UI core uses `--fsb-` prefixed names. The original extension UI files use a mix. The replicas introduced `--rec-` prefixed names. Any integration work must be clear about which namespace it is working in.
+Web origins don't work this way. An origin like `https://bank.example.com` is either permitted or not -- there's no hierarchical relationship between `https://bank.example.com/accounts` and `https://bank.example.com/settings`. A prefix deny on `bank` would also block `https://bankofamerica.com` and `https://bankruptcy-info.org`. URL paths within an origin have no security significance (same-origin policy treats them identically).
 
-2. **The `fsb-ui-core.css` compatibility aliases are a trap.** Lines 69-76 of `fsb-ui-core.css` set `--primary: var(--fsb-primary)` on `:root`. If this file is ever loaded on the showcase page (even accidentally through a shared import), it will override the showcase's own `--primary` value.
+Additionally, web permissions are dynamic: a page at `https://example.com` can embed iframes from `https://banking-widget.com`. The content script runs in the top frame's origin, but the user might want to block actions on the banking widget iframe. This has no analog in Claude Code's file-system model.
 
-3. **The extension uses Shadow DOM for its in-page overlays** (orange glow highlighting), but the replicas do NOT use Shadow DOM. This means the replicas are more vulnerable to CSS interference than the actual extension is on real websites.
+**Why it happens:**
+File paths and URLs look syntactically similar. Both have hierarchical structure. But file permissions are enforced by the OS, while web permissions are enforced by the browser's same-origin policy -- a fundamentally different model. Developers porting the permission system map URL patterns to path patterns without recognizing the semantic mismatch.
 
-4. **The showcase is served from fly.io** while the extension runs locally. Font loading behavior differs: the extension can bundle fonts, the showcase depends on CDN availability (Font Awesome 6.6.0 from cdnjs, Phosphor Icons from unpkg). CDN outages would break icon rendering in replicas.
+**How to avoid:**
+- Design permission rules around **origins** (scheme + host + port), not URL paths.
+- Use Chrome's match patterns (`<all_urls>`, `*://*.example.com/*`) which are already well-understood in the extension ecosystem. The manifest already uses them for `host_permissions`.
+- Permission categories should be:
+  - **Origin allowlist/denylist**: Which sites FSB can automate on
+  - **Tool restrictions per origin**: E.g., no `type_text` on banking sites, no `navigate` away from allowed origins
+  - **Action-type gates**: E.g., no form submission on sensitive domains, no file downloads
+- The `blocks(tool_name)` check from Claude Code is still useful for tool-level gating (deny `navigate` entirely in restricted mode). Keep this but add an `origin` parameter.
+- Consider adopting Chrome's `declarativeNetRequest` patterns for expressing URL-based rules.
+
+**Warning signs:**
+- Permissions that work in testing fail on sites with CDN subdomains
+- Users report automation being blocked on `www.example.com` but not `example.com`
+- Permissions don't catch iframe-hosted content
+- A "deny banking" rule blocks unrelated sites with "bank" in the domain
+
+**Phase to address:**
+Phase 4 (Hooks and Permissions Model) -- permission design must be origin-aware from the start.
 
 ---
+
+### Pitfall 6: Deferred Init Pattern Creates Cold-Start Penalty That Stalls First Automation
+
+**What goes wrong:**
+Claude Code's `deferred_init.py` delays initialization of plugins, skills, MCP prefetch, and session hooks until after the first prompt is received. This makes startup feel fast (the REPL appears instantly) while heavy work happens in the background. The `DeferredInitResult` tracks what was deferred.
+
+In FSB, the service worker is already cold on every restart (every 30 seconds of inactivity). There's no "startup" to optimize -- every automation request potentially starts from a cold service worker. If tool registration, site guide loading, or permission configuration is deferred, the first tool execution of every session hits an initialization wall.
+
+FSB currently loads everything eagerly via `importScripts()` (background.js lines 1-100 show 90+ importScripts calls loading all site guides, tools, and utilities). This is by design: the service worker must be fully initialized before handling any message, because the next message might arrive 30 seconds after the last one (when the worker was killed and restarted).
+
+**Why it happens:**
+Deferred init is a well-known optimization pattern. Developers see Claude Code's clean separation of "init now" vs "init later" and want to apply it. They don't realize that in a service worker context, "later" might be "after the worker was killed and the state was lost," which means the deferred init runs again from scratch anyway.
+
+**How to avoid:**
+- Keep FSB's eager `importScripts()` loading for all tool definitions, site guides, and core modules. This is the correct pattern for a service worker that must handle messages immediately after wake.
+- Deferred init is only appropriate for resources that are expensive AND rarely needed AND can be loaded on-demand without blocking the caller. In FSB, nothing fits this criteria for the core automation pipeline.
+- If adopting any deferred pattern, it must be cache-aware: store the init result in `chrome.storage.session` so re-initialization after SW restart skips the work.
+- Profile `importScripts()` cold start time. If it exceeds 500ms, consider code splitting by function (separate scripts for MCP server, dashboard relay, and autopilot core).
+
+**Warning signs:**
+- First automation command after browser startup takes 3-5x longer than subsequent ones
+- "Tool not found" errors on restored sessions (tool registry wasn't re-initialized)
+- `importScripts()` calls in the middle of message handlers (mixing initialization with execution)
+- Site guide data is undefined when the first tool execution needs it
+
+**Phase to address:**
+Phase 2 (Tool Execution Pipeline) -- tool registration and init strategy must be settled before building the execution registry.
+
+---
+
+### Pitfall 7: Coordinator Multi-Turn Orchestration Assumes Stable Connection to AI Provider
+
+**What goes wrong:**
+Claude Code's `QueryEnginePort` (query_engine.py) maintains a stateful conversation: it accumulates `mutable_messages`, tracks `total_usage`, manages a `transcript_store`, and can `stream_submit_message` with generator-based streaming. The `submit_message` method checks `max_turns`, `max_budget_tokens`, and runs compaction -- all assuming the conversation state is maintained reliably between turns.
+
+In FSB, the connection between the background service worker and the AI provider is fragile in multiple ways:
+1. Service worker kill interrupts an in-flight API call. The `fetch()` response never arrives. The streaming connection is severed.
+2. Network errors during long AI responses (the AI is "thinking" for 3-5 seconds on complex DOM analysis).
+3. Rate limiting from AI providers mid-session (especially with Anthropic and OpenAI).
+4. The AI provider returns a partial response (JSON truncation -- FSB already handles this in v0.2.1 fixes).
+
+Claude Code can just crash and the user restarts. FSB needs to handle all of these gracefully because the user can't "restart" mid-automation -- they're watching a task execute.
+
+**Why it happens:**
+The QueryEnginePort pattern is designed for a request-response conversation model where each turn completes before the next begins. Developers adopt this clean turn-based model without adding the resilience layers that a browser automation context demands.
+
+**How to avoid:**
+- Every API call must have a timeout (FSB's existing 30-second timeouts are good).
+- Implement turn-level checkpointing: before each API call, persist the current conversation state so it can be replayed if the call fails.
+- For streaming responses, buffer chunks and persist partial results. If the service worker is killed mid-stream, the partial result can be used on restart to skip re-requesting.
+- Build an explicit retry budget per session (FSB already has retry logic in v0.1.1). The coordinator must know "I've retried 3 times, degrade gracefully" rather than retrying indefinitely.
+- Separate the coordinator's conversation state from the API client state. The coordinator should be able to swap AI providers mid-session if one fails.
+- Add heartbeat checks: if no progress for 30 seconds, trigger stuck detection (FSB already has this at a higher level).
+
+**Warning signs:**
+- Sessions stuck at "Thinking..." for more than 30 seconds
+- Token usage doubles on sessions that had mid-session interruptions (replaying context that wasn't checkpointed)
+- Rate limit errors causing cascade failures across concurrent sessions
+- Partial JSON responses causing action parse failures
+
+**Phase to address:**
+Phase 3 (Coordinator/Agent Loop Adaptation) -- resilience must be designed into the coordinator, not bolted on.
+
+---
+
+## Technical Debt Patterns
+
+Shortcuts that seem reasonable but create long-term problems.
+
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Store full conversation in chrome.storage.session | Simple persistence model | 10MB limit hit with 3-5 active sessions; serialization jank on every write | Never -- use tiered storage from day one |
+| Single global `activeSessions` Map for all state | Easy to access from any message handler | Lost on every SW restart; no concurrent access protection | Only for transient state (current timeout handles). Persist everything else. |
+| Synchronous hook checks in message handlers | Simple control flow | Blocks message processing; service worker kill timer counts down during blocking hooks | Only for instant checks (config lookups, deny list matches) |
+| Port file-path permission patterns to URL patterns | Familiar code structure from Claude Code | Mismatches with web origin model; false positives/negatives on permission checks | Never -- redesign for web origins |
+| Deferred tool registration after first message | Faster perceived cold start | First automation always slow; tool-not-found race conditions | Never in service worker context |
+| Compacting by turn count instead of token budget | Simpler compaction logic | Wastes tokens on short turns, blows budget on long turns | Only if all turns are similar size (they aren't in browser automation) |
+
+## Integration Gotchas
+
+Common mistakes when connecting Claude Code patterns to Chrome Extension APIs.
+
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| RuntimeSession -> chrome.storage.session | Serializing the entire session object including non-serializable fields (Promises, setTimeout handles, WebSocket references) | Define explicit `toStorable()` and `fromStored()` methods that whitelist serializable fields. FSB already does this partially (line 2197: "Only persist essential fields"). |
+| TranscriptStore -> Conversation persistence | Using TranscriptStore's `compact(keep_last=10)` directly, losing FSB's token-budget-aware compaction | Wrap TranscriptStore in a `BudgetAwareTranscript` that compacts based on estimated token usage, not message count. |
+| ExecutionRegistry -> Tool dispatch | Building a Claude Code-style registry that resolves tools by string name at execution time, adding lookup overhead to every tool call | Pre-resolve tool references during registration. FSB's `TOOL_REGISTRY` array with direct object references is already faster than name-based lookup. |
+| stream_submit_message -> Streaming responses | Using generator-based streaming (Python `yield`) in a service worker where the generator state is lost on SW kill | Use event-based streaming with explicit state. Each chunk received triggers a state update that is independently resumable. |
+| HistoryLog -> Automation logging | Accumulating history events in memory like HistoryLog.events list | Write events to chrome.storage.local incrementally. FSB's `automationLogger` already does this correctly. |
+| PortContext -> Extension context | Building context by scanning filesystem (Path.rglob('*.py')) | Build context from chrome.management, chrome.runtime, and known extension structure. No filesystem scanning possible. |
+
+## Performance Traps
+
+Patterns that work at small scale but fail as sessions grow longer or run concurrently.
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| Persisting full messages array on every iteration | UI jank, slow tool execution | Persist incrementally (append new messages only) | Sessions > 15 iterations with DOM snapshots |
+| Loading all 90+ importScripts on every SW wake | 200-500ms cold start before any message can be handled | Code-split into core (always loaded) and optional (loaded on demand by feature) | Noticeable when service worker restarts frequently during active automation |
+| Unbounded conversation history in memory | Memory usage grows 1-5MB per session | Token-budget compaction already in agent-loop.js; enforce memory budget too | Sessions > 30 iterations or 3+ concurrent sessions |
+| Synchronous chrome.storage.session.get() chains | Each get() is async but they're awaited sequentially | Batch reads with `chrome.storage.session.get(['key1', 'key2', ...])` | Startup with 5+ persisted sessions to restore |
+| String-based tool routing (match tool name against registry) | O(n) lookup on every tool call; 42 tools * multi-iteration sessions | Use a Map for O(1) lookup; FSB's `getToolByName()` already does linear scan | Not critical at 42 tools, but matters if tool count grows to 100+ |
+
+## Security Mistakes
+
+Domain-specific security issues when adapting Claude Code's permission model to browser automation.
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| Treating URL path as permission scope (like filesystem paths) | Actions permitted on `/public` also permitted on `/admin` because same origin | Permission checks must use origin (scheme+host+port), not URL paths. Path-based rules are cosmetic, not security boundaries. |
+| Allowing `navigate` tool to any URL without origin check | Automation can navigate to `chrome://settings`, `file:///`, or `javascript:` URIs | Whitelist navigable schemes (http, https only). Block `chrome://`, `file://`, `data:`, `javascript:` URIs at the permission layer. |
+| Storing API keys in session storage alongside session state | chrome.storage.session is accessible to any extension page (popup, options, sidepanel) | Keep API keys in `chrome.storage.local` with encryption (FSB already does this via secure-config.js). Never mix key storage with session state storage. |
+| Trusting content script responses without validation | Compromised page could inject false tool results via DOM manipulation | Validate critical tool results in the background script. For sensitive operations (form submission, navigation), verify via chrome.tabs API, not content script report. |
+| Permission bypass via tool chaining | Individual tools are gated but chaining `read_page` + `type_text` can exfiltrate data from a protected page | Permission checks must consider the session's accumulated actions, not just the current tool. Flag sessions that read sensitive pages then type into external forms. |
+
+## UX Pitfalls
+
+Common user experience mistakes when adapting Claude Code patterns to browser automation.
+
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| Showing "compacting context..." during automation | User thinks the automation is stalling or broken | Compact silently. FSB's orange glow overlay should never show internal housekeeping operations. |
+| Adopting Claude Code's multi-step permission prompts | Every tool execution asks "Allow click on bank.com?" -- automation becomes unusable | Use pre-session permission grants: "Allow FSB to automate on [origin]?" once, then all tools on that origin are permitted for the session. |
+| Exposing turn counts or token budgets to the user | Users don't understand "12/30 turns used" or "80% context consumed" | Map to task-meaningful metrics: "Step 3 of ~8: filling out shipping address" (FSB's phase-weighted progress model from v0.9.5 already does this well). |
+| Streaming raw AI responses to the chat UI during tool execution | User sees JSON tool calls, internal reasoning, DOM analysis text | Continue FSB's existing approach: show action descriptions ("Clicking 'Add to Cart'...") not raw AI output. |
+
+## "Looks Done But Isn't" Checklist
+
+Things that appear complete but are missing critical pieces.
+
+- [ ] **Session persistence:** Often missing conversation messages needed for resume -- verify restored sessions can actually continue automation, not just display status
+- [ ] **Tool registry adaptation:** Often missing the `_route` metadata (content/cdp/background) that FSB needs -- verify every registered tool has execution routing, not just a name and schema
+- [ ] **Compaction implementation:** Often missing token estimation for non-text content (DOM snapshots, tool results with HTML) -- verify compaction accounts for large tool results, not just message text
+- [ ] **Permission model:** Often missing iframe-origin checks -- verify permission rules apply to actions inside iframes, not just the top-level page
+- [ ] **Hook pipeline:** Often missing disconnection recovery -- verify hooks don't silently fail when content script port is broken
+- [ ] **Coordinator pattern:** Often missing mid-stream interruption handling -- verify the coordinator can handle service worker kill during an active API call and resume cleanly
+- [ ] **State management:** Often missing storage quota monitoring -- verify the extension monitors chrome.storage.session usage and degrades gracefully before hitting 10MB
+- [ ] **Deferred init:** Often missing re-initialization after SW restart -- verify that deferred-init modules are re-initialized when the service worker wakes from termination
+
+## Recovery Strategies
+
+When pitfalls occur despite prevention, how to recover.
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| Session state lost on SW kill | MEDIUM | Restore from chrome.storage.session; resume with last 5 messages as context; AI re-assesses current page state via `get_dom_snapshot` |
+| Context compaction too aggressive | LOW | Re-read current page state (`read_page`); AI rebuilds understanding from fresh DOM snapshot; cost is 1 extra API call |
+| Storage quota exceeded | MEDIUM | Emergency compaction: discard all sessions except the active one; alert user; persist only metadata for historical sessions |
+| Hook pipeline broken (orphaned content script) | LOW | Re-inject content script via `chrome.scripting.executeScript()`; FSB already handles BF cache resilience (v0.9.11) |
+| Permission model mismatch | HIGH | Requires redesign of permission storage format; migration script needed for existing user permissions; can't be hot-fixed |
+| Deferred init stalls first command | LOW | Fall back to eager init; disable deferred loading for the session; re-enable on next cold start with cached init results |
+| Coordinator loses API connection | LOW | Retry with exponential backoff; if 3 retries fail, surface error to user with option to retry or abort; persist conversation state for manual resume |
+
+## Pitfall-to-Phase Mapping
+
+How roadmap phases should address these pitfalls.
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| RuntimeSession process persistence | Phase 1: State and Context Management | Automated test: kill service worker during active session, verify session resumes within 2 iterations of where it stopped |
+| TranscriptStore aggressive compaction | Phase 3: Coordinator/Agent Loop | Benchmark: run 30-iteration task, verify AI never asks about already-visited pages or repeats completed actions |
+| File-system session store | Phase 1: State and Context Management | Load test: 5 concurrent sessions, measure chrome.storage.session total bytes, verify under 8MB |
+| Hook pipeline latency | Phase 4: Hooks and Permissions | Timing test: measure tool execution latency with vs without hooks, verify less than 20% overhead |
+| Permission model file-path assumption | Phase 4: Hooks and Permissions | Security test: verify `navigate` to `chrome://settings` is blocked; verify same-origin subpaths share permissions |
+| Deferred init cold start | Phase 2: Tool Execution Pipeline | Timing test: measure first-tool-execution latency from cold SW start, verify under 500ms total |
+| Coordinator connection fragility | Phase 3: Coordinator/Agent Loop | Chaos test: randomly kill service worker during active API calls, verify no data loss and session resumes |
 
 ## Sources
 
-- Codebase analysis: `showcase/css/main.css`, `showcase/css/recreations.css`, `showcase/css/home.css`, `ui/sidepanel.css`, `ui/options.css`, `shared/fsb-ui-core.css`
-- [CSS @scope: Complete Guide - DevToolbox](https://devtoolbox.dedyn.io/blog/css-scope-complete-guide) -- @scope now Baseline (Newly Available) with Firefox 146
-- [How to @scope CSS now that it is Baseline -- Web Standards](https://web-standards.dev/news/2026/01/scope-css-baseline/)
-- [Monospace font sizing -- Alex Mansfield](https://alexmansfield.com/css/font-size-line-height-pre-code-monospace/) -- browser monospace font shrinking quirk
-- [CSS Custom Properties Complete Guide - DevToolbox](https://devtoolbox.dedyn.io/blog/css-custom-properties-complete-guide) -- namespacing strategy for variable collisions
-- [Chrome Content Scripts -- CSS Isolation](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) -- isolated worlds and CSS merging behavior
-- [Using CSS containment -- MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Containment/Using) -- CSS containment for rendering isolation
+- [The extension service worker lifecycle - Chrome for Developers](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
+- [Longer extension service worker lifetimes - Chrome for Developers](https://developer.chrome.com/blog/longer-esw-lifetimes)
+- [chrome.storage API - Chrome for Developers](https://developer.chrome.com/docs/extensions/reference/api/storage)
+- [Message passing - Chrome for Developers](https://developer.chrome.com/docs/extensions/develop/concepts/messaging)
+- Claude Code reference source: `Research/claude-code/src/runtime.py` (RuntimeSession pattern)
+- Claude Code reference source: `Research/claude-code/src/transcript.py` (TranscriptStore compaction)
+- Claude Code reference source: `Research/claude-code/src/session_store.py` (file-system persistence)
+- Claude Code reference source: `Research/claude-code/src/hooks/__init__.py` (104-module hook subsystem)
+- Claude Code reference source: `Research/claude-code/src/permissions.py` (ToolPermissionContext)
+- Claude Code reference source: `Research/claude-code/src/deferred_init.py` (deferred initialization)
+- Claude Code reference source: `Research/claude-code/src/query_engine.py` (QueryEnginePort coordinator)
+- FSB source: `background.js` lines 2100-2290 (session persistence and restoration)
+- FSB source: `ai/agent-loop.js` lines 253-341 (compactHistory)
+- FSB source: `ai/agent-loop.js` lines 718-942 (setTimeout-chaining for MV3)
+- FSB source: `ai/tool-definitions.js` (42-tool canonical registry)
+- FSB source: `ai/tool-executor.js` (content/cdp/background routing)
+- FSB source: `manifest.json` (permissions, service_worker declaration)
+
+---
+*Pitfalls research for: Claude Code Architecture Adaptation to Chrome Extension (v0.9.24)*
+*Researched: 2026-04-02*

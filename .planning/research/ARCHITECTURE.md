@@ -1,448 +1,825 @@
-# Architecture Patterns: v0.9.22 Showcase High-Fidelity Replicas
+# Architecture Research: Claude Code Architecture Adaptation for FSB
 
-**Domain:** Static UI replica integration into existing showcase site
+**Domain:** AI agent loop architecture adaptation (Claude Code -> Chrome Extension)
 **Researched:** 2026-04-02
-**Confidence:** HIGH (based on direct codebase analysis, no external dependencies)
+**Confidence:** HIGH (based on direct source analysis of both codebases)
 
-## Current Architecture (As-Is)
+## Executive Summary
 
-### Showcase Site Structure
+Claude Code's architecture, as captured in Research/claude-code/src/, reveals a layered system with clear separation of concerns: a bootstrap pipeline, a prompt-routing layer, a tool pool with permission gating, a multi-turn query engine with transcript compaction, session persistence, and a command/skill dispatch system. FSB already has strong equivalents for many of these subsystems (agent-loop.js, tool-definitions.js, tool-executor.js, tool-use-adapter.js) built during v0.9.20. The adaptation is NOT a ground-up rewrite -- it is a targeted enhancement of existing FSB modules to adopt specific patterns that Claude Code does better: deferred initialization, transcript compaction with budget awareness, structured session persistence/resumption, permission gating, and command graph segmentation.
 
-The showcase site lives at `showcase/` in the repo root and is deployed via Docker (`COPY showcase/ ./public/`) to fly.io, where the Node server serves it as static files from `/app/public/`.
+The key architectural insight: Claude Code separates "what to do" (commands/skills) from "how to do it" (tools) from "should we do it" (permissions) from "remembering it" (transcript/history/session store). FSB currently mixes these concerns inside background.js and agent-loop.js. The adaptation restructures FSB to respect these boundaries without introducing a build system or breaking Chrome MV3 constraints.
 
-```
-showcase/
-  index.html          -- Landing page (hero, features, providers, CTA)
-  about.html          -- "See It in Action" page (3 recreations + architecture + action library)
-  dashboard.html      -- Remote dashboard (QR pairing, live control)
-  privacy.html        -- Privacy policy
-  support.html        -- Support page
-  css/
-    main.css          -- Design system, nav, footer, utilities (design tokens)
-    home.css          -- Hero, features grid, comparison, providers
-    about.css         -- About page header, recreation section wrappers, architecture diagram, action library
-    recreations.css   -- ALL recreation component styles (browser frame, sidepanel mockup, dashboard mockup, Google search mockup, form mockup, glow effects, progress overlay) -- 1282 lines
-    dashboard.css     -- Remote dashboard styles
-    privacy.css       -- Privacy page styles
-    support.css       -- Support page styles
-  js/
-    main.js           -- Nav, mobile menu, scroll reveal, theme toggle
-    recreations.js    -- Typing effect, message cascade, progress bars, chart bars, counters, FAQ accordion
-    dashboard.js      -- Remote dashboard logic
-    lz-string.min.js  -- LZ compression for dashboard
-  assets/             -- Images, logos, provider icons
-```
+---
 
-### Extension UI Structure
+## Claude Code Subsystem Inventory (from Research/claude-code/src/)
+
+### Subsystem Map with Module Counts
+
+| Subsystem | Module Count | Key Files | Role |
+|-----------|-------------|-----------|------|
+| **coordinator** | 1 | coordinatorMode.ts | Orchestrates the conversation loop mode |
+| **hooks** | 104 | toolPermission/, notifs/, fileSuggestions | UI hooks, permission handlers, notification system |
+| **skills** | 20 | bundled/*.ts, loadSkillsDir, mcpSkillBuilders | High-level task recipes (batch, loop, verify, stuck, remember) |
+| **state** | 6 | AppState, AppStateStore, store, selectors | Centralized reactive state management |
+| **services** | 130 | SessionMemory/, analytics/, api/, PromptSuggestion/ | Backend services (memory, analytics, API client) |
+| **bootstrap** | 1 | state.ts | Startup state initialization |
+| **plugins** | 2 | builtinPlugins, bundled/index | Plugin loading and registration |
+| **server** | 3 | directConnectSession, directConnectManager | Direct connection mode |
+| **tools** (archived) | 184 entries | AgentTool/, BashTool/, FileReadTool/, etc. | Tool implementations |
+| **commands** (archived) | 207 entries | add-dir, agents, branch, chrome, config, etc. | User-facing slash commands |
+
+### Core Architecture Layers (from source analysis)
 
 ```
-ui/
-  sidepanel.html/js/css    -- Persistent chat panel (references ../shared/fsb-ui-core.css)
-  popup.html/js/css        -- Quick chat popup
-  control_panel.html       -- Options dashboard (references ../shared/fsb-ui-core.css + options.css)
-  options.css              -- 1000+ lines, complete dashboard styling
-  options.js               -- Dashboard logic
-  markdown-renderer.js     -- Markdown rendering for chat
-  markdown.css             -- Markdown display styles
-  speech-to-text.js        -- Voice input
-  site-guides-viewer.js    -- Site guides UI
-  unlock.html/js           -- Extension unlock flow
-  lib/                     -- Third-party libs (qrcode-generator, marked, purify, mermaid, chart)
-
-shared/
-  fsb-ui-core.css          -- Shared design tokens (warm-toned gray scale, orange primary, spacing, shadows)
++-------------------------------------------------------------------+
+|                     ENTRYPOINT (main.py)                          |
+|   CLI parser, mode routing, trust gate                            |
++-------------------------------------------------------------------+
+         |
+         v
++-------------------------------------------------------------------+
+|                    BOOTSTRAP PIPELINE                              |
+|   prefetch -> setup -> context -> deferred_init -> system_init    |
+|   (prefetch.py, setup.py, context.py, deferred_init.py)          |
++-------------------------------------------------------------------+
+         |
+         v
++-------------------------------------------------------------------+
+|                     RUNTIME (runtime.py)                           |
+|   PortRuntime.bootstrap_session():                                |
+|     1. build context                                              |
+|     2. run setup                                                  |
+|     3. route prompt -> commands + tools                           |
+|     4. build execution registry                                   |
+|     5. execute matched commands + tools                           |
+|     6. submit to query engine (stream or sync)                    |
+|     7. persist session                                            |
++-------------------------------------------------------------------+
+         |
+         v
++-------------------------------------------------------------------+
+|                   QUERY ENGINE (query_engine.py)                   |
+|   QueryEnginePort:                                                |
+|     - submit_message (sync turn)                                  |
+|     - stream_submit_message (streaming events)                    |
+|     - compact_messages_if_needed (auto-compaction)                |
+|     - persist_session / load session resumption                   |
+|     - token budget enforcement (max_budget_tokens)                |
+|     - max turn limit                                              |
+|     - structured output mode with retry                           |
+|                                                                   |
+|   Uses: TranscriptStore (compaction), SessionStore (persistence)  |
++-------------------------------------------------------------------+
+         |
+    +----+----+
+    |         |
+    v         v
++--------+ +----------+
+| TOOLS  | | COMMANDS |
+| Pool   | | Graph    |
++--------+ +----------+
+    |         |
+    v         v
++-------------------------------------------------------------------+
+|              EXECUTION REGISTRY (execution_registry.py)            |
+|   MirroredCommand.execute(prompt) -> message                      |
+|   MirroredTool.execute(payload) -> message                        |
++-------------------------------------------------------------------+
+         |
+         v
++-------------------------------------------------------------------+
+|                   PERMISSION GATING                                |
+|   ToolPermissionContext: deny_names, deny_prefixes                |
+|   Applied at tool_pool assembly time                              |
++-------------------------------------------------------------------+
 ```
 
-### Existing Recreations (What is Already Built)
+---
 
-The about.html page currently has THREE recreations:
-
-1. **"FSB on Google Search"** -- Browser frame with a Google results page + FSB sidepanel showing message cascade during an automation
-2. **"Dashboard Analytics"** -- Browser frame with the control panel dashboard (sidebar, analytics hero, line chart, session history)
-3. **"FSB Automating a Form"** -- Browser frame with a contact form being filled + progress overlay + element glow + sidepanel
-
-All three use the `rec-` CSS prefix namespace to avoid conflicts with the showcase main styles. They are entirely hand-crafted HTML/CSS mockups in `recreations.css` with their own design token set (`--rec-*` variables). They are NOT extracted from the real extension CSS -- they are independent re-implementations that approximate the real UI.
-
-### Key Observation: Three Separate CSS Worlds
-
-| CSS World | Token Prefix | Used By |
-|-----------|-------------|---------|
-| Showcase design system | `--primary`, `--bg-body`, `--text-*` | `main.css`, `home.css`, `about.css` |
-| Recreation mockups | `--rec-*` | `recreations.css` |
-| Extension UI | `--fsb-*` (shared), `--primary-color`, `--bg-primary` (per-surface) | `fsb-ui-core.css`, `sidepanel.css`, `options.css` |
-
-The recreation CSS (`--rec-*`) was designed to be **self-contained** within `.browser-frame` containers, which is the correct isolation strategy. The real extension CSS (`sidepanel.css`, `options.css`) uses different variable names and different color values in some cases (warm-toned grays in `fsb-ui-core.css` vs neutral grays in the recreation mockups).
-
-## Recommended Architecture (To-Be)
-
-### Strategy: Replace Approximate Mockups with Pixel-Accurate Replicas
-
-The existing recreations are "good enough" impressions but do not match the real extension UI pixel-for-pixel. The v0.9.22 goal is **1:1 fidelity**. There are two viable approaches:
-
-**Option A: Extract and transplant real CSS** -- Copy the real `sidepanel.css` and `options.css` into the showcase, scope them under a container class.
-
-**Option B: Update recreation CSS to match real CSS** -- Audit every `rec-*` style against the real extension CSS and bring them into alignment.
-
-**Recommendation: Option B (update recreation CSS in place).** Reasons:
-
-1. **The real extension CSS depends on Chrome extension runtime** -- `sidepanel.css` assumes `100vh` body height, Chrome extension scrollbar behavior, and runtime-injected content. Transplanting it directly would require extensive overrides.
-2. **The `rec-` prefix namespace isolation already works** -- It prevents clashes with the showcase design system. Abandoning it means re-testing all CSS specificity.
-3. **The recreation CSS already handles dark/light theme** via `[data-theme]` selectors matching the showcase toggle, whereas the real extension CSS uses a different toggle mechanism (`data-theme="dark"` vs the showcase default-dark approach).
-4. **No build system** -- The project deliberately avoids build tools. Extracting and auto-syncing CSS would require a build step. Manual sync is acceptable for a static showcase.
-5. **MCP terminal examples are net-new** -- No existing CSS to extract from. They will be pure HTML/CSS creations regardless.
-
-### Component Boundaries
-
-| Component | Location | Responsibility | Communicates With |
-|-----------|----------|---------------|-------------------|
-| **about.html** | `showcase/about.html` | Page shell, section ordering, nav/footer | Links `recreations.css`, `about.css`, `main.css` |
-| **recreations.css** | `showcase/css/recreations.css` | All replica styling with `rec-` prefix | Consumes `main.css` design tokens for page-level vars |
-| **recreations.js** | `showcase/js/recreations.js` | Scroll-triggered animations (cascade, counters, bars) | Observes DOM elements in `about.html` |
-| **main.css** | `showcase/css/main.css` | Design tokens, nav, footer, buttons, utilities | Consumed by all pages |
-| **main.js** | `showcase/js/main.js` | Nav scroll, theme toggle, reveal animations | Consumes theme state from localStorage |
-
-### New Components to Create/Modify
-
-| Component | Action | Purpose |
-|-----------|--------|---------|
-| `showcase/about.html` | **MODIFY** | Replace existing Recreation 1 and 2 HTML with pixel-accurate markup; add MCP terminal section |
-| `showcase/css/recreations.css` | **MODIFY** | Update `rec-sidepanel`, `rec-dashboard`, add `rec-mcp-terminal` styles to match real UI |
-| `showcase/js/recreations.js` | **MODIFY** | Add terminal typing animation for MCP examples |
-| Real extension CSS files | **READ ONLY** | Reference sources for pixel-matching; do not modify |
-
-No new files are required. All changes fit within existing file structure.
-
-### Data Flow
+## FSB Current Architecture (v0.9.20+)
 
 ```
-User visits about.html
++-------------------------------------------------------------------+
+|                  CHROME MV3 SERVICE WORKER                         |
+|   background.js (~10.2K lines)                                    |
+|     - Message routing (onMessage, onConnect)                      |
+|     - Session management (activeSessions Map)                     |
+|     - Keep-alive mechanism                                        |
+|     - Agent loop launch/stop                                      |
+|     - Dashboard WebSocket bridge                                  |
+|     - CDP tool handling                                           |
+|     - MCP tool routing                                            |
++-------------------------------------------------------------------+
+         |
+         v
++-------------------------------------------------------------------+
+|                     AGENT LOOP (ai/agent-loop.js)                  |
+|   runAgentLoop(sessionId, options):                                |
+|     1. Read provider config from chrome.storage                   |
+|     2. Build system prompt                                        |
+|     3. Initialize session messages + agentState                   |
+|     4. Create UniversalProvider                                   |
+|     5. Kick off runAgentIteration                                 |
+|                                                                   |
+|   runAgentIteration(sessionId, options):                           |
+|     a. Safety breaker check (cost + time)                         |
+|     b. Compact history if over 80% budget                         |
+|     c. API call via callProviderWithTools                         |
+|     d. Parse tool calls or end_turn                               |
+|     e. Execute tools sequentially                                 |
+|     f. Format tool results, push to history                       |
+|     g. Stuck detection + recovery hint injection                  |
+|     h. Persist session                                            |
+|     i. setTimeout -> next iteration (MV3 safe)                    |
++-------------------------------------------------------------------+
+         |
+    +----+----+----+
+    |    |    |    |
+    v    v    v    v
++------+------+------+------+
+| TOOL | TOOL | TOOL | UNI  |
+| DEFS | EXEC | ADAPT| PROV |
++------+------+------+------+
+  42 tools   3 routes   6 providers
+  (content,  (content,  (xai, openai,
+   cdp,       cdp,       anthropic,
+   bg)        bg)        gemini,
+                         openrouter,
+                         custom)
+```
+
+---
+
+## Subsystem-by-Subsystem Mapping
+
+### 1. Bootstrap Pipeline
+
+**Claude Code:** `prefetch.py` -> `setup.py` -> `context.py` -> `deferred_init.py` -> `system_init.py` -> `bootstrap_graph.py`
+
+Stages: top-level prefetch side effects, warning/environment guards, CLI parser + trust gate, setup + commands/agents parallel load, deferred init after trust, mode routing, query engine submit loop.
+
+**FSB Current:** `background.js` onInstalled handler + importScripts loading. No structured bootstrap. All scripts loaded eagerly via `importScripts()` in the service worker.
+
+**FSB Adaptation:**
+
+| Claude Code Component | FSB Equivalent | Status | Action |
+|----------------------|----------------|--------|--------|
+| `prefetch.py` (mdm_raw_read, keychain, project_scan) | None | Missing | NEW: `bootstrap/prefetch.js` -- preload chrome.storage settings, validate API key, scan active tab |
+| `setup.py` (WorkspaceSetup, SetupReport) | Inline in background.js onInstalled | Partial | MODIFY: Extract into `bootstrap/setup.js` with structured report |
+| `context.py` (PortContext) | None -- page context built ad-hoc in agent loop | Missing | NEW: `bootstrap/context.js` -- build session context (tab state, provider config, extension version) |
+| `deferred_init.py` (trust-gated) | None -- all init is eager | Missing | NEW: `bootstrap/deferred-init.js` -- delay MCP, site guides, memory until API key validated |
+| `system_init.py` | `buildSystemPrompt()` in agent-loop.js | Exists | KEEP: Already well-structured, no change needed |
+| `bootstrap_graph.py` | None | Missing | NEW: `bootstrap/graph.js` -- define ordered startup stages for service worker resurrection |
+
+**Build dependency:** prefetch -> setup -> context -> deferred-init. Can be done as one phase.
+
+### 2. Runtime / Session Bootstrap
+
+**Claude Code:** `runtime.py` -- `PortRuntime` class with `bootstrap_session()` that builds context, runs setup, routes prompt, builds execution registry, executes matches, submits to query engine, persists session.
+
+**FSB Current:** `runAgentLoop()` in agent-loop.js does all of this inline. Session init, provider config, tool assembly, and first iteration kickoff are all in one 100-line function.
+
+**FSB Adaptation:**
+
+| Claude Code Pattern | FSB Equivalent | Action |
+|--------------------|----------------|--------|
+| `PortRuntime.bootstrap_session()` | `runAgentLoop()` | REFACTOR: Extract session bootstrap into `runtime/session-bootstrap.js` |
+| `PortRuntime.route_prompt()` | None -- no prompt routing | NEW: `runtime/prompt-router.js` -- classify task type (navigation, data extraction, form fill, canvas) to select tool subset and guide injection |
+| `PortRuntime.run_turn_loop()` | `runAgentIteration()` + setTimeout chaining | KEEP: The setTimeout-chaining pattern is mandatory for MV3. Do not adopt blocking loop. |
+| `RuntimeSession` dataclass | `session` object in activeSessions Map | REFACTOR: Define `SessionSchema` in `runtime/session-schema.js` with typed fields instead of ad-hoc property addition |
+
+### 3. Query Engine / Conversation Management
+
+**Claude Code:** `query_engine.py` -- `QueryEnginePort` with submit_message, stream_submit_message, compact_messages_if_needed, persist_session, max_turns, max_budget_tokens, structured output with retry.
+
+**FSB Current:** Conversation history managed as `session.messages` array in agent-loop.js. Compaction exists (`compactHistory()`) but is simple. No structured output mode. No budget-based stopping. Session persistence via chrome.storage.local.
+
+**FSB Adaptation:**
+
+| Claude Code Pattern | FSB Equivalent | Action |
+|--------------------|----------------|--------|
+| `QueryEngineConfig` (max_turns, max_budget_tokens, compact_after_turns) | Hardcoded constants in agent-loop.js | REFACTOR: NEW `engine/engine-config.js` -- configurable limits per session |
+| `submit_message()` with turn counting | `runAgentIteration()` counting | KEEP: Already tracked in `session.agentState.iterationCount` |
+| `stream_submit_message()` with event yielding | Streaming not used (full response per call) | DEFER: Not needed for browser automation where actions are serial |
+| `compact_messages_if_needed()` | `compactHistory()` in agent-loop.js | ENHANCE: Add `compact_after_turns` config, preserve last N configurable instead of hardcoded 5 |
+| `max_budget_tokens` stop condition | `checkSafetyBreakers()` has cost limit only | ENHANCE: Add token budget stop condition alongside cost |
+| `structured_output` with retry | None | DEFER: Not needed for tool_use responses |
+| `replay_user_messages()` | None | NEW: Add to session schema for debugging/replay |
+
+### 4. Tool Pool and Permission Gating
+
+**Claude Code:** `tool_pool.py` -- `ToolPool` assembled with simple_mode, include_mcp flags. `tools.py` -- `get_tools()` with filtering by permission context. `permissions.py` -- `ToolPermissionContext` with deny_names and deny_prefixes.
+
+**FSB Current:** `tool-definitions.js` has all 42 tools in TOOL_REGISTRY. `getPublicTools()` strips internal metadata before sending to AI. No permission gating. No mode-based tool selection.
+
+**FSB Adaptation:**
+
+| Claude Code Pattern | FSB Equivalent | Action |
+|--------------------|----------------|--------|
+| `assemble_tool_pool(simple_mode, include_mcp, permission_context)` | `getPublicTools()` -- returns all tools | ENHANCE: NEW `engine/tool-pool.js` -- assemble filtered tool set per session based on task type |
+| `ToolPermissionContext` (deny_names, deny_prefixes) | None | NEW: `engine/permissions.js` -- safety filter (e.g., deny navigate on banking sites, deny fill_sheet unless Sheets URL) |
+| `filter_tools_by_permission_context()` | None | INTEGRATE: Apply permission context in tool-pool assembly |
+| `get_tools(simple_mode=True)` reducing to core 3 tools | None | NEW: Simple mode returns only navigate, click, type_text, read_page for constrained tasks |
+
+### 5. Execution Registry
+
+**Claude Code:** `execution_registry.py` -- `ExecutionRegistry` wraps commands and tools with `.execute()` method. Separates "what can be executed" from "how to execute it."
+
+**FSB Current:** `tool-executor.js` -- `executeTool()` dispatches directly. No registry abstraction. Tool definitions and execution are separate files but tightly coupled.
+
+**FSB Adaptation:**
+
+| Claude Code Pattern | FSB Equivalent | Action |
+|--------------------|----------------|--------|
+| `ExecutionRegistry` with command + tool lookup | `executeTool()` + tool-definitions lookup | KEEP: FSB's current approach is more direct and appropriate for 42 tools. No need for registry abstraction. |
+| `MirroredCommand.execute()` / `MirroredTool.execute()` | Direct function dispatch in tool-executor | KEEP: The indirection adds no value for browser tools |
+
+**Rationale:** Claude Code's registry pattern exists because it mirrors 184 tools and 207 commands from a TypeScript archive. FSB has 42 concrete tools with real execution handlers. The registry abstraction would add overhead without benefit.
+
+### 6. Command Graph
+
+**Claude Code:** `command_graph.py` -- `CommandGraph` segments commands into builtins, plugin-like, and skill-like. Enables discovery and routing.
+
+**FSB Current:** No command system. User provides a natural language task, AI decides tools. No slash commands.
+
+**FSB Adaptation:**
+
+| Claude Code Pattern | FSB Equivalent | Action |
+|--------------------|----------------|--------|
+| `CommandGraph` (builtins, plugin-like, skill-like) | None | NEW: `commands/command-graph.js` -- segment available task types into built-in (navigate, search, fill form) and skill-based (career search, data extraction, Sheets entry) |
+| `get_commands()` with plugin/skill filtering | None | NEW: Register task templates as "commands" that pre-configure tool pools and system prompts |
+| Slash command parsing | None (user types natural language) | DEFER: Not needed now -- task classification handled by prompt-router |
+
+### 7. Skills System
+
+**Claude Code:** `skills/` -- 20 modules including batch, loop, verify, stuck, remember, debug, simplify, skillify. Bundled skills loaded from directory. MCP skill builders.
+
+**FSB Current:** Site guides serve a similar role (pre-configured knowledge per domain). Stuck detection exists in agent-loop.js. No formal skill system.
+
+**FSB Adaptation:**
+
+| Claude Code Skill | FSB Equivalent | Action |
+|-------------------|----------------|--------|
+| `batch.ts` | Batch action execution in background.js | KEEP: Already exists |
+| `loop.ts` | setTimeout-chained agent loop | KEEP: MV3-compatible version exists |
+| `verify.ts` / `verifyContent.ts` | complete_task / fail_task tool interception | ENHANCE: Add verification step before complete_task that checks DOM state |
+| `stuck.ts` | `detectStuck()` in agent-loop.js | KEEP: Already robust with 3-consecutive-no-change threshold |
+| `remember.ts` | Memory system in lib/memory/ | KEEP: Existing memory extraction, consolidation, retrieval |
+| `debug.ts` | Debug intelligence pipeline (v0.9.5) | KEEP: Already has 8-point diagnostics |
+| `simplify.ts` | None | DEFER: Not applicable to browser automation |
+| `scheduleRemoteAgents.ts` | Agent scheduling in background.js | KEEP: Already exists for MCP agents |
+
+### 8. State Management
+
+**Claude Code:** `state/` -- AppState, AppStateStore, store, selectors, onChangeAppState, teammateViewHelpers. Reactive state with selectors.
+
+**FSB Current:** Session state is a plain JS object in `activeSessions` Map. No reactive state. chrome.storage.local for persistence.
+
+**FSB Adaptation:**
+
+| Claude Code Pattern | FSB Equivalent | Action |
+|--------------------|----------------|--------|
+| `AppState` / `AppStateStore` | `activeSessions` Map + inline state | REFACTOR: NEW `state/session-state.js` -- typed session state with getter/setter methods instead of bare object mutation |
+| `selectors.ts` | None -- state read directly | DEFER: Selectors add no value for 1-3 concurrent sessions |
+| `onChangeAppState` | None | NEW: `state/state-events.js` -- emit events on session state changes (replaces scattered sendStatus calls) |
+| `store.ts` | chrome.storage.local | KEEP: chrome.storage.local is the right persistence layer for MV3 |
+
+### 9. Hooks and Permissions
+
+**Claude Code:** `hooks/` -- 104 modules. Permission handlers (coordinatorHandler, interactiveHandler, swarmWorkerHandler), notification hooks, file suggestions, tool permission context.
+
+**FSB Current:** No hook system. Permission is implicit (user starts task, all tools available).
+
+**FSB Adaptation:**
+
+| Claude Code Pattern | FSB Equivalent | Action |
+|--------------------|----------------|--------|
+| `hooks/toolPermission/` | None | NEW: `hooks/tool-permission.js` -- pre-execution permission check per tool |
+| Permission handlers | None | NEW: Three modes: `auto` (all tools allowed), `confirm` (destructive tools prompt user), `restricted` (read-only tools only) |
+| Notification hooks | sendStatus calls scattered in agent-loop.js | REFACTOR: Consolidate into `hooks/progress-hooks.js` -- single notification pipeline |
+| `fileSuggestions`, `unifiedSuggestions` | Site guides + procedural memory | KEEP: Already covers this via site guide injection |
+
+### 10. Transcript and History
+
+**Claude Code:** `transcript.py` -- TranscriptStore with append, compact(keep_last), replay, flush. `history.py` -- HistoryLog with add(title, detail), as_markdown. Both are lightweight data structures.
+
+**FSB Current:** `session.messages` (conversation history array), `session.actionHistory` (tool execution log). Compaction in `compactHistory()`.
+
+**FSB Adaptation:**
+
+| Claude Code Pattern | FSB Equivalent | Action |
+|--------------------|----------------|--------|
+| `TranscriptStore` with compact(keep_last=N) | `compactHistory()` | ENHANCE: Extract into `state/transcript.js` with configurable keep_last parameter |
+| `HistoryLog` (title/detail events) | `session.actionHistory` (tool/params/result) | ENHANCE: Extract into `state/history.js` with structured events and markdown export |
+| `replay()` | None | NEW: Add replay capability for debugging (export session as replayable action sequence) |
+| `flush()` | Session cleanup in background.js | KEEP: Already handles cleanup |
+
+### 11. Session Store
+
+**Claude Code:** `session_store.py` -- `StoredSession` with session_id, messages, input_tokens, output_tokens. save_session/load_session to JSON files in `.port_sessions/`.
+
+**FSB Current:** Session persisted to chrome.storage.local via `persistSession()` callback. No structured schema.
+
+**FSB Adaptation:**
+
+| Claude Code Pattern | FSB Equivalent | Action |
+|--------------------|----------------|--------|
+| `StoredSession` dataclass | Ad-hoc session object | REFACTOR: Define `StoredSession` schema in `state/session-store.js` |
+| `save_session(session, directory)` | `chrome.storage.local.set()` | ENHANCE: Wrap in structured save function with schema validation |
+| `load_session(session_id)` | `chrome.storage.local.get()` | ENHANCE: Add session resumption -- load prior session and continue from last tool result |
+| JSON file persistence | chrome.storage.local | KEEP: chrome.storage.local is correct for extensions |
+
+---
+
+## Recommended Project Structure (Post-Adaptation)
+
+```
+ai/
+  agent-loop.js            # MODIFY: Slim down, delegate to new modules
+  ai-integration.js        # KEEP: Legacy provider code (phasing out)
+  ai-providers.js          # KEEP: Provider configs
+  tool-definitions.js      # KEEP: Canonical 42-tool registry
+  tool-executor.js         # KEEP: Unified tool dispatch
+  tool-use-adapter.js      # KEEP: Provider format translation
+  universal-provider.js    # KEEP: API client
+
+engine/                    # NEW: Extracted from agent-loop.js
+  engine-config.js         # Session configuration (max_turns, budget, compact threshold)
+  tool-pool.js             # Filtered tool assembly per session/task type
+  permissions.js           # Tool permission gating (deny lists, mode-based filtering)
+  prompt-router.js         # Task classification -> tool subset + guide injection
+
+state/                     # NEW: Extracted from background.js + agent-loop.js
+  session-schema.js        # Typed session object definition
+  session-store.js         # Structured save/load with chrome.storage.local
+  transcript.js            # Conversation history with compaction
+  history.js               # Action history with structured events
+  state-events.js          # Event emitter for session state changes
+
+bootstrap/                 # NEW: Structured service worker startup
+  prefetch.js              # Preload settings, validate API key
+  setup.js                 # Environment detection, capability check
+  context.js               # Build session context from tab + storage
+  deferred-init.js         # Lazy-load site guides, memory, MCP
+  graph.js                 # Bootstrap stage ordering
+
+hooks/                     # NEW: Cross-cutting concerns
+  tool-permission.js       # Pre-execution permission check
+  progress-hooks.js        # Unified notification pipeline
+  safety-hooks.js          # Cost/time/stuck breakers (extracted from agent-loop.js)
+
+commands/                  # NEW: Task type templates
+  command-graph.js         # Task type registry and classification
+```
+
+### Structure Rationale
+
+- **ai/**: Untouched. These modules are stable from v0.9.20 and work correctly. No refactoring needed.
+- **engine/**: Extracts configuration and filtering logic that is currently inline in agent-loop.js. Makes agent-loop.js thinner and each concern independently testable.
+- **state/**: Extracts state management that is currently scattered between agent-loop.js (messages, actionHistory) and background.js (activeSessions, persist). Provides typed schemas instead of bare objects.
+- **bootstrap/**: Structures the service worker startup sequence that currently happens ad-hoc in background.js. Critical for service worker resurrection (MV3 kills workers after 5 minutes of inactivity).
+- **hooks/**: Extracts cross-cutting logic (permissions, progress, safety) from agent-loop.js's main execution path. Each hook is independently callable and testable.
+- **commands/**: Future-facing. Enables registering task templates (career search, Sheets data entry) as first-class entities instead of relying entirely on the AI to discover the workflow.
+
+---
+
+## Data Flow: Post-Adaptation
+
+### Session Lifecycle (End-to-End)
+
+```
+User types task in sidepanel/popup
     |
     v
-Browser loads main.css (design tokens) + recreations.css (replica styles) + about.css (layout)
+[background.js] handleStartAutomation(task, tabId)
     |
     v
-main.js: scroll reveal, theme toggle
+[bootstrap/prefetch.js] preloadSettings()     -- read chrome.storage
+[bootstrap/setup.js] buildSetup()             -- detect capabilities
+[bootstrap/context.js] buildContext(tabId)     -- tab URL, provider config
     |
     v
-recreations.js: IntersectionObserver triggers
-    |-- message cascade (staggered fade-in)
-    |-- counter animation (metric values)
-    |-- progress bar fill
-    |-- terminal typing effect (NEW for MCP)
+[engine/prompt-router.js] classifyTask(task)  -- returns task type
+    |                                            (navigation/extraction/form/canvas)
+    v
+[engine/tool-pool.js] assembleTools(taskType, permissionContext)
+    |                   -- returns filtered tool subset (e.g., 20/42 tools)
+    v
+[engine/permissions.js] applyPermissions(tools, siteUrl)
+    |                     -- deny destructive tools on sensitive sites
+    v
+[state/session-schema.js] createSession({...})
+    |                       -- typed session with all fields initialized
+    v
+[ai/agent-loop.js] runAgentLoop(sessionId, options)
+    |
+    +-- buildSystemPrompt(task, pageUrl)         -- system prompt
+    +-- session.tools = filteredTools            -- from tool-pool
+    +-- session.messages = [{role: 'system'}]
+    +-- session.agentState = {iteration: 0, ...}
     |
     v
-Static HTML renders as pixel-accurate replicas
+[ai/agent-loop.js] runAgentIteration(sessionId, options)
+    |
+    +-- [hooks/safety-hooks.js] checkBreakers(session)
+    |       cost limit / time limit / stuck detection
+    |
+    +-- [state/transcript.js] compactIfNeeded(session.messages, config)
+    |
+    +-- [ai/tool-use-adapter.js] formatToolsForProvider(tools, provider)
+    +-- [ai/universal-provider.js] sendRequest(requestBody)
+    |
+    +-- Response: tool_use or end_turn?
+    |       |
+    |       +-- end_turn: finalize session
+    |       |
+    |       +-- tool_use: parse tool calls
+    |               |
+    |               v
+    |       [hooks/tool-permission.js] checkPermission(toolName, args)
+    |               |
+    |               +-- denied: inject denial message, skip tool
+    |               +-- allowed: execute
+    |                       |
+    |                       v
+    |               [ai/tool-executor.js] executeTool(name, args, tabId, options)
+    |                       |
+    |                       +-- content route: chrome.tabs.sendMessage
+    |                       +-- cdp route: executeCDPToolDirect
+    |                       +-- background route: chrome.tabs API
+    |                       |
+    |                       v
+    |               [hooks/progress-hooks.js] emitProgress(session, toolResult)
+    |                       |
+    |                       v
+    |               [state/history.js] recordAction(tool, params, result)
+    |
+    +-- [state/session-store.js] persistSession(sessionId, session)
+    |
+    +-- setTimeout(runAgentIteration, 100)  -- MV3 safe chaining
 ```
 
-No API calls, no JavaScript state, no runtime data. Everything is static HTML + CSS + scroll animations.
+### Service Worker Resurrection Flow
 
-## Detailed Design for Each Replica
-
-### 1. Sidepanel Replica (Recreation 1 and 3 update)
-
-**Current state:** `rec-sidepanel` in recreations.css approximates the sidepanel but differs from real `sidepanel.css` in:
-- Header layout (missing history + new chat buttons, only shows gear icon)
-- Status indicator (uses `rec-status-dot` instead of Font Awesome `fa-circle`)
-- Message bubbles (slightly different border-radius, font sizes, colors)
-- Input area (different padding, border-radius, missing mic button)
-- Footer (missing "Made by Lakshman Turlapati" text)
-- Session history view (not shown at all)
-
-**Target state:** Match real `sidepanel.html` + `sidepanel.css` exactly:
-- Header: "FSB" title + status dot + "Ready"/"Automating" text + history/new-chat/settings buttons
-- Messages: exact color values, border-radius (18px user, 6px bottom-corner), shadow values
-- User message: `#ff6b35` background, white text, `box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3)`
-- AI message: `#e3f2fd` bg, `#1565c0` text, `3px solid #2196f3` left border
-- Action message: `#f0f8f0` bg, `#2e7d32` text, monospace, `3px solid #4caf50` left border
-- Status message: `#f0f9ff` bg, 4px left border in primary color, typing dots
-- Input: `contenteditable` div with placeholder, mic button + send button in pill-shaped container
-- Footer: "Made by Lakshman Turlapati" centered text
-
-**Integration approach:**
-- Update `rec-sidepanel` CSS rules to match exact values from `sidepanel.css`
-- Add HTML for missing elements (history/new-chat buttons, mic button, footer)
-- Keep `rec-` prefix -- just make the values match
-
-### 2. Control Panel Replica (Recreation 2 update)
-
-**Current state:** `rec-dashboard` shows a simplified control panel with:
-- Basic header bar (status dot, Test API, Export, theme toggle)
-- Sidebar with 7 nav items
-- Analytics hero (4 metrics), line chart, 3 session cards
-
-**Target state:** Match real `control_panel.html` + `options.css`:
-- Header: connection status dot, "Test API" button, "Export" button, theme toggle
-- Sidebar: 8 nav items (Dashboard, Background Agents, API Configuration, Passwords (Beta), Advanced Settings, Memory, Logs & Debugging, Help & Documentation) -- currently has 7, missing "Help & Documentation"
-- Dashboard content: Analytics hero cards with proper gradient styling
-- Real sidebar item icons should match (e.g., Memory uses `fa-brain` in real, `fa-database` in recreation)
-
-**Integration approach:**
-- Audit sidebar items against `control_panel.html` lines 51-88
-- Fix icon mismatches (`fa-database` -> `fa-brain` for Memory, `fa-robot` -> `fa-server` for Background Agents)
-- Add "Help & Documentation" nav item
-- Match analytics hero gradient (real uses a card-style layout from `options.css`)
-- Ensure chart and session cards match the real dashboard styling
-
-### 3. MCP-in-Claude-Code Terminal Examples (NEW)
-
-**No existing component** -- this is entirely new.
-
-**Design:** A terminal mockup (reusing the existing `.terminal-mockup` pattern from `home.css`) showing realistic Claude Code sessions using FSB MCP tools.
-
-**Structure:**
-```html
-<div class="browser-frame">
-  <div class="browser-topbar">
-    <div class="browser-dots">...</div>
-    <div class="browser-address">Terminal -- Claude Code</div>
-  </div>
-  <div class="rec-mcp-terminal">
-    <div class="rec-mcp-line prompt">$ claude</div>
-    <div class="rec-mcp-line output">Claude Code v1.0.8</div>
-    <div class="rec-mcp-line user">> Use FSB to search for flights from SF to NYC on Google Flights</div>
-    <div class="rec-mcp-line tool-call">
-      <span class="rec-mcp-tool-name">fsb_run_task</span>
-      <span class="rec-mcp-tool-args">{"task": "Search Google Flights for SF to NYC..."}</span>
-    </div>
-    <div class="rec-mcp-line tool-result">
-      Task completed. Found 12 flights...
-    </div>
-    <div class="rec-mcp-line assistant">
-      I found 12 flights from SF to NYC. The cheapest is...
-    </div>
-  </div>
-</div>
+```
+Chrome kills service worker (5 min idle)
+    |
+    v
+Event triggers resurrection (alarm, message, tab update)
+    |
+    v
+[background.js] importScripts()  -- reload all modules
+    |
+    v
+[bootstrap/graph.js] bootstrapStages:
+    1. [bootstrap/prefetch.js] preloadSettings()
+    2. [bootstrap/setup.js] validateEnvironment()
+    3. [bootstrap/deferred-init.js] lazyInit(trusted=?)
+    |
+    v
+[state/session-store.js] loadActiveSession()
+    |
+    +-- No active session: idle
+    +-- Active session found:
+            |
+            v
+        [state/transcript.js] restoreTranscript(stored.messages)
+            |
+            v
+        [ai/agent-loop.js] resumeAgentIteration(sessionId)
+            -- continues from last persisted state
 ```
 
-**Styling approach:**
-- Dark background (#0d1117) matching existing terminal mockup
-- Green prompt text for `$` lines
-- Blue for Claude's output
-- Orange highlight for FSB tool calls
-- Monospace font throughout
-- Typing animation on the user input line (via `recreations.js`)
+---
 
-**Recommended examples (2-3 terminal blocks):**
-1. **Browser automation via MCP:** `fsb_run_task` with a search task
-2. **Page reading via MCP:** `fsb_read_page` extracting content
-3. **Multi-step workflow:** Navigate + extract + summarize
+## Architectural Patterns to Adopt
 
-### 4. Audit of Existing "See It in Action" Section
+### Pattern 1: Deferred Initialization
 
-**Issues found in current about.html:**
+**What:** Delay expensive module loading until after trust/config is validated.
 
-| Issue | Location | Fix |
-|-------|----------|-----|
-| Recreation sidepanel only shows gear icon, missing history/new-chat buttons | Recreation 1 and 3 `rec-sp-actions` | Add two more icon buttons |
-| Mic button missing from sidepanel input | Recreation 1 and 3 `rec-sp-input` | Add mic button before send |
-| Footer "Made by Lakshman Turlapati" missing from sidepanel | All recreations | Add footer div |
-| Dashboard sidebar Memory icon uses `fa-database`, real uses `fa-brain` | Recreation 2 sidebar | Fix icon class |
-| Dashboard sidebar Background Agents icon uses `fa-robot`, real uses `fa-server` | Recreation 2 sidebar | Fix icon class |
-| Dashboard sidebar missing "Help & Documentation" item | Recreation 2 sidebar | Add nav item |
-| Version shown as "v9.0.2" in footer | Page footer | Update to current version |
-| Dark theme message colors differ from real sidepanel.css | `recreations.css` dark overrides | Match exact values |
-| User message shadow differs (rec uses generic, real uses `rgba(255, 107, 53, 0.3)`) | `recreations.css` `.rec-msg.user` | Update shadow value |
+**When to use:** Service worker startup. Do not load site guides (50+ JSON files), memory system, or MCP server connection until API key is confirmed valid.
 
-## Patterns to Follow
-
-### Pattern 1: Scoped CSS with `rec-` Prefix
-
-**What:** All recreation CSS classes use the `rec-` prefix to avoid specificity conflicts with the showcase design system and hypothetical real extension CSS.
-
-**When:** Always, for any new recreation component.
-
-**Example:**
-```css
-/* CORRECT -- scoped to recreation namespace */
-.rec-mcp-terminal { ... }
-.rec-mcp-line { ... }
-.rec-mcp-tool-name { ... }
-
-/* WRONG -- would conflict with main.css or extension CSS */
-.terminal { ... }
-.mcp-line { ... }
-```
-
-### Pattern 2: Theme Variables with `[data-theme]` Selectors
-
-**What:** Each recreation component defines both dark (default) and light theme colors. The showcase is dark by default; `[data-theme="light"]` overrides apply when the user toggles the theme.
-
-**When:** For every color, background, and border value in recreation CSS.
-
-**Example:**
-```css
-.rec-mcp-terminal {
-  background: #0d1117;
-  color: #e6edf3;
-}
-
-[data-theme="light"] .rec-mcp-terminal {
-  background: #f6f8fa;
-  color: #24292f;
-}
-```
-
-### Pattern 3: IntersectionObserver-Triggered Animations
-
-**What:** Animations (typing, fade-in, counters) only start when the element scrolls into view. This is the pattern used by `recreations.js` throughout.
-
-**When:** For any new animated component (MCP terminal typing).
+**Trade-offs:** Faster cold start, but first task may have a slight delay for lazy-loaded modules. Worth it because most service worker resurrections are for keep-alive, not task execution.
 
 **Example:**
 ```javascript
-if ('IntersectionObserver' in window) {
-  var observer = new IntersectionObserver(function (entries) {
-    if (entries[0].isIntersecting && !started) {
-      started = true;
-      startAnimation();
-      observer.disconnect();
-    }
-  }, { threshold: 0.3 });
-  observer.observe(element);
+// bootstrap/deferred-init.js
+const DeferredInit = {
+  _initialized: false,
+  _siteGuides: null,
+  _memoryManager: null,
+
+  async init(trusted) {
+    if (this._initialized) return;
+    if (!trusted) return; // Do not load expensive modules without valid config
+
+    // Lazy load site guides only when first task starts
+    this._siteGuides = await loadSiteGuides();
+    this._memoryManager = await initMemoryManager();
+    this._initialized = true;
+  },
+
+  getSiteGuides() {
+    return this._siteGuides; // null until init() called
+  }
+};
+```
+
+### Pattern 2: Transcript Compaction with Budget Awareness
+
+**What:** Automatically compact old tool results when conversation history approaches token budget, keeping most recent N results intact.
+
+**When to use:** Every iteration, before API call.
+
+**Trade-offs:** Loses detail from early interactions, but prevents context window overflow. FSB already has this pattern but with hardcoded thresholds.
+
+**Example:**
+```javascript
+// state/transcript.js
+function compactTranscript(messages, config) {
+  const { tokenBudget = 128000, compactThreshold = 0.8, keepRecent = 5 } = config;
+  const estimated = estimateTokens(messages);
+  if (estimated <= tokenBudget * compactThreshold) {
+    return { compacted: false, removedCount: 0 };
+  }
+  // Compact old tool results, keep last `keepRecent`
+  // ... (existing compactHistory logic with configurable keepRecent)
 }
 ```
 
-### Pattern 4: Browser Frame Container
+### Pattern 3: Tool Pool Assembly with Permission Context
 
-**What:** All recreations are wrapped in a `.browser-frame` with a `.browser-topbar` (dots + address bar) and `.browser-content`. This provides visual context ("this is what it looks like in a browser").
+**What:** Build a filtered tool set per session based on task type and security context, rather than sending all 42 tools every time.
 
-**When:** For sidepanel and control panel recreations. The MCP terminal can use a simpler terminal frame (already exists as `.terminal-mockup` in `home.css`).
+**When to use:** Session bootstrap, before first API call.
 
-### Pattern 5: No External Dependencies for Recreations
+**Trade-offs:** Fewer tools = fewer tokens in system message = more room for page context. But AI cannot discover tools it was not given. Mitigate by always including read_page, get_page_snapshot, complete_task, fail_task.
 
-**What:** Recreations use only Font Awesome (already loaded), CSS animations, and vanilla JavaScript. No additional libraries.
+**Example:**
+```javascript
+// engine/tool-pool.js
+function assembleToolPool(taskType, permissionContext) {
+  let tools = [...TOOL_REGISTRY];
 
-**When:** Always. The showcase site has no build system. Keep it simple.
+  // Task-type filtering
+  if (taskType === 'read_only') {
+    tools = tools.filter(t => t._readOnly);
+  }
+
+  // Permission filtering
+  if (permissionContext) {
+    tools = tools.filter(t => !permissionContext.blocks(t.name));
+  }
+
+  // Always include lifecycle tools
+  const required = ['complete_task', 'fail_task', 'report_progress', 'read_page', 'get_page_snapshot'];
+  for (const name of required) {
+    if (!tools.find(t => t.name === name)) {
+      tools.push(TOOL_REGISTRY.find(t => t.name === name));
+    }
+  }
+
+  return tools;
+}
+```
+
+### Pattern 4: Session State Schema
+
+**What:** Define a typed schema for session objects instead of ad-hoc property addition.
+
+**When to use:** Session creation, session persistence, session resumption.
+
+**Trade-offs:** More upfront definition, but eliminates `session.someProperty` undefined bugs and makes persistence/resumption reliable.
+
+**Example:**
+```javascript
+// state/session-schema.js
+function createSession({ sessionId, task, tabId, provider, model }) {
+  return {
+    // Identity
+    sessionId,
+    task,
+    tabId,
+    status: 'running',    // running | completed | error | stopped
+
+    // Provider
+    providerConfig: { providerKey: provider, model, providerInstance: null },
+
+    // Conversation
+    messages: [],
+    tools: [],
+
+    // Agent state
+    agentState: {
+      iterationCount: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalCost: 0,
+      startTime: Date.now(),
+      consecutiveNoChangeCount: 0
+    },
+
+    // Safety
+    safetyConfig: { costLimit: 2.00, timeLimit: 600000 },
+
+    // History
+    actionHistory: [],
+
+    // Results
+    completionMessage: null,
+    error: null
+  };
+}
+```
+
+---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Importing Real Extension CSS Directly
+### Anti-Pattern 1: Over-Abstracting the Execution Registry
 
-**What:** Linking to or copying `sidepanel.css` / `options.css` into the showcase page.
+**What people do:** Create a registry pattern that wraps every tool in an abstract class with execute/validate/cleanup methods, mimicking Claude Code's MirroredCommand/MirroredTool pattern.
 
-**Why bad:** These files assume Chrome extension runtime (100vh body, extension scrollbar, message passing for dynamic content). They also use different CSS variable names that would clash with `main.css` design tokens. Additionally, they include ~2500 lines of styling for features not shown in the recreation (login prompts, recon suggestions, action summaries, etc.).
+**Why it is wrong:** Claude Code's registry pattern exists because it mirrors 184+ archived TypeScript tools that do not actually execute -- they are metadata stubs. FSB has 42 real tools with real execution handlers. Adding a registry layer creates unnecessary indirection.
 
-**Instead:** Manually match the exact CSS values in the `rec-` prefixed recreation styles. Only port the specific properties (colors, border-radius, font-size, shadows) that affect visual appearance.
+**Do this instead:** Keep tool-executor.js as the single dispatch point. If you need to add pre/post hooks, use the hooks/ system to wrap executeTool, not a registry class per tool.
 
-### Anti-Pattern 2: Creating a Shared CSS File Between Extension and Showcase
+### Anti-Pattern 2: Blocking Turn Loop
 
-**What:** Making `fsb-ui-core.css` a dependency of both the extension and the showcase.
+**What people do:** Port Claude Code's `for turn in range(max_turns)` synchronous loop pattern to FSB.
 
-**Why bad:** The showcase uses a different design system (dark-first with true black backgrounds) while the extension uses warm-toned grays. Making them share a CSS file would create coupling between the showcase's visual language and the extension's. Changes to the extension theme would break the showcase.
+**Why it is wrong:** Chrome MV3 service workers have a 5-minute execution timer. A blocking loop that runs multiple API calls will be killed mid-execution. FSB's setTimeout-chaining pattern is not a workaround -- it is the correct architecture.
 
-**Instead:** Keep them separate. The showcase recreations are snapshots of what the extension looks like. They do not need to be kept in sync automatically -- they are updated manually at milestone boundaries.
+**Do this instead:** Keep the current `setTimeout(() => runAgentIteration(...), 100)` pattern. Each iteration resets Chrome's execution timer. This is the only correct approach for MV3.
 
-### Anti-Pattern 3: Over-Engineering with JavaScript Interactivity
+### Anti-Pattern 3: Reactive State Store for Session Management
 
-**What:** Making recreation sidepanels clickable, message inputs functional, or adding simulated automation loops.
+**What people do:** Build a Redux/Zustand-like reactive state store (Claude Code's `state/AppStateStore.ts`) for managing session state.
 
-**Why bad:** Scope creep. The goal is visual fidelity, not functional replicas. Interactive demos would require maintaining a mini-application within the showcase.
+**Why it is wrong:** FSB manages 1-3 concurrent sessions in a service worker with no persistent UI framework. A reactive state store adds bundle size and complexity for a problem that does not exist.
 
-**Instead:** Static HTML with scroll-triggered animations. The typing animation and message cascade already give the impression of "live" behavior without needing actual logic.
+**Do this instead:** Use simple event emitters (`state/state-events.js`) for notifying UI surfaces of state changes. Use plain objects with schema validation (`state/session-schema.js`) for state management.
 
-### Anti-Pattern 4: Using iframes to Embed Real Extension Pages
+### Anti-Pattern 4: Porting the Hooks Directory (104 Modules)
 
-**What:** Embedding `sidepanel.html` or `control_panel.html` in iframes within the showcase.
+**What people do:** Try to replicate Claude Code's massive hooks system (104 files covering notification hooks, file suggestions, unified suggestions, IDE status indicators).
 
-**Why bad:** These pages depend on Chrome extension APIs (`chrome.runtime`, `chrome.storage`, `chrome.tabs`). They would throw errors outside the extension context. Even with mock APIs, the pages would need network requests and background script connections to render properly.
+**Why it is wrong:** 95% of those hooks are React/Ink UI hooks for Claude Code's terminal interface. They have zero relevance to a Chrome extension.
 
-**Instead:** Pure HTML/CSS recreations that look identical but have no runtime dependencies.
+**Do this instead:** Extract only the three relevant patterns: tool permission hooks, progress notification hooks, and safety breaker hooks. That is 3 files, not 104.
 
-## CSS Strategy Decision
+---
 
-### Do NOT Share CSS. Do NOT Duplicate Entire Files. Manually Port Values.
+## Chrome MV3 Constraints That Shape Architecture
 
-The correct approach is a middle ground:
+| Constraint | Impact on Architecture | Mitigation |
+|------------|----------------------|------------|
+| Service worker 5-min idle kill | Cannot use long-running processes | setTimeout-chaining for agent loop, chrome.alarms for keep-alive |
+| No DOM access in service worker | Cannot run content scripts from background | Message passing via chrome.tabs.sendMessage, chrome.scripting.executeScript for injection |
+| No eval() / dynamic code | Cannot dynamically construct tool handlers | Static TOOL_REGISTRY, switch-case dispatch in tool-executor |
+| chrome.storage.local 10MB limit | Cannot store unlimited session history | Transcript compaction mandatory, old sessions pruned |
+| importScripts() shared global scope | All service worker scripts share one namespace | Prefix internal variables to avoid collisions (existing pattern: _al_, _te_) |
+| No ES modules in service workers | Cannot use import/export | Use importScripts() + global namespace (existing window.FSB pattern in content scripts) |
 
-1. **Read** the real `sidepanel.css` and `options.css` for exact values
-2. **Port** specific properties (colors, sizes, radii, shadows, fonts) into `recreations.css` rules
-3. **Keep** the `rec-` prefix namespace
-4. **Keep** the showcase's `[data-theme]` toggle mechanism
-5. **Document** in a code comment which real CSS file each recreation section corresponds to
+---
 
-This gives pixel accuracy without creating maintenance coupling.
+## Suggested Build Order
 
-## Scalability Considerations
+The build order respects dependency chains: later modules depend on earlier ones.
 
-| Concern | Current (3 recreations) | After v0.9.22 (3 updated + 1 new) | Future |
-|---------|------------------------|-----------------------------------|--------|
-| `recreations.css` size | 1282 lines | ~1600-1800 lines | Manageable; consider splitting into per-recreation files if exceeding 2500 lines |
-| Animation JS | 257 lines, 7 animation types | ~320 lines with MCP typing | No concern |
-| Page load performance | Fine (all CSS is <100KB combined) | Fine | No concern until 10+ recreations |
-| Theme maintenance | All recreations have light/dark | Same | Same pattern; mechanical but straightforward |
+### Phase 1: State Foundation (No Dependencies)
 
-## Build Order (Suggested Phase Sequence)
+Build `state/` first because every other module needs typed sessions and structured storage.
 
-The following order respects dependencies:
+1. `state/session-schema.js` -- typed session creation
+2. `state/session-store.js` -- structured save/load with chrome.storage.local
+3. `state/transcript.js` -- conversation compaction (extract from agent-loop.js compactHistory)
+4. `state/history.js` -- action history with structured events
+5. `state/state-events.js` -- event emitter for session changes
 
-### Phase 1: Sidepanel Replica Audit and CSS Fix
+**Depends on:** Nothing. Pure data structures.
+**Blocks:** engine/, bootstrap/, hooks/
 
-**Dependencies:** None -- self-contained.
-**Scope:** Audit `sidepanel.css` vs `rec-sidepanel` in `recreations.css`. Port exact color values, font sizes, border-radius, shadows. Update HTML in `about.html` recreations 1 and 3 to include missing elements (history/new-chat buttons, mic button, footer).
-**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`
+### Phase 2: Engine Configuration (Depends on State)
 
-### Phase 2: Control Panel Replica Audit and CSS Fix
+Build `engine/` next because bootstrap and hooks need tool pools and permissions.
 
-**Dependencies:** None (parallel with Phase 1 if desired).
-**Scope:** Audit `options.css` + `control_panel.html` vs `rec-dashboard` in `recreations.css`. Fix sidebar icons and items. Match analytics hero styling. Update session card layout.
-**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`
+1. `engine/engine-config.js` -- session configuration (max_turns, budget, compact threshold)
+2. `engine/permissions.js` -- tool permission gating
+3. `engine/tool-pool.js` -- filtered tool assembly (uses permissions.js + tool-definitions.js)
+4. `engine/prompt-router.js` -- task classification (uses tool-pool.js)
 
-### Phase 3: MCP Terminal Recreation (New Section)
+**Depends on:** state/session-schema.js (for config integration), ai/tool-definitions.js (for TOOL_REGISTRY)
+**Blocks:** bootstrap/, hooks/
 
-**Dependencies:** None for CSS; the `terminal-mockup` pattern already exists in `home.css`. Can run in parallel.
-**Scope:** Add a new section to `about.html` with 2-3 MCP terminal examples. Create `rec-mcp-*` CSS classes in `recreations.css`. Add typing animation function in `recreations.js`.
-**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`, `showcase/js/recreations.js`
+### Phase 3: Bootstrap Pipeline (Depends on Engine)
 
-### Phase 4: Gap Audit and Final Sweep
+Build `bootstrap/` to structure service worker startup.
 
-**Dependencies:** Phases 1-3 complete.
-**Scope:** Side-by-side comparison of all recreations vs real extension. Fix any remaining visual discrepancies. Test dark/light theme toggle for all recreations. Test responsive breakpoints. Update version number in footer.
-**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`, potentially `showcase/css/about.css`
+1. `bootstrap/prefetch.js` -- preload settings from chrome.storage
+2. `bootstrap/setup.js` -- environment detection
+3. `bootstrap/context.js` -- session context builder
+4. `bootstrap/deferred-init.js` -- lazy module loading
+5. `bootstrap/graph.js` -- startup stage ordering
 
-### Why This Order
+**Depends on:** engine/engine-config.js (for defaults), state/session-store.js (for session resumption)
+**Blocks:** Refactored background.js startup
 
-- Phases 1 and 2 are updates to existing recreations -- lower risk, clear reference points
-- Phase 3 is a net-new component -- benefits from having the updated sidepanel CSS as context for maintaining visual consistency
-- Phase 4 is the quality gate -- catches drift between phases
+### Phase 4: Hooks (Depends on Engine + State)
 
-## Integration Points Summary
+Build `hooks/` to extract cross-cutting concerns from agent-loop.js.
 
-| From | To | Integration Type | Notes |
-|------|----|-----------------|-------|
-| `sidepanel.css` (real) | `recreations.css` (showcase) | Manual value porting | Colors, sizes, radii, shadows only |
-| `options.css` (real) | `recreations.css` (showcase) | Manual value porting | Layout proportions, color scheme |
-| `control_panel.html` (real) | `about.html` (showcase) | Structural reference | Sidebar items, section names |
-| `sidepanel.html` (real) | `about.html` (showcase) | Structural reference | Header layout, input area structure |
-| `home.css` `.terminal-mockup` | `recreations.css` `.rec-mcp-terminal` | Pattern reuse | Dark terminal aesthetic |
-| `main.css` design tokens | `recreations.css` `--rec-*` tokens | Indirect consumption | `var(--primary)` used in some rec styles |
-| `main.js` theme toggle | `recreations.css` `[data-theme]` | Event-driven | Theme switch applies to all recreations |
-| `recreations.js` animations | `about.html` DOM elements | IntersectionObserver | Scroll-triggered animations |
+1. `hooks/safety-hooks.js` -- extract checkSafetyBreakers + detectStuck
+2. `hooks/tool-permission.js` -- pre-execution permission check
+3. `hooks/progress-hooks.js` -- unified notification pipeline (extract sendStatus calls)
 
-## New vs Modified Components
+**Depends on:** engine/permissions.js, state/state-events.js
+**Blocks:** Refactored agent-loop.js
 
-| File | Action | What Changes |
-|------|--------|-------------|
-| `showcase/about.html` | MODIFY | Update recreation 1-3 HTML, add MCP section |
-| `showcase/css/recreations.css` | MODIFY | Port exact CSS values, add MCP terminal styles |
-| `showcase/js/recreations.js` | MODIFY | Add MCP terminal typing animation |
-| `showcase/css/about.css` | POSSIBLY MODIFY | Add section styling for MCP recreation if needed |
-| `showcase/css/main.css` | NO CHANGE | Design system is stable |
-| `showcase/js/main.js` | NO CHANGE | Core functionality is stable |
-| `ui/sidepanel.css` | READ ONLY | Reference for pixel matching |
-| `ui/sidepanel.html` | READ ONLY | Reference for HTML structure |
-| `ui/options.css` | READ ONLY | Reference for pixel matching |
-| `ui/control_panel.html` | READ ONLY | Reference for HTML structure |
-| `shared/fsb-ui-core.css` | READ ONLY | Reference for design token values |
+### Phase 5: Agent Loop Refactor (Depends on Everything Above)
+
+Slim down agent-loop.js to use the new modules.
+
+1. Replace inline session creation with `state/session-schema.js`
+2. Replace hardcoded config with `engine/engine-config.js`
+3. Replace `getPublicTools()` with `engine/tool-pool.js`
+4. Replace inline compaction with `state/transcript.js`
+5. Replace inline safety checks with `hooks/safety-hooks.js`
+6. Replace scattered sendStatus with `hooks/progress-hooks.js`
+7. Add session resumption via `state/session-store.js`
+
+**Depends on:** All Phase 1-4 modules
+**Blocks:** Nothing -- this is the integration phase
+
+### Phase 6: Commands (Optional, Future-Facing)
+
+1. `commands/command-graph.js` -- task type registry
+
+**Depends on:** engine/prompt-router.js
+**Blocks:** Nothing -- purely additive
+
+---
+
+## Integration Points with Existing FSB Code
+
+### Files That CHANGE
+
+| File | What Changes | Risk |
+|------|-------------|------|
+| `background.js` | Startup sequence uses bootstrap/ pipeline. Session creation delegates to state/session-schema.js. Agent loop launch delegates to refactored agent-loop.js. | MEDIUM -- 10K line file, many integration points |
+| `ai/agent-loop.js` | Delegates to engine/, state/, hooks/ instead of inline logic. Core loop structure (setTimeout chaining) unchanged. | LOW -- extracting code out, not changing behavior |
+| `ai/tool-definitions.js` | Add `_permissionLevel` metadata per tool (e.g., 'safe', 'write', 'destructive') | LOW -- additive, backward compatible |
+
+### Files That DO NOT CHANGE
+
+| File | Why Stable |
+|------|-----------|
+| `ai/tool-executor.js` | Dispatch routing is already clean. No Claude Code pattern improves it. |
+| `ai/tool-use-adapter.js` | Provider format translation is complete for all 6 providers. |
+| `ai/universal-provider.js` | API client is stable and well-tested. |
+| `content/*.js` (all 12 modules) | Content scripts are not affected by background architecture changes. |
+| `ui/*.js` (all UI files) | UI surfaces communicate via message passing, independent of loop architecture. |
+| `mcp-server/` | MCP server is already decoupled from the agent loop. |
+
+### New Files (17 total)
+
+| Directory | Count | Files |
+|-----------|-------|-------|
+| `state/` | 5 | session-schema.js, session-store.js, transcript.js, history.js, state-events.js |
+| `engine/` | 4 | engine-config.js, tool-pool.js, permissions.js, prompt-router.js |
+| `bootstrap/` | 5 | prefetch.js, setup.js, context.js, deferred-init.js, graph.js |
+| `hooks/` | 3 | safety-hooks.js, tool-permission.js, progress-hooks.js |
+
+---
+
+## Scaling Considerations
+
+| Scale | Architecture Adjustments |
+|-------|--------------------------|
+| Current (1 session) | Single agent loop, 42 tools, no permission gating needed |
+| 3-5 concurrent sessions | Tool pool per session (already prepared), independent transcript stores, shared bootstrap |
+| Remote dashboard (10+ users) | Session store must handle concurrent writes via chrome.storage.local locking, state-events.js must debounce broadcasts |
+| MCP multi-agent | Each agent gets its own session-schema instance, command-graph enables agent specialization |
+
+### First Bottleneck
+
+**chrome.storage.local write contention.** When multiple sessions persist simultaneously, writes may conflict. Mitigate by batching writes per session (persist after N iterations, not every iteration) and using session-specific storage keys.
+
+### Second Bottleneck
+
+**Tool pool assembly cost for N sessions.** Currently trivial (filter 42 tools), but if tool count grows via plugins, the pool assembly should be cached per task-type rather than recomputed per session.
+
+---
 
 ## Sources
 
-- Direct codebase analysis of:
-  - `showcase/about.html` (existing recreations)
-  - `showcase/css/recreations.css` (1282 lines of recreation styles)
-  - `showcase/css/main.css` (showcase design system)
-  - `showcase/js/recreations.js` (animation logic)
-  - `ui/sidepanel.html` + `ui/sidepanel.css` (real sidepanel)
-  - `ui/control_panel.html` + `ui/options.css` (real control panel)
-  - `shared/fsb-ui-core.css` (shared design tokens)
-  - `Dockerfile` (deployment confirms `showcase/` -> `/app/public/`)
-  - `fly.toml` (deployment config)
+- Direct source analysis: `Research/claude-code/src/` (all files enumerated in subsystem inventory)
+- FSB codebase analysis: `ai/agent-loop.js`, `ai/tool-definitions.js`, `ai/tool-executor.js`, `ai/tool-use-adapter.js`, `background.js`
+- Chrome MV3 service worker constraints: Informed by existing FSB patterns (setTimeout chaining, importScripts, chrome.storage)
+- Reference data: `Research/claude-code/src/reference_data/subsystems/*.json` for module counts and file inventories
+
+---
+*Architecture research for: Claude Code Architecture Adaptation for FSB v0.9.24*
+*Researched: 2026-04-02*

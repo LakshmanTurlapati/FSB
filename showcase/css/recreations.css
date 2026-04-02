@@ -2244,6 +2244,8 @@ img.rec-amz-card-img {
 [data-theme="light"] .rec-amz-pdp-returns { color: #007185; }
 .rec-amz-pdp-seller { font-size: 12px; color: #999; margin-bottom: 10px; }
 [data-theme="light"] .rec-amz-pdp-seller { color: #565959; }
+.rec-amz-pdp-style { font-size: 13px; color: #e3e6e6; margin-top: 8px; }
+[data-theme="light"] .rec-amz-pdp-style { color: #0f1111; }
 
 /* Buy box */
 .rec-amz-buybox {
