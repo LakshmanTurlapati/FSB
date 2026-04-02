@@ -28,11 +28,16 @@ async function execAction(
     return mapFSBError({ success: false, error: 'extension_not_connected' });
   }
   console.error(`[FSB Manual] ${toolName}: sending verb=${fsbVerb} params=${JSON.stringify(params).slice(0, 150)}`);
+  // fill_sheet types cell-by-cell into Google Sheets and can take minutes for large datasets.
+  // Default 30s is insufficient; give it 120s like the content script's own timeout.
+  const LONG_TIMEOUT_TOOLS = new Set(['fill_sheet', 'read_sheet']);
+  const timeout = LONG_TIMEOUT_TOOLS.has(toolName) ? 120_000 : 30_000;
+
   return queue.enqueue(toolName, async () => {
     try {
       const result = await bridge.sendAndWait(
         { type: 'mcp:execute-action', payload: { tool: fsbVerb, params } },
-        { timeout: 30_000 },
+        { timeout },
       );
       if (!result?.success) {
         console.error(`[FSB Manual] ${toolName}: FAILED - ${result?.error || 'unknown error'}`);
