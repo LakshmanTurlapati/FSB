@@ -397,6 +397,7 @@ CRITICAL RULES:
 - get_page_snapshot gives you DOM element IDs and selectors (for click/type targets).
 - For data collection: scroll through ALL results, reading each page of content.
 - For Google Sheets entry: use fill_sheet tool with startCell and csvData parameters.
+- When on Google Sheets, call fill_sheet directly. Do NOT interact with Tables sidebar or any overlays.
 - Execute autonomously. Do not ask the user questions.`;
 }
 
