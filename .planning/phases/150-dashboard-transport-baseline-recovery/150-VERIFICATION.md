@@ -78,7 +78,7 @@ Static checks performed during execution:
 | Relay handler parses | `node --check server/src/ws/handler.js` | Pass | PASS |
 | Dashboard, extension, and relay diagnostics symbols present | `rg "__FSBDashboardTransportDiagnostics|__FSBTransportDiagnostics|roomDiagnostics|getRoomDiagnostics|stream-state-not-ready|droppedByType"` | Matches returned | PASS |
 | Wave 1 execution commits present | `git log --grep='150-01'` | `651f0c1`, `03ee538`, `a4467e9` present | PASS |
-| Wave 2 relay commit present | `git log --grep='150-02'` | `30eacf5` present | PASS |
+| Wave 2 execution commits present | `git log --grep='150-02'` | `d6bca01` and `30eacf5` present | PASS |
 
 Live browser checks are listed below under Human Verification Required.
 

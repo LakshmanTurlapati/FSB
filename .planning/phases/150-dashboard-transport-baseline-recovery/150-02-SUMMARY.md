@@ -15,7 +15,7 @@ tech-stack:
   patterns: [bounded diagnostics buffers, directional relay accounting, no-target delivery evidence]
 key-files:
   created: []
-  modified: [server/src/ws/handler.js]
+  modified: [showcase/js/dashboard.js, ws/ws-client.js, background.js, server/src/ws/handler.js]
 key-decisions:
   - "Kept relay diagnostics bounded to counters, direction metadata, and close reasons instead of storing payload bodies."
   - "Recorded zero-target deliveries explicitly so reconnect failures are inspectable instead of disappearing when a room is missing."
@@ -37,7 +37,7 @@ completed: 2026-04-02
 - **Started:** 2026-04-02T09:15:00Z
 - **Completed:** 2026-04-02T09:31:00Z
 - **Tasks:** 2
-- **Files modified:** 1
+- **Files modified:** 4
 
 ## Accomplishments
 
@@ -47,13 +47,16 @@ completed: 2026-04-02
 
 ## Task Commits
 
-Each task was resolved to a verifiable Phase 150 outcome:
+Each task was committed atomically:
 
-1. **Task 1: Add bounded dashboard and extension transport diagnostics with per-message-type failure capture** - Verified in existing phase worktree state during local takeover; no additional commit was required in this completion pass.
+1. **Task 1: Add bounded dashboard and extension transport diagnostics with per-message-type failure capture** - `d6bca01` (feat)
 2. **Task 2: Instrument relay direction and dropped-delivery diagnostics in the WebSocket handler** - `30eacf5` (feat)
 
 ## Files Created/Modified
 
+- `showcase/js/dashboard.js` - Exposes bounded dashboard diagnostics and records reconnect, recovery, page-ready, and not-ready transport events.
+- `ws/ws-client.js` - Exposes extension transport diagnostics with per-message counters, reconnect evidence, and forward-failure capture.
+- `background.js` - Feeds stream tab switch, not-ready, closed-tab, and page-ready decisions into the shared extension diagnostics flow.
 - `server/src/ws/handler.js` - Added bounded per-room diagnostics, connection close metadata, relay direction accounting, malformed JSON reporting, and explicit dropped-delivery recording for missing targets.
 
 ## Decisions Made
@@ -81,7 +84,7 @@ Each task was resolved to a verifiable Phase 150 outcome:
 
 ## Issues Encountered
 
-- The Wave 2 executor stalled without producing a completion signal or summary file. The completion was recovered locally by verifying the existing dashboard/extension diagnostics, finishing the relay instrumentation, and writing this summary.
+- The Wave 2 executor stalled without producing a completion signal or summary file. It had already landed Task 1 (`d6bca01`), so the completion was recovered locally by finishing the relay instrumentation, writing the missing summary, and adding the phase verification artifact.
 - `.planning/STATE.md`, `.planning/ROADMAP.md`, `.planning/PROJECT.md`, and `.planning/MILESTONES.md` were already being edited elsewhere, so this run intentionally left those contested planning files untouched.
 
 ## User Setup Required
@@ -97,4 +100,4 @@ None - no external service configuration required.
 
 - Verified `node --check` passes for `showcase/js/dashboard.js`, `ws/ws-client.js`, `background.js`, and `server/src/ws/handler.js`.
 - Verified acceptance `rg` checks for dashboard, extension, background, and relay diagnostics all return matches.
-- Verified commit `30eacf5` is present in git history.
+- Verified commits `d6bca01` and `30eacf5` are present in git history.
