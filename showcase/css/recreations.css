@@ -1469,3 +1469,124 @@
     align-items: center;
   }
 }
+
+/* --- MCP Terminal Recreations --- */
+
+.rec-mcp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (max-width: 900px) {
+  .rec-mcp-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rec-mcp-terminal {
+  background: #1a1a2e;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Force dark theme regardless of showcase light/dark mode */
+[data-theme="light"] .rec-mcp-terminal {
+  background: #1a1a2e;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.rec-mcp-terminal .browser-dots span {
+  width: 11px;
+  height: 11px;
+}
+
+.rec-mcp-topbar {
+  background: #13132b;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rec-mcp-title {
+  font-size: 0.75rem;
+  color: #8b8ba3;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.rec-mcp-body {
+  padding: 20px 24px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: #e0e0f0;
+}
+
+.rec-mcp-line {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.rec-mcp-line.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.rec-mcp-prompt {
+  color: #7b7bff;
+}
+
+.rec-mcp-command {
+  color: #e0e0f0;
+  font-weight: 600;
+}
+
+.rec-mcp-tool-header {
+  color: #c792ea;
+  margin-top: 8px;
+}
+
+.rec-mcp-tool-param {
+  color: #89ddff;
+  padding-left: 24px;
+}
+
+.rec-mcp-result-header {
+  color: #c3e88d;
+  margin-top: 8px;
+}
+
+.rec-mcp-result-line {
+  color: #a6accd;
+  padding-left: 24px;
+}
+
+.rec-mcp-progress {
+  color: #ffcb6b;
+}
+
+.rec-mcp-success {
+  color: #c3e88d;
+}
+
+.rec-mcp-error {
+  color: #ff5370;
+}
+
+.rec-mcp-separator {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin: 12px 0;
+}
+
+.rec-mcp-comment {
+  color: #546e7a;
+  font-style: italic;
+}

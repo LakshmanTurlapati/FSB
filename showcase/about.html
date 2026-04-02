@@ -498,6 +498,84 @@
     </div>
   </section>
 
+  <!-- Recreation 4: MCP Terminal Examples -->
+  <section class="recreation-section section">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>MCP Integration</h2>
+        <p>Use FSB tools directly inside Claude Code with autopilot or manual orchestration.</p>
+      </div>
+      <div class="rec-mcp-grid">
+        <!-- Autopilot Terminal -->
+        <div class="rec-mcp-terminal reveal-scale">
+          <div class="rec-mcp-topbar">
+            <div class="browser-dots">
+              <span class="dot-red"></span>
+              <span class="dot-yellow"></span>
+              <span class="dot-green"></span>
+            </div>
+            <span class="rec-mcp-title">Claude Code -- Autopilot Mode</span>
+          </div>
+          <div class="rec-mcp-body">
+            <div class="rec-mcp-line"><span class="rec-mcp-prompt">$ </span><span class="rec-mcp-command">claude</span></div>
+            <div class="rec-mcp-line rec-mcp-tool-header">Tool: run_task</div>
+            <div class="rec-mcp-line rec-mcp-tool-param">task: "Search Amazon for wireless mouse under $30</div>
+            <div class="rec-mcp-line rec-mcp-tool-param">       and add the best-rated one to cart"</div>
+            <div class="rec-mcp-line rec-mcp-separator"></div>
+            <div class="rec-mcp-line rec-mcp-progress">Progress: 25% -- Navigating to amazon.com...</div>
+            <div class="rec-mcp-line rec-mcp-progress">Progress: 50% -- Searching for "wireless mouse under $30"...</div>
+            <div class="rec-mcp-line rec-mcp-progress">Progress: 75% -- Comparing ratings on results page...</div>
+            <div class="rec-mcp-line rec-mcp-result-header">Result:</div>
+            <div class="rec-mcp-line rec-mcp-result-line rec-mcp-success">  success: true</div>
+            <div class="rec-mcp-line rec-mcp-result-line">  summary: "Added Logitech M185 ($24.99, 4.5 stars)</div>
+            <div class="rec-mcp-line rec-mcp-result-line">            to cart. Cart total: $24.99"</div>
+            <div class="rec-mcp-line rec-mcp-result-line">  iterations: 8</div>
+            <div class="rec-mcp-line rec-mcp-result-line">  cost: "$0.003"</div>
+          </div>
+        </div>
+
+        <!-- Manual Terminal -->
+        <div class="rec-mcp-terminal reveal-scale">
+          <div class="rec-mcp-topbar">
+            <div class="browser-dots">
+              <span class="dot-red"></span>
+              <span class="dot-yellow"></span>
+              <span class="dot-green"></span>
+            </div>
+            <span class="rec-mcp-title">Claude Code -- Manual Mode</span>
+          </div>
+          <div class="rec-mcp-body">
+            <div class="rec-mcp-line"><span class="rec-mcp-prompt">$ </span><span class="rec-mcp-command">claude</span></div>
+            <div class="rec-mcp-line rec-mcp-tool-header">Tool: read_page</div>
+            <div class="rec-mcp-line rec-mcp-result-header">Result:</div>
+            <div class="rec-mcp-line rec-mcp-result-line">  Found 47 interactive elements</div>
+            <div class="rec-mcp-line rec-mcp-result-line">  Current URL: https://amazon.com</div>
+            <div class="rec-mcp-line rec-mcp-result-line">  Title: "Amazon.com: Online Shopping"</div>
+            <div class="rec-mcp-line rec-mcp-separator"></div>
+            <div class="rec-mcp-line rec-mcp-tool-header">Tool: click</div>
+            <div class="rec-mcp-line rec-mcp-tool-param">  selector: "#twotabsearchtextbox"</div>
+            <div class="rec-mcp-line rec-mcp-result-header">Result:</div>
+            <div class="rec-mcp-line rec-mcp-result-line rec-mcp-success">  success: true</div>
+            <div class="rec-mcp-line rec-mcp-result-line">  action: "Focused search input field"</div>
+            <div class="rec-mcp-line rec-mcp-separator"></div>
+            <div class="rec-mcp-line rec-mcp-tool-header">Tool: type_text</div>
+            <div class="rec-mcp-line rec-mcp-tool-param">  text: "wireless mouse under $30"</div>
+            <div class="rec-mcp-line rec-mcp-tool-param">  submit: true</div>
+            <div class="rec-mcp-line rec-mcp-result-header">Result:</div>
+            <div class="rec-mcp-line rec-mcp-result-line rec-mcp-success">  success: true</div>
+            <div class="rec-mcp-line rec-mcp-result-line">  action: "Typed text and submitted search"</div>
+            <div class="rec-mcp-line rec-mcp-separator"></div>
+            <div class="rec-mcp-line rec-mcp-tool-header">Tool: click</div>
+            <div class="rec-mcp-line rec-mcp-tool-param">  selector: "[data-asin='B07YFF3JCN'] h2 a"</div>
+            <div class="rec-mcp-line rec-mcp-result-header">Result:</div>
+            <div class="rec-mcp-line rec-mcp-result-line rec-mcp-success">  success: true</div>
+            <div class="rec-mcp-line rec-mcp-result-line">  action: "Clicked top-rated result"</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Architecture Diagram -->
   <section class="arch-section section">
     <div class="container">
