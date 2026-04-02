@@ -226,7 +226,7 @@ Shipped 2026-04-02. Shared UI baseline, sidepanel/popup retouch, control-panel/d
 - [x] **Phase 145: Fresh UI Audit & Token Baseline** - Audit current extension UI state and establish exact color token mappings for all replicas (completed 2026-04-02)
 - [x] **Phase 146: Sidepanel Replica** - Pixel-accurate recreation of the real sidepanel Chat view in the showcase (completed 2026-04-02)
 - [x] **Phase 147: Control Panel Replica** - Pixel-accurate recreation of the real control panel Dashboard view in the showcase (completed 2026-04-02)
-- [ ] **Phase 148: MCP Terminal Examples** - Claude Code-styled terminal blocks showing autopilot and manual mode MCP usage
+- [x] **Phase 148: MCP Terminal Examples** - Claude Code-styled terminal blocks showing autopilot and manual mode MCP usage (completed 2026-04-02)
 - [ ] **Phase 149: Final Verification & Sync Comments** - Side-by-side fidelity check and version-stamped sync comments for drift detection
 
 ### Phase Details (v0.9.22)
@@ -280,7 +280,9 @@ Plans:
   2. A manual mode terminal block shows a multi-tool orchestration flow (read_page + click + type_text sequence) with tool-use blocks and result blocks, styled as a Claude Code terminal session
   3. Both terminal blocks use accurate Claude Code dark theme colors, monospace typography, and semantic CSS classes (not inline styles)
   4. Terminal blocks trigger a typing animation on scroll using IntersectionObserver following the existing recreations.js IIFE pattern
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [x] 148-01-PLAN.md -- Terminal CSS, HTML blocks for autopilot and manual mode, and line-by-line reveal animation
 **UI hint**: yes
 
 ### Phase 149: Final Verification & Sync Comments
@@ -301,8 +303,8 @@ Plans:
 |-------|----------------|--------|-----------|
 | 145. Fresh UI Audit & Token Baseline | 1/1 | Complete    | 2026-04-02 |
 | 146. Sidepanel Replica | 1/1 | Complete    | 2026-04-02 |
-| 147. Control Panel Replica | 1/1 | Complete   | 2026-04-02 |
-| 148. MCP Terminal Examples | 0/? | Not started | - |
+| 147. Control Panel Replica | 1/1 | Complete    | 2026-04-02 |
+| 148. MCP Terminal Examples | 1/1 | Complete   | 2026-04-02 |
 | 149. Final Verification & Sync Comments | 0/? | Not started | - |
 
 ---

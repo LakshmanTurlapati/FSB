@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.9.8.1
 milestone_name: npm Publishing
 status: verifying
-stopped_at: Completed 147-01-PLAN.md
-last_updated: "2026-04-02T08:51:29.848Z"
+stopped_at: Completed 148-01-PLAN.md
+last_updated: "2026-04-02T09:08:25.403Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 2
@@ -21,11 +21,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 147 — Control Panel Replica
+**Current focus:** Phase 148 — MCP Terminal Examples
 
 ## Current Position
 
-Phase: 147 (Control Panel Replica) — EXECUTING
+Phase: 148 (MCP Terminal Examples) — EXECUTING
 Plan: 1 of 1
 Status: Phase complete — ready for verification
 Last activity: 2026-04-02
@@ -49,6 +49,7 @@ Progress: [----------] 0%
 | Phase 145 P01 | 4min | 2 tasks | 2 files |
 | Phase 146 P01 | 3min | 2 tasks | 3 files |
 | Phase 147 P01 | 3min | 2 tasks | 3 files |
+| Phase 148 P01 | 2min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - [Phase 146]: Used FA icon-based status dot (fa-circle) instead of styled div for consistent small-size rendering
 - [Phase 147]: Used flat var(--primary) for dark analytics hero bg instead of gray gradient -- matches real options.css
 - [Phase 147]: Proportionally scaled real dimensions for smaller recreation viewport (sidebar 252->220px, border-radius 18->16px)
+- [Phase 148]: Terminal blocks always dark (#1a1a2e) with explicit light-theme override
+- [Phase 148]: 150ms stagger per line for typewriter-style scroll reveal
 
 ### Roadmap Evolution
 
@@ -87,6 +90,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T08:51:29.846Z
-Stopped at: Completed 147-01-PLAN.md
+Last session: 2026-04-02T09:08:25.400Z
+Stopped at: Completed 148-01-PLAN.md
 Resume file: None
