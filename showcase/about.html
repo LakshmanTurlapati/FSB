@@ -91,6 +91,22 @@
               <div class="rec-glow-bar left"></div>
             </div>
 
+            <!-- Progress overlay -->
+            <div class="rec-progress-overlay">
+              <div class="rec-overlay-header">
+                <img class="rec-overlay-logo" src="assets/icon48.png" alt="FSB">
+                <span class="rec-overlay-title">FSB Automating</span>
+              </div>
+              <div class="rec-overlay-task">Search for all relevant latest AI tools and download them</div>
+              <div class="rec-overlay-step">
+                <span class="rec-overlay-step-badge">Iter 4/8</span>
+                <span class="rec-overlay-step-text">Clicking first result...</span>
+              </div>
+              <div class="rec-progress-track">
+                <div class="rec-progress-fill" data-width="42%"></div>
+              </div>
+            </div>
+
             <!-- Google Header: Logo + Search Bar -->
             <div class="rec-google-header">
               <div class="rec-google-logo">
@@ -179,10 +195,10 @@
             <div class="rec-messages">
               <div class="rec-msg user">Search for all relevant latest AI tools and download them</div>
               <div class="rec-msg system">Session started -- connected to active tab</div>
-              <div class="rec-msg action">type_text(selector: "textarea[name='q']", text: "latest AI tools 2025")</div>
-              <div class="rec-msg action">press_enter()</div>
-              <div class="rec-msg ai">I can see the Google search results for latest AI tools. I'll click through the top results to find relevant tools. Starting with the first result from TechCrunch.</div>
-              <div class="rec-msg action">click(selector: "a h3", text: "Latest AI News and Breakthroughs")</div>
+              <div class="rec-msg action">Typing in search box...</div>
+              <div class="rec-msg action">Searching for "latest AI tools 2025"</div>
+              <div class="rec-msg ai">I can see the search results. I'll click through the top results to find the most relevant AI tools for you.</div>
+              <div class="rec-msg action">Clicking first result -- "Best AI Tools in 2025"</div>
               <div class="rec-msg status">
                 <div class="rec-status-content">
                   <div class="rec-typing-dots">
@@ -420,7 +436,7 @@
                 <img class="rec-overlay-logo" src="assets/icon48.png" alt="FSB">
                 <span class="rec-overlay-title">FSB Automating</span>
               </div>
-              <div class="rec-overlay-task">Fill contact form with test data</div>
+              <div class="rec-overlay-task">Fill out the contact form with my details and submit it</div>
               <div class="rec-overlay-step">
                 <span class="rec-overlay-step-badge">Iter 3/6</span>
                 <span class="rec-overlay-step-text">Typing email address...</span>
@@ -474,10 +490,9 @@
               <div class="rec-msg user">Fill out the contact form with my details and submit it</div>
               <div class="rec-msg system">Session started -- connected to active tab</div>
               <div class="rec-msg ai">I can see a contact form with Name, Email, and Message fields. I'll fill each field and then submit.</div>
-              <div class="rec-msg action">click(selector: "#name")</div>
-              <div class="rec-msg action">type_text(selector: "#name", text: "John Doe")</div>
-              <div class="rec-msg action">click(selector: "#email")</div>
-              <div class="rec-msg action">type_text(selector: "#email", text: "john@example.com")</div>
+              <div class="rec-msg action">Clicking name field...</div>
+              <div class="rec-msg action">Typing "John Doe"</div>
+              <div class="rec-msg action">Clicking email field...</div>
               <div class="rec-msg status">
                 <div class="rec-status-content">
                   <div class="rec-typing-dots">
@@ -485,7 +500,7 @@
                     <span></span>
                     <span></span>
                   </div>
-                  <span class="rec-status-label">Filling message field...</span>
+                  <span class="rec-status-label">Typing email address...</span>
                 </div>
                 <div class="rec-progress-bar">
                   <div class="rec-progress-fill" style="width: 68%"></div>
