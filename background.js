@@ -252,6 +252,12 @@ function createSessionHooks() {
   var emitter = new SessionStateEmitter();
   var permCtx = new PermissionContext();
 
+  // Safety breaker on beforeIteration -- pre-iteration guard (LOOP-03 gap closure)
+  hooks.register(
+    LIFECYCLE_EVENTS.BEFORE_ITERATION,
+    createSafetyBreakerHook(checkSafetyBreakers)
+  );
+
   // Safety hooks on afterIteration
   hooks.register(
     LIFECYCLE_EVENTS.AFTER_ITERATION,
