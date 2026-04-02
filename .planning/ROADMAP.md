@@ -96,7 +96,10 @@ Plans:
   2. Cost limit, time limit, and stuck detection checks run as hook handlers registered on afterIteration -- not as inline if-statements in the iteration function
   3. Before every tool execution, a permission hook checks the permission context and blocks denied tools with a structured denial result that the AI receives as a tool_result error
   4. All progress notifications (action summaries, phase updates, cost updates) flow through a single progress hook on afterToolExecution and afterIteration, replacing scattered sendStatus and sendUpdate calls
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 158-01-PLAN.md -- HookPipeline class with 7 lifecycle events and register/emit/unregister API
+- [ ] 158-02-PLAN.md -- Safety breaker hooks, permission pre-execution hook, and progress notification hooks
 **Note**: Research reference: `Research/claude-code/src/costHook.py`, `Research/claude-code/src/reference_data/subsystems/hooks.json`. Pitfall 4 (cross-process hooks) -- all initial hooks are background-only; content-requiring hooks deferred.
 
 ### Phase 159: Agent Loop Refactor
@@ -127,7 +130,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 156. State Foundation | 2/2 | Complete    | 2026-04-02 |
-| 157. Engine Configuration | 2/2 | Complete   | 2026-04-02 |
-| 158. Hook Pipeline | 0/? | Not started | - |
+| 157. Engine Configuration | 2/2 | Complete    | 2026-04-02 |
+| 158. Hook Pipeline | 0/2 | Not started | - |
 | 159. Agent Loop Refactor | 0/? | Not started | - |
 | 160. Bootstrap Pipeline | 0/? | Not started | - |
