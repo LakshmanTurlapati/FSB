@@ -156,39 +156,55 @@
           </div>
 
           <!-- FSB Side Panel -->
+          <!-- Replica of: ui/sidepanel.html | Last synced: v0.9.22 -->
           <div class="rec-sidepanel">
             <div class="rec-sp-header">
               <div class="rec-sp-header-info">
-                <span class="rec-sp-title">FSB</span>
+                <div class="rec-sp-brand-row">
+                  <span class="rec-sp-title">FSB</span>
+                  <span class="rec-sp-subtitle">Persistent workspace</span>
+                </div>
                 <div class="rec-sp-status">
-                  <div class="rec-status-dot running"></div>
+                  <i class="fa-solid fa-circle rec-status-dot running"></i>
                   <span class="rec-status-text">Automating</span>
                 </div>
               </div>
               <div class="rec-sp-actions">
-                <div class="rec-sp-icon-btn"><i class="fa-solid fa-gear"></i></div>
+                <div class="rec-sp-icon-btn"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                <div class="rec-sp-icon-btn"><i class="fa-solid fa-plus"></i></div>
+                <div class="rec-sp-icon-btn"><i class="fa-solid fa-cog"></i></div>
               </div>
             </div>
             <div class="rec-messages">
               <div class="rec-msg user">Search for the latest AI news and summarize the top 3 results</div>
-              <div class="rec-msg system">Connected to tab</div>
+              <div class="rec-msg system">Session started -- connected to active tab</div>
               <div class="rec-msg action">searchGoogle("latest AI news")</div>
-              <div class="rec-msg ai">Found search results. Clicking the first result to read the article...</div>
-              <div class="rec-msg action">click("#result-1 a")</div>
+              <div class="rec-msg ai">Found 3 relevant results on Google. Clicking the first link from TechCrunch to read the full article...</div>
+              <div class="rec-msg action">click("[data-result='1'] a.result-title")</div>
               <div class="rec-msg status">
                 <div class="rec-typing-dots">
                   <span></span>
                   <span></span>
                   <span></span>
                 </div>
-                <span>Analyzing page content...</span>
+                <span>Reading page content...</span>
               </div>
             </div>
             <div class="rec-sp-input">
               <div class="rec-sp-input-inner">
                 <span class="rec-sp-input-text">Type a message...</span>
+                <div class="rec-sp-mic-btn"><i class="fa-solid fa-microphone"></i></div>
                 <div class="rec-sp-send-btn"><i class="fa-solid fa-arrow-up"></i></div>
               </div>
+              <div class="rec-sp-input-row">
+                <div class="rec-sp-model-badge">
+                  <i class="fa-solid fa-bolt" style="font-size: 8px;"></i>
+                  grok-4-1-fast
+                </div>
+              </div>
+            </div>
+            <div class="rec-sp-footer">
+              <span>Powered by FSB v0.9.22</span>
             </div>
           </div>
         </div>
@@ -412,22 +428,28 @@
           </div>
 
           <!-- FSB Side Panel -->
+          <!-- Replica of: ui/sidepanel.html | Last synced: v0.9.22 -->
           <div class="rec-sidepanel">
             <div class="rec-sp-header">
               <div class="rec-sp-header-info">
-                <span class="rec-sp-title">FSB</span>
+                <div class="rec-sp-brand-row">
+                  <span class="rec-sp-title">FSB</span>
+                  <span class="rec-sp-subtitle">Persistent workspace</span>
+                </div>
                 <div class="rec-sp-status">
-                  <div class="rec-status-dot running"></div>
+                  <i class="fa-solid fa-circle rec-status-dot running"></i>
                   <span class="rec-status-text">Automating</span>
                 </div>
               </div>
               <div class="rec-sp-actions">
-                <div class="rec-sp-icon-btn"><i class="fa-solid fa-gear"></i></div>
+                <div class="rec-sp-icon-btn"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                <div class="rec-sp-icon-btn"><i class="fa-solid fa-plus"></i></div>
+                <div class="rec-sp-icon-btn"><i class="fa-solid fa-cog"></i></div>
               </div>
             </div>
             <div class="rec-messages">
               <div class="rec-msg user">Fill out the contact form with test data</div>
-              <div class="rec-msg system">Connected to tab</div>
+              <div class="rec-msg system">Session started -- connected to active tab</div>
               <div class="rec-msg ai">I can see a contact form with Name, Email, and Message fields. I'll fill them in order.</div>
               <div class="rec-msg action">click("#name-input")</div>
               <div class="rec-msg action">type("John Doe")</div>
@@ -444,8 +466,18 @@
             <div class="rec-sp-input">
               <div class="rec-sp-input-inner">
                 <span class="rec-sp-input-text">Type a message...</span>
+                <div class="rec-sp-mic-btn"><i class="fa-solid fa-microphone"></i></div>
                 <div class="rec-sp-send-btn"><i class="fa-solid fa-arrow-up"></i></div>
               </div>
+              <div class="rec-sp-input-row">
+                <div class="rec-sp-model-badge">
+                  <i class="fa-solid fa-bolt" style="font-size: 8px;"></i>
+                  grok-4-1-fast
+                </div>
+              </div>
+            </div>
+            <div class="rec-sp-footer">
+              <span>Powered by FSB v0.9.22</span>
             </div>
           </div>
         </div>

@@ -65,7 +65,7 @@
             msg.style.transition = 'opacity 0.4s ease-out, transform 0.4s ease-out';
             msg.style.opacity = '1';
             msg.style.transform = 'translateY(0)';
-          }, index * 400);
+          }, index * 200);
         });
       }
 
