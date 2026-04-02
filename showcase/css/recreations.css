@@ -5,68 +5,70 @@
    ============================================= */
 
 /* --- Recreation Design Tokens (dark = default) --- */
+/* Synced with real extension CSS -- Phase 145 audit (v0.9.22) */
 :root {
   --rec-frame-bg: #0a0a0a;
   --rec-topbar-bg: #050505;
-  --rec-sp-bg: #1f2937;
-  --rec-sp-input-bg: #111827;
+  --rec-sp-bg: #050505;
+  --rec-sp-input-bg: #050505;
   --rec-sp-border: rgba(255, 255, 255, 0.06);
-  --rec-msg-system-bg: #374151;
-  --rec-msg-system-color: #d1d5db;
-  --rec-msg-ai-bg: rgba(33, 150, 243, 0.1);
-  --rec-msg-ai-color: #90caf9;
-  --rec-msg-action-bg: rgba(76, 175, 80, 0.08);
-  --rec-msg-action-color: #81c784;
-  --rec-msg-status-color: #d1d5db;
-  --rec-sidebar-bg: #111827;
-  --rec-main-bg: #0a0a0a;
-  --rec-page-bg: #0a0a0a;
-  --rec-text-primary: #f1f5f9;
-  --rec-text-secondary: #9ca3af;
-  --rec-text-muted: #6b7280;
-  --rec-text-link: #93c5fd;
-  --rec-text-bright: #e2e8f0;
-  --rec-text-heading: #f9fafb;
-  --rec-input-bg: rgba(255, 255, 255, 0.04);
-  --rec-input-border: rgba(255, 255, 255, 0.1);
-  --rec-input-text: #e2e8f0;
-  --rec-input-placeholder: #6b7280;
-  --rec-chart-bg: rgba(255, 255, 255, 0.03);
-  --rec-chart-border: rgba(255, 255, 255, 0.06);
+  --rec-msg-system-bg: #1a1a1a;
+  --rec-msg-system-color: #d2c1b4;
+  --rec-msg-ai-bg: rgba(8, 145, 178, 0.14);
+  --rec-msg-ai-color: #8ed9e7;
+  --rec-msg-action-bg: rgba(129, 199, 132, 0.14);
+  --rec-msg-action-color: #b8e4ba;
+  --rec-msg-status-color: #d2c1b4;
+  --rec-sidebar-bg: #050505;
+  --rec-main-bg: #050505;
+  --rec-page-bg: #050505;
+  --rec-text-primary: #f6efe9;
+  --rec-text-secondary: #d2c1b4;
+  --rec-text-muted: #a99283;
+  --rec-text-link: #8ed9e7;
+  --rec-text-bright: #f6efe9;
+  --rec-text-heading: #f6efe9;
+  --rec-input-bg: rgba(255, 241, 232, 0.04);
+  --rec-input-border: rgba(255, 241, 232, 0.10);
+  --rec-input-text: #f6efe9;
+  --rec-input-placeholder: #a99283;
+  --rec-chart-bg: #0d0d0d;
+  --rec-chart-border: rgba(255, 255, 255, 0.08);
   --rec-address-bg: rgba(255, 255, 255, 0.06);
-  --rec-icon-btn-bg: rgba(255, 255, 255, 0.06);
+  --rec-icon-btn-bg: rgba(255, 241, 232, 0.06);
 }
 
+/* Synced with real extension CSS -- Phase 145 audit (v0.9.22) */
 [data-theme="light"] {
   --rec-frame-bg: #e8e8e8;
   --rec-topbar-bg: #dedede;
   --rec-sp-bg: #ffffff;
-  --rec-sp-input-bg: #f8f9fa;
-  --rec-sp-border: rgba(0, 0, 0, 0.08);
-  --rec-msg-system-bg: #f1f3f5;
-  --rec-msg-system-color: #495057;
-  --rec-msg-ai-bg: #e3f2fd;
-  --rec-msg-ai-color: #1565c0;
-  --rec-msg-action-bg: #f0f8f0;
-  --rec-msg-action-color: #2e7d32;
-  --rec-msg-status-color: #495057;
-  --rec-sidebar-bg: #f8fafc;
-  --rec-main-bg: #ffffff;
-  --rec-page-bg: #ffffff;
-  --rec-text-primary: #0f172a;
-  --rec-text-secondary: #475569;
-  --rec-text-muted: #94a3b8;
-  --rec-text-link: #1e40af;
-  --rec-text-bright: #1e293b;
-  --rec-text-heading: #0f172a;
-  --rec-input-bg: rgba(0, 0, 0, 0.03);
-  --rec-input-border: rgba(0, 0, 0, 0.1);
-  --rec-input-text: #1e293b;
-  --rec-input-placeholder: #94a3b8;
-  --rec-chart-bg: rgba(0, 0, 0, 0.02);
-  --rec-chart-border: rgba(0, 0, 0, 0.06);
+  --rec-sp-input-bg: #fffdfb;
+  --rec-sp-border: rgba(41, 29, 20, 0.10);
+  --rec-msg-system-bg: #faf7f4;
+  --rec-msg-system-color: #6a584d;
+  --rec-msg-ai-bg: rgba(8, 145, 178, 0.10);
+  --rec-msg-ai-color: #0f5c6a;
+  --rec-msg-action-bg: rgba(16, 185, 129, 0.10);
+  --rec-msg-action-color: #166534;
+  --rec-msg-status-color: #6a584d;
+  --rec-sidebar-bg: #fffdfb;
+  --rec-main-bg: #fffdfb;
+  --rec-page-bg: #fffdfb;
+  --rec-text-primary: #1f1a17;
+  --rec-text-secondary: #6a584d;
+  --rec-text-muted: #8d7a6e;
+  --rec-text-link: #0f5c6a;
+  --rec-text-bright: #1f1a17;
+  --rec-text-heading: #1f1a17;
+  --rec-input-bg: rgba(41, 29, 20, 0.03);
+  --rec-input-border: rgba(41, 29, 20, 0.10);
+  --rec-input-text: #1f1a17;
+  --rec-input-placeholder: #8d7a6e;
+  --rec-chart-bg: #ffffff;
+  --rec-chart-border: rgba(41, 29, 20, 0.10);
   --rec-address-bg: rgba(0, 0, 0, 0.05);
-  --rec-icon-btn-bg: rgba(0, 0, 0, 0.06);
+  --rec-icon-btn-bg: rgba(41, 29, 20, 0.06);
 }
 
 /* --- Browser Chrome Frame --- */
