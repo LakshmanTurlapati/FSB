@@ -886,36 +886,42 @@ async function runAgentIteration(sessionId, options) {
     return;
   }
 
-  // b2. Safety breaker check (SAFE-01 cost, SAFE-02 time)
-  var safety = checkSafetyBreakers(session);
-  if (safety.shouldStop) {
-    session.status = 'stopped';
-    // Emit onCompletion hook for safety stop
-    if (hooks) {
-      await hooks.emit(_al_LIFECYCLE_EVENTS.ON_COMPLETION, {
-        session: session, sessionId: sessionId,
-        reason: 'safety', message: safety.reason,
-        iteration: session.agentState.iterationCount,
-        totalCost: session.agentState.totalCost || 0
-      });
-    }
-    if (typeof endSessionOverlays === 'function') {
-      await endSessionOverlays(session, 'safety');
-    }
-    await persist(sessionId, session);
-    return; // Do NOT schedule next iteration
-  }
-
   // c. Increment iteration count
   session.agentState.iterationCount++;
   var iterNum = session.agentState.iterationCount;
 
-  // c2. Emit beforeIteration hook (LOOP-03)
+  // b2. Safety + beforeIteration hook (LOOP-03 -- safety runs via pipeline, not inline)
   if (hooks) {
-    await hooks.emit(_al_LIFECYCLE_EVENTS.BEFORE_ITERATION, {
+    var beforeIterResult = await hooks.emit(_al_LIFECYCLE_EVENTS.BEFORE_ITERATION, {
       session: session, sessionId: sessionId,
       iteration: iterNum
     });
+    if (beforeIterResult.stopped) {
+      session.status = 'stopped';
+      // Emit onCompletion hook for safety stop
+      await hooks.emit(_al_LIFECYCLE_EVENTS.ON_COMPLETION, {
+        session: session, sessionId: sessionId,
+        reason: 'safety', message: beforeIterResult.stoppedBy || 'Safety breaker triggered',
+        iteration: iterNum,
+        totalCost: session.agentState.totalCost || 0
+      });
+      if (typeof endSessionOverlays === 'function') {
+        await endSessionOverlays(session, 'safety');
+      }
+      await persist(sessionId, session);
+      return;
+    }
+  } else {
+    // Fallback: inline safety check when no hooks pipeline is available
+    var safety = checkSafetyBreakers(session);
+    if (safety.shouldStop) {
+      session.status = 'stopped';
+      if (typeof endSessionOverlays === 'function') {
+        await endSessionOverlays(session, 'safety');
+      }
+      await persist(sessionId, session);
+      return;
+    }
   }
 
   // e. Broadcast dashboard progress
