@@ -341,6 +341,148 @@ function compactHistory(messages, tokenBudget = 128000) {
   return { compacted: true, removedCount, estimatedTokens: newTokens };
 }
 
+const TURN_WINDOW_MESSAGES = 12;
+const TURN_WINDOW_SUMMARY_LINES = 8;
+const TURN_WINDOW_SUMMARY_CHARS = 1800;
+
+function truncatePromptWindowText(value, maxChars = TURN_WINDOW_SUMMARY_CHARS) {
+  if (value == null) return '';
+  const text = typeof value === 'string' ? value : String(value);
+  if (text.length <= maxChars) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxChars - 3))}...`;
+}
+
+function isToolResultMessage(message) {
+  return message?.role === 'tool' ||
+    (Array.isArray(message?.content) && message.content.some(block => block.type === 'tool_result')) ||
+    (Array.isArray(message?.parts) && message.parts.some(part => part.functionResponse));
+}
+
+function hasToolCallMessage(message) {
+  return Array.isArray(message?.tool_calls) ||
+    (Array.isArray(message?.content) && message.content.some(block => block.type === 'tool_use')) ||
+    (Array.isArray(message?.parts) && message.parts.some(part => part.functionCall));
+}
+
+function getPromptWindowStart(messages) {
+  let startIndex = Math.max(0, messages.length - TURN_WINDOW_MESSAGES);
+
+  while (startIndex > 0 && isToolResultMessage(messages[startIndex])) {
+    startIndex--;
+  }
+
+  if (startIndex > 0 && isToolResultMessage(messages[startIndex - 1])) {
+    while (startIndex > 0 && isToolResultMessage(messages[startIndex - 1])) {
+      startIndex--;
+    }
+    if (startIndex > 0 && hasToolCallMessage(messages[startIndex - 1])) {
+      startIndex--;
+    }
+  }
+
+  return startIndex;
+}
+
+function summarizePromptWindowMessage(message) {
+  if (!message || typeof message !== 'object') {
+    return '';
+  }
+
+  if (message.role === 'tool') {
+    const toolName = message.name || 'unknown_tool';
+    let status = 'completed';
+    try {
+      const parsed = typeof message.content === 'string' ? JSON.parse(message.content) : message.content;
+      status = parsed?.success === false ? 'error' : 'success';
+    } catch (_error) {
+      status = typeof message.content === 'string' && message.content.includes('error') ? 'error' : 'success';
+    }
+    return `${toolName} returned ${status}`;
+  }
+
+  if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
+    const toolNames = message.tool_calls
+      .map(call => call.function?.name || null)
+      .filter(Boolean);
+    return `Assistant requested tools: ${toolNames.join(', ')}`;
+  }
+
+  if (Array.isArray(message.content)) {
+    const toolNames = message.content
+      .filter(block => block.type === 'tool_use')
+      .map(block => block.name)
+      .filter(Boolean);
+    if (toolNames.length > 0) {
+      return `Assistant requested tools: ${toolNames.join(', ')}`;
+    }
+    const textBlock = message.content.find(block => block.type === 'text' && typeof block.text === 'string');
+    if (textBlock?.text) {
+      return `${message.role || 'message'}: ${truncatePromptWindowText(textBlock.text, 120)}`;
+    }
+  }
+
+  if (Array.isArray(message.parts)) {
+    const functionNames = message.parts
+      .map(part => part.functionCall?.name || part.functionResponse?.name || null)
+      .filter(Boolean);
+    if (functionNames.length > 0) {
+      return `${message.role || 'message'}: ${functionNames.join(', ')}`;
+    }
+    const textPart = message.parts.find(part => typeof part.text === 'string');
+    if (textPart?.text) {
+      return `${message.role || 'message'}: ${truncatePromptWindowText(textPart.text, 120)}`;
+    }
+  }
+
+  if (typeof message.content === 'string') {
+    return `${message.role || 'message'}: ${truncatePromptWindowText(message.content, 120)}`;
+  }
+
+  return `${message.role || 'message'} update`;
+}
+
+function buildTurnMessages(session) {
+  const messages = Array.isArray(session.messages) ? session.messages : [];
+  const systemMessage = messages.find(message => message.role === 'system') || {
+    role: 'system',
+    content: buildSystemPrompt(session.task, 'unknown')
+  };
+  const nonSystemMessages = messages.filter(message => message.role !== 'system');
+  const startIndex = getPromptWindowStart(nonSystemMessages);
+  const olderMessages = nonSystemMessages.slice(0, startIndex);
+  const recentMessages = nonSystemMessages.slice(startIndex).map(cloneAgentMessage).filter(Boolean);
+  const summaryParts = [];
+  const persistedSummary = session.resumeSummary || session.agentResumeState?.historySummary || null;
+
+  if (persistedSummary) {
+    summaryParts.push(persistedSummary);
+  }
+
+  const olderSummaryLines = olderMessages
+    .slice(-TURN_WINDOW_SUMMARY_LINES)
+    .map(summarizePromptWindowMessage)
+    .filter(Boolean);
+
+  if (olderSummaryLines.length > 0) {
+    summaryParts.push(`Earlier turns omitted ${olderMessages.length} message(s).\n${olderSummaryLines.join('\n')}`);
+  }
+
+  const turnMessages = [cloneAgentMessage(systemMessage)];
+  const historySummary = truncatePromptWindowText(summaryParts.filter(Boolean).join('\n'), TURN_WINDOW_SUMMARY_CHARS);
+
+  if (historySummary) {
+    turnMessages.push({
+      role: 'user',
+      content: `Earlier automation context:\n${historySummary}`
+    });
+  }
+
+  turnMessages.push(...recentMessages);
+  return turnMessages;
+}
+
 
 // ---------------------------------------------------------------------------
 // getPublicTools -- strip internal routing metadata from tool definitions
@@ -927,10 +1069,11 @@ async function runAgentIteration(sessionId, options) {
 
     // f2. Compact history if approaching token budget (CTX-03)
     compactHistory(session.messages);
+    const turnMessages = buildTurnMessages(session);
 
     // g. Make API call with tool definitions
     const response = await callProviderWithTools(
-      providerInstance, model, null, session.messages, session.tools, providerKey
+      providerInstance, model, null, turnMessages, session.tools, providerKey
     );
 
     // h. Extract and accumulate usage

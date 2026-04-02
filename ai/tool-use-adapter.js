@@ -186,6 +186,7 @@ function formatToolResult(id, result, provider, options) {
       return {
         role: 'tool',
         tool_call_id: id,
+        name: options?.name || '',
         content: typeof result === 'string' ? result : JSON.stringify(result)
       };
   }
