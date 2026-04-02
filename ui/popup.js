@@ -42,6 +42,14 @@ function applyTheme() {
   document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
+function setUiState(state) {
+  document.body.dataset.uiState = state;
+}
+
+function setWindowMode(mode) {
+  document.body.dataset.windowMode = mode;
+}
+
 // Listen for theme changes from options page
 window.addEventListener('storage', (e) => {
   if (e.key === 'fsb-theme') {
@@ -76,6 +84,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 document.addEventListener('DOMContentLoaded', async () => {
   // Apply theme first
   applyTheme();
+  setUiState('idle');
+  setWindowMode('popup');
 
   // Initialize conversation ID for session continuity
   await initConversationId();
@@ -352,8 +362,10 @@ async function testAPI() {
 function setRunningState() {
   isRunning = true;
   stopRequested = false; // Reset stop flag when starting new automation
+  setUiState('running');
   sendBtn.disabled = true;
   stopBtn.classList.remove('hidden');
+  statusDot.classList.remove('error');
   statusDot.classList.add('running');
   statusText.textContent = 'Working';
   updateSendButtonState();
@@ -362,6 +374,7 @@ function setRunningState() {
 // Update UI for idle state
 function setIdleState() {
   isRunning = false;
+  setUiState('idle');
   sendBtn.disabled = false;
   stopBtn.classList.add('hidden');
   statusDot.classList.remove('running', 'error');
@@ -385,8 +398,10 @@ function setIdleState() {
 // Update UI for error state
 function setErrorState() {
   isRunning = false;
+  setUiState('error');
   sendBtn.disabled = false;
   stopBtn.classList.add('hidden');
+  statusDot.classList.remove('running');
   statusDot.classList.add('error');
   statusText.textContent = 'Error';
   updateSendButtonState();
@@ -715,6 +730,7 @@ async function togglePinWindow() {
     // Switch back to popup mode
     await chrome.storage.local.set({ windowMode: 'popup' });
     pinBtn.classList.remove('pinned');
+    setWindowMode('popup');
     addMessage('Switched to popup mode. Extension will close when clicked outside.', 'system');
   } else {
     // Switch to persistent window mode
@@ -741,7 +757,10 @@ async function checkWindowMode() {
   const { windowMode } = await chrome.storage.local.get(['windowMode']);
   if (windowMode === 'pinned') {
     pinBtn.classList.add('pinned');
+    setWindowMode('pinned');
     addMessage('Running in persistent window mode.', 'system');
+  } else {
+    setWindowMode('popup');
   }
 }
 

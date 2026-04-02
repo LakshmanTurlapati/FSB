@@ -536,6 +536,7 @@ function setRunningState() {
   sendBtn.querySelector('i').className = 'fa fa-stop';
   sendBtn.disabled = false;
   sendBtn.onclick = stopAutomation;
+  statusDot.classList.remove('error');
   statusDot.classList.add('running');
   statusText.textContent = 'Working';
 }
@@ -574,6 +575,7 @@ function setErrorState() {
   sendBtn.title = 'Send Message';
   sendBtn.querySelector('i').className = 'fa fa-arrow-up';
   sendBtn.onclick = handleSendMessage;
+  statusDot.classList.remove('running');
   statusDot.classList.add('error');
   statusText.textContent = 'Error';
   updateSendButtonState();
