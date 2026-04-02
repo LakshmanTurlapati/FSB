@@ -268,6 +268,9 @@ class AIIntegration {
     }
   }
 
+  // Legacy follow-up bridge for non-agent automation paths.
+  // Native tool-use sessions now carry follow-up continuity through
+  // background.js -> session.followUpContext / session.agentResumeState.
   injectFollowUpContext(newTask) {
     this.conversationHistory.push({
       role: 'user',

@@ -2183,6 +2183,10 @@ let conversationSessions = new Map();
 const IDLE_SESSION_TIMEOUT = 10 * 60 * 1000; // 10 minutes before idle sessions are cleaned up
 const MAX_CONVERSATION_SESSIONS = 5; // FIFO cap using enforceMapLimit
 const MAX_PERSISTED_COMMANDS = 25;
+const MAX_AGENT_RESUME_MESSAGES = 12;
+const MAX_AGENT_RESUME_SUMMARY_LINES = 8;
+const MAX_AGENT_RESUME_TEXT_CHARS = 600;
+const MAX_AGENT_RESUME_SUMMARY_CHARS = 1800;
 
 // PERF: Max Map sizes to prevent unbounded growth
 const MAX_CONTENT_SCRIPT_ENTRIES = 200;
@@ -2245,6 +2249,281 @@ function getPersistedCommands(commands, fallbackTask) {
   }
 
   return [];
+}
+
+function truncateAgentResumeText(value, maxChars = MAX_AGENT_RESUME_TEXT_CHARS) {
+  if (value == null) return '';
+  const text = typeof value === 'string' ? value : String(value);
+  if (text.length <= maxChars) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxChars - 3))}...`;
+}
+
+function summarizeAgentResumeValue(value, maxChars = MAX_AGENT_RESUME_TEXT_CHARS) {
+  if (value == null) return null;
+  if (typeof value === 'string') {
+    return truncateAgentResumeText(value, maxChars);
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  try {
+    const json = JSON.stringify(value);
+    if (json.length <= maxChars) {
+      return JSON.parse(json);
+    }
+    return {
+      truncated: true,
+      preview: truncateAgentResumeText(json, maxChars)
+    };
+  } catch (_error) {
+    return {
+      truncated: true,
+      preview: truncateAgentResumeText(String(value), maxChars)
+    };
+  }
+}
+
+function isProviderToolResultMessage(message) {
+  return message?.role === 'tool' ||
+    (Array.isArray(message?.content) && message.content.some(block => block.type === 'tool_result')) ||
+    (Array.isArray(message?.parts) && message.parts.some(part => part.functionResponse));
+}
+
+function hasProviderToolCalls(message) {
+  return Array.isArray(message?.tool_calls) ||
+    (Array.isArray(message?.content) && message.content.some(block => block.type === 'tool_use')) ||
+    (Array.isArray(message?.parts) && message.parts.some(part => part.functionCall));
+}
+
+function getAgentResumeWindowStart(messages) {
+  let startIndex = Math.max(0, messages.length - MAX_AGENT_RESUME_MESSAGES);
+
+  while (startIndex > 0 && isProviderToolResultMessage(messages[startIndex])) {
+    startIndex--;
+  }
+
+  if (startIndex > 0 && isProviderToolResultMessage(messages[startIndex - 1])) {
+    while (startIndex > 0 && isProviderToolResultMessage(messages[startIndex - 1])) {
+      startIndex--;
+    }
+    if (startIndex > 0 && hasProviderToolCalls(messages[startIndex - 1])) {
+      startIndex--;
+    }
+  }
+
+  return startIndex;
+}
+
+function summarizeAgentResumeMessage(message) {
+  if (!message || typeof message !== 'object') {
+    return '';
+  }
+
+  if (message.role === 'tool') {
+    const toolName = message.name || 'unknown_tool';
+    let status = 'completed';
+    try {
+      const parsed = typeof message.content === 'string' ? JSON.parse(message.content) : message.content;
+      status = parsed?.success === false ? 'error' : 'success';
+    } catch (_error) {
+      status = typeof message.content === 'string' && message.content.includes('error') ? 'error' : 'success';
+    }
+    return `Tool ${toolName} returned ${status}`;
+  }
+
+  if (Array.isArray(message.content)) {
+    const toolNames = message.content
+      .filter(block => block.type === 'tool_use')
+      .map(block => block.name)
+      .filter(Boolean);
+    if (toolNames.length > 0) {
+      return `Assistant requested tools: ${toolNames.join(', ')}`;
+    }
+    const textBlock = message.content.find(block => block.type === 'text' && typeof block.text === 'string');
+    if (textBlock) {
+      return `${message.role || 'message'}: ${truncateAgentResumeText(textBlock.text, 120)}`;
+    }
+  }
+
+  if (Array.isArray(message.parts)) {
+    const functionNames = message.parts
+      .map(part => part.functionCall?.name || part.functionResponse?.name || null)
+      .filter(Boolean);
+    if (functionNames.length > 0) {
+      return `${message.role || 'message'}: ${functionNames.join(', ')}`;
+    }
+    const textPart = message.parts.find(part => typeof part.text === 'string');
+    if (textPart?.text) {
+      return `${message.role || 'message'}: ${truncateAgentResumeText(textPart.text, 120)}`;
+    }
+  }
+
+  if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
+    const toolNames = message.tool_calls
+      .map(call => call.function?.name || null)
+      .filter(Boolean);
+    return `Assistant requested tools: ${toolNames.join(', ')}`;
+  }
+
+  if (typeof message.content === 'string') {
+    return `${message.role || 'message'}: ${truncateAgentResumeText(message.content, 120)}`;
+  }
+
+  return `${message.role || 'message'} update`;
+}
+
+function sanitizeAgentResumeMessage(message) {
+  if (!message || typeof message !== 'object') {
+    return null;
+  }
+
+  if (message.role === 'tool') {
+    return {
+      role: 'tool',
+      tool_call_id: message.tool_call_id || '',
+      name: message.name || '',
+      content: truncateAgentResumeText(message.content, MAX_AGENT_RESUME_TEXT_CHARS)
+    };
+  }
+
+  if (message.role === 'assistant' && Array.isArray(message.tool_calls)) {
+    return {
+      role: 'assistant',
+      content: truncateAgentResumeText(message.content, 240),
+      tool_calls: message.tool_calls.map(call => ({
+        id: call.id,
+        type: call.type || 'function',
+        function: {
+          name: call.function?.name || '',
+          arguments: JSON.stringify(summarizeAgentResumeValue(
+            typeof call.function?.arguments === 'string'
+              ? (() => {
+                  try { return JSON.parse(call.function.arguments); } catch (_error) { return call.function.arguments; }
+                })()
+              : call.function?.arguments,
+            400
+          ) || {})
+        }
+      }))
+    };
+  }
+
+  if (Array.isArray(message.content)) {
+    return {
+      role: message.role || 'assistant',
+      content: message.content.map(block => {
+        if (block.type === 'text') {
+          return {
+            type: 'text',
+            text: truncateAgentResumeText(block.text, MAX_AGENT_RESUME_TEXT_CHARS)
+          };
+        }
+        if (block.type === 'tool_use') {
+          return {
+            type: 'tool_use',
+            id: block.id || '',
+            name: block.name || '',
+            input: summarizeAgentResumeValue(block.input, 400) || {}
+          };
+        }
+        if (block.type === 'tool_result') {
+          return {
+            type: 'tool_result',
+            tool_use_id: block.tool_use_id || '',
+            content: truncateAgentResumeText(block.content, MAX_AGENT_RESUME_TEXT_CHARS),
+            ...(block.is_error ? { is_error: true } : {})
+          };
+        }
+        return {
+          type: block.type || 'text',
+          text: truncateAgentResumeText(JSON.stringify(block), MAX_AGENT_RESUME_TEXT_CHARS)
+        };
+      })
+    };
+  }
+
+  if (Array.isArray(message.parts)) {
+    return {
+      role: message.role || 'user',
+      parts: message.parts.map(part => {
+        if (typeof part.text === 'string') {
+          return { text: truncateAgentResumeText(part.text, MAX_AGENT_RESUME_TEXT_CHARS) };
+        }
+        if (part.functionCall) {
+          return {
+            functionCall: {
+              name: part.functionCall.name || '',
+              args: summarizeAgentResumeValue(part.functionCall.args, 400) || {}
+            }
+          };
+        }
+        if (part.functionResponse) {
+          return {
+            functionResponse: {
+              name: part.functionResponse.name || '',
+              response: summarizeAgentResumeValue(part.functionResponse.response, 400) || {}
+            }
+          };
+        }
+        return { text: truncateAgentResumeText(JSON.stringify(part), MAX_AGENT_RESUME_TEXT_CHARS) };
+      })
+    };
+  }
+
+  return {
+    role: message.role || 'user',
+    content: truncateAgentResumeText(message.content, MAX_AGENT_RESUME_TEXT_CHARS)
+  };
+}
+
+function serializeAgentResumeState(sessionLike) {
+  const nonSystemMessages = Array.isArray(sessionLike?.messages)
+    ? sessionLike.messages.filter(message => message && message.role !== 'system')
+    : [];
+  const startIndex = getAgentResumeWindowStart(nonSystemMessages);
+  const olderMessages = nonSystemMessages.slice(0, startIndex);
+  const recentMessages = nonSystemMessages
+    .slice(startIndex)
+    .map(sanitizeAgentResumeMessage)
+    .filter(Boolean);
+
+  const olderSummaryLines = olderMessages
+    .slice(-MAX_AGENT_RESUME_SUMMARY_LINES)
+    .map(summarizeAgentResumeMessage)
+    .filter(Boolean);
+
+  const inheritedSummary = sessionLike?.resumeSummary || sessionLike?.agentResumeState?.historySummary || null;
+  let historySummary = inheritedSummary ? truncateAgentResumeText(inheritedSummary, MAX_AGENT_RESUME_SUMMARY_CHARS) : null;
+
+  if (olderSummaryLines.length > 0) {
+    historySummary = truncateAgentResumeText([
+      historySummary,
+      `Earlier automation context omitted ${olderMessages.length} message(s).`,
+      ...olderSummaryLines
+    ].filter(Boolean).join('\n'), MAX_AGENT_RESUME_SUMMARY_CHARS);
+  }
+
+  const agentState = sessionLike?.agentState || sessionLike?.agentResumeState?.agentState || {};
+
+  return {
+    providerConfig: {
+      providerKey: sessionLike?.providerConfig?.providerKey || sessionLike?.agentResumeState?.providerConfig?.providerKey || null,
+      model: sessionLike?.providerConfig?.model || sessionLike?.agentResumeState?.providerConfig?.model || null
+    },
+    historySummary,
+    recentMessages,
+    agentState: {
+      completedIterations: (agentState.completedIterations || 0) + (agentState.iterationCount || 0),
+      totalInputTokens: agentState.totalInputTokens || sessionLike?.totalInputTokens || 0,
+      totalOutputTokens: agentState.totalOutputTokens || sessionLike?.totalOutputTokens || 0,
+      totalCost: agentState.totalCost || sessionLike?.totalCost || 0,
+      lastCommandAt: sessionLike?.lastCommandAt || Date.now()
+    },
+    updatedAt: Date.now()
+  };
 }
 
 function serializeSessionContinuity(sessionLike) {
@@ -2424,6 +2703,12 @@ async function persistSession(sessionId, session) {
       ...session,
       sessionId
     });
+    const agentResumeState = serializeAgentResumeState({
+      ...session,
+      sessionId
+    });
+    session.continuity = continuity;
+    session.agentResumeState = agentResumeState;
 
     // Only persist essential fields needed for stop button and session continuity to work
     const persistableSession = {
@@ -2440,12 +2725,16 @@ async function persistSession(sessionId, session) {
       commandCount: continuity.commandCount,
       commands: continuity.commands,
       continuity,
+      followUpContext: session.followUpContext ? {
+        previousTask: session.followUpContext.previousTask || null,
+        newTask: session.followUpContext.newTask || session.task,
+        requestedAt: session.followUpContext.requestedAt || Date.now(),
+        commandCount: session.followUpContext.commandCount || continuity.commandCount,
+        historySessionId: session.followUpContext.historySessionId || continuity.historySessionId
+      } : null,
+      agentResumeState,
       // Don't persist: loopPromise, pendingTimeout, DOM hashes, etc. (non-serializable or transient)
-      // Agent loop state for service worker resurrection (Phase 137 / SAFE-04)
-      agentIterationCount: session.agentState?.iterationCount || 0,
-      agentTotalCost: session.agentState?.totalCost || 0,
-      agentTotalInputTokens: session.agentState?.totalInputTokens || 0,
-      agentTotalOutputTokens: session.agentState?.totalOutputTokens || 0
+      // Agent loop state for follow-up hydration is stored inside agentResumeState.
     };
 
     // Persist multi-site orchestration state for service worker restart recovery
@@ -2480,8 +2769,9 @@ async function removePersistedSession(sessionId) {
   }
 }
 
-// Restore sessions from storage on service worker startup
-// Note: Restored sessions can only be stopped, not resumed (loop state is lost)
+// Restore sessions from storage on service worker startup.
+// Running loops are not auto-resumed, but idle sessions retain enough agent state
+// to hydrate the correct follow-up context when the user continues the thread later.
 async function restoreSessionsFromStorage() {
   try {
     const allStorage = await chrome.storage.session.get(null);
@@ -2503,6 +2793,13 @@ async function restoreSessionsFromStorage() {
           const restoredSession = applyContinuityToSession({
             ...persistedSession,
             isRestored: true,  // Flag to indicate this was restored, automation loop is not running
+            followUpContext: persistedSession.followUpContext || null,
+            agentResumeState: persistedSession.agentResumeState || null,
+            resumeSummary: persistedSession.agentResumeState?.historySummary || null,
+            messages: null,
+            tools: null,
+            providerConfig: persistedSession.agentResumeState?.providerConfig || null,
+            agentState: persistedSession.agentResumeState?.agentState || null,
             // Keep original status -- 'running' for stop button, 'idle' for reactivation
           }, continuity);
 
@@ -5511,19 +5808,24 @@ async function handleStartAutomation(request, sender, sendResponse) {
       const convEntry = conversationSessions.get(resolvedConversationId);
       const existingSession = activeSessions.get(convEntry.sessionId);
       if (existingSession && existingSession.status === 'idle') {
+        const previousTask = existingSession.lastTask || existingSession.task || null;
         // Reactivate the existing session
         reactivateSession(existingSession, task);
         const sessionId = convEntry.sessionId;
         existingSession.conversationId = resolvedConversationId;
         existingSession.uiSurface = uiSurface;
         existingSession.historySessionId = existingSession.historySessionId || convEntry.historySessionId || resolvedHistorySessionId || sessionId;
+        existingSession.followUpContext = {
+          previousTask,
+          newTask: task,
+          requestedAt: Date.now(),
+          commandCount: existingSession.commandCount,
+          historySessionId: existingSession.historySessionId || sessionId
+        };
+        existingSession.agentResumeState = serializeAgentResumeState(existingSession);
+        existingSession.resumeSummary = existingSession.resumeSummary || existingSession.agentResumeState?.historySummary || null;
+        existingSession.isRestored = false;
         const threadRecord = upsertConversationThread(existingSession);
-
-        // Inject follow-up context into AI
-        const ai = sessionAIInstances.get(sessionId);
-        if (ai && typeof ai.injectFollowUpContext === 'function') {
-          ai.injectFollowUpContext(task);
-        }
 
         // Log the follow-up command for session tracking
         automationLogger.logFollowUpCommand(sessionId, task, existingSession.commandCount);
@@ -5649,6 +5951,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
       lastCommandAt: Date.now(),
       commandCount: 1,
       commands: [task],
+      followUpContext: null,
+      agentResumeState: null,
+      resumeSummary: null,
       // PERF: Cache DOM settings at session start to avoid repeated storage reads
       domSettings: {
         domOptimization: storedSettings.domOptimization !== false,

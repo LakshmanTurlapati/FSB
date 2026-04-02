@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.8.1
-milestone_name: npm Publishing
-status: verifying
-stopped_at: Completed 149-01-PLAN.md
-last_updated: "2026-04-02T09:18:43.420Z"
-last_activity: 2026-04-02
+milestone: v0.9.24
+milestone_name: Claude Code Architecture Adaptation
+status: ready_to_plan
+stopped_at: Roadmap created for v0.9.24
+last_updated: "2026-04-02"
+last_activity: 2026-04-02 -- v0.9.24 roadmap created, 5 phases (156-160), 19 requirements mapped
 progress:
-  total_phases: 2
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
   percent: 0
 ---
 
@@ -21,36 +21,30 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 149 — Final Verification & Sync Comments
+**Current focus:** Phase 156 -- State Foundation (ready to plan)
 
 ## Current Position
 
-Phase: 149 (Final Verification & Sync Comments) — EXECUTING
-Plan: 1 of 1
-Status: Phase complete — ready for verification
-Last activity: 2026-04-02
+Phase: 156 of 160 (State Foundation) -- NOT STARTED
+Plan: 0 of ? in current phase
+Status: Ready to plan Phase 156
+Last activity: 2026-04-02 -- v0.9.24 roadmap created
 
 Progress: [----------] 0%
 
 ## Performance Metrics
 
-**Recent Trend (from v0.9.20):**
+**Recent Trend (from v0.9.22 / v0.9.23):**
 
-- Last 5 plans: 2min, 2min, 2min, 2min, 3min
+- Last 5 plans: 2min, 2min, 3min, 4min, 3min
 - Trend: Stable
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
-| 138 | 01 | 3min | 2 | 2 |
-| 138 | 02 | 2min | 2 | 1 |
-| 139 | 01 | 1min | 1 | 1 |
-| Phase 139 P02 | 12min | 2 tasks | 1 files |
-| Phase 139.2 P01 | 2min | 4 tasks | 5 files |
-| Phase 145 P01 | 4min | 2 tasks | 2 files |
-| Phase 146 P01 | 3min | 2 tasks | 3 files |
-| Phase 147 P01 | 3min | 2 tasks | 3 files |
-| Phase 148 P01 | 2min | 2 tasks | 3 files |
-| Phase 149 P01 | 2min | 2 tasks | 1 files |
+| 148 | P01 | 2min | 2 | 3 |
+| 149 | P01 | 2min | 2 | 1 |
+| 150 | P01 | 3min | 3 | 4 |
+| 150 | P02 | 4min | 2 | 3 |
 
 ## Accumulated Context
 
@@ -59,28 +53,17 @@ Progress: [----------] 0%
 Full decision log in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [v0.9.22]: Showcase replicas are static visual recreations, not functional copies
-- [v0.9.22]: Scope is limited to "See It in Action" section only
-- [v0.9.22]: MCP examples show FSB tools used inside Claude Code terminal sessions
-- [v0.9.22]: All changes confined to 3 existing files: about.html, recreations.css, recreations.js
-- [v0.9.22]: Never import extension CSS directly -- translate into rec- namespace
-- [Phase 145]: Approximated color-mix() outputs as flat hex for rec- variables (showcase does not import fsb-ui-core.css)
-- [Phase 145]: Browser chrome rec- variables (frame-bg, topbar-bg, address-bg) left unchanged -- no real extension counterpart
-- [Phase 146]: Replaced hardcoded hex borders (#2196f3, #4caf50) with theme-aware CSS variables for dark/light mode correctness
-- [Phase 146]: Used FA icon-based status dot (fa-circle) instead of styled div for consistent small-size rendering
-- [Phase 147]: Used flat var(--primary) for dark analytics hero bg instead of gray gradient -- matches real options.css
-- [Phase 147]: Proportionally scaled real dimensions for smaller recreation viewport (sidebar 252->220px, border-radius 18->16px)
-- [Phase 148]: Terminal blocks always dark (#1a1a2e) with explicit light-theme override
-- [Phase 148]: 150ms stagger per line for typewriter-style scroll reveal
-- [Phase 149]: Used role=img + aria-label pattern for static visual recreations
+- [v0.9.24]: Adopt 6 Claude Code patterns (Tool Pool, Permission Context, Transcript Store, Hook Pipeline, Session Store, Cost Tracker); reject 6 (Command Graph, Skill System, Query Engine, Coordinator, Bootstrap Graph formal stage, Route Matching)
+- [v0.9.24]: 40% direct translation, 30% heavy adaptation for MV3, 30% explicitly rejected
+- [v0.9.24]: Extract-don't-rewrite principle -- 17 new files, 3 modified files, 0 deleted files
+- [v0.9.24]: Preserve setTimeout-chaining in agent loop -- do NOT convert to synchronous or async/await iteration
+- [v0.9.24]: Origin-aware permission rules (Chrome match patterns) not path-based prefixes
 
 ### Roadmap Evolution
 
-- v0.9.23 Dashboard Stream & Remote Control Reliability started 2026-04-02
-- v0.9.22 Showcase High-Fidelity Replicas superseded after Phase 145 baseline audit
-- v0.9.20 Autopilot Agent Architecture Rewrite shipped 2026-04-02
-- v0.9.21 UI Retouch & Cohesion shipped 2026-04-02
-- v0.9.22 Showcase High-Fidelity Replicas roadmap created 2026-04-02 (5 phases, 145-149)
+- v0.9.24 Claude Code Architecture Adaptation roadmap created 2026-04-02 (5 phases, 156-160, 19 requirements)
+- v0.9.23 Phases 151-155 deferred
+- v0.9.22 Showcase High-Fidelity Replicas superseded after Phase 145
 
 ### Pending Todos
 
@@ -92,6 +75,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T09:18:43.417Z
-Stopped at: Completed 149-01-PLAN.md
+Last session: 2026-04-02
+Stopped at: Roadmap created for v0.9.24 milestone
 Resume file: None

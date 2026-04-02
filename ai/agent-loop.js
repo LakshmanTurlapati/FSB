@@ -401,6 +401,82 @@ CRITICAL RULES:
 - Execute autonomously. Do not ask the user questions.`;
 }
 
+function cloneAgentMessage(message) {
+  if (!message || typeof message !== 'object') {
+    return message || null;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(message));
+  } catch (_error) {
+    return message;
+  }
+}
+
+function buildFollowUpBoundaryMessage(followUpContext) {
+  const previousTask = followUpContext?.previousTask
+    ? `PREVIOUS TASK: ${followUpContext.previousTask}\n`
+    : '';
+
+  return `[FOLLOW-UP COMMAND]
+${previousTask}NEW TASK: ${followUpContext?.newTask || ''}
+Continue from the existing automation context when it is still relevant. Re-check the live page before acting if the UI may have changed.`;
+}
+
+function hydrateAgentRunState(session, systemPrompt) {
+  const resumeState = session.agentResumeState || {};
+  const hadExistingMessages = Array.isArray(session.messages) && session.messages.length > 0;
+  const restoredMessages = Array.isArray(resumeState.recentMessages)
+    ? resumeState.recentMessages.map(cloneAgentMessage).filter(Boolean)
+    : [];
+
+  if (hadExistingMessages) {
+    const nonSystemMessages = session.messages.filter((message, index) => !(index === 0 && message?.role === 'system'));
+    session.messages = [{ role: 'system', content: systemPrompt }, ...nonSystemMessages];
+  } else {
+    session.messages = [{ role: 'system', content: systemPrompt }, ...restoredMessages];
+  }
+
+  if (!hadExistingMessages) {
+    session.resumeSummary = session.resumeSummary || resumeState.historySummary || null;
+  } else if (session.isRestored) {
+    session.resumeSummary = session.resumeSummary || resumeState.historySummary || null;
+  } else if (!session.resumeSummary) {
+    session.resumeSummary = null;
+  }
+
+  if (session.followUpContext) {
+    session.messages.push({
+      role: 'user',
+      content: buildFollowUpBoundaryMessage(session.followUpContext)
+    });
+    session.followUpContext = null;
+  }
+
+  const restoredAgentState = session.agentState || resumeState.agentState || {};
+  session.agentState = {
+    iterationCount: 0,
+    completedIterations: restoredAgentState.completedIterations || 0,
+    totalInputTokens: restoredAgentState.totalInputTokens || session.totalInputTokens || 0,
+    totalOutputTokens: restoredAgentState.totalOutputTokens || session.totalOutputTokens || 0,
+    totalCost: restoredAgentState.totalCost || session.totalCost || 0,
+    startTime: Date.now(),
+    lastDOMHash: null,
+    consecutiveNoChangeCount: 0
+  };
+
+  session.totalInputTokens = session.agentState.totalInputTokens;
+  session.totalOutputTokens = session.agentState.totalOutputTokens;
+  session.totalCost = session.agentState.totalCost;
+  session.isRestored = false;
+
+  if (!Array.isArray(session.tools) || session.tools.length === 0) {
+    session.tools = getPublicTools();
+  }
+
+  return session;
+}
+
 
 // ---------------------------------------------------------------------------
 // Gemini message format converter
@@ -611,22 +687,9 @@ async function runAgentLoop(sessionId, options) {
       tabUrl = 'unknown';
     }
 
-    // Build system prompt
+    // Build the current-command system prompt and hydrate any persisted thread state.
     const systemPrompt = buildSystemPrompt(session.task, tabUrl);
-
-    // Initialize conversation history
-    session.messages = [{ role: 'system', content: systemPrompt }];
-
-    // Initialize agent state
-    session.agentState = {
-      iterationCount: 0,
-      totalInputTokens: 0,
-      totalOutputTokens: 0,
-      totalCost: 0,
-      startTime: Date.now(),
-      lastDOMHash: null,
-      consecutiveNoChangeCount: 0
-    };
+    hydrateAgentRunState(session, systemPrompt);
 
     // Initialize safety thresholds from chrome.storage.local (SAFE-01, SAFE-02)
     try {
@@ -643,9 +706,6 @@ async function runAgentLoop(sessionId, options) {
       session.safetyConfig = { costLimit: 2.00, timeLimit: 10 * 60 * 1000 };
     }
 
-    // Get public tool definitions (cached for the session)
-    session.tools = getPublicTools();
-
     // Get provider configuration from chrome.storage.local (where options page saves them)
     let settings = {};
     try {
@@ -659,16 +719,23 @@ async function runAgentLoop(sessionId, options) {
       console.warn('[AgentLoop] Could not read provider settings from storage');
     }
 
-    // Resolve provider key
-    const providerKey = settings.modelProvider || settings.provider || 'xai';
-    const modelName = settings.modelName || settings.model || 'grok-4-1-fast';
+    const persistedProviderConfig = session.providerConfig || session.agentResumeState?.providerConfig || {};
 
-    // Create UniversalProvider instance
-    const providerInstance = new (_UniversalProvider)({
-      modelProvider: providerKey,
-      modelName: modelName,
-      ...settings
-    });
+    // Resolve provider key
+    const providerKey = persistedProviderConfig.providerKey || settings.modelProvider || settings.provider || 'xai';
+    const modelName = persistedProviderConfig.model || settings.modelName || settings.model || 'grok-4-1-fast';
+
+    // Create or reuse the session provider instance
+    let providerInstance = session.providerConfig?.providerInstance || null;
+    if (!providerInstance ||
+        session.providerConfig?.providerKey !== providerKey ||
+        session.providerConfig?.model !== modelName) {
+      providerInstance = new (_UniversalProvider)({
+        modelProvider: providerKey,
+        modelName: modelName,
+        ...settings
+      });
+    }
 
     // Cache provider config in session for reuse across iterations
     session.providerConfig = {
@@ -688,6 +755,8 @@ async function runAgentLoop(sessionId, options) {
       provider: providerKey,
       model: modelName,
       toolCount: session.tools.length,
+      resumedMessages: Math.max(0, (session.messages?.length || 1) - 1),
+      hasResumeSummary: !!session.resumeSummary,
       tabUrl: tabUrl.substring(0, 80),
       endpoint: providerInstance.getEndpoint()
     });

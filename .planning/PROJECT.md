@@ -22,6 +22,11 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Analytics and usage tracking -- existing
 - ✓ Secure API key storage with encryption -- existing
 - ✓ Conversation history for multi-turn tasks -- existing
+- ✓ Shared UI baseline across popup, sidepanel, control panel, and dashboard surfaces -- v0.9.21
+- ✓ Retouched sidepanel and popup operator surfaces with cleaner hierarchy and state feedback -- v0.9.21
+- ✓ Control panel/dashboard polish with flatter dark shell, tighter density, and cleaner utility chrome -- v0.9.21
+- ✓ Context-aware overlay feedback for text/link targets versus larger controls -- v0.9.21
+- ✓ MCP server published to npm with `npx -y fsb-mcp-server`, optional local HTTP mode, and install diagnostics -- v0.9.8.1
 - ✓ Precise element targeting with uniqueness-scored selectors -- v0.9
 - ✓ Visual feedback with orange glow highlighting -- v0.9
 - ✓ Fast execution with outcome-based dynamic delays -- v0.9
@@ -93,20 +98,15 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Cookie consent auto-dismiss (clear overlays blocking interaction) -- v0.9.11
 
 ### Active
-- [ ] 1:1 sidepanel replica in showcase "See It in Action" section -- v0.9.22
-- [ ] 1:1 control panel (options.html) replica in showcase "See It in Action" section -- v0.9.22
-- [ ] MCP-in-Claude-Code usage examples in showcase "See It in Action" section -- v0.9.22
-- [ ] Audit and fix gaps in showcase "See It in Action" renders vs real extension -- v0.9.22
-- [ ] UI retouch across sidepanel, popup, control panel, and dashboard without changing FSB's core aesthetic -- v0.9.21
-- [ ] Shared visual cohesion pass for spacing, cards, buttons, iconography, and state styling across extension surfaces -- v0.9.21
-- [ ] Context-aware automation highlight feedback for links/text versus box-shaped controls -- v0.9.21
-- [ ] Final UI consistency sweep to remove obvious styling errors and polish regressions on touched surfaces -- v0.9.21
-- [ ] Auto-start DOM stream on WS connection -- v0.9.9.1
-- [ ] Maximize/minimize preview toggle -- v0.9.9.1
-- [ ] Viewport-adaptive preview resize -- v0.9.9.1
-- [ ] Full visual fidelity (dialogs, modals, overlays mirrored) -- v0.9.9.1
-- [ ] Display-matched frame rate (rAF-synced mutation batching) -- v0.9.9.1
-- [ ] Remote control mode (interact through preview iframe) -- v0.9.9.1
+- [ ] Architecture analysis documents mapping Claude Code subsystems to FSB equivalents -- v0.9.24
+- [ ] Tool execution pipeline adaptation -- adopt Claude Code's tool pool, deferred init, and execution registry patterns for FSB browser tools -- v0.9.24
+- [ ] Coordinator/agent loop adaptation -- bring Claude Code's conversation loop, context management, and multi-turn orchestration into FSB's autopilot -- v0.9.24
+- [ ] Command and skill system mapping -- adapt Claude Code's command graph and skill routing for FSB task dispatch -- v0.9.24
+- [ ] State and context management -- adopt compaction, history, session store, and transcript patterns for FSB session lifecycle -- v0.9.24
+- [ ] Hooks and permissions model -- adapt the hook pipeline and permission gating for browser automation safety -- v0.9.24
+- [ ] Reliable website dashboard DOM stream lifecycle -- v0.9.23 (deferred)
+- [ ] Reliable website dashboard remote control -- v0.9.23 (deferred)
+- [ ] Reliable dashboard task relay -- v0.9.23 (deferred)
 - [ ] MCP agent tools -- create/list/run/stop/delete agents via MCP -- v0.9.10/P116
 - [ ] Cost & metrics pipeline -- real token/cost data in agent history -- v0.9.10/P117
 - [ ] Scheduling enhancements -- cron expressions, retry with backoff -- v0.9.10/P118
@@ -121,10 +121,6 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - [x] DOM cloning stream — real-time DOM reconstruction on dashboard (code complete, unverified) -- v0.9.6/P44
 - [x] Remote task control — create and monitor tasks from dashboard, see FSB working live -- v0.9.6/P42
 
-### Backlog (Active from previous milestones)
-
-- [ ] Publish MCP server to npm for easy `npx` installation (shelved from v0.9.8.1, running in parallel)
-
 ### Backlog
 
 - [ ] Reliable CAPTCHA detection -- eliminate false positives on normal pages
@@ -138,19 +134,31 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - Headless server-side execution -- server is relay only, user's browser must stay active
 - Video/screenshot streaming -- DOM cloning with CDN images, not pixel capture
 
-## Current Milestone: v0.9.22 Showcase High-Fidelity Replicas
+## Current Milestone: v0.9.24 Claude Code Architecture Adaptation
+
+**Goal:** Deep-analyze the Claude Code source (Research/claude-code/) to understand how the AI-tool interaction loop works end-to-end, then adapt that exact architecture 1:1 for FSB's browser automation.
+
+**Target features:**
+- Architecture analysis documents mapping every Claude Code subsystem (tool execution, coordinator, command graph, query engine, context compaction, streaming, permissions, hooks, skills, state management) to FSB equivalents
+- Tool execution pipeline rewrite -- adopt Claude Code's tool pool, deferred init, and execution registry patterns for FSB's browser tools
+- Coordinator/agent loop adaptation -- bring Claude Code's conversation loop, context management, and multi-turn orchestration into FSB's autopilot
+- Command and skill system mapping -- understand how Claude Code's command graph and skill system work, adapt patterns for FSB's task routing
+- State and context management -- adopt compaction, history, session store, and transcript patterns for FSB's session lifecycle
+- Hooks and permissions model -- adapt the hook pipeline and permission gating for browser automation safety
+
+**Reference source:** `Research/claude-code/src/` (Python clean-room rewrite of Claude Code)
+
+## Previous Milestone: v0.9.23 Dashboard Stream & Remote Control Reliability (incomplete, deferred)
+
+**Goal:** Audit and fix the website dashboard sync path for reliable streaming, remote control, and task delivery.
+
+## Previous Milestone: v0.9.22 Showcase High-Fidelity Replicas (incomplete, superseded)
 
 **Goal:** Replace the outdated "See It in Action" renders on the showcase site with pixel-accurate HTML/CSS/JS replicas of the real sidepanel, control panel (options.html), and MCP-in-Claude-Code examples.
 
-**Target features:**
-- 1:1 sidepanel replica -- analyze real sidepanel styling and recreate it as a static high-fidelity HTML/CSS render in the showcase
-- 1:1 control panel replica -- analyze real options.html styling and recreate it as a static high-fidelity HTML/CSS render in the showcase
-- MCP-in-Claude-Code examples -- realistic rendered examples showing FSB MCP tools being used in a Claude Code terminal session
-- Audit existing "See It in Action" section for anything outdated or missing, fix gaps
+## Previous Milestone: v0.9.21 UI Retouch & Cohesion (shipped 2026-04-02)
 
-## Previous Milestone: v0.9.21 UI Retouch & Cohesion (not started, deferred)
-
-**Goal:** Polish the existing FSB UI across primary surfaces without redesigning it.
+**Shipped:** Shared UI baseline, sidepanel/popup retouch, control panel/dashboard cleanup, target-aware overlay feedback, and final UI regression sweep. 5 phases, 9 plans, 15 requirements.
 
 ## Previous Milestone: v0.9.20 Autopilot Agent Architecture Rewrite (shipped 2026-04-02)
 
@@ -160,9 +168,13 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Shipped:** Site-aware search, cookie consent auto-dismiss, smart Enter fallback, viewport-aware interaction, BF cache resilience, content extraction reliability. 6 phases, 8 plans, 21 requirements.
 
-## Previous Milestone: v0.9.9.1 Phantom Stream (in progress, parallel)
+## Previous Milestone: v0.9.8.1 npm Publishing (shipped 2026-04-02)
 
-**Goal:** Make the dashboard DOM stream actually work -- auto-connect, full-fidelity live preview with viewport-adaptive resize, display-matched frame rate, and remote browser control from the dashboard.
+**Shipped:** Public npm release for `fsb-mcp-server`, tag-driven publish workflow, root/package MCP docs, optional local HTTP mode, and built-in setup/health commands for MCP host onboarding.
+
+## Previous Milestone: v0.9.9.1 Phantom Stream (shipped 2026-03-31)
+
+**Shipped:** Auto-connect DOM stream on WebSocket handshake, layout modes, visual fidelity improvements, remote browser control, and task-result relay to the dashboard.
 
 ## Previous Milestone: v0.9.9 Shipped
 
@@ -191,8 +203,7 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - `uiReadySelector` option in waitForPageStability implemented but no caller wires it yet
 - Site Guides Viewer design mismatch (displays as accordion, should match memory-style list with mind maps)
 - fsbElements use data-fsbLabel annotation path vs [hint:] tags from buildGuideAnnotations
-- UI surfaces have styling drift between sidepanel, popup, control panel, and dashboard despite sharing the same product aesthetic
-- Action glow currently favors padded rectangular overlays, which looks wrong on inline links and text-centric targets
+- Dashboard website sync path still needs end-to-end validation across relay reconnects, stream lifecycle transitions, remote control events, and task/result delivery
 
 ## Constraints
 
@@ -259,4 +270,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-02 after v0.9.22 Showcase High-Fidelity Replicas milestone started*
+*Last updated: 2026-04-02 after v0.9.24 Claude Code Architecture Adaptation milestone started*

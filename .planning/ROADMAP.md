@@ -13,441 +13,115 @@
 - v0.9.7 MCP Edge Case Validation (shipped 2026-03-22) -- [archive](milestones/v0.9.7-ROADMAP.md)
 - v0.9.8 Autopilot Refinement (shipped 2026-03-23) -- [archive](milestones/v0.9.8-ROADMAP.md)
 - v0.9.9 Excalidraw Mastery (shipped 2026-03-25) -- [archive](milestones/v0.9.9-ROADMAP.md)
-- v0.9.8.1 npm Publishing (shipped 2026-04-01)
+- v0.9.8.1 npm Publishing (shipped 2026-04-02) -- [archive](milestones/v0.9.8.1-ROADMAP.md)
 - v0.9.9.1 Phantom Stream (shipped 2026-03-31)
 - v0.9.11 MCP Tool Quality (shipped 2026-03-31) -- [archive](milestones/v0.9.11-ROADMAP.md)
 - v0.9.20 Autopilot Agent Architecture Rewrite (shipped 2026-04-02) -- [archive](milestones/v0.9.20-ROADMAP.md)
 - v0.9.21 UI Retouch & Cohesion (shipped 2026-04-02) -- [archive](milestones/v0.9.21-ROADMAP.md)
 - v0.9.22 Showcase High-Fidelity Replicas (superseded after Phase 145)
-- v0.9.23 Dashboard Stream & Remote Control Reliability (in progress)
+- v0.9.23 Dashboard Stream & Remote Control Reliability (deferred after Phase 150)
+- v0.9.24 Claude Code Architecture Adaptation (in progress)
 
 ---
 
-## v0.9.8.1 npm Publishing
+## v0.9.23 Dashboard Stream & Remote Control Reliability (deferred)
 
-**Milestone Goal:** Publish the FSB MCP server as an npm package so users can install it with a single `npx` command instead of cloning the repo.
-
-### Phases (v0.9.8.1)
-
-- [x] **Phase 105: Package & Distribution** - npm-ready package with metadata, build pipeline, CI publish, and npx installation (completed 2026-03-24)
-- [x] **Phase 106: Documentation** - README with FSB branding, MCP client config examples, and full tool reference (completed 2026-04-01)
-
-<details>
-<summary>Phase Details (v0.9.8.1)</summary>
-
-### Phase 105: Package & Distribution
-**Goal**: Users can install and run the FSB MCP server via `npx -y fsb-mcp-server` without cloning the repo
-**Depends on**: Nothing (first phase of milestone)
-**Requirements**: PKG-01, PKG-02, PKG-03, PKG-04, DIST-01, DIST-02, DIST-03
-**Plans**: 2 plans
-Plans:
-- [x] 105-01-PLAN.md -- Package metadata, files whitelist, .npmignore, and prepublishOnly script
-- [x] 105-02-PLAN.md -- GitHub Actions publish workflow and end-to-end local verification
-
-### Phase 106: Documentation
-**Goal**: Users can configure the FSB MCP server in their preferred MCP client by following the README
-**Depends on**: Phase 105
-**Requirements**: DOCS-01, DOCS-02, DOCS-03
-**Plans**: [to be planned]
-
-</details>
-
----
-
-### v0.9.8.1 npm Publishing Progress
+Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full phase details.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 105. Package & Distribution | 2/2 | Complete   | 2026-03-24 |
-| 106. Documentation | 0/0 | Complete | 2026-04-01 |
+| 150. Dashboard Transport Baseline & Recovery | 2/2 | Complete | 2026-04-02 |
+| 151. DOM Stream Consistency & State Sync | 0/2 | Deferred | - |
+| 152. Remote Control Reliability | 0/2 | Deferred | - |
+| 153. Dashboard Task Relay Correctness | 0/2 | Deferred | - |
+| 154. End-to-End Verification & Hardening | 0/1 | Deferred | - |
+| 155. Agent Conversation Continuity & Context Reuse | 0/2 | Deferred | - |
 
 ---
 
-## v0.9.9.1 Phantom Stream
+## v0.9.24 Claude Code Architecture Adaptation
 
-**Milestone Goal:** Make the dashboard DOM stream fully functional -- auto-connect on WebSocket, full-fidelity live preview with viewport-adaptive resize, display-matched frame rate, and remote browser control from the dashboard.
+**Milestone Goal:** Deep-analyze the Claude Code source (Research/claude-code/src/) to understand how the AI-tool interaction loop works end-to-end, then adapt specific architectural patterns -- typed state, tool pool, permission gating, hook pipeline, and structured bootstrap -- into FSB's existing Chrome Extension browser automation engine.
 
-### Phases (v0.9.9.1)
+**Reference source:** `Research/claude-code/src/` (Python clean-room rewrite of Claude Code). Consult during planning for every phase.
 
-- [x] **Phase 122: Connection & Auto-Start** - Stream starts on WS connect, stays alive between tasks, recovers from disconnects, shows health status (completed 2026-03-29)
-- [x] **Phase 122.1: Stream Overlay Fix** - Fix glow overlay not appearing in DOM stream preview during automation (INSERTED) (completed 2026-03-29)
-- [x] **Phase 122.2: Stop Signal & Final Outcome** - Dashboard stop button doesn't halt FSB automation, and task completion/failure result not relayed back to dashboard (INSERTED) (completed 2026-03-31)
-- [x] **Phase 122.3: WS Payload Compression** - DOM stream snapshots and task results reliably reach dashboard by compressing WS payloads client-side before sending through relay (INSERTED) (completed 2026-03-31)
-- [x] **Phase 122.4: Dashboard Relay Fix** - End-to-end investigation and fix for dashboard not receiving task results, stream not rendering, and relay message delivery failures (INSERTED) (completed 2026-03-31)
-- [x] **Phase 123: Layout Modes** - Maximize/minimize toggle, viewport-adaptive resize, picture-in-picture, fullscreen preview (completed 2026-03-31)
-- [x] **Phase 123.1: Stream Fidelity Fix** - DOM clone has broken layouts on complex sites -- CSS not loading properly, elements overlapping, content jumbled in iframe (INSERTED) (completed 2026-03-30)
-- [x] **Phase 124: Visual Fidelity** - Dialog/modal mirroring, CSS animation replication, rAF-synced mutation batching, computed style capture (completed 2026-03-30)
-- [x] **Phase 125: Remote Control** - Click/type/scroll through preview to control the real browser, plus task stop button (completed 2026-03-31)
+### Phases (v0.9.24)
 
-<details>
-<summary>Phase Details (v0.9.9.1)</summary>
+- [ ] **Phase 156: State Foundation** - Typed session schema, transcript store, structured turn results, action history events, and state change emitter
+- [ ] **Phase 157: Engine Configuration** - Tool pool assembly, permission gating, cost tracker extraction, session limits config, and execution mode formalization
+- [ ] **Phase 158: Hook Pipeline** - Lifecycle event system with safety breakers, tool permission pre-checks, and progress notification consolidation
+- [ ] **Phase 159: Agent Loop Refactor** - Wire extracted modules into agent-loop.js, enable session resumption, replace inline conditionals with hook calls
+- [ ] **Phase 160: Bootstrap Pipeline** - Structured service worker startup with ordered phases and deferred initialization for non-essential subsystems
 
-### Phase 122: Connection & Auto-Start
-**Goal**: Dashboard shows a live preview of the user's browser from the moment WebSocket connects, with no dead state and automatic recovery
-**Depends on**: Nothing (first phase of milestone; builds on Phase 44 DOM Cloning Stream infrastructure)
-**Requirements**: CONN-01, CONN-02, CONN-03, CONN-04
+## Phase Details (v0.9.24)
+
+### Phase 156: State Foundation
+**Goal**: Every module that reads or writes session state operates on typed, structured objects with clear persistence guarantees -- hot state is transient, warm state survives service worker kills
+**Depends on**: Nothing (first phase of milestone; builds on v0.9.20 agent loop)
+**Requirements**: STATE-01, STATE-02, STATE-03, STATE-04, STATE-05
 **Success Criteria** (what must be TRUE):
-  1. User opens dashboard and sees a live browser preview within seconds of WebSocket handshake -- no "Connecting to browser..." dead state
-  2. User can navigate to different pages in their browser and the preview updates continuously, even when no automation task is running
-  3. If the user's internet drops and reconnects, the preview recovers automatically with a fresh full snapshot
-  4. A status badge in the preview container shows green/yellow/red for connected/buffering/disconnected
-**Plans**: 2 plans
-Plans:
-- [x] 122-01-PLAN.md -- Extension-side active tab tracking, stream-aware forwarding, decouple stream from task lifecycle
-- [x] 122-02-PLAN.md -- Dashboard auto-start on page-ready, toggle button, recovery logic, status badge enhancement
+  1. A session object has a typed schema with explicitly declared hot-tier fields (Promises, timers -- accepted as lost on SW kill) and warm-tier fields (messages, iteration count, cost -- persisted to chrome.storage.session on every state change)
+  2. Conversation history is managed by a standalone transcript store class with append/compact/replay/flush methods, using FSB's existing token-budget-aware compaction (80% trigger, keep recent 5 intact, old results replaced with one-liners)
+  3. Each agent iteration returns a structured turn result carrying prompt tokens, output tokens, matched tools, permission denials, usage metrics, and stop reason -- not ad-hoc property reads from the session object
+  4. Action history consists of structured event objects (not scattered session property mutations) that can be replayed and diffed between turns
+  5. Session state transitions (idle, running, paused, completed, failed) broadcast to all subscribers (sidepanel, dashboard, analytics) through a single event emitter instead of scattered sendStatus calls
+**Plans**: TBD
+**Note**: Research reference: `Research/claude-code/src/transcript.py`, `Research/claude-code/src/session_store.py`, `Research/claude-code/src/runtime.py`. Pitfall 1 (SW state loss) and Pitfall 3 (storage quota) must be addressed here.
 
-### Phase 122.1: Stream Overlay Fix (INSERTED)
-**Goal**: The orange glow highlighting the element FSB is interacting with appears in the dashboard DOM stream preview during automation
-**Depends on**: Phase 122
-**Requirements**: FIDELITY-01 (partial -- glow overlay only)
+### Phase 157: Engine Configuration
+**Goal**: The agent loop starts each session with a right-sized tool set filtered by task type and permissions, configurable session limits replace hardcoded constants, and execution modes are formalized
+**Depends on**: Phase 156
+**Requirements**: ENGINE-01, ENGINE-02, ENGINE-03, ENGINE-04, MODE-01
 **Success Criteria** (what must be TRUE):
-  1. When FSB targets an element during automation, the orange glow rect appears on the corresponding element in the dashboard preview
-  2. The glow follows element changes as FSB moves between targets
-  3. The glow disappears when no element is actively targeted
-**Plans**: 1 plan
+  1. A tool pool assembles per-session filtered tool sets based on task type and permissions, reducing the 47 tools sent on every API call to a relevant subset of 12-20 tools
+  2. A permission context implements deny-list gating per tool name with origin-aware rules using Chrome match patterns -- blocking denied tools before they reach the API, not after
+  3. Cost tracking lives in a standalone module with token budget enforcement alongside the existing $2 dollar budget breaker, not inline in agent-loop.js
+  4. Session limits (max_turns, token budget, compact threshold) are read from a config object at session start, not hardcoded as magic numbers in agent-loop.js and background.js
+  5. FSB's four execution modes (autopilot, mcp-manual, mcp-agent, dashboard-remote) are formalized as named mode objects with per-mode tool pool configuration, safety limits, and UI feedback channel routing
+**Plans**: TBD
+**Note**: Research reference: `Research/claude-code/src/tool_pool.py`, `Research/claude-code/src/permissions.py`, `Research/claude-code/src/cost_tracker.py`, `Research/claude-code/src/direct_modes.py`. Pitfall 5 (path-based permissions) must be addressed -- use origin-aware rules.
 
-### Phase 122.2: Stop Signal & Final Outcome (INSERTED)
-**Goal**: Dashboard stop button halts FSB automation, and task completion/failure result is relayed back to the dashboard
-**Depends on**: Phase 122
+### Phase 158: Hook Pipeline
+**Goal**: Cross-cutting concerns (safety checks, permission gates, progress updates) execute through a composable hook pipeline instead of inline conditionals scattered through the agent loop
+**Depends on**: Phase 156, Phase 157
+**Requirements**: HOOK-01, HOOK-02, HOOK-03, HOOK-04
 **Success Criteria** (what must be TRUE):
-  1. Clicking Stop Task on the dashboard stops the running automation in the extension
-  2. Task completion (success or failure) updates the dashboard UI with the final result
-  3. Dashboard shows the correct final state (success summary or error message) after task ends
-**Plans**: 2 plans
-Plans:
-- [x] 122.2-01-PLAN.md -- Rewire stop signal to handleStopAutomation, completion relay on all exit paths, dashboard stopped state display
-- [x] 122.2-02-PLAN.md -- Gap closure: idempotency guards, resolve executeAutomationTask on stop, single ext:task-complete delivery
+  1. A hook pipeline supports 7 named lifecycle events (beforeIteration, afterApiResponse, beforeToolExecution, afterToolExecution, afterIteration, onCompletion, onError) with register/emit/unregister API
+  2. Cost limit, time limit, and stuck detection checks run as hook handlers registered on afterIteration -- not as inline if-statements in the iteration function
+  3. Before every tool execution, a permission hook checks the permission context and blocks denied tools with a structured denial result that the AI receives as a tool_result error
+  4. All progress notifications (action summaries, phase updates, cost updates) flow through a single progress hook on afterToolExecution and afterIteration, replacing scattered sendStatus and sendUpdate calls
+**Plans**: TBD
+**Note**: Research reference: `Research/claude-code/src/costHook.py`, `Research/claude-code/src/reference_data/subsystems/hooks.json`. Pitfall 4 (cross-process hooks) -- all initial hooks are background-only; content-requiring hooks deferred.
 
-### Phase 122.3: WS Payload Compression (INSERTED)
-**Goal**: DOM stream snapshots and task results reliably reach the dashboard by compressing WS payloads client-side before sending through the relay
-**Depends on**: Phase 122
+### Phase 159: Agent Loop Refactor
+**Goal**: The agent loop delegates to extracted modules for state, tools, permissions, and lifecycle hooks -- reducing its size and enabling session resumption from the last completed tool result
+**Depends on**: Phase 158
+**Requirements**: LOOP-01, LOOP-02, LOOP-03
 **Success Criteria** (what must be TRUE):
-  1. DOM stream snapshots (100KB+) arrive at the dashboard and render in the preview iframe
-  2. ext:task-complete messages arrive at the dashboard and update the task UI state
-  3. Compression is transparent -- dashboard decompresses automatically, no relay changes needed
-**Plans**: 1 plan
-Plans:
-- [x] 122.3-01-PLAN.md -- Vendor lz-string, compress in ws-client.js send(), decompress in dashboard.js ws.onmessage
+  1. agent-loop.js integrates transcript store, tool pool, permission context, and hook pipeline -- inline code replaced with module calls, file reduced from ~1200 to ~700 lines
+  2. A restored session after service worker kill can continue automation from the last completed tool result (resume iteration loop) instead of only displaying status and allowing stop
+  3. All safety checks, progress updates, and permission gates execute through the hook pipeline -- no inline conditionals for these concerns remain in the iteration function
+**Plans**: TBD
+**Note**: Research reference: `Research/claude-code/src/runtime.py`, `Research/claude-code/src/context.py`. Explicitly preserve setTimeout-chaining for MV3 compatibility. Do NOT convert to synchronous loop or async/await iteration.
 
-### Phase 122.4: Dashboard Relay Fix (INSERTED)
-**Goal**: End-to-end investigation and fix for dashboard not receiving task results, stream not rendering, and relay message delivery failures
-**Depends on**: Phase 122.3
+### Phase 160: Bootstrap Pipeline
+**Goal**: Service worker startup is structured with explicit ordered phases and non-essential loading is deferred until after first user interaction
+**Depends on**: Phase 159
+**Requirements**: BOOT-01, BOOT-02
 **Success Criteria** (what must be TRUE):
-  1. Dashboard preview shows live browser content (not stuck on "Connecting to browser...")
-  2. Task completion result (success summary or error) appears in dashboard UI after task finishes
-  3. All WS message types (ext:dom-snapshot, ext:task-complete, ext:task-progress) reliably reach dashboard
-  4. Compressed _lz envelope messages are correctly decompressed and processed by dashboard
-**Plans**: 1 plan
-Plans:
-- [x] 122.4-01-PLAN.md -- automationComplete .catch guards, startDashboardTask fallback timer, curated computed styles, overlay throttle
-
-### Phase 123: Layout Modes
-**Goal**: User can view the live preview in the size and mode that fits their workflow -- from inline thumbnail to fullscreen takeover
-**Depends on**: Phase 122
-**Requirements**: LAYOUT-01, LAYOUT-02, LAYOUT-03, LAYOUT-04, LAYOUT-05
-**Success Criteria** (what must be TRUE):
-  1. User clicks a maximize button and the preview expands to fill the full dashboard content area; clicks minimize and it shrinks back to inline thumbnail
-  2. Preview container aspect ratio dynamically matches the actual browser viewport (e.g., 1920x1080 becomes 16:9, 1280x800 becomes 16:10) rather than being fixed
-  3. User can pop the preview into a floating draggable window (picture-in-picture) that stays on top while using other dashboard tabs
-  4. User can enter fullscreen mode where the preview fills the entire screen, and press Escape to exit back to normal layout
-**UI hint**: yes
-
-### Phase 123.1: Stream Fidelity Fix (INSERTED)
-**Goal**: DOM clone renders complex sites (Google, YouTube, etc.) with correct layouts -- all CSS loads, elements don't overlap, content matches the original page structure
-**Depends on**: Phase 123
-**Success Criteria** (what must be TRUE):
-  1. Google search results page renders in the preview with correct layout (no overlapping text, proper grid/flex positioning)
-  2. External stylesheets from CDNs load correctly in the sandboxed iframe
-  3. Inline computed styles preserve element positioning, sizing, and layout properties
-**Plans**: 0 plans (not yet planned)
-
-### Phase 124: Visual Fidelity
-**Goal**: The cloned preview is a pixel-accurate mirror of the real browser -- dialogs, animations, and computed styles all appear correctly
-**Depends on**: Phase 122
-**Requirements**: FIDELITY-01, FIDELITY-02, FIDELITY-03, FIDELITY-04
-**Success Criteria** (what must be TRUE):
-  1. When an alert/confirm dialog or modal overlay appears in the real browser, the user sees it rendered in the dashboard preview
-  2. CSS transitions (e.g., hover effects, slide-ins) and keyframe animations (e.g., spinners, progress bars) play in the preview matching the real browser
-  3. DOM mutations arrive at the preview in smooth batches synced to requestAnimationFrame, with no visible jank or stale frames
-  4. Elements in the preview have correct colors, fonts, sizes, and spacing because inline computed styles are captured during serialization
-**Plans**: 2 plans
-Plans:
-- [x] 124-01-PLAN.md -- Full computed style capture, rAF mutation batching, live iframe rendering in dom-stream.js
-- [x] 124-02-PLAN.md -- Native dialog interception pipeline (page script, content relay, WS forwarding, dashboard card rendering)
-**UI hint**: yes
-
-### Phase 125: Remote Control
-**Goal**: User can interact with the real browser by clicking, typing, and scrolling directly in the dashboard preview
-**Depends on**: Phase 122, Phase 123
-**Requirements**: CONTROL-01, CONTROL-02, CONTROL-03, CONTROL-04
-**Success Criteria** (what must be TRUE):
-  1. User clicks a button in the preview and the corresponding button in the real browser receives the click (verified by seeing the page change in the preview)
-  2. User clicks an input field in the preview and types text that appears in the real browser's input field
-  3. User scrolls the preview (mousewheel or trackpad) and the real browser page scrolls accordingly
-  4. User can click a stop button on the preview overlay to halt a running automation task
-**Plans**: 2 plans
-Plans:
-- [x] 125-01-PLAN.md -- Extension-side WS message routing and CDP dispatch for remote click, key, and scroll events
-- [x] 125-02-PLAN.md -- Dashboard toggle button, transparent overlay, event capture, coordinate reverse-scaling, and WS forwarding
-**UI hint**: yes
-
-</details>
+  1. Service worker startup proceeds through explicit ordered phases -- settings prefetch, environment detection, tool registration, session restoration -- with each phase individually debuggable when startup fails
+  2. Non-essential loading (site guides, memory extraction, analytics prefetch) is deferred until after first user interaction, while all tool definitions and core modules remain eagerly loaded
+**Plans**: TBD
+**Note**: Research reference: `Research/claude-code/src/bootstrap_graph.py`, `Research/claude-code/src/deferred_init.py`. Pitfall 6 warns that deferred init can stall first command -- keep eager loading for all tool definitions and core modules.
 
 ---
 
-### v0.9.9.1 Phantom Stream Progress
+### v0.9.24 Claude Code Architecture Adaptation Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 122. Connection & Auto-Start | 2/2 | Complete | 2026-03-29 |
-| 122.1. Stream Overlay Fix | 1/1 | Complete | 2026-03-29 |
-| 122.2. Stop Signal & Final Outcome | 2/2 | Complete | 2026-03-31 |
-| 122.3. WS Payload Compression | 1/1 | Complete | 2026-03-31 |
-| 122.4. Dashboard Relay Fix | 1/1 | Complete | 2026-03-31 |
-| 123. Layout Modes | 2/2 | Complete | 2026-03-31 |
-| 123.1. Stream Fidelity Fix | 1/1 | Complete | 2026-03-30 |
-| 124. Visual Fidelity | 2/2 | Complete | 2026-03-30 |
-| 125. Remote Control | 2/2 | Complete | 2026-03-31 |
-
----
-
-## v0.9.21 UI Retouch & Cohesion
-
-Shipped 2026-04-02. Shared UI baseline, sidepanel/popup retouch, control-panel/dashboard cleanup, context-aware overlay feedback, and final regression sweep completed. [archive](milestones/v0.9.21-ROADMAP.md)
-
----
-
-## v0.9.22 Showcase High-Fidelity Replicas (Superseded after Phase 145)
-
-**Milestone Goal:** Replace the outdated "See It in Action" renders on the showcase site with pixel-accurate HTML/CSS/JS replicas of the real sidepanel, control panel (options.html), and MCP-in-Claude-Code examples.
-
-### Phases (v0.9.22)
-
-- [x] **Phase 145: Fresh UI Audit & Token Baseline** - Audit current extension UI state and establish exact color token mappings for all replicas (completed 2026-04-02)
-- [x] **Phase 146: Sidepanel Replica** - Pixel-accurate recreation of the real sidepanel Chat view in the showcase (completed 2026-04-02)
-- [x] **Phase 147: Control Panel Replica** - Pixel-accurate recreation of the real control panel Dashboard view in the showcase (completed 2026-04-02)
-- [x] **Phase 148: MCP Terminal Examples** - Claude Code-styled terminal blocks showing autopilot and manual mode MCP usage (completed 2026-04-02)
-- [x] **Phase 149: Final Verification & Sync Comments** - Side-by-side fidelity check and version-stamped sync comments for drift detection (completed 2026-04-02)
-
-### Phase Details (v0.9.22)
-
-### Phase 145: Fresh UI Audit & Token Baseline
-**Goal**: Every replica built in this milestone starts from an accurate, verified snapshot of the current extension UI -- not stale assumptions or outdated CSS values
-**Depends on**: Nothing (first phase of milestone)
-**Requirements**: AUD-01
-**Success Criteria** (what must be TRUE):
-  1. A documented audit of the current sidepanel.css and options.css color tokens, font sizes, border radii, and shadows exists as the reference for all subsequent phases
-  2. The existing rec- CSS variable namespace has been mapped against real extension values, and every stale value is identified with its correct replacement
-  3. Structural gaps between the current about.html recreation HTML and the real extension HTML are enumerated (missing elements, wrong icons, incorrect hierarchy)
-**Plans**: 1 plan
-Plans:
-- [x] 145-01-PLAN.md -- Audit real CSS tokens, fix stale rec- variables, enumerate structural HTML gaps
-
-### Phase 146: Sidepanel Replica
-**Goal**: Visitors see a showcase sidepanel that is visually indistinguishable from the real FSB sidepanel Chat view in both dark and light themes
-**Depends on**: Phase 145
-**Requirements**: SP-01, SP-02, SP-03
-**Success Criteria** (what must be TRUE):
-  1. The showcase sidepanel replica matches the real sidepanel header (FSB title, status dot, history/new-chat/settings icon buttons), all message bubble types (user/ai/system/action/error), input bar with mic button and model selector, and footer text
-  2. Switching the showcase theme toggle between dark and light renders the sidepanel replica with accurate color tokens from sidepanel.css in both modes
-  3. Scrolling the sidepanel replica into view triggers an animated message cascade using the existing IntersectionObserver pattern
-  4. No visual element from the real sidepanel Chat view is missing or obviously wrong in the replica
-**Plans**: 1 plan
-Plans:
-- [x] 146-01-PLAN.md -- Update sidepanel CSS dimensions/tokens and replace HTML in both recreations with pixel-accurate structure
-**UI hint**: yes
-
-### Phase 147: Control Panel Replica
-**Goal**: Visitors see a showcase control panel that is visually indistinguishable from the real FSB options.html Dashboard view in both dark and light themes
-**Depends on**: Phase 145
-**Requirements**: CP-01, CP-02, CP-03
-**Success Criteria** (what must be TRUE):
-  1. The showcase control panel replica matches the real Dashboard view: sidebar nav (8 items with correct icons including fa-brain for Memory and fa-server for Background Agents), analytics hero cards, SVG line chart, and session history cards with status badges
-  2. Switching the showcase theme toggle between dark and light renders the control panel replica with accurate warm-gray tokens from options.css and fsb-ui-core.css in both modes
-  3. Scrolling the control panel replica into view triggers animated counters and SVG chart line draw
-  4. No visual element from the real Dashboard view is missing or obviously wrong in the replica
-**Plans**: 1 plan
-Plans:
-- [x] 147-01-PLAN.md -- Update dashboard CSS dimensions/tokens, replace HTML with pixel-accurate structure, add SVG chart draw animation
-**UI hint**: yes
-
-### Phase 148: MCP Terminal Examples
-**Goal**: Visitors see realistic Claude Code terminal sessions demonstrating FSB MCP tools in action -- showing both autopilot and manual orchestration flows
-**Depends on**: Nothing (independent of sidepanel/control panel replicas; can run after Phase 145 for color consistency but has no hard dependency)
-**Requirements**: MCP-01, MCP-02, MCP-03
-**Success Criteria** (what must be TRUE):
-  1. An autopilot terminal block shows a run_task command with realistic progress output lines and a completion summary, styled as a Claude Code terminal session
-  2. A manual mode terminal block shows a multi-tool orchestration flow (read_page + click + type_text sequence) with tool-use blocks and result blocks, styled as a Claude Code terminal session
-  3. Both terminal blocks use accurate Claude Code dark theme colors, monospace typography, and semantic CSS classes (not inline styles)
-  4. Terminal blocks trigger a typing animation on scroll using IntersectionObserver following the existing recreations.js IIFE pattern
-**Plans**: 1 plan
-Plans:
-- [x] 148-01-PLAN.md -- Terminal CSS, HTML blocks for autopilot and manual mode, and line-by-line reveal animation
-**UI hint**: yes
-
-### Phase 149: Final Verification & Sync Comments
-**Goal**: All replicas pass a side-by-side fidelity check against the real extension and are stamped with version metadata for future drift detection
-**Depends on**: Phase 146, Phase 147, Phase 148
-**Requirements**: AUD-02, AUD-03
-**Success Criteria** (what must be TRUE):
-  1. A side-by-side comparison of each replica against the real extension in both dark and light themes shows no obvious visual discrepancies
-  2. Each replica section in about.html includes a version-stamped sync comment (e.g., <!-- Replica of: ui/sidepanel.html | Last synced: v0.9.22 -->) for future drift detection
-  3. Accessibility attributes (role="img", aria-label, aria-hidden="true" on internals) are present on all replica containers
-**Plans**: 1 plan
-Plans:
-- [x] 149-01-PLAN.md -- Sync comments, accessibility attributes, and side-by-side fidelity check
-
----
-
-### v0.9.22 Showcase High-Fidelity Replicas Progress
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 145. Fresh UI Audit & Token Baseline | 1/1 | Complete    | 2026-04-02 |
-| 146. Sidepanel Replica | 1/1 | Complete    | 2026-04-02 |
-| 147. Control Panel Replica | 1/1 | Complete    | 2026-04-02 |
-| 148. MCP Terminal Examples | 1/1 | Complete    | 2026-04-02 |
-| 149. Final Verification & Sync Comments | 1/1 | Complete   | 2026-04-02 |
-
----
-
-## v0.9.20 Autopilot Agent Architecture Rewrite
-
-**Milestone Goal:** Replace the custom iteration loop + CLI text parsing autopilot with a native tool_use agent loop -- the same pattern Claude Code, Computer Use API, and MCP clients all use.
-
-### Phase 138: Context Management & On-Demand Tools
-**Goal**: The AI fetches page context and site intelligence only when needed, conversation history stays within token budget, and the user sees live progress and cost
-**Depends on**: Phase 137
-**Requirements**: CTX-01, CTX-02, CTX-03, CTX-04, PROG-01, PROG-02, PROG-03
-**Plans**: 2 plans
-Plans:
-- [x] 138-01-PLAN.md -- Register 3 on-demand tools, local interception in agent loop, sliding-window history compression, Anthropic prompt caching
-- [x] 138-02-PLAN.md -- Progress overlay enrichment with cost display, AI reasoning fields, dashboard broadcast wiring
-
-### Phase 139: Dead Code Removal & Polish
-**Goal**: All legacy autopilot infrastructure is removed after the new agent loop is proven stable, leaving a cleaner codebase with ~3,100 fewer lines
-**Depends on**: Phase 138
-**Requirements**: CLN-01, CLN-02, CLN-03, CLN-04
-**Plans**: 2 plans
-Plans:
-- [x] 139-01-PLAN.md -- Rewire executeAutomationTask to call runAgentLoop, making startAutomationLoop fully dead code
-- [x] 139-02-PLAN.md -- Delete startAutomationLoop, completion validators, prefetchDOM, and supporting dead code
-
-### Phase 139.1: ai-integration.js Dead Code Cleanup (GAP CLOSURE)
-**Goal**: Remove all remaining dead code from ai-integration.js and options.js left after Phase 139, achieving full CLN-01 and CLN-02 satisfaction
-**Depends on**: Phase 139
-**Requirements**: CLN-01, CLN-02
-**Gap Closure**: Closes gaps from v0.9.20 milestone audit
-**Success Criteria** (what must be TRUE):
-  1. CLI_COMMAND_TABLE, TASK_PROMPTS, buildPrompt, buildMinimalUpdate, and all related constants/methods are deleted from ai-integration.js
-  2. No remaining references to parseCliResponse in ai-integration.js
-  3. CLIValidator references removed from options.js
-  4. grep for CLI_COMMAND_TABLE, TASK_PROMPTS, buildPrompt, parseCliResponse returns zero matches in active codebase
-**Plans**: 1 plan
-Plans:
-- [ ] 139.1-01-PLAN.md -- Delete dead code from ai-integration.js (~760 lines) and CLI validation section from options.js (~430 lines)
-
-### v0.9.20 Autopilot Agent Architecture Rewrite Progress
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 135. Provider Format Adapters & Tool Registry | 2/2 | Complete | 2026-04-01 |
-| 136. Unified Tool Executor & MCP Migration | 2/2 | Complete | 2026-04-01 |
-| 137. Agent Loop Core & Safety Mechanisms | 2/2 | Complete | 2026-04-01 |
-| 138. Context Management & On-Demand Tools | 2/2 | Complete | 2026-04-01 |
-| 139. Dead Code Removal & Polish | 2/2 | Complete | 2026-04-01 |
-| 139.1. ai-integration.js Dead Code Cleanup | 1/1 | Complete | 2026-04-01 |
-| 139.2. Fill Sheet Case Fix & Autopilot Sheets | 1/1 | Complete | 2026-04-02 |
-| 139.3. Agent Loop Session Logging | 0/? | Not started | - |
-
----
-
-## v0.9.23 Dashboard Stream & Remote Control Reliability
-
-**Milestone Goal:** Audit and fix anything functionally wrong in the website dashboard sync path so live streaming, remote control, and task/progress/result delivery are reliable end-to-end.
-
-### Phases (v0.9.23)
-
-- [ ] **Phase 150: Dashboard Transport Baseline & Recovery** - Make the website dashboard and extension reconnect path deterministic with explicit state recovery and transport diagnostics
-- [ ] **Phase 151: DOM Stream Consistency & State Sync** - Keep the website dashboard preview and recovered task state synchronized across snapshots, mutations, overlays, dialogs, and tab changes
-- [ ] **Phase 152: Remote Control Reliability** - Fix dashboard preview click, type, scroll, and remote-control session lifecycle issues
-- [ ] **Phase 153: Dashboard Task Relay Correctness** - Make dashboard task submit, progress, stop, success, and failure delivery consistent and exactly-once
-- [ ] **Phase 154: End-to-End Verification & Hardening** - Verify the complete dashboard sync path manually and close the remaining reliability gaps found during verification
-
-### Phase Details (v0.9.23)
-
-### Phase 150: Dashboard Transport Baseline & Recovery
-**Goal**: The website dashboard and extension can reconnect, recover stream intent, and expose actionable diagnostics instead of failing silently
-**Depends on**: Nothing (first phase of milestone)
-**Requirements**: STRM-01, STRM-02, VER-01
-**Success Criteria** (what must be TRUE):
-  1. When the website dashboard connects and a streamable browser tab exists, the preview reaches either a live streaming state or an explicit not-ready state without manual intervention
-  2. Relay reconnects, extension WebSocket reconnects, and MV3 service worker restarts restore dashboard sync intent instead of leaving the preview permanently stuck in loading or disconnected
-  3. Developers can inspect targeted diagnostics for WebSocket open and close, state snapshot recovery, page-ready handling, and per-message-type delivery failures
-**Plans**: 2 plans
-Plans:
-- [ ] 150-01-PLAN.md -- Audit and normalize dashboard-extension transport state transitions, reconnect handling, and page-ready recovery
-- [ ] 150-02-PLAN.md -- Add focused diagnostics for relay direction, message delivery, and stuck-state detection
-
-### Phase 151: DOM Stream Consistency & State Sync
-**Goal**: The website dashboard preview stays current and the recovered dashboard state matches the real browser and running task state
-**Depends on**: Phase 150
-**Requirements**: STRM-03, RLY-04
-**Success Criteria** (what must be TRUE):
-  1. Snapshot, mutation, scroll, overlay, and dialog messages update the preview without silent freezes on stale DOM state
-  2. Website dashboard reconnect during an active task restores the current task state and continues preview updates instead of dropping context
-  3. Streaming-tab changes and restricted pages transition the website dashboard preview between loading, streaming, and disconnected states correctly
-**Plans**: 2 plans
-Plans:
-- [ ] 151-01-PLAN.md -- Harden DOM snapshot and mutation application paths, including stale-state and reconnect behavior
-- [ ] 151-02-PLAN.md -- Fix recovered task state, stream tab transitions, and page-not-ready synchronization on the website dashboard
-
-### Phase 152: Remote Control Reliability
-**Goal**: Users can reliably control the real browser through the website dashboard preview without focus, coordinate, or debugger lifecycle failures
-**Depends on**: Phase 151
-**Requirements**: CTRL-01, CTRL-02, CTRL-03, CTRL-04
-**Success Criteria** (what must be TRUE):
-  1. Clicking inside the website dashboard preview triggers the intended browser click target consistently
-  2. Remote typing, printable characters, and modifier keys reach the browser tab without the website dashboard stealing focus or corrupting text input
-  3. Remote scrolling moves the real browser in the intended direction and target area
-  4. Repeatedly toggling remote control on and off does not leave debugger attachment, detachment, or reuse in a broken state
-**Plans**: 2 plans
-Plans:
-- [ ] 152-01-PLAN.md -- Fix remote-control coordinate mapping, focus handling, and input event fidelity
-- [ ] 152-02-PLAN.md -- Harden debugger attach, detach, reuse, and failure recovery for repeated remote-control sessions
-
-### Phase 153: Dashboard Task Relay Correctness
-**Goal**: The website dashboard receives accurate task lifecycle updates from submit through final outcome exactly once
-**Depends on**: Phase 150
-**Requirements**: RLY-01, RLY-02, RLY-03
-**Success Criteria** (what must be TRUE):
-  1. Website dashboard task submission results in either a clear immediate rejection reason or a running task state
-  2. Task progress updates reach the website dashboard with current action, phase, elapsed time, and percent when available
-  3. Stop, success, and failure outcomes are delivered exactly once with the correct final status and last-action context when available
-  4. Fallback completion paths do not race against normal completion paths to create inconsistent final task state
-**Plans**: 2 plans
-Plans:
-- [ ] 153-01-PLAN.md -- Audit and fix dashboard task submit and progress message flow across ws-client and background handlers
-- [ ] 153-02-PLAN.md -- Eliminate duplicate or missing final outcomes across stop, success, failure, and fallback completion paths
-
-### Phase 154: End-to-End Verification & Hardening
-**Goal**: The milestone closes with verified website dashboard behavior, documented evidence, and any final reliability fixes required by that verification pass
-**Depends on**: Phase 151, Phase 152, Phase 153
-**Requirements**: VER-02
-**Success Criteria** (what must be TRUE):
-  1. A documented end-to-end verification pass covers stream start, reconnect, remote click, remote typing, remote scroll, task progress, stop, and completion delivery
-  2. Reliability gaps found during the verification pass are fixed or explicitly documented before the milestone is considered complete
-  3. The final milestone state reflects verified website dashboard behavior rather than assumed correctness from code inspection alone
-**Plans**: 1 plan
-Plans:
-- [ ] 154-01-PLAN.md -- Run end-to-end dashboard verification, close final gaps, and document verified behavior and residual risks
-
-### v0.9.23 Dashboard Stream & Remote Control Reliability Progress
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 150. Dashboard Transport Baseline & Recovery | 0/2 | Not started | - |
-| 151. DOM Stream Consistency & State Sync | 0/2 | Not started | - |
-| 152. Remote Control Reliability | 0/2 | Not started | - |
-| 153. Dashboard Task Relay Correctness | 0/2 | Not started | - |
-| 154. End-to-End Verification & Hardening | 0/1 | Not started | - |
+| 156. State Foundation | 0/? | Not started | - |
+| 157. Engine Configuration | 0/? | Not started | - |
+| 158. Hook Pipeline | 0/? | Not started | - |
+| 159. Agent Loop Refactor | 0/? | Not started | - |
+| 160. Bootstrap Pipeline | 0/? | Not started | - |
