@@ -36,6 +36,12 @@
   --rec-chart-border: rgba(255, 255, 255, 0.08);
   --rec-address-bg: rgba(255, 255, 255, 0.06);
   --rec-icon-btn-bg: rgba(255, 241, 232, 0.06);
+  --rec-msg-ai-border: rgba(77, 208, 225, 0.20);
+  --rec-msg-action-border: rgba(129, 199, 132, 0.22);
+  --rec-msg-system-border: rgba(255, 241, 232, 0.08);
+  --rec-msg-error-bg: rgba(229, 115, 115, 0.12);
+  --rec-msg-error-color: #f4aaaa;
+  --rec-msg-error-border: rgba(229, 115, 115, 0.20);
 }
 
 /* Synced with real extension CSS -- Phase 145 audit (v0.9.22) */
@@ -69,6 +75,12 @@
   --rec-chart-border: rgba(41, 29, 20, 0.10);
   --rec-address-bg: rgba(0, 0, 0, 0.05);
   --rec-icon-btn-bg: rgba(41, 29, 20, 0.06);
+  --rec-msg-ai-border: rgba(8, 145, 178, 0.24);
+  --rec-msg-action-border: rgba(16, 185, 129, 0.24);
+  --rec-msg-system-border: rgba(124, 104, 89, 0.16);
+  --rec-msg-error-bg: rgba(220, 38, 38, 0.08);
+  --rec-msg-error-color: #991b1b;
+  --rec-msg-error-border: rgba(220, 38, 38, 0.22);
 }
 
 /* --- Browser Chrome Frame --- */
@@ -138,9 +150,9 @@
 
 .rec-sp-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 18px 20px 14px;
   border-bottom: 1px solid var(--rec-sp-border);
 }
 
@@ -151,28 +163,45 @@
 }
 
 .rec-sp-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--rec-text-heading);
+  line-height: 1;
+}
+
+.rec-sp-subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--rec-text-muted);
+  line-height: 1;
+}
+
+.rec-sp-brand-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .rec-sp-status {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--rec-sp-input-bg);
+  border: 1px solid var(--rec-sp-border);
 }
 
 .rec-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 4px rgba(16, 185, 129, 0.4);
+  font-size: 10px;
+  color: #10b981;
+  text-shadow: 0 0 4px rgba(16, 185, 129, 0.4);
+  line-height: 1;
 }
 
 .rec-status-dot.running {
-  background: #f59e0b;
-  box-shadow: 0 0 4px rgba(245, 158, 11, 0.4);
+  color: #f59e0b;
+  text-shadow: 0 0 4px rgba(245, 158, 11, 0.4);
   animation: recPulse 2s infinite;
 }
 
@@ -184,41 +213,45 @@
 .rec-status-text {
   font-size: 11px;
   color: var(--rec-text-secondary);
-  font-weight: 500;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .rec-sp-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .rec-sp-icon-btn {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--rec-icon-btn-bg);
-  border-radius: 6px;
+  border: 1px solid var(--rec-sp-border);
+  border-radius: 10px;
   color: var(--rec-text-secondary);
-  font-size: 12px;
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 /* Messages area */
 .rec-messages {
   flex: 1;
-  padding: 14px;
+  padding: 22px 20px 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   overflow: hidden;
 }
 
 .rec-msg {
-  max-width: 92%;
-  padding: 10px 14px;
-  border-radius: 16px;
-  font-size: 12.5px;
+  max-width: 88%;
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-size: 14px;
   line-height: 1.4;
   word-wrap: break-word;
 }
@@ -238,15 +271,16 @@
   background: var(--rec-msg-system-bg);
   color: var(--rec-msg-system-color);
   border-bottom-left-radius: 4px;
+  border: 1px solid var(--rec-msg-system-border);
 }
 
-/* AI message - blue bg, blue left border */
+/* AI message - teal bg, themed left border */
 .rec-msg.ai {
   align-self: flex-start;
   background: var(--rec-msg-ai-bg);
   color: var(--rec-msg-ai-color);
   border-bottom-left-radius: 4px;
-  border-left: 3px solid #2196f3;
+  border-left: 3px solid var(--rec-msg-ai-border);
 }
 
 /* Action message - green monospace */
@@ -256,9 +290,9 @@
   background: var(--rec-msg-action-bg);
   color: var(--rec-msg-action-color);
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-  font-size: 11px;
-  border-radius: 8px;
-  border-left: 3px solid #4caf50;
+  font-size: 12px;
+  border-radius: 12px;
+  border-left: 3px solid var(--rec-msg-action-border);
 }
 
 /* Status message with typing dots */
@@ -274,6 +308,15 @@
 
 [data-theme="light"] .rec-msg.status {
   background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+}
+
+/* Error message */
+.rec-msg.error {
+  align-self: flex-start;
+  background: var(--rec-msg-error-bg);
+  color: var(--rec-msg-error-color);
+  border-bottom-left-radius: 4px;
+  border-left: 3px solid var(--rec-msg-error-border);
 }
 
 .rec-typing-dots {
@@ -301,7 +344,7 @@
 
 /* Input area at bottom */
 .rec-sp-input {
-  padding: 10px 14px;
+  padding: 16px 18px 10px;
   border-top: 1px solid var(--rec-sp-border);
 }
 
@@ -313,25 +356,71 @@
   border-radius: 20px;
   padding: 8px 12px;
   gap: 8px;
+  min-height: 56px;
 }
 
 .rec-sp-input-text {
   flex: 1;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--rec-text-muted);
 }
 
+.rec-sp-mic-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--rec-sp-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--rec-text-secondary);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
 .rec-sp-send-btn {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: linear-gradient(135deg, #ff6b35, #ff8c42);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 11px;
+  font-size: 13px;
   flex-shrink: 0;
+}
+
+.rec-sp-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 6px 4px 0;
+}
+
+.rec-sp-model-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--rec-text-muted);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--rec-icon-btn-bg);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rec-sp-footer {
+  padding: 8px 20px 12px;
+  text-align: center;
+  border-top: 1px solid var(--rec-sp-border);
+}
+
+.rec-sp-footer span {
+  font-size: 10px;
+  color: var(--rec-text-muted);
 }
 
 /* --- Viewport Glow Effect (acting state) --- */
