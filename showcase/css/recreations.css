@@ -1048,9 +1048,11 @@
   flex: 1;
   background: #202124;
   padding: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
   font-family: arial, sans-serif;
+  height: 100%;
 }
 
 [data-theme="light"] .rec-google-page {
@@ -1076,6 +1078,10 @@
 .rec-step.active {
   opacity: 1;
   pointer-events: auto;
+}
+
+.rec-step > * {
+  height: 100%;
 }
 
 /* Google Homepage (captured from google.com) */
@@ -1409,9 +1415,11 @@
   flex: 1;
   background: #111;
   padding: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  height: 100%;
 }
 
 [data-theme="light"] .rec-article-page {
