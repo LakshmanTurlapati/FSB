@@ -35,7 +35,7 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 | 152. Remote Control Reliability | 0/2 | Deferred | - |
 | 153. Dashboard Task Relay Correctness | 0/2 | Deferred | - |
 | 154. End-to-End Verification & Hardening | 0/1 | Deferred | - |
-| 155. Agent Conversation Continuity & Context Reuse | 0/2 | Deferred | - |
+| 155. Agent Conversation Continuity & Context Reuse | 2/2 | Complete | 2026-04-02 |
 
 ---
 
@@ -53,7 +53,7 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 - [ ] **Phase 159: Agent Loop Refactor** - Wire extracted modules into agent-loop.js, enable session resumption, replace inline conditionals with hook calls
 - [ ] **Phase 160: Bootstrap Pipeline** - Structured service worker startup with ordered phases and deferred initialization for non-essential subsystems
 
-## Phase Details (v0.9.24)
+## Phase Details
 
 ### Phase 156: State Foundation
 **Goal**: Every module that reads or writes session state operates on typed, structured objects with clear persistence guarantees -- hot state is transient, warm state survives service worker kills
