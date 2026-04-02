@@ -728,6 +728,7 @@ async function runAgentIteration(sessionId, options) {
     sendSessionStatus: sendStatus,
     broadcastDashboardProgress,
     endSessionOverlays,
+    cleanupSession,
     executeCDPToolDirect,
     handleDataTool
   } = options;
@@ -755,6 +756,16 @@ async function runAgentIteration(sessionId, options) {
         task: sess.task
       }).catch(() => {});
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
+  }
+
+  // Helper: full session finalization (overlays + logger + sidepanel + cleanup)
+  async function finalizeSession(sid, sess, resultText, isError) {
+    saveToLogger(sid, sess, isError ? 'error' : 'completed');
+    notifySidepanel(sid, sess, resultText, isError);
+    // cleanupSession removes from activeSessions, persistent storage, and sends overlay cleanup
+    if (typeof cleanupSession === 'function') {
+      try { await cleanupSession(sid); } catch (_e) { /* non-fatal */ }
+    }
   }
 
   // a. Retrieve session
@@ -872,8 +883,7 @@ async function runAgentIteration(sessionId, options) {
       }
 
       await persist(sessionId, session);
-      saveToLogger(sessionId, session, 'completed');
-      notifySidepanel(sessionId, session, finalText.substring(0, 500), false);
+      await finalizeSession(sessionId, session, finalText.substring(0, 500), false);
 
       // Broadcast completion
       if (typeof broadcastDashboardProgress === 'function') {
@@ -959,8 +969,7 @@ async function runAgentIteration(sessionId, options) {
           await endSessionOverlays(session, 'complete');
         }
         await persist(sessionId, session);
-        saveToLogger(sessionId, session, 'completed');
-        notifySidepanel(sessionId, session, summary, false);
+        await finalizeSession(sessionId, session, summary, false);
         return; // End the loop -- task is done
       } else if (call.name === 'fail_task') {
         // Task lifecycle: failure
@@ -981,8 +990,7 @@ async function runAgentIteration(sessionId, options) {
           await endSessionOverlays(session, 'error');
         }
         await persist(sessionId, session);
-        saveToLogger(sessionId, session, 'error');
-        notifySidepanel(sessionId, session, reason, true);
+        await finalizeSession(sessionId, session, reason, true);
         return; // End the loop -- task failed
       } else if (call.name === 'report_progress') {
         // PROG-02: Update progress overlay with AI reasoning and cost
@@ -1116,8 +1124,7 @@ async function runAgentIteration(sessionId, options) {
         });
       }
       await persist(sessionId, session);
-      saveToLogger(sessionId, session, 'error');
-      notifySidepanel(sessionId, session, session.error, true);
+      await finalizeSession(sessionId, session, session.error, true);
       return;
     }
 
@@ -1140,8 +1147,7 @@ async function runAgentIteration(sessionId, options) {
         });
       }
       await persist(sessionId, session);
-      saveToLogger(sessionId, session, 'error');
-      notifySidepanel(sessionId, session, session.error, true);
+      await finalizeSession(sessionId, session, session.error, true);
       return;
     }
 
@@ -1179,8 +1185,7 @@ async function runAgentIteration(sessionId, options) {
       });
     }
     await persist(sessionId, session);
-    saveToLogger(sessionId, session, 'error');
-    notifySidepanel(sessionId, session, session.error, true);
+    await finalizeSession(sessionId, session, session.error, true);
   }
 }
 

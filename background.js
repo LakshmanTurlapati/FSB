@@ -4819,7 +4819,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
           persistSession,
           sendSessionStatus,
           broadcastDashboardProgress,
-          endSessionOverlays,
+          endSessionOverlays, cleanupSession,
           startKeepAlive,
           executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
           handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
@@ -5150,7 +5150,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       persistSession,
       sendSessionStatus,
       broadcastDashboardProgress,
-      endSessionOverlays,
+      endSessionOverlays, cleanupSession,
       startKeepAlive,
       executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
       handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
@@ -5311,7 +5311,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
         persistSession,
         sendSessionStatus,
         broadcastDashboardProgress,
-        endSessionOverlays,
+        endSessionOverlays, cleanupSession,
         startKeepAlive,
         executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
         handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
@@ -6502,7 +6502,7 @@ async function launchNextCompanySearch(sessionId, session, companyName) {
     persistSession,
     sendSessionStatus,
     broadcastDashboardProgress,
-    endSessionOverlays,
+    endSessionOverlays, cleanupSession,
     startKeepAlive,
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
     handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
@@ -6976,7 +6976,7 @@ async function startSheetsDataEntry(sessionId, session) {
     persistSession,
     sendSessionStatus,
     broadcastDashboardProgress,
-    endSessionOverlays,
+    endSessionOverlays, cleanupSession,
     startKeepAlive,
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
     handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
@@ -7076,7 +7076,7 @@ async function startSheetsFormatting(sessionId, session) {
     persistSession,
     sendSessionStatus,
     broadcastDashboardProgress,
-    endSessionOverlays,
+    endSessionOverlays, cleanupSession,
     startKeepAlive,
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
     handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
