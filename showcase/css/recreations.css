@@ -1298,15 +1298,17 @@
   color: #70757a;
 }
 
-/* Medium article page */
+/* Medium article page (1:1 from screenshot) */
 .rec-medium-page {
   background: #121212;
+  font-family: sohne, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 [data-theme="light"] .rec-medium-page {
   background: #fff;
 }
 
+/* Medium header */
 .rec-medium-header {
   padding: 10px 20px;
   display: flex;
@@ -1319,25 +1321,75 @@
   border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
-.rec-medium-logo {
-  font-size: 24px;
-  color: #fff;
+.rec-medium-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
-[data-theme="light"] .rec-medium-logo {
+.rec-medium-logo-text {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: #fff;
+  font-family: gt-super, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+[data-theme="light"] .rec-medium-logo-text {
   color: #000;
 }
 
-.rec-medium-header .rec-article-nav {
+.rec-medium-search {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  padding: 6px 14px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.5);
 }
 
-[data-theme="light"] .rec-medium-header .rec-article-nav {
-  color: rgba(0, 0, 0, 0.54);
+[data-theme="light"] .rec-medium-search {
+  background: #f2f2f2;
+  color: #6b6b6b;
+}
+
+.rec-medium-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+}
+
+.rec-medium-getapp-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: default;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+[data-theme="light"] .rec-medium-getapp-btn {
+  border-color: #e6e6e6;
+  color: #242424;
+}
+
+.rec-medium-write-link {
+  color: rgba(255, 255, 255, 0.6);
+  cursor: default;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+[data-theme="light"] .rec-medium-write-link {
+  color: #6b6b6b;
 }
 
 .rec-medium-signup-btn {
@@ -1350,63 +1402,193 @@
   cursor: default;
 }
 
-.rec-medium-content {
-  max-width: 680px;
-  margin: 0 auto;
-  padding: 28px 20px;
-}
-
-.rec-article-subtitle {
-  font-size: 17px;
-  font-weight: 400;
-  line-height: 1.5;
+.rec-medium-signin-link {
   color: rgba(255, 255, 255, 0.6);
-  margin: 0 0 16px 0;
+  cursor: default;
 }
 
-[data-theme="light"] .rec-article-subtitle {
+[data-theme="light"] .rec-medium-signin-link {
   color: #6b6b6b;
 }
 
+.rec-medium-user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #6b6b6b;
+  flex-shrink: 0;
+}
+
+/* Medium article content area */
+.rec-medium-content {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 36px 20px;
+}
+
+.rec-medium-page .rec-article-title {
+  font-family: gt-super, Georgia, Cambria, "Times New Roman", Times, serif;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: #fff;
+  margin: 0 0 12px 0;
+}
+
+[data-theme="light"] .rec-medium-page .rec-article-title {
+  color: #242424;
+}
+
+.rec-medium-subtitle {
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 0 0 20px 0;
+}
+
+[data-theme="light"] .rec-medium-subtitle {
+  color: #6b6b6b;
+}
+
+/* Author row */
 .rec-medium-author-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 
 .rec-medium-avatar {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #6366f1;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
+  background: linear-gradient(135deg, #5c9ecf, #3a7ca5);
   flex-shrink: 0;
 }
 
 .rec-medium-author-name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: #fff;
-  display: block;
 }
 
 [data-theme="light"] .rec-medium-author-name {
-  color: #111;
+  color: #242424;
 }
 
-.rec-medium-author-detail {
-  font-size: 12px;
+.rec-medium-follow-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 3px 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: default;
+}
+
+[data-theme="light"] .rec-medium-follow-btn {
+  border-color: #242424;
+  color: #242424;
+}
+
+.rec-medium-read-meta {
+  font-size: 13px;
   color: rgba(255, 255, 255, 0.45);
-  display: block;
 }
 
-[data-theme="light"] .rec-medium-author-detail {
+[data-theme="light"] .rec-medium-read-meta {
+  color: #6b6b6b;
+}
+
+/* Engagement row */
+.rec-medium-engagement {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 24px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+[data-theme="light"] .rec-medium-engagement {
+  border-color: #f2f2f2;
+  color: #6b6b6b;
+}
+
+.rec-medium-engagement-left {
+  display: flex;
+  gap: 16px;
+}
+
+.rec-medium-clap, .rec-medium-comment {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rec-medium-engagement-right {
+  display: flex;
+  gap: 14px;
+  font-size: 15px;
+}
+
+/* Hero image card */
+.rec-medium-hero-image {
+  margin-bottom: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rec-medium-hero-card {
+  background: linear-gradient(135deg, #0d2137, #1a4a6e);
+  padding: 28px 24px;
+  position: relative;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.rec-medium-hero-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #4ecdc4;
+  margin-bottom: 10px;
+}
+
+.rec-medium-hero-heading {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #fff;
+  max-width: 65%;
+}
+
+.rec-medium-hero-icon {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  font-size: 60px;
+  color: rgba(78, 205, 196, 0.25);
+}
+
+.rec-medium-caption {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  text-align: center;
+  margin: 0 0 20px 0;
+  font-style: italic;
+}
+
+[data-theme="light"] .rec-medium-caption {
   color: #6b6b6b;
 }
 
