@@ -237,6 +237,58 @@ importScripts('lib/memory/cross-site-patterns.js');
 importScripts('lib/memory/sitemap-converter.js');
 importScripts('lib/memory/sitemap-refiner.js');
 
+// ---------------------------------------------------------------------------
+// Phase 159: Hook pipeline factory for agent loop sessions
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a HookPipeline with all standard hooks registered for a session.
+ * Called once per session before runAgentLoop.
+ *
+ * @returns {{ hooks: HookPipeline, emitter: SessionStateEmitter }}
+ */
+function createSessionHooks() {
+  var hooks = new HookPipeline();
+  var emitter = new SessionStateEmitter();
+  var permCtx = new PermissionContext();
+
+  // Safety hooks on afterIteration
+  hooks.register(
+    LIFECYCLE_EVENTS.AFTER_ITERATION,
+    createSafetyBreakerHook(checkSafetyBreakers)
+  );
+  hooks.register(
+    LIFECYCLE_EVENTS.AFTER_ITERATION,
+    createStuckDetectionHook(detectStuck)
+  );
+
+  // Permission hook on beforeToolExecution
+  hooks.register(
+    LIFECYCLE_EVENTS.BEFORE_TOOL_EXECUTION,
+    createPermissionHook(permCtx)
+  );
+
+  // Progress hooks
+  hooks.register(
+    LIFECYCLE_EVENTS.AFTER_TOOL_EXECUTION,
+    createToolProgressHook(emitter)
+  );
+  hooks.register(
+    LIFECYCLE_EVENTS.AFTER_ITERATION,
+    createIterationProgressHook(emitter)
+  );
+  hooks.register(
+    LIFECYCLE_EVENTS.ON_COMPLETION,
+    createCompletionProgressHook(emitter)
+  );
+  hooks.register(
+    LIFECYCLE_EVENTS.ON_ERROR,
+    createErrorProgressHook(emitter)
+  );
+
+  return { hooks: hooks, emitter: emitter };
+}
+
 // Site map intelligence - bundled map cache
 const bundledSiteMapCache = new Map();
 
@@ -2785,8 +2837,8 @@ async function removePersistedSession(sessionId) {
 }
 
 // Restore sessions from storage on service worker startup.
-// Running loops are not auto-resumed, but idle sessions retain enough agent state
-// to hydrate the correct follow-up context when the user continues the thread later.
+// Running sessions are auto-resumed (D-03); idle sessions retain agent state
+// for follow-up reactivation when the user continues the thread later.
 async function restoreSessionsFromStorage() {
   try {
     const allStorage = await chrome.storage.session.get(null);
@@ -2795,19 +2847,17 @@ async function restoreSessionsFromStorage() {
     for (const key of sessionKeys) {
       const persistedSession = allStorage[key];
       if (persistedSession && persistedSession.sessionId) {
-        // Check if session is still supposed to be running or idle (idle sessions can be reactivated)
-        if (persistedSession.status === 'running' || persistedSession.status === 'idle') {
-          const continuity = serializeSessionContinuity({
-            ...persistedSession,
-            ...persistedSession.continuity,
-            sessionId: persistedSession.sessionId
-          });
+        const continuity = serializeSessionContinuity({
+          ...persistedSession,
+          ...persistedSession.continuity,
+          sessionId: persistedSession.sessionId
+        });
 
-          // Restore to activeSessions map so stop button works (and idle sessions can be reactivated)
-          // Mark as 'recoverable' so we know it was restored (can't resume automation loop)
-          const restoredSession = applyContinuityToSession({
+        if (persistedSession.status === 'running') {
+          // D-03: Auto-resume running sessions after service worker restart
+          var restoredSession = applyContinuityToSession({
             ...persistedSession,
-            isRestored: true,  // Flag to indicate this was restored, automation loop is not running
+            isRestored: true,
             followUpContext: persistedSession.followUpContext || null,
             agentResumeState: persistedSession.agentResumeState || null,
             resumeSummary: persistedSession.agentResumeState?.historySummary || null,
@@ -2815,16 +2865,63 @@ async function restoreSessionsFromStorage() {
             tools: null,
             providerConfig: persistedSession.agentResumeState?.providerConfig || null,
             agentState: persistedSession.agentResumeState?.agentState || null,
-            // Keep original status -- 'running' for stop button, 'idle' for reactivation
           }, continuity);
 
           activeSessions.set(persistedSession.sessionId, restoredSession);
-          automationLogger.info('Restored session from storage', {
+
+          automationLogger.info('Auto-resuming running session after SW restart (D-03)', {
             sessionId: persistedSession.sessionId,
             status: persistedSession.status,
             task: persistedSession.task?.substring(0, 50),
-            conversationId: continuity.conversationId,
-            uiSurface: continuity.uiSurface
+            iteration: restoredSession.agentState?.iterationCount || 0
+          });
+
+          // D-03: Automatic resumption -- continue automation seamlessly
+          try {
+            // Verify tab still exists before resuming
+            await chrome.tabs.get(restoredSession.tabId);
+            startKeepAlive();
+            var resumeHooks = createSessionHooks();
+            runAgentLoop(persistedSession.sessionId, {
+              activeSessions,
+              persistSession,
+              sendSessionStatus,
+              broadcastDashboardProgress,
+              endSessionOverlays, cleanupSession,
+              startKeepAlive,
+              executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
+              handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+              hooks: resumeHooks.hooks,
+              emitter: resumeHooks.emitter
+            });
+          } catch (tabErr) {
+            automationLogger.warn('Cannot auto-resume: tab no longer exists', {
+              sessionId: persistedSession.sessionId,
+              tabId: restoredSession.tabId,
+              error: tabErr.message
+            });
+            restoredSession.status = 'stopped';
+            restoredSession.error = 'Tab closed during service worker restart';
+          }
+        } else if (persistedSession.status === 'idle') {
+          // Idle sessions: restore for reactivation (existing behavior)
+          var restoredSession = applyContinuityToSession({
+            ...persistedSession,
+            isRestored: true,
+            followUpContext: persistedSession.followUpContext || null,
+            agentResumeState: persistedSession.agentResumeState || null,
+            resumeSummary: persistedSession.agentResumeState?.historySummary || null,
+            messages: null,
+            tools: null,
+            providerConfig: persistedSession.agentResumeState?.providerConfig || null,
+            agentState: persistedSession.agentResumeState?.agentState || null,
+          }, continuity);
+
+          activeSessions.set(persistedSession.sessionId, restoredSession);
+          automationLogger.info('Restored idle session from storage', {
+            sessionId: persistedSession.sessionId,
+            status: persistedSession.status,
+            task: persistedSession.task?.substring(0, 50)
           });
         } else {
           // Clean up non-running/non-idle sessions from storage
@@ -5875,6 +5972,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
           automationLogger.debug('Could not reset DOM state for follow-up', { sessionId, error: e.message });
         }
 
+        var sessionHooks = createSessionHooks();
         runAgentLoop(sessionId, {
           activeSessions,
           persistSession,
@@ -5883,7 +5981,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
           endSessionOverlays, cleanupSession,
           startKeepAlive,
           executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-          handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+          handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+          hooks: sessionHooks.hooks,
+          emitter: sessionHooks.emitter
         });
         return;
       }
@@ -6160,6 +6260,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
     }
 
     // Start the agent loop
+    var sessionHooks = createSessionHooks();
     runAgentLoop(sessionId, {
       activeSessions,
       persistSession,
@@ -6168,7 +6269,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
       endSessionOverlays, cleanupSession,
       startKeepAlive,
       executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-      handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+      handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+      hooks: sessionHooks.hooks,
+      emitter: sessionHooks.emitter
     });
 
   } catch (error) {
@@ -6352,6 +6455,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
       sessionData._safetyTimeout = safetyTimeout;
 
       // Start the agent loop
+      var sessionHooks = createSessionHooks();
       runAgentLoop(sessionId, {
         activeSessions,
         persistSession,
@@ -6360,7 +6464,9 @@ async function executeAutomationTask(tabId, task, options = {}) {
         endSessionOverlays, cleanupSession,
         startKeepAlive,
         executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-        handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+        handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+        hooks: sessionHooks.hooks,
+        emitter: sessionHooks.emitter
       });
 
     } catch (error) {
@@ -7588,6 +7694,7 @@ async function launchNextCompanySearch(sessionId, session, companyName) {
   persistSession(sessionId, session);
 
   // Small delay for page transition before starting agent loop
+  var sessionHooks = createSessionHooks();
   setTimeout(() => runAgentLoop(sessionId, {
     activeSessions,
     persistSession,
@@ -7596,7 +7703,9 @@ async function launchNextCompanySearch(sessionId, session, companyName) {
     endSessionOverlays, cleanupSession,
     startKeepAlive,
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+    hooks: sessionHooks.hooks,
+    emitter: sessionHooks.emitter
   }), 500);
   return true;
 }
@@ -8062,6 +8171,7 @@ async function startSheetsDataEntry(sessionId, session) {
   persistSession(sessionId, session);
 
   // 12. Start agent loop with transition delay
+  var sessionHooks = createSessionHooks();
   setTimeout(() => runAgentLoop(sessionId, {
     activeSessions,
     persistSession,
@@ -8070,7 +8180,9 @@ async function startSheetsDataEntry(sessionId, session) {
     endSessionOverlays, cleanupSession,
     startKeepAlive,
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+    hooks: sessionHooks.hooks,
+    emitter: sessionHooks.emitter
   }), 500);
 
   automationLogger.info('Sheets data entry session launched', {
@@ -8162,6 +8274,7 @@ async function startSheetsFormatting(sessionId, session) {
 
   // Persist and launch agent loop
   persistSession(sessionId, session);
+  var sessionHooks = createSessionHooks();
   setTimeout(() => runAgentLoop(sessionId, {
     activeSessions,
     persistSession,
@@ -8170,7 +8283,9 @@ async function startSheetsFormatting(sessionId, session) {
     endSessionOverlays, cleanupSession,
     startKeepAlive,
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null
+    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+    hooks: sessionHooks.hooks,
+    emitter: sessionHooks.emitter
   }), 500);
 
   automationLogger.info('Sheets formatting session launched', {
