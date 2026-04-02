@@ -878,6 +878,8 @@ var _streamingTabId = null; // Tab ID currently being streamed to dashboard (alw
 var _streamingActive = false; // Whether dashboard has requested DOM streaming
 var _tabSwitchTimer = null; // Debounce timer for tab switch stream re-targeting
 var _remoteControlDebuggerTabId = null; // Tab ID with debugger attached for remote control (null = not active)
+var _remoteControlDebuggerOwned = false; // Whether remote control attached the current debugger session itself
+var _remoteControlEnabled = false; // Whether the dashboard currently wants remote control active
 var _streamTabUrl = ''; // Last known URL for the streaming tab or not-ready tab candidate
 var _streamStatus = 'not-ready'; // ready | not-ready | recovering
 var _streamReason = 'no-streamable-tab'; // restricted-tab | no-streamable-tab | waiting-for-page-ready | tab-closed
@@ -933,6 +935,10 @@ function _rememberStreamState(status, reason, tabId, url, source) {
     _streamingTabId = typeof tabId === 'number' ? tabId : null;
   } else if (_streamStatus === 'not-ready') {
     _streamingTabId = null;
+  }
+
+  if (_remoteControlEnabled) {
+    _syncRemoteControlDebugger('stream-state:' + _streamStatus);
   }
 }
 
@@ -8381,36 +8387,19 @@ function initializeKeyboardEmulator() {
  * Start remote control session: attach debugger to the streaming tab.
  */
 async function handleRemoteControlStart() {
-  if (!_streamingTabId) {
-    console.warn('[FSB Remote] Cannot start remote control -- no streaming tab');
-    return;
+  _remoteControlEnabled = true;
+  var attached = await _ensureRemoteControlDebugger(_streamingTabId, 'start');
+  if (!attached) {
+    console.warn('[FSB Remote] Remote control enabled but debugger is not attached yet');
   }
-  try {
-    await chrome.debugger.attach({ tabId: _streamingTabId }, '1.3');
-  } catch (err) {
-    if (err.message && err.message.includes('Already attached')) {
-      console.log('[FSB Remote] Debugger already attached to tab ' + _streamingTabId + ' -- reusing');
-    } else {
-      console.error('[FSB Remote] Failed to attach debugger:', err.message);
-      return;
-    }
-  }
-  _remoteControlDebuggerTabId = _streamingTabId;
-  console.log('[FSB Remote] Debugger attached to tab ' + _streamingTabId + ' for remote control');
 }
 
 /**
  * Stop remote control session: detach debugger from the tab.
  */
 async function handleRemoteControlStop() {
-  if (_remoteControlDebuggerTabId === null) return;
-  try {
-    await chrome.debugger.detach({ tabId: _remoteControlDebuggerTabId });
-  } catch (_) {
-    // Ignore -- tab may have closed
-  }
-  console.log('[FSB Remote] Debugger detached -- remote control stopped');
-  _remoteControlDebuggerTabId = null;
+  _remoteControlEnabled = false;
+  await _releaseRemoteControlDebugger('stop');
 }
 
 /**
@@ -8418,23 +8407,24 @@ async function handleRemoteControlStop() {
  * @param {Object} payload - { x: number, y: number, button: 'left'|'right', modifiers: number }
  */
 async function handleRemoteClick(payload) {
-  if (_remoteControlDebuggerTabId === null) {
+  var targetTabId = _streamingTabId;
+  if (!(await _ensureRemoteControlDebugger(targetTabId, 'click'))) {
     console.warn('[FSB Remote] Click ignored -- remote control not active');
     return;
   }
   try {
     var btn = payload.button || 'left';
     var mods = payload.modifiers || 0;
-    await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchMouseEvent', {
+    await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchMouseEvent', {
       type: 'mousePressed', x: payload.x, y: payload.y, button: btn, clickCount: 1, modifiers: mods
     });
-    await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchMouseEvent', {
+    await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchMouseEvent', {
       type: 'mouseReleased', x: payload.x, y: payload.y, button: btn, clickCount: 1, modifiers: mods
     });
     console.log('[FSB Remote] Click dispatched at (' + payload.x + ', ' + payload.y + ')');
   } catch (err) {
     console.error('[FSB Remote] Click failed:', err.message);
-    _remoteControlDebuggerTabId = null;
+    await _handleRemoteControlDispatchFailure('click', err);
   }
 }
 
@@ -8443,28 +8433,33 @@ async function handleRemoteClick(payload) {
  * @param {Object} payload - { type: 'keyDown'|'keyUp'|'char', key: string, code: string, text: string, modifiers: number }
  */
 async function handleRemoteKey(payload) {
-  if (_remoteControlDebuggerTabId === null) {
+  var targetTabId = _streamingTabId;
+  if (!(await _ensureRemoteControlDebugger(targetTabId, 'key'))) {
     console.warn('[FSB Remote] Key ignored -- remote control not active');
     return;
   }
   try {
-    if (payload.type === 'char') {
-      await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchKeyEvent', {
+    if (payload.type === 'insertText') {
+      await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.insertText', {
+        text: payload.text || payload.key || ''
+      });
+    } else if (payload.type === 'char') {
+      await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchKeyEvent', {
         type: 'char', text: payload.text || payload.key
       });
     } else if (payload.type === 'keyDown') {
-      await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchKeyEvent', {
+      await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchKeyEvent', {
         type: 'keyDown', key: payload.key, code: payload.code, text: payload.text || '', modifiers: payload.modifiers || 0
       });
     } else if (payload.type === 'keyUp') {
-      await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchKeyEvent', {
+      await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchKeyEvent', {
         type: 'keyUp', key: payload.key, code: payload.code, modifiers: payload.modifiers || 0
       });
     }
     console.log('[FSB Remote] Key dispatched: ' + payload.type + ' ' + payload.key);
   } catch (err) {
     console.error('[FSB Remote] Key failed:', err.message);
-    _remoteControlDebuggerTabId = null;
+    await _handleRemoteControlDispatchFailure('key', err);
   }
 }
 
@@ -8473,19 +8468,97 @@ async function handleRemoteKey(payload) {
  * @param {Object} payload - { x: number, y: number, deltaX: number, deltaY: number }
  */
 async function handleRemoteScroll(payload) {
-  if (_remoteControlDebuggerTabId === null) {
+  var targetTabId = _streamingTabId;
+  if (!(await _ensureRemoteControlDebugger(targetTabId, 'scroll'))) {
     console.warn('[FSB Remote] Scroll ignored -- remote control not active');
     return;
   }
   try {
-    await chrome.debugger.sendCommand({ tabId: _remoteControlDebuggerTabId }, 'Input.dispatchMouseEvent', {
+    await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchMouseEvent', {
       type: 'mouseWheel', x: payload.x, y: payload.y,
       deltaX: payload.deltaX || 0, deltaY: payload.deltaY || 0
     });
   } catch (err) {
     console.error('[FSB Remote] Scroll failed:', err.message);
-    _remoteControlDebuggerTabId = null;
+    await _handleRemoteControlDispatchFailure('scroll', err);
   }
+}
+
+async function _releaseRemoteControlDebugger(reason) {
+  var tabId = _remoteControlDebuggerTabId;
+  var owned = _remoteControlDebuggerOwned;
+  _remoteControlDebuggerTabId = null;
+  _remoteControlDebuggerOwned = false;
+
+  if (tabId === null) return;
+  if (!owned) {
+    console.log('[FSB Remote] Cleared reused debugger reference on tab ' + tabId + ' (' + (reason || 'release') + ')');
+    return;
+  }
+
+  try {
+    await chrome.debugger.detach({ tabId: tabId });
+    console.log('[FSB Remote] Debugger detached from tab ' + tabId + ' (' + (reason || 'release') + ')');
+  } catch (err) {
+    console.warn('[FSB Remote] Debugger detach skipped for tab ' + tabId + ':', err && err.message ? err.message : err);
+  }
+}
+
+async function _ensureRemoteControlDebugger(targetTabId, reason) {
+  if (!_remoteControlEnabled) return false;
+  if (typeof targetTabId !== 'number') {
+    await _releaseRemoteControlDebugger(reason || 'missing-tab');
+    return false;
+  }
+
+  if (_remoteControlDebuggerTabId === targetTabId) {
+    return true;
+  }
+
+  if (_remoteControlDebuggerTabId !== null && _remoteControlDebuggerTabId !== targetTabId) {
+    await _releaseRemoteControlDebugger('retarget:' + (reason || 'unknown'));
+  }
+
+  try {
+    await chrome.debugger.attach({ tabId: targetTabId }, '1.3');
+    _remoteControlDebuggerTabId = targetTabId;
+    _remoteControlDebuggerOwned = true;
+    console.log('[FSB Remote] Debugger attached to tab ' + targetTabId + ' (' + (reason || 'attach') + ')');
+    return true;
+  } catch (err) {
+    var message = err && err.message ? err.message : '';
+    if (message.includes('Already attached')) {
+      _remoteControlDebuggerTabId = targetTabId;
+      console.log('[FSB Remote] Reusing debugger attachment on tab ' + targetTabId + ' (' + (reason || 'attach') + ')');
+      return true;
+    }
+    if (message.includes('Another debugger is already attached')) {
+      console.warn('[FSB Remote] Remote attach blocked by another debugger on tab ' + targetTabId);
+      return false;
+    }
+    console.error('[FSB Remote] Failed to attach debugger for ' + (reason || 'attach') + ':', message || err);
+    return false;
+  }
+}
+
+function _syncRemoteControlDebugger(reason) {
+  if (!_remoteControlEnabled) return;
+
+  var targetTabId = (_streamStatus === 'ready' || _streamStatus === 'recovering') ? _streamingTabId : null;
+  if (typeof targetTabId !== 'number') {
+    _releaseRemoteControlDebugger(reason || 'not-ready').catch(function(err) {
+      console.warn('[FSB Remote] Failed to release debugger during sync:', err && err.message ? err.message : err);
+    });
+    return;
+  }
+
+  _ensureRemoteControlDebugger(targetTabId, reason || 'sync').catch(function(err) {
+    console.warn('[FSB Remote] Failed to sync debugger attachment:', err && err.message ? err.message : err);
+  });
+}
+
+async function _handleRemoteControlDispatchFailure(kind, err) {
+  await _releaseRemoteControlDebugger('dispatch-failed:' + kind);
 }
 
 /**
