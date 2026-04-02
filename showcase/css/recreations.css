@@ -133,8 +133,9 @@
 
 .browser-content {
   display: flex;
-  min-height: 400px;
+  aspect-ratio: 16 / 10;
   position: relative;
+  overflow: hidden;
 }
 
 /* --- Side Panel Mockup (rec- prefix) --- */
