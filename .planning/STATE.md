@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9.23
 milestone_name: Dashboard Stream & Remote Control Reliability
 status: verifying
-stopped_at: Completed 159-02-PLAN.md
-last_updated: "2026-04-02T19:01:24.451Z"
+stopped_at: Completed 159-03-PLAN.md
+last_updated: "2026-04-02T19:17:02.386Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 158
   completed_phases: 153
-  total_plans: 309
-  completed_plans: 306
+  total_plans: 310
+  completed_plans: 307
   percent: 0
 ---
 
@@ -53,6 +53,7 @@ Progress: [----------] 0%
 | Phase 158 P02 | 1min | 2 tasks | 3 files |
 | Phase 159 PP01 | 7min | 2 tasks | 1 files |
 | Phase 159 PP02 | 3min | 2 tasks | 1 files |
+| Phase 159 P03 | 1min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,7 @@ Recent decisions affecting current work:
 - [Phase 158]: 4 separate progress hook factories (tool/iteration/completion/error) instead of 1 multi-event handler for cleaner Phase 159 registration
 - [Phase 159]: Keep checkSafetyBreakers/detectStuck in agent-loop.js as local functions, hook factories receive via closure; TranscriptStore used per-iteration not persisted; onError hook emitted once at catch top; broadcastDashboardProgress kept for dashboard WS compat
 - [Phase 159]: 6 runAgentLoop call sites wired with createSessionHooks factory; D-03 auto-resumption validates tab existence before calling runAgentLoop on SW restart
+- [Phase 159]: Dual BEFORE_ITERATION + AFTER_ITERATION safety hook registration; null-hooks fallback for backward compatibility
 
 ### Roadmap Evolution
 
@@ -95,6 +97,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T19:01:24.444Z
-Stopped at: Completed 159-02-PLAN.md
+Last session: 2026-04-02T19:17:02.378Z
+Stopped at: Completed 159-03-PLAN.md
 Resume file: None
