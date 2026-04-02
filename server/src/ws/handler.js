@@ -1,7 +1,147 @@
 const WebSocket = require('ws');
 
+const ROOM_DIAGNOSTIC_LIMIT = 100;
+
 // Room map: hashKey -> { extensions: Set<ws>, dashboards: Set<ws> }
 const rooms = new Map();
+const roomDiagnostics = new Map();
+
+function getOrCreateRoomDiagnostics(hashKey) {
+  if (!roomDiagnostics.has(hashKey)) {
+    roomDiagnostics.set(hashKey, {
+      events: [],
+      receivedByType: {},
+      deliveredByType: {},
+      droppedByType: {},
+      lastClose: null
+    });
+  }
+
+  return roomDiagnostics.get(hashKey);
+}
+
+function incrementRoomCounter(hashKey, bucket, type, amount) {
+  if (!type || !amount) return;
+  const diagnostics = getOrCreateRoomDiagnostics(hashKey);
+  diagnostics[bucket][type] = (diagnostics[bucket][type] || 0) + amount;
+}
+
+function pushRoomDiagnosticEvent(hashKey, details) {
+  const diagnostics = getOrCreateRoomDiagnostics(hashKey);
+  const entry = Object.assign({ ts: Date.now() }, details || {});
+  diagnostics.events.push(entry);
+  if (diagnostics.events.length > ROOM_DIAGNOSTIC_LIMIT) {
+    diagnostics.events.shift();
+  }
+  return entry;
+}
+
+function normalizeCloseReason(reason) {
+  if (!reason) return '';
+  if (Buffer.isBuffer(reason)) return reason.toString();
+  return String(reason);
+}
+
+function recordRoomConnectionEvent(hashKey, eventName, role, closeCode, closeReason) {
+  const normalizedReason = normalizeCloseReason(closeReason);
+  const entry = pushRoomDiagnosticEvent(hashKey, {
+    event: eventName,
+    role,
+    hashKey,
+    closeCode: typeof closeCode === 'number' ? closeCode : null,
+    closeReason: normalizedReason
+  });
+
+  if (eventName === 'closed') {
+    getOrCreateRoomDiagnostics(hashKey).lastClose = {
+      role,
+      hashKey,
+      closeCode: typeof closeCode === 'number' ? closeCode : null,
+      closeReason: normalizedReason,
+      ts: entry.ts
+    };
+  }
+}
+
+function sendToClients(hashKey, clients, data, messageType, direction) {
+  const type = messageType || 'unknown';
+  let targetCount = 0;
+  let deliveredCount = 0;
+  let droppedCount = 0;
+
+  for (const client of clients) {
+    targetCount += 1;
+    if (client.readyState !== WebSocket.OPEN) {
+      droppedCount += 1;
+      continue;
+    }
+
+    try {
+      client.send(data);
+      deliveredCount += 1;
+    } catch {
+      droppedCount += 1;
+    }
+  }
+
+  incrementRoomCounter(hashKey, 'deliveredByType', type, deliveredCount);
+  incrementRoomCounter(hashKey, 'droppedByType', type, droppedCount);
+
+  pushRoomDiagnosticEvent(hashKey, {
+    event: 'relay',
+    direction,
+    type,
+    targetCount,
+    deliveredCount,
+    droppedCount
+  });
+
+  if (targetCount === 0 || droppedCount > 0) {
+    pushRoomDiagnosticEvent(hashKey, {
+      event: 'dropped-delivery',
+      direction,
+      type,
+      targetCount,
+      deliveredCount,
+      droppedCount
+    });
+  }
+
+  return { targetCount, deliveredCount, droppedCount };
+}
+
+function recordMissingRoomDelivery(hashKey, messageType, direction) {
+  const type = messageType || 'unknown';
+  pushRoomDiagnosticEvent(hashKey, {
+    event: 'relay',
+    direction,
+    type,
+    targetCount: 0,
+    deliveredCount: 0,
+    droppedCount: 0
+  });
+  pushRoomDiagnosticEvent(hashKey, {
+    event: 'dropped-delivery',
+    direction,
+    type,
+    targetCount: 0,
+    deliveredCount: 0,
+    droppedCount: 0
+  });
+  return { targetCount: 0, deliveredCount: 0, droppedCount: 0 };
+}
+
+function getRoomDiagnostics(hashKey) {
+  const diagnostics = roomDiagnostics.get(hashKey);
+  if (!diagnostics) return null;
+  return {
+    events: diagnostics.events.slice(),
+    receivedByType: Object.assign({}, diagnostics.receivedByType),
+    deliveredByType: Object.assign({}, diagnostics.deliveredByType),
+    droppedByType: Object.assign({}, diagnostics.droppedByType),
+    lastClose: diagnostics.lastClose ? Object.assign({}, diagnostics.lastClose) : null
+  };
+}
 
 /**
  * Set up WebSocket connection handling on the given WebSocketServer.
@@ -11,6 +151,7 @@ function setupWSHandler(wss) {
   wss.on('connection', (ws, request, { hashKey, role }) => {
     console.log(`[WS] ${role} connected, hashKey: ${hashKey.substring(0, 8)}...`);
     addClient(hashKey, ws, role);
+    recordRoomConnectionEvent(hashKey, 'connected', role, null, '');
     const room = rooms.get(hashKey);
     console.log(`[WS] Room ${hashKey.substring(0, 8)}...: ${room ? room.extensions.size : 0} ext, ${room ? room.dashboards.size : 0} dash`);
 
@@ -23,8 +164,8 @@ function setupWSHandler(wss) {
 
     // When dashboard connects, tell it if an extension is already in the room
     if (role === 'dashboard') {
-      const room = rooms.get(hashKey);
-      if (room && room.extensions.size > 0) {
+      const currentRoom = rooms.get(hashKey);
+      if (currentRoom && currentRoom.extensions.size > 0) {
         ws.send(JSON.stringify({
           type: 'ext:status', payload: { online: true }, ts: Date.now()
         }));
@@ -32,19 +173,34 @@ function setupWSHandler(wss) {
     }
 
     ws.on('message', (data) => {
+      let msg;
       try {
-        const msg = JSON.parse(data);
-        if (msg.type === 'ping') {
-          ws.send(JSON.stringify({ type: 'pong', ts: Date.now() }));
-          return; // Do NOT relay pings
-        }
-        // Relay to opposite side of room
-        relayToRoom(hashKey, ws, data.toString());
-      } catch { /* ignore malformed JSON */ }
+        msg = JSON.parse(data);
+      } catch {
+        pushRoomDiagnosticEvent(hashKey, {
+          event: 'malformed-json',
+          role,
+          hashKey
+        });
+        return;
+      }
+
+      const messageType = typeof msg.type === 'string'
+        ? msg.type
+        : (msg && msg._lz ? 'compressed-envelope' : 'unknown');
+
+      if (messageType === 'ping') {
+        ws.send(JSON.stringify({ type: 'pong', ts: Date.now() }));
+        return; // Do NOT relay pings
+      }
+
+      incrementRoomCounter(hashKey, 'receivedByType', messageType, 1);
+      relayToRoom(hashKey, ws, data.toString(), messageType);
     });
 
-    ws.on('close', () => {
+    ws.on('close', (closeCode, closeReason) => {
       console.log(`[WS] ${role} disconnected, hashKey: ${hashKey.substring(0, 8)}...`);
+      recordRoomConnectionEvent(hashKey, 'closed', role, closeCode, closeReason);
       removeClient(hashKey, ws);
       if (role === 'extension') {
         broadcast(hashKey, 'dashboards', {
@@ -88,15 +244,14 @@ function removeClient(hashKey, ws) {
  * Relay a raw message to the opposite side of the room.
  * Extension messages go to dashboards; dashboard messages go to extensions.
  */
-function relayToRoom(hashKey, senderWs, rawMessage) {
+function relayToRoom(hashKey, senderWs, rawMessage, messageType) {
   const room = rooms.get(hashKey);
-  if (!room) return;
+  const direction = senderWs._fsbRole === 'extension'
+    ? 'extension->dashboard'
+    : 'dashboard->extension';
+  if (!room) return recordMissingRoomDelivery(hashKey, messageType, direction);
   const targets = senderWs._fsbRole === 'extension' ? room.dashboards : room.extensions;
-  for (const client of targets) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(rawMessage);
-    }
-  }
+  return sendToClients(hashKey, targets, rawMessage, messageType, direction);
 }
 
 /**
@@ -107,13 +262,10 @@ function relayToRoom(hashKey, senderWs, rawMessage) {
  */
 function broadcast(hashKey, targetSide, messageObj) {
   const room = rooms.get(hashKey);
-  if (!room) return;
+  const direction = targetSide === 'dashboards' ? 'server->dashboard' : 'server->extension';
+  if (!room) return recordMissingRoomDelivery(hashKey, messageObj && messageObj.type, direction);
   const data = JSON.stringify(messageObj);
-  for (const client of room[targetSide]) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(data);
-    }
-  }
+  return sendToClients(hashKey, room[targetSide], data, messageObj && messageObj.type, direction);
 }
 
 /**
@@ -121,14 +273,7 @@ function broadcast(hashKey, targetSide, messageObj) {
  * Used by agents.js for REST-triggered events (agent updates, run completions).
  */
 function broadcastToRoom(hashKey, messageObj) {
-  const room = rooms.get(hashKey);
-  if (!room) return;
-  const data = JSON.stringify(messageObj);
-  for (const client of room.dashboards) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(data);
-    }
-  }
+  return broadcast(hashKey, 'dashboards', messageObj);
 }
 
-module.exports = { setupWSHandler, broadcastToRoom, rooms };
+module.exports = { setupWSHandler, broadcastToRoom, getRoomDiagnostics, rooms };
