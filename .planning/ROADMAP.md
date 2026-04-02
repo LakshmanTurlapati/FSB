@@ -227,7 +227,7 @@ Shipped 2026-04-02. Shared UI baseline, sidepanel/popup retouch, control-panel/d
 - [x] **Phase 146: Sidepanel Replica** - Pixel-accurate recreation of the real sidepanel Chat view in the showcase (completed 2026-04-02)
 - [x] **Phase 147: Control Panel Replica** - Pixel-accurate recreation of the real control panel Dashboard view in the showcase (completed 2026-04-02)
 - [x] **Phase 148: MCP Terminal Examples** - Claude Code-styled terminal blocks showing autopilot and manual mode MCP usage (completed 2026-04-02)
-- [ ] **Phase 149: Final Verification & Sync Comments** - Side-by-side fidelity check and version-stamped sync comments for drift detection
+- [x] **Phase 149: Final Verification & Sync Comments** - Side-by-side fidelity check and version-stamped sync comments for drift detection (completed 2026-04-02)
 
 ### Phase Details (v0.9.22)
 
@@ -295,7 +295,7 @@ Plans:
   3. Accessibility attributes (role="img", aria-label, aria-hidden="true" on internals) are present on all replica containers
 **Plans**: 1 plan
 Plans:
-- [ ] 149-01-PLAN.md -- Sync comments, accessibility attributes, and side-by-side fidelity check
+- [x] 149-01-PLAN.md -- Sync comments, accessibility attributes, and side-by-side fidelity check
 
 ---
 
@@ -307,7 +307,7 @@ Plans:
 | 146. Sidepanel Replica | 1/1 | Complete    | 2026-04-02 |
 | 147. Control Panel Replica | 1/1 | Complete    | 2026-04-02 |
 | 148. MCP Terminal Examples | 1/1 | Complete    | 2026-04-02 |
-| 149. Final Verification & Sync Comments | 0/? | Not started | - |
+| 149. Final Verification & Sync Comments | 1/1 | Complete   | 2026-04-02 |
 
 ---
 
