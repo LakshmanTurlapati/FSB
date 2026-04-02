@@ -2103,10 +2103,8 @@
   aspect-ratio: 1;
   background: #f3f3f3;
   border-radius: 3px;
-}
-
-.rec-amz-deal-thumb {
-  background: #f7f7f7;
+  object-fit: contain;
+  padding: 6px;
 }
 
 .rec-amz-deal-badge {
@@ -2119,12 +2117,14 @@
   width: fit-content;
 }
 
-.rec-amz-card-img {
+img.rec-amz-card-img {
   width: 100%;
   height: 80px;
   background: #f3f3f3;
   border-radius: 3px;
   margin-bottom: 10px;
+  object-fit: contain;
+  padding: 8px;
 }
 
 .rec-amz-card-link {
