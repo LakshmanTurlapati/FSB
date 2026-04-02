@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.23
 milestone_name: Dashboard Stream & Remote Control Reliability
-status: verifying
-stopped_at: Completed 157-01-PLAN.md
-last_updated: "2026-04-02T17:16:44.055Z"
+status: executing
+stopped_at: Completed 158-01-PLAN.md
+last_updated: "2026-04-02T17:44:27.315Z"
 last_activity: 2026-04-02
 progress:
-  total_phases: 156
+  total_phases: 157
   completed_phases: 151
-  total_plans: 305
-  completed_plans: 302
+  total_plans: 307
+  completed_plans: 303
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 157 — engine-configuration
+**Current focus:** Phase 158 — hook-pipeline
 
 ## Current Position
 
-Phase: 157 (engine-configuration) — EXECUTING
+Phase: 158 (hook-pipeline) — EXECUTING
 Plan: 2 of 2
-Status: Phase complete — ready for verification
+Status: Ready to execute
 Last activity: 2026-04-02
 
 Progress: [----------] 0%
@@ -49,6 +49,7 @@ Progress: [----------] 0%
 | Phase Phase 156 PP02 | 3min | 3 tasks tasks | 3 files files |
 | Phase 157 P02 | 1min | 1 tasks | 1 files |
 | Phase 157 P01 | 2min | 2 tasks | 2 files |
+| Phase 158 PP01 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,7 @@ Recent decisions affecting current work:
 - [Phase 157]: D-01: No tool pool module -- getPublicTools() stays inline in agent-loop.js, all 42 tools sent every call
 - [Phase 157]: D-02/D-03: PermissionContext stub with isAllowed always true; future deny-list via chrome.storage.local with Chrome match patterns
 - [Phase 157]: Pure extraction of MODEL_PRICING/estimateCost into ai/cost-tracker.js; SESSION_DEFAULTS centralizes 9 constants; 4 EXECUTION_MODES formalized in ai/engine-config.js
+- [Phase 158]: HookPipeline uses arrays (not Sets) for handler storage -- preserves registration order per D-01; async emit with try/catch error isolation per D-05; only shouldStop:true halts pipeline
 
 ### Roadmap Evolution
 
@@ -87,6 +89,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T17:16:44.047Z
-Stopped at: Completed 157-01-PLAN.md
+Last session: 2026-04-02T17:44:27.307Z
+Stopped at: Completed 158-01-PLAN.md
 Resume file: None
