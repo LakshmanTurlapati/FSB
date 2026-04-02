@@ -1,77 +1,76 @@
-# Requirements: FSB v0.9.22 Showcase High-Fidelity Replicas
+# Requirements: FSB v0.9.23 Dashboard Stream & Remote Control Reliability
 
 **Defined:** 2026-04-02
 **Core Value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
 
-## v0.9.22 Requirements
+## v0.9.23 Requirements
 
-Requirements for replacing outdated "See It in Action" renders with pixel-accurate replicas of the real extension UI and MCP-in-Claude-Code examples.
+Requirements for making the website dashboard sync path reliable end-to-end across the dashboard, relay server, extension WebSocket client, background handlers, and DOM stream pipeline.
 
-### Sidepanel Replica
+### Stream Lifecycle
 
-- [ ] **SP-01**: User sees a pixel-accurate recreation of the real sidepanel Chat view in the showcase "See It in Action" section, matching current header, message types, input bar, and footer
-- [ ] **SP-02**: User sees the sidepanel replica render correctly in both dark and light themes with accurate color tokens from the real sidepanel.css
-- [ ] **SP-03**: User sees scroll-triggered animated message cascade in the sidepanel replica using the existing IntersectionObserver pattern
+- [ ] **STRM-01**: User sees the website dashboard preview start automatically after the dashboard connects and the extension has a streamable browser tab
+- [ ] **STRM-02**: User sees the preview recover after relay reconnects, service worker restarts, or streaming-tab changes without getting stuck in loading or disconnected until a manual refresh
+- [ ] **STRM-03**: User sees snapshot, mutation, scroll, overlay, and dialog updates applied without the dashboard silently freezing on stale page state
 
-### Control Panel Replica
+### Remote Control
 
-- [ ] **CP-01**: User sees a pixel-accurate recreation of the real control panel Dashboard view in the showcase, matching current sidebar nav, analytics cards, chart, and session history
-- [ ] **CP-02**: User sees the control panel replica render correctly in both dark and light themes with accurate warm-gray tokens from the real options.css
-- [ ] **CP-03**: User sees scroll-triggered animated counters and chart line draw in the control panel replica
+- [ ] **CTRL-01**: User can click inside the dashboard preview and the corresponding point in the real browser receives the intended click
+- [ ] **CTRL-02**: User can type and send modifier keys through the dashboard preview without the dashboard stealing focus or corrupting text input in the browser tab
+- [ ] **CTRL-03**: User can scroll through the dashboard preview and the real browser scrolls in the same direction and target area
+- [ ] **CTRL-04**: User can toggle remote control on and off repeatedly without debugger attach/detach conflicts leaving remote input broken
 
-### MCP Terminal Examples
+### Task Relay
 
-- [ ] **MCP-01**: User sees an autopilot terminal example showing a run_task command with progress output and completion summary in a Claude Code-styled terminal block
-- [ ] **MCP-02**: User sees a manual mode terminal example showing a read_page + click + type_text multi-tool orchestration flow in a Claude Code-styled terminal block
-- [ ] **MCP-03**: User sees terminal blocks styled with accurate Claude Code dark theme colors, monospace typography, and semantic CSS classes
+- [ ] **RLY-01**: User can start a task from the website dashboard and either receive a clear immediate rejection reason or a running task state
+- [ ] **RLY-02**: User sees progress updates reach the dashboard during execution with current action, phase, elapsed time, and percent when available
+- [ ] **RLY-03**: User sees stop, success, and failure outcomes delivered exactly once with the correct final status and last-action context when available
+- [ ] **RLY-04**: User who reconnects the website dashboard or the extension mid-task sees recovered task state instead of losing progress or completion context
 
-### Audit & Fidelity
+### Diagnostics & Verification
 
-- [x] **AUD-01**: All replicas are built from a fresh audit of the current extension UI state (sidepanel, control panel) accounting for recent changes
-- [ ] **AUD-02**: User sees no obvious visual discrepancies between replicas and the real extension in a side-by-side comparison
-- [ ] **AUD-03**: Each replica section includes version-stamped sync comments for future drift detection
+- [ ] **VER-01**: Developers can inspect targeted diagnostics for dashboard WebSocket connectivity, relay direction, and per-message-type delivery when debugging stream or control failures
+- [ ] **VER-02**: A documented end-to-end verification pass covers stream start, reconnect, remote click, remote typing, remote scroll, task progress, stop, and completion delivery
 
 ## Future Requirements
 
-### Deferred from v0.9.22
+### Deferred from v0.9.23
 
-- **SP-04**: Interactive tab switching in sidepanel replica (Chat/Agents/History tabs)
-- **MCP-04**: MCP agent creation terminal example (create_agent with scheduling)
-- **CP-04**: Control panel tab navigation beyond Dashboard view
-- **AUD-04**: Automated screenshot regression test for replica fidelity
+- **CTRL-05**: User can perform remote drag, drop, or text-selection interactions through the website dashboard preview
+- **VER-03**: Automated end-to-end regression harness validates dashboard sync flows without requiring manual browser walkthroughs
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Full options page feature parity (all 7+ tabs) | Marginal showcase value for months of work; Dashboard view is sufficient |
-| Functional replicas (clickable, API-connected) | These are static visual recreations for the showcase, not working copies |
-| Changes to sections outside "See It in Action" | Milestone scope is limited to this one section |
-| Importing real extension CSS directly | CSS collision risk; replicas use rec- namespace translation instead |
-| New dependencies (xterm.js, Termynal, chart.js) | Existing vanilla HTML/CSS/JS patterns handle everything needed |
+| Dashboard visual redesign or showcase replica work | This milestone targets functional reliability, not presentation changes |
+| New non-dashboard extension UI polish | Out of scope unless directly required to fix dashboard transport behavior |
+| Pixel or video streaming | FSB uses DOM-based preview; media streaming is a different architecture |
+| Multi-user or multi-dashboard control arbitration | Current relay model assumes one user session, not collaborative control |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUD-01 | Phase 145 | Complete |
-| SP-01 | Phase 146 | Pending |
-| SP-02 | Phase 146 | Pending |
-| SP-03 | Phase 146 | Pending |
-| CP-01 | Phase 147 | Pending |
-| CP-02 | Phase 147 | Pending |
-| CP-03 | Phase 147 | Pending |
-| MCP-01 | Phase 148 | Pending |
-| MCP-02 | Phase 148 | Pending |
-| MCP-03 | Phase 148 | Pending |
-| AUD-02 | Phase 149 | Pending |
-| AUD-03 | Phase 149 | Pending |
+| STRM-01 | Phase 150 | Pending |
+| STRM-02 | Phase 150 | Pending |
+| VER-01 | Phase 150 | Pending |
+| STRM-03 | Phase 151 | Pending |
+| RLY-04 | Phase 151 | Pending |
+| CTRL-01 | Phase 152 | Pending |
+| CTRL-02 | Phase 152 | Pending |
+| CTRL-03 | Phase 152 | Pending |
+| CTRL-04 | Phase 152 | Pending |
+| RLY-01 | Phase 153 | Pending |
+| RLY-02 | Phase 153 | Pending |
+| RLY-03 | Phase 153 | Pending |
+| VER-02 | Phase 154 | Pending |
 
 **Coverage:**
-- v0.9.22 requirements: 12 total
-- Mapped to phases: 12
+- v0.9.23 requirements: 13 total
+- Mapped to phases: 13
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-02*
-*Last updated: 2026-04-02 after roadmap creation*
+*Last updated: 2026-04-02 after milestone requirements definition*

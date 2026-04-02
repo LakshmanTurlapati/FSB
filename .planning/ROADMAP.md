@@ -17,8 +17,9 @@
 - v0.9.9.1 Phantom Stream (shipped 2026-03-31)
 - v0.9.11 MCP Tool Quality (shipped 2026-03-31) -- [archive](milestones/v0.9.11-ROADMAP.md)
 - v0.9.20 Autopilot Agent Architecture Rewrite (shipped 2026-04-02) -- [archive](milestones/v0.9.20-ROADMAP.md)
-- v0.9.21 UI Retouch & Cohesion (in progress)
-- v0.9.22 Showcase High-Fidelity Replicas (in progress)
+- v0.9.21 UI Retouch & Cohesion (deferred)
+- v0.9.22 Showcase High-Fidelity Replicas (superseded after Phase 145)
+- v0.9.23 Dashboard Stream & Remote Control Reliability (in progress)
 
 ---
 
@@ -210,7 +211,7 @@ Plans:
 
 ---
 
-## v0.9.21 UI Retouch & Cohesion
+## v0.9.21 UI Retouch & Cohesion (Deferred)
 
 **Milestone Goal:** Retouch the existing FSB UI so the sidepanel, popup, control panel, dashboard, and automation highlight feedback feel cohesive, polished, and precise without changing the product's overall aesthetic direction.
 
@@ -303,14 +304,14 @@ Plans:
 
 ---
 
-## v0.9.22 Showcase High-Fidelity Replicas
+## v0.9.22 Showcase High-Fidelity Replicas (Superseded after Phase 145)
 
 **Milestone Goal:** Replace the outdated "See It in Action" renders on the showcase site with pixel-accurate HTML/CSS/JS replicas of the real sidepanel, control panel (options.html), and MCP-in-Claude-Code examples.
 
 ### Phases (v0.9.22)
 
 - [x] **Phase 145: Fresh UI Audit & Token Baseline** - Audit current extension UI state and establish exact color token mappings for all replicas (completed 2026-04-02)
-- [ ] **Phase 146: Sidepanel Replica** - Pixel-accurate recreation of the real sidepanel Chat view in the showcase
+- [x] **Phase 146: Sidepanel Replica** - Pixel-accurate recreation of the real sidepanel Chat view in the showcase (completed 2026-04-02)
 - [ ] **Phase 147: Control Panel Replica** - Pixel-accurate recreation of the real control panel Dashboard view in the showcase
 - [ ] **Phase 148: MCP Terminal Examples** - Claude Code-styled terminal blocks showing autopilot and manual mode MCP usage
 - [ ] **Phase 149: Final Verification & Sync Comments** - Side-by-side fidelity check and version-stamped sync comments for drift detection
@@ -340,7 +341,7 @@ Plans:
   4. No visual element from the real sidepanel Chat view is missing or obviously wrong in the replica
 **Plans**: 1 plan
 Plans:
-- [ ] 146-01-PLAN.md -- Update sidepanel CSS dimensions/tokens and replace HTML in both recreations with pixel-accurate structure
+- [x] 146-01-PLAN.md -- Update sidepanel CSS dimensions/tokens and replace HTML in both recreations with pixel-accurate structure
 **UI hint**: yes
 
 ### Phase 147: Control Panel Replica
@@ -384,7 +385,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 145. Fresh UI Audit & Token Baseline | 1/1 | Complete    | 2026-04-02 |
-| 146. Sidepanel Replica | 0/1 | Not started | - |
+| 146. Sidepanel Replica | 1/1 | Complete   | 2026-04-02 |
 | 147. Control Panel Replica | 0/? | Not started | - |
 | 148. MCP Terminal Examples | 0/? | Not started | - |
 | 149. Final Verification & Sync Comments | 0/? | Not started | - |
@@ -439,3 +440,95 @@ Plans:
 | 139.1. ai-integration.js Dead Code Cleanup | 1/1 | Complete | 2026-04-01 |
 | 139.2. Fill Sheet Case Fix & Autopilot Sheets | 1/1 | Complete | 2026-04-02 |
 | 139.3. Agent Loop Session Logging | 0/? | Not started | - |
+
+---
+
+## v0.9.23 Dashboard Stream & Remote Control Reliability
+
+**Milestone Goal:** Audit and fix anything functionally wrong in the website dashboard sync path so live streaming, remote control, and task/progress/result delivery are reliable end-to-end.
+
+### Phases (v0.9.23)
+
+- [ ] **Phase 150: Dashboard Transport Baseline & Recovery** - Make the website dashboard and extension reconnect path deterministic with explicit state recovery and transport diagnostics
+- [ ] **Phase 151: DOM Stream Consistency & State Sync** - Keep the website dashboard preview and recovered task state synchronized across snapshots, mutations, overlays, dialogs, and tab changes
+- [ ] **Phase 152: Remote Control Reliability** - Fix dashboard preview click, type, scroll, and remote-control session lifecycle issues
+- [ ] **Phase 153: Dashboard Task Relay Correctness** - Make dashboard task submit, progress, stop, success, and failure delivery consistent and exactly-once
+- [ ] **Phase 154: End-to-End Verification & Hardening** - Verify the complete dashboard sync path manually and close the remaining reliability gaps found during verification
+
+### Phase Details (v0.9.23)
+
+### Phase 150: Dashboard Transport Baseline & Recovery
+**Goal**: The website dashboard and extension can reconnect, recover stream intent, and expose actionable diagnostics instead of failing silently
+**Depends on**: Nothing (first phase of milestone)
+**Requirements**: STRM-01, STRM-02, VER-01
+**Success Criteria** (what must be TRUE):
+  1. When the website dashboard connects and a streamable browser tab exists, the preview reaches either a live streaming state or an explicit not-ready state without manual intervention
+  2. Relay reconnects, extension WebSocket reconnects, and MV3 service worker restarts restore dashboard sync intent instead of leaving the preview permanently stuck in loading or disconnected
+  3. Developers can inspect targeted diagnostics for WebSocket open and close, state snapshot recovery, page-ready handling, and per-message-type delivery failures
+**Plans**: 2 plans
+Plans:
+- [ ] 150-01-PLAN.md -- Audit and normalize dashboard-extension transport state transitions, reconnect handling, and page-ready recovery
+- [ ] 150-02-PLAN.md -- Add focused diagnostics for relay direction, message delivery, and stuck-state detection
+
+### Phase 151: DOM Stream Consistency & State Sync
+**Goal**: The website dashboard preview stays current and the recovered dashboard state matches the real browser and running task state
+**Depends on**: Phase 150
+**Requirements**: STRM-03, RLY-04
+**Success Criteria** (what must be TRUE):
+  1. Snapshot, mutation, scroll, overlay, and dialog messages update the preview without silent freezes on stale DOM state
+  2. Website dashboard reconnect during an active task restores the current task state and continues preview updates instead of dropping context
+  3. Streaming-tab changes and restricted pages transition the website dashboard preview between loading, streaming, and disconnected states correctly
+**Plans**: 2 plans
+Plans:
+- [ ] 151-01-PLAN.md -- Harden DOM snapshot and mutation application paths, including stale-state and reconnect behavior
+- [ ] 151-02-PLAN.md -- Fix recovered task state, stream tab transitions, and page-not-ready synchronization on the website dashboard
+
+### Phase 152: Remote Control Reliability
+**Goal**: Users can reliably control the real browser through the website dashboard preview without focus, coordinate, or debugger lifecycle failures
+**Depends on**: Phase 151
+**Requirements**: CTRL-01, CTRL-02, CTRL-03, CTRL-04
+**Success Criteria** (what must be TRUE):
+  1. Clicking inside the website dashboard preview triggers the intended browser click target consistently
+  2. Remote typing, printable characters, and modifier keys reach the browser tab without the website dashboard stealing focus or corrupting text input
+  3. Remote scrolling moves the real browser in the intended direction and target area
+  4. Repeatedly toggling remote control on and off does not leave debugger attachment, detachment, or reuse in a broken state
+**Plans**: 2 plans
+Plans:
+- [ ] 152-01-PLAN.md -- Fix remote-control coordinate mapping, focus handling, and input event fidelity
+- [ ] 152-02-PLAN.md -- Harden debugger attach, detach, reuse, and failure recovery for repeated remote-control sessions
+
+### Phase 153: Dashboard Task Relay Correctness
+**Goal**: The website dashboard receives accurate task lifecycle updates from submit through final outcome exactly once
+**Depends on**: Phase 150
+**Requirements**: RLY-01, RLY-02, RLY-03
+**Success Criteria** (what must be TRUE):
+  1. Website dashboard task submission results in either a clear immediate rejection reason or a running task state
+  2. Task progress updates reach the website dashboard with current action, phase, elapsed time, and percent when available
+  3. Stop, success, and failure outcomes are delivered exactly once with the correct final status and last-action context when available
+  4. Fallback completion paths do not race against normal completion paths to create inconsistent final task state
+**Plans**: 2 plans
+Plans:
+- [ ] 153-01-PLAN.md -- Audit and fix dashboard task submit and progress message flow across ws-client and background handlers
+- [ ] 153-02-PLAN.md -- Eliminate duplicate or missing final outcomes across stop, success, failure, and fallback completion paths
+
+### Phase 154: End-to-End Verification & Hardening
+**Goal**: The milestone closes with verified website dashboard behavior, documented evidence, and any final reliability fixes required by that verification pass
+**Depends on**: Phase 151, Phase 152, Phase 153
+**Requirements**: VER-02
+**Success Criteria** (what must be TRUE):
+  1. A documented end-to-end verification pass covers stream start, reconnect, remote click, remote typing, remote scroll, task progress, stop, and completion delivery
+  2. Reliability gaps found during the verification pass are fixed or explicitly documented before the milestone is considered complete
+  3. The final milestone state reflects verified website dashboard behavior rather than assumed correctness from code inspection alone
+**Plans**: 1 plan
+Plans:
+- [ ] 154-01-PLAN.md -- Run end-to-end dashboard verification, close final gaps, and document verified behavior and residual risks
+
+### v0.9.23 Dashboard Stream & Remote Control Reliability Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 150. Dashboard Transport Baseline & Recovery | 0/2 | Not started | - |
+| 151. DOM Stream Consistency & State Sync | 0/2 | Not started | - |
+| 152. Remote Control Reliability | 0/2 | Not started | - |
+| 153. Dashboard Task Relay Correctness | 0/2 | Not started | - |
+| 154. End-to-End Verification & Hardening | 0/1 | Not started | - |
