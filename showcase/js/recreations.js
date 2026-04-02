@@ -258,6 +258,40 @@
     });
   }
 
+  // --- MCP terminal line-by-line reveal ---
+  function initTerminalLineReveal() {
+    var terminals = document.querySelectorAll('.rec-mcp-terminal');
+    if (!terminals.length) return;
+
+    terminals.forEach(function (terminal) {
+      var lines = terminal.querySelectorAll('.rec-mcp-line');
+      if (!lines.length) return;
+
+      var revealed = false;
+
+      function revealLines() {
+        lines.forEach(function (line, index) {
+          setTimeout(function () {
+            line.classList.add('visible');
+          }, index * 150);
+        });
+      }
+
+      if ('IntersectionObserver' in window) {
+        var observer = new IntersectionObserver(function (entries) {
+          if (entries[0].isIntersecting && !revealed) {
+            revealed = true;
+            revealLines();
+            observer.disconnect();
+          }
+        }, { threshold: 0.3 });
+        observer.observe(terminal);
+      } else {
+        revealLines();
+      }
+    });
+  }
+
   // --- Initialize all animations ---
   function init() {
     initTerminalTyping();
@@ -265,6 +299,7 @@
     initProgressBars();
     initChartBars();
     initChartDraw();
+    initTerminalLineReveal();
     initCounters();
     initStatusDots();
     initFAQ();
