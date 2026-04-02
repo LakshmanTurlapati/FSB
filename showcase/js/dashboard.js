@@ -72,6 +72,8 @@
   var mutationApplyFailures = 0;
   var previewResyncPending = false;
   var DASHBOARD_TRANSPORT_DIAGNOSTIC_LIMIT = 100;
+  var activeTaskRunId = '';
+  var lastCompletedTaskRunId = '';
   var lastTaskStateUpdatedAt = 0;
 
   function getDashboardTransportDiagnostics() {
@@ -258,6 +260,42 @@
 
   function getTaskPayloadUpdatedAt(payload) {
     return payload && (payload.updatedAt || payload.taskUpdatedAt) ? (payload.updatedAt || payload.taskUpdatedAt) : 0;
+  }
+
+  function getTaskRunId(payload) {
+    return payload && payload.taskRunId ? payload.taskRunId : '';
+  }
+
+  function acceptRunningTaskPayload(payload) {
+    var taskRunId = getTaskRunId(payload);
+    if (!taskRunId) return true;
+    if (lastCompletedTaskRunId && taskRunId === lastCompletedTaskRunId) return false;
+    if (activeTaskRunId && taskRunId !== activeTaskRunId) return false;
+    return true;
+  }
+
+  function acceptTerminalTaskPayload(payload) {
+    var taskRunId = getTaskRunId(payload);
+    if (!taskRunId) return true;
+    if (activeTaskRunId && taskRunId !== activeTaskRunId) return false;
+    if (lastCompletedTaskRunId && taskRunId === lastCompletedTaskRunId) {
+      var payloadUpdatedAt = getTaskPayloadUpdatedAt(payload);
+      if (!payloadUpdatedAt || payloadUpdatedAt <= lastTaskStateUpdatedAt) return false;
+    }
+    return true;
+  }
+
+  function markTaskRunCompleted(taskRunId) {
+    activeTaskRunId = '';
+    if (taskRunId) {
+      lastCompletedTaskRunId = taskRunId;
+    }
+  }
+
+  function rememberActiveTaskRun(taskRunId) {
+    if (taskRunId) {
+      activeTaskRunId = taskRunId;
+    }
   }
 
   function getRemoteViewportSize() {
@@ -622,6 +660,8 @@
 
     taskText = text;
     taskStartTime = Date.now();
+    activeTaskRunId = '';
+    lastCompletedTaskRunId = '';
     lastTaskStateUpdatedAt = taskStartTime;
 
     ws.send(JSON.stringify({
@@ -655,6 +695,8 @@
 
     switch (newState) {
       case 'idle':
+        activeTaskRunId = '';
+        lastCompletedTaskRunId = '';
         lastTaskStateUpdatedAt = 0;
         if (taskInputRow) taskInputRow.style.display = 'flex';
         if (taskInput) { taskInput.value = ''; taskInput.disabled = false; }
@@ -747,7 +789,9 @@
   function updateTaskProgress(payload) {
     var payloadUpdatedAt = getTaskPayloadUpdatedAt(payload);
     if (payloadUpdatedAt && lastTaskStateUpdatedAt && payloadUpdatedAt < lastTaskStateUpdatedAt) return;
+    if (!acceptRunningTaskPayload(payload)) return;
     if (payloadUpdatedAt) lastTaskStateUpdatedAt = payloadUpdatedAt;
+    rememberActiveTaskRun(getTaskRunId(payload));
     if (taskState !== 'running') return;
 
     var progress = payload.progress || 0;
@@ -785,6 +829,7 @@
   }
 
   function handleTaskComplete(payload) {
+    if (!acceptTerminalTaskPayload(payload)) return;
     var payloadUpdatedAt = getTaskPayloadUpdatedAt(payload);
     if (payloadUpdatedAt && lastTaskStateUpdatedAt && payloadUpdatedAt < lastTaskStateUpdatedAt) return;
     if (payloadUpdatedAt) lastTaskStateUpdatedAt = payloadUpdatedAt;
@@ -803,6 +848,8 @@
 
     // Re-enable stop button for next task
     if (taskStopBtn) taskStopBtn.disabled = false;
+
+    markTaskRunCompleted(getTaskRunId(payload));
 
     if (payload.success) {
       setTaskState('success', {
@@ -837,11 +884,14 @@
     var recoveredStatus = snapshot.taskStatus || (snapshot.taskRunning ? 'running' : 'idle');
     var recoveredUpdatedAt = getTaskPayloadUpdatedAt(snapshot);
     if (recoveredUpdatedAt && lastTaskStateUpdatedAt && recoveredUpdatedAt < lastTaskStateUpdatedAt) return;
+    if (recoveredStatus === 'running' && !acceptRunningTaskPayload(snapshot)) return;
+    if (recoveredStatus !== 'running' && recoveredStatus !== 'idle' && !acceptTerminalTaskPayload(snapshot)) return;
     if (recoveredUpdatedAt) lastTaskStateUpdatedAt = recoveredUpdatedAt;
 
     if (snapshot.task) taskText = snapshot.task;
 
     if (recoveredStatus === 'running') {
+      rememberActiveTaskRun(getTaskRunId(snapshot));
       taskStartTime = Date.now() - (snapshot.elapsed || 0);
       setTaskState('running', { task: snapshot.task || taskText || '' });
       updateTaskProgress({
@@ -856,6 +906,7 @@
     }
 
     if (recoveredStatus === 'success') {
+      markTaskRunCompleted(getTaskRunId(snapshot));
       setTaskState('success', {
         summary: snapshot.summary || '',
         elapsed: snapshot.elapsed || 0
@@ -864,6 +915,7 @@
     }
 
     if (recoveredStatus === 'stopped') {
+      markTaskRunCompleted(getTaskRunId(snapshot));
       var stoppedMessage = 'Stopped by user';
       var stoppedAction = snapshot.lastAction || snapshot.action || lastProgressAction;
       if (stoppedAction) stoppedMessage += ' -- was: ' + stoppedAction;
@@ -875,6 +927,7 @@
     }
 
     if (recoveredStatus === 'failed') {
+      markTaskRunCompleted(getTaskRunId(snapshot));
       setTaskState('failed', {
         error: snapshot.error || 'Task could not be completed',
         elapsed: snapshot.elapsed || 0

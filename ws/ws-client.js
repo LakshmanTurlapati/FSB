@@ -335,6 +335,7 @@ class FSBWebSocket {
       if (dashSession) {
         var progress = typeof calculateProgress === 'function' ? calculateProgress(dashSession) : { progressPercent: 0, estimatedTimeRemaining: null };
         recoverableTask = {
+          taskRunId: dashSession._dashboardTaskRunId || '',
           taskStatus: 'running',
           task: dashSession.task || '',
           progress: progress.progressPercent,
@@ -353,6 +354,7 @@ class FSBWebSocket {
     }
 
     if (recoverableTask) {
+      snapshotPayload.taskRunId = recoverableTask.taskRunId || '';
       snapshotPayload.taskStatus = recoverableTask.taskStatus || 'idle';
       snapshotPayload.taskRunning = snapshotPayload.taskStatus === 'running';
       snapshotPayload.task = recoverableTask.task || '';
@@ -367,6 +369,7 @@ class FSBWebSocket {
       snapshotPayload.stopped = !!recoverableTask.stopped;
       snapshotPayload.taskUpdatedAt = recoverableTask.updatedAt || snapshotPayload.timestamp;
     } else {
+      snapshotPayload.taskRunId = '';
       snapshotPayload.taskRunning = false;
       snapshotPayload.taskStatus = 'idle';
     }
@@ -628,6 +631,7 @@ class FSBWebSocket {
         success: false,
         error: 'No task provided',
         elapsed: 0,
+        taskRunId: '',
         taskStatus: 'failed',
         updatedAt: now,
         lastAction: ''
@@ -643,6 +647,7 @@ class FSBWebSocket {
           success: false,
           error: 'Another task is already running',
           elapsed: 0,
+          taskRunId: '',
           taskStatus: 'failed',
           updatedAt: now,
           lastAction: ''
@@ -696,6 +701,7 @@ class FSBWebSocket {
           success: false,
           error: 'No usable browser tab found for automation',
           elapsed: 0,
+          taskRunId: '',
           taskStatus: 'failed',
           updatedAt: now,
           lastAction: ''
@@ -708,6 +714,7 @@ class FSBWebSocket {
         success: false,
         error: err.message,
         elapsed: 0,
+        taskRunId: '',
         taskStatus: 'failed',
         updatedAt: Date.now(),
         lastAction: ''
@@ -757,8 +764,13 @@ class FSBWebSocket {
             error: 'Stopped by user',
             elapsed: result.duration || 0,
             stopped: true,
+            taskRunId: recoveryTask && recoveryTask.taskRunId ? recoveryTask.taskRunId : '',
             task: recoveryTask && recoveryTask.task ? recoveryTask.task : '',
             taskStatus: 'stopped',
+            progress: recoveryTask && typeof recoveryTask.progress === 'number' ? recoveryTask.progress : 0,
+            phase: recoveryTask && recoveryTask.phase ? recoveryTask.phase : '',
+            action: recoveryTask && recoveryTask.action ? recoveryTask.action : '',
+            summary: '',
             updatedAt: recoveryTask && recoveryTask.updatedAt ? recoveryTask.updatedAt : completionTimestamp,
             lastAction: result.lastAction || (recoveryTask && recoveryTask.lastAction ? recoveryTask.lastAction : null)
           });
@@ -769,8 +781,13 @@ class FSBWebSocket {
             error: 'Stopped by user',
             elapsed: 0,
             stopped: true,
+            taskRunId: recoveryTask && recoveryTask.taskRunId ? recoveryTask.taskRunId : '',
             task: recoveryTask && recoveryTask.task ? recoveryTask.task : '',
             taskStatus: 'stopped',
+            progress: recoveryTask && typeof recoveryTask.progress === 'number' ? recoveryTask.progress : 0,
+            phase: recoveryTask && recoveryTask.phase ? recoveryTask.phase : '',
+            action: recoveryTask && recoveryTask.action ? recoveryTask.action : '',
+            summary: '',
             updatedAt: recoveryTask && recoveryTask.updatedAt ? recoveryTask.updatedAt : completionTimestamp,
             lastAction: recoveryTask && recoveryTask.lastAction ? recoveryTask.lastAction : null
           });

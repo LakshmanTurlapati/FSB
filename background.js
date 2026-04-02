@@ -887,6 +887,28 @@ var _streamStateSource = 'bootstrap';
 var DASHBOARD_TASK_SNAPSHOT_STORAGE_KEY = 'fsb_dashboard_task_snapshot';
 var DASHBOARD_TASK_SNAPSHOT_MAX_AGE_MS = 15 * 60 * 1000;
 
+function _createDashboardTaskRunId() {
+  return 'task_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+function _buildDashboardTaskSnapshot(details) {
+  return Object.assign({
+    taskRunId: '',
+    taskStatus: 'idle',
+    task: '',
+    progress: 0,
+    phase: '',
+    eta: null,
+    elapsed: 0,
+    action: '',
+    lastAction: '',
+    summary: '',
+    error: '',
+    stopped: false,
+    tabId: null
+  }, _lastDashboardTaskSnapshot || {}, details || {});
+}
+
 function _persistDashboardTaskSnapshot() {
   try {
     chrome.storage.session.set({
@@ -896,7 +918,7 @@ function _persistDashboardTaskSnapshot() {
 }
 
 function _rememberDashboardTaskSnapshot(details) {
-  _lastDashboardTaskSnapshot = Object.assign({}, _lastDashboardTaskSnapshot || {}, details || {}, {
+  _lastDashboardTaskSnapshot = Object.assign({}, _buildDashboardTaskSnapshot(details), {
     updatedAt: Date.now()
   });
   _persistDashboardTaskSnapshot();
@@ -910,6 +932,50 @@ function _getDashboardTaskRecoverySnapshot() {
     return null;
   }
   return Object.assign({}, _lastDashboardTaskSnapshot);
+}
+
+function _buildDashboardTaskProgressPayload(taskSnapshot) {
+  var snapshot = _buildDashboardTaskSnapshot(taskSnapshot);
+  return {
+    taskRunId: snapshot.taskRunId || '',
+    task: snapshot.task || '',
+    taskStatus: snapshot.taskStatus || 'running',
+    progress: typeof snapshot.progress === 'number' ? snapshot.progress : 0,
+    phase: snapshot.phase || '',
+    eta: snapshot.eta || null,
+    elapsed: snapshot.elapsed || 0,
+    action: snapshot.action || snapshot.lastAction || '',
+    lastAction: snapshot.lastAction || snapshot.action || '',
+    updatedAt: snapshot.updatedAt || Date.now(),
+    status: snapshot.taskStatus || 'running'
+  };
+}
+
+function _buildDashboardTaskCompletePayload(taskSnapshot) {
+  var snapshot = _buildDashboardTaskSnapshot(taskSnapshot);
+  return {
+    success: snapshot.taskStatus === 'success',
+    stopped: !!snapshot.stopped,
+    taskRunId: snapshot.taskRunId || '',
+    task: snapshot.task || '',
+    taskStatus: snapshot.taskStatus || (snapshot.stopped ? 'stopped' : 'failed'),
+    progress: typeof snapshot.progress === 'number' ? snapshot.progress : 0,
+    phase: snapshot.phase || '',
+    elapsed: snapshot.elapsed || 0,
+    action: snapshot.action || '',
+    lastAction: snapshot.lastAction || snapshot.action || '',
+    summary: snapshot.summary || '',
+    error: snapshot.error || '',
+    updatedAt: snapshot.updatedAt || Date.now()
+  };
+}
+
+function _sendDashboardTaskProgress(taskSnapshot) {
+  return fsbWebSocket.send('ext:task-progress', _buildDashboardTaskProgressPayload(taskSnapshot));
+}
+
+function _sendDashboardTaskComplete(taskSnapshot) {
+  return fsbWebSocket.send('ext:task-complete', _buildDashboardTaskCompletePayload(taskSnapshot));
 }
 
 try {
@@ -1120,6 +1186,7 @@ function broadcastDashboardProgress(session) {
   }
 
   var taskPayload = _rememberDashboardTaskSnapshot({
+    taskRunId: session._dashboardTaskRunId || '',
     taskStatus: 'running',
     task: session.task || '',
     progress: progress.progressPercent,
@@ -1134,18 +1201,7 @@ function broadcastDashboardProgress(session) {
     tabId: typeof session.tabId === 'number' ? session.tabId : null
   });
 
-  var sent = fsbWebSocket.send('ext:task-progress', {
-    progress: progress.progressPercent,
-    phase: phase,
-    eta: progress.estimatedTimeRemaining || null,
-    elapsed: Date.now() - session.startTime,
-    action: actionText,
-    status: 'running',
-    task: session.task || '',
-    taskStatus: taskPayload.taskStatus,
-    lastAction: taskPayload.lastAction || '',
-    updatedAt: taskPayload.updatedAt
-  });
+  var sent = _sendDashboardTaskProgress(taskPayload);
   console.log('[FSB] broadcastDashboardProgress:', sent ? 'SENT' : 'WS_CLOSED', 'progress=' + progress.progressPercent);
 
   // Forward progress to MCP server for autopilot tasks
@@ -1168,7 +1224,7 @@ function broadcastDashboardComplete(result) {
     fsbWebSocket._dashStopSent = false;
     _dashboardTaskTabId = null;
     console.log('[FSB] broadcastDashboardComplete: skipped (stop already sent)');
-    return;
+    return true;
   }
   var previousTask = _getDashboardTaskRecoverySnapshot();
   var payload;
@@ -1188,6 +1244,7 @@ function broadcastDashboardComplete(result) {
     };
   }
   var rememberedPayload = _rememberDashboardTaskSnapshot({
+    taskRunId: result && result.taskRunId ? result.taskRunId : (previousTask && previousTask.taskRunId ? previousTask.taskRunId : ''),
     taskStatus: payload.taskStatus,
     task: previousTask && previousTask.task ? previousTask.task : '',
     progress: result.success ? 100 : (previousTask && typeof previousTask.progress === 'number' ? previousTask.progress : 0),
@@ -1201,16 +1258,13 @@ function broadcastDashboardComplete(result) {
     stopped: false,
     tabId: previousTask && typeof previousTask.tabId === 'number' ? previousTask.tabId : null
   });
-  payload.task = rememberedPayload.task || '';
-  payload.progress = typeof rememberedPayload.progress === 'number' ? rememberedPayload.progress : 0;
-  payload.phase = rememberedPayload.phase || '';
-  payload.lastAction = rememberedPayload.lastAction || '';
-  payload.updatedAt = rememberedPayload.updatedAt;
-  var sent = fsbWebSocket.send('ext:task-complete', payload);
-  console.log('[FSB] broadcastDashboardComplete:', sent ? 'SENT' : 'WS_CLOSED', JSON.stringify(payload).slice(0, 200));
+  var terminalPayload = _buildDashboardTaskCompletePayload(rememberedPayload);
+  var sent = _sendDashboardTaskComplete(rememberedPayload);
+  console.log('[FSB] broadcastDashboardComplete:', sent ? 'SENT' : 'WS_CLOSED', JSON.stringify(terminalPayload).slice(0, 200));
 
   // Clear dashboard task tab reference (stream continues independently)
   _dashboardTaskTabId = null;
+  return sent;
 }
 
 /**
@@ -5530,6 +5584,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
     isBackgroundAgent = false,
     agentId = null,
     isDashboardTask = false,
+    dashboardTaskRunId = '',
     triggerSource = isBackgroundAgent ? 'background-agent' : (isDashboardTask ? 'dashboard' : 'extension'),
     explicitTargetUrl = null,
     reuseMatchingTabs = !isBackgroundAgent,
@@ -5576,6 +5631,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
         isBackgroundAgent: isBackgroundAgent,
         agentId: agentId,
         _isDashboardTask: isDashboardTask,
+        _dashboardTaskRunId: dashboardTaskRunId || '',
         animatedActionHighlights: isDashboardTask ? true : (isBackgroundAgent ? false : true),
         _completionCallback: resolve, // Store callback for when automation finishes
         navigationMessage: preparedStart.navigationMessage || '',
@@ -5629,6 +5685,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
           resolve({
             success: !message.partial && !message.error,
             sessionId,
+            taskRunId: session._dashboardTaskRunId || sessionData._dashboardTaskRunId || '',
             result: message.result || null,
             error: message.error || (message.partial ? 'Task completed partially: ' + (message.reason || 'unknown') : null),
             duration,
@@ -5647,6 +5704,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
           resolve({
             success: false,
             sessionId,
+            taskRunId: sessionData._dashboardTaskRunId || '',
             result: null,
             error: message.error || 'Automation error',
             duration,
@@ -5665,6 +5723,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
         resolve({
           success: false,
           sessionId,
+          taskRunId: sessionData._dashboardTaskRunId || '',
           result: null,
           error: 'Execution safety timeout reached',
           duration,
@@ -5693,6 +5752,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
       resolve({
         success: false,
         sessionId: null,
+        taskRunId: dashboardTaskRunId || '',
         result: null,
         error: error.message,
         duration: 0,
@@ -5713,7 +5773,9 @@ async function executeAutomationTask(tabId, task, options = {}) {
  */
 async function startDashboardTask(tabId, task) {
   _dashboardTaskTabId = tabId;
-  _rememberDashboardTaskSnapshot({
+  var taskRunId = _createDashboardTaskRunId();
+  var initialTaskPayload = _rememberDashboardTaskSnapshot({
+    taskRunId: taskRunId,
     taskStatus: 'running',
     task: task || '',
     progress: 0,
@@ -5727,73 +5789,49 @@ async function startDashboardTask(tabId, task) {
     stopped: false,
     tabId: typeof tabId === 'number' ? tabId : null
   });
+  _sendDashboardTaskProgress(initialTaskPayload);
   var _completionSent = false;
-  // Fallback: if broadcastDashboardComplete hasn't fired 5s after executeAutomationTask resolves, send directly (per D-03)
+  // Fallback: retry one terminal completion send if the first terminal delivery could not be written to the WS.
   var _fallbackTimer = null;
   try {
     var result = await executeAutomationTask(tabId, task, {
       maxIterations: 20,
       isDashboardTask: true,
+      dashboardTaskRunId: taskRunId,
       triggerSource: 'dashboard'
     });
     console.log('[FSB] startDashboardTask: executeAutomationTask resolved, result.success=', result && result.success);
-    broadcastDashboardComplete(result);
-    _completionSent = true;
+    _completionSent = broadcastDashboardComplete(result);
   } catch (err) {
     console.warn('[FSB] startDashboardTask: executeAutomationTask threw', err.message);
+    var previousTask = _getDashboardTaskRecoverySnapshot();
     var failedPayload = _rememberDashboardTaskSnapshot({
+      taskRunId: previousTask && previousTask.taskRunId ? previousTask.taskRunId : taskRunId,
       taskStatus: 'failed',
       task: task || '',
-      progress: 0,
-      phase: '',
+      progress: previousTask && typeof previousTask.progress === 'number' ? previousTask.progress : 0,
+      phase: previousTask && previousTask.phase ? previousTask.phase : '',
       eta: null,
-      elapsed: 0,
-      action: '',
-      lastAction: '',
+      elapsed: previousTask && previousTask.elapsed ? previousTask.elapsed : 0,
+      action: previousTask && previousTask.action ? previousTask.action : '',
+      lastAction: previousTask && previousTask.lastAction ? previousTask.lastAction : '',
       summary: '',
       error: err.message || 'Task execution failed',
       stopped: false,
       tabId: typeof tabId === 'number' ? tabId : null
     });
-    fsbWebSocket.send('ext:task-complete', {
-      success: false,
-      error: err.message || 'Task execution failed',
-      elapsed: 0,
-      task: failedPayload.task || '',
-      taskStatus: failedPayload.taskStatus,
-      updatedAt: failedPayload.updatedAt,
-      lastAction: failedPayload.lastAction || ''
-    });
-    _completionSent = true;
+    _completionSent = _sendDashboardTaskComplete(failedPayload);
   }
-  // Safety net: if for any reason the above didn't send, fire after 5s
+
+  // Safety net: if the relay was unavailable for the first terminal send, retry once with the last known terminal snapshot.
   if (!_completionSent) {
     _fallbackTimer = setTimeout(function() {
       console.warn('[FSB] startDashboardTask: fallback timer fired -- sending ext:task-complete directly');
-      var fallbackPayload = _rememberDashboardTaskSnapshot({
-        taskStatus: 'failed',
-        task: task || '',
-        progress: 0,
-        phase: '',
-        eta: null,
-        elapsed: 0,
-        action: '',
-        lastAction: '',
-        summary: '',
-        error: 'Completion delivery timeout -- result may have been lost',
-        stopped: false,
-        tabId: typeof tabId === 'number' ? tabId : null
-      });
-      fsbWebSocket.send('ext:task-complete', {
-        success: false,
-        error: 'Completion delivery timeout -- result may have been lost',
-        elapsed: 0,
-        task: fallbackPayload.task || '',
-        taskStatus: fallbackPayload.taskStatus,
-        updatedAt: fallbackPayload.updatedAt,
-        lastAction: fallbackPayload.lastAction || ''
-      });
-    }, 5000);
+      var fallbackPayload = _getDashboardTaskRecoverySnapshot();
+      if (!fallbackPayload || fallbackPayload.taskRunId !== taskRunId) return;
+      if (!/^(success|failed|stopped)$/.test(fallbackPayload.taskStatus || '')) return;
+      _sendDashboardTaskComplete(fallbackPayload);
+    }, 1500);
   }
 }
 
@@ -5924,6 +5962,7 @@ async function handleStopAutomation(request, sender, sendResponse) {
         : (last.tool || 'Unknown action');
     }
     _rememberDashboardTaskSnapshot({
+      taskRunId: session._dashboardTaskRunId || '',
       taskStatus: 'stopped',
       task: session.task || '',
       progress: typeof calculateProgress === 'function' ? calculateProgress(session).progressPercent : 0,
