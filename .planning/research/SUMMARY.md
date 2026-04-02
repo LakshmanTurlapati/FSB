@@ -1,219 +1,188 @@
 # Project Research Summary
 
-**Project:** FSB v0.9.20 -- Autopilot Agent Architecture Rewrite
-**Domain:** Chrome Extension browser automation -- replacing CLI text-parsing autopilot with native tool_use agent loop
-**Researched:** 2026-03-31
+**Project:** FSB v0.9.22 — Showcase High-Fidelity Replicas
+**Domain:** Static UI replica integration into existing showcase site
+**Researched:** 2026-04-02
 **Confidence:** HIGH
 
 ## Executive Summary
 
-FSB's autopilot currently works by asking the AI to respond in a custom CLI grammar, parsing that text with a 950-line tokenizer/command registry, then executing the extracted actions -- repeating this cycle with a fixed iteration cap (20), stuck detection heuristics, and a 400-line multi-signal completion validator. All four AI providers FSB supports (xAI, OpenAI, Anthropic, Gemini) now offer native tool_use/function calling APIs that make this entire parsing and orchestration layer obsolete. The native pattern is simple: send messages plus tool definitions, the AI returns structured tool_call blocks with JSON parameters, the extension executes them and feeds results back, and the loop repeats until the AI emits an end_turn signal. This eliminates approximately 3,100 lines of custom parsing, stuck detection, completion validation, and prompt template code, replacing them with roughly 200-300 lines of generic agent loop logic plus a provider-specific format adapter.
+The v0.9.22 milestone is a focused visual fidelity upgrade to the FSB showcase site. The task is replacing approximate CSS mockups of the extension's sidepanel and control panel with pixel-accurate HTML/CSS replicas, and adding a net-new MCP-in-Claude-Code terminal section that has zero visual representation today. This is not a new-technology problem — the existing showcase infrastructure (pure vanilla HTML/CSS/JS, no build system, `rec-` namespaced CSS classes, IntersectionObserver animations) already handles everything needed. The core challenge is accurate color token mapping and structural alignment between the real extension CSS and the recreation CSS.
 
-The recommended approach is to build a canonical tool registry (JSON Schema definitions shared between autopilot and MCP), a provider format adapter (three concrete implementations: OpenAI/xAI shared, Anthropic, Gemini), a unified tool executor (single dispatch function replacing two parallel execution paths), and the agent loop itself (setTimeout-chained iterations, not a single while-loop, due to Chrome MV3 service worker constraints). The existing UniversalProvider class already handles per-provider request formatting and response parsing -- the tool_use extension follows the same pattern with 5 new methods added to the existing abstraction rather than a new layer.
+The recommended approach is to extend the existing `recreations.css` and `recreations.js` patterns in place rather than extracting real extension CSS directly. This preserves the working isolation strategy (`--rec-*` variable namespace, `[data-theme]` toggle convention, browser-frame container pattern) and avoids introducing Chrome extension runtime dependencies into a static web context. All changes are confined to three existing files: `showcase/about.html`, `showcase/css/recreations.css`, and `showcase/js/recreations.js`. No new files, no new libraries, no build step.
 
-The top risks are: (1) provider format divergence causing silent failures when tool definitions or results are malformed for a specific provider, (2) conversation history token explosion as tool results accumulate across iterations, (3) Chrome MV3 service worker 5-minute execution kill terminating long-running agent sessions, and (4) loss of battle-tested stuck detection logic that took 8+ milestones to build. Each has a concrete mitigation: provider-specific adapters with structural validation tests, tool-result-aware history compression with sliding windows, setTimeout-chaining to break the loop into separate events, and an external stuck monitor that injects recovery hints into tool results rather than controlling iteration.
+The critical risks are CSS variable collisions if any extension CSS is copied without namespace translation, and fidelity drift in future milestones when extension UI evolves but replicas are not updated. Both are mitigated through the `rec-` prefix discipline already established in the codebase and version-stamped sync comments in the HTML. The MCP terminal section is well-scoped as a net-new component: pure CSS colored spans with a new `initTerminalAnimation()` function following the existing IIFE typing animation pattern.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack decision is straightforward: no new technologies are introduced. The rewrite operates entirely within FSB's existing runtime (Chrome Extension MV3, vanilla JavaScript ES2021+, xAI/OpenAI/Anthropic/Gemini APIs). The key technical decision is which API surface to use for each provider.
+No new dependencies. The entire milestone uses the existing showcase stack. The real extension source files (`ui/sidepanel.html`, `ui/sidepanel.css`, `ui/options.css`, `shared/fsb-ui-core.css`) serve as read-only reference material for exact color values, font sizes, border radii, and shadows.
 
-**Core technologies (all existing, extended):**
-- **xAI chat/completions endpoint** (NOT the newer Responses API): OpenAI-compatible format, meaning xAI and OpenAI share identical tool handling code. The Responses API would require a third translation layer for minimal benefit.
-- **Provider format adapter (3 concrete implementations):** OpenAI/xAI share one adapter (arguments are JSON strings, `finish_reason: "tool_calls"`, `role: "tool"` results). Anthropic gets its own (`input_schema`, `stop_reason: "tool_use"`, content blocks, `role: "user"` with `tool_result` blocks, input is already-parsed object). Gemini gets its own (`functionDeclarations`, `functionCall` parts, `functionResponse` results, `args` already parsed, no dedicated finish reason).
-- **JSON Schema for tool definitions:** All four providers use JSON Schema for parameter definitions. The wrapper differs per provider but the schema content is identical. This is the canonical format for the shared tool registry.
-- **No streaming for v0.9.20 tool_use parsing:** Browser actions are sequential -- the complete tool call (name + all arguments) is needed before execution. However, streaming should be considered as a FETCH KEEPALIVE mechanism to prevent Chrome's 30-second fetch timeout from killing slow API calls.
+**Core technologies:**
+- Vanilla CSS (`recreations.css`): All replica styling with `--rec-*` token namespace — already proven, extends naturally without a build step
+- Vanilla JS (`recreations.js`, ES2021+, IIFE pattern): Typing animations and IntersectionObserver cascades — existing functions cover most animation needs
+- Font Awesome 6.6.0: Icon library already loaded via CDN on all showcase pages — no new CDN links needed
+- CSS Custom Properties with `[data-theme]`: Theme-aware styling for dark/light toggle — established pattern in showcase
+- Inline SVG (native): Charts in dashboard replica — existing `rec-line-svg` polyline pattern, no chart.js needed
 
-**Critical version requirements:**
-- xAI: grok-3 minimum for tool_use, grok-4-1-fast recommended (2M context)
-- OpenAI: gpt-4o-mini minimum, gpt-4o recommended
-- Anthropic: claude-haiku-4.5 minimum, claude-sonnet-4 or claude-sonnet-4.5 recommended
-- Gemini: gemini-2.0-flash minimum, gemini-2.5-flash recommended
-
-See `.planning/research/STACK.md` for exact request/response format specifications per provider, including code-level translation methods.
+**Technologies evaluated and rejected:**
+- xterm.js: 180KB+ interactive terminal emulator — overkill for static showcase animations
+- Termynal.js: Cannot represent Claude Code's nested tool-use block structure; external dependency for something `recreations.js` already handles
+- marked.js in showcase: Runtime markdown parsing for statically known content — unnecessary 35KB dependency
+- chart.js: Full charting library for a single static SVG polyline
 
 ### Expected Features
 
-**Must have (table stakes -- T1-T12):**
-- T1: Basic agent loop (send -> tool_use -> execute -> tool_result -> repeat)
-- T2: Unified tool definitions in JSON Schema shared between autopilot and MCP
-- T3: Single execution path -- same `executeTool()` for both autopilot and MCP
-- T4: stop_reason-based completion (AI decides when done, replaces 400-line completion validator)
-- T5: Structured tool_result responses with high-signal feedback
-- T6: DOM snapshot as on-demand tool (not auto-injected every iteration)
-- T7: Conversation context management with sliding window and compaction
-- T8: Safety timeout (session duration limit, kept from existing code)
-- T9: Session abort / stop button (kept from existing code)
-- T10: Error handling with `is_error` in tool_results for AI recovery
-- T11: Multi-provider tool_use format adaptation (the adapter layer)
-- T12: Minimal system prompt (~1-2KB, down from 30-50KB)
+Research identified a clear priority order based on visitor impact and implementation dependencies. See FEATURES.md for detailed specifications, sample content, and complexity estimates.
+
+**Must have (table stakes):**
+- 1:1 sidepanel replica (Chat view): The primary user interface. Current replica has header button gaps, missing mic/footer elements, and color drift (`--rec-sp-bg: #1f2937` vs real `--bg-primary: #262626`).
+- 1:1 control panel replica (Dashboard view): Second most visible surface. Current replica has icon mismatches (`fa-database` vs real `fa-brain` for Memory), missing nav items ("Help & Documentation"), and warm/cool color palette drift.
+- MCP terminal example (autopilot: `run_task`): MCP integration is called out on the landing page with a dedicated callout card but has zero visual evidence. Highest-impact missing element relative to effort.
+- Theme-correct rendering (dark + light): Site has a working theme toggle. Replicas must respect it. Specific token gaps identified in both replicas.
+- Scroll-triggered entrance animations: Existing IntersectionObserver cascade pattern. Removing would be a regression.
 
 **Should have (differentiators):**
-- D1: Site guide as queryable tool (on-demand, not always injected) -- massive token savings
-- D3: Progress overlay integration (user sees tool execution in real time)
-- D4: Prompt caching for system prompt + tools (Anthropic measured 11.5s -> 2.4s for 100K context)
-- D7: Action verification enrichment in tool_results (richer AI signal without extra tool calls)
-- D8: Cost tracking per session across all conversation turns
+- MCP terminal example (manual mode: multi-tool orchestration): Shows the unique "Claude Code controls your browser" value proposition with `read_page` + `click` flow.
+- Animated typing effect in sidepanel messages: Character-by-character reveal using existing cascade infrastructure.
+- Live element highlight pulse: Orange glow pulse on targeted element in form recreation — matches real Shadow DOM glow overlay.
 
-**Defer to v2+:**
-- D2: Procedural memory as queryable tool
-- D5: Parallel tool execution
-- D6: Context window budget tracking with proactive compaction
-- D9: Streaming tool_use responses for real-time thinking display
-
-**Anti-features (explicitly do NOT build):**
-- Built-in AI-controlled stuck detection (keep external, inject as tool_result hints)
-- Fixed iteration cap (use time-based + cost-based circuit breakers instead)
-- CLI text parsing (the entire point of the migration)
-- Per-iteration DOM fetching (DOM becomes an on-demand tool)
-- Multi-signal completion validation (stop_reason IS the completion signal)
-- Task-type classification for prompt selection (AI has full tool catalog, decides itself)
-
-**Net code impact:** ~3,100 lines removed. ~500-800 lines added.
-
-See `.planning/research/FEATURES.md` for complete dependency graph, MVP phase breakdown, and detailed delete/keep lists.
+**Defer (v2+):**
+- Interactive tab switching in sidepanel replica (Chat/Agents/History tabs): Significant content creation for a differentiator, not table-stakes.
+- MCP agent creation terminal example: Third-priority MCP example. Autopilot and manual mode cover the essential story.
+- Control panel tab navigation beyond Dashboard: Dashboard-only view is sufficient for the showcase.
+- Full options page feature parity: Recreating all 7+ tabs is months of work for marginal showcase value.
 
 ### Architecture Approach
 
-The architecture follows a "normalize at the boundary, unify at the core" pattern. A canonical tool registry defines all 35+ tools once in JSON Schema with internal routing metadata. Provider-specific adapters translate at the API boundary. A unified tool executor dispatches to the correct handler regardless of caller (autopilot or MCP). The agent loop itself is a simple setTimeout-chained iteration.
+All changes are confined to existing files within the `showcase/` directory. Three CSS namespaces coexist and must remain separate: the showcase design system (`--primary`, `--bg-primary`), recreation mockups (`--rec-*`), and the real extension UI (`--fsb-*`, per-surface variables). The strategy is to audit real extension CSS for exact values and manually port those values into the existing `rec-` namespace rather than extracting or importing extension files directly. See ARCHITECTURE.md for complete data flow diagrams, component interaction maps, and integration points.
 
-**Major components (new or modified):**
-1. **tool-definitions.js (NEW)** -- Canonical tool registry. Single source of truth for both autopilot and MCP. JSON Schema parameters with internal routing metadata (`_route`, `_fsbVerb`, `_readOnly`). Replaces CLI COMMAND_REGISTRY and MCP inline Zod schemas.
-2. **tool-use-adapter.js (NEW)** -- Provider format normalizer. Three concrete implementations (OpenAI/xAI, Anthropic, Gemini). Handles tool definition formatting, tool call extraction, tool result formatting, and stop_reason detection.
-3. **tool-executor.js (NEW)** -- Unified execution engine. Routes to content script (DOM actions), background (CDP), or background (multi-tab/data). Called by both autopilot and MCP. Includes pre-execution health checks and post-execution feedback.
-4. **universal-provider.js (MODIFIED)** -- 5 new methods: `formatToolsForProvider()`, `parseToolCalls()`, `formatToolResult()`, `isToolCallResponse()`, `formatAssistantMessage()`. Returns full structured response instead of extracted text.
-5. **background.js (MODIFIED)** -- `startAutomationLoop()` (~2,400 lines) replaced by `runAgentLoop()` (~200-300 lines). Session management simplified.
-6. **Content scripts (UNCHANGED)** -- All 12 modules remain as-is. The `executeAction` message handler is the convergence point.
+**Major components (all existing files, MODIFY-only):**
+1. `showcase/about.html` — Page shell. Update Recreation 1-3 HTML structure; add MCP terminal section.
+2. `showcase/css/recreations.css` (currently 1282 lines) — All replica styling. Port exact color/size/radius/shadow values; add `rec-mcp-*` terminal classes.
+3. `showcase/js/recreations.js` — Animation logic. Add `initTerminalAnimation()` function following existing IIFE + IntersectionObserver pattern.
 
-**New on-demand tools (registered in tool-definitions.js):**
-- `get_page_snapshot`: Returns markdown DOM snapshot (currently auto-fetched every iteration)
-- `get_site_guide`: Returns site-specific intelligence (currently always injected into prompt)
-- `report_progress`: Lets AI update the progress overlay text
-- `complete_task` / `fail_task`: Signals task completion or failure with summary
+**New component to build within existing files:**
+- `.rec-mcp-terminal`: Dark terminal window with macOS chrome (reusing `.browser-frame`), monospace `<pre>` blocks, semantic CSS classes (`.term-prompt`, `.term-tool-block`, `.term-result-block`, `.term-cursor`), IntersectionObserver-triggered typing animation.
 
-See `.planning/research/ARCHITECTURE.md` for detailed data flow diagrams, component interaction maps, and build order analysis.
+**Data flow:** fully static. No API calls, no runtime state. User visits about.html → CSS loads → `main.js` triggers theme toggle and scroll reveal → `recreations.js` IntersectionObserver fires → message cascade, counter animation, terminal typing animation run once → final state holds.
 
 ### Critical Pitfalls
 
-1. **Provider format divergence causes silent tool call failures (P1, P5)** -- Four providers use structurally different JSON for tool definitions, responses, and results. The differences are not cosmetic (different key names, different nesting, parsed objects vs JSON strings). Prevention: build provider-specific adapters, validate with structural round-trip tests, use canonical format closest to OpenAI.
+Top pitfalls for this milestone. Full analysis with codebase-specific evidence in PITFALLS.md.
 
-2. **Agent loop runaway burns unlimited API budget (P2)** -- Removing the 20-iteration cap without replacement creates infinite-cost risk. Models sometimes refuse to emit end_turn on ambiguous tasks. Prevention: cost-based circuit breaker (default $2), soft iteration backstop (50), no-progress detector (3 consecutive identical DOM hashes), session time limit (10 min).
+1. **CSS variable collision between showcase and extension CSS** — `main.css` and the real `sidepanel.css`/`options.css` define the same variable names (`--text-primary`, `--bg-primary`, `--border-color`) on `:root` with conflicting values. 82 collision-prone occurrences identified. Never import or copy extension CSS directly. Always translate into `--rec-*` namespace.
 
-3. **Token explosion from conversation history (P3)** -- Every iteration adds tool_call + tool_result. DOM snapshots at 50-100KB each. 20 iterations = 1-2MB of history. Costs compound quadratically. Prevention: tool-result-aware compression, on-demand DOM snapshots, token budget with compaction at 80%, cap individual result sizes.
+2. **Extension viewport CSS hijacking showcase layout** — Real extension CSS uses `body { height: 100vh; overflow: hidden; }` and `.sidepanel-container { height: 100vh; }`. Porting verbatim would hide all showcase content below the fold. Never apply styles to `html`, `body`, or `*` in replica CSS. Replace `100vh` with explicit pixel heights relative to `.browser-content`.
 
-4. **Chrome MV3 service worker 5-minute execution kill (P4)** -- A `while(true)` agent loop runs as one event. Chrome kills it at 5 minutes. Prevention: setTimeout-chaining (same pattern current autopilot uses), persist state after every iteration, implement session resurrection.
+3. **Theme direction mismatch** — Extension treats light as default with `[data-theme="dark"]` override. Showcase treats dark as default with `[data-theme="light"]` override. Copy-pasting theme logic without inverting the direction leaves one mode broken. All replica CSS must follow the showcase convention.
 
-5. **Stuck detection logic lost in translation (P8)** -- 60+ stuckCounter references, 8+ milestones of refinement. Models are bad at detecting their own stuck states. Prevention: keep as external system, inject recovery hints into tool_results, port consecutive-no-progress logic.
+4. **Fidelity drift in future milestones** — Replicas are snapshots; the real extension evolves independently. Prevention: add version-stamped sync comments to each replica section in HTML (`<!-- Replica of: ui/sidepanel.html | Last synced: v0.9.22 -->`) and include a replica sync step in every UI milestone checklist.
 
-See `.planning/research/PITFALLS.md` for 14 total pitfalls with phase-specific warning matrix.
+5. **Global reset cascade pollution** — `main.css` applies a universal reset and blanket typography rules that cascade into replica containers. Prevention: explicitly override `font-size`, `line-height`, `color`, and `font-weight` at the replica container level for each new replica section.
 
 ## Implications for Roadmap
 
-Based on combined research, the critical path is: provider adapters -> tool registry -> tool executor -> agent loop -> context management -> cleanup. The dependency graph from FEATURES.md confirms: T11 -> T2 -> T3 -> T1 -> T12 -> T5 -> T4 -> T7.
+Architecture research provides a clear 4-phase build order. Phases 1 and 2 are independent and can be run in parallel. Phase 3 is net-new. Phase 4 is the quality gate and must be last.
 
-### Phase 1: Provider Format Adapters and Tool Registry
+### Phase 1: Sidepanel Replica Audit and Rebuild
 
-**Rationale:** Every subsequent phase depends on correctly sending and receiving tool_use messages across all 4 providers. PITFALLS.md identifies this as the highest-risk area (P1, P5) that must be validated first.
-**Delivers:** `tool-definitions.js` (canonical registry of all 35+ tools), `tool-use-adapter.js` (3 provider implementations), modifications to `universal-provider.js` (5 new methods).
-**Addresses:** T2 (unified tool defs), T11 (multi-provider format), T12 (minimal system prompt defined here).
-**Avoids:** P1 (format divergence), P5 (Anthropic structural incompatibility), P11 (tool definition token overhead).
-**Key validation:** Round-trip test per provider: define tool -> fake model response with tool_call -> parse -> format result -> verify valid message array.
+**Rationale:** The sidepanel is the primary user interface and the first thing visitors evaluate. It has the most identified gaps and the most structurally complex CSS. Fixing it first establishes the correct `rec-` token values for dark/light modes that Phase 2 and 3 will build alongside.
+**Delivers:** Pixel-accurate sidepanel Chat view matching real `sidepanel.html` + `sidepanel.css`. Correct header (FSB title, status dot, history/new-chat/settings icon buttons), all 5 message bubble types (user/ai/system/action/error), input bar with mic button and model selector, footer text. Updated `--rec-sp-*` tokens matching real `#262626`/`#171717` dark mode values.
+**Addresses:** Table-stakes features: 1:1 sidepanel replica, theme-correct rendering, scroll animations.
+**Avoids:** Pitfalls 1 (CSS collision), 2 (global reset pollution), 4 (viewport CSS hijack), 6 (theme direction mismatch).
+**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`
+**Estimated effort:** 4-6 hours
 
-### Phase 2: Unified Tool Executor and MCP Migration
+### Phase 2: Control Panel Replica Audit and Rebuild
 
-**Rationale:** Before building the agent loop, the execution path must be unified so the loop calls the same code as MCP. De-risks MCP regression (P7) before the loop adds complexity.
-**Delivers:** `tool-executor.js` (single dispatch function for content/CDP/multi-tab/data routes), MCP server imports from `tool-definitions.js`.
-**Addresses:** T3 (single execution path), T10 (error handling), partial T5 (structured tool_results).
-**Avoids:** P7 (MCP breakage -- test MCP path independently).
-**Key validation:** Same tool call produces identical results via autopilot path and MCP bridge path.
+**Rationale:** Second most visible surface. Independent of Phase 1 — can run in parallel. The warm-toned vs cool-toned palette drift is the most visible gap and is addressed by porting values from `fsb-ui-core.css` (`--fsb-surface-base: #fffdfb`, `--fsb-gray-50: #faf8f6`) into `--rec-opt-*` tokens.
+**Delivers:** Pixel-accurate Dashboard view matching real `control_panel.html` + `options.css`. Correct sidebar (8 nav items with accurate icons: `fa-brain` for Memory, `fa-server` for Background Agents, added "Help & Documentation"), analytics hero cards, SVG line chart, session history cards with status badges.
+**Addresses:** Table-stakes features: 1:1 control panel replica, theme-correct rendering.
+**Avoids:** Pitfalls 1 (CSS collision), 2 (global reset pollution), 4 (viewport CSS hijack), 6 (theme direction mismatch).
+**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`
+**Estimated effort:** 5-7 hours
 
-### Phase 3: Agent Loop Core with Safety Mechanisms
+### Phase 3: MCP Terminal Section (New Component)
 
-**Rationale:** The centerpiece phase. Depends on Phases 1 and 2. Safety mechanisms built IN this phase -- they are structural, not polish.
-**Delivers:** `runAgentLoop()` (setTimeout-chained), cost circuit breaker, external stuck detection, session time limit, progress overlay updates.
-**Addresses:** T1 (agent loop), T4 (stop_reason completion), T5 (tool_results finalized), T8 (timeout), T9 (stop button), D8 (cost tracking).
-**Avoids:** P2 (runaway), P4 (service worker kill), P8 (stuck detection lost), P6 (progress overlay regression).
-**Key validation:** End-to-end task execution with real AI provider. Start, monitor, and stop an autopilot session.
+**Rationale:** MCP integration is the key differentiator called out on the landing page with no supporting visual. This is the highest-impact gap relative to effort. It is a clean build — no legacy to audit — using the established `.browser-frame` pattern and IIFE animation conventions.
+**Delivers:** New section in `about.html` with 2 terminal mockup blocks. Autopilot example (`run_task` with a search task, progress output, and completion summary). Manual mode example (multi-tool `read_page` + `click` flow). New `rec-mcp-*` CSS classes using semantic `.term-*` subclasses. New `initTerminalAnimation()` function in `recreations.js`.
+**Addresses:** Table-stakes feature: MCP terminal autopilot example. Differentiator: MCP manual mode orchestration example.
+**Avoids:** Pitfall 5 (monospace font inconsistency — use double-monospace stack and explicit `font-size`), Pitfall 12 (ANSI color rendering — use semantic `.term-*` classes not inline styles), Pitfall 6 (theme handling — dark terminal stays dark in both modes by convention).
+**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`, `showcase/js/recreations.js`
+**Estimated effort:** 3-5 hours
 
-### Phase 4: Context Management and On-Demand Tools
+### Phase 4: Gap Audit and Final Sweep
 
-**Rationale:** Prevents token explosion on real-world multi-step tasks. The architectural wins (on-demand DOM, on-demand site guides) that justify the migration.
-**Delivers:** Sliding window history with compression, `get_page_snapshot` tool, `get_site_guide` tool, prompt caching.
-**Addresses:** T7 (context management), T6 (DOM as tool), D1 (site guide tool), D4 (prompt caching).
-**Avoids:** P3 (token explosion), P10 (stale/oversized DOM), P9 (fetch timeout with streaming keepalive).
-**Key validation:** 30-step task on content-rich page completes without context window overflow. Token costs reduced 40-60% vs Phase 3.
-
-### Phase 5: Dead Code Removal and Polish
-
-**Rationale:** Remove old code only after the new system is proven stable. Avoids premature deletion requiring reimplementation.
-**Delivers:** Removal of ~3,100 lines (cli-parser.js, CLI_COMMAND_TABLE, TASK_PROMPTS, completion validator, DOM hash stuck detection, buildPrompt templates, DOM prefetch, task classifier).
-**Addresses:** All anti-features. D3 (progress overlay polish), D7 (verification enrichment).
-**Avoids:** P13 (session history format incompatibility), P14 (memory extraction breakage).
-**Key validation:** Full regression test. All MCP and autopilot functionality works through new architecture.
+**Rationale:** Catches drift between phases. Surfaces missed visual discrepancies. Required before the milestone is considered complete. Cannot run earlier — it is only meaningful when Phases 1-3 are done.
+**Delivers:** Side-by-side comparison of all replicas vs real extension in both dark and light modes. Responsive testing at 375px, 390px, 414px viewports. Version number update in page footer. Accessibility attributes added to all replica containers (`role="img"`, `aria-label`, `aria-hidden="true"` on internals). Version-stamped sync comments added to each replica section.
+**Avoids:** Pitfalls 3 (fidelity drift — sync comments), 7 (animation overload — audit for infinite loops), 8 (responsive breakpoints), 9 (external asset loading), 10 (stale mockup data), 11 (accessibility regression).
+**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`, possibly `showcase/css/about.css`
+**Estimated effort:** 2-3 hours
 
 ### Phase Ordering Rationale
 
-- **Phases 1-2 before Phase 3:** The agent loop cannot be tested without provider adapters (how to communicate) and the executor (how to dispatch). Building these first enables isolated testing with mock responses.
-- **Phase 3 includes safety from day one:** PITFALLS.md makes a strong case that cost circuit breakers, stuck detection, and service worker lifecycle management are structural. Bolting them on later risks the exact runaway and crash scenarios identified in research.
-- **Phase 4 after Phase 3:** Context management is critical for production but the loop must work end-to-end first. Phase 3 can lean on grok-4-1-fast's 2M context window while Phase 4 implements proper compression.
-- **Phase 5 last:** Deletion is lowest-risk and provides the biggest cleanup win, but only after the replacement is proven.
+- Phases 1 and 2 are independent and can be run in parallel. Sequential ordering reduces cognitive load (Phase 1 token fixes establish a color baseline) but is not strictly required.
+- Phase 3 is ordered after Phases 1/2 because it benefits from the updated sidepanel color palette for visual consistency, but it has no hard technical dependency on either.
+- Phase 4 must be last — it verifies the combined output of all three preceding phases.
+- The three existing recreations (Google Search, Dashboard, Form) are audited and updated within Phases 1 and 2 respectively, not as separate phases, because their sidepanel and dashboard components share the same CSS being upgraded.
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 1 (Provider Adapters):** xAI `finish_reason` value for tool calls needs empirical verification. Gemini `id` field availability on non-Gemini-3+ models needs testing. Anthropic OpenAI-compatible endpoint for tool_use needs verification (could simplify adapter).
-- **Phase 3 (Agent Loop):** Stuck detection port requires design decisions: DOM hash granularity, thresholds for tool_use cadence, recovery hint injection format. Cost circuit breaker thresholds need calibration.
-- **Phase 4 (Context Management):** History compression aggressiveness needs prototype testing. The "memory pointer" pattern needs API testing to verify models work with indirect references.
+No phases in this milestone require `/gsd:research-phase` during planning. All technical decisions are resolved and all reference material is in the local codebase.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 2 (Tool Executor):** Straightforward extraction/unification of existing code. Both paths already converge at content script level.
-- **Phase 5 (Cleanup):** Pure deletion with regression testing. No design decisions.
+Phases with well-documented patterns (skip research-phase):
+- **Phase 1 (Sidepanel):** `ui/sidepanel.css` is the authoritative source of truth. Established `rec-` extension pattern.
+- **Phase 2 (Control Panel):** `ui/options.css` and `ui/control_panel.html` are the authoritative source of truth. Same pattern.
+- **Phase 3 (MCP Terminal):** `.terminal-mockup` pattern already exists in `home.css`. IIFE typing animation pattern exists in `recreations.js`. Color palette documented in STACK.md.
+- **Phase 4 (Gap Audit):** Mechanical verification work. Checklist-driven.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All 4 provider APIs verified against official docs. xAI finish_reason for tool_calls is MEDIUM (needs empirical test). |
-| Features | HIGH | tool_use agent loop pattern is identical across all major AI agent frameworks. Feature dependency graph is clear. |
-| Architecture | HIGH | Derived from FSB codebase analysis (11K+ lines background.js, 5K+ ai-integration.js) plus verified API formats. Shared execution path confirmed by code inspection. |
-| Pitfalls | HIGH | Chrome service worker constraints from official docs. Provider divergence from API specs. Integration regressions from codebase inference (MEDIUM for some). |
+| Stack | HIGH | Primary sources are the actual codebase files. No external dependencies to evaluate. All alternatives evaluated and rejected with clear reasoning. |
+| Features | HIGH | Direct analysis of real extension HTML/CSS vs existing showcase recreations. Every gap is concretely enumerated with specific file/property references. |
+| Architecture | HIGH | Full codebase available and analyzed. Deployment config (Dockerfile, fly.toml) confirmed. CSS namespacing strategy validated against existing working patterns. |
+| Pitfalls | HIGH | Every pitfall has specific file/line evidence from the actual codebase — not theoretical. Variable collision occurrences counted (82). Viewport hijack line numbers cited. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **xAI finish_reason for tool_calls:** REST schema lists "stop", "length", "end_turn" but not "tool_calls". OpenAI compatibility SHOULD use "tool_calls" but needs a live API call. Fallback: check `tool_calls` array presence, not just finish_reason.
-- **Chrome 30-second fetch timeout:** Exact conditions (first byte vs complete response) need verification. If streaming is required as keepalive, it affects Phase 1 adapter design.
-- **Gemini function call ID on older models:** `id` field guaranteed for Gemini 3+ only. Need to verify with gemini-2.0-flash and gemini-2.5-flash. Fallback: synthetic IDs.
-- **Context compression impact:** How aggressively can old tool_results be summarized before the AI loses context? Needs empirical testing in Phase 4.
-- **Anthropic OpenAI-compatible endpoint:** If tool_use works through this endpoint, eliminates need for separate Anthropic adapter. Verify before Phase 1.
+The research is comprehensive. These are minor uncertainties that do not affect planning:
+
+- **`recreations.css` size growth:** Currently 1282 lines. After v0.9.22 additions it will reach approximately 1600-1800 lines. No action needed yet. If a future milestone adds more replicas, splitting into per-component CSS files should be considered at the ~2500 line mark.
+- **`fsb-ui-core.css` compatibility alias trap:** Lines 69-76 of `fsb-ui-core.css` define `--primary: var(--fsb-primary)` on `:root`. If this file is accidentally referenced in a future showcase page, it will silently override the showcase's `--primary`. Current policy (never import it) is correct. Flag for any developer adding new showcase pages.
+- **CDN font availability:** Font Awesome 6.6.0 is loaded from cdnjs.cloudflare.com. CDN unavailability would break icon rendering across all replicas. This is an accepted risk for the showcase (not the extension). No mitigation planned.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [xAI Function Calling](https://docs.x.ai/docs/guides/function-calling) -- tool definition format, calling guide
-- [xAI REST API Reference](https://docs.x.ai/developers/rest-api-reference/inference/chat) -- exact request/response schema
-- [OpenAI Function Calling](https://developers.openai.com/api/docs/guides/function-calling) -- tool definition, response, tool_choice
-- [Anthropic Tool Use Overview](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview) -- architecture and pricing
-- [Anthropic Implement Tool Use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use) -- tool schema, input_schema, tool_choice
-- [Anthropic Handle Tool Calls](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls) -- result formatting
-- [Gemini Function Calling](https://ai.google.dev/gemini-api/docs/function-calling) -- functionDeclarations, toolConfig, id mapping
-- [Chrome Extension Service Worker Lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) -- timeout rules
-- [Longer Extension Service Worker Lifetimes](https://developer.chrome.com/blog/longer-esw-lifetimes) -- Chrome 114-120 improvements
+- `ui/sidepanel.html` + `ui/sidepanel.css` — Real sidepanel HTML structure and CSS values for pixel matching
+- `ui/control_panel.html` + `ui/options.css` — Real control panel structure and CSS values
+- `shared/fsb-ui-core.css` — Shared design tokens (`--fsb-*` variables, warm gray scale, orange primary)
+- `showcase/about.html` — Existing recreations HTML to audit and update
+- `showcase/css/recreations.css` (1282 lines) — Existing recreation styles and `--rec-*` token system
+- `showcase/js/recreations.js` — Existing animation functions (typing, cascade, counters)
+- `showcase/css/main.css` — Showcase design system (82 collision-prone variable occurrences identified)
+- `mcp-server/src/tools/autopilot.ts`, `manual.ts`, `agents.ts`, `read-only.ts` — MCP tool names and signatures for realistic terminal content
+- [CSS Typewriter Effect — CSS-Tricks](https://css-tricks.com/snippets/css/typewriter-effect/) — Confirms existing typing animation pattern is standard
+- [CSS Custom Properties theming — CSS IRL](https://css-irl.info/quick-and-easy-dark-mode-with-css-custom-properties/) — Confirms `[data-theme]` approach is standard
 
 ### Secondary (MEDIUM confidence)
-- [Anthropic Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) -- conversation management
-- [Anthropic Advanced Tool Use](https://www.anthropic.com/engineering/advanced-tool-use) -- tool design best practices
-- [Temporal Agentic Loop with Tool Calling](https://docs.temporal.io/ai-cookbook/agentic-loop-tool-call-openai-python) -- reference architecture
-- [Agent Browser Context Window Optimization](https://medium.com/@richardhightower/agent-browser-ai-first-browser-automation-that-saves-93-of-your-context-window-7a2c52562f8c) -- DOM snapshot strategies
-- [Agent Suicide by Context](https://www.stackone.com/blog/agent-suicide-by-context/) -- token explosion patterns
-- [Chromium Issue #40733525](https://issues.chromium.org/issues/40733525) -- service worker 5-minute shutdown discussion
+- [Termynal.js](https://github.com/ines/termynal) — Evaluated, rejected. Good for generic terminal animations; lacks nested block support for Claude Code tool-use structure.
+- [CSS @scope: Complete Guide](https://devtoolbox.dedyn.io/blog/css-scope-complete-guide) — `@scope` is now Baseline (Firefox 146, Jan 2026), viable as future isolation strategy but not used here given established `rec-` prefix approach.
+- [Monospace font sizing quirk](https://alexmansfield.com/css/font-size-line-height-pre-code-monospace/) — Confirms double-monospace trick to prevent browser font shrinking.
+- [Chrome Content Scripts CSS Isolation](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) — Confirms extension CSS is designed for isolated worlds, not shared web page contexts.
+- [Claude Code terminal config docs](https://code.claude.com/docs/en/terminal-config) — Color palette reference for terminal mockup styling.
+- [Claude Code ANSI theme discussion](https://github.com/anthropics/claude-code/issues/4553) — Color palette cross-reference.
 
 ### Tertiary (LOW confidence)
-- [Function Calling Complete Guide 2026](https://ofox.ai/blog/function-calling-tool-use-complete-guide-2026/) -- cross-provider comparison (community)
-- [Anthropic OpenAI SDK Compatibility](https://platform.claude.com/docs/en/api/openai-sdk) -- partial compatibility layer (tool_use unverified)
+- [HTML interactive demos concept](https://docs.supademo.com/create/by-supademo-type/html-interactive-demos) — Pixel-perfect clone methodology reference.
+- [Chrome extension landing page patterns](https://onepagelove.com/tag/chrome-extension) — Visual context for showcase conventions.
 
 ---
-*Research completed: 2026-03-31*
+*Research completed: 2026-04-02*
 *Ready for roadmap: yes*

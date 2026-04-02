@@ -43,6 +43,14 @@ function applyTheme() {
   document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
+function setUiState(state) {
+  document.body.dataset.uiState = state;
+}
+
+function setSidepanelView(view) {
+  document.body.dataset.sidepanelView = view;
+}
+
 // Listen for theme changes from options page
 window.addEventListener('storage', (e) => {
   if (e.key === 'fsb-theme') {
@@ -192,6 +200,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Apply theme first
   applyTheme();
+  setUiState('idle');
+  setSidepanelView('chat');
 
   // Load sidepanel progress setting
   try {
@@ -520,6 +530,7 @@ function startNewChat() {
 // Update UI for running state
 function setRunningState() {
   isRunning = true;
+  setUiState('running');
   sendBtn.className = 'stop-btn';
   sendBtn.title = 'Stop Automation';
   sendBtn.querySelector('i').className = 'fa fa-stop';
@@ -532,6 +543,7 @@ function setRunningState() {
 // Update UI for idle state
 function setIdleState() {
   isRunning = false;
+  setUiState('idle');
   sendBtn.className = 'send-btn';
   sendBtn.title = 'Send Message';
   sendBtn.querySelector('i').className = 'fa fa-arrow-up';
@@ -557,6 +569,7 @@ function setIdleState() {
 // Update UI for error state
 function setErrorState() {
   isRunning = false;
+  setUiState('error');
   sendBtn.className = 'send-btn';
   sendBtn.title = 'Send Message';
   sendBtn.querySelector('i').className = 'fa fa-arrow-up';
@@ -1186,6 +1199,7 @@ function showHistoryView() {
   document.querySelector('.chat-input-area').classList.add('hidden');
   document.getElementById('historyView').classList.remove('hidden');
   historyBtn.classList.add('active');
+  setSidepanelView('history');
   isHistoryViewActive = true;
   loadHistoryList();
 }
@@ -1195,6 +1209,7 @@ function showChatView() {
   document.querySelector('.chat-input-area').classList.remove('hidden');
   document.getElementById('historyView').classList.add('hidden');
   historyBtn.classList.remove('active');
+  setSidepanelView('chat');
   isHistoryViewActive = false;
 }
 

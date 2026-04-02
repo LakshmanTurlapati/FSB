@@ -1,670 +1,448 @@
-# Architecture Research: v0.9.20 Native tool_use Agent Loop
+# Architecture Patterns: v0.9.22 Showcase High-Fidelity Replicas
 
-**Domain:** Chrome Extension browser automation -- replacing CLI text parsing with native tool_use agent loop
-**Researched:** 2026-03-31
-**Confidence:** HIGH (codebase analysis + verified API documentation for all 4 providers)
+**Domain:** Static UI replica integration into existing showcase site
+**Researched:** 2026-04-02
+**Confidence:** HIGH (based on direct codebase analysis, no external dependencies)
 
-## Executive Summary
+## Current Architecture (As-Is)
 
-This document maps the integration of a native tool_use agent loop into FSB's existing Chrome Extension architecture. The core transformation: replace the current "AI returns CLI text -> parser extracts actions -> loop executes and re-calls AI" cycle with "AI returns structured tool_use blocks -> extension executes tools -> tool_result fed back to AI in conversation history." This eliminates the CLI parser, the 30-50KB embedded prompt, the custom iteration loop with fixed caps, and the elaborate stuck detection -- replacing them with the same agentic pattern used by Claude Code, Computer Use API, and MCP clients.
+### Showcase Site Structure
 
-## Current Architecture (What Exists)
-
-### Data Flow: Current Autopilot
+The showcase site lives at `showcase/` in the repo root and is deployed via Docker (`COPY showcase/ ./public/`) to fly.io, where the Node server serves it as static files from `/app/public/`.
 
 ```
-User task ("search Amazon for wireless mouse")
+showcase/
+  index.html          -- Landing page (hero, features, providers, CTA)
+  about.html          -- "See It in Action" page (3 recreations + architecture + action library)
+  dashboard.html      -- Remote dashboard (QR pairing, live control)
+  privacy.html        -- Privacy policy
+  support.html        -- Support page
+  css/
+    main.css          -- Design system, nav, footer, utilities (design tokens)
+    home.css          -- Hero, features grid, comparison, providers
+    about.css         -- About page header, recreation section wrappers, architecture diagram, action library
+    recreations.css   -- ALL recreation component styles (browser frame, sidepanel mockup, dashboard mockup, Google search mockup, form mockup, glow effects, progress overlay) -- 1282 lines
+    dashboard.css     -- Remote dashboard styles
+    privacy.css       -- Privacy page styles
+    support.css       -- Support page styles
+  js/
+    main.js           -- Nav, mobile menu, scroll reveal, theme toggle
+    recreations.js    -- Typing effect, message cascade, progress bars, chart bars, counters, FAQ accordion
+    dashboard.js      -- Remote dashboard logic
+    lz-string.min.js  -- LZ compression for dashboard
+  assets/             -- Images, logos, provider icons
+```
+
+### Extension UI Structure
+
+```
+ui/
+  sidepanel.html/js/css    -- Persistent chat panel (references ../shared/fsb-ui-core.css)
+  popup.html/js/css        -- Quick chat popup
+  control_panel.html       -- Options dashboard (references ../shared/fsb-ui-core.css + options.css)
+  options.css              -- 1000+ lines, complete dashboard styling
+  options.js               -- Dashboard logic
+  markdown-renderer.js     -- Markdown rendering for chat
+  markdown.css             -- Markdown display styles
+  speech-to-text.js        -- Voice input
+  site-guides-viewer.js    -- Site guides UI
+  unlock.html/js           -- Extension unlock flow
+  lib/                     -- Third-party libs (qrcode-generator, marked, purify, mermaid, chart)
+
+shared/
+  fsb-ui-core.css          -- Shared design tokens (warm-toned gray scale, orange primary, spacing, shadows)
+```
+
+### Existing Recreations (What is Already Built)
+
+The about.html page currently has THREE recreations:
+
+1. **"FSB on Google Search"** -- Browser frame with a Google results page + FSB sidepanel showing message cascade during an automation
+2. **"Dashboard Analytics"** -- Browser frame with the control panel dashboard (sidebar, analytics hero, line chart, session history)
+3. **"FSB Automating a Form"** -- Browser frame with a contact form being filled + progress overlay + element glow + sidepanel
+
+All three use the `rec-` CSS prefix namespace to avoid conflicts with the showcase main styles. They are entirely hand-crafted HTML/CSS mockups in `recreations.css` with their own design token set (`--rec-*` variables). They are NOT extracted from the real extension CSS -- they are independent re-implementations that approximate the real UI.
+
+### Key Observation: Three Separate CSS Worlds
+
+| CSS World | Token Prefix | Used By |
+|-----------|-------------|---------|
+| Showcase design system | `--primary`, `--bg-body`, `--text-*` | `main.css`, `home.css`, `about.css` |
+| Recreation mockups | `--rec-*` | `recreations.css` |
+| Extension UI | `--fsb-*` (shared), `--primary-color`, `--bg-primary` (per-surface) | `fsb-ui-core.css`, `sidepanel.css`, `options.css` |
+
+The recreation CSS (`--rec-*`) was designed to be **self-contained** within `.browser-frame` containers, which is the correct isolation strategy. The real extension CSS (`sidepanel.css`, `options.css`) uses different variable names and different color values in some cases (warm-toned grays in `fsb-ui-core.css` vs neutral grays in the recreation mockups).
+
+## Recommended Architecture (To-Be)
+
+### Strategy: Replace Approximate Mockups with Pixel-Accurate Replicas
+
+The existing recreations are "good enough" impressions but do not match the real extension UI pixel-for-pixel. The v0.9.22 goal is **1:1 fidelity**. There are two viable approaches:
+
+**Option A: Extract and transplant real CSS** -- Copy the real `sidepanel.css` and `options.css` into the showcase, scope them under a container class.
+
+**Option B: Update recreation CSS to match real CSS** -- Audit every `rec-*` style against the real extension CSS and bring them into alignment.
+
+**Recommendation: Option B (update recreation CSS in place).** Reasons:
+
+1. **The real extension CSS depends on Chrome extension runtime** -- `sidepanel.css` assumes `100vh` body height, Chrome extension scrollbar behavior, and runtime-injected content. Transplanting it directly would require extensive overrides.
+2. **The `rec-` prefix namespace isolation already works** -- It prevents clashes with the showcase design system. Abandoning it means re-testing all CSS specificity.
+3. **The recreation CSS already handles dark/light theme** via `[data-theme]` selectors matching the showcase toggle, whereas the real extension CSS uses a different toggle mechanism (`data-theme="dark"` vs the showcase default-dark approach).
+4. **No build system** -- The project deliberately avoids build tools. Extracting and auto-syncing CSS would require a build step. Manual sync is acceptable for a static showcase.
+5. **MCP terminal examples are net-new** -- No existing CSS to extract from. They will be pure HTML/CSS creations regardless.
+
+### Component Boundaries
+
+| Component | Location | Responsibility | Communicates With |
+|-----------|----------|---------------|-------------------|
+| **about.html** | `showcase/about.html` | Page shell, section ordering, nav/footer | Links `recreations.css`, `about.css`, `main.css` |
+| **recreations.css** | `showcase/css/recreations.css` | All replica styling with `rec-` prefix | Consumes `main.css` design tokens for page-level vars |
+| **recreations.js** | `showcase/js/recreations.js` | Scroll-triggered animations (cascade, counters, bars) | Observes DOM elements in `about.html` |
+| **main.css** | `showcase/css/main.css` | Design tokens, nav, footer, buttons, utilities | Consumed by all pages |
+| **main.js** | `showcase/js/main.js` | Nav scroll, theme toggle, reveal animations | Consumes theme state from localStorage |
+
+### New Components to Create/Modify
+
+| Component | Action | Purpose |
+|-----------|--------|---------|
+| `showcase/about.html` | **MODIFY** | Replace existing Recreation 1 and 2 HTML with pixel-accurate markup; add MCP terminal section |
+| `showcase/css/recreations.css` | **MODIFY** | Update `rec-sidepanel`, `rec-dashboard`, add `rec-mcp-terminal` styles to match real UI |
+| `showcase/js/recreations.js` | **MODIFY** | Add terminal typing animation for MCP examples |
+| Real extension CSS files | **READ ONLY** | Reference sources for pixel-matching; do not modify |
+
+No new files are required. All changes fit within existing file structure.
+
+### Data Flow
+
+```
+User visits about.html
     |
     v
-background.js: startAutomationLoop(sessionId)     <-- REPLACED
-    |
-    +--[1]--> content.js: getDOM / getMarkdownSnapshot  <-- BECOMES ON-DEMAND TOOL
-    |
-    +--[2]--> ai-integration.js: buildPrompt()          <-- REPLACED (30-50KB prompt)
-    |         - CLI_COMMAND_TABLE (150 lines of CLI docs)
-    |         - TASK_PROMPTS (task-specific templates)
-    |         - formatSiteKnowledge()
-    |         - Session context (history, stuck state, progress)
-    |
-    +--[3]--> universal-provider.js: callAPI()           <-- MODIFIED (add tools param)
-    |         - Builds request per provider format
-    |         - Returns raw text string
-    |
-    +--[4]--> cli-parser.js: parseCliResponse()          <-- REMOVED
-    |         - tokenizeLine() state machine
-    |         - COMMAND_REGISTRY lookup (60+ verbs)
-    |         - Two-stage recovery on parse failure
-    |
-    +--[5]--> background.js: executeBatchActions()       <-- REPLACED
-    |         - Route to content script (DOM actions)
-    |         - Route to background (CDP, multi-tab, data)
-    |         - Outcome detection, diagnostics, recovery
-    |
-    +--[6]--> background.js: completion/stuck check      <-- REMOVED (AI decides)
-    |         - stuckCounter, changeSignals, DOMHash
-    |         - ABSOLUTE_MAX_ITERATIONS cap
-    |         - Session timeout
-    |
-    +--[7]--> GOTO [1] (next iteration)
-```
-
-### Data Flow: Current MCP (Manual Mode)
-
-```
-Claude Desktop/Code sends tool call via MCP protocol
+Browser loads main.css (design tokens) + recreations.css (replica styles) + about.css (layout)
     |
     v
-mcp-server/tools/manual.ts: execAction()
-    |
-    +---> bridge.sendAndWait({ type: 'mcp:execute-action', payload: { tool, params } })
+main.js: scroll reveal, theme toggle
     |
     v
-background.js: case 'mcp:execute-action'
-    |
-    +---> chrome.tabs.sendMessage(tabId, { action: 'executeAction', tool, params, source: 'mcp-manual' })
-    |
-    v
-content/messaging.js: case 'executeAction'
-    |
-    +---> FSB.tools[tool](params)    <-- SAME execution code for both paths
+recreations.js: IntersectionObserver triggers
+    |-- message cascade (staggered fade-in)
+    |-- counter animation (metric values)
+    |-- progress bar fill
+    |-- terminal typing effect (NEW for MCP)
     |
     v
-Result flows back through the chain
+Static HTML renders as pixel-accurate replicas
 ```
 
-### Key Observation: Shared Tool Execution
+No API calls, no JavaScript state, no runtime data. Everything is static HTML + CSS + scroll animations.
 
-Both autopilot and MCP already converge at the same point: `chrome.tabs.sendMessage(tabId, { action: 'executeAction', tool, params })`. The content script's `messaging.js` handler and `FSB.tools[tool]` are the execution backbone. Everything above that point diverges: autopilot uses CLI text + parser, MCP uses structured tool schemas + Zod. The new architecture must unify everything above that convergence point.
+## Detailed Design for Each Replica
 
-## Target Architecture (What Gets Built)
+### 1. Sidepanel Replica (Recreation 1 and 3 update)
 
-### Data Flow: New Agent Loop
+**Current state:** `rec-sidepanel` in recreations.css approximates the sidepanel but differs from real `sidepanel.css` in:
+- Header layout (missing history + new chat buttons, only shows gear icon)
+- Status indicator (uses `rec-status-dot` instead of Font Awesome `fa-circle`)
+- Message bubbles (slightly different border-radius, font sizes, colors)
+- Input area (different padding, border-radius, missing mic button)
+- Footer (missing "Made by Lakshman Turlapati" text)
+- Session history view (not shown at all)
 
-```
-User task ("search Amazon for wireless mouse")
-    |
-    v
-background.js: runAgentLoop(sessionId)                  <-- NEW (replaces startAutomationLoop)
-    |
-    +--[1]--> Build initial messages: [system, user]     <-- NEW (minimal ~1-2KB prompt)
-    |         system: "You are a browser automation agent..."
-    |         user: "Task: search Amazon for wireless mouse\nCurrent URL: about:blank"
-    |
-    +--[2]--> universal-provider.js: callAPI(messages, tools)  <-- MODIFIED (tools param)
-    |         - tools: TOOL_DEFINITIONS (shared with MCP)
-    |         - Returns structured response with tool_use blocks
-    |
-    +--[3]--> tool-use-adapter.js: parseToolCalls(response)   <-- NEW
-    |         - Normalizes xAI/OpenAI/Anthropic/Gemini formats
-    |         - Returns [{id, name, input}] regardless of provider
-    |
-    +--[4]--> For each tool_call:
-    |         tool-executor.js: executeTool(name, input)       <-- NEW (shared handler)
-    |         - Routes to: content script / background / CDP
-    |         - Returns tool_result (success text or error)
-    |
-    +--[5]--> Append to messages:
-    |         - assistant message (with tool_use blocks)
-    |         - tool_result messages (execution results)
-    |
-    +--[6]--> IF last response had tool_use: GOTO [2]
-    |         IF last response was text-only (done/fail): END
-    |         IF safety limit hit: END with warning
-    |
-    v
-Session ends when AI stops calling tools
-```
+**Target state:** Match real `sidepanel.html` + `sidepanel.css` exactly:
+- Header: "FSB" title + status dot + "Ready"/"Automating" text + history/new-chat/settings buttons
+- Messages: exact color values, border-radius (18px user, 6px bottom-corner), shadow values
+- User message: `#ff6b35` background, white text, `box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3)`
+- AI message: `#e3f2fd` bg, `#1565c0` text, `3px solid #2196f3` left border
+- Action message: `#f0f8f0` bg, `#2e7d32` text, monospace, `3px solid #4caf50` left border
+- Status message: `#f0f9ff` bg, 4px left border in primary color, typing dots
+- Input: `contenteditable` div with placeholder, mic button + send button in pill-shaped container
+- Footer: "Made by Lakshman Turlapati" centered text
 
-### Component Diagram: New vs Modified vs Unchanged
+**Integration approach:**
+- Update `rec-sidepanel` CSS rules to match exact values from `sidepanel.css`
+- Add HTML for missing elements (history/new-chat buttons, mic button, footer)
+- Keep `rec-` prefix -- just make the values match
 
-```
-+------------------------------------------------------------------+
-|                         BACKGROUND.JS                             |
-|                                                                   |
-|  +-------------------+    +----------------------+                |
-|  | runAgentLoop()    |    | tool-executor.js     |  <-- NEW      |
-|  | (NEW - replaces   |--->| executeTool(name,    |                |
-|  |  startAutomation  |    |   input, tabId)      |                |
-|  |  Loop)            |    | - shared w/ MCP      |                |
-|  +-------------------+    +----------+-----------+                |
-|           |                          |                            |
-|           v                          |  Routes to:                |
-|  +-------------------+               |                            |
-|  | universal-provider|               +---> content script (DOM)   |
-|  | .js (MODIFIED -   |               +---> background (CDP)       |
-|  |  add tools param, |               +---> background (multi-tab) |
-|  |  return structured|               +---> background (data)      |
-|  |  not raw text)    |                                            |
-|  +-------------------+                                            |
-|           |                                                       |
-|           v                                                       |
-|  +-------------------+    +----------------------+                |
-|  | tool-use-adapter  |    | tool-definitions.js  |  <-- NEW      |
-|  | .js (NEW -        |    | (NEW - canonical     |                |
-|  |  normalize 4      |    |  source for both     |                |
-|  |  provider formats)|    |  autopilot + MCP)    |                |
-|  +-------------------+    +----------------------+                |
-+------------------------------------------------------------------+
+### 2. Control Panel Replica (Recreation 2 update)
 
-+------------------------------------------------------------------+
-|                      CONTENT SCRIPTS (UNCHANGED)                  |
-|                                                                   |
-|  content/messaging.js  -- case 'executeAction' handler           |
-|  content/actions.js    -- FSB.tools[tool](params)                |
-|  content/dom-analysis  -- getMarkdownSnapshot, getDOM            |
-|  content/selectors.js  -- ref resolution, selector generation    |
-|  content/visual-feedback -- glow overlays, progress              |
-+------------------------------------------------------------------+
+**Current state:** `rec-dashboard` shows a simplified control panel with:
+- Basic header bar (status dot, Test API, Export, theme toggle)
+- Sidebar with 7 nav items
+- Analytics hero (4 metrics), line chart, 3 session cards
 
-+------------------------------------------------------------------+
-|                      MCP SERVER (MODIFIED)                        |
-|                                                                   |
-|  tools/manual.ts  -- IMPORTS tool-definitions.js schemas         |
-|  tools/read-only.ts -- IMPORTS tool-definitions.js schemas       |
-|  queue.ts          -- UNCHANGED (mutation serialization)          |
-|  bridge.ts         -- UNCHANGED (WebSocket transport)             |
-+------------------------------------------------------------------+
-```
+**Target state:** Match real `control_panel.html` + `options.css`:
+- Header: connection status dot, "Test API" button, "Export" button, theme toggle
+- Sidebar: 8 nav items (Dashboard, Background Agents, API Configuration, Passwords (Beta), Advanced Settings, Memory, Logs & Debugging, Help & Documentation) -- currently has 7, missing "Help & Documentation"
+- Dashboard content: Analytics hero cards with proper gradient styling
+- Real sidebar item icons should match (e.g., Memory uses `fa-brain` in real, `fa-database` in recreation)
 
-## Component-by-Component Analysis
+**Integration approach:**
+- Audit sidebar items against `control_panel.html` lines 51-88
+- Fix icon mismatches (`fa-database` -> `fa-brain` for Memory, `fa-robot` -> `fa-server` for Background Agents)
+- Add "Help & Documentation" nav item
+- Match analytics hero gradient (real uses a card-style layout from `options.css`)
+- Ensure chart and session cards match the real dashboard styling
 
-### 1. REMOVED: cli-parser.js
+### 3. MCP-in-Claude-Code Terminal Examples (NEW)
 
-**Current role:** Three-layer system (tokenizer -> COMMAND_REGISTRY -> mapper) converting CLI text like `click e5` into `{tool: 'click', params: {selector: '#submit-btn'}}`.
+**No existing component** -- this is entirely new.
 
-**Why removed:** Native tool_use means the AI returns structured `{name: "click", input: {selector: "e5"}}` directly. No text parsing needed. The COMMAND_REGISTRY's 60+ verb-to-tool mappings become unnecessary because tool definitions enforce the correct parameter names.
-
-**Risk:** Zero. The CLI parser exists solely to bridge text AI output to structured tool calls. Native tool_use eliminates that bridge entirely.
-
-**What migrates:** The COMMAND_REGISTRY's canonical tool names and parameter schemas inform the new `tool-definitions.js`. The verb aliases (click/rclick/rightclick) collapse to single canonical tool names.
-
-### 2. REMOVED: CLI_COMMAND_TABLE + TASK_PROMPTS (in ai-integration.js)
-
-**Current role:** 150-line CLI command reference table embedded in every prompt (~5KB), plus task-specific prompt templates (search, email, form, extraction, shopping, gaming, multitab -- ~8KB each). The system prompt alone can be 30-50KB.
-
-**Why removed:** Tool_use providers inject their own tool documentation from the tool definitions. The AI learns what tools do from the `description` field, not from a CLI reference table. Task-specific instructions become unnecessary because the AI can introspect available tools and their descriptions.
-
-**Risk:** LOW. The task prompts contain valuable domain intelligence (e.g., Gmail compose workflow, Google Sheets Name Box pattern). Some of this intelligence should migrate to tool descriptions or become queryable via a `get_site_guide` tool.
-
-**What migrates:** Critical patterns from TASK_PROMPTS should be embedded in:
-- Tool descriptions (e.g., `search` tool description: "Uses site's own search bar when available, falls back to Google")
-- Site guide tool responses (on-demand, not always injected)
-
-### 3. REMOVED: startAutomationLoop() (background.js lines 9384-11761+)
-
-**Current role:** ~2400-line function that orchestrates one iteration of the automation loop: health check -> DOM fetch -> stuck detection -> login detection -> AI call -> action execution -> completion check -> next iteration.
-
-**Why removed:** The agent loop pattern replaces this with a simple while loop: call AI -> execute tool_calls -> append results -> repeat until AI returns text-only response (signaling completion).
-
-**What stays from this function:**
-- Health check logic (content script liveness) -- moves to tool executor pre-check
-- CDP action routing (cdpBackgroundTools dispatch) -- moves to tool-executor.js
-- Multi-tab action routing -- moves to tool-executor.js
-- Background data tools routing -- moves to tool-executor.js
-- Visual feedback (sendSessionStatus) -- integrated into tool executor callbacks
-- Login detection hook -- becomes a tool or pre-execution middleware
-- Session metrics tracking -- remains in the new loop
-
-**What gets eliminated:**
-- ABSOLUTE_MAX_ITERATIONS cap (AI decides when to stop)
-- stuckCounter / stuck detection / recovery strategies (AI handles its own recovery)
-- DOM hash comparison / change signals (AI requests DOM when needed)
-- Complexity estimator / dynamic thresholds (unnecessary with unbounded loop)
-- DOM prefetch (AI pulls DOM on demand)
-- Two-stage CLI parse failure recovery (no parsing)
-- Sequence repetition detection (AI handles its own patterns)
-
-### 4. MODIFIED: universal-provider.js
-
-**Current role:** Builds raw text completion requests for xAI/OpenAI/Anthropic/Gemini. Returns raw text string.
-
-**Required changes:**
-- Accept optional `tools` parameter in `buildRequest()`
-- Format tools per provider:
-  - **xAI (OpenAI-compatible):** `tools: [{type: "function", function: {name, description, parameters}}]`
-  - **OpenAI:** Same format as xAI
-  - **Anthropic:** `tools: [{name, description, input_schema}]`
-  - **Gemini:** `tools: [{functionDeclarations: [{name, description, parameters}]}]`
-- Return full structured response (not just text extraction)
-- Handle `stop_reason: "tool_use"` / `finish_reason: "tool_calls"` detection
-
-**Scope of change:** The `buildRequest()` and `formatForProvider()` methods need tool formatting. The `send()` method needs to return the full response object instead of extracting text. The response parsing in `processQueue()` (ai-integration.js) gets replaced entirely.
-
-### 5. NEW: tool-definitions.js (Canonical Tool Registry)
-
-**Purpose:** Single source of truth for all tool definitions shared between autopilot and MCP server.
+**Design:** A terminal mockup (reusing the existing `.terminal-mockup` pattern from `home.css`) showing realistic Claude Code sessions using FSB MCP tools.
 
 **Structure:**
-```javascript
-// tool-definitions.js -- loaded by both background.js and imported by mcp-server
-const TOOL_DEFINITIONS = [
-  {
-    name: "click",
-    description: "Click an element on the page by element reference or CSS selector...",
-    parameters: {
-      type: "object",
-      properties: {
-        selector: { type: "string", description: "Element ref (e.g., 'e5') or CSS selector" }
-      },
-      required: ["selector"]
-    },
-    // Internal routing metadata (not sent to AI)
-    _route: "content",      // content | background-cdp | background-tab | background-data
-    _fsbVerb: "click",      // maps to FSB.tools key
-    _readOnly: false         // true = bypass mutation queue
-  },
-  // ... 35+ tool definitions
-];
+```html
+<div class="browser-frame">
+  <div class="browser-topbar">
+    <div class="browser-dots">...</div>
+    <div class="browser-address">Terminal -- Claude Code</div>
+  </div>
+  <div class="rec-mcp-terminal">
+    <div class="rec-mcp-line prompt">$ claude</div>
+    <div class="rec-mcp-line output">Claude Code v1.0.8</div>
+    <div class="rec-mcp-line user">> Use FSB to search for flights from SF to NYC on Google Flights</div>
+    <div class="rec-mcp-line tool-call">
+      <span class="rec-mcp-tool-name">fsb_run_task</span>
+      <span class="rec-mcp-tool-args">{"task": "Search Google Flights for SF to NYC..."}</span>
+    </div>
+    <div class="rec-mcp-line tool-result">
+      Task completed. Found 12 flights...
+    </div>
+    <div class="rec-mcp-line assistant">
+      I found 12 flights from SF to NYC. The cheapest is...
+    </div>
+  </div>
+</div>
 ```
 
-**Key design decisions:**
-- Parameters use JSON Schema (provider-agnostic)
-- Internal `_route` and `_fsbVerb` fields tell the executor how to dispatch
-- `_readOnly` flag replicates MCP queue.ts read-only bypass logic
-- Tool descriptions carry the intelligence currently in CLI_COMMAND_TABLE
-- DOM snapshot and site guides become tools (not always-injected context)
+**Styling approach:**
+- Dark background (#0d1117) matching existing terminal mockup
+- Green prompt text for `$` lines
+- Blue for Claude's output
+- Orange highlight for FSB tool calls
+- Monospace font throughout
+- Typing animation on the user input line (via `recreations.js`)
 
-**New on-demand tools (not in current MCP):**
-- `get_page_snapshot`: Returns markdown DOM snapshot (currently auto-fetched every iteration)
-- `get_site_guide`: Returns site-specific intelligence (currently always injected)
-- `report_progress`: Lets AI update the progress overlay text
-- `complete_task`: Signals task completion with summary (replaces `done` CLI verb)
-- `fail_task`: Signals task failure with reason (replaces `fail` CLI verb)
+**Recommended examples (2-3 terminal blocks):**
+1. **Browser automation via MCP:** `fsb_run_task` with a search task
+2. **Page reading via MCP:** `fsb_read_page` extracting content
+3. **Multi-step workflow:** Navigate + extract + summarize
 
-### 6. NEW: tool-use-adapter.js (Provider Format Normalizer)
+### 4. Audit of Existing "See It in Action" Section
 
-**Purpose:** Normalize the 4 different tool_use response formats into a single internal representation.
+**Issues found in current about.html:**
 
-**Provider response formats:**
+| Issue | Location | Fix |
+|-------|----------|-----|
+| Recreation sidepanel only shows gear icon, missing history/new-chat buttons | Recreation 1 and 3 `rec-sp-actions` | Add two more icon buttons |
+| Mic button missing from sidepanel input | Recreation 1 and 3 `rec-sp-input` | Add mic button before send |
+| Footer "Made by Lakshman Turlapati" missing from sidepanel | All recreations | Add footer div |
+| Dashboard sidebar Memory icon uses `fa-database`, real uses `fa-brain` | Recreation 2 sidebar | Fix icon class |
+| Dashboard sidebar Background Agents icon uses `fa-robot`, real uses `fa-server` | Recreation 2 sidebar | Fix icon class |
+| Dashboard sidebar missing "Help & Documentation" item | Recreation 2 sidebar | Add nav item |
+| Version shown as "v9.0.2" in footer | Page footer | Update to current version |
+| Dark theme message colors differ from real sidepanel.css | `recreations.css` dark overrides | Match exact values |
+| User message shadow differs (rec uses generic, real uses `rgba(255, 107, 53, 0.3)`) | `recreations.css` `.rec-msg.user` | Update shadow value |
 
-| Provider | Response location | Tool call shape | Result format |
-|----------|-------------------|-----------------|---------------|
-| xAI (OpenAI-compat) | `choices[0].message.tool_calls` | `{id, type:"function", function:{name, arguments}}` | `{role:"tool", tool_call_id, content}` |
-| OpenAI | `choices[0].message.tool_calls` | Same as xAI | Same as xAI |
-| Anthropic | `content[]` items with `type:"tool_use"` | `{id, name, input}` | `{type:"tool_result", tool_use_id, content}` |
-| Gemini | `candidates[0].content.parts[]` | `{functionCall:{id, name, args}}` | `{functionResponse:{id, name, response}}` |
+## Patterns to Follow
 
-**Normalized internal format:**
-```javascript
-// Adapter output (provider-agnostic)
-{
-  textContent: "I'll click the search button...",  // optional text before tools
-  toolCalls: [
-    { id: "call_123", name: "click", input: { selector: "e5" } },
-    { id: "call_124", name: "type_text", input: { selector: "e12", text: "wireless mouse" } }
-  ],
-  stopReason: "tool_use" | "end_turn" | "max_tokens"
+### Pattern 1: Scoped CSS with `rec-` Prefix
+
+**What:** All recreation CSS classes use the `rec-` prefix to avoid specificity conflicts with the showcase design system and hypothetical real extension CSS.
+
+**When:** Always, for any new recreation component.
+
+**Example:**
+```css
+/* CORRECT -- scoped to recreation namespace */
+.rec-mcp-terminal { ... }
+.rec-mcp-line { ... }
+.rec-mcp-tool-name { ... }
+
+/* WRONG -- would conflict with main.css or extension CSS */
+.terminal { ... }
+.mcp-line { ... }
+```
+
+### Pattern 2: Theme Variables with `[data-theme]` Selectors
+
+**What:** Each recreation component defines both dark (default) and light theme colors. The showcase is dark by default; `[data-theme="light"]` overrides apply when the user toggles the theme.
+
+**When:** For every color, background, and border value in recreation CSS.
+
+**Example:**
+```css
+.rec-mcp-terminal {
+  background: #0d1117;
+  color: #e6edf3;
 }
 
-// Result format (fed back to provider via adapter)
-// Adapter converts internal result to provider-specific format
-{
-  toolId: "call_123",
-  result: { success: true, text: "Clicked element e5 (Submit button)" }
-}
-```
-
-### 7. NEW: tool-executor.js (Unified Execution Engine)
-
-**Purpose:** Single execution path for both autopilot and MCP tool calls. Replaces the action routing logic currently split across startAutomationLoop and mcp:execute-action handler.
-
-**Routing logic (extracted from current background.js):**
-```
-tool-executor.js: executeTool(toolName, params, tabId)
-    |
-    +-- _route === "content"
-    |   +---> chrome.tabs.sendMessage(tabId, { action: 'executeAction', tool, params })
-    |         (same path as current autopilot AND mcp:execute-action)
-    |
-    +-- _route === "background-cdp"
-    |   +---> executeCDPToolDirect(action, tabId)
-    |         (same CDP routing as current background.js line 10922)
-    |
-    +-- _route === "background-tab"
-    |   +---> handleMultiTabAction(action, tabId)
-    |         (same multi-tab routing as current background.js line 10894)
-    |
-    +-- _route === "background-data"
-    |   +---> handleBackgroundAction(action, session)
-    |         (same data routing as current background.js line 10908)
-    |
-    +-- Pre-execution: health check, ref validation
-    +-- Post-execution: visual feedback, action recording
-    +-- Result formatting: {success, text, error} for tool_result
-```
-
-**MCP integration:** The MCP server's `execAction()` (manual.ts) should be refactored to call `tool-executor.js` instead of directly calling `bridge.sendAndWait()`. This unifies the execution path:
-
-```
-Current MCP:   manual.ts -> bridge.sendAndWait -> background.js mcp handler -> content
-Current Auto:  background.js loop -> chrome.tabs.sendMessage -> content
-
-New (both):    tool-executor.js -> dispatch by route -> content / background
-```
-
-### 8. MODIFIED: ai-integration.js
-
-**Current role:** AIIntegration class with buildPrompt, callAPI, processQueue, parseCliResponse integration, prompt caching, request queuing.
-
-**What stays:**
-- Request queuing and circuit breaker logic
-- Response caching (keyed differently -- by messages hash, not prompt hash)
-- Rate limit handling and retry with backoff
-- `callAPI()` core (but modified to accept tools and return structured response)
-
-**What is removed:**
-- `buildPrompt()` -- replaced by the agent loop's message construction
-- `parseCliResponse()` integration -- no CLI parsing
-- Two-stage CLI recovery -- no CLI to recover
-- `CLI_COMMAND_TABLE` constant -- tool definitions replace it
-- `TASK_PROMPTS` constants -- on-demand via tools
-- `formatSiteKnowledge()` -- becomes tool response
-- `sanitizeActions()` -- moves to tool-executor.js as pre-execution check
-- `processQueue()` response processing (CLI-specific) -- replaced with tool_use processing
-
-**Net effect:** AIIntegration becomes a thin wrapper around UniversalProvider that manages queuing, caching, and conversation history. The business logic moves to the agent loop.
-
-### 9. MODIFIED: background.js (Session Management)
-
-**What stays in background.js:**
-- Session creation/cleanup (`activeSessions` Map)
-- Message routing (chrome.runtime.onMessage)
-- MCP WebSocket handler (mcp:execute-action, etc.)
-- Visual feedback coordination (sendSessionStatus)
-- Login detection hook (can be called from tool-executor)
-- Analytics and metrics tracking
-- Action recording and logging
-
-**What is removed from background.js:**
-- `startAutomationLoop()` (~2400 lines) -- replaced by `runAgentLoop()`
-- DOM prefetch logic
-- Stuck detection / recovery strategies
-- Completion signal detection
-- Sequence repetition analysis
-- Complexity estimator
-- Intermediate page detection
-
-**Net reduction:** Approximately 3000-4000 lines removed from background.js. The new `runAgentLoop()` should be ~200-300 lines.
-
-### 10. UNCHANGED: Content Scripts
-
-All 10 content modules remain unchanged:
-- `content/init.js` -- Module initialization
-- `content/messaging.js` -- Message handler (executeAction case)
-- `content/actions.js` -- FSB.tools registry (25+ tools)
-- `content/dom-analysis.js` -- DOM analysis and markdown snapshots
-- `content/dom-state.js` -- DOM state management
-- `content/selectors.js` -- Selector generation and ref resolution
-- `content/visual-feedback.js` -- Glow overlays and progress
-- `content/lifecycle.js` -- BF cache handling, login
-- `content/utils.js` -- Utility functions
-- `content/dom-stream.js` -- Dashboard DOM streaming
-- `content/accessibility.js` -- ARIA and accessibility
-- `content/stt-recognition.js` -- Speech recognition
-
-The content script's `executeAction` handler is the convergence point. Both old and new architectures send `{action: 'executeAction', tool, params}` to it.
-
-## Provider-Specific Tool_Use Format Mapping
-
-### Tool Definition Translation
-
-**Canonical (tool-definitions.js):**
-```javascript
-{
-  name: "click",
-  description: "Click an element...",
-  parameters: {
-    type: "object",
-    properties: {
-      selector: { type: "string", description: "Element ref or CSS selector" }
-    },
-    required: ["selector"]
-  }
+[data-theme="light"] .rec-mcp-terminal {
+  background: #f6f8fa;
+  color: #24292f;
 }
 ```
 
-**xAI / OpenAI format:**
+### Pattern 3: IntersectionObserver-Triggered Animations
+
+**What:** Animations (typing, fade-in, counters) only start when the element scrolls into view. This is the pattern used by `recreations.js` throughout.
+
+**When:** For any new animated component (MCP terminal typing).
+
+**Example:**
 ```javascript
-{
-  type: "function",
-  function: {
-    name: "click",
-    description: "Click an element...",
-    parameters: {
-      type: "object",
-      properties: {
-        selector: { type: "string", description: "Element ref or CSS selector" }
-      },
-      required: ["selector"]
+if ('IntersectionObserver' in window) {
+  var observer = new IntersectionObserver(function (entries) {
+    if (entries[0].isIntersecting && !started) {
+      started = true;
+      startAnimation();
+      observer.disconnect();
     }
-  }
+  }, { threshold: 0.3 });
+  observer.observe(element);
 }
 ```
 
-**Anthropic format:**
-```javascript
-{
-  name: "click",
-  description: "Click an element...",
-  input_schema: {
-    type: "object",
-    properties: {
-      selector: { type: "string", description: "Element ref or CSS selector" }
-    },
-    required: ["selector"]
-  }
-}
-```
+### Pattern 4: Browser Frame Container
 
-**Gemini format:**
-```javascript
-{
-  functionDeclarations: [{
-    name: "click",
-    description: "Click an element...",
-    parameters: {
-      type: "object",
-      properties: {
-        selector: { type: "string", description: "Element ref or CSS selector" }
-      },
-      required: ["selector"]
-    }
-  }]
-}
-```
+**What:** All recreations are wrapped in a `.browser-frame` with a `.browser-topbar` (dots + address bar) and `.browser-content`. This provides visual context ("this is what it looks like in a browser").
 
-### Conversation History Translation
+**When:** For sidepanel and control panel recreations. The MCP terminal can use a simpler terminal frame (already exists as `.terminal-mockup` in `home.css`).
 
-The adapter must translate tool results back into provider-specific message format:
+### Pattern 5: No External Dependencies for Recreations
 
-**xAI / OpenAI:**
-```javascript
-messages: [
-  { role: "assistant", tool_calls: [{id: "call_1", type: "function", function: {name: "click", arguments: '{"selector":"e5"}'}}] },
-  { role: "tool", tool_call_id: "call_1", content: '{"success": true, "text": "Clicked Submit button"}' }
-]
-```
+**What:** Recreations use only Font Awesome (already loaded), CSS animations, and vanilla JavaScript. No additional libraries.
 
-**Anthropic:**
-```javascript
-messages: [
-  { role: "assistant", content: [{type: "tool_use", id: "toolu_1", name: "click", input: {selector: "e5"}}] },
-  { role: "user", content: [{type: "tool_result", tool_use_id: "toolu_1", content: "Clicked Submit button"}] }
-]
-```
+**When:** Always. The showcase site has no build system. Keep it simple.
 
-**Gemini:**
-```javascript
-contents: [
-  { role: "model", parts: [{functionCall: {id: "fc_1", name: "click", args: {selector: "e5"}}}] },
-  { role: "user", parts: [{functionResponse: {id: "fc_1", name: "click", response: {success: true}}}] }
-]
-```
+## Anti-Patterns to Avoid
 
-## Shared Code Path: Autopilot + MCP Unification
+### Anti-Pattern 1: Importing Real Extension CSS Directly
 
-### Current State: Two Parallel Paths
+**What:** Linking to or copying `sidepanel.css` / `options.css` into the showcase page.
 
-```
-AUTOPILOT:                          MCP:
-ai-integration.js                   manual.ts (Zod schemas)
-  -> buildPrompt()                    -> server.tool() registration
-  -> callAPI() (text)                 -> execAction()
-  -> cli-parser.js                    -> bridge.sendAndWait()
-  -> background.js routing            -> background.js mcp handler
-  -> chrome.tabs.sendMessage          -> chrome.tabs.sendMessage
-  -> content/messaging.js             -> content/messaging.js
-  -> FSB.tools[tool]                  -> FSB.tools[tool]
-```
+**Why bad:** These files assume Chrome extension runtime (100vh body, extension scrollbar, message passing for dynamic content). They also use different CSS variable names that would clash with `main.css` design tokens. Additionally, they include ~2500 lines of styling for features not shown in the recreation (login prompts, recon suggestions, action summaries, etc.).
 
-### Target State: Unified Path
+**Instead:** Manually match the exact CSS values in the `rec-` prefixed recreation styles. Only port the specific properties (colors, border-radius, font-size, shadows) that affect visual appearance.
 
-```
-                tool-definitions.js
-                (canonical schemas)
-                /                  \
-AUTOPILOT:                          MCP:
-runAgentLoop()                      manual.ts imports schemas
-  -> callAPI(messages, tools)         -> server.tool() uses same schemas
-  -> tool-use-adapter.js              -> bridge.sendAndWait()
-  -> tool-executor.js                 -> tool-executor.js (via bridge)
-  -> dispatch by _route               -> dispatch by _route
-  -> FSB.tools[tool]                  -> FSB.tools[tool]
-```
+### Anti-Pattern 2: Creating a Shared CSS File Between Extension and Showcase
 
-The key unification points:
-1. **Tool definitions:** Both autopilot and MCP derive from `tool-definitions.js`
-2. **Execution engine:** Both route through `tool-executor.js`
-3. **Content script:** Both send `{action: 'executeAction', tool, params}` to the same handler
+**What:** Making `fsb-ui-core.css` a dependency of both the extension and the showcase.
 
-### MCP Schema Migration
+**Why bad:** The showcase uses a different design system (dark-first with true black backgrounds) while the extension uses warm-toned grays. Making them share a CSS file would create coupling between the showcase's visual language and the extension's. Changes to the extension theme would break the showcase.
 
-Current MCP tool definitions use Zod schemas inline in `manual.ts`. These should be generated from `tool-definitions.js`:
+**Instead:** Keep them separate. The showcase recreations are snapshots of what the extension looks like. They do not need to be kept in sync automatically -- they are updated manually at milestone boundaries.
 
-```javascript
-// tool-definitions.js (canonical, vanilla JS)
-const TOOL_DEFINITIONS = [
-  { name: "click", description: "...", parameters: { ... }, _route: "content", _fsbVerb: "click" }
-];
+### Anti-Pattern 3: Over-Engineering with JavaScript Interactivity
 
-// mcp-server/tools/manual.ts (imports and converts)
-import { TOOL_DEFINITIONS } from '../../shared/tool-definitions.js';
-import { toZodSchema } from './schema-converter.js';
+**What:** Making recreation sidepanels clickable, message inputs functional, or adding simulated automation loops.
 
-for (const tool of TOOL_DEFINITIONS.filter(t => !t._readOnly)) {
-  server.tool(tool.name, tool.description, toZodSchema(tool.parameters), async (params) => {
-    return execAction(bridge, queue, tool.name, tool._fsbVerb, params);
-  });
-}
-```
+**Why bad:** Scope creep. The goal is visual fidelity, not functional replicas. Interactive demos would require maintaining a mini-application within the showcase.
 
-## Build Order (Dependency-Driven)
+**Instead:** Static HTML with scroll-triggered animations. The typing animation and message cascade already give the impression of "live" behavior without needing actual logic.
 
-### Phase 1: Foundation (No Behavioral Change)
+### Anti-Pattern 4: Using iframes to Embed Real Extension Pages
 
-1. **tool-definitions.js** -- Write canonical tool registry
-   - Depends on: nothing (new file, derived from COMMAND_REGISTRY + MCP Zod schemas)
-   - Blocks: everything else
-   - Test: unit test that all current tools are covered
+**What:** Embedding `sidepanel.html` or `control_panel.html` in iframes within the showcase.
 
-2. **tool-use-adapter.js** -- Provider format normalizer
-   - Depends on: nothing (pure data transformation)
-   - Test: unit test with mock responses from each provider
+**Why bad:** These pages depend on Chrome extension APIs (`chrome.runtime`, `chrome.storage`, `chrome.tabs`). They would throw errors outside the extension context. Even with mock APIs, the pages would need network requests and background script connections to render properly.
 
-### Phase 2: Execution Unification (Refactor, No New Loop Yet)
+**Instead:** Pure HTML/CSS recreations that look identical but have no runtime dependencies.
 
-3. **tool-executor.js** -- Unified execution engine
-   - Depends on: tool-definitions.js (for routing metadata)
-   - Extract routing logic from startAutomationLoop lines 10830-10950
-   - Test: can execute tools via the executor, results match current behavior
+## CSS Strategy Decision
 
-4. **MCP schema migration** -- Make MCP server import from tool-definitions.js
-   - Depends on: tool-definitions.js
-   - Write toZodSchema() converter
-   - Test: MCP tools still work identically
+### Do NOT Share CSS. Do NOT Duplicate Entire Files. Manually Port Values.
 
-### Phase 3: Provider Integration
+The correct approach is a middle ground:
 
-5. **universal-provider.js modifications** -- Add tools parameter support
-   - Depends on: tool-definitions.js (for tool format)
-   - Add formatToolsForProvider() to format tool defs per provider
-   - Return full structured response instead of text extraction
-   - Test: API calls with tools parameter succeed for each provider
+1. **Read** the real `sidepanel.css` and `options.css` for exact values
+2. **Port** specific properties (colors, sizes, radii, shadows, fonts) into `recreations.css` rules
+3. **Keep** the `rec-` prefix namespace
+4. **Keep** the showcase's `[data-theme]` toggle mechanism
+5. **Document** in a code comment which real CSS file each recreation section corresponds to
 
-### Phase 4: Agent Loop
+This gives pixel accuracy without creating maintenance coupling.
 
-6. **runAgentLoop()** -- New agent loop in background.js
-   - Depends on: tool-use-adapter.js, tool-executor.js, modified universal-provider.js
-   - Implement while loop: call AI -> parse tool_calls -> execute -> append results -> repeat
-   - Wire up session management, visual feedback, safety limits
-   - Test: end-to-end task execution with real AI provider
+## Scalability Considerations
 
-7. **On-demand tools** -- get_page_snapshot, get_site_guide, complete_task, fail_task
-   - Depends on: tool-definitions.js, tool-executor.js
-   - Move DOM snapshot from auto-fetch to tool call
-   - Move site guide injection from prompt to tool response
-   - Test: AI successfully calls these tools during agent loop
+| Concern | Current (3 recreations) | After v0.9.22 (3 updated + 1 new) | Future |
+|---------|------------------------|-----------------------------------|--------|
+| `recreations.css` size | 1282 lines | ~1600-1800 lines | Manageable; consider splitting into per-recreation files if exceeding 2500 lines |
+| Animation JS | 257 lines, 7 animation types | ~320 lines with MCP typing | No concern |
+| Page load performance | Fine (all CSS is <100KB combined) | Fine | No concern until 10+ recreations |
+| Theme maintenance | All recreations have light/dark | Same | Same pattern; mechanical but straightforward |
 
-### Phase 5: Cleanup
+## Build Order (Suggested Phase Sequence)
 
-8. **Remove dead code** -- cli-parser.js, CLI_COMMAND_TABLE, TASK_PROMPTS, startAutomationLoop
-   - Depends on: runAgentLoop fully working
-   - Test: regression test suite passes without old code
+The following order respects dependencies:
 
-## Safety Architecture
+### Phase 1: Sidepanel Replica Audit and CSS Fix
 
-### Guardrails (replacing current iteration caps)
+**Dependencies:** None -- self-contained.
+**Scope:** Audit `sidepanel.css` vs `rec-sidepanel` in `recreations.css`. Port exact color values, font sizes, border-radius, shadows. Update HTML in `about.html` recreations 1 and 3 to include missing elements (history/new-chat buttons, mic button, footer).
+**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`
 
-The current system uses `ABSOLUTE_MAX_ITERATIONS` (default 20) and `MAX_SESSION_DURATION` (5 min). The new system needs equivalent safety without limiting the AI's ability to complete complex tasks:
+### Phase 2: Control Panel Replica Audit and CSS Fix
 
-| Guardrail | Current | New |
-|-----------|---------|-----|
-| Iteration cap | 20 (hard limit) | Token budget (~100K tokens/session) |
-| Time limit | 5 min default | 10 min default, configurable |
-| Stuck detection | DOM hash + action patterns | AI decides; optional server-side watchdog |
-| Cost limit | None (implicit via iteration cap) | Explicit cost ceiling per session |
-| Action safety | sanitizeActions() filter | Same filter in tool-executor.js |
-| Irrevocable guard | CMP-03 cooldown registry | Same cooldown in tool-executor.js |
+**Dependencies:** None (parallel with Phase 1 if desired).
+**Scope:** Audit `options.css` + `control_panel.html` vs `rec-dashboard` in `recreations.css`. Fix sidebar icons and items. Match analytics hero styling. Update session card layout.
+**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`
 
-### Session Abort
+### Phase 3: MCP Terminal Recreation (New Section)
 
-The current `AbortController` pattern (background.js line 10560) should be preserved. The agent loop checks for abort between tool executions, same as the current check between actions.
+**Dependencies:** None for CSS; the `terminal-mockup` pattern already exists in `home.css`. Can run in parallel.
+**Scope:** Add a new section to `about.html` with 2-3 MCP terminal examples. Create `rec-mcp-*` CSS classes in `recreations.css`. Add typing animation function in `recreations.js`.
+**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`, `showcase/js/recreations.js`
 
-## Conversation History Management
+### Phase 4: Gap Audit and Final Sweep
 
-### Context Window Pressure
+**Dependencies:** Phases 1-3 complete.
+**Scope:** Side-by-side comparison of all recreations vs real extension. Fix any remaining visual discrepancies. Test dark/light theme toggle for all recreations. Test responsive breakpoints. Update version number in footer.
+**Files modified:** `showcase/about.html`, `showcase/css/recreations.css`, potentially `showcase/css/about.css`
 
-A key concern: as the agent loop runs, conversation history grows with every tool_call/tool_result pair. With 35+ available tools and potentially dozens of iterations, the context can fill rapidly.
+### Why This Order
 
-**Strategy:**
-- Conversation history is the message array
-- Each tool_result should be concise (success status + brief description, not full DOM dumps)
-- DOM snapshot tool returns the markdown snapshot (~12KB) only when called
-- Older tool_result entries can be summarized/trimmed after N iterations
-- Use provider's context window awareness: xAI Grok 4.1 Fast has 2M context, so this is less critical than with smaller models
+- Phases 1 and 2 are updates to existing recreations -- lower risk, clear reference points
+- Phase 3 is a net-new component -- benefits from having the updated sidepanel CSS as context for maintaining visual consistency
+- Phase 4 is the quality gate -- catches drift between phases
 
-### Message Array Structure
+## Integration Points Summary
 
-```javascript
-const messages = [
-  { role: "system", content: SYSTEM_PROMPT },           // ~1-2KB
-  { role: "user", content: "Task: ...\nURL: ..." },     // ~100 bytes
-  // --- Agent loop iterations ---
-  { role: "assistant", content: [...tool_use blocks] },  // AI's tool calls
-  { role: "user/tool", content: [...tool_results] },     // Execution results
-  { role: "assistant", content: [...tool_use blocks] },  // Next round
-  { role: "user/tool", content: [...tool_results] },
-  // ... continues until AI returns text-only
-  { role: "assistant", content: "Task complete. ..." }   // Final response
-];
-```
+| From | To | Integration Type | Notes |
+|------|----|-----------------|-------|
+| `sidepanel.css` (real) | `recreations.css` (showcase) | Manual value porting | Colors, sizes, radii, shadows only |
+| `options.css` (real) | `recreations.css` (showcase) | Manual value porting | Layout proportions, color scheme |
+| `control_panel.html` (real) | `about.html` (showcase) | Structural reference | Sidebar items, section names |
+| `sidepanel.html` (real) | `about.html` (showcase) | Structural reference | Header layout, input area structure |
+| `home.css` `.terminal-mockup` | `recreations.css` `.rec-mcp-terminal` | Pattern reuse | Dark terminal aesthetic |
+| `main.css` design tokens | `recreations.css` `--rec-*` tokens | Indirect consumption | `var(--primary)` used in some rec styles |
+| `main.js` theme toggle | `recreations.css` `[data-theme]` | Event-driven | Theme switch applies to all recreations |
+| `recreations.js` animations | `about.html` DOM elements | IntersectionObserver | Scroll-triggered animations |
+
+## New vs Modified Components
+
+| File | Action | What Changes |
+|------|--------|-------------|
+| `showcase/about.html` | MODIFY | Update recreation 1-3 HTML, add MCP section |
+| `showcase/css/recreations.css` | MODIFY | Port exact CSS values, add MCP terminal styles |
+| `showcase/js/recreations.js` | MODIFY | Add MCP terminal typing animation |
+| `showcase/css/about.css` | POSSIBLY MODIFY | Add section styling for MCP recreation if needed |
+| `showcase/css/main.css` | NO CHANGE | Design system is stable |
+| `showcase/js/main.js` | NO CHANGE | Core functionality is stable |
+| `ui/sidepanel.css` | READ ONLY | Reference for pixel matching |
+| `ui/sidepanel.html` | READ ONLY | Reference for HTML structure |
+| `ui/options.css` | READ ONLY | Reference for pixel matching |
+| `ui/control_panel.html` | READ ONLY | Reference for HTML structure |
+| `shared/fsb-ui-core.css` | READ ONLY | Reference for design token values |
 
 ## Sources
 
-- xAI Function Calling: https://docs.x.ai/docs/guides/function-calling
-- xAI Tools Overview: https://docs.x.ai/docs/guides/tools/overview
-- OpenAI Function Calling: https://platform.openai.com/docs/guides/function-calling
-- Anthropic Tool Use: https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview
-- Anthropic Implement Tool Use: https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use
-- Gemini Function Calling: https://ai.google.dev/gemini-api/docs/function-calling
-- FSB codebase: background.js, ai-integration.js, cli-parser.js, universal-provider.js, mcp-server/src/tools/manual.ts, content/messaging.js, content/actions.js
+- Direct codebase analysis of:
+  - `showcase/about.html` (existing recreations)
+  - `showcase/css/recreations.css` (1282 lines of recreation styles)
+  - `showcase/css/main.css` (showcase design system)
+  - `showcase/js/recreations.js` (animation logic)
+  - `ui/sidepanel.html` + `ui/sidepanel.css` (real sidepanel)
+  - `ui/control_panel.html` + `ui/options.css` (real control panel)
+  - `shared/fsb-ui-core.css` (shared design tokens)
+  - `Dockerfile` (deployment confirms `showcase/` -> `/app/public/`)
+  - `fly.toml` (deployment config)

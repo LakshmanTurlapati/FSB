@@ -1,629 +1,244 @@
-# Technology Stack: v0.9.20 Native tool_use Agent Loop
+# Technology Stack: v0.9.22 Showcase High-Fidelity Replicas
 
-**Project:** FSB (Full Self-Browsing) -- Native tool_use/function calling across all 4 providers
-**Researched:** 2026-03-31
-**Mode:** Ecosystem (API format mapping for xAI, OpenAI, Anthropic, Gemini function calling)
+**Project:** FSB (Full Self-Browsing) -- Pixel-accurate HTML/CSS replicas for showcase site
+**Researched:** 2026-04-02
+**Mode:** Ecosystem (UI replica techniques, terminal mockup rendering)
+**Confidence:** HIGH
 
 ## Executive Summary
 
-All four providers FSB supports now have mature tool_use/function calling APIs. The critical finding is that three providers (xAI, OpenAI, OpenRouter) share the OpenAI chat/completions format, while Anthropic and Gemini each have their own. The existing `UniversalProvider` class already handles per-provider request formatting (`formatForProvider`) and response parsing (`parseResponse`) -- the tool_use extension follows the same pattern: define tools once in a canonical format, translate per-provider on send, normalize per-provider on receive.
+This milestone requires ZERO new dependencies. The showcase site is a pure static HTML/CSS/JS site (no build system, no npm, no bundler) and this constraint must remain. The existing `recreations.css` and `recreations.js` infrastructure already provides all the patterns needed -- browser chrome frames, sidepanel mockups, dashboard analytics recreations, viewport glow effects, typing animations, and IntersectionObserver-triggered cascades. The v0.9.22 work is extending these proven patterns to higher fidelity, not introducing a new rendering pipeline.
 
-**Key decision: Use xAI chat/completions (not xAI Responses API) because it is OpenAI-compatible, meaning xAI and OpenAI share identical tool handling code. The Responses API is newer but uses different formats that would require a third translation layer for minimal benefit.**
+For the Claude Code terminal mockups specifically, the approach is pure CSS + vanilla JS (matching the existing `recreations.js` style), not a library like xterm.js or termynal.js. Those libraries solve interactive terminal problems that do not apply here -- we need static, scripted showcase animations with Claude Code's specific visual structure (tool-use blocks, nested results, colored parameters).
 
-## Provider API Format Comparison
+The core technical challenge is not "what tools to use" but "accurate color token mapping" between the real extension UIs and the showcase recreation CSS namespace.
 
-### Tool Definition Formats
+## Recommended Stack
 
-All providers use JSON Schema for parameter definitions. The wrapper differs.
+### Core Technologies
 
-#### Canonical (Internal) Format -- What FSB stores
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| Vanilla CSS (`recreations.css`) | n/a | All UI replica styling | Already proven in the codebase. Extends naturally. No build step. CSS custom properties handle dark/light theme toggle via `[data-theme]` attribute. The existing `--rec-*` token system maps cleanly to the extension's `--fsb-*` tokens. |
+| Vanilla JS (`recreations.js`) | ES2021+ | Typing animations, IntersectionObserver cascades, counter animations, tab switching | Already in production. IIFE pattern, no modules needed. Works without bundler. Existing functions (`initTerminalTyping`, `initMessageCascade`, `initProgressBars`, `initChartBars`, `initCounters`) cover most animation needs. |
+| Font Awesome 6.6.0 | 6.6.0 (CDN) | Icons in replica UIs | Already loaded in all showcase pages via `cdnjs.cloudflare.com`. Sidepanel and options page both use FA icons (`fa-cog`, `fa-clock-rotate-left`, `fa-plus`, `fa-arrow-up`, `fa-microphone`, `fa-tachometer-alt`, `fa-key`, `fa-robot`, `fa-database`, `fa-terminal`, etc.). No additional icon library needed. |
+| Phosphor Icons 2.1.1 | 2.1.1 (unpkg CDN) | Theme toggle icon | Already loaded in all showcase pages. Used for the sun/moon theme toggle button. |
+| CSS Custom Properties | Native | Theme-aware styling for all replicas | Showcase uses `--rec-*` design tokens with `[data-theme="light"]` overrides. Extension uses `--fsb-*` tokens from `fsb-ui-core.css`. Replicas map extension values into the `--rec-*` namespace for isolation. |
+| Inline SVG | Native | Charts in dashboard replica | Already used in the existing dashboard recreation (`rec-line-svg` polyline with gradient fill). No chart.js needed for static visuals. |
 
-```javascript
-// One tool definition used everywhere (autopilot + MCP)
-{
-  name: 'click',
-  description: 'Click an element by CSS selector or element reference.',
-  parameters: {
-    type: 'object',
-    properties: {
-      selector: { type: 'string', description: 'CSS selector or element ref (e.g., "e5")' }
-    },
-    required: ['selector']
-  }
-}
+### Supporting Libraries
+
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| None required | -- | -- | The existing stack handles everything needed. |
+
+### Development Tools
+
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| Chrome DevTools | Side-by-side pixel comparison of real extension UI vs replica | Open extension's actual sidepanel/options page alongside the showcase replica. Use the device toolbar to match sidepanel width (default ~420px). |
+| PixelParallel (Chrome Extension) | Optional overlay verification | Free tool for overlaying a reference image on the live page. Useful for final verification, not required for development. |
+
+## What This Milestone Adds
+
+### 1. High-Fidelity Sidepanel Replica (CSS + HTML)
+
+**Source of truth:** `ui/sidepanel.html` + `ui/sidepanel.css` + `shared/fsb-ui-core.css`
+
+The existing `.rec-sidepanel` class in `recreations.css` already renders a simplified sidepanel mockup. It has a header (title + status dot + gear icon), a message list (user/system/ai/action/status types), and an input bar. The v0.9.22 upgrade:
+
+- **Spacing and sizing audit.** Match the real sidepanel's exact padding (`16px 20px` for header), font sizes (`16px` h1, `10px` status dot), and border radii.
+- **Add missing elements.** The real sidepanel has: history button (`fa-clock-rotate-left`), new-chat button (`fa-plus`), settings button (`fa-cog`), microphone button, voice input button, `contenteditable` input wrapper, and author footer. The current replica only has one gear icon.
+- **Refine message styling.** The real sidepanel renders markdown via `marked.min.js` but the replica only needs static pre-rendered HTML that looks like rendered output (bold text, code blocks, bullet lists). Style with CSS, no runtime parsing.
+- **Color token accuracy.** The current `--rec-sp-bg: #1f2937` does not match the real sidepanel dark mode `--bg-primary: #262626`. Update to match.
+
+**Approach:** Extend existing CSS classes. Add new HTML in `about.html`. No new files or libraries.
+
+### 2. High-Fidelity Control Panel / Options Page Replica (CSS + HTML)
+
+**Source of truth:** `ui/options.css` + `ui/options.js`
+
+The existing `.rec-dashboard` class already renders a dashboard mockup with sidebar navigation, metrics cards, charts, and session history cards. The v0.9.22 upgrade:
+
+- **Expand sidebar items.** The real options page has: Dashboard, API Configuration, Passwords (Beta badge), Background Agents, Advanced Settings, Memory, Site Guides, Logs & Debugging. The current replica has most of these but should add Site Guides.
+- **Add tab content detail.** Show at least two tabs in detail (Dashboard is already done; add API Configuration or Background Agents with realistic form fields, model dropdowns, and cost indicators).
+- **Match warm neutral palette.** The real options page uses warm grays from `fsb-ui-core.css` (`--fsb-gray-50: #faf8f6`, `--fsb-surface-base: #fffdfb`). The current recreation uses cooler blue-grays. Map the warm tokens.
+- **Tab switching interaction.** Vanilla JS click handler toggles `.active` class on sidebar items and shows/hides corresponding content divs. This follows the existing FAQ accordion pattern in `recreations.js`.
+
+**Approach:** Extend existing CSS classes. Add tab-switching logic to `recreations.js`. No new files or libraries.
+
+### 3. Claude Code Terminal Mockup (CSS + HTML + JS) -- NEW COMPONENT
+
+**This is entirely new.** No existing recreation covers terminal sessions. Build as a new `.rec-terminal` component following established patterns.
+
+**Visual structure of a Claude Code MCP session:**
+- Dark terminal window with macOS-style chrome (reuse `.browser-frame` pattern)
+- Terminal title bar showing `~/Projects/FSB -- claude` instead of a URL
+- Prompt line with `>` prefix in muted color
+- User input in bright white text
+- Tool use blocks: bordered containers with tool name header in blue, parameters indented below
+- Tool result blocks: indented text showing the FSB response
+- Response text from Claude in light gray
+- Blinking cursor during typing animation
+
+**CSS approach:**
+```
+.rec-terminal           -- container, dark bg (#0d1117), monospace font
+.rec-terminal pre       -- content area, no margin, preserve whitespace
+.term-prompt            -- $ or > prefix, #8b949e
+.term-input             -- user text, #e6edf3
+.term-response          -- Claude text, #c9d1d9
+.term-tool-block        -- bordered container, border-left: 3px solid #58a6ff
+.term-tool-header       -- "Using mcp__fsb__run_task", color: #58a6ff
+.term-tool-param        -- indented key:value, key in #7ee787, value in #a5d6ff
+.term-result-block      -- bordered container, border-left: 3px solid #3fb950
+.term-result            -- result text, #c9d1d9
+.term-cursor            -- blinking block cursor via CSS animation
 ```
 
-#### OpenAI / xAI (chat/completions) -- Identical format
+**JS approach:** Extend `recreations.js` with a new `initTerminalAnimation()` function that:
+1. Finds `.rec-terminal` containers
+2. Uses IntersectionObserver to trigger when scrolled into view
+3. Reveals lines sequentially: prompt appears instantly, user input types character-by-character (reusing existing typing pattern), tool blocks fade in after a delay, results appear, then Claude's response types out
+4. Uses the same IIFE pattern as existing functions
 
-```json
-{
-  "type": "function",
-  "function": {
-    "name": "click",
-    "description": "Click an element by CSS selector or element reference.",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "selector": { "type": "string", "description": "CSS selector or element ref" }
-      },
-      "required": ["selector"]
-    }
-  }
-}
+**Realistic MCP content to display:**
+```
+> Navigate to amazon.com and find the best-rated wireless mouse under $30
+
+  Using mcp__fsb__run_task
+    task: "Navigate to amazon.com and find the best-rated wireless mouse under $30"
+
+  Result:
+    Task completed successfully in 12 iterations.
+    Navigated to amazon.com, searched for "wireless mouse under $30",
+    sorted by average customer review. Top result: Logitech M185
+    Wireless Mouse - $14.99 (4.6 stars, 82,451 ratings)
+
+> Now read the product page details
+
+  Using mcp__fsb__read_page
+
+  Result: (truncated)
+    Title: Logitech M185 Wireless Mouse
+    Price: $14.99
+    Rating: 4.6 out of 5 stars
+    ...
 ```
 
-**Confidence:** HIGH -- verified via [xAI REST API reference](https://docs.x.ai/developers/rest-api-reference/inference/chat) and [OpenAI function calling docs](https://developers.openai.com/api/docs/guides/function-calling).
+**Terminal stays dark in both themes.** This is intentional -- terminals are dark by convention, and it creates visual contrast with the page. No `[data-theme="light"]` overrides needed for the terminal content, only for the surrounding section.
 
-**Key details:**
-- Wrap each tool in `{ type: "function", function: { ...canonical } }`
-- Max 128 tools (xAI), no documented limit for OpenAI
-- `tool_choice`: `"auto"` (default) | `"required"` | `"none"` | `{ type: "function", function: { name: "..." } }`
-- `parallel_tool_calls`: boolean, defaults to `true` -- set to `false` for sequential execution
-- Arguments in response are JSON-stringified strings, must `JSON.parse()`
+## Color Token Mapping Reference
 
-#### Anthropic (Messages API)
+The recreation CSS must accurately map the real extension's colors. Current mismatches to fix:
 
-```json
-{
-  "name": "click",
-  "description": "Click an element by CSS selector or element reference.",
-  "input_schema": {
-    "type": "object",
-    "properties": {
-      "selector": { "type": "string", "description": "CSS selector or element ref" }
-    },
-    "required": ["selector"]
-  }
-}
-```
+| Real Extension Token | Real Value (Dark) | Current Recreation Token | Current Value | Action |
+|---------------------|-------------------|--------------------------|---------------|--------|
+| `--bg-primary` (sidepanel) | `#262626` | `--rec-sp-bg` | `#1f2937` | Update `--rec-sp-bg` to `#262626` |
+| `--bg-secondary` (sidepanel) | `#171717` | `--rec-sp-input-bg` | `#111827` | Update to `#171717` |
+| `--primary-color` | `#ff6b35` | `--primary` | `#ff6b35` | Already matches |
+| `--fsb-surface-base` (options light) | `#fffdfb` | `--rec-main-bg` | `#0a0a0a` (dark only) | Add light override: `#fffdfb` |
+| `--fsb-gray-50` (options light) | `#faf8f6` | `--rec-sidebar-bg` | `#f8fafc` (light) | Update to `#faf8f6` for warm tone |
+| `--fsb-text-primary` (options) | `#1f1a17` | n/a | n/a | Add new `--rec-opt-text` token |
 
-**Confidence:** HIGH -- verified via [Anthropic tool use docs](https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use).
+### Terminal Color Palette (New)
 
-**Key differences from OpenAI format:**
-- No `type: "function"` wrapper -- tools are bare objects in the `tools` array
-- Schema field is `input_schema` (not `parameters`)
-- Optional: `strict: true` for guaranteed schema conformance
-- Optional: `input_examples` array for complex tools
-- `tool_choice`: `{ type: "auto" }` | `{ type: "any" }` | `{ type: "tool", name: "..." }` | `{ type: "none" }` -- NOTE: object format, not string
-- No `parallel_tool_calls` parameter -- Anthropic decides autonomously
+| Element | Color | CSS Class |
+|---------|-------|-----------|
+| Terminal background | `#0d1117` | `.rec-terminal` |
+| Prompt symbol | `#8b949e` | `.term-prompt` |
+| User input text | `#e6edf3` | `.term-input` |
+| Claude response text | `#c9d1d9` | `.term-response` |
+| Tool use border/header | `#58a6ff` | `.term-tool-header` |
+| Tool name | `#79c0ff` | `.term-tool-name` |
+| Parameter key | `#7ee787` | `.term-param-key` |
+| Parameter value | `#a5d6ff` | `.term-param-value` |
+| Result border | `#3fb950` | `.term-result-block` border |
+| Success indicator | `#3fb950` | `.term-success` |
+| Error text | `#f85149` | `.term-error` |
+| Divider/border | `#30363d` | `.term-border` |
+| Cursor | `#e6edf3` | `.term-cursor` |
 
-#### Gemini (generateContent API)
+## Alternatives Considered
 
-```json
-{
-  "tools": [{
-    "functionDeclarations": [{
-      "name": "click",
-      "description": "Click an element by CSS selector or element reference.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "selector": { "type": "string", "description": "CSS selector or element ref" }
-        },
-        "required": ["selector"]
-      }
-    }]
-  }],
-  "toolConfig": {
-    "functionCallingConfig": {
-      "mode": "AUTO"
-    }
-  }
-}
-```
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| Pure CSS colored spans for terminal | ansi_up 6.0.6 (npm) | Only if rendering actual captured ANSI terminal output. We hand-author mockup content, so ANSI parsing adds a dependency for zero benefit. |
+| Pure CSS colored spans for terminal | xterm.js 5.x | Only if building a real interactive terminal emulator. 180KB+ minified, massive overkill for static showcase animations. |
+| Pure CSS colored spans for terminal | Termynal.js (~5KB) | Closest viable alternative. Nice typing animations, MIT license, no deps. Rejected because: (a) does not support Claude Code's nested tool-use block visual structure, (b) adds an external dependency when existing `recreations.js` already has the typing animation pattern, (c) its HTML API uses flat `data-ty` lines and cannot represent indented/bordered blocks. If the team prefers faster implementation and simpler visuals, Termynal is reasonable. |
+| Extend `recreations.css` | Copy real extension CSS verbatim | Tempting but wrong. Extension CSS uses Chrome extension contexts (`chrome-extension://` URLs, `chrome.runtime` API assumptions in JS). The recreation CSS adapts designs to standalone web contexts. Verbatim copy creates maintenance burden. |
+| CSS custom properties for theming | Separate light/dark CSS files | Showcase already uses `[data-theme]` attribute switching with CSS custom property overrides. This is established. Adding a second mechanism creates confusion. |
+| Static pre-rendered HTML | Include marked.js in showcase | Replica does not need runtime markdown parsing. Content is known at author time. Pre-render to HTML and style with CSS. Avoids a 35KB dependency. |
+| Inline SVG charts | chart.js in showcase | Static visuals only. Inline SVG polylines (already used) are simpler, lighter, and render identically. |
 
-**Confidence:** HIGH -- verified via [Gemini function calling docs](https://ai.google.dev/gemini-api/docs/function-calling).
+## What NOT to Use
 
-**Key differences from OpenAI format:**
-- Tools wrapped in `tools[].functionDeclarations[]` (double nesting)
-- Schema field is `parameters` (same name as OpenAI but different wrapper)
-- Control via `toolConfig.functionCallingConfig.mode`: `"AUTO"` | `"ANY"` | `"NONE"` | `"VALIDATED"`
-- No `parallel_tool_calls` parameter -- Gemini decides autonomously
-- Gemini supports parallel calls natively
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| xterm.js | 180KB+ for a static mockup. Interactive terminal emulation is not needed. | `<pre>` blocks with colored `<span>` elements and CSS animations. |
+| ansi_up | Parses ANSI escape codes. We author styled HTML directly, not parsing terminal captures. | Semantic CSS classes (`.term-prompt`, `.term-tool-name`, etc.). |
+| Termynal.js | External dependency for something the existing typing animation pattern handles. Cannot represent Claude Code's nested tool-use blocks. | Extend `initTerminalTyping()` in `recreations.js`. |
+| React / Vue / any framework | Showcase is static HTML. A framework requires a build system, violating project constraints. | Vanilla JS (already working in the IIFE pattern). |
+| marked.js in showcase | Runtime markdown parsing for content known at author time. Adds 35KB for no runtime benefit. | Pre-rendered HTML with CSS styling. |
+| chart.js in showcase | Full charting library for a single static chart. | Inline SVG polylines (existing `rec-line-svg` pattern). |
+| Importing `fsb-ui-core.css` directly | Different CSS property namespace, designed for extension runtime context. | Map `--fsb-*` values into `--rec-*` tokens in `recreations.css`. |
+| `contenteditable` in replicas | Real sidepanel uses it for input. Replica input is non-interactive. | Styled `<div>` with placeholder text appearance. |
 
-### Tool Call Response Formats
+## File Organization
 
-This is the critical part -- how each provider signals "I want to call a tool" and how FSB must parse it.
-
-#### OpenAI / xAI Response
-
-```json
-{
-  "choices": [{
-    "message": {
-      "role": "assistant",
-      "content": null,
-      "tool_calls": [{
-        "id": "call_abc123",
-        "type": "function",
-        "function": {
-          "name": "click",
-          "arguments": "{\"selector\": \"e5\"}"
-        }
-      }]
-    },
-    "finish_reason": "tool_calls"
-  }],
-  "usage": { "prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120 }
-}
-```
-
-**Parsing logic:**
-- Check `finish_reason === "tool_calls"` (not `"stop"`)
-- Tool calls in `choices[0].message.tool_calls[]`
-- Each has `id` (for matching results), `function.name`, `function.arguments` (JSON string -- must parse)
-- `content` may be null or may contain text alongside tool calls
-- Multiple tool_calls possible if `parallel_tool_calls` is true
-
-**Confidence:** HIGH -- verified via xAI REST API schema and OpenAI docs.
-
-**QUIRK (xAI):** The xAI docs list finish_reason values as "stop", "length", "end_turn" -- but for tool calls the OpenAI-compatible endpoint uses `"tool_calls"` as finish_reason. This matches the OpenAI convention. Verified from the REST API schema.
-
-#### Anthropic Response
-
-```json
-{
-  "role": "assistant",
-  "content": [
-    {
-      "type": "text",
-      "text": "I'll click that element for you."
-    },
-    {
-      "type": "tool_use",
-      "id": "toolu_01A09q90qw90lq917835lq9",
-      "name": "click",
-      "input": { "selector": "e5" }
-    }
-  ],
-  "stop_reason": "tool_use",
-  "usage": { "input_tokens": 100, "output_tokens": 50 }
-}
-```
-
-**Parsing logic:**
-- Check `stop_reason === "tool_use"` (not `"end_turn"`)
-- Tool calls are content blocks with `type: "tool_use"` in the `content` array
-- Each has `id`, `name`, `input` (already parsed object -- NOT a JSON string)
-- Text content blocks may appear alongside tool_use blocks
-- Multiple tool_use blocks possible in one response
-
-**Confidence:** HIGH -- verified via Anthropic docs.
-
-**CRITICAL DIFFERENCE:** Anthropic's `input` is a parsed object, not a JSON string. OpenAI/xAI `arguments` is a JSON string that needs `JSON.parse()`. This is the biggest parsing difference.
-
-#### Gemini Response
-
-```json
-{
-  "candidates": [{
-    "content": {
-      "parts": [{
-        "functionCall": {
-          "name": "click",
-          "id": "8f2b1a3c",
-          "args": { "param": "value" }
-        }
-      }]
-    },
-    "finishReason": "STOP"
-  }],
-  "usageMetadata": { "promptTokenCount": 100, "candidatesTokenCount": 20, "totalTokenCount": 120 }
-}
-```
-
-**Parsing logic:**
-- Check `parts[]` for objects with `functionCall` property
-- Each `functionCall` has `name`, `id`, and `args` (parsed object, not JSON string)
-- `finishReason` is `"STOP"` even for function calls (Gemini does not have a separate finish reason)
-- Multiple `functionCall` parts possible in one response (parallel calls)
-- `args` is an already-parsed object (like Anthropic, unlike OpenAI/xAI)
-
-**Confidence:** HIGH -- verified via Gemini docs. The `id` field is guaranteed for Gemini 3+ models.
-
-**QUIRK (Gemini):** Gemini uses `finishReason: "STOP"` even when calling functions. You must inspect the parts for `functionCall` presence, not rely on finish reason.
-
-### Tool Result Formats (Sending Results Back)
-
-After executing a tool, FSB must send the result back. Each provider has a different format.
-
-#### OpenAI / xAI Result
-
-Append two messages to the conversation history:
-
-```json
-[
-  {
-    "role": "assistant",
-    "content": null,
-    "tool_calls": [{ "id": "call_abc123", "type": "function", "function": { "name": "click", "arguments": "{...}" } }]
-  },
-  {
-    "role": "tool",
-    "tool_call_id": "call_abc123",
-    "content": "{\"success\": true, \"message\": \"Clicked element e5\"}"
-  }
-]
-```
-
-**Key details:**
-- Role `"tool"` (not `"user"`)
-- `tool_call_id` must match the `id` from the tool call
-- `content` is a string (JSON-stringified result)
-- One tool message per tool call (multiple if parallel calls)
-
-#### Anthropic Result
-
-Append assistant message then user message with tool_result:
-
-```json
-[
-  {
-    "role": "assistant",
-    "content": [
-      { "type": "text", "text": "I'll click that." },
-      { "type": "tool_use", "id": "toolu_01A09q", "name": "click", "input": { "selector": "e5" } }
-    ]
-  },
-  {
-    "role": "user",
-    "content": [
-      {
-        "type": "tool_result",
-        "tool_use_id": "toolu_01A09q",
-        "content": "Clicked element e5 successfully"
-      }
-    ]
-  }
-]
-```
-
-**Key differences:**
-- Tool results go in a `"user"` role message (not a dedicated `"tool"` role)
-- Content block type is `"tool_result"` with `tool_use_id` (not `tool_call_id`)
-- `content` can be a string or an array of content blocks
-- For errors: add `"is_error": true` to the tool_result block
-- Must include the full assistant message (including any text blocks) before the user tool_result
-
-#### Gemini Result
-
-Append model turn then user turn with functionResponse:
-
-```json
-[
-  {
-    "role": "model",
-    "parts": [{ "functionCall": { "name": "click", "id": "8f2b1a3c", "args": { "selector": "e5" } } }]
-  },
-  {
-    "role": "user",
-    "parts": [{
-      "functionResponse": {
-        "name": "click",
-        "id": "8f2b1a3c",
-        "response": { "success": true, "message": "Clicked element e5" }
-      }
-    }]
-  }
-]
-```
-
-**Key differences:**
-- Uses `"model"` role (not `"assistant"`)
-- Tool results in a `"user"` role message (like Anthropic, unlike OpenAI)
-- Uses `functionResponse` with `name`, `id`, and `response` (an object, not stringified)
-- `id` must match the function call's `id`
-- Response order doesn't matter for parallel calls (matched by ID)
-
-## Recommended Translation Architecture
-
-### Why NOT a full abstraction layer
-
-The existing `UniversalProvider` already has `formatForProvider()` and `parseResponse()` methods that handle per-provider differences. Adding tool_use follows the same pattern. There is no need for a new abstraction -- extend what exists.
-
-### The Translation Pattern
+All changes happen in existing files:
 
 ```
-Canonical tool defs -----> formatToolsForProvider() -----> Provider-specific tools
-                                                              (in request body)
-
-Provider response   -----> parseToolCalls()         -----> Normalized tool calls
-                                                              [{id, name, args}]
-
-Execution result    -----> formatToolResult()        -----> Provider-specific result
-                                                              (appended to messages)
+showcase/
+  about.html              -- Add new recreation sections (enhanced sidepanel, enhanced dashboard, terminal)
+  css/
+    recreations.css        -- Extend with .rec-terminal, refined .rec-sidepanel, refined .rec-dashboard
+  js/
+    recreations.js         -- Extend with initTerminalAnimation(), tab switching for dashboard
 ```
 
-Three new methods on UniversalProvider. That is the entire API surface.
+If `recreations.css` exceeds ~800 lines (currently ~500), consider splitting:
 
-### Method 1: formatToolsForProvider(canonicalTools)
-
-```javascript
-formatToolsForProvider(tools) {
-  switch (this.provider) {
-    case 'anthropic':
-      return tools.map(t => ({
-        name: t.name,
-        description: t.description,
-        input_schema: t.parameters
-      }));
-
-    case 'gemini':
-      return [{
-        functionDeclarations: tools.map(t => ({
-          name: t.name,
-          description: t.description,
-          parameters: t.parameters
-        }))
-      }];
-
-    default: // openai, xai, openrouter
-      return tools.map(t => ({
-        type: 'function',
-        function: {
-          name: t.name,
-          description: t.description,
-          parameters: t.parameters
-        }
-      }));
-  }
-}
+```
+showcase/
+  css/
+    recreations.css        -- Shared base (browser frame, common patterns, design tokens)
+    rec-terminal.css       -- Terminal mockup specific (new component)
 ```
 
-### Method 2: parseToolCalls(response) -> normalized array
+Only split if readability demands it. The existing single-file pattern is fine for moderate growth.
 
-```javascript
-parseToolCalls(response) {
-  switch (this.provider) {
-    case 'anthropic': {
-      const blocks = response.content.filter(b => b.type === 'tool_use');
-      return blocks.map(b => ({ id: b.id, name: b.name, args: b.input }));
-      // args is already parsed object
-    }
+## Integration Points
 
-    case 'gemini': {
-      const parts = response.candidates[0].content.parts
-        .filter(p => p.functionCall);
-      return parts.map(p => ({
-        id: p.functionCall.id,
-        name: p.functionCall.name,
-        args: p.functionCall.args  // already parsed object
-      }));
-    }
+### With Existing Showcase Infrastructure
 
-    default: { // openai, xai, openrouter
-      const calls = response.choices[0].message.tool_calls || [];
-      return calls.map(c => ({
-        id: c.id,
-        name: c.function.name,
-        args: JSON.parse(c.function.arguments)  // MUST parse JSON string
-      }));
-    }
-  }
-}
-```
+- **Theme toggle:** The existing `main.js` handles `[data-theme]` toggling and localStorage persistence. New recreation CSS just needs `[data-theme="light"]` blocks for light-mode overrides. Terminal mockup content stays dark in both modes.
+- **Scroll reveal:** The existing `main.js` has a `.reveal` class with IntersectionObserver. New sections use `class="reveal"` and `class="reveal-scale"` for entrance animations.
+- **Browser frame:** Reuse `.browser-frame`, `.browser-topbar`, `.browser-dots`, `.browser-address` for both UI replicas and terminal chrome.
+- **CDN resources:** No new CDN links. Font Awesome 6.6.0 and Phosphor Icons 2.1.1 are already loaded on all pages.
 
-### Method 3: formatToolResult(toolCallId, toolName, result, isError) -> message to append
+### With Real Extension Source (Reference Only)
 
-```javascript
-formatToolResult(callId, name, result, isError = false) {
-  const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
-
-  switch (this.provider) {
-    case 'anthropic':
-      return {
-        role: 'user',
-        content: [{
-          type: 'tool_result',
-          tool_use_id: callId,
-          content: resultStr,
-          ...(isError ? { is_error: true } : {})
-        }]
-      };
-
-    case 'gemini':
-      return {
-        role: 'user',
-        parts: [{
-          functionResponse: {
-            name,
-            id: callId,
-            response: typeof result === 'string' ? { result } : result
-          }
-        }]
-      };
-
-    default: // openai, xai, openrouter
-      return {
-        role: 'tool',
-        tool_call_id: callId,
-        content: resultStr
-      };
-  }
-}
-```
-
-### Loop Termination Detection
-
-```javascript
-isToolCallResponse(response) {
-  switch (this.provider) {
-    case 'anthropic':
-      return response.stop_reason === 'tool_use';
-
-    case 'gemini':
-      // Gemini does NOT use a separate finish reason
-      return response.candidates?.[0]?.content?.parts?.some(p => p.functionCall);
-
-    default: // openai, xai, openrouter
-      return response.choices?.[0]?.finish_reason === 'tool_calls';
-  }
-}
-```
-
-### Assistant Message Preservation
-
-For the agent loop, the assistant's response must be appended to conversation history before the tool result. Each provider formats this differently:
-
-```javascript
-formatAssistantMessage(response) {
-  switch (this.provider) {
-    case 'anthropic':
-      return { role: 'assistant', content: response.content };
-
-    case 'gemini':
-      return {
-        role: 'model',
-        parts: response.candidates[0].content.parts
-      };
-
-    default: // openai, xai, openrouter
-      return response.choices[0].message;
-      // Includes tool_calls, content, role -- pass through as-is
-  }
-}
-```
-
-## Provider-Specific Quirks and Pitfalls
-
-### xAI Quirks
-| Quirk | Impact | Mitigation |
-|-------|--------|------------|
-| Max 128 tools per request | FSB has ~35 tools, well under limit | No action needed |
-| `parallel_tool_calls` defaults to true | May return multiple tool calls | Set `false` for sequential browser actions |
-| Chat/completions marked "legacy" | Responses API is newer | Use chat/completions anyway -- it is OpenAI-compatible and simpler; Responses API format diverges |
-| Arguments are JSON strings | Must parse | `JSON.parse(c.function.arguments)` |
-| finish_reason `"tool_calls"` not documented in their finish_reason list | Could cause confusion | Test empirically; fall back to checking `tool_calls` array presence |
-
-**Confidence:** MEDIUM on finish_reason value. The xAI REST schema shows "stop", "length", "end_turn" but the OpenAI-compatible behavior should use "tool_calls". Needs empirical verification.
-
-### OpenAI Quirks
-| Quirk | Impact | Mitigation |
-|-------|--------|------------|
-| `strict: true` available for structured outputs | Guarantees schema match | Use if reliability issues arise; adds latency |
-| `parallel_tool_calls` defaults to true | Multiple calls per turn | Set `false` for browser actions |
-| Arguments are JSON strings | Must parse | Same as xAI |
-| GPT-4o sometimes returns malformed JSON in arguments | Parse failures | Wrap `JSON.parse()` in try/catch, re-request on failure |
-
-**Confidence:** HIGH -- well-documented, widely used.
-
-### Anthropic Quirks
-| Quirk | Impact | Mitigation |
-|-------|--------|------------|
-| `input` is parsed object (not JSON string) | Different from OpenAI | No `JSON.parse` needed for Anthropic |
-| Tool results use `"user"` role | Must match expected format | Format correctly in `formatToolResult` |
-| `stop_reason` is `"tool_use"` (not `"tool_calls"`) | Different signal name | Handle in `isToolCallResponse` |
-| May include text blocks alongside tool_use | Text explains what model is doing | Preserve in conversation history |
-| `tool_choice` is object `{type: "auto"}` not string `"auto"` | Different from OpenAI | Format in request builder |
-| `strict: true` available for guaranteed schema conformance | Schema validation | Use if needed |
-| System prompt is separate field (not in messages) | Already handled by existing `formatAnthropicRequest` | No new work |
-
-**Confidence:** HIGH -- verified directly from official docs.
-
-### Gemini Quirks
-| Quirk | Impact | Mitigation |
-|-------|--------|------------|
-| `functionCall` not `tool_calls` | Completely different key names | Handle in parser |
-| `args` is parsed object (not JSON string) | Like Anthropic, unlike OpenAI | No `JSON.parse` needed |
-| `finishReason: "STOP"` even for function calls | Cannot rely on finish reason | Must inspect parts for `functionCall` |
-| Uses `"model"` role (not `"assistant"`) | Already handled by existing Gemini formatter | No new work |
-| System prompt via `systemInstruction` (not in messages) | Must handle separately | Already handled by existing `formatGeminiRequest` |
-| `functionDeclarations` double-nested in `tools[]` | Different wrapping | Handle in `formatToolsForProvider` |
-| `id` field only in Gemini 3+ models | Older models may not return IDs | Generate synthetic IDs for older models as fallback |
-| `toolConfig.functionCallingConfig.mode` for control | Different from `tool_choice` | Map in request builder |
-
-**Confidence:** HIGH -- verified from Gemini function calling docs.
-
-## Streaming Considerations
-
-### Current State
-FSB does NOT use streaming for the autopilot loop. Each AI call is a single request-response cycle (non-streamed). The current `sendRequest` method uses `fetch` and `response.json()`.
-
-### Recommendation: Do NOT add streaming for v0.9.20
-
-**Why:**
-1. Browser actions are sequential -- you cannot start executing a tool while it is still being streamed
-2. The agent loop needs the complete tool call (name + all arguments) before execution
-3. Streaming adds complexity (SSE parsing, partial JSON accumulation) with zero benefit for tool_use
-4. Each provider has a different streaming format (SSE event types differ)
-5. The existing non-streamed approach works and is simpler
-
-**When streaming would matter (future):**
-- If adding a "thinking" indicator showing the model's reasoning text before tool calls
-- If implementing partial tool argument preview in the UI
-- Neither of these is in scope for v0.9.20
-
-**Confidence:** HIGH -- this is an architectural judgment based on the sequential nature of browser automation.
-
-## Tool Choice Configuration
-
-For the FSB agent loop, the recommended `tool_choice` settings:
-
-| Provider | Setting | Format | Rationale |
-|----------|---------|--------|-----------|
-| OpenAI/xAI | `"auto"` | `tool_choice: "auto"` | Let model decide when to call tools vs respond with text |
-| Anthropic | `auto` | `tool_choice: { type: "auto" }` | Same intent, object format |
-| Gemini | `AUTO` | `toolConfig: { functionCallingConfig: { mode: "AUTO" } }` | Same intent, different structure |
-
-**For parallel tool calls:**
-
-| Provider | Setting | Rationale |
-|----------|---------|-----------|
-| OpenAI/xAI | `parallel_tool_calls: false` | Browser actions must execute sequentially |
-| Anthropic | N/A (no parameter) | Model decides; FSB processes calls sequentially regardless |
-| Gemini | N/A (no parameter) | Model decides; FSB processes calls sequentially regardless |
-
-Even when parallel calls are returned (Anthropic/Gemini), FSB should process them sequentially because browser actions depend on DOM state from previous actions.
-
-## Integration with Existing UniversalProvider
-
-### What changes in UniversalProvider
-
-| Method | Change |
-|--------|--------|
-| `buildRequest()` | Accept optional `tools` array and `toolChoice` param; add formatted tools to request |
-| `formatForProvider()` | Already exists; extend to handle tools in the request body |
-| `formatGeminiRequest()` | Add `tools` and `toolConfig` fields |
-| `formatAnthropicRequest()` | Add `tools` and `tool_choice` fields |
-| `parseResponse()` | Extend to detect tool calls vs text response; return structured result |
-| NEW: `formatToolsForProvider()` | Translate canonical tool defs to provider format |
-| NEW: `parseToolCalls()` | Extract normalized `[{id, name, args}]` from response |
-| NEW: `formatToolResult()` | Build provider-specific tool result message |
-| NEW: `isToolCallResponse()` | Check if response contains tool calls |
-| NEW: `formatAssistantMessage()` | Extract assistant message for conversation history |
-
-### What does NOT change
-
-- `getEndpoint()` -- same endpoints
-- `getHeaders()` -- same auth
-- `sendRequest()` -- same HTTP logic, timeout, retry
-- `testConnection()` -- no tools needed for connection test
-- Rate limit handling -- unchanged
-- Parameter caching -- unchanged
-
-## Versions and Compatibility
-
-| Provider | API Endpoint | Min Model for tool_use | Recommended Model |
-|----------|-------------|----------------------|-------------------|
-| xAI | `v1/chat/completions` | grok-3 | grok-4-1-fast (2M context, optimized for tool calling) |
-| OpenAI | `v1/chat/completions` | gpt-4o-mini | gpt-4o |
-| Anthropic | `v1/messages` | claude-haiku-4.5 | claude-sonnet-4 or claude-sonnet-4.5 |
-| Gemini | `v1beta/models/{model}:generateContent` | gemini-2.0-flash | gemini-2.5-flash |
-
-**Confidence:** MEDIUM on model minimum versions. Most current-generation models support tool_use but exact minimum versions may vary.
+The real extension files are reference material, not runtime dependencies:
+- `ui/sidepanel.html` -- HTML structure to replicate
+- `ui/sidepanel.css` -- Spacing/sizing/color values to match
+- `ui/options.css` -- Spacing/sizing/color values to match
+- `shared/fsb-ui-core.css` -- Design token values to map
+- `mcp-server/src/tools/` -- Tool names and descriptions for realistic terminal content
 
 ## Sources
 
-### Primary (Official Documentation)
-- [xAI Function Calling](https://docs.x.ai/docs/guides/function-calling) -- tool definition format and calling guide
-- [xAI REST API Reference](https://docs.x.ai/developers/rest-api-reference/inference/chat) -- exact request/response schema
-- [xAI Chat Completions (Legacy)](https://docs.x.ai/developers/model-capabilities/legacy/chat-completions) -- OpenAI-compatible endpoint
-- [OpenAI Function Calling](https://developers.openai.com/api/docs/guides/function-calling) -- tool definition, response, and tool_choice
-- [Anthropic Tool Use Overview](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview) -- architecture and pricing
-- [Anthropic Define Tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use) -- tool schema, input_schema, tool_choice
-- [Gemini Function Calling](https://ai.google.dev/gemini-api/docs/function-calling) -- functionDeclarations, toolConfig, id mapping
+- Real extension source inspected: `ui/sidepanel.html`, `ui/sidepanel.css`, `ui/options.css`, `shared/fsb-ui-core.css` -- HIGH confidence (primary source)
+- Existing showcase inspected: `showcase/about.html`, `showcase/css/recreations.css`, `showcase/js/recreations.js`, `showcase/css/main.css` -- HIGH confidence (primary source)
+- MCP server tools: `mcp-server/src/tools/autopilot.ts`, `mcp-server/src/tools/manual.ts` -- HIGH confidence (tool names for terminal content)
+- [Termynal.js](https://github.com/ines/termynal) -- Evaluated, rejected. 1.8K stars, MIT, ~5KB. Good for generic terminal animations but lacks nested block support.
+- [ansi_up 6.0.6](https://www.npmjs.com/package/ansi_up) -- Evaluated, rejected. Zero-dep ANSI-to-HTML converter. Solves wrong problem (parsing vs authoring).
+- [xterm.js](https://xtermjs.org/) -- Evaluated, rejected. Full terminal emulator, 180KB+.
+- [Claude Code terminal config docs](https://code.claude.com/docs/en/terminal-config) -- MEDIUM confidence. Referenced for visual structure.
+- [Claude Code ANSI theme discussion](https://github.com/anthropics/claude-code/issues/4553) -- MEDIUM confidence. Color palette reference.
+- [CSS Typewriter Effect](https://css-tricks.com/snippets/css/typewriter-effect/) -- HIGH confidence. Well-known CSS technique.
+- [CSS Custom Properties theming](https://css-irl.info/quick-and-easy-dark-mode-with-css-custom-properties/) -- HIGH confidence. Confirms existing pattern is standard.
 
-### Secondary (Cross-references)
-- [xAI Responses API vs Chat Completions](https://docs.x.ai/developers/model-capabilities/text/comparison) -- why we chose chat/completions
-- [OpenAI Parallel Tool Calls Discussion](https://community.openai.com/t/parallel-tool-use-documentation-for-api-models/1304519)
-- [OpenRouter Tool Calling](https://openrouter.ai/docs/guides/features/tool-calling) -- confirms OpenAI-compatible format
+---
+*Stack research for: v0.9.22 Showcase High-Fidelity Replicas*
+*Researched: 2026-04-02*
