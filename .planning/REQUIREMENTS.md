@@ -37,8 +37,8 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 ### Bootstrap Pipeline
 
-- [ ] **BOOT-01**: Structured service worker startup with explicit ordered phases -- settings prefetch, environment detection, tool registration, session restoration -- enabling debugging of startup failures
-- [ ] **BOOT-02**: Deferred initialization delays non-essential loading (site guides, memory extraction, analytics prefetch) until after first user interaction, preserving eager loading for all tool definitions and core modules
+- [x] **BOOT-01**: Structured service worker startup with explicit ordered phases -- settings prefetch, environment detection, tool registration, session restoration -- enabling debugging of startup failures
+- [x] **BOOT-02**: Deferred initialization delays non-essential loading (site guides, memory extraction, analytics prefetch) until after first user interaction, preserving eager loading for all tool definitions and core modules
 
 ### Mode Routing
 
@@ -89,8 +89,8 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 | LOOP-01 | Phase 159 | Pending |
 | LOOP-02 | Phase 159 | Pending |
 | LOOP-03 | Phase 159 | Pending |
-| BOOT-01 | Phase 160 | Pending |
-| BOOT-02 | Phase 160 | Pending |
+| BOOT-01 | Phase 160 | Complete |
+| BOOT-02 | Phase 160 | Complete |
 
 **Coverage:**
 - v0.9.24 requirements: 19 total

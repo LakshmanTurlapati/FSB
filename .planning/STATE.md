@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.24
-milestone_name: Claude Code Architecture Adaptation
-status: ready_to_plan
-stopped_at: Roadmap created for v0.9.24
-last_updated: "2026-04-02"
-last_activity: 2026-04-02 -- deferred Phase 155 executed retroactively; v0.9.24 roadmap remains active
+milestone: v0.9.23
+milestone_name: Dashboard Stream & Remote Control Reliability
+status: planning
+stopped_at: Completed 160-01-PLAN.md
+last_updated: "2026-04-02T20:58:37.132Z"
+last_activity: 2026-04-02 -- deferred Phase 155 executed retroactively while v0.9.24 remains active
 progress:
-  total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 136
+  completed_phases: 88
+  total_plans: 190
+  completed_plans: 253
   percent: 0
 ---
 
@@ -45,6 +45,7 @@ Progress: [----------] 0%
 | 149 | P01 | 2min | 2 | 1 |
 | 150 | P01 | 3min | 3 | 4 |
 | 150 | P02 | 4min | 2 | 3 |
+| Phase 160 P01 | 3min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -58,6 +59,7 @@ Recent decisions affecting current work:
 - [v0.9.24]: Extract-don't-rewrite principle -- 17 new files, 3 modified files, 0 deleted files
 - [v0.9.24]: Preserve setTimeout-chaining in agent loop -- do NOT convert to synchronous or async/await iteration
 - [v0.9.24]: Origin-aware permission rules (Chrome match patterns) not path-based prefixes
+- [Phase 160]: 4-phase swBootstrap (SETTINGS->ENVIRONMENT->TOOLS->SESSIONS) with _bootstrapDone guard and deferred WebSocket+Analytics until first UI interaction
 
 ### Roadmap Evolution
 
@@ -76,6 +78,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02
-Stopped at: Roadmap created for v0.9.24 milestone
+Last session: 2026-04-02T20:58:37.126Z
+Stopped at: Completed 160-01-PLAN.md
 Resume file: None
