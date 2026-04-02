@@ -292,6 +292,209 @@
     });
   }
 
+  // --- Multi-step automation replay for Recreation 1 ---
+  function initAutomationReplay() {
+    var frame = document.querySelector('.rec-replay-frame');
+    if (!frame) return;
+
+    var steps = frame.querySelectorAll('.rec-step');
+    var addressText = frame.querySelector('.rec-address-text');
+    var messagesEl = frame.querySelector('.rec-replay-messages');
+    var statusDot = frame.querySelector('.rec-replay-status-dot');
+    var statusText = frame.querySelector('.rec-replay-status-text');
+    var searchTextEl = frame.querySelector('.rec-ghome-search-text');
+    var cursorEl = frame.querySelector('.rec-ghome-cursor');
+    if (!steps.length || !addressText) return;
+
+    var SEARCH_QUERY = 'latest AI tools 2025';
+    var timeline = [
+      // step 0: Google homepage, user message appears
+      { page: 0, url: 'google.com', status: 'Automating', dot: 'running',
+        overlay: null, msg: { type: 'user', text: 'Search for all relevant latest AI tools and download them' }, duration: 2000 },
+      // step 1: typing in search box
+      { page: 0, url: 'google.com', status: 'Automating', dot: 'running',
+        overlay: { badge: 'Iter 1/8', text: 'Typing in search box...', pct: '8%' },
+        msg: { type: 'status', text: 'Typing in search box...' }, typing: true, duration: 2500 },
+      // step 2: search results appear
+      { page: 1, url: 'google.com/search?q=latest+AI+tools+2025', status: 'Automating', dot: 'running',
+        overlay: { badge: 'Iter 2/8', text: 'Analyzing search results...', pct: '22%' },
+        msg: { type: 'status', text: 'Analyzing search results...' }, duration: 2500 },
+      // step 3: glow on first result
+      { page: 1, url: 'google.com/search?q=latest+AI+tools+2025', status: 'Automating', dot: 'running',
+        overlay: { badge: 'Iter 3/8', text: 'Clicking first result...', pct: '42%' },
+        msg: { type: 'status', text: 'Clicking first result...' }, highlight: '.rec-replay-result-1', duration: 2000 },
+      // step 4: article page, glow on title
+      { page: 2, url: 'a16z.com/100-gen-ai-apps-6/', status: 'Automating', dot: 'running',
+        overlay: { badge: 'Iter 4/8', text: 'Reading page content...', pct: '78%' },
+        msg: { type: 'status', text: 'Reading page content...' }, highlight: '.rec-replay-article-title', duration: 3000 },
+      // step 5: done, AI response
+      { page: 2, url: 'a16z.com/100-gen-ai-apps-6/', status: 'Complete', dot: '',
+        overlay: null,
+        msg: { type: 'ai', text: 'Found the Top 100 Gen AI Consumer Apps list on a16z. Key tools: Claude (reasoning), Cursor (coding), Lovable.ai (no-code), Midjourney (images). The article covers 100 apps across categories.' }, duration: 4000 }
+    ];
+
+    var currentStep = -1;
+    var replayStarted = false;
+    var typingTimer = null;
+
+    function clearHighlights() {
+      frame.querySelectorAll('.rec-element-highlight').forEach(function (el) {
+        el.classList.remove('rec-element-highlight');
+      });
+    }
+
+    function setOverlay(step) {
+      var overlays = frame.querySelectorAll('.rec-replay-overlay');
+      overlays.forEach(function (ov) {
+        if (!step.overlay) {
+          ov.style.display = 'none';
+          ov.innerHTML = '';
+          return;
+        }
+        ov.style.display = '';
+        ov.innerHTML =
+          '<div class="rec-overlay-header">' +
+            '<img class="rec-overlay-logo" src="assets/icon48.png" alt="FSB">' +
+            '<span class="rec-overlay-title">FSB Automating</span>' +
+          '</div>' +
+          '<div class="rec-overlay-task">Search for all relevant latest AI tools and download them</div>' +
+          '<div class="rec-overlay-step">' +
+            '<span class="rec-overlay-step-badge">' + step.overlay.badge + '</span>' +
+            '<span class="rec-overlay-step-text">' + step.overlay.text + '</span>' +
+          '</div>' +
+          '<div class="rec-progress-track">' +
+            '<div class="rec-progress-fill" style="width:' + step.overlay.pct + '"></div>' +
+          '</div>';
+      });
+    }
+
+    function addMessage(type, text) {
+      var div = document.createElement('div');
+      if (type === 'status') {
+        div.className = 'rec-msg status';
+        div.innerHTML =
+          '<div class="rec-typing-dots"><span></span><span></span><span></span></div>' +
+          '<span>' + text + '</span>';
+      } else if (type === 'ai') {
+        div.className = 'rec-msg ai';
+        div.textContent = text;
+      } else {
+        div.className = 'rec-msg ' + type;
+        div.textContent = text;
+      }
+      div.style.opacity = '0';
+      div.style.transform = 'translateY(12px)';
+      messagesEl.appendChild(div);
+      // fade in
+      requestAnimationFrame(function () {
+        div.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        div.style.opacity = '1';
+        div.style.transform = 'translateY(0)';
+      });
+    }
+
+    function removeLastStatus() {
+      var last = messagesEl.querySelector('.rec-msg.status');
+      if (last) last.remove();
+    }
+
+    function typeSearch(callback) {
+      if (!searchTextEl) { callback(); return; }
+      searchTextEl.textContent = '';
+      if (cursorEl) cursorEl.style.display = '';
+      var i = 0;
+      function next() {
+        if (i < SEARCH_QUERY.length) {
+          searchTextEl.textContent += SEARCH_QUERY.charAt(i);
+          i++;
+          typingTimer = setTimeout(next, 60 + Math.random() * 40);
+        } else {
+          if (cursorEl) cursorEl.style.display = 'none';
+          callback();
+        }
+      }
+      next();
+    }
+
+    function runStep() {
+      currentStep++;
+      if (currentStep >= timeline.length) {
+        // pause then restart
+        setTimeout(resetAndReplay, 3000);
+        return;
+      }
+
+      var step = timeline[currentStep];
+
+      // switch page
+      steps.forEach(function (s, i) {
+        s.classList.toggle('active', i === step.page);
+      });
+
+      // address bar
+      addressText.textContent = step.url;
+
+      // status dot
+      statusDot.className = 'fa-solid fa-circle rec-status-dot rec-replay-status-dot' + (step.dot ? ' ' + step.dot : '');
+      statusText.textContent = step.status;
+
+      // highlights
+      clearHighlights();
+      if (step.highlight) {
+        var el = frame.querySelector(step.highlight);
+        if (el) el.classList.add('rec-element-highlight');
+      }
+
+      // overlay
+      setOverlay(step);
+
+      // sidepanel message
+      removeLastStatus();
+      if (step.msg) {
+        addMessage(step.msg.type, step.msg.text);
+      }
+
+      // typing animation for search box
+      if (step.typing) {
+        typeSearch(function () {
+          setTimeout(runStep, 500);
+        });
+        return; // typing controls its own timing
+      }
+
+      setTimeout(runStep, step.duration);
+    }
+
+    function resetAndReplay() {
+      currentStep = -1;
+      messagesEl.innerHTML = '';
+      if (searchTextEl) searchTextEl.textContent = '';
+      if (cursorEl) cursorEl.style.display = '';
+      clearHighlights();
+      clearTimeout(typingTimer);
+      steps.forEach(function (s, i) { s.classList.toggle('active', i === 0); });
+      addressText.textContent = 'google.com';
+      statusDot.className = 'fa-solid fa-circle rec-status-dot rec-replay-status-dot';
+      statusText.textContent = 'Ready';
+      frame.querySelectorAll('.rec-replay-overlay').forEach(function (ov) { ov.style.display = 'none'; ov.innerHTML = ''; });
+      setTimeout(runStep, 1000);
+    }
+
+    // Start on scroll into view
+    if ('IntersectionObserver' in window) {
+      var observer = new IntersectionObserver(function (entries) {
+        if (entries[0].isIntersecting && !replayStarted) {
+          replayStarted = true;
+          runStep();
+          observer.disconnect();
+        }
+      }, { threshold: 0.2 });
+      observer.observe(frame);
+    } else {
+      runStep();
+    }
+  }
+
   // --- Initialize all animations ---
   function init() {
     initTerminalTyping();
@@ -303,6 +506,7 @@
     initCounters();
     initStatusDots();
     initFAQ();
+    initAutomationReplay();
   }
 
   // Run on DOM ready

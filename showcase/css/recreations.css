@@ -1034,6 +1034,93 @@
   background: #fff;
 }
 
+/* --- Multi-step replay --- */
+.rec-step-container {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+.rec-step {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.rec-step.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Google Homepage */
+.rec-google-home {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 20px;
+  background: #202124;
+}
+
+[data-theme="light"] .rec-google-home {
+  background: #fff;
+}
+
+.rec-ghome-logo img {
+  height: 72px;
+  width: auto;
+}
+
+.rec-ghome-searchbar {
+  display: flex;
+  align-items: center;
+  background: #303134;
+  border: 1px solid #5f6368;
+  border-radius: 24px;
+  padding: 10px 16px;
+  width: 60%;
+  max-width: 520px;
+  gap: 10px;
+  min-height: 22px;
+}
+
+[data-theme="light"] .rec-ghome-searchbar {
+  background: #fff;
+  border-color: #dfe1e5;
+  box-shadow: 0 1px 6px rgba(32, 33, 36, 0.1);
+}
+
+.rec-ghome-search-icon {
+  color: #9aa0a6;
+  font-size: 14px;
+}
+
+.rec-ghome-search-text {
+  color: #e8eaed;
+  font-size: 14px;
+  font-family: arial, sans-serif;
+}
+
+[data-theme="light"] .rec-ghome-search-text {
+  color: #202124;
+}
+
+.rec-ghome-cursor {
+  width: 1px;
+  height: 18px;
+  background: var(--primary);
+  animation: recCursorBlink 1s step-end infinite;
+}
+
+@keyframes recCursorBlink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
 /* Article page (a16z style) */
 .rec-article-page {
   flex: 1;

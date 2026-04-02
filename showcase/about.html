@@ -66,7 +66,7 @@
         <h2>Search &amp; Navigate Autonomously</h2>
         <p>Tell FSB what you need and watch it search, click, and read through results on its own.</p>
       </div>
-      <div class="browser-frame reveal-scale" role="img" aria-label="Recreation of FSB automating a Google search with the sidepanel overlay">
+      <div class="browser-frame reveal-scale rec-replay-frame" role="img" aria-label="Animated recreation of FSB automating a search task from Google to article">
         <div class="browser-topbar">
           <div class="browser-dots" aria-hidden="true">
             <span class="dot-red"></span>
@@ -75,63 +75,134 @@
           </div>
           <div class="browser-address">
             <i class="fa-solid fa-lock" style="margin-right: 6px; font-size: 10px;"></i>
-            a16z.com/100-gen-ai-apps-6/
+            <span class="rec-address-text">google.com</span>
           </div>
         </div>
         <div class="browser-content">
-          <!-- Replica of: a16z article page mid-automation (visual approximation) | Last synced: v0.9.22 -->
-          <!-- Article page FSB navigated to after searching -->
-          <div class="rec-article-page">
-            <!-- Viewport glow -->
-            <div class="rec-viewport-glow">
-              <div class="rec-glow-ambient"></div>
-              <div class="rec-glow-bar top"></div>
-              <div class="rec-glow-bar right"></div>
-              <div class="rec-glow-bar bottom"></div>
-              <div class="rec-glow-bar left"></div>
-            </div>
+          <!-- Multi-step automation replay | Last synced: v0.9.22 -->
+          <div class="rec-step-container">
 
-            <!-- Progress overlay -->
-            <div class="rec-progress-overlay">
-              <div class="rec-overlay-header">
-                <img class="rec-overlay-logo" src="assets/icon48.png" alt="FSB">
-                <span class="rec-overlay-title">FSB Automating</span>
+            <!-- Step 1-2: Google Homepage -->
+            <div class="rec-step active" data-page="google-home">
+              <div class="rec-viewport-glow">
+                <div class="rec-glow-ambient"></div>
+                <div class="rec-glow-bar top"></div>
+                <div class="rec-glow-bar right"></div>
+                <div class="rec-glow-bar bottom"></div>
+                <div class="rec-glow-bar left"></div>
               </div>
-              <div class="rec-overlay-task">Search for all relevant latest AI tools and download them</div>
-              <div class="rec-overlay-step">
-                <span class="rec-overlay-step-badge">Iter 4/8</span>
-                <span class="rec-overlay-step-text">Reading page content...</span>
-              </div>
-              <div class="rec-progress-track">
-                <div class="rec-progress-fill" data-width="78%"></div>
+              <div class="rec-progress-overlay rec-replay-overlay" style="display: none;"></div>
+              <div class="rec-google-home">
+                <div class="rec-ghome-logo">
+                  <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png" alt="Google" />
+                </div>
+                <div class="rec-ghome-searchbar">
+                  <i class="fa-solid fa-magnifying-glass rec-ghome-search-icon"></i>
+                  <span class="rec-ghome-search-text"></span>
+                  <span class="rec-ghome-cursor"></span>
+                </div>
               </div>
             </div>
 
-            <!-- Article header -->
-            <div class="rec-article-header">
-              <div class="rec-article-site-name">Andreessen Horowitz</div>
-              <div class="rec-article-nav">
-                <span>Consumer</span>
-                <span>Crypto</span>
-                <span>Enterprise</span>
-                <span>Bio + Health</span>
-                <span>Infra</span>
+            <!-- Step 3-4: Search Results -->
+            <div class="rec-step" data-page="search-results">
+              <div class="rec-viewport-glow">
+                <div class="rec-glow-ambient"></div>
+                <div class="rec-glow-bar top"></div>
+                <div class="rec-glow-bar right"></div>
+                <div class="rec-glow-bar bottom"></div>
+                <div class="rec-glow-bar left"></div>
+              </div>
+              <div class="rec-progress-overlay rec-replay-overlay"></div>
+              <div class="rec-google-page">
+                <div class="rec-google-header">
+                  <div class="rec-google-logo">
+                    <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png" alt="Google" />
+                  </div>
+                  <div class="rec-google-searchbar">
+                    <span class="rec-searchbar-text">latest AI tools 2025</span>
+                    <i class="fa-solid fa-magnifying-glass rec-searchbar-icon"></i>
+                  </div>
+                </div>
+                <div class="rec-google-nav">
+                  <a class="rec-google-nav-tab active"><i class="fa-solid fa-magnifying-glass"></i> All</a>
+                  <a class="rec-google-nav-tab"><i class="fa-regular fa-image"></i> Images</a>
+                  <a class="rec-google-nav-tab"><i class="fa-solid fa-video"></i> Videos</a>
+                  <a class="rec-google-nav-tab"><i class="fa-regular fa-newspaper"></i> News</a>
+                </div>
+                <div class="rec-google-result-count">About 1,240,000,000 results (0.42 seconds)</div>
+                <div class="rec-google-results">
+                  <div class="rec-google-result rec-replay-result-1">
+                    <div class="rec-result-site">
+                      <span class="rec-result-favicon" style="background: #000;">a16z</span>
+                      <div class="rec-result-site-info">
+                        <span class="rec-result-site-name">Andreessen Horowitz</span>
+                        <span class="rec-result-url">https://a16z.com &rsaquo; 100-gen-ai-apps-6</span>
+                      </div>
+                    </div>
+                    <div class="rec-result-title">The Top 100 Gen AI Consumer Apps -- 6th Edition</div>
+                    <div class="rec-result-snippet">Midjourney, DALL-E, and Stable Diffusion were the products that introduced most early adopters to generative AI...</div>
+                  </div>
+                  <div class="rec-google-result">
+                    <div class="rec-result-site">
+                      <span class="rec-result-favicon" style="background: #1a8917;">M</span>
+                      <div class="rec-result-site-info">
+                        <span class="rec-result-site-name">Medium</span>
+                        <span class="rec-result-url">https://medium.com &rsaquo; best-ai-tools-2025</span>
+                      </div>
+                    </div>
+                    <div class="rec-result-title">The Best AI Tools of 2025: A Practical, No-Hype Guide</div>
+                    <div class="rec-result-snippet">Discover the best AI tools of 2025 for writing, marketing, productivity, coding, and automation...</div>
+                  </div>
+                  <div class="rec-google-result">
+                    <div class="rec-result-site">
+                      <span class="rec-result-favicon" style="background: #4285f4;">G</span>
+                      <div class="rec-result-site-info">
+                        <span class="rec-result-site-name">Google Cloud</span>
+                        <span class="rec-result-url">https://cloud.google.com &rsaquo; free-ai-tools</span>
+                      </div>
+                    </div>
+                    <div class="rec-result-title">10+ Free AI Tools for 2026 - Google Cloud</div>
+                    <div class="rec-result-snippet">Google Cloud offers free usage of many AI products including Translation, Speech-to-Text, and Natural Language...</div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <!-- Article content -->
-            <div class="rec-article-content">
-              <div class="rec-article-category">Consumer</div>
-              <h1 class="rec-article-title rec-element-highlight">The Top 100 Gen AI Consumer Apps -- 6th Edition</h1>
-              <div class="rec-article-meta">Olivia Moore &middot; Posted March 9, 2026</div>
-              <div class="rec-article-body">
-                <p class="rec-article-text">In 2025, top AI tools focus on autonomous agents, workflow automation, and multimodal creation, with Lovable.ai (no-code app development), Comet (AI browser), and Nano Banana Pro (advanced imaging) leading productivity trends.</p>
-                <p class="rec-article-text">Key players include Claude for reasoning, Cursor for coding, and Gamma for content generation. Midjourney, DALL-E, and Stable Diffusion were the products that introduced most early adopters to generative AI.</p>
+            <!-- Step 5-6: Article Page -->
+            <div class="rec-step" data-page="article">
+              <div class="rec-viewport-glow">
+                <div class="rec-glow-ambient"></div>
+                <div class="rec-glow-bar top"></div>
+                <div class="rec-glow-bar right"></div>
+                <div class="rec-glow-bar bottom"></div>
+                <div class="rec-glow-bar left"></div>
+              </div>
+              <div class="rec-progress-overlay rec-replay-overlay"></div>
+              <div class="rec-article-page">
+                <div class="rec-article-header">
+                  <div class="rec-article-site-name">Andreessen Horowitz</div>
+                  <div class="rec-article-nav">
+                    <span>Consumer</span>
+                    <span>Crypto</span>
+                    <span>Enterprise</span>
+                    <span>Bio + Health</span>
+                  </div>
+                </div>
+                <div class="rec-article-content">
+                  <div class="rec-article-category">Consumer</div>
+                  <h1 class="rec-article-title rec-replay-article-title">The Top 100 Gen AI Consumer Apps -- 6th Edition</h1>
+                  <div class="rec-article-meta">Olivia Moore &middot; Posted March 9, 2026</div>
+                  <div class="rec-article-body">
+                    <p class="rec-article-text">In 2025, top AI tools focus on autonomous agents, workflow automation, and multimodal creation, with Lovable.ai, Comet, and Nano Banana Pro leading productivity trends.</p>
+                    <p class="rec-article-text">Key players include Claude for reasoning, Cursor for coding, and Gamma for content generation.</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- FSB Side Panel -->
+          <!-- FSB Side Panel (shared across all steps, updated by JS) -->
           <!-- Replica of: ui/sidepanel.html | Last synced: v0.9.22 -->
           <div class="rec-sidepanel">
             <div class="rec-sp-header">
@@ -141,8 +212,8 @@
                   <span class="rec-sp-subtitle">Persistent workspace</span>
                 </div>
                 <div class="rec-sp-status">
-                  <i class="fa-solid fa-circle rec-status-dot running"></i>
-                  <span class="rec-status-text">Automating</span>
+                  <i class="fa-solid fa-circle rec-status-dot rec-replay-status-dot"></i>
+                  <span class="rec-status-text rec-replay-status-text">Ready</span>
                 </div>
               </div>
               <div class="rec-sp-actions">
@@ -151,17 +222,7 @@
                 <div class="rec-sp-icon-btn"><i class="fa-solid fa-cog"></i></div>
               </div>
             </div>
-            <div class="rec-messages">
-              <div class="rec-msg user">Search for all relevant latest AI tools and download them</div>
-              <div class="rec-msg status">
-                <div class="rec-typing-dots">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
-                <span>Clicking first result...</span>
-              </div>
-            </div>
+            <div class="rec-messages rec-replay-messages"></div>
             <div class="rec-sp-input">
               <div class="rec-sp-input-inner">
                 <span class="rec-sp-input-text">Type a message...</span>
