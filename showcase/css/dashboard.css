@@ -16,10 +16,11 @@
   max-width: 480px;
   margin: 0 auto;
   text-align: center;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 94%, white 6%), var(--bg-card));
+  border: 1px solid var(--fsb-border-subtle);
   border-radius: var(--radius-xl);
   padding: 48px 40px;
+  box-shadow: var(--shadow-md);
 }
 
 .dash-login-icon {
@@ -29,10 +30,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 107, 53, 0.1);
+  background: var(--fsb-primary-soft);
+  border: 1px solid var(--fsb-border-accent);
   border-radius: 50%;
   font-size: 1.5rem;
   color: var(--primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .dash-login-card h2 {
@@ -110,9 +113,10 @@
 .dash-badge {
   display: inline-block;
   padding: 4px 12px;
-  background: rgba(255, 107, 53, 0.1);
+  background: var(--fsb-primary-soft);
   color: var(--primary);
-  border-radius: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--fsb-border-accent);
   font-size: 0.8rem;
   font-weight: 600;
   white-space: nowrap;
@@ -180,11 +184,12 @@
 }
 
 .dash-stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 92%, white 8%), var(--bg-card));
+  border: 1px solid var(--fsb-border-subtle);
   border-radius: var(--radius-md);
   padding: 16px;
   text-align: center;
+  box-shadow: var(--shadow-sm);
 }
 
 .dash-stat-value {
@@ -211,12 +216,13 @@
 }
 
 .dash-agent-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 94%, white 6%), var(--bg-card));
+  border: 1px solid var(--fsb-border-subtle);
   border-radius: var(--radius-lg);
   padding: 20px;
   cursor: pointer;
   transition: all var(--transition-base);
+  box-shadow: var(--shadow-sm);
 }
 
 .dash-agent-card:hover {
@@ -225,7 +231,7 @@
 }
 
 .dash-agent-card.selected {
-  border-color: var(--primary);
+  border-color: var(--fsb-border-accent);
   box-shadow: var(--shadow-glow);
 }
 
@@ -486,11 +492,12 @@
 
 /* --- Task Control Area --- */
 .dash-task-area {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 94%, white 6%), var(--bg-card));
+  border: 1px solid var(--fsb-border-subtle);
   border-radius: var(--radius-lg);
   padding: 24px;
   margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
 }
 
 .dash-task-input-row {
@@ -504,8 +511,8 @@
   padding: 8px 16px;
   font-size: 16px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, white 12%);
+  border: 1px solid var(--fsb-border-subtle);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   outline: none;
@@ -514,6 +521,7 @@
 
 .dash-task-input:focus {
   border-color: var(--primary);
+  box-shadow: var(--fsb-focus-ring);
 }
 
 .dash-task-input::placeholder {
@@ -606,8 +614,9 @@
   letter-spacing: 0.04em;
   color: var(--text-muted);
   padding: 2px 8px;
-  background: var(--bg-elevated);
-  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg-elevated) 92%, white 8%);
+  border-radius: 999px;
+  border: 1px solid var(--fsb-border-subtle);
 }
 
 .dash-task-eta,
@@ -713,8 +722,8 @@
   width: 36px;
   height: 20px;
   border-radius: 10px;
-  background: #64748b;
-  border: none;
+  background: color-mix(in srgb, var(--text-muted) 56%, var(--bg-elevated) 44%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   cursor: pointer;
   padding: 0;
   transition: background 150ms ease;
@@ -803,12 +812,13 @@
 
 /* --- Agent Detail Panel --- */
 .dash-agent-detail {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 94%, white 6%), var(--bg-card));
+  border: 1px solid var(--fsb-border-subtle);
   border-radius: var(--radius-lg);
   padding: 24px;
   overflow-y: auto;
   max-height: calc(100vh - 200px);
+  box-shadow: var(--shadow-md);
 }
 
 .dash-detail-header {
@@ -1592,8 +1602,8 @@
   position: relative;
   width: 100%;
   min-height: 200px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 94%, white 6%), var(--bg-card));
+  border: 1px solid var(--fsb-border-subtle);
   border-radius: var(--radius-lg);
   overflow: hidden;
   margin-bottom: 24px;
@@ -1837,8 +1847,8 @@
 .dash-preview-btn,
 .dash-preview-toggle {
   pointer-events: auto;
-  background: rgba(0, 0, 0, 0.5);
-  border: none;
+  background: rgba(20, 17, 16, 0.72);
+  border: 1px solid rgba(255, 241, 232, 0.10);
   color: var(--text-primary);
   width: 24px;
   height: 24px;
@@ -1861,7 +1871,7 @@
 
 .dash-preview-btn:hover,
 .dash-preview-toggle:hover {
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(20, 17, 16, 0.88);
 }
 
 /* Responsive: mobile */

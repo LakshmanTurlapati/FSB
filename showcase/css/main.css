@@ -5,32 +5,27 @@
 
 /* --- Design Tokens --- */
 :root {
-  /* Primary */
-  --primary: #ff6b35;
-  --primary-hover: #e55a2b;
-  --primary-gradient: linear-gradient(135deg, #ff6b35, #ff8c42);
-  --primary-glow: rgba(255, 107, 53, 0.3);
+  --primary: var(--fsb-primary);
+  --primary-hover: var(--fsb-primary-hover);
+  --primary-gradient: linear-gradient(135deg, var(--fsb-primary), #ff8c42);
+  --primary-glow: rgba(255, 107, 53, 0.28);
 
-  /* Dark backgrounds (true black) */
-  --bg-body: #000000;
-  --bg-card: #0a0a0a;
-  --bg-elevated: #141414;
-  --bg-nav: rgba(0, 0, 0, 0.5);
+  --bg-body: #120f0e;
+  --bg-card: #191412;
+  --bg-elevated: #241d1a;
+  --bg-nav: rgba(18, 15, 14, 0.72);
 
-  /* Text */
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #f6efe9;
+  --text-secondary: #cdbbae;
+  --text-muted: #9e8a7d;
 
-  /* Borders */
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.15);
+  --border-color: rgba(255, 241, 232, 0.10);
+  --border-hover: rgba(255, 241, 232, 0.18);
 
-  /* Radius */
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.5rem;
+  --radius-sm: var(--fsb-radius-sm);
+  --radius-md: var(--fsb-radius-md);
+  --radius-lg: var(--fsb-radius-lg);
+  --radius-xl: var(--fsb-radius-xl);
 
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -38,10 +33,10 @@
   --transition-slow: 400ms ease;
 
   /* Shadows */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
-  --shadow-glow: 0 0 20px rgba(255, 107, 53, 0.15);
+  --shadow-sm: var(--fsb-shadow-xs);
+  --shadow-md: var(--fsb-shadow-sm);
+  --shadow-lg: var(--fsb-shadow-md);
+  --shadow-glow: var(--fsb-shadow-accent);
 
   /* Layout */
   --nav-height: 64px;
@@ -51,19 +46,19 @@
 
 /* --- Light Mode --- */
 [data-theme="light"] {
-  --bg-body: #ffffff;
-  --bg-card: #f8f9fa;
-  --bg-elevated: #f1f5f9;
-  --bg-nav: rgba(255, 255, 255, 0.5);
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-hover: rgba(0, 0, 0, 0.15);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
-  --shadow-glow: 0 0 20px rgba(255, 107, 53, 0.1);
+  --bg-body: var(--fsb-surface-base);
+  --bg-card: var(--fsb-surface-elevated);
+  --bg-elevated: var(--fsb-surface-muted);
+  --bg-nav: rgba(255, 250, 246, 0.72);
+  --text-primary: var(--fsb-text-primary);
+  --text-secondary: var(--fsb-text-secondary);
+  --text-muted: var(--fsb-text-muted);
+  --border-color: var(--fsb-border-subtle);
+  --border-hover: var(--fsb-border-strong);
+  --shadow-sm: var(--fsb-shadow-xs);
+  --shadow-md: var(--fsb-shadow-sm);
+  --shadow-lg: var(--fsb-shadow-md);
+  --shadow-glow: rgba(255, 107, 53, 0.12);
 }
 
 /* --- Reset --- */
@@ -175,6 +170,7 @@ code, .mono {
   font-weight: 600;
   transition: all var(--transition-base);
   white-space: nowrap;
+  border: 1px solid transparent;
 }
 
 .btn-primary {
@@ -190,13 +186,13 @@ code, .mono {
 }
 
 .btn-outline {
-  border: 2px solid var(--primary);
+  border: 1px solid rgba(255, 107, 53, 0.28);
   color: var(--primary);
   background: transparent;
 }
 
 .btn-outline:hover {
-  background: rgba(255, 107, 53, 0.1);
+  background: rgba(255, 107, 53, 0.12);
   transform: translateY(-2px);
   color: var(--primary);
 }
@@ -208,7 +204,7 @@ code, .mono {
 }
 
 .btn-github:hover {
-  background: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-elevated) 82%, white 18%);
   transform: translateY(-2px);
   color: var(--text-primary);
 }
