@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.23
 milestone_name: Dashboard Stream & Remote Control Reliability
-status: verifying
-stopped_at: Completed 156-02-PLAN.md
-last_updated: "2026-04-02T12:33:49.364Z"
+status: executing
+stopped_at: Completed 157-02-PLAN.md
+last_updated: "2026-04-02T17:15:44.865Z"
 last_activity: 2026-04-02
 progress:
-  total_phases: 155
+  total_phases: 156
   completed_phases: 150
-  total_plans: 303
-  completed_plans: 300
+  total_plans: 305
+  completed_plans: 301
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 156 — state-foundation
+**Current focus:** Phase 157 — engine-configuration
 
 ## Current Position
 
-Phase: 156
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 157 (engine-configuration) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-04-02
 
 Progress: [----------] 0%
@@ -47,6 +47,7 @@ Progress: [----------] 0%
 | 150 | P02 | 4min | 2 | 3 |
 | Phase 156 P01 | 3min | 2 tasks | 2 files |
 | Phase Phase 156 PP02 | 3min | 3 tasks tasks | 3 files files |
+| Phase 157 P02 | 1min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,8 @@ Recent decisions affecting current work:
 - [Phase 156]: SessionStateEmitter uses prototype methods (not class syntax) for importScripts compatibility
 - [Phase Phase 156]: TranscriptStore uses function/prototype pattern for importScripts compatibility, preserves FSB token-budget-aware compaction
 - [Phase Phase 156]: TurnResult as factory function (not class) with 7 STOP_REASONS; ActionHistory with queryable event store
+- [Phase 157]: D-01: No tool pool module -- getPublicTools() stays inline in agent-loop.js, all 42 tools sent every call
+- [Phase 157]: D-02/D-03: PermissionContext stub with isAllowed always true; future deny-list via chrome.storage.local with Chrome match patterns
 
 ### Roadmap Evolution
 
@@ -82,6 +85,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T12:27:17.994Z
-Stopped at: Completed 156-02-PLAN.md
+Last session: 2026-04-02T17:15:44.857Z
+Stopped at: Completed 157-02-PLAN.md
 Resume file: None

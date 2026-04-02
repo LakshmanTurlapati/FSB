@@ -17,8 +17,8 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 ### Engine Configuration
 
-- [ ] **ENGINE-01**: Tool pool assembles per-session filtered tool sets based on task type and permissions, reducing the 47 tools sent on every API call to a relevant subset of 12-20 tools
-- [ ] **ENGINE-02**: Permission context implements deny-list gating per tool name with origin-aware rules using Chrome match patterns -- not file-path prefixes
+- [x] **ENGINE-01**: Tool pool assembles per-session filtered tool sets based on task type and permissions, reducing the 47 tools sent on every API call to a relevant subset of 12-20 tools
+- [x] **ENGINE-02**: Permission context implements deny-list gating per tool name with origin-aware rules using Chrome match patterns -- not file-path prefixes
 - [ ] **ENGINE-03**: Cost tracker extracts cost tracking into a standalone module with token budget enforcement alongside the existing $2 dollar budget breaker
 - [ ] **ENGINE-04**: Engine config provides configurable session limits (max_turns, token budget, compact threshold) replacing hardcoded constants scattered through agent-loop.js and background.js
 
@@ -77,8 +77,8 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 | STATE-03 | Phase 156 | Complete |
 | STATE-04 | Phase 156 | Complete |
 | STATE-05 | Phase 156 | Complete |
-| ENGINE-01 | Phase 157 | Pending |
-| ENGINE-02 | Phase 157 | Pending |
+| ENGINE-01 | Phase 157 | Complete |
+| ENGINE-02 | Phase 157 | Complete |
 | ENGINE-03 | Phase 157 | Pending |
 | ENGINE-04 | Phase 157 | Pending |
 | MODE-01 | Phase 157 | Pending |

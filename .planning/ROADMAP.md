@@ -81,10 +81,10 @@ Plans:
   3. Cost tracking lives in a standalone module with token budget enforcement alongside the existing $2 dollar budget breaker, not inline in agent-loop.js
   4. Session limits (max_turns, token budget, compact threshold) are read from a config object at session start, not hardcoded as magic numbers in agent-loop.js and background.js
   5. FSB's four execution modes (autopilot, mcp-manual, mcp-agent, dashboard-remote) are formalized as named mode objects with per-mode tool pool configuration, safety limits, and UI feedback channel routing
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 157-01-PLAN.md -- Cost tracker extraction + engine config with session limits and execution modes
-- [ ] 157-02-PLAN.md -- Permission context stub + ENGINE-01 documentation (tool pool deferred per D-01)
+- [x] 157-02-PLAN.md -- Permission context stub + ENGINE-01 documentation (tool pool deferred per D-01)
 **Note**: Research reference: `Research/claude-code/src/tool_pool.py`, `Research/claude-code/src/permissions.py`, `Research/claude-code/src/cost_tracker.py`, `Research/claude-code/src/direct_modes.py`. Pitfall 5 (path-based permissions) must be addressed -- use origin-aware rules. Tool pool filtering deferred per user decision D-01 -- getPublicTools() stays inline.
 
 ### Phase 158: Hook Pipeline
@@ -127,7 +127,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 156. State Foundation | 2/2 | Complete    | 2026-04-02 |
-| 157. Engine Configuration | 0/2 | Planning complete | - |
+| 157. Engine Configuration | 1/2 | In Progress|  |
 | 158. Hook Pipeline | 0/? | Not started | - |
 | 159. Agent Loop Refactor | 0/? | Not started | - |
 | 160. Bootstrap Pipeline | 0/? | Not started | - |
