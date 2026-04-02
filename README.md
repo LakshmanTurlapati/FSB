@@ -1043,53 +1043,6 @@ FSB provides real-time visual indicators during automation:
 
 ---
 
-## Roadmap
-
-### Completed in v0.9.20
-- Full automation engine with smart iteration and stuck recovery
-- Five AI providers (xAI, OpenAI, Anthropic, Gemini, OpenRouter) with 20+ models
-- Universal model-agnostic provider architecture
-- Modern chat UI with markdown, mermaid, and Chart.js rendering
-- Site-specific intelligence with 9 domain guide categories
-- Action verification and visual feedback system
-- Analytics dashboard with cost tracking
-- Encrypted configuration and secure API key storage
-- Multi-tab automation support
-- Comprehensive logging and debugging tools
-
-### Completed in v9.1 to v9.3
-- Long-term memory system with episodic, semantic, and procedural memory types
-- AI-enriched memory extraction for all memory types
-- Cross-site pattern analysis detecting recurring UI patterns across websites
-- D3.js site visualization with force-directed radial mind maps
-- Background agent system with chrome.alarms scheduling and run history
-- Content script modularization: monolithic content.js split into 12 focused modules
-- Memory intelligence overhaul: AI analysis pipeline, detail viewers, auto-refresh, cost tracking
-- Optional server backends (Node.js and Python/Flask) for agent data persistence
-- Sitemap generation and refinement with AI-powered conversion
-- Site guides viewer with consolidated 3D knowledge graph visualization
-
-### Completed in v9.4 to v9.7
-- MCP server with 50+ tools across 4 categories (autopilot, manual, read-only, observability)
-- WebSocket hub/relay bridge for MCP-to-extension communication
-- CDP (Chrome DevTools Protocol) click_at and drag tools for canvas interaction
-- MCP resources (DOM snapshot, tabs, site guides) and prompt templates
-- Task queue with mutation serialization and read-only bypass
-- Career search automation with Google Sheets integration
-- Remote streaming via optional relay server connection
-
-### In Progress
-- MCP edge case validation across 50 scenarios (canvas, micro-interactions, scrolling, context, dark patterns)
-
-### Future
-- Advanced CAPTCHA solver integration (Buster, CapSolver, 2Captcha)
-- Workflow templates and task saving
-- Chrome Web Store publication
-- Plugin architecture for custom actions
-- Enterprise features, team collaboration, and compliance
-
----
-
 ## Acknowledgments
 
 FSB is inspired by **Project Mariner** from Google DeepMind, designed as an open-source alternative accessible to everyone. This multi-model approach is made possible by:

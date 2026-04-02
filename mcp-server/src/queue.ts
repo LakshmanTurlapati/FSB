@@ -6,7 +6,7 @@ import path from 'path';
 // ---------------------------------------------------------------------------
 
 const require = createRequire(import.meta.url);
-const toolDefs = require(path.resolve(import.meta.dirname, '../ai/tool-definitions.js'));
+const toolDefs = require(path.resolve(import.meta.dirname, '../ai/tool-definitions.cjs'));
 const registryReadOnly: string[] = toolDefs.getReadOnlyTools().map((t: { name: string }) => t.name);
 
 // ---------------------------------------------------------------------------

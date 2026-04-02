@@ -21,7 +21,7 @@ import { z } from 'zod';
 
 const require = createRequire(import.meta.url);
 // Navigate from mcp-server/src/tools/ up to project root, then into ai/
-const toolDefs = require(path.resolve(import.meta.dirname, '../../../ai/tool-definitions.js'));
+const toolDefs = require(path.resolve(import.meta.dirname, '../../ai/tool-definitions.cjs'));
 
 // ---------------------------------------------------------------------------
 // TypeScript interfaces
