@@ -1,4 +1,4 @@
-// Background service worker for FSB v0.9.8.1
+// Background service worker for FSB v0.9.20
 
 // Import configuration and AI integration modules
 importScripts('config/config.js');
@@ -10,6 +10,7 @@ importScripts('ai/tool-use-adapter.js');
 importScripts('ai/tool-executor.js');
 importScripts('ai/agent-loop.js');
 importScripts('utils/automation-logger.js');
+importScripts('utils/overlay-state.js');
 importScripts('utils/analytics.js');
 importScripts('utils/keyboard-emulator.js');
 importScripts('utils/site-explorer.js');
@@ -247,6 +248,7 @@ async function _ensureOffscreenSTT() {
 // shared helpers, then domain modules, then messaging/lifecycle which depend on all above.
 const CONTENT_SCRIPT_FILES = [
   'utils/automation-logger.js',
+  'utils/overlay-state.js',
   'content/init.js',
   'content/utils.js',
   'content/dom-state.js',
@@ -803,8 +805,54 @@ async function endSessionOverlays(session, reason) {
  * @param {number} tabId - Target tab ID
  * @param {Object} statusData - Status fields: phase, taskName, iteration, maxIterations, reason, animatedHighlights
  */
+function findOverlaySession(tabId, statusData) {
+  if (statusData && statusData.sessionId && activeSessions.has(statusData.sessionId)) {
+    return activeSessions.get(statusData.sessionId);
+  }
+
+  var match = null;
+  activeSessions.forEach(function(session) {
+    if (match) return;
+    if (session.tabId === tabId || session.originalTabId === tabId || session.previousTabId === tabId) {
+      match = session;
+    }
+  });
+  return match;
+}
+
+function buildOverlayPayload(tabId, statusData) {
+  var utils = self.FSBOverlayStateUtils;
+  if (!utils || typeof utils.buildOverlayState !== 'function') {
+    return null;
+  }
+
+  var session = findOverlaySession(tabId, statusData || {});
+  var overlayState = utils.buildOverlayState(statusData || {}, session || null);
+  if (!overlayState) return null;
+
+  if (session) {
+    if (!session._overlaySessionToken) {
+      session._overlaySessionToken = session.sessionId || ('tab:' + tabId + ':' + Date.now());
+    }
+    session._overlayVersion = (session._overlayVersion || 0) + 1;
+    overlayState.sessionToken = session._overlaySessionToken;
+    overlayState.version = session._overlayVersion;
+  } else {
+    overlayState.sessionToken = (statusData && statusData.sessionToken) || ('tab:' + tabId);
+    overlayState.version = (statusData && typeof statusData.version === 'number')
+      ? statusData.version
+      : Date.now();
+  }
+
+  return overlayState;
+}
+
 async function sendSessionStatus(tabId, statusData) {
-  const payload = { action: 'sessionStatus', ...statusData };
+  const payload = {
+    action: 'sessionStatus',
+    ...statusData,
+    overlayState: buildOverlayPayload(tabId, statusData)
+  };
   try {
     await chrome.tabs.sendMessage(tabId, payload, { frameId: 0 });
   } catch (firstErr) {
@@ -4927,6 +4975,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
     // Create new session with enhanced tracking
     const sessionId = `session_${Date.now()}`;
     const sessionData = {
+      sessionId,
       task,
       tabId: targetTabId,
       originalTabId: targetTabId,  // Store original tab - automation is restricted to this tab
@@ -6036,11 +6085,11 @@ async function handleMultiTabAction(action, currentTabId) {
           // rather than waiting for the next automation iteration (800ms+ later).
           if (contentScriptReady && session) {
             await sendSessionStatus(switchRequest.tabId, {
-              phase: 'acting',
+              phase: 'switching_tab',
               taskName: session.task,
               iteration: session.iterationCount,
               maxIterations: session.maxIterations || 20,
-              statusText: 'Switched tab -- preparing next step...',
+              statusText: 'Switched tabs and loading destination',
               animatedHighlights: session.animatedActionHighlights,
               taskSummary: session.taskSummary || null
             });
@@ -8822,7 +8871,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 // Set up side panel behavior
 chrome.runtime.onInstalled.addListener(async () => {
-  automationLogger.logInit('extension', 'installed', { version: 'v0.9.8.1' });
+  automationLogger.logInit('extension', 'installed', { version: 'v0.9.20' });
 
   // Initialize analytics
   initializeAnalytics();

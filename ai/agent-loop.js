@@ -758,10 +758,47 @@ async function runAgentIteration(sessionId, options) {
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
   }
 
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function describeToolCall(name, args) {
+    var toolNameMap = {
+      search: 'searchGoogle',
+      go_back: 'goBack',
+      go_forward: 'goForward',
+      type_text: 'type',
+      press_enter: 'pressEnter',
+      press_key: 'keyPress',
+      select_option: 'selectOption',
+      check_box: 'toggleCheckbox',
+      right_click: 'rightClick',
+      double_click: 'doubleClick',
+      clear_input: 'clearInput',
+      wait_for_element: 'waitForElement',
+      open_tab: 'openNewTab',
+      switch_tab: 'switchToTab',
+      fill_sheet: 'fillSheetData',
+      read_sheet: 'readsheet',
+      read_page: 'readPage',
+      get_text: 'getText',
+      get_attribute: 'getAttribute',
+      set_attribute: 'setAttribute'
+    };
+
+    var mappedName = toolNameMap[name] || name;
+    if (typeof getActionStatus === 'function') {
+      return getActionStatus(mappedName, args);
+    }
+    return String(name || 'working').replace(/_/g, ' ');
+  }
+
   // Helper: full session finalization (overlays + logger + sidepanel + cleanup)
   async function finalizeSession(sid, sess, resultText, isError) {
     saveToLogger(sid, sess, isError ? 'error' : 'completed');
     notifySidepanel(sid, sess, resultText, isError);
+    // Give the final overlay state a moment to render before cleanup clears it.
+    await sleep(900);
     // cleanupSession removes from activeSessions, persistent storage, and sends overlay cleanup
     if (typeof cleanupSession === 'function') {
       try { await cleanupSession(sid); } catch (_e) { /* non-fatal */ }
@@ -804,7 +841,7 @@ async function runAgentIteration(sessionId, options) {
     sendStatus(session.tabId, {
       phase: 'analyzing',
       taskName: session.task,
-      statusText: `Iteration ${iterNum}: analyzing...`,
+      statusText: 'Reviewing page state',
       iteration: iterNum,
       cost: (session.agentState.totalCost || 0).toFixed(4)
     });
@@ -867,10 +904,6 @@ async function runAgentIteration(sessionId, options) {
       // End session
       session.status = 'completed';
       session.completionMessage = finalText;
-
-      if (typeof endSessionOverlays === 'function') {
-        await endSessionOverlays(session, 'complete');
-      }
 
       if (typeof sendStatus === 'function') {
         sendStatus(session.tabId, {
@@ -965,9 +998,6 @@ async function runAgentIteration(sessionId, options) {
             cost: (session.agentState.totalCost || 0).toFixed(4)
           });
         }
-        if (typeof endSessionOverlays === 'function') {
-          await endSessionOverlays(session, 'complete');
-        }
         await persist(sessionId, session);
         await finalizeSession(sessionId, session, summary, false);
         return; // End the loop -- task is done
@@ -985,9 +1015,6 @@ async function runAgentIteration(sessionId, options) {
             iteration: iterNum,
             cost: (session.agentState.totalCost || 0).toFixed(4)
           });
-        }
-        if (typeof endSessionOverlays === 'function') {
-          await endSessionOverlays(session, 'error');
         }
         await persist(sessionId, session);
         await finalizeSession(sessionId, session, reason, true);
@@ -1008,6 +1035,17 @@ async function runAgentIteration(sessionId, options) {
         session.lastAiReasoning = msg;
         result = { success: true, hadEffect: false, error: null, navigationTriggered: false, result: { displayed: true } };
       } else {
+        if (typeof sendStatus === 'function') {
+          sendStatus(session.tabId, {
+            phase: (call.name === 'open_tab' || call.name === 'switch_tab') ? 'switching_tab' : 'acting',
+            taskName: session.task,
+            statusText: describeToolCall(call.name, call.args),
+            iteration: iterNum,
+            cost: (session.agentState.totalCost || 0).toFixed(4),
+            currentTool: call.name
+          });
+        }
+
         // Standard tool: dispatch through unified executor
         result = await _executeTool(call.name, call.args, session.tabId, {
           cdpHandler: executeCDPToolDirect
@@ -1045,18 +1083,6 @@ async function runAgentIteration(sessionId, options) {
         timestamp: Date.now(),
         iteration: iterNum
       });
-
-      // Send per-tool progress update (PROG-01, PROG-03: shows current tool and cost)
-      if (typeof sendStatus === 'function') {
-        sendStatus(session.tabId, {
-          phase: 'executing',
-          taskName: session.task,
-          statusText: `${call.name}${call.args?.selector ? ' ' + call.args.selector : ''}`,
-          iteration: iterNum,
-          cost: (session.agentState.totalCost || 0).toFixed(4),
-          currentTool: call.name
-        });
-      }
     }
 
     // m2. Update session progress fields for dashboard broadcast (PROG-03)
@@ -1111,9 +1137,6 @@ async function runAgentIteration(sessionId, options) {
     if (errStatus === 401 || errStatus === 403) {
       session.status = 'error';
       session.error = 'API key invalid or expired. Please check your API key in settings.';
-      if (typeof endSessionOverlays === 'function') {
-        await endSessionOverlays(session, 'error');
-      }
       if (typeof sendStatus === 'function') {
         sendStatus(session.tabId, {
           phase: 'error',
@@ -1134,9 +1157,6 @@ async function runAgentIteration(sessionId, options) {
       session.status = 'error';
       session.error = `API rejected request (400): ${errorDetail}`;
       console.error('[AgentLoop] 400 Bad Request -- check tool definitions or request format:', errorDetail);
-      if (typeof endSessionOverlays === 'function') {
-        await endSessionOverlays(session, 'error');
-      }
       if (typeof sendStatus === 'function') {
         sendStatus(session.tabId, {
           phase: 'error',
@@ -1172,9 +1192,6 @@ async function runAgentIteration(sessionId, options) {
     // Second failure on same iteration: terminal error
     session.status = 'error';
     session.error = `API call failed: ${errMsg}`;
-    if (typeof endSessionOverlays === 'function') {
-      await endSessionOverlays(session, 'error');
-    }
     if (typeof sendStatus === 'function') {
       sendStatus(session.tabId, {
         phase: 'error',
