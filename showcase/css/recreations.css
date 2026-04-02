@@ -138,6 +138,11 @@
   overflow: hidden;
 }
 
+/* Ensure flex children fill the full height */
+.browser-content > * {
+  min-height: 0;
+}
+
 /* --- Side Panel Mockup (rec- prefix) --- */
 .rec-sidepanel {
   width: 320px;
@@ -797,7 +802,8 @@
 .rec-main-content {
   flex: 1;
   padding: 20px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--rec-main-bg);
 }
 
