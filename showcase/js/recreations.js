@@ -324,13 +324,13 @@
         overlay: { badge: 'Iter 3/8', text: 'Clicking first result...', pct: '42%' },
         msg: { type: 'status', text: 'Clicking first result...' }, highlight: '.rec-replay-result-1', duration: 2000 },
       // step 4: article page, glow on title
-      { page: 2, url: 'a16z.com/100-gen-ai-apps-6/', status: 'Automating', dot: 'running',
+      { page: 2, url: 'ilampadmanabhan.medium.com/best-ai-tools...', status: 'Automating', dot: 'running',
         overlay: { badge: 'Iter 4/8', text: 'Reading page content...', pct: '78%' },
         msg: { type: 'status', text: 'Reading page content...' }, highlight: '.rec-replay-article-title', duration: 3000 },
       // step 5: done, AI response
-      { page: 2, url: 'a16z.com/100-gen-ai-apps-6/', status: 'Complete', dot: '',
+      { page: 2, url: 'ilampadmanabhan.medium.com/best-ai-tools...', status: 'Complete', dot: '',
         overlay: null,
-        msg: { type: 'ai', text: 'Found the Top 100 Gen AI Consumer Apps list on a16z. Key tools: Claude (reasoning), Cursor (coding), Lovable.ai (no-code), Midjourney (images). The article covers 100 apps across categories.' }, duration: 4000 }
+        msg: { type: 'ai', text: 'Found a comprehensive guide on Medium. Top AI tools for 2025: Claude (reasoning), Cursor (coding), Lovable.ai (no-code apps), Midjourney (images), ChatGPT (general), Gamma (presentations). The guide covers writing, marketing, productivity, and automation categories.' }, duration: 4000 }
     ];
 
     var currentStep = -1;
