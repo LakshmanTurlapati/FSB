@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.23
 milestone_name: Dashboard Stream & Remote Control Reliability
-status: verifying
-stopped_at: Completed 158-02-PLAN.md
-last_updated: "2026-04-02T17:48:30.728Z"
+status: executing
+stopped_at: Completed 159-01-PLAN.md
+last_updated: "2026-04-02T18:54:53.460Z"
 last_activity: 2026-04-02
 progress:
-  total_phases: 157
+  total_phases: 158
   completed_phases: 152
-  total_plans: 307
-  completed_plans: 304
+  total_plans: 309
+  completed_plans: 305
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 158 — hook-pipeline
+**Current focus:** Phase 159 — agent-loop-refactor
 
 ## Current Position
 
-Phase: 158 (hook-pipeline) — EXECUTING
+Phase: 159 (agent-loop-refactor) — EXECUTING
 Plan: 2 of 2
-Status: Phase complete — ready for verification
+Status: Ready to execute
 Last activity: 2026-04-02
 
 Progress: [----------] 0%
@@ -51,6 +51,7 @@ Progress: [----------] 0%
 | Phase 157 P01 | 2min | 2 tasks | 2 files |
 | Phase 158 PP01 | 2min | 2 tasks | 1 files |
 | Phase 158 P02 | 1min | 2 tasks | 3 files |
+| Phase 159 PP01 | 7min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,7 @@ Recent decisions affecting current work:
 - [Phase 157]: Pure extraction of MODEL_PRICING/estimateCost into ai/cost-tracker.js; SESSION_DEFAULTS centralizes 9 constants; 4 EXECUTION_MODES formalized in ai/engine-config.js
 - [Phase 158]: HookPipeline uses arrays (not Sets) for handler storage -- preserves registration order per D-01; async emit with try/catch error isolation per D-05; only shouldStop:true halts pipeline
 - [Phase 158]: 4 separate progress hook factories (tool/iteration/completion/error) instead of 1 multi-event handler for cleaner Phase 159 registration
+- [Phase 159]: Keep checkSafetyBreakers/detectStuck in agent-loop.js as local functions, hook factories receive via closure; TranscriptStore used per-iteration not persisted; onError hook emitted once at catch top; broadcastDashboardProgress kept for dashboard WS compat
 
 ### Roadmap Evolution
 
@@ -91,6 +93,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T17:48:30.720Z
-Stopped at: Completed 158-02-PLAN.md
+Last session: 2026-04-02T18:54:53.453Z
+Stopped at: Completed 159-01-PLAN.md
 Resume file: None

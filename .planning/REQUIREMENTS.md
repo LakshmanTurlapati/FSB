@@ -31,9 +31,9 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 ### Agent Loop Refactor
 
-- [ ] **LOOP-01**: Agent loop integrates transcript store, tool pool, permission context, and hook pipeline -- replacing inline code with module calls, reducing agent-loop.js from ~1200 to ~700 lines
+- [x] **LOOP-01**: Agent loop integrates transcript store, tool pool, permission context, and hook pipeline -- replacing inline code with module calls, reducing agent-loop.js from ~1200 to ~700 lines
 - [ ] **LOOP-02**: Session resumption -- restored sessions after service worker kill can continue automation from the last completed tool result instead of only displaying status and allowing stop
-- [ ] **LOOP-03**: Hook-driven cross-cutting concerns -- all safety checks, progress updates, and permission gates execute through the hook pipeline, not as inline conditionals in the iteration function
+- [x] **LOOP-03**: Hook-driven cross-cutting concerns -- all safety checks, progress updates, and permission gates execute through the hook pipeline, not as inline conditionals in the iteration function
 
 ### Bootstrap Pipeline
 
@@ -86,9 +86,9 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 | HOOK-02 | Phase 158 | Complete |
 | HOOK-03 | Phase 158 | Complete |
 | HOOK-04 | Phase 158 | Complete |
-| LOOP-01 | Phase 159 | Pending |
+| LOOP-01 | Phase 159 | Complete |
 | LOOP-02 | Phase 159 | Pending |
-| LOOP-03 | Phase 159 | Pending |
+| LOOP-03 | Phase 159 | Complete |
 | BOOT-01 | Phase 160 | Pending |
 | BOOT-02 | Phase 160 | Pending |
 

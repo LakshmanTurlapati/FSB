@@ -110,9 +110,9 @@ Plans:
   1. agent-loop.js integrates transcript store, tool pool, permission context, and hook pipeline -- inline code replaced with module calls, file reduced from ~1200 to ~700 lines
   2. A restored session after service worker kill can continue automation from the last completed tool result (resume iteration loop) instead of only displaying status and allowing stop
   3. All safety checks, progress updates, and permission gates execute through the hook pipeline -- no inline conditionals for these concerns remain in the iteration function
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 159-01-PLAN.md -- Refactor agent-loop.js: remove inline code, wire module imports, add 7 hook emissions
+- [x] 159-01-PLAN.md -- Refactor agent-loop.js: remove inline code, wire module imports, add 7 hook emissions
 - [ ] 159-02-PLAN.md -- Wire background.js: importScripts, hook pipeline factory, auto-resumption from warm state
 **Note**: Research reference: `Research/claude-code/src/runtime.py`, `Research/claude-code/src/context.py`. Explicitly preserve setTimeout-chaining for MV3 compatibility. Do NOT convert to synchronous loop or async/await iteration.
 
@@ -135,5 +135,5 @@ Plans:
 | 156. State Foundation | 2/2 | Complete    | 2026-04-02 |
 | 157. Engine Configuration | 2/2 | Complete    | 2026-04-02 |
 | 158. Hook Pipeline | 2/2 | Complete    | 2026-04-02 |
-| 159. Agent Loop Refactor | 0/2 | Planned     | - |
+| 159. Agent Loop Refactor | 1/2 | In Progress|  |
 | 160. Bootstrap Pipeline | 0/? | Not started | - |
