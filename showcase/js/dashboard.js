@@ -2247,7 +2247,16 @@
     // Update progress indicator
     if (payload.progress && previewProgress) {
       previewProgress.style.display = '';
-      previewProgress.textContent = Math.round(payload.progress.percent || 0) + '% - ' + (payload.progress.phase || 'Working');
+      var phaseText = payload.progress.phase || 'Working';
+      var progressText;
+      if (payload.progress.mode === 'determinate' && typeof payload.progress.percent === 'number') {
+        progressText = Math.round(payload.progress.percent) + '%';
+      } else {
+        progressText = payload.progress.label || phaseText || 'Working';
+      }
+      previewProgress.textContent = progressText + ' - ' + phaseText;
+    } else if (previewProgress) {
+      previewProgress.style.display = 'none';
     }
   }
 

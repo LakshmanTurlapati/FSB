@@ -207,6 +207,16 @@
     }
   }
 
+  function markOverlayElement(element, role) {
+    if (!element) return element;
+    element.setAttribute('data-fsb-overlay', 'true');
+    element.setAttribute('aria-hidden', 'true');
+    if (role) {
+      element.setAttribute('data-fsb-overlay-role', role);
+    }
+    return element;
+  }
+
   /**
    * ProgressOverlay - Floating progress indicator using Shadow DOM
    *
@@ -230,7 +240,7 @@
       if (this.host) return; // Already created
 
       // Create host element
-      this.host = document.createElement('div');
+      this.host = markOverlayElement(document.createElement('div'), 'progress-host');
       this.host.id = 'fsb-progress-host';
       // Reset all inherited styles and position at top of stacking context
       // z-index is kept as fallback for browsers without Popover API support
@@ -266,7 +276,8 @@
       }
 
       .fsb-overlay {
-        width: 300px;
+        width: min(320px, calc(100vw - 32px));
+        max-width: 320px;
         background: #000000;
         color: #ffffff;
         padding: 14px 18px;
@@ -275,10 +286,10 @@
         font-size: 13px;
         line-height: 1.4;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 140, 0, 0.3);
-        pointer-events: auto;
+        pointer-events: none;
         opacity: 1;
         transition: opacity 0.2s ease-out;
-        contain: paint;
+        contain: layout paint;
       }
 
       .fsb-overlay.hidden {
@@ -312,24 +323,23 @@
         color: rgba(255, 255, 255, 0.7);
         font-size: 12px;
         margin-bottom: 8px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        line-height: 1.5;
       }
 
       .fsb-summary {
         color: rgba(255, 255, 255, 0.5);
         font-size: 11px;
         margin-bottom: 6px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
         font-style: italic;
+      }
+
+      .fsb-summary:empty {
+        display: none;
       }
 
       .fsb-step {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 8px;
         margin-bottom: 10px;
       }
@@ -347,16 +357,20 @@
         color: rgba(255, 255, 255, 0.9);
         font-size: 12px;
         flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        line-height: 1.45;
       }
 
+      .fsb-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .fsb-phase,
       .fsb-eta {
         color: rgba(255, 255, 255, 0.5);
         font-size: 11px;
-        margin-bottom: 8px;
-        text-align: right;
       }
 
       .fsb-progress-bar {
@@ -364,6 +378,16 @@
         background: rgba(255, 255, 255, 0.1);
         border-radius: 2px;
         overflow: hidden;
+        position: relative;
+      }
+
+      .fsb-progress-bar.hidden {
+        display: none;
+      }
+
+      .fsb-progress-bar.indeterminate .fsb-progress-fill {
+        width: 38%;
+        animation: fsbProgressSweep 1.2s ease-in-out infinite;
       }
 
       .fsb-progress-fill {
@@ -371,6 +395,23 @@
         background: linear-gradient(90deg, #FF8C00, #FF6600);
         border-radius: 2px;
         transition: width 0.3s ease-out;
+      }
+
+      @keyframes fsbProgressSweep {
+        0% { transform: translateX(-120%); }
+        100% { transform: translateX(320%); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .fsb-overlay,
+        .fsb-progress-fill {
+          transition: none;
+        }
+        .fsb-progress-bar.indeterminate .fsb-progress-fill {
+          animation: none;
+          transform: none;
+          width: 45%;
+        }
       }
     `;
 
@@ -387,10 +428,13 @@
       <div class="fsb-task">-</div>
       <div class="fsb-summary"></div>
       <div class="fsb-step">
-        <span class="fsb-step-number">0%</span>
+        <span class="fsb-step-number">Planning</span>
         <span class="fsb-step-text">Initializing...</span>
       </div>
-      <div class="fsb-eta"></div>
+      <div class="fsb-meta">
+        <span class="fsb-phase"></span>
+        <span class="fsb-eta"></span>
+      </div>
       <div class="fsb-progress-bar">
         <div class="fsb-progress-fill" style="width: 0%"></div>
       </div>
@@ -420,34 +464,65 @@
      * @param {string} data.stepText - Step description
      * @param {number} data.progress - Progress percentage (0-100)
      */
-    update({ taskName, taskSummary, stepNumber, totalSteps, stepText, progress, eta, phase }) {
+    update(state) {
       if (!this.container) return;
 
-      // Store state for DOM stream overlay reading (broadcastOverlayState reads these)
-      if (progress !== undefined) this._percent = progress;
-      if (phase !== undefined) this._phase = phase;
-      if (eta !== undefined) this._eta = eta;
+      var overlayState = state && state.display ? state : {
+        lifecycle: 'running',
+        phase: state && state.phase ? state.phase : 'planning',
+        display: {
+          title: state && state.taskName ? String(state.taskName) : '-',
+          subtitle: state && state.taskSummary ? String(state.taskSummary) : '',
+          detail: state && state.stepText ? String(state.stepText) : 'Working'
+        },
+        progress: state && state.progress !== undefined
+          ? {
+              mode: 'determinate',
+              percent: Math.min(100, Math.max(0, Math.round(Number(state.progress) || 0))),
+              label: Math.round(Number(state.progress) || 0) + '%',
+              eta: state && state.eta ? String(state.eta) : ''
+            }
+          : {
+              mode: 'indeterminate',
+              percent: null,
+              label: (state && state.totalSteps && state.stepNumber)
+                ? ('Step ' + state.stepNumber + '/' + state.totalSteps)
+                : 'Working',
+              eta: state && state.eta ? String(state.eta) : ''
+            }
+      };
 
-      if (taskName !== undefined) {
-        this.container.querySelector('.fsb-task').textContent = taskName;
-      }
-      if (taskSummary !== undefined) {
-        this.container.querySelector('.fsb-summary').textContent = taskSummary;
-      }
-      if (progress !== undefined) {
-        const clamped = Math.min(100, Math.max(0, progress));
-        this.container.querySelector('.fsb-step-number').textContent = `${Math.round(clamped)}%`;
-        this.container.querySelector('.fsb-progress-fill').style.width = `${clamped}%`;
-      } else if (stepNumber !== undefined) {
-        const label = totalSteps ? `Iter ${stepNumber}/${totalSteps}` : `Step ${stepNumber}`;
-        this.container.querySelector('.fsb-step-number').textContent = label;
-      }
-      if (stepText !== undefined) {
-        this.container.querySelector('.fsb-step-text').textContent = stepText;
-      }
-      if (eta !== undefined) {
-        const etaEl = this.container.querySelector('.fsb-eta');
-        if (etaEl) etaEl.textContent = eta || '';
+      var utils = window.FSBOverlayStateUtils;
+      var phaseLabel = utils && typeof utils.humanizeOverlayPhase === 'function'
+        ? utils.humanizeOverlayPhase(overlayState.phase)
+        : (overlayState.phase || 'Working');
+      var display = overlayState.display || {};
+      var progress = overlayState.progress || { mode: 'indeterminate', label: phaseLabel };
+
+      this.container.querySelector('.fsb-task').textContent = display.title || '-';
+      this.container.querySelector('.fsb-summary').textContent = display.subtitle || '';
+      this.container.querySelector('.fsb-step-text').textContent = display.detail || 'Working';
+      this.container.querySelector('.fsb-step-number').textContent = progress.label || phaseLabel;
+      this.container.querySelector('.fsb-phase').textContent = phaseLabel;
+      this.container.querySelector('.fsb-eta').textContent = progress.eta || '';
+
+      var bar = this.container.querySelector('.fsb-progress-bar');
+      var fill = this.container.querySelector('.fsb-progress-fill');
+      if (progress.mode === 'determinate' && progress.percent !== null) {
+        bar.classList.remove('indeterminate');
+        bar.classList.remove('hidden');
+        fill.style.width = progress.percent + '%';
+        fill.style.transform = 'none';
+      } else {
+        fill.style.width = '38%';
+        fill.style.transform = '';
+        if (overlayState.lifecycle === 'final') {
+          bar.classList.add('hidden');
+          bar.classList.remove('indeterminate');
+        } else {
+          bar.classList.remove('hidden');
+          bar.classList.add('indeterminate');
+        }
       }
 
       // Auto-broadcast overlay state to dashboard if streaming
@@ -699,7 +774,7 @@
     }
 
     _create() {
-      this.host = document.createElement('div');
+      this.host = markOverlayElement(document.createElement('div'), 'viewport-glow-host');
       this.host.id = 'fsb-viewport-glow-host';
       // z-index kept as fallback; top-layer via Popover API is the primary mechanism
       this.host.style.cssText = 'all:initial!important;position:fixed!important;inset:0!important;z-index:2147483647!important;pointer-events:none!important;margin:0!important;padding:0!important;border:none!important;background:none!important;';
@@ -879,7 +954,7 @@
       this.targetElement = this._findHighlightTarget(element);
 
       // Create host element
-      this.host = document.createElement('div');
+      this.host = markOverlayElement(document.createElement('div'), 'action-glow-host');
       this.host.id = 'fsb-action-glow-host';
       // z-index kept as fallback; top-layer via Popover API is the primary mechanism
       this.host.style.cssText = 'all:initial!important;position:fixed!important;inset:auto!important;top:0!important;left:0!important;width:0!important;height:0!important;z-index:2147483647!important;pointer-events:none!important;margin:0!important;padding:0!important;border:none!important;background:none!important;';
@@ -1097,7 +1172,7 @@
 
     createHoverOverlay() {
       if (this.hoverOverlay) return;
-      this.hoverOverlay = document.createElement('div');
+      this.hoverOverlay = markOverlayElement(document.createElement('div'), 'inspector-hover');
       this.hoverOverlay.id = 'fsb-inspector-overlay';
       // z-index kept as fallback; top-layer via Popover API is the primary mechanism
       // Use visibility:hidden instead of display:none for popover compatibility
@@ -1110,7 +1185,7 @@
 
     createInspectionPanel() {
       if (this.inspectionPanel) return;
-      this.inspectionPanel = document.createElement('div');
+      this.inspectionPanel = markOverlayElement(document.createElement('div'), 'inspector-panel');
       this.inspectionPanel.id = 'fsb-inspector-panel';
       // z-index kept as fallback; top-layer via Popover API is the primary mechanism
       // Use visibility:hidden instead of display:none for popover compatibility
@@ -1131,7 +1206,7 @@
 
     createActiveIndicator() {
       if (this.activeIndicator) return;
-      this.activeIndicator = document.createElement('div');
+      this.activeIndicator = markOverlayElement(document.createElement('div'), 'inspector-indicator');
       this.activeIndicator.id = 'fsb-inspector-indicator';
       // z-index kept as fallback; top-layer via Popover API is the primary mechanism
       this.activeIndicator.style.cssText = 'all:initial!important;position:fixed!important;inset:auto!important;top:10px!important;left:50%!important;transform:translateX(-50%)!important;z-index:2147483647!important;background:#FF8C00!important;color:#fff!important;padding:6px 16px!important;border-radius:20px!important;font-family:system-ui,-apple-system,sans-serif!important;font-size:12px!important;font-weight:600!important;box-shadow:0 2px 10px rgba(0,0,0,0.3)!important;pointer-events:none!important;margin:0!important;border:none!important;';
@@ -1283,7 +1358,7 @@
     create() {
       if (this.host) return;
 
-      this.host = document.createElement('div');
+      this.host = markOverlayElement(document.createElement('div'), 'crawl-progress-host');
       this.host.id = 'fsb-crawl-progress-host';
       this.host.style.cssText = `
       all: initial !important;
@@ -1490,6 +1565,7 @@
       progressOverlay.destroy();
       crawlProgressOverlay.destroy();
       elementInspector.disable();
+      FSB.overlayState = null;
       // Disconnect MutationObservers to prevent leaks on BFCache/re-injection
       if (FSB.domStateManager && FSB.domStateManager.mutationObserver) {
         FSB.domStateManager.mutationObserver.disconnect();

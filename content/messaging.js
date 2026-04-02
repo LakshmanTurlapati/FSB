@@ -871,7 +871,7 @@
           }
 
           // VIS-02: Initialize/update progress overlay on action start (autopilot only)
-          if (visualContext && !isManualMCP) {
+          if (visualContext && !isManualMCP && (!FSB.overlayState || FSB.overlayState.lifecycle !== 'running')) {
             try {
               FSB.progressOverlay.create();
               FSB.progressOverlay.update({
@@ -951,7 +951,7 @@
             }
 
             // Update progress
-            if (visualContext) {
+            if (visualContext && (!FSB.overlayState || FSB.overlayState.lifecycle !== 'running')) {
               try {
                 FSB.progressOverlay.update({
                   stepText: `${tool}: Executing...`,
@@ -1103,105 +1103,45 @@
 
       case 'sessionStatus':
         try {
-          const { phase, taskName, iteration, maxIterations, reason,
-                  animatedHighlights, statusText, progressPercent,
-                  estimatedTimeRemaining, taskSummary } = request;
+          const overlayState = request.overlayState;
+          const shouldApply = (window.FSBOverlayStateUtils && typeof window.FSBOverlayStateUtils.shouldApplyOverlayState === 'function')
+            ? window.FSBOverlayStateUtils.shouldApplyOverlayState(FSB.overlayState, overlayState)
+            : true;
 
-          if (phase === 'ended') {
+          if (!overlayState || !shouldApply) {
+            sendResponse({ success: true, ignored: true });
+            break;
+          }
+
+          FSB.overlayState = overlayState;
+
+          if (overlayState.lifecycle === 'cleared') {
             if (FSB._overlayWatchdogTimer) {
               clearTimeout(FSB._overlayWatchdogTimer);
               FSB._overlayWatchdogTimer = null;
-            }
-            // UX-03: Clean up phase label debounce timer
-            if (FSB._phaseDebounceTimer) {
-              clearTimeout(FSB._phaseDebounceTimer);
-              FSB._phaseDebounceTimer = null;
             }
             FSB.viewportGlow.destroy();
             FSB.progressOverlay.destroy();
             FSB.actionGlowOverlay.destroy();
             FSB.lastActionStatusText = null;
           } else {
-            if (animatedHighlights !== false) {
-              const glowState = (phase === 'acting') ? 'acting' : 'thinking';
+            if (overlayState.highlight?.animated) {
+              const glowState = (overlayState.phase === 'acting' || overlayState.phase === 'writing' || overlayState.phase === 'switching_tab')
+                ? 'acting'
+                : 'thinking';
               FSB.viewportGlow.show(glowState);
-            }
-
-            // DBG-01/DBG-03: Sanitize overlay text — strip markdown and clamp length
-            function sanitizeOverlayText(text) {
-              if (!text || typeof text !== 'string') return text;
-              let clean = text
-                .replace(/\*\*(.+?)\*\*/g, '$1')   // **bold**
-                .replace(/\*(.+?)\*/g, '$1')        // *italic*
-                .replace(/__(.+?)__/g, '$1')        // __bold__
-                .replace(/_(.+?)_/g, '$1')          // _italic_
-                .replace(/`(.+?)`/g, '$1')          // `code`
-                .replace(/^#{1,6}\s+/gm, '')        // # headings
-                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')  // [text](url)
-                .trim();
-              if (clean.length > 80) clean = clean.substring(0, 77) + '...';
-              return clean;
-            }
-
-            if (statusText) {
-              FSB.lastActionStatusText = sanitizeOverlayText(statusText);
+            } else {
+              FSB.viewportGlow.destroy();
             }
 
             FSB.progressOverlay.create();
-            const phaseLabels = {
-              analyzing: 'Analyzing page...',
-              thinking: 'Planning next step...',
-              acting: 'Executing...',
-              recovering: 'Recovering from error...',
-              'sheets-entry': 'Entering data...',
-              'sheets-formatting': 'Formatting spreadsheet...'
-            };
-
-            const displayText = statusText
-              || FSB.lastActionStatusText
-              || phaseLabels[phase]
-              || phase;
-
-            // UX-03: Immediate updates — progress, ETA, taskName, taskSummary (no debounce)
-            // Use taskSummary as the display title (short AI-generated label);
-            // only fall back to full taskName if no summary available yet.
-            // Show full taskName in the summary line only when it differs from what's displayed.
-            const displayTitle = sanitizeOverlayText(taskSummary || taskName);
-            const displaySubtitle = (taskSummary && taskName && taskSummary !== taskName)
-              ? sanitizeOverlayText(taskName)
-              : '';
-            FSB.progressOverlay.update({
-              taskName: displayTitle,
-              taskSummary: displaySubtitle,
-              stepNumber: iteration || 0,
-              totalSteps: maxIterations,
-              progress: progressPercent !== undefined
-                ? progressPercent
-                : (maxIterations ? (iteration / maxIterations) * 100 : 0),
-              eta: estimatedTimeRemaining,
-              phase: phase || 'Working'
-            });
-
-            // UX-03: Debounce phase label to prevent flicker on rapid transitions
-            if (statusText || FSB.lastActionStatusText) {
-              // Real action description — show immediately, no debounce
-              FSB.progressOverlay.update({ stepText: sanitizeOverlayText(displayText) });
-              if (FSB._phaseDebounceTimer) {
-                clearTimeout(FSB._phaseDebounceTimer);
-                FSB._phaseDebounceTimer = null;
-              }
-            } else {
-              // Phase-only label — debounce to prevent flicker
-              const resolvedStepText = sanitizeOverlayText(displayText);
-              if (FSB._phaseDebounceTimer) {
-                clearTimeout(FSB._phaseDebounceTimer);
-              }
-              FSB._phaseDebounceTimer = setTimeout(() => {
-                FSB._phaseDebounceTimer = null;
-                FSB.progressOverlay.update({ stepText: resolvedStepText });
-              }, 300);
-            }
+            FSB.progressOverlay.update(overlayState);
             FSB.progressOverlay.show();
+
+            if (overlayState.lifecycle === 'final') {
+              FSB.actionGlowOverlay.destroy();
+              FSB.viewportGlow.destroy();
+            }
 
             if (FSB._overlayWatchdogTimer) {
               clearTimeout(FSB._overlayWatchdogTimer);
@@ -1213,6 +1153,7 @@
                 FSB.viewportGlow.destroy();
                 FSB.progressOverlay.destroy();
                 FSB.actionGlowOverlay.destroy();
+                FSB.overlayState = null;
                 FSB.lastActionStatusText = null;
               } catch (e) { /* non-blocking */ }
             }, 60000);

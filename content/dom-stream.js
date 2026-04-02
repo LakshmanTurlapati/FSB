@@ -762,17 +762,18 @@
       }
     } catch (e) { /* ignore */ }
 
-    // Read ProgressOverlay state if available
+    // Read canonical overlay state if available
     try {
-      if (FSB.progressOverlay) {
-        var po = FSB.progressOverlay;
-        if (po._percent !== undefined || po.percent !== undefined) {
-          progress = {
-            percent: po._percent || po.percent || 0,
-            phase: po._phase || po.phase || '',
-            eta: po._eta || po.eta || null
-          };
-        }
+      var overlayState = FSB.overlayState;
+      if (overlayState && overlayState.lifecycle !== 'cleared') {
+        progress = {
+          mode: overlayState.progress?.mode || 'indeterminate',
+          percent: overlayState.progress?.percent,
+          label: overlayState.progress?.label || '',
+          phase: overlayState.phase || '',
+          eta: overlayState.progress?.eta || null,
+          detail: overlayState.display?.detail || ''
+        };
       }
     } catch (e) { /* ignore */ }
 

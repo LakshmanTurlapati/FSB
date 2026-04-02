@@ -444,7 +444,7 @@
     }
   }
 
-  logger.logInit('content_script', 'loaded', { version: '0.9.8.1', url: window.location.href });
+  logger.logInit('content_script', 'loaded', { version: '0.9.20', url: window.location.href });
 
   // ============================================================================
   // SPA NAVIGATION DETECTION
@@ -524,6 +524,7 @@
           FSB.viewportGlow.destroy();
           FSB.progressOverlay.destroy();
           FSB.actionGlowOverlay.destroy();
+          FSB.overlayState = null;
           FSB.lastActionStatusText = null;
         } catch (cleanupErr) {
           // Non-blocking

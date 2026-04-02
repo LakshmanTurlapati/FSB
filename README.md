@@ -1,4 +1,4 @@
-# FSB v9.0.2: Full Self-Browsing
+# FSB v0.9.20: Full Self-Browsing
 
 <div align="center">
 
@@ -10,7 +10,7 @@
 
 <!-- Row 1: Identity badges -->
 ![FSB](https://img.shields.io/badge/FSB-Full_Self--Browsing-000000?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-9.0.2-0078D4?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-0.9.20-0078D4?style=for-the-badge)
 ![Manifest V3](https://img.shields.io/badge/Manifest_V3-Chrome-34A853?style=for-the-badge&logo=googlechrome&logoColor=white)
 ![License](https://img.shields.io/badge/license-BSL_1.1-F5C518?style=for-the-badge)
 
@@ -47,7 +47,7 @@
 
 ## Overview
 
-> **Note**: While FSB v9.0.2 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
+> **Note**: While FSB v0.9.20 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
 
 FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **five AI providers**: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini, and OpenRouter (200+ models), with 20+ models built in. FSB can run as a **standalone Chrome extension** or be controlled by any MCP-compatible AI client (Claude Code, Cursor, Windsurf, and others) through its built-in **MCP server**: in manual mode for fine-grained control, or autopilot mode where FSB handles everything.
 
@@ -1045,7 +1045,7 @@ FSB provides real-time visual indicators during automation:
 
 ## Roadmap
 
-### Completed in v9.0.2
+### Completed in v0.9.20
 - Full automation engine with smart iteration and stuck recovery
 - Five AI providers (xAI, OpenAI, Anthropic, Gemini, OpenRouter) with 20+ models
 - Universal model-agnostic provider architecture
@@ -1117,7 +1117,7 @@ This project is licensed under the **[Business Source License 1.1 (BSL 1.1)](LIC
 | Parameter | Value |
 |-----------|-------|
 | **Licensor** | Lakshman Turlapati |
-| **Licensed Work** | FSB v9.0.2 (Full Self-Browsing Chrome Extension) |
+| **Licensed Work** | FSB v0.9.20 (Full Self-Browsing Chrome Extension) |
 | **Additional Use Grant** | None |
 | **Change Date** | 2028-03-29 |
 | **Change License** | Apache License, Version 2.0 |

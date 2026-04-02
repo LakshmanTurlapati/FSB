@@ -49,6 +49,7 @@ if (window.__FSB_CONTENT_SCRIPT_LOADED__) {
 
   // Shared mutable state (accessible by all modules via window.FSB)
   window.FSB.sessionId = null;
+  window.FSB.overlayState = null;
   window.FSB.lastActionStatusText = null;
   window.FSB._overlayWatchdogTimer = null;
 

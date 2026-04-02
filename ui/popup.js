@@ -1,4 +1,4 @@
-// Modern Chat Interface Script for FSB v0.9.8.1
+// Modern Chat Interface Script for FSB v0.9.20
 
 let currentSessionId = null;
 let conversationId = null;
@@ -842,7 +842,7 @@ chatInput.addEventListener('input', adjustInputHeight);
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => e.preventDefault());
 
-console.log('FSB v0.9.8.1 chat interface loaded');
+console.log('FSB v0.9.20 chat interface loaded');
 
 // ==========================================
 // /agent Slash Command Handler
