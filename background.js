@@ -2011,12 +2011,7 @@ async function cleanupSession(sessionId) {
   removePersistedSession(sessionId);
 
   // Clean up conversation session entries that reference this session
-  for (const [convId, entry] of conversationSessions) {
-    if (entry.sessionId === sessionId) {
-      conversationSessions.delete(convId);
-    }
-  }
-  persistConversationSessions();
+  removeConversationThread(sessionId, session?.conversationId || null);
 
   // Clean up AI instance and its conversation history
   if (sessionAIInstances.has(sessionId)) {
@@ -2071,6 +2066,10 @@ function reactivateSession(session, newTask) {
   session.commandCount = (session.commandCount || 1) + 1;
   session.commands = session.commands || [];
   session.commands.push(newTask);
+  session.lastTask = newTask;
+  session.lastCommandAt = Date.now();
+  session.uiSurface = normalizeUiSurface(session.uiSurface);
+  session.historySessionId = session.historySessionId || session.sessionId || null;
 
   // Clear idle timeout if one was scheduled
   if (session.idleTimeout) {
@@ -2094,16 +2093,16 @@ function idleSession(sessionId) {
   if (!session) return;
 
   session.status = 'idle';
+  session.lastTask = session.task;
+  session.lastCommandAt = session.lastCommandAt || Date.now();
+  session.historySessionId = session.historySessionId || session.sessionId || null;
+  upsertConversationThread(session);
 
   // Schedule deferred cleanup -- if no follow-up comes within the timeout, clean up fully
   session.idleTimeout = setTimeout(() => {
     if (session.status === 'idle') {
       automationLogger.debug('Idle session timeout, cleaning up', { sessionId });
       cleanupSession(sessionId);
-      if (session.conversationId) {
-        conversationSessions.delete(session.conversationId);
-        persistConversationSessions();
-      }
     }
   }, IDLE_SESSION_TIMEOUT);
 
@@ -2114,6 +2113,8 @@ function idleSession(sessionId) {
   automationLogger.info('Session transitioned to idle', {
     sessionId,
     conversationId: session.conversationId || null,
+    historySessionId: session.historySessionId || null,
+    uiSurface: session.uiSurface || 'unknown',
     commandCount: session.commandCount || 1,
     actionHistoryLength: session.actionHistory?.length || 0
   });
@@ -2148,7 +2149,17 @@ async function restoreConversationSessions() {
       for (const [convId, entry] of Object.entries(data)) {
         // Only restore if the referenced session still exists
         if (entry?.sessionId && activeSessions.has(entry.sessionId)) {
-          conversationSessions.set(convId, entry);
+          const session = activeSessions.get(entry.sessionId);
+          const threadRecord = createConversationThreadRecord({
+            ...session,
+            ...entry,
+            conversationId: entry.conversationId || convId,
+            sessionId: entry.sessionId
+          });
+
+          if (threadRecord) {
+            conversationSessions.set(threadRecord.conversationId, threadRecord);
+          }
         }
       }
       automationLogger.debug('Conversation sessions restored', { count: conversationSessions.size });
@@ -2165,11 +2176,13 @@ let activeSessions = new Map();
 // This allows conversation history to persist across iterations within a session
 let sessionAIInstances = new Map();
 
-// Session continuity: maps conversationId to { sessionId, lastActiveTime }
-// Enables follow-up commands in the same conversation to reuse the existing session and AI instance
+// Session continuity: maps conversationId to a durable thread record.
+// Enables follow-up commands in the same conversation to reuse the existing session
+// and recover the correct UI/history thread after service worker restarts.
 let conversationSessions = new Map();
 const IDLE_SESSION_TIMEOUT = 10 * 60 * 1000; // 10 minutes before idle sessions are cleaned up
 const MAX_CONVERSATION_SESSIONS = 5; // FIFO cap using enforceMapLimit
+const MAX_PERSISTED_COMMANDS = 25;
 
 // PERF: Max Map sizes to prevent unbounded growth
 const MAX_CONTENT_SCRIPT_ENTRIES = 200;
@@ -2189,10 +2202,138 @@ function enforceMapLimit(map, maxSize) {
   }
 }
 
+function normalizeUiSurface(uiSurface) {
+  if (uiSurface === 'sidepanel' || uiSurface === 'popup') {
+    return uiSurface;
+  }
+  return 'unknown';
+}
+
+function inferUiSurface(request, sender, triggerSource) {
+  if (request?.uiSurface) {
+    return normalizeUiSurface(request.uiSurface);
+  }
+
+  const senderUrl = sender?.url || sender?.documentUrl || '';
+  if (typeof senderUrl === 'string') {
+    if (senderUrl.includes('/ui/sidepanel.html')) {
+      return 'sidepanel';
+    }
+    if (senderUrl.includes('/ui/popup.html')) {
+      return 'popup';
+    }
+  }
+
+  if (triggerSource === 'sidepanel' || triggerSource === 'popup') {
+    return triggerSource;
+  }
+
+  return 'unknown';
+}
+
+function getPersistedCommands(commands, fallbackTask) {
+  const nextCommands = Array.isArray(commands)
+    ? commands.filter(command => typeof command === 'string' && command.trim().length > 0)
+    : [];
+
+  if (nextCommands.length > 0) {
+    return nextCommands.slice(-MAX_PERSISTED_COMMANDS);
+  }
+
+  if (typeof fallbackTask === 'string' && fallbackTask.trim().length > 0) {
+    return [fallbackTask];
+  }
+
+  return [];
+}
+
+function serializeSessionContinuity(sessionLike) {
+  const commands = getPersistedCommands(sessionLike?.commands, sessionLike?.task || sessionLike?.lastTask);
+  const lastTask = sessionLike?.task || sessionLike?.lastTask || commands[commands.length - 1] || null;
+  const commandCount = Math.max(sessionLike?.commandCount || 0, commands.length || 0, lastTask ? 1 : 0);
+
+  return {
+    conversationId: sessionLike?.conversationId || null,
+    sessionId: sessionLike?.sessionId || null,
+    uiSurface: normalizeUiSurface(sessionLike?.uiSurface),
+    historySessionId: sessionLike?.historySessionId || sessionLike?.sessionId || null,
+    lastTask,
+    lastCommandAt: sessionLike?.lastCommandAt || sessionLike?.startTime || Date.now(),
+    commandCount: commandCount || 1,
+    commands
+  };
+}
+
+function applyContinuityToSession(session, continuity) {
+  if (!session || !continuity) return session;
+
+  session.conversationId = continuity.conversationId;
+  session.uiSurface = continuity.uiSurface;
+  session.historySessionId = continuity.historySessionId;
+  session.lastTask = continuity.lastTask;
+  session.lastCommandAt = continuity.lastCommandAt;
+  session.commandCount = continuity.commandCount;
+  session.commands = continuity.commands;
+  session.continuity = continuity;
+
+  return session;
+}
+
+function createConversationThreadRecord(sessionLike) {
+  const continuity = serializeSessionContinuity(sessionLike);
+  if (!continuity.conversationId || !continuity.sessionId) {
+    return null;
+  }
+
+  return {
+    conversationId: continuity.conversationId,
+    sessionId: continuity.sessionId,
+    uiSurface: continuity.uiSurface,
+    historySessionId: continuity.historySessionId,
+    persistedSessionId: continuity.sessionId,
+    lastTask: continuity.lastTask,
+    lastCommandAt: continuity.lastCommandAt,
+    commandCount: continuity.commandCount,
+    updatedAt: Date.now()
+  };
+}
+
+function upsertConversationThread(sessionLike) {
+  const threadRecord = createConversationThreadRecord(sessionLike);
+  if (!threadRecord) {
+    return null;
+  }
+
+  conversationSessions.set(threadRecord.conversationId, threadRecord);
+  enforceMapLimit(conversationSessions, MAX_CONVERSATION_SESSIONS);
+  persistConversationSessions();
+  return threadRecord;
+}
+
+function removeConversationThread(sessionId, conversationId = null) {
+  let removed = false;
+
+  for (const [convId, entry] of conversationSessions) {
+    if (entry.sessionId === sessionId || (conversationId && convId === conversationId)) {
+      conversationSessions.delete(convId);
+      removed = true;
+    }
+  }
+
+  if (removed) {
+    persistConversationSessions();
+  }
+}
+
 // Session persistence helpers - survive service worker restarts
 // Persists essential session data to chrome.storage.session
 async function persistSession(sessionId, session) {
   try {
+    const continuity = serializeSessionContinuity({
+      ...session,
+      sessionId
+    });
+
     // Only persist essential fields needed for stop button and session continuity to work
     const persistableSession = {
       sessionId: sessionId,
@@ -2200,16 +2341,20 @@ async function persistSession(sessionId, session) {
       tabId: session.tabId,
       status: session.status,
       startTime: session.startTime,
-      conversationId: session.conversationId || null,
-      commandCount: session.commandCount || 1,
+      conversationId: continuity.conversationId,
+      uiSurface: continuity.uiSurface,
+      historySessionId: continuity.historySessionId,
+      lastTask: continuity.lastTask,
+      lastCommandAt: continuity.lastCommandAt,
+      commandCount: continuity.commandCount,
+      commands: continuity.commands,
+      continuity,
       // Don't persist: loopPromise, pendingTimeout, DOM hashes, etc. (non-serializable or transient)
       // Agent loop state for service worker resurrection (Phase 137 / SAFE-04)
       agentIterationCount: session.agentState?.iterationCount || 0,
       agentTotalCost: session.agentState?.totalCost || 0,
       agentTotalInputTokens: session.agentState?.totalInputTokens || 0,
-      agentTotalOutputTokens: session.agentState?.totalOutputTokens || 0,
-      // Persist last 5 messages for minimal context on SW restart
-      agentLastMessages: (session.messages || []).slice(-5),
+      agentTotalOutputTokens: session.agentState?.totalOutputTokens || 0
     };
 
     // Persist multi-site orchestration state for service worker restart recovery
@@ -2256,17 +2401,27 @@ async function restoreSessionsFromStorage() {
       if (persistedSession && persistedSession.sessionId) {
         // Check if session is still supposed to be running or idle (idle sessions can be reactivated)
         if (persistedSession.status === 'running' || persistedSession.status === 'idle') {
+          const continuity = serializeSessionContinuity({
+            ...persistedSession,
+            ...persistedSession.continuity,
+            sessionId: persistedSession.sessionId
+          });
+
           // Restore to activeSessions map so stop button works (and idle sessions can be reactivated)
           // Mark as 'recoverable' so we know it was restored (can't resume automation loop)
-          activeSessions.set(persistedSession.sessionId, {
+          const restoredSession = applyContinuityToSession({
             ...persistedSession,
             isRestored: true,  // Flag to indicate this was restored, automation loop is not running
             // Keep original status -- 'running' for stop button, 'idle' for reactivation
-          });
+          }, continuity);
+
+          activeSessions.set(persistedSession.sessionId, restoredSession);
           automationLogger.info('Restored session from storage', {
             sessionId: persistedSession.sessionId,
             status: persistedSession.status,
-            task: persistedSession.task?.substring(0, 50)
+            task: persistedSession.task?.substring(0, 50),
+            conversationId: continuity.conversationId,
+            uiSurface: continuity.uiSurface
           });
         } else {
           // Clean up non-running/non-idle sessions from storage
@@ -2301,6 +2456,7 @@ setInterval(async () => {
       activeSessions.delete(sessionId);
       sessionAIInstances.delete(sessionId);
       removePersistedSession(sessionId);
+      removeConversationThread(sessionId, session.conversationId || null);
       continue;
     }
     // VMFIX-03: Expire running sessions with no iteration progress for 5 minutes
@@ -2317,6 +2473,7 @@ setInterval(async () => {
       activeSessions.delete(sessionId);
       sessionAIInstances.delete(sessionId);
       removePersistedSession(sessionId);
+      removeConversationThread(sessionId, session.conversationId || null);
       // Notify UI that session expired
       chrome.runtime.sendMessage({
         action: 'automationComplete',
@@ -2339,6 +2496,7 @@ setInterval(async () => {
         activeSessions.delete(sessionId);
         sessionAIInstances.delete(sessionId);
         removePersistedSession(sessionId);
+        removeConversationThread(sessionId, session.conversationId || null);
       }
     }
   }
@@ -2460,6 +2618,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     if (session.tabId === tabId) {
       session.status = 'stopped';
       activeSessions.delete(sessionId);
+      removeConversationThread(sessionId, session.conversationId || null);
       if (sessionAIInstances.has(sessionId)) {
         sessionAIInstances.delete(sessionId);
       }
@@ -5231,12 +5390,13 @@ async function handleSolveCaptcha(request, sender, sendResponse) {
 }
 
 async function handleStartAutomation(request, sender, sendResponse) {
-  const { task, tabId, conversationId } = request;
+  const { task, tabId, conversationId, uiSurface: requestedUiSurface, historySessionId: requestedHistorySessionId } = request;
 
   try {
     // Get the target tab ID (may be updated by smart tab management below)
     let targetTabId = tabId || sender.tab?.id;
     const triggerSource = request._triggerSource || 'extension';
+    const uiSurface = inferUiSurface(request, sender, triggerSource);
 
     // Check for existing conversation session for follow-up reuse
     if (conversationId && conversationSessions.has(conversationId)) {
@@ -5246,7 +5406,9 @@ async function handleStartAutomation(request, sender, sendResponse) {
         // Reactivate the existing session
         reactivateSession(existingSession, task);
         const sessionId = convEntry.sessionId;
-        convEntry.lastActiveTime = Date.now();
+        existingSession.uiSurface = uiSurface;
+        existingSession.historySessionId = existingSession.historySessionId || convEntry.historySessionId || requestedHistorySessionId || sessionId;
+        const threadRecord = upsertConversationThread(existingSession);
 
         // Inject follow-up context into AI
         const ai = sessionAIInstances.get(sessionId);
@@ -5258,7 +5420,11 @@ async function handleStartAutomation(request, sender, sendResponse) {
         automationLogger.logFollowUpCommand(sessionId, task, existingSession.commandCount);
 
         automationLogger.info('Reactivating conversation session', {
-          sessionId, conversationId, commandCount: existingSession.commandCount
+          sessionId,
+          conversationId,
+          historySessionId: threadRecord?.historySessionId || existingSession.historySessionId || null,
+          uiSurface,
+          commandCount: existingSession.commandCount
         });
 
         // Persist updated session
@@ -5364,6 +5530,10 @@ async function handleStartAutomation(request, sender, sendResponse) {
       animatedActionHighlights: storedSettings.animatedActionHighlights ?? true,
       // Session continuity fields
       conversationId: conversationId || null,
+      uiSurface,
+      historySessionId: requestedHistorySessionId || sessionId,
+      lastTask: task,
+      lastCommandAt: Date.now(),
       commandCount: 1,
       commands: [task],
       // PERF: Cache DOM settings at session start to avoid repeated storage reads
@@ -5384,6 +5554,8 @@ async function handleStartAutomation(request, sender, sendResponse) {
       tools: null,
       providerConfig: null
     };
+
+    sessionData.continuity = serializeSessionContinuity(sessionData);
 
     activeSessions.set(sessionId, sessionData);
 
@@ -5426,14 +5598,19 @@ async function handleStartAutomation(request, sender, sendResponse) {
 
     // Register in conversation sessions for follow-up reuse
     if (conversationId) {
-      conversationSessions.set(conversationId, { sessionId, lastActiveTime: Date.now() });
-      enforceMapLimit(conversationSessions, MAX_CONVERSATION_SESSIONS);
-      persistConversationSessions();
+      upsertConversationThread(sessionData);
     }
 
     automationLogger.logSessionStart(sessionId, task, sessionData.tabId);
     initializeSessionMetrics(sessionId);
-    automationLogger.info('Created new session', { sessionId, tabId: sessionData.tabId, activeSessions: activeSessions.size, conversationId: conversationId || null });
+    automationLogger.info('Created new session', {
+      sessionId,
+      tabId: sessionData.tabId,
+      activeSessions: activeSessions.size,
+      conversationId: conversationId || null,
+      historySessionId: sessionData.historySessionId,
+      uiSurface
+    });
 
     // Content script injection is now handled by the automation loop
     // to prevent double injection and race conditions

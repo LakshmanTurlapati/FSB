@@ -10,6 +10,45 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
   // Automation Logger for FSB v0.9.20
   // Provides structured logging for debugging automation loops
 
+  function filterPersistedSessionLogs(sessionLogs) {
+    return (sessionLogs || []).filter(log => {
+      const logType = log?.data?.logType || log?.logType || null;
+      return logType !== 'prompt' && logType !== 'rawResponse';
+    });
+  }
+
+  function getPersistedCommandList(sessionData = {}, fallbackTask = '') {
+    const commands = Array.isArray(sessionData.commands)
+      ? sessionData.commands.filter(command => typeof command === 'string' && command.trim().length > 0)
+      : [];
+
+    if (commands.length > 0) {
+      return commands.slice(-25);
+    }
+
+    if (typeof fallbackTask === 'string' && fallbackTask.trim().length > 0) {
+      return [fallbackTask];
+    }
+
+    return [];
+  }
+
+  function buildPersistedSessionMetadata(sessionId, sessionData = {}, existing = null) {
+    const commands = getPersistedCommandList(sessionData, sessionData.task || existing?.lastTask || existing?.task || '');
+    const lastTask = sessionData.task || existing?.lastTask || commands[commands.length - 1] || existing?.task || 'Unknown task';
+    const lastCommandAt = sessionData.lastCommandAt || existing?.lastCommandAt || sessionData.startTime || Date.now();
+
+    return {
+      conversationId: sessionData.conversationId || existing?.conversationId || null,
+      uiSurface: sessionData.uiSurface || existing?.uiSurface || 'unknown',
+      historySessionId: sessionData.historySessionId || existing?.historySessionId || sessionId,
+      commandCount: sessionData.commandCount || existing?.commandCount || commands.length || 1,
+      commands,
+      lastTask,
+      lastCommandAt
+    };
+  }
+
   class AutomationLogger {
     constructor() {
       this.logs = [];
@@ -530,7 +569,8 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
       if (!chrome.runtime?.id) return false;
       try {
         const sessionLogs = this.getSessionLogs(sessionId);
-        if (sessionLogs.length === 0) return false;
+        const persistedLogs = filterPersistedSessionLogs(sessionLogs);
+        if (sessionLogs.length === 0 && persistedLogs.length === 0) return false;
 
         const stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex']);
         const sessionStorage = stored.fsbSessionLogs || {};
@@ -539,22 +579,32 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
         if (sessionStorage[sessionId]) {
           // APPEND MODE: Update existing session entry
           const existing = sessionStorage[sessionId];
+          const metadata = buildPersistedSessionMetadata(sessionId, sessionData, existing);
           // Merge logs: add only new logs (those with timestamps after existing endTime)
-          const newLogs = sessionLogs.filter(log => log.timestamp > existing.endTime);
+          const newLogs = persistedLogs.filter(log => Date.parse(log.timestamp) > (existing.endTime || 0));
+          existing.logs = filterPersistedSessionLogs(existing.logs || []);
           if (newLogs.length > 0) {
-            existing.logs = (existing.logs || []).concat(newLogs);
+            existing.logs = filterPersistedSessionLogs(existing.logs.concat(newLogs));
           }
           existing.endTime = Date.now();
           existing.status = sessionData.status || existing.status;
           existing.actionCount = sessionData.actionHistory?.length || existing.actionCount;
           existing.iterationCount = sessionData.iterationCount || existing.iterationCount;
-          existing.commandCount = sessionData.commandCount || existing.commandCount || 1;
+          existing.conversationId = metadata.conversationId;
+          existing.uiSurface = metadata.uiSurface;
+          existing.historySessionId = metadata.historySessionId;
+          existing.commandCount = metadata.commandCount;
+          existing.commands = metadata.commands;
+          existing.lastTask = metadata.lastTask;
+          existing.lastCommandAt = metadata.lastCommandAt;
           existing.totalCost = sessionData.totalCost || existing.totalCost || 0;
           existing.totalInputTokens = sessionData.totalInputTokens || existing.totalInputTokens || 0;
           existing.totalOutputTokens = sessionData.totalOutputTokens || existing.totalOutputTokens || 0;
           // Update task to show the latest command
-          if (sessionData.commands && sessionData.commands.length > 1) {
-            existing.task = sessionData.commands.map((cmd, i) => `[${i + 1}] ${cmd}`).join(' | ');
+          if (metadata.commands.length > 1) {
+            existing.task = metadata.commands.map((cmd, i) => `[${i + 1}] ${cmd}`).join(' | ');
+          } else if (metadata.lastTask) {
+            existing.task = metadata.lastTask;
           }
           // Persist actionHistory for session replay (successful actions only, capped at 100)
           if (sessionData.actionHistory) {
@@ -566,20 +616,29 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
           sessionStorage[sessionId] = existing;
         } else {
           // NEW MODE: Create session entry
+          const metadata = buildPersistedSessionMetadata(sessionId, sessionData);
           const session = {
             id: sessionId,
-            task: sessionData.task || 'Unknown task',
+            task: metadata.commands.length > 1
+              ? metadata.commands.map((cmd, i) => `[${i + 1}] ${cmd}`).join(' | ')
+              : (metadata.lastTask || 'Unknown task'),
             startTime: sessionData.startTime || Date.now(),
             endTime: Date.now(),
             status: sessionData.status || 'completed',
             tabId: sessionData.tabId || null,
             actionCount: sessionData.actionHistory?.length || 0,
             iterationCount: sessionData.iterationCount || 0,
-            commandCount: sessionData.commandCount || 1,
+            conversationId: metadata.conversationId,
+            uiSurface: metadata.uiSurface,
+            historySessionId: metadata.historySessionId,
+            commandCount: metadata.commandCount,
+            commands: metadata.commands,
+            lastTask: metadata.lastTask,
+            lastCommandAt: metadata.lastCommandAt,
             totalCost: sessionData.totalCost || 0,
             totalInputTokens: sessionData.totalInputTokens || 0,
             totalOutputTokens: sessionData.totalOutputTokens || 0,
-            logs: sessionLogs,
+            logs: filterPersistedSessionLogs(sessionLogs),
             // Persist actionHistory for session replay (successful actions only, capped at 100)
             actionHistory: (sessionData.actionHistory || [])
               .filter(a => a.result?.success)
@@ -597,7 +656,14 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
           id: sessionId, task: savedSession.task, startTime: savedSession.startTime,
           endTime: savedSession.endTime, status: savedSession.status, actionCount: savedSession.actionCount,
           domSnapshotCount: snapshotCount,
-          totalCost: savedSession.totalCost || 0
+          totalCost: savedSession.totalCost || 0,
+          conversationId: savedSession.conversationId || null,
+          uiSurface: savedSession.uiSurface || 'unknown',
+          historySessionId: savedSession.historySessionId || sessionId,
+          commandCount: savedSession.commandCount || 1,
+          commands: savedSession.commands || [],
+          lastTask: savedSession.lastTask || savedSession.task || null,
+          lastCommandAt: savedSession.lastCommandAt || savedSession.endTime || savedSession.startTime
         };
         const existingIndex = sessionIndex.findIndex(s => s.id === sessionId);
         if (existingIndex !== -1) sessionIndex[existingIndex] = indexEntry;
