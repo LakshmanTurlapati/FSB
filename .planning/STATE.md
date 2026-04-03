@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.9.23
 milestone_name: Dashboard Stream & Remote Control Reliability
-status: planning
-stopped_at: Completed 160-01-PLAN.md
-last_updated: "2026-04-02T20:58:37.132Z"
-last_activity: 2026-04-02 -- deferred Phase 155 executed retroactively while v0.9.24 remains active
+status: executing
+stopped_at: Completed 161-02-PLAN.md
+last_updated: "2026-04-03T00:49:34Z"
+last_activity: 2026-04-03 -- Phase 161 module adoption plan 02 complete (CostTracker, ActionHistory, TurnResult wired into agent-loop.js)
 progress:
   total_phases: 136
   completed_phases: 88
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 161 -- Module Adoption (plan 1 of 2 complete)
+**Current focus:** Phase 161 -- Module Adoption (executing)
 
 ## Current Position
 
-Phase: 161 of 161 (Module Adoption) -- IN PROGRESS
-Plan: 1 of 2 in current phase
-Status: Executing Phase 161 plans
-Last activity: 2026-04-03 -- 161-01 createSession adoption and mode routing complete
+Phase: 161 (Module Adoption) -- IN PROGRESS
+Plan: 2 of 2 in current phase (161-02 complete)
+Status: Executing Phase 161
+Last activity: 2026-04-03 -- Phase 161 plan 02 complete (CostTracker, ActionHistory, TurnResult in agent-loop.js)
 
-Progress: [=====-----] 50%
+Progress: [==========] 100% (Phase 161)
 
 ## Performance Metrics
 
@@ -46,7 +46,7 @@ Progress: [=====-----] 50%
 | 150 | P01 | 3min | 3 | 4 |
 | 150 | P02 | 4min | 2 | 3 |
 | Phase 160 P01 | 3min | 2 tasks | 1 files |
-| 161 | P01 | 5min | 1 | 2 |
+| 161 | P02 | 3min | 2 | 1 |
 
 ## Accumulated Context
 
@@ -61,7 +61,7 @@ Recent decisions affecting current work:
 - [v0.9.24]: Preserve setTimeout-chaining in agent loop -- do NOT convert to synchronous or async/await iteration
 - [v0.9.24]: Origin-aware permission rules (Chrome match patterns) not path-based prefixes
 - [Phase 160]: 4-phase swBootstrap (SETTINGS->ENVIRONMENT->TOOLS->SESSIONS) with _bootstrapDone guard and deferred WebSocket+Analytics until first UI interaction
-- [Phase 161]: mode field added as warm-tier to SESSION_FIELDS for persistence across SW kills; replay sessions left as inline literal (different shape, out of scope)
+- [Phase 161]: CostTracker on session._costTracker with fallback; ActionHistory on session._actionHistory with backward compat sync; TurnResult overwritten per iteration not accumulated
 
 ### Roadmap Evolution
 
@@ -80,6 +80,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-03
-Stopped at: Completed 161-01-PLAN.md
+Last session: 2026-04-03T00:49:34Z
+Stopped at: Completed 161-02-PLAN.md
 Resume file: None

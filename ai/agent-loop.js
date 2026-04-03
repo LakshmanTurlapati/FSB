@@ -130,13 +130,21 @@ var _al_createErrorProgressHook = (typeof createErrorProgressHook !== 'undefined
 function checkSafetyBreakers(session) {
   var state = session.agentState || {};
 
-  // Cost circuit breaker (SAFE-01, D-01)
-  var costLimit = (session.safetyConfig && session.safetyConfig.costLimit) || _al_SESSION_DEFAULTS.costLimit || 2.00;
-  if ((state.totalCost || 0) >= costLimit) {
-    return {
-      shouldStop: true,
-      reason: 'Session cost ($' + (state.totalCost || 0).toFixed(2) + ') exceeded limit ($' + costLimit.toFixed(2) + '). Stopping to prevent excess spending.'
-    };
+  // Cost circuit breaker (SAFE-01, D-01, ADOPT-02)
+  if (session._costTracker) {
+    var budget = session._costTracker.checkBudget();
+    if (budget.exceeded) {
+      return { shouldStop: true, reason: budget.reason };
+    }
+  } else {
+    // Fallback: direct read (backward compat when CostTracker unavailable)
+    var costLimit = (session.safetyConfig && session.safetyConfig.costLimit) || _al_SESSION_DEFAULTS.costLimit || 2.00;
+    if ((state.totalCost || 0) >= costLimit) {
+      return {
+        shouldStop: true,
+        reason: 'Session cost ($' + (state.totalCost || 0).toFixed(2) + ') exceeded limit ($' + costLimit.toFixed(2) + '). Stopping to prevent excess spending.'
+      };
+    }
   }
 
   // Time limit (SAFE-02, D-02)
@@ -474,6 +482,25 @@ function hydrateAgentRunState(session, systemPrompt) {
   session.totalOutputTokens = session.agentState.totalOutputTokens;
   session.totalCost = session.agentState.totalCost;
   session.isRestored = false;
+
+  // ADOPT-02: Instantiate CostTracker per session
+  if (_al_CostTracker) {
+    var costLimit = (session.safetyConfig && session.safetyConfig.costLimit)
+      || _al_SESSION_DEFAULTS.costLimit || 2.00;
+    session._costTracker = new _al_CostTracker(costLimit);
+    // Hydrate from warm state (accumulated cost from previous iterations/restores)
+    session._costTracker.totalCost = session.totalCost || 0;
+    session._costTracker.totalInputTokens = session.totalInputTokens || 0;
+    session._costTracker.totalOutputTokens = session.totalOutputTokens || 0;
+  }
+
+  // ADOPT-04: Instantiate ActionHistory per session
+  if (_al_ActionHistory) {
+    session._actionHistory = new _al_ActionHistory();
+    if (Array.isArray(session.actionHistory) && session.actionHistory.length > 0) {
+      session._actionHistory.hydrate(session.actionHistory);
+    }
+  }
 
   if (!Array.isArray(session.tools) || session.tools.length === 0) {
     session.tools = getPublicTools();
@@ -957,14 +984,27 @@ async function runAgentIteration(sessionId, options) {
     var usage = _extractUsage(response, providerKey);
     var inputTokens = usage.input || 0;
     var outputTokens = usage.output || 0;
-    session.agentState.totalInputTokens += inputTokens;
-    session.agentState.totalOutputTokens += outputTokens;
-    session.agentState.totalCost += _al_estimateCost(model, inputTokens, outputTokens);
-
-    // Also update session-level counters for backward compatibility
-    session.totalInputTokens = session.agentState.totalInputTokens;
-    session.totalOutputTokens = session.agentState.totalOutputTokens;
-    session.totalCost = session.agentState.totalCost;
+    // ADOPT-02: Record cost via CostTracker (or fall back to inline math)
+    var iterationCost = 0;
+    if (session._costTracker) {
+      iterationCost = session._costTracker.record(model, inputTokens, outputTokens);
+      // Sync back to session fields for backward compatibility
+      session.agentState.totalInputTokens = session._costTracker.totalInputTokens;
+      session.agentState.totalOutputTokens = session._costTracker.totalOutputTokens;
+      session.agentState.totalCost = session._costTracker.totalCost;
+      session.totalInputTokens = session._costTracker.totalInputTokens;
+      session.totalOutputTokens = session._costTracker.totalOutputTokens;
+      session.totalCost = session._costTracker.totalCost;
+    } else {
+      // Fallback: direct accumulation (CostTracker unavailable)
+      iterationCost = _al_estimateCost(model, inputTokens, outputTokens);
+      session.agentState.totalInputTokens += inputTokens;
+      session.agentState.totalOutputTokens += outputTokens;
+      session.agentState.totalCost += iterationCost;
+      session.totalInputTokens = session.agentState.totalInputTokens;
+      session.totalOutputTokens = session.agentState.totalOutputTokens;
+      session.totalCost = session.agentState.totalCost;
+    }
     session.iterationCount = iterNum;
 
     // h2. Emit afterApiResponse hook
@@ -1007,6 +1047,23 @@ async function runAgentIteration(sessionId, options) {
       // End session
       session.status = 'completed';
       session.completionMessage = finalText;
+
+      // ADOPT-03: Construct structured turn result for end_turn
+      session.lastTurnResult = _al_createTurnResult({
+        sessionId: sessionId,
+        iteration: iterNum,
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+        cost: iterationCost,
+        matchedTools: [],
+        toolResults: [],
+        permissionDenials: [],
+        stopReason: _al_STOP_REASONS.END_TURN || 'end_turn',
+        completionMessage: finalText.substring(0, 500),
+        errorMessage: null,
+        timestamp: Date.now(),
+        durationMs: Date.now() - (session.agentState.startTime || Date.now())
+      });
 
       // Emit onCompletion hook
       if (hooks) {
@@ -1069,13 +1126,22 @@ async function runAgentIteration(sessionId, options) {
             navigationTriggered: false, result: null
           };
           toolResults.push({ callId: call.id, name: call.name, result: result });
-          // Push action event for denied tool
-          if (!session.actionHistory) session.actionHistory = [];
-          session.actionHistory.push(_al_createActionEvent({
-            tool: call.name, params: call.args,
-            result: { success: false, hadEffect: false, error: result.error },
-            timestamp: Date.now(), iteration: iterNum
-          }));
+          // ADOPT-04: Use ActionHistory instance or fallback to raw array
+          if (session._actionHistory) {
+            session._actionHistory.push({
+              tool: call.name, params: call.args,
+              result: { success: false, hadEffect: false, error: result.error },
+              timestamp: Date.now(), iteration: iterNum
+            });
+            session.actionHistory = session._actionHistory.events; // backward compat sync
+          } else {
+            if (!session.actionHistory) session.actionHistory = [];
+            session.actionHistory.push(_al_createActionEvent({
+              tool: call.name, params: call.args,
+              result: { success: false, hadEffect: false, error: result.error },
+              timestamp: Date.now(), iteration: iterNum
+            }));
+          }
           continue; // Skip to next tool
         }
       }
@@ -1184,13 +1250,22 @@ async function runAgentIteration(sessionId, options) {
 
       toolResults.push({ callId: call.id, name: call.name, result: result });
 
-      // Update action history using createActionEvent
-      if (!session.actionHistory) session.actionHistory = [];
-      session.actionHistory.push(_al_createActionEvent({
-        tool: call.name, params: call.args,
-        result: { success: result.success, hadEffect: result.hadEffect, error: result.error || null },
-        timestamp: Date.now(), iteration: iterNum
-      }));
+      // ADOPT-04: Use ActionHistory instance or fallback to raw array
+      if (session._actionHistory) {
+        session._actionHistory.push({
+          tool: call.name, params: call.args,
+          result: { success: result.success, hadEffect: result.hadEffect, error: result.error || null },
+          timestamp: Date.now(), iteration: iterNum
+        });
+        session.actionHistory = session._actionHistory.events; // backward compat sync
+      } else {
+        if (!session.actionHistory) session.actionHistory = [];
+        session.actionHistory.push(_al_createActionEvent({
+          tool: call.name, params: call.args,
+          result: { success: result.success, hadEffect: result.hadEffect, error: result.error || null },
+          timestamp: Date.now(), iteration: iterNum
+        }));
+      }
 
       // Emit afterToolExecution hook
       if (hooks) {
@@ -1256,6 +1331,25 @@ async function runAgentIteration(sessionId, options) {
     // o. Persist session state after every iteration (per SAFE-04, D-09)
     await persist(sessionId, session);
 
+    // ADOPT-03: Construct structured turn result for tool_calls iteration
+    session.lastTurnResult = _al_createTurnResult({
+      sessionId: sessionId,
+      iteration: iterNum,
+      inputTokens: inputTokens,
+      outputTokens: outputTokens,
+      cost: iterationCost,
+      matchedTools: toolResults.map(function(tr) { return tr.name; }),
+      toolResults: toolResults.map(function(tr) {
+        return { name: tr.name, success: tr.result.success, hadEffect: tr.result.hadEffect };
+      }),
+      permissionDenials: [],
+      stopReason: _al_STOP_REASONS.TOOL_CALLS || 'tool_calls',
+      completionMessage: null,
+      errorMessage: null,
+      timestamp: Date.now(),
+      durationMs: Date.now() - (session.agentState.startTime || Date.now())
+    });
+
     // p. Schedule next iteration via setTimeout (per D-08, P4)
     // 100ms delay: fast enough for responsive automation,
     // long enough to yield the event loop and reset Chrome's execution timer
@@ -1280,6 +1374,23 @@ async function runAgentIteration(sessionId, options) {
         totalCost: (session.agentState && session.agentState.totalCost) || 0
       });
     }
+
+    // ADOPT-03: Construct error turn result (used by all error exit paths)
+    session.lastTurnResult = _al_createTurnResult({
+      sessionId: sessionId,
+      iteration: iterNum,
+      inputTokens: 0,
+      outputTokens: 0,
+      cost: 0,
+      matchedTools: [],
+      toolResults: [],
+      permissionDenials: [],
+      stopReason: _al_STOP_REASONS.ERROR || 'error',
+      completionMessage: null,
+      errorMessage: errMsg,
+      timestamp: Date.now(),
+      durationMs: Date.now() - ((session.agentState && session.agentState.startTime) || Date.now())
+    });
 
     // Auth errors (401/403): terminal
     if (errStatus === 401 || errStatus === 403) {
