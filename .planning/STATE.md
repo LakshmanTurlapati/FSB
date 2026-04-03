@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 156 -- State Foundation (ready to plan)
+**Current focus:** Phase 161 -- Module Adoption (plan 1 of 2 complete)
 
 ## Current Position
 
-Phase: 156 of 160 (State Foundation) -- NOT STARTED
-Plan: 0 of ? in current phase
-Status: Ready to plan Phase 156
-Last activity: 2026-04-02 -- deferred Phase 155 executed retroactively while v0.9.24 remains active
+Phase: 161 of 161 (Module Adoption) -- IN PROGRESS
+Plan: 1 of 2 in current phase
+Status: Executing Phase 161 plans
+Last activity: 2026-04-03 -- 161-01 createSession adoption and mode routing complete
 
-Progress: [----------] 0%
+Progress: [=====-----] 50%
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Progress: [----------] 0%
 | 150 | P01 | 3min | 3 | 4 |
 | 150 | P02 | 4min | 2 | 3 |
 | Phase 160 P01 | 3min | 2 tasks | 1 files |
+| 161 | P01 | 5min | 1 | 2 |
 
 ## Accumulated Context
 
@@ -60,6 +61,7 @@ Recent decisions affecting current work:
 - [v0.9.24]: Preserve setTimeout-chaining in agent loop -- do NOT convert to synchronous or async/await iteration
 - [v0.9.24]: Origin-aware permission rules (Chrome match patterns) not path-based prefixes
 - [Phase 160]: 4-phase swBootstrap (SETTINGS->ENVIRONMENT->TOOLS->SESSIONS) with _bootstrapDone guard and deferred WebSocket+Analytics until first UI interaction
+- [Phase 161]: mode field added as warm-tier to SESSION_FIELDS for persistence across SW kills; replay sessions left as inline literal (different shape, out of scope)
 
 ### Roadmap Evolution
 
@@ -78,6 +80,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T20:58:37.126Z
-Stopped at: Completed 160-01-PLAN.md
+Last session: 2026-04-03
+Stopped at: Completed 161-01-PLAN.md
 Resume file: None
