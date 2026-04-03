@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.24
-milestone_name: Claude Code Architecture Adaptation
-status: planning
-stopped_at: Phase 162.1 completed
-last_updated: "2026-04-03T14:04:50Z"
-last_activity: 2026-04-03 -- Phase 162.1 completed
+milestone: v0.9.23
+milestone_name: Dashboard Stream & Remote Control Reliability
+status: executing
+stopped_at: Completed 162.2-01-PLAN.md
+last_updated: "2026-04-03T14:58:04.764Z"
+last_activity: 2026-04-03
 progress:
-  total_phases: 10
-  completed_phases: 9
-  total_plans: 18
-  completed_plans: 18
-  percent: 90
+  total_phases: 164
+  completed_phases: 158
+  total_plans: 321
+  completed_plans: 317
+  percent: 99
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Next gap closure is Phase 162.2 — auth-wall-handoff-with-result-preservation
+**Current focus:** Phase 162.2 — auth-wall-handoff-with-result-preservation
 
 ## Current Position
 
-Phase: 162.1 (partial-completion-lifecycle) — COMPLETE
+Phase: 162.2 (auth-wall-handoff-with-result-preservation) — EXECUTING
 Plan: 2 of 2
-Status: Phase 162.1 completed; next work is Phase 162.2 planning
-Last activity: 2026-04-03 -- Phase 162.1 completed
+Status: Ready to execute
+Last activity: 2026-04-03
 
-Progress: [#########-] 90%
+Progress: [##########] 99%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [#########-] 90%
 | Phase 159 PP01 | 7min | 2 tasks | 1 files |
 | Phase 159 PP02 | 3min | 2 tasks | 1 files |
 | Phase 159 P03 | 1min | 2 tasks | 2 files |
+| Phase 162.2 P01 | 3min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,8 @@ Recent decisions affecting current work:
 - [Phase 162.3]: Canonical overlay state remains background-owned; reconnect recovery replays cached `sendSessionStatus` payloads instead of introducing a second UI-only overlay model
 - [Phase 162.3]: Long-wait overlay reliability uses heartbeat refresh plus degraded waiting watchdog state while dashboard preview continues to consume `ext:dom-overlay`
 - [Phase 162.1]: Partial completion must be a first-class terminal lifecycle distinct from error, and existing user-stop partial semantics must not be conflated with blocked useful completion
+- [Phase 162.2]: Shared AUTH REQUIRED and SKIP-AUTH guide wording now implies preserved completed work, exact blocker, and manual next step rather than crash framing.
+- [Phase 162.2]: Auth-wall blockers now terminate via partial_task with a stable blocker taxonomy once useful work is complete.
 
 ### Roadmap Evolution
 
@@ -99,12 +102,12 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- Post-verification auth-wall guidance gap remains: runs now preserve partial outcomes, but Phase 162.2 is still needed to steer login/credential blockers into explicit manual handoff behavior.
+- Post-verification auth-wall gap is now planned in Phase 162.2: execution still needs to wire the explicit auth trigger, bounded auth-resolution attempt, same-session pause/resume, and no-sidepanel fallback.
 - Overlay lifecycle reliability gap from verification session `session_1775188402694` is closed by Phase 162.3.
 
 ## Session Continuity
 
-Last session: 2026-04-03T02:35:15.685Z
-Stopped at: Phase 162.1 completed
-Resume file: .planning/debug/auth-blocked-partial-outcome-lifecycle.md
+Last session: 2026-04-03T14:57:20.899Z
+Stopped at: Completed 162.2-01-PLAN.md
+Resume file: None
 Companion debug note: .planning/debug/overlay-lifecycle-rehydration-gap.md
