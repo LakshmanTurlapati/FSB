@@ -125,3 +125,9 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 | 158. Hook Pipeline | 0/? | Not started | - |
 | 159. Agent Loop Refactor | 0/? | Not started | - |
 | 160. Bootstrap Pipeline | 0/? | Not started | - |
+
+### Phase 162: Event Bus Wiring (standalone)
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 162. Event Bus Wiring | 1/1 | Complete | 2026-04-03 |
