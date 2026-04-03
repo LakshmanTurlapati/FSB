@@ -1,14 +1,14 @@
 /**
  * Canonical Tool Registry for FSB Browser Automation
  *
- * Single source of truth for all 42 browser automation tool definitions.
+ * Single source of truth for all 43 browser automation tool definitions.
  * Shared between autopilot (agent loop) and MCP server.
  *
  * Per D-11/D-12: Each tool is a plain object with JSON Schema inputSchema
  * and routing metadata (_route, _readOnly, _contentVerb, _cdpVerb).
  *
  * Per D-01: All tool names use snake_case matching MCP convention.
- * Per D-04: All 42 tools defined from day one.
+ * Per D-04: All 43 tools defined from day one.
  *
  * @module tool-definitions
  */
@@ -27,7 +27,7 @@
  */
 
 /**
- * All 42 browser automation tool definitions.
+ * All 43 browser automation tool definitions.
  * Grouped by category: Navigation, Interaction, Scrolling, Waiting, Tabs, Data, CDP, Read-Only.
  * @type {ToolDefinition[]}
  */
@@ -827,7 +827,7 @@ const TOOL_REGISTRY = [
   },
 
   // =========================================================================
-  // TASK LIFECYCLE TOOLS (2 tools)
+  // TASK LIFECYCLE TOOLS (3 tools)
   // =========================================================================
 
   {
@@ -839,6 +839,25 @@ const TOOL_REGISTRY = [
         summary: { type: 'string', description: 'Summary of what was accomplished (e.g. "Found 50 Tesla internships and added them to Google Sheet with title, department, location columns")' }
       },
       required: ['summary']
+    },
+    _route: 'background',
+    _readOnly: true,
+    _contentVerb: null,
+    _cdpVerb: null
+  },
+
+  {
+    name: 'partial_task',
+    description: 'Signal that the task is partially complete because useful work was completed but an external blocker prevents the final step. Include a summary of what was accomplished plus the blocker. Use this instead of fail_task when the user can still benefit from the completed work.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string', description: 'Summary of the useful work that was completed before the blocker was hit' },
+        blocker: { type: 'string', description: 'What prevented the final step from being completed (e.g. "Messaging requires login", "Manual approval required")' },
+        next_step: { type: 'string', description: 'Optional next step the user can take to finish manually or resume later' },
+        reason: { type: 'string', description: 'Optional machine-readable blocker category (e.g. "blocked", "auth_required", "manual_approval")' }
+      },
+      required: ['summary', 'blocker']
     },
     _route: 'background',
     _readOnly: true,

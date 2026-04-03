@@ -401,11 +401,12 @@ WORKFLOW -- follow these steps in order:
 6. If the task involves entering data into Google Sheets: open a new sheet (navigate to sheets.google.com/create), then use fill_sheet with CSV data.
 7. Use report_progress to keep the user informed of what you are doing.
 8. Call complete_task with a summary when the FULL task is done.
-9. Call fail_task with a reason if you cannot complete it.
+9. Call partial_task when useful work is done but an external blocker prevents the final step. Include what you completed and the blocker.
+10. Call fail_task with a reason if you cannot complete it and there is no useful partial outcome to deliver.
 
 CRITICAL RULES:
 - Do NOT stop after just navigating and scrolling. That is only the first step.
-- Do NOT end your turn with a text message. Always call complete_task or fail_task when done.
+- Do NOT end your turn with a text message. Always call complete_task, partial_task, or fail_task when done.
 - read_page gives you the actual text content (titles, descriptions, data to extract).
 - get_page_snapshot gives you DOM element IDs and selectors (for click/type targets).
 - For data collection: scroll through ALL results, reading each page of content.
@@ -838,21 +839,111 @@ async function runAgentIteration(sessionId, options) {
     try {
       if (typeof automationLogger !== 'undefined' && automationLogger.saveSession) {
         var duration = Date.now() - (sess.startTime || Date.now());
-        automationLogger.logSessionEnd(sid, status, (sess.actionHistory || []).length, duration);
+        automationLogger.logSessionEnd(sid, status || sess.status || 'completed', (sess.actionHistory || []).length, duration);
         automationLogger.saveSession(sid, sess);
       }
     } catch (_e) { /* non-fatal */ }
   }
 
+  function buildTerminalOutcomeText(terminal) {
+    if (!terminal) {
+      return 'Task completed.';
+    }
+
+    if (terminal.outcome === 'error') {
+      return terminal.error || terminal.summary || 'Task failed';
+    }
+
+    if (terminal.outcome === 'stopped') {
+      return terminal.summary || 'Stopped by user';
+    }
+
+    if (terminal.outcome === 'partial') {
+      var partialParts = [];
+      if (terminal.summary) partialParts.push(terminal.summary);
+      if (terminal.blocker) partialParts.push('Blocker: ' + terminal.blocker);
+      if (terminal.nextStep) partialParts.push('Next step: ' + terminal.nextStep);
+      return partialParts.join('\n\n') || 'Task partially completed.';
+    }
+
+    return terminal.summary || 'Task completed.';
+  }
+
+  function createTerminalOutcome(outcome, data) {
+    data = data || {};
+    var normalizedOutcome = outcome === 'partial' || outcome === 'stopped' || outcome === 'error'
+      ? outcome
+      : 'success';
+    var summary = data.summary === undefined || data.summary === null ? '' : String(data.summary).trim();
+    var blocker = data.blocker === undefined || data.blocker === null ? '' : String(data.blocker).trim();
+    var nextStep = data.nextStep === undefined || data.nextStep === null ? '' : String(data.nextStep).trim();
+    var errorText = data.error === undefined || data.error === null ? '' : String(data.error).trim();
+    var reason = data.reason || (
+      normalizedOutcome === 'success' ? 'completed' :
+      normalizedOutcome === 'partial' ? 'blocked' :
+      normalizedOutcome
+    );
+    var terminal = {
+      outcome: normalizedOutcome,
+      reason: String(reason),
+      summary: summary || null,
+      blocker: blocker || null,
+      nextStep: nextStep || null,
+      error: normalizedOutcome === 'error' ? (errorText || summary || 'Task failed') : null
+    };
+    terminal.resultText = buildTerminalOutcomeText(terminal);
+    terminal.partial = normalizedOutcome === 'partial';
+    terminal.stopped = normalizedOutcome === 'stopped';
+    return terminal;
+  }
+
+  function applyTerminalOutcome(sess, terminal) {
+    var status = terminal.outcome === 'success'
+      ? 'completed'
+      : (terminal.outcome === 'partial' ? 'partial' : terminal.outcome);
+
+    sess.status = status;
+    sess.outcome = terminal.outcome === 'error' ? 'failure' : terminal.outcome;
+    sess.outcomeDetails = {
+      outcome: terminal.outcome,
+      reason: terminal.reason || null,
+      summary: terminal.summary || null,
+      blocker: terminal.blocker || null,
+      nextStep: terminal.nextStep || null,
+      result: terminal.resultText || null,
+      error: terminal.error || null
+    };
+    sess.result = terminal.summary || terminal.resultText || null;
+    sess.completionMessage = terminal.outcome === 'error' ? null : (terminal.resultText || null);
+    sess.error = terminal.outcome === 'error' ? (terminal.error || terminal.resultText || 'Task failed') : null;
+  }
+
   // Helper: notify sidepanel that automation is done (sidepanel listens for 'automationComplete')
-  function notifySidepanel(sid, sess, resultText, isError) {
+  function notifySidepanel(sid, sess, terminal) {
+    terminal = terminal || createTerminalOutcome('success', {
+      summary: sess.completionMessage || sess.result || 'Task completed.'
+    });
     try {
       chrome.runtime.sendMessage({
         action: 'automationComplete',
         sessionId: sid,
-        result: resultText || (isError ? sess.error : sess.completionMessage) || 'Task completed.',
-        partial: isError,
-        reason: isError ? 'error' : 'completed',
+        result: terminal.resultText || 'Task completed.',
+        partial: terminal.partial || terminal.stopped,
+        stopped: terminal.stopped,
+        error: terminal.outcome === 'error' ? (terminal.error || terminal.resultText || 'Task failed') : null,
+        reason: terminal.reason || null,
+        outcome: terminal.outcome,
+        blocker: terminal.blocker || null,
+        nextStep: terminal.nextStep || null,
+        outcomeDetails: sess.outcomeDetails || {
+          outcome: terminal.outcome,
+          reason: terminal.reason || null,
+          summary: terminal.summary || null,
+          blocker: terminal.blocker || null,
+          nextStep: terminal.nextStep || null,
+          result: terminal.resultText || null,
+          error: terminal.error || null
+        },
         task: sess.task
       }).catch(function() {});
     } catch (_e) { /* non-fatal -- sidepanel may not be open */ }
@@ -894,9 +985,9 @@ async function runAgentIteration(sessionId, options) {
   }
 
   // Helper: full session finalization (overlays + logger + sidepanel + cleanup)
-  async function finalizeSession(sid, sess, resultText, isError) {
-    saveToLogger(sid, sess, isError ? 'error' : 'completed');
-    notifySidepanel(sid, sess, resultText, isError);
+  async function finalizeSession(sid, sess, terminal) {
+    saveToLogger(sid, sess, sess.status);
+    notifySidepanel(sid, sess, terminal);
     // Give the final overlay state a moment to render before cleanup clears it.
     await sleep(900);
     // cleanupSession removes from activeSessions, persistent storage, and sends overlay cleanup
@@ -1106,8 +1197,11 @@ async function runAgentIteration(sessionId, options) {
       });
 
       // End session
-      session.status = 'completed';
-      session.completionMessage = finalText;
+      var terminalOutcome = createTerminalOutcome('success', {
+        summary: finalText,
+        reason: 'end_turn'
+      });
+      applyTerminalOutcome(session, terminalOutcome);
 
       // ADOPT-03: Construct structured turn result for end_turn
       session.lastTurnResult = _al_createTurnResult({
@@ -1120,7 +1214,7 @@ async function runAgentIteration(sessionId, options) {
         toolResults: [],
         permissionDenials: [],
         stopReason: _al_STOP_REASONS.END_TURN || 'end_turn',
-        completionMessage: finalText.substring(0, 500),
+        completionMessage: (terminalOutcome.resultText || '').substring(0, 500),
         errorMessage: null,
         timestamp: Date.now(),
         durationMs: Date.now() - (session.agentState.startTime || Date.now())
@@ -1130,14 +1224,14 @@ async function runAgentIteration(sessionId, options) {
       if (hooks) {
         await hooks.emit(_al_LIFECYCLE_EVENTS.ON_COMPLETION, {
           session: session, sessionId: sessionId,
-          iteration: iterNum, message: finalText.substring(0, 200),
+          iteration: iterNum, message: (terminalOutcome.resultText || '').substring(0, 200),
           totalCost: session.agentState.totalCost || 0,
           reason: 'end_turn'
         });
       }
 
       await persist(sessionId, session);
-      await finalizeSession(sessionId, session, finalText.substring(0, 500), false);
+      await finalizeSession(sessionId, session, terminalOutcome);
 
       // Broadcast completion
       if (typeof broadcastDashboardProgress === 'function') {
@@ -1171,7 +1265,7 @@ async function runAgentIteration(sessionId, options) {
       var call = toolCalls[ci];
       var result;
 
-      if (call.name !== 'report_progress' && call.name !== 'task_complete' && call.name !== 'fail_task') {
+      if (call.name !== 'report_progress' && call.name !== 'complete_task' && call.name !== 'partial_task' && call.name !== 'fail_task') {
         lastNonProgressToolCall = call;
       }
 
@@ -1251,36 +1345,112 @@ async function runAgentIteration(sessionId, options) {
         // Task lifecycle: complete
         var summary = (call.args && call.args.summary) || 'Task completed';
         console.log('[AgentLoop] Task completed:', summary);
-        session.status = 'completed';
-        session.result = summary;
+        var successOutcome = createTerminalOutcome('success', {
+          summary: summary,
+          reason: 'complete_task'
+        });
+        applyTerminalOutcome(session, successOutcome);
+        session.lastTurnResult = _al_createTurnResult({
+          sessionId: sessionId,
+          iteration: iterNum,
+          inputTokens: inputTokens,
+          outputTokens: outputTokens,
+          cost: iterationCost,
+          matchedTools: ['complete_task'],
+          toolResults: [{ name: 'complete_task', success: true, hadEffect: false }],
+          permissionDenials: [],
+          stopReason: _al_STOP_REASONS.END_TURN || 'end_turn',
+          completionMessage: (successOutcome.resultText || '').substring(0, 500),
+          errorMessage: null,
+          timestamp: Date.now(),
+          durationMs: Date.now() - (session.agentState.startTime || Date.now())
+        });
         // Emit onCompletion hook
         if (hooks) {
           await hooks.emit(_al_LIFECYCLE_EVENTS.ON_COMPLETION, {
             session: session, sessionId: sessionId,
-            iteration: iterNum, message: summary,
+            iteration: iterNum, message: successOutcome.resultText,
             totalCost: session.agentState.totalCost || 0,
             reason: 'complete_task'
           });
         }
         await persist(sessionId, session);
-        await finalizeSession(sessionId, session, summary, false);
+        await finalizeSession(sessionId, session, successOutcome);
         return; // End the loop -- task is done
+      } else if (call.name === 'partial_task') {
+        // Task lifecycle: useful work completed, final step blocked
+        var partialSummary = (call.args && call.args.summary) || 'Task partially completed';
+        var blocker = (call.args && call.args.blocker) || 'An external blocker prevented the final step';
+        var nextStep = (call.args && call.args.next_step) || null;
+        var partialReason = (call.args && call.args.reason) || 'blocked';
+        var partialOutcome = createTerminalOutcome('partial', {
+          summary: partialSummary,
+          blocker: blocker,
+          nextStep: nextStep,
+          reason: partialReason
+        });
+        console.log('[AgentLoop] Task partially completed:', partialOutcome);
+        applyTerminalOutcome(session, partialOutcome);
+        session.lastTurnResult = _al_createTurnResult({
+          sessionId: sessionId,
+          iteration: iterNum,
+          inputTokens: inputTokens,
+          outputTokens: outputTokens,
+          cost: iterationCost,
+          matchedTools: ['partial_task'],
+          toolResults: [{ name: 'partial_task', success: true, hadEffect: false }],
+          permissionDenials: [],
+          stopReason: _al_STOP_REASONS.PARTIAL || 'partial',
+          completionMessage: (partialOutcome.resultText || '').substring(0, 500),
+          errorMessage: null,
+          timestamp: Date.now(),
+          durationMs: Date.now() - (session.agentState.startTime || Date.now())
+        });
+        if (hooks) {
+          await hooks.emit(_al_LIFECYCLE_EVENTS.ON_COMPLETION, {
+            session: session, sessionId: sessionId,
+            iteration: iterNum, message: partialOutcome.resultText,
+            totalCost: session.agentState.totalCost || 0,
+            reason: partialReason
+          });
+        }
+        await persist(sessionId, session);
+        await finalizeSession(sessionId, session, partialOutcome);
+        return; // End the loop -- task ended with a non-error partial outcome
       } else if (call.name === 'fail_task') {
         // Task lifecycle: failure
         var reason = (call.args && call.args.reason) || 'Task failed';
         console.log('[AgentLoop] Task failed:', reason);
-        session.status = 'error';
-        session.error = reason;
+        var errorOutcome = createTerminalOutcome('error', {
+          error: reason,
+          reason: 'fail_task'
+        });
+        applyTerminalOutcome(session, errorOutcome);
+        session.lastTurnResult = _al_createTurnResult({
+          sessionId: sessionId,
+          iteration: iterNum,
+          inputTokens: inputTokens,
+          outputTokens: outputTokens,
+          cost: iterationCost,
+          matchedTools: ['fail_task'],
+          toolResults: [{ name: 'fail_task', success: false, hadEffect: false }],
+          permissionDenials: [],
+          stopReason: _al_STOP_REASONS.ERROR || 'error',
+          completionMessage: null,
+          errorMessage: (errorOutcome.error || '').substring(0, 500),
+          timestamp: Date.now(),
+          durationMs: Date.now() - (session.agentState.startTime || Date.now())
+        });
         // Emit onError hook
         if (hooks) {
           await hooks.emit(_al_LIFECYCLE_EVENTS.ON_ERROR, {
             session: session, sessionId: sessionId,
-            iteration: iterNum, error: reason,
+            iteration: iterNum, error: errorOutcome.error,
             totalCost: session.agentState.totalCost || 0
           });
         }
         await persist(sessionId, session);
-        await finalizeSession(sessionId, session, reason, true);
+        await finalizeSession(sessionId, session, errorOutcome);
         return; // End the loop -- task failed
       } else if (call.name === 'report_progress') {
         // PROG-02: Update progress overlay with AI reasoning and cost
@@ -1471,21 +1641,27 @@ async function runAgentIteration(sessionId, options) {
 
     // Auth errors (401/403): terminal
     if (errStatus === 401 || errStatus === 403) {
-      session.status = 'error';
-      session.error = 'API key invalid or expired. Please check your API key in settings.';
+      var authErrorOutcome = createTerminalOutcome('error', {
+        error: 'API key invalid or expired. Please check your API key in settings.',
+        reason: 'error'
+      });
+      applyTerminalOutcome(session, authErrorOutcome);
       await persist(sessionId, session);
-      await finalizeSession(sessionId, session, session.error, true);
+      await finalizeSession(sessionId, session, authErrorOutcome);
       return;
     }
 
     // Bad request (400): terminal -- tool format or schema issue, don't retry
     if (errStatus === 400) {
       var errorDetail = (error.responseText || errMsg).substring(0, 300);
-      session.status = 'error';
-      session.error = 'API rejected request (400): ' + errorDetail;
+      var badRequestOutcome = createTerminalOutcome('error', {
+        error: 'API rejected request (400): ' + errorDetail,
+        reason: 'error'
+      });
+      applyTerminalOutcome(session, badRequestOutcome);
       console.error('[AgentLoop] 400 Bad Request -- check tool definitions or request format:', errorDetail);
       await persist(sessionId, session);
-      await finalizeSession(sessionId, session, session.error, true);
+      await finalizeSession(sessionId, session, badRequestOutcome);
       return;
     }
 
@@ -1508,10 +1684,13 @@ async function runAgentIteration(sessionId, options) {
     }
 
     // Second failure on same iteration: terminal error
-    session.status = 'error';
-    session.error = 'API call failed: ' + errMsg;
+    var apiErrorOutcome = createTerminalOutcome('error', {
+      error: 'API call failed: ' + errMsg,
+      reason: 'error'
+    });
+    applyTerminalOutcome(session, apiErrorOutcome);
     await persist(sessionId, session);
-    await finalizeSession(sessionId, session, session.error, true);
+    await finalizeSession(sessionId, session, apiErrorOutcome);
   }
 }
 

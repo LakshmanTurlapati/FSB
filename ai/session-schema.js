@@ -31,6 +31,7 @@ var SESSION_STATUSES = [
   'running',
   'paused',
   'completed',
+  'partial',
   'failed',
   'stopped',
   'error',
@@ -108,7 +109,7 @@ var SESSION_FIELDS = {
   status: {
     default: 'idle',
     tier: 'warm',
-    type: 'string (idle|running|paused|completed|failed|stopped|error|expired)'
+    type: 'string (idle|running|paused|completed|partial|failed|stopped|error|expired)'
   },
   startTime: {
     default: 0,
@@ -319,6 +320,16 @@ var SESSION_FIELDS = {
     default: null,
     tier: 'warm',
     type: 'string|null'
+  },
+  outcome: {
+    default: null,
+    tier: 'warm',
+    type: 'string|null (success|partial|failure|stopped)'
+  },
+  outcomeDetails: {
+    default: null,
+    tier: 'warm',
+    type: 'object|null'
   },
   isRestored: {
     default: false,

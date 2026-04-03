@@ -6568,12 +6568,29 @@ async function executeAutomationTask(tabId, task, options = {}) {
           const session = activeSessions.get(sessionId) || sessionData;
           const duration = Date.now() - sessionData.startTime;
           const metrics = performanceMetrics.sessionStats.get(sessionId);
+          const outcome = typeof message.outcome === 'string'
+            ? message.outcome
+            : (message.stopped ? 'stopped' : (message.partial ? 'partial' : (message.error ? 'error' : 'success')));
+          const outcomeDetails = message.outcomeDetails && typeof message.outcomeDetails === 'object'
+            ? message.outcomeDetails
+            : null;
+          const isStopped = outcome === 'stopped' || message.stopped === true;
+          const isPartial = outcome === 'partial' || (!isStopped && message.partial === true);
+          const isSuccess = outcome === 'success' || isPartial;
+          const blocker = message.blocker || outcomeDetails?.blocker || null;
+          const nextStep = message.nextStep || outcomeDetails?.nextStep || null;
           resolve({
-            success: !message.partial && !message.error,
+            success: isSuccess,
+            partial: isPartial,
+            stopped: isStopped,
+            outcome,
+            outcomeDetails,
             sessionId,
             taskRunId: session._dashboardTaskRunId || sessionData._dashboardTaskRunId || '',
-            result: message.result || null,
-            error: message.error || (message.partial ? 'Task completed partially: ' + (message.reason || 'unknown') : null),
+            result: message.result || outcomeDetails?.summary || null,
+            blocker: blocker,
+            nextStep: nextStep,
+            error: outcome === 'error' ? (message.error || outcomeDetails?.error || 'Automation error') : null,
             duration,
             tokensUsed: (session.totalInputTokens || 0) + (session.totalOutputTokens || 0),
             costUsd: session.totalCost || 0,
@@ -6835,6 +6852,7 @@ async function handleStopAutomation(request, sender, sendResponse) {
     automationLogger.debug('Found session to stop', { sessionId, status: session.status });
 
     session.status = 'stopped';
+    session.outcome = 'stopped';
 
     // Cancel pending agent loop iteration if scheduled (Phase 137)
     if (session._nextIterationTimer) {
@@ -6868,6 +6886,19 @@ async function handleStopAutomation(request, sender, sendResponse) {
 
     // Log and save session before cleanup
     const duration = Date.now() - session.startTime;
+    const stopSummary = 'Stopped by user' + (lastAction ? ' -- was: ' + lastAction : '');
+    session.result = stopSummary;
+    session.completionMessage = stopSummary;
+    session.error = null;
+    session.outcomeDetails = {
+      outcome: 'stopped',
+      reason: 'stopped',
+      summary: stopSummary,
+      blocker: null,
+      nextStep: null,
+      result: stopSummary,
+      error: null
+    };
     automationLogger.logSessionEnd(sessionId, 'stopped', session.actionHistory.length, duration);
     automationLogger.saveSession(sessionId, session);
       extractAndStoreMemories(sessionId, session).catch(() => {});
@@ -6881,9 +6912,14 @@ async function handleStopAutomation(request, sender, sendResponse) {
     chrome.runtime.sendMessage({
       action: 'automationComplete',
       sessionId: sessionId,
-      result: 'Stopped by user' + (lastAction ? ' -- was: ' + lastAction : ''),
+      result: stopSummary,
       partial: true,
+      stopped: true,
       reason: 'stopped',
+      outcome: 'stopped',
+      blocker: null,
+      nextStep: null,
+      outcomeDetails: session.outcomeDetails,
       task: session.task
     }).catch(() => {});
 

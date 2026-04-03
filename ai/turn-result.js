@@ -28,6 +28,7 @@
 var STOP_REASONS = {
   END_TURN: 'end_turn',
   TOOL_CALLS: 'tool_calls',
+  PARTIAL: 'partial',
   SAFETY_STOP: 'safety_stop',
   USER_STOP: 'user_stop',
   ERROR: 'error',
