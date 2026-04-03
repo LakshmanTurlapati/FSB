@@ -444,6 +444,51 @@ ${previousTask}NEW TASK: ${followUpContext?.newTask || ''}
 Continue from the existing automation context when it is still relevant. Re-check the live page before acting if the UI may have changed.`;
 }
 
+function isAuthWallPartialReason(reason) {
+  var normalized = typeof reason === 'string' ? reason.trim().toLowerCase() : '';
+  return normalized === 'auth_required'
+    || normalized === 'credentials_missing'
+    || normalized === 'user_skipped_login'
+    || normalized === 'credentials_failed'
+    || normalized === 'manual_approval';
+}
+
+function beginInlineContinuationPause(session, continuation) {
+  session._continuationPause = {
+    kind: continuation?.kind || 'continuation',
+    reason: continuation?.reason || null,
+    summary: continuation?.summary || null,
+    blocker: continuation?.blocker || null,
+    nextStep: continuation?.nextStep || null,
+    startedAt: Date.now()
+  };
+  session.lastIterationTime = Date.now();
+}
+
+function clearInlineContinuationPause(session) {
+  session._continuationPause = null;
+}
+
+function buildInlineContinuationBoundaryMessage(continuation) {
+  if (continuation?.kind === 'auth_resolution') {
+    var note = continuation.note ? `NOTE: ${continuation.note}\n` : '';
+    return `[RESUME SAME SESSION]
+AUTH RESOLUTION UPDATE: Sign-in appears successful and the current page may now be authenticated.
+${note}Continue the SAME task from the current page. Re-read the page, verify the gated action is now available, and only then finish the task.`;
+  }
+
+  return '[RESUME SAME SESSION]\nContinue the same task from the current page.';
+}
+
+function resumeInlineContinuation(session, continuation) {
+  clearInlineContinuationPause(session);
+  session.messages.push({
+    role: 'user',
+    content: continuation?.boundaryMessage || buildInlineContinuationBoundaryMessage(continuation)
+  });
+  session.lastIterationTime = Date.now();
+}
+
 function hydrateAgentRunState(session, systemPrompt) {
   const resumeState = session.agentResumeState || {};
   const hadExistingMessages = Array.isArray(session.messages) && session.messages.length > 0;
@@ -839,6 +884,7 @@ async function runAgentIteration(sessionId, options) {
   var cleanupSession = options.cleanupSession;
   var executeCDPToolDirect = options.executeCDPToolDirect;
   var handleDataTool = options.handleDataTool;
+  var resolveAuthWall = options.resolveAuthWall;
   var hooks = options.hooks;
 
   // Helper: save session to automation logger so MCP list_sessions/get_session_detail can find it
@@ -1390,6 +1436,67 @@ async function runAgentIteration(sessionId, options) {
         var blocker = (call.args && call.args.blocker) || 'An external blocker prevented the final step';
         var nextStep = (call.args && call.args.next_step) || null;
         var partialReason = (call.args && call.args.reason) || 'blocked';
+        result = null;
+
+        if (isAuthWallPartialReason(partialReason) && typeof resolveAuthWall === 'function') {
+          beginInlineContinuationPause(session, {
+            kind: 'auth_resolution',
+            reason: partialReason,
+            summary: partialSummary,
+            blocker: blocker,
+            nextStep: nextStep
+          });
+          await persist(sessionId, session);
+
+          var authResolution = null;
+          try {
+            authResolution = await resolveAuthWall({
+              sessionId: sessionId,
+              session: session,
+              reason: partialReason,
+              summary: partialSummary,
+              blocker: blocker,
+              nextStep: nextStep
+            });
+          } catch (authResolutionError) {
+            console.warn('[AgentLoop] Inline auth resolution failed, preserving manual handoff', {
+              sessionId: sessionId,
+              iteration: iterNum,
+              error: authResolutionError?.message || String(authResolutionError)
+            });
+          }
+
+          if (authResolution && authResolution.resume) {
+            resumeInlineContinuation(session, {
+              kind: 'auth_resolution',
+              note: authResolution.resumeMessage || authResolution.toolResultMessage || null,
+              boundaryMessage: authResolution.boundaryMessage || null
+            });
+            result = {
+              success: true,
+              hadEffect: true,
+              error: null,
+              navigationTriggered: false,
+              result: {
+                resumed: true,
+                authResolved: true,
+                source: authResolution.source || 'runtime_auth_resolution',
+                message: authResolution.toolResultMessage
+                  || 'Authentication succeeded. Continue the same task from the authenticated page.'
+              }
+            };
+          } else {
+            clearInlineContinuationPause(session);
+            partialSummary = authResolution?.partialOutcome?.summary || partialSummary;
+            blocker = authResolution?.partialOutcome?.blocker || blocker;
+            nextStep = authResolution?.partialOutcome?.nextStep || nextStep;
+            partialReason = authResolution?.partialOutcome?.reason || partialReason;
+          }
+        }
+
+        if (result) {
+          // Auth resolution succeeded inline. Continue the same session with a normal tool result.
+        } else {
         var partialOutcome = createTerminalOutcome('partial', {
           summary: partialSummary,
           blocker: blocker,
@@ -1424,6 +1531,7 @@ async function runAgentIteration(sessionId, options) {
         await persist(sessionId, session);
         await finalizeSession(sessionId, session, partialOutcome);
         return; // End the loop -- task ended with a non-error partial outcome
+        }
       } else if (call.name === 'fail_task') {
         // Task lifecycle: failure
         var reason = (call.args && call.args.reason) || 'Task failed';

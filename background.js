@@ -2977,6 +2977,7 @@ async function restoreSessionsFromStorage() {
               startKeepAlive,
               executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
               handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+              resolveAuthWall: resolveInlineAuthWall,
               hooks: resumeHooks.hooks,
               emitter: resumeHooks.emitter
             });
@@ -6203,6 +6204,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
           startKeepAlive,
           executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
           handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+          resolveAuthWall: resolveInlineAuthWall,
           hooks: sessionHooks.hooks,
           emitter: sessionHooks.emitter
         });
@@ -6452,6 +6454,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       startKeepAlive,
       executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
       handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+      resolveAuthWall: resolveInlineAuthWall,
       hooks: sessionHooks.hooks,
       emitter: sessionHooks.emitter
     });
@@ -6650,6 +6653,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
         startKeepAlive,
         executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
         handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+        resolveAuthWall: resolveInlineAuthWall,
         hooks: sessionHooks.hooks,
         emitter: sessionHooks.emitter
       });
@@ -7197,6 +7201,413 @@ async function fillCredentialsOnPageDirect(tabId, { usernameSelector, passwordSe
     console.error('[FSB] fillCredentialsOnPageDirect error:', error.message || 'Unknown error');
     return { success: false, error: 'Credential fill failed' };
   }
+}
+
+const AUTH_MANUAL_APPROVAL_PATTERN = /(two[- ]factor|two factor|2fa|multi[- ]factor|multifactor|mfa|verification code|security code|one[- ]time|one time|otp|approve|approval|check your email|check your phone|confirm it's you|enter code|authenticator|challenge|verification required|captcha)/i;
+
+function buildAuthSignalText(domData, url) {
+  const elements = Array.isArray(domData?.elements) ? domData.elements : [];
+  const parts = [];
+
+  for (const el of elements) {
+    if (parts.length >= 120) break;
+    if (typeof el.text === 'string' && el.text.trim()) {
+      parts.push(el.text.trim());
+    }
+
+    const attrs = el.attributes || {};
+    const attrCandidates = [
+      attrs.placeholder,
+      attrs['aria-label'],
+      attrs.value,
+      attrs.name,
+      attrs.id
+    ];
+
+    for (const candidate of attrCandidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        parts.push(candidate.trim());
+      }
+    }
+  }
+
+  if (url) {
+    parts.push(url);
+  }
+
+  return parts.join(' ').slice(0, 2500).toLowerCase();
+}
+
+function getAuthHandoffNextStep(domain) {
+  const siteLabel = domain || 'the site';
+  return `Sign in manually on ${siteLabel}, complete any approval or MFA if required, then rerun or continue from the authenticated page.`;
+}
+
+function mergeAuthPartialOutcome(baseOutcome, override) {
+  const merged = override || {};
+  return {
+    summary: merged.summary || baseOutcome.summary || 'Task partially completed',
+    blocker: merged.blocker || baseOutcome.blocker || 'Authentication is still required to finish the last step.',
+    nextStep: merged.nextStep || baseOutcome.nextStep || getAuthHandoffNextStep(baseOutcome.domain),
+    reason: merged.reason || baseOutcome.reason || 'auth_required'
+  };
+}
+
+async function sendInlineAuthStatus(sessionId, session, statusText) {
+  if (!session?.tabId || !statusText) return;
+
+  const overlayPayload = {
+    phase: 'waiting_auth',
+    taskName: session.task,
+    iteration: session.iterationCount || session.agentState?.iterationCount || 0,
+    maxIterations: session.maxIterations || 20,
+    statusText,
+    animatedHighlights: session.animatedActionHighlights,
+    taskSummary: session.taskSummary || null
+  };
+
+  try {
+    await sendSessionStatus(session.tabId, overlayPayload);
+  } catch (_error) {
+    // Non-fatal. Sidepanel completion/handoff still works without overlay refresh.
+  }
+
+  try {
+    chrome.runtime.sendMessage({
+      action: 'statusUpdate',
+      sessionId,
+      message: statusText
+    }).catch(() => {});
+  } catch (_error) {
+    // Non-fatal.
+  }
+}
+
+async function acquireInlineAuthContext(sessionId, session) {
+  if (!session?.tabId) {
+    return { success: false, error: 'No active tab available for auth resolution' };
+  }
+
+  let tab = null;
+  try {
+    tab = await chrome.tabs.get(session.tabId);
+  } catch (error) {
+    return { success: false, error: error.message || 'Auth tab is no longer available' };
+  }
+
+  let domain = '';
+  try {
+    domain = new URL(tab.url || '').hostname || '';
+  } catch (_error) {
+    domain = '';
+  }
+
+  try {
+    await waitForContentScriptReady(session.tabId, 5000);
+  } catch (_error) {
+    // Continue. The sendMessage attempt below is the real gate.
+  }
+
+  try {
+    const domResponse = await chrome.tabs.sendMessage(session.tabId, {
+      action: 'getDOM',
+      sessionId,
+      options: {
+        maxElements: 500,
+        prioritizeViewport: true,
+        useIncrementalDiff: false
+      }
+    }, { frameId: 0 });
+    const domData = domResponse?.structuredDOM || null;
+    const fields = extractLoginFields(domData);
+    const authSignalText = buildAuthSignalText(domData, tab.url || '');
+    const hasPasswordField = !!fields.passwordSelector;
+    const hasLoginSignal = hasPasswordField || /(log ?in|sign ?in|password|username|email)/i.test(authSignalText);
+    const manualApproval = AUTH_MANUAL_APPROVAL_PATTERN.test(authSignalText);
+
+    return {
+      success: true,
+      domain,
+      url: tab.url || '',
+      tabId: session.tabId,
+      domData,
+      fields,
+      hasLoginSignal,
+      hasPasswordField,
+      manualApproval,
+      authSignalText
+    };
+  } catch (error) {
+    return {
+      success: false,
+      domain,
+      url: tab.url || '',
+      tabId: session.tabId,
+      error: error.message || 'Unable to inspect the current page for sign-in fields'
+    };
+  }
+}
+
+async function evaluateInlineAuthAttempt(sessionId, session, attemptSource, baseOutcome) {
+  await new Promise(resolve => setTimeout(resolve, 1800));
+
+  const refreshed = await acquireInlineAuthContext(sessionId, session);
+  if (!refreshed.success) {
+    return {
+      success: false,
+      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+        reason: 'manual_approval',
+        blocker: 'Sign-in was submitted, but FSB could not verify the authenticated page afterward.',
+        nextStep: getAuthHandoffNextStep(baseOutcome.domain || refreshed.domain)
+      })
+    };
+  }
+
+  if (!refreshed.hasLoginSignal && !refreshed.manualApproval) {
+    return {
+      success: true,
+      context: refreshed
+    };
+  }
+
+  if (refreshed.manualApproval) {
+    return {
+      success: false,
+      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+        reason: 'manual_approval',
+        blocker: 'The site now requires manual approval, MFA, or another external verification step before the final action can continue.',
+        nextStep: getAuthHandoffNextStep(baseOutcome.domain || refreshed.domain)
+      })
+    };
+  }
+
+  return {
+    success: false,
+    partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+      reason: attemptSource === 'saved_credentials' ? 'credentials_failed' : 'credentials_failed',
+      blocker: attemptSource === 'saved_credentials'
+        ? 'Saved credentials were submitted, but the site still requires login.'
+        : 'Submitted credentials did not finish the sign-in.',
+      nextStep: getAuthHandoffNextStep(baseOutcome.domain || refreshed.domain)
+    })
+  };
+}
+
+async function requestInlineLoginPrompt(sessionId, domain, fields, promptMeta) {
+  try {
+    const response = await Promise.race([
+      chrome.runtime.sendMessage({
+        action: 'loginDetected',
+        sessionId,
+        domain,
+        fields,
+        authPrompt: promptMeta || {}
+      }),
+      new Promise(resolve => setTimeout(() => resolve(null), 1000))
+    ]);
+    return response?.received === true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+async function resolveInlineAuthWall({ sessionId, session, reason, summary, blocker, nextStep }) {
+  const baseOutcome = {
+    reason: reason || 'auth_required',
+    summary: summary || 'Task partially completed',
+    blocker: blocker || 'Authentication is still required to finish the last step.',
+    nextStep: nextStep || null,
+    domain: null
+  };
+
+  await sendInlineAuthStatus(sessionId, session, 'Authentication required. Checking the current page...');
+  const initialContext = await acquireInlineAuthContext(sessionId, session);
+  baseOutcome.domain = initialContext.domain || null;
+
+  if (!initialContext.success) {
+    return {
+      resume: false,
+      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+        reason: 'auth_required',
+        blocker: baseOutcome.blocker || 'Authentication is still required to finish the last step.',
+        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
+      })
+    };
+  }
+
+  if (initialContext.manualApproval && !initialContext.hasPasswordField) {
+    return {
+      resume: false,
+      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+        reason: 'manual_approval',
+        blocker: 'The site requires manual approval, MFA, or another verification step before FSB can continue.',
+        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
+      })
+    };
+  }
+
+  let savedAttempted = false;
+  let savedAttemptFailed = false;
+  const savedCredential = await secureConfig.getCredential(initialContext.domain);
+
+  if (savedCredential) {
+    savedAttempted = true;
+    await sendInlineAuthStatus(sessionId, session, 'Authentication required. Trying saved credentials once...');
+    const savedFill = await fillCredentialsOnPage(session.tabId, initialContext.domain, initialContext.domData);
+
+    if (savedFill?.success) {
+      const savedResolution = await evaluateInlineAuthAttempt(sessionId, session, 'saved_credentials', baseOutcome);
+      if (savedResolution.success) {
+        await sendInlineAuthStatus(sessionId, session, 'Sign-in succeeded. Resuming the same session...');
+        return {
+          resume: true,
+          source: 'saved_credentials',
+          toolResultMessage: 'Saved credentials were used successfully. Continue the same task from the authenticated page.',
+          resumeMessage: 'Saved credentials were accepted. Re-check the page and finish the gated step.'
+        };
+      }
+
+      if (savedResolution.partialOutcome?.reason === 'manual_approval') {
+        return {
+          resume: false,
+          partialOutcome: savedResolution.partialOutcome
+        };
+      }
+
+      savedAttemptFailed = true;
+    } else {
+      savedAttemptFailed = true;
+    }
+  }
+
+  const promptContext = await acquireInlineAuthContext(sessionId, session);
+  baseOutcome.domain = promptContext.domain || baseOutcome.domain;
+  const promptDomain = promptContext.domain || baseOutcome.domain;
+
+  if (promptContext.manualApproval && !promptContext.hasPasswordField) {
+    return {
+      resume: false,
+      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+        reason: 'manual_approval',
+        blocker: 'The site requires manual approval, MFA, or another verification step before the final action can continue.',
+        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
+      })
+    };
+  }
+
+  const promptAcknowledged = await requestInlineLoginPrompt(sessionId, promptDomain, promptContext.fields || initialContext.fields, {
+    detail: savedAttemptFailed
+      ? 'Saved credentials did not finish the sign-in. Submit updated credentials once to retry in this same session.'
+      : 'Submit credentials once to let FSB sign in and resume this same session.',
+    handoff: 'If you skip or the site still needs manual approval, FSB will preserve the completed work and finish with a manual handoff.',
+    reason: savedAttemptFailed ? 'credentials_failed' : (savedAttempted ? 'auth_required' : 'credentials_missing')
+  });
+
+  if (!promptAcknowledged) {
+    return {
+      resume: false,
+      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+        reason: savedAttemptFailed ? 'credentials_failed' : 'credentials_missing',
+        blocker: savedAttemptFailed
+          ? 'Saved credentials did not finish the sign-in, and no matching sidepanel was available to collect updated credentials.'
+          : 'Authentication is still required, and no matching sidepanel was available to collect credentials.',
+        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
+      })
+    };
+  }
+
+  await sendInlineAuthStatus(sessionId, session, 'Waiting for one sign-in attempt from the sidepanel...');
+  const loginResponse = await waitForLoginResponse(sessionId);
+
+  if (!loginResponse || loginResponse.action !== 'loginFormSubmitted') {
+    return {
+      resume: false,
+      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+        reason: loginResponse?.reason === 'timeout' ? 'auth_required' : 'user_skipped_login',
+        blocker: loginResponse?.reason === 'timeout'
+          ? 'The sign-in prompt timed out before credentials were submitted.'
+          : 'The sign-in prompt was skipped.',
+        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
+      })
+    };
+  }
+
+  const submittedCredentials = loginResponse.credentials || {};
+  if (!submittedCredentials.username || !submittedCredentials.password) {
+    return {
+      resume: false,
+      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+        reason: 'credentials_missing',
+        blocker: 'Credentials were submitted without both a username/email and password.',
+        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
+      })
+    };
+  }
+
+  if (loginResponse.save && baseOutcome.domain) {
+    await secureConfig.saveCredential(baseOutcome.domain, submittedCredentials);
+  }
+
+  const latestContext = await acquireInlineAuthContext(sessionId, session);
+  const latestFields = latestContext.fields || promptContext.fields || initialContext.fields || {};
+
+  if (latestContext.manualApproval && !latestContext.hasPasswordField) {
+    return {
+      resume: false,
+      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+        reason: 'manual_approval',
+        blocker: 'The site requires manual approval, MFA, or another verification step before the final action can continue.',
+        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
+      })
+    };
+  }
+
+  if (!latestFields.passwordSelector) {
+    return {
+      resume: false,
+      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+        reason: 'manual_approval',
+        blocker: 'Credentials were submitted, but FSB could not find a usable sign-in form to retry automatically.',
+        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
+      })
+    };
+  }
+
+  await sendInlineAuthStatus(sessionId, session, 'Trying the submitted credentials in this same session...');
+  const submittedFill = await fillCredentialsOnPageDirect(session.tabId, {
+    usernameSelector: latestFields.usernameSelector,
+    passwordSelector: latestFields.passwordSelector,
+    submitSelector: latestFields.submitSelector,
+    username: submittedCredentials.username,
+    password: submittedCredentials.password
+  });
+
+  if (!submittedFill?.success) {
+    return {
+      resume: false,
+      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
+        reason: 'credentials_failed',
+        blocker: 'Submitted credentials could not be applied to the current sign-in form.',
+        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
+      })
+    };
+  }
+
+  const promptedResolution = await evaluateInlineAuthAttempt(sessionId, session, 'prompt_credentials', baseOutcome);
+  if (promptedResolution.success) {
+    await sendInlineAuthStatus(sessionId, session, 'Sign-in succeeded. Resuming the same session...');
+    return {
+      resume: true,
+      source: 'prompt_credentials',
+      toolResultMessage: 'Credentials were submitted successfully. Continue the same task from the authenticated page.',
+      resumeMessage: 'The submitted credentials were accepted. Re-check the page and finish the remaining step.'
+    };
+  }
+
+  return {
+    resume: false,
+    partialOutcome: promptedResolution.partialOutcome
+  };
 }
 
 // Fast DJB2-style string hash for signal channel generation
@@ -7908,6 +8319,7 @@ async function launchNextCompanySearch(sessionId, session, companyName) {
     startKeepAlive,
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
     handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+    resolveAuthWall: resolveInlineAuthWall,
     hooks: sessionHooks.hooks,
     emitter: sessionHooks.emitter
   }), 500);
@@ -8385,6 +8797,7 @@ async function startSheetsDataEntry(sessionId, session) {
     startKeepAlive,
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
     handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+    resolveAuthWall: resolveInlineAuthWall,
     hooks: sessionHooks.hooks,
     emitter: sessionHooks.emitter
   }), 500);
@@ -8488,6 +8901,7 @@ async function startSheetsFormatting(sessionId, session) {
     startKeepAlive,
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
     handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
+    resolveAuthWall: resolveInlineAuthWall,
     hooks: sessionHooks.hooks,
     emitter: sessionHooks.emitter
   }), 500);
