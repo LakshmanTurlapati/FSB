@@ -54,7 +54,7 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 - [x] **Phase 160: Bootstrap Pipeline** - Structured service worker startup with ordered phases and deferred initialization for non-essential subsystems
 - [x] **Phase 161: Module Adoption** - Migrate consumers to use extracted class instances (createSession, CostTracker, TurnResult, ActionHistory, session.mode) (completed 2026-04-03)
 - [x] **Phase 162: Event Bus Wiring** - Connect SessionStateEmitter to UI consumers so progress events reach popup/sidepanel (completed 2026-04-03)
-- [ ] **Phase 162.1: Partial Completion Lifecycle** - Add a first-class partial/blocked terminal outcome so useful work is preserved when the final step cannot be executed (inserted 2026-04-03 after verification session `session_1775188402694`)
+- [x] **Phase 162.1: Partial Completion Lifecycle** - Add a first-class partial/blocked terminal outcome so useful work is preserved when the final step cannot be executed (completed 2026-04-03 with explicit runtime outcomes plus logger/UI history rendering)
 - [ ] **Phase 162.2: Auth Wall Handoff with Result Preservation** - End auth-blocked tasks with a preserved manual handoff instead of a generic error (inserted 2026-04-03 after verification session `session_1775188402694`)
 - [x] **Phase 162.3: Overlay Lifecycle Reliability** - Keep the glow/progress/debugger overlay alive across navigation, content reconnects, and long provider waits (completed 2026-04-03)
 
@@ -171,10 +171,13 @@ Plans:
   1. The agent loop supports a terminal partial/blocked outcome distinct from `completed` and `error`
   2. The terminal outcome preserves a structured summary of what was accomplished plus the blocker that prevented full completion
   3. MCP session history, popup, and sidepanel surfaces render partial outcomes as non-crash results instead of generic failures
-**Plans:** 0/0 plans complete
+**Plans:** 2/2 plans complete
 Plans:
-- None yet -- plan after insertion
+- [x] 162.1-01-PLAN.md -- Introduce the partial/blocked runtime contract and preserve it through automationComplete/executeAutomationTask
+- [x] 162.1-02-PLAN.md -- Persist partial outcomes in session history and render them as non-crash results in popup/sidepanel/history surfaces
 **Inserted**: 2026-04-03 after verification session `session_1775188402694` exposed a useful-but-auth-blocked run being recorded as `error`
+**Planned**: 2026-04-03 from verification evidence plus runtime/UI/history code inspection
+**Completed**: 2026-04-03 with `partial_task`, structured session outcome persistence, MCP-visible outcome metadata, and outcome-aware popup/sidepanel/options rendering
 
 ### Phase 162.2: Auth Wall Handoff with Result Preservation
 **Goal**: Auth-required final steps (LinkedIn message, checkout, submit actions) produce a preserved manual handoff with collected results instead of losing the useful work in a failure path
@@ -218,6 +221,6 @@ Plans:
 | 160. Bootstrap Pipeline | 1/1 | Complete    | 2026-04-02 |
 | 161. Module Adoption | 3/3 | Complete    | 2026-04-03 |
 | 162. Event Bus Wiring | 1/1 | Complete    | 2026-04-03 |
-| 162.1. Partial Completion Lifecycle | 0/0 | Inserted    | - |
+| 162.1. Partial Completion Lifecycle | 2/2 | Complete    | 2026-04-03 |
 | 162.2. Auth Wall Handoff with Result Preservation | 0/0 | Inserted    | - |
 | 162.3. Overlay Lifecycle Reliability | 2/2 | Complete    | 2026-04-03 |

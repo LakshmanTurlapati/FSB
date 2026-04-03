@@ -59,8 +59,8 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 ### Partial Outcome Lifecycle (Gap Closure)
 
-- [ ] **OUTCOME-01**: Agent loop supports a first-class partial/blocked terminal outcome distinct from `completed` and `error`
-- [ ] **OUTCOME-02**: Partial/blocked outcomes preserve structured completion summaries and render as non-crash results in MCP session history, popup, and sidepanel
+- [x] **OUTCOME-01**: Agent loop supports a first-class partial/blocked terminal outcome distinct from `completed` and `error`
+- [x] **OUTCOME-02**: Partial/blocked outcomes preserve structured completion summaries and render as non-crash results in MCP session history, popup, and sidepanel
 
 ### Auth Wall Handoff (Gap Closure)
 
@@ -127,8 +127,8 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 | ADOPT-05 | Phase 161 | Pending |
 | WIRE-01 | Phase 162 | Complete |
 | WIRE-02 | Phase 162 | Complete |
-| OUTCOME-01 | Phase 162.1 | Pending |
-| OUTCOME-02 | Phase 162.1 | Pending |
+| OUTCOME-01 | Phase 162.1 | Complete |
+| OUTCOME-02 | Phase 162.1 | Complete |
 | AUTH-01 | Phase 162.2 | Pending |
 | AUTH-02 | Phase 162.2 | Pending |
 | OVERLAY-01 | Phase 162.3 | Complete |
@@ -142,4 +142,4 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 ---
 *Requirements defined: 2026-04-02*
-*Last updated: 2026-04-03 after Phase 162 and Phase 162.3 execution bookkeeping sync*
+*Last updated: 2026-04-03 after Phase 162.1 execution bookkeeping sync*

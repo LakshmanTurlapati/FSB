@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.9.24
 milestone_name: Claude Code Architecture Adaptation
-status: executing
-stopped_at: Phase 162.3 completed
-last_updated: "2026-04-03T05:14:43Z"
-last_activity: 2026-04-03 -- Phase 162.3 completed
+status: planning
+stopped_at: Phase 162.1 completed
+last_updated: "2026-04-03T14:04:50Z"
+last_activity: 2026-04-03 -- Phase 162.1 completed
 progress:
   total_phases: 10
-  completed_phases: 8
-  total_plans: 16
-  completed_plans: 16
-  percent: 80
+  completed_phases: 9
+  total_plans: 18
+  completed_plans: 18
+  percent: 90
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Next gap closure is Phase 162.1 — partial-completion-lifecycle
+**Current focus:** Next gap closure is Phase 162.2 — auth-wall-handoff-with-result-preservation
 
 ## Current Position
 
-Phase: 162.3 (overlay-lifecycle-reliability) — COMPLETE
+Phase: 162.1 (partial-completion-lifecycle) — COMPLETE
 Plan: 2 of 2
-Status: Phase 162.3 completed; next work is Phase 162.1 planning
-Last activity: 2026-04-03 -- Phase 162.3 completed
+Status: Phase 162.1 completed; next work is Phase 162.2 planning
+Last activity: 2026-04-03 -- Phase 162.1 completed
 
-Progress: [########--] 80%
+Progress: [#########-] 90%
 
 ## Performance Metrics
 
@@ -81,6 +81,7 @@ Recent decisions affecting current work:
 - [Phase 159]: Dual BEFORE_ITERATION + AFTER_ITERATION safety hook registration; null-hooks fallback for backward compatibility
 - [Phase 162.3]: Canonical overlay state remains background-owned; reconnect recovery replays cached `sendSessionStatus` payloads instead of introducing a second UI-only overlay model
 - [Phase 162.3]: Long-wait overlay reliability uses heartbeat refresh plus degraded waiting watchdog state while dashboard preview continues to consume `ext:dom-overlay`
+- [Phase 162.1]: Partial completion must be a first-class terminal lifecycle distinct from error, and existing user-stop partial semantics must not be conflated with blocked useful completion
 
 ### Roadmap Evolution
 
@@ -98,12 +99,12 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- Post-verification gap: useful-but-auth-blocked tasks currently collapse into `error` and lose the useful outcome summary; tracked by Phases 162.1 and 162.2.
+- Post-verification auth-wall guidance gap remains: runs now preserve partial outcomes, but Phase 162.2 is still needed to steer login/credential blockers into explicit manual handoff behavior.
 - Overlay lifecycle reliability gap from verification session `session_1775188402694` is closed by Phase 162.3.
 
 ## Session Continuity
 
 Last session: 2026-04-03T02:35:15.685Z
-Stopped at: Phase 162.3 completed
+Stopped at: Phase 162.1 completed
 Resume file: .planning/debug/auth-blocked-partial-outcome-lifecycle.md
 Companion debug note: .planning/debug/overlay-lifecycle-rehydration-gap.md
