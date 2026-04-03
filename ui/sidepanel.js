@@ -1009,20 +1009,92 @@ function openSettings() {
   window.close();
 }
 
+function normalizeAutomationOutcome(outcome, status, hasError) {
+  var normalizedOutcome = typeof outcome === 'string' ? outcome.trim().toLowerCase() : '';
+  if (normalizedOutcome === 'error') return 'failure';
+  if (normalizedOutcome === 'success' || normalizedOutcome === 'partial' || normalizedOutcome === 'failure' || normalizedOutcome === 'stopped') {
+    return normalizedOutcome;
+  }
+
+  var normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+  if (normalizedStatus === 'partial') return 'partial';
+  if (normalizedStatus === 'stopped') return 'stopped';
+  if (normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'stuck') return 'failure';
+
+  return hasError ? 'failure' : 'success';
+}
+
+function getSessionOutcomeDisplay(session) {
+  session = session || {};
+  var outcomeDetails = session.outcomeDetails && typeof session.outcomeDetails === 'object'
+    ? session.outcomeDetails
+    : {};
+  var outcome = normalizeAutomationOutcome(
+    session.outcome || outcomeDetails.outcome,
+    session.status || outcomeDetails.outcome,
+    Boolean(session.error || outcomeDetails.error)
+  );
+
+  return {
+    outcome: outcome,
+    statusClass: outcome === 'success'
+      ? 'completed'
+      : outcome === 'partial'
+        ? 'partial'
+        : outcome === 'stopped'
+          ? 'stopped'
+          : 'error',
+    statusLabel: outcome === 'success'
+      ? 'completed'
+      : outcome === 'partial'
+        ? 'partial'
+        : outcome === 'stopped'
+          ? 'stopped'
+          : 'failed',
+    summary: outcomeDetails.summary || session.result || null,
+    blocker: outcomeDetails.blocker || session.blocker || null,
+    nextStep: outcomeDetails.nextStep || session.nextStep || null,
+    resultText: session.completionMessage || outcomeDetails.result || session.result || outcomeDetails.summary || null,
+    error: session.error || outcomeDetails.error || null
+  };
+}
+
 // Listen for messages from background
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'automationComplete':
       if (!isRunning) return; // Already idle, ignore duplicate
       if (request.sessionId === currentSessionId) {
-        // AI must always provide a meaningful completion message
-        const completionMessage = request.result || 'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
-        const isPartial = request.partial === true;
+        var outcome = normalizeAutomationOutcome(
+          request.outcome,
+          request.outcomeDetails?.outcome,
+          Boolean(request.error || request.outcomeDetails?.error)
+        );
+        var completionMessage = request.result ||
+          request.outcomeDetails?.result ||
+          request.outcomeDetails?.summary ||
+          'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
+
+        if (outcome === 'failure') {
+          var errorMessage = request.error || request.outcomeDetails?.error || completionMessage || 'Automation error';
+          setErrorState();
+          if (currentStatusMessage) {
+            completeStatusMessage('Error: ' + errorMessage, 'error');
+          } else {
+            addCompletionMessage('Error: ' + errorMessage, 'error');
+          }
+          break;
+        }
 
         if (currentStatusMessage) {
-          completeStatusMessage(completionMessage, isPartial ? 'partial' : undefined);
+          completeStatusMessage(
+            completionMessage,
+            outcome === 'partial' ? 'partial' : (outcome === 'stopped' ? 'system' : undefined)
+          );
+        } else if (outcome === 'stopped') {
+          addMessage(completionMessage, 'system');
         } else {
-          addCompletionMessage(completionMessage, 'ai', isPartial);
+          addCompletionMessage(completionMessage, 'ai', outcome === 'partial');
         }
 
         setIdleState();
@@ -1032,7 +1104,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         // Check if reconnaissance could help (partial/stuck completions on unmapped sites)
-        if (isPartial) {
+        if (outcome === 'partial') {
           (async () => {
             try {
               const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1427,6 +1499,7 @@ async function loadHistoryList() {
     }
 
     historyList.innerHTML = sessions.map(function(session) {
+      var outcomeInfo = getSessionOutcomeDisplay(session);
       var costDisplay = session.totalCost > 0
         ? '<span class="history-cost">$' + session.totalCost.toFixed(4) + '</span>'
         : '';
@@ -1437,7 +1510,7 @@ async function loadHistoryList() {
             '<span>' + formatSessionDate(session.startTime) + '</span>' +
             '<span>' + (session.actionCount || 0) + ' actions</span>' +
             costDisplay +
-            '<span class="history-status ' + (session.status || '') + '">' + escapeHtml(session.status || 'unknown') + '</span>' +
+            '<span class="history-status ' + outcomeInfo.statusClass + '">' + escapeHtml(outcomeInfo.statusLabel) + '</span>' +
           '</div>' +
         '</div>' +
         (session.actionCount > 0 ?
@@ -1566,8 +1639,21 @@ async function loadSessionView(sessionId) {
       addMessage('No actions were recorded in this session.', 'system');
     }
 
+    var outcomeInfo = getSessionOutcomeDisplay(session);
+    if (outcomeInfo.outcome === 'failure') {
+      addMessage(outcomeInfo.error || outcomeInfo.resultText || 'Automation failed.', 'error');
+    } else if (outcomeInfo.summary || outcomeInfo.resultText) {
+      addCompletionMessage(outcomeInfo.summary || outcomeInfo.resultText, 'ai', outcomeInfo.outcome === 'partial');
+      if (outcomeInfo.blocker) {
+        addMessage('Blocker: ' + outcomeInfo.blocker, 'system');
+      }
+      if (outcomeInfo.nextStep) {
+        addMessage('Next step: ' + outcomeInfo.nextStep, 'system');
+      }
+    }
+
     // Show session status footer
-    var status = session.status || 'unknown';
+    var status = outcomeInfo.statusLabel || session.status || 'unknown';
     var endTime = session.endTime ? new Date(session.endTime).toLocaleString() : 'N/A';
     addMessage('Session ' + status + ' at ' + endTime, 'system');
 

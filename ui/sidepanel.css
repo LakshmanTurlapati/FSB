@@ -1178,6 +1178,17 @@ body {
   color: #81c784;
 }
 
+.history-status.partial {
+  background: rgba(245, 158, 11, 0.10);
+  color: #925f0f;
+  border-color: rgba(245, 158, 11, 0.20);
+}
+
+[data-theme="dark"] .history-status.partial {
+  background: #2e2515;
+  color: #e6b844;
+}
+
 .history-status.stopped {
   background: rgba(245, 158, 11, 0.10);
   color: #925f0f;

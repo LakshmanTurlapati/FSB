@@ -809,20 +809,57 @@ function openSettings() {
   chrome.runtime.openOptionsPage();
 }
 
+function normalizeAutomationOutcome(outcome, status, hasError) {
+  const normalizedOutcome = typeof outcome === 'string' ? outcome.trim().toLowerCase() : '';
+  if (normalizedOutcome === 'error') return 'failure';
+  if (normalizedOutcome === 'success' || normalizedOutcome === 'partial' || normalizedOutcome === 'failure' || normalizedOutcome === 'stopped') {
+    return normalizedOutcome;
+  }
+
+  const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+  if (normalizedStatus === 'partial') return 'partial';
+  if (normalizedStatus === 'stopped') return 'stopped';
+  if (normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'stuck') return 'failure';
+
+  return hasError ? 'failure' : 'success';
+}
+
 // Listen for messages from background
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'automationComplete':
       if (!isRunning) return; // Already idle, ignore duplicate
       if (request.sessionId === currentSessionId) {
-        // AI must always provide a meaningful completion message
-        const completionMessage = request.result || 'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
-        const isPartial = request.partial === true;
+        const outcome = normalizeAutomationOutcome(
+          request.outcome,
+          request.outcomeDetails?.outcome,
+          Boolean(request.error || request.outcomeDetails?.error)
+        );
+        const completionMessage = request.result ||
+          request.outcomeDetails?.result ||
+          request.outcomeDetails?.summary ||
+          'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
+
+        if (outcome === 'failure') {
+          const errorMessage = request.error || request.outcomeDetails?.error || completionMessage || 'Automation error';
+          setErrorState();
+          if (currentStatusMessage) {
+            completeStatusMessage(`Error: ${errorMessage}`, 'error');
+          } else {
+            addCompletionMessage(`Error: ${errorMessage}`, 'error');
+          }
+          break;
+        }
 
         if (currentStatusMessage) {
-          completeStatusMessage(completionMessage, isPartial ? 'partial' : undefined);
+          completeStatusMessage(
+            completionMessage,
+            outcome === 'partial' ? 'partial' : (outcome === 'stopped' ? 'system' : undefined)
+          );
+        } else if (outcome === 'stopped') {
+          addMessage(completionMessage, 'system');
         } else {
-          addCompletionMessage(completionMessage, 'ai', isPartial);
+          addCompletionMessage(completionMessage, 'ai', outcome === 'partial');
         }
 
         setIdleState();

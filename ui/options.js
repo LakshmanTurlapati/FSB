@@ -1363,6 +1363,55 @@ function initializeSessionHistory() {
   loadSessionList();
 }
 
+function normalizeSessionOutcome(outcome, status, hasError) {
+  const normalizedOutcome = typeof outcome === 'string' ? outcome.trim().toLowerCase() : '';
+  if (normalizedOutcome === 'error') return 'failure';
+  if (normalizedOutcome === 'success' || normalizedOutcome === 'partial' || normalizedOutcome === 'failure' || normalizedOutcome === 'stopped') {
+    return normalizedOutcome;
+  }
+
+  const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+  if (normalizedStatus === 'partial') return 'partial';
+  if (normalizedStatus === 'stopped') return 'stopped';
+  if (normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'stuck') return 'failure';
+
+  return hasError ? 'failure' : 'success';
+}
+
+function getSessionStatusDisplay(session = {}) {
+  const outcomeDetails = session.outcomeDetails && typeof session.outcomeDetails === 'object'
+    ? session.outcomeDetails
+    : {};
+  const outcome = normalizeSessionOutcome(
+    session.outcome || outcomeDetails.outcome,
+    session.status || outcomeDetails.outcome,
+    Boolean(session.error || outcomeDetails.error)
+  );
+
+  return {
+    outcome,
+    badgeClass: outcome === 'success'
+      ? 'completed'
+      : outcome === 'partial'
+        ? 'partial'
+        : outcome === 'stopped'
+          ? 'stopped'
+          : 'error',
+    badgeLabel: outcome === 'success'
+      ? 'completed'
+      : outcome === 'partial'
+        ? 'partial'
+        : outcome === 'stopped'
+          ? 'stopped'
+          : 'failed',
+    summary: outcomeDetails.summary || session.result || null,
+    blocker: outcomeDetails.blocker || session.blocker || null,
+    nextStep: outcomeDetails.nextStep || session.nextStep || null,
+    resultText: session.completionMessage || outcomeDetails.result || session.result || outcomeDetails.summary || null,
+    error: session.error || outcomeDetails.error || null
+  };
+}
+
 /**
  * Load and display the list of saved sessions
  */
@@ -1386,7 +1435,9 @@ async function loadSessionList() {
     }
 
     // Render session items (using data-action attributes, no inline onclick)
-    sessionList.innerHTML = sessions.map(session => `
+    sessionList.innerHTML = sessions.map(session => {
+      const outcomeInfo = getSessionStatusDisplay(session);
+      return `
       <div class="session-item" data-session-id="${session.id}">
         <div class="session-item-info">
           <div class="session-item-task">${escapeHtml(session.task || 'Unknown task')}</div>
@@ -1397,7 +1448,7 @@ async function loadSessionList() {
           </div>
         </div>
         <div class="session-item-status">
-          <span class="session-status-badge ${session.status}">${session.status}</span>
+          <span class="session-status-badge ${outcomeInfo.badgeClass}">${escapeHtml(outcomeInfo.badgeLabel)}</span>
         </div>
         <div class="session-item-actions">
           <button class="session-action-btn view" data-action="view" title="View logs">
@@ -1411,7 +1462,8 @@ async function loadSessionList() {
           </button>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     addLog('info', `Loaded ${sessions.length} sessions`);
 
@@ -1525,12 +1577,13 @@ function closeSessionDetail() {
  * @returns {string} HTML string for the inline detail panel
  */
 function createInlineDetailHTML(session) {
+  const outcomeInfo = getSessionStatusDisplay(session);
   return `
     <div class="session-detail-panel" data-session-id="${session.id}">
       <div class="session-detail-header">
         <div class="session-detail-title">
           <h4 id="sessionDetailTitle">${escapeHtml(session.task || 'Unknown Task')}</h4>
-          <span class="session-detail-status session-status-badge ${session.status}" id="sessionDetailStatus">${session.status}</span>
+          <span class="session-detail-status session-status-badge ${outcomeInfo.badgeClass}" id="sessionDetailStatus">${escapeHtml(outcomeInfo.badgeLabel)}</span>
         </div>
         <div class="session-detail-actions">
           <button class="control-btn" id="exportSessionText" title="Export as human-readable text">
@@ -1572,6 +1625,30 @@ function createInlineDetailHTML(session) {
           <span class="session-meta-label">Iterations</span>
           <span class="session-meta-value">${session.iterationCount || 'N/A'}</span>
         </div>
+        ${outcomeInfo.summary ? `
+        <div class="session-meta-item">
+          <span class="session-meta-label">Summary</span>
+          <span class="session-meta-value">${escapeHtml(outcomeInfo.summary)}</span>
+        </div>
+        ` : ''}
+        ${outcomeInfo.blocker ? `
+        <div class="session-meta-item">
+          <span class="session-meta-label">Blocker</span>
+          <span class="session-meta-value">${escapeHtml(outcomeInfo.blocker)}</span>
+        </div>
+        ` : ''}
+        ${outcomeInfo.nextStep ? `
+        <div class="session-meta-item">
+          <span class="session-meta-label">Next Step</span>
+          <span class="session-meta-value">${escapeHtml(outcomeInfo.nextStep)}</span>
+        </div>
+        ` : ''}
+        ${outcomeInfo.error ? `
+        <div class="session-meta-item">
+          <span class="session-meta-label">Error</span>
+          <span class="session-meta-value">${escapeHtml(outcomeInfo.error)}</span>
+        </div>
+        ` : ''}
       </div>
       <div class="session-replay-container" id="sessionReplayContainer">
         <div class="replay-controls">

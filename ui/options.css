@@ -1634,6 +1634,11 @@ body {
   color: var(--success-color);
 }
 
+.session-status-badge.partial {
+  background: var(--warning-light);
+  color: var(--warning-color);
+}
+
 .session-status-badge.stopped {
   background: var(--warning-light);
   color: var(--warning-color);

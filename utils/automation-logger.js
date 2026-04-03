@@ -33,6 +33,135 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
     return [];
   }
 
+  function getPersistedTextValue(...values) {
+    for (const value of values) {
+      if (value === undefined || value === null) continue;
+      const text = String(value).trim();
+      if (text) return text;
+    }
+    return null;
+  }
+
+  function normalizePersistedOutcomeValue(value) {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    if (normalized === 'error') return 'failure';
+    return ['success', 'partial', 'failure', 'stopped'].includes(normalized) ? normalized : null;
+  }
+
+  function derivePersistedOutcomeFromStatus(status) {
+    const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+    if (!normalizedStatus) return 'success';
+    if (normalizedStatus === 'partial') return 'partial';
+    if (normalizedStatus === 'stopped') return 'stopped';
+    if (normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'stuck' || normalizedStatus === 'replay_failed') {
+      return 'failure';
+    }
+    return 'success';
+  }
+
+  function normalizePersistedOutcomeFields(sessionData = {}, existing = null) {
+    const incomingDetails = sessionData.outcomeDetails && typeof sessionData.outcomeDetails === 'object'
+      ? sessionData.outcomeDetails
+      : {};
+    const existingDetails = existing?.outcomeDetails && typeof existing.outcomeDetails === 'object'
+      ? existing.outcomeDetails
+      : {};
+    const status = getPersistedTextValue(sessionData.status, existing?.status) || 'completed';
+    const outcome = normalizePersistedOutcomeValue(sessionData.outcome) ||
+      normalizePersistedOutcomeValue(incomingDetails.outcome) ||
+      normalizePersistedOutcomeValue(existing?.outcome) ||
+      normalizePersistedOutcomeValue(existingDetails.outcome) ||
+      derivePersistedOutcomeFromStatus(status);
+    const summary = getPersistedTextValue(
+      sessionData.result,
+      incomingDetails.summary,
+      existing?.result,
+      existingDetails.summary,
+      sessionData.completionMessage,
+      existing?.completionMessage
+    );
+    const blocker = getPersistedTextValue(
+      sessionData.blocker,
+      incomingDetails.blocker,
+      existing?.blocker,
+      existingDetails.blocker
+    );
+    const nextStep = getPersistedTextValue(
+      sessionData.nextStep,
+      incomingDetails.nextStep,
+      existing?.nextStep,
+      existingDetails.nextStep
+    );
+    const error = outcome === 'failure'
+      ? getPersistedTextValue(
+        sessionData.error,
+        incomingDetails.error,
+        existing?.error,
+        existingDetails.error
+      )
+      : null;
+    const completionMessage = getPersistedTextValue(
+      sessionData.completionMessage,
+      incomingDetails.result,
+      existing?.completionMessage,
+      existingDetails.result,
+      summary,
+      error
+    );
+    const reason = getPersistedTextValue(
+      sessionData.reason,
+      incomingDetails.reason,
+      existingDetails.reason
+    ) || (
+      outcome === 'partial' ? 'blocked'
+        : outcome === 'failure' ? 'error'
+          : outcome === 'stopped' ? 'stopped'
+            : 'completed'
+    );
+
+    return {
+      outcome,
+      result: summary || completionMessage || null,
+      completionMessage: outcome === 'failure' ? null : (completionMessage || null),
+      error,
+      blocker,
+      nextStep,
+      outcomeDetails: {
+        outcome,
+        reason,
+        summary: summary || null,
+        blocker: blocker || null,
+        nextStep: nextStep || null,
+        result: completionMessage || null,
+        error: error || null
+      }
+    };
+  }
+
+  function hydratePersistedSessionRecord(sessionId, sessionData = {}) {
+    if (!sessionData || typeof sessionData !== 'object') return null;
+    const normalized = normalizePersistedOutcomeFields(sessionData, sessionData);
+    return {
+      ...sessionData,
+      id: sessionData.id || sessionId,
+      outcome: normalized.outcome,
+      outcomeDetails: normalized.outcomeDetails,
+      result: normalized.result,
+      completionMessage: normalized.completionMessage,
+      error: normalized.error,
+      blocker: normalized.blocker,
+      nextStep: normalized.nextStep
+    };
+  }
+
+  function formatPersistedOutcomeLabel(outcome) {
+    if (outcome === 'failure') return 'Failure';
+    if (!outcome) return 'Unknown';
+    return outcome.charAt(0).toUpperCase() + outcome.slice(1);
+  }
+
   function buildPersistedSessionMetadata(sessionId, sessionData = {}, existing = null) {
     const commands = getPersistedCommandList(sessionData, sessionData.task || existing?.lastTask || existing?.task || '');
     const lastTask = sessionData.task || existing?.lastTask || commands[commands.length - 1] || existing?.task || 'Unknown task';
@@ -432,18 +561,25 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
     }
 
     async exportHumanReadable(sessionId) {
+      const session = await this.loadSession(sessionId);
+      if (!session) return 'Session not found.';
       const replay = await this.getReplayData(sessionId);
-      if (!replay) return 'Session not found.';
+      const outcomeLabel = formatPersistedOutcomeLabel(session.outcome);
       const lines = [];
       lines.push('=' .repeat(80));
       lines.push('FSB AUTOMATION SESSION REPORT');
       lines.push('='.repeat(80));
-      lines.push(`Session ID: ${replay.id}`);
-      lines.push(`Task: ${replay.metadata.task}`);
-      lines.push(`Status: ${replay.metadata.status}`);
-      lines.push(`Steps: ${replay.summary.successfulSteps}/${replay.summary.totalSteps} successful`);
+      lines.push(`Session ID: ${session.id}`);
+      lines.push(`Task: ${session.task}`);
+      lines.push(`Status: ${session.status}`);
+      lines.push(`Outcome: ${outcomeLabel}`);
+      if (session.outcomeDetails?.summary) lines.push(`Summary: ${session.outcomeDetails.summary}`);
+      if (session.outcomeDetails?.blocker) lines.push(`Blocker: ${session.outcomeDetails.blocker}`);
+      if (session.outcomeDetails?.nextStep) lines.push(`Next step: ${session.outcomeDetails.nextStep}`);
+      if (session.error) lines.push(`Error: ${session.error}`);
+      lines.push(`Steps: ${replay?.summary?.successfulSteps || 0}/${replay?.summary?.totalSteps || 0} successful`);
       lines.push('');
-      replay.steps.forEach(step => {
+      (replay?.steps || []).forEach(step => {
         const status = step.result.success ? '[OK]' : '[FAILED]';
         lines.push(`${status} Step ${step.stepNumber}: ${step.action.tool}`);
         lines.push(`    Selector: ${step.targeting.selectorUsed || step.targeting.selectorTried || 'N/A'}`);
@@ -580,6 +716,7 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
           // APPEND MODE: Update existing session entry
           const existing = sessionStorage[sessionId];
           const metadata = buildPersistedSessionMetadata(sessionId, sessionData, existing);
+          const normalizedOutcome = normalizePersistedOutcomeFields(sessionData, existing);
           // Merge logs: add only new logs (those with timestamps after existing endTime)
           const newLogs = persistedLogs.filter(log => Date.parse(log.timestamp) > (existing.endTime || 0));
           existing.logs = filterPersistedSessionLogs(existing.logs || []);
@@ -600,6 +737,13 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
           existing.totalCost = sessionData.totalCost || existing.totalCost || 0;
           existing.totalInputTokens = sessionData.totalInputTokens || existing.totalInputTokens || 0;
           existing.totalOutputTokens = sessionData.totalOutputTokens || existing.totalOutputTokens || 0;
+          existing.outcome = normalizedOutcome.outcome;
+          existing.outcomeDetails = normalizedOutcome.outcomeDetails;
+          existing.result = normalizedOutcome.result;
+          existing.completionMessage = normalizedOutcome.completionMessage;
+          existing.error = normalizedOutcome.error;
+          existing.blocker = normalizedOutcome.blocker;
+          existing.nextStep = normalizedOutcome.nextStep;
           // Update task to show the latest command
           if (metadata.commands.length > 1) {
             existing.task = metadata.commands.map((cmd, i) => `[${i + 1}] ${cmd}`).join(' | ');
@@ -617,6 +761,7 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
         } else {
           // NEW MODE: Create session entry
           const metadata = buildPersistedSessionMetadata(sessionId, sessionData);
+          const normalizedOutcome = normalizePersistedOutcomeFields(sessionData);
           const session = {
             id: sessionId,
             task: metadata.commands.length > 1
@@ -638,6 +783,13 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
             totalCost: sessionData.totalCost || 0,
             totalInputTokens: sessionData.totalInputTokens || 0,
             totalOutputTokens: sessionData.totalOutputTokens || 0,
+            outcome: normalizedOutcome.outcome,
+            outcomeDetails: normalizedOutcome.outcomeDetails,
+            result: normalizedOutcome.result,
+            completionMessage: normalizedOutcome.completionMessage,
+            error: normalizedOutcome.error,
+            blocker: normalizedOutcome.blocker,
+            nextStep: normalizedOutcome.nextStep,
             logs: filterPersistedSessionLogs(sessionLogs),
             // Persist actionHistory for session replay (successful actions only, capped at 100)
             actionHistory: (sessionData.actionHistory || [])
@@ -657,6 +809,13 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
           endTime: savedSession.endTime, status: savedSession.status, actionCount: savedSession.actionCount,
           domSnapshotCount: snapshotCount,
           totalCost: savedSession.totalCost || 0,
+          outcome: savedSession.outcome || null,
+          outcomeDetails: savedSession.outcomeDetails || null,
+          result: savedSession.result || null,
+          completionMessage: savedSession.completionMessage || null,
+          error: savedSession.error || null,
+          blocker: savedSession.blocker || null,
+          nextStep: savedSession.nextStep || null,
           conversationId: savedSession.conversationId || null,
           uiSurface: savedSession.uiSurface || 'unknown',
           historySessionId: savedSession.historySessionId || sessionId,
@@ -735,7 +894,8 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
       if (!chrome.runtime?.id) return null;
       try {
         const stored = await chrome.storage.local.get(['fsbSessionLogs']);
-        return (stored.fsbSessionLogs || {})[sessionId] || null;
+        const session = (stored.fsbSessionLogs || {})[sessionId] || null;
+        return hydratePersistedSessionRecord(sessionId, session);
       } catch (error) {
         if (chrome.runtime?.id) {
           console.error('[FSB Logger] Failed to load session:', error);
@@ -749,7 +909,9 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
       if (!chrome.runtime?.id) return [];
       try {
         const stored = await chrome.storage.local.get(['fsbSessionIndex']);
-        return stored.fsbSessionIndex || [];
+        return (stored.fsbSessionIndex || [])
+          .map(entry => hydratePersistedSessionRecord(entry?.id, entry))
+          .filter(Boolean);
       } catch (error) {
         return [];
       }
@@ -780,6 +942,7 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
     async exportSession(sessionId) {
       const session = await this.loadSession(sessionId);
       if (!session) return `Session ${sessionId} not found.`;
+      const outcomeLabel = formatPersistedOutcomeLabel(session.outcome);
       const lines = [];
       lines.push('='.repeat(80));
       lines.push('FSB Automation Session Report');
@@ -789,6 +952,11 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
       lines.push(`Started: ${new Date(session.startTime).toLocaleString()}`);
       lines.push(`Ended: ${new Date(session.endTime).toLocaleString()}`);
       lines.push(`Status: ${session.status.toUpperCase()}`);
+      lines.push(`Outcome: ${outcomeLabel.toUpperCase()}`);
+      if (session.outcomeDetails?.summary) lines.push(`Summary: ${session.outcomeDetails.summary}`);
+      if (session.outcomeDetails?.blocker) lines.push(`Blocker: ${session.outcomeDetails.blocker}`);
+      if (session.outcomeDetails?.nextStep) lines.push(`Next Step: ${session.outcomeDetails.nextStep}`);
+      if (session.error) lines.push(`Error: ${session.error}`);
       lines.push(`Duration: ${this.formatDuration(session.endTime - session.startTime)}`);
       lines.push(`Total Actions: ${session.actionCount}`);
       lines.push('');
