@@ -524,7 +524,15 @@
           FSB.viewportGlow.destroy();
           FSB.progressOverlay.destroy();
           FSB.actionGlowOverlay.destroy();
-          FSB.overlayState = null;
+          if (FSB._overlayWatchdogTimer) {
+            clearTimeout(FSB._overlayWatchdogTimer);
+            FSB._overlayWatchdogTimer = null;
+          }
+          if (FSB.overlayState && FSB.overlayState.lifecycle !== 'cleared') {
+            FSB.overlayState = Object.assign({}, FSB.overlayState, {
+              reconnecting: true
+            });
+          }
           FSB.lastActionStatusText = null;
         } catch (cleanupErr) {
           // Non-blocking

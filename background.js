@@ -894,23 +894,40 @@ function findOverlaySession(tabId, statusData) {
   return match;
 }
 
-function buildOverlayPayload(tabId, statusData) {
+function cloneOverlayStatusData(statusData) {
+  var source = statusData || {};
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(source);
+    } catch (_cloneErr) {
+      // Fall through to JSON clone.
+    }
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(source));
+  } catch (_jsonErr) {
+    return Object.assign({}, source);
+  }
+}
+
+function buildOverlayPayload(tabId, statusData, session) {
   var utils = self.FSBOverlayStateUtils;
   if (!utils || typeof utils.buildOverlayState !== 'function') {
     return null;
   }
 
-  var session = findOverlaySession(tabId, statusData || {});
-  var overlayState = utils.buildOverlayState(statusData || {}, session || null);
+  var overlaySession = session || findOverlaySession(tabId, statusData || {});
+  var overlayState = utils.buildOverlayState(statusData || {}, overlaySession || null);
   if (!overlayState) return null;
 
-  if (session) {
-    if (!session._overlaySessionToken) {
-      session._overlaySessionToken = session.sessionId || ('tab:' + tabId + ':' + Date.now());
+  if (overlaySession) {
+    if (!overlaySession._overlaySessionToken) {
+      overlaySession._overlaySessionToken = overlaySession.sessionId || ('tab:' + tabId + ':' + Date.now());
     }
-    session._overlayVersion = (session._overlayVersion || 0) + 1;
-    overlayState.sessionToken = session._overlaySessionToken;
-    overlayState.version = session._overlayVersion;
+    overlaySession._overlayVersion = (overlaySession._overlayVersion || 0) + 1;
+    overlayState.sessionToken = overlaySession._overlaySessionToken;
+    overlayState.version = overlaySession._overlayVersion;
   } else {
     overlayState.sessionToken = (statusData && statusData.sessionToken) || ('tab:' + tabId);
     overlayState.version = (statusData && typeof statusData.version === 'number')
@@ -922,10 +939,26 @@ function buildOverlayPayload(tabId, statusData) {
 }
 
 async function sendSessionStatus(tabId, statusData) {
+  var overlaySession = findOverlaySession(tabId, statusData || {});
+  var overlayState = buildOverlayPayload(tabId, statusData, overlaySession);
+  var sentAt = Date.now();
+
+  if (overlaySession) {
+    overlaySession._lastOverlayStatusData = cloneOverlayStatusData(statusData || {});
+    overlaySession._lastOverlaySentAt = sentAt;
+    overlaySession._lastOverlayTargetTabId = tabId;
+    overlaySession._lastOverlayIdentity = overlayState ? {
+      sessionToken: overlayState.sessionToken || null,
+      version: overlayState.version || null,
+      lifecycle: overlayState.lifecycle || null,
+      phase: overlayState.phase || null
+    } : null;
+  }
+
   const payload = {
     action: 'sessionStatus',
     ...statusData,
-    overlayState: buildOverlayPayload(tabId, statusData)
+    overlayState: overlayState
   };
   try {
     await chrome.tabs.sendMessage(tabId, payload, { frameId: 0 });
@@ -3066,6 +3099,27 @@ chrome.runtime.onConnect.addListener((port) => {
           method: 'port'
         });
         automationLogger.logComm(null, 'receive', 'port_ready', true, { tabId, url: msg.url });
+
+        var overlaySession = findOverlaySession(tabId, msg || {});
+        if (overlaySession &&
+            overlaySession.status === 'running' &&
+            overlaySession._lastOverlayStatusData &&
+            overlaySession._lastOverlayTargetTabId === tabId) {
+          sendSessionStatus(tabId, overlaySession._lastOverlayStatusData)
+            .then(function() {
+              if (_streamingActive && _streamingTabId === tabId) {
+                try {
+                  chrome.tabs.sendMessage(tabId, { action: 'domStreamRequestOverlay' }, { frameId: 0 })
+                    .catch(function() {});
+                } catch (_overlayErr) {
+                  // Non-blocking
+                }
+              }
+            })
+            .catch(function(_replayErr) {
+              // Non-blocking: ready handling should not fail if replay delivery misses.
+            });
+        }
       } else if (msg.type === 'heartbeat-ack') {
         const portInfo = contentScriptPorts.get(tabId);
         if (portInfo) portInfo.lastHeartbeat = Date.now();
