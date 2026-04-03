@@ -53,7 +53,10 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 - [x] **Phase 159: Agent Loop Refactor** - Wire extracted modules into agent-loop.js, enable session resumption, replace inline conditionals with hook calls (completed 2026-04-02)
 - [x] **Phase 160: Bootstrap Pipeline** - Structured service worker startup with ordered phases and deferred initialization for non-essential subsystems
 - [x] **Phase 161: Module Adoption** - Migrate consumers to use extracted class instances (createSession, CostTracker, TurnResult, ActionHistory, session.mode) (completed 2026-04-03)
-- [ ] **Phase 162: Event Bus Wiring** - Connect SessionStateEmitter to UI consumers so progress events reach popup/sidepanel
+- [x] **Phase 162: Event Bus Wiring** - Connect SessionStateEmitter to UI consumers so progress events reach popup/sidepanel (completed 2026-04-03)
+- [ ] **Phase 162.1: Partial Completion Lifecycle** - Add a first-class partial/blocked terminal outcome so useful work is preserved when the final step cannot be executed (inserted 2026-04-03 after verification session `session_1775188402694`)
+- [ ] **Phase 162.2: Auth Wall Handoff with Result Preservation** - End auth-blocked tasks with a preserved manual handoff instead of a generic error (inserted 2026-04-03 after verification session `session_1775188402694`)
+- [x] **Phase 162.3: Overlay Lifecycle Reliability** - Keep the glow/progress/debugger overlay alive across navigation, content reconnects, and long provider waits (completed 2026-04-03)
 
 ## Phase Details
 
@@ -128,7 +131,7 @@ Plans:
   2. Non-essential loading (site guides, memory extraction, analytics prefetch) is deferred until after first user interaction, while all tool definitions and core modules remain eagerly loaded
 **Plans:** 1/1 plans complete
 Plans:
-- [ ] 160-01-PLAN.md -- Consolidated bootstrap pipeline with 4-phase swBootstrap and deferred init guards
+- [x] 160-01-PLAN.md -- Consolidated bootstrap pipeline with 4-phase swBootstrap and deferred init guards
 **Note**: Research reference: `Research/claude-code/src/bootstrap_graph.py`, `Research/claude-code/src/deferred_init.py`. Pitfall 6 warns that deferred init can stall first command -- keep eager loading for all tool definitions and core modules.
 
 ### Phase 161: Module Adoption
@@ -155,10 +158,52 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Popup and sidepanel message handlers include a `case 'sessionStateEvent'` that processes emitter events (tool_executed, iteration_complete, session_ended, error_occurred)
   2. At least one UI surface visually reflects a SessionStateEmitter event (e.g., iteration count update, cost update, or tool execution indicator)
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
-- [ ] 162-01-PLAN.md -- Add sessionStateEvent handlers to popup.js and sidepanel.js for all 4 emitter event types
+- [x] 162-01-PLAN.md -- Add sessionStateEvent handlers to popup.js and sidepanel.js for all 4 emitter event types
 **Gap Closure**: Closes integration gaps STATE-05, HOOK-04 and degraded flow "Progress events -> UI surfaces" from v0.9.24 audit
+
+### Phase 162.1: Partial Completion Lifecycle
+**Goal**: Tasks that complete useful work but hit an unrecoverable external blocker end with a first-class partial/blocked outcome instead of a hard error
+**Depends on**: Phase 162
+**Requirements**: OUTCOME-01, OUTCOME-02
+**Success Criteria** (what must be TRUE):
+  1. The agent loop supports a terminal partial/blocked outcome distinct from `completed` and `error`
+  2. The terminal outcome preserves a structured summary of what was accomplished plus the blocker that prevented full completion
+  3. MCP session history, popup, and sidepanel surfaces render partial outcomes as non-crash results instead of generic failures
+**Plans:** 0/0 plans complete
+Plans:
+- None yet -- plan after insertion
+**Inserted**: 2026-04-03 after verification session `session_1775188402694` exposed a useful-but-auth-blocked run being recorded as `error`
+
+### Phase 162.2: Auth Wall Handoff with Result Preservation
+**Goal**: Auth-required final steps (LinkedIn message, checkout, submit actions) produce a preserved manual handoff with collected results instead of losing the useful work in a failure path
+**Depends on**: Phase 162.1
+**Requirements**: AUTH-01, AUTH-02
+**Success Criteria** (what must be TRUE):
+  1. When the final step is blocked by login or missing credentials, the agent returns the collected findings plus an explicit manual handoff instead of `fail_task`
+  2. Prompt/tool guidance tells the agent to use the partial/blocked terminal outcome for auth walls and credential-gated endpoints
+  3. The final session result names what was completed, what remains manual, and the exact blocker so the user can resume intentionally
+**Plans:** 0/0 plans complete
+Plans:
+- None yet -- plan after insertion
+**Inserted**: 2026-04-03 after verification session `session_1775188402694` showed LinkedIn messaging failure discarding the already-collected job/profile work
+
+### Phase 162.3: Overlay Lifecycle Reliability
+**Goal**: Visual debugger feedback stays trustworthy throughout an active run by rehydrating overlay state after navigation/reconnect and keeping it alive during long model waits
+**Depends on**: Phase 162
+**Requirements**: OVERLAY-01, OVERLAY-02, OVERLAY-03
+**Success Criteria** (what must be TRUE):
+  1. When navigation or content-script reconnection tears down the content overlay, the active session re-applies the current overlay state without waiting for a rare special-case transition
+  2. Normal agent-loop progress and `report_progress` updates drive the content overlay lifecycle, not just popup/sidepanel emitter events and dashboard broadcasts
+  3. Long provider waits or retries keep the overlay visible via heartbeat or degraded waiting-state refresh instead of silently disappearing after watchdog expiry
+  4. Dashboard/debugger overlay state remains synchronized with the canonical content overlay state across reconnects and page transitions
+**Plans:** 2/2 plans complete
+Plans:
+- [x] 162.3-01-PLAN.md -- Cache/replay canonical overlay state on reconnect and refresh it from normal agent-loop progress
+- [x] 162.3-02-PLAN.md -- Keep overlays alive during long waits and synchronize dashboard preview from the same canonical state
+**Inserted**: 2026-04-03 after complex verification follow-up found that `sessionStatus` is only pushed at session start and a few special transitions while `content/lifecycle.js` destroys overlays on disconnect/navigation
+**Completed**: 2026-04-03 with canonical overlay replay, active-session heartbeat, degraded waiting watchdog, and forced DOM-stream overlay rebroadcasts
 
 ---
 
@@ -172,4 +217,7 @@ Plans:
 | 159. Agent Loop Refactor | 3/3 | Complete    | 2026-04-02 |
 | 160. Bootstrap Pipeline | 1/1 | Complete    | 2026-04-02 |
 | 161. Module Adoption | 3/3 | Complete    | 2026-04-03 |
-| 162. Event Bus Wiring | 0/1 | Not started | - |
+| 162. Event Bus Wiring | 1/1 | Complete    | 2026-04-03 |
+| 162.1. Partial Completion Lifecycle | 0/0 | Inserted    | - |
+| 162.2. Auth Wall Handoff with Result Preservation | 0/0 | Inserted    | - |
+| 162.3. Overlay Lifecycle Reliability | 2/2 | Complete    | 2026-04-03 |

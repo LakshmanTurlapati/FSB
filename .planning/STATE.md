@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.23
-milestone_name: Dashboard Stream & Remote Control Reliability
+milestone: v0.9.24
+milestone_name: Claude Code Architecture Adaptation
 status: executing
-stopped_at: Phase 162 context gathered
-last_updated: "2026-04-03T03:05:50.793Z"
-last_activity: 2026-04-03 -- Phase 162 execution started
+stopped_at: Phase 162.3 completed
+last_updated: "2026-04-03T05:14:43Z"
+last_activity: 2026-04-03 -- Phase 162.3 completed
 progress:
-  total_phases: 161
-  completed_phases: 155
-  total_plans: 315
-  completed_plans: 311
-  percent: 0
+  total_phases: 10
+  completed_phases: 8
+  total_plans: 16
+  completed_plans: 16
+  percent: 80
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 162 — event-bus-wiring
+**Current focus:** Next gap closure is Phase 162.1 — partial-completion-lifecycle
 
 ## Current Position
 
-Phase: 162 (event-bus-wiring) — EXECUTING
-Plan: 1 of 1
-Status: Executing Phase 162
-Last activity: 2026-04-03 -- Phase 162 execution started
+Phase: 162.3 (overlay-lifecycle-reliability) — COMPLETE
+Plan: 2 of 2
+Status: Phase 162.3 completed; next work is Phase 162.1 planning
+Last activity: 2026-04-03 -- Phase 162.3 completed
 
-Progress: [----------] 0%
+Progress: [########--] 80%
 
 ## Performance Metrics
 
@@ -79,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 159]: Keep checkSafetyBreakers/detectStuck in agent-loop.js as local functions, hook factories receive via closure; TranscriptStore used per-iteration not persisted; onError hook emitted once at catch top; broadcastDashboardProgress kept for dashboard WS compat
 - [Phase 159]: 6 runAgentLoop call sites wired with createSessionHooks factory; D-03 auto-resumption validates tab existence before calling runAgentLoop on SW restart
 - [Phase 159]: Dual BEFORE_ITERATION + AFTER_ITERATION safety hook registration; null-hooks fallback for backward compatibility
+- [Phase 162.3]: Canonical overlay state remains background-owned; reconnect recovery replays cached `sendSessionStatus` payloads instead of introducing a second UI-only overlay model
+- [Phase 162.3]: Long-wait overlay reliability uses heartbeat refresh plus degraded waiting watchdog state while dashboard preview continues to consume `ext:dom-overlay`
 
 ### Roadmap Evolution
 
@@ -86,6 +88,9 @@ Recent decisions affecting current work:
 - v0.9.23 Phase 155 executed retroactively on 2026-04-02 (2/2 plans complete) while v0.9.24 remained the active milestone
 - v0.9.23 Phases 151-155 deferred
 - v0.9.22 Showcase High-Fidelity Replicas superseded after Phase 145
+- Phase 162.1 inserted after Phase 162: Partial Completion Lifecycle for auth-blocked tasks (URGENT)
+- Phase 162.2 inserted after Phase 162: Auth Wall Handoff with Result Preservation (URGENT)
+- Phase 162.3 inserted after Phase 162: Overlay Lifecycle Reliability for mid-run glow/debugger overlay disappearance (URGENT)
 
 ### Pending Todos
 
@@ -93,10 +98,12 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-None.
+- Post-verification gap: useful-but-auth-blocked tasks currently collapse into `error` and lose the useful outcome summary; tracked by Phases 162.1 and 162.2.
+- Overlay lifecycle reliability gap from verification session `session_1775188402694` is closed by Phase 162.3.
 
 ## Session Continuity
 
 Last session: 2026-04-03T02:35:15.685Z
-Stopped at: Phase 162 context gathered
-Resume file: .planning/phases/162-event-bus-wiring/162-CONTEXT.md
+Stopped at: Phase 162.3 completed
+Resume file: .planning/debug/auth-blocked-partial-outcome-lifecycle.md
+Companion debug note: .planning/debug/overlay-lifecycle-rehydration-gap.md

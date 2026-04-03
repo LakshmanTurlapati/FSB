@@ -54,8 +54,24 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 ### Event Bus Wiring (Gap Closure)
 
-- [ ] **WIRE-01**: Popup and sidepanel message handlers include `case 'sessionStateEvent'` processing emitter events
-- [ ] **WIRE-02**: At least one UI surface visually reflects a SessionStateEmitter event
+- [x] **WIRE-01**: Popup and sidepanel message handlers include `case 'sessionStateEvent'` processing emitter events
+- [x] **WIRE-02**: At least one UI surface visually reflects a SessionStateEmitter event
+
+### Partial Outcome Lifecycle (Gap Closure)
+
+- [ ] **OUTCOME-01**: Agent loop supports a first-class partial/blocked terminal outcome distinct from `completed` and `error`
+- [ ] **OUTCOME-02**: Partial/blocked outcomes preserve structured completion summaries and render as non-crash results in MCP session history, popup, and sidepanel
+
+### Auth Wall Handoff (Gap Closure)
+
+- [ ] **AUTH-01**: Auth-required or credential-missing final steps end with preserved useful output and explicit blocker details instead of generic failure
+- [ ] **AUTH-02**: Prompt/tool guidance steers the agent to use the partial/blocked outcome for auth walls and manual handoff scenarios after useful work is complete
+
+### Overlay Lifecycle Reliability (Gap Closure)
+
+- [x] **OVERLAY-01**: Active session overlay state is re-applied after navigation or content-script reconnect instead of disappearing until a rare special transition emits `sessionStatus`
+- [x] **OVERLAY-02**: Long provider waits and retry windows keep the glow/progress overlay alive through heartbeat or degraded waiting-state refresh instead of silent watchdog cleanup
+- [x] **OVERLAY-03**: Dashboard/debugger overlay state stays synchronized with canonical content overlay state across reconnects, page transitions, and resumed progress updates
 
 ## Future Requirements (v0.9.25+)
 
@@ -109,14 +125,21 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 | ADOPT-03 | Phase 161 | Pending |
 | ADOPT-04 | Phase 161 | Pending |
 | ADOPT-05 | Phase 161 | Pending |
-| WIRE-01 | Phase 162 | Pending |
-| WIRE-02 | Phase 162 | Pending |
+| WIRE-01 | Phase 162 | Complete |
+| WIRE-02 | Phase 162 | Complete |
+| OUTCOME-01 | Phase 162.1 | Pending |
+| OUTCOME-02 | Phase 162.1 | Pending |
+| AUTH-01 | Phase 162.2 | Pending |
+| AUTH-02 | Phase 162.2 | Pending |
+| OVERLAY-01 | Phase 162.3 | Complete |
+| OVERLAY-02 | Phase 162.3 | Complete |
+| OVERLAY-03 | Phase 162.3 | Complete |
 
 **Coverage:**
-- v0.9.24 requirements: 26 total (19 original + 7 gap closure)
-- Mapped to phases: 26
+- v0.9.24 requirements: 33 total (19 original + 14 gap closure)
+- Mapped to phases: 33
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-02*
-*Last updated: 2026-04-02 after gap closure phases 161-162 added*
+*Last updated: 2026-04-03 after Phase 162 and Phase 162.3 execution bookkeeping sync*
