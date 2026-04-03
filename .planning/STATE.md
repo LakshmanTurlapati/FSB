@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.23
 milestone_name: Dashboard Stream & Remote Control Reliability
-status: executing
-stopped_at: Completed 162.2-01-PLAN.md
-last_updated: "2026-04-03T14:58:04.764Z"
+status: verifying
+stopped_at: Completed 162.2-02-PLAN.md
+last_updated: "2026-04-03T15:11:57.057Z"
 last_activity: 2026-04-03
 progress:
   total_phases: 164
-  completed_phases: 158
+  completed_phases: 159
   total_plans: 321
-  completed_plans: 317
+  completed_plans: 318
   percent: 99
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-02)
 
 Phase: 162.2 (auth-wall-handoff-with-result-preservation) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-03
 
 Progress: [##########] 99%
@@ -55,6 +55,7 @@ Progress: [##########] 99%
 | Phase 159 PP02 | 3min | 2 tasks | 1 files |
 | Phase 159 P03 | 1min | 2 tasks | 2 files |
 | Phase 162.2 P01 | 3min | 2 tasks | 5 files |
+| Phase 162.2 P02 | 1min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,8 @@ Recent decisions affecting current work:
 - [Phase 162.1]: Partial completion must be a first-class terminal lifecycle distinct from error, and existing user-stop partial semantics must not be conflated with blocked useful completion
 - [Phase 162.2]: Shared AUTH REQUIRED and SKIP-AUTH guide wording now implies preserved completed work, exact blocker, and manual next step rather than crash framing.
 - [Phase 162.2]: Auth-wall blockers now terminate via partial_task with a stable blocker taxonomy once useful work is complete.
+- [Phase 162.2]: Auth-flavored partial_task now triggers one inline background auth-resolution cycle before terminal partial handoff
+- [Phase 162.2]: Same-session auth resume now appends an explicit resume boundary in the running loop while sidepanel no-ack cases fall straight to preserved partial outcome copy
 
 ### Roadmap Evolution
 
@@ -107,7 +110,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-04-03T14:57:20.899Z
-Stopped at: Completed 162.2-01-PLAN.md
+Last session: 2026-04-03T15:11:57.049Z
+Stopped at: Completed 162.2-02-PLAN.md
 Resume file: None
 Companion debug note: .planning/debug/overlay-lifecycle-rehydration-gap.md

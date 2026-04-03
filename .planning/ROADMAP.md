@@ -55,7 +55,7 @@ Phase 150 completed. Phases 151-155 deferred. See previous ROADMAP.md for full p
 - [x] **Phase 161: Module Adoption** - Migrate consumers to use extracted class instances (createSession, CostTracker, TurnResult, ActionHistory, session.mode) (completed 2026-04-03)
 - [x] **Phase 162: Event Bus Wiring** - Connect SessionStateEmitter to UI consumers so progress events reach popup/sidepanel (completed 2026-04-03)
 - [x] **Phase 162.1: Partial Completion Lifecycle** - Add a first-class partial/blocked terminal outcome so useful work is preserved when the final step cannot be executed (completed 2026-04-03 with explicit runtime outcomes plus logger/UI history rendering)
-- [ ] **Phase 162.2: Auth Wall Handoff with Result Preservation** - End auth-blocked tasks with a preserved manual handoff instead of a generic error (inserted and planned 2026-04-03 after verification session `session_1775188402694`)
+- [x] **Phase 162.2: Auth Wall Handoff with Result Preservation** - End auth-blocked tasks with a preserved manual handoff instead of a generic error (inserted and planned 2026-04-03 after verification session `session_1775188402694`) (completed 2026-04-03)
 - [x] **Phase 162.3: Overlay Lifecycle Reliability** - Keep the glow/progress/debugger overlay alive across navigation, content reconnects, and long provider waits (completed 2026-04-03)
 
 ## Phase Details
@@ -187,10 +187,10 @@ Plans:
   1. When the final step is blocked by login or missing credentials, the agent returns the collected findings plus an explicit manual handoff instead of `fail_task`
   2. Prompt/tool guidance tells the agent to use the partial/blocked terminal outcome for auth walls and credential-gated endpoints
   3. The final session result names what was completed, what remains manual, and the exact blocker so the user can resume intentionally
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 162.2-01-PLAN.md -- Teach `partial_task`, system prompt, and shared site guides to preserve auth-blocked work as a manual handoff after one bounded auth attempt
-- [ ] 162.2-02-PLAN.md -- Add explicit auth trigger, same-session pause/resume, and sidepanel or no-sidepanel fallback using the existing login primitives
+- [x] 162.2-02-PLAN.md -- Add explicit auth trigger, same-session pause/resume, and sidepanel or no-sidepanel fallback using the existing login primitives
 **Inserted**: 2026-04-03 after verification session `session_1775188402694` showed LinkedIn messaging failure discarding the already-collected job/profile work
 **Planned**: 2026-04-03 from auth-blocked session forensics, runtime auth helper inspection, and checker-verified plan hardening around pause/resume plus no-sidepanel fallback
 
@@ -224,5 +224,5 @@ Plans:
 | 161. Module Adoption | 3/3 | Complete    | 2026-04-03 |
 | 162. Event Bus Wiring | 1/1 | Complete    | 2026-04-03 |
 | 162.1. Partial Completion Lifecycle | 2/2 | Complete    | 2026-04-03 |
-| 162.2. Auth Wall Handoff with Result Preservation | 1/2 | In Progress|  |
+| 162.2. Auth Wall Handoff with Result Preservation | 2/2 | Complete   | 2026-04-03 |
 | 162.3. Overlay Lifecycle Reliability | 2/2 | Complete    | 2026-04-03 |

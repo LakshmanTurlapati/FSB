@@ -64,7 +64,7 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 ### Auth Wall Handoff (Gap Closure)
 
-- [ ] **AUTH-01**: Auth-required or credential-missing final steps end with preserved useful output and explicit blocker details instead of generic failure
+- [x] **AUTH-01**: Auth-required or credential-missing final steps end with preserved useful output and explicit blocker details instead of generic failure
 - [x] **AUTH-02**: Prompt/tool guidance steers the agent to use the partial/blocked outcome for auth walls and manual handoff scenarios after useful work is complete
 
 ### Overlay Lifecycle Reliability (Gap Closure)
@@ -129,7 +129,7 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 | WIRE-02 | Phase 162 | Complete |
 | OUTCOME-01 | Phase 162.1 | Complete |
 | OUTCOME-02 | Phase 162.1 | Complete |
-| AUTH-01 | Phase 162.2 | Pending |
+| AUTH-01 | Phase 162.2 | Complete |
 | AUTH-02 | Phase 162.2 | Complete |
 | OVERLAY-01 | Phase 162.3 | Complete |
 | OVERLAY-02 | Phase 162.3 | Complete |
