@@ -1048,6 +1048,23 @@ async function runAgentIteration(sessionId, options) {
       session.status = 'completed';
       session.completionMessage = finalText;
 
+      // ADOPT-03: Construct structured turn result for end_turn
+      session.lastTurnResult = _al_createTurnResult({
+        sessionId: sessionId,
+        iteration: iterNum,
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+        cost: iterationCost,
+        matchedTools: [],
+        toolResults: [],
+        permissionDenials: [],
+        stopReason: _al_STOP_REASONS.END_TURN || 'end_turn',
+        completionMessage: finalText.substring(0, 500),
+        errorMessage: null,
+        timestamp: Date.now(),
+        durationMs: Date.now() - (session.agentState.startTime || Date.now())
+      });
+
       // Emit onCompletion hook
       if (hooks) {
         await hooks.emit(_al_LIFECYCLE_EVENTS.ON_COMPLETION, {
@@ -1314,6 +1331,25 @@ async function runAgentIteration(sessionId, options) {
     // o. Persist session state after every iteration (per SAFE-04, D-09)
     await persist(sessionId, session);
 
+    // ADOPT-03: Construct structured turn result for tool_calls iteration
+    session.lastTurnResult = _al_createTurnResult({
+      sessionId: sessionId,
+      iteration: iterNum,
+      inputTokens: inputTokens,
+      outputTokens: outputTokens,
+      cost: iterationCost,
+      matchedTools: toolResults.map(function(tr) { return tr.name; }),
+      toolResults: toolResults.map(function(tr) {
+        return { name: tr.name, success: tr.result.success, hadEffect: tr.result.hadEffect };
+      }),
+      permissionDenials: [],
+      stopReason: _al_STOP_REASONS.TOOL_CALLS || 'tool_calls',
+      completionMessage: null,
+      errorMessage: null,
+      timestamp: Date.now(),
+      durationMs: Date.now() - (session.agentState.startTime || Date.now())
+    });
+
     // p. Schedule next iteration via setTimeout (per D-08, P4)
     // 100ms delay: fast enough for responsive automation,
     // long enough to yield the event loop and reset Chrome's execution timer
@@ -1338,6 +1374,23 @@ async function runAgentIteration(sessionId, options) {
         totalCost: (session.agentState && session.agentState.totalCost) || 0
       });
     }
+
+    // ADOPT-03: Construct error turn result (used by all error exit paths)
+    session.lastTurnResult = _al_createTurnResult({
+      sessionId: sessionId,
+      iteration: iterNum,
+      inputTokens: 0,
+      outputTokens: 0,
+      cost: 0,
+      matchedTools: [],
+      toolResults: [],
+      permissionDenials: [],
+      stopReason: _al_STOP_REASONS.ERROR || 'error',
+      completionMessage: null,
+      errorMessage: errMsg,
+      timestamp: Date.now(),
+      durationMs: Date.now() - ((session.agentState && session.agentState.startTime) || Date.now())
+    });
 
     // Auth errors (401/403): terminal
     if (errStatus === 401 || errStatus === 403) {
