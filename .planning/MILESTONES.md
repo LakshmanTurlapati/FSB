@@ -1,5 +1,24 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.21 UI Retouch & Cohesion (Shipped: 2026-04-02)
+
+**Phases completed:** 5 phases, 9 plans
+
+**Key accomplishments:**
+
+- Established a shared `fsb-ui-core.css` baseline so popup, sidepanel, control panel, and dashboard surfaces all consume one FSB visual system
+- Retouched the sidepanel into a cleaner persistent workspace with better hierarchy, history chrome, footer metadata, and composer behavior
+- Retouched the popup into a cleaner quick-launch sibling with flatter chrome, aligned states, and tighter footer/composer treatment
+- Flattened the control-panel/dashboard shell to a black-neutral dark mode, reduced oversized density, cleaned up pairing/docs surfaces, and normalized dashboard naming
+- Replaced the oversized rectangular text highlight behavior with target-aware overlay feedback that uses text-style emphasis for inline targets and fitted boxes for controls, with DOM stream parity
+
+**Stats:**
+
+- 5 phases, 9 plans, 15 requirements
+- Key files: `shared/fsb-ui-core.css`, `ui/sidepanel.css`, `ui/popup.css`, `ui/options.css`, `content/visual-feedback.js`
+
+---
+
 ## v0.9.9.1 Phantom Stream (Shipped: 2026-03-31)
 
 **Phases completed:** 9 phases (5 planned + 4 inserted fixes), 16 plans
@@ -22,15 +41,20 @@
 
 ---
 
-## v0.9.8.1 npm Publishing (Shipped: 2026-04-01)
+## v0.9.8.1 npm Publishing (Shipped: 2026-04-02)
 
 **Phases completed:** 2 phases, 2 plans
 
 **Key accomplishments:**
 
-- npm-ready package with metadata, files whitelist, .npmignore, prepublishOnly script, and GitHub Actions publish workflow
-- Users can install and run FSB MCP server via `npx -y fsb-mcp-server` without cloning the repo
-- End-to-end local verification of package installation
+- npm-ready package with metadata, files whitelist, `.npmignore`, `prepublishOnly`, and tag-driven GitHub Actions publish workflow
+- Public npm release means users can install and run the FSB MCP server via `npx -y fsb-mcp-server` without cloning the repo
+- MCP docs now cover stdio usage, optional local HTTP mode, and setup/diagnostic commands without changing the extension bridge contract
+
+**Stats:**
+
+- 2 phases, 2 formal plans
+- Key files: `mcp-server/package.json`, `mcp-server/README.md`, `.github/workflows/npm-publish.yml`, `mcp-server/server.json`
 
 ---
 

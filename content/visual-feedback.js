@@ -892,19 +892,23 @@
   const viewportGlow = new ViewportGlow();
 
   /**
-   * ActionGlowOverlay - Animated pulsing glow that persists during action execution
+   * ActionGlowOverlay - Animated target-aware highlight that persists during action execution
    *
-   * Uses Shadow DOM for style isolation. Shows an orange pulsing glow border
-   * around the target element for the entire duration of the action, with
-   * smooth fade-in/out transitions and requestAnimationFrame position tracking.
+   * Uses Shadow DOM for style isolation. Inline links and text-first targets
+   * receive an orange text-highlight treatment, while controls and larger
+   * surfaces keep a tighter pulsing outline.
    */
   class ActionGlowOverlay {
     constructor() {
       this.host = null;
       this.shadow = null;
-      this.overlay = null;
+      this.overlayRoot = null;
+      this.boxOverlay = null;
       this.targetElement = null;
       this.trackingId = null;
+      this.currentGeometry = null;
+      this.currentMode = null;
+      this._isVisible = false;
     }
 
     /**
@@ -946,6 +950,258 @@
       return candidate || element;
     }
 
+    _shouldUseTextHighlight(element) {
+      if (!element || !element.isConnected) return false;
+
+      const tagName = element.tagName;
+      if (['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'OPTION'].includes(tagName)) return false;
+      if (element.isContentEditable) return false;
+
+      const text = (element.innerText || '').trim();
+      if (!text) return false;
+
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 8 || rect.height < 8) return false;
+
+      const compactTarget = rect.height <= 72
+        && rect.width <= Math.min(window.innerWidth * 0.8, 560);
+
+      const role = element.getAttribute('role');
+      if (tagName === 'A' || role === 'link') return compactTarget;
+
+      const computed = window.getComputedStyle(element);
+      const inlineDisplay = computed.display === 'inline'
+        || computed.display === 'inline-block'
+        || computed.display === 'inline-flex';
+
+      return inlineDisplay
+        && rect.height <= 56
+        && rect.width <= Math.min(window.innerWidth * 0.75, 520);
+    }
+
+    _clampRect(rect) {
+      if (!rect) return null;
+
+      const left = Math.max(0, rect.left);
+      const top = Math.max(0, rect.top);
+      const right = Math.min(window.innerWidth, rect.left + rect.width);
+      const bottom = Math.min(window.innerHeight, rect.top + rect.height);
+
+      if (right <= left || bottom <= top) return null;
+
+      return {
+        left: Math.round(left * 100) / 100,
+        top: Math.round(top * 100) / 100,
+        width: Math.round((right - left) * 100) / 100,
+        height: Math.round((bottom - top) * 100) / 100
+      };
+    }
+
+    _mergeTextRects(rects) {
+      if (!rects.length) return [];
+
+      const sorted = rects
+        .map(rect => this._clampRect(rect))
+        .filter(Boolean)
+        .sort((a, b) => (a.top - b.top) || (a.left - b.left));
+
+      if (!sorted.length) return [];
+
+      const merged = [];
+      for (const rect of sorted) {
+        const previous = merged[merged.length - 1];
+        if (!previous) {
+          merged.push({ ...rect });
+          continue;
+        }
+
+        const sameLine = Math.abs(previous.top - rect.top) <= 3
+          && Math.abs(previous.height - rect.height) <= 6;
+        const closeEnough = rect.left <= (previous.left + previous.width + 12);
+
+        if (sameLine && closeEnough) {
+          const right = Math.max(previous.left + previous.width, rect.left + rect.width);
+          previous.left = Math.min(previous.left, rect.left);
+          previous.top = Math.min(previous.top, rect.top);
+          previous.width = right - previous.left;
+          previous.height = Math.max(previous.height, rect.height);
+        } else {
+          merged.push({ ...rect });
+        }
+      }
+
+      return merged;
+    }
+
+    _getTextRects(element) {
+      if (!element || !element.isConnected) return [];
+
+      const range = document.createRange();
+      try {
+        range.selectNodeContents(element);
+        const rawRects = Array.from(range.getClientRects())
+          .filter(rect => rect.width >= 6 && rect.height >= 8)
+          .map(rect => ({
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height
+          }));
+        return this._mergeTextRects(rawRects);
+      } catch (e) {
+        return [];
+      } finally {
+        if (typeof range.detach === 'function') {
+          range.detach();
+        }
+      }
+    }
+
+    _getUnionBounds(rects) {
+      if (!rects.length) return null;
+
+      let left = rects[0].left;
+      let top = rects[0].top;
+      let right = rects[0].left + rects[0].width;
+      let bottom = rects[0].top + rects[0].height;
+
+      for (let i = 1; i < rects.length; i++) {
+        const rect = rects[i];
+        left = Math.min(left, rect.left);
+        top = Math.min(top, rect.top);
+        right = Math.max(right, rect.left + rect.width);
+        bottom = Math.max(bottom, rect.top + rect.height);
+      }
+
+      return this._clampRect({
+        left,
+        top,
+        width: right - left,
+        height: bottom - top
+      });
+    }
+
+    _buildTextHighlightSpec(element) {
+      const textRects = this._getTextRects(element);
+      if (!textRects.length) return null;
+
+      const expandedRects = textRects
+        .map(rect => this._clampRect({
+          left: rect.left - 4,
+          top: rect.top - 2,
+          width: rect.width + 8,
+          height: rect.height + 4
+        }))
+        .filter(Boolean);
+
+      if (!expandedRects.length) return null;
+
+      return {
+        mode: 'text',
+        rects: expandedRects,
+        bounds: this._getUnionBounds(expandedRects)
+      };
+    }
+
+    _buildBoxHighlightSpec(element) {
+      if (!element || !element.isConnected) return null;
+
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
+
+      const tagName = element.tagName;
+      const paddingX = ['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName) ? 4 : 6;
+      const paddingY = ['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName) ? 4 : (rect.height <= 40 ? 4 : 6);
+      const expandedRect = this._clampRect({
+        left: rect.left - paddingX,
+        top: rect.top - paddingY,
+        width: rect.width + paddingX * 2,
+        height: rect.height + paddingY * 2
+      });
+
+      if (!expandedRect) return null;
+
+      const computed = window.getComputedStyle(element);
+      const rawRadius = parseFloat(computed.borderTopLeftRadius);
+      const radius = Number.isFinite(rawRadius)
+        ? Math.min(18, Math.max(6, rawRadius + 4))
+        : (rect.height <= 36 ? 8 : 10);
+
+      return {
+        mode: 'box',
+        rect: expandedRect,
+        bounds: expandedRect,
+        radius
+      };
+    }
+
+    _buildHighlightSpec(element) {
+      if (!element || !element.isConnected) return null;
+
+      if (this._shouldUseTextHighlight(element)) {
+        const textSpec = this._buildTextHighlightSpec(element);
+        if (textSpec) return textSpec;
+      }
+
+      return this._buildBoxHighlightSpec(element);
+    }
+
+    _ensureBoxOverlay() {
+      if (!this.overlayRoot || this.boxOverlay) return;
+
+      this.boxOverlay = document.createElement('div');
+      this.boxOverlay.className = 'box-overlay';
+      this.overlayRoot.appendChild(this.boxOverlay);
+    }
+
+    _clearTextHighlights() {
+      if (!this.overlayRoot) return;
+      this.overlayRoot.querySelectorAll('.text-highlight').forEach(node => node.remove());
+    }
+
+    _renderTextHighlights(rects) {
+      if (!this.overlayRoot) return;
+
+      const existing = Array.from(this.overlayRoot.querySelectorAll('.text-highlight'));
+
+      rects.forEach((rect, index) => {
+        const node = existing[index] || document.createElement('div');
+        if (!existing[index]) {
+          node.className = 'text-highlight';
+          this.overlayRoot.appendChild(node);
+        }
+
+        node.style.top = `${rect.top}px`;
+        node.style.left = `${rect.left}px`;
+        node.style.width = `${rect.width}px`;
+        node.style.height = `${rect.height}px`;
+
+        if (this._isVisible) {
+          node.classList.add('active');
+        } else {
+          node.classList.remove('active');
+        }
+      });
+
+      for (let i = rects.length; i < existing.length; i++) {
+        existing[i].remove();
+      }
+    }
+
+    _setActiveState(isActive) {
+      this._isVisible = isActive;
+
+      if (this.boxOverlay) {
+        this.boxOverlay.classList.toggle('active', isActive && this.currentMode === 'box');
+      }
+
+      if (this.overlayRoot) {
+        this.overlayRoot.querySelectorAll('.text-highlight').forEach(node => {
+          node.classList.toggle('active', isActive && this.currentMode === 'text');
+        });
+      }
+    }
+
     show(element) {
       // Destroy any existing overlay first
       this.destroy();
@@ -957,7 +1213,7 @@
       this.host = markOverlayElement(document.createElement('div'), 'action-glow-host');
       this.host.id = 'fsb-action-glow-host';
       // z-index kept as fallback; top-layer via Popover API is the primary mechanism
-      this.host.style.cssText = 'all:initial!important;position:fixed!important;inset:auto!important;top:0!important;left:0!important;width:0!important;height:0!important;z-index:2147483647!important;pointer-events:none!important;margin:0!important;padding:0!important;border:none!important;background:none!important;';
+      this.host.style.cssText = 'all:initial!important;position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483647!important;pointer-events:none!important;margin:0!important;padding:0!important;border:none!important;background:none!important;';
 
       // Attach Shadow DOM
       this.shadow = this.host.attachShadow({ mode: 'closed' });
@@ -988,30 +1244,73 @@
         40%  { transform: scale(1.03); }
         100% { transform: scale(1); }
       }
-      .glow-overlay {
+      @keyframes fsbTextGlow {
+        0%, 100% {
+          background: linear-gradient(90deg, rgba(255, 140, 0, 0.30), rgba(255, 166, 0, 0.16));
+          box-shadow:
+            0 0 0 1px rgba(255, 140, 0, 0.24),
+            0 0 10px rgba(255, 140, 0, 0.18);
+        }
+        50% {
+          background: linear-gradient(90deg, rgba(255, 140, 0, 0.44), rgba(255, 166, 0, 0.24));
+          box-shadow:
+            0 0 0 1px rgba(255, 140, 0, 0.36),
+            0 0 16px rgba(255, 140, 0, 0.24);
+        }
+      }
+      .glow-root {
         position: fixed;
-        border: 2.5px solid rgba(255, 140, 0, 0.8);
-        border-radius: 10px;
+        inset: 0;
+        pointer-events: none;
+      }
+      .box-overlay,
+      .text-highlight {
+        position: fixed;
         pointer-events: none;
         opacity: 0;
+        will-change: top, left, width, height, opacity, transform;
+      }
+      .box-overlay {
+        border: 2.5px solid rgba(255, 140, 0, 0.8);
+        border-radius: 10px;
         transition: opacity 0.25s ease-out;
         animation: fsbActionGlow 1.5s ease-in-out infinite;
         background: rgba(255, 140, 0, 0.04);
       }
-      .glow-overlay.active {
+      .box-overlay.active {
         opacity: 1;
         animation: fsbActionGlow 1.5s ease-in-out infinite, fsbGlowAppear 0.3s ease-out;
+      }
+      .text-highlight {
+        border-radius: 6px;
+        transform: scale(0.985);
+        transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+        background: linear-gradient(90deg, rgba(255, 140, 0, 0.30), rgba(255, 166, 0, 0.16));
+        box-shadow:
+          0 0 0 1px rgba(255, 140, 0, 0.24),
+          0 0 10px rgba(255, 140, 0, 0.18);
+      }
+      .text-highlight.active {
+        opacity: 1;
+        transform: scale(1);
+        animation: fsbTextGlow 1.3s ease-in-out infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .box-overlay,
+        .text-highlight {
+          transition: none;
+        }
+        .box-overlay.active,
+        .text-highlight.active {
+          animation: none;
+        }
       }
     `;
       this.shadow.appendChild(style);
 
-      // Create overlay div
-      this.overlay = document.createElement('div');
-      this.overlay.className = 'glow-overlay';
-      this.shadow.appendChild(this.overlay);
-
-      // Position over element
-      this._updatePosition();
+      this.overlayRoot = document.createElement('div');
+      this.overlayRoot.className = 'glow-root';
+      this.shadow.appendChild(this.overlayRoot);
 
       // Promote to top layer via Popover API for guaranteed rendering above all page content
       this._inTopLayer = promoteToTopLayer(this.host);
@@ -1019,11 +1318,16 @@
         document.documentElement.appendChild(this.host);
       }
 
+      // Position over element
+      this._updatePosition();
+      if (!this.currentGeometry) {
+        this.destroy();
+        return;
+      }
+
       // Trigger fade-in on next frame
       requestAnimationFrame(() => {
-        if (this.overlay) {
-          this.overlay.classList.add('active');
-        }
+        this._setActiveState(true);
       });
 
       // Start position tracking
@@ -1036,27 +1340,73 @@
     }
 
     _updatePosition() {
-      if (!this.targetElement || !this.overlay) return;
+      if (!this.targetElement || !this.overlayRoot) return;
 
       // Check if element is still in DOM
-      if (!document.body.contains(this.targetElement)) {
+      if (!this.targetElement.isConnected) {
         this.destroy();
         return;
       }
 
-      const rect = this.targetElement.getBoundingClientRect();
-      const padding = 10;
+      const spec = this._buildHighlightSpec(this.targetElement);
+      if (!spec || !spec.bounds) {
+        this.destroy();
+        return;
+      }
 
-      // Calculate position with padding, clamped to viewport
-      const top = Math.max(0, rect.top - padding);
-      const left = Math.max(0, rect.left - padding);
-      const width = Math.min(window.innerWidth - left, rect.width + padding * 2);
-      const height = Math.min(window.innerHeight - top, rect.height + padding * 2);
+      this.currentMode = spec.mode;
 
-      this.overlay.style.top = `${top}px`;
-      this.overlay.style.left = `${left}px`;
-      this.overlay.style.width = `${width}px`;
-      this.overlay.style.height = `${height}px`;
+      if (spec.mode === 'text') {
+        if (this.boxOverlay) {
+          this.boxOverlay.classList.remove('active');
+          this.boxOverlay.style.display = 'none';
+        }
+        this._renderTextHighlights(spec.rects || []);
+      } else {
+        this._clearTextHighlights();
+        this._ensureBoxOverlay();
+        this.boxOverlay.style.display = 'block';
+        this.boxOverlay.style.top = `${spec.rect.top}px`;
+        this.boxOverlay.style.left = `${spec.rect.left}px`;
+        this.boxOverlay.style.width = `${spec.rect.width}px`;
+        this.boxOverlay.style.height = `${spec.rect.height}px`;
+        this.boxOverlay.style.borderRadius = `${spec.radius || 10}px`;
+        if (this._isVisible) {
+          this.boxOverlay.classList.add('active');
+        } else {
+          this.boxOverlay.classList.remove('active');
+        }
+      }
+
+      this.currentGeometry = {
+        mode: spec.mode,
+        x: spec.bounds.left,
+        y: spec.bounds.top,
+        w: spec.bounds.width,
+        h: spec.bounds.height,
+        fragments: spec.rects
+          ? spec.rects.map(rect => ({
+              x: rect.left,
+              y: rect.top,
+              w: rect.width,
+              h: rect.height
+            }))
+          : null
+      };
+    }
+
+    getStreamState() {
+      if (!this.currentGeometry) return null;
+
+      return {
+        x: this.currentGeometry.x,
+        y: this.currentGeometry.y,
+        w: this.currentGeometry.w,
+        h: this.currentGeometry.h,
+        state: 'active',
+        mode: this.currentGeometry.mode || 'box',
+        fragments: this.currentGeometry.fragments || null
+      };
     }
 
     _startTracking() {
@@ -1084,15 +1434,14 @@
     hide() {
       // Broadcast glow removal to dashboard DOM stream before clearing
       if (window.FSB && window.FSB.domStream && window.FSB.domStream.isStreaming()) {
+        this.currentGeometry = null;
         this.targetElement = null;
         window.FSB.domStream.broadcastOverlayState();
       }
 
       this._stopTracking();
 
-      if (this.overlay) {
-        this.overlay.classList.remove('active');
-      }
+      this._setActiveState(false);
 
       // Wait for fade-out transition then clean up
       setTimeout(() => {
@@ -1102,8 +1451,12 @@
         }
         this.host = null;
         this.shadow = null;
-        this.overlay = null;
+        this.overlayRoot = null;
+        this.boxOverlay = null;
         this.targetElement = null;
+        this.currentGeometry = null;
+        this.currentMode = null;
+        this._isVisible = false;
         this._inTopLayer = false;
       }, 250);
     }
@@ -1111,6 +1464,7 @@
     destroy() {
       // Broadcast glow removal to dashboard DOM stream
       if (window.FSB && window.FSB.domStream && window.FSB.domStream.isStreaming()) {
+        this.currentGeometry = null;
         this.targetElement = null;
         window.FSB.domStream.broadcastOverlayState();
       }
@@ -1122,8 +1476,12 @@
       }
       this.host = null;
       this.shadow = null;
-      this.overlay = null;
+      this.overlayRoot = null;
+      this.boxOverlay = null;
       this.targetElement = null;
+      this.currentGeometry = null;
+      this.currentMode = null;
+      this._isVisible = false;
       this._inTopLayer = false;
     }
   }

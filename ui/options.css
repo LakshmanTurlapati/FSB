@@ -312,10 +312,10 @@ body {
   bottom: var(--space-lg);
   width: var(--dashboard-sidebar-width);
   height: calc(100vh - 2 * var(--space-lg));
-  background: color-mix(in srgb, var(--bg-primary) 92%, var(--bg-secondary) 8%);
+  background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-sm);
   z-index: 200;
   overflow-y: auto;
   transition: transform var(--transition-base);
@@ -352,11 +352,11 @@ body {
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, var(--bg-accent), rgba(255, 140, 66, 0.10));
+  background: color-mix(in srgb, var(--bg-accent) 68%, var(--bg-primary) 32%);
   border: 1px solid var(--fsb-border-accent);
   color: var(--primary-color);
   font-weight: 600;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .nav-item i {

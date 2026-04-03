@@ -110,8 +110,7 @@ function initializeDashboard() {
     analytics.initPromise.then(() => {
       console.log('Options page: Analytics initialized, setting up dashboard...');
       analytics.initializeChart();
-      analytics.updateDashboard();
-      loadDashboardCostBreakdown();
+      refreshAnalyticsDashboard();
     }).catch(error => {
       console.error('Options page: Analytics initialization failed:', error);
     });
@@ -204,6 +203,24 @@ function cacheElements() {
   elements.explorerMaxPages = document.getElementById('explorerMaxPages');
   elements.explorerCrawlers = document.getElementById('explorerCrawlers');
   elements.researchList = document.getElementById('researchList');
+}
+
+function refreshAnalyticsDashboard() {
+  if (!analytics || !analytics.initialized) {
+    return Promise.resolve();
+  }
+
+  const timeRange = document.getElementById('chartTimeRange')?.value || '24h';
+
+  return analytics.loadStoredData().then(() => {
+    analytics.updateDashboardWithTimeRange(timeRange);
+    loadDashboardCostBreakdown();
+    if (analytics.chart) {
+      analytics.updateChart(timeRange);
+    }
+  }).catch((error) => {
+    console.error('Failed to refresh dashboard analytics:', error);
+  });
 }
 
 function setupEventListeners() {
@@ -470,21 +487,12 @@ function setupEventListeners() {
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local') {
       if (changes.fsbUsageData || changes.fsbCurrentModel) {
-        // Only refresh if the analytics section is currently visible
-        if (dashboardState.currentSection !== 'analytics') return;
+        // Only refresh if the dashboard section is currently visible
+        if (dashboardState.currentSection !== 'dashboard') return;
 
         clearTimeout(_analyticsRefreshTimer);
         _analyticsRefreshTimer = setTimeout(() => {
-          if (analytics && analytics.initialized) {
-            analytics.loadStoredData().then(() => {
-              analytics.updateDashboard();
-              loadDashboardCostBreakdown();
-              if (analytics.chart) {
-                const timeRange = document.getElementById('chartTimeRange')?.value || '24h';
-                analytics.updateChart(timeRange);
-              }
-            });
-          }
+          refreshAnalyticsDashboard();
         }, 2000);
       }
 
@@ -506,6 +514,12 @@ function setupEventListeners() {
           }
         }, 1000); // 1 second debounce to batch rapid updates
       }
+    }
+  });
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'ANALYTICS_UPDATE' && dashboardState.currentSection === 'dashboard') {
+      refreshAnalyticsDashboard();
     }
   });
 }
@@ -2871,6 +2885,9 @@ function initializeCredentialManager() {
   const origSwitchSection = switchSection;
   switchSection = function(sectionId) {
     origSwitchSection(sectionId);
+    if (sectionId === 'dashboard') {
+      refreshAnalyticsDashboard();
+    }
     if (sectionId === 'passwords') {
       const enableLogin = document.getElementById('enableLogin');
       if (enableLogin?.checked) {

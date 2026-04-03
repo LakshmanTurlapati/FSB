@@ -44,6 +44,19 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 
 - [ ] **MODE-01**: Formalize FSB's existing execution modes (autopilot, mcp-manual, mcp-agent, dashboard-remote) as named mode objects with per-mode tool pool configuration, safety limits, and UI feedback channel routing
 
+### Module Adoption (Gap Closure)
+
+- [ ] **ADOPT-01**: All new sessions created via `createSession(overrides)` -- no inline object literals for session construction in background.js
+- [ ] **ADOPT-02**: `CostTracker` instantiated per session with `checkBudget()` replacing direct `totalCost` reads in safety breakers
+- [ ] **ADOPT-03**: Each agent iteration produces a `createTurnResult()` object carrying tokens, cost, matched tools, and stop reason
+- [ ] **ADOPT-04**: `ActionHistory` class instantiated per session wrapping the raw `actionHistory` array with query methods
+- [ ] **ADOPT-05**: `session.mode` set on every new session based on entry point so `loadSessionConfig` applies per-mode limits
+
+### Event Bus Wiring (Gap Closure)
+
+- [ ] **WIRE-01**: Popup and sidepanel message handlers include `case 'sessionStateEvent'` processing emitter events
+- [ ] **WIRE-02**: At least one UI surface visually reflects a SessionStateEmitter event
+
 ## Future Requirements (v0.9.25+)
 
 ### Differentiators (deferred)
@@ -91,12 +104,19 @@ Requirements for Claude Code Architecture Adaptation. Each maps to roadmap phase
 | LOOP-03 | Phase 159 | Pending |
 | BOOT-01 | Phase 160 | Complete |
 | BOOT-02 | Phase 160 | Complete |
+| ADOPT-01 | Phase 161 | Pending |
+| ADOPT-02 | Phase 161 | Pending |
+| ADOPT-03 | Phase 161 | Pending |
+| ADOPT-04 | Phase 161 | Pending |
+| ADOPT-05 | Phase 161 | Pending |
+| WIRE-01 | Phase 162 | Pending |
+| WIRE-02 | Phase 162 | Pending |
 
 **Coverage:**
-- v0.9.24 requirements: 19 total
-- Mapped to phases: 19
+- v0.9.24 requirements: 26 total (19 original + 7 gap closure)
+- Mapped to phases: 26
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-02*
-*Last updated: 2026-04-02 after roadmap creation (phases 156-160 assigned)*
+*Last updated: 2026-04-02 after gap closure phases 161-162 added*

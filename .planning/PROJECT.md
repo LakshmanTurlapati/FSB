@@ -97,13 +97,16 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Intelligent content truncation (cap read_page, prioritize main content) -- v0.9.11
 - ✓ Cookie consent auto-dismiss (clear overlays blocking interaction) -- v0.9.11
 
+- ✓ State foundation: typed session schema (57 fields, hot/warm tiers), transcript store with FSB compaction, structured turn results, action history with replay/diff, state event emitter -- v0.9.24/P156
+
+- ✓ Engine configuration: cost tracker extraction (MODEL_PRICING + CostTracker), engine config (SESSION_DEFAULTS + EXECUTION_MODES), permission context stub -- v0.9.24/P157
+
+- ✓ Hook pipeline: HookPipeline class (7 lifecycle events), safety breaker wrappers, permission pre-check hook, 4 progress hook factories -- v0.9.24/P158
+
+- ✓ Agent loop refactor: wired 11 modules into agent-loop.js (10 hook emissions, module delegation), background.js hook factory + auto-resumption from warm state -- v0.9.24/P159
+
 ### Active
-- [ ] Architecture analysis documents mapping Claude Code subsystems to FSB equivalents -- v0.9.24
-- [ ] Tool execution pipeline adaptation -- adopt Claude Code's tool pool, deferred init, and execution registry patterns for FSB browser tools -- v0.9.24
-- [ ] Coordinator/agent loop adaptation -- bring Claude Code's conversation loop, context management, and multi-turn orchestration into FSB's autopilot -- v0.9.24
-- [ ] Command and skill system mapping -- adapt Claude Code's command graph and skill routing for FSB task dispatch -- v0.9.24
-- [ ] State and context management -- adopt compaction, history, session store, and transcript patterns for FSB session lifecycle -- v0.9.24
-- [ ] Hooks and permissions model -- adapt the hook pipeline and permission gating for browser automation safety -- v0.9.24
+- [ ] Bootstrap pipeline -- structured service worker startup with ordered phases and deferred init -- v0.9.24
 - [ ] Reliable website dashboard DOM stream lifecycle -- v0.9.23 (deferred)
 - [ ] Reliable website dashboard remote control -- v0.9.23 (deferred)
 - [ ] Reliable dashboard task relay -- v0.9.23 (deferred)
@@ -270,4 +273,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-02 after v0.9.24 Claude Code Architecture Adaptation milestone started*
+*Last updated: 2026-04-02 after Phase 159 (Agent Loop Refactor) completed*

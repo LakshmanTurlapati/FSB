@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9.23
 milestone_name: Dashboard Stream & Remote Control Reliability
 status: executing
-stopped_at: Completed 161-02-PLAN.md
-last_updated: "2026-04-03T00:49:34Z"
-last_activity: 2026-04-03 -- Phase 161 module adoption plan 02 complete (CostTracker, ActionHistory, TurnResult wired into agent-loop.js)
+stopped_at: Phase 161 context gathered
+last_updated: "2026-04-03T00:42:44.039Z"
+last_activity: 2026-04-03 -- Phase 161 execution started
 progress:
-  total_phases: 136
-  completed_phases: 88
-  total_plans: 190
-  completed_plans: 253
+  total_phases: 161
+  completed_phases: 154
+  total_plans: 313
+  completed_plans: 308
   percent: 0
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 161 -- Module Adoption (executing)
+**Current focus:** Phase 161 — module-adoption
 
 ## Current Position
 
-Phase: 161 (Module Adoption) -- IN PROGRESS
-Plan: 2 of 2 in current phase (161-02 complete)
+Phase: 161 (module-adoption) — EXECUTING
+Plan: 1 of 2
 Status: Executing Phase 161
-Last activity: 2026-04-03 -- Phase 161 plan 02 complete (CostTracker, ActionHistory, TurnResult in agent-loop.js)
+Last activity: 2026-04-03 -- Phase 161 execution started
 
-Progress: [==========] 100% (Phase 161)
+Progress: [----------] 0%
 
 ## Performance Metrics
 
@@ -45,8 +45,15 @@ Progress: [==========] 100% (Phase 161)
 | 149 | P01 | 2min | 2 | 1 |
 | 150 | P01 | 3min | 3 | 4 |
 | 150 | P02 | 4min | 2 | 3 |
-| Phase 160 P01 | 3min | 2 tasks | 1 files |
-| 161 | P02 | 3min | 2 | 1 |
+| Phase 156 P01 | 3min | 2 tasks | 2 files |
+| Phase Phase 156 PP02 | 3min | 3 tasks tasks | 3 files files |
+| Phase 157 P02 | 1min | 1 tasks | 1 files |
+| Phase 157 P01 | 2min | 2 tasks | 2 files |
+| Phase 158 PP01 | 2min | 2 tasks | 1 files |
+| Phase 158 P02 | 1min | 2 tasks | 3 files |
+| Phase 159 PP01 | 7min | 2 tasks | 1 files |
+| Phase 159 PP02 | 3min | 2 tasks | 1 files |
+| Phase 159 P03 | 1min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -60,8 +67,18 @@ Recent decisions affecting current work:
 - [v0.9.24]: Extract-don't-rewrite principle -- 17 new files, 3 modified files, 0 deleted files
 - [v0.9.24]: Preserve setTimeout-chaining in agent loop -- do NOT convert to synchronous or async/await iteration
 - [v0.9.24]: Origin-aware permission rules (Chrome match patterns) not path-based prefixes
-- [Phase 160]: 4-phase swBootstrap (SETTINGS->ENVIRONMENT->TOOLS->SESSIONS) with _bootstrapDone guard and deferred WebSocket+Analytics until first UI interaction
-- [Phase 161]: CostTracker on session._costTracker with fallback; ActionHistory on session._actionHistory with backward compat sync; TurnResult overwritten per iteration not accumulated
+- [Phase 156]: 57 session fields with 4 hot-tier (transient) and 53 warm-tier (persisted), messages trimmed to last 20 in getWarmFields()
+- [Phase 156]: SessionStateEmitter uses prototype methods (not class syntax) for importScripts compatibility
+- [Phase Phase 156]: TranscriptStore uses function/prototype pattern for importScripts compatibility, preserves FSB token-budget-aware compaction
+- [Phase Phase 156]: TurnResult as factory function (not class) with 7 STOP_REASONS; ActionHistory with queryable event store
+- [Phase 157]: D-01: No tool pool module -- getPublicTools() stays inline in agent-loop.js, all 42 tools sent every call
+- [Phase 157]: D-02/D-03: PermissionContext stub with isAllowed always true; future deny-list via chrome.storage.local with Chrome match patterns
+- [Phase 157]: Pure extraction of MODEL_PRICING/estimateCost into ai/cost-tracker.js; SESSION_DEFAULTS centralizes 9 constants; 4 EXECUTION_MODES formalized in ai/engine-config.js
+- [Phase 158]: HookPipeline uses arrays (not Sets) for handler storage -- preserves registration order per D-01; async emit with try/catch error isolation per D-05; only shouldStop:true halts pipeline
+- [Phase 158]: 4 separate progress hook factories (tool/iteration/completion/error) instead of 1 multi-event handler for cleaner Phase 159 registration
+- [Phase 159]: Keep checkSafetyBreakers/detectStuck in agent-loop.js as local functions, hook factories receive via closure; TranscriptStore used per-iteration not persisted; onError hook emitted once at catch top; broadcastDashboardProgress kept for dashboard WS compat
+- [Phase 159]: 6 runAgentLoop call sites wired with createSessionHooks factory; D-03 auto-resumption validates tab existence before calling runAgentLoop on SW restart
+- [Phase 159]: Dual BEFORE_ITERATION + AFTER_ITERATION safety hook registration; null-hooks fallback for backward compatibility
 
 ### Roadmap Evolution
 
@@ -80,6 +97,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-03T00:49:34Z
-Stopped at: Completed 161-02-PLAN.md
-Resume file: None
+Last session: 2026-04-02T23:40:12.188Z
+Stopped at: Phase 161 context gathered
+Resume file: .planning/phases/161-module-adoption/161-CONTEXT.md

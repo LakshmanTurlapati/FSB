@@ -2789,6 +2789,7 @@ async function persistSession(sessionId, session) {
       task: session.task,
       tabId: session.tabId,
       status: session.status,
+      mode: session.mode,
       startTime: session.startTime,
       conversationId: continuity.conversationId,
       uiSurface: continuity.uiSurface,
