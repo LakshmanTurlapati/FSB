@@ -939,12 +939,17 @@ function buildOverlayPayload(tabId, statusData, session) {
 }
 
 async function sendSessionStatus(tabId, statusData) {
-  var overlaySession = findOverlaySession(tabId, statusData || {});
-  var overlayState = buildOverlayPayload(tabId, statusData, overlaySession);
+  var payloadStatusData = cloneOverlayStatusData(statusData || {});
+  var isOverlayHeartbeat = !!payloadStatusData._overlayHeartbeat;
+  if (isOverlayHeartbeat) {
+    delete payloadStatusData._overlayHeartbeat;
+  }
+
+  var overlaySession = findOverlaySession(tabId, payloadStatusData || {});
+  var overlayState = buildOverlayPayload(tabId, payloadStatusData, overlaySession);
   var sentAt = Date.now();
 
   if (overlaySession) {
-    overlaySession._lastOverlayStatusData = cloneOverlayStatusData(statusData || {});
     overlaySession._lastOverlaySentAt = sentAt;
     overlaySession._lastOverlayTargetTabId = tabId;
     overlaySession._lastOverlayIdentity = overlayState ? {
@@ -953,11 +958,16 @@ async function sendSessionStatus(tabId, statusData) {
       lifecycle: overlayState.lifecycle || null,
       phase: overlayState.phase || null
     } : null;
+
+    if (!isOverlayHeartbeat || !overlaySession._lastOverlayStatusData) {
+      overlaySession._lastOverlayStatusData = cloneOverlayStatusData(payloadStatusData);
+      overlaySession._lastOverlayActivityAt = sentAt;
+    }
   }
 
   const payload = {
     action: 'sessionStatus',
-    ...statusData,
+    ...payloadStatusData,
     overlayState: overlayState
   };
   try {
@@ -969,10 +979,49 @@ async function sendSessionStatus(tabId, statusData) {
       await chrome.tabs.sendMessage(tabId, payload, { frameId: 0 });
     } catch (retryErr) {
       automationLogger.debug('sendSessionStatus delivery failed', {
-        tabId, phase: statusData.phase, error: retryErr.message
+        tabId, phase: payloadStatusData.phase, error: retryErr.message
       });
     }
   }
+}
+
+var OVERLAY_HEARTBEAT_INTERVAL_MS = 15000;
+var OVERLAY_HEARTBEAT_REFRESH_MS = 45000;
+var OVERLAY_HEARTBEAT_IDLE_MS = 45000;
+
+function requestOverlayStateBroadcast(tabId) {
+  if (!_streamingActive || _streamingTabId !== tabId) return;
+  try {
+    chrome.tabs.sendMessage(tabId, { action: 'domStreamRequestOverlay' }, { frameId: 0 })
+      .catch(function() {});
+  } catch (_overlayErr) {
+    // Non-blocking
+  }
+}
+
+function buildOverlayHeartbeatStatus(session) {
+  if (!session || session.status !== 'running' || !session._lastOverlayStatusData) {
+    return null;
+  }
+
+  var heartbeatStatus = cloneOverlayStatusData(session._lastOverlayStatusData);
+  var lastActivityAt = session._lastOverlayActivityAt || session._lastOverlaySentAt || Date.now();
+  var idleMs = Math.max(0, Date.now() - lastActivityAt);
+
+  heartbeatStatus._overlayHeartbeat = true;
+
+  if (idleMs >= OVERLAY_HEARTBEAT_IDLE_MS) {
+    heartbeatStatus.statusText = idleMs >= (OVERLAY_HEARTBEAT_IDLE_MS * 2)
+      ? 'Still working on the current automation step'
+      : 'Waiting for next automation update';
+    heartbeatStatus.progress = {
+      mode: 'indeterminate',
+      label: idleMs >= (OVERLAY_HEARTBEAT_IDLE_MS * 2) ? 'Still working' : 'Waiting',
+      eta: heartbeatStatus.estimatedTimeRemaining || null
+    };
+  }
+
+  return heartbeatStatus;
 }
 
 // --- Dashboard progress broadcasting helpers ---
@@ -1314,10 +1363,7 @@ function broadcastDashboardProgress(session) {
   broadcastMCPProgress(session);
 
   // Request overlay state from content script for DOM stream viewers
-  try {
-    chrome.tabs.sendMessage(session.tabId, { action: 'domStreamRequestOverlay' }, { frameId: 0 })
-      .catch(function() {}); // Ignore if content script not ready
-  } catch (e) { /* ignore */ }
+  requestOverlayStateBroadcast(session.tabId);
 }
 
 /**
@@ -3107,14 +3153,7 @@ chrome.runtime.onConnect.addListener((port) => {
             overlaySession._lastOverlayTargetTabId === tabId) {
           sendSessionStatus(tabId, overlaySession._lastOverlayStatusData)
             .then(function() {
-              if (_streamingActive && _streamingTabId === tabId) {
-                try {
-                  chrome.tabs.sendMessage(tabId, { action: 'domStreamRequestOverlay' }, { frameId: 0 })
-                    .catch(function() {});
-                } catch (_overlayErr) {
-                  // Non-blocking
-                }
-              }
+              requestOverlayStateBroadcast(tabId);
             })
             .catch(function(_replayErr) {
               // Non-blocking: ready handling should not fail if replay delivery misses.
@@ -3210,9 +3249,33 @@ const _heartbeatIntervalId = setInterval(() => {
   }
 }, 3000);
 
+const _overlayHeartbeatIntervalId = setInterval(() => {
+  activeSessions.forEach(function(session) {
+    if (!session || session.status !== 'running') return;
+
+    var targetTabId = session._lastOverlayTargetTabId || session.tabId || session.originalTabId;
+    if (typeof targetTabId !== 'number' || !session._lastOverlayStatusData) return;
+
+    var lastSentAt = session._lastOverlaySentAt || 0;
+    if ((Date.now() - lastSentAt) < OVERLAY_HEARTBEAT_REFRESH_MS) return;
+
+    var heartbeatStatus = buildOverlayHeartbeatStatus(session);
+    if (!heartbeatStatus) return;
+
+    sendSessionStatus(targetTabId, heartbeatStatus)
+      .then(function() {
+        requestOverlayStateBroadcast(targetTabId);
+      })
+      .catch(function() {
+        // Non-blocking: the next heartbeat or real progress update can recover.
+      });
+  });
+}, OVERLAY_HEARTBEAT_INTERVAL_MS);
+
 // PERF: Clean up on service worker suspension
 chrome.runtime.onSuspend.addListener(() => {
   clearInterval(_heartbeatIntervalId);
+  clearInterval(_overlayHeartbeatIntervalId);
   contentScriptPorts.clear();
   contentScriptReadyStatus.clear();
   contentScriptHealth.clear();

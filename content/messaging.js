@@ -1115,6 +1115,11 @@
 
           FSB.overlayState = overlayState;
 
+          if (FSB._overlayOrphanTimer) {
+            clearTimeout(FSB._overlayOrphanTimer);
+            FSB._overlayOrphanTimer = null;
+          }
+
           if (overlayState.lifecycle === 'cleared') {
             if (FSB._overlayWatchdogTimer) {
               clearTimeout(FSB._overlayWatchdogTimer);
@@ -1139,24 +1144,66 @@
             FSB.progressOverlay.show();
 
             if (overlayState.lifecycle === 'final') {
+              if (FSB._overlayWatchdogTimer) {
+                clearTimeout(FSB._overlayWatchdogTimer);
+                FSB._overlayWatchdogTimer = null;
+              }
               FSB.actionGlowOverlay.destroy();
               FSB.viewportGlow.destroy();
-            }
+            } else {
+              if (FSB._overlayWatchdogTimer) {
+                clearTimeout(FSB._overlayWatchdogTimer);
+              }
+              FSB._overlayWatchdogTimer = setTimeout(() => {
+                FSB._overlayWatchdogTimer = null;
+                try {
+                  var currentOverlayState = FSB.overlayState;
+                  if (!currentOverlayState || currentOverlayState.lifecycle !== 'running') {
+                    FSB.viewportGlow.destroy();
+                    FSB.progressOverlay.destroy();
+                    FSB.actionGlowOverlay.destroy();
+                    FSB.overlayState = null;
+                    FSB.lastActionStatusText = null;
+                    return;
+                  }
 
-            if (FSB._overlayWatchdogTimer) {
-              clearTimeout(FSB._overlayWatchdogTimer);
+                  console.warn('[FSB] Overlay watchdog: no session status for 60s, degrading active overlay');
+
+                  var degradedState = Object.assign({}, currentOverlayState, {
+                    display: Object.assign({}, currentOverlayState.display || {}, {
+                      detail: currentOverlayState.reconnecting
+                        ? 'Reconnecting to the active page'
+                        : 'Waiting for next automation update'
+                    }),
+                    progress: Object.assign({}, currentOverlayState.progress || {}, {
+                      mode: 'indeterminate',
+                      percent: null,
+                      label: currentOverlayState.reconnecting ? 'Reconnecting' : 'Waiting'
+                    }),
+                    reconnecting: true
+                  });
+
+                  FSB.overlayState = degradedState;
+                  FSB.progressOverlay.create();
+                  FSB.progressOverlay.update(degradedState);
+                  FSB.progressOverlay.show();
+                  try { FSB.actionGlowOverlay.hide(); } catch (_hideErr) { /* non-blocking */ }
+                  try { FSB.viewportGlow.show('thinking'); } catch (_glowErr) { /* non-blocking */ }
+
+                  FSB._overlayOrphanTimer = setTimeout(() => {
+                    FSB._overlayOrphanTimer = null;
+                    console.warn('[FSB] Overlay watchdog: extended silence, cleaning up orphaned overlays');
+                    try {
+                      FSB.viewportGlow.destroy();
+                      FSB.progressOverlay.destroy();
+                      FSB.actionGlowOverlay.destroy();
+                      FSB.overlayState = null;
+                      FSB.lastActionStatusText = null;
+                    } catch (_cleanupErr) { /* non-blocking */ }
+                  }, 120000);
+                } catch (e) { /* non-blocking */ }
+              }, 60000);
             }
-            FSB._overlayWatchdogTimer = setTimeout(() => {
-              FSB._overlayWatchdogTimer = null;
-              console.warn('[FSB] Overlay watchdog: no session status for 60s, cleaning up orphaned overlays');
-              try {
-                FSB.viewportGlow.destroy();
-                FSB.progressOverlay.destroy();
-                FSB.actionGlowOverlay.destroy();
-                FSB.overlayState = null;
-                FSB.lastActionStatusText = null;
-              } catch (e) { /* non-blocking */ }
-            }, 60000);
           }
           sendResponse({ success: true });
         } catch (e) {

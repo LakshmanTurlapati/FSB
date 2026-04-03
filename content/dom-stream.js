@@ -777,10 +777,10 @@
    * Read current FSB overlay state (highlight glow + progress) and broadcast it.
    * Called by the background script via domStreamRequestOverlay message.
    */
-  function broadcastOverlayState() {
+  function broadcastOverlayState(force) {
     // Throttle to max 1 broadcast per 500ms (per D-05)
     var now = Date.now();
-    if (now - lastOverlayBroadcast < 500) return;
+    if (!force && (now - lastOverlayBroadcast < 500)) return;
     lastOverlayBroadcast = now;
 
     var glow = null;
@@ -861,6 +861,7 @@
         startMutationStream();
         startScrollTracker();
         streaming = true;
+        broadcastOverlayState(true);
         sendResponse({ success: true });
         break;
 
@@ -893,11 +894,12 @@
         startMutationStream();
         startScrollTracker();
         streaming = true;
+        broadcastOverlayState(true);
         sendResponse({ success: true });
         break;
 
       case 'domStreamRequestOverlay':
-        broadcastOverlayState();
+        broadcastOverlayState(true);
         sendResponse({ success: true });
         break;
     }
