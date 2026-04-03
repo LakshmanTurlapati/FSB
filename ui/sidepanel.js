@@ -1059,12 +1059,20 @@ function getSessionOutcomeDisplay(session) {
   };
 }
 
+function removeLoginPrompt() {
+  const existing = document.getElementById('login-prompt');
+  if (existing) {
+    existing.remove();
+  }
+}
+
 // Listen for messages from background
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'automationComplete':
       if (!isRunning) return; // Already idle, ignore duplicate
       if (request.sessionId === currentSessionId) {
+        removeLoginPrompt();
         var outcome = normalizeAutomationOutcome(
           request.outcome,
           request.outcomeDetails?.outcome,
@@ -1209,9 +1217,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.sessionId === currentSessionId) {
         // Pause the status loader
         if (currentStatusMessage) {
-          updateStatusMessage('Login page detected...');
+          updateStatusMessage('Login required...');
         }
-        showLoginPrompt(request.domain, request.fields);
+        showLoginPrompt(request.domain, request.fields, request.authPrompt || null);
         sendResponse({ received: true });
       }
       return;
@@ -1249,10 +1257,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // Show inline login prompt in the chat
-function showLoginPrompt(domain, fields) {
+function showLoginPrompt(domain, fields, authPrompt) {
   // Prevent duplicate prompts if rapid loginDetected messages arrive
-  const existing = document.getElementById('login-prompt');
-  if (existing) existing.remove();
+  removeLoginPrompt();
 
   // Complete any active status message
   if (currentStatusMessage) {
@@ -1267,6 +1274,9 @@ function showLoginPrompt(domain, fields) {
 
   // Escape domain for safe HTML insertion
   const safeDomain = (domain || 'this site').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+  const promptDetail = (authPrompt && authPrompt.detail) || 'Submit credentials once to let FSB sign in and resume this same session.';
+  const handoffDetail = (authPrompt && authPrompt.handoff) || 'If you skip or the site still needs manual approval, FSB will preserve the completed work and finish with a manual handoff.';
+  const safeSubtext = `${promptDetail} ${handoffDetail}`.trim().replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 
   container.innerHTML = `
     <div class="login-prompt-header">
@@ -1274,7 +1284,7 @@ function showLoginPrompt(domain, fields) {
       <span>Login Required</span>
     </div>
     <div class="login-prompt-domain">${safeDomain}</div>
-    <div class="login-prompt-subtext">Enter your credentials to sign in. They will be encrypted and saved for future use.</div>
+    <div class="login-prompt-subtext">${safeSubtext}</div>
     <div class="login-prompt-form">
       <div class="login-prompt-field">
         <label>${fieldLabel}</label>
@@ -1351,8 +1361,8 @@ function showLoginPrompt(domain, fields) {
       container.remove();
 
       // Add system message
-      addMessage('Signing in...', 'system');
-      addStatusMessage('Signing in...');
+      addMessage('Trying sign-in in this same session. If it succeeds, automation will resume automatically.', 'system');
+      addStatusMessage('Trying sign-in...');
     });
   }
 
@@ -1367,8 +1377,8 @@ function showLoginPrompt(domain, fields) {
 
       // Remove prompt
       container.remove();
-      addMessage('Login skipped. Continuing automation...', 'system');
-      addStatusMessage('Continuing...');
+      addMessage('Login skipped. FSB will preserve the completed work so far and finish with a manual handoff.', 'system');
+      addStatusMessage('Finishing with manual handoff...');
     });
   }
 
