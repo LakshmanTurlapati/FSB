@@ -848,14 +848,18 @@ const TOOL_REGISTRY = [
 
   {
     name: 'partial_task',
-    description: 'Signal that the task is partially complete because useful work was completed but an external blocker prevents the final step. Include a summary of what was accomplished plus the blocker. Use this instead of fail_task when the user can still benefit from the completed work.',
+    description: 'Signal that the task is partially complete because useful work was completed but an external blocker prevents the final step. Use this instead of fail_task when the user can still benefit from the completed work, especially for auth/manual handoff blockers after research, drafting, or data entry is already done. Auth/manual blockers include login required, no saved credentials, user skipped login, credentials failed, and manual approval, MFA, or external verification. Preserve three things clearly: what you completed, the exact blocker, and the manual next step the user should take. If the runtime offers one saved-credential or operator-prompt attempt, let that single attempt happen first; call partial_task only after that attempt is unavailable, skipped, exhausted, or fails.',
     inputSchema: {
       type: 'object',
       properties: {
         summary: { type: 'string', description: 'Summary of the useful work that was completed before the blocker was hit' },
         blocker: { type: 'string', description: 'What prevented the final step from being completed (e.g. "Messaging requires login", "Manual approval required")' },
-        next_step: { type: 'string', description: 'Optional next step the user can take to finish manually or resume later' },
-        reason: { type: 'string', description: 'Optional machine-readable blocker category (e.g. "blocked", "auth_required", "manual_approval")' }
+        next_step: { type: 'string', description: 'Manual next step the user can take to finish manually or resume later. Include this for auth or approval blockers.' },
+        reason: {
+          type: 'string',
+          description: 'Optional machine-readable blocker category. Keep it narrow and stable for blocked/manual-handoff outcomes.',
+          enum: ['blocked', 'auth_required', 'credentials_missing', 'user_skipped_login', 'credentials_failed', 'manual_approval']
+        }
       },
       required: ['summary', 'blocker']
     },
