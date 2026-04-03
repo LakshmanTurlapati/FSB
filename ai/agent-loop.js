@@ -916,6 +916,61 @@ async function runAgentIteration(sessionId, options) {
   // c. Increment iteration count
   session.agentState.iterationCount++;
   var iterNum = session.agentState.iterationCount;
+  session.iterationCount = iterNum;
+
+  function buildOverlayStepDetail(detailText, fallbackPhase) {
+    var maxIter = session.maxIterations || 20;
+    var prefix = 'Step ' + iterNum + '/' + maxIter;
+    var detail = detailText ? String(detailText).trim() : '';
+
+    if (!detail) {
+      if (fallbackPhase === 'acting') {
+        detail = 'Performing browser action';
+      } else {
+        detail = 'Planning next browser step';
+      }
+    }
+
+    return prefix + ': ' + detail;
+  }
+
+  async function refreshCanonicalOverlay(phase, detailText, opts) {
+    opts = opts || {};
+    if (typeof sendStatus !== 'function' || typeof session.tabId !== 'number') {
+      return;
+    }
+
+    var progress = (typeof calculateProgress === 'function')
+      ? calculateProgress(session)
+      : null;
+    var payload = {
+      sessionId: sessionId,
+      phase: phase,
+      taskName: session.task,
+      taskSummary: session.taskSummary || null,
+      iteration: iterNum,
+      maxIterations: session.maxIterations || 20,
+      statusText: buildOverlayStepDetail(detailText, phase),
+      animatedHighlights: session.animatedActionHighlights
+    };
+
+    if (opts.indeterminate) {
+      payload.progress = {
+        mode: 'indeterminate',
+        label: opts.progressLabel || null,
+        eta: progress ? progress.estimatedTimeRemaining || null : null
+      };
+    } else if (progress) {
+      payload.progressPercent = progress.progressPercent;
+      payload.estimatedTimeRemaining = progress.estimatedTimeRemaining || null;
+    }
+
+    try {
+      await sendStatus(session.tabId, payload);
+    } catch (_statusErr) {
+      // Overlay refresh should never break the iteration loop.
+    }
+  }
 
   // b2. Safety + beforeIteration hook (LOOP-03 -- safety runs via pipeline, not inline)
   if (hooks) {
@@ -974,6 +1029,12 @@ async function runAgentIteration(sessionId, options) {
       session.messages = _ts.replay();
     }
     var turnMessages = buildTurnMessages(session);
+
+    await refreshCanonicalOverlay(
+      'thinking',
+      session.lastAiReasoning || 'Thinking through the next browser step',
+      { indeterminate: true, progressLabel: 'Planning' }
+    );
 
     // g. Make API call with tool definitions
     var response = await callProviderWithTools(
@@ -1105,9 +1166,14 @@ async function runAgentIteration(sessionId, options) {
 
     // l. Execute each tool call SEQUENTIALLY (browser actions must be serial)
     var toolResults = [];
+    var lastNonProgressToolCall = null;
     for (var ci = 0; ci < toolCalls.length; ci++) {
       var call = toolCalls[ci];
       var result;
+
+      if (call.name !== 'report_progress' && call.name !== 'task_complete' && call.name !== 'fail_task') {
+        lastNonProgressToolCall = call;
+      }
 
       // l2. Emit beforeToolExecution hook (permission check)
       if (hooks) {
@@ -1220,6 +1286,11 @@ async function runAgentIteration(sessionId, options) {
         // PROG-02: Update progress overlay with AI reasoning and cost
         var msg = (call.args && call.args.message) || '';
         session.lastAiReasoning = msg;
+        await refreshCanonicalOverlay(
+          'thinking',
+          msg || 'Thinking through the next browser step',
+          { indeterminate: true, progressLabel: 'Planning' }
+        );
         result = { success: true, hadEffect: false, error: null, navigationTriggered: false, result: { displayed: true } };
       } else {
         // Standard tool: dispatch through unified executor
@@ -1324,6 +1395,12 @@ async function runAgentIteration(sessionId, options) {
     }
 
     // o2. Broadcast updated progress to dashboard (includes cost from session.totalCost)
+    var postIterationPhase = lastNonProgressToolCall ? 'acting' : 'thinking';
+    var postIterationDetail = lastNonProgressToolCall
+      ? describeToolCall(lastNonProgressToolCall.name, lastNonProgressToolCall.args)
+      : session.lastAiReasoning;
+    await refreshCanonicalOverlay(postIterationPhase, postIterationDetail);
+
     if (typeof broadcastDashboardProgress === 'function') {
       broadcastDashboardProgress(session);
     }
