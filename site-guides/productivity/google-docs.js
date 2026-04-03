@@ -13,7 +13,7 @@ registerSiteGuide({
 - [context] Delegate word search to Ctrl+F -- never re-read full doc to find words
 - [context] Canvas-rendered text: use double-click for word selection, not Range API
 - [context] Track replacements with compact state, not full document re-reads
-- [context] Expect SKIP-AUTH -- Google Docs editing requires Google account sign-in
+- [context] Expect SKIP-AUTH / PARTIAL HANDOFF -- Google Docs editing requires Google account sign-in
 - [context] Budget ~4KB per replacement cycle; Ctrl+F is O(occurrences) not O(doc_length)
 
 GOOGLE DOCS-SPECIFIC INTELLIGENCE:
@@ -114,8 +114,10 @@ MANUAL REPLACE STRATEGY (step-by-step for each occurrence):
 SKIP-AUTH EXPECTATION:
 - Google Docs EDITING requires a signed-in Google account with edit permission
 - If the document is in "View only" mode, text replacement is impossible
-- Expected outcome: SKIP-AUTH (Google account required for editing) or PARTIAL (navigation and text reading works but editing blocked)
+- Expected outcome: SKIP-AUTH / PARTIAL manual handoff when a Google account or edit permission is required for the remaining step
 - A public Google Doc can be READ but not EDITED without auth
+- If navigation, text reading, or draft preparation worked but editing is blocked, preserve the completed work, the exact blocker, and the next step the user should take to sign in, request edit access, or complete the change manually
+- Do not turn edit-permission blockers into generic failure text or invent a new login flow; use the same partial/manual-handoff contract as other auth walls
 
 CONTEXT BLOAT MITIGATION FOR WORD REPLACEMENT:
 - Do NOT re-read the full document text after each replacement
@@ -241,7 +243,7 @@ CONTEXT BLOAT MITIGATION FOR WORD REPLACEMENT:
       'The document title can be read from .docs-title-input'
     ],
     manualWordReplace: [
-      'SETUP: Navigate to the Google Doc URL. Wait for the editor to load (toolbar visible, .kix-page-column present). Verify the document is in Edit mode (not View only or Suggesting). If View only: document as SKIP-AUTH.',
+      'SETUP: Navigate to the Google Doc URL. Wait for the editor to load (toolbar visible, .kix-page-column present). Verify the document is in Edit mode (not View only or Suggesting). If View only: document as SKIP-AUTH and preserve the partial handoff with what you read or prepared, the exact blocker, and the next step to sign in or request edit access.',
       'INITIAL COUNT: Press Ctrl+F to open Find toolbar. Type the target word (e.g., "synergy") in the find input. Note the occurrence count shown by the Find toolbar (e.g., "1 of 5"). Press Escape to close Find toolbar. Record: totalOccurrences = N.',
       'LOCATE FIRST OCCURRENCE: Press Ctrl+F again. Type the target word. The first occurrence is highlighted in the document. Do NOT press Enter to advance -- stay on the first match.',
       'SELECT THE WORD: Press Escape to close Find toolbar (cursor near the word). Double-click on the highlighted word to select it. The word should now be selected (highlighted in blue).',
