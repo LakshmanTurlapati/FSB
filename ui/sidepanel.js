@@ -1143,6 +1143,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ received: true });
       }
       return;
+
+    case 'sessionStateEvent':
+      if (request.sessionId !== currentSessionId) break;
+      switch (request.eventType) {
+        case 'iteration_complete':
+          if (currentStatusMessage && isRunning) {
+            updateStatusMessage('Step ' + request.iteration + ' complete', {
+              iteration: request.iteration,
+              maxIterations: 20,
+              progressPercent: Math.min(100, Math.round((request.iteration / 20) * 100))
+            });
+          }
+          break;
+        case 'session_ended':
+          if (!isRunning) break;
+          setIdleState();
+          if (isHistoryViewActive) {
+            loadHistoryList();
+          }
+          break;
+        case 'tool_executed':
+          if (showSidepanelProgressEnabled && isRunning) {
+            addActionMessage(request.toolName + (request.success ? '' : ' [failed]'));
+          }
+          break;
+        case 'error_occurred':
+          console.warn('[FSB] emitter error:', request.error);
+          break;
+      }
+      break;
   }
 });
 
