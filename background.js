@@ -2861,7 +2861,7 @@ async function restoreSessionsFromStorage() {
 
         if (persistedSession.status === 'running') {
           // D-03: Auto-resume running sessions after service worker restart
-          var restoredSession = applyContinuityToSession({
+          var restoredSession = applyContinuityToSession(createSession({
             ...persistedSession,
             isRestored: true,
             followUpContext: persistedSession.followUpContext || null,
@@ -2871,7 +2871,7 @@ async function restoreSessionsFromStorage() {
             tools: null,
             providerConfig: persistedSession.agentResumeState?.providerConfig || null,
             agentState: persistedSession.agentResumeState?.agentState || null,
-          }, continuity);
+          }), continuity);
 
           activeSessions.set(persistedSession.sessionId, restoredSession);
 
@@ -2911,7 +2911,7 @@ async function restoreSessionsFromStorage() {
           }
         } else if (persistedSession.status === 'idle') {
           // Idle sessions: restore for reactivation (existing behavior)
-          var restoredSession = applyContinuityToSession({
+          var restoredSession = applyContinuityToSession(createSession({
             ...persistedSession,
             isRestored: true,
             followUpContext: persistedSession.followUpContext || null,
@@ -2921,7 +2921,7 @@ async function restoreSessionsFromStorage() {
             tools: null,
             providerConfig: persistedSession.agentResumeState?.providerConfig || null,
             agentState: persistedSession.agentResumeState?.agentState || null,
-          }, continuity);
+          }), continuity);
 
           activeSessions.set(persistedSession.sessionId, restoredSession);
           automationLogger.info('Restored idle session from storage', {
@@ -6122,45 +6122,19 @@ async function handleStartAutomation(request, sender, sendResponse) {
 
     // Create new session with enhanced tracking
     const sessionId = `session_${Date.now()}`;
-    const sessionData = {
+    const sessionData = createSession({
       sessionId,
       task,
       tabId: targetTabId,
-      originalTabId: targetTabId,  // Store original tab - automation is restricted to this tab
+      originalTabId: targetTabId,
       startUrl: tabInfo?.url || null,
       status: 'running',
       startTime: Date.now(),
-      maxIterations: userMaxIterations, // User-configured iteration limit
-      actionHistory: [],        // Track all actions executed
-      stateHistory: [],         // Track DOM state changes
-      failedAttempts: {},       // Track failed actions by type
-      failedActionDetails: {},  // Track detailed failures by action signature
-      lastDOMHash: null,        // Hash of last DOM state to detect changes (backward compat)
-      lastDOMSignals: null,     // Multi-channel DOM signals for fine-grained change detection
-      // STUCK DETECTION COUNTERS
-      // stuckCounter: Incremented when the AI produces no meaningful progress on an iteration
-      //   (same DOM hash, repetitive actions, or failed actions). Reset on: URL change,
-      //   successful action with DOM change, or manual intervention.
-      //   Threshold: >=3 triggers recovery prompt, >=5 triggers force-stop consideration.
-      //
-      // consecutiveNoProgressCount: Incremented when an iteration produces no DOM change AND
-      //   no URL change. Unlike stuckCounter, this does NOT reset on URL change (tracks
-      //   persistent inability to make progress even across pages).
-      //   Threshold: >=4 triggers escalated recovery with navigation suggestions.
-      //   Reset only on: session start, verified meaningful progress (DOM changed after action).
-      stuckCounter: 0,
-      consecutiveNoProgressCount: 0,
-      iterationCount: 0,        // Total iterations
-      lastIterationTime: Date.now(), // VMFIX-03: Track last iteration for inactivity timeout
-      urlHistory: [],           // Track URL changes
-      lastUrl: null,            // Last known URL
-      actionSequences: [],      // Track sequences of actions to detect patterns
-      sequenceRepeatCount: {},  // Count how many times each sequence repeats
-      allowedTabs: initialAllowedTabs, // All non-restricted tabs in the current window
-      tabHistory: [],             // Track tab switches for debugging
-      navigationMessage,        // Store navigation message for UI
+      maxIterations: userMaxIterations,
+      lastIterationTime: Date.now(),
+      allowedTabs: initialAllowedTabs,
+      navigationMessage,
       animatedActionHighlights: storedSettings.animatedActionHighlights ?? true,
-      // Session continuity fields
       conversationId: conversationId || null,
       selectedConversationId: selectedConversationId || null,
       uiSurface,
@@ -6169,27 +6143,14 @@ async function handleStartAutomation(request, sender, sendResponse) {
       lastCommandAt: Date.now(),
       commandCount: 1,
       commands: [task],
-      followUpContext: null,
-      agentResumeState: null,
-      resumeSummary: null,
-      // PERF: Cache DOM settings at session start to avoid repeated storage reads
       domSettings: {
         domOptimization: storedSettings.domOptimization !== false,
         maxDOMElements: storedSettings.maxDOMElements || 2000,
         prioritizeViewport: storedSettings.prioritizeViewport !== false
       },
-      // Cost tracking fields
-      totalCost: 0,
-      totalInputTokens: 0,
-      totalOutputTokens: 0,
-      // Locale context: detect once at session start, reuse for all AI calls
       userLocale: getUserLocale(),
-      // Agent loop state (Phase 137) -- initialized by runAgentLoop
-      agentState: null,
-      messages: null,
-      tools: null,
-      providerConfig: null
-    };
+      mode: 'autopilot'
+    });
 
     sessionData.conversationId = resolvedConversationId || null;
 
@@ -6428,7 +6389,10 @@ async function executeAutomationTask(tabId, task, options = {}) {
       }
 
       const sessionId = `session_${Date.now()}`;
-      const sessionData = {
+      var sessionMode = isDashboardTask ? 'dashboard-remote'
+        : (isBackgroundAgent ? 'mcp-agent' : 'autopilot');
+
+      const sessionData = createSession({
         task,
         tabId: targetTabId,
         originalTabId: targetTabId,
@@ -6436,39 +6400,22 @@ async function executeAutomationTask(tabId, task, options = {}) {
         status: 'running',
         startTime: Date.now(),
         maxIterations: maxIterations,
-        actionHistory: [],
-        stateHistory: [],
-        failedAttempts: {},
-        failedActionDetails: {},
-        lastDOMHash: null,
-        stuckCounter: 0,
-        consecutiveNoProgressCount: 0,
-        iterationCount: 0,
         lastIterationTime: Date.now(),
-        urlHistory: [],
-        lastUrl: null,
-        actionSequences: [],
-        sequenceRepeatCount: {},
         isBackgroundAgent: isBackgroundAgent,
         agentId: agentId,
         _isDashboardTask: isDashboardTask,
         _dashboardTaskRunId: dashboardTaskRunId || '',
         animatedActionHighlights: isDashboardTask ? true : (isBackgroundAgent ? false : true),
-        _completionCallback: resolve, // Store callback for when automation finishes
+        _completionCallback: resolve,
         navigationMessage: preparedStart.navigationMessage || '',
-        // PERF: Cache DOM settings (use defaults for background agents)
         domSettings: {
           domOptimization: true,
           maxDOMElements: 2000,
           prioritizeViewport: true
         },
-        // Cost tracking fields
-        totalCost: 0,
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-        // Locale context: detect once at session start, reuse for all AI calls
-        userLocale: getUserLocale()
-      };
+        userLocale: getUserLocale(),
+        mode: sessionMode
+      });
 
       activeSessions.set(sessionId, sessionData);
       persistSession(sessionId, sessionData);

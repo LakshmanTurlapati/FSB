@@ -344,6 +344,11 @@ var SESSION_FIELDS = {
     default: null,
     tier: 'warm',
     type: 'object|null'
+  },
+  mode: {
+    default: 'autopilot',
+    tier: 'warm',
+    type: 'string (autopilot|mcp-manual|mcp-agent|dashboard-remote)'
   }
 };
 
