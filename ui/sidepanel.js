@@ -8,6 +8,7 @@ let isRunning = false;
 let stopRequested = false;
 let isHistoryViewActive = false;
 let showSidepanelProgressEnabled = false;
+let lastRenderedTerminalSessionId = null;
 const DEFAULT_CHAT_INPUT_HEIGHT = 48;
 const MAX_CHAT_INPUT_HEIGHT = 120;
 const SIDEPANEL_PLACEHOLDERS = [
@@ -369,6 +370,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (surfaceSession.status === 'running' || surfaceSession.status === 'replaying') {
         setRunningState();
       }
+    } else if (historySessionId) {
+      recoverLatestThreadTerminalOutcome();
     }
   });
   
@@ -540,6 +543,7 @@ async function handleSendMessage() {
       }
 
       if (response && response.success) {
+        lastRenderedTerminalSessionId = null;
         currentSessionId = response.sessionId;
         activeConversationId = response.conversationId || getSelectedConversationId();
         historySessionId = response.historySessionId || historySessionId || response.sessionId;
@@ -629,6 +633,7 @@ function startNewChat() {
   stopRequested = false;
   activeConversationId = null;
   historySessionId = null;
+  lastRenderedTerminalSessionId = null;
   persistSidepanelThreadState();
 
   // Generate new conversationId for new chat
@@ -1066,90 +1071,192 @@ function removeLoginPrompt() {
   }
 }
 
+function getLatestThreadSessionRecord(sessionIndex, sessionStorage, threadHistorySessionId) {
+  if (!threadHistorySessionId) return null;
+
+  var candidates = (sessionIndex || []).filter(function(entry) {
+    var entryHistorySessionId = entry?.historySessionId || entry?.id || null;
+    return entry?.id === threadHistorySessionId || entryHistorySessionId === threadHistorySessionId;
+  });
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  candidates.sort(function(a, b) {
+    var aTime = a?.endTime || a?.startTime || 0;
+    var bTime = b?.endTime || b?.startTime || 0;
+    return bTime - aTime;
+  });
+
+  var latest = candidates[0];
+  return (sessionStorage && latest?.id && sessionStorage[latest.id]) || latest || null;
+}
+
+function renderAutomationCompletionPayload(payload) {
+  payload = payload || {};
+
+  if (payload.sessionId && lastRenderedTerminalSessionId === payload.sessionId) {
+    return;
+  }
+
+  if (payload.historySessionId) {
+    historySessionId = payload.historySessionId;
+  } else if (!historySessionId && payload.sessionId) {
+    historySessionId = payload.sessionId;
+  }
+
+  if (payload.conversationId) {
+    activeConversationId = payload.conversationId;
+  }
+
+  persistSidepanelThreadState();
+  removeLoginPrompt();
+
+  var outcome = normalizeAutomationOutcome(
+    payload.outcome,
+    payload.outcomeDetails?.outcome,
+    Boolean(payload.error || payload.outcomeDetails?.error)
+  );
+  var completionMessage = payload.result ||
+    payload.outcomeDetails?.result ||
+    payload.outcomeDetails?.summary ||
+    'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
+
+  if (outcome === 'failure') {
+    var errorMessage = payload.error || payload.outcomeDetails?.error || completionMessage || 'Automation error';
+    setErrorState();
+    if (currentStatusMessage) {
+      completeStatusMessage('Error: ' + errorMessage, 'error');
+    } else {
+      addCompletionMessage('Error: ' + errorMessage, 'error');
+    }
+  } else if (currentStatusMessage) {
+    completeStatusMessage(
+      completionMessage,
+      outcome === 'partial' ? 'partial' : (outcome === 'stopped' ? 'system' : undefined)
+    );
+  } else if (outcome === 'stopped') {
+    addMessage(completionMessage, 'system');
+  } else {
+    addCompletionMessage(completionMessage, 'ai', outcome === 'partial');
+  }
+
+  setIdleState();
+  currentSessionId = null;
+  lastRenderedTerminalSessionId = payload.sessionId || historySessionId || null;
+
+  if (isHistoryViewActive) {
+    loadHistoryList();
+  }
+
+  if (outcome === 'partial') {
+    (async () => {
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const currentUrl = tabs[0]?.url;
+        if (currentUrl && currentUrl.startsWith('http')) {
+          const domain = new URL(currentUrl).hostname;
+          const siteMapCheck = await chrome.runtime.sendMessage({
+            action: 'checkSiteMap',
+            domain
+          });
+
+          if (!siteMapCheck || !siteMapCheck.exists) {
+            const reconDiv = document.createElement('div');
+            reconDiv.className = 'message system new recon-suggestion';
+            const textSpan = document.createElement('span');
+            textSpan.className = 'recon-suggestion-text';
+            textSpan.textContent = 'This site does not have a map yet. Reconnaissance can help FSB learn the site structure for better performance.';
+            reconDiv.appendChild(textSpan);
+
+            const reconBtn = document.createElement('button');
+            reconBtn.className = 'recon-btn';
+            reconBtn.id = 'reconFromSidepanel';
+            reconBtn.textContent = 'Run Reconnaissance';
+            reconBtn.addEventListener('click', () => {
+              startReconFromSidepanel(currentUrl, payload.task || completionMessage);
+            });
+            reconDiv.appendChild(reconBtn);
+
+            chatMessages.appendChild(reconDiv);
+            scrollToBottom();
+          }
+        }
+      } catch (e) {
+        console.warn('Recon suggestion check failed:', e.message);
+      }
+    })();
+  }
+}
+
+async function recoverLatestThreadTerminalOutcome(options = {}) {
+  if (!historySessionId || isHistoryViewActive) {
+    return;
+  }
+
+  var force = options.force === true;
+
+  try {
+    var stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex']);
+    var sessionStorage = stored.fsbSessionLogs || {};
+    var sessionIndex = stored.fsbSessionIndex || [];
+    var latestSession = getLatestThreadSessionRecord(sessionIndex, sessionStorage, historySessionId);
+
+    if (!latestSession) {
+      return;
+    }
+
+    var latestStatus = typeof latestSession.status === 'string'
+      ? latestSession.status.trim().toLowerCase()
+      : '';
+    if (latestStatus === 'running' || latestStatus === 'replaying') {
+      return;
+    }
+    if (!force && lastRenderedTerminalSessionId === latestSession.id) {
+      return;
+    }
+    if (isRunning && currentSessionId && currentSessionId !== latestSession.id) {
+      return;
+    }
+
+    var outcomeInfo = getSessionOutcomeDisplay(latestSession);
+    if (!outcomeInfo.summary && !outcomeInfo.resultText && !outcomeInfo.error) {
+      return;
+    }
+
+    renderAutomationCompletionPayload({
+      sessionId: latestSession.id,
+      conversationId: latestSession.conversationId || activeConversationId || null,
+      historySessionId: latestSession.historySessionId || historySessionId || latestSession.id,
+      outcome: latestSession.outcome || outcomeInfo.outcome,
+      outcomeDetails: latestSession.outcomeDetails || null,
+      result: latestSession.completionMessage || latestSession.result || null,
+      error: latestSession.error || null,
+      blocker: latestSession.blocker || null,
+      nextStep: latestSession.nextStep || null,
+      task: latestSession.task || null
+    });
+  } catch (error) {
+    console.warn('Failed to recover latest thread terminal outcome:', error);
+  }
+}
+
 // Listen for messages from background
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'automationComplete':
-      if (!isRunning) return; // Already idle, ignore duplicate
-      if (request.sessionId === currentSessionId) {
-        removeLoginPrompt();
-        var outcome = normalizeAutomationOutcome(
-          request.outcome,
-          request.outcomeDetails?.outcome,
-          Boolean(request.error || request.outcomeDetails?.error)
-        );
-        var completionMessage = request.result ||
-          request.outcomeDetails?.result ||
-          request.outcomeDetails?.summary ||
-          'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
+      {
+        var selectedConversationId = getSelectedConversationId();
+        var matchesCurrentSession = request.sessionId && request.sessionId === currentSessionId;
+        var matchesCurrentHistory = request.historySessionId && historySessionId && request.historySessionId === historySessionId;
+        var matchesCurrentConversation = request.conversationId && selectedConversationId && request.conversationId === selectedConversationId;
 
-        if (outcome === 'failure') {
-          var errorMessage = request.error || request.outcomeDetails?.error || completionMessage || 'Automation error';
-          setErrorState();
-          if (currentStatusMessage) {
-            completeStatusMessage('Error: ' + errorMessage, 'error');
-          } else {
-            addCompletionMessage('Error: ' + errorMessage, 'error');
-          }
+        if (!matchesCurrentSession && !matchesCurrentHistory && !matchesCurrentConversation) {
           break;
         }
 
-        if (currentStatusMessage) {
-          completeStatusMessage(
-            completionMessage,
-            outcome === 'partial' ? 'partial' : (outcome === 'stopped' ? 'system' : undefined)
-          );
-        } else if (outcome === 'stopped') {
-          addMessage(completionMessage, 'system');
-        } else {
-          addCompletionMessage(completionMessage, 'ai', outcome === 'partial');
-        }
-
-        setIdleState();
-        // Refresh history list if history view is active
-        if (isHistoryViewActive) {
-          loadHistoryList();
-        }
-
-        // Check if reconnaissance could help (partial/stuck completions on unmapped sites)
-        if (outcome === 'partial') {
-          (async () => {
-            try {
-              const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-              const currentUrl = tabs[0]?.url;
-              if (currentUrl && currentUrl.startsWith('http')) {
-                const domain = new URL(currentUrl).hostname;
-                const siteMapCheck = await chrome.runtime.sendMessage({
-                  action: 'checkSiteMap',
-                  domain
-                });
-
-                if (!siteMapCheck || !siteMapCheck.exists) {
-                  const reconDiv = document.createElement('div');
-                  reconDiv.className = 'message system new recon-suggestion';
-                  const textSpan = document.createElement('span');
-                  textSpan.className = 'recon-suggestion-text';
-                  textSpan.textContent = 'This site does not have a map yet. Reconnaissance can help FSB learn the site structure for better performance.';
-                  reconDiv.appendChild(textSpan);
-
-                  const reconBtn = document.createElement('button');
-                  reconBtn.className = 'recon-btn';
-                  reconBtn.id = 'reconFromSidepanel';
-                  reconBtn.textContent = 'Run Reconnaissance';
-                  reconBtn.addEventListener('click', () => {
-                    startReconFromSidepanel(currentUrl, request.task || completionMessage);
-                  });
-                  reconDiv.appendChild(reconBtn);
-
-                  chatMessages.appendChild(reconDiv);
-                  scrollToBottom();
-                }
-              }
-            } catch (e) {
-              console.warn('Recon suggestion check failed:', e.message);
-            }
-          })();
-        }
+        renderAutomationCompletionPayload(request);
       }
       break;
 

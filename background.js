@@ -3065,6 +3065,8 @@ setInterval(async () => {
       chrome.runtime.sendMessage({
         action: 'automationComplete',
         sessionId,
+        conversationId: session.conversationId || null,
+        historySessionId: session.historySessionId || sessionId,
         result: {
           success: false,
           result: 'Session expired due to inactivity (no progress for 5 minutes)',
@@ -4032,6 +4034,8 @@ async function executeReplaySequence(replaySessionId) {
       chrome.runtime.sendMessage({
         action: 'automationComplete',
         sessionId: replaySessionId,
+        conversationId: session.conversationId || null,
+        historySessionId: session.historySessionId || replaySessionId,
         result: `Replay complete: ${successCount}/${session.totalSteps} steps executed successfully.${failedCount > 0 ? ` ${failedCount} steps skipped.` : ''}`
       }).catch(() => {});
     } catch (e) { /* UI may not be listening */ }
@@ -6916,6 +6920,8 @@ async function handleStopAutomation(request, sender, sendResponse) {
     chrome.runtime.sendMessage({
       action: 'automationComplete',
       sessionId: sessionId,
+      conversationId: session.conversationId || null,
+      historySessionId: session.historySessionId || sessionId,
       result: stopSummary,
       partial: true,
       stopped: true,

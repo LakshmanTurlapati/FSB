@@ -980,6 +980,8 @@ async function runAgentIteration(sessionId, options) {
       chrome.runtime.sendMessage({
         action: 'automationComplete',
         sessionId: sid,
+        conversationId: sess.conversationId || null,
+        historySessionId: sess.historySessionId || sid,
         result: terminal.resultText || 'Task completed.',
         partial: terminal.partial || terminal.stopped,
         stopped: terminal.stopped,
