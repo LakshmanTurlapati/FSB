@@ -1,5 +1,30 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.24 Claude Code Architecture Adaptation (Shipped: 2026-04-05)
+
+**Phases completed:** 10 phases, 20 plans, 33 requirements
+
+**Key accomplishments:**
+
+- Built the typed session-state foundation for the runtime with `createSession`, hot/warm persistence semantics, transcript storage, structured turn results, action history, and a state emitter.
+- Extracted engine configuration seams for pricing, cost tracking, execution modes, session defaults, and permission gating so the runtime no longer relies on scattered inline constants.
+- Introduced a reusable HookPipeline and refactored the agent loop to use lifecycle hooks, extracted modules, and resumable session behavior while preserving MV3-safe iteration flow.
+- Structured service-worker bootstrap and migrated remaining consumers onto the new module contracts, including mode-aware session construction and session persistence.
+- Wired runtime progress events into popup and sidepanel consumers, then added first-class partial outcomes and auth-wall handoff preservation so useful work survives blocked final steps.
+- Made overlay/debugger feedback resilient across reconnects, navigation, long provider waits, and dashboard DOM-stream preview synchronization.
+
+**Accepted debt at close:**
+
+- `CostTracker` still needs a small ordering cleanup so its instantiated limit always matches the final per-mode session config.
+- Auth-wall behavior shipped, but live browser smoke coverage is still recommended for no-sidepanel fallback, skip/timeout preservation, and same-session resume.
+
+**Stats:**
+
+- 10 phases, 20 plans, 33 requirements
+- Key files: `ai/session-schema.js`, `ai/transcript-store.js`, `ai/hook-pipeline.js`, `ai/engine-config.js`, `ai/cost-tracker.js`, `background.js`, `ai/agent-loop.js`
+
+---
+
 ## v0.9.21 UI Retouch & Cohesion (Shipped: 2026-04-02)
 
 **Phases completed:** 5 phases, 9 plans

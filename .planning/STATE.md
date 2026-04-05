@@ -1,40 +1,41 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.23
-milestone_name: Dashboard Stream & Remote Control Reliability
-status: verifying
-stopped_at: Completed 162.2-02-PLAN.md
-last_updated: "2026-04-03T15:11:57.057Z"
-last_activity: 2026-04-03
+milestone: v0.9.24
+milestone_name: Claude Code Architecture Adaptation
+status: completed
+stopped_at: Milestone archived and marked complete
+last_updated: "2026-04-05T17:23:05.000Z"
+last_activity: 2026-04-05
 progress:
-  total_phases: 164
-  completed_phases: 159
-  total_plans: 321
-  completed_plans: 318
-  percent: 99
+  total_phases: 10
+  completed_phases: 10
+  total_plans: 20
+  completed_plans: 20
+  percent: 100
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-02)
+See: .planning/PROJECT.md (updated 2026-04-05)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 162.2 — auth-wall-handoff-with-result-preservation
+**Current focus:** No active milestone — v0.9.24 archived, next planning cycle not started
 
 ## Current Position
 
-Phase: 162.2 (auth-wall-handoff-with-result-preservation) — EXECUTING
-Plan: 2 of 2
-Status: Phase complete — ready for verification
-Last activity: 2026-04-03
+Milestone: v0.9.24 (Claude Code Architecture Adaptation)
+Phase: None
+Plan: 20 of 20 complete
+Status: Milestone archived and marked complete
+Last activity: 2026-04-05
 
-Progress: [##########] 99%
+Progress: [##########] 100%
 
 ## Performance Metrics
 
-**Recent Trend (from v0.9.22 / v0.9.23):**
+**Recent Trend (from v0.9.24 close-out):**
 
 - Last 5 plans: 2min, 2min, 3min, 4min, 3min
 - Trend: Stable
@@ -98,6 +99,7 @@ Recent decisions affecting current work:
 - Phase 162.1 inserted after Phase 162: Partial Completion Lifecycle for auth-blocked tasks (URGENT)
 - Phase 162.2 inserted after Phase 162: Auth Wall Handoff with Result Preservation (URGENT)
 - Phase 162.3 inserted after Phase 162: Overlay Lifecycle Reliability for mid-run glow/debugger overlay disappearance (URGENT)
+- v0.9.24 archived and marked complete on 2026-04-05
 
 ### Pending Todos
 
@@ -105,12 +107,13 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- Post-verification auth-wall gap is now planned in Phase 162.2: execution still needs to wire the explicit auth trigger, bounded auth-resolution attempt, same-session pause/resume, and no-sidepanel fallback.
-- Overlay lifecycle reliability gap from verification session `session_1775188402694` is closed by Phase 162.3.
+- No active milestone blockers. The next planning cycle has not started.
+- Accepted debt carried forward from v0.9.24: CostTracker limit ordering cleanup, unused emitter option cleanup, and recommended live auth-wall smoke coverage.
+- Deferred work remains in v0.9.23 dashboard reliability phases plus the standing smart multi-tab todo.
 
 ## Session Continuity
 
-Last session: 2026-04-03T15:11:57.049Z
-Stopped at: Completed 162.2-02-PLAN.md
+Last session: 2026-04-05T17:23:05.000Z
+Stopped at: Milestone archived and marked complete
 Resume file: None
 Companion debug note: .planning/debug/overlay-lifecycle-rehydration-gap.md

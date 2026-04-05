@@ -8,6 +8,18 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
+## Current State
+
+FSB shipped `v0.9.24 Claude Code Architecture Adaptation` on 2026-04-05. The runtime now has typed session primitives, centralized engine configuration, lifecycle hooks, resumable agent-loop state, event-bus delivery to UI surfaces, preserved partial/auth-blocked outcomes, and reconnect-safe overlay lifecycle handling.
+
+No new milestone is active yet. Deferred dashboard reliability work from `v0.9.23` remains available to resume, and the next planning cycle should start with `$gsd-new-milestone`.
+
+## Next Milestone Goals
+
+- Reopen deferred dashboard stream and remote-control reliability work from `v0.9.23` if that remains the highest-value gap.
+- Start the next milestone with a fresh requirements file instead of carrying forward stale milestone-scoped requirements.
+- Triage accepted tech debt from `v0.9.24`, especially the `CostTracker` configuration ordering cleanup and remaining live auth-wall smoke coverage.
+
 ## Requirements
 
 ### Validated
@@ -104,9 +116,14 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Hook pipeline: HookPipeline class (7 lifecycle events), safety breaker wrappers, permission pre-check hook, 4 progress hook factories -- v0.9.24/P158
 
 - ✓ Agent loop refactor: wired 11 modules into agent-loop.js (10 hook emissions, module delegation), background.js hook factory + auto-resumption from warm state -- v0.9.24/P159
+- ✓ Bootstrap pipeline: ordered service-worker startup with deferred non-essential initialization -- v0.9.24/P160
+- ✓ Module adoption: createSession, CostTracker, TurnResult, ActionHistory, and mode-aware session persistence adopted across runtime entry points -- v0.9.24/P161
+- ✓ Event bus wiring: SessionStateEmitter events now reach popup and sidepanel consumers -- v0.9.24/P162
+- ✓ Partial outcome lifecycle: useful-but-blocked work now persists as a first-class partial result across runtime, MCP history, and UI surfaces -- v0.9.24/P162.1
+- ✓ Auth wall handoff with result preservation: auth-blocked final steps now preserve completed work, explicit blocker details, and manual next steps -- v0.9.24/P162.2
+- ✓ Overlay lifecycle reliability: canonical overlay replay, heartbeats, and dashboard resync keep debugger feedback alive across reconnects and long waits -- v0.9.24/P162.3
 
 ### Active
-- [ ] Bootstrap pipeline -- structured service worker startup with ordered phases and deferred init -- v0.9.24
 - [ ] Reliable website dashboard DOM stream lifecycle -- v0.9.23 (deferred)
 - [ ] Reliable website dashboard remote control -- v0.9.23 (deferred)
 - [ ] Reliable dashboard task relay -- v0.9.23 (deferred)
@@ -137,21 +154,15 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - Headless server-side execution -- server is relay only, user's browser must stay active
 - Video/screenshot streaming -- DOM cloning with CDN images, not pixel capture
 
-## Current Milestone: v0.9.24 Claude Code Architecture Adaptation
+## Current Milestone
 
-**Goal:** Deep-analyze the Claude Code source (Research/claude-code/) to understand how the AI-tool interaction loop works end-to-end, then adapt that exact architecture 1:1 for FSB's browser automation.
+No active milestone. The last shipped milestone was `v0.9.24 Claude Code Architecture Adaptation` on 2026-04-05. Start the next cycle with `$gsd-new-milestone`.
 
-**Target features:**
-- Architecture analysis documents mapping every Claude Code subsystem (tool execution, coordinator, command graph, query engine, context compaction, streaming, permissions, hooks, skills, state management) to FSB equivalents
-- Tool execution pipeline rewrite -- adopt Claude Code's tool pool, deferred init, and execution registry patterns for FSB's browser tools
-- Coordinator/agent loop adaptation -- bring Claude Code's conversation loop, context management, and multi-turn orchestration into FSB's autopilot
-- Command and skill system mapping -- understand how Claude Code's command graph and skill system work, adapt patterns for FSB's task routing
-- State and context management -- adopt compaction, history, session store, and transcript patterns for FSB's session lifecycle
-- Hooks and permissions model -- adapt the hook pipeline and permission gating for browser automation safety
+## Previous Milestone: v0.9.24 Claude Code Architecture Adaptation (shipped 2026-04-05)
 
-**Reference source:** `Research/claude-code/src/` (Python clean-room rewrite of Claude Code)
+**Shipped:** Typed session/runtime architecture, engine configuration and hook pipeline extraction, resumable agent-loop/module adoption, SessionStateEmitter UI delivery, partial/auth-blocked outcome preservation, and overlay lifecycle reliability. 10 phases, 20 plans, 33 requirements.
 
-## Previous Milestone: v0.9.23 Dashboard Stream & Remote Control Reliability (incomplete, deferred)
+## Deferred Milestone: v0.9.23 Dashboard Stream & Remote Control Reliability (incomplete, deferred)
 
 **Goal:** Audit and fix the website dashboard sync path for reliable streaming, remote control, and task delivery.
 
@@ -273,4 +284,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-02 after Phase 159 (Agent Loop Refactor) completed*
+*Last updated: 2026-04-05 after v0.9.24 milestone archival*
