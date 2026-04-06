@@ -3433,6 +3433,19 @@ function isRestrictedURL(url) {
   return restrictedProtocols.some(protocol => url.startsWith(protocol));
 }
 
+function isSmartNavigableRestrictedURL(url) {
+  if (!url) return false;
+
+  const navigablePages = [
+    'chrome://newtab/',
+    'about:blank',
+    'chrome://newtab',
+    'about:newtab'
+  ];
+
+  return navigablePages.some(page => url.startsWith(page));
+}
+
 // Get user-friendly page type description
 function getPageTypeDescription(url) {
   if (url.startsWith('chrome://')) return 'Chrome internal page';
@@ -3441,6 +3454,47 @@ function getPageTypeDescription(url) {
   if (url.startsWith('about:')) return 'Browser internal page';
   if (url.startsWith('file://')) return 'Local file';
   return 'Restricted page';
+}
+
+async function resolveMCPActiveTabContext() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) {
+    return null;
+  }
+
+  const currentUrl = tab.url || '';
+  return {
+    tab,
+    currentUrl,
+    restricted: isRestrictedURL(currentUrl),
+    pageType: getPageTypeDescription(currentUrl),
+    autoRouteAvailable: isSmartNavigableRestrictedURL(currentUrl)
+  };
+}
+
+function buildRestrictedMCPResponse(tabContext, toolName) {
+  const allowedRecovery = ['navigate', 'open_tab', 'switch_tab', 'list_tabs'];
+  const currentUrl = tabContext?.currentUrl || '';
+  const pageType = tabContext?.pageType || 'Restricted page';
+  const autoRouteAvailable = Boolean(tabContext?.autoRouteAvailable);
+  if (autoRouteAvailable) {
+    allowedRecovery.push('run_task');
+  }
+  const baseHint = autoRouteAvailable
+    ? 'This blank/new-tab page is a neutral launch point. Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first, or use run_task to let FSB choose a starting page from this restricted tab.'
+    : 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal website before using page-reading or interaction tools.';
+
+  return {
+    success: false,
+    errorCode: 'restricted_active_tab',
+    error: `The active tab is a restricted page (${pageType}: ${currentUrl || 'unknown URL'}).`,
+    tool: toolName || null,
+    currentUrl,
+    pageType,
+    autoRouteAvailable,
+    allowedRecovery,
+    hint: baseHint
+  };
 }
 
 // Content script health monitoring with enhanced timeout and retry
@@ -4981,17 +5035,10 @@ function shouldUseSmartNavigation(url, task) {
   if (!isRestrictedURL(url)) {
     return false; // Not on a restricted page
   }
-  
-  // Only use smart navigation for chrome://newtab and about:blank
+
+  // Only use smart navigation for blank/new-tab style pages.
   // Don't navigate away from settings, extensions, etc.
-  const navigablePages = [
-    'chrome://newtab/',
-    'about:blank',
-    'chrome://newtab',
-    'about:newtab'
-  ];
-  
-  return navigablePages.some(page => url.startsWith(page));
+  return isSmartNavigableRestrictedURL(url);
 }
 
 // Service Worker compatible analytics class
@@ -10978,17 +11025,18 @@ async function handleMCPMessage(msg) {
       }
 
       case 'mcp:execute-action': {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab) {
+        const tabContext = await resolveMCPActiveTabContext();
+        if (!tabContext?.tab) {
           console.warn('[FSB MCP] execute-action: No active tab found');
           sendMCPResponse(id, { success: false, error: 'No active tab' });
           return;
         }
+        const { tab } = tabContext;
         console.log(`[FSB MCP] execute-action: tab=${tab.id} url=${tab.url} tool=${payload.tool}`);
 
         // Navigation tools that work without content scripts -- handle directly in background
         // This prevents the dead-end where a crashed/error tab blocks all MCP actions
-        const bgNavTools = ['navigate', 'openNewTab', 'switchToTab', 'listTabs'];
+        const bgNavTools = ['navigate', 'open_tab', 'switch_tab', 'list_tabs', 'go_back', 'go_forward', 'refresh', 'openNewTab', 'switchToTab', 'listTabs'];
         if (bgNavTools.includes(payload.tool)) {
           try {
             let result;
@@ -11003,12 +11051,14 @@ async function handleMCPMessage(msg) {
                 result = { success: true, hadEffect: true, navigatingTo: url, fromUrl, verification: { note: 'Navigation initiated - verification will occur after page load', expectedUrl: url }, tool: 'navigate', executionTime: 1 };
                 break;
               }
+              case 'open_tab':
               case 'openNewTab': {
                 const url = payload.params?.url || 'about:blank';
                 const newTab = await chrome.tabs.create({ url, active: payload.params?.active !== false });
                 result = { success: true, tabId: newTab.id, url, active: payload.params?.active !== false };
                 break;
               }
+              case 'switch_tab':
               case 'switchToTab': {
                 const tabId = payload.params?.tabId;
                 if (!tabId) { sendMCPResponse(id, { success: false, error: 'Tab ID is required' }); return; }
@@ -11018,9 +11068,43 @@ async function handleMCPMessage(msg) {
                 result = { success: true, tabId };
                 break;
               }
+              case 'list_tabs':
               case 'listTabs': {
                 const allTabs = await chrome.tabs.query({});
                 result = { success: true, tabs: allTabs.map(t => ({ id: t.id, title: t.title, url: t.url, active: t.active, windowId: t.windowId })) };
+                break;
+              }
+              case 'go_back': {
+                await chrome.tabs.goBack(tab.id);
+                result = {
+                  success: true,
+                  hadEffect: true,
+                  navigationTriggered: true,
+                  result: { direction: 'back' },
+                  tool: 'go_back'
+                };
+                break;
+              }
+              case 'go_forward': {
+                await chrome.tabs.goForward(tab.id);
+                result = {
+                  success: true,
+                  hadEffect: true,
+                  navigationTriggered: true,
+                  result: { direction: 'forward' },
+                  tool: 'go_forward'
+                };
+                break;
+              }
+              case 'refresh': {
+                await chrome.tabs.reload(tab.id);
+                result = {
+                  success: true,
+                  hadEffect: true,
+                  navigationTriggered: true,
+                  result: { action: 'refresh' },
+                  tool: 'refresh'
+                };
                 break;
               }
             }
@@ -11031,6 +11115,12 @@ async function handleMCPMessage(msg) {
             sendMCPResponse(id, { success: false, error: navErr.message });
           }
           break;
+        }
+
+        if (tabContext.restricted) {
+          console.warn(`[FSB MCP] execute-action: restricted tab ${tabContext.currentUrl} for tool=${payload.tool}`);
+          sendMCPResponse(id, buildRestrictedMCPResponse(tabContext, payload.tool));
+          return;
         }
 
         try {
@@ -11131,13 +11221,19 @@ async function handleMCPMessage(msg) {
       }
 
       case 'mcp:get-dom': {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab) {
+        const tabContext = await resolveMCPActiveTabContext();
+        if (!tabContext?.tab) {
           console.warn('[FSB MCP] get-dom: No active tab found');
           sendMCPResponse(id, { success: false, error: 'No active tab' });
           return;
         }
+        const { tab } = tabContext;
         console.log(`[FSB MCP] get-dom: tab=${tab.id} url=${tab.url}`);
+        if (tabContext.restricted) {
+          console.warn(`[FSB MCP] get-dom: restricted tab ${tabContext.currentUrl}`);
+          sendMCPResponse(id, buildRestrictedMCPResponse(tabContext, 'get_dom_snapshot'));
+          return;
+        }
         try {
           await ensureContentScriptInjected(tab.id);
         } catch (injectErr) {
@@ -11204,13 +11300,19 @@ async function handleMCPMessage(msg) {
       }
 
       case 'mcp:read-page': {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab) {
+        const tabContext = await resolveMCPActiveTabContext();
+        if (!tabContext?.tab) {
           console.warn('[FSB MCP] read-page: No active tab found');
           sendMCPResponse(id, { success: false, error: 'No active tab' });
           return;
         }
+        const { tab } = tabContext;
         console.log(`[FSB MCP] read-page: tab=${tab.id} url=${tab.url}`);
+        if (tabContext.restricted) {
+          console.warn(`[FSB MCP] read-page: restricted tab ${tabContext.currentUrl}`);
+          sendMCPResponse(id, buildRestrictedMCPResponse(tabContext, 'read_page'));
+          return;
+        }
         try {
           await ensureContentScriptInjected(tab.id);
         } catch (injectErr) {
