@@ -10,15 +10,15 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-FSB shipped `v0.9.24 Claude Code Architecture Adaptation` on 2026-04-05. The runtime now has typed session primitives, centralized engine configuration, lifecycle hooks, resumable agent-loop state, event-bus delivery to UI surfaces, preserved partial/auth-blocked outcomes, and reconnect-safe overlay lifecycle handling.
+FSB shipped `v0.9.24 Claude Code Architecture Adaptation` on 2026-04-05, opened `v0.9.25 MCP & Dashboard Reliability Closure`, and has now completed Phase `163 Restricted-Tab MCP Parity` on 2026-04-06. The immediate focus has shifted to Phase `164 Dashboard Reliability Rebaseline`, while the remaining milestone work still covers live dashboard verification debt and the small runtime carryover fixes from `v0.9.24`.
 
-No new milestone is active yet. Deferred dashboard reliability work from `v0.9.23` remains available to resume, and the next planning cycle should start with `$gsd-new-milestone`.
+The codebase now has a verified extension-first restricted-tab contract for MCP: browser-safe tools stay usable on restricted pages, new-tab-style blank pages keep smart task-start routing, and blocked DOM reads surface shared actionable guidance instead of raw injection failures. This milestone now concentrates on making the dashboard/relay path behave predictably in real browser conditions and landing the remaining live verification evidence before broader feature work resumes.
 
 ## Next Milestone Goals
 
-- Reopen deferred dashboard stream and remote-control reliability work from `v0.9.23` if that remains the highest-value gap.
-- Start the next milestone with a fresh requirements file instead of carrying forward stale milestone-scoped requirements.
-- Triage accepted tech debt from `v0.9.24`, especially the `CostTracker` configuration ordering cleanup and remaining live auth-wall smoke coverage.
+- Close the deferred dashboard reliability path across preview streaming, remote control, and task relay using fresh phase numbers and live browser-backed verification.
+- Resolve the small carryover debts from `v0.9.24`, especially `CostTracker` ordering, the unused emitter/runtime contract, and auth-wall live smoke coverage.
+- Preserve the newly completed restricted-tab MCP parity while the remaining `v0.9.25` phases validate adjacent operator-facing behavior.
 
 ## Requirements
 
@@ -122,16 +122,13 @@ No new milestone is active yet. Deferred dashboard reliability work from `v0.9.2
 - ✓ Partial outcome lifecycle: useful-but-blocked work now persists as a first-class partial result across runtime, MCP history, and UI surfaces -- v0.9.24/P162.1
 - ✓ Auth wall handoff with result preservation: auth-blocked final steps now preserve completed work, explicit blocker details, and manual next steps -- v0.9.24/P162.2
 - ✓ Overlay lifecycle reliability: canonical overlay replay, heartbeats, and dashboard resync keep debugger feedback alive across reconnects and long waits -- v0.9.24/P162.3
+- ✓ Restricted-tab MCP parity: browser-safe tools now work from restricted pages, new-tab-only smart routing remains available, and blocked reads share actionable recovery guidance -- v0.9.25/P163
 
 ### Active
-- [ ] Reliable website dashboard DOM stream lifecycle -- v0.9.23 (deferred)
-- [ ] Reliable website dashboard remote control -- v0.9.23 (deferred)
-- [ ] Reliable dashboard task relay -- v0.9.23 (deferred)
-- [ ] MCP agent tools -- create/list/run/stop/delete agents via MCP -- v0.9.10/P116
-- [ ] Cost & metrics pipeline -- real token/cost data in agent history -- v0.9.10/P117
-- [ ] Scheduling enhancements -- cron expressions, retry with backoff -- v0.9.10/P118
-- [ ] Replay intelligence -- dynamic timing, step-level recovery -- v0.9.10/P119
-- [ ] Sidepanel agents UI -- dedicated tab for agent management -- v0.9.10/P120
+- [ ] Dashboard preview, remote control, and task relay reliability closeout -- v0.9.25/P164
+- [ ] Live browser-backed dashboard verification and fix sweep -- v0.9.25/P165
+- [ ] Runtime carryover hardening (`CostTracker` ordering, emitter contract cleanup) -- v0.9.25/P166
+- [ ] Auth-wall live smoke coverage for preserved partial and same-session resume behavior -- v0.9.25/P167
 
 ### Backlog (Completed from previous milestones — v0.9.6)
 
@@ -143,6 +140,11 @@ No new milestone is active yet. Deferred dashboard reliability work from `v0.9.2
 
 ### Backlog
 
+- [ ] MCP agent tools -- create/list/run/stop/delete agents via MCP -- backlog v0.9.10/P116
+- [ ] Cost & metrics pipeline -- real token/cost data in agent history -- backlog v0.9.10/P117
+- [ ] Scheduling enhancements -- cron expressions, retry with backoff -- backlog v0.9.10/P118
+- [ ] Replay intelligence -- dynamic timing, step-level recovery -- backlog v0.9.10/P119
+- [ ] Sidepanel agents UI -- dedicated tab for agent management -- backlog v0.9.10/P120
 - [ ] Reliable CAPTCHA detection -- eliminate false positives on normal pages
 - [ ] Smart multi-tab management -- context-aware navigation across multiple tabs
 
@@ -154,9 +156,14 @@ No new milestone is active yet. Deferred dashboard reliability work from `v0.9.2
 - Headless server-side execution -- server is relay only, user's browser must stay active
 - Video/screenshot streaming -- DOM cloning with CDN images, not pixel capture
 
-## Current Milestone
+## Current Milestone: v0.9.25 MCP & Dashboard Reliability Closure
 
-No active milestone. The last shipped milestone was `v0.9.24 Claude Code Architecture Adaptation` on 2026-04-05. Start the next cycle with `$gsd-new-milestone`.
+**Goal:** Close the remaining operator-facing reliability gaps across restricted-tab MCP flows, dashboard preview/control/task recovery, and the live verification debt carried forward from `v0.9.24`.
+
+**Target features:**
+- Restricted-tab and `chrome://newtab` MCP behavior that preserves smart task start routing and gives clear next-step guidance for non-routable tools.
+- Dashboard preview, remote control, and task relay flows that hold up through reconnects, tab switches, and real relay/browser timing.
+- Runtime hardening for `CostTracker` config ordering, unused emitter/runtime contract cleanup, and live auth-wall smoke coverage.
 
 ## Previous Milestone: v0.9.24 Claude Code Architecture Adaptation (shipped 2026-04-05)
 
@@ -284,4 +291,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-05 after v0.9.24 milestone archival*
+*Last updated: 2026-04-06 after Phase 163 completion*

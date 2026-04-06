@@ -1,37 +1,37 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.24
-milestone_name: Claude Code Architecture Adaptation
-status: completed
-stopped_at: Milestone archived and marked complete
-last_updated: "2026-04-05T17:23:05.000Z"
-last_activity: 2026-04-05
+milestone: v0.9.25
+milestone_name: MCP & Dashboard Reliability Closure
+status: active
+stopped_at: Completed Phase 163 execution; Phase 164 ready to start
+last_updated: "2026-04-06T00:54:42Z"
+last_activity: 2026-04-06
 progress:
-  total_phases: 10
-  completed_phases: 10
-  total_plans: 20
-  completed_plans: 20
-  percent: 100
+  total_phases: 5
+  completed_phases: 1
+  total_plans: 9
+  completed_plans: 2
+  percent: 20
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-05)
+See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** No active milestone — v0.9.24 archived, next planning cycle not started
+**Current focus:** v0.9.25 MCP & Dashboard Reliability Closure — Phase 163 complete, Phase 164 is next
 
 ## Current Position
 
-Milestone: v0.9.24 (Claude Code Architecture Adaptation)
-Phase: None
-Plan: 20 of 20 complete
-Status: Milestone archived and marked complete
-Last activity: 2026-04-05
+Milestone: v0.9.25 (MCP & Dashboard Reliability Closure)
+Phase: 164
+Plan: 2 of 9 complete
+Status: Phase 163 complete; ready to start Phase 164
+Last activity: 2026-04-06
 
-Progress: [##########] 100%
+Progress: [##--------] 20%
 
 ## Performance Metrics
 
@@ -55,8 +55,10 @@ Progress: [##########] 100%
 | Phase 159 PP01 | 7min | 2 tasks | 1 files |
 | Phase 159 PP02 | 3min | 2 tasks | 1 files |
 | Phase 159 P03 | 1min | 2 tasks | 2 files |
+| Phase 163 P01 | 8min | 2 tasks | 1 files |
 | Phase 162.2 P01 | 3min | 2 tasks | 5 files |
 | Phase 162.2 P02 | 1min | 2 tasks | 3 files |
+| Phase 163 P02 | 2min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -65,6 +67,9 @@ Progress: [##########] 100%
 Full decision log in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Phase 163]: Restricted tabs now keep browser-safe MCP controls in the background, and only blank/new-tab pages advertise `run_task` as smart-start recovery.
+- [v0.9.25]: Close operator-facing reliability gaps before broader feature work -- restricted-tab MCP parity, dashboard reliability closeout, and v0.9.24 carryover verification debt take priority.
+- [v0.9.25]: Continue numbering from Phase 162.3 and re-scope deferred dashboard reliability goals under fresh phases 163-167 instead of reviving the 151-155 sequence.
 - [v0.9.24]: Adopt 6 Claude Code patterns (Tool Pool, Permission Context, Transcript Store, Hook Pipeline, Session Store, Cost Tracker); reject 6 (Command Graph, Skill System, Query Engine, Coordinator, Bootstrap Graph formal stage, Route Matching)
 - [v0.9.24]: 40% direct translation, 30% heavy adaptation for MV3, 30% explicitly rejected
 - [v0.9.24]: Extract-don't-rewrite principle -- 17 new files, 3 modified files, 0 deleted files
@@ -92,6 +97,9 @@ Recent decisions affecting current work:
 
 ### Roadmap Evolution
 
+- v0.9.25 MCP & Dashboard Reliability Closure roadmap created 2026-04-05 (5 phases, 163-167, 11 requirements)
+- Phase 163 Restricted-Tab MCP Parity completed on 2026-04-06 (2/2 plans complete)
+- v0.9.23 deferred dashboard reliability goals re-scoped into v0.9.25 instead of reviving phases 151-155 directly
 - v0.9.24 Claude Code Architecture Adaptation roadmap created 2026-04-02 (5 phases, 156-160, 19 requirements)
 - v0.9.23 Phase 155 executed retroactively on 2026-04-02 (2/2 plans complete) while v0.9.24 remained the active milestone
 - v0.9.23 Phases 151-155 deferred
@@ -107,13 +115,13 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- No active milestone blockers. The next planning cycle has not started.
-- Accepted debt carried forward from v0.9.24: CostTracker limit ordering cleanup, unused emitter option cleanup, and recommended live auth-wall smoke coverage.
-- Deferred work remains in v0.9.23 dashboard reliability phases plus the standing smart multi-tab todo.
+- No blockers recorded at milestone start.
+- Phase 165 and Phase 167 require a real browser-backed extension and relay environment for live verification.
+- Accepted debt carried forward from v0.9.24 now lives inside Phase 166 and Phase 167 instead of remaining as unowned follow-up.
 
 ## Session Continuity
 
-Last session: 2026-04-05T17:23:05.000Z
-Stopped at: Milestone archived and marked complete
+Last session: 2026-04-06T00:54:42Z
+Stopped at: Completed Phase 163 execution; Phase 164 ready to start
 Resume file: None
 Companion debug note: .planning/debug/overlay-lifecycle-rehydration-gap.md
