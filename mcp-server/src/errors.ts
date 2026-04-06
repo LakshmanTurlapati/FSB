@@ -5,6 +5,8 @@ export const FSB_ERROR_MESSAGES: Record<string, string> = {
     `Extension WebSocket not connected. The FSB Chrome extension must be running with a WebSocket connection to ${FSB_EXTENSION_BRIDGE_URL}. Verify the extension is installed, enabled, and the browser is open.`,
   'no_active_tab':
     'No active browser tab found. Open a browser tab or use the navigate tool to go to a URL first.',
+  'restricted_active_tab':
+    'The active tab is a restricted/browser-internal page ({pageType}: {currentUrl}). Page-reading and interaction tools cannot run there because Chrome blocks content script injection. {restrictedRecovery}',
   'task_already_running':
     'A task is already running. Wait for it to complete or use stop_task to cancel it. Read-only tools (read_page, get_dom_snapshot, list_tabs) still work while a task runs.',
   'element_not_found':
@@ -27,8 +29,17 @@ export const FSB_ERROR_MESSAGES: Record<string, string> = {
  * Generate actionable recovery hints based on error message content.
  * Helps AI clients understand what to try next when a tool fails.
  */
-function getRecoveryHint(error: string): string {
+function getRecoveryHint(
+  error: string,
+  options?: { errorKey?: string; autoRouteAvailable?: boolean },
+): string {
   const lower = error.toLowerCase();
+
+  if (options?.errorKey === 'restricted_active_tab' || lower.includes('restricted/browser-internal page')) {
+    return options?.autoRouteAvailable
+      ? ' [Recovery: Use navigate/open_tab/switch_tab/list_tabs to move to a normal website, or use run_task from this blank/new-tab page to let FSB choose a starting page.]'
+      : ' [Recovery: Use navigate/open_tab/switch_tab/list_tabs to move to a normal website before using page-reading or interaction tools.]';
+  }
 
   // Element not found errors
   if (lower.includes('not found') || lower.includes('no element') || lower.includes('null')) {
@@ -81,37 +92,55 @@ export function mapFSBError(
   }
 
   const errorMsg = String(fsbResult?.error ?? '');
-  let errorKey = 'action_rejected'; // default
+  const errorCode = typeof fsbResult?.errorCode === 'string' ? fsbResult.errorCode : '';
+  let errorKey = errorCode || 'action_rejected'; // default
 
-  // Map known error patterns to specific error keys
-  if (errorMsg.includes('not found')) errorKey = 'element_not_found';
-  else if (errorMsg.includes('No active tab') || errorMsg.includes('no tab'))
-    errorKey = 'no_active_tab';
-  else if (errorMsg.includes('timeout') || errorMsg.includes('timed out'))
-    errorKey = 'task_timeout';
-  else if (errorMsg.includes('extension_not_connected') || errorMsg.includes('Bridge disconnected'))
-    errorKey = 'extension_not_connected';
-  else if (errorMsg.includes('Content script communication failed') || errorMsg.includes('Receiving end does not exist'))
-    errorKey = 'content_script_failed';
-  else if (errorMsg.includes('injection failed') || errorMsg.includes('Content script injection'))
-    errorKey = 'injection_failed';
+  if (!FSB_ERROR_MESSAGES[errorKey]) {
+    errorKey = 'action_rejected';
+
+    // Map known error patterns to specific error keys
+    if (errorMsg.includes('not found')) errorKey = 'element_not_found';
+    else if (errorMsg.includes('No active tab') || errorMsg.includes('no tab'))
+      errorKey = 'no_active_tab';
+    else if (errorMsg.includes('timeout') || errorMsg.includes('timed out'))
+      errorKey = 'task_timeout';
+    else if (errorMsg.includes('extension_not_connected') || errorMsg.includes('Bridge disconnected'))
+      errorKey = 'extension_not_connected';
+    else if (errorMsg.includes('Content script communication failed') || errorMsg.includes('Receiving end does not exist'))
+      errorKey = 'content_script_failed';
+    else if (errorMsg.includes('injection failed') || errorMsg.includes('Content script injection'))
+      errorKey = 'injection_failed';
+  }
 
   let text = FSB_ERROR_MESSAGES[errorKey] || errorMsg || 'Unknown error';
+  const autoRouteAvailable = Boolean(fsbResult?.autoRouteAvailable);
 
   // Replace placeholders
-  if (context) {
-    for (const [key, val] of Object.entries(context)) {
+  const mergedContext: Record<string, string> = {
+    currentUrl: typeof fsbResult?.currentUrl === 'string' ? fsbResult.currentUrl : '',
+    pageType: typeof fsbResult?.pageType === 'string' ? fsbResult.pageType : 'Restricted page',
+    restrictedRecovery: autoRouteAvailable
+      ? 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first. If you want sidepanel-style smart start routing from this blank/new-tab page, use run_task.'
+      : 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first.',
+    url: typeof fsbResult?.url === 'string'
+      ? fsbResult.url
+      : (typeof fsbResult?.currentUrl === 'string' ? fsbResult.currentUrl : ''),
+    selector: typeof fsbResult?.selector === 'string' ? fsbResult.selector : '',
+    ...(context || {}),
+  };
+  for (const [key, val] of Object.entries(mergedContext)) {
+    if (typeof val === 'string') {
       text = text.replace(`{${key}}`, val);
     }
   }
 
   // Always append the raw error for debugging transparency
-  if (errorMsg && !text.includes(errorMsg)) {
+  if (errorMsg && errorMsg !== errorCode && !text.includes(errorMsg)) {
     text += `\n\n[Raw error: ${errorMsg}]`;
   }
 
   // Append actionable recovery hint based on error patterns
-  const hint = getRecoveryHint(text);
+  const hint = getRecoveryHint(text, { errorKey, autoRouteAvailable });
   if (hint) {
     text += hint;
   }

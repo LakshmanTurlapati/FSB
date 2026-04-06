@@ -1,5 +1,27 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WebSocketBridge } from '../bridge.js';
+import { mapFSBError } from '../errors.js';
+
+function formatResourceResponse(
+  uriHref: string,
+  result: Record<string, unknown> | null | undefined,
+): { contents: Array<{ uri: string; text: string; mimeType: string }> } {
+  if (!result || result.success === false) {
+    const mapped = mapFSBError(result);
+    const errorText = mapped.content[0]?.text || 'Unknown resource error';
+    return {
+      contents: [{ uri: uriHref, text: errorText, mimeType: 'text/plain' }],
+    };
+  }
+
+  return {
+    contents: [{
+      uri: uriHref,
+      text: JSON.stringify(result, null, 2),
+      mimeType: 'application/json',
+    }],
+  };
+}
 
 /**
  * Register all MCP resources that expose FSB's data to AI agents.
@@ -31,13 +53,7 @@ export function registerResources(server: McpServer, bridge: WebSocketBridge): v
         { timeout: 10_000 },
       );
 
-      return {
-        contents: [{
-          uri: uri.href,
-          text: JSON.stringify(result, null, 2),
-          mimeType: 'application/json',
-        }],
-      };
+      return formatResourceResponse(uri.href, result);
     },
   );
 
@@ -63,13 +79,7 @@ export function registerResources(server: McpServer, bridge: WebSocketBridge): v
         { timeout: 10_000 },
       );
 
-      return {
-        contents: [{
-          uri: uri.href,
-          text: JSON.stringify(result, null, 2),
-          mimeType: 'application/json',
-        }],
-      };
+      return formatResourceResponse(uri.href, result);
     },
   );
 
@@ -95,13 +105,7 @@ export function registerResources(server: McpServer, bridge: WebSocketBridge): v
         { timeout: 10_000 },
       );
 
-      return {
-        contents: [{
-          uri: uri.href,
-          text: JSON.stringify(result, null, 2),
-          mimeType: 'application/json',
-        }],
-      };
+      return formatResourceResponse(uri.href, result);
     },
   );
 
@@ -127,13 +131,7 @@ export function registerResources(server: McpServer, bridge: WebSocketBridge): v
         { timeout: 10_000 },
       );
 
-      return {
-        contents: [{
-          uri: uri.href,
-          text: JSON.stringify(result, null, 2),
-          mimeType: 'application/json',
-        }],
-      };
+      return formatResourceResponse(uri.href, result);
     },
   );
 
@@ -159,13 +157,7 @@ export function registerResources(server: McpServer, bridge: WebSocketBridge): v
         { timeout: 10_000 },
       );
 
-      return {
-        contents: [{
-          uri: uri.href,
-          text: JSON.stringify(result, null, 2),
-          mimeType: 'application/json',
-        }],
-      };
+      return formatResourceResponse(uri.href, result);
     },
   );
 }
