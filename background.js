@@ -245,7 +245,7 @@ importScripts('lib/memory/sitemap-refiner.js');
  * Create a HookPipeline with all standard hooks registered for a session.
  * Called once per session before runAgentLoop.
  *
- * @returns {{ hooks: HookPipeline, emitter: SessionStateEmitter }}
+ * @returns {{ hooks: HookPipeline }}
  */
 function createSessionHooks() {
   var hooks = new HookPipeline();
@@ -292,7 +292,7 @@ function createSessionHooks() {
     createErrorProgressHook(emitter)
   );
 
-  return { hooks: hooks, emitter: emitter };
+  return { hooks: hooks };
 }
 
 // Site map intelligence - bundled map cache
@@ -1035,6 +1035,8 @@ var _tabSwitchTimer = null; // Debounce timer for tab switch stream re-targeting
 var _remoteControlDebuggerTabId = null; // Tab ID with debugger attached for remote control (null = not active)
 var _remoteControlDebuggerOwned = false; // Whether remote control attached the current debugger session itself
 var _remoteControlEnabled = false; // Whether the dashboard currently wants remote control active
+var _lastRemoteControlState = null; // Last authoritative remote-control state sent to the dashboard
+var _lastRemotePrintableKeyDispatch = null; // Recent printable keyDown for legacy char-event dedupe
 var _streamTabUrl = ''; // Last known URL for the streaming tab or not-ready tab candidate
 var _streamStatus = 'not-ready'; // ready | not-ready | recovering
 var _streamReason = 'no-streamable-tab'; // restricted-tab | no-streamable-tab | waiting-for-page-ready | tab-closed
@@ -1101,6 +1103,7 @@ function _buildDashboardTaskProgressPayload(taskSnapshot) {
     elapsed: snapshot.elapsed || 0,
     action: snapshot.action || snapshot.lastAction || '',
     lastAction: snapshot.lastAction || snapshot.action || '',
+    taskSource: snapshot.taskSource || 'live',
     updatedAt: snapshot.updatedAt || Date.now(),
     status: snapshot.taskStatus || 'running'
   };
@@ -1121,6 +1124,7 @@ function _buildDashboardTaskCompletePayload(taskSnapshot) {
     lastAction: snapshot.lastAction || snapshot.action || '',
     summary: snapshot.summary || '',
     error: snapshot.error || '',
+    taskSource: snapshot.taskSource || 'live',
     updatedAt: snapshot.updatedAt || Date.now()
   };
 }
@@ -1147,6 +1151,7 @@ function _isStreamableTabUrl(url) {
 }
 
 function _rememberStreamState(status, reason, tabId, url, source) {
+  var previousTabId = _streamingTabId;
   _streamStatus = status || 'not-ready';
   _streamReason = reason || '';
   _streamTabUrl = url || '';
@@ -1159,6 +1164,28 @@ function _rememberStreamState(status, reason, tabId, url, source) {
   }
 
   if (_remoteControlEnabled) {
+    if (_streamStatus !== 'ready') {
+      _remoteControlEnabled = false;
+      _releaseRemoteControlDebugger('stream-not-ready').catch(function() {});
+      _sendRemoteControlState('stream-not-ready', {
+        enabled: false,
+        attached: false,
+        tabId: typeof tabId === 'number' ? tabId : null,
+        ownership: 'none'
+      });
+      return;
+    }
+    if (previousTabId !== null && _streamingTabId !== previousTabId) {
+      _remoteControlEnabled = false;
+      _releaseRemoteControlDebugger('retarget-required').catch(function() {});
+      _sendRemoteControlState('retarget-required', {
+        enabled: false,
+        attached: false,
+        tabId: typeof _streamingTabId === 'number' ? _streamingTabId : null,
+        ownership: 'none'
+      });
+      return;
+    }
     _syncRemoteControlDebugger('stream-state:' + _streamStatus);
   }
 }
@@ -1197,6 +1224,35 @@ function _recordStreamTransportFailure(eventName, tabId, reason, readyState, tar
     readyState: readyState,
     error: reason || ''
   });
+}
+
+function _getRemoteControlOwnership() {
+  if (_remoteControlDebuggerTabId === null) return 'none';
+  return _remoteControlDebuggerOwned ? 'remote-control' : 'external-debugger';
+}
+
+function _rememberRemoteControlState(reason, details) {
+  details = details || {};
+  _lastRemoteControlState = {
+    enabled: Object.prototype.hasOwnProperty.call(details, 'enabled') ? !!details.enabled : !!_remoteControlEnabled,
+    attached: Object.prototype.hasOwnProperty.call(details, 'attached')
+      ? !!details.attached
+      : (_remoteControlDebuggerTabId !== null),
+    tabId: Object.prototype.hasOwnProperty.call(details, 'tabId')
+      ? (typeof details.tabId === 'number' ? details.tabId : null)
+      : (typeof _remoteControlDebuggerTabId === 'number' ? _remoteControlDebuggerTabId : null),
+    reason: reason || 'user-stop',
+    ownership: details.ownership || _getRemoteControlOwnership()
+  };
+  return Object.assign({}, _lastRemoteControlState);
+}
+
+function _sendRemoteControlState(reason, details) {
+  var payload = _rememberRemoteControlState(reason, details);
+  if (fsbWebSocket && typeof fsbWebSocket.send === 'function') {
+    fsbWebSocket.send('ext:remote-control-state', payload);
+  }
+  return payload;
 }
 
 /**
@@ -1353,7 +1409,8 @@ function broadcastDashboardProgress(session) {
     summary: '',
     error: '',
     stopped: false,
-    tabId: typeof session.tabId === 'number' ? session.tabId : null
+    tabId: typeof session.tabId === 'number' ? session.tabId : null,
+    taskSource: 'live'
   });
 
   var sent = _sendDashboardTaskProgress(taskPayload);
@@ -1408,7 +1465,8 @@ function broadcastDashboardComplete(result) {
     summary: payload.summary || '',
     error: payload.error || '',
     stopped: false,
-    tabId: previousTask && typeof previousTask.tabId === 'number' ? previousTask.tabId : null
+    tabId: previousTask && typeof previousTask.tabId === 'number' ? previousTask.tabId : null,
+    taskSource: result && result.success ? 'live' : 'complete-fallback'
   });
   var terminalPayload = _buildDashboardTaskCompletePayload(rememberedPayload);
   var sent = _sendDashboardTaskComplete(rememberedPayload);
@@ -2978,8 +3036,7 @@ async function restoreSessionsFromStorage() {
               executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
               handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
               resolveAuthWall: resolveInlineAuthWall,
-              hooks: resumeHooks.hooks,
-              emitter: resumeHooks.emitter
+              hooks: resumeHooks.hooks
             });
           } catch (tabErr) {
             automationLogger.warn('Cannot auto-resume: tab no longer exists', {
@@ -6256,8 +6313,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
           executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
           handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
           resolveAuthWall: resolveInlineAuthWall,
-          hooks: sessionHooks.hooks,
-          emitter: sessionHooks.emitter
+          hooks: sessionHooks.hooks
         });
         return;
       }
@@ -6506,8 +6562,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
       handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
       resolveAuthWall: resolveInlineAuthWall,
-      hooks: sessionHooks.hooks,
-      emitter: sessionHooks.emitter
+      hooks: sessionHooks.hooks
     });
 
   } catch (error) {
@@ -6705,8 +6760,7 @@ async function executeAutomationTask(tabId, task, options = {}) {
         executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
         handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
         resolveAuthWall: resolveInlineAuthWall,
-        hooks: sessionHooks.hooks,
-        emitter: sessionHooks.emitter
+        hooks: sessionHooks.hooks
       });
 
     } catch (error) {
@@ -6748,7 +6802,8 @@ async function startDashboardTask(tabId, task) {
     summary: '',
     error: '',
     stopped: false,
-    tabId: typeof tabId === 'number' ? tabId : null
+    tabId: typeof tabId === 'number' ? tabId : null,
+    taskSource: 'live'
   });
   _sendDashboardTaskProgress(initialTaskPayload);
   var _completionSent = false;
@@ -6779,7 +6834,8 @@ async function startDashboardTask(tabId, task) {
       summary: '',
       error: err.message || 'Task execution failed',
       stopped: false,
-      tabId: typeof tabId === 'number' ? tabId : null
+      tabId: typeof tabId === 'number' ? tabId : null,
+      taskSource: 'complete-fallback'
     });
     _completionSent = _sendDashboardTaskComplete(failedPayload);
   }
@@ -8373,8 +8429,7 @@ async function launchNextCompanySearch(sessionId, session, companyName) {
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
     handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
     resolveAuthWall: resolveInlineAuthWall,
-    hooks: sessionHooks.hooks,
-    emitter: sessionHooks.emitter
+    hooks: sessionHooks.hooks
   }), 500);
   return true;
 }
@@ -8851,8 +8906,7 @@ async function startSheetsDataEntry(sessionId, session) {
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
     handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
     resolveAuthWall: resolveInlineAuthWall,
-    hooks: sessionHooks.hooks,
-    emitter: sessionHooks.emitter
+    hooks: sessionHooks.hooks
   }), 500);
 
   automationLogger.info('Sheets data entry session launched', {
@@ -8955,8 +9009,7 @@ async function startSheetsFormatting(sessionId, session) {
     executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
     handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
     resolveAuthWall: resolveInlineAuthWall,
-    hooks: sessionHooks.hooks,
-    emitter: sessionHooks.emitter
+    hooks: sessionHooks.hooks
   }), 500);
 
   automationLogger.info('Sheets formatting session launched', {
@@ -9830,8 +9883,23 @@ async function handleRemoteControlStart() {
   _remoteControlEnabled = true;
   var attached = await _ensureRemoteControlDebugger(_streamingTabId, 'start');
   if (!attached) {
+    _remoteControlEnabled = false;
+    _sendRemoteControlState('debugger-blocked', {
+      enabled: false,
+      attached: false,
+      tabId: typeof _streamingTabId === 'number' ? _streamingTabId : null,
+      ownership: _getRemoteControlOwnership()
+    });
     console.warn('[FSB Remote] Remote control enabled but debugger is not attached yet');
+    return;
   }
+  _remoteControlEnabled = true;
+  _sendRemoteControlState('ready', {
+    enabled: true,
+    attached: true,
+    tabId: typeof _remoteControlDebuggerTabId === 'number' ? _remoteControlDebuggerTabId : _streamingTabId,
+    ownership: _getRemoteControlOwnership()
+  });
 }
 
 /**
@@ -9840,6 +9908,12 @@ async function handleRemoteControlStart() {
 async function handleRemoteControlStop() {
   _remoteControlEnabled = false;
   await _releaseRemoteControlDebugger('stop');
+  _sendRemoteControlState('user-stop', {
+    enabled: false,
+    attached: false,
+    tabId: null,
+    ownership: 'none'
+  });
 }
 
 /**
@@ -9868,6 +9942,43 @@ async function handleRemoteClick(payload) {
   }
 }
 
+function _getRemotePrintableKeyText(payload) {
+  if (!payload) return '';
+  var text = typeof payload.text === 'string' && payload.text ? payload.text : '';
+  if (!text && typeof payload.key === 'string' && payload.key.length === 1) {
+    text = payload.key;
+  }
+  return text.length === 1 ? text : '';
+}
+
+function _rememberRemotePrintableKeyDispatch(tabId, payload) {
+  var text = _getRemotePrintableKeyText(payload);
+  if (!text) {
+    _lastRemotePrintableKeyDispatch = null;
+    return;
+  }
+  _lastRemotePrintableKeyDispatch = {
+    tabId: tabId,
+    text: text,
+    key: payload && typeof payload.key === 'string' ? payload.key : '',
+    modifiers: payload && typeof payload.modifiers === 'number' ? payload.modifiers : 0,
+    ts: Date.now()
+  };
+}
+
+function _shouldIgnoreDuplicateRemoteChar(tabId, payload) {
+  var text = _getRemotePrintableKeyText(payload);
+  if (!text || !_lastRemotePrintableKeyDispatch) return false;
+
+  var recentDispatch = _lastRemotePrintableKeyDispatch;
+  var isFresh = (Date.now() - recentDispatch.ts) <= 500;
+  var sameTab = recentDispatch.tabId === tabId;
+  var sameText = recentDispatch.text === text;
+  var compatibleModifiers = recentDispatch.modifiers === (payload && typeof payload.modifiers === 'number' ? payload.modifiers : 0);
+
+  return sameTab && sameText && compatibleModifiers && isFresh;
+}
+
 /**
  * Dispatch a remote key event via CDP on the streaming tab.
  * @param {Object} payload - { type: 'keyDown'|'keyUp'|'char', key: string, code: string, text: string, modifiers: number }
@@ -9880,14 +9991,21 @@ async function handleRemoteKey(payload) {
   }
   try {
     if (payload.type === 'insertText') {
+      _lastRemotePrintableKeyDispatch = null;
       await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.insertText', {
         text: payload.text || payload.key || ''
       });
     } else if (payload.type === 'char') {
+      if (_shouldIgnoreDuplicateRemoteChar(targetTabId, payload)) {
+        console.log('[FSB Remote] Duplicate char ignored for legacy dashboard payload: ' + (_getRemotePrintableKeyText(payload) || payload.key || ''));
+        _lastRemotePrintableKeyDispatch = null;
+        return;
+      }
       await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchKeyEvent', {
         type: 'char', text: payload.text || payload.key
       });
     } else if (payload.type === 'keyDown') {
+      _rememberRemotePrintableKeyDispatch(targetTabId, payload);
       await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchKeyEvent', {
         type: 'keyDown', key: payload.key, code: payload.code, text: payload.text || '', modifiers: payload.modifiers || 0
       });
@@ -9895,6 +10013,12 @@ async function handleRemoteKey(payload) {
       await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchKeyEvent', {
         type: 'keyUp', key: payload.key, code: payload.code, modifiers: payload.modifiers || 0
       });
+      if (_lastRemotePrintableKeyDispatch && _lastRemotePrintableKeyDispatch.tabId === targetTabId) {
+        var keyUpText = _getRemotePrintableKeyText(payload);
+        if (!keyUpText || keyUpText === _lastRemotePrintableKeyDispatch.text) {
+          _lastRemotePrintableKeyDispatch = null;
+        }
+      }
     }
     console.log('[FSB Remote] Key dispatched: ' + payload.type + ' ' + payload.key);
   } catch (err) {
@@ -9948,6 +10072,12 @@ async function _ensureRemoteControlDebugger(targetTabId, reason) {
   if (!_remoteControlEnabled) return false;
   if (typeof targetTabId !== 'number') {
     await _releaseRemoteControlDebugger(reason || 'missing-tab');
+    _sendRemoteControlState('stream-not-ready', {
+      enabled: false,
+      attached: false,
+      tabId: null,
+      ownership: 'none'
+    });
     return false;
   }
 
@@ -9957,6 +10087,14 @@ async function _ensureRemoteControlDebugger(targetTabId, reason) {
 
   if (_remoteControlDebuggerTabId !== null && _remoteControlDebuggerTabId !== targetTabId) {
     await _releaseRemoteControlDebugger('retarget:' + (reason || 'unknown'));
+    _remoteControlEnabled = false;
+    _sendRemoteControlState('retarget-required', {
+      enabled: false,
+      attached: false,
+      tabId: targetTabId,
+      ownership: 'none'
+    });
+    return false;
   }
 
   try {
@@ -9969,10 +10107,18 @@ async function _ensureRemoteControlDebugger(targetTabId, reason) {
     var message = err && err.message ? err.message : '';
     if (message.includes('Already attached')) {
       _remoteControlDebuggerTabId = targetTabId;
+      _remoteControlDebuggerOwned = false;
       console.log('[FSB Remote] Reusing debugger attachment on tab ' + targetTabId + ' (' + (reason || 'attach') + ')');
       return true;
     }
     if (message.includes('Another debugger is already attached')) {
+      _remoteControlEnabled = false;
+      _sendRemoteControlState('debugger-blocked', {
+        enabled: false,
+        attached: false,
+        tabId: targetTabId,
+        ownership: 'external-debugger'
+      });
       console.warn('[FSB Remote] Remote attach blocked by another debugger on tab ' + targetTabId);
       return false;
     }
@@ -9984,21 +10130,44 @@ async function _ensureRemoteControlDebugger(targetTabId, reason) {
 function _syncRemoteControlDebugger(reason) {
   if (!_remoteControlEnabled) return;
 
-  var targetTabId = (_streamStatus === 'ready' || _streamStatus === 'recovering') ? _streamingTabId : null;
+  var targetTabId = _streamStatus === 'ready' ? _streamingTabId : null;
   if (typeof targetTabId !== 'number') {
+    _remoteControlEnabled = false;
     _releaseRemoteControlDebugger(reason || 'not-ready').catch(function(err) {
       console.warn('[FSB Remote] Failed to release debugger during sync:', err && err.message ? err.message : err);
+    });
+    _sendRemoteControlState('stream-not-ready', {
+      enabled: false,
+      attached: false,
+      tabId: null,
+      ownership: 'none'
     });
     return;
   }
 
-  _ensureRemoteControlDebugger(targetTabId, reason || 'sync').catch(function(err) {
-    console.warn('[FSB Remote] Failed to sync debugger attachment:', err && err.message ? err.message : err);
-  });
+  if (_remoteControlDebuggerTabId !== null && _remoteControlDebuggerTabId !== targetTabId) {
+    _remoteControlEnabled = false;
+    _releaseRemoteControlDebugger('retarget-required').catch(function(err) {
+      console.warn('[FSB Remote] Failed to release debugger during retarget sync:', err && err.message ? err.message : err);
+    });
+    _sendRemoteControlState('retarget-required', {
+      enabled: false,
+      attached: false,
+      tabId: targetTabId,
+      ownership: 'none'
+    });
+  }
 }
 
 async function _handleRemoteControlDispatchFailure(kind, err) {
+  _remoteControlEnabled = false;
   await _releaseRemoteControlDebugger('dispatch-failed:' + kind);
+  _sendRemoteControlState('dispatch-failed', {
+    enabled: false,
+    attached: false,
+    tabId: null,
+    ownership: 'none'
+  });
 }
 
 /**

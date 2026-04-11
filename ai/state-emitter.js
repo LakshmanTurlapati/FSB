@@ -2,8 +2,9 @@
  * State Event Emitter -- pub/sub event system for session state transitions.
  *
  * Lives in the background service worker.  Translates internal state events
- * to chrome.runtime messages automatically so that sidepanel, popup, and
- * dashboard listeners receive delta updates without polling.
+ * to chrome.runtime messages automatically so that popup and sidepanel
+ * operator surfaces receive delta updates without polling. Dashboard state
+ * uses separate status and relay channels.
  *
  * Per D-06: single emitter replaces scattered sendStatus calls.
  * Per D-07: events carry only what changed (delta), not the full session.
@@ -91,7 +92,8 @@ SessionStateEmitter.prototype.off = function off(eventType, handler) {
  *
  * Handlers are called synchronously.  The chrome.runtime.sendMessage call is
  * fire-and-forget (wrapped in try/catch) and guarded for non-Chrome
- * environments (Node.js testing).
+ * environments (Node.js testing). Direct runtime consumers are popup and
+ * sidepanel message handlers; dashboard runtime state uses other channels.
  *
  * @param {string} eventType - One of {@link STATE_EVENTS} values.
  * @param {Object} data - Delta data for the event (what changed).

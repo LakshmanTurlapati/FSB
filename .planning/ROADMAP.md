@@ -32,10 +32,10 @@
 | Phase | Plans Complete | Status | Goal |
 |-------|----------------|--------|------|
 | 163. Restricted-Tab MCP Parity | 2/2 | Complete    | 2026-04-06 |
-| 164. Dashboard Reliability Rebaseline | 0/2 | Planned | Finish the preview, remote-control, and task-relay reliability behaviors under the current runtime |
-| 165. Live Dashboard Verification & Fixes | 0/2 | Planned | Run the real browser/relay matrix and fix what the evidence exposes |
-| 166. Runtime Carryover Hardening | 0/2 | Planned | Resolve `CostTracker` ordering and remaining runtime contract debt from `v0.9.24` |
-| 167. Auth Outcome Smoke Verification | 0/1 | Planned | Prove preserved partial and same-session auth resume behavior in a live extension session |
+| 164. Dashboard Reliability Rebaseline | 2/2 | Complete   | 2026-04-06 |
+| 165. Live Dashboard Verification & Fixes | 2/2 | Blocked | 2026-04-06 |
+| 166. Runtime Carryover Hardening | 2/2 | Complete | 2026-04-07 |
+| 167. Auth Outcome Smoke Verification | 0/0 | Complete | 2026-04-07 |
 
 ### Phase 163: Restricted-Tab MCP Parity
 
@@ -65,6 +65,14 @@
 
 **Requirements:** `LIVE-01`, `LIVE-02`
 
+**Plans:** 2 plans
+
+Plans:
+- [x] `165-01-PLAN.md` — Seed the Phase 165-local live checklist, record the real environment contract, and capture the automated baseline.
+- [x] `165-02-PLAN.md` — Run the live matrix, patch and rerun in-scope failures, and publish the final Phase 165 verification artifacts.
+
+**Current outcome:** Phase execution is complete, but live closure is blocked. Hosted dashboard traffic exposed remote-key drift, the local in-scope fix could not be rerun in the same Chrome session because the unpacked extension could not be reloaded, and the hosted environment did not expose the full diagnostics surfaces needed for the remaining proof rows.
+
 **Success criteria:**
 1. The Phase 154 live checklist is executed with evidence for stream lifecycle, remote control, task relay, and diagnostics.
 2. Failures found in the live matrix are turned into concrete fixes and re-run evidence, not just notes.
@@ -86,6 +94,8 @@
 **Goal:** Prove the preserved partial/auth-resume flow works end to end in a real extension session.
 
 **Requirements:** `AUTH-01`
+
+**Current outcome:** Completed on 2026-04-07 from operator-confirmed live auth smoke evidence recorded under Phase 167 and reconciled back into the old Phase 162.2 human-UAT artifact.
 
 **Success criteria:**
 1. No-sidepanel auth fallback ends as a preserved manual handoff instead of a hang or generic failure.

@@ -10,15 +10,14 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-FSB shipped `v0.9.24 Claude Code Architecture Adaptation` on 2026-04-05, opened `v0.9.25 MCP & Dashboard Reliability Closure`, and has now completed Phase `163 Restricted-Tab MCP Parity` on 2026-04-06. The immediate focus has shifted to Phase `164 Dashboard Reliability Rebaseline`, while the remaining milestone work still covers live dashboard verification debt and the small runtime carryover fixes from `v0.9.24`.
+FSB shipped `v0.9.24 Claude Code Architecture Adaptation` on 2026-04-05, opened `v0.9.25 MCP & Dashboard Reliability Closure`, and has now completed Phase `163 Restricted-Tab MCP Parity`, Phase `164 Dashboard Reliability Rebaseline`, Phase `166 Runtime Carryover Hardening`, and Phase `167 Auth Outcome Smoke Verification`. Phase `165 Live Dashboard Verification & Fixes` has been executed and still holds the milestone open with real live-environment gaps rather than hypothetical debt.
 
-The codebase now has a verified extension-first restricted-tab contract for MCP: browser-safe tools stay usable on restricted pages, new-tab-style blank pages keep smart task-start routing, and blocked DOM reads surface shared actionable guidance instead of raw injection failures. This milestone now concentrates on making the dashboard/relay path behave predictably in real browser conditions and landing the remaining live verification evidence before broader feature work resumes.
+The codebase now has a verified extension-first restricted-tab contract for MCP, a rebaselined dashboard runtime, the internal runtime carryover debts from `v0.9.24` closed, and the auth-wall preserved-partial/same-session resume path manually confirmed in the real extension flow. Preview recovery is fail-closed, remote control is extension-authoritative, task relay recovery stays bound to one `taskRunId`, `CostTracker` now hydrates after final mode-aware safety config resolution, and the leftover emitter contract no longer advertises dead agent-loop plumbing or dashboard delivery it does not provide. The milestone is still open because the hosted dashboard pass exposed two real blockers outside the auth scope: hosted dashboard drift on printable remote-key traffic and incomplete terminal/diagnostics visibility in the live environment. A local background-side duplicate-key fix is in place, but milestone closure still depends on rerunning the blocked Phase 165 rows against a reloaded live extension and observable diagnostics surfaces.
 
 ## Next Milestone Goals
 
-- Close the deferred dashboard reliability path across preview streaming, remote control, and task relay using fresh phase numbers and live browser-backed verification.
-- Resolve the small carryover debts from `v0.9.24`, especially `CostTracker` ordering, the unused emitter/runtime contract, and auth-wall live smoke coverage.
-- Preserve the newly completed restricted-tab MCP parity while the remaining `v0.9.25` phases validate adjacent operator-facing behavior.
+- Reload the live unpacked extension and rerun the blocked Phase 165 remote-control, task-terminal, and diagnostics rows against the hosted dashboard path.
+- Preserve the newly completed restricted-tab MCP parity, dashboard reliability baseline, runtime carryover cleanup, and auth verification close-out while the remaining milestone work finishes Phase 165.
 
 ## Requirements
 
@@ -123,12 +122,12 @@ The codebase now has a verified extension-first restricted-tab contract for MCP:
 - ✓ Auth wall handoff with result preservation: auth-blocked final steps now preserve completed work, explicit blocker details, and manual next steps -- v0.9.24/P162.2
 - ✓ Overlay lifecycle reliability: canonical overlay replay, heartbeats, and dashboard resync keep debugger feedback alive across reconnects and long waits -- v0.9.24/P162.3
 - ✓ Restricted-tab MCP parity: browser-safe tools now work from restricted pages, new-tab-only smart routing remains available, and blocked reads share actionable recovery guidance -- v0.9.25/P163
+- ✓ Dashboard reliability rebaseline: preview, remote control, and task relay now use explicit recovery chips, authoritative remote-state handling, and run-bound reconnect recovery -- v0.9.25/P164
+- ✓ Runtime carryover hardening: CostTracker now hydrates after final mode-aware safety config resolution, and the emitter/runtime contract no longer carries unused agent-loop passthrough or misleading dashboard delivery claims -- v0.9.25/P166
+- ✓ Auth outcome smoke verification: preserved partial/manual handoff and same-session auth resume are now recorded as live-confirmed outcomes -- v0.9.25/P167
 
 ### Active
-- [ ] Dashboard preview, remote control, and task relay reliability closeout -- v0.9.25/P164
-- [ ] Live browser-backed dashboard verification and fix sweep -- v0.9.25/P165
-- [ ] Runtime carryover hardening (`CostTracker` ordering, emitter contract cleanup) -- v0.9.25/P166
-- [ ] Auth-wall live smoke coverage for preserved partial and same-session resume behavior -- v0.9.25/P167
+- [ ] Phase 165 live reruns and diagnostics closure on the hosted dashboard path -- v0.9.25/P165
 
 ### Backlog (Completed from previous milestones — v0.9.6)
 

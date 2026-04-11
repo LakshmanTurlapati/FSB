@@ -536,17 +536,6 @@ function hydrateAgentRunState(session, systemPrompt) {
   session.totalCost = session.agentState.totalCost;
   session.isRestored = false;
 
-  // ADOPT-02: Instantiate CostTracker per session
-  if (_al_CostTracker) {
-    var costLimit = (session.safetyConfig && session.safetyConfig.costLimit)
-      || _al_SESSION_DEFAULTS.costLimit || 2.00;
-    session._costTracker = new _al_CostTracker(costLimit);
-    // Hydrate from warm state (accumulated cost from previous iterations/restores)
-    session._costTracker.totalCost = session.totalCost || 0;
-    session._costTracker.totalInputTokens = session.totalInputTokens || 0;
-    session._costTracker.totalOutputTokens = session.totalOutputTokens || 0;
-  }
-
   // ADOPT-04: Instantiate ActionHistory per session
   if (_al_ActionHistory) {
     session._actionHistory = new _al_ActionHistory();
@@ -560,6 +549,18 @@ function hydrateAgentRunState(session, systemPrompt) {
   }
 
   return session;
+}
+
+function hydrateCostTracker(session) {
+  if (!_al_CostTracker) return;
+
+  var costLimit = (session.safetyConfig && session.safetyConfig.costLimit)
+    || _al_SESSION_DEFAULTS.costLimit || 2.00;
+  session._costTracker = new _al_CostTracker(costLimit);
+  // Hydrate from warm state (accumulated cost from previous iterations/restores)
+  session._costTracker.totalCost = session.totalCost || 0;
+  session._costTracker.totalInputTokens = session.totalInputTokens || 0;
+  session._costTracker.totalOutputTokens = session.totalOutputTokens || 0;
 }
 
 
@@ -772,10 +773,6 @@ async function runAgentLoop(sessionId, options) {
       tabUrl = 'unknown';
     }
 
-    // Build the current-command system prompt and hydrate any persisted thread state.
-    const systemPrompt = buildSystemPrompt(session.task, tabUrl);
-    hydrateAgentRunState(session, systemPrompt);
-
     // Initialize safety thresholds via engine-config (SAFE-01, SAFE-02)
     try {
       var sessionConfig = await _al_loadSessionConfig(session.mode || 'autopilot');
@@ -790,6 +787,11 @@ async function runAgentLoop(sessionId, options) {
         timeLimit: _al_SESSION_DEFAULTS.timeLimit || 600000
       };
     }
+
+    // Build the current-command system prompt and hydrate any persisted thread state.
+    const systemPrompt = buildSystemPrompt(session.task, tabUrl);
+    hydrateAgentRunState(session, systemPrompt);
+    hydrateCostTracker(session);
 
     // Get provider configuration from chrome.storage.local (where options page saves them)
     let settings = {};

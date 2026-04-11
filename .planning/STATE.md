@@ -2,36 +2,36 @@
 gsd_state_version: 1.0
 milestone: v0.9.25
 milestone_name: MCP & Dashboard Reliability Closure
-status: active
-stopped_at: Completed Phase 163 execution; Phase 164 ready to start
-last_updated: "2026-04-06T00:54:42Z"
-last_activity: 2026-04-06
+status: blocked
+stopped_at: Milestone blocked only by Phase 165 live reruns and diagnostics closure
+last_updated: "2026-04-07T23:38:15Z"
+last_activity: 2026-04-07 -- Phase 167 marked complete by operator-confirmed live auth smoke; milestone still blocked by Phase 165
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 9
-  completed_plans: 2
-  percent: 20
+  completed_phases: 4
+  total_plans: 8
+  completed_plans: 8
+  percent: 80
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-06)
+See: .planning/PROJECT.md (updated 2026-04-07)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** v0.9.25 MCP & Dashboard Reliability Closure — Phase 163 complete, Phase 164 is next
+**Current focus:** Phase 165 — live-dashboard-verification-fixes (blocked reruns remain)
 
 ## Current Position
 
 Milestone: v0.9.25 (MCP & Dashboard Reliability Closure)
-Phase: 164
-Plan: 2 of 9 complete
-Status: Phase 163 complete; ready to start Phase 164
-Last activity: 2026-04-06
+Phase: 167 (auth-outcome-smoke-verification) — COMPLETE
+Plan: Manual verification close-out
+Status: Phase 167 complete; milestone still blocked by Phase 165 live reruns
+Last activity: 2026-04-07 -- Phase 167 marked complete by operator-confirmed live auth smoke; milestone still blocked by Phase 165
 
-Progress: [##--------] 20%
+Progress: [########--] 80%
 
 ## Performance Metrics
 
@@ -59,6 +59,10 @@ Progress: [##--------] 20%
 | Phase 162.2 P01 | 3min | 2 tasks | 5 files |
 | Phase 162.2 P02 | 1min | 2 tasks | 3 files |
 | Phase 163 P02 | 2min | 2 tasks | 5 files |
+| Phase 164 P1 | 12min | 2 tasks | 8 files |
+| Phase 164 P2 | 9min | 2 tasks | 4 files |
+| Phase 165 P1 | 6min | 3 tasks | 1 files |
+| Phase 165 P2 | 40min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -67,6 +71,10 @@ Progress: [##--------] 20%
 Full decision log in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Phase 167]: Accept operator-confirmed live auth smoke evidence to close `AUTH-01`; do not treat this as closure of the still-blocked Phase 165 dashboard reruns.
+- [Phase 165]: Treat hosted dashboard/live extension drift as a real verification blocker; do not mark LIVE-01 or LIVE-02 complete without rerunning the patched extension in the real hosted session.
+- [Phase 166]: Resolve final mode-aware safety config before CostTracker hydration, and remove unused emitter passthrough instead of documenting dead agent-loop runtime options.
+- [Phase 164]: Dashboard recovery surfaces are now derived from one shared runtime helper, and only matching `taskRunId` payloads can clear task recovery after reconnect.
 - [Phase 163]: Restricted tabs now keep browser-safe MCP controls in the background, and only blank/new-tab pages advertise `run_task` as smart-start recovery.
 - [v0.9.25]: Close operator-facing reliability gaps before broader feature work -- restricted-tab MCP parity, dashboard reliability closeout, and v0.9.24 carryover verification debt take priority.
 - [v0.9.25]: Continue numbering from Phase 162.3 and re-scope deferred dashboard reliability goals under fresh phases 163-167 instead of reviving the 151-155 sequence.
@@ -97,7 +105,11 @@ Recent decisions affecting current work:
 
 ### Roadmap Evolution
 
+- Phase 167 Auth Outcome Smoke Verification completed on 2026-04-07 (manual/operator-confirmed live close-out)
 - v0.9.25 MCP & Dashboard Reliability Closure roadmap created 2026-04-05 (5 phases, 163-167, 11 requirements)
+- Phase 166 Runtime Carryover Hardening completed on 2026-04-07 (2/2 plans complete)
+- Phase 165 Live Dashboard Verification & Fixes executed on 2026-04-06 (2/2 plans complete) but remains blocked on live reruns and diagnostics visibility
+- Phase 164 Dashboard Reliability Rebaseline completed on 2026-04-06 (2/2 plans complete)
 - Phase 163 Restricted-Tab MCP Parity completed on 2026-04-06 (2/2 plans complete)
 - v0.9.23 deferred dashboard reliability goals re-scoped into v0.9.25 instead of reviving phases 151-155 directly
 - v0.9.24 Claude Code Architecture Adaptation roadmap created 2026-04-02 (5 phases, 156-160, 19 requirements)
@@ -116,12 +128,13 @@ Recent decisions affecting current work:
 ### Blockers/Concerns
 
 - No blockers recorded at milestone start.
-- Phase 165 and Phase 167 require a real browser-backed extension and relay environment for live verification.
-- Accepted debt carried forward from v0.9.24 now lives inside Phase 166 and Phase 167 instead of remaining as unowned follow-up.
+- Phase 165 is blocked: the hosted dashboard path still used legacy remote-key traffic, the patched unpacked extension could not be reloaded in the active Chrome session, and the hosted environment did not expose full dashboard/extension/relay diagnostics.
+- Phase 165 still requires a real browser-backed extension and relay environment for live verification reruns.
+- The v0.9.24 carryover debt that was re-scoped into Phases 166 and 167 is now closed; the remaining milestone blocker is the live dashboard proof in Phase 165.
 
 ## Session Continuity
 
-Last session: 2026-04-06T00:54:42Z
-Stopped at: Completed Phase 163 execution; Phase 164 ready to start
+Last session: 2026-04-06T03:59:41Z
+Stopped at: Phase 165 executed with gaps found; live reruns blocked on hosted dashboard drift and extension reload access
 Resume file: None
 Companion debug note: .planning/debug/overlay-lifecycle-rehydration-gap.md

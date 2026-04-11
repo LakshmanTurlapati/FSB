@@ -704,6 +704,11 @@
   cursor: not-allowed;
 }
 
+.dash-task-recovery-status {
+  display: none;
+  margin-top: 10px;
+}
+
 /* Transition animations */
 .dash-task-progress,
 .dash-task-result-view {
@@ -1646,39 +1651,53 @@
 }
 
 .dash-preview-status {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  z-index: 5;
   display: none;
-  flex-shrink: 0;
 }
 
-.dash-preview-status-streaming {
-  background: #22c55e;
-  display: block;
-  animation: dashPreviewPulse 2000ms ease-in-out infinite;
+.dash-preview-rc-state {
+  display: none;
 }
 
-.dash-preview-status-buffering {
-  background: #eab308;
-  display: block;
-  animation: dashPreviewPulse 1000ms ease-in-out infinite;
+.dash-state-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-.dash-preview-status-disconnected {
-  background: #ef4444;
-  display: block;
+.dash-state-chip--streaming {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #86efac;
 }
 
-.dash-preview-status-paused {
-  background: #6b7280;
-  display: block;
+.dash-state-chip--loading,
+.dash-state-chip--recovering {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.32);
+  color: #fcd34d;
 }
 
-@keyframes dashPreviewPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+.dash-state-chip--blocked {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.32);
+  color: #fca5a5;
+}
+
+.dash-state-chip--paused {
+  background: rgba(107, 114, 128, 0.2);
+  border-color: rgba(107, 114, 128, 0.32);
+  color: #d1d5db;
 }
 
 .dash-preview-glow {

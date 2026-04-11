@@ -75,6 +75,20 @@
   var activeTaskRunId = '';
   var lastCompletedTaskRunId = '';
   var lastTaskStateUpdatedAt = 0;
+  var taskRecoveryPending = false;
+  var taskRecoveryStartedAt = 0;
+  var taskRecoveryDeadlineMs = 20000;
+  var taskRecoveryTimer = null;
+  var taskRecoverySource = '';
+  var TASK_RECOVERY_WAIT_TEXT = 'Waiting for task recovery...';
+  var TASK_RECOVERY_TIMEOUT_TEXT = 'Task recovery timed out';
+  var lastRemoteControlState = {
+    enabled: false,
+    attached: false,
+    tabId: null,
+    reason: 'user-stop',
+    ownership: 'none'
+  };
 
   function getDashboardTransportDiagnostics() {
     if (!window.__FSBDashboardTransportDiagnostics || typeof window.__FSBDashboardTransportDiagnostics !== 'object') {
@@ -298,6 +312,211 @@
     }
   }
 
+  function getDashboardRuntimeStateHelpers() {
+    return window.FSBDashboardRuntimeState || {};
+  }
+
+  function renderStateChip(element, baseClassName, label, tone) {
+    if (!element) return;
+    element.className = baseClassName;
+    if (!label) {
+      element.textContent = '';
+      element.style.display = 'none';
+      return;
+    }
+    element.textContent = label;
+    element.className = baseClassName + ' dash-state-chip dash-state-chip--' + (tone || 'paused');
+    element.style.display = '';
+  }
+
+  function normalizeRemoteControlState(payload) {
+    payload = payload || {};
+    return {
+      enabled: !!payload.enabled,
+      attached: !!payload.attached,
+      tabId: typeof payload.tabId === 'number' ? payload.tabId : null,
+      reason: payload.reason || 'user-stop',
+      ownership: payload.ownership || 'none'
+    };
+  }
+
+  function derivePreviewRuntimeSurface() {
+    var helpers = getDashboardRuntimeStateHelpers();
+    if (helpers.derivePreviewSurface) {
+      return helpers.derivePreviewSurface({
+        previewState: previewState,
+        lastRecoveredStreamState: lastRecoveredStreamState,
+        previewNotReadyReason: previewNotReadyReason,
+        streamToggleOn: streamToggleOn,
+        previewResyncPending: previewResyncPending,
+        hasLiveSnapshot: !!previewSnapshotData
+      });
+    }
+    return {
+      chipLabel: '',
+      chipTone: 'paused',
+      detailText: '',
+      showIframe: false,
+      showLoading: false,
+      showDisconnected: false
+    };
+  }
+
+  function deriveRemoteRuntimeSurface(payload) {
+    var helpers = getDashboardRuntimeStateHelpers();
+    if (helpers.deriveRemoteControlSurface) {
+      return helpers.deriveRemoteControlSurface({
+        remoteControlOn: remoteControlOn,
+        previewState: previewState,
+        attached: payload.attached,
+        reason: payload.reason,
+        ownership: payload.ownership
+      });
+    }
+    return {
+      chipLabel: '',
+      chipTone: 'paused',
+      detailText: '',
+      available: previewState === 'streaming',
+      shouldForceDisable: payload.attached !== true || payload.reason !== 'ready'
+    };
+  }
+
+  function deriveTaskRecoveryRuntimeSurface(incomingTaskRunId) {
+    var helpers = getDashboardRuntimeStateHelpers();
+    var timedOut = !!(taskRecoveryPending &&
+      taskRecoveryStartedAt &&
+      (Date.now() - taskRecoveryStartedAt >= taskRecoveryDeadlineMs));
+    if (helpers.deriveTaskRecoverySurface) {
+      return helpers.deriveTaskRecoverySurface({
+        taskState: taskState,
+        activeTaskRunId: activeTaskRunId,
+        incomingTaskRunId: incomingTaskRunId || '',
+        extensionOnline: extensionOnline,
+        wsConnected: !!(ws && ws.readyState === WebSocket.OPEN),
+        recoveryPending: taskRecoveryPending,
+        recoveryTimedOut: timedOut,
+        lastActionText: lastProgressAction || ''
+      });
+    }
+    return {
+      chipLabel: '',
+      chipTone: 'paused',
+      actionText: lastProgressAction || '',
+      keepProgressView: false,
+      shouldFail: timedOut
+    };
+  }
+
+  function clearTaskRecoveryTimer() {
+    if (taskRecoveryTimer) {
+      clearTimeout(taskRecoveryTimer);
+      taskRecoveryTimer = null;
+    }
+  }
+
+  function failTaskRecovery() {
+    clearTaskRecoveryTimer();
+    taskRecoveryPending = false;
+    taskRecoveryStartedAt = 0;
+    taskRecoverySource = 'timeout';
+    var timeoutMessage = TASK_RECOVERY_TIMEOUT_TEXT;
+    if (lastProgressAction) {
+      timeoutMessage += ' -- was: ' + lastProgressAction;
+    }
+    setTaskState('failed', {
+      error: timeoutMessage,
+      elapsed: taskStartTime ? (Date.now() - taskStartTime) : 0
+    });
+  }
+
+  function renderTaskRecoveryStatus(incomingTaskRunId, taskSource) {
+    if (taskSource) {
+      taskRecoverySource = taskSource;
+    }
+    var surface = deriveTaskRecoveryRuntimeSurface(incomingTaskRunId || '');
+    if (surface.shouldFail) {
+      failTaskRecovery();
+      return;
+    }
+    renderStateChip(taskRecoveryStatus, 'dash-task-recovery-status', surface.chipLabel, surface.chipTone);
+    if (taskState === 'running' && surface.keepProgressView && taskProgressView) {
+      taskProgressView.style.display = 'block';
+    }
+    if (taskAction && taskState === 'running' && surface.actionText) {
+      taskAction.style.display = '';
+      taskAction.textContent = surface.actionText || TASK_RECOVERY_WAIT_TEXT;
+    }
+  }
+
+  function setTaskRecoveryPending(on, reason) {
+    if (on) {
+      if (!taskRecoveryPending) {
+        taskRecoveryStartedAt = Date.now();
+      }
+      taskRecoveryPending = true;
+      taskRecoverySource = reason || taskRecoverySource || 'recovery';
+      clearTaskRecoveryTimer();
+      taskRecoveryTimer = setTimeout(function() {
+        renderTaskRecoveryStatus(activeTaskRunId || '', taskRecoverySource);
+      }, taskRecoveryDeadlineMs);
+      renderTaskRecoveryStatus(activeTaskRunId || '', reason || taskRecoverySource);
+      return;
+    }
+    taskRecoveryPending = false;
+    taskRecoveryStartedAt = 0;
+    taskRecoverySource = reason || '';
+    clearTaskRecoveryTimer();
+    renderTaskRecoveryStatus(activeTaskRunId || '', reason || '');
+  }
+
+  function maybeClearTaskRecoveryFromPayload(payload) {
+    if (!payload) return false;
+    var incomingTaskRunId = getTaskRunId(payload);
+    var source = payload.taskSource || payload.snapshotSource || taskRecoverySource || '';
+    if (source) taskRecoverySource = source;
+    if (!taskRecoveryPending) {
+      renderTaskRecoveryStatus(incomingTaskRunId, source);
+      return false;
+    }
+    if (!incomingTaskRunId) {
+      renderTaskRecoveryStatus('', source);
+      return false;
+    }
+    if (!activeTaskRunId) {
+      rememberActiveTaskRun(incomingTaskRunId);
+    }
+    if (activeTaskRunId && incomingTaskRunId === activeTaskRunId) {
+      setTaskRecoveryPending(false, source);
+      return true;
+    }
+    renderTaskRecoveryStatus(incomingTaskRunId, source);
+    return false;
+  }
+
+  function renderRemoteControlState(payload, options) {
+    options = options || {};
+    lastRemoteControlState = normalizeRemoteControlState(payload || lastRemoteControlState);
+    var surface = deriveRemoteRuntimeSurface(lastRemoteControlState);
+    renderStateChip(previewRcState, 'dash-preview-rc-state', surface.chipLabel, surface.chipTone);
+    if (previewRcBtn) {
+      previewRcBtn.disabled = previewState !== 'streaming' || surface.available !== true;
+    }
+    if (options.skipToggleSync) return surface;
+    if (lastRemoteControlState.enabled && lastRemoteControlState.attached && lastRemoteControlState.reason === 'ready') {
+      if (!remoteControlOn) {
+        setRemoteControl(true, { silent: true, source: 'remote-state' });
+      }
+    } else if (surface.shouldForceDisable && remoteControlOn) {
+      setRemoteControl(false, { silent: true, source: 'remote-state' });
+    }
+    return surface;
+  }
+
+  function handleRemoteControlState(payload) {
+    renderRemoteControlState(payload);
+  }
+
   function getRemoteViewportSize() {
     return {
       width: Math.max(1, previewSnapshotData && (previewSnapshotData.viewportWidth || previewSnapshotData.pageWidth) ? (previewSnapshotData.viewportWidth || previewSnapshotData.pageWidth) : 1),
@@ -375,6 +594,7 @@
   var taskPhase = document.getElementById('dash-task-phase');
   var taskEta = document.getElementById('dash-task-eta');
   var taskElapsed = document.getElementById('dash-task-elapsed');
+  var taskRecoveryStatus = document.getElementById('dash-task-recovery-status');
   var taskAction = document.getElementById('dash-task-action');
   var taskSuccessView = document.getElementById('dash-task-success');
   var taskSuccessStatus = document.getElementById('dash-task-success-status');
@@ -398,6 +618,7 @@
   var previewGlow = document.getElementById('dash-preview-glow');
   var previewProgress = document.getElementById('dash-preview-progress');
   var previewStatus = document.getElementById('dash-preview-status');
+  var previewRcState = document.getElementById('dash-preview-rc-state');
   var previewDisconnected = document.getElementById('dash-preview-disconnected');
   var previewError = document.getElementById('dash-preview-error');
   var previewDialog = document.getElementById('dash-preview-dialog');
@@ -663,6 +884,8 @@
     activeTaskRunId = '';
     lastCompletedTaskRunId = '';
     lastTaskStateUpdatedAt = taskStartTime;
+    lastProgressAction = '';
+    setTaskRecoveryPending(false, 'task-submit');
 
     ws.send(JSON.stringify({
       type: 'dash:task-submit',
@@ -679,6 +902,12 @@
 
     // Clear task timeout
     if (taskTimeoutTimer) { clearTimeout(taskTimeoutTimer); taskTimeoutTimer = null; }
+    if (newState !== 'running') {
+      taskRecoveryPending = false;
+      taskRecoveryStartedAt = 0;
+      taskRecoverySource = '';
+      clearTaskRecoveryTimer();
+    }
     // Hide stop button for non-running states
     if (newState !== 'running' && taskStopBtn) taskStopBtn.style.display = 'none';
     // Clear elapsed timer
@@ -705,6 +934,7 @@
         if (taskBarFill) { taskBarFill.style.width = '0%'; taskBarFill.className = 'dash-task-bar-fill'; }
         hideSaveAsAgent();
         if (previewContainer) previewContainer.classList.remove('dash-preview-automating');
+        renderTaskRecoveryStatus('', '');
         break;
 
       case 'running':
@@ -734,6 +964,7 @@
         disableAllTaskInputs(true);
         hideSaveAsAgent();
         if (previewContainer) previewContainer.classList.add('dash-preview-automating');
+        renderTaskRecoveryStatus(activeTaskRunId || '', taskRecoverySource);
         break;
 
       case 'success':
@@ -757,6 +988,7 @@
         // Show save-as-agent option
         showSaveAsAgent();
         if (previewContainer) previewContainer.classList.remove('dash-preview-automating');
+        renderTaskRecoveryStatus('', '');
         break;
 
       case 'failed':
@@ -782,6 +1014,7 @@
         if (taskInputRetry) { taskInputRetry.value = ''; }
         if (taskSubmitRetry) taskSubmitRetry.disabled = true;
         if (previewContainer) previewContainer.classList.remove('dash-preview-automating');
+        renderTaskRecoveryStatus('', '');
         break;
     }
   }
@@ -792,6 +1025,7 @@
     if (!acceptRunningTaskPayload(payload)) return;
     if (payloadUpdatedAt) lastTaskStateUpdatedAt = payloadUpdatedAt;
     rememberActiveTaskRun(getTaskRunId(payload));
+    maybeClearTaskRecoveryFromPayload(payload);
     if (taskState !== 'running') return;
 
     var progress = payload.progress || 0;
@@ -826,6 +1060,7 @@
       taskAction.textContent = payload.action;
       lastProgressAction = payload.action;
     }
+    renderTaskRecoveryStatus(getTaskRunId(payload), payload.taskSource || '');
   }
 
   function handleTaskComplete(payload) {
@@ -849,6 +1084,7 @@
     // Re-enable stop button for next task
     if (taskStopBtn) taskStopBtn.disabled = false;
 
+    maybeClearTaskRecoveryFromPayload(payload);
     markTaskRunCompleted(getTaskRunId(payload));
 
     if (payload.success) {
@@ -887,6 +1123,7 @@
     if (recoveredStatus === 'running' && !acceptRunningTaskPayload(snapshot)) return;
     if (recoveredStatus !== 'running' && recoveredStatus !== 'idle' && !acceptTerminalTaskPayload(snapshot)) return;
     if (recoveredUpdatedAt) lastTaskStateUpdatedAt = recoveredUpdatedAt;
+    maybeClearTaskRecoveryFromPayload(snapshot);
 
     if (snapshot.task) taskText = snapshot.task;
 
@@ -960,14 +1197,8 @@
       if (taskState === 'idle' && taskInput) {
         taskInput.placeholder = 'Extension offline...';
       }
-      // If the relay disconnected but recovery is in progress, keep the running task UI alive.
-      if (taskState === 'running' && (!ws || ws.readyState !== WebSocket.OPEN)) {
-        if (taskAction) {
-          taskAction.style.display = '';
-          taskAction.textContent = 'Reconnecting to extension...';
-        }
-      } else if (taskState === 'running') {
-        setTaskState('failed', { error: 'Extension disconnected' });
+      if (taskState === 'running') {
+        setTaskRecoveryPending(true, (!ws || ws.readyState !== WebSocket.OPEN) ? 'ws-disconnected' : 'extension-offline');
       }
       // Show wake button when WS connected but extension offline
       if (wakeBtn && ws && ws.readyState === WebSocket.OPEN) {
@@ -982,6 +1213,7 @@
       // Hide wake button when extension comes online
       if (wakeBtn) wakeBtn.style.display = 'none';
     }
+    renderTaskRecoveryStatus(activeTaskRunId || '', taskRecoverySource);
   }
 
   // Wake Extension button -- sends status request to poke the service worker awake
@@ -2156,15 +2388,7 @@
 
   function setPreviewState(newState) {
     previewState = newState;
-
-    // Enable remote control button only when streaming
-    if (previewRcBtn) {
-      previewRcBtn.disabled = (newState !== 'streaming');
-      // Auto-disable remote control if stream stops
-      if (newState !== 'streaming' && remoteControlOn) {
-        setRemoteControl(false);
-      }
-    }
+    var previewSurface;
 
     // Clear any pending hide timer
     if (previewHideTimer) {
@@ -2182,6 +2406,7 @@
     if (previewStatus) { previewStatus.style.display = 'none'; previewStatus.className = 'dash-preview-status'; }
     if (previewDisconnected) previewDisconnected.style.display = 'none';
     if (previewError) previewError.style.display = 'none';
+    renderStateChip(previewRcState, 'dash-preview-rc-state', '', '');
 
     switch (newState) {
       case 'hidden':
@@ -2189,52 +2414,32 @@
         if (previewStatus) previewStatus.textContent = '';
         break;
 
-      case 'loading':
-        if (previewContainer) previewContainer.style.display = '';
-        if (previewLoading) previewLoading.style.display = 'flex';
-        if (previewStatus) {
-          previewStatus.className = 'dash-preview-status dash-preview-status-buffering';
-          previewStatus.textContent = lastRecoveredStreamState === 'recovering' ? 'recovering' : 'loading';
-          previewStatus.style.display = '';
-        }
-        break;
-
-      case 'streaming':
-        if (previewContainer) previewContainer.style.display = '';
-        if (previewIframe) previewIframe.style.display = '';
-        if (previewStatus) {
-          previewStatus.className = 'dash-preview-status dash-preview-status-streaming';
-          previewStatus.textContent = 'streaming';
-          previewStatus.style.display = '';
-        }
-        break;
-
-      case 'disconnected':
-        if (previewContainer) previewContainer.style.display = '';
-        if (previewIframe) previewIframe.style.display = ''; // Show last content frozen
-        if (previewDisconnected) previewDisconnected.style.display = 'flex';
-        if (previewStatus) {
-          previewStatus.className = 'dash-preview-status dash-preview-status-disconnected';
-          previewStatus.textContent = previewNotReadyReason ? 'not ready' : 'disconnected';
-          previewStatus.style.display = '';
-        }
-        break;
-
-      case 'paused':
-        if (previewContainer) previewContainer.style.display = '';
-        if (previewIframe) previewIframe.style.display = ''; // Show last content frozen
-        if (previewStatus) {
-          previewStatus.className = 'dash-preview-status dash-preview-status-paused';
-          previewStatus.textContent = 'paused';
-          previewStatus.style.display = '';
-        }
-        break;
-
       case 'error':
         if (previewContainer) previewContainer.style.display = '';
         if (previewError) previewError.style.display = 'flex';
         break;
+
+      default:
+        previewSurface = derivePreviewRuntimeSurface();
+        if (previewContainer) previewContainer.style.display = '';
+        if (previewLoading && previewSurface.showLoading) {
+          previewLoading.style.display = 'flex';
+          setPreviewLoadingText(previewSurface.detailText);
+        }
+        if (previewIframe && previewSurface.showIframe) {
+          previewIframe.style.display = '';
+        }
+        if (previewDisconnected && previewSurface.showDisconnected) {
+          previewDisconnected.style.display = 'flex';
+          setPreviewDisconnectedText(previewSurface.detailText);
+        }
+        renderStateChip(previewStatus, 'dash-preview-status', previewSurface.chipLabel, previewSurface.chipTone);
+        break;
     }
+    if (newState !== 'streaming' && remoteControlOn) {
+      setRemoteControl(false, { silent: newState !== 'paused', source: 'preview-state' });
+    }
+    renderRemoteControlState(lastRemoteControlState, { skipToggleSync: true });
   }
 
   function handleDOMSnapshot(payload) {
@@ -2372,7 +2577,8 @@
     previewIframe.style.transform = 'scale(' + previewScale + ')';
   }
 
-  function setRemoteControl(on) {
+  function setRemoteControl(on, options) {
+    options = options || {};
     remoteControlOn = on;
     setRemoteControlCaptureActive(false);
     if (remoteOverlay) {
@@ -2408,13 +2614,14 @@
       }
     }
     // Notify extension to attach/detach debugger
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (options.silent !== true && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: on ? 'dash:remote-control-start' : 'dash:remote-control-stop',
         payload: {},
         ts: Date.now()
       }));
     }
+    renderRemoteControlState(lastRemoteControlState, { skipToggleSync: true });
   }
 
   function setPreviewLayout(mode) {
@@ -3100,6 +3307,9 @@
         wsPingTimer = null;
       }
       setWsState('disconnected');
+      if (taskState === 'running') {
+        setTaskRecoveryPending(true, 'ws-disconnected');
+      }
       updateTaskOfflineState();
       if (previewState === 'streaming' || previewState === 'loading') {
         setPreviewState('disconnected');
@@ -3177,6 +3387,11 @@
     if (msg.type === 'ext:status') {
       var wasExtensionOnline = extensionOnline;
       extensionOnline = msg.payload && msg.payload.online;
+      if (!extensionOnline && taskState === 'running') {
+        setTaskRecoveryPending(true, 'extension-offline');
+      } else if (!wasExtensionOnline && extensionOnline && taskState === 'running' && activeTaskRunId) {
+        setTaskRecoveryPending(true, 'extension-online');
+      }
       updateTaskOfflineState();
       // Update agent count area to show extension status
       if (agentCountEl) {
@@ -3216,6 +3431,9 @@
         url: snapshot.streamTabUrl || '',
         source: snapshot.snapshotSource || ''
       });
+      if (snapshot.remoteControl) {
+        handleRemoteControlState(snapshot.remoteControl);
+      }
       applyRecoveredTaskState(snapshot);
 
       streamTabUrl = snapshot.streamTabUrl || '';
@@ -3247,6 +3465,7 @@
 
       updatePreviewTooltip();
       updateTaskOfflineState();
+      renderTaskRecoveryStatus(snapshot.taskRunId || '', snapshot.taskSource || snapshot.snapshotSource || '');
       return;
     }
 
@@ -3317,6 +3536,11 @@
 
     if (msg.type === 'ext:stream-state') {
       handleRecoveredStreamState(msg.payload || {});
+      return;
+    }
+
+    if (msg.type === 'ext:remote-control-state') {
+      handleRemoteControlState(msg.payload || {});
       return;
     }
 

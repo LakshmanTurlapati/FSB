@@ -348,6 +348,7 @@ class FSBWebSocket {
           error: '',
           stopped: false,
           tabId: typeof dashSession.tabId === 'number' ? dashSession.tabId : null,
+          taskSource: 'snapshot',
           updatedAt: Date.now()
         };
       }
@@ -367,11 +368,13 @@ class FSBWebSocket {
       snapshotPayload.summary = recoverableTask.summary || '';
       snapshotPayload.error = recoverableTask.error || '';
       snapshotPayload.stopped = !!recoverableTask.stopped;
+      snapshotPayload.taskSource = recoverableTask.taskSource || 'snapshot';
       snapshotPayload.taskUpdatedAt = recoverableTask.updatedAt || snapshotPayload.timestamp;
     } else {
       snapshotPayload.taskRunId = '';
       snapshotPayload.taskRunning = false;
       snapshotPayload.taskStatus = 'idle';
+      snapshotPayload.taskSource = 'snapshot';
     }
 
     var candidate = await this._resolveStreamCandidate();
@@ -388,6 +391,15 @@ class FSBWebSocket {
     snapshotPayload.streamTabUrl = candidate.url || '';
     snapshotPayload.streamStatus = streamStatus;
     snapshotPayload.streamReason = streamReason;
+    snapshotPayload.remoteControl = (typeof _lastRemoteControlState === 'object' && _lastRemoteControlState)
+      ? Object.assign({}, _lastRemoteControlState)
+      : {
+          enabled: false,
+          attached: false,
+          tabId: null,
+          reason: 'user-stop',
+          ownership: 'none'
+        };
     setFSBTransportLastSnapshot(snapshotPayload);
 
     this.send('ext:snapshot', snapshotPayload);
@@ -633,6 +645,7 @@ class FSBWebSocket {
         elapsed: 0,
         taskRunId: '',
         taskStatus: 'failed',
+        taskSource: 'live',
         updatedAt: now,
         lastAction: ''
       });
@@ -649,6 +662,7 @@ class FSBWebSocket {
           elapsed: 0,
           taskRunId: '',
           taskStatus: 'failed',
+          taskSource: 'live',
           updatedAt: now,
           lastAction: ''
         });
@@ -703,6 +717,7 @@ class FSBWebSocket {
           elapsed: 0,
           taskRunId: '',
           taskStatus: 'failed',
+          taskSource: 'live',
           updatedAt: now,
           lastAction: ''
         });
@@ -716,6 +731,7 @@ class FSBWebSocket {
         elapsed: 0,
         taskRunId: '',
         taskStatus: 'failed',
+        taskSource: 'live',
         updatedAt: Date.now(),
         lastAction: ''
       });
@@ -771,6 +787,9 @@ class FSBWebSocket {
             phase: recoveryTask && recoveryTask.phase ? recoveryTask.phase : '',
             action: recoveryTask && recoveryTask.action ? recoveryTask.action : '',
             summary: '',
+            taskSource: recoveryTask && recoveryTask.taskSource
+              ? recoveryTask.taskSource
+              : (result && result.success ? 'stop-fallback' : 'complete-fallback'),
             updatedAt: recoveryTask && recoveryTask.updatedAt ? recoveryTask.updatedAt : completionTimestamp,
             lastAction: result.lastAction || (recoveryTask && recoveryTask.lastAction ? recoveryTask.lastAction : null)
           });
@@ -788,6 +807,7 @@ class FSBWebSocket {
             phase: recoveryTask && recoveryTask.phase ? recoveryTask.phase : '',
             action: recoveryTask && recoveryTask.action ? recoveryTask.action : '',
             summary: '',
+            taskSource: recoveryTask && recoveryTask.taskSource ? recoveryTask.taskSource : 'duplicate-stop',
             updatedAt: recoveryTask && recoveryTask.updatedAt ? recoveryTask.updatedAt : completionTimestamp,
             lastAction: recoveryTask && recoveryTask.lastAction ? recoveryTask.lastAction : null
           });
