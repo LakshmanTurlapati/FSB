@@ -123,7 +123,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-1. Smart multi-tab management with context-aware navigation (area: general)
+No pending todos. (Smart multi-tab management closed 2026-04-11 as already_implemented -- see .planning/todos/done/2026-02-14-smart-multi-tab-management.md)
 
 ### Blockers/Concerns
 
