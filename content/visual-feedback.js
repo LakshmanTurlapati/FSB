@@ -231,6 +231,49 @@
       this.host = null;
       this.shadow = null;
       this.container = null;
+      this._startTime = null;
+      this._timerRAF = null;
+      this._frozen = false;
+    }
+
+    /**
+     * Format elapsed milliseconds as M:SS (e.g., "0:42", "1:05")
+     * No leading zero on minutes per D-03.
+     */
+    _formatElapsed(ms) {
+      var totalSeconds = Math.floor(ms / 1000);
+      var minutes = Math.floor(totalSeconds / 60);
+      var seconds = totalSeconds % 60;
+      return minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+    }
+
+    /**
+     * Start the rAF-driven elapsed timer loop (D-05).
+     * Updates .fsb-phase with M:SS elapsed time every frame.
+     */
+    _startTimerLoop() {
+      if (this._timerRAF !== null) return;
+      var self = this;
+      function tick() {
+        if (self._frozen || !self._startTime || !self.container) return;
+        var elapsed = performance.now() - self._startTime;
+        var phaseEl = self.container.querySelector('.fsb-phase');
+        if (phaseEl) {
+          phaseEl.textContent = self._formatElapsed(elapsed);
+        }
+        self._timerRAF = requestAnimationFrame(tick);
+      }
+      self._timerRAF = requestAnimationFrame(tick);
+    }
+
+    /**
+     * Stop the rAF timer loop and clean up the animation frame.
+     */
+    _stopTimerLoop() {
+      if (this._timerRAF !== null) {
+        cancelAnimationFrame(this._timerRAF);
+        this._timerRAF = null;
+      }
     }
 
     /**
@@ -481,6 +524,10 @@
     update(state) {
       if (!this.container) return;
 
+      // Once frozen (lifecycle=final received), ignore further updates
+      // to prevent post-completion status messages from altering the display
+      if (this._frozen) return;
+
       var overlayState = state && state.display ? state : {
         lifecycle: 'running',
         phase: state && state.phase ? state.phase : 'planning',
@@ -510,6 +557,14 @@
             }
       };
 
+      // Timer lifecycle (D-04, D-05)
+      // Start elapsed timer on first update call (first sessionStatus)
+      if (!this._startTime && overlayState.lifecycle !== 'cleared') {
+        this._startTime = performance.now();
+        this._frozen = false;
+        this._startTimerLoop();
+      }
+
       var utils = window.FSBOverlayStateUtils;
       var phaseLabel = utils && typeof utils.humanizeOverlayPhase === 'function'
         ? utils.humanizeOverlayPhase(overlayState.phase)
@@ -521,8 +576,26 @@
       this.container.querySelector('.fsb-summary').textContent = display.subtitle || '';
       this.container.querySelector('.fsb-step-text').textContent = display.detail || 'Working';
       this.container.querySelector('.fsb-step-number').textContent = progress.label || phaseLabel;
-      this.container.querySelector('.fsb-phase').textContent = phaseLabel;
-      this.container.querySelector('.fsb-eta').textContent = progress.eta || '';
+
+      // .fsb-phase is now the elapsed timer display (D-02)
+      // Initial value set here; rAF loop takes over immediately after
+      if (!this._frozen) {
+        var phaseEl = this.container.querySelector('.fsb-phase');
+        if (phaseEl && !this._startTime) {
+          phaseEl.textContent = '0:00';
+        }
+      }
+
+      // Action count display (D-06, D-07, DISP-03)
+      var actionCount = overlayState.actionCount;
+      var etaEl = this.container.querySelector('.fsb-eta');
+      if (etaEl) {
+        if (actionCount !== null && actionCount !== undefined) {
+          etaEl.textContent = 'Actions: ' + actionCount;
+        } else {
+          etaEl.textContent = '';
+        }
+      }
 
       var bar = this.container.querySelector('.fsb-progress-bar');
       var fill = this.container.querySelector('.fsb-progress-fill');
@@ -542,6 +615,40 @@
           bar.classList.remove('hidden');
           bar.classList.add('indeterminate');
         }
+      }
+
+      // Completion freeze (D-08, D-09, D-10, POLISH-03)
+      if (overlayState.lifecycle === 'final' && !this._frozen) {
+        this._frozen = true;
+        this._stopTimerLoop();
+
+        // Freeze elapsed time at final value
+        if (this._startTime) {
+          var finalElapsed = performance.now() - this._startTime;
+          var finalPhaseEl = this.container.querySelector('.fsb-phase');
+          if (finalPhaseEl) {
+            finalPhaseEl.textContent = this._formatElapsed(finalElapsed);
+          }
+        }
+
+        // Success-specific presentation (D-08)
+        if (overlayState.result === 'success') {
+          // Green progress bar
+          fill.classList.add('complete');
+          // Green glow on overlay
+          this.container.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(52, 211, 153, 0.3)';
+          // Done pill
+          this.container.querySelector('.fsb-step-number').textContent = 'Done';
+        }
+        // Failure: bar stays orange, pill keeps existing text (D-10) -- no action needed
+
+        // Auto-hide after 3 seconds (D-09)
+        var self = this;
+        setTimeout(function() {
+          if (self.container) {
+            self.container.classList.add('hidden');
+          }
+        }, 3000);
       }
 
       // Auto-broadcast overlay state to dashboard if streaming
@@ -582,6 +689,9 @@
      * Remove overlay from DOM completely
      */
     destroy() {
+      this._stopTimerLoop();
+      this._startTime = null;
+      this._frozen = false;
       if (this.host) {
         demoteFromTopLayer(this.host);
         this.host.remove();
