@@ -1217,9 +1217,39 @@ async function runAgentIteration(sessionId, options) {
     );
 
     // g. Make API call with tool definitions
-    var response = await callProviderWithTools(
-      providerInstance, model, null, turnMessages, session.tools, providerKey
-    );
+    // DIAG: Log API call start/end to automationLogger so MCP get_logs can surface
+    // agent loop lifecycle (console.log only goes to DevTools, invisible to MCP).
+    var apiCallStartTime = Date.now();
+    if (typeof automationLogger !== 'undefined') {
+      automationLogger.debug('Agent iteration API call starting', {
+        sessionId: sessionId, iteration: iterNum,
+        provider: providerKey, model: model,
+        messageCount: turnMessages.length, toolCount: session.tools.length
+      });
+    }
+    var response;
+    try {
+      response = await callProviderWithTools(
+        providerInstance, model, null, turnMessages, session.tools, providerKey
+      );
+      if (typeof automationLogger !== 'undefined') {
+        automationLogger.debug('Agent iteration API call completed', {
+          sessionId: sessionId, iteration: iterNum,
+          durationMs: Date.now() - apiCallStartTime,
+          hasToolCalls: _isToolCallResponse(response, providerKey)
+        });
+      }
+    } catch (apiErr) {
+      if (typeof automationLogger !== 'undefined') {
+        automationLogger.error('Agent iteration API call failed', {
+          sessionId: sessionId, iteration: iterNum,
+          durationMs: Date.now() - apiCallStartTime,
+          error: (apiErr.message || String(apiErr)).substring(0, 300),
+          status: apiErr.status || null
+        });
+      }
+      throw apiErr; // Re-throw for existing error handler
+    }
 
     // h. Extract and accumulate usage
     var usage = _extractUsage(response, providerKey);
@@ -1345,6 +1375,19 @@ async function runAgentIteration(sessionId, options) {
       await persist(sessionId, session);
       session._nextIterationTimer = setTimeout(function() { runAgentIteration(sessionId, options); }, 100);
       return;
+    }
+
+    // DIAG: Log parsed tool calls so MCP get_logs shows what the model chose
+    if (typeof automationLogger !== 'undefined') {
+      automationLogger.info('Agent iteration tool calls', {
+        sessionId: sessionId, iteration: iterNum,
+        toolCount: toolCalls.length,
+        tools: toolCalls.map(function(c) {
+          var p = c.args || {};
+          var summary = p.selector || p.url || p.code || p.message || p.text || p.key || '';
+          return c.name + (summary ? '(' + String(summary).substring(0, 80) + ')' : '');
+        })
+      });
     }
 
     // l. Execute each tool call SEQUENTIALLY (browser actions must be serial)

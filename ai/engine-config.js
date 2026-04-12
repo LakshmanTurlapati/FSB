@@ -33,7 +33,7 @@
 var SESSION_DEFAULTS = {
   costLimit: 2.00,           // USD, from agent-loop.js line 839
   timeLimit: 600000,         // 10 minutes in ms, from agent-loop.js line 840
-  maxIterations: 20,         // from background.js line 5893
+  maxIterations: 500,        // raised for complex multi-step tasks (booking flows, multi-site scraping)
   compactThreshold: 0.8,     // from transcript-store.js line 77
   tokenBudget: 128000,       // from transcript-store.js line 75
   keepRecentCount: 5,        // from transcript-store.js line 79
@@ -65,7 +65,7 @@ var EXECUTION_MODES = {
     name: 'autopilot',
     description: 'User-initiated automation from popup or sidepanel',
     safetyLimits: {
-      maxIterations: 20,
+      maxIterations: 500,
       costLimit: 2.00,
       timeLimit: 600000
     },
@@ -87,9 +87,9 @@ var EXECUTION_MODES = {
     name: 'mcp-agent',
     description: 'Multi-step automation triggered by MCP run_automation tool',
     safetyLimits: {
-      maxIterations: 15,
+      maxIterations: 500,
       costLimit: 2.00,
-      timeLimit: 240000
+      timeLimit: 600000
     },
     uiFeedbackChannel: 'mcp-progress',
     animatedHighlights: true
@@ -98,9 +98,9 @@ var EXECUTION_MODES = {
     name: 'dashboard-remote',
     description: 'Remote automation triggered from dashboard UI',
     safetyLimits: {
-      maxIterations: 15,
+      maxIterations: 500,
       costLimit: 2.00,
-      timeLimit: 240000
+      timeLimit: 600000
     },
     uiFeedbackChannel: 'dashboard-ws',
     animatedHighlights: true

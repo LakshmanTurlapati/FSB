@@ -67,6 +67,10 @@
               <i class="fas fa-lock"></i>
               <span>Passwords <span class="feature-badge beta">Beta</span></span>
             </li>
+            <li class="nav-item" data-section="payments">
+              <i class="fas fa-credit-card"></i>
+              <span>Payments <span class="feature-badge beta">Beta</span></span>
+            </li>
             <li class="nav-item" data-section="advanced">
               <i class="fas fa-sliders-h"></i>
               <span>Advanced Settings</span>
@@ -167,6 +171,7 @@
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic (Claude)</option>
                   <option value="openrouter">OpenRouter</option>
+                  <option value="lmstudio">LM Studio</option>
                   <option value="custom">Custom (OpenAI Compatible)</option>
                 </select>
                 <div class="form-help">Select your preferred AI provider</div>
@@ -253,6 +258,15 @@
                 </div>
               </div>
 
+              <!-- LM Studio Server Configuration -->
+              <div class="form-group" id="lmstudioServerGroup" style="display: none;">
+                <label for="lmstudioBaseUrl">LM Studio Server URL</label>
+                <input type="text" id="lmstudioBaseUrl" placeholder="http://localhost:1234" class="form-input">
+                <div class="form-help">
+                  Uses LM Studio's local OpenAI-compatible server. No API key required. Models are discovered live from <code>/v1/models</code>.
+                </div>
+              </div>
+
               <!-- Custom API Configuration -->
               <div class="form-group" id="customApiGroup" style="display: none;">
                 <label for="customEndpoint">Custom API Endpoint</label>
@@ -335,9 +349,9 @@
                 <div class="setting-item">
                   <div class="setting-label">
                     <span>Max Iterations</span>
-                    <span class="setting-value-display" id="maxIterationsDisplay">20</span>
+                    <span class="setting-value-display" id="maxIterationsDisplay">500</span>
                   </div>
-                  <input type="range" id="maxIterationsSlider" min="5" max="50" value="20" class="modern-slider">
+                  <input type="range" id="maxIterationsSlider" min="5" max="500" value="500" class="modern-slider">
                   <input type="hidden" id="maxIterations" value="20">
                   <div class="setting-hint">Prevents runaway automation loops</div>
                 </div>
@@ -1065,10 +1079,9 @@
         <section class="content-section" id="passwords">
           <div class="section-header">
             <h2>Passwords <span class="feature-badge beta">Beta</span></h2>
-            <p>Manage saved login credentials for automated sign-in</p>
+            <p>Manage saved credentials and the shared credential vault for assisted sign-in</p>
           </div>
 
-          <!-- Enable Login Toggle -->
           <div class="toggle-grid single" style="margin-bottom: 1.5rem;">
             <label class="modern-toggle">
               <input type="checkbox" id="enableLogin">
@@ -1082,10 +1095,47 @@
             </label>
           </div>
 
-          <!-- Credentials Manager (shown when toggle is on) -->
-          <div id="credentialsManager" style="display: none;">
+          <div id="credentialVaultPanel" class="credential-vault-panel">
+            <div class="credential-vault-header">
+              <div>
+                <h3>Credential Vault</h3>
+                <p id="credentialVaultStatusText">Checking vault status...</p>
+              </div>
+              <button id="lockCredentialVaultBtn" class="save-btn secondary" style="display: none;">Lock Vault</button>
+            </div>
 
-            <!-- Toolbar: search + Add New button -->
+            <div id="credentialVaultSetup" class="credential-vault-state" style="display: none;">
+              <div class="form-group">
+                <label for="credentialVaultPassphrase">Create Vault Passphrase</label>
+                <input type="password" id="credentialVaultPassphrase" placeholder="At least 8 characters" class="form-input">
+              </div>
+              <div class="form-group">
+                <label for="credentialVaultConfirmPassphrase">Confirm Passphrase</label>
+                <input type="password" id="credentialVaultConfirmPassphrase" placeholder="Re-enter passphrase" class="form-input">
+              </div>
+              <p class="credential-vault-helper">Saved passwords are inaccessible until this vault is unlocked. Existing legacy credentials will be migrated automatically.</p>
+              <button id="setupCredentialVaultBtn" class="save-btn primary">Set Up Vault</button>
+            </div>
+
+            <div id="credentialVaultUnlock" class="credential-vault-state" style="display: none;">
+              <div class="form-group">
+                <label for="credentialVaultUnlockPassphrase">Unlock Vault</label>
+                <input type="password" id="credentialVaultUnlockPassphrase" placeholder="Enter your vault passphrase" class="form-input">
+              </div>
+              <p id="credentialVaultUnlockHint" class="credential-vault-helper">Unlock to view, edit, autofill, or save passwords.</p>
+              <button id="unlockCredentialVaultBtn" class="save-btn primary">Unlock Vault</button>
+            </div>
+
+            <div id="credentialVaultUnlocked" class="credential-vault-state" style="display: none;">
+              <p class="credential-vault-helper">Vault unlocked for this browser session. Saved credentials are available below.</p>
+            </div>
+          </div>
+
+          <div id="credentialsManager" style="display: none;">
+            <div id="credentialManagerDisabledNote" class="credential-vault-helper" style="display: none;">
+              Auto-Login is currently disabled. You can still manage saved credentials here, but FSB will not use or save them automatically until you enable it.
+            </div>
+
             <div class="credentials-toolbar">
               <div class="credentials-search-wrapper">
                 <i class="fas fa-search"></i>
@@ -1097,19 +1147,16 @@
               </button>
             </div>
 
-            <!-- Credentials List -->
             <div id="credentialsList" class="credentials-list">
               <!-- Dynamically populated -->
             </div>
 
-            <!-- Empty state -->
             <div id="credentialsEmpty" class="credentials-empty-state">
               <i class="fas fa-lock"></i>
               <p>No saved credentials yet. Credentials will be saved automatically when you sign in during automation, or you can add them manually.</p>
             </div>
           </div>
 
-          <!-- Add/Edit Modal -->
           <div id="credentialModal" class="credential-modal hidden">
             <div class="credential-modal-backdrop"></div>
             <div class="credential-modal-content">
@@ -1142,10 +1189,190 @@
                   <label for="credModalNotes">Notes (optional)</label>
                   <input type="text" id="credModalNotes" placeholder="Optional notes" class="form-input">
                 </div>
+                <div class="form-group">
+                  <label class="credential-checkbox">
+                    <input type="checkbox" id="credModalAllowSubdomains">
+                    <span>Allow this credential on subdomains</span>
+                  </label>
+                  <div class="form-help">Example: a credential saved for <code>example.com</code> can also be used on <code>login.example.com</code>.</div>
+                </div>
               </div>
               <div class="credential-modal-footer">
                 <button class="save-btn secondary" id="credentialModalCancel">Cancel</button>
                 <button class="save-btn primary" id="credentialModalSave">Save</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Payments Section (Beta) -->
+        <section class="content-section" id="payments">
+          <div class="section-header">
+            <h2>Payments <span class="feature-badge beta">Beta</span></h2>
+            <p>Manage saved cards for assisted checkout. Payment methods share the credential vault configured in Passwords.</p>
+          </div>
+
+          <div class="toggle-grid single" style="margin-bottom: 1.5rem;">
+            <label class="modern-toggle">
+              <input type="checkbox" id="enableSavedPayments">
+              <span class="toggle-track">
+                <span class="toggle-thumb"></span>
+              </span>
+              <div class="toggle-content">
+                <span class="toggle-label">Enable Saved Payment Methods</span>
+                <span class="toggle-desc">When enabled, FSB can prompt to fill a saved card on checkout pages. It never submits the final payment automatically.</span>
+              </div>
+            </label>
+          </div>
+
+          <div id="paymentAccessPanel" class="credential-vault-panel">
+            <div class="credential-vault-header">
+              <div>
+                <h3>Saved Payment Methods</h3>
+                <p id="paymentMethodsStatusText">Checking payment method status...</p>
+              </div>
+              <button id="lockPaymentMethodsBtn" class="save-btn secondary" style="display: none;">Lock Payment Methods</button>
+            </div>
+
+            <div id="paymentMethodsBlocked" class="credential-vault-state" style="display: none;">
+              <p id="paymentMethodsBlockedText" class="credential-vault-helper">Unlock the credential vault before managing saved payment methods.</p>
+              <button id="openPasswordsForPaymentsBtn" class="save-btn secondary" style="display: none;">Open Passwords</button>
+            </div>
+
+            <div id="paymentMethodsUnlock" class="credential-vault-state" style="display: none;">
+              <div class="form-group">
+                <label for="paymentMethodsUnlockPassphrase">Unlock Saved Payment Methods</label>
+                <input type="password" id="paymentMethodsUnlockPassphrase" placeholder="Re-enter your vault passphrase" class="form-input">
+              </div>
+              <p class="credential-vault-helper">Saved cards use the same encrypted vault but require a separate unlock before checkout fills in this browser session.</p>
+              <button id="unlockPaymentMethodsBtn" class="save-btn primary">Unlock Saved Payment Methods</button>
+            </div>
+
+            <div id="paymentMethodsUnlocked" class="credential-vault-state" style="display: none;">
+              <p class="credential-vault-helper">Saved payment methods are unlocked for this browser session. FSB can prompt to fill a saved card on detected checkout pages, but it will never submit the final payment automatically.</p>
+            </div>
+          </div>
+
+          <div id="paymentMethodsManager" style="display: none;">
+            <div id="paymentManagerDisabledNote" class="credential-vault-helper" style="display: none;">
+              Saved Payment Methods is currently disabled. You can still manage stored cards here, but FSB will not offer them during checkout until you enable the feature.
+            </div>
+
+            <div class="credentials-toolbar">
+              <div class="credentials-search-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="search" id="paymentMethodSearch" placeholder="Search cards, brands, or billing details..." class="form-input">
+              </div>
+              <button id="addPaymentMethodBtn" class="test-btn">
+                <i class="fas fa-credit-card"></i>
+                Add Card
+              </button>
+            </div>
+
+            <div id="paymentMethodsList" class="payment-methods-list">
+              <!-- Dynamically populated -->
+            </div>
+
+            <div id="paymentMethodsEmpty" class="credentials-empty-state">
+              <i class="fas fa-credit-card"></i>
+              <p>No saved payment methods yet. Add a card here so FSB can offer it on checkout pages after you unlock payment access.</p>
+            </div>
+          </div>
+
+          <div id="paymentMethodModal" class="credential-modal hidden">
+            <div class="credential-modal-backdrop"></div>
+            <div class="credential-modal-content payment-method-modal-content">
+              <div class="credential-modal-header">
+                <h3 id="paymentMethodModalTitle">Add Payment Method</h3>
+                <button class="credential-modal-close" id="paymentMethodModalClose">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="credential-modal-body">
+                <div class="form-group">
+                  <label for="paymentMethodNickname">Nickname (optional)</label>
+                  <input type="text" id="paymentMethodNickname" placeholder="Personal Visa" class="form-input">
+                  <div class="form-help">Shown in the card picker and saved-cards list.</div>
+                </div>
+                <div class="form-group">
+                  <label for="paymentMethodCardholderName">Cardholder Name</label>
+                  <input type="text" id="paymentMethodCardholderName" placeholder="Name on card" class="form-input" autocomplete="cc-name">
+                </div>
+                <div class="form-group">
+                  <label for="paymentMethodCardNumber">Card Number <span id="paymentMethodCardBrand" class="payment-card-brand unknown">Unknown</span></label>
+                  <input type="text" id="paymentMethodCardNumber" placeholder="1234 5678 9012 3456" class="form-input" inputmode="numeric" autocomplete="cc-number">
+                  <div id="paymentMethodCardNumberHint" class="form-help">Card brand is detected automatically as you type.</div>
+                </div>
+                <div class="payment-expiry-grid">
+                  <div class="form-group">
+                    <label for="paymentMethodExpiryMonth">Expiry Month</label>
+                    <select id="paymentMethodExpiryMonth" class="form-select">
+                      <option value="">Month</option>
+                      <option value="01">01</option>
+                      <option value="02">02</option>
+                      <option value="03">03</option>
+                      <option value="04">04</option>
+                      <option value="05">05</option>
+                      <option value="06">06</option>
+                      <option value="07">07</option>
+                      <option value="08">08</option>
+                      <option value="09">09</option>
+                      <option value="10">10</option>
+                      <option value="11">11</option>
+                      <option value="12">12</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="paymentMethodExpiryYear">Expiry Year</label>
+                    <input type="text" id="paymentMethodExpiryYear" placeholder="2029" class="form-input" inputmode="numeric" autocomplete="cc-exp-year">
+                  </div>
+                  <div class="form-group">
+                    <label for="paymentMethodCvv">CVV / CVC</label>
+                    <div class="input-with-button">
+                      <input type="password" id="paymentMethodCvv" placeholder="123" class="form-input" inputmode="numeric" autocomplete="cc-csc">
+                      <button type="button" class="input-btn" id="togglePaymentMethodCvv" title="Toggle visibility">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="paymentMethodBillingName">Billing Name</label>
+                  <input type="text" id="paymentMethodBillingName" placeholder="Billing profile name" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label for="paymentMethodAddressLine1">Billing Address Line 1</label>
+                  <input type="text" id="paymentMethodAddressLine1" placeholder="123 Main St" class="form-input" autocomplete="billing address-line1">
+                </div>
+                <div class="form-group">
+                  <label for="paymentMethodAddressLine2">Billing Address Line 2 (optional)</label>
+                  <input type="text" id="paymentMethodAddressLine2" placeholder="Apt, suite, unit" class="form-input" autocomplete="billing address-line2">
+                </div>
+                <div class="payment-billing-grid">
+                  <div class="form-group">
+                    <label for="paymentMethodCity">City</label>
+                    <input type="text" id="paymentMethodCity" placeholder="Chicago" class="form-input" autocomplete="billing address-level2">
+                  </div>
+                  <div class="form-group">
+                    <label for="paymentMethodStateRegion">State / Region</label>
+                    <input type="text" id="paymentMethodStateRegion" placeholder="Illinois" class="form-input" autocomplete="billing address-level1">
+                  </div>
+                </div>
+                <div class="payment-billing-grid">
+                  <div class="form-group">
+                    <label for="paymentMethodPostalCode">Postal Code</label>
+                    <input type="text" id="paymentMethodPostalCode" placeholder="60601" class="form-input" autocomplete="billing postal-code">
+                  </div>
+                  <div class="form-group">
+                    <label for="paymentMethodCountry">Country</label>
+                    <input type="text" id="paymentMethodCountry" placeholder="United States" class="form-input" autocomplete="billing country">
+                  </div>
+                </div>
+                <div class="form-help payment-method-security-note">CVV and billing profile data are stored encrypted inside your local vault. Review local device security before using this feature.</div>
+              </div>
+              <div class="credential-modal-footer">
+                <button class="save-btn secondary" id="paymentMethodModalCancel">Cancel</button>
+                <button class="save-btn primary" id="paymentMethodModalSave">Save Card</button>
               </div>
             </div>
           </div>

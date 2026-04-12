@@ -11,8 +11,9 @@ const defaultSettings = {
   openrouterApiKey: '',
   customApiKey: '',
   customEndpoint: '',
+  lmstudioBaseUrl: 'http://localhost:1234',
   speedMode: 'normal', // Legacy support
-  maxIterations: 20,
+  maxIterations: 500,
   debugMode: false,
   // DOM Optimization settings
   domOptimization: true,
@@ -23,6 +24,7 @@ const defaultSettings = {
   showSidepanelProgress: false,
   // Credential Manager (Beta)
   enableLogin: false,
+  enableSavedPayments: false,
   // CAPTCHA Solver
   captchaSolverEnabled: false,
   captchaApiKey: '',
@@ -33,6 +35,7 @@ const defaultSettings = {
 // Available models - sourced from config.js (loaded before this script) with custom provider added
 const availableModels = {
   ...config.availableModels,
+  lmstudio: [],
   custom: [
     { id: 'custom-model', name: 'Custom Model', description: 'Enter your model name below' }
   ]
@@ -44,8 +47,23 @@ const PROVIDER_ICONS = {
   openai: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>',
   anthropic: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg>',
   openrouter: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16.778 1.844v1.919q-.569-.026-1.138-.032-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237-2.911 2.066-2.731 1.95-4.14 2.75-.396.223-1.342.574-2.185.798-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799 1.41.798 1.228.683 4.14 2.75 2.126 1.509 4.22 2.11 6.148 2.236.88.058 1.716.041 2.555.005v1.918l7.222-4.168-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021-1.364-.09-2.417-.357-3.979-1.465-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 1.56-1.109 2.614-1.377 3.978-1.466.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z"/></svg>',
+  lmstudio: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 11H8v-2h4v2zm4-4H8V9h8v2z"/><path d="M7 2v2M17 2v2M7 20v2M17 20v2M2 7h2M2 17h2M20 7h2M20 17h2"/></svg>',
   custom: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 018.5 12 3.5 3.5 0 0112 8.5a3.5 3.5 0 013.5 3.5 3.5 3.5 0 01-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.65a.5.5 0 00.12-.64l-2-3.46a.5.5 0 00-.61-.22l-2.49 1a7.05 7.05 0 00-1.69-1l-.38-2.65A.49.49 0 0014 2h-4a.49.49 0 00-.49.42l-.38 2.65a7.05 7.05 0 00-1.69 1l-2.49-1a.5.5 0 00-.61.22l-2 3.46a.5.5 0 00.12.64L4.57 11c-.04.34-.07.66-.07 1s.03.65.07.97l-2.11 1.65a.5.5 0 00-.12.64l2 3.46a.5.5 0 00.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.05.24.26.42.49.42h4c.24 0 .44-.18.49-.42l.38-2.65a7.05 7.05 0 001.69-.98l2.49 1a.5.5 0 00.61-.22l2-3.46a.5.5 0 00-.12-.64l-2.11-1.65z"/></svg>'
 };
+
+const PROVIDER_DISPLAY_NAMES = {
+  xai: 'xAI',
+  gemini: 'Gemini',
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  openrouter: 'OpenRouter',
+  lmstudio: 'LM Studio',
+  custom: 'Custom'
+};
+
+const MODEL_DISCOVERY_TIMEOUT_MS = 5000;
+let modelOptionsRequestId = 0;
+let lmstudioRefreshTimer = null;
 
 function renderProviderIcon(provider) {
   const container = document.getElementById('providerIcon');
@@ -141,6 +159,7 @@ function cacheElements() {
   elements.modelName = document.getElementById('modelName');
   elements.apiKey = document.getElementById('apiKey');
   elements.geminiApiKey = document.getElementById('geminiApiKey');
+  elements.lmstudioBaseUrl = document.getElementById('lmstudioBaseUrl');
   elements.xaiApiKeyGroup = document.getElementById('xaiApiKeyGroup');
   elements.geminiApiKeyGroup = document.getElementById('geminiApiKeyGroup');
   elements.maxIterations = document.getElementById('maxIterations');
@@ -163,6 +182,7 @@ function cacheElements() {
 
   // Credentials (Beta)
   elements.enableLogin = document.getElementById('enableLogin');
+  elements.enableSavedPayments = document.getElementById('enableSavedPayments');
 
   // CAPTCHA Solver
   elements.captchaSolverEnabled = document.getElementById('captchaSolverEnabled');
@@ -243,6 +263,7 @@ function setupEventListeners() {
     document.getElementById('openrouterApiKey'),
     document.getElementById('customApiKey'),
     document.getElementById('customEndpoint'),
+    elements.lmstudioBaseUrl,
     elements.maxIterations,
     elements.debugMode,
     elements.domOptimization,
@@ -252,6 +273,7 @@ function setupEventListeners() {
     elements.animatedActionHighlights,
     elements.showSidepanelProgress,
     elements.enableLogin,
+    elements.enableSavedPayments,
     elements.captchaSolverEnabled,
     elements.captchaApiKey,
     elements.sttProvider
@@ -319,18 +341,39 @@ function setupEventListeners() {
 
   // Model provider change
   if (elements.modelProvider) {
-    elements.modelProvider.addEventListener('change', (e) => {
-      updateModelOptions(e.target.value);
-      updateApiKeyVisibility(e.target.value);
-      renderProviderIcon(e.target.value);
+    elements.modelProvider.addEventListener('change', async (e) => {
+      const provider = e.target.value;
+      await updateModelOptions(provider, {
+        selectedModel: provider === 'lmstudio' ? '' : getDefaultModelForProvider(provider),
+        baseUrl: elements.lmstudioBaseUrl?.value || defaultSettings.lmstudioBaseUrl
+      });
+      updateApiKeyVisibility(provider);
+      renderProviderIcon(provider);
       markUnsavedChanges();
     });
   }
   
   // Model name change
   if (elements.modelName) {
-    elements.modelName.addEventListener('change', (e) => {
+    elements.modelName.addEventListener('change', () => {
+      updateSelectedModelDescription();
       markUnsavedChanges();
+    });
+  }
+
+  if (elements.lmstudioBaseUrl) {
+    elements.lmstudioBaseUrl.addEventListener('input', () => {
+      markUnsavedChanges();
+      if ((elements.modelProvider?.value || 'xai') !== 'lmstudio') {
+        return;
+      }
+      clearTimeout(lmstudioRefreshTimer);
+      lmstudioRefreshTimer = setTimeout(() => {
+        updateModelOptions('lmstudio', {
+          selectedModel: elements.modelName?.value || '',
+          baseUrl: elements.lmstudioBaseUrl?.value || defaultSettings.lmstudioBaseUrl
+        });
+      }, 300);
     });
   }
   
@@ -550,34 +593,146 @@ function initializeSections() {
 }
 
 // Update model options based on provider
-function updateModelOptions(provider) {
+function getProviderDisplayName(provider) {
+  return PROVIDER_DISPLAY_NAMES[provider] || provider;
+}
+
+function getDefaultModelForProvider(provider) {
+  const models = availableModels[provider] || [];
+  return models[0]?.id || '';
+}
+
+function providerRequiresApiKey(provider) {
+  return provider !== 'lmstudio';
+}
+
+function updateSelectedModelDescription() {
+  const selectedOption = elements.modelName?.selectedOptions?.[0];
+  updateModelDescription(selectedOption?.dataset?.description || 'Select the AI model to use');
+}
+
+async function fetchLmStudioModels(baseUrl) {
+  const endpoint = typeof buildProviderModelsEndpoint === 'function'
+    ? buildProviderModelsEndpoint('lmstudio', baseUrl)
+    : `${(baseUrl || defaultSettings.lmstudioBaseUrl).replace(/\/+$/, '')}/v1/models`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), MODEL_DISCOVERY_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`LM Studio model discovery failed (${response.status} ${response.statusText})`);
+    }
+
+    const payload = await response.json();
+    const parser = typeof parseOpenAICompatibleModelList === 'function'
+      ? parseOpenAICompatibleModelList
+      : (data) => Array.isArray(data?.data) ? data.data.map(entry => entry?.id).filter(Boolean) : [];
+
+    return parser(payload).map((id) => ({
+      id,
+      name: id,
+      description: 'Discovered from LM Studio local server'
+    }));
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('LM Studio model discovery timed out');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function updateModelOptions(provider, options = {}) {
   const modelSelect = elements.modelName;
   if (!modelSelect) return;
-  
-  // Clear existing options
+
+  const requestId = ++modelOptionsRequestId;
+  const selectedModel = Object.prototype.hasOwnProperty.call(options, 'selectedModel')
+    ? options.selectedModel
+    : (modelSelect.value || '');
+  let models = availableModels[provider] || [];
+
+  if (provider === 'lmstudio') {
+    modelSelect.innerHTML = '';
+    const loadingOption = document.createElement('option');
+    loadingOption.value = selectedModel || '';
+    loadingOption.textContent = 'Loading LM Studio models...';
+    loadingOption.dataset.description = 'Querying LM Studio /v1/models';
+    modelSelect.appendChild(loadingOption);
+    updateSelectedModelDescription();
+
+    try {
+      models = await fetchLmStudioModels(options.baseUrl || elements.lmstudioBaseUrl?.value || defaultSettings.lmstudioBaseUrl);
+    } catch (error) {
+      console.warn('[Options] Failed to fetch LM Studio models:', error.message);
+      models = [];
+    }
+  }
+
+  if (requestId !== modelOptionsRequestId) {
+    return;
+  }
+
+  const normalizedModels = [];
+  const seen = new Set();
+  models.forEach((model) => {
+    const modelId = (model?.id || '').trim();
+    if (!modelId || seen.has(modelId)) return;
+    seen.add(modelId);
+    normalizedModels.push({
+      id: modelId,
+      name: model?.name || modelId,
+      description: model?.description || 'Select the AI model to use'
+    });
+  });
+
+  if (selectedModel && !seen.has(selectedModel)) {
+    normalizedModels.unshift({
+      id: selectedModel,
+      name: provider === 'lmstudio' ? `${selectedModel} (Saved)` : selectedModel,
+      description: provider === 'lmstudio'
+        ? 'Saved LM Studio model. It was not returned by the current /v1/models response.'
+        : 'Saved model selection'
+    });
+  }
+
   modelSelect.innerHTML = '';
-  
-  // Add options for selected provider
-  const models = availableModels[provider] || [];
-  models.forEach(model => {
+
+  if (!normalizedModels.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = provider === 'lmstudio' ? 'No LM Studio models found' : 'No models available';
+    option.dataset.description = provider === 'lmstudio'
+      ? 'Start LM Studio local server and load at least one model to populate this list.'
+      : 'No models available for this provider.';
+    modelSelect.appendChild(option);
+    modelSelect.value = '';
+    updateSelectedModelDescription();
+    return;
+  }
+
+  normalizedModels.forEach((model) => {
     const option = document.createElement('option');
     option.value = model.id;
     option.textContent = model.name;
+    option.dataset.description = model.description;
     modelSelect.appendChild(option);
   });
-  
-  // Update description when model changes
-  modelSelect.addEventListener('change', (e) => {
-    const selectedModel = models.find(m => m.id === e.target.value);
-    if (selectedModel) {
-      updateModelDescription(selectedModel.description);
-    }
-  });
-  
-  // Update initial description
-  if (models.length > 0) {
-    updateModelDescription(models[0].description);
-  }
+
+  modelSelect.value = normalizedModels.some((model) => model.id === selectedModel)
+    ? selectedModel
+    : normalizedModels[0].id;
+  updateSelectedModelDescription();
 }
 
 // Update model description
@@ -597,6 +752,7 @@ function updateApiKeyVisibility(provider) {
     openai: document.getElementById('openaiApiKeyGroup'),
     anthropic: document.getElementById('anthropicApiKeyGroup'),
     openrouter: document.getElementById('openrouterApiKeyGroup'),
+    lmstudio: document.getElementById('lmstudioServerGroup'),
     custom: document.getElementById('customApiGroup')
   };
 
@@ -611,136 +767,123 @@ function updateApiKeyVisibility(provider) {
   }
 }
 
-function loadSettings() {
-  chrome.storage.local.get(Object.keys(defaultSettings), (data) => {
-    const settings = { ...defaultSettings, ...data };
-    
-    // Handle legacy speedMode to new model format
-    if (!settings.modelProvider && settings.speedMode) {
-      settings.modelProvider = 'xai';
-      settings.modelName = 'grok-4-1-fast-reasoning'; // All legacy modes map to new default
-    }
-    
-    // Update model provider and options
-    if (elements.modelProvider) {
-      elements.modelProvider.value = settings.modelProvider || 'xai';
-      updateModelOptions(settings.modelProvider || 'xai');
-      updateApiKeyVisibility(settings.modelProvider || 'xai');
-      renderProviderIcon(settings.modelProvider || 'xai');
-    }
-    
-    // Update model name
-    if (elements.modelName && settings.modelName) {
-      // Wait for options to be populated
-      setTimeout(() => {
-        elements.modelName.value = settings.modelName;
-        const models = availableModels[settings.modelProvider || 'xai'];
-        const selectedModel = models.find(m => m.id === settings.modelName);
-        if (selectedModel) {
-          updateModelDescription(selectedModel.description);
-        }
-        updateApiKeyVisibility(settings.modelProvider || 'xai');
-      }, 100);
-    }
-    
-    // Update form elements
-    if (elements.apiKey) elements.apiKey.value = settings.apiKey || '';
-    if (elements.geminiApiKey) elements.geminiApiKey.value = settings.geminiApiKey || '';
-    // Update new provider API keys
-    const openaiApiKey = document.getElementById('openaiApiKey');
-    if (openaiApiKey) openaiApiKey.value = settings.openaiApiKey || '';
-    
-    const anthropicApiKey = document.getElementById('anthropicApiKey');
-    if (anthropicApiKey) anthropicApiKey.value = settings.anthropicApiKey || '';
-    
-    const customApiKey = document.getElementById('customApiKey');
-    if (customApiKey) customApiKey.value = settings.customApiKey || '';
-    
-    const openrouterApiKey = document.getElementById('openrouterApiKey');
-    if (openrouterApiKey) openrouterApiKey.value = settings.openrouterApiKey || '';
+async function loadSettings() {
+  const settings = await getStoredSettings();
+  
+  // Handle legacy speedMode to new model format
+  if (!settings.modelProvider && settings.speedMode) {
+    settings.modelProvider = 'xai';
+    settings.modelName = 'grok-4-1-fast-reasoning'; // All legacy modes map to new default
+  }
 
-    const customEndpoint = document.getElementById('customEndpoint');
-    if (customEndpoint) customEndpoint.value = settings.customEndpoint || '';
+  const provider = settings.modelProvider || 'xai';
 
-    // Max iterations
-    const maxIter = settings.maxIterations || 20;
-    if (elements.maxIterations) elements.maxIterations.value = maxIter;
-    if (elements.maxIterationsSlider) elements.maxIterationsSlider.value = maxIter;
-    if (elements.maxIterationsDisplay) elements.maxIterationsDisplay.textContent = maxIter;
+  // Update form elements
+  if (elements.apiKey) elements.apiKey.value = settings.apiKey || '';
+  if (elements.geminiApiKey) elements.geminiApiKey.value = settings.geminiApiKey || '';
+  if (elements.lmstudioBaseUrl) elements.lmstudioBaseUrl.value = settings.lmstudioBaseUrl || defaultSettings.lmstudioBaseUrl;
 
-    // Debug mode
-    if (elements.debugMode) elements.debugMode.checked = settings.debugMode;
-    // Show/hide CLI Validation nav item based on debug mode
-    updateCLIValidationVisibility(settings.debugMode);
+  const openaiApiKey = document.getElementById('openaiApiKey');
+  if (openaiApiKey) openaiApiKey.value = settings.openaiApiKey || '';
 
-    // DOM optimization settings
-    if (elements.domOptimization) {
-      elements.domOptimization.checked = settings.domOptimization ?? true;
-    }
-    const maxDOM = settings.maxDOMElements || 2000;
-    if (elements.maxDOMElements) elements.maxDOMElements.value = maxDOM;
-    if (elements.maxDOMElementsSlider) elements.maxDOMElementsSlider.value = maxDOM;
-    if (elements.maxDOMElementsDisplay) elements.maxDOMElementsDisplay.textContent = maxDOM;
+  const anthropicApiKey = document.getElementById('anthropicApiKey');
+  if (anthropicApiKey) anthropicApiKey.value = settings.anthropicApiKey || '';
 
-    // Element Cache Size
-    const cacheSize = settings.elementCacheSize || 200;
-    if (elements.elementCacheSize) elements.elementCacheSize.value = cacheSize;
-    if (elements.elementCacheSizeDisplay) elements.elementCacheSizeDisplay.textContent = cacheSize;
-    if (elements.elementCacheSizePreset) {
-      const presetOption = elements.elementCacheSizePreset.querySelector(`option[value="${cacheSize}"]`);
-      if (presetOption && cacheSize !== 'custom') {
-        elements.elementCacheSizePreset.value = cacheSize;
-        if (elements.elementCacheSizeCustom) elements.elementCacheSizeCustom.style.display = 'none';
-      } else {
-        elements.elementCacheSizePreset.value = 'custom';
-        if (elements.elementCacheSizeCustom) {
-          elements.elementCacheSizeCustom.style.display = 'block';
-          elements.elementCacheSizeCustom.value = cacheSize;
-        }
+  const customApiKey = document.getElementById('customApiKey');
+  if (customApiKey) customApiKey.value = settings.customApiKey || '';
+
+  const openrouterApiKey = document.getElementById('openrouterApiKey');
+  if (openrouterApiKey) openrouterApiKey.value = settings.openrouterApiKey || '';
+
+  const customEndpoint = document.getElementById('customEndpoint');
+  if (customEndpoint) customEndpoint.value = settings.customEndpoint || '';
+
+  if (elements.modelProvider) {
+    elements.modelProvider.value = provider;
+    await updateModelOptions(provider, {
+      selectedModel: settings.modelName || '',
+      baseUrl: settings.lmstudioBaseUrl || defaultSettings.lmstudioBaseUrl
+    });
+    updateApiKeyVisibility(provider);
+    renderProviderIcon(provider);
+  }
+
+  const maxIter = settings.maxIterations || 20;
+  if (elements.maxIterations) elements.maxIterations.value = maxIter;
+  if (elements.maxIterationsSlider) elements.maxIterationsSlider.value = maxIter;
+  if (elements.maxIterationsDisplay) elements.maxIterationsDisplay.textContent = maxIter;
+
+  if (elements.debugMode) elements.debugMode.checked = settings.debugMode;
+  updateCLIValidationVisibility(settings.debugMode);
+
+  if (elements.domOptimization) {
+    elements.domOptimization.checked = settings.domOptimization ?? true;
+  }
+  const maxDOM = settings.maxDOMElements || 2000;
+  if (elements.maxDOMElements) elements.maxDOMElements.value = maxDOM;
+  if (elements.maxDOMElementsSlider) elements.maxDOMElementsSlider.value = maxDOM;
+  if (elements.maxDOMElementsDisplay) elements.maxDOMElementsDisplay.textContent = maxDOM;
+
+  const cacheSize = settings.elementCacheSize || 200;
+  if (elements.elementCacheSize) elements.elementCacheSize.value = cacheSize;
+  if (elements.elementCacheSizeDisplay) elements.elementCacheSizeDisplay.textContent = cacheSize;
+  if (elements.elementCacheSizePreset) {
+    const presetOption = elements.elementCacheSizePreset.querySelector(`option[value="${cacheSize}"]`);
+    if (presetOption && cacheSize !== 'custom') {
+      elements.elementCacheSizePreset.value = cacheSize;
+      if (elements.elementCacheSizeCustom) elements.elementCacheSizeCustom.style.display = 'none';
+    } else {
+      elements.elementCacheSizePreset.value = 'custom';
+      if (elements.elementCacheSizeCustom) {
+        elements.elementCacheSizeCustom.style.display = 'block';
+        elements.elementCacheSizeCustom.value = cacheSize;
       }
     }
+  }
 
-    if (elements.prioritizeViewport) {
-      elements.prioritizeViewport.checked = settings.prioritizeViewport ?? true;
-    }
-    if (elements.animatedActionHighlights) {
-      elements.animatedActionHighlights.checked = settings.animatedActionHighlights ?? true;
-    }
-    if (elements.showSidepanelProgress) {
-      elements.showSidepanelProgress.checked = settings.showSidepanelProgress ?? false;
-    }
+  if (elements.prioritizeViewport) {
+    elements.prioritizeViewport.checked = settings.prioritizeViewport ?? true;
+  }
+  if (elements.animatedActionHighlights) {
+    elements.animatedActionHighlights.checked = settings.animatedActionHighlights ?? true;
+  }
+  if (elements.showSidepanelProgress) {
+    elements.showSidepanelProgress.checked = settings.showSidepanelProgress ?? false;
+  }
 
-    // Credential Manager
-    if (elements.enableLogin) {
-      elements.enableLogin.checked = settings.enableLogin ?? false;
-      updateCredentialsManagerVisibility(settings.enableLogin ?? false);
-    }
+  if (elements.enableLogin) {
+    elements.enableLogin.checked = settings.enableLogin ?? false;
+    updateCredentialsManagerVisibility(settings.enableLogin ?? false);
+  }
+  if (elements.enableSavedPayments) {
+    elements.enableSavedPayments.checked = settings.enableSavedPayments ?? false;
+    updatePaymentMethodsManagerVisibility(settings.enableSavedPayments ?? false);
+  }
 
-    // CAPTCHA Solver
-    if (elements.captchaSolverEnabled) {
-      elements.captchaSolverEnabled.checked = settings.captchaSolverEnabled ?? false;
-      updateCaptchaSolverVisibility(settings.captchaSolverEnabled ?? false);
-    }
-    if (elements.captchaApiKey) elements.captchaApiKey.value = settings.captchaApiKey || '';
+  if (elements.captchaSolverEnabled) {
+    elements.captchaSolverEnabled.checked = settings.captchaSolverEnabled ?? false;
+    updateCaptchaSolverVisibility(settings.captchaSolverEnabled ?? false);
+  }
+  if (elements.captchaApiKey) elements.captchaApiKey.value = settings.captchaApiKey || '';
 
-    if (elements.autoRefineSiteMaps) {
-      elements.autoRefineSiteMaps.checked = settings.autoRefineSiteMaps ?? true;
-    }
+  if (elements.autoRefineSiteMaps) {
+    elements.autoRefineSiteMaps.checked = settings.autoRefineSiteMaps ?? true;
+  }
 
-    // Speech-to-Text
-    if (elements.sttProvider) {
-      elements.sttProvider.checked = settings.sttProvider === 'whisper';
-      updateSttDescription(settings.sttProvider === 'whisper', settings.openaiApiKey);
-    }
+  if (elements.sttProvider) {
+    elements.sttProvider.checked = settings.sttProvider === 'whisper';
+    updateSttDescription(settings.sttProvider === 'whisper', settings.openaiApiKey);
+  }
 
-    addLog('info', 'Settings loaded successfully');
-  });
+  addLog('info', 'Settings loaded successfully');
 }
 
 function saveSettings() {
+  const provider = elements.modelProvider?.value || 'xai';
+  const selectedModel = elements.modelName?.value || (provider === 'lmstudio' ? '' : getDefaultModelForProvider(provider));
   const settings = {
-    modelProvider: elements.modelProvider?.value || 'xai',
-    modelName: elements.modelName?.value || 'grok-4-1-fast-reasoning',
+    modelProvider: provider,
+    modelName: selectedModel,
     apiKey: elements.apiKey?.value || '',
     geminiApiKey: elements.geminiApiKey?.value || '',
     openaiApiKey: document.getElementById('openaiApiKey')?.value || '',
@@ -748,6 +891,7 @@ function saveSettings() {
     openrouterApiKey: document.getElementById('openrouterApiKey')?.value || '',
     customApiKey: document.getElementById('customApiKey')?.value || '',
     customEndpoint: document.getElementById('customEndpoint')?.value || '',
+    lmstudioBaseUrl: elements.lmstudioBaseUrl?.value?.trim() || defaultSettings.lmstudioBaseUrl,
     maxIterations: parseInt(elements.maxIterations?.value) || 20,
     debugMode: elements.debugMode?.checked ?? false,
     // DOM Optimization settings
@@ -758,6 +902,7 @@ function saveSettings() {
     animatedActionHighlights: elements.animatedActionHighlights?.checked ?? true,
     showSidepanelProgress: elements.showSidepanelProgress?.checked ?? false,
     enableLogin: elements.enableLogin?.checked ?? false,
+    enableSavedPayments: elements.enableSavedPayments?.checked ?? false,
     captchaSolverEnabled: elements.captchaSolverEnabled?.checked ?? false,
     captchaApiKey: elements.captchaApiKey?.value || '',
     autoRefineSiteMaps: elements.autoRefineSiteMaps?.checked ?? true,
@@ -770,10 +915,7 @@ function saveSettings() {
     showToast('Settings saved successfully', 'success');
     addLog('info', 'Settings saved successfully');
     
-    // Update connection status if API key changed
-    if (settings.apiKey) {
-      checkApiConnection();
-    }
+    checkApiConnection();
   });
 }
 
@@ -830,29 +972,31 @@ async function checkApiConnection() {
     const settings = await getStoredSettings();
     const provider = settings.modelProvider || 'xai';
 
-    // Check appropriate API key based on provider
-    const apiKeyMap = {
-      xai: settings.apiKey,
-      gemini: settings.geminiApiKey,
-      openai: settings.openaiApiKey,
-      anthropic: settings.anthropicApiKey,
-      openrouter: settings.openrouterApiKey,
-      custom: settings.customApiKey
-    };
+    const providerInfo = {
+      xai: { key: settings.apiKey, name: getProviderDisplayName('xai') },
+      gemini: { key: settings.geminiApiKey, name: getProviderDisplayName('gemini') },
+      openai: { key: settings.openaiApiKey, name: getProviderDisplayName('openai') },
+      anthropic: { key: settings.anthropicApiKey, name: getProviderDisplayName('anthropic') },
+      openrouter: { key: settings.openrouterApiKey, name: getProviderDisplayName('openrouter') },
+      lmstudio: { key: '', name: getProviderDisplayName('lmstudio') },
+      custom: { key: settings.customApiKey, name: getProviderDisplayName('custom') }
+    }[provider] || { key: '', name: getProviderDisplayName(provider) };
 
-    const apiKey = apiKeyMap[provider];
+    if (provider === 'lmstudio' && !settings.modelName) {
+      updateConnectionStatus('disconnected', 'No model selected');
+      updateApiStatusCard('disconnected', 'No Model Selected', 'Select an LM Studio model discovered from /v1/models to test the local server.');
+      return;
+    }
 
-    if (!apiKey) {
-      const providerNames = {
-        xai: 'xAI',
-        gemini: 'Gemini',
-        openai: 'OpenAI',
-        anthropic: 'Anthropic',
-        openrouter: 'OpenRouter',
-        custom: 'Custom'
-      };
+    if (provider === 'custom' && !settings.customEndpoint) {
+      updateConnectionStatus('disconnected', 'No endpoint configured');
+      updateApiStatusCard('disconnected', 'No Endpoint', 'Configure your custom OpenAI-compatible endpoint to test this provider.');
+      return;
+    }
+
+    if (providerRequiresApiKey(provider) && !providerInfo.key) {
       updateConnectionStatus('disconnected', 'No API key configured');
-      updateApiStatusCard('disconnected', 'No API Key', `Configure your ${providerNames[provider]} API key to get started`);
+      updateApiStatusCard('disconnected', 'No API Key', `Configure your ${providerInfo.name} API key to get started`);
       return;
     }
 
@@ -942,18 +1086,25 @@ async function runFullApiTest() {
     const settings = await getStoredSettings();
     const provider = settings.modelProvider || 'xai';
 
-    // Check appropriate API key based on provider
-    const apiKeyMap = {
-      xai: { key: settings.apiKey, name: 'xAI' },
-      gemini: { key: settings.geminiApiKey, name: 'Gemini' },
-      openai: { key: settings.openaiApiKey, name: 'OpenAI' },
-      anthropic: { key: settings.anthropicApiKey, name: 'Anthropic' },
-      openrouter: { key: settings.openrouterApiKey, name: 'OpenRouter' },
-      custom: { key: settings.customApiKey, name: 'Custom' }
-    };
+    const providerInfo = {
+      xai: { key: settings.apiKey, name: getProviderDisplayName('xai') },
+      gemini: { key: settings.geminiApiKey, name: getProviderDisplayName('gemini') },
+      openai: { key: settings.openaiApiKey, name: getProviderDisplayName('openai') },
+      anthropic: { key: settings.anthropicApiKey, name: getProviderDisplayName('anthropic') },
+      openrouter: { key: settings.openrouterApiKey, name: getProviderDisplayName('openrouter') },
+      lmstudio: { key: '', name: getProviderDisplayName('lmstudio') },
+      custom: { key: settings.customApiKey, name: getProviderDisplayName('custom') }
+    }[provider] || { key: '', name: getProviderDisplayName(provider) };
 
-    const providerInfo = apiKeyMap[provider];
-    if (!providerInfo.key) {
+    if (provider === 'lmstudio' && !settings.modelName) {
+      throw new Error('Select an LM Studio model discovered from /v1/models before testing');
+    }
+
+    if (provider === 'custom' && !settings.customEndpoint) {
+      throw new Error('Custom API endpoint is required for testing');
+    }
+
+    if (providerRequiresApiKey(provider) && !providerInfo.key) {
       throw new Error(`${providerInfo.name} API key is required for testing`);
     }
 
@@ -2624,6 +2775,173 @@ async function exportSessionText(sessionId) {
 // Current state for credential modal
 let credentialModalMode = 'add'; // 'add' or 'edit'
 let credentialEditingDomain = null;
+let credentialVaultStatus = { configured: false, unlocked: false };
+let paymentMethodModalMode = 'add'; // 'add' or 'edit'
+let paymentMethodEditingId = null;
+let paymentVaultStatus = { configured: false, unlocked: false, paymentUnlocked: false };
+
+function resetCredentialModalFields() {
+  const domainInput = document.getElementById('credModalDomain');
+  const usernameInput = document.getElementById('credModalUsername');
+  const passwordInput = document.getElementById('credModalPassword');
+  const notesInput = document.getElementById('credModalNotes');
+  const allowSubdomainsInput = document.getElementById('credModalAllowSubdomains');
+
+  if (domainInput) {
+    domainInput.value = '';
+    domainInput.readOnly = false;
+  }
+  if (usernameInput) usernameInput.value = '';
+  if (passwordInput) passwordInput.value = '';
+  if (notesInput) notesInput.value = '';
+  if (allowSubdomainsInput) allowSubdomainsInput.checked = false;
+}
+
+async function refreshCredentialVaultStatus(options = {}) {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'credentialVaultStatus' });
+    if (!response?.success) {
+      throw new Error(response?.error || 'Unable to load credential vault status');
+    }
+
+    credentialVaultStatus = response.status || { configured: false, unlocked: false };
+    updateCredentialVaultStateUI();
+    updateCredentialsManagerVisibility(document.getElementById('enableLogin')?.checked ?? false);
+    await refreshPaymentVaultStatus({ silent: true });
+  } catch (error) {
+    if (!options.silent) {
+      showToast('Error loading credential vault status: ' + error.message, 'error');
+    }
+  }
+}
+
+function updateCredentialVaultStateUI() {
+  const statusText = document.getElementById('credentialVaultStatusText');
+  const setupPanel = document.getElementById('credentialVaultSetup');
+  const unlockPanel = document.getElementById('credentialVaultUnlock');
+  const unlockedPanel = document.getElementById('credentialVaultUnlocked');
+  const lockBtn = document.getElementById('lockCredentialVaultBtn');
+
+  if (!credentialVaultStatus.configured) {
+    if (statusText) statusText.textContent = 'No credential vault is configured yet. Set one up before storing passwords.';
+    if (setupPanel) setupPanel.style.display = 'flex';
+    if (unlockPanel) unlockPanel.style.display = 'none';
+    if (unlockedPanel) unlockedPanel.style.display = 'none';
+    if (lockBtn) lockBtn.style.display = 'none';
+    return;
+  }
+
+  if (credentialVaultStatus.unlocked) {
+    if (statusText) statusText.textContent = 'Vault unlocked. Stored credentials can be viewed, edited, autofilled, and saved.';
+    if (setupPanel) setupPanel.style.display = 'none';
+    if (unlockPanel) unlockPanel.style.display = 'none';
+    if (unlockedPanel) unlockedPanel.style.display = 'flex';
+    if (lockBtn) lockBtn.style.display = 'inline-flex';
+    return;
+  }
+
+  if (statusText) statusText.textContent = 'Vault locked. Unlock it before viewing or storing credentials.';
+  if (setupPanel) setupPanel.style.display = 'none';
+  if (unlockPanel) unlockPanel.style.display = 'flex';
+  if (unlockedPanel) unlockedPanel.style.display = 'none';
+  if (lockBtn) lockBtn.style.display = 'none';
+}
+
+async function setupCredentialVault() {
+  const passphrase = document.getElementById('credentialVaultPassphrase')?.value || '';
+  const confirmPassphrase = document.getElementById('credentialVaultConfirmPassphrase')?.value || '';
+
+  if (passphrase.length < 8) {
+    showToast('Vault passphrase must be at least 8 characters', 'error');
+    return;
+  }
+
+  if (passphrase !== confirmPassphrase) {
+    showToast('Passphrases do not match', 'error');
+    return;
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'setupCredentialVault',
+      passphrase
+    });
+
+    if (!response?.success) {
+      showToast(response?.error || 'Failed to set up credential vault', 'error');
+      return;
+    }
+
+    const setupInput = document.getElementById('credentialVaultPassphrase');
+    const confirmInput = document.getElementById('credentialVaultConfirmPassphrase');
+    if (setupInput) setupInput.value = '';
+    if (confirmInput) confirmInput.value = '';
+
+    await refreshCredentialVaultStatus({ silent: true });
+
+    const migratedCount = response.migratedCount || 0;
+    showToast(
+      migratedCount > 0
+        ? `Credential vault set up. Migrated ${migratedCount} saved credential${migratedCount === 1 ? '' : 's'}.`
+        : 'Credential vault set up successfully',
+      'success'
+    );
+  } catch (error) {
+    showToast('Error setting up credential vault: ' + error.message, 'error');
+  }
+}
+
+async function unlockCredentialVaultHandler() {
+  const passphrase = document.getElementById('credentialVaultUnlockPassphrase')?.value || '';
+  if (!passphrase) {
+    showToast('Enter your vault passphrase to unlock', 'error');
+    return;
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'unlockCredentialVault',
+      passphrase
+    });
+
+    if (!response?.success) {
+      showToast(response?.error || 'Failed to unlock credential vault', 'error');
+      return;
+    }
+
+    const unlockInput = document.getElementById('credentialVaultUnlockPassphrase');
+    if (unlockInput) unlockInput.value = '';
+
+    await refreshCredentialVaultStatus({ silent: true });
+
+    const migratedCount = response.migratedCount || 0;
+    showToast(
+      migratedCount > 0
+        ? `Vault unlocked. Migrated ${migratedCount} legacy credential${migratedCount === 1 ? '' : 's'}.`
+        : 'Credential vault unlocked',
+      'success'
+    );
+  } catch (error) {
+    showToast('Error unlocking credential vault: ' + error.message, 'error');
+  }
+}
+
+async function lockCredentialVaultHandler() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'lockCredentialVault' });
+    if (!response?.success) {
+      showToast(response?.error || 'Failed to lock credential vault', 'error');
+      return;
+    }
+
+    hideCredentialModal();
+    hidePaymentMethodModal();
+    await refreshCredentialVaultStatus({ silent: true });
+    showToast('Credential vault locked', 'success');
+  } catch (error) {
+    showToast('Error locking credential vault: ' + error.message, 'error');
+  }
+}
 
 // Show/hide credentials manager based on toggle
 function updateSttDescription(whisperEnabled, openaiKey) {
@@ -2647,10 +2965,22 @@ function updateCaptchaSolverVisibility(enabled) {
 
 function updateCredentialsManagerVisibility(enabled) {
   const manager = document.getElementById('credentialsManager');
+  const disabledNote = document.getElementById('credentialManagerDisabledNote');
+  const listEl = document.getElementById('credentialsList');
+  const emptyEl = document.getElementById('credentialsEmpty');
+  const showManager = credentialVaultStatus.unlocked;
+
   if (manager) {
-    manager.style.display = enabled ? 'block' : 'none';
-    if (enabled) {
+    manager.style.display = showManager ? 'block' : 'none';
+    if (disabledNote) {
+      disabledNote.style.display = showManager && !enabled ? 'block' : 'none';
+    }
+
+    if (showManager) {
       loadCredentials();
+    } else {
+      if (listEl) listEl.innerHTML = '';
+      if (emptyEl) emptyEl.style.display = 'none';
     }
   }
 }
@@ -2661,6 +2991,14 @@ async function loadCredentials() {
     const response = await chrome.runtime.sendMessage({ action: 'getAllCredentials' });
 
     if (!response || !response.success) {
+      if (response?.errorCode === 'locked' || response?.errorCode === 'vault_not_configured') {
+        credentialVaultStatus = {
+          configured: response.errorCode !== 'vault_not_configured',
+          unlocked: false
+        };
+        updateCredentialVaultStateUI();
+        updateCredentialsManagerVisibility(document.getElementById('enableLogin')?.checked ?? false);
+      }
       console.error('Failed to load credentials:', response?.error);
       return;
     }
@@ -2699,6 +3037,7 @@ function renderCredentialCard(cred) {
       <div class="credential-card-info">
         <div class="credential-card-domain">${escapeHtml(cred.domain)}</div>
         <div class="credential-card-username">${escapeHtml(cred.username || 'No username')}</div>
+        <div class="credential-card-scope">${cred.allowSubdomains ? 'Subdomains allowed' : 'Exact host only'}</div>
       </div>
       <div class="credential-card-password" data-domain="${escapeHtml(cred.domain)}">
         <span class="password-dots">--------</span>
@@ -2743,14 +3082,11 @@ async function showCredentialModal(mode, domain) {
   const usernameInput = document.getElementById('credModalUsername');
   const passwordInput = document.getElementById('credModalPassword');
   const notesInput = document.getElementById('credModalNotes');
+  const allowSubdomainsInput = document.getElementById('credModalAllowSubdomains');
 
   if (titleEl) titleEl.textContent = mode === 'edit' ? 'Edit Credential' : 'Add Credential';
 
-  // Clear fields
-  if (domainInput) domainInput.value = '';
-  if (usernameInput) usernameInput.value = '';
-  if (passwordInput) passwordInput.value = '';
-  if (notesInput) notesInput.value = '';
+  resetCredentialModalFields();
 
   // Pre-fill for edit mode
   if (mode === 'edit' && domain) {
@@ -2770,6 +3106,7 @@ async function showCredentialModal(mode, domain) {
         if (usernameInput) usernameInput.value = response.credential.username || '';
         if (passwordInput) passwordInput.value = response.credential.password || '';
         if (notesInput) notesInput.value = response.credential.notes || '';
+        if (allowSubdomainsInput) allowSubdomainsInput.checked = response.credential.allowSubdomains === true;
       }
     } catch (error) {
       console.error('Failed to load credential for editing:', error);
@@ -2786,6 +3123,7 @@ async function showCredentialModal(mode, domain) {
 function hideCredentialModal() {
   const modal = document.getElementById('credentialModal');
   if (modal) modal.classList.add('hidden');
+  resetCredentialModalFields();
   credentialModalMode = 'add';
   credentialEditingDomain = null;
 }
@@ -2796,6 +3134,7 @@ async function saveCredentialFromModal() {
   const username = document.getElementById('credModalUsername')?.value?.trim();
   const password = document.getElementById('credModalPassword')?.value;
   const notes = document.getElementById('credModalNotes')?.value?.trim();
+  const allowSubdomains = document.getElementById('credModalAllowSubdomains')?.checked ?? false;
 
   if (!domain) {
     showToast('Domain is required', 'error');
@@ -2810,8 +3149,8 @@ async function saveCredentialFromModal() {
   try {
     const action = credentialModalMode === 'edit' ? 'updateCredential' : 'saveCredential';
     const message = credentialModalMode === 'edit'
-      ? { action, domain: credentialEditingDomain || domain, updates: { username, password, notes } }
-      : { action, domain, data: { username, password, notes } };
+      ? { action, domain: credentialEditingDomain || domain, updates: { username, password, notes, allowSubdomains } }
+      : { action, domain, data: { username, password, notes, allowSubdomains } };
 
     const response = await chrome.runtime.sendMessage(message);
 
@@ -2941,11 +3280,20 @@ function initializeCredentialManager() {
   const modalCancel = document.getElementById('credentialModalCancel');
   const modalClose = document.getElementById('credentialModalClose');
   const modalBackdrop = document.querySelector('.credential-modal-backdrop');
+  const vaultSetupBtn = document.getElementById('setupCredentialVaultBtn');
+  const vaultUnlockBtn = document.getElementById('unlockCredentialVaultBtn');
+  const vaultLockBtn = document.getElementById('lockCredentialVaultBtn');
+  const vaultSetupPassphrase = document.getElementById('credentialVaultPassphrase');
+  const vaultSetupConfirmPassphrase = document.getElementById('credentialVaultConfirmPassphrase');
+  const vaultUnlockPassphrase = document.getElementById('credentialVaultUnlockPassphrase');
 
   if (modalSave) modalSave.addEventListener('click', saveCredentialFromModal);
   if (modalCancel) modalCancel.addEventListener('click', hideCredentialModal);
   if (modalClose) modalClose.addEventListener('click', hideCredentialModal);
   if (modalBackdrop) modalBackdrop.addEventListener('click', hideCredentialModal);
+  if (vaultSetupBtn) vaultSetupBtn.addEventListener('click', setupCredentialVault);
+  if (vaultUnlockBtn) vaultUnlockBtn.addEventListener('click', unlockCredentialVaultHandler);
+  if (vaultLockBtn) vaultLockBtn.addEventListener('click', lockCredentialVaultHandler);
 
   // Modal password toggle
   const toggleModalPw = document.getElementById('toggleCredModalPassword');
@@ -2961,7 +3309,34 @@ function initializeCredentialManager() {
     });
   }
 
-  // Load credentials when switching to passwords section (override inside init to ensure DOM is ready)
+  if (vaultSetupPassphrase) {
+    vaultSetupPassphrase.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        setupCredentialVault();
+      }
+    });
+  }
+
+  if (vaultSetupConfirmPassphrase) {
+    vaultSetupConfirmPassphrase.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        setupCredentialVault();
+      }
+    });
+  }
+
+  if (vaultUnlockPassphrase) {
+    vaultUnlockPassphrase.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        unlockCredentialVaultHandler();
+      }
+    });
+  }
+
+  // Load credential/payment data when switching sections (override inside init to ensure DOM is ready)
   // Also refresh memory data when switching to memory section (catches stale data)
   const origSwitchSection = switchSection;
   switchSection = function(sectionId) {
@@ -2969,23 +3344,617 @@ function initializeCredentialManager() {
     if (sectionId === 'dashboard') {
       refreshAnalyticsDashboard();
     }
-    if (sectionId === 'passwords') {
-      const enableLogin = document.getElementById('enableLogin');
-      if (enableLogin?.checked) {
-        loadCredentials();
-      }
+    if (sectionId === 'passwords' || sectionId === 'payments') {
+      refreshCredentialVaultStatus({ silent: true });
+      refreshPaymentVaultStatus({ silent: true });
     }
     // Refresh memory tab when switching to it (picks up changes made while off-screen)
     if (sectionId === 'memory') {
       loadMemoryDashboard();
     }
   };
+
+  refreshCredentialVaultStatus({ silent: true });
 }
 
-// Initialize credential manager after DOM is ready
+function getCardBrandDisplayName(brand) {
+  const brandMap = {
+    visa: 'Visa',
+    mastercard: 'Mastercard',
+    amex: 'AmEx',
+    discover: 'Discover',
+    diners: 'Diners',
+    jcb: 'JCB',
+    unknown: 'Unknown'
+  };
+  return brandMap[brand] || 'Unknown';
+}
+
+function normalizeCardNumberLocal(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function detectCardBrandLocal(value) {
+  const digits = normalizeCardNumberLocal(value);
+  if (!digits) return 'unknown';
+  if (/^4\d{12}(\d{3}){0,2}$/.test(digits)) return 'visa';
+  if (/^(5[1-5]\d{14}|2(2[2-9]\d{12}|[3-6]\d{13}|7([01]\d{12}|20\d{12})))$/.test(digits)) return 'mastercard';
+  if (/^3[47]\d{13}$/.test(digits)) return 'amex';
+  if (/^(6011\d{12}|65\d{14}|64[4-9]\d{13})$/.test(digits)) return 'discover';
+  if (/^(30[0-5]\d{11}|36\d{12}|38\d{12}|39\d{12})$/.test(digits)) return 'diners';
+  if (/^(2131|1800|35\d{3})\d{11}$/.test(digits)) return 'jcb';
+  return 'unknown';
+}
+
+function formatCardNumberLocal(value) {
+  const digits = normalizeCardNumberLocal(value);
+  if (!digits) return '';
+  if (/^3[47]/.test(digits)) {
+    return [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)].filter(Boolean).join(' ');
+  }
+  return digits.match(/.{1,4}/g)?.join(' ') || digits;
+}
+
+function isValidCardNumberLocal(value) {
+  const digits = normalizeCardNumberLocal(value);
+  if (!/^\d{12,19}$/.test(digits)) return false;
+  let sum = 0;
+  let shouldDouble = false;
+  for (let i = digits.length - 1; i >= 0; i -= 1) {
+    let digit = Number(digits[i]);
+    if (shouldDouble) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+  return sum % 10 === 0;
+}
+
+function updatePaymentCardBrandPreview(rawCardNumber) {
+  const brandEl = document.getElementById('paymentMethodCardBrand');
+  const hintEl = document.getElementById('paymentMethodCardNumberHint');
+  const brand = detectCardBrandLocal(rawCardNumber);
+  const digits = normalizeCardNumberLocal(rawCardNumber);
+
+  if (brandEl) {
+    brandEl.textContent = getCardBrandDisplayName(brand);
+    brandEl.className = `payment-card-brand ${brand}`;
+  }
+
+  if (!hintEl) return;
+  if (!digits) {
+    hintEl.textContent = 'Card brand is detected automatically as you type.';
+    return;
+  }
+  if (digits.length >= 12) {
+    hintEl.textContent = isValidCardNumberLocal(digits)
+      ? `${getCardBrandDisplayName(brand)} detected.`
+      : 'Card number looks incomplete or invalid.';
+    return;
+  }
+  hintEl.textContent = `${getCardBrandDisplayName(brand)} detection is provisional until the full number is entered.`;
+}
+
+function resetPaymentMethodModalFields() {
+  const fieldIds = [
+    'paymentMethodNickname',
+    'paymentMethodCardholderName',
+    'paymentMethodCardNumber',
+    'paymentMethodExpiryMonth',
+    'paymentMethodExpiryYear',
+    'paymentMethodCvv',
+    'paymentMethodBillingName',
+    'paymentMethodAddressLine1',
+    'paymentMethodAddressLine2',
+    'paymentMethodCity',
+    'paymentMethodStateRegion',
+    'paymentMethodPostalCode',
+    'paymentMethodCountry'
+  ];
+
+  fieldIds.forEach((fieldId) => {
+    const field = document.getElementById(fieldId);
+    if (!field) return;
+    if (field.tagName === 'SELECT') {
+      field.value = '';
+    } else {
+      field.value = '';
+    }
+  });
+
+  const cvvInput = document.getElementById('paymentMethodCvv');
+  if (cvvInput) cvvInput.type = 'password';
+  const cvvToggleIcon = document.querySelector('#togglePaymentMethodCvv i');
+  if (cvvToggleIcon) cvvToggleIcon.className = 'fas fa-eye';
+
+  updatePaymentCardBrandPreview('');
+}
+
+async function refreshPaymentVaultStatus(options = {}) {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'paymentVaultStatus' });
+    if (!response?.success) {
+      throw new Error(response?.error || 'Unable to load saved payment method status');
+    }
+
+    paymentVaultStatus = response.status || { configured: false, unlocked: false, paymentUnlocked: false };
+    updatePaymentVaultStateUI();
+    updatePaymentMethodsManagerVisibility(document.getElementById('enableSavedPayments')?.checked ?? false);
+  } catch (error) {
+    if (!options.silent) {
+      showToast('Error loading payment method status: ' + error.message, 'error');
+    }
+  }
+}
+
+function updatePaymentVaultStateUI() {
+  const statusText = document.getElementById('paymentMethodsStatusText');
+  const blockedPanel = document.getElementById('paymentMethodsBlocked');
+  const blockedText = document.getElementById('paymentMethodsBlockedText');
+  const openPasswordsBtn = document.getElementById('openPasswordsForPaymentsBtn');
+  const unlockPanel = document.getElementById('paymentMethodsUnlock');
+  const unlockedPanel = document.getElementById('paymentMethodsUnlocked');
+  const lockBtn = document.getElementById('lockPaymentMethodsBtn');
+
+  if (!credentialVaultStatus.configured) {
+    if (statusText) statusText.textContent = 'Set up the credential vault before storing cards.';
+    if (blockedText) blockedText.textContent = 'Saved payment methods use the same encrypted vault as passwords. Open the Passwords tab to set up the vault before adding cards.';
+    if (blockedPanel) blockedPanel.style.display = 'flex';
+    if (openPasswordsBtn) openPasswordsBtn.style.display = 'inline-flex';
+    if (unlockPanel) unlockPanel.style.display = 'none';
+    if (unlockedPanel) unlockedPanel.style.display = 'none';
+    if (lockBtn) lockBtn.style.display = 'none';
+    return;
+  }
+
+  if (!credentialVaultStatus.unlocked) {
+    if (statusText) statusText.textContent = 'Credential vault locked. Unlock it before managing saved cards.';
+    if (blockedText) blockedText.textContent = 'Unlock the credential vault in the Passwords tab before viewing, editing, or filling saved payment methods.';
+    if (blockedPanel) blockedPanel.style.display = 'flex';
+    if (openPasswordsBtn) openPasswordsBtn.style.display = 'inline-flex';
+    if (unlockPanel) unlockPanel.style.display = 'none';
+    if (unlockedPanel) unlockedPanel.style.display = 'none';
+    if (lockBtn) lockBtn.style.display = 'none';
+    return;
+  }
+
+  if (paymentVaultStatus.paymentUnlocked) {
+    if (statusText) statusText.textContent = 'Saved payment methods unlocked. Stored cards can be viewed and offered during checkout.';
+    if (blockedPanel) blockedPanel.style.display = 'none';
+    if (openPasswordsBtn) openPasswordsBtn.style.display = 'none';
+    if (unlockPanel) unlockPanel.style.display = 'none';
+    if (unlockedPanel) unlockedPanel.style.display = 'flex';
+    if (lockBtn) lockBtn.style.display = 'inline-flex';
+    return;
+  }
+
+  if (statusText) statusText.textContent = 'Saved payment methods locked. Re-enter your vault passphrase to access them.';
+  if (blockedPanel) blockedPanel.style.display = 'none';
+  if (openPasswordsBtn) openPasswordsBtn.style.display = 'none';
+  if (unlockPanel) unlockPanel.style.display = 'flex';
+  if (unlockedPanel) unlockedPanel.style.display = 'none';
+  if (lockBtn) lockBtn.style.display = 'none';
+}
+
+async function unlockPaymentMethodsHandler() {
+  const passphrase = document.getElementById('paymentMethodsUnlockPassphrase')?.value || '';
+  if (!passphrase) {
+    showToast('Enter your vault passphrase to unlock saved payment methods', 'error');
+    return;
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'unlockPaymentMethods',
+      passphrase
+    });
+
+    if (!response?.success) {
+      showToast(response?.error || 'Failed to unlock saved payment methods', 'error');
+      return;
+    }
+
+    const input = document.getElementById('paymentMethodsUnlockPassphrase');
+    if (input) input.value = '';
+    await refreshPaymentVaultStatus({ silent: true });
+    showToast('Saved payment methods unlocked', 'success');
+  } catch (error) {
+    showToast('Error unlocking saved payment methods: ' + error.message, 'error');
+  }
+}
+
+async function lockPaymentMethodsHandler() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'lockPaymentMethods' });
+    if (!response?.success) {
+      showToast(response?.error || 'Failed to lock saved payment methods', 'error');
+      return;
+    }
+
+    hidePaymentMethodModal();
+    await refreshPaymentVaultStatus({ silent: true });
+    showToast('Saved payment methods locked', 'success');
+  } catch (error) {
+    showToast('Error locking saved payment methods: ' + error.message, 'error');
+  }
+}
+
+function updatePaymentMethodsManagerVisibility(enabled) {
+  const manager = document.getElementById('paymentMethodsManager');
+  const disabledNote = document.getElementById('paymentManagerDisabledNote');
+  const listEl = document.getElementById('paymentMethodsList');
+  const emptyEl = document.getElementById('paymentMethodsEmpty');
+  const showManager = paymentVaultStatus.paymentUnlocked === true;
+
+  if (manager) {
+    manager.style.display = showManager ? 'block' : 'none';
+    if (disabledNote) {
+      disabledNote.style.display = showManager && !enabled ? 'block' : 'none';
+    }
+
+    if (showManager) {
+      loadPaymentMethods();
+    } else {
+      if (listEl) listEl.innerHTML = '';
+      if (emptyEl) emptyEl.style.display = 'none';
+    }
+  }
+}
+
+async function loadPaymentMethods() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getAllPaymentMethods' });
+    if (!response || !response.success) {
+      if (response?.errorCode === 'payment_locked' || response?.errorCode === 'locked' || response?.errorCode === 'vault_not_configured') {
+        await refreshPaymentVaultStatus({ silent: true });
+      }
+      console.error('Failed to load payment methods:', response?.error);
+      return;
+    }
+
+    const paymentMethods = response.paymentMethods || [];
+    const listEl = document.getElementById('paymentMethodsList');
+    const emptyEl = document.getElementById('paymentMethodsEmpty');
+
+    if (paymentMethods.length === 0) {
+      if (listEl) listEl.innerHTML = '';
+      if (emptyEl) emptyEl.style.display = 'flex';
+      return;
+    }
+
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (listEl) {
+      listEl.innerHTML = paymentMethods.map(method => renderPaymentMethodCard(method)).join('');
+    }
+  } catch (error) {
+    console.error('Error loading payment methods:', error);
+  }
+}
+
+function renderPaymentMethodCard(method) {
+  const brandName = getCardBrandDisplayName(method.cardBrand);
+  const title = method.nickname || `${brandName} ending in ${method.last4 || '****'}`;
+  const metaParts = [
+    method.cardholderName || '',
+    method.expiryMonth && method.expiryYearLast2 ? `Exp ${method.expiryMonth}/${method.expiryYearLast2}` : ''
+  ].filter(Boolean);
+
+  return `
+    <div class="payment-method-card" data-payment-id="${escapeHtml(method.id)}">
+      <div class="payment-method-card-icon">
+        <i class="fas fa-credit-card"></i>
+      </div>
+      <div class="payment-method-card-info">
+        <div class="payment-method-title-row">
+          <div class="payment-method-title">${escapeHtml(title)}</div>
+          <span class="payment-card-brand ${escapeHtml(method.cardBrand || 'unknown')}">${escapeHtml(brandName)}</span>
+        </div>
+        <div class="payment-method-meta">${escapeHtml(metaParts.join(' | ') || 'Saved payment method')}</div>
+        <div class="payment-method-number" data-payment-id="${escapeHtml(method.id)}">
+          <span class="payment-method-number-text">${escapeHtml(method.maskedNumber || '****')}</span>
+        </div>
+        <div class="payment-method-billing">${escapeHtml(method.billingSummary || 'Billing profile stored')}</div>
+      </div>
+      <div class="payment-method-actions">
+        <button class="credential-action-btn" data-payment-action="toggle-number" data-payment-id="${escapeHtml(method.id)}" title="Reveal card number">
+          <i class="fas fa-eye"></i>
+        </button>
+        <button class="credential-action-btn" data-payment-action="edit" data-payment-id="${escapeHtml(method.id)}" title="Edit">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button class="credential-action-btn delete" data-payment-action="delete" data-payment-id="${escapeHtml(method.id)}" title="Delete">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function filterPaymentMethods(query) {
+  const cards = document.querySelectorAll('.payment-method-card');
+  const lowerQuery = query.toLowerCase();
+
+  cards.forEach((card) => {
+    const text = card.textContent?.toLowerCase() || '';
+    card.style.display = text.includes(lowerQuery) ? 'flex' : 'none';
+  });
+}
+
+async function showPaymentMethodModal(mode, id) {
+  paymentMethodModalMode = mode;
+  paymentMethodEditingId = id || null;
+
+  const modal = document.getElementById('paymentMethodModal');
+  const titleEl = document.getElementById('paymentMethodModalTitle');
+  const saveBtn = document.getElementById('paymentMethodModalSave');
+
+  if (titleEl) titleEl.textContent = mode === 'edit' ? 'Edit Payment Method' : 'Add Payment Method';
+  if (saveBtn) saveBtn.textContent = mode === 'edit' ? 'Save Changes' : 'Save Card';
+
+  resetPaymentMethodModalFields();
+
+  if (mode === 'edit' && id) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getFullPaymentMethod',
+        id
+      });
+
+      if (response?.success && response.paymentMethod) {
+        const method = response.paymentMethod;
+        const fieldMap = {
+          paymentMethodNickname: method.nickname || '',
+          paymentMethodCardholderName: method.cardholderName || '',
+          paymentMethodCardNumber: formatCardNumberLocal(method.cardNumber || ''),
+          paymentMethodExpiryMonth: method.expiryMonth || '',
+          paymentMethodExpiryYear: method.expiryYear || '',
+          paymentMethodCvv: method.cvv || '',
+          paymentMethodBillingName: method.billingName || '',
+          paymentMethodAddressLine1: method.addressLine1 || '',
+          paymentMethodAddressLine2: method.addressLine2 || '',
+          paymentMethodCity: method.city || '',
+          paymentMethodStateRegion: method.stateRegion || '',
+          paymentMethodPostalCode: method.postalCode || '',
+          paymentMethodCountry: method.country || ''
+        };
+
+        Object.entries(fieldMap).forEach(([fieldId, value]) => {
+          const field = document.getElementById(fieldId);
+          if (!field) return;
+          field.value = value;
+        });
+        updatePaymentCardBrandPreview(method.cardNumber || '');
+      }
+    } catch (error) {
+      console.error('Failed to load payment method for editing:', error);
+    }
+  }
+
+  if (modal) modal.classList.remove('hidden');
+}
+
+function hidePaymentMethodModal() {
+  const modal = document.getElementById('paymentMethodModal');
+  if (modal) modal.classList.add('hidden');
+  paymentMethodModalMode = 'add';
+  paymentMethodEditingId = null;
+  resetPaymentMethodModalFields();
+}
+
+async function savePaymentMethodFromModal() {
+  const data = {
+    nickname: document.getElementById('paymentMethodNickname')?.value?.trim() || '',
+    cardholderName: document.getElementById('paymentMethodCardholderName')?.value?.trim() || '',
+    cardNumber: normalizeCardNumberLocal(document.getElementById('paymentMethodCardNumber')?.value || ''),
+    expiryMonth: document.getElementById('paymentMethodExpiryMonth')?.value || '',
+    expiryYear: (document.getElementById('paymentMethodExpiryYear')?.value || '').trim(),
+    cvv: (document.getElementById('paymentMethodCvv')?.value || '').trim(),
+    billingName: document.getElementById('paymentMethodBillingName')?.value?.trim() || '',
+    addressLine1: document.getElementById('paymentMethodAddressLine1')?.value?.trim() || '',
+    addressLine2: document.getElementById('paymentMethodAddressLine2')?.value?.trim() || '',
+    city: document.getElementById('paymentMethodCity')?.value?.trim() || '',
+    stateRegion: document.getElementById('paymentMethodStateRegion')?.value?.trim() || '',
+    postalCode: document.getElementById('paymentMethodPostalCode')?.value?.trim() || '',
+    country: document.getElementById('paymentMethodCountry')?.value?.trim() || ''
+  };
+
+  if (!data.cardholderName || !data.cardNumber || !data.expiryMonth || !data.expiryYear || !data.cvv) {
+    showToast('Cardholder name, card number, expiry, and CVV are required', 'error');
+    return;
+  }
+
+  if (!data.billingName || !data.addressLine1 || !data.city || !data.stateRegion || !data.postalCode || !data.country) {
+    showToast('Full billing profile is required for saved payment methods', 'error');
+    return;
+  }
+
+  if (!isValidCardNumberLocal(data.cardNumber)) {
+    showToast('Enter a valid card number', 'error');
+    return;
+  }
+
+  try {
+    const response = paymentMethodModalMode === 'edit'
+      ? await chrome.runtime.sendMessage({ action: 'updatePaymentMethod', id: paymentMethodEditingId, updates: data })
+      : await chrome.runtime.sendMessage({ action: 'savePaymentMethod', data });
+
+    if (!response?.success) {
+      showToast(response?.error || 'Failed to save payment method', 'error');
+      return;
+    }
+
+    hidePaymentMethodModal();
+    loadPaymentMethods();
+    showToast(paymentMethodModalMode === 'edit' ? 'Payment method updated' : 'Payment method saved', 'success');
+  } catch (error) {
+    showToast('Error saving payment method: ' + error.message, 'error');
+  }
+}
+
+async function deletePaymentMethodConfirm(id) {
+  if (!confirm('Delete this saved payment method? This cannot be undone.')) {
+    return;
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'deletePaymentMethod',
+      id
+    });
+
+    if (!response?.success) {
+      showToast(response?.error || 'Failed to delete payment method', 'error');
+      return;
+    }
+
+    loadPaymentMethods();
+    showToast('Payment method deleted', 'success');
+  } catch (error) {
+    showToast('Error deleting payment method: ' + error.message, 'error');
+  }
+}
+
+async function togglePaymentMethodNumber(id) {
+  const container = document.querySelector(`.payment-method-number[data-payment-id="${id}"]`);
+  if (!container) return;
+
+  const textEl = container.querySelector('.payment-method-number-text');
+  if (!textEl) return;
+
+  const card = container.closest('.payment-method-card');
+  const eyeBtn = card?.querySelector('[data-payment-action="toggle-number"] i');
+
+  if (textEl.dataset.revealed === 'true') {
+    const masked = textEl.dataset.masked || '****';
+    textEl.textContent = masked;
+    textEl.dataset.revealed = 'false';
+    if (eyeBtn) eyeBtn.className = 'fas fa-eye';
+    return;
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getFullPaymentMethod',
+      id
+    });
+
+    if (!response?.success || !response.paymentMethod) {
+      showToast(response?.error || 'Unable to reveal card number', 'error');
+      return;
+    }
+
+    textEl.dataset.masked = textEl.textContent || '****';
+    textEl.textContent = formatCardNumberLocal(response.paymentMethod.cardNumber || '');
+    textEl.dataset.revealed = 'true';
+    if (eyeBtn) eyeBtn.className = 'fas fa-eye-slash';
+
+    setTimeout(() => {
+      if (textEl.dataset.revealed !== 'true') return;
+      textEl.textContent = textEl.dataset.masked || '****';
+      textEl.dataset.revealed = 'false';
+      if (eyeBtn) eyeBtn.className = 'fas fa-eye';
+    }, 5000);
+  } catch (error) {
+    showToast('Unable to reveal card number: ' + error.message, 'error');
+  }
+}
+
+function initializePaymentMethodManager() {
+  const enableSavedPaymentsToggle = document.getElementById('enableSavedPayments');
+  if (enableSavedPaymentsToggle) {
+    enableSavedPaymentsToggle.addEventListener('change', (e) => {
+      updatePaymentMethodsManagerVisibility(e.target.checked);
+      markUnsavedChanges();
+    });
+  }
+
+  const searchInput = document.getElementById('paymentMethodSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      filterPaymentMethods(e.target.value);
+    });
+  }
+
+  const addBtn = document.getElementById('addPaymentMethodBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => showPaymentMethodModal('add'));
+  }
+
+  const paymentList = document.getElementById('paymentMethodsList');
+  if (paymentList) {
+    paymentList.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-payment-action]');
+      if (!btn) return;
+      const action = btn.dataset.paymentAction;
+      const id = btn.dataset.paymentId;
+      if (!id) return;
+      if (action === 'toggle-number') togglePaymentMethodNumber(id);
+      else if (action === 'edit') showPaymentMethodModal('edit', id);
+      else if (action === 'delete') deletePaymentMethodConfirm(id);
+    });
+  }
+
+  const saveBtn = document.getElementById('paymentMethodModalSave');
+  const cancelBtn = document.getElementById('paymentMethodModalCancel');
+  const closeBtn = document.getElementById('paymentMethodModalClose');
+  const modalBackdrop = document.querySelector('#paymentMethodModal .credential-modal-backdrop');
+  const unlockBtn = document.getElementById('unlockPaymentMethodsBtn');
+  const lockBtn = document.getElementById('lockPaymentMethodsBtn');
+  const openPasswordsBtn = document.getElementById('openPasswordsForPaymentsBtn');
+  const unlockInput = document.getElementById('paymentMethodsUnlockPassphrase');
+  const cardNumberInput = document.getElementById('paymentMethodCardNumber');
+  const toggleCvvBtn = document.getElementById('togglePaymentMethodCvv');
+
+  if (saveBtn) saveBtn.addEventListener('click', savePaymentMethodFromModal);
+  if (cancelBtn) cancelBtn.addEventListener('click', hidePaymentMethodModal);
+  if (closeBtn) closeBtn.addEventListener('click', hidePaymentMethodModal);
+  if (modalBackdrop) modalBackdrop.addEventListener('click', hidePaymentMethodModal);
+  if (unlockBtn) unlockBtn.addEventListener('click', unlockPaymentMethodsHandler);
+  if (lockBtn) lockBtn.addEventListener('click', lockPaymentMethodsHandler);
+  if (openPasswordsBtn) {
+    openPasswordsBtn.addEventListener('click', () => switchSection('passwords'));
+  }
+
+  if (unlockInput) {
+    unlockInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        unlockPaymentMethodsHandler();
+      }
+    });
+  }
+
+  if (cardNumberInput) {
+    cardNumberInput.addEventListener('input', (e) => {
+      const digits = normalizeCardNumberLocal(e.target.value);
+      e.target.value = formatCardNumberLocal(digits);
+      updatePaymentCardBrandPreview(digits);
+    });
+  }
+
+  if (toggleCvvBtn) {
+    toggleCvvBtn.addEventListener('click', () => {
+      const cvvField = document.getElementById('paymentMethodCvv');
+      if (!cvvField) return;
+      const isPassword = cvvField.type === 'password';
+      cvvField.type = isPassword ? 'text' : 'password';
+      const icon = toggleCvvBtn.querySelector('i');
+      if (icon) icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+    });
+  }
+
+  refreshPaymentVaultStatus({ silent: true });
+}
+
+// Initialize credential and payment managers after DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   // Delay slightly to ensure all other init is done
-  setTimeout(initializeCredentialManager, 200);
+  setTimeout(() => {
+    initializeCredentialManager();
+    initializePaymentMethodManager();
+  }, 200);
 });
 
 // ==========================================
