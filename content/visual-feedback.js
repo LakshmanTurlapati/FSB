@@ -371,6 +371,7 @@
       .fsb-eta {
         color: rgba(255, 255, 255, 0.5);
         font-size: 11px;
+        font-variant-numeric: tabular-nums;
       }
 
       .fsb-progress-bar {
@@ -387,14 +388,24 @@
 
       .fsb-progress-bar.indeterminate .fsb-progress-fill {
         width: 38%;
+        transform-origin: center center;
         animation: fsbProgressSweep 1.2s ease-in-out infinite;
       }
 
       .fsb-progress-fill {
         height: 100%;
+        width: 100%;
         background: linear-gradient(90deg, #FF8C00, #FF6600);
         border-radius: 2px;
-        transition: width 0.3s ease-out;
+        transform-origin: left center;
+        transform: scaleX(0);
+        transition: transform 0.3s ease-out;
+        will-change: transform;
+      }
+
+      .fsb-progress-fill.complete {
+        background: #34D399;
+        transform: scaleX(1) !important;
       }
 
       @keyframes fsbProgressSweep {
@@ -405,6 +416,9 @@
       @media (prefers-reduced-motion: reduce) {
         .fsb-overlay,
         .fsb-progress-fill {
+          transition: none;
+        }
+        .fsb-progress-fill.complete {
           transition: none;
         }
         .fsb-progress-bar.indeterminate .fsb-progress-fill {
@@ -436,7 +450,7 @@
         <span class="fsb-eta"></span>
       </div>
       <div class="fsb-progress-bar">
-        <div class="fsb-progress-fill" style="width: 0%"></div>
+        <div class="fsb-progress-fill"></div>
       </div>
     `;
 
@@ -515,11 +529,12 @@
       if (progress.mode === 'determinate' && progress.percent !== null) {
         bar.classList.remove('indeterminate');
         bar.classList.remove('hidden');
-        fill.style.width = progress.percent + '%';
-        fill.style.transform = 'none';
+        fill.style.width = '100%';
+        fill.style.transform = 'scaleX(' + (progress.percent / 100) + ')';
       } else {
         fill.style.width = '38%';
         fill.style.transform = '';
+        fill.style.transformOrigin = '';
         if (overlayState.lifecycle === 'final') {
           bar.classList.add('hidden');
           bar.classList.remove('indeterminate');
