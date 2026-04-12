@@ -1784,15 +1784,25 @@ const tools = {
       // Canvas-based editors (Google Docs, Sheets, Slides) handle clicks internally;
       // DOM verification is not possible so treat clicks as successful
       const isCanvasTarget = FSB.isCanvasBasedEditor() || element.tagName === 'CANVAS';
+      // Angular Material comboboxes (mat-select, autocomplete triggers) report
+      // hadEffect via aria-expanded change, class change (mat-select-open), or
+      // overlay element count change -- not via standard verification.verified.
+      const isAngularCombobox = element.tagName === 'MAT-SELECT' ||
+        element.classList.contains('mat-mdc-select') ||
+        element.classList.contains('mat-mdc-autocomplete-trigger') ||
+        (element.getAttribute('role') === 'combobox' && element.tagName.startsWith('MAT-'));
       const hadEffect = isCanvasTarget
         ? true
-        : isCheckableElement
-          ? (verification.changes?.checkedChanged || verification.changes?.ariaExpandedChanged || verification.verified)
-          : isAnchorElement
-            ? (verification.changes?.urlChanged || verification.changes?.contentChanged ||
-               verification.changes?.elementCountChanged || verification.changes?.ariaExpandedChanged ||
-               verification.changes?.relatedVisibilityChanged || loadingDetected || false)
-            : (verification.verified || loadingDetected);
+        : isAngularCombobox
+          ? (verification.changes?.ariaExpandedChanged || verification.changes?.classChanged ||
+             verification.changes?.elementCountChanged || verification.changes?.contentChanged || loadingDetected)
+          : isCheckableElement
+            ? (verification.changes?.checkedChanged || verification.changes?.ariaExpandedChanged || verification.verified)
+            : isAnchorElement
+              ? (verification.changes?.urlChanged || verification.changes?.contentChanged ||
+                 verification.changes?.elementCountChanged || verification.changes?.ariaExpandedChanged ||
+                 verification.changes?.relatedVisibilityChanged || loadingDetected || false)
+              : (verification.verified || loadingDetected);
 
       // CRITICAL FIX: Return success=false when click has no effect
       // This prevents AI from continuing after failed clicks

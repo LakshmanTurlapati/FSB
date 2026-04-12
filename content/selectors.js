@@ -573,6 +573,20 @@
       }
     }
 
+    // data-fsb-id fallback: if the selector looks like an FSB semantic elementId
+    // (contains underscores, no CSS special chars like #.[: at start) look it up
+    // by the data-fsb-id attribute stamped during get_dom_snapshot.
+    if (!element && /^[a-z][a-z0-9_-]+$/.test(sanitized)) {
+      try {
+        element = document.querySelector('[data-fsb-id="' + sanitized + '"]');
+        if (element) {
+          logger.debug('Found element via data-fsb-id fallback', {
+            sessionId: FSB.sessionId, selector: sanitized
+          });
+        }
+      } catch (_e) {}
+    }
+
     // SPEED-04: Cache the found element for future lookups
     if (element) {
       FSB.elementCache.set(sanitized, element);

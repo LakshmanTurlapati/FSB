@@ -268,9 +268,10 @@
     const name = (element.name || '').toLowerCase();
     const id = (element.id || '').toLowerCase();
     const placeholder = (element.placeholder || '').toLowerCase();
+    const autocomplete = (element.getAttribute('autocomplete') || '').toLowerCase();
     const role = (element.getAttribute('role') || '').toLowerCase();
 
-    const combined = `${text} ${ariaLabel} ${className} ${name} ${id} ${placeholder}`;
+    const combined = `${text} ${ariaLabel} ${className} ${name} ${id} ${placeholder} ${autocomplete}`;
 
     // FSB-injected canvas editor elements (Google Docs/Sheets)
     if (element.dataset && element.dataset.fsbRole) {
@@ -386,7 +387,46 @@
       }
 
       // Payment/card fields
-      if (/card|credit|debit|payment|cvv|cvc|ccv|expir|billing/.test(combined)) {
+      if (autocomplete.includes('cc-number') || /card number|credit card number|debit card number|cc.?number|card no\b/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-number', sensitive: true, priority: 'high' };
+      }
+      if (autocomplete.includes('cc-csc') || autocomplete.includes('cc-cvc') || /cvv|cvc|csc|security code|card code|verification code/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-csc', sensitive: true, priority: 'high' };
+      }
+      if (autocomplete.includes('cc-exp-month') || /(exp|expiration).*(month)|month.*(exp|expiration)/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-exp-month', sensitive: false, priority: 'high' };
+      }
+      if (autocomplete.includes('cc-exp-year') || /(exp|expiration).*(year)|year.*(exp|expiration)/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-exp-year', sensitive: false, priority: 'high' };
+      }
+      if (autocomplete.includes('cc-exp') || /expiration date|expiry date|exp date|mm\s*\/\s*yy|mm\s*\/\s*yyyy/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-exp', sensitive: false, priority: 'high' };
+      }
+      if (autocomplete.includes('cc-name') || /name on card|cardholder|card holder|name as it appears/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-name', sensitive: false, priority: 'high' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('postal-code') || /zip|postal/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-postal-code', sensitive: false, priority: 'high' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('address-line2') || /address line 2|apt|suite|unit/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-address-line2', sensitive: false, priority: 'medium' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('address-line1') || autocomplete.includes('street-address') || /address|street/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-address-line1', sensitive: false, priority: 'high' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('address-level2') || /city/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-city', sensitive: false, priority: 'medium' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('address-level1') || /state|province|region/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-region', sensitive: false, priority: 'medium' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('country') || /country/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-country', sensitive: false, priority: 'medium' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && /name/.test(combined)) {
+        return { role: 'payment-input', intent: 'billing-name', sensitive: false, priority: 'medium' };
+      }
+      if (/card|credit|debit|payment|billing/.test(combined)) {
         return { role: 'payment-input', intent: 'payment', sensitive: true, priority: 'high' };
       }
 
@@ -3022,6 +3062,9 @@
 
         const semanticId = generateSemanticElementId(node, totalElementCount);
 
+        // Stamp data-fsb-id so tools can locate this element by its snapshot ID
+        try { node.setAttribute('data-fsb-id', semanticId); } catch (_e) {}
+
         const elementData = {
           elementId: semanticId,
           type: node.tagName.toLowerCase(),
@@ -3128,7 +3171,7 @@
             }
           });
         } else {
-          ['data-testid', 'aria-label', 'name', 'role', 'type', 'value', 'placeholder', 'title', 'alt'].forEach(attr => {
+          ['data-testid', 'aria-label', 'name', 'role', 'type', 'value', 'placeholder', 'title', 'alt', 'autocomplete'].forEach(attr => {
             if (node.getAttribute(attr)) {
               elementData.attributes[attr] = node.getAttribute(attr);
             }
@@ -3177,6 +3220,48 @@
         console.error('[FSB] DOM element processing error:', error);
       }
     });
+
+    // CDK overlay scan: Angular Material renders mat-select/autocomplete options in
+    // cdk-overlay-container appended to <body>, outside the main component tree.
+    // Without this, get_dom_snapshot returns no options after a mat-select opens.
+    try {
+      const overlayContainer = document.querySelector('.cdk-overlay-container');
+      if (overlayContainer) {
+        const overlayNodes = overlayContainer.querySelectorAll(
+          'mat-option, [role="option"], [role="listbox"], .mat-select-panel *, .mat-autocomplete-panel *'
+        );
+        overlayNodes.forEach(node => {
+          try {
+            if (node.nodeType !== Node.ELEMENT_NODE) return;
+            const rect = node.getBoundingClientRect();
+            if (rect.height === 0 && rect.width === 0) return; // invisible
+            const semanticId = generateSemanticElementId(node, totalElementCount);
+            try { node.setAttribute('data-fsb-id', semanticId); } catch (_e) {}
+            const overlayElementData = {
+              elementId: semanticId,
+              type: node.tagName.toLowerCase(),
+              description: generateElementDescription(node),
+              text: node.innerText?.trim() || node.textContent?.trim() || '',
+              id: node.id || '',
+              class: node.className ? String(node.className) : '',
+              position: { x: Math.round(rect.left), y: Math.round(rect.top), width: Math.round(rect.width), height: Math.round(rect.height), inViewport: true },
+              selectors: generateSelectors(node, semanticId).map(s => s.selector),
+              interactive: true,
+              inViewport: true,
+              _fromOverlay: true
+            };
+            ['aria-label', 'role', 'aria-selected', 'data-value'].forEach(attr => {
+              if (node.getAttribute(attr)) {
+                if (!overlayElementData.attributes) overlayElementData.attributes = {};
+                overlayElementData.attributes[attr] = node.getAttribute(attr);
+              }
+            });
+            viewportElements.push(overlayElementData);
+            totalElementCount++;
+          } catch (_nodeErr) {}
+        });
+      }
+    } catch (_overlayErr) {}
 
     // Combine viewport and offscreen elements
     let elements;
