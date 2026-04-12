@@ -27,6 +27,17 @@
     return clean;
   }
 
+  function firstSentence(text) {
+    if (!text) return '';
+    var str = String(text).trim();
+    var match = str.match(/^[^.!?]+[.!?]/);
+    var sentence = match ? match[0].trim() : str;
+    if (sentence.length > 60) {
+      sentence = sentence.substring(0, 57) + '...';
+    }
+    return sentence;
+  }
+
   function sanitizeActionText(text) {
     if (text === undefined || text === null) return '';
     var str = String(text).trim();
@@ -184,9 +195,9 @@
     }
 
     return {
-      title: sanitizeOverlayText(rawTitle, 80) || 'FSB Automating',
-      subtitle: sanitizeOverlayText(rawSubtitle, 120),
-      detail: sanitizeActionText(sanitizeOverlayText(rawDetail, 120)) || getDefaultDetail(normalizedPhase, result)
+      title: sanitizeOverlayText(rawTitle, 50) || 'FSB Automating',
+      subtitle: sanitizeOverlayText(rawSubtitle, 60),
+      detail: sanitizeActionText(firstSentence(sanitizeOverlayText(rawDetail, 120))) || getDefaultDetail(normalizedPhase, result)
     };
   }
 
