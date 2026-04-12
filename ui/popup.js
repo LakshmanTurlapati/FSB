@@ -581,14 +581,23 @@ function updateStatusMessage(text, progressData) {
     if (statusText) {
       statusText.textContent = text;
     }
-    if (progressData && progressData.iteration != null) {
+    // [FSB Field Audit] Consumer: popup progress label
+    // Reads: progressData.iteration, progressData.maxIterations, progressData.progressPercent, progressData.phase
+    // Display-filtered: iteration, maxIterations (replaced with phase label per D-04)
+    // Pass-through: progressPercent (used for bar width)
+    if (progressData && (progressData.phase || progressData.iteration != null)) {
       const container = currentStatusMessage.querySelector('.progress-container');
       const fill = currentStatusMessage.querySelector('.progress-fill');
       const label = currentStatusMessage.querySelector('.progress-label');
       if (container && fill && label) {
         container.classList.remove('hidden');
         fill.style.width = (progressData.progressPercent || 0) + '%';
-        label.textContent = `Step ${progressData.iteration}/${progressData.maxIterations || 20}`;
+        var phaseLabels = {
+          analyzing: 'Analyzing', planning: 'Planning', acting: 'Acting',
+          recovering: 'Recovering', writing: 'Writing', switching_tab: 'Switching Tabs',
+          complete: 'Complete', error: 'Error'
+        };
+        label.textContent = phaseLabels[progressData.phase] || 'Working';
       }
     }
   }
