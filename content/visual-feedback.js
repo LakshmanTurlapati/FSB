@@ -562,6 +562,8 @@
       if (!this._startTime && overlayState.lifecycle !== 'cleared') {
         this._startTime = performance.now();
         this._frozen = false;
+        var phaseEl = this.container.querySelector('.fsb-phase');
+        if (phaseEl) phaseEl.textContent = '0:00';  // seed before first rAF fires
         this._startTimerLoop();
       }
 
@@ -577,14 +579,7 @@
       this.container.querySelector('.fsb-step-text').textContent = display.detail || 'Working';
       this.container.querySelector('.fsb-step-number').textContent = progress.label || phaseLabel;
 
-      // .fsb-phase is now the elapsed timer display (D-02)
-      // Initial value set here; rAF loop takes over immediately after
-      if (!this._frozen) {
-        var phaseEl = this.container.querySelector('.fsb-phase');
-        if (phaseEl && !this._startTime) {
-          phaseEl.textContent = '0:00';
-        }
-      }
+      // .fsb-phase elapsed timer display (D-02) -- initial 0:00 seeded in timer-start block above
 
       // Action count display (D-06, D-07, DISP-03)
       var actionCount = overlayState.actionCount;
