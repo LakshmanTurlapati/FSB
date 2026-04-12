@@ -5328,6 +5328,48 @@ async function swBootstrap(trigger) {
   automationLogger.flush();
 }
 
+function isCredentialControlPanelSender(sender) {
+  const controlPanelUrl = chrome.runtime.getURL('ui/control_panel.html');
+  return typeof sender?.url === 'string' && sender.url.startsWith(controlPanelUrl);
+}
+
+function sendCredentialSenderError(sendResponse) {
+  sendResponse({
+    success: false,
+    errorCode: 'unauthorized_sender',
+    error: 'Credential actions are only available from the control panel'
+  });
+}
+
+async function getCredentialRuntimePolicy() {
+  let enableLogin = false;
+  try {
+    const settings = await config.getAll();
+    enableLogin = settings.enableLogin === true;
+  } catch (_error) {
+    enableLogin = false;
+  }
+
+  const vaultStatus = await secureConfig.getCredentialVaultStatus();
+  let saveDisabledReason = '';
+
+  if (!enableLogin) {
+    saveDisabledReason = 'Enable Auto-Login in the control panel to save credentials for future sessions.';
+  } else if (!vaultStatus.configured) {
+    saveDisabledReason = 'Set up the credential vault in the Passwords section before saving credentials.';
+  } else if (!vaultStatus.unlocked) {
+    saveDisabledReason = 'Unlock the credential vault in the Passwords section before saving credentials.';
+  }
+
+  return {
+    enableLogin,
+    vaultStatus,
+    canUseSavedCredentials: enableLogin && vaultStatus.unlocked,
+    canSaveSubmittedCredentials: enableLogin && vaultStatus.unlocked,
+    saveDisabledReason
+  };
+}
+
 // Listen for messages from popup and content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // Security: Only accept messages from our own extension contexts
@@ -5575,10 +5617,84 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })();
       return true; // Will respond asynchronously
 
+    case 'credentialVaultStatus':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const status = await secureConfig.getCredentialVaultStatus();
+          sendResponse({ success: true, status });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'setupCredentialVault':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const result = await secureConfig.createCredentialVault(request.passphrase || '');
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'unlockCredentialVault':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const result = await secureConfig.unlockCredentialVault(request.passphrase || '');
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'lockCredentialVault':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const result = await secureConfig.lockCredentialVault();
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
     // Credential management actions (Passwords Beta)
     case 'getCredential':
       (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
         try {
+          const ready = await secureConfig.ensureCredentialVaultUnlocked();
+          if (!ready.ok) {
+            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
+            return;
+          }
           const cred = await secureConfig.getCredential(request.domain);
           sendResponse({ success: true, credential: cred });
         } catch (error) {
@@ -5589,7 +5705,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'getFullCredential':
       (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
         try {
+          const ready = await secureConfig.ensureCredentialVaultUnlocked();
+          if (!ready.ok) {
+            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
+            return;
+          }
           const cred = await secureConfig.getFullCredential(request.domain);
           sendResponse({ success: true, credential: cred });
         } catch (error) {
@@ -5600,6 +5726,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'saveCredential':
       (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
         try {
           const result = await secureConfig.saveCredential(request.domain, request.data);
           sendResponse(result);
@@ -5611,7 +5742,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'getAllCredentials':
       (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
         try {
+          const ready = await secureConfig.ensureCredentialVaultUnlocked();
+          if (!ready.ok) {
+            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
+            return;
+          }
           const credentials = await secureConfig.getAllCredentials();
           sendResponse({ success: true, credentials });
         } catch (error) {
@@ -5622,7 +5763,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'deleteCredential':
       (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
         try {
+          const ready = await secureConfig.ensureCredentialVaultUnlocked();
+          if (!ready.ok) {
+            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
+            return;
+          }
           const result = await secureConfig.deleteCredential(request.domain);
           sendResponse(result);
         } catch (error) {
@@ -5633,7 +5784,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'updateCredential':
       (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
         try {
+          const ready = await secureConfig.ensureCredentialVaultUnlocked();
+          if (!ready.ok) {
+            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
+            return;
+          }
           const result = await secureConfig.updateCredential(request.domain, request.updates);
           sendResponse(result);
         } catch (error) {
@@ -7570,9 +7731,12 @@ async function resolveInlineAuthWall({ sessionId, session, reason, summary, bloc
     };
   }
 
+  const credentialPolicy = await getCredentialRuntimePolicy();
   let savedAttempted = false;
   let savedAttemptFailed = false;
-  const savedCredential = await secureConfig.getCredential(initialContext.domain);
+  const savedCredential = credentialPolicy.canUseSavedCredentials
+    ? await secureConfig.getCredential(initialContext.domain)
+    : null;
 
   if (savedCredential) {
     savedAttempted = true;
@@ -7622,9 +7786,13 @@ async function resolveInlineAuthWall({ sessionId, session, reason, summary, bloc
   const promptAcknowledged = await requestInlineLoginPrompt(sessionId, promptDomain, promptContext.fields || initialContext.fields, {
     detail: savedAttemptFailed
       ? 'Saved credentials did not finish the sign-in. Submit updated credentials once to retry in this same session.'
-      : 'Submit credentials once to let FSB sign in and resume this same session.',
+      : (!credentialPolicy.enableLogin
+        ? 'Auto-Login is disabled. Submit credentials once to let FSB sign in and resume this same session.'
+        : 'Submit credentials once to let FSB sign in and resume this same session.'),
     handoff: 'If you skip or the site still needs manual approval, FSB will preserve the completed work and finish with a manual handoff.',
-    reason: savedAttemptFailed ? 'credentials_failed' : (savedAttempted ? 'auth_required' : 'credentials_missing')
+    reason: savedAttemptFailed ? 'credentials_failed' : (savedAttempted ? 'auth_required' : 'credentials_missing'),
+    allowSave: credentialPolicy.canSaveSubmittedCredentials,
+    saveDisabledReason: credentialPolicy.saveDisabledReason
   });
 
   if (!promptAcknowledged) {
@@ -7668,7 +7836,7 @@ async function resolveInlineAuthWall({ sessionId, session, reason, summary, bloc
     };
   }
 
-  if (loginResponse.save && baseOutcome.domain) {
+  if (credentialPolicy.canSaveSubmittedCredentials && loginResponse.save && baseOutcome.domain) {
     await secureConfig.saveCredential(baseOutcome.domain, submittedCredentials);
   }
 
@@ -9307,7 +9475,7 @@ function handleTrackUsage(request, sender, sendResponse) {
   // Initialize analytics if not already done
   const analytics = getAnalytics();
 
-  const { model, inputTokens, outputTokens, success, tokenSource, timestamp } = request.data;
+  const { model, inputTokens, outputTokens, success, tokenSource, timestamp, provider } = request.data;
 
   automationLogger.logAPI(null, 'analytics', 'track_request', {
     model,
@@ -9319,7 +9487,7 @@ function handleTrackUsage(request, sender, sendResponse) {
   });
 
   // Track the usage and handle response
-  analytics.trackUsage(model, inputTokens, outputTokens, success)
+  analytics.trackUsage(model, inputTokens, outputTokens, success, tokenSource || 'automation', provider || '')
     .then(() => {
       // Broadcast update to all extension contexts
       broadcastAnalyticsUpdate();
