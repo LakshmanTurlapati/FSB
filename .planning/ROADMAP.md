@@ -21,11 +21,79 @@
 - v0.9.22 Showcase High-Fidelity Replicas (superseded after Phase 145)
 - v0.9.23 Dashboard Stream & Remote Control Reliability (deferred after Phase 150)
 - v0.9.24 Claude Code Architecture Adaptation (shipped 2026-04-05) -- [archive](milestones/v0.9.24-ROADMAP.md)
-- v0.9.25 MCP & Dashboard Reliability Closure (active)
+- v0.9.25 MCP & Dashboard Reliability Closure (shipped 2026-04-11) -- [archive](milestones/v0.9.25-ROADMAP.md)
+- v0.9.26 Progress Overlay Refinement (in progress)
 
 ---
 
-## v0.9.25 MCP & Dashboard Reliability Closure (active)
+## v0.9.26 Progress Overlay Refinement
+
+**Goal:** Make the progress overlay show clean, accurate, human-readable task progress instead of developer debug noise. Strip internal metrics from the display layer without breaking downstream consumers (dashboard, sidepanel, popup, MCP), upgrade the progress bar to GPU-composited rendering, add an elapsed timer and action counter, and validate across diverse sites.
+
+## Phases
+
+- [x] **Phase 168: Data Audit & Display Firewall** - Map field dependencies across all overlay consumers, then filter developer-facing noise from overlay display without breaking session data downstream (completed 2026-04-12)
+- [ ] **Phase 169: Display Cleanup & Performance** - Upgrade progress bar to scaleX(), add local elapsed timer and action counter with tabular-nums, and wire completion freeze and motion preferences
+- [ ] **Phase 170: Cross-Site Validation & Final Polish** - Validate overlay rendering across Google Docs, YouTube fullscreen, Amazon, and 320px narrow viewport
+
+## Phase Details
+
+### Phase 168: Data Audit & Display Firewall
+**Goal**: Overlay displays only human-readable task information while all session fields remain intact for dashboard, sidepanel, popup, and MCP consumers
+**Depends on**: Nothing (first phase of v0.9.26)
+**Requirements**: DATA-01, DATA-02, DATA-03
+**Success Criteria** (what must be TRUE):
+  1. User sees no iteration counts, token usage, cost figures, or model name anywhere in the progress overlay during task execution
+  2. User sees plain-English action summaries in the overlay (e.g. "Clicking Add to Cart"), never raw CLI commands or tool call JSON
+  3. Dashboard options page, sidepanel, popup, and MCP tool responses continue to receive iterationCount, tokenUsage, cost, and model fields unchanged -- a field dependency audit document exists confirming which fields are display-filtered versus passed through
+  4. calculateProgress() continues to use iterationCount internally for progress computation even though the value is hidden from the overlay display
+**Plans**: 2 plans
+Plans:
+- [x] 168-01-PLAN.md -- Display firewall: sanitizeActionText, Step X/Y removal, ETA null, popup/sidepanel phase labels
+- [x] 168-02-PLAN.md -- Field dependency audit: inline comments at all consumer sites, downstream payload verification
+**UI hint**: yes
+
+### Phase 169: Display Cleanup & Performance
+**Goal**: Users see a smooth, jitter-free overlay with GPU-composited progress bar, live elapsed timer, action counter, and correct accessibility and completion behavior
+**Depends on**: Phase 168
+**Requirements**: DISP-01, DISP-02, DISP-03, DISP-04, POLISH-02, POLISH-03
+**Success Criteria** (what must be TRUE):
+  1. Progress bar width is driven by CSS scaleX() transform, not width property, and updates cause zero layout reflows on complex pages
+  2. User sees elapsed time (e.g. "0:42") updating in real-time via content-script-local performance.now() + requestAnimationFrame, not pushed from background.js, and the timer freezes at its final value on task completion
+  3. User sees an "Actions: N" counter in the overlay meta row that increments on each click, type, or navigation action and freezes at its final value on task completion
+  4. All numeric displays (elapsed time digits, action count) use font-variant-numeric: tabular-nums so digit changes never shift surrounding layout
+  5. All new transitions, the progress bar animation, and the elapsed timer tick respect prefers-reduced-motion: reduce by falling back to instant updates
+**Plans**: 2 plans
+Plans:
+- [ ] 169-01-PLAN.md -- Data pipeline (actionCount), scaleX() progress bar migration, tabular-nums
+- [ ] 169-02-PLAN.md -- Elapsed timer (rAF), action count display, completion presentation, reduced-motion
+**UI hint**: yes
+
+### Phase 170: Cross-Site Validation & Final Polish
+**Goal**: Overlay renders correctly across the sites and viewport conditions that represent real-world usage diversity
+**Depends on**: Phase 169
+**Requirements**: POLISH-01
+**Success Criteria** (what must be TRUE):
+  1. Overlay renders with correct layout, readable text, and no clipping on Google Docs (contenteditable + iframes), YouTube fullscreen (z-index competition), Amazon product pages (heavy DOM), and a 320px-wide viewport (narrow responsive)
+  2. No visual regressions are introduced on any of the four test surfaces compared to the pre-v0.9.26 overlay behavior
+**Plans**: TBD
+**UI hint**: yes
+
+## Progress
+
+**Execution Order:** 168 -> 169 -> 170
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 168. Data Audit & Display Firewall | 2/2 | Complete    | 2026-04-12 |
+| 169. Display Cleanup & Performance | 0/2 | Not started | - |
+| 170. Cross-Site Validation & Final Polish | 0/TBD | Not started | - |
+
+---
+
+## v0.9.25 MCP & Dashboard Reliability Closure (shipped 2026-04-11)
+
+**Status:** Shipped 2026-04-11 with accepted tech debt -- see [milestones/v0.9.25-ROADMAP.md](milestones/v0.9.25-ROADMAP.md) and [v0.9.25-MILESTONE-AUDIT.md](v0.9.25-MILESTONE-AUDIT.md) for the archived detail.
 
 **Goal:** Close the remaining operator-facing reliability gaps across restricted-tab MCP behavior, deferred dashboard reliability work, and the live verification debt carried forward from `v0.9.24`.
 
@@ -33,74 +101,9 @@
 |-------|----------------|--------|------|
 | 163. Restricted-Tab MCP Parity | 2/2 | Complete    | 2026-04-06 |
 | 164. Dashboard Reliability Rebaseline | 2/2 | Complete   | 2026-04-06 |
-| 165. Live Dashboard Verification & Fixes | 2/2 | Blocked | 2026-04-06 |
+| 165. Live Dashboard Verification & Fixes | 2/2 | Complete (tech debt accepted) | 2026-04-11 |
 | 166. Runtime Carryover Hardening | 2/2 | Complete | 2026-04-07 |
 | 167. Auth Outcome Smoke Verification | 0/0 | Complete | 2026-04-07 |
-
-### Phase 163: Restricted-Tab MCP Parity
-
-**Goal:** Make MCP manual and task-driven flows behave predictably when the active tab is `chrome://newtab` or another restricted page.
-
-**Requirements:** `MCP-01`, `MCP-02`, `MCP-03`
-
-**Success criteria:**
-1. Navigation-safe MCP tools continue to work from restricted tabs without content-script injection failures.
-2. Task-driven automation keeps sidepanel-style smart start routing from restricted tabs when a destination can be inferred.
-3. DOM/manual tools and MCP resources fail fast with actionable recovery guidance instead of raw injection errors.
-
-### Phase 164: Dashboard Reliability Rebaseline
-
-**Goal:** Reconcile the dashboard preview, remote-control, and task-relay path with the current runtime and finish the deferred reliability behavior.
-
-**Requirements:** `DASH-01`, `DASH-02`, `DASH-03`
-
-**Success criteria:**
-1. Preview traffic is bound to the active stream generation and resyncs on divergence rather than freezing.
-2. Remote control keeps bounded coordinates, focus-scoped capture, and recoverable debugger ownership through toggles and stream-tab changes.
-3. Dashboard task submission, progress, stop, and completion stay attached to one run identity across live sends and reconnect recovery.
-
-### Phase 165: Live Dashboard Verification & Fixes
-
-**Goal:** Execute the real browser-backed dashboard matrix and convert any discovered defects into fixes with evidence.
-
-**Requirements:** `LIVE-01`, `LIVE-02`
-
-**Plans:** 2 plans
-
-Plans:
-- [x] `165-01-PLAN.md` — Seed the Phase 165-local live checklist, record the real environment contract, and capture the automated baseline.
-- [x] `165-02-PLAN.md` — Run the live matrix, patch and rerun in-scope failures, and publish the final Phase 165 verification artifacts.
-
-**Current outcome:** Phase execution is complete, but live closure is blocked. Hosted dashboard traffic exposed remote-key drift, the local in-scope fix could not be rerun in the same Chrome session because the unpacked extension could not be reloaded, and the hosted environment did not expose the full diagnostics surfaces needed for the remaining proof rows.
-
-**Success criteria:**
-1. The Phase 154 live checklist is executed with evidence for stream lifecycle, remote control, task relay, and diagnostics.
-2. Failures found in the live matrix are turned into concrete fixes and re-run evidence, not just notes.
-3. Milestone verification artifacts reflect real browser and relay behavior rather than terminal-only assumptions.
-
-### Phase 166: Runtime Carryover Hardening
-
-**Goal:** Close the small v0.9.24 runtime debts that can still skew operator confidence or future planning.
-
-**Requirements:** `ENG-01`, `ENG-02`
-
-**Success criteria:**
-1. `CostTracker` is instantiated only after the final per-mode session config is known, so its limit matches the active mode.
-2. Unused emitter/runtime contract leftovers are removed or explicitly documented.
-3. Any affected tests or smoke checks are updated so the same debt does not silently return.
-
-### Phase 167: Auth Outcome Smoke Verification
-
-**Goal:** Prove the preserved partial/auth-resume flow works end to end in a real extension session.
-
-**Requirements:** `AUTH-01`
-
-**Current outcome:** Completed on 2026-04-07 from operator-confirmed live auth smoke evidence recorded under Phase 167 and reconciled back into the old Phase 162.2 human-UAT artifact.
-
-**Success criteria:**
-1. No-sidepanel auth fallback ends as a preserved manual handoff instead of a hang or generic failure.
-2. Skip and timeout cases preserve completed work with the correct blocker wording.
-3. Successful sign-in resumes the same session and records verification evidence.
 
 ## v0.9.23 Dashboard Stream & Remote Control Reliability (deferred)
 
