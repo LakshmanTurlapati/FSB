@@ -1577,6 +1577,10 @@ function closeSessionDetail() {
  * @returns {string} HTML string for the inline detail panel
  */
 function createInlineDetailHTML(session) {
+  // [FSB Field Audit] Consumer: options dashboard session detail
+  // Reads: session.iterationCount, session.totalCost, session.tokenUsage
+  // Display-filtered: none (dashboard shows full developer detail)
+  // Pass-through: all fields (options page is the developer-facing analytics view)
   const outcomeInfo = getSessionStatusDisplay(session);
   return `
     <div class="session-detail-panel" data-session-id="${session.id}">

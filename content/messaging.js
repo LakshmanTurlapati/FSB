@@ -1103,6 +1103,10 @@
 
       case 'sessionStatus':
         try {
+          // [FSB Field Audit] Consumer: content script overlay renderer
+          // Reads: request.overlayState (full normalized object from buildOverlayState)
+          // Display-filtered: overlayState.display.detail (CLI syntax sanitized by overlay-state.js)
+          // Pass-through: overlayState.progress, overlayState.phase, overlayState.lifecycle (used for rendering)
           const overlayState = request.overlayState;
           const shouldApply = (window.FSBOverlayStateUtils && typeof window.FSBOverlayStateUtils.shouldApplyOverlayState === 'function')
             ? window.FSBOverlayStateUtils.shouldApplyOverlayState(FSB.overlayState, overlayState)

@@ -1624,6 +1624,10 @@ async function loadHistoryList() {
       return;
     }
 
+    // [FSB Field Audit] Consumer: sidepanel session history
+    // Reads: session.totalCost, session.iterationCount
+    // Display-filtered: none (cost display preserved per D-05)
+    // Pass-through: totalCost (shown to power users), iterationCount (used for session detail)
     historyList.innerHTML = sessions.map(function(session) {
       var outcomeInfo = getSessionOutcomeDisplay(session);
       var costDisplay = session.totalCost > 0

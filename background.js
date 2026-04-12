@@ -1371,6 +1371,10 @@ function broadcastDashboardProgress(session) {
   if (now - _lastDashboardBroadcast < 1000) return;
   _lastDashboardBroadcast = now;
 
+  // [FSB Field Audit] Consumer: dashboard WS + sidepanel agent progress
+  // Reads: session.iterationCount, session._lastActionSummary, session.actionHistory, calculateProgress() output
+  // Display-filtered: none (all fields broadcast unchanged to dashboard and sidepanel)
+  // Pass-through: iterationCount, progress, phase, eta, action, lastAction
   var progress = calculateProgress(session);
   var phase = detectTaskPhase(session);
   var lastAction = session.actionHistory && session.actionHistory.length > 0

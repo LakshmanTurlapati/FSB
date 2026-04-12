@@ -1019,6 +1019,10 @@
     }
   }
 
+  // [FSB Field Audit] Consumer: remote dashboard progress display
+  // Reads: data.iteration, data.progress, data.phase, data.action
+  // Display-filtered: none (remote dashboard shows full detail for monitoring)
+  // Pass-through: all fields (iteration, progress, phase, action, eta, elapsed)
   function updateTaskProgress(payload) {
     var payloadUpdatedAt = getTaskPayloadUpdatedAt(payload);
     if (payloadUpdatedAt && lastTaskStateUpdatedAt && payloadUpdatedAt < lastTaskStateUpdatedAt) return;
