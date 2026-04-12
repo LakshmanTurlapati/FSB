@@ -304,6 +304,7 @@
       phase: lifecycle === 'cleared' ? 'cleared' : normalizedPhase,
       display: buildOverlayDisplay(statusData || {}, session || null, normalizedPhase, result),
       progress: buildOverlayProgress(statusData || {}, session || null, normalizedPhase, lifecycle, result),
+      actionCount: null,
       highlight: {
         animated: !!(!statusData || statusData.animatedHighlights !== false) && lifecycle === 'running'
       }

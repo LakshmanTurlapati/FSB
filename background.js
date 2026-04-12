@@ -921,6 +921,12 @@ function buildOverlayPayload(tabId, statusData, session) {
   var overlayState = utils.buildOverlayState(statusData || {}, overlaySession || null);
   if (!overlayState) return null;
 
+  if (overlayState && overlaySession && Array.isArray(overlaySession.actionHistory)) {
+    overlayState.actionCount = overlaySession.actionHistory.length;
+  } else if (overlayState) {
+    overlayState.actionCount = null;
+  }
+
   if (overlaySession) {
     if (!overlaySession._overlaySessionToken) {
       overlaySession._overlaySessionToken = overlaySession.sessionId || ('tab:' + tabId + ':' + Date.now());
@@ -4707,11 +4713,11 @@ function finalizeSessionMetrics(sessionId, successful = false) {
   });
 }
 
-function accumulateSessionCost(sessionId, model, inputTokens, outputTokens) {
+function accumulateSessionCost(sessionId, model, inputTokens, outputTokens, provider = '') {
   const session = activeSessions.get(sessionId);
   if (!session) return;
   const analytics = getAnalytics();
-  const cost = analytics.calculateCost(model, inputTokens, outputTokens);
+  const cost = analytics.calculateCost(model, inputTokens, outputTokens, provider);
   session.totalCost = (session.totalCost || 0) + cost;
   session.totalInputTokens = (session.totalInputTokens || 0) + (inputTokens || 0);
   session.totalOutputTokens = (session.totalOutputTokens || 0) + (outputTokens || 0);
@@ -5157,7 +5163,11 @@ class BackgroundAnalytics {
     }
   }
   
-  calculateCost(model, inputTokens, outputTokens) {
+  calculateCost(model, inputTokens, outputTokens, provider = '') {
+    if ((provider || '').toLowerCase() === 'lmstudio') {
+      return 0;
+    }
+
     const pricing = {
       // xAI Current models
       'grok-4-0709': { input: 3.00, output: 15.00 },
@@ -5187,7 +5197,7 @@ class BackgroundAnalytics {
     return inputCost + outputCost;
   }
   
-  async trackUsage(model, inputTokens, outputTokens, success = true, source = 'automation') {
+  async trackUsage(model, inputTokens, outputTokens, success = true, source = 'automation', provider = '') {
     try {
       // Ensure initialization is complete
       if (!this.initialized) {
@@ -5197,17 +5207,18 @@ class BackgroundAnalytics {
       const entry = {
         timestamp: Date.now(),
         model: model,
+        provider: provider,
         inputTokens: inputTokens || 0,
         outputTokens: outputTokens || 0,
         success: success,
         source: source,
-        cost: this.calculateCost(model, inputTokens, outputTokens)
+        cost: this.calculateCost(model, inputTokens, outputTokens, provider)
       };
 
       this.usageData.push(entry);
       this.currentModel = model;
 
-      automationLogger.logAPI(null, 'analytics', 'track', { model, inputTokens, outputTokens, success, source, cost: entry.cost });
+      automationLogger.logAPI(null, 'analytics', 'track', { model, provider, inputTokens, outputTokens, success, source, cost: entry.cost });
 
       // Clean old data (keep only last 30 days)
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
