@@ -1,314 +1,155 @@
-# Feature Research: Claude Code Architecture Patterns for FSB
+# Feature Landscape: Progress Overlay Refinement
 
-**Domain:** AI agent architecture adaptation -- extracting Claude Code's structural patterns for browser automation
-**Researched:** 2026-04-02
-**Confidence:** HIGH (based on direct source analysis of Research/claude-code/src/ Python clean-room rewrite, cross-referenced with FSB ai/ module code)
+**Domain:** Browser automation progress feedback UX
+**Researched:** 2026-04-11
+**Context:** FSB v0.9.26 -- refining existing progress overlay to show clean, user-facing information instead of developer debug noise
 
-## Context
+## Table Stakes
 
-FSB v0.9.20 already shipped a native tool_use agent loop. This research identifies what Claude Code does **differently or better** that FSB should adopt. The reference source is `Research/claude-code/src/` -- a Python clean-room rewrite that faithfully mirrors Claude Code's architecture. Each feature below is grounded in specific source files.
+Features users expect from any tool that performs multi-step automation on their behalf. Missing any of these makes the overlay feel broken or untrustworthy.
 
-**What FSB already has (not researched here):**
-- Native tool_use agent loop (agent-loop.js)
-- 47-tool JSON Schema registry shared between autopilot and MCP (tool-definitions.js)
-- Provider format adapter for 6 AI providers (tool-use-adapter.js)
-- Safety: $2 cost breaker, 10min time limit, 3-strike stuck detection (agent-loop.js)
-- On-demand DOM snapshots and site guides
-- Sliding window history compression at 80% token budget (agent-loop.js compactHistory)
-- Session persistence for service worker resurrection
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| **Current action in plain English** | Every shipping automation tool (Operator, Mariner, ChatGPT Agent) shows what the agent is doing right now in human-readable text. Users need to know the system is not frozen. | Low | FSB already has `display.detail` from `buildOverlayDisplay`. The issue is that some messages still leak developer-facing language. Ensure all statusText values are user-readable sentences like "Clicking the search button" not "click [ref=42]". |
+| **Animated activity indicator** | Users need visual proof the system is actively working, not hung. NN/g research: users tolerate 3x longer waits when animated feedback is present. | Low | FSB already has the indeterminate progress bar sweep animation and the viewport glow. Both are implemented and working. No change needed beyond switching the progress fill to `scaleX` transform for GPU compositing. |
+| **Task name / what was asked** | Users need a reminder of what they asked for, especially on tasks that take 30+ seconds. Operator, Mariner, and ChatGPT Agent all show the original request prominently. | Low | FSB already shows `display.title` with the task name. Keep this. |
+| **Phase/state label** | A single word or short phrase indicating the current phase: "Planning", "Acting", "Writing", "Recovering". Every automation tool uses some form of state badge. Operator uses "Watch mode" / "Takeover mode". Mariner shows "Active" / "Paused". | Low | FSB already has `humanizeOverlayPhase()` producing clean labels. The 300ms debounce prevents flicker. Keep as-is. |
+| **Elapsed time display** | How long the task has been running. For tasks taking 10+ seconds (which is most FSB tasks), this sets expectations and provides a sense of progress. ChatGPT Deep Research shows a timer. Users universally understand time, unlike tokens or iterations. | Low | Not currently shown in the overlay. Add via `performance.now()` or `Date.now()` delta from `session.startTime`. Display as "12s" or "1m 30s" in the meta row. Use `font-variant-numeric: tabular-nums` to prevent layout jitter as digits change. Update only when displayed second changes. |
+| **Clean completion state** | Clear visual signal when the task finishes -- success, failure, or stopped. Users should not have to guess whether automation is still running. | Low | FSB already handles this with `lifecycle: 'final'` and `result: 'success'/'error'/'stopped'`. Add final elapsed time freeze and action count to the completion display. |
 
----
+## Differentiators
 
-## Feature Landscape
+Features that set FSB apart from competitors. Not strictly expected, but valued when present.
 
-### Table Stakes (Must Adopt -- Claude Code Does These; FSB Should Too)
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| **Actions completed counter** | Shows tangible progress as a number. More concrete than a phase label. "7 actions" tells users the system has been productive, not spinning its wheels. Playwright UI Mode uses a similar step counter. Format: "7 actions" not "Actions: 7". | Low | Count completed tool calls from `session.actionHistory` or a simple counter incremented per tool execution. Display with `tabular-nums` in the meta row next to elapsed time. |
+| **Determinate progress bar for structured tasks** | Multi-site search (3/5 companies) and Sheets writing (12/20 rows) already have determinate progress. This is a genuine differentiator -- most AI browser agents only show indeterminate spinners. | Low | Already implemented via `computeMultiSiteProgress` and `computeSheetsProgress` in overlay-state.js. Keep and polish. Switch from `width` to `scaleX(n)` with `transform-origin: left` for GPU-composited animation. |
+| **Contextual progress bands** | Phase-weighted bands (navigation 0-30%, extraction 30-70%, writing 70-100%) provide more meaningful progress than linear iteration counting. Users see the bar move in proportion to actual task advancement. | Low | Already implemented in FSB v0.9.5. Keep -- this is a genuine differentiator over indeterminate-only competitors. |
+| **AI-generated action summaries** | Instead of "click [ref=42]", show "Clicking the Add to Cart button". Natural language descriptions of what the agent is doing feel transparent and trustworthy, similar to ChatGPT Agent's line-by-line narration. | Low | Already implemented via fire-and-forget `generateActionSummary` with 2.5s timeout and cache. The mechanism exists but needs enforcement: ensure every overlay update uses the summarized text, never raw tool call syntax. |
+| **Recovery state visibility** | When the agent gets stuck and recovers, showing "Recovering -- trying alternative approach" instead of silently retrying builds trust. Users know the system is intelligent, not blindly repeating. | Low | Already implemented -- `humanizeOverlayPhase('recovering')` returns "Recovering". Ensure the detail text explains the recovery strategy in plain English. |
+| **Smooth progress transitions** | Progress bar glides between values with easing instead of jumping. Feels responsive and alive. | Low | CSS `transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)` on the scaleX property. Already partially present via `transition: width 0.3s ease-out` but should move to transforms. |
+| **Reduced motion respect** | Users with vestibular disorders get static indicators instead of animations. | Low | Partially implemented via `@media (prefers-reduced-motion)`. Extend to cover all new transitions including elapsed time updates. |
 
-Features that represent proven architecture patterns Claude Code relies on. Without these, FSB's agent loop will remain brittle compared to the reference architecture.
+## Anti-Features
 
-| # | Feature | Why Expected | Complexity | FSB Dependency | Notes |
-|---|---------|--------------|------------|----------------|-------|
-| T1 | Execution Registry (unified dispatch) | Claude Code's `execution_registry.py` wraps both commands and tools into a single dispatch layer with `.execute()` methods. FSB currently has split routing in background.js (autopilot path) and tool-executor.js (MCP path) that diverge. | MEDIUM | tool-executor.js, background.js | Replaces dual dispatch with one registry. Every invocation goes through the same `registry.tool(name).execute(params)` path regardless of caller. |
-| T2 | Tool Pool with permission filtering | Claude Code's `tool_pool.py` assembles available tools per-session, applying `simple_mode` (restrict to 3 core tools), `include_mcp` filtering, and `ToolPermissionContext` deny-lists. FSB sends all 47 tools every time. | MEDIUM | tool-definitions.js, agent-loop.js | Context-aware tool set per task. Navigation task gets 12 tools, not 47. Reduces prompt bloat and hallucinated tool calls. |
-| T3 | Command Graph (tiered routing) | Claude Code's `command_graph.py` separates commands into `builtins`, `plugin_like`, and `skill_like` tiers. FSB has a flat tool list with no hierarchy. | MEDIUM | tool-definitions.js | Tier the 47 tools: core (navigate, click, type, read_page), extended (CDP, sheets, tabs), and meta (complete_task, report_progress). AI gets core tier first; extended tools injected only when needed. |
-| T4 | Deferred Init with trust gate | Claude Code's `deferred_init.py` delays plugin, skill, MCP prefetch, and session hook initialization until after a trust gate passes. FSB loads everything at service worker start. | LOW | background.js service worker | Defer non-essential initialization (site guide loading, memory extraction, analytics prefetch) until after the first user interaction. Reduces cold-start time. |
-| T5 | Bootstrap Graph (ordered startup) | Claude Code's `bootstrap_graph.py` defines 7 ordered stages: prefetch, environment guards, CLI parser + trust gate, setup + commands/agents parallel load, deferred init, mode routing, query engine submit loop. FSB's startup is ad-hoc. | MEDIUM | background.js | Define explicit startup phases for the service worker. Enables debugging ("startup stuck at stage 3") and parallelism (load tools and settings concurrently). |
-| T6 | Session Store (file-backed persistence) | Claude Code's `session_store.py` persists sessions as JSON files with session_id, messages, and token counts. FSB uses chrome.storage.local but loses sessions when storage limits hit. | LOW | agent-loop.js session persistence | Use IndexedDB for session persistence instead of chrome.storage.local. Larger quota, structured queries, survives service worker death. |
-| T7 | Transcript Store with compaction | Claude Code's `transcript.py` is a dedicated store with `append()`, `compact(keep_last)`, `replay()`, and `flush()` methods. FSB inlines compaction logic in the agent loop. | LOW | agent-loop.js compactHistory | Extract history management into a standalone TranscriptStore class. Cleaner separation: the agent loop orchestrates, the transcript store manages memory. |
-| T8 | Structured Turn Result | Claude Code's `TurnResult` dataclass carries: prompt, output, matched_commands, matched_tools, permission_denials, usage, and stop_reason. FSB's iteration result is implicit in session state mutations. | MEDIUM | agent-loop.js runAgentIteration | Each iteration returns a typed result object. Enables: logging every turn, replaying turns, computing diffs between turns. |
-| T9 | Permission Context (deny-lists) | Claude Code's `permissions.py` implements `ToolPermissionContext` with deny_names and deny_prefixes. `blocks(tool_name)` gates every tool call. FSB has no per-session permission control. | LOW | tool-executor.js | Block dangerous tools per-context. Example: when running on banking sites, deny `type_text` on password fields. When in read-only mode, deny all mutation tools. |
+Features to explicitly NOT show in the user-facing progress overlay. These are the core of the v0.9.26 cleanup.
 
-### Differentiators (Competitive Advantage -- Patterns That Would Elevate FSB)
-
-Features that go beyond matching Claude Code's baseline. These exploit Claude Code patterns in ways that are uniquely valuable for browser automation.
-
-| # | Feature | Value Proposition | Complexity | FSB Dependency | Notes |
-|---|---------|-------------------|------------|----------------|-------|
-| D1 | Multi-turn loop with configurable stop conditions | Claude Code's `run_turn_loop` in `runtime.py` accepts `max_turns` and `structured_output` params, running up to N turns and stopping on specific stop_reasons. FSB's loop terminates only on complete_task/fail_task or safety breakers. | MEDIUM | agent-loop.js | Add configurable stop conditions: max_iterations (beyond safety), stop_on_navigation (for single-page tasks), stop_on_pattern (regex match on page content), stop_on_data_collected. Enables "scrape 10 pages then stop" without needing the AI to decide. |
-| D2 | Prompt routing (intent-to-tool matching) | Claude Code's `PortRuntime.route_prompt()` scores each tool/command against the user's prompt tokens before the AI call. Highest-scoring matches are pre-selected. FSB relies entirely on the AI to pick tools. | HIGH | agent-loop.js, tool-definitions.js | Pre-analyze the user's task to select likely tool tiers. "Search for..." activates navigation+search tools. "Fill out the form..." activates interaction+typing tools. "Read all the data..." activates extraction+scroll tools. Reduces wasted iterations where AI tries irrelevant tools. |
-| D3 | Skill bundles (reusable action sequences) | Claude Code's `skills/` system (20 modules) packages multi-step behaviors as named skills: batch, debug, loop, remember, stuck, verify. FSB has site guides but no executable skill abstraction. | HIGH | New module | Package proven sequences as skills: `login_flow(url, username, password)`, `scrape_paginated_list(next_selector, extract_fn)`, `fill_form_from_schema(form_data)`. AI invokes the skill name instead of planning 10+ individual steps. Dramatically reduces iteration count for common tasks. |
-| D4 | Cost Hook (per-turn cost tracking with budget enforcement) | Claude Code's `costHook.py` applies a cost recording hook after every turn. The `QueryEngineConfig.max_budget_tokens` enforces a token budget alongside dollar cost. FSB tracks cost but only enforces a dollar limit. | LOW | agent-loop.js estimateCost | Add token budget enforcement alongside dollar cost. "Stop this session after 50K tokens total" catches runaway loops where cost is low (cheap model) but context is bloating. |
-| D5 | Streaming turn events | Claude Code's `stream_submit_message()` yields events: message_start, command_match, tool_match, permission_denial, message_delta, message_stop. FSB sends status updates but not structured turn events. | MEDIUM | agent-loop.js, sidepanel.js | Emit structured events for each turn phase. Sidepanel can show: "Matched 3 tools" -> "Executing click..." -> "Tool returned success" -> "Analyzing result..." in real-time. Much richer than current "Reviewing page state" generic status. |
-| D6 | Mode routing (local / remote / direct-connect) | Claude Code's `direct_modes.py` and `remote_runtime.py` support multiple execution modes. FSB always runs locally in the user's browser. | LOW | background.js | Formalize FSB's existing implicit modes: `autopilot` (AI drives), `mcp-manual` (Claude Code drives), `mcp-agent` (scheduled background), `dashboard-remote` (WebSocket relay). Each mode configures different tool pools, safety limits, and UI feedback channels. |
-| D7 | Parity audit (self-validation) | Claude Code's `parity_audit.py` compares the Python workspace against the TypeScript archive to detect gaps. FSB has no automated architecture validation. | LOW | New utility | Build a parity checker that validates: all 47 tools have matching MCP schemas, all tools have test coverage entries, all site guides reference valid tool names. Catches drift when tools are added/renamed. |
-| D8 | Structured output mode | Claude Code's `QueryEngineConfig.structured_output` with `structured_retry_limit` supports JSON-formatted responses with automatic retry. FSB relies on text parsing. | MEDIUM | agent-loop.js | For data extraction tasks, request structured JSON output from the AI. Retry with simplified prompt on parse failure. Eliminates the "AI returned prose instead of data" failure mode in scraping tasks. |
-
-### Anti-Features (Do NOT Build -- Patterns That Don't Fit Browser Automation)
-
-Features from Claude Code that seem appealing but would be harmful or wasteful for FSB.
-
-| Anti-Feature | Why Requested | Why Problematic for FSB | Alternative |
-|--------------|---------------|------------------------|-------------|
-| Agent sub-spawning (AgentTool with forkSubagent) | Claude Code spawns sub-agents for parallel tasks. Tempting for multi-tab automation. | Chrome MV3 service worker has a single execution thread. Sub-agents would compete for the same chrome.tabs APIs, cause race conditions on DOM state, and multiply cost. Chrome's 5-minute service worker kill makes sub-agent lifecycle management fragile. | Use sequential multi-tab orchestration (switch_tab + execute on each tab in order). For true parallelism, use the MCP agent system which runs each agent as a separate scheduled session. |
-| Plan mode toggle (EnterPlanModeTool / ExitPlanModeTool) | Claude Code can switch between plan-only and execute mode. Tempting to let users preview actions before execution. | FSB's value is reliable single-attempt execution. A plan-preview mode would double API calls (plan call + execute call) and introduce a UX where users second-guess the AI, defeating the purpose of automation. | Instead, use `report_progress` to narrate what the AI is about to do, giving users a chance to cancel via the stop button. This is already implemented. |
-| LSP-style tool integration (LSPTool) | Claude Code integrates with Language Server Protocol for code intelligence. Tempting to add similar "page intelligence" tools. | Browser DOM is not a codebase. FSB already has DOM snapshots, site guides, and element caching that serve the same purpose. Adding an LSP-like layer would add complexity without improving element targeting. | Continue improving site guides and element scoring heuristics. These are the browser-specific equivalent of LSP intelligence. |
-| Plugin architecture (loadAgentsDir, loadSkillsDir) | Claude Code dynamically loads plugins and skills from filesystem directories. Tempting for community-contributed browser automation recipes. | Chrome extensions cannot load arbitrary JavaScript at runtime (MV3 CSP restrictions). A plugin system would require a review/packaging pipeline, versioning, and security auditing that is premature for FSB's current stage. | Use site guide files as the "plugin" mechanism. They are already loaded dynamically, provide site-specific intelligence, and don't execute arbitrary code. |
-| MCP resource browsing (ListMcpResourcesTool, ReadMcpResourceTool) | Claude Code can browse MCP server resources. Tempting to expose FSB's internal state as MCP resources. | FSB's MCP server already exposes tools for read_page, get_dom_snapshot, list_sessions, search_memory. Adding a separate resource browsing layer would duplicate existing functionality under a different abstraction. | Keep tools as the primary MCP interface. If structured data access is needed, add specific tools (e.g., get_site_guide, get_session_history) rather than a generic resource browser. |
-| Worktree management (EnterWorktreeTool, ExitWorktreeTool) | Claude Code manages git worktrees for parallel development. No browser equivalent exists. | N/A -- this is a code-specific feature with no browser automation analog. | No alternative needed. |
-| Voice integration (voice/) | Claude Code has voice input/output capabilities. Tempting for hands-free browser control. | Voice adds significant complexity (speech recognition, audio handling, permission management) for a niche use case. FSB's text input is sufficient for the automation use case. | Defer to v1.0+ if user demand materializes. The popup/sidepanel text input is the correct interface for now. |
-
----
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| **Iteration count (e.g., "Iteration 3/20")** | Meaningless to end users. "Iteration" is a developer concept. Users do not know or care that the agent loop runs in numbered iterations. Showing "3/20" creates false expectations about completion timing (iteration 3 is not 15% done). | Show action count ("7 actions") or phase-weighted progress bar. |
+| **Token counts (input/output/total)** | Pure developer/cost debugging metric. No end user knows what "12,847 tokens" means or why they should care. Adds visual noise and anxiety. Research shows token metrics are exclusively a developer/ops concern. | Remove entirely from overlay. Keep in options dashboard analytics for power users who want cost tracking. |
+| **Cost information ($0.0043)** | Showing cost per interaction creates anxiety and cheapens the experience. Users already paid for the API key -- showing micro-costs per action is like a taxi meter that makes every second feel expensive. | Remove entirely from overlay. Surface in session history and analytics dashboard only. |
+| **Max iterations** | The denominator in "3/20" is an internal safety limit, not a task progress measure. Showing it implies the task will take exactly 20 steps, which is almost never true. | Remove. Use phase-weighted progress or action count instead. |
+| **Model name / provider** | Users do not care that "grok-4-1-fast" is processing their request. This is configuration noise. | Remove from overlay. Visible in options/settings only. |
+| **DOM hash / technical state** | Internal stuck detection data has zero user value. | Never expose in overlay (already not shown, but ensure it stays that way). |
+| **Raw tool call syntax** | "click [ref=42]" or "type [ref=17] 'hello'" is developer debug output. | Always use AI-generated summaries or at minimum human-readable descriptions: "Clicking the search button", "Typing 'hello' in the text field". |
+| **Error stack traces** | Technical error details belong in logs, not user-facing UI. | Show "Something went wrong -- retrying" or "Task stopped due to an error". Full error details in the automation logger for debugging. |
+| **ETA countdown** | AI automation step duration is fundamentally unpredictable. "Estimated: 47 seconds remaining" that jumps to "2 minutes" destroys trust faster than no ETA. NN/g research: "Provide general time estimates rather than precise ones. Pleasant surprises (finishing early) maintain trust better than disappointing delays." | Show elapsed time only. Let users form their own expectations. If ETA is ever re-added, use ranges ("about 30 seconds") or qualitative labels ("almost done"), never precise seconds. |
+| **Cancel button in overlay** | Would require pointer-events, click handlers, and message passing from content script to background. Increases overlay surface area and risk of accidental interaction interfering with automation. | Cancel is already available in the popup and sidepanel UIs. The overlay is read-only by design. |
+| **Action history scroll** | Showing a scrollable list of past actions in the overlay adds complexity and visual noise. The overlay is a status display, not a log viewer. | Show only the most recent action. History is in the sidepanel chat. |
+| **Expandable detail panel** | Adding click-to-expand sections makes the overlay interactive, which conflicts with `pointer-events: none` and the non-blocking design principle. | Keep the overlay read-only and minimal. Detailed logs belong in the sidepanel or dashboard. |
 
 ## Feature Dependencies
 
 ```
-T4 (Deferred Init)
-    requires -> T5 (Bootstrap Graph) -- bootstrap graph defines WHEN deferred init runs
+Shadow DOM isolation (existing) --> all overlay features
+  |
+  +--> scaleX progress bar (CSS-only, no dependency)
+  |
+  +--> Elapsed timer (requires session.startTime from agent loop)
+  |
+  +--> Action counter (requires action count from agent loop)
+  |
+  +--> AI summaries (existing) --> clean detail text
+  |
+  +--> Phase-weighted progress (existing) --> determinate bar
+  |
+  +--> Completion state freeze --> lifecycle === 'final' detection (existing)
 
-T2 (Tool Pool)
-    requires -> T9 (Permission Context) -- pool uses permissions to filter tools
-    requires -> T3 (Command Graph) -- tiers inform pool assembly
-
-T1 (Execution Registry)
-    requires -> T2 (Tool Pool) -- registry wraps pooled tools
-    enhances -> D5 (Streaming Events) -- registry emit points enable event streaming
-
-T7 (Transcript Store)
-    enhances -> T8 (Structured Turn Result) -- turns are what gets stored
-
-T8 (Structured Turn Result)
-    requires -> T1 (Execution Registry) -- turn captures registry execution output
-    enhances -> D5 (Streaming Events) -- turn events drive the stream
-
-D1 (Configurable Stop Conditions)
-    requires -> T8 (Structured Turn Result) -- stop conditions evaluate turn results
-
-D2 (Prompt Routing)
-    requires -> T3 (Command Graph) -- routing maps prompts to tool tiers
-    enhances -> T2 (Tool Pool) -- routing output configures the pool
-
-D3 (Skill Bundles)
-    requires -> T1 (Execution Registry) -- skills dispatch through registry
-    requires -> T3 (Command Graph) -- skills ARE the skill_like tier
-
-D4 (Cost Hook)
-    enhances -> T8 (Structured Turn Result) -- cost recorded per turn
-
-D5 (Streaming Events)
-    requires -> T8 (Structured Turn Result) -- events derived from turn lifecycle
-
-D6 (Mode Routing)
-    requires -> T2 (Tool Pool) -- each mode configures a different pool
-    requires -> T9 (Permission Context) -- modes set different permissions
-
-D8 (Structured Output)
-    requires -> T8 (Structured Turn Result) -- structured output is a turn config option
+Strip developer noise --> Clean action summaries (summaries depend on knowing what noise was removed)
 ```
 
-### Dependency Notes
+Key: No feature in this plan requires new infrastructure. Everything builds on the existing overlay-state.js + visual-feedback.js + agent-loop.js pipeline.
 
-- **T2 (Tool Pool) requires T9 (Permission Context):** The pool assembly function filters tools through the permission context. Build permissions first, then pool assembly.
-- **T3 (Command Graph) requires T2 (Tool Pool):** Not strictly -- the graph categorizes tools, and the pool uses categories. Build them together.
-- **D2 (Prompt Routing) requires T3 (Command Graph):** Routing maps user intent to tool tiers defined by the command graph. Without tiers, routing has nothing to route to.
-- **D3 (Skill Bundles) requires T1 (Execution Registry):** Skills are multi-step sequences dispatched through the registry. Without unified dispatch, skills would need to duplicate routing logic.
-- **D5 (Streaming Events) conflicts with D8 (Structured Output):** Not a hard conflict, but streaming events and structured output serve different consumers (UI vs data pipeline). Implement separately.
+## Information Hierarchy (What the Overlay Should Show)
 
----
+Based on research across Project Mariner, OpenAI Operator, ChatGPT Agent, SAP Fiori AI guidelines, and NN/g progress indicator research, the optimal information hierarchy for FSB's overlay:
 
-## MVP Definition
+### Always visible (the overlay surface)
+1. **FSB branding** -- logo + "FSB Automating" (establishes identity, already present)
+2. **Task name** -- what the user asked for (primary text, `display.title`)
+3. **Current action in plain English** -- what the agent is doing right now (secondary text, `display.detail`, updates frequently)
+4. **Phase badge** -- "Planning" / "Acting" / "Writing" / "Recovering" (small pill, `humanizeOverlayPhase`)
+5. **Progress bar** -- determinate when phase-calculable, indeterminate sweep otherwise
+6. **Meta row** -- elapsed time (left) + action count (right)
 
-### Launch With (Phase 1-2 of v0.9.24)
+### Never visible in overlay
+- Iteration counts, token counts, cost, model name, max iterations, DOM hash, raw tool syntax, error stack traces
 
-Minimum architecture adaptation -- patterns that improve FSB's agent loop quality immediately.
+### Visible elsewhere (options dashboard, session history)
+- Token usage, cost per session, model used, iteration breakdown, full error logs, ETA experiments
 
-- [x] **T7 - Transcript Store** -- Extract history management from agent-loop.js into a standalone class with append/compact/replay/flush. Lowest friction refactor, immediate code clarity win. Already partially exists as compactHistory.
-- [x] **T8 - Structured Turn Result** -- Each iteration returns a typed result object instead of mutating session state. Foundation for everything else.
-- [x] **T9 - Permission Context** -- Simple deny-list class. 20 lines of code. Enables tool filtering immediately.
-- [x] **T2 - Tool Pool** -- Assemble per-session tool sets using permission context. Reduces prompt token waste on every API call.
-- [x] **D4 - Cost Hook** -- Add token budget enforcement alongside dollar cost limit. Trivial extension of existing cost tracking.
+## Design Patterns from Best-in-Class Products
 
-### Add After Validation (Phase 3-4 of v0.9.24)
+### Pattern 1: Narrated Action Stream (ChatGPT Agent, Operator)
+Both ChatGPT Agent and OpenAI Operator show a line-by-line narration of what the agent is doing. ChatGPT Agent displays this in an "activity panel" with scrolling text showing which pages are being opened and what actions are being taken. Operator shows numbered steps (001, 002, 003...) with action descriptions. Users can "watch as the agent browses autonomously and monitor its progress in the activity panel."
 
-Features to add once the core architecture refactors prove stable.
+**FSB adaptation:** The overlay is compact (320px floating card), not a full panel, so a scrolling log is inappropriate. Instead, show only the LATEST action as the detail line, updating it each time a new tool executes. The action count in the meta row provides the cumulative narrative.
 
-- [ ] **T1 - Execution Registry** -- Unify tool dispatch. Trigger: when tool-executor.js and background.js routing logic are confirmed to never diverge.
-- [ ] **T3 - Command Graph** -- Tier tools into core/extended/meta. Trigger: when prompt routing (D2) is being built and needs tiers to route to.
-- [ ] **T5 - Bootstrap Graph** -- Formalize startup stages. Trigger: when service worker cold-start time becomes a measured bottleneck.
-- [ ] **T4 - Deferred Init** -- Delay non-essential loading. Trigger: after bootstrap graph identifies which stages can be deferred.
-- [ ] **D5 - Streaming Events** -- Structured turn events to sidepanel. Trigger: after T8 (turn results) is shipping and sidepanel is ready to consume events.
-- [ ] **D6 - Mode Routing** -- Formalize autopilot/mcp/agent/dashboard modes. Trigger: when different modes need different tool pools or safety configs.
+### Pattern 2: Phase State Machine (Project Mariner, SAP Fiori)
+Mariner uses discrete states: Active, Paused, Take Over, Completed. SAP Fiori AI progress indicator uses an AI icon with looped animation, text message with status, animated gradient bar, and a stop button. Users see a clear state label plus an animated indicator appropriate to the state.
 
-### Future Consideration (v0.9.25+)
+**FSB adaptation:** Already implemented with `humanizeOverlayPhase()`. The existing states (Planning, Analyzing, Acting, Writing, Recovering, Complete, Error) map well. No change needed.
 
-Features to defer until the core architecture is proven.
+### Pattern 3: Progressive Disclosure (Vercel AI SDK Task Component)
+The Task component uses collapsible sections: a summary trigger header with visual icons for pending/in-progress/completed/error states. Expandable content reveals individual task items. Counter displays completed tasks relative to total.
 
-- [ ] **D1 - Configurable Stop Conditions** -- Defer because current complete_task/fail_task/safety stops are sufficient for most tasks. Add when users report "I wanted it to stop after 10 pages."
-- [ ] **D2 - Prompt Routing** -- Defer because it requires NLP-quality intent detection and tool tier definitions (T3) to be stable. High complexity with moderate payoff initially.
-- [ ] **D3 - Skill Bundles** -- Defer because it requires the registry (T1), graph (T3), and real-world usage data to know which skills to bundle. Premature optimization risk.
-- [ ] **T6 - Session Store (IndexedDB)** -- Defer because chrome.storage.local works for current session volumes. Add when session history exceeds storage limits.
-- [ ] **D7 - Parity Audit** -- Defer because the tool registry is stable. Add when tool count exceeds 60 or MCP schema drift becomes a real problem.
-- [ ] **D8 - Structured Output** -- Defer because it requires provider-specific structured output support (Anthropic tool_use already structured, others vary). Add when data extraction tasks become a primary use case.
+**FSB adaptation:** The overlay is already compact and non-expandable by design (it floats over the user's page). Progressive disclosure is handled by keeping detailed metrics in the sidepanel/dashboard, not the overlay. The overlay IS the collapsed view.
 
----
+### Pattern 4: Background Operation Pattern (Smart Interface Design Patterns)
+"For long processes, collapse the task into a background state so the user isn't blocked from using the rest of the application." The overlay should not demand attention -- it should be glanceable.
 
-## Feature Prioritization Matrix
+**FSB adaptation:** The overlay is already non-blocking (pointer-events: none, positioned in top-right corner). It competes with page content minimally. The 320px width and dark theme with low opacity borders keep it unobtrusive.
 
-| Feature | User Value | Implementation Cost | Priority | Phase |
-|---------|------------|---------------------|----------|-------|
-| T7 - Transcript Store | MEDIUM | LOW | P1 | 1 |
-| T8 - Structured Turn Result | HIGH | MEDIUM | P1 | 1 |
-| T9 - Permission Context | MEDIUM | LOW | P1 | 1 |
-| T2 - Tool Pool | HIGH | MEDIUM | P1 | 2 |
-| D4 - Cost Hook | MEDIUM | LOW | P1 | 2 |
-| T1 - Execution Registry | HIGH | MEDIUM | P2 | 3 |
-| T3 - Command Graph | MEDIUM | MEDIUM | P2 | 3 |
-| D5 - Streaming Events | HIGH | MEDIUM | P2 | 4 |
-| D6 - Mode Routing | MEDIUM | LOW | P2 | 4 |
-| T5 - Bootstrap Graph | LOW | MEDIUM | P2 | 4 |
-| T4 - Deferred Init | LOW | LOW | P2 | 4 |
-| D1 - Configurable Stop Conditions | MEDIUM | MEDIUM | P3 | Future |
-| D2 - Prompt Routing | HIGH | HIGH | P3 | Future |
-| D3 - Skill Bundles | HIGH | HIGH | P3 | Future |
-| T6 - Session Store (IndexedDB) | LOW | MEDIUM | P3 | Future |
-| D7 - Parity Audit | LOW | LOW | P3 | Future |
-| D8 - Structured Output | MEDIUM | MEDIUM | P3 | Future |
+### Pattern 5: Pacing Strategy (NN/g Research)
+"Start progress animation slowly, accelerating toward completion -- this prevents setting faster expectations than the system can maintain." Also: animated progress bars make users willing to wait 3x longer than no indicator.
 
-**Priority key:**
-- P1: Must have for this milestone (v0.9.24)
-- P2: Should have, add when core is stable
-- P3: Nice to have, future milestone
+**FSB adaptation:** The phase-weighted bands already implement a form of pacing (navigation is 0-30%, extraction 30-70%, writing 70-100%). The scaleX transition with cubic-bezier easing will make bar movement feel smooth and natural.
 
----
+## MVP Recommendation for v0.9.26
 
-## Competitor Feature Analysis (Claude Code vs FSB Current)
+### Must ship (table stakes fixes):
+1. **Strip developer noise** -- remove iteration count, token count, cost, max iterations from overlay payload and rendering
+2. **Fix progress bar animation** -- switch from `width` to `scaleX` for GPU compositing, add proper easing
+3. **Add elapsed time** -- `tabular-nums` in meta row, freeze on completion
+4. **Add actions completed counter** -- "N actions" in meta row, `tabular-nums`
+5. **Ensure all action text is human-readable** -- no raw tool call syntax ever reaches the overlay
 
-| Architecture Pattern | Claude Code (Reference) | FSB Current | Adaptation Plan |
-|---------------------|------------------------|-------------|-----------------|
-| Tool dispatch | ExecutionRegistry wrapping MirroredCommand + MirroredTool with uniform `.execute()` | Split routing: tool-executor.js for MCP, background.js for autopilot, converging on same executeTool but with divergent error paths | T1: Single ExecutionRegistry class, one dispatch path for all callers |
-| Tool availability | ToolPool assembled per-session with simple_mode, include_mcp, permission_context filters | All 47 tools sent every API call | T2: Per-session tool pool. Navigation task gets 15 tools, not 47 |
-| Tool taxonomy | CommandGraph: builtins / plugin_like / skill_like tiers | Flat array with _route metadata (content/cdp/background) | T3: Three tiers (core 12 / extended 28 / meta 7) based on task type |
-| Session history | TranscriptStore with append/compact/replay/flush, separate from agent loop | compactHistory function embedded in agent-loop.js | T7: Standalone TranscriptStore class |
-| Turn results | TurnResult frozen dataclass with prompt, output, matched_tools, usage, stop_reason | Implicit: session.agentState mutated in place, no return value from iteration | T8: Return typed IterationResult from every runAgentIteration call |
-| Permission gating | ToolPermissionContext with deny_names + deny_prefixes, checked on every tool call | None -- all tools always available | T9: Permission context per session, deny tools based on site/mode |
-| Cost tracking | CostTracker + costHook recording per-turn, QueryEngineConfig.max_budget_tokens | estimateCost + $2 dollar limit check | D4: Add token budget alongside dollar budget |
-| Startup lifecycle | BootstrapGraph with 7 ordered stages, DeferredInit for trust-gated loading | Ad-hoc: listeners registered, settings loaded, globals initialized in unclear order | T5 + T4: Explicit bootstrap stages with deferred loading |
-| Execution modes | 6 modes: local, remote, SSH, teleport, direct-connect, deep-link | Implicit: autopilot vs MCP vs dashboard, mode affects behavior but not formalized | D6: Explicit mode enum with per-mode tool pool and safety config |
-| Streaming | stream_submit_message yields 5 event types (start, match, denial, delta, stop) | sendSessionStatus with generic phase/statusText | D5: Structured event stream per turn |
+### Should ship (differentiators that are low-cost):
+6. **Verify AI summary pipeline** -- ensure `generateActionSummary` output is actually used for every overlay update
+7. **Clean completion state** -- freeze elapsed time and show final action count on task end
+8. **Extend reduced motion support** -- cover all new transitions in `@media (prefers-reduced-motion)`
 
----
-
-## Detailed Implementation Notes
-
-### T7 - Transcript Store
-
-**Source:** `Research/claude-code/src/transcript.py` (24 lines)
-**FSB equivalent:** `agent-loop.js compactHistory` function (lines 262-342)
-
-**What to build:**
-```javascript
-class TranscriptStore {
-  constructor() { this.entries = []; this.flushed = false; }
-  append(message) { ... }      // Add message to history
-  compact(keepLast = 5) { ... } // Trim old tool_results
-  replay() { ... }             // Return all entries
-  flush() { ... }              // Mark as persisted
-  estimateTokens() { ... }    // Token count for budget checks
-}
-```
-
-**Migration:** Extract compactHistory logic into TranscriptStore.compact(). Agent loop calls `session.transcript.append(msg)` instead of `session.messages.push(msg)`.
-
-### T8 - Structured Turn Result
-
-**Source:** `Research/claude-code/src/query_engine.py` TurnResult dataclass (lines 25-32)
-**FSB equivalent:** None -- runAgentIteration mutates session.agentState in place
-
-**What to build:**
-```javascript
-// Returned from every runAgentIteration call
-{
-  iteration: 5,
-  toolCalls: [{ name: 'click', args: { selector: '#btn' }, result: { success: true, hadEffect: true } }],
-  textResponse: null,
-  usage: { input: 1200, output: 340, cost: 0.0003 },
-  stopReason: 'tool_use',  // 'tool_use' | 'end_turn' | 'complete' | 'fail' | 'safety' | 'stuck'
-  stuckHint: null
-}
-```
-
-**Migration:** runAgentIteration becomes `async function runAgentIteration(sessionId, options) -> IterationResult`. The scheduling logic (setTimeout for next iteration) uses stopReason to decide continuation.
-
-### T2 - Tool Pool
-
-**Source:** `Research/claude-code/src/tool_pool.py` + `tools.py` get_tools() with simple_mode and include_mcp filters
-**FSB equivalent:** `agent-loop.js getPublicTools()` (always returns all tools)
-
-**What to build:**
-```javascript
-function assembleToolPool(taskType, permissions) {
-  let tools = TOOL_REGISTRY;
-  // Filter by task type (navigation gets fewer tools)
-  if (taskType === 'navigation') tools = tools.filter(t => CORE_TOOLS.includes(t.name));
-  // Filter by permissions
-  if (permissions) tools = tools.filter(t => !permissions.blocks(t.name));
-  // Filter MCP-only tools for autopilot
-  return tools.map(stripRoutingMetadata);
-}
-```
-
-### T9 - Permission Context
-
-**Source:** `Research/claude-code/src/permissions.py` (21 lines)
-**FSB equivalent:** None
-
-**What to build:**
-```javascript
-class ToolPermissionContext {
-  constructor(denyNames = [], denyPrefixes = []) { ... }
-  blocks(toolName) { return this.denyNames.has(name) || this.denyPrefixes.some(p => name.startsWith(p)); }
-  static readOnly() { return new ToolPermissionContext(['type_text','click','press_enter','press_key','select_option','check_box','clear_input','fill_sheet','navigate'], []); }
-}
-```
-
----
+### Defer to future milestone:
+- ETA display (accuracy issues; elapsed time is strictly better for now)
+- Cancel/stop button in overlay (available in popup/sidepanel; adding to overlay increases interaction surface complexity)
+- Expandable overlay or action history scroll (adds complexity, low value -- detailed info belongs in sidepanel)
+- Overlay position customization (top-right works universally)
+- Sound notification on completion (preference-dependent, needs settings UI)
+- Theming/color customization (not needed until user requests emerge)
 
 ## Sources
 
-- Direct analysis: `Research/claude-code/src/tool_pool.py` -- Tool pool assembly with mode/permission filtering
-- Direct analysis: `Research/claude-code/src/tools.py` -- Tool snapshot loading, search, filtering, execution
-- Direct analysis: `Research/claude-code/src/execution_registry.py` -- Unified command+tool dispatch registry
-- Direct analysis: `Research/claude-code/src/command_graph.py` -- Three-tier command categorization
-- Direct analysis: `Research/claude-code/src/commands.py` -- Command snapshot loading and routing
-- Direct analysis: `Research/claude-code/src/permissions.py` -- Tool permission deny-list context
-- Direct analysis: `Research/claude-code/src/query_engine.py` -- Turn loop, budget enforcement, compaction, structured output, streaming
-- Direct analysis: `Research/claude-code/src/transcript.py` -- Dedicated transcript store with compaction
-- Direct analysis: `Research/claude-code/src/session_store.py` -- File-backed session persistence
-- Direct analysis: `Research/claude-code/src/runtime.py` -- PortRuntime with prompt routing and multi-turn loop
-- Direct analysis: `Research/claude-code/src/bootstrap_graph.py` -- 7-stage ordered startup
-- Direct analysis: `Research/claude-code/src/deferred_init.py` -- Trust-gated deferred initialization
-- Direct analysis: `Research/claude-code/src/cost_tracker.py` + `costHook.py` -- Per-turn cost recording
-- Direct analysis: `Research/claude-code/src/direct_modes.py` -- Execution mode routing
-- Direct analysis: `Research/claude-code/src/system_init.py` -- System initialization message
-- Direct analysis: `Research/claude-code/src/reference_data/tools_snapshot.json` -- 40+ tool types (AgentTool, BashTool, FileEditTool, GrepTool, MCPTool, etc.)
-- Direct analysis: `Research/claude-code/src/reference_data/commands_snapshot.json` -- 90+ commands (compact, config, context, cost, diff, hooks, memory, permissions, plan, resume, skills, etc.)
-- Direct analysis: `Research/claude-code/src/reference_data/subsystems/hooks.json` -- 104 hook modules including toolPermission handlers
-- Direct analysis: `Research/claude-code/src/reference_data/subsystems/skills.json` -- 20 skill modules (batch, debug, loop, remember, stuck, verify, etc.)
-- Direct analysis: `Research/claude-code/src/reference_data/subsystems/coordinator.json` -- coordinatorMode
-- Direct analysis: `Research/claude-code/src/reference_data/subsystems/state.json` -- AppState, AppStateStore, selectors
-- Direct analysis: `FSB/ai/agent-loop.js` -- Current agent loop implementation
-- Direct analysis: `FSB/ai/tool-definitions.js` -- Current 47-tool registry
-- Direct analysis: `FSB/ai/tool-executor.js` -- Current tool dispatch
-- Direct analysis: `FSB/ai/tool-use-adapter.js` -- Current provider format adapter
+- [NN/g: Progress Indicators Make a Slow System Less Insufferable](https://www.nngroup.com/articles/progress-indicators/) -- HIGH confidence, authoritative UX research. Key finding: users wait 3x longer with animated progress bars, percent-done indicators are most informative for 10+ second operations.
+- [Smart Interface Design Patterns: Designing Better Loading and Progress UX](https://smart-interface-design-patterns.com/articles/designing-better-loading-progress-ux/) -- HIGH confidence. Key finding: use background operation patterns for long tasks, start progress slowly and accelerate.
+- [SAP Fiori AI Progress Indicator](https://www.sap.com/design-system/fiori-design-web/v1-136/ui-elements/ai-progress-indicator/usage) -- HIGH confidence, enterprise design system. Key components: AI icon with looped animation, text message for status, animated gradient bar, stop generating button.
+- [OpenAI: Introducing Operator](https://openai.com/index/introducing-operator/) -- MEDIUM confidence. Key pattern: numbered step display, pause/stop/takeover controls, Watch mode and Takeover mode states.
+- [Google Project Mariner](https://support.google.com/labs/answer/16270604) -- MEDIUM confidence. Key pattern: Chrome sidebar with live view, playback of steps, user can intervene or take over.
+- [ChatGPT Agent](https://help.openai.com/en/articles/11752874-chatgpt-agent) -- MEDIUM confidence. Key pattern: activity panel with line-by-line narration, real-time visibility into pages visited and actions taken, mobile notification on completion.
+- [Vercel AI SDK Task Component](https://elements.ai-sdk.dev/components/task) -- MEDIUM confidence. Key pattern: collapsible trigger header, status icons (pending/in-progress/completed/error), progress counter.
+- [Mobbin: Progress Indicator UI Design](https://mobbin.com/glossary/progress-indicator) -- MEDIUM confidence, design pattern reference.
 
 ---
-*Feature research for: Claude Code Architecture Adaptation for FSB Browser Automation*
-*Researched: 2026-04-02*
+*Feature landscape for: FSB v0.9.26 Progress Overlay Refinement*
+*Researched: 2026-04-11*

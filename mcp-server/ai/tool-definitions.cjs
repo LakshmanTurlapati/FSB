@@ -808,8 +808,27 @@ const TOOL_REGISTRY = [
   },
 
   {
+    name: 'execute_js',
+    description: 'Run JavaScript code directly in the page. Use as a LAST RESORT when standard tools (click, type_text, select_option) fail due to overlays, zero-dimension elements, or other DOM issues. The code runs in the page context with full DOM access. Return values are captured as strings. When to use: after a standard tool returns "obscured", "zero dimensions", or similar errors. Related: click (try first), type_text (try first), get_attribute (read values without JS).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        code: {
+          type: 'string',
+          description: 'JavaScript code to execute in the page (e.g., "document.querySelector(\'button\').click()" or "document.title")'
+        }
+      },
+      required: ['code']
+    },
+    _route: 'background',
+    _readOnly: false,
+    _contentVerb: null,
+    _cdpVerb: null
+  },
+
+  {
     name: 'report_progress',
-    description: 'Update the progress overlay with a status message visible to the user. When to use: before complex multi-step operations to inform the user what you are doing. Related: all action tools (call report_progress before sequences of actions).',
+    description: 'Display a status message in the overlay. THIS TOOL DOES NOT PERFORM ANY ACTION -- it is narration only and never clicks, types, navigates, submits, or changes the page. Do NOT describe clicks, typing, or submissions in the message unless you have already called the corresponding action tool (click, type_text, press_enter, select_option, navigate, ...) in the same or a previous turn. When to use: between real action tools to keep the user informed of what you are doing.',
     inputSchema: {
       type: 'object',
       properties: {

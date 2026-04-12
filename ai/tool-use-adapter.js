@@ -223,9 +223,18 @@ function isToolCallResponse(response, provider) {
       return parts.some(p => !!p.functionCall);
     }
 
-    default:
-      // OpenAI/xAI/OpenRouter/Custom: finish_reason === 'tool_calls'
-      return response.choices?.[0]?.finish_reason === 'tool_calls';
+    default: {
+      // OpenAI/xAI/OpenRouter/Custom.
+      // Primary signal: finish_reason === 'tool_calls'.
+      // Fallback: also check if tool_calls exist in message body even when
+      // finish_reason is "stop" (mixed text+tools) or "length" (truncated).
+      // Without this fallback, tool calls are silently dropped and the agent
+      // loop exits at the isToolCallResponse gate (agent-loop.js:1250).
+      const finishReason = response.choices?.[0]?.finish_reason;
+      if (finishReason === 'tool_calls') return true;
+      const toolCalls = response.choices?.[0]?.message?.tool_calls;
+      return Array.isArray(toolCalls) && toolCalls.length > 0;
+    }
   }
 }
 

@@ -93,11 +93,16 @@ async function executeContentTool(tool, params, tabId) {
       params: params
     });
 
-    // Normalize content script response into structured result
+    // Normalize content script response into structured result.
+    // Read-only tools (read_page, get_text, get_attribute, read_sheet) must
+    // report hadEffect=false even on success -- otherwise they reset
+    // stuck detection (see ai/agent-loop.js detectStuck) and the agent
+    // can loop indefinitely on read/narrate patterns without ever acting.
     const success = response && response.success !== false;
+    const hadEffect = success && tool._readOnly !== true;
     return makeResult({
       success: success,
-      hadEffect: success,
+      hadEffect: hadEffect,
       error: response?.error || null,
       navigationTriggered: Boolean(response?.navigationTriggered),
       result: response
@@ -158,9 +163,11 @@ async function executeCdpTool(tool, params, tabId, cdpHandler) {
   try {
     const response = await cdpHandler(tool._cdpVerb, params, tabId);
     const success = response && response.success !== false;
+    // Mirror executeContentTool: read-only CDP tools must not claim hadEffect.
+    const hadEffect = success && tool._readOnly !== true;
     return makeResult({
       success: success,
-      hadEffect: success,
+      hadEffect: hadEffect,
       error: response?.error || null,
       result: response
     });
@@ -283,6 +290,34 @@ async function executeBackgroundTool(tool, params, tabId, dataHandler) {
           hadEffect: false,
           result: { tabs: tabList }
         });
+      }
+
+      case 'execute_js': {
+        // Escape-hatch: run arbitrary JS in the page context via chrome.scripting.
+        // Used when standard tools (click, type_text) fail due to overlays,
+        // zero-dimension elements, or other DOM quirks on sites like Google Flights.
+        const code = params?.code;
+        if (!code) {
+          return makeResult({ success: false, error: 'execute_js requires code parameter' });
+        }
+        const results = await chrome.scripting.executeScript({
+          target: { tabId },
+          world: 'MAIN',
+          func: (jsCode) => {
+            try {
+              const result = eval(jsCode);
+              return { success: true, result: result !== undefined ? String(result).substring(0, 5000) : null };
+            } catch (e) {
+              return { success: false, error: e.message };
+            }
+          },
+          args: [code]
+        });
+        const execResult = results?.[0]?.result;
+        if (execResult && execResult.success) {
+          return makeResult({ success: true, hadEffect: true, result: execResult });
+        }
+        return makeResult({ success: false, error: execResult?.error || 'JS execution returned no result' });
       }
 
       default: {

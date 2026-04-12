@@ -1,5 +1,5 @@
 /**
- * Agent Loop Engine for FSB v0.9.20
+ * Agent Loop Engine for FSB v0.9.25
  *
  * Core tool_use protocol loop that replaces startAutomationLoop.
  * Each iteration is a separate setTimeout callback (not a blocking while-loop)
@@ -129,6 +129,23 @@ var _al_createErrorProgressHook = (typeof createErrorProgressHook !== 'undefined
  */
 function checkSafetyBreakers(session) {
   var state = session.agentState || {};
+
+  // Iteration circuit breaker. session.maxIterations is set by every entry
+  // point (background.js autopilot, MCP agent, dashboard-remote), typically
+  // 15-25. Previously this value was only used for the overlay label
+  // ("Step N/20") and never enforced, letting hallucination loops run for
+  // 96+ iterations. Enforce it here so stuck/narration-only runs end deterministically.
+  var iterLimit = session.maxIterations
+    || (session.safetyConfig && session.safetyConfig.maxIterations)
+    || _al_SESSION_DEFAULTS.maxIterations
+    || 20;
+  var iterCount = state.iterationCount || 0;
+  if (iterCount >= iterLimit) {
+    return {
+      shouldStop: true,
+      reason: 'Session iteration count (' + iterCount + ') reached limit (' + iterLimit + '). Stopping automation.'
+    };
+  }
 
   // Cost circuit breaker (SAFE-01, D-01, ADOPT-02)
   if (session._costTracker) {
@@ -408,6 +425,8 @@ WORKFLOW -- follow these steps in order:
 13. Call fail_task with a reason only when there is no useful completed work to preserve.
 
 CRITICAL RULES:
+- report_progress is NARRATION ONLY. It does NOT click, type, navigate, submit, or change the page in any way. To perform an action you MUST call the action tool itself (click, type_text, press_enter, select_option, navigate, etc.). If a turn contains only report_progress / read_page / get_page_snapshot / get_dom_snapshot, you have done NOTHING -- call a real action tool before narrating again.
+- If click or type_text fails with "obscured", "zero dimensions", or similar, use execute_js to run the action directly via JavaScript (e.g., execute_js({code: "document.querySelector('selector').click()"})).
 - Do NOT stop after just navigating and scrolling. That is only the first step.
 - Do NOT end your turn with a text message. Always call complete_task, partial_task, or fail_task when done.
 - Do NOT turn auth walls into generic failure text when useful work was already completed. Preserve the handoff with partial_task.
@@ -720,12 +739,20 @@ async function callProviderWithTools(providerInstance, model, apiKey, messages, 
     }
 
     default: {
-      // OpenAI/xAI/OpenRouter/Custom: standard messages + tools format
+      // OpenAI/xAI/OpenRouter/Custom: standard messages + tools format.
+      // max_tokens: match Anthropic's 4096 budget so the model has room for
+      // multi-tool responses (report_progress + click + type_text in one turn).
+      // Without this, xAI defaulted to a tight internal limit (~87 tokens/iter)
+      // causing the model to truncate after report_progress and never emit click.
+      // NOTE: tool_choice intentionally omitted -- xAI returns 400 for it,
+      // which crashes the iteration loop via unhandled throw in UniversalProvider.
+      // The default behavior (auto) applies when tools are present.
       requestBody = {
         model,
         messages,
         tools: formattedTools,
-        temperature: 0
+        temperature: 0,
+        max_tokens: 4096
       };
       break;
     }
@@ -799,7 +826,7 @@ async function runAgentLoop(sessionId, options) {
       const stored = await chrome.storage.local.get([
         'provider', 'modelProvider', 'modelName', 'model',
         'apiKey', 'openaiApiKey', 'anthropicApiKey', 'geminiApiKey', 'openrouterApiKey', 'customApiKey',
-        'customEndpoint'
+        'customEndpoint', 'lmstudioBaseUrl'
       ]);
       settings = stored || {};
     } catch (_e) {
@@ -810,7 +837,11 @@ async function runAgentLoop(sessionId, options) {
 
     // Resolve provider key
     const providerKey = persistedProviderConfig.providerKey || settings.modelProvider || settings.provider || 'xai';
-    const modelName = persistedProviderConfig.model || settings.modelName || settings.model || 'grok-4-1-fast';
+    const modelName = persistedProviderConfig.model || settings.modelName || settings.model || (providerKey === 'lmstudio' ? '' : 'grok-4-1-fast');
+
+    if (providerKey === 'lmstudio' && !modelName) {
+      throw new Error('LM Studio model not configured. Select a discovered model in Settings.');
+    }
 
     // Create or reuse the session provider instance
     let providerInstance = session.providerConfig?.providerInstance || null;
@@ -825,10 +856,11 @@ async function runAgentLoop(sessionId, options) {
     }
 
     // Cache provider config in session for reuse across iterations
+    const providerConfig = _PROVIDER_CONFIGS[providerKey] || {};
     session.providerConfig = {
       providerKey,
       model: modelName,
-      apiKey: settings.apiKey || settings[_PROVIDER_CONFIGS[providerKey]?.keyField] || '',
+      apiKey: providerConfig.keyField ? (settings[providerConfig.keyField] || '') : '',
       providerInstance
     };
 
