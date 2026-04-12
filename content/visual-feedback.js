@@ -255,7 +255,10 @@
       if (this._timerRAF !== null) return;
       var self = this;
       function tick() {
-        if (self._frozen || !self._startTime || !self.container) return;
+        if (self._frozen || !self._startTime || !self.container) {
+          self._timerRAF = null;  // clear stale handle on early exit
+          return;
+        }
         var elapsed = performance.now() - self._startTime;
         var phaseEl = self.container.querySelector('.fsb-phase');
         if (phaseEl) {
