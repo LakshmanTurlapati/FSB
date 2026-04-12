@@ -1767,7 +1767,7 @@ async function summarizeTask(taskText, settings) {
 
     const provider = new UniversalProvider(settings);
     const requestBody = await provider.buildRequest({
-      systemPrompt: 'Summarize this browser automation task in under 10 words. Return only the summary, nothing else.',
+      systemPrompt: 'Summarize this browser automation task in under 8 words. Use imperative form (e.g. "Book flight to LA"). No first-person, no conversational text. Return only the summary.',
       userPrompt: taskText
     }, {});
 
@@ -1802,6 +1802,12 @@ async function summarizeTask(taskText, settings) {
         .replace(/^#{1,6}\s+/gm, '')
         .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
         .trim();
+      // Strip conversational AI prefixes
+      summary = summary
+        .replace(/^(Here's how I'll |I'll |I will |I can |Let me |Sure,? |OK,? |Okay,? )/i, '')
+        .replace(/^(help you |help |assist you |assist )/i, '')
+        .trim();
+      if (summary) summary = summary.charAt(0).toUpperCase() + summary.slice(1);
     }
 
     if (summary && summary.length > 0 && summary.length <= 60) return summary;
@@ -2202,6 +2208,11 @@ async function cleanupSession(sessionId) {
     if (session._safetyTimeout) {
       clearTimeout(session._safetyTimeout);
       session._safetyTimeout = null;
+    }
+
+    if (session._paymentPromptTimer) {
+      clearTimeout(session._paymentPromptTimer);
+      session._paymentPromptTimer = null;
     }
 
     // Clean up orphaned login handler if session had one
@@ -5370,6 +5381,37 @@ async function getCredentialRuntimePolicy() {
   };
 }
 
+async function getPaymentRuntimePolicy() {
+  let enableSavedPayments = false;
+  try {
+    const settings = await config.getAll();
+    enableSavedPayments = settings.enableSavedPayments === true;
+  } catch (_error) {
+    enableSavedPayments = false;
+  }
+
+  const vaultStatus = await secureConfig.getPaymentVaultStatus();
+  let fillDisabledReason = '';
+
+  if (!enableSavedPayments) {
+    fillDisabledReason = 'Enable Saved Payment Methods in the Payments section to use saved cards during checkout.';
+  } else if (!vaultStatus.configured) {
+    fillDisabledReason = 'Set up the credential vault in the Passwords section before saving payment methods.';
+  } else if (!vaultStatus.unlocked) {
+    fillDisabledReason = 'Unlock the credential vault in the Passwords section before using saved payment methods.';
+  } else if (!vaultStatus.paymentUnlocked) {
+    fillDisabledReason = 'Unlock saved payment methods in the Payments section before using saved cards.';
+  }
+
+  return {
+    enableSavedPayments,
+    vaultStatus,
+    canUseSavedPaymentMethods: enableSavedPayments && vaultStatus.unlocked && vaultStatus.paymentUnlocked,
+    canSavePaymentMethods: vaultStatus.unlocked && vaultStatus.paymentUnlocked,
+    fillDisabledReason
+  };
+}
+
 // Listen for messages from popup and content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // Security: Only accept messages from our own extension contexts
@@ -5502,6 +5544,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           chrome.action.setBadgeText({ text: '' });
           debugLog('[FSB Background] Tab marked as ready:', tabId);
           automationLogger.logInit('content_script', 'ready', { tabId, frameId, readyState: request.readyState, retry: request.retry || false });
+          schedulePaymentPromptCheckForTab(tabId, 'content_script_ready');
         } else {
           debugLog('[FSB Background] Iframe ready ignored, frame:', frameId);
           automationLogger.debug('Iframe content script ready (ignored)', { tabId, frameId });
@@ -5548,6 +5591,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           url: request.url,
           method: request.method
         });
+        schedulePaymentPromptCheckForTab(spaTabId, 'spa_navigation');
       }
       sendResponse({ success: true });
       break;
@@ -5801,6 +5845,166 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ success: false, error: error.message });
         }
       })();
+      return true;
+
+    case 'paymentVaultStatus':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const status = await secureConfig.getPaymentVaultStatus();
+          sendResponse({ success: true, status });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'unlockPaymentMethods':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const result = await secureConfig.unlockPaymentMethods(request.passphrase || '');
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'lockPaymentMethods':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const result = await secureConfig.lockPaymentMethods();
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getAllPaymentMethods':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const ready = await secureConfig.ensurePaymentAccessUnlocked();
+          if (!ready.ok) {
+            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
+            return;
+          }
+
+          const paymentMethods = await secureConfig.getAllPaymentMethods();
+          sendResponse({ success: true, paymentMethods });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'getFullPaymentMethod':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const ready = await secureConfig.ensurePaymentAccessUnlocked();
+          if (!ready.ok) {
+            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
+            return;
+          }
+
+          const paymentMethod = await secureConfig.getFullPaymentMethod(request.id);
+          sendResponse({ success: true, paymentMethod });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'savePaymentMethod':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const result = await secureConfig.savePaymentMethod(request.data || {});
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'updatePaymentMethod':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const ready = await secureConfig.ensurePaymentAccessUnlocked();
+          if (!ready.ok) {
+            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
+            return;
+          }
+
+          const result = await secureConfig.updatePaymentMethod(request.id, request.updates || {});
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'deletePaymentMethod':
+      (async () => {
+        if (!isCredentialControlPanelSender(sender)) {
+          sendCredentialSenderError(sendResponse);
+          return;
+        }
+
+        try {
+          const ready = await secureConfig.ensurePaymentAccessUnlocked();
+          if (!ready.ok) {
+            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
+            return;
+          }
+
+          const result = await secureConfig.deletePaymentMethod(request.id);
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+
+    case 'paymentMethodSelected':
+      handlePaymentMethodSelected(request, sender, sendResponse);
+      return true;
+
+    case 'paymentSkipped':
+      handlePaymentPromptSkipped(request, sender, sendResponse);
       return true;
 
     // SM-22: Site map retrieval for AI context injection
@@ -6697,6 +6901,7 @@ async function handleStartAutomation(request, sender, sendResponse) {
       estimatedTimeRemaining: null,
       taskSummary: sessionData.taskSummary || null
     });
+    schedulePaymentPromptCheckForTab(targetTabId, 'session_start');
 
     // Clear action summary cache for fresh session
     actionSummaryCache.clear();
@@ -7486,6 +7691,739 @@ async function fillCredentialsOnPageDirect(tabId, { usernameSelector, passwordSe
     console.error('[FSB] fillCredentialsOnPageDirect error:', error.message || 'Unknown error');
     return { success: false, error: 'Credential fill failed' };
   }
+}
+
+function getPaymentFieldSignal(element) {
+  const attrs = element?.attributes || {};
+  return [
+    element?.text,
+    element?.description,
+    element?.accessibilityName,
+    element?.labelText,
+    element?.context?.labelText,
+    element?.context?.hintText,
+    attrs['aria-label'],
+    attrs.placeholder,
+    attrs.name,
+    attrs.autocomplete,
+    element?.id
+  ]
+    .filter(value => typeof value === 'string' && value.trim())
+    .join(' ')
+    .toLowerCase();
+}
+
+function getPaymentFieldFormId(element) {
+  return element?.formId || element?.context?.formId || null;
+}
+
+function getPaymentFieldSelector(element) {
+  if (Array.isArray(element?.selectors) && element.selectors.length > 0) {
+    return element.selectors[0];
+  }
+  if (element?.id) {
+    return `#${element.id}`;
+  }
+  return null;
+}
+
+function classifyPaymentField(element) {
+  if (!element || !['input', 'select', 'textarea'].includes(element.type)) {
+    return null;
+  }
+
+  const selector = getPaymentFieldSelector(element);
+  if (!selector) return null;
+
+  const attrs = element.attributes || {};
+  const autocomplete = String(attrs.autocomplete || '').toLowerCase();
+  const intent = String(element?.purpose?.intent || '').toLowerCase();
+  const signal = getPaymentFieldSignal(element);
+  const isShippingField = /shipping|delivery/.test(signal) && !/billing/.test(signal);
+
+  const result = {
+    selector,
+    formId: getPaymentFieldFormId(element),
+    signal,
+    isCore: false,
+    score: 10,
+    fieldKey: null
+  };
+
+  if (autocomplete.includes('cc-number') || intent === 'cc-number' || /card number|credit card number|debit card number|cc.?number|card no\b/.test(signal)) {
+    result.fieldKey = 'cardNumberSelector';
+    result.isCore = true;
+    result.score = 120;
+    return result;
+  }
+
+  if (autocomplete.includes('cc-csc') || autocomplete.includes('cc-cvc') || autocomplete.includes('csc') || intent === 'cc-csc' || /cvv|cvc|csc|security code|card code|verification code/.test(signal)) {
+    result.fieldKey = 'cvvSelector';
+    result.isCore = true;
+    result.score = 118;
+    return result;
+  }
+
+  if (autocomplete.includes('cc-exp-month') || intent === 'cc-exp-month' || /(exp|expiration).*(month)|month.*(exp|expiration)/.test(signal)) {
+    result.fieldKey = 'expiryMonthSelector';
+    result.isCore = true;
+    result.score = 110;
+    return result;
+  }
+
+  if (autocomplete.includes('cc-exp-year') || intent === 'cc-exp-year' || /(exp|expiration).*(year)|year.*(exp|expiration)/.test(signal)) {
+    result.fieldKey = 'expiryYearSelector';
+    result.isCore = true;
+    result.score = 110;
+    return result;
+  }
+
+  if (autocomplete.includes('cc-exp') || intent === 'cc-exp' || /expiration date|expiry date|exp date|mm\s*\/\s*yy|mm\s*\/\s*yyyy/.test(signal)) {
+    result.fieldKey = 'expirySelector';
+    result.isCore = true;
+    result.score = 112;
+    return result;
+  }
+
+  if (autocomplete.includes('cc-name') || intent === 'cc-name' || /name on card|cardholder|card holder|name as it appears/.test(signal)) {
+    result.fieldKey = 'cardholderSelector';
+    result.isCore = true;
+    result.score = 105;
+    return result;
+  }
+
+  if (isShippingField) {
+    return null;
+  }
+
+  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('postal-code') || /zip|postal/.test(signal))) {
+    result.fieldKey = 'billingPostalSelector';
+    result.score = 90;
+    return result;
+  }
+
+  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('address-line2') || /address line 2|apt|suite|unit/.test(signal))) {
+    result.fieldKey = 'billingAddress2Selector';
+    result.score = 85;
+    return result;
+  }
+
+  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('address-line1') || autocomplete.includes('street-address') || /address|street/.test(signal))) {
+    result.fieldKey = 'billingAddress1Selector';
+    result.score = 95;
+    return result;
+  }
+
+  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('address-level2') || /city/.test(signal))) {
+    result.fieldKey = 'billingCitySelector';
+    result.score = 82;
+    return result;
+  }
+
+  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('address-level1') || /state|province|region/.test(signal))) {
+    result.fieldKey = 'billingStateSelector';
+    result.score = 82;
+    return result;
+  }
+
+  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('country') || /country/.test(signal))) {
+    result.fieldKey = 'billingCountrySelector';
+    result.score = 82;
+    return result;
+  }
+
+  if ((autocomplete.includes('billing') || /billing/.test(signal)) && /name/.test(signal)) {
+    result.fieldKey = 'billingNameSelector';
+    result.score = 80;
+    return result;
+  }
+
+  if (autocomplete.includes('address-line2') || /address line 2|apt|suite|unit/.test(signal)) {
+    result.fieldKey = 'billingAddress2Selector';
+    result.score = 55;
+    return result;
+  }
+
+  if (autocomplete.includes('address-line1') || autocomplete.includes('street-address') || /billing address|street address/.test(signal)) {
+    result.fieldKey = 'billingAddress1Selector';
+    result.score = 70;
+    return result;
+  }
+
+  if (autocomplete.includes('address-level2') || /billing city|city/.test(signal)) {
+    result.fieldKey = 'billingCitySelector';
+    result.score = 52;
+    return result;
+  }
+
+  if (autocomplete.includes('address-level1') || /billing state|state|province|region/.test(signal)) {
+    result.fieldKey = 'billingStateSelector';
+    result.score = 52;
+    return result;
+  }
+
+  if (autocomplete.includes('postal-code') || /billing zip|zip|postal code/.test(signal)) {
+    result.fieldKey = 'billingPostalSelector';
+    result.score = 60;
+    return result;
+  }
+
+  if (autocomplete.includes('country') || /billing country|country/.test(signal)) {
+    result.fieldKey = 'billingCountrySelector';
+    result.score = 50;
+    return result;
+  }
+
+  if (/billing name/.test(signal)) {
+    result.fieldKey = 'billingNameSelector';
+    result.score = 50;
+    return result;
+  }
+
+  return null;
+}
+
+function extractPaymentFields(domData) {
+  const elements = Array.isArray(domData?.elements) ? domData.elements : [];
+  const pageContext = domData?.pageContext || {};
+  const fieldCandidates = [];
+  const formScores = new Map();
+
+  for (const element of elements) {
+    const candidate = classifyPaymentField(element);
+    if (!candidate) continue;
+
+    fieldCandidates.push(candidate);
+
+    if (candidate.isCore) {
+      const formKey = candidate.formId || '__page__';
+      formScores.set(formKey, (formScores.get(formKey) || 0) + candidate.score);
+    }
+  }
+
+  let candidateFormId = null;
+  let candidateFormScore = 0;
+  for (const [formId, score] of formScores.entries()) {
+    if (score > candidateFormScore) {
+      candidateFormId = formId;
+      candidateFormScore = score;
+    }
+  }
+
+  const assignments = {
+    candidateFormId: candidateFormId === '__page__' ? null : candidateFormId,
+    paymentFieldCount: 0
+  };
+  const coreFieldKeys = new Set([
+    'cardholderSelector',
+    'cardNumberSelector',
+    'expirySelector',
+    'expiryMonthSelector',
+    'expiryYearSelector',
+    'cvvSelector'
+  ]);
+
+  for (const candidate of fieldCandidates) {
+    const sameForm = !candidateFormId || candidate.formId === candidateFormId || candidate.formId == null;
+    if (!sameForm && candidate.isCore) {
+      continue;
+    }
+
+    const existingScore = assignments[`${candidate.fieldKey}Score`] || 0;
+    if (candidate.score < existingScore) {
+      continue;
+    }
+
+    assignments[candidate.fieldKey] = candidate.selector;
+    assignments[`${candidate.fieldKey}Score`] = candidate.score;
+  }
+
+  assignments.paymentFieldCount = Array.from(coreFieldKeys).reduce((count, key) => (
+    assignments[key] ? count + 1 : count
+  ), 0);
+  assignments.hasPaymentFields = Boolean(
+    assignments.cardNumberSelector &&
+    (assignments.expirySelector || assignments.expiryMonthSelector || assignments.expiryYearSelector || assignments.cvvSelector)
+  );
+  assignments.isCheckout = pageContext?.pageTypes?.checkout === true ||
+    /checkout|payment|purchase|order/.test(String(domData?.url || '').toLowerCase());
+
+  return assignments;
+}
+
+async function acquireCheckoutPaymentContext(sessionId, session) {
+  if (!session?.tabId) {
+    return { success: false, error: 'No active tab available for payment detection' };
+  }
+
+  let tab = null;
+  try {
+    tab = await chrome.tabs.get(session.tabId);
+  } catch (error) {
+    return { success: false, error: error.message || 'Payment tab is no longer available' };
+  }
+
+  let domain = '';
+  try {
+    domain = new URL(tab.url || '').hostname || '';
+  } catch (_error) {
+    domain = '';
+  }
+
+  try {
+    await waitForContentScriptReady(session.tabId, 5000);
+  } catch (_error) {
+    // Continue. The actual DOM request below is the real gate.
+  }
+
+  try {
+    const domResponse = await chrome.tabs.sendMessage(session.tabId, {
+      action: 'getDOM',
+      sessionId,
+      options: {
+        maxElements: 600,
+        prioritizeViewport: true,
+        viewportOnlyMode: false,
+        useIncrementalDiff: false,
+        useCompactFormat: false
+      }
+    }, { frameId: 0 });
+    const domData = domResponse?.structuredDOM || null;
+    const fields = extractPaymentFields(domData);
+    const promptKey = `${(tab.url || '').split('#')[0]}|${fields.candidateFormId || 'page'}`;
+
+    return {
+      success: true,
+      domain,
+      url: tab.url || '',
+      tabId: session.tabId,
+      domData,
+      fields,
+      hasPaymentFields: fields.hasPaymentFields === true,
+      promptKey
+    };
+  } catch (error) {
+    return {
+      success: false,
+      domain,
+      url: tab.url || '',
+      tabId: session.tabId,
+      error: error.message || 'Unable to inspect the current page for payment fields'
+    };
+  }
+}
+
+async function fillPaymentMethodOnPageDirect(tabId, fields, paymentMethod) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: (fieldMap, method) => {
+        const inputSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+        const textAreaSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+        const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+
+        function normalize(value) {
+          return String(value || '').trim().toLowerCase();
+        }
+
+        function dispatchValueEvents(el) {
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          el.dispatchEvent(new Event('blur', { bubbles: true }));
+        }
+
+        function selectOptionValue(el, candidates) {
+          if (!el || el.tagName !== 'SELECT') return false;
+          const options = Array.from(el.options || []);
+          const normalizedCandidates = candidates
+            .map(candidate => normalize(candidate))
+            .filter(Boolean);
+
+          const option = options.find(opt => {
+            const optionValue = normalize(opt.value);
+            const optionText = normalize(opt.textContent);
+            return normalizedCandidates.some(candidate => (
+              candidate === optionValue ||
+              candidate === optionText ||
+              optionText.includes(candidate) ||
+              candidate.includes(optionText)
+            ));
+          });
+
+          if (!option) return false;
+
+          if (selectSetter) {
+            selectSetter.call(el, option.value);
+          } else {
+            el.value = option.value;
+          }
+          dispatchValueEvents(el);
+          return normalize(el.value) === normalize(option.value);
+        }
+
+        function setTextValue(el, value, fallbacks) {
+          if (!el || value == null || value === '') return false;
+
+          const setter = el.tagName === 'TEXTAREA' ? textAreaSetter : inputSetter;
+          const candidates = [value].concat(Array.isArray(fallbacks) ? fallbacks : []).filter(Boolean);
+
+          for (const candidate of candidates) {
+            el.focus();
+            if (setter) {
+              setter.call(el, candidate);
+            } else {
+              el.value = candidate;
+            }
+            dispatchValueEvents(el);
+            if (String(el.value || '') === String(candidate)) {
+              return true;
+            }
+
+            try {
+              el.select?.();
+              document.execCommand('selectAll', false, null);
+              document.execCommand('insertText', false, candidate);
+              if (String(el.value || '') === String(candidate)) {
+                dispatchValueEvents(el);
+                return true;
+              }
+            } catch (_error) {
+              // Ignore fallback failures.
+            }
+          }
+
+          return false;
+        }
+
+        function setField(selector, value, fallbackValues) {
+          if (!selector || value == null || value === '') {
+            return { attempted: false, success: false };
+          }
+
+          const el = document.querySelector(selector);
+          if (!el) {
+            return { attempted: true, success: false };
+          }
+
+          el.scrollIntoView({ block: 'center', behavior: 'auto' });
+          const success = el.tagName === 'SELECT'
+            ? selectOptionValue(el, [value].concat(fallbackValues || []))
+            : setTextValue(el, value, fallbackValues);
+
+          return { attempted: true, success };
+        }
+
+        const groupedNumber = method.cardNumber || '';
+        const expiryMonth = String(method.expiryMonth || '').padStart(2, '0');
+        const expiryYear = String(method.expiryYear || '');
+        const expiryYearShort = expiryYear.slice(-2);
+        const expiryCombined = `${expiryMonth}/${expiryYearShort}`;
+        const expiryCombinedAlt = `${expiryMonth} / ${expiryYearShort}`;
+
+        const attempts = {
+          cardholderSelector: setField(fieldMap.cardholderSelector, method.cardholderName),
+          cardNumberSelector: setField(fieldMap.cardNumberSelector, groupedNumber, [method.formattedCardNumber]),
+          expirySelector: setField(fieldMap.expirySelector, expiryCombined, [expiryCombinedAlt, `${expiryMonth}${expiryYearShort}`]),
+          expiryMonthSelector: setField(fieldMap.expiryMonthSelector, expiryMonth, [String(Number(expiryMonth))]),
+          expiryYearSelector: setField(fieldMap.expiryYearSelector, expiryYear, [expiryYearShort]),
+          cvvSelector: setField(fieldMap.cvvSelector, method.cvv),
+          billingNameSelector: setField(fieldMap.billingNameSelector, method.billingName),
+          billingAddress1Selector: setField(fieldMap.billingAddress1Selector, method.addressLine1),
+          billingAddress2Selector: setField(fieldMap.billingAddress2Selector, method.addressLine2),
+          billingCitySelector: setField(fieldMap.billingCitySelector, method.city),
+          billingStateSelector: setField(fieldMap.billingStateSelector, method.stateRegion),
+          billingPostalSelector: setField(fieldMap.billingPostalSelector, method.postalCode),
+          billingCountrySelector: setField(fieldMap.billingCountrySelector, method.country)
+        };
+
+        const requiredKeys = [
+          'cardNumberSelector',
+          'cvvSelector'
+        ];
+        const requiredSatisfied = requiredKeys.every(key => !fieldMap[key] || attempts[key].success);
+        const expirySatisfied = (
+          (!fieldMap.expirySelector || attempts.expirySelector.success) &&
+          (!fieldMap.expiryMonthSelector || attempts.expiryMonthSelector.success) &&
+          (!fieldMap.expiryYearSelector || attempts.expiryYearSelector.success)
+        );
+        const filledFields = Object.keys(attempts).filter(key => attempts[key].success);
+        const failedFields = Object.keys(attempts).filter(key => attempts[key].attempted && !attempts[key].success);
+
+        return {
+          success: requiredSatisfied && expirySatisfied && filledFields.length > 0,
+          filledFields,
+          failedFields
+        };
+      },
+      args: [{
+        cardholderSelector: fields.cardholderSelector || null,
+        cardNumberSelector: fields.cardNumberSelector || null,
+        expirySelector: fields.expirySelector || null,
+        expiryMonthSelector: fields.expiryMonthSelector || null,
+        expiryYearSelector: fields.expiryYearSelector || null,
+        cvvSelector: fields.cvvSelector || null,
+        billingNameSelector: fields.billingNameSelector || null,
+        billingAddress1Selector: fields.billingAddress1Selector || null,
+        billingAddress2Selector: fields.billingAddress2Selector || null,
+        billingCitySelector: fields.billingCitySelector || null,
+        billingStateSelector: fields.billingStateSelector || null,
+        billingPostalSelector: fields.billingPostalSelector || null,
+        billingCountrySelector: fields.billingCountrySelector || null
+      }, {
+        cardholderName: paymentMethod.cardholderName,
+        cardNumber: paymentMethod.cardNumber,
+        formattedCardNumber: secureConfig.formatCardNumber(paymentMethod.cardNumber),
+        expiryMonth: paymentMethod.expiryMonth,
+        expiryYear: paymentMethod.expiryYear,
+        cvv: paymentMethod.cvv,
+        billingName: paymentMethod.billingName,
+        addressLine1: paymentMethod.addressLine1,
+        addressLine2: paymentMethod.addressLine2,
+        city: paymentMethod.city,
+        stateRegion: paymentMethod.stateRegion,
+        postalCode: paymentMethod.postalCode,
+        country: paymentMethod.country
+      }]
+    });
+
+    return results[0]?.result || { success: false, error: 'No result from script injection' };
+  } catch (error) {
+    console.error('[FSB] fillPaymentMethodOnPageDirect error:', error.message || 'Unknown error');
+    return { success: false, error: 'Payment method fill failed' };
+  }
+}
+
+async function sendInlinePaymentStatus(sessionId, session, statusText) {
+  if (!session?.tabId || !statusText) return;
+
+  try {
+    chrome.runtime.sendMessage({
+      action: 'statusUpdate',
+      sessionId,
+      message: statusText
+    }).catch(() => {});
+  } catch (_error) {
+    // Non-fatal.
+  }
+}
+
+function getPaymentPromptState(policy, paymentMethods) {
+  if (!policy?.enableSavedPayments) return 'feature_disabled';
+  if (!policy.vaultStatus?.configured) return 'vault_not_configured';
+  if (!policy.vaultStatus?.unlocked) return 'vault_locked';
+  if (!policy.vaultStatus?.paymentUnlocked) return 'payment_locked';
+  if (!Array.isArray(paymentMethods) || paymentMethods.length === 0) return 'no_saved_methods';
+  return 'available';
+}
+
+function getPaymentPromptMeta(policy, paymentMethods, triggerSource) {
+  const state = getPaymentPromptState(policy, paymentMethods);
+  const available = state === 'available';
+  let detail = 'Saved payment methods are unavailable for this checkout.';
+  let primaryAction = '';
+  let primaryActionLabel = '';
+
+  if (state === 'available') {
+    detail = 'Choose a saved payment method to fill the checkout form. FSB will fill the selected card details, but it will not submit the final payment.';
+  } else if (state === 'no_saved_methods') {
+    detail = 'No saved payment methods are available yet. Open Payments to add a card before checkout.';
+    primaryAction = 'open_payments_section';
+    primaryActionLabel = 'Add Card';
+  } else if (state === 'feature_disabled') {
+    detail = 'Saved Payment Methods is disabled. Open Payments to enable it and manage cards for checkout.';
+    primaryAction = 'open_payments_section';
+    primaryActionLabel = 'Enable Payments';
+  } else if (state === 'vault_not_configured') {
+    detail = 'Set up the credential vault in Passwords before storing cards for checkout.';
+    primaryAction = 'open_passwords_section';
+    primaryActionLabel = 'Set Up Vault';
+  } else if (state === 'vault_locked') {
+    detail = 'Unlock the credential vault in Passwords before using saved cards during checkout.';
+    primaryAction = 'open_passwords_section';
+    primaryActionLabel = 'Unlock Vault';
+  } else if (state === 'payment_locked') {
+    detail = 'Unlock saved payment methods in Payments before using saved cards during checkout.';
+    primaryAction = 'open_payments_section';
+    primaryActionLabel = 'Unlock Payments';
+  } else if (policy?.fillDisabledReason) {
+    detail = policy.fillDisabledReason;
+  }
+
+  return {
+    triggerSource: triggerSource || 'detected',
+    state,
+    available,
+    blockedReason: available ? '' : detail,
+    detail,
+    primaryAction,
+    primaryActionLabel,
+    methods: available ? paymentMethods : []
+  };
+}
+
+function createPaymentPromptState() {
+  return {
+    promptedKeys: new Set(),
+    promptedStateByKey: new Map(),
+    active: false,
+    completed: false,
+    processing: false
+  };
+}
+
+async function maybeOfferSavedPaymentMethods(sessionId, session, triggerSource) {
+  if (!session || session.isTerminating || session.tabId == null) return;
+  if (session.uiSurface && session.uiSurface !== 'sidepanel') return;
+
+  const promptState = session._paymentPromptState || (session._paymentPromptState = createPaymentPromptState());
+
+  if (promptState.completed || promptState.processing || promptState.active) {
+    return;
+  }
+
+  const policy = await getPaymentRuntimePolicy();
+  promptState.processing = true;
+
+  try {
+    const context = await acquireCheckoutPaymentContext(sessionId, session);
+    if (!context.success || !context.hasPaymentFields || !context.fields.isCheckout) {
+      return;
+    }
+
+    const paymentMethods = policy.canUseSavedPaymentMethods
+      ? await secureConfig.getAllPaymentMethods()
+      : [];
+    const paymentPrompt = getPaymentPromptMeta(policy, paymentMethods, triggerSource);
+    const previousPromptState = promptState.promptedStateByKey instanceof Map
+      ? promptState.promptedStateByKey.get(context.promptKey)
+      : undefined;
+
+    if (promptState.promptedKeys.has(context.promptKey) && previousPromptState === paymentPrompt.state) {
+      return;
+    }
+
+    promptState.promptedKeys.add(context.promptKey);
+    if (promptState.promptedStateByKey instanceof Map) {
+      promptState.promptedStateByKey.set(context.promptKey, paymentPrompt.state);
+    }
+    promptState.active = paymentPrompt.available === true;
+    promptState.latestPromptKey = context.promptKey;
+
+    chrome.runtime.sendMessage({
+      action: 'paymentDetected',
+      sessionId,
+      domain: context.domain,
+      fields: context.fields,
+      paymentPrompt
+    }).catch(() => {});
+  } finally {
+    promptState.processing = false;
+  }
+}
+
+function schedulePaymentPromptCheckForTab(tabId, triggerSource) {
+  if (tabId == null) return;
+
+  for (const [sessionId, session] of activeSessions.entries()) {
+    if (!session || session.tabId !== tabId || session.isTerminating) continue;
+
+    if (session._paymentPromptTimer) {
+      clearTimeout(session._paymentPromptTimer);
+    }
+
+    session._paymentPromptTimer = setTimeout(() => {
+      maybeOfferSavedPaymentMethods(sessionId, session, triggerSource).catch(error => {
+        automationLogger.debug('Saved payment prompt check failed', {
+          sessionId,
+          triggerSource,
+          error: error?.message || String(error)
+        });
+      });
+    }, 800);
+  }
+}
+
+async function handlePaymentMethodSelected(request, sender, sendResponse) {
+  const sessionId = request.sessionId;
+  const session = activeSessions.get(sessionId);
+  if (!session) {
+    sendResponse({ received: true, success: false, error: 'Session not found' });
+    return;
+  }
+
+  const promptState = session._paymentPromptState || (session._paymentPromptState = createPaymentPromptState());
+
+  promptState.active = false;
+  promptState.processing = true;
+
+  try {
+    const policy = await getPaymentRuntimePolicy();
+    if (!policy.canUseSavedPaymentMethods) {
+      sendResponse({ received: true, success: false, error: policy.fillDisabledReason });
+      return;
+    }
+
+    const paymentMethod = await secureConfig.getFullPaymentMethod(request.paymentMethodId);
+    if (!paymentMethod) {
+      sendResponse({ received: true, success: false, error: 'Saved payment method not found' });
+      return;
+    }
+
+    const context = await acquireCheckoutPaymentContext(sessionId, session);
+    if (!context.success || !context.hasPaymentFields) {
+      sendResponse({ received: true, success: false, error: 'No checkout payment fields were detected on the current page' });
+      return;
+    }
+
+    const fillResult = await fillPaymentMethodOnPageDirect(session.tabId, context.fields, paymentMethod);
+    if (!fillResult?.success) {
+      await sendInlinePaymentStatus(sessionId, session, 'Saved payment method could not be filled automatically.');
+      sendResponse({
+        received: true,
+        success: false,
+        error: fillResult?.error || 'Saved payment method could not be filled automatically.'
+      });
+      return;
+    }
+
+    promptState.completed = true;
+    promptState.latestPromptKey = context.promptKey;
+
+    await sendInlinePaymentStatus(
+      sessionId,
+      session,
+      'Saved payment method filled. Review the checkout details and submit manually if you still want to proceed.'
+    );
+
+    sendResponse({ received: true, success: true });
+  } catch (error) {
+    sendResponse({ received: true, success: false, error: error.message });
+  } finally {
+    promptState.processing = false;
+  }
+}
+
+function handlePaymentPromptSkipped(request, sender, sendResponse) {
+  const sessionId = request.sessionId;
+  const session = activeSessions.get(sessionId);
+  if (!session) {
+    sendResponse({ received: true, success: false, error: 'Session not found' });
+    return;
+  }
+
+  const promptState = session._paymentPromptState || (session._paymentPromptState = createPaymentPromptState());
+
+  promptState.active = false;
+  promptState.completed = true;
+
+  sendInlinePaymentStatus(
+    sessionId,
+    session,
+    'Saved payment method prompt skipped. Review the checkout form manually before any final payment step.'
+  ).catch(() => {});
+
+  sendResponse({ received: true, success: true });
 }
 
 const AUTH_MANUAL_APPROVAL_PATTERN = /(two[- ]factor|two factor|2fa|multi[- ]factor|multifactor|mfa|verification code|security code|one[- ]time|one time|otp|approve|approval|check your email|check your phone|confirm it's you|enter code|authenticator|challenge|verification required|captcha)/i;
