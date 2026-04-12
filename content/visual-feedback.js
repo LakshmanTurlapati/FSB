@@ -485,10 +485,14 @@
           : {
               mode: 'indeterminate',
               percent: null,
-              label: (state && state.totalSteps && state.stepNumber)
-                ? ('Step ' + state.stepNumber + '/' + state.totalSteps)
-                : 'Working',
-              eta: state && state.eta ? String(state.eta) : ''
+              label: (function() {
+                var utils = window.FSBOverlayStateUtils;
+                var phase = state && state.phase ? state.phase : 'planning';
+                return (utils && typeof utils.humanizeOverlayPhase === 'function')
+                  ? utils.humanizeOverlayPhase(phase)
+                  : 'Working';
+              })(),
+              eta: ''
             }
       };
 
