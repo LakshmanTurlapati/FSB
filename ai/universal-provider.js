@@ -1,5 +1,5 @@
 /**
- * Universal AI Provider for FSB v0.9.20
+ * Universal AI Provider for FSB v0.9.25
  * A model-agnostic provider that works with any OpenAI-compatible API
  */
 
@@ -40,6 +40,9 @@ const PROVIDER_CONFIGS = {
       'X-Title': 'FSB Browser Automation'
     }
   },
+  lmstudio: {
+    endpoint: '{lmstudioBaseUrl}/v1/chat/completions'
+  },
   custom: {
     // For custom OpenAI-compatible endpoints
     endpoint: '{customEndpoint}',
@@ -48,6 +51,66 @@ const PROVIDER_CONFIGS = {
     keyField: 'customApiKey'
   }
 };
+
+const LOCAL_PROVIDER_DEFAULTS = {
+  lmstudio: 'http://localhost:1234'
+};
+
+function normalizeProviderBaseUrl(provider, rawValue) {
+  let value = (rawValue || '').trim();
+  if (!value) {
+    value = LOCAL_PROVIDER_DEFAULTS[provider] || '';
+  }
+  if (!value) return '';
+
+  if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(value)) {
+    value = `http://${value}`;
+  }
+
+  try {
+    const url = new URL(value);
+    let pathname = url.pathname.replace(/\/+$/, '');
+
+    if (provider === 'lmstudio') {
+      pathname = pathname
+        .replace(/\/v1\/chat\/completions$/i, '')
+        .replace(/\/v1\/models$/i, '')
+        .replace(/\/v1$/i, '');
+    }
+
+    return `${url.protocol}//${url.host}${pathname}`;
+  } catch {
+    return value.replace(/\/+$/, '');
+  }
+}
+
+function buildProviderModelsEndpoint(provider, rawValue) {
+  const baseUrl = normalizeProviderBaseUrl(provider, rawValue);
+  if (!baseUrl) return '';
+
+  switch (provider) {
+    case 'lmstudio':
+      return `${baseUrl}/v1/models`;
+    default:
+      return baseUrl;
+  }
+}
+
+function parseOpenAICompatibleModelList(payload) {
+  if (!payload || !Array.isArray(payload.data)) return [];
+
+  const seen = new Set();
+  const modelIds = [];
+
+  for (const entry of payload.data) {
+    const modelId = typeof entry?.id === 'string' ? entry.id.trim() : '';
+    if (!modelId || seen.has(modelId)) continue;
+    seen.add(modelId);
+    modelIds.push(modelId);
+  }
+
+  return modelIds;
+}
 
 // Cache for successful parameter configurations per model
 // PERF: Size-limited to prevent unbounded growth
@@ -72,19 +135,19 @@ function boundedMapSet(map, key, value, maxSize) {
 }
 
 // Default request timeout in milliseconds
-// Increased from 20s: later iterations with longer history can take 15-25s
-// Adaptive timeout scales with prompt size to handle multi-turn conversations
-const DEFAULT_REQUEST_TIMEOUT = 30000;
+// Increased from 30s: tool_use requests with 44 tools + large DOM context
+// (e.g., Google Flights) can take 60-90s on first attempt with xAI
+const DEFAULT_REQUEST_TIMEOUT = 45000;
 
 // Maximum timeout cap - never wait longer than this
-// Increased from 35s: API calls to large-context models can take 40-50s on first attempt
-const MAX_REQUEST_TIMEOUT = 60000;
+// Increased from 60s: heavy pages with many tools regularly need 60-90s
+const MAX_REQUEST_TIMEOUT = 120000;
 
 // Higher base timeout for reasoning models (internal chain-of-thought takes longer)
-const REASONING_MODEL_TIMEOUT = 45000;
+const REASONING_MODEL_TIMEOUT = 60000;
 
 // Higher cap for reasoning models
-const MAX_REASONING_TIMEOUT = 90000;
+const MAX_REASONING_TIMEOUT = 180000;
 
 /**
  * Calculate adaptive timeout based on prompt/request size, model type, and retry attempt.
@@ -303,6 +366,10 @@ class UniversalProvider {
     // Replace placeholders
     endpoint = endpoint.replace('{model}', this.model);
     endpoint = endpoint.replace('{customEndpoint}', this.settings.customEndpoint || '');
+    endpoint = endpoint.replace(
+      '{lmstudioBaseUrl}',
+      normalizeProviderBaseUrl('lmstudio', this.settings.lmstudioBaseUrl)
+    );
     
     // Add API key to query string if needed
     if (this.config.authQuery) {
@@ -654,5 +721,12 @@ class UniversalProvider {
 
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { UniversalProvider, PROVIDER_CONFIGS };
+  module.exports = {
+    UniversalProvider,
+    PROVIDER_CONFIGS,
+    LOCAL_PROVIDER_DEFAULTS,
+    normalizeProviderBaseUrl,
+    buildProviderModelsEndpoint,
+    parseOpenAICompatibleModelList
+  };
 }
