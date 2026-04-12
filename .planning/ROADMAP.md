@@ -33,7 +33,7 @@
 ## Phases
 
 - [x] **Phase 168: Data Audit & Display Firewall** - Map field dependencies across all overlay consumers, then filter developer-facing noise from overlay display without breaking session data downstream (completed 2026-04-12)
-- [ ] **Phase 169: Display Cleanup & Performance** - Upgrade progress bar to scaleX(), add local elapsed timer and action counter with tabular-nums, and wire completion freeze and motion preferences
+- [x] **Phase 169: Display Cleanup & Performance** - Upgrade progress bar to scaleX(), add local elapsed timer and action counter with tabular-nums, and wire completion freeze and motion preferences (completed 2026-04-12)
 - [ ] **Phase 170: Cross-Site Validation & Final Polish** - Validate overlay rendering across Google Docs, YouTube fullscreen, Amazon, and 320px narrow viewport
 
 ## Phase Details
@@ -65,8 +65,8 @@ Plans:
   5. All new transitions, the progress bar animation, and the elapsed timer tick respect prefers-reduced-motion: reduce by falling back to instant updates
 **Plans**: 2 plans
 Plans:
-- [ ] 169-01-PLAN.md -- Data pipeline (actionCount), scaleX() progress bar migration, tabular-nums
-- [ ] 169-02-PLAN.md -- Elapsed timer (rAF), action count display, completion presentation, reduced-motion
+- [x] 169-01-PLAN.md -- Data pipeline (actionCount), scaleX() progress bar migration, tabular-nums
+- [x] 169-02-PLAN.md -- Elapsed timer (rAF), action count display, completion presentation, reduced-motion
 **UI hint**: yes
 
 ### Phase 170: Cross-Site Validation & Final Polish
@@ -76,7 +76,9 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Overlay renders with correct layout, readable text, and no clipping on Google Docs (contenteditable + iframes), YouTube fullscreen (z-index competition), Amazon product pages (heavy DOM), and a 320px-wide viewport (narrow responsive)
   2. No visual regressions are introduced on any of the four test surfaces compared to the pre-v0.9.26 overlay behavior
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 170-01-PLAN.md -- CSS defensive hardening + 7-point lifecycle validation on Google Docs, YouTube fullscreen, Amazon, 320px viewport
 **UI hint**: yes
 
 ## Progress
@@ -86,8 +88,8 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 168. Data Audit & Display Firewall | 2/2 | Complete    | 2026-04-12 |
-| 169. Display Cleanup & Performance | 0/2 | Not started | - |
-| 170. Cross-Site Validation & Final Polish | 0/TBD | Not started | - |
+| 169. Display Cleanup & Performance | 2/2 | Complete    | 2026-04-12 |
+| 170. Cross-Site Validation & Final Polish | 0/1 | Not started | - |
 
 ---
 
