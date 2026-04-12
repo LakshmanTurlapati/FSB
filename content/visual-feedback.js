@@ -320,6 +320,8 @@
         box-sizing: border-box;
         margin: 0;
         padding: 0;
+        font: inherit;
+        color: inherit;
       }
 
       .fsb-overlay {
@@ -371,6 +373,7 @@
         font-size: 12px;
         margin-bottom: 8px;
         line-height: 1.5;
+        overflow-wrap: anywhere;
       }
 
       .fsb-summary {
@@ -398,6 +401,7 @@
         border-radius: 4px;
         font-size: 11px;
         font-weight: 600;
+        flex-shrink: 0;
       }
 
       .fsb-step-text {
@@ -405,6 +409,7 @@
         font-size: 12px;
         flex: 1;
         line-height: 1.45;
+        overflow-wrap: anywhere;
       }
 
       .fsb-meta {
@@ -419,6 +424,7 @@
         color: rgba(255, 255, 255, 0.5);
         font-size: 11px;
         font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
 
       .fsb-progress-bar {
