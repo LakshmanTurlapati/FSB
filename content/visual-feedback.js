@@ -234,6 +234,7 @@
       this._startTime = null;
       this._timerRAF = null;
       this._frozen = false;
+      this._autoHideTimer = null;
     }
 
     /**
@@ -642,7 +643,9 @@
 
         // Auto-hide after 3 seconds (D-09)
         var self = this;
-        setTimeout(function() {
+        if (this._autoHideTimer !== null) clearTimeout(this._autoHideTimer);
+        this._autoHideTimer = setTimeout(function() {
+          self._autoHideTimer = null;
           if (self.container) {
             self.container.classList.add('hidden');
           }
@@ -688,6 +691,10 @@
      */
     destroy() {
       this._stopTimerLoop();
+      if (this._autoHideTimer !== null) {
+        clearTimeout(this._autoHideTimer);
+        this._autoHideTimer = null;
+      }
       this._startTime = null;
       this._frozen = false;
       if (this.host) {
