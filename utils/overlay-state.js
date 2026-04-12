@@ -27,6 +27,52 @@
     return clean;
   }
 
+  function sanitizeActionText(text) {
+    if (text === undefined || text === null) return '';
+    var str = String(text).trim();
+    if (!str) return '';
+
+    // Strip "Step N/M: " prefix (per D-01, DATA-01)
+    str = str.replace(/^Step\s+\d+\/\d+:\s*/i, '');
+    if (!str) return '';
+
+    // Tool command regex from UI-SPEC L124
+    var toolPattern = /^(click|rightClick|doubleClick|hover|type|clearInput|selectText|pressEnter|keyPress|selectOption|toggleCheckbox|navigate|searchGoogle|scroll|waitForElement|getText|getAttribute|setAttribute|moveMouse|focus|blur|refresh|goBack|goForward|solveCaptcha)\b/i;
+    var match = str.match(toolPattern);
+    if (!match) return str; // Already human-readable
+
+    var tool = match[1].toLowerCase();
+    var replacements = {
+      click: 'Clicking element',
+      rightclick: 'Clicking element',
+      doubleclick: 'Clicking element',
+      hover: 'Hovering over element',
+      type: 'Typing text',
+      clearinput: 'Clearing input',
+      selecttext: 'Selecting text',
+      pressenter: 'Pressing key',
+      keypress: 'Pressing key',
+      selectoption: 'Selecting option',
+      togglecheckbox: 'Toggling checkbox',
+      navigate: 'Navigating to page',
+      searchgoogle: 'Searching',
+      scroll: 'Scrolling page',
+      waitforelement: 'Waiting for page',
+      gettext: 'Reading page content',
+      getattribute: 'Reading page content',
+      setattribute: 'Updating element',
+      movemouse: 'Moving cursor',
+      focus: 'Focusing element',
+      blur: 'Focusing element',
+      refresh: 'Refreshing page',
+      goback: 'Going back',
+      goforward: 'Going forward',
+      solvecaptcha: 'Handling verification'
+    };
+
+    return replacements[tool] || str;
+  }
+
   function normalizeOverlayPhase(phase) {
     switch (phase) {
       case 'thinking':
@@ -130,22 +176,27 @@
     }
 
     if (rawDetail === undefined) {
-      rawDetail = (statusData && statusData.statusText) || getDefaultDetail(normalizedPhase, result);
+      // D-08: Prefer _lastActionSummary (AI-generated human text) over statusText
+      var sessionSummary = (session && session._lastActionSummary) || null;
+      rawDetail = sessionSummary
+        || (statusData && statusData.statusText)
+        || getDefaultDetail(normalizedPhase, result);
     }
 
     return {
       title: sanitizeOverlayText(rawTitle, 80) || 'FSB Automating',
       subtitle: sanitizeOverlayText(rawSubtitle, 120),
-      detail: sanitizeOverlayText(rawDetail, 120) || getDefaultDetail(normalizedPhase, result)
+      detail: sanitizeActionText(sanitizeOverlayText(rawDetail, 120)) || getDefaultDetail(normalizedPhase, result)
     };
   }
 
-  function computeMultiSiteProgress(session, eta) {
+  // D-02: ETA removed from overlay in Phase 168. Elapsed time replaces it in Phase 169.
+  function computeMultiSiteProgress(session) {
     var ms = session && session.multiSite;
     var companies = (ms && (ms.companyList || ms.companies)) || [];
     var total = companies.length;
     if (!total) {
-      return { mode: 'indeterminate', percent: null, label: 'Searching', eta: eta || null };
+      return { mode: 'indeterminate', percent: null, label: 'Searching', eta: null };
     }
 
     var completed = Math.max(0, Math.min(total, ms.currentIndex || 0));
@@ -154,18 +205,18 @@
       mode: 'determinate',
       percent: clampOverlayPercent((completed / total) * 100),
       label: current + '/' + total + ' companies',
-      eta: eta || null
+      eta: null
     };
   }
 
-  function computeSheetsProgress(session, eta) {
+  function computeSheetsProgress(session) {
     var sd = session && session.sheetsData;
     if (!sd) {
-      return { mode: 'indeterminate', percent: null, label: 'Writing', eta: eta || null };
+      return { mode: 'indeterminate', percent: null, label: 'Writing', eta: null };
     }
 
     if (sd.formattingPhase && !sd.formattingComplete) {
-      return { mode: 'indeterminate', percent: null, label: 'Formatting', eta: eta || null };
+      return { mode: 'indeterminate', percent: null, label: 'Formatting', eta: null };
     }
 
     if (sd.formattingComplete) {
@@ -178,7 +229,7 @@
       mode: 'determinate',
       percent: clampOverlayPercent((rowsWritten / totalRows) * 100),
       label: rowsWritten + '/' + totalRows + ' rows',
-      eta: eta || null
+      eta: null
     };
   }
 
@@ -193,7 +244,7 @@
       mode: mode,
       percent: percent,
       label: sanitizeOverlayText(progress.label || '', 40),
-      eta: progress.eta || null
+      eta: null
     };
   }
 
@@ -212,23 +263,22 @@
     }
 
     var explicitPercent = clampOverlayPercent(statusData && statusData.progressPercent);
-    var eta = (statusData && statusData.estimatedTimeRemaining) || null;
 
     if (explicitPercent !== null) {
       return {
         mode: 'determinate',
         percent: explicitPercent,
         label: explicitPercent + '%',
-        eta: eta
+        eta: null
       };
     }
 
     if (session && session.multiSite) {
-      return computeMultiSiteProgress(session, eta);
+      return computeMultiSiteProgress(session);
     }
 
     if (session && session.sheetsData) {
-      return computeSheetsProgress(session, eta);
+      return computeSheetsProgress(session);
     }
 
     if (lifecycle === 'final' && result === 'success') {
@@ -239,7 +289,7 @@
       mode: 'indeterminate',
       percent: null,
       label: humanizeOverlayPhase(normalizedPhase),
-      eta: eta
+      eta: null
     };
   }
 
@@ -279,6 +329,7 @@
   var exportsObj = {
     clampOverlayPercent: clampOverlayPercent,
     sanitizeOverlayText: sanitizeOverlayText,
+    sanitizeActionText: sanitizeActionText,
     normalizeOverlayPhase: normalizeOverlayPhase,
     humanizeOverlayPhase: humanizeOverlayPhase,
     buildOverlayState: buildOverlayState,
