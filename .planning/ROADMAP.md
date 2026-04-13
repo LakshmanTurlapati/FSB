@@ -22,76 +22,66 @@
 - v0.9.23 Dashboard Stream & Remote Control Reliability (deferred after Phase 150)
 - v0.9.24 Claude Code Architecture Adaptation (shipped 2026-04-05) -- [archive](milestones/v0.9.24-ROADMAP.md)
 - v0.9.25 MCP & Dashboard Reliability Closure (shipped 2026-04-11) -- [archive](milestones/v0.9.25-ROADMAP.md)
-- v0.9.26 Progress Overlay Refinement (in progress)
+- v0.9.26 Progress Overlay Refinement (shipped 2026-04-12) -- [archive](milestones/v0.9.26-ROADMAP.md)
+- v0.9.27 Usage Dashboard Fix (in progress)
 
 ---
 
-## v0.9.26 Progress Overlay Refinement
+## v0.9.27 Usage Dashboard Fix
 
-**Goal:** Make the progress overlay show clean, accurate, human-readable task progress instead of developer debug noise. Strip internal metrics from the display layer without breaking downstream consumers (dashboard, sidepanel, popup, MCP), upgrade the progress bar to GPU-composited rendering, add an elapsed timer and action counter, and validate across diverse sites.
+**Goal:** Make the control panel usage/analytics dashboard reliably display real-time tracked usage data. Fix the broken storage read path, null-safety crashes, chart initialization failures, and silent cost breakdown skips so that background-tracked usage appears correctly on the options page.
 
 ## Phases
 
-- [x] **Phase 168: Data Audit & Display Firewall** - Map field dependencies across all overlay consumers, then filter developer-facing noise from overlay display without breaking session data downstream (completed 2026-04-12)
-- [x] **Phase 169: Display Cleanup & Performance** - Upgrade progress bar to scaleX(), add local elapsed timer and action counter with tabular-nums, and wire completion freeze and motion preferences (completed 2026-04-12)
-- [ ] **Phase 170: Cross-Site Validation & Final Polish** - Validate overlay rendering across Google Docs, YouTube fullscreen, Amazon, and 320px narrow viewport
+- [ ] **Phase 171: Dashboard Data Flow & Rendering Fixes** - Fix storage read path, null safety, chart init, and cost breakdown display so the analytics dashboard renders tracked data reliably
+- [ ] **Phase 172: End-to-End Smoke Verification** - Verify the full pipeline from background tracking through storage to options page chart and metrics display
 
 ## Phase Details
 
-### Phase 168: Data Audit & Display Firewall
-**Goal**: Overlay displays only human-readable task information while all session fields remain intact for dashboard, sidepanel, popup, and MCP consumers
-**Depends on**: Nothing (first phase of v0.9.26)
-**Requirements**: DATA-01, DATA-02, DATA-03
+### Phase 171: Dashboard Data Flow & Rendering Fixes
+**Goal**: The options page analytics dashboard reliably reads, renders, and updates tracked usage data without crashes or silent failures
+**Depends on**: Nothing (first phase of v0.9.27)
+**Requirements**: DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06
 **Success Criteria** (what must be TRUE):
-  1. User sees no iteration counts, token usage, cost figures, or model name anywhere in the progress overlay during task execution
-  2. User sees plain-English action summaries in the overlay (e.g. "Clicking Add to Cart"), never raw CLI commands or tool call JSON
-  3. Dashboard options page, sidepanel, popup, and MCP tool responses continue to receive iterationCount, tokenUsage, cost, and model fields unchanged -- a field dependency audit document exists confirming which fields are display-filtered versus passed through
-  4. calculateProgress() continues to use iterationCount internally for progress computation even though the value is hidden from the overlay display
-**Plans**: 2 plans
-Plans:
-- [x] 168-01-PLAN.md -- Display firewall: sanitizeActionText, Step X/Y removal, ETA null, popup/sidepanel phase labels
-- [x] 168-02-PLAN.md -- Field dependency audit: inline comments at all consumer sites, downstream payload verification
+  1. When an ANALYTICS_UPDATE message arrives, the options page re-reads data from chrome.storage.local (not from a cached FSBAnalytics instance) and the displayed metrics reflect the latest stored values
+  2. Opening the options page with existing analytics data in storage renders the usage chart immediately without requiring a task to run first
+  3. When a new ANALYTICS_UPDATE arrives while the options page is open, the chart updates in place without requiring a manual page reload
+  4. The time range label update path does not throw when expected DOM elements are missing -- null querySelector results are guarded before property access
+  5. The cost breakdown section renders whenever analytics data is available in storage, even if the local FSBAnalytics instance was not fully initialized at page load time
+**Plans**: TBD
 **UI hint**: yes
 
-### Phase 169: Display Cleanup & Performance
-**Goal**: Users see a smooth, jitter-free overlay with GPU-composited progress bar, live elapsed timer, action counter, and correct accessibility and completion behavior
-**Depends on**: Phase 168
-**Requirements**: DISP-01, DISP-02, DISP-03, DISP-04, POLISH-02, POLISH-03
+### Phase 172: End-to-End Smoke Verification
+**Goal**: Confirm the full data pipeline works: background tracks usage, storage receives it, options page reads and displays correct metrics and chart
+**Depends on**: Phase 171
+**Requirements**: DASH-07
 **Success Criteria** (what must be TRUE):
-  1. Progress bar width is driven by CSS scaleX() transform, not width property, and updates cause zero layout reflows on complex pages
-  2. User sees elapsed time (e.g. "0:42") updating in real-time via content-script-local performance.now() + requestAnimationFrame, not pushed from background.js, and the timer freezes at its final value on task completion
-  3. User sees an "Actions: N" counter in the overlay meta row that increments on each click, type, or navigation action and freezes at its final value on task completion
-  4. All numeric displays (elapsed time digits, action count) use font-variant-numeric: tabular-nums so digit changes never shift surrounding layout
-  5. All new transitions, the progress bar animation, and the elapsed timer tick respect prefers-reduced-motion: reduce by falling back to instant updates
-**Plans**: 2 plans
-Plans:
-- [x] 169-01-PLAN.md -- Data pipeline (actionCount), scaleX() progress bar migration, tabular-nums
-- [x] 169-02-PLAN.md -- Elapsed timer (rAF), action count display, completion presentation, reduced-motion
-**UI hint**: yes
-
-### Phase 170: Cross-Site Validation & Final Polish
-**Goal**: Overlay renders correctly across the sites and viewport conditions that represent real-world usage diversity
-**Depends on**: Phase 169
-**Requirements**: POLISH-01
-**Success Criteria** (what must be TRUE):
-  1. Overlay renders with correct layout, readable text, and no clipping on Google Docs (contenteditable + iframes), YouTube fullscreen (z-index competition), Amazon product pages (heavy DOM), and a 320px-wide viewport (narrow responsive)
-  2. No visual regressions are introduced on any of the four test surfaces compared to the pre-v0.9.26 overlay behavior
-**Plans**: 1 plan
-Plans:
-- [ ] 170-01-PLAN.md -- CSS defensive hardening + 7-point lifecycle validation on Google Docs, YouTube fullscreen, Amazon, 320px viewport
-**UI hint**: yes
+  1. After running an automation task to completion, opening the options page shows the task reflected in usage metrics (request count, token count, cost) and the chart
+  2. The chart data points correspond to actual tracked sessions -- no phantom data, no missing recent sessions
+**Plans**: TBD
 
 ## Progress
 
-**Execution Order:** 168 -> 169 -> 170
+**Execution Order:** 171 -> 172
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 168. Data Audit & Display Firewall | 2/2 | Complete    | 2026-04-12 |
-| 169. Display Cleanup & Performance | 2/2 | Complete    | 2026-04-12 |
-| 170. Cross-Site Validation & Final Polish | 0/1 | Not started | - |
+| 171. Dashboard Data Flow & Rendering Fixes | 0/? | Not started | - |
+| 172. End-to-End Smoke Verification | 0/? | Not started | - |
 
 ---
+
+## v0.9.26 Progress Overlay Refinement (shipped 2026-04-12)
+
+**Status:** Shipped 2026-04-12 -- see [milestones/v0.9.26-ROADMAP.md](milestones/v0.9.26-ROADMAP.md) for the archived detail.
+
+**Goal:** Make the progress overlay show clean, accurate, human-readable task progress instead of developer debug noise.
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 168. Data Audit & Display Firewall | 2/2 | Complete | 2026-04-12 |
+| 169. Display Cleanup & Performance | 2/2 | Complete | 2026-04-12 |
+| 170. Cross-Site Validation & Final Polish | 1/1 | Complete | 2026-04-12 |
 
 ## v0.9.25 MCP & Dashboard Reliability Closure (shipped 2026-04-11)
 

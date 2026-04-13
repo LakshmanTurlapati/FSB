@@ -1,5 +1,41 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.26 Progress Overlay Refinement (Shipped: 2026-04-12)
+
+**Phases completed:** 3 phases, 5 plans, 9 tasks
+
+**Key accomplishments:**
+
+- Status:
+- GPU-composited scaleX progress bar, actionCount data pipeline from background through overlay-state, and tabular-nums on meta row digits
+- rAF-driven elapsed timer in M:SS format, action count from overlayState.actionCount, success/failure completion presentation with 3s auto-hide, and frozen guard for post-completion safety
+
+---
+
+## v0.9.25 MCP & Dashboard Reliability Closure (Shipped: 2026-04-11)
+
+**Phases completed:** 5 phases, 8 plans, 11 requirements (9 satisfied, 2 satisfied with debt)
+
+**Key accomplishments:**
+
+- Restricted-tab MCP parity: browser-safe navigation, tab, and run_task tools now operate from `chrome://newtab` and other restricted pages; smart-start routing is preserved and DOM/manual tools return actionable recovery guidance instead of raw injection errors.
+- Dashboard reliability rebaseline: preview rejects stale DOM stream updates and resnapshots on divergence, remote control keeps bounded coordinates and recoverable debugger ownership through toggles and stream-tab changes, and dashboard task runs stay bound to one `taskRunId` across reconnect recovery.
+- Runtime carryover hardening: `CostTracker` now hydrates after the final mode-aware safety config resolution so its cost limit matches the active mode, and the unused `emitter` passthrough option on `runAgentLoop` no longer advertises dead agent-loop plumbing.
+- Auth outcome smoke verification: preserved partial/manual handoff and same-session auth resume are recorded as live-confirmed outcomes from a real extension session.
+- Live dashboard verification pass: deterministic matrix executed against the real hosted dashboard, surfaced a duplicate legacy printable `char` echo defect, and shipped a defensive suppression fix in `background.js` covered by `tests/dashboard-runtime-state.test.js`.
+- Shipped version bumped from 0.9.20 to 0.9.25 across `manifest.json`, `package.json`, UI surfaces, `README.md`, and project `CLAUDE.md` to realign with the closing milestone label.
+
+**Accepted debt at close:**
+
+- Phase 165 hosted-environment live reruns for DET-06/DET-07/DET-08/DET-13/DET-15/DET-16/DET-17/DET-18 and the 8 JS-heavy rows remain deferred. Requires a reloaded unpacked extension in the active Chrome session and a hosted dashboard build that exposes `window.__FSBDashboardTransportDiagnostics`. Code posture is stable; the remaining gap is live-environment observability only.
+
+**Stats:**
+
+- 5 phases, 8 plans, 11 requirements
+- Key files: `background.js`, `tests/dashboard-runtime-state.test.js`, `ai/cost-tracker.js`, `ai/agent-loop.js`, `mcp-server/**`
+
+---
+
 ## v0.9.24 Claude Code Architecture Adaptation (Shipped: 2026-04-05)
 
 **Phases completed:** 10 phases, 20 plans, 33 requirements

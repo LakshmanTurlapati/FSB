@@ -1,4 +1,4 @@
-# FSB v0.9.20: Full Self-Browsing
+# FSB v0.9.25: Full Self-Browsing
 
 <div align="center">
 
@@ -10,7 +10,7 @@
 
 <!-- Row 1: Identity badges -->
 ![FSB](https://img.shields.io/badge/FSB-Full_Self--Browsing-000000?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-0.9.20-0078D4?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-0.9.25-0078D4?style=for-the-badge)
 ![Manifest V3](https://img.shields.io/badge/Manifest_V3-Chrome-34A853?style=for-the-badge&logo=googlechrome&logoColor=white)
 ![License](https://img.shields.io/badge/license-BSL_1.1-F5C518?style=for-the-badge)
 
@@ -32,6 +32,8 @@
 ![OpenAI](https://img.shields.io/badge/OpenAI-GPT-412991?style=flat-square&logo=openai&logoColor=white)
 ![Anthropic](https://img.shields.io/badge/Anthropic-Claude-D4A574?style=flat-square&logo=anthropic&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Google-Gemini-4285F4?style=flat-square&logo=googlegemini&logoColor=white)
+![OpenRouter](https://img.shields.io/badge/OpenRouter-200%2B_Models-111827?style=flat-square)
+![LM Studio](https://img.shields.io/badge/LM_Studio-Local_Models-10B981?style=flat-square)
 
 **Perfecting browser automation with zero vision**
 
@@ -47,14 +49,14 @@
 
 ## Overview
 
-> **Note**: While FSB v0.9.20 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
+> **Note**: While FSB v0.9.25 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
 
-FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **five AI providers**: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini, and OpenRouter (200+ models), with 20+ models built in. FSB can run as a **standalone Chrome extension** or be controlled by any MCP-compatible AI client (Claude Code, Cursor, Windsurf, and others) through its built-in **MCP server**: in manual mode for fine-grained control, or autopilot mode where FSB handles everything.
+FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **six built-in AI providers**: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini, OpenRouter (200+ models), and LM Studio for local models, with 20+ cloud models built in plus live local model discovery. FSB can run as a **standalone Chrome extension** or be controlled by any MCP-compatible AI client (Claude Code, Cursor, Windsurf, and others) through its built-in **MCP server**: in manual mode for fine-grained control, or autopilot mode where FSB handles everything.
 
 <details>
 <summary><b>All features (detailed list)</b></summary>
 
-- **Multi-Model AI Support**: Five fully integrated providers: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini, and OpenRouter (200+ models), with 20+ models built in
+- **Multi-Model AI Support**: Six fully integrated providers: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini, OpenRouter (200+ models), and LM Studio for local models
 - **Universal Provider Architecture**: Model-agnostic engine that works with any OpenAI-compatible API, with automatic parameter discovery and self-healing
 - **Natural Language Interface**: Describe tasks in plain English, no scripting required
 - **Smart DOM Analysis**: Advanced webpage structure analysis with incremental diffing and element identification
@@ -124,7 +126,7 @@ The result: faster, cheaper, more accurate, and capable of interacting with elem
 | **Speed (per step)** | 50-200ms | 1-3s | 1-3s | 1-3s | 1-3s |
 | **Cost (per 100 steps)** | ~$0.03 | ~$0.18 | ~$0.18 | ~$0.18 | ~$0.15 |
 | **Hidden elements** | Yes | No | No | No | No |
-| **Multi-provider AI** | 5 providers, 20+ models | Gemini only | Claude only | GPT only | Limited |
+| **Multi-provider AI** | 6 providers, 20+ models + local LM Studio | Gemini only | Claude only | GPT only | Limited |
 | **MCP server** | Yes (50+ tools) | No | No | No | No |
 | **Local extension** | Yes | No (cloud VM) | No (Docker) | No (cloud) | No (Playwright) |
 | **Works offline** | With local models | No | No | No | No |
@@ -187,11 +189,12 @@ This means you get the intelligence of Claude, GPT, or Gemini combined with the 
 ### Prerequisites
 
 - Google Chrome (version 88+) or any Chromium-based browser (Edge, Brave, etc.)
-- **One API key** from any supported provider (only one is required):
+- **One API key** from any supported provider (only one is required), or LM Studio running locally:
   - xAI Grok API key ([Get one here](https://x.ai/api)): recommended for automation
   - OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
   - Anthropic API key ([Get one here](https://console.anthropic.com/))
   - Google Gemini API key ([Get one here](https://ai.google.dev/)): includes a FREE tier (Gemini 2.0 Flash)
+  - LM Studio local server ([Get it here](https://lmstudio.ai/)): no API key required, defaults to `http://localhost:1234`
 
 ### Installation
 
@@ -215,7 +218,7 @@ This means you get the intelligence of Claude, GPT, or Gemini combined with the 
 
 ### First Steps
 
-1. **Configure your AI model**: Click settings and choose between Grok, GPT, Claude, or Gemini
+1. **Configure your AI model**: Click settings and choose Grok, GPT, Claude, Gemini, OpenRouter, or LM Studio
 2. **Test the connection**: Use the "Test API" button to verify your chosen model works
 3. **Start simple**: Try basic tasks like "scroll down" or "click the search button"
 4. **Monitor actions**: Watch what FSB does: visual feedback shows each step
@@ -389,11 +392,13 @@ graph TB
         AV["Action Verification<br/>State Validation"]
     end
 
-    subgraph External["External Services"]
+    subgraph External["Providers & Services"]
         XAI["xAI Grok API"]
         OAI["OpenAI GPT API"]
         ANT["Anthropic Claude API"]
         GEM["Google Gemini API"]
+        OPR["OpenRouter API"]
+        LMS["LM Studio Local Server"]
         SRV["Server Backends<br/>Node.js / Python"]
     end
 
@@ -455,7 +460,7 @@ graph TB
 - **Remote Streaming**: Optional relay server connection for remote monitoring and control (`ws/ws-client.js`)
 
 **External Services:**
-- **AI APIs**: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini, OpenRouter
+- **AI Providers**: xAI Grok, OpenAI GPT, Anthropic Claude, Google Gemini, OpenRouter, or a local LM Studio server
 - **MCP Clients**: Claude Code, Cursor, Windsurf, or any MCP-compatible AI client
 - **CAPTCHA Services**: Optional integration for automated CAPTCHA solving
 - **Server Backends**: Optional Node.js (`server/`) and Python/Flask (`server-py/`) backends for agent data persistence
@@ -812,10 +817,12 @@ No build step or npm install is required: FSB runs directly as a Chrome extensio
 ![OpenAI GPT](https://img.shields.io/badge/OpenAI_GPT-4_Models-412991?style=for-the-badge&logo=openai&logoColor=white)
 ![Anthropic Claude](https://img.shields.io/badge/Anthropic_Claude-6_Models-D4A574?style=for-the-badge&logo=anthropic&logoColor=white)
 ![Google Gemini](https://img.shields.io/badge/Google_Gemini-5_Models-4285F4?style=for-the-badge&logo=googlegemini&logoColor=white)
+![OpenRouter](https://img.shields.io/badge/OpenRouter-200%2B_Models-111827?style=for-the-badge)
+![LM Studio](https://img.shields.io/badge/LM_Studio-Local_Models-10B981?style=for-the-badge)
 
 </div>
 
-FSB supports five AI providers through a universal, model-agnostic architecture. Each provider has unique strengths for browser automation.
+FSB supports six built-in AI providers through a universal, model-agnostic architecture. Each provider has unique strengths for browser automation.
 
 ### Supported AI Providers
 
@@ -838,6 +845,16 @@ FSB supports five AI providers through a universal, model-agnostic architecture.
 - **Strengths**: Reliable structured output, analytical approach, FREE tier available
 - **Best for**: Structured forms, data entry, systematic workflows, budget-conscious usage
 - **Recommended model**: `gemini-2.5-flash`: latest with thinking capabilities
+
+#### OpenRouter
+- **Strengths**: Access to 200+ models through one provider, flexible routing, broad model experimentation
+- **Best for**: Teams comparing models, switching vendors quickly, and using one API key across multiple model families
+- **Recommended model**: `openai/gpt-4o`: strong general-purpose default through OpenRouter
+
+#### LM Studio
+- **Strengths**: Fully local execution, no API key, privacy-friendly workflows, works with loaded local models
+- **Best for**: Offline/local automation, self-hosted setups, experimenting with downloaded OpenAI-compatible models
+- **Recommended setup**: Start LM Studio's local server on `http://localhost:1234` and let FSB discover models from `/v1/models`
 
 ### Universal Provider Architecture
 
@@ -1096,7 +1113,7 @@ This project is licensed under the **[Business Source License 1.1 (BSL 1.1)](LIC
 | Parameter | Value |
 |-----------|-------|
 | **Licensor** | Lakshman Turlapati |
-| **Licensed Work** | FSB v0.9.20 (Full Self-Browsing Chrome Extension) |
+| **Licensed Work** | FSB v0.9.25 (Full Self-Browsing Chrome Extension) |
 | **Additional Use Grant** | None |
 | **Change Date** | 2028-03-29 |
 | **Change License** | Apache License, Version 2.0 |

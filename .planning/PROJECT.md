@@ -10,14 +10,18 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-FSB shipped `v0.9.24 Claude Code Architecture Adaptation` on 2026-04-05, opened `v0.9.25 MCP & Dashboard Reliability Closure`, and has now completed Phase `163 Restricted-Tab MCP Parity`, Phase `164 Dashboard Reliability Rebaseline`, Phase `166 Runtime Carryover Hardening`, and Phase `167 Auth Outcome Smoke Verification`. Phase `165 Live Dashboard Verification & Fixes` has been executed and still holds the milestone open with real live-environment gaps rather than hypothetical debt.
+FSB shipped `v0.9.26 Progress Overlay Refinement` on 2026-04-12, following `v0.9.25 MCP & Dashboard Reliability Closure` (2026-04-11). The progress overlay now shows clean, human-readable task progress: developer noise (iteration counts, token usage, cost, model name) is stripped by a display firewall, action summaries are sanitized from raw CLI syntax to plain English, and popup/sidepanel progress labels use phase names instead of "Step X/Y". The progress bar uses GPU-composited scaleX() transforms for zero-layout-reflow animation. A content-script-local rAF-driven elapsed timer shows M:SS format, and an "Actions: N" counter tracks completed browser actions. On task completion, the bar turns green with a "Done" pill and auto-hides after 3 seconds. All numeric displays use tabular-nums. Reduced-motion preferences are respected. CSS defensive hardening (overflow-wrap, flex-shrink, font/color inheritance cuts) improves cross-site resilience. Task summaries use first-sentence extraction and conversational prefix stripping for concise overlay text.
 
-The codebase now has a verified extension-first restricted-tab contract for MCP, a rebaselined dashboard runtime, the internal runtime carryover debts from `v0.9.24` closed, and the auth-wall preserved-partial/same-session resume path manually confirmed in the real extension flow. Preview recovery is fail-closed, remote control is extension-authoritative, task relay recovery stays bound to one `taskRunId`, `CostTracker` now hydrates after final mode-aware safety config resolution, and the leftover emitter contract no longer advertises dead agent-loop plumbing or dashboard delivery it does not provide. The milestone is still open because the hosted dashboard pass exposed two real blockers outside the auth scope: hosted dashboard drift on printable remote-key traffic and incomplete terminal/diagnostics visibility in the live environment. A local background-side duplicate-key fix is in place, but milestone closure still depends on rerunning the blocked Phase 165 rows against a reloaded live extension and observable diagnostics surfaces.
+## Current Milestone: v0.9.27 Usage Dashboard Fix
 
-## Next Milestone Goals
+**Goal:** Make the control panel usage/analytics dashboard reliably display real-time tracked usage data.
 
-- Reload the live unpacked extension and rerun the blocked Phase 165 remote-control, task-terminal, and diagnostics rows against the hosted dashboard path.
-- Preserve the newly completed restricted-tab MCP parity, dashboard reliability baseline, runtime carryover cleanup, and auth verification close-out while the remaining milestone work finishes Phase 165.
+**Target features:**
+- Fix storage read path so ANALYTICS_UPDATE triggers a true re-read from chrome.storage
+- Fix null reference crash in time range label updates (querySelector on missing elements)
+- Ensure chart initializes reliably and updates when new data arrives
+- Fix cost breakdown display (silent skip when analytics not ready)
+- End-to-end verification: background tracks -> storage -> options page refresh -> chart + metrics correct
 
 ## Requirements
 
@@ -126,8 +130,20 @@ The codebase now has a verified extension-first restricted-tab contract for MCP,
 - ✓ Runtime carryover hardening: CostTracker now hydrates after final mode-aware safety config resolution, and the emitter/runtime contract no longer carries unused agent-loop passthrough or misleading dashboard delivery claims -- v0.9.25/P166
 - ✓ Auth outcome smoke verification: preserved partial/manual handoff and same-session auth resume are now recorded as live-confirmed outcomes -- v0.9.25/P167
 
+- ✓ Display firewall: developer noise (iteration counts, token usage, cost, model name) stripped from overlay, popup/sidepanel aligned to phase labels -- v0.9.26/P168
+- ✓ GPU-composited scaleX() progress bar with zero layout reflows, actionCount data pipeline, tabular-nums on numeric displays -- v0.9.26/P169
+- ✓ rAF-driven elapsed timer (M:SS), "Actions: N" counter, green completion state with Done pill and 3s auto-hide, reduced-motion compliance -- v0.9.26/P169
+- ✓ CSS defensive hardening (overflow-wrap, flex-shrink, font/color inheritance cuts) for cross-site overlay resilience -- v0.9.26/P170
+- ✓ First-sentence overlay text extraction and conversational prefix stripping for concise task summaries -- v0.9.26/P170
+
 ### Active
-- [ ] Phase 165 live reruns and diagnostics closure on the hosted dashboard path -- v0.9.25/P165
+
+## Last Shipped Milestone: v0.9.26 Progress Overlay Refinement (shipped 2026-04-12)
+
+**Shipped:** Display firewall stripping developer noise, GPU-composited scaleX() progress bar, rAF-driven elapsed timer (M:SS), "Actions: N" counter, green completion state with 3s auto-hide, tabular-nums, reduced-motion compliance, CSS defensive hardening, first-sentence overlay text extraction. 3 phases, 5 plans, 10 requirements.
+
+### Deferred to Next Milestone
+- [ ] Phase 165 live reruns and diagnostics closure on the hosted dashboard path -- deferred from v0.9.25 as accepted tech debt; requires reloaded unpacked extension and `__FSBDashboardTransportDiagnostics`-exposing dashboard build
 
 ### Backlog (Completed from previous milestones — v0.9.6)
 
@@ -155,14 +171,11 @@ The codebase now has a verified extension-first restricted-tab contract for MCP,
 - Headless server-side execution -- server is relay only, user's browser must stay active
 - Video/screenshot streaming -- DOM cloning with CDN images, not pixel capture
 
-## Current Milestone: v0.9.25 MCP & Dashboard Reliability Closure
+## Last Shipped Milestone: v0.9.25 MCP & Dashboard Reliability Closure (shipped 2026-04-11, accepted tech debt)
 
-**Goal:** Close the remaining operator-facing reliability gaps across restricted-tab MCP flows, dashboard preview/control/task recovery, and the live verification debt carried forward from `v0.9.24`.
+**Shipped:** Restricted-tab MCP parity, dashboard preview/remote-control/task-relay rebaseline, v0.9.24 runtime carryover cleanup, live-confirmed auth-wall preserved partial/resume evidence, and a defensive duplicate printable `char` suppression fix in `background.js`. 5 phases, 8 plans, 11 requirements (9 satisfied, 2 satisfied with live-environment debt).
 
-**Target features:**
-- Restricted-tab and `chrome://newtab` MCP behavior that preserves smart task start routing and gives clear next-step guidance for non-routable tools.
-- Dashboard preview, remote control, and task relay flows that hold up through reconnects, tab switches, and real relay/browser timing.
-- Runtime hardening for `CostTracker` config ordering, unused emitter/runtime contract cleanup, and live auth-wall smoke coverage.
+**Accepted debt:** Phase 165 blocked DET and JS-heavy live rerun rows deferred to next milestone (code posture is stable; the gap is live-environment observability). See [.planning/v0.9.25-MILESTONE-AUDIT.md](v0.9.25-MILESTONE-AUDIT.md).
 
 ## Previous Milestone: v0.9.24 Claude Code Architecture Adaptation (shipped 2026-04-05)
 
@@ -271,6 +284,11 @@ The codebase now has a verified extension-first restricted-tab contract for MCP,
 | Complexity-aware ETA with decaying weight | 70% estimate early, 10% late (trust actual data over time) | Good -- stable early ETA, accurate late ETA |
 | Fire-and-forget AI summaries | generateActionSummary never awaited, 2.5s timeout | Good -- zero impact on automation speed |
 | 300ms phase label debounce | Only debounce generic labels, bypass for explicit statusText | Good -- no flicker, AI summaries still instant |
+| Close v0.9.25 with accepted tech debt | Phase 165 live-environment gap is observability, not code debt; defensive background.js fix shipped and passes tests | Good -- milestone archived 2026-04-11, blocked DET/JS rows deferred to v0.9.26 live-verification phase |
+| Version bump 0.9.20 -> 0.9.25 at milestone close | Ship version was five milestone labels behind; align 1:1 with closing milestone for operator clarity | Good -- manifest/package/UI/README/CLAUDE all consistent at 0.9.25 |
+| Display firewall before display changes | Data audit/field dependency mapping FIRST, then overlay changes, to avoid breaking dashboard/sidepanel/popup/MCP consumers | Good -- no consumer regressions, all fields verified via inline audit comments |
+| scaleX() + rAF in content script | GPU-composited bar avoids layout thrash; local timer avoids background.js message latency | Good -- zero reflows, timer accuracy independent of message passing |
+| First-sentence extraction for overlay text | AI summaries are multi-sentence; truncating mid-sentence is worse than showing only the first sentence | Good -- overlay text is concise and reads naturally |
 
 ## Evolution
 
@@ -290,4 +308,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-06 after Phase 163 completion*
+*Last updated: 2026-04-12 -- Milestone v0.9.26 shipped*
