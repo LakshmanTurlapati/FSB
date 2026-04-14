@@ -23,51 +23,15 @@
 - v0.9.24 Claude Code Architecture Adaptation (shipped 2026-04-05) -- [archive](milestones/v0.9.24-ROADMAP.md)
 - v0.9.25 MCP & Dashboard Reliability Closure (shipped 2026-04-11) -- [archive](milestones/v0.9.25-ROADMAP.md)
 - v0.9.26 Progress Overlay Refinement (shipped 2026-04-12) -- [archive](milestones/v0.9.26-ROADMAP.md)
-- v0.9.27 Usage Dashboard Fix (in progress)
+- v0.9.27 Usage Dashboard Fix (shipped 2026-04-14) -- [archive](milestones/v0.9.27-ROADMAP.md)
 
 ---
 
-## v0.9.27 Usage Dashboard Fix
+## No Active Milestone
 
-**Goal:** Make the control panel usage/analytics dashboard reliably display real-time tracked usage data. Fix the broken storage read path, null-safety crashes, chart initialization failures, and silent cost breakdown skips so that background-tracked usage appears correctly on the options page.
+Last shipped milestone: `v0.9.27 Usage Dashboard Fix` (shipped 2026-04-14) -- [archive](milestones/v0.9.27-ROADMAP.md)
 
-## Phases
-
-- [x] **Phase 171: Dashboard Data Flow & Rendering Fixes** - Fix storage read path, null safety, chart init, and cost breakdown display so the analytics dashboard renders tracked data reliably (completed 2026-04-14)
-- [x] **Phase 172: End-to-End Smoke Verification** - Verify the full pipeline from background tracking through storage to options page chart and metrics display (completed 2026-04-14)
-
-## Phase Details
-
-### Phase 171: Dashboard Data Flow & Rendering Fixes
-**Goal**: The options page analytics dashboard reliably reads, renders, and updates tracked usage data without crashes or silent failures
-**Depends on**: Nothing (first phase of v0.9.27)
-**Requirements**: DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06
-**Success Criteria** (what must be TRUE):
-  1. When an ANALYTICS_UPDATE message arrives, the options page re-reads data from chrome.storage.local (not from a cached FSBAnalytics instance) and the displayed metrics reflect the latest stored values
-  2. Opening the options page with existing analytics data in storage renders the usage chart immediately without requiring a task to run first
-  3. When a new ANALYTICS_UPDATE arrives while the options page is open, the chart updates in place without requiring a manual page reload
-  4. The time range label update path does not throw when expected DOM elements are missing -- null querySelector results are guarded before property access
-  5. The cost breakdown section renders whenever analytics data is available in storage, even if the local FSBAnalytics instance was not fully initialized at page load time
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 172: End-to-End Smoke Verification
-**Goal**: Confirm the full data pipeline works: background tracks usage, storage receives it, options page reads and displays correct metrics and chart
-**Depends on**: Phase 171
-**Requirements**: DASH-07
-**Success Criteria** (what must be TRUE):
-  1. After running an automation task to completion, opening the options page shows the task reflected in usage metrics (request count, token count, cost) and the chart
-  2. The chart data points correspond to actual tracked sessions -- no phantom data, no missing recent sessions
-**Plans**: TBD
-
-## Progress
-
-**Execution Order:** 171 -> 172
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 171. Dashboard Data Flow & Rendering Fixes | 1/1 | Complete    | 2026-04-14 |
-| 172. End-to-End Smoke Verification | 2/2 | Complete    | 2026-04-14 |
+No new milestone has been opened yet. Start the next planning cycle with `$gsd-new-milestone`.
 
 ---
 

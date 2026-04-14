@@ -10,18 +10,13 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 ## Current State
 
-FSB shipped `v0.9.26 Progress Overlay Refinement` on 2026-04-12, following `v0.9.25 MCP & Dashboard Reliability Closure` (2026-04-11). The progress overlay now shows clean, human-readable task progress: developer noise (iteration counts, token usage, cost, model name) is stripped by a display firewall, action summaries are sanitized from raw CLI syntax to plain English, and popup/sidepanel progress labels use phase names instead of "Step X/Y". The progress bar uses GPU-composited scaleX() transforms for zero-layout-reflow animation. A content-script-local rAF-driven elapsed timer shows M:SS format, and an "Actions: N" counter tracks completed browser actions. On task completion, the bar turns green with a "Done" pill and auto-hides after 3 seconds. All numeric displays use tabular-nums. Reduced-motion preferences are respected. CSS defensive hardening (overflow-wrap, flex-shrink, font/color inheritance cuts) improves cross-site resilience. Task summaries use first-sentence extraction and conversational prefix stripping for concise overlay text.
+FSB shipped `v0.9.27 Usage Dashboard Fix` on 2026-04-14, following `v0.9.26 Progress Overlay Refinement` (2026-04-12). The options-page analytics dashboard now re-reads storage-backed usage data through an init-safe refresh path, defers off-screen updates until the operator returns to the dashboard, guards missing time-range label nodes, and keeps the cost breakdown in the refreshed render path. `tests/dashboard-analytics-refresh.test.js` protects the refresh lifecycle, and the local Phase 172 smoke run confirmed that real task completion updates request count, token totals, cost, and chart data. No new milestone is active yet.
 
-## Current Milestone: v0.9.27 Usage Dashboard Fix
+## Next Milestone Goals
 
-**Goal:** Make the control panel usage/analytics dashboard reliably display real-time tracked usage data.
-
-**Target features:**
-- Fix storage read path so ANALYTICS_UPDATE triggers a true re-read from chrome.storage
-- Fix null reference crash in time range label updates (querySelector on missing elements)
-- Ensure chart initializes reliably and updates when new data arrives
-- Fix cost breakdown display (silent skip when analytics not ready)
-- End-to-end verification: background tracks -> storage -> options page refresh -> chart + metrics correct
+- Decide whether to resume the older hosted dashboard reliability debt from `v0.9.25` / `v0.9.23` or open a different top-priority milestone.
+- Re-run the deferred `Off-Screen Dashboard Refresh Smoke` before any push or release tagging that depends on the v0.9.27 dashboard verification evidence.
+- Start the next planning cycle with `$gsd-new-milestone` and a fresh milestone-scoped requirements file.
 
 ## Requirements
 
@@ -135,10 +130,20 @@ FSB shipped `v0.9.26 Progress Overlay Refinement` on 2026-04-12, following `v0.9
 - ✓ rAF-driven elapsed timer (M:SS), "Actions: N" counter, green completion state with Done pill and 3s auto-hide, reduced-motion compliance -- v0.9.26/P169
 - ✓ CSS defensive hardening (overflow-wrap, flex-shrink, font/color inheritance cuts) for cross-site overlay resilience -- v0.9.26/P170
 - ✓ First-sentence overlay text extraction and conversational prefix stripping for concise task summaries -- v0.9.26/P170
+- ✓ Storage-backed dashboard analytics refresh, deferred off-screen refresh handling, null-safe dashboard labels, and regression coverage for the refresh contract -- v0.9.27/P171
+- ✓ End-to-end local dashboard smoke verification proving real task completion updates metrics and chart data -- v0.9.27/P172
 
 ### Active
 
-## Last Shipped Milestone: v0.9.26 Progress Overlay Refinement (shipped 2026-04-12)
+No active milestone-scoped requirements. Start the next planning cycle with `$gsd-new-milestone`.
+
+## Last Shipped Milestone: v0.9.27 Usage Dashboard Fix (shipped 2026-04-14)
+
+**Shipped:** Storage-backed analytics refresh on `ANALYTICS_UPDATE`, deferred off-screen dashboard refresh handling, null-safe time-range label updates, reliable cost-breakdown rendering, regression coverage in `tests/dashboard-analytics-refresh.test.js`, and local end-to-end smoke verification that real task completion updates usage metrics and chart data. 2 phases, 3 plans, 7 requirements.
+
+**Accepted debt:** `Off-Screen Dashboard Refresh Smoke` is still explicitly deferred for a final local rerun before any push or release tagging, and no standalone milestone-audit document was created for v0.9.27.
+
+## Previous Milestone: v0.9.26 Progress Overlay Refinement (shipped 2026-04-12)
 
 **Shipped:** Display firewall stripping developer noise, GPU-composited scaleX() progress bar, rAF-driven elapsed timer (M:SS), "Actions: N" counter, green completion state with 3s auto-hide, tabular-nums, reduced-motion compliance, CSS defensive hardening, first-sentence overlay text extraction. 3 phases, 5 plans, 10 requirements.
 
@@ -171,7 +176,7 @@ FSB shipped `v0.9.26 Progress Overlay Refinement` on 2026-04-12, following `v0.9
 - Headless server-side execution -- server is relay only, user's browser must stay active
 - Video/screenshot streaming -- DOM cloning with CDN images, not pixel capture
 
-## Last Shipped Milestone: v0.9.25 MCP & Dashboard Reliability Closure (shipped 2026-04-11, accepted tech debt)
+## Previous Milestone: v0.9.25 MCP & Dashboard Reliability Closure (shipped 2026-04-11, accepted tech debt)
 
 **Shipped:** Restricted-tab MCP parity, dashboard preview/remote-control/task-relay rebaseline, v0.9.24 runtime carryover cleanup, live-confirmed auth-wall preserved partial/resume evidence, and a defensive duplicate printable `char` suppression fix in `background.js`. 5 phases, 8 plans, 11 requirements (9 satisfied, 2 satisfied with live-environment debt).
 
@@ -237,6 +242,7 @@ FSB shipped `v0.9.26 Progress Overlay Refinement` on 2026-04-12, following `v0.9
 - Site Guides Viewer design mismatch (displays as accordion, should match memory-style list with mind maps)
 - fsbElements use data-fsbLabel annotation path vs [hint:] tags from buildGuideAnnotations
 - Dashboard website sync path still needs end-to-end validation across relay reconnects, stream lifecycle transitions, remote control events, and task/result delivery
+- A final local rerun of the off-screen dashboard refresh smoke is still pending before any push or release tagging that depends on the v0.9.27 verification evidence
 
 ## Constraints
 
@@ -308,4 +314,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-12 -- Milestone v0.9.26 shipped*
+*Last updated: 2026-04-14 -- Milestone v0.9.27 shipped*

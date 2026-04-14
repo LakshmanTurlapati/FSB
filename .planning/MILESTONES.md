@@ -1,5 +1,28 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.27 Usage Dashboard Fix (Shipped: 2026-04-14)
+
+**Phases completed:** 2 phases, 3 plans, 6 tasks
+
+**Key accomplishments:**
+
+- Dashboard analytics refresh now waits for analytics initialization and reloads usage data from `chrome.storage.local` instead of relying on stale in-memory state.
+- Off-screen analytics updates are deferred through `dashboardState.analyticsNeedsRefresh` and replayed when the operator returns to the dashboard.
+- Missing dashboard label nodes are now null-safe, and the analytics refresh lifecycle is locked in place by `tests/dashboard-analytics-refresh.test.js` in the main `npm test` suite.
+- Local unpacked-extension smoke verification confirmed that a real task completion updates request count, token totals, cost, and chart data on the options page.
+
+**Accepted debt at close:**
+
+- `Off-Screen Dashboard Refresh Smoke` remains explicitly deferred for a final local rerun before any push or release tagging.
+- No standalone `v0.9.27` milestone-audit document was created; closure relies on the phase-level review, security, UAT, and verification artifacts for Phases 171-172.
+
+**Stats:**
+
+- 2 phases, 3 plans, 6 tasks
+- Key files: `ui/options.js`, `utils/analytics.js`, `tests/dashboard-analytics-refresh.test.js`, `package.json`
+
+---
+
 ## v0.9.26 Progress Overlay Refinement (Shipped: 2026-04-12)
 
 **Phases completed:** 3 phases, 5 plans, 9 tasks
