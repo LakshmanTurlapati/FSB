@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.9.27
 milestone_name: Usage Dashboard Fix
-status: planning
-stopped_at: Phase 171 UI-SPEC approved
-last_updated: "2026-04-13T00:43:48.607Z"
-last_activity: 2026-04-12 -- Milestone v0.9.27 roadmap created
+status: completed
+stopped_at: Phase 172 complete -- milestone ready to close
+last_updated: "2026-04-14T08:47:55Z"
+last_activity: 2026-04-14
 progress:
   total_phases: 2
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 2
+  total_plans: 3
+  completed_plans: 3
+  percent: 100
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-12)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** Phase 171 -- Dashboard Data Flow & Rendering Fixes
+**Current focus:** Milestone v0.9.27 — ready to close
 
 ## Current Position
 
-Phase: 1 of 2 (Phase 171: Dashboard Data Flow & Rendering Fixes)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-04-12 -- Milestone v0.9.27 roadmap created
+Phase: 172 (end-to-end-smoke-verification) — COMPLETE
+Plan: 2 of 2
+Status: Milestone complete — ready to close
+Last activity: 2026-04-14
 
-Progress: [----------] 0%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -46,6 +46,8 @@ Progress: [----------] 0%
 | 169 | P01 | -- | -- | -- |
 | 169 | P02 | -- | -- | -- |
 | 170 | P01 | -- | -- | -- |
+| Phase 171 P01 | 1h 33m | 2 tasks | 4 files |
+| Phase 172 P01 | 0 min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -68,6 +70,6 @@ No pending todos for this milestone.
 
 ## Session Continuity
 
-Last session: 2026-04-13T00:43:48.605Z
-Stopped at: Phase 171 UI-SPEC approved
-Resume file: .planning/phases/171-dashboard-data-flow-rendering-fixes/171-UI-SPEC.md
+Last session: 2026-04-14T08:47:55Z
+Stopped at: Phase 172 complete -- milestone ready to close
+Resume file: None

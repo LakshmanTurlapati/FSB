@@ -33,8 +33,8 @@
 
 ## Phases
 
-- [ ] **Phase 171: Dashboard Data Flow & Rendering Fixes** - Fix storage read path, null safety, chart init, and cost breakdown display so the analytics dashboard renders tracked data reliably
-- [ ] **Phase 172: End-to-End Smoke Verification** - Verify the full pipeline from background tracking through storage to options page chart and metrics display
+- [x] **Phase 171: Dashboard Data Flow & Rendering Fixes** - Fix storage read path, null safety, chart init, and cost breakdown display so the analytics dashboard renders tracked data reliably (completed 2026-04-14)
+- [x] **Phase 172: End-to-End Smoke Verification** - Verify the full pipeline from background tracking through storage to options page chart and metrics display (completed 2026-04-14)
 
 ## Phase Details
 
@@ -66,8 +66,8 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 171. Dashboard Data Flow & Rendering Fixes | 0/? | Not started | - |
-| 172. End-to-End Smoke Verification | 0/? | Not started | - |
+| 171. Dashboard Data Flow & Rendering Fixes | 1/1 | Complete    | 2026-04-14 |
+| 172. End-to-End Smoke Verification | 2/2 | Complete    | 2026-04-14 |
 
 ---
 
