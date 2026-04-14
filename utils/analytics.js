@@ -708,8 +708,8 @@ class FSBAnalytics {
     const labels = labelMappings[timeRange] || labelMappings['24h'];
     
     // Update label elements if they exist
-    const tokensLabel = document.querySelector('#totalTokensToday').nextElementSibling;
-    const costLabel = document.querySelector('#totalCostToday').nextElementSibling;
+    const tokensLabel = document.querySelector('#totalTokensToday')?.nextElementSibling;
+    const costLabel = document.querySelector('#totalCostToday')?.nextElementSibling;
     const inputLabel = document.querySelector('#inputTokensToday')?.parentElement?.querySelector('.card-subtitle');
     const outputLabel = document.querySelector('#outputTokensToday')?.parentElement?.querySelector('.card-subtitle');
     

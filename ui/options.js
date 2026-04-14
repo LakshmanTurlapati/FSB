@@ -73,6 +73,7 @@ function renderProviderIcon(provider) {
 // Dashboard state
 const dashboardState = {
   currentSection: 'dashboard',
+  analyticsNeedsRefresh: false,
   hasUnsavedChanges: false,
   isApiTesting: false,
   connectionStatus: 'checking'
@@ -225,9 +226,13 @@ function cacheElements() {
   elements.researchList = document.getElementById('researchList');
 }
 
-function refreshAnalyticsDashboard() {
-  if (!analytics || !analytics.initialized) {
-    return Promise.resolve();
+async function refreshAnalyticsDashboard() {
+  if (!analytics) {
+    return;
+  }
+
+  if (!analytics.initialized) {
+    await analytics.initPromise;
   }
 
   const timeRange = document.getElementById('chartTimeRange')?.value || '24h';
@@ -531,7 +536,10 @@ function setupEventListeners() {
     if (namespace === 'local') {
       if (changes.fsbUsageData || changes.fsbCurrentModel) {
         // Only refresh if the dashboard section is currently visible
-        if (dashboardState.currentSection !== 'dashboard') return;
+        if (dashboardState.currentSection !== 'dashboard') {
+          dashboardState.analyticsNeedsRefresh = true;
+          return;
+        }
 
         clearTimeout(_analyticsRefreshTimer);
         _analyticsRefreshTimer = setTimeout(() => {
@@ -561,8 +569,12 @@ function setupEventListeners() {
   });
 
   chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === 'ANALYTICS_UPDATE' && dashboardState.currentSection === 'dashboard') {
-      refreshAnalyticsDashboard();
+    if (message.type === 'ANALYTICS_UPDATE') {
+      if (dashboardState.currentSection === 'dashboard') {
+        refreshAnalyticsDashboard();
+      } else {
+        dashboardState.analyticsNeedsRefresh = true;
+      }
     }
   });
 }
@@ -3341,7 +3353,8 @@ function initializeCredentialManager() {
   const origSwitchSection = switchSection;
   switchSection = function(sectionId) {
     origSwitchSection(sectionId);
-    if (sectionId === 'dashboard') {
+    if (sectionId === 'dashboard' && dashboardState.analyticsNeedsRefresh) {
+      dashboardState.analyticsNeedsRefresh = false;
       refreshAnalyticsDashboard();
     }
     if (sectionId === 'passwords' || sectionId === 'payments') {
