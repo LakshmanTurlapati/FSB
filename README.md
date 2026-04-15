@@ -453,6 +453,34 @@ Configure all settings through the extension's built-in options page:
 
 ---
 
+## MCP Server
+
+FSB includes a standalone MCP server ([`fsb-mcp-server`](https://www.npmjs.com/package/fsb-mcp-server)) that connects any MCP-compatible AI client to your browser. 58 tools across manual control, autopilot, agents, and observability.
+
+### One-Command Install
+
+```bash
+npx -y fsb-mcp-server install --claude-desktop   # Claude Desktop
+npx -y fsb-mcp-server install --claude-code       # Claude Code
+npx -y fsb-mcp-server install --cursor            # Cursor
+npx -y fsb-mcp-server install --vscode            # VS Code
+npx -y fsb-mcp-server install --windsurf          # Windsurf
+npx -y fsb-mcp-server install --cline             # Cline
+npx -y fsb-mcp-server install --zed               # Zed
+npx -y fsb-mcp-server install --gemini            # Gemini CLI
+npx -y fsb-mcp-server install --codex             # OpenAI Codex
+npx -y fsb-mcp-server install --continue          # Continue
+npx -y fsb-mcp-server install --all               # All detected platforms
+```
+
+Preview changes without writing: `npx -y fsb-mcp-server install --all --dry-run`
+
+Remove from a platform: `npx -y fsb-mcp-server uninstall --cursor`
+
+See the [MCP server README](https://www.npmjs.com/package/fsb-mcp-server) for the full tool reference, transport options, and architecture details.
+
+---
+
 ## Development
 
 ### Project Structure

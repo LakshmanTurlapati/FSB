@@ -8,20 +8,17 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current State
+## Current Milestone: v0.9.30 MCP Platform Install Flags
 
-FSB shipped `v0.9.29 Showcase Angular Migration` on 2026-04-15 with accepted scope gaps. Delivered scope covered Phase 173 route/theme/content/server parity in Angular, plus archival of the legacy vanilla showcase under `showcase/legacy-vanilla/`. Remaining migration scope for phases 174-177 was explicitly deferred to a future milestone.
+**Goal:** Replace copy-paste setup with one-command auto-configuration for every major MCP-capable platform.
 
-## Milestone Status
-
-No milestone is currently active.
-Start the next milestone with `$gsd-new-milestone <next-version>`.
-
-## Next Milestone Goals
-
-- Establish a stable migration foundation so Angular can coexist with existing showcase assets and URLs during the cutover.
-- Preserve operator trust by keeping auth/session, agent controls, task execution, and DOM preview behavior equivalent to the current dashboard.
-- Close migration with explicit parity checks and updated run/build documentation.
+**Target features:**
+- Platform-specific `--<platform>` flags that auto-write the correct config file (Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Cline, Zed, Codex, Gemini CLI, Continue)
+- Cross-OS path resolution (macOS, Windows, Linux)
+- Safe config merging (read existing config, add FSB entry, preserve other servers)
+- Support for JSON, TOML, and YAML config formats
+- Uninstall semantics (`--uninstall --<platform>`) to cleanly remove the FSB entry
+- Upgraded `setup` command as fallback for unsupported/unknown platforms
 
 ## Requirements
 
@@ -328,4 +325,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-15 -- Milestone v0.9.29 archived with accepted scope gaps*
+*Last updated: 2026-04-15 -- Milestone v0.9.30 started*
