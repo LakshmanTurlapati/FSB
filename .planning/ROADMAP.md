@@ -43,7 +43,11 @@ Plans:
   3. Running `npx fsb-mcp-server uninstall --<platform>` removes only the FSB entry and preserves all other configured servers
   4. Running `install` with no platform flags prints usage help listing all 10 available platforms
   5. The existing `setup` command mentions `install --<platform>` as a faster alternative
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 175-01-PLAN.md -- Install/uninstall orchestration module (install.js) and config-writer API gap fix
+- [ ] 175-02-PLAN.md -- CLI router wiring (switch cases, help, setup updates) and end-to-end verification
 
 ### Phase 176: Non-JSON Platforms & Extended Flags
 **Goal**: Users can install FSB in every remaining MCP client (Claude Code, Codex, Continue) and use convenience flags for previewing and bulk installs
@@ -64,7 +68,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 174. Platform Registry & Config Engine | 0/2 | Not started | - |
-| 175. Install/Uninstall CLI & JSON Platforms | 0/? | Not started | - |
+| 175. Install/Uninstall CLI & JSON Platforms | 0/2 | Not started | - |
 | 176. Non-JSON Platforms & Extended Flags | 0/? | Not started | - |
 
 ## Last Shipped Milestone: v0.9.29 Showcase Angular Migration (shipped 2026-04-15)
