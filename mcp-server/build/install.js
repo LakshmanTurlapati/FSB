@@ -4,23 +4,16 @@ import { FSB_MCP_VERSION, FSB_SERVER_NAME } from './version.js';
 import { execSync } from 'node:child_process';
 
 /**
- * Non-JSON/JSONC formats that are deferred to Phase 176.
- * These platforms are listed in usage but not yet installable.
- */
-const DEFERRED_FORMATS = new Set(['toml', 'yaml', 'cli']);
-
-/**
- * Collect platforms whose flags are set and whose format is JSON or JSONC.
+ * Collect platforms whose flags are set and whose format is file-based (not CLI).
+ * CLI-format platforms (Claude Code) are handled separately via handleClaudeCodeInstall().
  * @param {object} flags - Parsed CLI flags (key -> boolean)
  * @returns {Array<{key: string, platform: object}>}
  */
 function getMatchedPlatforms(flags) {
   const matched = [];
   for (const [key, platform] of Object.entries(PLATFORMS)) {
-    if (flags[key] === true) {
-      if (platform.format === 'json' || platform.format === 'jsonc') {
-        matched.push({ key, platform });
-      }
+    if (flags[key] === true && platform.format !== 'cli') {
+      matched.push({ key, platform });
     }
   }
   return matched;
@@ -85,20 +78,26 @@ function printUninstallUsage() {
 }
 
 /**
- * Check for deferred (non-JSON) platform flags and print status messages.
- * Returns true if any deferred flags were found.
- * @param {object} flags - Parsed CLI flags
- * @returns {boolean}
+ * Handle Claude Code install via CLI delegation.
+ * Shells out to `claude mcp add` with --scope user (FSB is user-global).
+ * Falls back to printing the manual command if the CLI is not found.
+ *
+ * @returns {{installed: boolean, skipped: boolean}}
  */
-function handleDeferredFlags(flags) {
-  let found = false;
-  for (const [key, platform] of Object.entries(PLATFORMS)) {
-    if (flags[key] === true && DEFERRED_FORMATS.has(platform.format)) {
-      console.log('\u25CB --' + platform.flag + ' is not yet supported (coming in a future update)');
-      found = true;
+function handleClaudeCodeInstall() {
+  const cmd = 'claude mcp add --scope user ' + FSB_SERVER_NAME + ' -- npx -y fsb-mcp-server';
+  try {
+    execSync(cmd, { stdio: 'pipe', encoding: 'utf-8' });
+    console.log('\u2713 Added to Claude Code');
+    return { installed: true, skipped: false };
+  } catch (err) {
+    if (err.stdout?.includes('already exists') || err.stderr?.includes('already exists')) {
+      console.log('\u25CB Claude Code already configured');
+      return { installed: false, skipped: true };
     }
+    console.log('\u25CB Claude CLI not found \u2014 run manually: claude mcp add ' + FSB_SERVER_NAME + ' -- npx -y fsb-mcp-server');
+    return { installed: false, skipped: false };
   }
-  return found;
 }
 
 /**
@@ -109,10 +108,14 @@ function handleDeferredFlags(flags) {
  * @param {object} flags - Parsed CLI flags (platform keys mapped to boolean)
  */
 export async function runInstall(flags) {
-  const matched = getMatchedPlatforms(flags);
-  const hadDeferred = handleDeferredFlags(flags);
+  // Claude Code: CLI delegation (mirrors uninstall pattern)
+  if (flags['claude-code'] === true) {
+    handleClaudeCodeInstall();
+  }
 
-  if (matched.length === 0 && !hadDeferred) {
+  const matched = getMatchedPlatforms(flags);
+
+  if (matched.length === 0 && !flags['claude-code']) {
     printInstallUsage();
     return;
   }
@@ -154,9 +157,8 @@ export async function runUninstall(flags) {
   }
 
   const matched = getMatchedPlatforms(flags);
-  const hadDeferred = handleDeferredFlags(flags);
 
-  if (matched.length === 0 && !flags['claude-code'] && !hadDeferred) {
+  if (matched.length === 0 && !flags['claude-code']) {
     printUninstallUsage();
     return;
   }
