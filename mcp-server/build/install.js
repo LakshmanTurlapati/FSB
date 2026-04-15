@@ -63,6 +63,10 @@ function printInstallUsage() {
   console.log('');
   console.log('Platforms:');
   console.log(buildPlatformList());
+  console.log('');
+  console.log('Flags:');
+  console.log('  --all               Install to all detected platforms');
+  console.log('  --dry-run           Preview changes without modifying files');
 }
 
 /**
@@ -75,6 +79,10 @@ function printUninstallUsage() {
   console.log('');
   console.log('Platforms:');
   console.log(buildPlatformList());
+  console.log('');
+  console.log('Flags:');
+  console.log('  --all               Remove from all configured platforms');
+  console.log('  --dry-run           Preview changes without modifying files');
 }
 
 /**
@@ -139,9 +147,24 @@ function handleClaudeCodeInstall(dryRun) {
  * @param {object} flags - Parsed CLI flags (platform keys mapped to boolean)
  */
 export async function runInstall(flags) {
+  // --all expansion: set all platform keys before matching (Pitfall 4)
+  if (flags.all === true || flags['all'] === true) {
+    for (const key of Object.keys(PLATFORMS)) {
+      flags[key] = true;
+    }
+  }
+
+  const isAll = flags.all === true || flags['all'] === true;
+  let successCount = 0;
+  let totalCount = 0;
+
   // Claude Code: CLI delegation (mirrors uninstall pattern)
   if (flags['claude-code'] === true) {
-    handleClaudeCodeInstall(flags['dry-run'] === true);
+    const ccResult = handleClaudeCodeInstall(flags['dry-run'] === true);
+    totalCount++;
+    if (ccResult.installed || flags['dry-run'] === true) {
+      successCount++;
+    }
   }
 
   const matched = getMatchedPlatforms(flags);
@@ -154,7 +177,12 @@ export async function runInstall(flags) {
   for (const { key, platform } of matched) {
     const configPath = resolvePlatformConfig(key);
     if (configPath === null) {
-      console.log('\u25CB ' + platform.displayName + ' is not supported on this OS');
+      if (isAll) {
+        console.log('\u25CB Skipped ' + platform.displayName + ' (not installed)');
+      } else {
+        console.log('\u25CB ' + platform.displayName + ' is not supported on this OS');
+      }
+      totalCount++;
       continue;
     }
 
@@ -166,11 +194,23 @@ export async function runInstall(flags) {
 
     if (flags['dry-run'] === true) {
       printDryRunPreview(platform, configPath, entry);
+      totalCount++;
+      successCount++;
       continue;
     }
 
     const result = await installToConfig(configPath, platform, FSB_SERVER_NAME, entry);
     printResult(result);
+    totalCount++;
+    if (result.status === 'created' || result.status === 'updated') {
+      successCount++;
+    }
+  }
+
+  if (isAll) {
+    const verb = flags['dry-run'] === true ? 'Would install to' : 'Installed to';
+    console.log('');
+    console.log(verb + ' ' + successCount + ' of ' + Object.keys(PLATFORMS).length + ' platforms');
   }
 }
 
@@ -182,17 +222,37 @@ export async function runInstall(flags) {
  * @param {object} flags - Parsed CLI flags (platform keys mapped to boolean)
  */
 export async function runUninstall(flags) {
+  // --all expansion: set all platform keys before matching (Pitfall 4)
+  if (flags.all === true || flags['all'] === true) {
+    for (const key of Object.keys(PLATFORMS)) {
+      flags[key] = true;
+    }
+  }
+
+  const isAll = flags.all === true || flags['all'] === true;
+  let successCount = 0;
+  let totalCount = 0;
+
   // Special case: Claude Code uninstall via CLI delegation (UNINST-05)
   if (flags['claude-code'] === true) {
     if (flags['dry-run'] === true) {
       console.log('[DRY RUN] Claude Code');
       console.log('  Command: claude mcp remove ' + FSB_SERVER_NAME);
+      totalCount++;
+      successCount++;
     } else {
       try {
         execSync('claude mcp remove ' + FSB_SERVER_NAME, { stdio: 'pipe', encoding: 'utf-8' });
         console.log('\u2713 Removed FSB from Claude Code');
+        totalCount++;
+        successCount++;
       } catch {
-        console.log('\u25CB Claude Code: run manually: claude mcp remove ' + FSB_SERVER_NAME);
+        if (isAll) {
+          console.log('\u25CB Skipped Claude Code (CLI not found)');
+        } else {
+          console.log('\u25CB Claude Code: run manually: claude mcp remove ' + FSB_SERVER_NAME);
+        }
+        totalCount++;
       }
     }
   }
@@ -207,16 +267,33 @@ export async function runUninstall(flags) {
   for (const { key, platform } of matched) {
     const configPath = resolvePlatformConfig(key);
     if (configPath === null) {
-      console.log('\u25CB ' + platform.displayName + ' is not supported on this OS');
+      if (isAll) {
+        console.log('\u25CB Skipped ' + platform.displayName + ' (not installed)');
+      } else {
+        console.log('\u25CB ' + platform.displayName + ' is not supported on this OS');
+      }
+      totalCount++;
       continue;
     }
 
     if (flags['dry-run'] === true) {
       console.log('[DRY RUN] Would remove FSB from ' + platform.displayName + ': ' + configPath);
+      totalCount++;
+      successCount++;
       continue;
     }
 
     const result = await removeFromConfig(configPath, platform, FSB_SERVER_NAME);
     printResult(result);
+    totalCount++;
+    if (result.status === 'removed') {
+      successCount++;
+    }
+  }
+
+  if (isAll) {
+    const verb = flags['dry-run'] === true ? 'Would remove from' : 'Removed from';
+    console.log('');
+    console.log(verb + ' ' + successCount + ' of ' + Object.keys(PLATFORMS).length + ' platforms');
   }
 }
