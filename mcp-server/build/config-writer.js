@@ -34,7 +34,7 @@ function parseByFormat(raw, format) {
  * @param {string} format - One of: 'json', 'jsonc', 'toml', 'yaml'
  * @returns {string} Serialized content
  */
-function serializeByFormat(data, format) {
+export function serializeByFormat(data, format) {
   switch (format) {
     case 'json':
     case 'jsonc':
