@@ -1,581 +1,330 @@
-# Technology Stack: Career Search Automation + Google Sheets Formatting
+# Technology Stack: MCP Platform Install Flags
 
-**Project:** FSB v9.4 - Career Search Automation
-**Researched:** 2026-02-23
-**Mode:** Ecosystem (Stack dimension for subsequent milestone)
-**Constraint:** Vanilla JS, no build system, no external libraries, Chrome Extension MV3
+**Project:** FSB v0.9.30 - MCP Platform Install Flags
+**Researched:** 2026-04-15
+**Mode:** Ecosystem (Stack for subsequent milestone)
+**Constraint:** TypeScript, ESM (`"type": "module"`), tsc build (NOT bundled), npm-distributed CLI
 **Overall confidence:** HIGH
 
 ---
 
 ## Executive Summary
 
-FSB v9.4 requires NO new external dependencies. The existing stack (vanilla JS, Chrome Extension MV3, importScripts service worker, per-site guide system, memory layer, keyboard/debugger API tooling) already contains every building block needed. The work is purely new vanilla JavaScript modules that transform existing data (JSON session logs) into existing formats (site guide JS files) and orchestrate existing tools (type, keyPress, click, navigate) in new patterns (career search workflow, Google Sheets formatting).
+The `fsb-mcp-server` npm package (v0.4.0) needs to auto-write config files for 10 MCP platforms. The existing CLI already has a hand-rolled arg parser and a `setup` command that prints copy-paste snippets. The new feature replaces manual copy-paste with `fsb-mcp-server install --claude-desktop` (and 9 other platform flags).
 
-Three capability gaps exist, all solvable with new vanilla JS code:
+Three new dependencies are needed. No more, no less:
 
-1. **Session Log Parser** -- Transform the 38 JSON research logs (6,800+ lines each for deep sites, ~800 for Sheets) into the `registerSiteGuide({...})` format already consumed by the AI prompt system. The logs already contain the exact data needed: interactive elements with selectors, internal links with URLs, page titles, form metadata, and navigation structure. This is a mechanical transformation, not a research problem.
+1. **`smol-toml`** (103KB, zero deps) -- Parse and write TOML for Codex CLI's `~/.codex/config.toml`
+2. **`yaml`** (685KB, zero deps) -- Parse and write YAML for Continue's `~/.continue/config.yaml`
+3. **`strip-json-comments`** (8KB, zero deps) -- Strip comments and trailing commas from JSONC before `JSON.parse()` for VS Code and Zed config files
 
-2. **Career-Specific Data Schema** -- The existing site guide format lacks a `jobSchema` field for structured job data extraction. A lightweight extension to the guide format (adding `jobSchema`, `searchWorkflow`, `paginationPattern`) gives the AI the intelligence to extract structured data across heterogeneous career sites.
+All three are ESM-native (or ESM-compatible), zero-dependency, and are the same libraries used by `add-mcp` (the Neon-maintained open-source MCP installer) -- a validated choice. Total added weight: ~796KB unpacked, ~0 transitive dependencies.
 
-3. **Google Sheets Formatting via Keyboard Shortcuts** -- FSB already types into Sheets via Name Box navigation and CDP text insertion. Formatting (bold headers, cell colors, column widths) requires keyboard shortcuts (Ctrl+B, Ctrl+Shift+1-6) and toolbar button clicks (fill color, font color pickers). The existing `keyPress` tool with `ctrlKey`/`shiftKey` modifiers and the `click` tool already handle this. The missing piece is a Sheets-specific site guide with formatting workflows.
-
-**Key decision: Do NOT add any libraries, APIs, or build tools.** Every capability needed is achievable with the existing toolset plus new vanilla JS modules.
-
----
-
-## 1. Session Log Parsing (New Module)
-
-### What Exists
-
-**Confidence: HIGH** (Verified by reading actual log files and existing converter)
-
-The 38 session logs in `/Logs/` follow a consistent JSON schema:
-
-```javascript
-{
-  "domain": "careers.microsoft.com",
-  "id": "research_1771837697366",
-  "startTime": 1771837697366,
-  "endTime": 1771837890302,
-  "startUrl": "https://careers.microsoft.com/",
-  "status": "completed",
-  "pages": [
-    {
-      "depth": 0,
-      "url": "https://careers.microsoft.com/",
-      "title": "Home | Microsoft Careers",
-      "timestamp": 1771837704278,
-      "interactiveElements": [
-        {
-          "type": "button|input|a|div",
-          "text": "Find jobs",
-          "id": "find-jobs-btn",
-          "class": "find-jobs-btn",
-          "elementId": "button_find_jobs_btn_...",
-          "selectors": ["#find-jobs-btn", "//button[...]"]
-        }
-      ],
-      "internalLinks": [
-        { "text": "Careers", "url": "https://careers.microsoft.com/v2/global/en/home.html" }
-      ],
-      "forms": [],
-      "headings": [],
-      "keySelectors": [],
-      "navigation": [],
-      "layout": {}
-    }
-  ],
-  "summary": {
-    "totalPages": 25,
-    "totalElements": 464,
-    "totalForms": 0,
-    "totalLinks": 363,
-    "crawlDuration": 192936,
-    "uniqueUrls": 25
-  }
-}
-```
-
-The existing `sitemap-converter.js` (`convertToSiteMap()`) already transforms this schema into a sitemap memory object. The existing `sitemap-refiner.js` (`refineSiteMapWithAI()`) already enriches sitemaps with AI-generated workflows and tips.
-
-### What Needs to Be Built
-
-A new module: `session-log-parser.js` (or integrated into existing sitemap pipeline).
-
-**Purpose:** Convert session log JSON into `registerSiteGuide({...})` format JS files.
-
-**The transformation is mechanical:**
-
-| Session Log Field | Site Guide Field | Transformation |
-|---|---|---|
-| `domain` | `site` name | Extract readable name from domain |
-| `domain` | `patterns` | Generate regex from domain |
-| `interactiveElements[].selectors` | `selectors` | Classify by role (searchBox, jobCards, etc.) |
-| `interactiveElements[].type + .text` | Element classification | `input` with search-related text -> `searchBox` |
-| `internalLinks` | `workflows` | Derive navigation paths |
-| `pages[].title + .url` | `guidance` text | Describe page structure |
-| AI enrichment (existing refiner) | `workflows`, `warnings`, `tips` | Same Tier 2 pattern |
-
-### Recommended Approach
-
-Use a **two-tier approach matching the existing sitemap pipeline:**
-
-**Tier 1 (Pure heuristic, no AI cost):** Parse JSON, classify interactive elements by heuristics:
-- Inputs with `placeholder*="search"`, `name*="keyword"`, `name*="search"`, `name*="q"`, `name*="k"` -> `searchBox`
-- Inputs with `placeholder*="location"`, `name*="l"`, `name*="location"` -> `locationBox`
-- Buttons with text matching `"search"`, `"find jobs"`, `"apply"` -> `searchButton`, `applyButton`
-- Links containing `/jobs/`, `/careers/`, `/apply/` -> navigation workflow steps
-- Elements with class/text containing `"job-card"`, `"job-listing"`, `"position"`, `"opening"` -> `jobCards`
-
-**Tier 2 (AI enrichment, existing pattern):** Send the Tier 1 output to the AI refiner (already built in `sitemap-refiner.js`) with a career-specific prompt variant to generate:
-- Verified search workflow steps
-- Pagination detection
-- Job listing element identification
-- Warning about dynamic loading, iframes, login walls
-
-### Technology Stack: None New
-
-| Component | Technology | Rationale |
-|---|---|---|
-| Parsing | Vanilla JS `JSON.parse()` | Logs are already valid JSON |
-| Heuristic classification | Vanilla JS string matching | Regex/includes on element attributes |
-| File generation | String templates | Generate `registerSiteGuide({...})` JS source |
-| AI enrichment | Existing `UniversalProvider` | Same pattern as `sitemap-refiner.js` |
-| Storage | `chrome.storage.local` or file output | Existing memory storage pattern |
-
-### NOT Needed
-
-- **No JSON Schema validator** -- Log format is controlled by FSB's own Site Explorer; it never varies
-- **No streaming JSON parser** -- Largest log is ~7K lines (~500KB), well within memory
-- **No AST/code generation library** -- Site guide JS files are simple string templates
-- **No natural language processing** -- Element classification is pattern matching on known attributes
+Everything else uses Node.js built-ins: `fs/promises` for file I/O, `os.homedir()` + `path.join()` + `process.platform` for cross-OS path resolution, `JSON.parse()`/`JSON.stringify()` for JSON config merging, and `child_process.execSync` for the Claude Code CLI path.
 
 ---
 
-## 2. Career-Specific Data Structures (Schema Extension)
+## Platform Config Matrix
 
-### What Exists
+**Confidence: HIGH** -- All paths and formats verified against official documentation.
 
-**Confidence: HIGH** (Verified by reading existing site guide files)
-
-Current site guide format:
-
-```javascript
-registerSiteGuide({
-  site: 'Indeed',
-  category: 'Career & Job Search',
-  patterns: [/indeed\.com/i],
-  guidance: `...free-text AI instructions...`,
-  selectors: {
-    searchBox: '...',
-    jobCards: '...',
-    jobTitle: '...',
-    // ...
-  },
-  workflows: {
-    searchJobs: ['Step 1', 'Step 2', ...],
-    extractJobData: ['Step 1', 'Step 2', ...]
-  },
-  warnings: ['...'],
-  toolPreferences: ['navigate', 'type', 'click', ...]
-});
-```
-
-The `_shared.js` for the Career category already defines the 6 required fields:
-1. Company Name
-2. Role/Title
-3. Date Posted
-4. Location
-5. Description Summary
-6. Apply Link
-
-### What Needs to Be Added
-
-Extend the site guide schema with career-specific structured fields. These are consumed by the AI prompt system via `_buildTaskGuidance()` in `ai-integration.js`.
-
-```javascript
-registerSiteGuide({
-  // ...existing fields...
-
-  // NEW: Structured job listing schema for data extraction
-  jobSchema: {
-    title: { selectors: ['.jobTitle a', '.jcs-JobTitle'], attribute: 'textContent' },
-    company: { selectors: ['.companyName'], attribute: 'textContent' },
-    location: { selectors: ['.companyLocation'], attribute: 'textContent' },
-    datePosted: { selectors: ['.date'], attribute: 'textContent' },
-    description: { selectors: ['.job-description p:first-child'], attribute: 'textContent', maxLength: 200 },
-    applyLink: { selectors: ['.jobsearch-IndeedApplyButton a', 'a[href*="apply"]'], attribute: 'href' }
-  },
-
-  // NEW: Explicit search workflow with parameter slots
-  searchWorkflow: {
-    steps: [
-      { action: 'navigate', target: 'https://www.amazon.jobs/' },
-      { action: 'type', selector: 'searchBox', value: '{query}' },
-      { action: 'type', selector: 'locationBox', value: '{location}' },
-      { action: 'click', selector: 'searchButton' },
-      { action: 'waitForElement', selector: 'jobCards' }
-    ],
-    parameters: ['query', 'location']
-  },
-
-  // NEW: Pagination pattern for multi-page results
-  paginationPattern: {
-    type: 'click',  // 'click' | 'scroll' | 'url-param'
-    nextSelector: '.pagination-next, [aria-label="Next"]',
-    hasMoreIndicator: '.pagination-next:not([disabled])',
-    maxPages: 3
-  }
-});
-```
-
-### Why This Structure
-
-| Field | Purpose | How AI Uses It |
-|---|---|---|
-| `jobSchema` | Tells AI exactly which selectors to use for each data field | AI extracts structured data instead of guessing element roles |
-| `searchWorkflow` | Pre-defined step sequence with `{parameter}` slots | AI fills in user's query/location and executes without improvising |
-| `paginationPattern` | How to get more results | AI knows whether to click "Next", scroll, or modify URL |
-
-### Integration Point
-
-The existing `_buildTaskGuidance()` method in `ai-integration.js` (lines 3921-3983) already formats site guide data into the system prompt. It concatenates `guidance`, `selectors`, `workflows`, and `warnings`. Adding `jobSchema`, `searchWorkflow`, and `paginationPattern` requires a small extension to this method -- serialize these new fields into the prompt text when present.
-
-### Technology Stack: None New
-
-This is a schema convention change (adding optional fields to the site guide object), not a technology change. No new dependencies.
-
----
-
-## 3. Google Sheets Formatting via Browser Automation
-
-### What Exists
-
-**Confidence: HIGH** (Verified by reading actions.js and google-sheets.js site guide)
-
-FSB already supports Google Sheets interaction:
-- **Name Box navigation:** Click `#t-name-box`, type cell reference (e.g., "A1"), press Enter
-- **Cell data entry:** Type value, press Tab (next column) or Enter (next row)
-- **Canvas-based editor detection:** `FSB.isCanvasBasedEditor()` returns true on `docs.google.com`
-- **CDP text insertion:** Direct text input bypassing DOM for canvas editors
-- **keyPress tool with modifiers:** `keyPress({ key, ctrlKey, shiftKey, altKey, metaKey })` via Chrome Debugger API
-- **Click tool:** Works on toolbar buttons (they are standard DOM elements with aria-labels)
-
-### What Formatting Requires
-
-Google Sheets formatting is achievable through two mechanisms FSB already has:
-
-**Mechanism 1: Keyboard Shortcuts (preferred -- reliable, no DOM lookup needed)**
-
-| Formatting | Shortcut (Windows/ChromeOS) | Shortcut (Mac) | FSB Tool Call |
-|---|---|---|---|
-| Bold | Ctrl+B | Cmd+B | `keyPress({ key: 'b', ctrlKey: true })` |
-| Italic | Ctrl+I | Cmd+I | `keyPress({ key: 'i', ctrlKey: true })` |
-| Underline | Ctrl+U | Cmd+U | `keyPress({ key: 'u', ctrlKey: true })` |
-| Strikethrough | Alt+Shift+5 | Cmd+Shift+X | `keyPress({ key: '5', altKey: true, shiftKey: true })` |
-| Number format | Ctrl+Shift+1 through 6 | Cmd+Shift+1-6 | `keyPress({ key: '1', ctrlKey: true, shiftKey: true })` |
-| Clear formatting | Ctrl+\ | Cmd+\ | `keyPress({ key: '\\', ctrlKey: true })` |
-| Select all in row | Shift+Space | Shift+Space | `keyPress({ key: ' ', shiftKey: true })` |
-| Select entire column | Ctrl+Space | Ctrl+Space | `keyPress({ key: ' ', ctrlKey: true })` |
-| Select range | Shift+Arrow | Shift+Arrow | `keyPress({ key: 'ArrowRight', shiftKey: true })` |
-
-**Sources:** [Google Sheets Keyboard Shortcuts](https://support.google.com/docs/answer/181110)
-
-**Mechanism 2: Toolbar Button Clicks (for colors and advanced formatting)**
-
-Google Sheets toolbar buttons are standard DOM elements (not canvas) with `aria-label` attributes. These are clickable via FSB's existing `click` tool.
-
-| Formatting | Toolbar Element | Approach |
-|---|---|---|
-| Fill color | Button with aria-label containing "Fill color" | Click button to open picker, then click color swatch |
-| Font color | Button with aria-label containing "Text color" or "Font color" | Click button to open picker, then click color swatch |
-| Font size | Dropdown with current font size value | Click to open, type size or click option |
-| Merge cells | Button with aria-label "Merge cells" | Select range first, then click |
-| Borders | Button with aria-label "Borders" | Click to open border picker |
-| Text alignment | Buttons with aria-label "Left align", "Center align", "Right align" | Direct click |
-| Column resize | Double-click column border in header | Use existing doubleClick tool |
-
-**Confidence on aria-labels: MEDIUM** -- These are discoverable at runtime by FSB's DOM analysis, but exact labels may vary by locale and Google Sheets version. The site guide should document the known labels, with the AI falling back to visual inspection of the toolbar if labels change.
-
-**Mechanism 3: Format Menu Navigation (fallback for colors)**
-
-For fill/font color when toolbar buttons are hard to target:
-1. Click Format menu (`#docs-format-menu`)
-2. Navigate to relevant submenu item
-3. Select color from the color picker dialog
-
-### Recommended Formatting Workflow
-
-For the career search output (formatted table with headers):
-
-```
-1. Navigate to cell A1 via Name Box
-2. Type header row: "Company" [Tab] "Role" [Tab] "Date Posted" [Tab] "Location" [Tab] "Description" [Tab] "Apply Link" [Enter]
-3. Select header row: Click A1, then Shift+Ctrl+Right to select through F1
-4. Apply bold: Ctrl+B
-5. Apply fill color: Click Fill Color toolbar button, select header color
-6. Enter data rows: Type value [Tab] value [Tab] ... [Enter] per row
-7. Auto-resize columns: Select all (Ctrl+A), then Format menu -> Column width -> Fit to data
-```
-
-### What Needs to Be Built
-
-A Sheets-specific formatting workflow section in the Google Sheets site guide, plus a small enhancement to the `_buildTaskGuidance()` prompt builder to include formatting instructions when the task involves data output to Sheets.
-
-**No new tools needed.** The existing `keyPress`, `click`, `type`, and `navigate` tools cover all required operations.
-
-### Technology Stack: None New
-
-| Capability | Existing Tool | New Code Needed |
-|---|---|---|
-| Cell navigation | Name Box click + type + Enter | None |
-| Data entry | CDP type + Tab/Enter keyPress | None |
-| Bold/italic/underline | keyPress with modifiers | None (already supports ctrlKey, shiftKey) |
-| Fill color | click on toolbar button | Site guide with toolbar selectors |
-| Column resize | Format menu navigation | Site guide workflow steps |
-| Range selection | Shift+Arrow/Click keyPress | None |
-
----
-
-## 4. Job Data Extraction and Structured Output
-
-### What Exists
-
-The AI already extracts text from pages via `getText` and `getAttribute` tools. The memory system already stores structured data. The career category `_shared.js` already defines the 6 required fields.
-
-### What Needs to Be Built
-
-A **job data accumulator** pattern -- the AI needs to collect data across multiple career sites and hold it in working memory until ready to output to Google Sheets.
-
-**Option A: AI Conversation Memory (Recommended)**
-
-The AI already maintains conversation history across iterations. The structured prompt can instruct the AI to accumulate job data in a consistent format within its conversation context:
-
-```
-After extracting jobs from each site, record them in this format in your response:
-JOB_DATA: {"company": "...", "title": "...", "datePosted": "...", "location": "...", "description": "...", "applyLink": "..."}
-```
-
-The AI's conversation history preserves this across tab switches and site navigations. When it reaches the Sheets output phase, it has all accumulated data in context.
-
-**Pros:** No new storage mechanism needed, uses existing conversation flow
-**Cons:** Limited by context window, data could be lost if conversation is compacted
-
-**Option B: chrome.storage.local Accumulator**
-
-Store extracted job data in a dedicated `chrome.storage.local` key during the session:
-
-```javascript
-// In background.js or a new career-session.js module
-async function addJobData(sessionId, jobData) {
-  const key = `career_jobs_${sessionId}`;
-  const existing = await chrome.storage.local.get(key);
-  const jobs = existing[key] || [];
-  jobs.push(jobData);
-  await chrome.storage.local.set({ [key]: jobs });
-}
-```
-
-**Pros:** Survives context compaction, can accumulate unlimited jobs, inspectable
-**Cons:** Requires a new tool for the AI to call, adds implementation complexity
-
-**Recommendation: Option B (storage accumulator).** The end-to-end workflow involves visiting 30+ career sites, extracting 3-5 jobs each, then outputting 90-150 rows to Sheets. This exceeds comfortable conversation context. A storage accumulator is more robust and enables progress tracking.
-
-### New Tool Needed
-
-One new tool for the content script `tools` object:
-
-```javascript
-// Add to content/actions.js tools object
-storeJobData: async (params) => {
-  const { company, title, datePosted, location, description, applyLink } = params;
-  const response = await chrome.runtime.sendMessage({
-    action: 'storeCareerData',
-    data: { company, title, datePosted, location, description, applyLink }
-  });
-  return { success: response.success, totalJobs: response.totalJobs };
-},
-
-getStoredJobs: async (params) => {
-  const response = await chrome.runtime.sendMessage({
-    action: 'getCareerData'
-  });
-  return { success: true, jobs: response.jobs, totalJobs: response.jobs.length };
-}
-```
-
-Plus a message handler in `background.js`:
-
-```javascript
-case 'storeCareerData':
-  // Append to session-scoped storage
-  break;
-case 'getCareerData':
-  // Return all accumulated jobs for current session
-  break;
-```
-
-### Technology Stack: None New
-
-This uses `chrome.storage.local` (already a permission) and the existing message passing architecture.
-
----
-
-## 5. Multi-Tab Orchestration
-
-### What Exists
-
-**Confidence: HIGH** (Verified in background.js and actions.js)
-
-FSB already has:
-- `openNewTab` tool -- opens URLs in new tabs
-- `switchToTab` tool -- switches between open tabs
-- Tab tracking in background.js via `chrome.tabs` API
-- `webNavigation` permission for detecting tab navigations
-
-### What Needs to Be Built
-
-The career search workflow requires visiting 30+ career sites sequentially. Two approaches:
-
-**Approach A: Single-Tab Sequential (Recommended)**
-
-Navigate to each career site in the same tab, extract data, then navigate to the next site. Finally, open Google Sheets and output all data.
-
-**Pros:** Simple, matches existing FSB single-tab automation model, no tab management complexity
-**Cons:** Slower (sequential navigation), AI must track progress
-
-**Approach B: Multi-Tab Parallel**
-
-Open multiple tabs, extract data in parallel.
-
-**Pros:** Faster
-**Cons:** Significantly more complex orchestration, AI context doesn't span tabs, harder to debug
-
-**Recommendation: Approach A (single-tab sequential).** Multi-tab parallelism is a future optimization. The v9.4 goal is end-to-end functionality, not speed. The storage accumulator (Section 4) decouples extraction from output, so the AI can extract from all sites first, then switch to Sheets for output.
-
----
-
-## 6. Site Guide Generation Pipeline
-
-### Overview
-
-The end-to-end pipeline for turning session logs into site guides:
-
-```
-Session Logs (JSON)                  Site Guides (JS)
-     |                                    ^
-     v                                    |
-[Tier 1: Heuristic Parser]          [File Generator]
-     |                                    ^
-     v                                    |
-[Intermediate Structure]    ---->   [Tier 2: AI Enrichment]
-```
-
-### Module Architecture
-
-| Module | Location | Purpose | New/Existing |
-|---|---|---|---|
-| `session-log-parser.js` | `lib/career/` or `lib/memory/` | Tier 1 heuristic parsing of JSON logs | NEW |
-| `career-guide-generator.js` | `lib/career/` | Generate `registerSiteGuide()` JS source files | NEW |
-| `sitemap-refiner.js` | `lib/memory/` | AI enrichment (Tier 2) | EXISTING (may need career-specific prompt variant) |
-| `site-guides/index.js` | `site-guides/` | Registry and URL matching | EXISTING (no changes needed) |
-| `background.js` | root | importScripts for new career site guides | EXISTING (add new importScripts lines) |
-
-### File Output Location
-
-New career site guides go in `site-guides/career/`:
-
-```
-site-guides/career/
-  _shared.js          (existing -- category-level guidance)
-  generic.js          (existing -- ATS platform patterns)
-  indeed.js           (existing)
-  glassdoor.js        (existing)
-  builtin.js          (existing)
-  microsoft.js        (NEW -- generated from session log)
-  amazon-jobs.js      (NEW -- generated from session log)
-  meta.js             (NEW -- generated from session log)
-  apple.js            (NEW -- generated from session log)
-  boeing.js           (NEW -- generated from session log)
-  ... (30+ more)
-```
-
-Each generated file follows the exact same `registerSiteGuide({...})` pattern as existing files. They are loaded via `importScripts()` in `background.js`, same as the 43 existing guides.
-
-### Session Log Inventory
-
-38 research logs available covering:
-
-**FAANG/Big Tech (7):** Microsoft, Amazon, Meta, Apple, Google, NVIDIA, Tesla
-**Finance (7):** Goldman Sachs, JP Morgan, Visa, Bank of America, Mastercard, Morgan Stanley, Capital One
-**Enterprise/Defense (5):** Boeing, Lockheed Martin, IBM, Oracle, Deloitte
-**Telecom (3):** AT&T, Verizon, Qatar Airways
-**Retail (5):** Walmart, Target, Home Depot, Costco, Lowe's
-**Healthcare/Other (7):** CVS Health, UnitedHealth, Pfizer, J&J, McKesson, Mr Cooper, TI
-**AI (1):** OpenAI
-**Productivity (1):** Google Docs/Sheets (for Sheets formatting intelligence)
-**Search (3):** Google.com (for career page discovery workflow)
-
----
-
-## 7. Complete Stack Summary
-
-### No New Dependencies
-
-| Category | Technology | Version | Status | Notes |
+| Platform | Config File Path (macOS) | Format | Root Key | Notes |
 |---|---|---|---|---|
-| Runtime | Chrome Extension MV3 | Chrome 88+ | EXISTING | No changes |
-| Language | Vanilla JavaScript ES2021+ | N/A | EXISTING | No changes |
-| AI Integration | UniversalProvider | N/A | EXISTING | May add career-specific prompt |
-| Storage | chrome.storage.local | MV3 API | EXISTING | Add career data accumulator |
-| Keyboard | Chrome Debugger API (CDP) | N/A | EXISTING | Already supports key modifiers |
-| DOM Analysis | FSB DOM analyzer | N/A | EXISTING | No changes |
-| Action Tools | tools object in actions.js | N/A | EXISTING | Add 2 new tools (storeJobData, getStoredJobs) |
-| Site Guides | registerSiteGuide() system | N/A | EXISTING | Add 30+ new career site files |
-| Sitemap Pipeline | sitemap-converter + refiner | N/A | EXISTING | Reuse for session log processing |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` | JSON | `mcpServers` | Windows: `%APPDATA%\Claude\`; Linux: `~/.config/claude-desktop/` |
+| Claude Code | N/A (uses `claude mcp add` CLI) | CLI | N/A | Shell out to `claude mcp add fsb -- npx -y fsb-mcp-server`; fallback: print command |
+| Cursor | `~/.cursor/mcp.json` | JSON | `mcpServers` | Also supports project-level `.cursor/mcp.json` |
+| VS Code | `~/Library/Application Support/Code/User/mcp.json` | JSONC | `servers` | **Different root key** (`servers` not `mcpServers`); may contain `//` comments and trailing commas |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` | JSON | `mcpServers` | Same structure as Claude Desktop/Cursor |
+| Cline | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | JSON | `mcpServers` | Long path; Windows uses `%APPDATA%/Code/User/globalStorage/...` |
+| Zed | `~/.zed/settings.json` | JSONC | `context_servers` | **Different root key** AND **different server shape** (no wrapping object with `command`/`args` -- uses flat `command`+`args` directly) |
+| Codex CLI | `~/.codex/config.toml` | TOML | `[mcp_servers.fsb]` | Underscore in section name is critical (`mcp_servers` not `mcp-servers`) |
+| Gemini CLI | `~/.gemini/settings.json` | JSON | `mcpServers` | Same structure as Claude Desktop/Cursor |
+| Continue | `~/.continue/config.yaml` | YAML | `mcpServers` (array) | **Array** of server objects (not object-of-objects); YAML format |
 
-### New Vanilla JS Modules
+### Critical Format Variations
 
-| Module | Purpose | Est. Lines | Complexity |
-|---|---|---|---|
-| `lib/career/session-log-parser.js` | Parse JSON logs, classify elements | 200-300 | LOW -- string matching |
-| `lib/career/career-guide-generator.js` | Generate site guide JS source files | 150-250 | LOW -- template strings |
-| `lib/career/career-data-store.js` | Accumulate extracted job data in storage | 80-120 | LOW -- CRUD on chrome.storage |
-| 30+ `site-guides/career/*.js` files | Per-site career intelligence | 50-80 each | LOW -- generated output |
-| Enhanced `google-sheets.js` | Add formatting workflows | +50-80 lines | LOW -- extend existing |
+Three distinct config shapes exist across these 10 platforms:
 
-### Tools Addition to actions.js
+**Shape A -- `mcpServers` object (6 platforms):** Claude Desktop, Cursor, Windsurf, Cline, Gemini CLI
+```json
+{ "mcpServers": { "fsb": { "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
 
-| Tool | Purpose | Params |
+**Shape B -- `servers` object (1 platform):** VS Code
+```json
+{ "servers": { "fsb": { "type": "stdio", "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
+
+**Shape C -- `context_servers` object (1 platform):** Zed
+```json
+{ "context_servers": { "fsb": { "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
+
+**Shape D -- TOML table (1 platform):** Codex CLI
+```toml
+[mcp_servers.fsb]
+command = "npx"
+args = ["-y", "fsb-mcp-server"]
+```
+
+**Shape E -- YAML array (1 platform):** Continue
+```yaml
+mcpServers:
+  - name: FSB Browser Automation
+    command: npx
+    args:
+      - "-y"
+      - "fsb-mcp-server"
+```
+
+**Shape F -- CLI command (1 platform):** Claude Code
+```bash
+claude mcp add fsb -- npx -y fsb-mcp-server
+```
+
+---
+
+## Recommended Stack Additions
+
+### New Runtime Dependencies (3 total)
+
+| Library | Version | Unpacked Size | Deps | Purpose | Why This One |
+|---|---|---|---|---|---|
+| `smol-toml` | ^1.6.1 | 103KB | 0 | Parse/stringify TOML for Codex CLI config | Fastest TOML parser on npm (2x faster than @iarna/toml), ESM-native, zero deps, TOML v1.1.0 compliant, both parse AND stringify (the `toml` package is parse-only). Used by `add-mcp`. |
+| `yaml` | ^2.8.3 | 685KB | 0 | Parse/stringify YAML for Continue config | Zero deps, preserves comments on round-trip, full YAML 1.2 spec, both parse and stringify. The `js-yaml` alternative (386KB) has 1 dependency (`argparse`) and is slower at writing. The `yaml` package preserves document structure better for config file round-tripping. |
+| `strip-json-comments` | ^5.0.3 | 8KB | 0 | Strip `//` comments and trailing commas from JSONC before `JSON.parse()` | 8KB, zero deps, ESM-native (v5+), handles both comments AND trailing commas. VS Code and Zed config files use JSONC format. The `jsonc-parser` alternative (213KB) is heavier and provides AST features we do not need. |
+
+**Total added weight:** ~796KB unpacked (~30KB gzipped estimated). Zero transitive dependencies added.
+
+### Why NOT These Alternatives
+
+| Category | Rejected | Why |
 |---|---|---|
-| `storeJobData` | Save extracted job to session accumulator | `{ company, title, datePosted, location, description, applyLink }` |
-| `getStoredJobs` | Retrieve all accumulated jobs for Sheets output | `{}` |
+| TOML | `@iarna/toml` (2.2.5) | 2x slower than smol-toml, CJS-only (no native ESM), last published 2020 |
+| TOML | `toml` (3.0.0) | Parse-only -- cannot stringify back to TOML. We need both directions for safe merge. |
+| YAML | `js-yaml` (4.1.1) | Has 1 dependency (argparse), slower at writing, does not preserve comments on round-trip |
+| JSONC | `jsonc-parser` (3.3.1) | 213KB with full AST/edit API we do not need. We only need to strip comments before `JSON.parse()` |
+| JSONC | `comment-json` (5.0.0) | Has 2 dependencies (array-timsort, esprima), heavier than strip + JSON.parse |
+| Full installer | `add-mcp` (1.8.0) | CLI-only, no programmatic API, adds 6 transitive dependencies (chalk, commander, clack, etc.), cannot be imported as a library |
 
-### Background.js Changes
+### No New Dev Dependencies
 
-| Change | Purpose |
-|---|---|
-| Add `importScripts()` for new career guides | Load 30+ generated site guides |
-| Add message handlers for `storeCareerData` / `getCareerData` | Support job data accumulation |
+The existing dev stack is sufficient:
+- `typescript` ^5.9.3 -- Already present
+- `@types/node` ^22 -- Already present
+- `tsx` ^4.19 -- Already present for dev mode
 
----
-
-## 8. Alternatives Considered and Rejected
-
-| Alternative | Why Rejected |
-|---|---|
-| **Google Sheets API** | FSB automates the browser, not APIs. Using the Sheets API would require OAuth, API keys, and a different architecture. The browser automation approach is consistent with FSB's design philosophy. |
-| **Puppeteer/Playwright** | FSB is a Chrome Extension with content scripts, not a Node.js automation tool. These libraries run outside the browser and cannot be used in an extension context. |
-| **JSON Schema validation library (ajv)** | Session logs are produced by FSB's own code in a fixed format. Adding a validation library for a controlled schema is unnecessary complexity. Simple runtime checks suffice. |
-| **Template engine (handlebars, ejs)** | Site guide files are simple JS with a function call wrapping an object literal. ES template literals handle this without external dependencies. |
-| **Build system (webpack, esbuild)** | FSB's constraint is no build system. 30+ new site guide files loaded via `importScripts()` follow the same pattern as the existing 43 files. |
-| **IndexedDB** | `chrome.storage.local` with `unlimitedStorage` permission (already granted) is simpler and sufficient for the expected data volume (150 jobs with 6 fields each is <100KB). |
-| **Web Workers for parallel parsing** | 38 log files parse in <100ms sequentially. Parallelism adds complexity with no perceptible benefit. |
-| **Clipboard API for Sheets data paste** | Could paste a full table at once, but formatting (bold headers, colors) requires per-cell control. Sequential Name Box entry + keyboard shortcuts gives full formatting control. |
+Type definitions for `smol-toml`, `yaml`, and `strip-json-comments` are included in their packages (all ship `.d.ts` files).
 
 ---
 
-## 9. Risk Assessment
+## Built-in Node.js Capabilities (No Libraries Needed)
 
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| Google Sheets toolbar aria-labels change | LOW | MEDIUM | Site guide uses known labels; AI falls back to visual toolbar inspection |
-| Career site redesigns invalidate selectors | MEDIUM | LOW | Session logs can be re-crawled; generic fallback patterns in `_shared.js` cover common ATS platforms |
-| 30+ importScripts calls slow service worker startup | LOW | LOW | Each file is 50-80 lines (~3KB). 30 files = ~90KB total, negligible vs existing 43 files |
-| Job data accumulator exceeds storage | LOW | LOW | 150 jobs at ~500 bytes each = ~75KB, well within 10MB+ limit |
-| AI context window insufficient for multi-site workflow | MEDIUM | MEDIUM | Storage accumulator decouples extraction from output; AI doesn't need to hold all data in context |
-| Google Sheets canvas blocks formatting keyboard shortcuts | LOW | HIGH | Verified: keyboard shortcuts work in Sheets (they are handled by Sheets' JS, not the canvas). CDP keyPress dispatches events that Sheets responds to. |
+### Cross-OS Path Resolution
+
+**Confidence: HIGH** -- Standard Node.js APIs, well-documented.
+
+```typescript
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+function getConfigPath(platform: string): string {
+  const home = homedir();
+  const os = process.platform; // 'darwin' | 'win32' | 'linux'
+
+  switch (platform) {
+    case 'claude-desktop':
+      if (os === 'darwin') return join(home, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+      if (os === 'win32') return join(process.env.APPDATA!, 'Claude', 'claude_desktop_config.json');
+      return join(home, '.config', 'claude-desktop', 'claude_desktop_config.json');
+    // ... etc
+  }
+}
+```
+
+`os.homedir()`, `path.join()`, `process.platform`, and `process.env.APPDATA` cover all cross-OS needs without any external package.
+
+### JSON Merging
+
+**Confidence: HIGH** -- Built-in `JSON.parse()` + `JSON.stringify()` with spread/Object.assign.
+
+```typescript
+// Read existing config, merge FSB entry, write back
+const existing = JSON.parse(await readFile(configPath, 'utf-8'));
+existing.mcpServers = existing.mcpServers ?? {};
+existing.mcpServers.fsb = { command: 'npx', args: ['-y', 'fsb-mcp-server'] };
+await writeFile(configPath, JSON.stringify(existing, null, 2) + '\n');
+```
+
+No deep-merge library needed. MCP server entries are shallow objects. We replace the entire `fsb` key, preserving all other servers.
+
+### File Backup Before Modification
+
+**Confidence: HIGH** -- `fs.copyFile()` built-in.
+
+```typescript
+import { copyFile } from 'node:fs/promises';
+
+// Back up before modifying
+await copyFile(configPath, `${configPath}.bak`);
+```
+
+No library needed. Simple timestamp-suffixed backup (`config.json.bak` or `config.json.1713200000.bak`).
+
+### CLI Arg Parsing
+
+**Confidence: HIGH** -- Existing hand-rolled parser is sufficient.
+
+The existing `parseArgs()` in `index.ts` already handles `--flag`, `--flag value`, `--flag=value`, and `-h`/`-j` short flags. For the new feature, we add:
+
+```typescript
+// New command: install
+// New flags: --claude-desktop, --claude-code, --cursor, --vscode, --windsurf, --cline, --zed, --codex, --gemini, --continue
+// Optional: --uninstall (modifier flag)
+// Optional: --all (install to all detected platforms)
+```
+
+No need for `commander`, `yargs`, or `meow`. The existing parser handles boolean flags natively. Platform flags are all boolean (no values).
+
+### Shelling Out to Claude Code CLI
+
+**Confidence: MEDIUM** -- Depends on `claude` being in PATH.
+
+```typescript
+import { execSync } from 'node:child_process';
+
+try {
+  execSync('claude mcp add fsb -- npx -y fsb-mcp-server', { stdio: 'inherit' });
+} catch {
+  console.log('Could not run "claude mcp add". Run this manually:');
+  console.log('  claude mcp add fsb -- npx -y fsb-mcp-server');
+}
+```
+
+Fallback to printing the command if `claude` is not in PATH.
+
+---
+
+## Integration Points with Existing Code
+
+### Build System
+
+The project uses `tsc` (TypeScript compiler) -- NOT esbuild. Dependencies are NOT bundled into the output; they remain in `node_modules` and are resolved at runtime via Node.js module resolution. This means:
+
+- New dependencies are added to `dependencies` in `package.json` (not `devDependencies`)
+- They are installed when users run `npx -y fsb-mcp-server`
+- Bundle size matters less than install weight (npm download size)
+- No esbuild/webpack configuration changes needed
+
+### CLI Entry Point (`src/index.ts`)
+
+The new `install` command slots into the existing `switch (command)` block in `main()`:
+
+```typescript
+case 'install':
+  await runInstall(flags);
+  return;
+case 'uninstall':
+  await runUninstall(flags);
+  return;
+```
+
+### New Source Files
+
+| File | Purpose | Est. Lines |
+|---|---|---|
+| `src/install.ts` | Main install/uninstall orchestrator | 150-200 |
+| `src/platforms.ts` | Platform registry (paths, formats, shapes) | 200-250 |
+| `src/config-writers/json.ts` | Read/merge/write JSON config (with JSONC strip for VS Code/Zed) | 80-100 |
+| `src/config-writers/toml.ts` | Read/merge/write TOML config for Codex | 60-80 |
+| `src/config-writers/yaml.ts` | Read/merge/write YAML config for Continue | 60-80 |
+| `src/config-writers/cli.ts` | Shell out to `claude mcp add` for Claude Code | 40-50 |
+| `src/backup.ts` | File backup utility | 30-40 |
+
+### Package.json Changes
+
+```json
+{
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "ws": "^8.19.0",
+    "zod": "^3.24.0",
+    "smol-toml": "^1.6.1",
+    "yaml": "^2.8.3",
+    "strip-json-comments": "^5.0.3"
+  }
+}
+```
+
+Going from 3 to 6 runtime dependencies. All three additions are zero-dep, so the total transitive dependency count stays low.
+
+---
+
+## What NOT to Add
+
+| Do Not Add | Why |
+|---|---|
+| `commander` / `yargs` / `meow` | Existing hand-rolled parser works. Adding a CLI framework for 10 boolean flags is overkill and adds 100KB+ |
+| `chalk` / `picocolors` | Color output is nice-to-have but unnecessary for a CLI that runs once at setup time. Use plain text with clear formatting |
+| `inquirer` / `@clack/prompts` | No interactive prompts needed. The install command is non-interactive by design (`--claude-desktop` flag, not a menu) |
+| `deep-merge` / `lodash.merge` | MCP server entries are shallow objects. `Object.assign` / spread is sufficient |
+| `platform-folders` / `env-paths` | Custom path logic for 10 specific platforms is clearer than a generic abstraction. We know exactly which paths we need. |
+| `add-mcp` as dependency | CLI-only (no library API), would add 6 transitive deps, and we need custom output formatting |
+| `jsonc-parser` | Full AST is overkill. `strip-json-comments` + `JSON.parse()` is simpler and 26x smaller |
+| `@iarna/toml` | CJS-only, slower, last updated 2020. `smol-toml` is actively maintained and ESM-native |
+| `fast-toml` | Not spec-compliant (skips string validation), no stringify support |
+
+---
+
+## Installation
+
+```bash
+cd mcp-server
+
+# Add new runtime dependencies
+npm install smol-toml@^1.6.1 yaml@^2.8.3 strip-json-comments@^5.0.3
+
+# No new dev dependencies needed
+```
+
+---
+
+## Confidence Assessment
+
+| Area | Confidence | Reason |
+|---|---|---|
+| Platform config paths | HIGH | Verified against official docs for all 10 platforms |
+| Config file formats | HIGH | Verified JSON/JSONC/TOML/YAML structures from official docs |
+| Library choices | HIGH | All three libraries are mature, zero-dep, ESM-compatible, used by production tools (add-mcp) |
+| Cross-OS path resolution | HIGH | Standard Node.js APIs, well-documented patterns |
+| CLI integration | HIGH | Existing parseArgs() easily extended, no framework needed |
+| Build system compatibility | HIGH | tsc compilation, dependencies stay in node_modules |
+| Claude Code CLI integration | MEDIUM | Depends on `claude` binary being in PATH; fallback to print-command is robust |
+| JSONC handling (VS Code/Zed) | MEDIUM | strip-json-comments handles comments + trailing commas, but user config files could have edge cases (e.g., multi-line comments with TOML-like syntax) |
 
 ---
 
 ## Sources
 
-- Session log format: Verified by reading `/Logs/fsb-research-careers.microsoft.com-2026-02-23.json` (6,892 lines)
-- Site guide format: Verified by reading `/site-guides/career/generic.js`, `/site-guides/career/indeed.js`, `/site-guides/productivity/google-sheets.js`
-- Site guide consumption: Verified by reading `_buildTaskGuidance()` in `/ai/ai-integration.js` (lines 3921-3983)
-- Sitemap pipeline: Verified by reading `/lib/memory/sitemap-converter.js` and `/lib/memory/sitemap-refiner.js`
-- Canvas editor detection: Verified by reading `isCanvasBasedEditor()` in `/content/messaging.js` (line 217)
-- keyPress tool: Verified by reading `/content/actions.js` (line 3134) -- supports `ctrlKey`, `shiftKey`, `altKey`, `metaKey` modifiers via Chrome Debugger API
-- Google Sheets keyboard shortcuts: [Google Docs Editors Help](https://support.google.com/docs/answer/181110)
-- Manifest permissions: Verified by reading `/manifest.json` -- already has `debugger`, `clipboardWrite`, `storage`, `unlimitedStorage`
+### Official Platform Documentation
+- [Claude Desktop config](https://modelcontextprotocol.io/docs/develop/connect-local-servers) -- config path and JSON format
+- [Claude Code MCP](https://code.claude.com/docs/en/mcp) -- `claude mcp add` command and scopes
+- [Cursor MCP docs](https://cursor.com/docs/context/mcp) -- `~/.cursor/mcp.json` path and format
+- [VS Code MCP configuration](https://code.visualstudio.com/docs/copilot/reference/mcp-configuration) -- `servers` root key (not `mcpServers`), JSONC format
+- [Windsurf MCP](https://docs.windsurf.com/windsurf/cascade/mcp) -- `~/.codeium/windsurf/mcp_config.json`
+- [Cline MCP](https://docs.cline.bot/mcp/adding-and-configuring-servers) -- long globalStorage path
+- [Zed MCP](https://zed.dev/docs/ai/mcp) -- `context_servers` root key, JSONC settings.json
+- [Codex CLI MCP](https://developers.openai.com/codex/mcp) -- TOML format, `mcp_servers` with underscore
+- [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/) -- `~/.gemini/settings.json`, `mcpServers` root key
+- [Continue MCP](https://docs.continue.dev/customize/deep-dives/mcp) -- YAML format, array-of-objects
+
+### Library Documentation
+- [smol-toml](https://github.com/squirrelchat/smol-toml) -- v1.6.1, ESM, zero deps, TOML v1.1.0
+- [yaml](https://github.com/eemeli/yaml) -- v2.8.3, zero deps, YAML 1.2
+- [strip-json-comments](https://github.com/sindresorhus/strip-json-comments) -- v5.0.3, ESM, zero deps
+- [add-mcp](https://github.com/neondatabase/add-mcp) -- Reference implementation using @iarna/toml, js-yaml, jsonc-parser (Apache-2.0)
+
+### npm Registry (version/size verification)
+- `npm view smol-toml version dist.unpackedSize` -- 1.6.1, 103KB
+- `npm view yaml version dist.unpackedSize` -- 2.8.3, 685KB
+- `npm view strip-json-comments version dist.unpackedSize` -- 5.0.3, 8KB

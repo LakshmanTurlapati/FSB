@@ -1,636 +1,589 @@
-# Architecture: Career Search Automation Pipeline
+# Architecture: MCP Platform Install Flags
 
-**Domain:** Session log -> sitemap -> site guide -> AI automation pipeline for career search + Google Sheets
-**Researched:** 2026-02-23
-**Overall Confidence:** HIGH (based on direct analysis of all pipeline components in the codebase)
+**Domain:** CLI subcommand and config-file auto-writing for MCP platform onboarding
+**Researched:** 2026-04-15
+**Overall Confidence:** HIGH (based on direct analysis of existing CLI entry point + verified platform config schemas)
 
 ---
 
 ## Executive Summary
 
-FSB already has every major subsystem needed for career search automation. The architecture question is not "what needs to be built from scratch" but "how do the existing subsystems connect for this specific workflow." The answer is a pipeline with 5 stages, each mapping directly to existing code:
+The `fsb-mcp-server` CLI (v0.4.0) already has a well-structured command routing architecture in `index.js` with a `parseArgs` function feeding a `switch` statement. Adding an `install` subcommand with `--<platform>` flags is a clean extension of this pattern -- no restructuring required.
 
-1. **PARSE** -- Session logs (JSON in `/logs/`) already match the format `convertToSiteMap()` expects
-2. **STORE** -- `createSiteMapMemory()` and `memoryStorage.add()` already persist sitemaps
-3. **GUIDE** -- Site guides already exist for career category (4 files) and Google Sheets
-4. **EXECUTE** -- Multi-tab tools (`openNewTab`, `switchToTab`, `listTabs`) and the `career` + `multitab` task types already exist
-5. **FORMAT** -- The Google Sheets site guide already documents the canvas-based Name Box workflow
-
-The primary gap is a **batch orchestration layer** -- the ability to run the career search workflow across N companies in sequence, accumulating extracted data and writing it to a single Sheets document. FSB's current session model handles one task at a time. The AI handles multi-step reasoning within a session, but there is no built-in mechanism for "repeat this workflow for each item in a list."
+The core architectural decision is: use a **platform registry map** where each platform entry declares its config file path (per OS), config format (JSON/TOML/YAML), root key (`mcpServers` vs `servers` vs `context_servers` vs `mcp_servers`), and the FSB server entry shape. A single `ConfigWriter` handles read-merge-write for all JSON-based platforms (8 of 10), with thin adapters for TOML (Codex) and YAML (Continue). The existing `setup` command becomes a fallback that prints instructions when no `--<platform>` flag is given, and the `install` subcommand replaces copy-paste with one-command auto-configuration.
 
 ---
 
-## Current Architecture (Relevant Subsystems)
+## Existing CLI Architecture
 
-### 1. Session Log Format (Input)
-
-Session logs in `/logs/` are produced by `SiteExplorer` (BFS crawler). Each JSON file contains:
+### Entry Point: `mcp-server/build/index.js`
 
 ```
-{
-  "domain": "www.amazon.jobs",
-  "id": "research_1771837691120",
-  "pages": [
-    {
-      "depth": 0,
-      "url": "https://www.amazon.jobs/",
-      "title": "Amazon Jobs",
-      "forms": [],
-      "headings": [],
-      "interactiveElements": [
-        {
-          "type": "input",
-          "id": "search_typeahead-homepage",
-          "class": "form-control tt-input",
-          "selectors": ["[role=\"combobox\"]...", "#search-button"],
-          "text": "..."
-        }
-      ],
-      "internalLinks": [...],
-      "navigation": [...]
-    }
-  ]
+#!/usr/bin/env node
+
+parseArgs(argv) -> { command: string, flags: Record<string,string|boolean> }
+                          |
+                          v
+main() switch(command):
+  'stdio'              -> runStdioServer()        [default]
+  'serve' / 'http'     -> runHttpMode(flags)
+  'status'             -> runStatus(flags)
+  'doctor'             -> runDoctor(flags)
+  'setup'              -> printSetup()             [sync, prints text]
+  'wait-for-extension' -> runWaitForExtension(flags)
+  'help'               -> printHelp()              [sync, prints text]
+```
+
+### Key Characteristics
+
+1. **`parseArgs` already supports `--key value`, `--key=value`, and bare `--flag`** -- platform flags like `--claude-desktop` work without parser changes.
+2. **First non-flag argument becomes the command** -- `fsb-mcp-server install --claude-desktop` sets `command = 'install'`.
+3. **Flags are a flat `Record<string, string | boolean>`** -- no nested parsing, no positional args after the command.
+4. **Helper functions `readStringFlag`, `readNumberFlag`, `isJson`** exist for typed flag access.
+5. **No external CLI framework** (no yargs, commander, etc.) -- the parser is ~35 lines of hand-written code. Keep it that way.
+
+### Existing `setup` Command
+
+`printSetup()` is a sync function that writes a large template string to stdout with copy-paste install snippets for Claude Code, Claude Desktop, Cursor, and generic stdio/HTTP. It does NOT write any files. It includes a `buildCursorDeeplink()` helper.
+
+---
+
+## Proposed Architecture
+
+### Command Routing Extension
+
+Add two new cases to the `main()` switch:
+
+```
+main() switch(command):
+  ...existing cases...
+  'install'   -> runInstall(flags)    [NEW: async, writes config files]
+  'uninstall' -> runUninstall(flags)  [NEW: async, removes FSB entry from config files]
+```
+
+**Why separate `install`/`uninstall` commands instead of `install --uninstall`:** Destructive operations deserve their own verb. `fsb-mcp-server uninstall --claude-desktop` is clearer than `fsb-mcp-server install --uninstall --claude-desktop`. It also prevents accidental uninstall from a misplaced flag.
+
+**Alternative considered (rejected): `setup --write --claude-desktop`** -- Overloading `setup` mixes its existing role (print instructions) with destructive file writes. The `install` command is an explicit opt-in to file modification.
+
+### Platform Registry Pattern
+
+A static map defining all supported platforms. Each entry contains everything needed to locate, read, merge, and write the config file for that platform.
+
+```typescript
+interface PlatformConfig {
+  /** Display name for user messages */
+  displayName: string;
+
+  /** CLI flag name (e.g., 'claude-desktop' -> --claude-desktop) */
+  flag: string;
+
+  /** Config file path per OS. null = not supported on that OS. */
+  configPath: {
+    darwin: string | null;
+    win32: string | null;
+    linux: string | null;
+  };
+
+  /** Config file format */
+  format: 'json' | 'toml' | 'yaml';
+
+  /** Root key for the server map inside the config file */
+  serverMapKey: string;
+
+  /** The FSB server entry to merge into the server map */
+  serverEntry: Record<string, unknown>;
+
+  /** Optional: CLI command alternative (e.g., Claude Code uses `claude mcp add`) */
+  cliAlternative?: {
+    command: string;
+    description: string;
+  };
 }
 ```
 
-**Key observation:** This is the exact format `convertToSiteMap()` in `lib/memory/sitemap-converter.js` already consumes. The converter extracts pages, navigation, forms, keySelectors, and pageElements from this structure.
+### The Registry (All 10 Platforms)
 
-### 2. Sitemap Conversion Pipeline (PARSE -> STORE)
+| Platform | Flag | Format | Root Key | Path (macOS) | Path (Windows) | Path (Linux) |
+|----------|------|--------|----------|-------------|----------------|-------------|
+| Claude Desktop | `--claude-desktop` | JSON | `mcpServers` | `~/Library/Application Support/Claude/claude_desktop_config.json` | `%APPDATA%\Claude\claude_desktop_config.json` | `~/.config/Claude/claude_desktop_config.json` |
+| Claude Code | `--claude-code` | n/a (CLI) | n/a | n/a | n/a | n/a |
+| Cursor | `--cursor` | JSON | `mcpServers` | `~/.cursor/mcp.json` | `~/.cursor/mcp.json` | `~/.cursor/mcp.json` |
+| VS Code | `--vscode` | JSON | `servers` | `~/.vscode/mcp.json` (user) | `~/.vscode/mcp.json` (user) | `~/.vscode/mcp.json` (user) |
+| Windsurf | `--windsurf` | JSON | `mcpServers` | `~/.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` |
+| Cline | `--cline` | JSON | `mcpServers` | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | `%APPDATA%/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` |
+| Zed | `--zed` | JSON | `context_servers` | `~/.zed/settings.json` | `%APPDATA%\Zed\settings.json` | `~/.config/zed/settings.json` |
+| Codex | `--codex` | TOML | `mcp_servers` | `~/.codex/config.toml` | `~/.codex/config.toml` | `~/.codex/config.toml` |
+| Gemini CLI | `--gemini` | JSON | `mcpServers` | `~/.gemini/settings.json` | `~/.gemini/settings.json` | `~/.gemini/settings.json` |
+| Continue | `--continue` | YAML | `mcpServers` | `~/.continue/config.yaml` | `~/.continue/config.yaml` | `~/.continue/config.yaml` |
 
-The existing pipeline is two-tier:
+### FSB Server Entry Shapes
 
-```
-Session Log (JSON)
-       |
-       v
-convertToSiteMap(research)          -- Tier 1: local extraction (lib/memory/sitemap-converter.js)
-       |
-       v
-sitePattern object (pages, navigation, forms, keySelectors, pageElements, pageLinks)
-       |
-       v
-refineSiteMapWithAI(sitePattern)    -- Tier 2: AI enrichment (lib/memory/sitemap-refiner.js)
-       |                               Adds: workflows, tips, pagePurposes, selectorPreferences,
-       |                                     navigationStrategy
-       v
-createSiteMapMemory(domain, sitePattern)  -- Wraps in memory schema (lib/memory/memory-schemas.js)
-       |
-       v
-memoryStorage.add(memory)           -- Persists to chrome.storage.local (lib/memory/memory-storage.js)
-```
+Most platforms use identical entry shapes (command + args). Notable exceptions:
 
-**Entry points that already trigger this pipeline:**
-- `SiteExplorer.autoConvertToMemory()` -- called when a crawl completes with `autoSaveToMemory: true`
-- `ui/options.js` line 3249 -- manual conversion button in the Options page UI
-
-**The gap:** Neither entry point is designed for batch processing of pre-existing session logs from `/logs/`. The Options page UI converts one research entry at a time from `fsbResearchData` in chrome.storage, not from files on disk. The logs in `/logs/` are standalone JSON files that were exported from the crawler but may not be in `fsbResearchData`.
-
-### 3. Site Guide System (GUIDE)
-
-Site guides register at extension load time via `importScripts()` in `background.js`:
-
-```
-background.js
-  |-- importScripts('site-guides/index.js')           -- Registry: registerSiteGuide(), getGuideForUrl()
-  |-- importScripts('site-guides/career/_shared.js')   -- Category guidance: strategy, data fields, warnings
-  |-- importScripts('site-guides/career/indeed.js')    -- Indeed-specific selectors, workflows
-  |-- importScripts('site-guides/career/glassdoor.js') -- Glassdoor-specific selectors, workflows
-  |-- importScripts('site-guides/career/builtin.js')   -- BuiltIn-specific selectors, workflows
-  |-- importScripts('site-guides/career/generic.js')   -- Generic ATS patterns (Lever, Greenhouse, Workday)
-  |-- importScripts('site-guides/productivity/google-sheets.js') -- Sheets Name Box workflow
+**Standard (8 platforms):**
+```json
+{
+  "command": "npx",
+  "args": ["-y", "fsb-mcp-server"]
+}
 ```
 
-**Guide matching flow during automation:**
-
-```
-ai-integration.js:1975  getGuideForTask(task, currentUrl)
-       |
-       v
-site-guides/index.js:109  getGuideForUrl(url) -- tests URL against guide.patterns[]
-       |                                          e.g., /indeed\.com/i, /glassdoor\.(com|co\.\w+)/i
-       v                                          /\/careers\/?/i, /\/jobs\/?/i (generic.js)
-(matched guide) --> ai-integration.js:3921  _buildTaskGuidance(taskType, siteGuide, currentUrl)
-       |
-       v
-Prompt injection:
-  - Category guidance (e.g., "CAREER & JOB SEARCH INTELLIGENCE: STRATEGY PRIORITY...")
-  - Site-specific guidance (e.g., "INDEED-SPECIFIC INTELLIGENCE: SEARCH...")
-  - Known selectors (e.g., "searchBox: #text-input-what, .yosegi-InlineWhatWhere...")
-  - Workflows (e.g., "searchJobs: Navigate to indeed.com -> Enter keywords -> ...")
-  - Warnings (e.g., "Sponsored listings appear first -- skip unless...")
+**Windows variant (auto-detected by OS, not user-facing):**
+```json
+{
+  "command": "cmd",
+  "args": ["/c", "npx", "-y", "fsb-mcp-server"]
+}
 ```
 
-**Coverage assessment for career sites:**
-
-| Site | Has Guide? | Guide Type | Patterns Matched |
-|------|-----------|------------|-----------------|
-| indeed.com | Yes | Per-site | `/indeed\.com/i` |
-| glassdoor.com | Yes | Per-site | `/glassdoor\.(com\|co\.\w+)/i` |
-| builtin.com | Yes | Per-site | `/builtin\.com/i` |
-| amazon.jobs | No (matched by generic) | Generic ATS | `/\/jobs\/?/i` |
-| careers.microsoft.com | No (matched by generic) | Generic ATS | `/\/careers\/?/i` |
-| linkedin.com/jobs | Yes (social guide) | Per-site | `/linkedin\.com/i` |
-| myworkdayjobs.com | No (matched by generic) | Generic ATS | `/myworkdayjobs\.com/i` |
-| lever.co | No (matched by generic) | Generic ATS | `/lever\.co/i` |
-| greenhouse.io | No (matched by generic) | Generic ATS | `/greenhouse\.io/i` |
-| Any URL with /careers/ | Matched by generic | Generic ATS | `/\/careers\/?/i` |
-
-**The generic.js guide is the critical fallback.** It matches any URL containing `/careers/`, `/jobs/`, or known ATS domain patterns. This means most of the 35+ session logs will match the generic guide without needing per-site guides. However, per-site guides with precise selectors significantly improve automation success rates.
-
-### 4. Site Map Knowledge Injection (GUIDE, parallel channel)
-
-In addition to site guides (hardcoded), the AI also receives site map knowledge (dynamically generated from crawl data):
-
-```
-ai-integration.js:1411  _fetchSiteMap(context)
-       |
-       v
-background.js:4053  'getSiteMap' message handler
-       |-- Priority 1: loadBundledSiteMap(domain) -- checks site-maps/{domain}.json
-       |-- Priority 2: memoryManager.getAll() -- finds site_map memories by domain
-       v
-ai-integration.js:2541  formatSiteKnowledge(siteMap, domain)
-       |
-       v
-Injected into user prompt:
-  "=== SITE KNOWLEDGE (careers.microsoft.com):
-   Pages: /careers - Microsoft Careers, /careers/search - Job Search (2 forms)...
-   Navigation: Job Search -> /careers/search, Students -> /careers/students...
-   Workflows: Job search: /careers -> use search form -> click result -> /careers/view/{id}
-   Tips: AJAX loading on search results, multi-step application forms...
-   Nav strategy: Start at /careers, use search form for filtering
-   Key selectors: /careers/search: input[name=q], .job-card, .job-title..."
+**Zed requires no "source" field for direct settings.json entries:**
+```json
+{
+  "command": "npx",
+  "args": ["-y", "fsb-mcp-server"],
+  "env": {}
+}
 ```
 
-**This is the bridge between session logs and AI prompt.** When session logs are converted to sitemaps and stored in memory, the AI automatically receives site-specific navigation intelligence even without a hardcoded site guide.
-
-### 5. Multi-Tab Orchestration (EXECUTE)
-
-FSB already supports multi-tab workflows through these mechanisms:
-
-**Task type detection:**
-```javascript
-// ai-integration.js:4009-4016
-const outputDestinations = ['google doc', 'google sheet', 'spreadsheet', ...];
-const gatherActions = ['find', 'search', 'research', 'look up', ...];
-if (hasOutputDest && hasGatherAction) return 'multitab';
+**Codex (TOML):**
+```toml
+[mcp_servers.fsb]
+command = "npx"
+args = ["-y", "fsb-mcp-server"]
 ```
 
-A task like "find software engineer jobs at Microsoft and add them to a Google Sheet" triggers `multitab` task type.
-
-**Tab management tools available to AI:**
-- `openNewTab({url, active})` -- opens new tab, returns tabId, adds to `session.allowedTabs`
-- `switchToTab({tabId})` -- switches to allowed tab, updates `session.tabId`
-- `listTabs({currentWindowOnly})` -- lists all tabs with isAllowedTab flag
-- `closeTab({tabId})` -- closes non-current tab
-- `waitForTabLoad({tabId, timeout})` -- waits for tab to finish loading
-- `getCurrentTab()` -- gets current tab info
-
-**Security model:**
-- `session.allowedTabs` is pre-populated with all non-restricted tabs in the current window
-- Tabs opened by `openNewTab` are automatically added to `allowedTabs`
-- `switchToTab` enforces whitelist -- blocks switching to unauthorized tabs
-- Content script injection is restricted to authorized tabs only
-
-**Tab context in AI prompt:**
-```javascript
-// background.js:6945-6975
-tabInfo = {
-  currentTabId: session.tabId,
-  allTabs: allTabs.map(tab => ({
-    id: tab.id, url: tab.url, title: tab.title,
-    active: tab.active, status: tab.status,
-    isAllowedTab: allowedTabs.includes(tab.id),
-    domain: new URL(tab.url).hostname
-  })),
-  sessionTabs, allowedTabs
-};
+**Continue (YAML in mcpServers list, not map):**
+```yaml
+mcpServers:
+  - name: fsb
+    type: stdio
+    command: npx
+    args:
+      - "-y"
+      - "fsb-mcp-server"
 ```
 
-**The `career` task prompt already includes multi-tab phases:**
+**Claude Code (CLI command, not file write):**
 ```
-PHASE 4 -- NAVIGATE TO GOOGLE SHEETS
-PHASE 5 -- SET UP HEADERS (Company, Role, Date Posted, Location, Description, Apply Link)
-PHASE 6 -- ENTER ROW DATA (Tab-separated entry via Name Box)
+claude mcp add fsb -- npx -y fsb-mcp-server
 ```
-
-### 6. Google Sheets Interaction (FORMAT)
-
-The Sheets site guide (`site-guides/productivity/google-sheets.js`) documents the canvas-based interaction model:
-
-```
-1. Click Name Box (#t-name-box) -- the cell reference input at top-left
-2. Type cell reference (e.g., "A1") and press Enter
-3. Type cell value
-4. Press Tab (next column) or Enter (next row)
-```
-
-**Key workflows already defined:**
-- `createNewSheet` -- navigate to sheets.google.com, click Blank template
-- `navigateToExistingSheet` -- navigate to URL, wait for Name Box
-- `setupHeaderRow` -- A1, type "Company", Tab, type "Role", Tab, ...
-- `enterRowData` -- Click Name Box, type "A2", Enter, type value, Tab, ...
-- `navigateToCell` -- Click Name Box, type reference, Enter
-
-**Critical warning in guide:**
-> Google Sheets cells are rendered on a CANVAS -- you CANNOT click individual cells via DOM selectors. Always use the Name Box for cell navigation.
 
 ---
 
-## Integration Architecture for Career Search
+## Component Boundaries
 
-### Data Flow (End-to-End)
+### New Modules
 
-```
-SESSION LOGS (/logs/*.json)
-       |
-       | [NEW: Batch log parser]
-       v
-convertToSiteMap(research) x N     -- existing Tier 1 converter
-       |
-       v
-refineSiteMapWithAI(sitePattern)    -- existing Tier 2 AI refiner (optional, costs API tokens)
-       |
-       v
-createSiteMapMemory(domain, sitePattern)  -- existing memory creator
-       |
-       v
-memoryStorage.add(memory) x N      -- stored in chrome.storage.local
-       |
-       | [At automation time, automatic lookup:]
-       v
-User prompt: "Find software engineer jobs at Microsoft, Apple, Amazon and add to Google Sheet"
-       |
-       v
-detectTaskType() -> 'career' (has career keywords) or 'multitab' (has output destination)
-       |
-       | Note: Task type becomes 'multitab' because it mentions Google Sheet + gather action
-       v
-For each company, the AI:
-  1. Navigates to company career page (guided by site guide + site map knowledge)
-  2. Searches for matching jobs (guided by selectors from site guide or site map)
-  3. Extracts job data (Company, Role, Date, Location, Description, Apply Link)
-  4. Switches to Google Sheets tab
-  5. Enters data row (guided by Sheets site guide Name Box workflow)
-  6. Switches back to next company
-       |
-       v
-Google Sheet with job listings
-```
+| Module | Path | Responsibility | Exports |
+|--------|------|---------------|---------|
+| `platforms.ts` | `mcp-server/src/platforms.ts` | Platform registry map, OS path resolution, server entry shapes | `PLATFORMS`, `resolvePlatformConfigPath()`, `getPlatformServerEntry()` |
+| `config-writer.ts` | `mcp-server/src/config-writer.ts` | Read-merge-write logic for JSON, TOML, YAML config files | `installToConfig()`, `uninstallFromConfig()` |
+| `install.ts` | `mcp-server/src/install.ts` | CLI handler for `install`/`uninstall` commands, orchestrates platform detection + config writing | `runInstall()`, `runUninstall()` |
 
-### Component Map (Existing vs New)
+### Modified Modules
 
-| Component | Status | File(s) | Changes Needed |
-|-----------|--------|---------|----------------|
-| Session log parser | EXISTING | `lib/memory/sitemap-converter.js` | Minor: add batch entry point |
-| Sitemap refiner | EXISTING | `lib/memory/sitemap-refiner.js` | None |
-| Memory storage | EXISTING | `lib/memory/memory-storage.js`, `memory-schemas.js` | None |
-| Site map retrieval | EXISTING | `background.js:4053` (`getSiteMap`) | None |
-| Site map injection | EXISTING | `ai-integration.js:2541` (`formatSiteKnowledge`) | None |
-| Career category guide | EXISTING | `site-guides/career/_shared.js` | Minor: refine strategy |
-| Generic ATS guide | EXISTING | `site-guides/career/generic.js` | Minor: add more ATS patterns from logs |
-| Indeed/Glassdoor/BuiltIn guides | EXISTING | `site-guides/career/{site}.js` | None |
-| Google Sheets guide | EXISTING | `site-guides/productivity/google-sheets.js` | None |
-| Multi-tab tools | EXISTING | `background.js:6002` (`handleMultiTabAction`) | None |
-| Multi-tab context | EXISTING | `background.js:6945` (tab context gathering) | None |
-| Career task prompt | EXISTING | `ai-integration.js:262` (`TASK_PROMPTS.career`) | Moderate: enhance for batch |
-| Multitab task prompt | EXISTING | `ai-integration.js:194` (`TASK_PROMPTS.multitab`) | Minor: career-specific tips |
-| Task type detection | EXISTING | `ai-integration.js:3986` (`detectTaskType`) | None |
-| **NEW: Batch log import** | NEW | TBD: `utils/log-importer.js` or Options page | Reads `/logs/` JSON, runs batch convert |
-| **NEW: Per-company site guides** | NEW | `site-guides/career/{company}.js` | Generated from session logs |
-| **NEW: Site guide generator** | NEW | TBD: `utils/guide-generator.js` | Converts sitePattern to registerSiteGuide format |
+| Module | Path | Change |
+|--------|------|--------|
+| `index.ts` | `mcp-server/src/index.ts` | Add `'install'` and `'uninstall'` cases to the main switch, import `runInstall`/`runUninstall`, update `printHelp()` and `printSetup()` |
+| `version.ts` | `mcp-server/src/version.ts` | No change needed (version already exported) |
 
-### Integration Points (Where New Code Touches Existing)
+### Unchanged Modules
 
-#### Integration Point 1: Log Import -> Sitemap Pipeline
-
-**Where:** New utility that reads session log JSON and feeds it through existing `convertToSiteMap()` + `createSiteMapMemory()` pipeline.
-
-**Existing code path:** `SiteExplorer.autoConvertToMemory()` (utils/site-explorer.js:709-764) already does exactly this for live crawl results. The new code replicates this logic for pre-existing JSON files.
-
-**Implementation options:**
-
-**Option A: Build-time script (RECOMMENDED for initial setup)**
-A Node.js script that reads `/logs/*.json`, runs `convertToSiteMap()`, and produces output artifacts:
-- Site map JSON files in `site-maps/{domain}.json` (bundled, highest priority in `loadBundledSiteMap`)
-- Site guide JS files in `site-guides/career/{company}.js` (registered at load time)
-
-Advantages: No runtime cost, guides are available immediately, works offline.
-Disadvantage: Requires running the script when logs change.
-
-**Option B: Options page UI (for ongoing use)**
-Add a "Batch Import" button to the Options page that reads session logs from `fsbResearchData` storage and batch-converts them to site map memories.
-
-**Option C: Background script import handler**
-A message handler in `background.js` that accepts JSON content and runs the pipeline.
-
-**Recommendation:** Use Option A for the 35+ existing logs (one-time setup), then Option B for ongoing imports from new crawls.
-
-#### Integration Point 2: Site Guide Generation from Sitemaps
-
-**Where:** Convert sitemap data (pages, selectors, forms, workflows) into `registerSiteGuide()` format.
-
-**Existing format target:**
-```javascript
-registerSiteGuide({
-  site: 'Amazon Jobs',
-  category: 'Career & Job Search',
-  patterns: [/amazon\.jobs/i, /www\.amazon\.jobs/i],
-  guidance: `AMAZON JOBS-SPECIFIC INTELLIGENCE:...`,
-  selectors: {
-    searchBox: '[role="combobox"][aria-labelledby="search_typeahead-homepage-label"]',
-    searchButton: '#search-button',
-    locationInput: '[role="combobox"][aria-labelledby="location-typeahead-homepage-label"]'
-  },
-  workflows: {
-    searchJobs: ['Navigate to amazon.jobs', 'Enter keywords in search box', ...],
-    extractJobData: ['Get job title from listing', ...]
-  },
-  warnings: ['Amazon Jobs uses typeahead search -- wait for suggestions before pressing Enter'],
-  toolPreferences: ['navigate', 'type', 'click', 'scroll', 'getText', 'getAttribute', ...]
-});
-```
-
-**Generation logic:** Extract from session log interactive elements:
-- Input elements with search-related ids/classes -> `selectors.searchBox`
-- Button elements near search inputs -> `selectors.searchButton`
-- Elements with location-related attributes -> `selectors.locationInput`
-- Job-card-like containers -> `selectors.jobCards`
-- Apply links/buttons -> `selectors.applyButton`
-
-This can be done with heuristics (pattern matching on element attributes) or by feeding the session log through AI refinement (existing `refineSiteMapWithAI` already produces workflows and tips).
-
-#### Integration Point 3: Career Task Prompt Enhancement
-
-**Where:** `ai-integration.js` line 262, `TASK_PROMPTS.career`
-
-The current career prompt defines 6 phases (Navigate, Search, Extract, Navigate to Sheets, Set Up Headers, Enter Row Data). For batch multi-company workflows, the prompt needs:
-
-**Additions needed:**
-- Batch iteration instructions ("Process each company in the user's list one by one")
-- Data accumulation strategy ("Remember extracted data across tab switches")
-- Row tracking ("Keep track of which row you are on in the spreadsheet -- A2, A3, A4, etc.")
-- Error recovery per company ("If a company's career page has no results, skip and move to the next")
-- Completion criteria ("Mark complete only after ALL companies have been processed")
-
-**No structural changes to the prompt system.** This is content modification within the existing `TASK_PROMPTS.career` string.
-
-#### Integration Point 4: background.js Import Registration
-
-**Where:** `background.js` lines 73-77 (site guide importScripts for career category)
-
-New per-company site guides need to be registered via `importScripts()`:
-
-```javascript
-// Per-site guides: Career (generated from session logs)
-importScripts('site-guides/career/amazon-jobs.js');
-importScripts('site-guides/career/microsoft-careers.js');
-importScripts('site-guides/career/apple-careers.js');
-// ... etc for each company with a session log
-```
-
-**Alternative:** Use bundled site maps instead of site guides. Site maps are loaded dynamically from `site-maps/{domain}.json` by `loadBundledSiteMap()` and injected into the prompt by `formatSiteKnowledge()`. This avoids modifying background.js for each new company.
-
-**Recommendation:** Use BOTH channels:
-- **Bundled site maps** for navigation intelligence (pages, links, forms) -- generated from session logs
-- **Per-company site guides** only for the most important companies with hand-tuned selectors
-
-This is the existing pattern: the generic.js guide provides fallback coverage, per-site guides provide precision for high-priority sites, and site maps provide domain-specific navigation context.
+All existing modules (`runtime.ts`, `server.ts`, `bridge.ts`, `queue.ts`, `diagnostics.ts`, `errors.ts`, `http.ts`, `tools/*`, `resources/*`, `prompts/*`) are completely untouched. The install feature is purely a CLI-side addition with zero runtime impact.
 
 ---
 
-## Multi-Tab Workflow Architecture
-
-### Single-Session Multi-Tab (Current Model)
-
-FSB already handles multi-tab within a single session. The AI decides when to open/switch tabs.
+## Data Flow: Install
 
 ```
-Session Start (user sends task)
+User: npx fsb-mcp-server install --claude-desktop
   |
   v
-AI iteration 1: Navigate to careers.microsoft.com
-AI iteration 2: Search for "software engineer"
-AI iteration 3: Extract job data from result 1
-AI iteration 4: Extract job data from result 2
-AI iteration 5: openNewTab({url: "https://sheets.google.com"})
-  |-- background.js adds new tabId to session.allowedTabs
-AI iteration 6: Create blank spreadsheet
-AI iteration 7: Set up header row (A1: Company, B1: Role, ...)
-AI iteration 8: Enter data row 1 (A2: Microsoft, B2: Software Engineer, ...)
-AI iteration 9: Enter data row 2 (A3: Microsoft, B3: Senior SWE, ...)
+parseArgs(argv) -> { command: 'install', flags: { 'claude-desktop': true } }
   |
   v
-For next company:
-AI iteration 10: switchToTab(originalTabId) -- back to career site
-AI iteration 11: Navigate to careers.apple.com
-...
-AI iteration 15: switchToTab(sheetsTabId) -- back to Sheets
-AI iteration 16: Enter data row 3 (A4: Apple, ...)
-...
+runInstall(flags)
+  |
+  +-- 1. Detect which platform flags are set
+  |     (iterate PLATFORMS registry, check flags[platform.flag])
+  |
+  +-- 2. For each matched platform:
+  |     |
+  |     +-- a. resolvePlatformConfigPath(platform, process.platform)
+  |     |     -> Expand ~ to os.homedir(), %APPDATA% to env var
+  |     |     -> Returns absolute path or null (unsupported OS)
+  |     |
+  |     +-- b. installToConfig(configPath, platform)
+  |     |     |
+  |     |     +-- Read existing file (if exists) or start with {}
+  |     |     +-- Parse based on platform.format (JSON/TOML/YAML)
+  |     |     +-- Check if FSB entry already exists under platform.serverMapKey
+  |     |     |   -> If exists and identical: skip, print "already configured"
+  |     |     |   -> If exists and different: warn, ask or overwrite with --force
+  |     |     +-- Deep-merge: preserve all other server entries
+  |     |     +-- Serialize back to original format
+  |     |     +-- Write file (create parent dirs if needed)
+  |     |     +-- Return result { status: 'created' | 'updated' | 'skipped', path }
+  |     |
+  |     +-- c. Print result for this platform
+  |
+  +-- 3. If no platform flags given:
+  |     -> Print available platforms and usage hint
+  |     -> Suggest `fsb-mcp-server setup` for manual instructions
+  |
+  +-- 4. Special case: --claude-code
+        -> Shell out: `claude mcp add fsb -- npx -y fsb-mcp-server`
+        -> Or print the command if `claude` is not in PATH
 ```
 
-**This model works for 2-3 companies** within the default 20 iteration limit. For larger batches (10+ companies), iterations may be exhausted.
-
-### Batch Strategy Options
-
-**Option A: Increase max iterations for career tasks**
-Set `session.maxIterations` to 50-100 for career batch tasks. Simple, but uses more API tokens per session.
-
-**Option B: Session continuity (existing feature)**
-FSB already supports session continuity (`conversationId`, `commandCount`). User sends follow-up commands to the same session:
-- "Find jobs at Microsoft, Apple, Amazon and add to this Google Sheet"
-- (session completes first batch or runs out of iterations)
-- "Continue -- add Google, Meta, Netflix to the same sheet"
-
-**Option C: Task decomposition in the career prompt**
-The career prompt already decomposes into phases. Enhance it to produce a plan:
-1. AI produces a company list from the user's request
-2. AI processes one company at a time
-3. After each company, AI updates Sheets and moves to the next
-4. If iterations are low, AI reports progress and marks partial completion
-
-**Recommendation:** Option C (task decomposition) is the most natural fit. The AI already reasons about multi-step workflows. The career prompt just needs clear instructions about batch iteration patterns.
-
-### Tab Lifecycle for Career Search
+## Data Flow: Uninstall
 
 ```
-Tab 1 (Original): User's starting tab
+User: npx fsb-mcp-server uninstall --claude-desktop
   |
   v
-AI opens Tab 2: Career site (e.g., careers.microsoft.com)
-  |-- Searches, extracts data
-  |-- AI stores extracted data in its reasoning/memory
+parseArgs(argv) -> { command: 'uninstall', flags: { 'claude-desktop': true } }
+  |
   v
-AI opens Tab 3: Google Sheets (or navigates Tab 1 to Sheets)
-  |-- Creates/opens spreadsheet
-  |-- Enters header row
-  |-- Enters data rows from extracted data
-  v
-AI switches to Tab 2: Navigate to next career site
-  |-- Or navigates within Tab 2 to next company
-  |-- Extracts more data
-  v
-AI switches to Tab 3: Enter additional rows
-  |-- Continues from last row (e.g., A5, A6, ...)
-  v
-Repeat until all companies processed
+runUninstall(flags)
+  |
+  +-- 1. Same platform detection as install
+  |
+  +-- 2. For each matched platform:
+  |     |
+  |     +-- a. Resolve config path
+  |     +-- b. uninstallFromConfig(configPath, platform)
+  |     |     |
+  |     |     +-- Read existing file
+  |     |     +-- Parse based on format
+  |     |     +-- Check if 'fsb' key exists under serverMapKey
+  |     |     |   -> If not found: print "not configured", skip
+  |     |     +-- Delete the 'fsb' key from the server map
+  |     |     +-- If server map is now empty, delete the serverMapKey too
+  |     |     +-- Serialize and write back
+  |     |     +-- Return result { status: 'removed' | 'not-found', path }
+  |     |
+  |     +-- c. Print result
+  |
+  +-- 3. Special case: --claude-code
+        -> Shell out: `claude mcp remove fsb`
 ```
-
-**Key concern:** The AI must track the current row number across tab switches. The career prompt should emphasize row tracking: "After entering data, note the next empty row number in your reasoning before switching tabs."
 
 ---
 
-## Suggested Build Order
+## ConfigWriter Design: Shared Abstraction, Not Per-Platform Handlers
 
-Based on dependency analysis and risk assessment:
+**Decision: One `ConfigWriter` module with format-specific read/write helpers, NOT per-platform handler classes.**
 
-### Phase 1: Log-to-Sitemap Pipeline (Foundation)
+Rationale:
+- 8 of 10 platforms use JSON with identical read-merge-write logic; only the root key name and file path differ.
+- TOML (Codex) and YAML (Continue) need format-specific parsing but the merge logic is identical (find key in map, insert/delete entry).
+- Per-platform handler classes would create 10 files with 95% identical code. A registry map + format-aware ConfigWriter is far cleaner.
 
-**What:** Build-time script that processes `/logs/*.json` into bundled site maps.
+### ConfigWriter Internal Structure
 
-**Why first:** This produces the artifacts that all subsequent phases consume. Without site maps, the AI has no site-specific knowledge for the 35+ career domains.
+```typescript
+// config-writer.ts
 
-**Touches:**
-- NEW: `scripts/import-logs.js` or similar build script
-- EXISTING: `lib/memory/sitemap-converter.js` (reuse `convertToSiteMap`)
-- EXISTING: `site-maps/` directory (output bundled JSON)
+/** Read a config file, returning parsed object + raw string */
+function readConfig(path: string, format: 'json' | 'toml' | 'yaml'): { data: object; raw: string } | null
 
-**Validation:** After running, `loadBundledSiteMap('careers.microsoft.com')` returns structured sitemap data.
+/** Write a config object back to file */
+function writeConfig(path: string, data: object, format: 'json' | 'toml' | 'yaml'): void
 
-### Phase 2: Site Guide Generation (Optional Precision Layer)
+/** Merge FSB server entry into a parsed config, under the given root key */
+function mergeServerEntry(config: object, rootKey: string, serverName: string, entry: object): MergeResult
 
-**What:** Generate per-company site guide files from session log data.
+/** Remove FSB server entry from a parsed config */
+function removeServerEntry(config: object, rootKey: string, serverName: string): RemoveResult
 
-**Why second:** Per-company guides provide selector-level precision beyond what sitemaps offer. This improves automation success rate for the most important career sites.
+/** High-level: read + merge + write */
+export function installToConfig(path: string, platform: PlatformConfig): InstallResult
 
-**Touches:**
-- NEW: `scripts/generate-guides.js` or similar
-- NEW: `site-guides/career/{company}.js` (generated files)
-- EXISTING: `background.js` (add importScripts for new guides)
-- EXISTING: `site-guides/career/generic.js` (may update fallback patterns)
+/** High-level: read + remove + write */
+export function uninstallFromConfig(path: string, platform: PlatformConfig): UninstallResult
+```
 
-**Validation:** `getGuideForUrl('https://careers.microsoft.com/search')` returns the Microsoft-specific guide with selectors.
+### Format-Specific Parsing
 
-### Phase 3: Career Prompt Enhancement (AI Behavior)
+**JSON (8 platforms):** `JSON.parse` / `JSON.stringify` with 2-space indent. Native Node.js, zero dependencies.
 
-**What:** Enhance `TASK_PROMPTS.career` for batch multi-company workflows with row tracking, error recovery per company, and iteration management.
+**TOML (Codex):** Use a lightweight TOML library. Options:
+- `@iarna/toml` (5KB, well-maintained, parse+stringify)
+- `smol-toml` (3KB, modern, ESM-native)
 
-**Why third:** With site maps and guides in place, the AI has the navigation intelligence. Now it needs behavioral instructions for batch processing.
+Recommendation: `smol-toml` -- smaller, ESM-native (matches the project's ESM output), actively maintained.
 
-**Touches:**
-- EXISTING: `ai-integration.js` (TASK_PROMPTS.career, TASK_PROMPTS.multitab)
-- EXISTING: `site-guides/career/_shared.js` (may refine category guidance)
+**YAML (Continue):** Use `yaml` (npm package, ~70KB but tree-shakeable to ~20KB for parse+stringify). The standard choice; `js-yaml` is older and less maintained.
 
-**Validation:** Run a career search task for 3 companies with Sheets output. Verify AI processes each company in sequence, enters data correctly, and tracks row numbers.
+**Dependency impact:** Two new dependencies (`smol-toml`, `yaml`) for two platforms. These are dev/build-time only -- they get bundled by esbuild into the single `index.js` output. No runtime dependency increase for npm consumers.
 
-### Phase 4: End-to-End Workflow Testing and Refinement
+### Continue YAML Special Case
 
-**What:** Test the full pipeline with real career sites, refine selectors and prompts based on success/failure patterns.
+Continue uses a YAML list for `mcpServers` (array of objects with `name` field), not a map. The merge logic must:
+1. Parse the YAML
+2. Find or create the `mcpServers` array
+3. Search for an entry where `name === 'fsb'`
+4. If found, replace it. If not, append it.
+5. For uninstall, filter out the entry where `name === 'fsb'`
 
-**Why last:** Only meaningful after all prior phases are in place.
+This is handled inside `mergeServerEntry`/`removeServerEntry` with a branch for `format === 'yaml' && platform.flag === 'continue'`.
 
-**Touches:**
-- EXISTING: Various site guides and prompt text (iterative refinement)
-- EXISTING: `site-guides/career/generic.js` (add ATS patterns discovered during testing)
+### Zed settings.json Special Case
+
+Zed's `settings.json` may contain settings beyond just MCP servers (editor settings, theme, keybindings, etc.). The merge must be surgical:
+1. Read entire settings.json
+2. Navigate to `context_servers` key (create if absent)
+3. Add/remove only the `fsb` entry
+4. Write back the entire file, preserving all other keys
+
+This is the same pattern as all JSON platforms -- just a different root key.
+
+### VS Code mcp.json Root Key Difference
+
+VS Code uses `"servers"` as the root key, not `"mcpServers"`. This is the single most common setup mistake when copying configs between platforms. The registry map encodes this correctly so users never encounter this problem.
+
+---
+
+## Interaction with Existing `setup` Command
+
+### Migration Path
+
+The `setup` command currently prints copy-paste snippets. It should NOT be removed or broken -- it remains valuable as a reference and for platforms not yet in the registry.
+
+**Changes to `setup`:**
+1. Add a header line: `"Tip: Use 'fsb-mcp-server install --<platform>' for automatic setup."`
+2. For each platform that has an `install` flag, add: `"Or auto-install: npx fsb-mcp-server install --claude-desktop"`
+3. Keep all existing copy-paste snippets intact (they serve as documentation)
+
+**No flag overlap.** `setup` is read-only (prints text). `install` is write (modifies files). They serve different purposes and can coexist cleanly.
+
+---
+
+## File Organization within `mcp-server/src/`
+
+```
+mcp-server/src/
+  index.ts              [MODIFIED: add install/uninstall cases]
+  install.ts            [NEW: runInstall(), runUninstall() CLI handlers]
+  platforms.ts          [NEW: PLATFORMS registry, path resolution]
+  config-writer.ts      [NEW: read/merge/write logic for JSON/TOML/YAML]
+  version.ts            [unchanged]
+  runtime.ts            [unchanged]
+  server.ts             [unchanged]
+  bridge.ts             [unchanged]
+  queue.ts              [unchanged]
+  diagnostics.ts        [unchanged]
+  errors.ts             [unchanged]
+  http.ts               [unchanged]
+  types.ts              [unchanged]
+  tools/                [unchanged]
+  resources/            [unchanged]
+  prompts/              [unchanged]
+```
+
+**Three new files, one modified file.** The install feature is fully contained in its own module boundary.
+
+---
+
+## Build Order Considerations
+
+### esbuild Bundling
+
+The existing build uses esbuild to produce `mcp-server/build/index.js` (single entry point, ESM output). New modules are imported from `index.ts` and automatically included in the bundle. No build config changes needed unless new npm dependencies require special handling.
+
+### New Dependencies
+
+| Dependency | Purpose | Size | Import Style |
+|------------|---------|------|-------------|
+| `smol-toml` | TOML parse/stringify for Codex | ~3KB | `import { parse, stringify } from 'smol-toml'` |
+| `yaml` | YAML parse/stringify for Continue | ~20KB bundled | `import { parse, stringify } from 'yaml'` |
+
+Both are ESM-compatible and will bundle cleanly with esbuild. They have zero transitive dependencies.
+
+**Lazy import consideration:** Since TOML and YAML are only needed for 2 of 10 platforms, consider dynamic `import()` to avoid loading them for the common JSON case. However, since esbuild bundles everything into one file anyway, the dead code is already present. The runtime overhead of parsing unused modules is negligible. Static imports are simpler -- use those.
+
+### Build Output
+
+After build, the output remains a single `mcp-server/build/index.js` file with the shebang. The `bin` field in `package.json` continues to point there. No structural change to the published npm package.
+
+### TypeScript Source Restoration
+
+The `mcp-server/src/` directory is currently empty (TypeScript sources are not committed, only build output). The new feature needs TypeScript source files to be present for development. Options:
+
+1. **Reconstruct from build output** -- The `.js` and `.d.ts` files in `build/` contain enough information to reconstruct the TypeScript source. This is a one-time effort.
+2. **Write new modules in TypeScript, existing modules stay as build-only** -- New files (`install.ts`, `platforms.ts`, `config-writer.ts`) are authored in TypeScript. Existing build output is kept as-is until a full source restoration is done.
+
+Recommendation: Option 2 is pragmatic. The new modules are self-contained and don't import from existing source files -- they only import from `./version.js` (for `FSB_MCP_VERSION`). The build step compiles the new `.ts` files and the existing `.js` files coexist in `build/`.
 
 ---
 
 ## Patterns to Follow
 
-### Pattern 1: Dual-Channel Knowledge (Site Guide + Site Map)
+### Pattern 1: Registry-Driven Platform Support
 
-The existing architecture provides two parallel knowledge channels to the AI:
+All platform knowledge lives in the `PLATFORMS` map in `platforms.ts`. Adding a new platform means adding one entry to the map -- no new files, no new code paths. This is the same pattern used by the existing `FSB_ERROR_MESSAGES` map in `errors.ts`.
 
-1. **Site guides** (hardcoded in JS, loaded at extension start): Provide expert-crafted guidance text, curated selectors, step-by-step workflows, and warnings. These are HIGH-QUALITY but STATIC.
+```typescript
+// platforms.ts
+export const PLATFORMS: Record<string, PlatformConfig> = {
+  'claude-desktop': {
+    displayName: 'Claude Desktop',
+    flag: 'claude-desktop',
+    configPath: {
+      darwin: '~/Library/Application Support/Claude/claude_desktop_config.json',
+      win32: '%APPDATA%/Claude/claude_desktop_config.json',
+      linux: '~/.config/Claude/claude_desktop_config.json',
+    },
+    format: 'json',
+    serverMapKey: 'mcpServers',
+    serverEntry: { command: 'npx', args: ['-y', 'fsb-mcp-server'] },
+  },
+  // ... 9 more entries
+};
+```
 
-2. **Site maps** (stored in memory or bundled JSON, loaded per-domain at runtime): Provide crawl-derived page structure, navigation links, form fields, and AI-generated workflows/tips. These are BROAD but may have STALE selectors.
+### Pattern 2: Read-Before-Write with Preservation
 
-For career search, use BOTH:
-- Site guides for behavioral instructions (how to search, what to extract, what to avoid)
-- Site maps for structural intelligence (what pages exist, what interactive elements are on each page)
+Never truncate or overwrite the entire config file. Always:
+1. Read existing content
+2. Parse to object
+3. Surgically modify only the FSB entry
+4. Serialize and write back
 
-### Pattern 2: Generic Fallback with Specific Overrides
+This preserves user comments (in TOML/YAML, where parsers support roundtrip), other server entries, and custom configuration.
 
-The `generic.js` career guide matches any URL with `/careers/`, `/jobs/`, or known ATS patterns. This provides baseline competence for ALL career sites. Per-company guides override with precise selectors when available.
+### Pattern 3: Fail-Safe with Informative Errors
 
-**This is the correct pattern for scaling to 35+ companies.** Do not write per-company guides for all 35. Instead:
-- Generic guide handles 80% of sites adequately
-- Per-company guides for the top 5-10 most complex sites (Workday, custom ATS)
-- Site maps fill the gap with domain-specific page structure
+If a config file exists but is malformed (invalid JSON, etc.), do NOT silently overwrite it. Instead:
+1. Print the parse error with the file path
+2. Suggest the user fix the file manually or use `--force` to overwrite
+3. Exit with non-zero code
 
-### Pattern 3: AI-Driven Tab Management
+This prevents data loss from corrupted config files.
 
-FSB does NOT hardcode tab switching logic. The AI receives tab context (all open tabs with IDs, URLs, and allowed status) and decides when to open, switch, or close tabs. This is the correct pattern for career search.
+### Pattern 4: Deterministic Output Messages
 
-Do not build a "tab orchestrator" that programmatically opens career sites in tabs. Let the AI reason about when to switch. The career prompt guides this reasoning with phase instructions.
+Every install/uninstall operation prints exactly one status line per platform:
 
-### Pattern 4: Name Box Navigation for Sheets
-
-All cell navigation in Google Sheets MUST go through the Name Box (`#t-name-box`). The canvas-based grid does not expose individual cells as DOM elements. This is already documented in the Sheets site guide and must be respected in the career prompt's data entry phase.
+```
+[FSB] Installed to Claude Desktop: ~/Library/Application Support/Claude/claude_desktop_config.json
+[FSB] Already configured in Cursor: ~/.cursor/mcp.json (use --force to overwrite)
+[FSB] Removed from Windsurf: ~/.codeium/windsurf/mcp_config.json
+[FSB] Claude Code: run `claude mcp add fsb -- npx -y fsb-mcp-server`
+[FSB] Skipped Codex: config file not found at ~/.codex/config.toml
+```
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Building a Custom Orchestration Layer
+### Anti-Pattern 1: Per-Platform Handler Classes
 
-**What:** Creating a new "batch job runner" or "workflow engine" that manages the career search pipeline outside of the AI session.
+**What:** Creating `ClaudeDesktopHandler`, `CursorHandler`, `VSCodeHandler`, etc. as separate classes/files.
 
-**Why bad:** FSB's architecture delegates all decision-making to the AI within a session. The AI already handles multi-step, multi-tab workflows. Adding a separate orchestration layer creates a parallel control flow that conflicts with the AI's reasoning.
+**Why bad:** 10 classes with 95% identical logic. The only differences are path, root key, and format. A registry map captures these differences in data, not code.
 
-**Instead:** Enhance the career task prompt to include batch processing instructions. The AI handles iteration, error recovery, and tab management within its existing reasoning loop.
+**Instead:** One `PLATFORMS` map + one `ConfigWriter` module.
 
-### Anti-Pattern 2: One Site Guide Per Session Log
+### Anti-Pattern 2: Interactive Prompts
 
-**What:** Generating a separate site guide file for each of the 35+ session logs.
+**What:** Adding interactive confirmation prompts ("Are you sure you want to modify ~/.cursor/mcp.json? [y/n]").
 
-**Why bad:** 35+ site guide files bloat `background.js` with importScripts, increase extension load time, and most guides would be nearly identical (same generic patterns). The site guide registry is searched linearly for URL pattern matching -- more guides = slower matching.
+**Why bad:** The CLI is invoked via `npx` -- it must work non-interactively for scripting, CI, and MCP host auto-install flows. Interactive prompts break `npx -y fsb-mcp-server install --cursor` in automated contexts.
 
-**Instead:** Use bundled site maps for most companies (loaded on-demand, not at startup) and site guides only for the 5-10 most complex sites.
+**Instead:** Default to safe behavior (skip if already configured, never overwrite without `--force`). Print clear status messages so the user knows what happened.
 
-### Anti-Pattern 3: Hardcoding Company Lists in Prompts
+### Anti-Pattern 3: Backup Files
 
-**What:** Embedding specific company names, URLs, or career page structures in the task prompts.
+**What:** Creating `claude_desktop_config.json.bak` before modifying.
 
-**Why bad:** Fragile, doesn't scale, and the prompt grows with each company.
+**Why bad:** Leaves orphan files in platform-specific config directories that confuse users and may be picked up by other tools. The merge logic is already safe (read-modify-write preserves existing content).
 
-**Instead:** The user specifies companies in their task. The AI uses site guides and site maps to navigate each one. The career prompt provides the behavioral framework, not the company-specific details.
+**Instead:** If the user is concerned, they can use version control or manual backup. The tool's job is surgical, predictable modification.
 
-### Anti-Pattern 4: Scraping Data in Content Script
+### Anti-Pattern 4: Modifying `setup` to Write Files
 
-**What:** Building custom scraping logic in content scripts that extracts job data into a structured format before the AI sees it.
+**What:** Adding `--write` or `--auto` flags to the existing `setup` command to make it write config files.
 
-**Why bad:** Every career site has a different layout. Custom scraping logic for 35+ sites is an enormous maintenance burden. The AI's ability to understand page content through DOM analysis is the entire point of FSB.
+**Why bad:** `setup` is established as a read-only informational command. Adding write semantics to it violates user expectations and the principle of least surprise.
 
-**Instead:** Let the AI use `getText` and `getAttribute` tools to extract data, guided by site-specific selectors from guides/sitemaps. The AI interprets what it sees, not a scraping pipeline.
+**Instead:** `install` is the write command. `setup` remains read-only reference material.
 
 ---
 
-## Scalability Considerations
+## Edge Cases
 
-| Concern | At 5 companies | At 20 companies | At 50+ companies |
-|---------|----------------|-----------------|-------------------|
-| Iterations | 20-30 (fits in one session) | 60-100 (needs high iteration limit or continuity) | 150+ (needs session continuity or batching) |
-| Site maps | Load from memory, ~50ms each | Same, may need memory cleanup | Consider LRU eviction or lazy loading |
-| Tab count | 2-3 tabs (career + Sheets) | 2-3 tabs (reuse career tab) | Same (AI reuses tabs) |
-| Sheets rows | 15-25 rows | 60-100 rows | 150+ rows (Sheets handles this fine) |
-| API tokens | ~5K-10K per company | ~100K-200K total | Significant cost -- need token budget awareness |
-| Success rate | High (can hand-tune) | Moderate (generic guide limits) | Depends on site complexity and ATS variety |
+### 1. Config File Does Not Exist
+
+Create it with just the FSB entry under the appropriate root key. Create parent directories as needed with `fs.mkdirSync(dir, { recursive: true })`.
+
+### 2. Config File Exists But Is Empty
+
+Treat as if it does not exist (start with `{}`).
+
+### 3. Config File Exists With Other Servers
+
+Preserve all other entries. Only add/modify/remove the `fsb` key.
+
+### 4. FSB Entry Already Exists With Identical Config
+
+Print "already configured" and skip. No file write.
+
+### 5. FSB Entry Already Exists With Different Config
+
+Print warning showing the difference. Skip unless `--force` is passed. This handles the case where the user has customized their FSB entry (e.g., added env vars) and does not want it overwritten.
+
+### 6. Platform Not Available on Current OS
+
+If `configPath[process.platform]` is `null`, print that the platform is not supported on this OS and skip.
+
+### 7. Multiple Platform Flags
+
+`fsb-mcp-server install --claude-desktop --cursor --vscode` should install to all three. Process them sequentially, print status for each.
+
+### 8. No Platform Flags Given
+
+`fsb-mcp-server install` (no flags) should print usage help listing all available platforms, not silently do nothing.
+
+### 9. Windows Path Resolution
+
+`%APPDATA%` must be expanded from `process.env.APPDATA`. If the env var is not set, print an error and skip that platform.
+
+### 10. `--all` Convenience Flag
+
+`fsb-mcp-server install --all` installs to every platform whose config path exists on the current OS. Useful for power users who use multiple editors.
+
+---
+
+## Confidence Assessment
+
+| Area | Confidence | Notes |
+|------|------------|-------|
+| CLI routing integration | HIGH | Direct analysis of existing `parseArgs` + `main()` in `index.js` |
+| Platform config paths | HIGH | Verified via official docs for all 10 platforms |
+| Config file formats | HIGH | JSON (8 platforms) is trivial; TOML/YAML verified via official docs |
+| Root key names | HIGH | `mcpServers` (6), `servers` (1 - VS Code), `context_servers` (1 - Zed), `mcp_servers` (1 - Codex), list (1 - Continue) |
+| Server entry shapes | HIGH | Standard `{ command, args }` for 9/10; Continue uses array-of-objects |
+| Build integration | MEDIUM | esbuild bundling assumed from existing build output; no build config file found in repo to verify |
 
 ---
 
 ## Sources
 
-- Direct analysis of `background.js` (session management, multi-tab handling, site map retrieval)
-- Direct analysis of `ai/ai-integration.js` (task type detection, prompt building, site guide injection, site map injection)
-- Direct analysis of `site-guides/index.js` (guide registry, URL pattern matching, `getGuideForUrl()`)
-- Direct analysis of `site-guides/career/*.js` (4 existing career guides + shared category guidance)
-- Direct analysis of `site-guides/productivity/google-sheets.js` (Sheets interaction model)
-- Direct analysis of `lib/memory/sitemap-converter.js` (Tier 1 conversion from session logs)
-- Direct analysis of `lib/memory/sitemap-refiner.js` (Tier 2 AI enrichment)
-- Direct analysis of `lib/memory/memory-schemas.js` (createSiteMapMemory factory)
-- Direct analysis of `lib/memory/memory-manager.js` (memory add/search/consolidate)
-- Direct analysis of `utils/site-explorer.js` (autoConvertToMemory pipeline)
-- Direct analysis of `/logs/fsb-research-www.amazon.jobs-2026-02-23.json` (session log format)
-- Direct analysis of `manifest.json` (permissions, web_accessible_resources for site-maps)
+- Direct analysis of `mcp-server/build/index.js` (CLI entry point, parseArgs, command routing)
+- Direct analysis of `mcp-server/build/version.js` (constants, version)
+- Direct analysis of `mcp-server/build/runtime.js` (createRuntime pattern)
+- Direct analysis of `mcp-server/build/diagnostics.js` (status/doctor patterns)
+- Direct analysis of `mcp-server/build/errors.js` (error map registry pattern)
+- Direct analysis of `mcp-server/build/server.js` (server creation)
+- [Claude Desktop config docs](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop) -- config file paths, JSON format
+- [Claude Code MCP docs](https://code.claude.com/docs/en/mcp) -- `claude mcp add` CLI command
+- [Cursor MCP docs](https://cursor.com/docs/context/mcp) -- `~/.cursor/mcp.json`, `mcpServers` key
+- [VS Code MCP configuration reference](https://code.visualstudio.com/docs/copilot/reference/mcp-configuration) -- `mcp.json` with `servers` root key (NOT `mcpServers`)
+- [Windsurf Cascade MCP Integration](https://docs.windsurf.com/windsurf/cascade/mcp) -- `~/.codeium/windsurf/mcp_config.json`
+- [Cline MCP server configuration docs](https://docs.cline.bot/mcp/configuring-mcp-servers) -- VS Code globalStorage path
+- [Zed MCP docs](https://zed.dev/docs/ai/mcp) -- `context_servers` in `settings.json`
+- [Codex config reference](https://developers.openai.com/codex/config-reference) -- TOML format, `mcp_servers` table
+- [Gemini CLI MCP docs](https://geminicli.com/docs/tools/mcp-server/) -- `~/.gemini/settings.json`, `mcpServers` key
+- [Continue MCP docs](https://docs.continue.dev/customize/deep-dives/mcp) -- YAML config, `mcpServers` list

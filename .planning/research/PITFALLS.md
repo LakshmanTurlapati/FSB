@@ -1,442 +1,494 @@
-# Pitfalls Research: Career Search Automation with Google Sheets Output
+# Pitfalls Research: MCP Platform Install Flags
 
-**Domain:** Career site browser automation + Google Sheets formatting via UI interaction
-**Researched:** 2026-02-23
-**Confidence:** HIGH (based on direct analysis of 35 session logs, existing codebase architecture, FSB tool capabilities, and web research on anti-bot/ATS/Sheets challenges)
+**Domain:** Cross-platform config auto-writing for MCP server CLI (`fsb-mcp-server` npm package)
+**Researched:** 2026-04-15
+**Confidence:** HIGH (verified against official docs for 10 target platforms, cross-referenced with npm/write-file-atomic issues, MCP connector poisoning research, and Node.js cross-platform file path documentation)
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause the feature to fail entirely or produce unusable output.
+Mistakes that silently corrupt user configs, break existing MCP setups, or cause data loss.
 
 ---
 
-### Pitfall 1: Empty DOM Snapshots from Heavy JS-Rendered Career Sites
+### Pitfall 1: Destroying Existing Config by Naive JSON.stringify Write-back
 
 **What goes wrong:**
-The session log parser produces sitemaps and site guides with zero interactive elements for sites like Tesla, Walmart, and others that rely on heavy client-side JavaScript rendering. Tesla's session log (`fsb-research-www.tesla.com-2026-02-23.json`) shows `totalElements: 0`, `totalForms: 0`, `totalLinks: 0` -- the research crawler captured nothing. Walmart (`careers.walmart.com`) shows `interactiveElements: []` despite having a full career search interface. If site guides are generated from these empty logs, the AI gets no selector guidance and falls back to generic heuristics, which fail on complex SPAs.
+The tool reads a config file, parses it with `JSON.parse()`, merges the FSB server entry, then writes back with `JSON.stringify(obj, null, 2)`. This silently destroys:
+- **Comments** in JSONC files (VS Code `mcp.json`, Zed `settings.json`, Claude Desktop config all tolerate or use comments)
+- **Trailing commas** that the user or editor inserted (VS Code settings commonly have trailing commas)
+- **Property ordering** that the user carefully arranged (servers grouped by project, etc.)
+- **Custom formatting** (indentation preferences, empty lines between sections)
+
+After the write-back, the user's file is technically valid JSON but looks completely different, and all their annotations are gone.
 
 **Why it happens:**
-The crowd session log research crawler likely captures the initial HTML before JavaScript frameworks (React, Angular, Workday's custom framework) hydrate the DOM. Career sites from major corporations increasingly use:
-- React with Stylex (Meta/metacareers.com -- hashed class names like `x1i10hfl x1qjc9v5`)
-- Workday-powered iframes (Walmart, UnitedHealth, McKesson)
-- Custom SPA frameworks (Tesla, Apple)
-- Server-side rendered shells that populate via API calls after page load
-
-These sites look empty to a crawler that does not wait for JavaScript execution to complete.
+`JSON.parse()` strips comments and trailing commas (it throws on them in strict mode). `JSON.stringify()` produces canonical output with no memory of the original formatting. Developers test with clean files and never notice because their test fixtures have no comments or trailing commas.
 
 **How to avoid:**
-1. Flag session logs with `totalElements: 0` or `interactiveElements: []` as INCOMPLETE -- do not generate site guides from them
-2. For flagged sites, the site guide should contain navigation-only guidance (URLs from `internalLinks`) rather than selector-based guidance
-3. Build a "confidence score" for each parsed session log: HIGH (>10 interactive elements captured), MEDIUM (1-10 elements), LOW (0 elements, links only)
-4. For LOW confidence sites, the site guide `selectors` field should be empty or contain only generic ATS selectors from the `_shared.js` category guidance
-5. The AI already handles sites without selectors -- it uses DOM analysis at runtime. The danger is generating a site guide with WRONG selectors from stale/empty data that misleads the AI.
+1. Use a JSONC-aware parser for all JSON config reads. The `jsonc-parser` package (used by VS Code itself, ~50KB) handles comments and trailing commas correctly and provides an `edit` function that returns minimal text edits rather than a full rewrite.
+2. Never round-trip through `JSON.parse()` / `JSON.stringify()`. Instead, use text-level surgical insertion: find the right location in the file text, insert the new key-value pair, preserve everything else byte-for-byte.
+3. The `jsonc-parser` `modify()` function does exactly this: it computes minimal edits to insert/replace a path in a JSONC document without touching surrounding content.
+4. If a full rewrite is unavoidable (file was malformed), warn the user and create a backup first.
 
 **Warning signs:**
-- Session log `summary.totalElements === 0` for a site that clearly has interactive content
-- Session log shows only `internalLinks` but no `interactiveElements` or `forms`
-- Multiple pages crawled but all show `elementCount: 0`
+- Unit tests only use `JSON.parse()` to read config files
+- No JSONC-aware dependency in the project
+- Test fixtures contain no comments, no trailing commas
 
 **Phase to address:**
-Session Log Parsing phase (Phase 1/2) -- must implement confidence scoring during log parsing, before site guide generation
+Core config read/write engine phase (Phase 1) -- the foundational read-modify-write logic must use JSONC-aware editing from day one, not retrofitted later.
 
 ---
 
-### Pitfall 2: Google Sheets Canvas Grid is Not Clickable via DOM
+### Pitfall 2: Different Top-Level Keys Across Platforms
 
 **What goes wrong:**
-The developer attempts to automate Google Sheets cell interaction by clicking on cells or reading cell content via DOM selectors. This fails completely because Google Sheets renders its grid on an HTML `<canvas>` element. Individual cells are NOT DOM elements -- they are pixels painted on a canvas. FSB's `click` tool targets DOM elements, so clicking "cell B3" has no DOM target. The existing Google Sheets site guide already documents this, but the AI instruction can drift during complex multi-step formatting workflows where it "forgets" to use the Name Box.
+The developer assumes all platforms use `"mcpServers"` as the top-level key (since Claude Desktop and Cursor do), then writes `{"mcpServers": {"fsb": {...}}}` into every platform's config. This silently fails on platforms that use different keys:
+- **VS Code** uses `"servers"` (NOT `"mcpServers"`)
+- **Zed** uses `"context_servers"` (NOT `"mcpServers"`)
+- **Codex** uses `[mcp_servers.fsb]` in TOML (underscore, not camelCase)
+- **Continue** uses a YAML list under `mcpServers:` with `- name:` entries (array, not object)
+
+The config file is modified, the user sees "installed successfully," but the platform never loads FSB because it's looking for a different key.
 
 **Why it happens:**
-Google Sheets (like Google Docs) switched to canvas-based rendering for performance. The cell grid that users see and interact with is a single `<canvas>` element, not a table of `<td>` elements. The toolbar and menus ARE standard DOM elements, but the cell content area is opaque to DOM automation.
+Claude Desktop and Cursor both use `"mcpServers"` and are the most common MCP hosts, so the developer generalizes from these two. The MCP protocol has no mandated config format -- each host invented its own.
 
 **How to avoid:**
-1. The Google Sheets site guide (already exists at `site-guides/productivity/google-sheets.js`) correctly documents the Name Box (`#t-name-box`) as the PRIMARY navigation method
-2. Reinforce in the career search workflow prompt: "NEVER try to click on cells directly. ALWAYS use Name Box navigation: click `#t-name-box`, type cell reference (e.g., 'A1'), press Enter, then type cell value"
-3. Implement a workflow-level instruction sequence for the Sheets phase: navigate to cell via Name Box -> type value -> Tab to next column -> repeat -> Enter for next row
-4. The Tab/Enter data entry pattern (type value, Tab, type value, Tab... Enter) is the most reliable and does not require clicking cells at all after the initial Name Box navigation
+Build a platform registry with strict per-platform config schemas:
+
+| Platform | File Format | Top-Level Key | Server Entry Shape |
+|----------|-------------|---------------|--------------------|
+| Claude Desktop | JSON | `mcpServers` | `{"command": ..., "args": [...]}` |
+| Claude Code | JSON (via `claude mcp add` CLI or `.claude.json`) | N/A (use CLI) | CLI-based, not file write |
+| Cursor | JSON | `mcpServers` | `{"command": ..., "args": [...]}` |
+| VS Code | JSON | `servers` | `{"type": "stdio", "command": ..., "args": [...]}` |
+| Windsurf | JSON | `mcpServers` | `{"command": ..., "args": [...]}` |
+| Cline | JSON | `mcpServers` | `{"command": ..., "args": [...]}` |
+| Zed | JSON (settings.json) | `context_servers` | `{"command": ..., "args": [...]}` |
+| Codex | TOML | `[mcp_servers.fsb]` | `command = "npx"`, `args = [...]` |
+| Gemini CLI | JSON | `mcpServers` | `{"command": ..., "args": [...]}` |
+| Continue | YAML (config.yaml) or JSON (.continue/mcpServers/) | `mcpServers` (YAML list) | `- name: fsb`, `command: npx` |
+
+Each platform flag must use its own template. No shared "generic MCP config" path.
 
 **Warning signs:**
-- AI actions include `click` on a selector containing "cell", "grid", or canvas-related elements
-- AI repeatedly tries to interact with the spreadsheet grid and gets stuck
-- Action results return "element not found" in the Sheets context
+- A single `buildServerEntry()` function used for all platforms
+- No per-platform test fixtures
+- Any platform install path that doesn't have an explicit schema definition
 
 **Phase to address:**
-Google Sheets Workflow phase -- must be addressed when building the Sheets formatting workflow, with explicit workflow-level instructions that override any AI temptation to click cells
+Platform registry phase (Phase 1) -- define all 10 platform schemas before writing any config mutation code.
 
 ---
 
-### Pitfall 3: Google Sheets Has NO Direct Keyboard Shortcut for Cell Colors
+### Pitfall 3: Windows Path and Environment Variable Expansion Failures
 
 **What goes wrong:**
-The developer or AI assumes that applying fill color or text color in Google Sheets can be done with a simple keyboard shortcut like Ctrl+B for bold. There is NO built-in single keyboard shortcut for fill color or text color in Google Sheets. Attempting to use a non-existent shortcut does nothing, and the workflow stalls. The header row formatting -- which requires colored backgrounds and bold text -- will only be half-implemented (bold works, colors do not).
+The tool hardcodes `~/Library/Application Support/Claude/claude_desktop_config.json` for macOS or uses `process.env.HOME` on Windows, where `HOME` is often undefined. Or it uses `%APPDATA%` as a literal string in `path.join()` instead of resolving it. The file write fails silently or creates a directory literally named `%APPDATA%` in the current working directory.
 
 **Why it happens:**
-Bold (Ctrl+B), Italic (Ctrl+I), and Underline (Ctrl+U) have direct keyboard shortcuts. Developers assume colors follow the same pattern. They do not. Applying colors requires one of:
-- **Toolbar button click:** Click the fill color dropdown in the toolbar (DOM element), then click a color swatch
-- **Menu navigation via keyboard:** Alt+/ (Windows) or Ctrl+Option+/ (Mac) to open "Search the menus", type "Fill color", navigate the color palette with arrow keys
-- **Custom macro:** Record a macro and assign it to Ctrl+Alt+Shift+1
+Node.js does NOT expand `~` in file paths. `os.homedir()` works cross-platform but the config paths themselves differ across OS. Windows uses `%APPDATA%` (which resolves to `C:\Users\<user>\AppData\Roaming`), macOS uses `~/Library/Application Support/`, and Linux uses `~/.config/` or `$XDG_CONFIG_HOME`. Developers test on macOS, ship, and Windows users get broken installs.
 
 **How to avoid:**
-1. For fill color: Use FSB's `click` tool to click the fill color toolbar button dropdown, then click the specific color swatch element. The toolbar buttons ARE standard DOM elements (unlike cells).
-2. For text color: Same approach -- click the text color dropdown button, then click the desired color swatch.
-3. Document the exact selector chain in the Sheets site guide:
-   - Fill color button: toolbar button with paint bucket icon, aria-label containing "Fill color"
-   - Color swatches: the dropdown that appears contains clickable `<span>` or `<td>` elements representing colors
-4. For the header row formatting workflow: select the row first (click row number), then apply bold (Ctrl+B via keyPress), then apply fill color (click toolbar dropdown + swatch), then apply text color if needed
-5. Test the color picker element selectors at runtime -- Google Sheets color picker DOM structure may vary between updates
+1. Use `os.homedir()` as the base, never raw `~` or `$HOME`.
+2. On Windows, use `process.env.APPDATA` (NOT the literal string `%APPDATA%`) for APPDATA-based paths.
+3. On Linux, check `process.env.XDG_CONFIG_HOME` first, fall back to `path.join(os.homedir(), '.config')`.
+4. Build a `resolveConfigPath(platform)` function that returns the absolute path per-OS-per-platform:
+
+```
+Claude Desktop:
+  macOS:   path.join(os.homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json')
+  Windows: path.join(process.env.APPDATA, 'Claude', 'claude_desktop_config.json')
+  Linux:   path.join(xdgConfig(), 'Claude', 'claude_desktop_config.json')
+
+Cursor:
+  All:     path.join(os.homedir(), '.cursor', 'mcp.json')
+
+VS Code (user-level):
+  macOS:   path.join(os.homedir(), 'Library', 'Application Support', 'Code', 'User', 'mcp.json')
+  Windows: path.join(process.env.APPDATA, 'Code', 'User', 'mcp.json')
+  Linux:   path.join(xdgConfig(), 'Code', 'User', 'mcp.json')
+
+Windsurf:
+  macOS/Linux: path.join(os.homedir(), '.codeium', 'windsurf', 'mcp_config.json')
+  Windows:     path.join(process.env.USERPROFILE, '.codeium', 'windsurf', 'mcp_config.json')
+
+Cline:
+  macOS:   path.join(os.homedir(), 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json')
+  Windows: path.join(process.env.APPDATA, 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json')
+  Linux:   path.join(xdgConfig(), 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json')
+
+Zed:
+  macOS:   path.join(os.homedir(), '.zed', 'settings.json')
+  Linux:   path.join(xdgConfig(), 'zed', 'settings.json')
+  Windows: path.join(process.env.APPDATA, 'Zed', 'settings.json')
+
+Codex:
+  All:     path.join(os.homedir(), '.codex', 'config.toml')
+
+Gemini CLI:
+  All:     path.join(os.homedir(), '.gemini', 'settings.json')
+
+Continue:
+  All:     path.join(os.homedir(), '.continue', 'config.yaml')
+```
+
+5. Always log the resolved absolute path before writing so the user can verify it.
 
 **Warning signs:**
-- The AI tries `keyPress` with modifier keys for colors and nothing happens
-- Headers appear bold but without colored backgrounds
-- The Sheets formatting step takes many iterations with the AI trying different non-existent shortcuts
+- `~` character appearing in `path.join()` calls
+- `process.env.HOME` used without `os.homedir()` fallback
+- No `process.platform` branching in path resolution
+- Path tests only run on one OS
 
 **Phase to address:**
-Google Sheets Workflow phase -- must prototype the color application workflow with actual Sheets DOM inspection before writing the site guide instructions
+Core path resolution phase (Phase 1) -- path resolution is the foundation for all subsequent config writes.
 
 ---
 
-### Pitfall 4: Service Worker State Loss During Multi-Site Career Search
+### Pitfall 4: Non-Atomic Writes Cause Config Corruption on Crash or Concurrent Access
 
 **What goes wrong:**
-A career search workflow visits 5+ career sites sequentially, collecting job data from each. The collected data (job titles, descriptions, links) is stored in JavaScript variables in the MV3 service worker (`background.js`). Mid-workflow, Chrome terminates the service worker (30-second idle timeout or 5-minute execution limit), and ALL collected job data from previously visited sites is lost. The workflow then writes an incomplete Google Sheet with data from only the most recent site.
+The tool reads the config, modifies it in memory, then writes with `fs.writeFileSync()`. If the process crashes mid-write (user Ctrl+C, system crash, disk full), the config file is left truncated or empty. The user's existing MCP servers are gone. The platform refuses to start because the config is invalid JSON.
+
+On Windows specifically, if the user has their IDE open (which may be watching the same config file), `fs.rename()` during atomic write can fail with EPERM because Windows Defender, the Windows Search indexer, or the IDE itself holds a transient lock on the file.
 
 **Why it happens:**
-Chrome Extension Manifest V3 service workers are terminated aggressively:
-- After 30 seconds of inactivity
-- After 5 minutes of continuous execution
-- During browser resource pressure
-
-FSB's `activeSessions` Map (line 1002 of background.js) stores session state in memory. While FSB has session persistence logic (restoring from `chrome.storage` on restart), the COLLECTED DATA from the career search (extracted job listings) is likely stored as part of the session's working state, which may or may not be persisted between service worker restarts.
-
-The career search workflow is uniquely vulnerable because:
-- It runs longer than typical single-site automations (visiting 5+ sites takes 5-15 minutes)
-- Data accumulates across sites and must survive site transitions
-- Each site transition involves navigation, which can briefly idle the service worker
+`fs.writeFileSync()` is not atomic -- it truncates the file first, then writes. If interrupted between truncate and write-complete, the file is corrupted. The `write-file-atomic` package solves this by writing to a temp file then renaming, but it has known EPERM issues on Windows with concurrent access.
 
 **How to avoid:**
-1. Persist collected job data to `chrome.storage.local` after EACH extraction, not just at workflow end
-2. Design the data model so job data is incrementally written: `{ jobs: [...previousJobs, ...newJobsFromThisSite] }` with a storage key per workflow session
-3. On service worker restart, read accumulated data from storage before continuing to the next site
-4. Use the keepalive mechanism FSB already has (line 873 checks for active sessions), but verify it stays alive during the longer career search workflows
-5. Consider breaking the workflow into sub-tasks: "extract from site A" -> persist -> "extract from site B" -> persist -> "write to Sheets" rather than one continuous session
+1. Write to a temp file in the same directory first (e.g., `config.json.fsb-tmp`), then rename.
+2. On Windows, implement a retry loop with exponential backoff (100ms, 200ms, 400ms) for EPERM/EACCES/EBUSY on rename.
+3. Consider using `write-file-atomic` but be aware of its Windows limitations -- wrap it with retry logic.
+4. Before writing, verify the temp file was written correctly by reading it back and checking it parses.
+5. Set appropriate file permissions after write: `0o644` on Unix (user read-write, group/other read-only).
 
 **Warning signs:**
-- Session logs show the service worker restarting mid-workflow (look for `sessions_restored` log entries)
-- Google Sheet output is missing data from earlier sites in the workflow
-- The `activeSessions` Map size drops to 0 and gets repopulated from storage during a workflow
+- `fs.writeFileSync()` called directly on the target config file
+- No error handling around the write operation
+- No retry logic for Windows file locking errors
+- Tests don't simulate interrupted writes
 
 **Phase to address:**
-Multi-site Orchestration phase -- must implement incremental data persistence as the foundation before building the multi-site loop
+Core config write engine phase (Phase 1) -- atomic write must be the default path, not an optimization added later.
 
 ---
 
-### Pitfall 5: Hashed/Obfuscated Class Names in SPA Career Sites
+### Pitfall 5: Clobbering User's Existing FSB Entry Without Merge
 
 **What goes wrong:**
-Site guides generated from session logs contain CSS class selectors like `x1i10hfl x1qjc9v5 xjbqb8w` (Meta), `gs-uitk-c-1ms76ic--input-control-input` (Goldman Sachs), or `transition duration-200 ease-curve-a` (OpenAI). These selectors are either hashed (change on every build) or generated from CSS-in-JS frameworks (Stylex, CSS Modules, Tailwind). The next time the career site deploys an update, ALL these selectors break. The site guide becomes a liability -- it provides confidently wrong guidance.
+The user has already manually configured FSB with custom `env` variables (e.g., `FSB_BRIDGE_URL` pointing to a custom relay) or custom `args` (e.g., `["--port", "9999"]`). The auto-install flag overwrites their entry with the default `{"command": "npx", "args": ["-y", "fsb-mcp-server"]}`, silently destroying their customization. The user doesn't notice until their custom setup stops working.
 
 **Why it happens:**
-Modern career sites use:
-- **Meta:** React + Stylex -- class names are hashed tokens (`x1i10hfl`) that change with each build
-- **Goldman Sachs:** Custom component library with generated class names containing content hashes (`gs-uitk-c-1ms76ic`)
-- **OpenAI:** Tailwind CSS -- class names describe styles (`transition duration-200`) but are not semantically stable
-- **Tesla:** Minimal rendered HTML -- the crawler captured nothing at all
-
-These are NOT stable selectors. Session logs from February 23, 2026 contain class names that may already be different by the time the feature ships.
+The simplest implementation does `config.mcpServers.fsb = defaultEntry`. This is a complete replacement, not a merge. The developer assumes no one has customized the entry because "it's auto-install."
 
 **How to avoid:**
-1. During site guide generation, classify selectors by stability:
-   - **STABLE:** `#id` selectors, `[aria-label="..."]`, `[role="..."]`, `[name="..."]`, `[data-testid="..."]` -- include these in site guides
-   - **SEMI-STABLE:** Semantic class names (`.search-form__submit-btn`, `.job-card`) -- include with warning
-   - **UNSTABLE:** Hashed class names, CSS-in-JS tokens -- EXCLUDE from site guides
-2. Prioritize ARIA and role-based selectors. The Meta session log shows `[aria-label="Open login page"]` alongside the hashed classes -- use the ARIA selector, discard the class
-3. Prioritize XPath with text content: `//button[normalize-space(.)="Search Jobs"]` -- text rarely changes even when class names do
-4. The existing site guide for Generic Career / ATS already uses semantic selectors (`input[type="search"]`, `[class*="job-card"]`) -- this is the right pattern
-5. For each site guide, rate selector stability: HIGH/MEDIUM/LOW. LOW stability selectors should be used only as fallback, never as primary
+1. Before writing, check if an `fsb` entry already exists in the target config.
+2. If it exists, compare with the default entry. If different, prompt the user: "FSB is already configured with custom settings. Overwrite? (y/n)" or print a warning and skip.
+3. In non-interactive mode (e.g., `npx -y fsb-mcp-server install --claude-desktop`), default to SKIP if an existing entry is found. Add a `--force` flag to override.
+4. Never silently merge -- the user's custom args may be intentional and incompatible with default args.
 
 **Warning signs:**
-- Site guide contains selectors that are mostly random-looking strings (`x1i10hfl`, `gs-uitk-c-`)
-- Automation works when tested but breaks within days/weeks
-- The AI falls back to generic selectors frequently, ignoring site-specific guidance
+- No existence check before writing the server entry
+- No `--force` flag in the CLI
+- Tests don't cover the "entry already exists" case
 
 **Phase to address:**
-Session Log Parsing phase -- selector stability classification must happen DURING parsing, not after
+Config merge logic phase (Phase 2) -- after the write engine works, add merge/conflict detection before any platform-specific logic.
+
+---
+
+### Pitfall 6: Writing to Zed's settings.json Breaks Non-MCP Settings
+
+**What goes wrong:**
+Zed stores ALL settings in one `settings.json` -- not just MCP servers, but editor config, themes, keybindings, language server settings, and more. A naive implementation that reads only `context_servers`, adds FSB, then writes back a file containing ONLY `{"context_servers": {"fsb": {...}}}` erases the user's entire Zed configuration. Similarly for Gemini CLI's `settings.json` which contains `selectedAuthType`, `theme`, `preferredEditor` alongside `mcpServers`.
+
+**Why it happens:**
+The developer treats the config file as if it only contains MCP server definitions. This is true for dedicated MCP config files (Claude Desktop, Cursor, Windsurf, Cline) but NOT for shared settings files (Zed, Gemini CLI, VS Code user settings).
+
+**How to avoid:**
+1. Categorize each platform's config file as either DEDICATED (only MCP config) or SHARED (mixed with other settings).
+   - **Dedicated:** Claude Desktop, Cursor (`mcp.json`), Windsurf, Cline, VS Code (`mcp.json`), Continue
+   - **Shared:** Zed (`settings.json`), Gemini CLI (`settings.json`), Codex (`config.toml`)
+2. For SHARED files, use surgical insertion that only touches the MCP-related key. The `jsonc-parser` `modify()` function handles this: it adds/modifies a specific JSON path without touching other keys.
+3. For DEDICATED files, a full write-back is safer but still use JSONC-aware editing to preserve comments.
+4. Never construct the config file from scratch for SHARED files. If the file doesn't exist, create it with only the MCP key and a comment indicating other settings can be added.
+
+**Warning signs:**
+- Same write-back function used for all platforms without distinguishing dedicated vs. shared
+- Tests use empty config files (which masks the "erase other settings" bug)
+- No test fixtures that include non-MCP settings alongside MCP config
+
+**Phase to address:**
+Platform registry phase (Phase 1) -- tag each platform as DEDICATED or SHARED in the registry metadata. Config write engine must branch on this tag.
+
+---
+
+### Pitfall 7: TOML Round-Trip Destroys Comments and Formatting (Codex)
+
+**What goes wrong:**
+Codex uses TOML (`~/.codex/config.toml`) for configuration. The developer adds a TOML parser to handle this platform, parses the file, adds the `[mcp_servers.fsb]` section, stringifies back to TOML. TOML parsers (like `@iarna/toml`) don't preserve comments, and the stringified output reorders keys alphabetically, destroying the user's carefully organized config with inline comments like `# My primary code search server`.
+
+Additionally, TOML has subtleties: `mcp_servers` (underscore) vs `mcp-servers` (hyphen) vs `mcpServers` (camelCase) -- Codex only recognizes `mcp_servers` with underscore. Using the wrong key name means Codex silently ignores the server.
+
+**Why it happens:**
+TOML comment preservation is even harder than JSON. Most TOML libraries parse into a data structure that discards comments entirely. The developer tests with a minimal config.toml and doesn't notice the formatting destruction.
+
+**How to avoid:**
+1. For TOML files, use text-level append rather than parse-modify-stringify. If `[mcp_servers.fsb]` doesn't exist, append the section to the end of the file.
+2. Before appending, scan the file text for existing `[mcp_servers.fsb]` to avoid duplicates.
+3. Use a regex or line-by-line scan to find the right insertion point, not a full TOML parse.
+4. If the file doesn't exist, create it with just the `[mcp_servers.fsb]` section.
+5. For uninstall, use text-level removal: find the `[mcp_servers.fsb]` header, remove all lines until the next `[` header or EOF.
+6. Avoid adding `@iarna/toml` or any TOML library as a dependency -- text-level manipulation is sufficient for adding/removing a single known section.
+
+**Warning signs:**
+- A TOML parsing library appears in `dependencies`
+- Config.toml tests don't include comments or non-MCP sections
+- The TOML section name uses `mcpServers` or `mcp-servers` instead of `mcp_servers`
+
+**Phase to address:**
+Codex platform implementation phase (Phase 3) -- implement after JSON platforms work, using text-level append strategy.
+
+---
+
+### Pitfall 8: Continue's YAML Config Requires a Different Dependency Strategy
+
+**What goes wrong:**
+Continue.dev uses `config.yaml` (not JSON). The developer adds a YAML parser (`js-yaml`, ~100KB) to handle this single platform, bloating the npm package size. Alternatively, they try to write YAML by hand using string templates and produce invalid YAML due to indentation errors.
+
+Additionally, Continue supports TWO config approaches: (1) a `mcpServers:` section in `~/.continue/config.yaml`, and (2) dropping a JSON file into `.continue/mcpServers/`. The developer implements only one approach and misses users who use the other.
+
+**Why it happens:**
+YAML is deceptively simple to generate but easy to break with wrong indentation. Adding a YAML parser adds significant weight to what should be a lightweight CLI tool (current dependencies: `@modelcontextprotocol/sdk`, `ws`, `zod` -- all necessary).
+
+**How to avoid:**
+1. For Continue, prefer the JSON file approach: write `~/.continue/mcpServers/fsb.json` as a standard JSON file. This avoids YAML parsing entirely.
+2. The JSON file approach is officially supported by Continue and avoids modifying the user's primary config.yaml.
+3. If YAML support is needed later, use a minimal template approach: hardcode the YAML snippet as a template string with correct indentation, don't parse/modify existing YAML.
+4. Document in help text that the `--continue` flag creates a JSON file in `.continue/mcpServers/`, not modifying config.yaml.
+
+**Warning signs:**
+- `js-yaml` or `yaml` appears in `dependencies`
+- YAML generation via string concatenation without indentation validation
+- Continue support only handles one of the two config approaches
+
+**Phase to address:**
+Continue platform implementation phase (Phase 3) -- implement using the JSON mcpServers directory approach, avoiding YAML dependency entirely.
 
 ---
 
 ## Moderate Pitfalls
 
-Mistakes that cause partial failures, degraded quality, or wasted AI iterations.
+### Pitfall 9: Claude Code Should Use CLI, Not File Writes
+
+**What goes wrong:**
+The developer writes directly to `~/.claude.json` to add the FSB MCP server for Claude Code, mimicking how other platforms work. But Claude Code has its own MCP management via `claude mcp add`, and direct file writes may conflict with Claude Code's internal state, fail schema validation, or be overwritten on Claude Code restart.
+
+**How to avoid:**
+1. For the `--claude-code` flag, do NOT write to `~/.claude.json` directly.
+2. Instead, print the exact CLI command: `claude mcp add fsb --scope user -- npx -y fsb-mcp-server` and optionally offer to execute it via `child_process.execSync()`.
+3. Check if `claude` CLI is available before offering to execute.
+4. Fall back to printing instructions if `claude` is not in PATH.
+
+**Warning signs:**
+- Direct file writes to `~/.claude.json` for Claude Code
+- No `which claude` or `command -v claude` check
+- Tests mock file writes for Claude Code instead of CLI execution
+
+**Phase to address:**
+Platform-specific implementations phase (Phase 2) -- implement as CLI delegation, not file write.
 
 ---
 
-### Pitfall 6: Cookie Consent Banners Block Career Site Interaction
+### Pitfall 10: Missing Parent Directories
 
 **What goes wrong:**
-Every career site visit begins with a cookie consent banner overlay that blocks interaction with the underlying page. The AI sees the cookie banner elements in the DOM context and either (a) tries to interact with the career page through the banner (clicks are intercepted by the banner's overlay), or (b) wastes 2-3 AI iterations figuring out it needs to dismiss the banner first. Across 5+ career sites, this wastes 10-15 iterations total.
+The config file's parent directory doesn't exist yet. The user has never opened the platform, or it's a fresh install. `fs.writeFileSync()` throws ENOENT because the directory doesn't exist. The auto-install reports a confusing error or crashes.
+
+This is especially common for:
+- `~/.cursor/mcp.json` (user hasn't created .cursor dir)
+- `~/.codeium/windsurf/mcp_config.json` (nested directories)
+- `~/.continue/mcpServers/fsb.json` (double nesting)
+- `~/.gemini/settings.json` (Gemini CLI never run)
+
+**How to avoid:**
+1. Before writing, create parent directories with `fs.mkdirSync(dir, { recursive: true })`.
+2. When creating new directories, use mode `0o755` on Unix.
+3. Log a note to the user when creating directories: "Created ~/.cursor/ (directory did not exist)".
+4. Consider whether creating a config file for a platform the user hasn't installed is useful -- it might confuse them. Add a `--check` option that verifies the platform is installed before writing.
+
+**Warning signs:**
+- No `mkdirSync` with `recursive: true` before file writes
+- Tests run in a temp directory that already has the parent structure
+- No messaging to the user about directory creation
+
+**Phase to address:**
+Core config write engine phase (Phase 1) -- recursive directory creation must be part of the write path.
+
+---
+
+### Pitfall 11: Uninstall Leaves Empty Config or Removes Too Much
+
+**What goes wrong (too much):**
+The `--uninstall --claude-desktop` flag reads the config, does `delete config.mcpServers.fsb`, writes back. If FSB was the only server, the file now contains `{"mcpServers": {}}` which is fine, but some implementations delete the entire `mcpServers` key if empty, or worse, delete the file. If it's a shared settings file (Zed, Gemini), deleting the file destroys all other settings.
+
+**What goes wrong (too little):**
+The uninstall removes the FSB entry from one platform but the user had added FSB to multiple platforms. The user thinks they uninstalled FSB but it still shows up in another client.
+
+**How to avoid:**
+1. Uninstall should ONLY remove the `fsb` key from the server list, never remove the parent key or file.
+2. For shared settings files, use surgical removal (same JSONC `modify()` with `undefined` value to delete a key).
+3. For TOML (Codex), remove only the `[mcp_servers.fsb]` section and its contents.
+4. After uninstall, print which file was modified and what was removed.
+5. If the `fsb` key isn't found, print "FSB was not configured in [platform]" rather than erroring.
+6. Consider an `--uninstall --all` flag that removes FSB from all known platforms at once.
+
+**Warning signs:**
+- Uninstall code path deletes files or parent keys
+- No "not found" handling for missing FSB entries
+- Tests only cover "remove from many servers" case, not "FSB is the only server"
+
+**Phase to address:**
+Uninstall logic phase (Phase 2) -- implement after install works, with explicit surgical removal tests.
+
+---
+
+### Pitfall 12: Windows Line Endings (CRLF) in Config Files
+
+**What goes wrong:**
+The tool writes JSON with LF line endings (`\n`) on Windows. The user opens the file in Notepad (which historically only showed CRLF correctly, though modern Notepad handles LF). More critically, if the file previously had CRLF line endings and the tool writes LF, git diff shows every line as changed, and some Windows tools may behave unexpectedly with mixed line endings.
+
+**How to avoid:**
+1. When reading an existing config file, detect the line ending style (check for `\r\n`).
+2. When writing back, use the same line ending style as the original.
+3. When creating a new file, use the OS default: `os.EOL` from Node.js.
+4. This is low-severity for most cases (JSON parsers don't care about line endings) but important for user experience when they inspect the file.
+
+**Warning signs:**
+- Hardcoded `\n` in JSON.stringify separator or template strings
+- No line ending detection on read
+- Tests only run on macOS/Linux
+
+**Phase to address:**
+Config write engine hardening phase (Phase 2) -- after basic writes work, add line ending preservation.
+
+---
+
+### Pitfall 13: npm Package Size Bloat from Format Parsers
+
+**What goes wrong:**
+To support 10 platforms with JSON, JSONC, TOML, and YAML formats, the developer adds `jsonc-parser` (~50KB), `@iarna/toml` (~93KB), and `js-yaml` (~100KB) as production dependencies. The npm package grows from ~150KB to ~400KB+, slowing `npx -y fsb-mcp-server` cold starts (npx downloads the package on every invocation without cache).
 
 **Why it happens:**
-Cookie consent is ubiquitous on corporate career sites, especially European-headquartered companies or any company with GDPR compliance. The session logs confirm this -- NVIDIA's log shows `#onetrust-pc-btn-handler` ("Manage Settings") and `#onetrust-reject-all-handler` ("Turn Off Optional Cookies") as interactive elements. OneTrust is the most common cookie consent provider across enterprise career sites.
-
-FSB's existing DOM analysis already has basic cookie/consent filtering (line 1218-1219 of `content/dom-analysis.js`: `if (text.includes('cookie') || cls.includes('consent'))`), but this filtering SKIPS the elements rather than dismissing them. The AI may not see the consent banner in its element list but still be blocked by the overlay.
+Each format needs a parser, and the obvious approach is to add a library per format. But `npx -y` downloads the full package + dependencies on every run, and package size directly affects user experience.
 
 **How to avoid:**
-1. Add a "pre-navigation hook" in the career search workflow: before any career site interaction, check for common cookie consent selectors and dismiss them
-2. Common cookie consent selectors to auto-dismiss:
-   - OneTrust: `#onetrust-accept-btn-handler` (Accept All), `#onetrust-reject-all-handler` (Reject All)
-   - CookieBot: `#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll`
-   - Generic: `button[id*="accept"], button[class*="accept-cookies"], [aria-label*="Accept"]`
-3. Include cookie dismissal as step 1 in every career site's workflow section of the site guide
-4. The AI prompt for the career search should explicitly state: "When first visiting a career site, dismiss any cookie consent banner IMMEDIATELY before attempting any other interaction"
+1. **JSON/JSONC**: Use `jsonc-parser` (~50KB). This is the only parser dependency that's truly needed -- it handles the majority of platforms (8 of 10).
+2. **TOML (Codex)**: Use text-level append/remove (no parser needed). Append a known TOML section template to the file. No dependency required.
+3. **YAML (Continue)**: Use the JSON mcpServers directory approach instead. No YAML parser needed.
+4. Net result: only one new dependency (`jsonc-parser`), ~50KB added.
 
 **Warning signs:**
-- First 2-3 iterations on each career site involve clicking non-career-related elements
-- AI reports "element not interactable" or "click intercepted" on career page elements
-- DOM snapshot shows overlay/modal elements blocking the main content
+- More than one format parser in `dependencies`
+- `npx -y fsb-mcp-server` cold start time exceeds 3 seconds
+- `npm pack` output shows package size growing past 200KB
 
 **Phase to address:**
-Career Site Navigation phase -- cookie dismissal should be a standard pre-step in every site visit
+Architecture decision phase (Phase 1) -- decide the format strategy before writing any platform code. Lock to "JSONC only + text-level TOML" early.
 
 ---
 
-### Pitfall 7: Platform-Specific Keyboard Shortcuts (Mac vs Windows) in Sheets Formatting
+### Pitfall 14: Silently Writing Config When Platform Is Not Installed
 
 **What goes wrong:**
-The Google Sheets formatting workflow uses `keyPress` with modifier keys for bold, undo, select-all, etc. The shortcut uses `ctrlKey: true` for Windows but requires `metaKey: true` (Cmd) for macOS. If the wrong modifier is used, the shortcut silently fails -- Ctrl+B on Mac does NOT bold text in Google Sheets. The workflow appears to run (no errors) but formatting is not applied.
-
-**Why it happens:**
-Google Sheets keyboard shortcuts differ by OS:
-- **Bold:** Ctrl+B (Windows/ChromeOS) vs Cmd+B (macOS)
-- **Undo:** Ctrl+Z (Windows) vs Cmd+Z (macOS)
-- **Select All:** Ctrl+A (Windows) vs Cmd+A (macOS)
-- **Fill color search:** Alt+/ (Windows) vs Ctrl+Option+/ (macOS)
-
-FSB already has platform detection (`navigator.userAgent?.includes('Macintosh')` in `ai-integration.js` line 4212, `content/actions.js` line 1627, `content/messaging.js` line 457, and `background.js` line 8372). However, this detection is done at the point of use, not centralized. If the site guide's workflow instructions hardcode `ctrlKey: true`, the platform detection in the action code is bypassed because the AI is told to send a specific modifier.
+The user runs `npx -y fsb-mcp-server install --zed` but doesn't have Zed installed. The tool creates `~/.zed/settings.json` with just the context_servers entry. Later, when the user actually installs Zed, it finds this unexpected settings file and may behave oddly, or Zed's own initialization overwrites the file, and the user's FSB config is lost.
 
 **How to avoid:**
-1. The Sheets site guide workflow instructions should NEVER specify `ctrlKey` or `metaKey` directly. Instead, use platform-agnostic descriptions: "Press the platform Bold shortcut (Ctrl+B on Windows, Cmd+B on Mac)"
-2. Better: Create a `platformShortcut` abstraction in the keyPress tool that auto-detects: `keyPress({ key: 'b', platformModifier: true })` which becomes `ctrlKey` on Windows and `metaKey` on Mac
-3. If the AI generates `{ "tool": "keyPress", "params": { "key": "b", "ctrlKey": true } }` on a Mac, it should still work because the `keyPress` implementation already has platform detection for the Debugger API path. Verify this path works correctly.
-4. Test ALL formatting shortcuts on both platforms before shipping. The `keyPress` tool delegates to the Chrome Debugger API (which sends raw key events) -- verify that Debugger API key events respect the OS-level modifier mapping
+1. Before writing, do a lightweight check for whether the platform is actually installed:
+   - Check if the config directory exists (e.g., `~/.zed/` for Zed)
+   - Check if a known binary is in PATH (e.g., `which zed`, `which cursor`, `which code`)
+   - Check if the config FILE already exists (strongest signal)
+2. If the platform doesn't appear installed, warn: "Zed does not appear to be installed. Write config anyway? (y/N)"
+3. In non-interactive mode, default to SKIP with a message about `--force`.
 
 **Warning signs:**
-- Formatting works on one OS but not the other during testing
-- Bold/italic shortcuts produce no visible change (silent failure)
-- AI tries the same formatting shortcut repeatedly and gets stuck
+- No platform-installed check before writing
+- Tests always create the target directory in setUp
+- No user confirmation flow
 
 **Phase to address:**
-Google Sheets Workflow phase -- must test on both Mac and Windows, and verify the Debugger API keyPress path handles platform modifiers correctly
+Platform detection phase (Phase 2) -- add detection heuristics before implementing auto-install for each platform.
 
 ---
 
-### Pitfall 8: Auth Walls and Login Requirements on Career Sites
+## Security Pitfalls
+
+### Pitfall 15: Config File Permission Escalation on Unix
 
 **What goes wrong:**
-Several career sites require authentication before showing job listings or full job details. Meta's career site shows a login button (`[aria-label="Open login page"]`), and many sites gate the "Apply" button behind login. The AI navigates to a career site, finds a login wall, and either (a) gets stuck in a login loop it cannot complete, or (b) wastes iterations trying to interact with a page that requires authentication.
-
-**Why it happens:**
-Career sites have varying auth requirements:
-- **No auth needed to browse:** Boeing, Amazon, Microsoft, Google, Apple -- job listings are public
-- **Auth needed for full details/apply:** Meta (profile required for some listings), Goldman Sachs (partial gating)
-- **Auth needed to search:** Some Workday-powered sites require account creation before searching
-- **Auth redirects:** Clicking a job listing redirects to an ATS (Lever, Greenhouse) that may require its own auth
-
-FSB cannot and should not automate login -- it would require storing user credentials for dozens of career sites, which is a security liability and against most sites' Terms of Service.
+The tool creates a new config file with `fs.writeFileSync()` which inherits the process umask. If the user's umask is `0o000` (rare but possible in some CI environments), the file is created with mode `0o666` (world-readable and writable). Any local user can read and modify the MCP config, potentially adding malicious MCP servers.
 
 **How to avoid:**
-1. Classify career sites in site guides as `authRequired: 'none' | 'browse_only' | 'full'`
-2. For `authRequired: 'browse_only'` sites (most): extract data from public listing pages without clicking "Apply"
-3. For `authRequired: 'full'` sites: skip the site and inform the user: "Meta careers requires login. Please log in manually and re-run the search for Meta."
-4. The AI prompt should explicitly state: "If you encounter a login wall, DO NOT attempt to log in. Note the site as 'requires authentication' and move to the next site."
-5. Include the apply link from the URL structure (many ATS systems use predictable URL patterns) rather than clicking through auth-gated apply buttons
+1. After creating a new file, explicitly set permissions: `fs.chmodSync(filePath, 0o644)`.
+2. For existing files, preserve the original permissions. Read the file's mode before writing, apply the same mode after.
+3. On Windows, file permissions work differently (ACLs), and `chmod` is a no-op. This is acceptable since Windows uses per-user AppData directories.
 
 **Warning signs:**
-- AI encounters login forms or "Sign In" buttons and tries to interact with them
-- AI gets redirected to an auth page and loops
-- Job data extraction returns empty because content is behind auth
+- No `chmodSync` or `fchmodSync` call after file creation
+- No stat check for existing file permissions
 
 **Phase to address:**
-Site Guide Generation phase -- auth classification must be part of each site guide; Career Workflow phase -- AI prompt must include auth-wall handling instructions
+Config write engine phase (Phase 1) -- add permission handling to the write path from the start.
 
 ---
 
-### Pitfall 9: Pagination and Infinite Scroll Missing Jobs
+### Pitfall 16: MCP Connector Poisoning Perception Risk
 
 **What goes wrong:**
-Career site search results are paginated or use infinite scroll. The automation extracts only the first page of results (typically 10-25 jobs) and misses dozens or hundreds of additional matching positions. Boeing's session log shows URL-based pagination (`?page=2`), while sites like Amazon and Meta use infinite scroll (load-on-scroll or "Load More" buttons). If pagination is not handled, the user gets an incomplete job list that may miss the most relevant positions (which are often not on page 1).
-
-**Why it happens:**
-Each career site implements pagination differently:
-- **URL parameter pagination:** Boeing (`?page=2`), Microsoft, Amazon -- next page requires URL navigation or parameter change
-- **Button pagination:** "Next", "Load More", "Show More Results" buttons that load content dynamically
-- **Infinite scroll:** Meta, some Greenhouse-powered sites -- scrolling down triggers API calls that append results
-- **No pagination (pre-filtered):** Small companies with few listings, or highly filtered searches
-
-The AI may not realize results are paginated, or may treat the first page as complete. Without explicit workflow instructions, it extracts what it sees and moves on.
+The FSB CLI auto-modifying files in the user's home directory makes it look like the MCP connector poisoning attack that security researchers have documented. The user or their security tooling sees an npm package modifying `~/.cursor/mcp.json` and flags it as suspicious behavior. Even if the modification is legitimate, the optics are bad.
 
 **How to avoid:**
-1. Site guides should document pagination type for each career site: `paginationType: 'url' | 'button' | 'infiniteScroll' | 'none'`
-2. The career search workflow prompt should state: "After extracting results from the first page, check for pagination controls (Next button, page numbers, scroll-to-load). If found, navigate to additional pages until you have at least [N] matching results or no more pages exist."
-3. Set a reasonable cap: extract up to 10-15 relevant results per site, not all 500+ results from a large company
-4. For infinite scroll sites: scroll down 3-5 times and extract what loads. Do not scroll indefinitely.
-5. For URL-based pagination: limit to first 3 pages (30-75 results) to avoid excessive iteration counts and API costs
+1. Make auto-install ALWAYS explicit and interactive (never as a postinstall script).
+2. The install command should clearly explain what it will do BEFORE doing it:
+   ```
+   Will write to: /Users/foo/.cursor/mcp.json
+   Changes: Add "fsb" server entry with command "npx -y fsb-mcp-server"
+   Proceed? (y/N)
+   ```
+3. Support `--dry-run` to show what would change without writing.
+4. Never use npm `postinstall` scripts to modify config files -- this is the primary attack vector for malicious packages.
+5. Log all modifications to stderr so they appear in the user's terminal.
 
 **Warning signs:**
-- Output consistently shows exactly 10 or 25 jobs per company (default page size)
-- User searches for a broad role and gets very few results from a large company
-- Session logs show no scroll or pagination actions after the initial search
+- Any config modification happening in a lifecycle hook (postinstall, preinstall)
+- No confirmation prompt or `--dry-run` support
+- Silent writes with no terminal output
 
 **Phase to address:**
-Career Site Navigation phase -- pagination handling must be in the workflow design; Site Guide phase -- document pagination type per site
+UX/safety design phase (Phase 1) -- design the confirmation and dry-run flow before implementing writes.
 
 ---
 
-### Pitfall 10: Duplicate Job Listings Across Sites and Searches
+### Pitfall 17: Command Injection via Untrusted Config Values
 
 **What goes wrong:**
-When searching multiple career sites for the same role, the same job listing appears in the Google Sheet multiple times. A "Software Engineer" search at Microsoft might return the same position via careers.microsoft.com, LinkedIn, and Indeed. Even within a single site, the same role may appear under different departments or search queries. The Google Sheet looks unprofessional and wastes the user's time reviewing duplicates.
-
-**Why it happens:**
-- Companies cross-post the same listing on multiple platforms
-- Career sites show the same position under multiple categories/departments
-- Slight title variations ("Software Engineer" vs "Software Engineer, Backend") look like different jobs but may be the same position
-- Different URLs for the same job (careers.microsoft.com/job/123 vs microsoft.jobs.com/job/123)
+Less likely for FSB (which controls its own config template), but if the tool ever reads values from environment variables or user input to construct the server entry, those values could contain shell metacharacters. If the MCP host later spawns the command via a shell (some do), this becomes a command injection vector.
 
 **How to avoid:**
-1. Implement deduplication before writing to Google Sheets. Deduplicate on: company name + job title (normalized, case-insensitive) + location
-2. When extracting from multiple sources for the same company, prefer the DIRECT career page listing over third-party mirrors (Indeed, Glassdoor)
-3. The workflow should compare each new job against the accumulated list before adding it
-4. Since FSB uses AI to extract job data, the deduplication can be AI-assisted: include the accumulated job list in the AI context and instruct "Skip any job that appears to be a duplicate of an already-extracted listing"
-5. Normalize titles before comparison: strip "Senior"/"Staff" prefix differences that indicate genuinely different roles, but catch exact duplicates
+1. Hardcode all config values in the install template. Never interpolate user-provided strings into command or args fields.
+2. The `command` field should always be `"npx"` and `args` should always be `["-y", "fsb-mcp-server"]` (or `["cmd", "/c", "npx", "-y", "fsb-mcp-server"]` on Windows).
+3. If user customization is needed in the future, validate inputs strictly.
 
 **Warning signs:**
-- Google Sheet has consecutive rows with the same company + nearly identical title
-- Total job count seems inflated relative to the number of sites searched
-- Same apply link URL appears multiple times
+- `process.argv` or `process.env` values being interpolated into config templates
+- Template literals used to construct JSON config entries
 
 **Phase to address:**
-Data Collection phase -- deduplication logic must run before Sheets write, not after
-
----
-
-### Pitfall 11: Tab Management Chaos During Multi-Site Workflows
-
-**What goes wrong:**
-The career search workflow opens 5+ career site tabs, a Google Sheets tab, and possibly Google Search tabs for discovering career URLs. With 7-10+ tabs open, the AI loses track of which tab contains what. It switches to the wrong tab, tries to interact with a career site tab while thinking it is in Google Sheets (or vice versa), or the content script on a background tab becomes disconnected (BF cache eviction). Data intended for Google Sheets gets typed into a career site search box.
-
-**Why it happens:**
-FSB has multi-tab tools (`openNewTab`, `switchToTab`, `closeTab`, `listTabs`) that work at the individual action level. But when the AI needs to orchestrate a complex multi-tab workflow (search site A -> extract -> search site B -> extract -> switch to Sheets -> enter data), the AI must maintain a mental model of which tab is which. This mental model degrades over many iterations.
-
-Additionally, Chrome may evict background tabs to the BF cache (back-forward cache), which disconnects the content script. FSB has BF cache handling, but it adds latency and can fail if the tab was evicted entirely.
-
-**How to avoid:**
-1. Design the workflow to minimize open tabs: visit ONE career site at a time, extract data, close the tab, then open the next site. Do not keep all career sites open simultaneously.
-2. The Google Sheets tab should be opened FIRST and kept as the "home" tab. All career site tabs are temporary -- open, extract, close.
-3. Track tab IDs in the session state: `{ sheetsTabId: 123, currentCareerTabId: 456 }`. After each site extraction, the workflow returns to the Sheets tab before opening the next site.
-4. After switching tabs, always verify the current URL matches expectations before interacting. If the tab URL is wrong, use `listTabs` to find the correct tab.
-5. Consider a "collect first, write later" pattern: visit all career sites and accumulate data in the session state, THEN open Google Sheets ONCE and write all data. This avoids back-and-forth tab switching.
-
-**Warning signs:**
-- AI actions target elements that do not exist on the current page (wrong tab)
-- "Element not found" errors that are actually tab-context errors
-- Data written to wrong location (career site search box instead of Sheets cell)
-- Service worker logs show frequent `switchToTab` actions with errors
-
-**Phase to address:**
-Multi-site Orchestration phase -- tab management strategy must be designed before the workflow is built; "collect then write" vs "write as you go" is a critical architecture decision
-
----
-
-## Minor Pitfalls
-
-Mistakes that cause quality issues or suboptimal results but are relatively easy to fix.
-
----
-
-### Pitfall 12: Expired and Stale Job Listings in Output
-
-**What goes wrong:**
-The Google Sheet includes job listings that have already been filled or expired. Career sites often keep expired listings visible for weeks or months, especially if they use content management systems that do not auto-remove. The user applies to an expired position and wastes time.
-
-**How to avoid:**
-1. Extract the "Date Posted" field for every listing and include it in the Google Sheet
-2. The AI should prioritize recent listings (posted within last 30 days) over older ones
-3. If "Date Posted" is not available, note it as "Date not listed" -- this itself is a signal that the listing may be stale
-4. Flag listings with ambiguous dates ("months ago") in the Sheet with a note
-
-**Warning signs:**
-- "Date Posted" column shows dates from months ago
-- Many listings show "Date not listed"
-- Apply links return 404 or "position no longer available" errors
-
-**Phase to address:**
-Data Extraction phase -- date extraction and recency filtering should be part of the extraction workflow
-
----
-
-### Pitfall 13: Incomplete Job Data Extraction (Missing Fields)
-
-**What goes wrong:**
-The 6 required fields (Company, Title, Date, Location, Description, Apply Link) are not consistently extractable from every career site. Some sites do not show "Date Posted" on the listing page. Others bury the "Location" in a dropdown or secondary view. The description may be behind a "Read More" click. The result is a Google Sheet with inconsistent data quality -- some rows are complete, others have 2-3 empty cells.
-
-**How to avoid:**
-1. Accept that 100% field completion is not achievable across all sites. Design the workflow to handle missing fields gracefully (write "Not available" rather than leaving cells empty)
-2. Prioritize title + company + apply link as MUST-HAVE fields. Date, location, and description are BEST-EFFORT.
-3. For description: extract the first 1-2 sentences visible on the listing page. Do NOT click into each job detail page for full descriptions -- this multiplies the iteration count by 5-10x and makes the workflow impractically slow
-4. For apply link: use the current URL of the listing page as the apply link if no explicit "Apply" button href is available
-
-**Warning signs:**
-- Google Sheet has many empty cells in the Date or Description columns
-- The workflow takes excessively long because the AI is clicking into each job detail page
-- AI gets stuck trying to find a field that does not exist on the current page
-
-**Phase to address:**
-Data Extraction phase -- define MUST-HAVE vs BEST-EFFORT fields clearly in the workflow prompt
-
----
-
-### Pitfall 14: Google Sheets Name Box Timing and Focus Issues
-
-**What goes wrong:**
-The Name Box (`#t-name-box`) is clicked, but the text inside it is not fully selected, so typing a cell reference like "A1" appends to the existing text instead of replacing it. Or the Name Box click is registered but focus shifts back to the grid before the cell reference is typed. The result: navigation goes to the wrong cell, and data is entered in the wrong location.
-
-**How to avoid:**
-1. After clicking the Name Box, add a short wait (100-200ms) for the text to be selected
-2. Use a `selectText` or `Ctrl+A` inside the Name Box to ensure existing text is fully selected before typing
-3. After typing the cell reference and pressing Enter, verify the Name Box now shows the expected reference
-4. Consider using `clearInput` on the Name Box before typing the cell reference, instead of relying on auto-select behavior
-5. The workflow sequence should be: click Name Box -> wait 200ms -> select all text in Name Box -> type cell reference -> press Enter -> wait 200ms -> type cell value
-
-**Warning signs:**
-- Data appears in unexpected cells (offset from expected position)
-- The Name Box shows a reference like "Sheet1A1" (appended instead of replaced)
-- The AI reports success but cell values are in wrong positions
-
-**Phase to address:**
-Google Sheets Workflow phase -- the Name Box interaction sequence must be tested and refined with actual Sheets interaction
-
----
-
-### Pitfall 15: ATS Platform Redirects Break URL Tracking
-
-**What goes wrong:**
-Many company career pages redirect to external ATS platforms (Workday, Greenhouse, Lever, iCIMS). The user expects job listings from "careers.microsoft.com" but the actual job search happens on "microsoft.wd1.myworkdayjobs.com" or similar. The site guide keyed to "careers.microsoft.com" does not match the actual URL where interaction happens. The AI loses the benefit of site-specific guidance after the redirect.
-
-**How to avoid:**
-1. Site guides should include `redirectDomains` in their patterns: if the career page redirects to a known ATS domain, the site guide should still match
-2. The generic career/ATS site guide (`site-guides/career/generic.js`) already includes patterns for `myworkdayjobs.com`, `lever.co`, `greenhouse.io` etc. -- ensure these patterns are comprehensive
-3. When parsing session logs, track redirect chains: if the crawl started at `careers.walmart.com` but ended at `walmart.wd5.myworkdayjobs.com`, the site guide should cover both domains
-4. Consider matching site guides by the COMPANY name rather than just URL pattern, using a lookup table: `{ "walmart": ["careers.walmart.com", "walmart.wd5.myworkdayjobs.com"] }`
-
-**Warning signs:**
-- AI navigates to a career page, gets redirected, and then receives generic guidance instead of site-specific guidance
-- Session logs show the start URL and end URL have different domains
-- The same ATS platform (e.g., Workday) appears for multiple companies but with different subdomains
-
-**Phase to address:**
-Site Guide Generation phase -- redirect domain mapping should be part of the site guide structure
+All phases -- enforce template-only config values as a code review rule.
 
 ---
 
@@ -446,48 +498,63 @@ Shortcuts that seem reasonable but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Hardcoding 35 career site URLs in the workflow | Quick to implement, works for the initial set | Every new career site requires code changes. Cannot handle user-requested sites not in the list. | Never -- use dynamic site discovery via Google search instead |
-| Storing all job data in a single background.js variable | Simple implementation, no async storage overhead | Data loss on service worker restart, memory issues with large result sets | Only for prototyping -- must migrate to chrome.storage before multi-site |
-| Generating one mega-prompt with all career site instructions | Single AI call, simple implementation | Prompt size exceeds token limits with 35 sites, slow inference, irrelevant context for current site | Never -- use per-site prompt assembly from modular site guides |
-| Using raw session log selectors in site guides without stability classification | Fast site guide generation, high specificity | Selectors break on next site deploy, mislead the AI, worse than no selectors | Only for sites with stable selectors (id-based, aria-based) |
-| Collecting all data then writing to Sheets in one batch | Simpler workflow, fewer tab switches | If Sheets write fails mid-way, ALL data must be re-entered. No incremental progress visible to user. | Acceptable for MVP if data is persisted to storage before Sheets write |
+| `JSON.parse`/`JSON.stringify` round-trip | Simple, zero dependencies | Destroys comments, trailing commas, formatting in user configs | Never for user config files |
+| Adding TOML/YAML parser deps | Proper parsing for 2 platforms | Package size bloat, more deps to maintain | Never -- use text-level TOML append and JSON-for-Continue instead |
+| Skipping confirmation prompts | Faster UX, scriptable | Security perception issues, accidental overwrites | Only with explicit `--yes` flag |
+| Single-OS testing | Faster CI, developer convenience | Windows bugs ship undetected, path resolution failures | Never for a cross-platform tool -- at minimum use path-mocking |
+| Writing config without backup | Simpler code, faster writes | Unrecoverable config corruption if bugs exist | Only for DEDICATED config files that are trivially reconstructable |
+| Hardcoding Cline's extension ID (`saoudrizwan.claude-dev`) | Works today | Breaks if Cline changes publisher or extension ID | Acceptable with version-pinned note; monitor for changes |
 
 ## Integration Gotchas
 
-Common mistakes when integrating career search with the existing FSB system.
+Common mistakes when integrating with each MCP host platform.
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| Site guides for 35 new career sites | Adding 35 separate `<script>` tags to `options.html` (already 53 scripts) | Bundle career site guides or lazy-load them. Consider a single `career-sites-all.js` file |
-| AI prompt with site-specific guidance | Sending ALL 35 career site guides in every AI call | Detect current URL, load ONLY the matching site guide + shared category guidance into the prompt |
-| Multi-tab actions in background.js | Assuming content script is always available in all tabs | Re-inject content script after tab switch, verify with healthCheck before interacting |
-| Google Sheets interaction from career search context | Using the same AI iteration to both extract career data AND write to Sheets | Separate concerns: extraction iterations use career-site prompts, Sheets iterations use Sheets-specific prompts. Switch prompt context when switching tab context |
-| Session state across multiple career sites | Treating each site visit as an independent session | One session spans the entire workflow. The session must track: accumulated jobs, sites visited, sites remaining, current phase (searching vs writing) |
+| Platform | Common Mistake | Correct Approach |
+|----------|----------------|------------------|
+| Claude Code | Writing to `~/.claude.json` directly | Use `claude mcp add` CLI with `--scope user` |
+| VS Code | Using `"mcpServers"` as top-level key | Use `"servers"` as top-level key in `mcp.json` |
+| VS Code | Writing to `settings.json` | Write to separate `mcp.json` (user-level or `.vscode/mcp.json`) |
+| Zed | Overwriting entire `settings.json` | Surgically insert into `context_servers` key only |
+| Codex | Using `mcpServers` or `mcp-servers` in TOML | Must use `mcp_servers` (underscore) -- Codex silently ignores other variants |
+| Continue | Modifying `config.yaml` (YAML) | Drop a JSON file into `~/.continue/mcpServers/fsb.json` instead |
+| Gemini CLI | Treating `settings.json` as MCP-only | It contains auth, theme, and editor preferences -- use surgical insert |
+| Cursor | Assuming only global config | Cursor reads both `~/.cursor/mcp.json` (global) and `.cursor/mcp.json` (project-level) |
+| Windsurf | Using `mcpServers` key | Windsurf also uses `mcpServers` but in `mcp_config.json` -- don't confuse with Cursor's `mcp.json` |
+| All platforms | Assuming `npx` command works on Windows | Windows needs `npx.cmd` in some environments, or `cmd /c npx` wrapper |
 
 ## Performance Traps
 
-Patterns that work at small scale but degrade at workflow scale.
-
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Full DOM snapshot per AI iteration during Sheets write | Each Sheets iteration sends the entire DOM (toolbar + grid metadata), most of which never changes | For Sheets iterations, send a MINIMAL context: just Name Box value, current cell reference, and recently entered values | After 30+ cell entries (60+ iterations), AI context fills up with repeated DOM snapshots |
-| AI context includes ALL accumulated job data | Every career site iteration includes the full list of previously extracted jobs for dedup | Only include the last 5-10 extracted jobs for dedup context, store full list in session state | After extracting from 5+ sites (50+ jobs), context exceeds token budget |
-| No cap on career site results per site | AI keeps scrolling/paginating through hundreds of results | Cap at 10-15 relevant results per site. State this limit explicitly in the prompt. | A broad search at Amazon returns 500+ results, causing 20+ iterations of scrolling |
-| One-at-a-time Sheets cell entry | Each cell value requires: Name Box click -> type ref -> Enter -> type value -> Tab | Use the Tab/Enter pattern for sequential data entry. Navigate to starting cell once, then Tab across columns and Enter for new rows | A 10-company x 6-field sheet requires 60 individual cell navigations instead of 10 row entries |
+| Parsing large settings files with regex | Timeout on Zed settings with 1000+ lines | Use `jsonc-parser` which is streaming/efficient | Settings file > 500 lines |
+| Synchronous file I/O blocking the CLI | Noticeable delay when writing to slow filesystems (network drives) | Use async I/O with `fs.promises` for the actual writes | Network-mounted home directory |
+| Cold `npx` download on every install invocation | 3-5 second startup before install begins | Accept this -- it's inherent to `npx -y`. Note in docs that `npm install -g fsb-mcp-server` is faster for repeated use | Always with `npx -y` |
+
+## UX Pitfalls
+
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| No success/failure summary | User doesn't know if install worked | Print clear success message with the file path modified and a "verify" command |
+| Printing raw JSON diffs | User can't understand what changed | Print human-readable summary: "Added FSB server to Cursor config at ~/.cursor/mcp.json" |
+| Silent skip when entry already exists | User thinks install happened | Print explicit message: "FSB is already configured in Cursor. Use --force to overwrite." |
+| No `--dry-run` option | User can't preview changes safely | Always support `--dry-run` showing the exact file and diff without writing |
+| Error messages with stack traces | User is confused and alarmed | Catch errors, print friendly messages: "Could not write to ~/.cursor/mcp.json: Permission denied. Try running with sudo or check file permissions." |
+| `--uninstall` with no confirmation | User accidentally removes config | Require `--yes` flag for uninstall, or prompt interactively |
 
 ## "Looks Done But Isn't" Checklist
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Session log parsing "complete":** Often missing LOW-confidence site classification. Verify that sites with 0 interactive elements are flagged, not silently generating empty site guides
-- [ ] **Site guide selectors "working":** Often using unstable hashed class selectors. Verify each site guide uses aria/role/id selectors as PRIMARY, class selectors only as fallback
-- [ ] **Google Sheets "formatting working":** Often missing color formatting (bold works, colors do not). Verify fill color and text color are applied, not just bold/italic
-- [ ] **Multi-site search "complete":** Often tested with 2-3 sites. Test with 5+ sites to verify service worker persistence and tab management at scale
-- [ ] **Job data "extracted":** Often missing Date Posted or Description. Verify all 6 required fields are populated (or explicitly marked "Not available")
-- [ ] **Career site navigation "working":** Often tested on sites without auth walls. Test with Meta, Goldman Sachs, and Workday-powered sites that have login requirements
-- [ ] **Cookie consent "handled":** Often works for OneTrust but misses other consent frameworks. Test with CookieBot, TrustArc, and custom consent implementations
-- [ ] **Pagination "handled":** Often extracts only first page. Verify that the workflow checks for and handles pagination on paginated sites (Boeing, Amazon)
-- [ ] **Tab management "stable":** Often tested with 2 tabs (career + Sheets). Test with 5+ tabs to verify no content script disconnections or wrong-tab interactions
+- [ ] **Path resolution:** Works on macOS dev machine -- verify Windows APPDATA paths actually resolve (test with `process.env.APPDATA` undefined)
+- [ ] **JSONC preservation:** Round-trip test with a config containing `//` comments, `/* */` block comments, and trailing commas
+- [ ] **Zed shared settings:** Test that writing FSB entry preserves ALL other Zed settings keys (theme, font, keybindings, language_overrides, etc.)
+- [ ] **Gemini shared settings:** Test that writing FSB entry preserves `selectedAuthType`, `theme`, `preferredEditor`
+- [ ] **Codex TOML section name:** Verify `mcp_servers` (underscore) -- not `mcpServers` or `mcp-servers`
+- [ ] **Cline deep path:** Verify the full `globalStorage/saoudrizwan.claude-dev/settings/` path chain is created
+- [ ] **Windows Defender interference:** Test write on Windows with real-time protection enabled -- watch for EPERM on rename
+- [ ] **Empty file creation:** What happens when the target config file doesn't exist at all? Each platform needs a valid initial skeleton
+- [ ] **Uninstall idempotency:** Running uninstall twice should not error or modify the file on the second run
+- [ ] **npx on Windows:** Verify `"command": "npx"` works when spawned by each platform on Windows -- some need `npx.cmd`
 
 ## Recovery Strategies
 
@@ -495,14 +562,13 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Empty DOM snapshots (Pitfall 1) | LOW | Re-classify site as "navigation-only" in site guide. Use generic ATS selectors + AI runtime DOM analysis instead of site-specific selectors |
-| Canvas click failure in Sheets (Pitfall 2) | LOW | AI should automatically detect Name Box availability and use it. Add explicit instruction in iteration prompt: "Use Name Box, never click grid cells" |
-| Color shortcut failure in Sheets (Pitfall 3) | MEDIUM | Switch from keyboard shortcut approach to toolbar click approach. Requires DOM inspection of color picker toolbar buttons and swatches |
-| Service worker data loss (Pitfall 4) | HIGH | If detected mid-workflow, restart from last persisted checkpoint. If not detected until Sheets write, must re-visit sites that lost data. Prevention (incremental persistence) is critical. |
-| Hashed selectors broken (Pitfall 5) | LOW | Fall back to generic selectors in the shared career guide. The AI's runtime DOM analysis should handle the rest. Remove broken site-specific selectors from guide. |
-| Auth wall blocking (Pitfall 8) | LOW | Skip the site, notify user, move to next site. User can manually log in and re-run for that site. |
-| Tab management chaos (Pitfall 11) | MEDIUM | Use `listTabs` to reorient. Close all career site tabs, reopen only the current one. Worst case: restart the workflow from the Sheets tab with accumulated data. |
-| Wrong cell data entry (Pitfall 14) | MEDIUM | Use Ctrl+Z/Cmd+Z to undo, re-navigate via Name Box. If extensively wrong, start a new Sheet and re-enter. This is why "collect then write" is preferred over "write as you go". |
+| Config corruption (truncated file) | MEDIUM | Restore from `.fsb-backup` if backup was created; otherwise user re-creates manually |
+| Comments destroyed by JSON.stringify | LOW | User re-adds comments; future installs use JSONC-aware editing |
+| Wrong key used (e.g., `mcpServers` in VS Code) | LOW | User manually renames key to `servers`; fix in next release |
+| Zed/Gemini settings erased | HIGH | No automated recovery. User must restore from editor backup, Time Machine, or git. Prevention is critical. |
+| TOML section name wrong | LOW | User manually renames `mcpServers` to `mcp_servers` in config.toml |
+| Windows EPERM during write | LOW | Retry the command; close IDE/antivirus temporarily |
+| Config written for uninstalled platform | LOW | Delete the created file and directory |
 
 ## Pitfall-to-Phase Mapping
 
@@ -510,37 +576,42 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| #1 Empty DOM snapshots | Session Log Parsing | Every generated site guide has a `confidence` score. Sites with score LOW have no selectors, only URL guidance |
-| #2 Canvas grid not clickable | Google Sheets Workflow | Sheets workflow uses Name Box exclusively. No `click` actions targeting grid/cell elements |
-| #3 No color keyboard shortcut | Google Sheets Workflow | Header row has fill color AND bold applied. Color is applied via toolbar click, not keyboard shortcut |
-| #4 Service worker data loss | Multi-site Orchestration | Job data persists to chrome.storage after each site. Killing service worker mid-workflow does not lose data |
-| #5 Hashed class selectors | Session Log Parsing | Each selector in site guides has a `stability` rating. No hashed-only selectors without ARIA/role fallbacks |
-| #6 Cookie consent banners | Career Site Navigation | First action on any career site is cookie consent check/dismiss. Test with NVIDIA (OneTrust confirmed) |
-| #7 Mac vs Windows shortcuts | Google Sheets Workflow | Formatting tested on both macOS and Windows. Platform detection verified for Debugger API keyPress path |
-| #8 Auth walls | Site Guide Generation | Each site guide has `authRequired` field. AI prompt includes auth-wall handling ("skip and notify") |
-| #9 Pagination missing jobs | Career Site Navigation | Test with Boeing (URL pagination) and Amazon (button pagination). Verify 2+ pages are extracted |
-| #10 Duplicate listings | Data Collection | Run dedup before Sheets write. Test: search "software engineer" at related companies, verify no exact-title+company duplicates |
-| #11 Tab management | Multi-site Orchestration | Test 5-site workflow end-to-end. Verify no wrong-tab interactions in session logs |
-| #12 Expired listings | Data Extraction | Date Posted field extracted for every listing. Listings older than 60 days flagged |
-| #13 Incomplete data | Data Extraction | MUST-HAVE fields (title, company, apply link) present for 100% of entries. BEST-EFFORT fields noted as "Not available" when missing |
-| #14 Name Box timing | Google Sheets Workflow | Cell navigation sequence tested: click Name Box -> wait -> select all -> type ref -> Enter -> wait -> type value. Verify correct cell targeted |
-| #15 ATS redirects | Site Guide Generation | Site guides include redirect domains. Test with Walmart (Workday redirect) |
+| P1: JSON.stringify destroys comments | Phase 1: Config Engine | Round-trip test with commented JSONC fixture |
+| P2: Wrong top-level keys | Phase 1: Platform Registry | Per-platform schema validation tests |
+| P3: Windows path failures | Phase 1: Path Resolution | CI tests on Windows (or mock `process.platform` and env vars) |
+| P4: Non-atomic writes | Phase 1: Config Engine | Interrupt-simulation test (write to readonly target) |
+| P5: Clobbering existing entries | Phase 2: Merge Logic | Test with pre-existing custom FSB entry |
+| P6: Erasing shared settings | Phase 1: Platform Registry + Config Engine | Test with full Zed/Gemini settings fixture |
+| P7: TOML comment destruction | Phase 3: Codex Implementation | Test with commented config.toml |
+| P8: YAML dependency bloat | Phase 1: Architecture Decision | npm pack size check in CI |
+| P9: Claude Code file write | Phase 2: Platform Implementations | Test that no file write occurs for `--claude-code` |
+| P10: Missing parent directories | Phase 1: Config Engine | Test with non-existent parent dir |
+| P11: Uninstall over-removal | Phase 2: Uninstall Logic | Test uninstall on shared settings file |
+| P12: Windows CRLF | Phase 2: Write Hardening | Line ending detection test |
+| P13: Package size bloat | Phase 1: Architecture Decision | `npm pack --dry-run` size assertion |
+| P14: Writing for uninstalled platform | Phase 2: Platform Detection | Test with missing platform binary |
+| P15: File permissions | Phase 1: Config Engine | Verify file mode after write on Unix |
+| P16: Poisoning perception | Phase 1: UX Design | Confirmation prompt and `--dry-run` in CLI spec |
+| P17: Command injection | All Phases | Code review rule: no user input in templates |
 
 ## Sources
 
-- Direct analysis of 35 career site session logs in `/Logs/fsb-research-*.json` (Tesla showing 0 elements, Meta showing hashed classes, Boeing showing URL pagination, Walmart showing empty interactive elements with populated internal links)
-- Direct analysis of existing site guides: `site-guides/career/_shared.js`, `site-guides/career/generic.js`, `site-guides/productivity/google-sheets.js`, `site-guides/productivity/google-docs.js`
-- Direct analysis of FSB codebase: `content/actions.js` (keyPress tool, multi-tab tools), `background.js` (activeSessions Map, service worker lifecycle), `content/dom-analysis.js` (cookie consent filtering), `ai-integration.js` (platform detection)
-- [Google Docs Editors Help: Keyboard shortcuts for Google Sheets](https://support.google.com/docs/answer/181110) -- Official Google documentation confirming no built-in color keyboard shortcut
-- [Google Docs Editors Community: Shortcut key to color a cell](https://support.google.com/docs/thread/227704922) -- Confirms Alt+/ menu search workaround for colors
-- [The New Stack: Google Docs Switches to Canvas Rendering](https://thenewstack.io/google-docs-switches-to-canvas-rendering-sidelining-the-dom/) -- Canvas rendering architecture in Google Docs/Sheets
-- [Chrome for Developers: Extension service worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) -- 30-second idle timeout, 5-minute execution limit
-- [ZenRows: Bypass Bot Detection](https://www.zenrows.com/blog/bypass-bot-detection) -- Anti-bot detection mechanisms (fingerprinting, behavioral analysis, TLS)
-- [ScrapingBee: Web Scraping Challenges 2025](https://www.scrapingbee.com/blog/web-scraping-challenges/) -- Dynamic content loading, anti-scraping measures
-- [JobsPikr: Job Scraping Explained](https://www.jobspikr.com/blog/guide-to-job-scraping/) -- Job data quality: deduplication, expired listings, data normalization
-- [Cloudflare: JavaScript Detections](https://developers.cloudflare.com/cloudflare-challenges/challenge-types/javascript-detections/) -- Cloudflare anti-bot JS challenge injection
-- [Akamai: Bot Manager](https://www.akamai.com/products/bot-manager) -- Behavioral analysis, JA3/JA4 fingerprinting
+- [VS Code MCP Configuration Reference](https://code.visualstudio.com/docs/copilot/reference/mcp-configuration) -- verified `"servers"` key (not `"mcpServers"`)
+- [Zed MCP Documentation](https://zed.dev/docs/ai/mcp) -- verified `"context_servers"` key and settings.json structure
+- [Codex MCP Configuration](https://developers.openai.com/codex/mcp) -- verified TOML `mcp_servers` key with underscore
+- [Continue MCP Setup](https://docs.continue.dev/customize/deep-dives/mcp) -- verified JSON file in `.continue/mcpServers/` approach
+- [Gemini CLI MCP Docs](https://geminicli.com/docs/tools/mcp-server/) -- verified `mcpServers` in `~/.gemini/settings.json`
+- [Claude Code MCP Docs](https://code.claude.com/docs/en/mcp) -- verified `claude mcp add` CLI approach
+- [Windsurf MCP Integration](https://docs.windsurf.com/windsurf/cascade/mcp) -- verified `~/.codeium/windsurf/mcp_config.json`
+- [Cline MCP Configuration](https://docs.cline.bot/mcp/configuring-mcp-servers) -- verified deep `globalStorage/saoudrizwan.claude-dev/settings/` path
+- [npm/write-file-atomic Windows EPERM Issue #28](https://github.com/npm/write-file-atomic/issues/28) -- Windows rename race condition
+- [npm/write-file-atomic Windows EPERM Issue #227](https://github.com/npm/write-file-atomic/issues/227) -- fs.rename retry gap
+- [MCP Connector Poisoning (dev.to)](https://dev.to/toniantunovic/mcp-connector-poisoning-how-compromised-npm-packages-hijack-your-ai-agent-3ha0) -- postinstall attack vector
+- [Cursor MCP Documentation](https://cursor.com/docs/context/mcp) -- verified `mcpServers` key and deeplink format
+- [Claude Desktop MCP Setup](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop) -- verified config paths per OS
+- [Node.js Cross-Platform Filesystem Guide](https://github.com/ehmicky/cross-platform-node-guide/blob/main/docs/3_filesystem/directory_locations.md) -- path resolution patterns
+- [jsonc-parser on npm](https://www.npmjs.com/package/jsonc-parser) -- JSONC-aware editing without comment loss
 
 ---
-*Pitfalls research for: Career Search Automation with Google Sheets Output (FSB v9.4)*
-*Researched: 2026-02-23*
+*Pitfalls research for: MCP Platform Install Flags (v0.9.30)*
+*Researched: 2026-04-15*

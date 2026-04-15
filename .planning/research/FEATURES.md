@@ -1,581 +1,427 @@
-# Feature Research: Career Search Automation + Google Sheets Output
+# Feature Research: MCP Platform Install Flags
 
-**Domain:** Career search automation with structured spreadsheet output
-**Researched:** 2026-02-23
+**Domain:** MCP server auto-configuration CLI
+**Researched:** 2026-04-15
 **Confidence:** HIGH
-**Scope:** Adding career search automation to FSB Chrome Extension (v9.4) -- multi-company job search, data extraction, and formatted Google Sheets output
 
----
-
-## Existing Capabilities (What FSB Already Has)
-
-Before mapping new features, these are the building blocks already in place. Every new feature below either extends these or fills a gap between them.
-
-| Capability | Status | Location |
-|-----------|--------|----------|
-| AI-powered browser automation (25+ tools) | Shipped | content/actions.js |
-| Career site guides (Indeed, Glassdoor, BuiltIn, generic ATS) | Shipped | site-guides/career/ |
-| Career category shared guidance (6-field extraction, strategy priority) | Shipped | site-guides/career/_shared.js |
-| Google Sheets site guide (Name Box navigation, Tab/Enter data entry) | Shipped | site-guides/productivity/google-sheets.js |
-| Google Docs formatted paste (bold, tables, lists via Clipboard API) | Shipped | content/rich-text.js |
-| Multi-tab tools (openNewTab, switchToTab, closeTab, listTabs) | Shipped | content/actions.js, background.js |
-| Task type detection (career, multitab) | Shipped | ai-integration.js, background.js |
-| Career-specific prompt template (6-phase workflow) | Shipped | ai-integration.js TASK_PROMPTS.career |
-| Site guide URL pattern matching | Shipped | site-guides/index.js |
-| Crowd session logs for 34 career sites + Google Docs | Available | /logs/ directory |
-| Memory system (sitemaps per domain, cross-site patterns) | Shipped | lib/memory/ |
-| Multitab completion validator | Shipped | background.js multitabValidator |
-| Conversation history across iterations | Shipped | background.js sessionAIInstances |
-
-**Key gap:** FSB can search ONE career site and enter data into ONE Google Sheet in a single session. It does NOT have structured multi-company orchestration, data accumulation across sites, or Google Sheets formatting (bold, colors, column sizing).
-
----
-
-## Table Stakes (Users Expect These)
-
-Features users assume exist when they say "find me internships and put them in a spreadsheet." Missing any of these makes the product feel broken.
-
----
-
-### TS-1: Single-Company Career Search with Data Extraction
-
-**Why Expected:** This is the atomic unit of the workflow. If FSB cannot reliably navigate one career site, find matching jobs, and extract the 6 required fields (company, title, date, location, description, apply link), nothing else matters.
-
-**Complexity:** MEDIUM -- The AI prompt template (TASK_PROMPTS.career) and career site guides already define this workflow. The challenge is reliability across the 30+ different ATS platforms (Workday, Lever, Greenhouse, Ashby, iCIMS, custom builds). Each has different DOM structures, search mechanisms, and listing formats.
-
-**Dependencies on Existing FSB:**
-- Career site guides (generic.js, indeed.js, glassdoor.js, builtin.js) -- already shipped
-- Career shared guidance (_shared.js 6-field extraction) -- already shipped
-- getText, getAttribute, click, type, scroll tools -- already shipped
-
-**Needs New Site Guide Data:** YES -- The 34 crowd session logs need to be parsed into per-company site guides with selectors for each company's career page (search box, job cards, job title, location, date, apply link). The generic.js guide covers common ATS patterns, but company-specific selectors increase reliability. For example, Microsoft's career page uses `#find-jobs-btn` and `[aria-label="Search jobs"]` (visible in the session log), while Amazon uses `#search-typeahead-homepage` and `#search-button`.
-
-**What "done" looks like:**
-- User says "find software engineering internships at Microsoft"
-- FSB navigates to careers.microsoft.com (via Google search)
-- FSB uses the search box to enter "software engineering internship"
-- FSB extracts 3-5 matching listings with all 6 fields
-- FSB reports the findings to the user
-
----
-
-### TS-2: Multi-Company Sequential Search
-
-**Why Expected:** The core value proposition is "find me jobs at Microsoft, Amazon, AND Google." Users name 2-10 companies in a single prompt. If FSB can only handle one company, users just do it manually.
-
-**Complexity:** HIGH -- This requires FSB to orchestrate a sequential workflow: search company A, accumulate data, search company B, accumulate more data, etc. The AI needs to maintain state across company transitions -- remembering which companies it has already searched, which it has not, and what data it has collected so far.
-
-**Dependencies on Existing FSB:**
-- Multi-tab tools (openNewTab, switchToTab) -- already shipped
-- Multitab task detection (classifyTask returns 'multitab') -- already shipped
-- Conversation history preservation -- already shipped
-
-**Key challenge:** The AI's conversation history currently preserves intent across iterations, but there is no structured data accumulation mechanism. After extracting jobs from Microsoft, the AI needs to remember the extracted data while it searches Amazon. The conversation memory can hold this if the AI formats it as structured text in its responses, but it is fragile -- context window limits may truncate earlier findings.
-
-**Needs New Site Guide Data:** YES -- Each company needs its own site guide or the AI needs to rely on the generic ATS guide + sitemaps generated from crowd session logs.
-
-**What "done" looks like:**
-- User says "find software engineering internships at Microsoft, Amazon, and Google"
-- FSB searches Microsoft careers, extracts 3-5 jobs
-- FSB opens a new tab (or navigates) to Amazon careers, extracts 3-5 jobs
-- FSB opens a new tab to Google careers, extracts 3-5 jobs
-- All extracted data is preserved and available for the next phase (Sheets entry)
-
----
-
-### TS-3: Google Sheets Data Entry (Basic)
-
-**Why Expected:** "Put them in a spreadsheet" is the explicit user request. If the data stays in chat but never appears in a Sheet, the task is not done.
-
-**Complexity:** MEDIUM -- The Google Sheets site guide already defines the Name Box navigation pattern (click #t-name-box, type cell reference, Enter, type value, Tab). The TASK_PROMPTS.career prompt already has Phase 4-6 covering Sheet creation, header setup, and row data entry. The challenge is reliability: Google Sheets is canvas-based, and the Name Box is the only reliable entry point. Tab/Enter sequencing must be exact -- one missed Tab shifts all subsequent columns.
-
-**Dependencies on Existing FSB:**
-- Google Sheets site guide (google-sheets.js) -- already shipped
-- Name Box navigation workflow -- already defined
-- type, keyPress, click tools -- already shipped
-
-**Needs New Site Guide Data:** The existing Google Sheets site guide covers basic data entry. May need enhancement for:
-- Creating a new blank spreadsheet from sheets.google.com home
-- Handling the "Blank spreadsheet" template button
-- Dealing with Google account authentication walls
-
-**What "done" looks like:**
-- FSB navigates to sheets.google.com or a provided Sheet URL
-- Creates a new blank spreadsheet (if needed)
-- Sets up header row: Company | Role | Date Posted | Location | Description | Apply Link
-- Enters all extracted job data, one row per job
-- All 6 columns populated for each row
-
----
-
-### TS-4: Vague Query Interpretation
-
-**Why Expected:** Users are often vague. "Find me tech internships" does not specify a company, a role exactly, or a location. FSB needs to handle ambiguity gracefully rather than failing or asking for clarification on every detail.
-
-**Complexity:** LOW -- The AI is inherently good at interpreting vague queries. The existing career shared guidance already handles this: "If user says 'find jobs at [company]' with no role specified, extract the first 3-5 listings." The AI just needs good prompt engineering to map vague terms to search queries. "Tech internships" becomes a search for "software engineering intern" or "technology intern" on career pages.
-
-**Dependencies on Existing FSB:**
-- AI natural language understanding -- inherent in the LLM
-- Career shared guidance relevance rules -- already shipped
-
-**Needs New Site Guide Data:** No
-
-**What "done" looks like:**
-- "Find me tech internships" -> AI searches for "software engineering intern" or similar on career pages
-- "Find me jobs at big tech companies" -> AI interprets as Microsoft, Google, Amazon, Apple, Meta
-- "Look for DevOps positions" -> AI searches multiple companies for "DevOps Engineer"
-
----
-
-### TS-5: Deduplication Awareness
-
-**Why Expected:** The same job may appear on a company's direct career page AND on Indeed or Glassdoor. If a user searches both, they do not want duplicate rows in their spreadsheet.
-
-**Complexity:** LOW -- The AI can compare job titles, company names, and locations before adding a row. This is a prompt engineering task, not an architecture task. The existing career shared guidance already prioritizes direct company pages over job boards: "ALWAYS try the company's direct career page FIRST."
-
-**Dependencies on Existing FSB:**
-- Career shared guidance strategy priority -- already shipped
-
-**Needs New Site Guide Data:** No
-
-**What "done" looks like:**
-- If the same "Software Engineer II" at Microsoft appears on both careers.microsoft.com and Indeed, FSB enters it once
-- AI compares new extraction against already-collected data before adding
-
----
-
-### TS-6: Error Reporting When No Results Found
-
-**Why Expected:** If Microsoft has no "quantum computing intern" openings, the user needs to know. Silent failure (empty spreadsheet with no explanation) is the worst outcome.
-
-**Complexity:** LOW -- The AI already has fallback strategies in the career prompt: "If no results on company site: try Indeed search." The addition is explicit reporting: "No matching positions found at [company] for [role]. Tried direct career page and Indeed."
-
-**Dependencies on Existing FSB:**
-- Career prompt fallback strategies -- already shipped
-- Chat UI for progress reporting -- already shipped
-
-**Needs New Site Guide Data:** No
-
-**What "done" looks like:**
-- FSB reports in the chat: "Found 4 jobs at Microsoft, 0 at Boeing (no quantum computing intern roles listed), 3 at Google"
-- Empty companies are noted but do not produce empty rows in the Sheet
-
----
-
-## Differentiators (What Makes This Amazing vs. Just Functional)
-
-Features that transform "it works" into "this is incredible." Not expected, but once experienced, users would not go back.
-
----
-
-### D-1: Formatted Google Sheets Output (Bold Headers, Colored Header Row, Auto-Sized Columns)
-
-**Value Proposition:** The difference between a wall of text dumped into a Sheet and a professional-looking tracker. Users share these Sheets with friends, career counselors, and advisors. Formatting communicates care and professionalism.
-
-**Complexity:** HIGH -- Google Sheets formatting cannot be done via the Sheets API (FSB is a browser extension, not a server-side app). All formatting must happen through keyboard shortcuts and toolbar interactions:
-- **Bold headers:** Select row 1, press Ctrl+B. Requires selecting the row first (click row number "1" on the left gutter).
-- **Header background color:** Select row 1, click the fill color toolbar button, pick a color from the palette. This involves clicking a dropdown widget, which is a DOM interaction on Google Sheets' toolbar -- possible but fragile.
-- **Freeze header row:** View menu -> Freeze -> 1 row. Menu navigation via DOM clicks.
-- **Auto-size columns:** Select all (Ctrl+A), then right-click column header -> "Resize columns" -> "Fit to data." Alternatively, double-click column border in the header row -- this is a positional click on a thin border, unreliable via automation.
-
-The Google Sheets site guide needs significant enhancement to cover formatting workflows (toolbar button selectors, menu navigation paths, color picker interaction).
-
-**Dependencies on Existing FSB:**
-- Google Sheets site guide -- needs formatting workflow additions
-- click, keyPress tools -- already shipped
-- Google Docs formatted paste (Clipboard API) -- relevant precedent but Sheets uses different approach
-
-**Needs New Site Guide Data:** YES -- Need selectors for Google Sheets toolbar: bold button, fill color button, color picker palette, View menu freeze option, Format menu. The crowd session log for docs.google.com shows the docs home page but may not have the Sheets editor toolbar elements.
-
----
-
-### D-2: Structured Data Accumulator (Cross-Site State Management)
-
-**Value Proposition:** Currently the AI relies on conversation history to remember extracted data across company transitions. This is fragile: if the context window fills up, earlier data gets truncated. A structured data accumulator would hold extracted job data in a reliable in-memory structure that persists across the entire multi-company workflow.
-
-**Complexity:** MEDIUM -- This could be implemented as a session-level data store in background.js that the AI writes to after each company search and reads from when entering Sheets data. The AI would use a new tool like `storeJobData` and `getCollectedJobData`.
-
-**Dependencies on Existing FSB:**
-- Session management (background.js sessions) -- already shipped
-- Tool library extensibility -- already designed for new tools
-
-**Needs New Site Guide Data:** No
-
-**What it enables:**
-- After searching 10 companies, all 30-50 job listings are reliably stored
-- No data loss from context window truncation
-- Sheet entry phase reads from the accumulator, not from conversation memory
-- Can report totals: "Collected 47 jobs across 10 companies"
-
----
-
-### D-3: Progress Reporting During Multi-Company Search
-
-**Value Proposition:** Searching 10 career sites takes 5-15 minutes. Without progress feedback, users think FSB is stuck. Progress reporting transforms anxiety into confidence.
-
-**Complexity:** LOW -- FSB already has a chat UI and a progress overlay system. Adding messages like "Searching Microsoft... (1/5)" or "Found 3 jobs at Amazon, moving to Google (3/5)" is a prompt engineering enhancement plus minor UI work.
-
-**Dependencies on Existing FSB:**
-- Chat UI message display -- already shipped
-- Progress overlay (ProgressOverlay class) -- already shipped
-
-**Needs New Site Guide Data:** No
-
----
-
-### D-4: Salary Information Extraction (When Available)
-
-**Value Proposition:** Many career pages now show salary ranges (especially in states with pay transparency laws -- Colorado, New York, California, Washington). Users building comparison spreadsheets want salary data. An extra "Salary Range" column elevates the output significantly.
-
-**Complexity:** LOW -- This is an extension of the 6-field extraction to 7 fields. The AI already extracts text from job listings; adding salary detection is a prompt instruction. The Google Sheets header row gets one more column.
-
-**Dependencies on Existing FSB:**
-- Career data extraction workflow -- already shipped
-- getText tool -- already shipped
-
-**Needs New Site Guide Data:** Site guides may need salary-related selectors for sites that display salary prominently (Glassdoor already has salary estimates as a feature).
-
----
-
-### D-5: Apply Link Validation
-
-**Value Proposition:** Dead or expired job links frustrate users. If FSB can verify that apply links actually lead to application pages (not 404s or expired listings), the output is more trustworthy.
-
-**Complexity:** MEDIUM -- Would require FSB to briefly navigate to each apply link, check for error indicators (404 pages, "this position has been filled" messages), and note validity. This adds time to the workflow but significantly improves output quality.
-
-**Dependencies on Existing FSB:**
-- Navigation tools -- already shipped
-- Page context detection (error message detection) -- already shipped in content/dom-analysis.js
-
-**Needs New Site Guide Data:** No
-
----
-
-### D-6: Smart Company Name Resolution
-
-**Value Proposition:** Users say "Boeing" but the career site is jobs.boeing.com. Users say "Goldman" but it is goldmansachs.com/careers. Users say "J&J" but it is careers.jnj.com. Reliable company-to-career-URL mapping prevents wasted time on wrong sites.
-
-**Complexity:** LOW -- This is largely handled by the existing strategy of Googling "[company name] careers." The crowd session logs provide a verified mapping of 34 company names to career URLs. This mapping can be embedded in site guides so the AI does not need to Google every time.
-
-**Dependencies on Existing FSB:**
-- Google search workflow -- already shipped
-- Career site guides -- existing + new from session logs
-
-**Needs New Site Guide Data:** YES -- Embed direct career URLs in per-company site guides. For example: Microsoft -> careers.microsoft.com, Amazon -> www.amazon.jobs, Meta -> www.metacareers.com.
-
----
-
-### D-7: Sheet Title and Tab Naming
-
-**Value Proposition:** Instead of "Untitled spreadsheet," the Sheet gets a meaningful name like "Job Search - Software Engineering - Feb 2026." Small touch, big difference in organization.
-
-**Complexity:** LOW -- Click the title area in Google Sheets (which is a regular input field, unlike the canvas), type the title. Already feasible with existing tools.
-
-**Dependencies on Existing FSB:**
-- Google Sheets site guide -- needs title selector addition
-- type, click tools -- already shipped
-
-**Needs New Site Guide Data:** Minimal -- add the sheet title input selector.
-
----
-
-## Anti-Features (Things to Deliberately NOT Build)
-
-Features that seem useful but create serious problems for FSB's use case. These are deliberate scope exclusions with rationale.
-
----
-
-### AF-1: Auto-Apply to Jobs
-
-**Why Requested:** "Find jobs AND apply for me" is a natural extension. Auto-apply tools (LazyApply, Simplify, LoopCV) are a hot market segment.
-
-**Why Problematic:**
-- **Legal and ethical risk:** Submitting applications on behalf of users without their explicit per-application approval crosses a line. Employers increasingly penalize auto-applied candidates.
-- **Quality destruction:** Mass auto-apply generates low-quality applications. Employers detect and filter these.
-- **Authentication walls:** Most application forms require login, personal info, resume upload, and custom responses. FSB cannot fill these reliably.
-- **Irreversibility:** Applying cannot be undone. A bug that applies to the wrong job has real consequences.
-- **Scope explosion:** Application forms vary wildly (Workday multi-step, Lever single-page, Greenhouse with custom questions). Supporting even 10 ATS platforms is a major engineering effort.
-
-**What to Do Instead:** FSB provides the "Apply Link" column so users can click and apply themselves. The value is in discovery and organization, not submission.
-
----
-
-### AF-2: Scraping Behind Login Walls
-
-**Why Requested:** LinkedIn Jobs, some Glassdoor listings, and enterprise Workday portals require authentication for full job descriptions.
-
-**Why Problematic:**
-- **TOS violations:** Automated access to authenticated sessions is explicitly prohibited by LinkedIn, Glassdoor, and most job boards.
-- **Account risk:** Users' accounts could be flagged or banned for automated behavior.
-- **Session security:** FSB would need to operate within authenticated sessions, creating security surface area.
-- **Credential handling:** FSB should never store, manage, or interact with user credentials beyond what is needed for its own API keys.
-
-**What to Do Instead:** Stick to public career pages (direct company sites are almost always public). If a job board requires login, note the limitation in the chat and skip that source. The career shared guidance already warns: "Indeed may require login to apply -- note when auth walls appear."
-
----
-
-### AF-3: Real-Time Job Monitoring / Alerts
-
-**Why Requested:** "Notify me when new software engineering jobs are posted at Google." Continuous monitoring sounds like a natural extension.
-
-**Why Problematic:**
-- **Chrome Extension lifecycle:** Manifest V3 service workers are terminated after 5 minutes of inactivity. Continuous background polling is architecturally impossible without a separate server.
-- **Rate limiting:** Repeatedly hitting career sites would trigger anti-bot measures.
-- **Scope creep:** This transforms FSB from a task automation tool into a job board aggregator, which is a fundamentally different product.
-
-**What to Do Instead:** Users can run the career search task periodically ("Find me new SWE jobs at Google this week"). Each run produces a fresh Sheet. Manual triggers, not automated monitoring.
-
----
-
-### AF-4: Resume/Cover Letter Generation
-
-**Why Requested:** Tools like Teal, Huntr, and Jobright offer AI-generated resumes tailored to each job listing.
-
-**Why Problematic:**
-- **Different product:** Resume generation is a document creation task, not a browser automation task. It requires different AI capabilities (writing quality, formatting, PDF generation).
-- **Quality bar:** Bad auto-generated resumes harm users' job prospects. This is high-stakes output that requires careful human review.
-- **Scope explosion:** Resume formatting, ATS keyword optimization, template selection -- each is a feature unto itself.
-
-**What to Do Instead:** FSB extracts job descriptions so users can feed them into dedicated resume tools. The "Description" column gives users the raw material for manual tailoring.
-
----
-
-### AF-5: Excessive Data Extraction Per Job (Full Job Description)
-
-**Why Requested:** Users might want the complete multi-paragraph job description in the spreadsheet.
-
-**Why Problematic:**
-- **Spreadsheet readability:** Full job descriptions (500-2000 words each) in a cell make the Sheet unusable. Cells become walls of text that break the tabular format.
-- **Extraction time:** Reading and copying full descriptions multiplies the time per job by 3-5x.
-- **Context window pressure:** Storing full descriptions for 30+ jobs would exceed the AI's context limits.
-
-**What to Do Instead:** Extract a 1-2 sentence summary of key responsibilities (as the current prompt specifies). The apply link lets users read the full description when they want it.
-
----
-
-### AF-6: Comparison Scoring or Ranking
-
-**Why Requested:** "Rank these jobs by relevance" or "score each job match on a 1-10 scale."
-
-**Why Problematic:**
-- **Subjective:** Job fit depends on resume, experience, preferences, and career goals that FSB does not know.
-- **False confidence:** An AI-generated "fit score" of 8/10 might mislead users into not reading the job description.
-- **Liability:** If FSB ranks a poor-fit job highly and the user applies based on the score, it creates a negative experience.
-
-**What to Do Instead:** Present all matching jobs in the Sheet and let users sort, filter, and evaluate themselves. The structured format (company, title, location, salary) already enables human comparison.
-
----
+## Feature Landscape
+
+### Table Stakes (Users Expect These)
+
+Features users assume exist. Missing these = product feels incomplete.
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| **Platform flag per target** (`--claude-desktop`, `--cursor`, etc.) | Every auto-install tool (add-mcp, install-mcp) uses per-platform targeting. Users expect to name the platform they want. | LOW | One flag per platform, dispatch to platform-specific handler. The existing `setup` command already enumerates platforms. |
+| **Safe config merging (read-modify-write)** | Users already have other MCP servers configured. Overwriting the file would destroy their setup. add-mcp and install-mcp both merge into existing config. | MEDIUM | Must parse existing JSON/TOML/YAML, insert/update `fsb` key under the servers object, write back. Preserve formatting where feasible (JSON.stringify with indent 2 is standard). |
+| **Cross-OS path resolution** | MCP config files live in different locations per OS (macOS `~/Library/Application Support/`, Windows `%APPDATA%\`, Linux `~/.config/`). All auto-install tools resolve platform-specific paths. | MEDIUM | Need OS detection (`process.platform`) and path expansion. Windows needs `%APPDATA%` / `%USERPROFILE%` env var expansion. |
+| **Confirmation before write** | Users expect to see what will happen before their config files are modified. add-mcp prompts by default, offers `-y` to skip. | LOW | Print the file path, show the entry being added, ask Y/n. Trivial readline prompt. |
+| **Idempotent install** | Running install twice should not duplicate entries or corrupt config. | LOW | Check if `fsb` key already exists; if so, update in place or skip with message. |
+| **Success/failure feedback** | User needs to know if it worked, what file was written, and what to do next. | LOW | Print path written, next steps (restart client, verify with `status`/`doctor`). |
+| **Windows command wrapping** | On Windows, `npx` must be invoked via `cmd /c npx` in some clients. The existing `setup` command already handles this distinction. | LOW | Windows detection already exists in the codebase (`printSetup` shows `['cmd', '/c', 'npx', '-y', 'fsb-mcp-server']`). Apply per-platform. |
+| **Error on missing config directory** | If the platform is not installed (e.g., `~/.cursor` does not exist), fail gracefully with a clear message rather than silently creating directories. | LOW | `fs.existsSync` check before write. |
+
+### Differentiators (Competitive Advantage)
+
+Features that set the product apart. Not required, but valuable.
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| **`--uninstall` flag** | Clean removal of FSB entry from config, preserving all other servers. install-mcp does NOT support uninstall. add-mcp supports it via a separate `remove` subcommand. Having it built into `npx fsb-mcp-server install --uninstall --cursor` is cleaner than requiring a separate tool. | MEDIUM | Parse config, remove `fsb` key, write back. Must handle "file has only fsb" edge case (leave valid empty config). |
+| **`--dry-run` flag** | Show exactly what would be written/changed without modifying anything. Neither add-mcp nor install-mcp offer dry-run. Builds trust for cautious users. | LOW | Same logic as install, but print diff instead of writing. Minimal extra code if install logic is factored properly. |
+| **Backup before write** | Create `.bak` copy of config file before modifying. add-mcp does NOT back up. 1mcp.app's uninstall docs mention "automatic backup creation." Builds trust. | LOW | `fs.copyFileSync(configPath, configPath + '.bak')` before write. One line of code. |
+| **`--all` flag** | Install to every detected platform at once. add-mcp supports `--all`. Saves time for power users who use multiple editors. | LOW | Iterate over all platform handlers, skip platforms whose config directory does not exist. Report summary. |
+| **Multi-format config support (JSON + TOML + YAML)** | Codex uses TOML (`~/.codex/config.toml`), Continue uses YAML (`.continue/mcpServers/*.yaml`). Supporting these formats means truly universal coverage. | HIGH | Need TOML parser/writer (e.g., `smol-toml`) and YAML parser/writer (e.g., `yaml`). Adds dependencies to the package. |
+| **Claude Code integration via `claude mcp add`** | Instead of writing a config file, shell out to `claude mcp add fsb -- npx -y fsb-mcp-server` for Claude Code. Uses the official API rather than poking at internal config files. | MEDIUM | Need to detect if `claude` CLI is available, exec the command, handle errors. Alternative: write to `~/.claude.json` directly (simpler but less official). |
+| **Cursor deeplink generation** | Generate and optionally open `cursor://anysphere.cursor-deeplink/mcp/install?name=fsb&config=...` URL. Already partially implemented in `buildCursorDeeplink()`. | LOW | Existing logic in codebase. Add `--open` to launch via `open` (macOS) / `xdg-open` (Linux) / `start` (Windows). |
+
+### Anti-Features (Commonly Requested, Often Problematic)
+
+Features that seem good but create problems.
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| **Interactive TUI with multi-select menu** | add-mcp uses interactive multi-select for platform targeting. Looks polished. | Adds dependency on `inquirer` or `prompts`. Breaks non-interactive CI environments. The tool runs via `npx` so startup time matters -- TUI libraries are heavy. FSB is a single-server installer, not a multi-server manager. | Simple Y/n readline prompt for confirmation. Platform specified via explicit flags, not menus. |
+| **Auto-detect all installed editors** | add-mcp scans the filesystem for installed editors. Seems convenient. | Fragile heuristic (checking for directories like `~/.cursor` does not mean Cursor is actually installed). Creates false positives. For a single-server install command, the user knows which editor they want. | Let the user specify the target explicitly. `--all` flag covers the "install everywhere" case with directory existence as guard. |
+| **Registry/marketplace integration** | Smithery, MCP Market, and similar registries offer discovery. | FSB is a specific product, not a registry. Users install FSB from npm, not from a marketplace search. Adding registry metadata adds complexity for zero user benefit. | Good npm README with install instructions is sufficient. |
+| **Desktop Extension (.mcpb) packaging** | Claude Desktop now supports one-click `.mcpb` installs with bundled Node.js runtime. | Separate distribution channel with its own packaging toolchain. Requires bundling Node.js runtime. Orthogonal to the CLI install flags feature. Worth doing eventually, but as a separate milestone. | Defer to future milestone. CLI install flags cover the JSON config path that `.mcpb` would replace. |
+| **Environment variable injection** | Some MCP servers need API keys injected via env vars. add-mcp supports `--env KEY=VALUE`. | FSB does not need any environment variables or API keys in its MCP config. Adding env var support is dead feature weight. | Omit. If needed later, trivial to add `--env KEY=VALUE` flag. |
+| **Project-scoped install** | Some platforms (Cursor, VS Code, Claude Code) support project-scoped `.mcp.json` / `.cursor/mcp.json`. | FSB is a browser automation bridge -- it is inherently user-global, not project-scoped. Installing per-project creates confusion and maintenance burden. | Always install to user/global scope. Document project-scope as manual option in `setup` output. |
 
 ## Feature Dependencies
 
 ```
-TS-1 (Single-Company Search)
-    |
-    +-- TS-2 (Multi-Company Sequential) -- requires TS-1 working reliably
-    |       |
-    |       +-- D-2 (Data Accumulator) -- enhances TS-2 reliability
-    |       |
-    |       +-- D-3 (Progress Reporting) -- enhances TS-2 UX
-    |
-    +-- TS-3 (Google Sheets Data Entry) -- independent of TS-2, can work with TS-1 alone
-    |       |
-    |       +-- D-1 (Formatted Output) -- enhances TS-3 with styling
-    |       |
-    |       +-- D-7 (Sheet Title) -- enhances TS-3 with naming
-    |
-    +-- TS-4 (Vague Query) -- enhances TS-1, no hard dependency
-    |
-    +-- TS-5 (Deduplication) -- needed once TS-2 exists (multi-source risk)
-    |
-    +-- TS-6 (Error Reporting) -- enhances TS-1 and TS-2
-    |
-    +-- D-4 (Salary Extraction) -- extends TS-1 extraction, minor addition
-    |
-    +-- D-5 (Apply Link Validation) -- independent, applies after TS-1
-    |
-    +-- D-6 (Company Name Resolution) -- enhances TS-1 navigation phase
+[Config path resolution per platform]
+    +--requires--> [OS detection (process.platform)]
+    +--requires--> [Home directory expansion]
 
-Site Guide Parsing (prerequisite for all):
-    Session logs -> Per-company site guides -> Sitemaps
-    (This is the data pipeline that feeds TS-1 reliability)
+[Safe config merging]
+    +--requires--> [Config path resolution]
+    +--requires--> [JSON parser (built-in)]
+    +--requires--> [TOML parser (Codex only)]
+    +--requires--> [YAML parser (Continue only)]
+
+[Install command]
+    +--requires--> [Config path resolution]
+    +--requires--> [Safe config merging]
+    +--requires--> [Confirmation prompt]
+    +--enhances--> [Backup before write]
+    +--enhances--> [Dry-run mode]
+
+[Uninstall command]
+    +--requires--> [Config path resolution]
+    +--requires--> [Safe config merging (remove key)]
+    +--requires--> [Confirmation prompt]
+    +--enhances--> [Backup before write]
+
+[--all flag]
+    +--requires--> [Install command]
+    +--requires--> [Config path resolution for every platform]
+
+[Claude Code integration]
+    +--conflicts--> [Config file writing for Claude Code]
+    (Use claude mcp add, not file write)
+
+[Cursor deeplink]
+    +--enhances--> [Install command --cursor]
+    (Alternative install path, not primary)
 ```
 
 ### Dependency Notes
 
-- **TS-2 requires TS-1:** Cannot search multiple companies if single-company search is unreliable.
-- **TS-3 is parallel to TS-2:** Sheets entry can be tested with data from one company. Does not require multi-company to work first.
-- **D-1 requires TS-3:** Cannot format a Sheet that has no data in it yet.
-- **D-2 enhances TS-2:** Without the accumulator, multi-company data relies on conversation memory (fragile but functional).
-- **Site guide parsing is the critical prerequisite:** The 34 crowd session logs must be converted into usable site guides before any career search feature works reliably at scale.
-
----
+- **Install requires config path resolution:** Cannot write config without knowing where it is.
+- **Safe merging requires parsers:** JSON is built-in. TOML (Codex) and YAML (Continue) need external packages -- these are the only platforms requiring non-JSON formats.
+- **Uninstall shares all install infrastructure:** Same path resolution, same merge logic (remove instead of add), same backup and confirmation UX.
+- **Claude Code conflicts with file writing:** Claude Code's official method is `claude mcp add`, not manual file editing. Using the CLI command is preferable; fallback to writing `~/.claude.json` only if `claude` binary is not found.
 
 ## MVP Definition
 
-### Launch With (v9.4 Core)
+### Launch With (v1 -- this milestone)
 
-The minimum that satisfies "find me internships and put them in a spreadsheet":
+- [ ] `install` subcommand added to CLI parser -- new command alongside `stdio`, `serve`, `setup`, etc.
+- [ ] Platform flags: `--claude-desktop`, `--cursor`, `--vscode`, `--windsurf`, `--claude-code`, `--cline`, `--zed` -- covers all JSON-config platforms plus Claude Code CLI delegation
+- [ ] Cross-OS path resolution for all JSON-format platforms (macOS, Windows, Linux)
+- [ ] Safe config merging: read existing JSON, add/update `fsb` entry under correct key (`mcpServers` / `servers` / `context_servers`), write back with 2-space indent
+- [ ] Confirmation prompt before write (Y/n), skippable with `--yes` or `-y`
+- [ ] Backup before write (`.bak` file)
+- [ ] Idempotent: detect existing `fsb` entry, update or skip
+- [ ] `--uninstall` flag to remove FSB entry
+- [ ] Success/failure output with next steps
+- [ ] Error handling for missing platform directories
 
-- [ ] **Site guide parsing pipeline** -- Convert 34 crowd session logs into per-company site guides with selectors (search box, job cards, title, location, date, apply link, pagination). Without this, the AI is flying blind on most company career pages.
-- [ ] **TS-1: Single-company search** -- Navigate one career site, search, extract 3-5 jobs with 6 fields. This must work on at least 20 of the 34 companies.
-- [ ] **TS-2: Multi-company sequential search** -- Handle prompts naming 2-10 companies. Visit each sequentially, accumulate data in conversation memory.
-- [ ] **TS-3: Google Sheets basic data entry** -- Create Sheet, set up headers, enter rows with Tab/Enter pattern.
-- [ ] **TS-4: Vague query handling** -- Interpret "tech internships" and "DevOps positions" correctly.
-- [ ] **TS-6: Error reporting** -- Report which companies had no results.
+### Add After Validation (v1.x)
 
-### Add After Core Works (v9.4.x)
+- [ ] `--dry-run` flag -- print what would change without writing. Add once core install is solid.
+- [ ] `--all` flag -- install to every detected platform. Add once individual platform handlers are tested.
+- [ ] Codex TOML support (`--codex`) -- requires TOML parser dependency. Defer to avoid blocking launch on dependency decisions.
+- [ ] Gemini CLI support (`--gemini-cli`) -- JSON format, straightforward, but lower priority platform.
+- [ ] Continue support (`--continue`) -- YAML format, requires yaml dependency.
+- [ ] Cursor deeplink auto-open (`--cursor --open-deeplink`) -- nice-to-have alternative to config file writing.
 
-- [ ] **D-1: Formatted output** -- Bold headers, colored header row, frozen header. Add once basic data entry is reliable.
-- [ ] **D-2: Data accumulator** -- Structured data store for multi-company workflows. Add if conversation memory proves too fragile.
-- [ ] **D-3: Progress reporting** -- "Searching Microsoft... (2/5)". Add for UX polish.
-- [ ] **D-6: Company name resolution** -- Embed direct career URLs in site guides. Add to reduce Google search overhead.
-- [ ] **D-7: Sheet title naming** -- "Job Search - SWE Internships - Feb 2026". Quick UX win.
-- [ ] **TS-5: Deduplication** -- Add once multi-source search is common.
+### Future Consideration (v2+)
 
-### Future Consideration (v9.5+)
-
-- [ ] **D-4: Salary extraction** -- Needs per-site salary selector identification
-- [ ] **D-5: Apply link validation** -- Adds significant time per job, defer until speed is acceptable
-
----
+- [ ] Desktop Extension (.mcpb) packaging -- separate distribution format, separate milestone
+- [ ] Interactive TUI mode -- only if user feedback demands it
+- [ ] Project-scoped install -- only if use cases emerge for per-project FSB config
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Priority | Phase |
-|---------|-----------|--------------------:|----------|-------|
-| Site guide parsing (34 sites) | HIGH | HIGH | P0 | Data pipeline |
-| TS-1: Single-company search | HIGH | MEDIUM | P1 | Core |
-| TS-2: Multi-company sequential | HIGH | HIGH | P1 | Core |
-| TS-3: Sheets basic data entry | HIGH | MEDIUM | P1 | Core |
-| TS-4: Vague query handling | MEDIUM | LOW | P1 | Core |
-| TS-6: Error reporting | MEDIUM | LOW | P1 | Core |
-| D-1: Formatted output | MEDIUM | HIGH | P2 | Polish |
-| D-2: Data accumulator | HIGH | MEDIUM | P2 | Reliability |
-| D-3: Progress reporting | MEDIUM | LOW | P2 | Polish |
-| D-6: Company name resolution | MEDIUM | LOW | P2 | Optimization |
-| D-7: Sheet title naming | LOW | LOW | P2 | Polish |
-| TS-5: Deduplication | LOW | LOW | P2 | Data quality |
-| D-4: Salary extraction | LOW | LOW | P3 | Future |
-| D-5: Apply link validation | LOW | MEDIUM | P3 | Future |
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| `install --claude-desktop` | HIGH | LOW | P1 |
+| `install --cursor` | HIGH | LOW | P1 |
+| `install --vscode` | HIGH | LOW | P1 |
+| `install --claude-code` | HIGH | MEDIUM | P1 |
+| `install --windsurf` | MEDIUM | LOW | P1 |
+| `install --cline` | MEDIUM | LOW | P1 |
+| `install --zed` | MEDIUM | LOW | P1 |
+| Safe config merging (JSON) | HIGH | MEDIUM | P1 |
+| Cross-OS path resolution | HIGH | MEDIUM | P1 |
+| Confirmation prompt | HIGH | LOW | P1 |
+| Backup before write | MEDIUM | LOW | P1 |
+| `--uninstall` | MEDIUM | LOW | P1 |
+| Idempotent install | HIGH | LOW | P1 |
+| `--dry-run` | MEDIUM | LOW | P2 |
+| `--all` | MEDIUM | LOW | P2 |
+| `install --codex` (TOML) | LOW | HIGH | P2 |
+| `install --gemini-cli` | LOW | LOW | P2 |
+| `install --continue` (YAML) | LOW | HIGH | P2 |
+| Cursor deeplink auto-open | LOW | LOW | P3 |
+| Desktop Extension (.mcpb) | LOW | HIGH | P3 |
 
 **Priority key:**
-- P0: Prerequisite -- must exist before any feature works
-- P1: Must have for launch -- the core "find jobs, put in Sheet" workflow
-- P2: Should have -- reliability, UX polish, and optimization
-- P3: Nice to have -- future enhancement
-
----
+- P1: Must have for this milestone
+- P2: Should have, add when possible (next iteration)
+- P3: Nice to have, future consideration
 
 ## Competitor Feature Analysis
 
-| Feature | JobPilot | Teal | Simplify | FSB (Our Approach) |
-|---------|----------|------|----------|-------------------|
-| Multi-site search | No (single-board autofill) | No (manual entry) | No (autofill only) | YES -- navigate actual career sites |
-| Job tracking spreadsheet | Yes (built-in tracker) | Yes (built-in tracker) | No | YES -- real Google Sheet user owns |
-| Data extraction | Basic (title, company) | Saves job details | Auto-populates from listing | Full 6-field extraction via DOM |
-| Formatting | Built-in UI styling | Built-in UI styling | N/A | Google Sheets native formatting |
-| Direct company career pages | No (job boards only) | No (job boards only) | No (job boards only) | YES -- prioritizes direct career pages |
-| Auto-apply | No | No | Yes (autofill) | NO -- deliberately excluded |
-| Resume tailoring | No | Yes | Yes | NO -- out of scope |
-| Price | $9-29/mo | Free/Premium | Free/Premium | Free (user's own AI API key) |
+### Existing MCP Auto-Install Tools
 
-**FSB's differentiator vs. competitors:** FSB navigates actual company career pages (not just job board aggregators) and produces a real Google Sheet that the user owns and controls. Competitors are either (a) job board extensions that only work on Indeed/LinkedIn, or (b) application trackers that require manual data entry. FSB automates the full pipeline: discovery + extraction + organization.
+| Feature | add-mcp (Neon) | install-mcp (Supermemory) | FSB install (our plan) |
+|---------|----------------|---------------------------|------------------------|
+| **Platforms** | 13 agents | 18 clients | 7-10 platforms (focused on popular ones) |
+| **Install** | Yes, per-agent flags | Yes, `--client` flag | Yes, `--<platform>` flags |
+| **Uninstall** | Yes (`remove` subcommand) | No | Yes (`--uninstall --<platform>`) |
+| **Dry-run** | No | No | Yes (`--dry-run`) |
+| **Backup** | No | No | Yes (`.bak` file) |
+| **Confirmation** | Yes (interactive, skippable with `-y`) | No | Yes (Y/n, skippable with `-y`) |
+| **Config merge** | Writes to agent-specific files | Direct config modification | Read-modify-write with preservation |
+| **Auto-detect** | Scans for installed agents | No | No (explicit platform flags) |
+| **Multi-server** | Yes (general purpose) | Yes (general purpose) | No (FSB only -- simpler, faster) |
+| **TOML/YAML** | Unknown | Unknown | Deferred (JSON first, TOML/YAML in P2) |
+| **Claude Code** | Writes config file | Writes config file | Shells out to `claude mcp add` (official method) |
+| **Interactive TUI** | Multi-select menu | No | No (flags + Y/n prompt) |
 
----
+### Key Differentiation
 
-## User Workflow Scenarios
+add-mcp and install-mcp are **general-purpose multi-server installers**. FSB's `install` command is a **single-purpose, zero-config installer for FSB specifically**. This means:
 
-### Scenario 1: Specific Multi-Company Search
-**Input:** "Find all software engineering internships at Microsoft, Amazon, and Google and put them in a Google Sheet"
-**Expected behavior:**
-1. FSB navigates to careers.microsoft.com, searches "software engineering intern," extracts 3-5 matches
-2. FSB navigates to www.amazon.jobs, searches same, extracts 3-5 matches
-3. FSB navigates to careers.google.com, searches same, extracts 3-5 matches
-4. FSB creates a new Google Sheet titled "SWE Internships - Feb 2026"
-5. Sets up header row: Company | Role | Date Posted | Location | Description | Apply Link
-6. Enters all extracted jobs (9-15 rows)
-7. Reports: "Found 4 at Microsoft, 5 at Amazon, 3 at Google. 12 jobs entered into Google Sheet."
+1. **Faster** -- no registry queries, no server selection, no dependency resolution
+2. **Safer** -- backup before write, dry-run option, confirmation prompt
+3. **Simpler** -- one command does one thing (`npx fsb-mcp-server install --cursor`)
+4. **Reversible** -- built-in `--uninstall` with the same flags
 
-### Scenario 2: Vague Query
-**Input:** "Find me tech internships"
-**Expected behavior:**
-1. FSB interprets "tech internships" broadly -- searches for "technology intern" or "software intern"
-2. AI decides which companies to search (top tech employers or asks user to specify)
-3. Searches 3-5 career sites
-4. Extracts matching positions
-5. Enters into a new Google Sheet
+## Expected UX Flows
 
-### Scenario 3: Single Company, Specific Role
-**Input:** "Find DevOps Engineer positions at Boeing"
-**Expected behavior:**
-1. FSB navigates to jobs.boeing.com (via Google search or site guide URL)
-2. Searches "DevOps Engineer"
-3. Extracts all matching positions (may be 0-10)
-4. If 0 results: reports "No DevOps Engineer positions found at Boeing"
-5. If results found: enters into Sheet or reports in chat
+### Install (normal)
 
-### Scenario 4: Existing Sheet
-**Input:** "Find data science jobs at Goldman Sachs and add to [Google Sheets URL]"
-**Expected behavior:**
-1. FSB navigates to Goldman Sachs careers
-2. Searches "data science"
-3. Extracts matches
-4. Navigates to the provided Sheet URL
-5. Finds the next empty row (does not overwrite existing data)
-6. Enters new data starting from that row
+```
+$ npx fsb-mcp-server install --cursor
 
----
+FSB MCP Server v0.4.x
 
-## Confidence Assessment
+Target: Cursor (global)
+Config: /Users/you/.cursor/mcp.json
+Action: Add "fsb" to mcpServers
 
-| Area | Confidence | Rationale |
-|------|-----------|-----------|
-| Table stakes features | HIGH | Based on direct codebase analysis, existing prompt templates, site guides, and tools. Clear what exists and what gaps remain. |
-| Differentiator feasibility | MEDIUM | Google Sheets formatting via browser automation is feasible (toolbar buttons exist in DOM) but untested at this level of detail. Bold and freeze should work. Color picker interaction is uncertain. |
-| Anti-features rationale | HIGH | Based on competitive landscape research, Chrome Extension MV3 architecture constraints, and FSB design principles. Auto-apply exclusion is well-supported by industry evidence. |
-| Complexity estimates | MEDIUM | Based on existing codebase understanding but not validated against actual implementation. Multi-company orchestration complexity may be higher than estimated if conversation memory proves insufficient. |
-| Competitor analysis | MEDIUM | Based on WebSearch results. Competitor features may have changed since search results were generated. Core competitive positioning is sound. |
+  {
+    "fsb": {
+      "command": "npx",
+      "args": ["-y", "fsb-mcp-server"]
+    }
+  }
 
----
+Proceed? [Y/n] y
+
+Backed up: /Users/you/.cursor/mcp.json.bak
+Written:   /Users/you/.cursor/mcp.json
+
+Done. Restart Cursor to activate the FSB MCP server.
+Run `npx fsb-mcp-server doctor` to verify the connection.
+```
+
+### Install (already exists)
+
+```
+$ npx fsb-mcp-server install --cursor
+
+FSB MCP Server v0.4.x
+
+Target: Cursor (global)
+Config: /Users/you/.cursor/mcp.json
+
+FSB is already configured in this file. No changes needed.
+```
+
+### Install (config file does not exist yet)
+
+```
+$ npx fsb-mcp-server install --cursor
+
+FSB MCP Server v0.4.x
+
+Target: Cursor (global)
+Config: /Users/you/.cursor/mcp.json (will be created)
+Action: Create file with "fsb" in mcpServers
+
+  {
+    "mcpServers": {
+      "fsb": {
+        "command": "npx",
+        "args": ["-y", "fsb-mcp-server"]
+      }
+    }
+  }
+
+Proceed? [Y/n] y
+
+Created: /Users/you/.cursor/mcp.json
+
+Done. Restart Cursor to activate the FSB MCP server.
+```
+
+### Install (platform not found)
+
+```
+$ npx fsb-mcp-server install --cursor
+
+FSB MCP Server v0.4.x
+
+Error: Cursor does not appear to be installed.
+Expected config directory: /Users/you/.cursor
+Tip: If Cursor is installed elsewhere, use `fsb-mcp-server setup` for manual instructions.
+```
+
+### Uninstall
+
+```
+$ npx fsb-mcp-server install --uninstall --cursor
+
+FSB MCP Server v0.4.x
+
+Target: Cursor (global)
+Config: /Users/you/.cursor/mcp.json
+Action: Remove "fsb" from mcpServers
+
+Proceed? [Y/n] y
+
+Backed up: /Users/you/.cursor/mcp.json.bak
+Written:   /Users/you/.cursor/mcp.json
+
+Done. FSB removed from Cursor. Restart Cursor to apply.
+```
+
+### Claude Code (CLI delegation)
+
+```
+$ npx fsb-mcp-server install --claude-code
+
+FSB MCP Server v0.4.x
+
+Target: Claude Code
+Action: Run `claude mcp add fsb -- npx -y fsb-mcp-server`
+
+Proceed? [Y/n] y
+
+Running: claude mcp add fsb -- npx -y fsb-mcp-server
+Added fsb to Claude Code.
+
+Done. The FSB MCP server is now available in Claude Code.
+```
+
+### Dry-run (P2)
+
+```
+$ npx fsb-mcp-server install --cursor --dry-run
+
+FSB MCP Server v0.4.x [DRY RUN]
+
+Target: Cursor (global)
+Config: /Users/you/.cursor/mcp.json
+Action: Would add "fsb" to mcpServers (no files modified)
+
+  {
+    "fsb": {
+      "command": "npx",
+      "args": ["-y", "fsb-mcp-server"]
+    }
+  }
+
+No changes made.
+```
+
+### Non-interactive
+
+```
+$ npx fsb-mcp-server install --cursor -y
+
+FSB MCP Server v0.4.x
+
+Backed up: /Users/you/.cursor/mcp.json.bak
+Written:   /Users/you/.cursor/mcp.json
+
+Done. Restart Cursor to activate the FSB MCP server.
+```
+
+## Platform Config Reference
+
+Consolidated from research. This is the implementation reference for path resolution and config format per platform.
+
+| Platform | Config Path (macOS) | Config Path (Windows) | Config Path (Linux) | Root Key | Format |
+|----------|--------------------|-----------------------|--------------------|----------|--------|
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` | `%APPDATA%\Claude\claude_desktop_config.json` | `~/.config/Claude/claude_desktop_config.json` | `mcpServers` | JSON |
+| Cursor | `~/.cursor/mcp.json` | `~/.cursor/mcp.json` | `~/.cursor/mcp.json` | `mcpServers` | JSON |
+| VS Code | `~/.vscode/mcp.json` (user-global) | `~/.vscode/mcp.json` | `~/.vscode/mcp.json` | `servers` | JSON |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` | JSON |
+| Cline | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | `%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json` | `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | `mcpServers` | JSON |
+| Zed | `~/.config/zed/settings.json` | `%APPDATA%\Zed\settings.json` | `~/.config/zed/settings.json` | `context_servers` | JSON |
+| Claude Code | N/A (uses `claude mcp add`) | N/A | N/A | N/A | CLI |
+| Codex | `~/.codex/config.toml` | `~/.codex/config.toml` | `~/.codex/config.toml` | `mcp_servers` | TOML |
+| Gemini CLI | `~/.gemini/settings.json` | `~/.gemini/settings.json` | `~/.gemini/settings.json` | `mcpServers` | JSON |
+| Continue | `~/.continue/config.yaml` | same | same | `mcpServers` (array) | YAML |
+
+### Config Entry Shape per Platform
+
+**Most platforms (Claude Desktop, Cursor, Windsurf, Cline, Gemini CLI):**
+```json
+{ "mcpServers": { "fsb": { "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
+
+**VS Code (note: root key is `servers`, not `mcpServers`):**
+```json
+{ "servers": { "fsb": { "type": "stdio", "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
+
+**Zed (note: root key is `context_servers`):**
+```json
+{ "context_servers": { "fsb": { "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
+
+**Codex (TOML, note: key is `mcp_servers` with underscore):**
+```toml
+[mcp_servers.fsb]
+command = "npx"
+args = ["-y", "fsb-mcp-server"]
+```
+
+**Continue (YAML, note: array-based, not object-based):**
+```yaml
+mcpServers:
+  - name: fsb
+    command: npx
+    args:
+      - "-y"
+      - "fsb-mcp-server"
+```
+
+**Windows variant for JSON platforms (Claude Desktop, Cursor, Windsurf, Cline):**
+```json
+{ "command": "cmd", "args": ["/c", "npx", "-y", "fsb-mcp-server"] }
+```
+
+### Format Complexity by Platform
+
+| Platform | Why Easy | Why Hard |
+|----------|----------|----------|
+| Claude Desktop | Standard mcpServers JSON | Three different OS paths |
+| Cursor | Standard mcpServers JSON, single path across OSes | None |
+| VS Code | JSON format | Different root key (`servers`), needs `type: "stdio"` field |
+| Windsurf | Standard mcpServers JSON | Two different path patterns (macOS/Linux vs Windows) |
+| Cline | Standard mcpServers JSON | Very long path with VS Code extension globalStorage |
+| Zed | JSON format | Different root key (`context_servers`), config is full settings.json (must merge carefully into existing Zed settings) |
+| Claude Code | No config file to manage | Requires `claude` CLI to be installed and in PATH |
+| Codex | Simple structure | TOML format requires parser dependency |
+| Gemini CLI | Standard mcpServers JSON | Lower adoption, fewer users |
+| Continue | Supports JSON import | Primary format is YAML (array-based, not object-based) |
 
 ## Sources
 
-**Codebase analysis (HIGH confidence):**
-- ai-integration.js TASK_PROMPTS.career (lines 262-331): Existing 6-phase career workflow
-- site-guides/career/_shared.js: Career category shared guidance with 6-field extraction, strategy priority
-- site-guides/career/generic.js: Generic ATS platform guide with selectors and workflows
-- site-guides/career/indeed.js, glassdoor.js, builtin.js: Per-site career guides
-- site-guides/productivity/google-sheets.js: Google Sheets Name Box navigation and data entry workflows
-- background.js classifyTask(): Multitab and career task type detection
-- content/actions.js: openNewTab, switchToTab multi-tab tools
-- /logs/ directory: 34 crowd session logs with DOM snapshots
-
-**Competitive landscape (MEDIUM confidence):**
-- [12 Best AI Job Search Tools in 2026](https://jobcopilot.com/best-ai-job-search-tools/)
-- [15 Best Chrome Extensions for Job Seekers in 2026](https://www.jobpilotapp.com/blog/best-chrome-extensions-job-seekers)
-- [Best Job Searching Tools 2026](https://www.frontlinesourcegroup.com/blog-2026-job-search-tools.html)
-- [7 Best AI Job Search Tools 2026](https://www.flashfirejobs.com/blog/ai-job-search-tools)
-- [6 Best Tools for Automating Your Job Search](https://scale.jobs/blog/6-best-tools-for-automating-your-job-search)
-- [AI Auto-Apply Tools vs Traditional Job Search 2026](https://careerattraction.com/ai-auto-apply-tools-vs-traditional-job-search-in-2026/)
-
-**Job search spreadsheet expectations (MEDIUM confidence):**
-- [How to Use a Job Search Spreadsheet - Teal](https://www.tealhq.com/post/job-search-tracking-spreadsheet)
-- [Job Search Spreadsheet Guide - Indeed](https://www.indeed.com/career-advice/finding-a-job/job-search-spreadsheet)
-- [Free Job Application Tracker Spreadsheet](https://spreadsheetpoint.com/templates/job-tracker-spreadsheet/)
-- [Job Application Tracker Templates - BeamJobs](https://www.beamjobs.com/career-blog/job-application-tracker-google-sheets)
-- [Free Job Application Tracker Google Sheets 2026](https://clickup.com/blog/job-search-google-sheets-templates/)
-
-**Google Sheets formatting (MEDIUM confidence):**
-- [Basic Formatting - Google Sheets API](https://developers.google.com/sheets/api/samples/formatting)
-- [Keyboard shortcuts for Google Sheets](https://support.google.com/docs/answer/181110)
-- [Google Sheets Shortcuts - Zapier](https://zapier.com/blog/google-sheets-shortcuts/)
-
-**Job data extraction challenges (MEDIUM confidence):**
-- [Web Scraping Job Postings Guide - Octoparse](https://www.octoparse.com/blog/web-scraping-job-postings)
-- [Ultimate Guide to Web Scraping Job Boards - Bardeen](https://www.bardeen.ai/answers/how-to-web-scrape-employer-job-boards)
-- [Job Scraping Explained 2025 - JobsPikr](https://www.jobspikr.com/blog/guide-to-job-scraping/)
+- [add-mcp (Neon) -- npx add-mcp](https://github.com/neondatabase/add-mcp) -- 13-agent auto-installer with remove, sync, and registry search
+- [install-mcp (Supermemory)](https://github.com/supermemoryai/install-mcp) -- 18-client installer, no uninstall
+- [Anthropic Desktop Extensions](https://www.anthropic.com/engineering/desktop-extensions) -- .mcpb one-click install format
+- [Claude Code MCP docs](https://code.claude.com/docs/en/mcp) -- `claude mcp add` command reference
+- [Claude Desktop MCP setup](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop) -- config file paths
+- [VS Code MCP configuration reference](https://code.visualstudio.com/docs/copilot/reference/mcp-configuration) -- `servers` root key (not `mcpServers`)
+- [Windsurf Cascade MCP docs](https://docs.windsurf.com/windsurf/cascade/mcp) -- config path and format
+- [Zed MCP docs](https://zed.dev/docs/ai/mcp) -- `context_servers` root key
+- [Codex MCP config](https://developers.openai.com/codex/mcp) -- TOML format, `mcp_servers` key
+- [Codex configuration reference](https://developers.openai.com/codex/config-reference) -- full TOML schema
+- [Gemini CLI MCP docs](https://geminicli.com/docs/tools/mcp-server/) -- settings.json, `mcpServers` key
+- [Continue MCP docs](https://docs.continue.dev/customize/deep-dives/mcp) -- YAML format, array-based mcpServers
+- [Complete MCP config guide](https://mcpplaygroundonline.com/blog/complete-guide-mcp-config-files-claude-desktop-cursor-lovable) -- cross-platform path reference
+- [Cursor MCP install deeplinks](https://cursor.com/docs/context/mcp/install-links) -- deeplink URL format
 
 ---
-*Feature research for: Career Search Automation + Google Sheets Output*
-*Researched: 2026-02-23*
-*Milestone: v9.4*
+*Feature research for: MCP platform install flags (fsb-mcp-server v0.4.x)*
+*Researched: 2026-04-15*
