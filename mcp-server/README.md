@@ -52,7 +52,7 @@ FSB uses two local endpoints with different roles:
 | `ws://localhost:7225` | Existing extension bridge. The browser extension connects here. |
 | `http://127.0.0.1:7226/mcp` | Optional local Streamable HTTP MCP endpoint for MCP clients. |
 
-The extension pairing contract did **not** change in `0.4.0`. The new HTTP server is only an additional MCP client entrypoint.
+The extension pairing contract did **not** change in `0.5.0`. The new HTTP server is only an additional MCP client entrypoint.
 
 ### Claude Desktop
 

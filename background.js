@@ -1,4 +1,4 @@
-// Background service worker for FSB v9.0.2
+// Background service worker for FSB v0.9.30
 
 // Import configuration and AI integration modules
 importScripts('config/config.js');
@@ -10312,7 +10312,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 // Set up side panel behavior
 chrome.runtime.onInstalled.addListener(async () => {
-  automationLogger.logInit('extension', 'installed', { version: 'v9.0.2' });
+  automationLogger.logInit('extension', 'installed', { version: 'v0.9.30' });
 
   // Initialize analytics
   initializeAnalytics();

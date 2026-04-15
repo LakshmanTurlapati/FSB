@@ -1,0 +1,27 @@
+app = 'fsb-server'
+primary_region = 'sjc'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  PORT = '3847'
+  DB_PATH = '/data/fsb-data.db'
+  NODE_ENV = 'production'
+
+[http_service]
+  internal_port = 3847
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '256mb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+[mounts]
+  source = 'fsb_data'
+  destination = '/data'
