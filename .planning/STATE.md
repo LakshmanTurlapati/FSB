@@ -1,106 +1,96 @@
+---
+gsd_state_version: 1.0
+milestone: v0.9.29
+milestone_name: Showcase Angular Migration
+status: idle
+stopped_at: Milestone v0.9.29 archived (Phase 173 delivered; 174-177 deferred)
+last_updated: "2026-04-15T14:01:42Z"
+last_activity: 2026-04-15
+progress:
+  total_phases: 5
+  completed_phases: 1
+  total_plans: 7
+  completed_plans: 7
+  percent: 20
+---
+
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-23)
+See: .planning/PROJECT.md (updated 2026-04-15)
 
-**Core value:** Reliable single-attempt execution - the AI decides correctly, the mechanics execute precisely
-**Current focus:** v9.4 Career Search Automation - E2E UAT gap fix (Sheets text entry)
+**Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
+**Current focus:** Milestone closeout complete; awaiting next milestone planning
 
 ## Current Position
 
-Phase: 13 of 13 (all phases complete, E2E UAT in progress)
-Plan: All plans complete (15/15 including gap closure) + Sheets text entry fix
-Status: E2E UAT gap fix applied, awaiting retest
-Last activity: 2026-02-26 -- Fixed Google Sheets text entry (CDP Input.insertText -> typeWithKeys keyboard emulation)
+Milestone: none active (v0.9.29 archived with accepted gaps)
+Phase: -
+Plan: -
+Status: Ready for next milestone definition
+Last activity: 2026-04-15
 
-Progress: [##########] 100% (15/15 plans across 5 phases)
+Progress: Milestone closed with partial scope acceptance (1/5 planned phases delivered).
 
 ## Performance Metrics
 
-**v9.3 Velocity:**
-- Total plans completed: 17
-- Average duration: 2.5 min
-- Total execution time: ~26.0 min
+**Recent Trend (from v0.9.27):**
 
-**v9.4 Velocity:**
-- Total plans completed: 14
-- Average duration: 2.5 min
-- Total execution time: ~41.1 min
+- Last 5 plans: stable execution, mostly sub-10min with occasional deeper verification runs
+- Trend: Stable
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 171 | P01 | 1h 33m | 2 tasks | 4 files |
+| 172 | P01 | 0 min | 1 task | 1 file |
+| Phase 173 P01 | 4 min | 2 tasks | 26 files |
+| Phase 173 P06 | 3 min | 2 tasks | 4 files |
+| Phase 173 P02 | 4 min | 2 tasks | 11 files |
+| Phase 173-showcase-shell-routes-theme-parity P03 | 4 min | 2 tasks | 5 files |
+| Phase 173 P07 | 4 min | 2 tasks | 3 files |
+| Phase 173 P04 | 10 min | 2 tasks | 15 files |
+| Phase 173 P05 | 2 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
 ### Decisions
 
 Full decision log in PROJECT.md Key Decisions table.
+Recent decisions affecting current work:
 
-Recent decisions:
-- 11-03: clearConversationHistory called (not delete) to preserve AI instance for multi-turn within each phase
-- 11-03: session.startTime reset rather than increasing MAX_SESSION_DURATION -- keeps 5-minute per-phase budget
-- 13-02: Formatting directive replaces (not appends to) data entry directive when formattingPhase is true
-- 13-02: buildSheetsFormattingDirective placed as module-level standalone function before AIIntegration class
-- 13-02: 9 steps ordered: escape, header styling, freeze, alternating colors, header text color, auto-size, link blue text, left-align, verify
-- 13-02: Adaptive formatting section only injected for non-new sheets
-- 13-02: Apply Link column letter dynamically computed from sd.columns.indexOf
-- 13-01: Completion handler checks formattingComplete before formattingPhase to distinguish data entry done vs formatting done
-- 13-01: maxIterations set to 25 for formatting pass (fewer operations than data entry)
-- 13-01: Edge case: totalRows === 0 sets formattingComplete and formattingPhase to true, skipping formatting
-- 13-01: rightClick added to toolPreferences for column resize context menu
-- 12-02: Append detection uses formula bar reads to discover existing headers (canvas grid unreadable)
-- 12-02: buildSheetTitle generates context-aware names from searchQuery (e.g., "Job Search - SWE Internships - Feb 2026")
-- 12-02: Early 'multitab' return for "job listings to Google Sheets" -- "write" not in gatherActions
-- 12-02: sd.sheetTitle used in directive instead of inline Date template for consistent naming
-- 12-01: Sheets entry auto-triggers after finalizeMultiSiteSearch when task implies spreadsheet output
-- 12-01: Job data injected directly into AI prompt (no getStoredJobs round-trip)
-- 12-01: Column selection parsed from user task text using keyword aliases and restriction patterns (SHEETS-02)
-- 12-01: detectTaskType returns multitab for write/enter/fill + Google Sheets/spreadsheet combinations
-- 12-01: Progress overlay approximates rows written as floor(iterationCount/2) capped at totalRows
-- 12-01: Session persisted every 5 iterations during Sheets entry to survive SW restarts
-- 11-02: Multi-site orchestration wraps existing automation loop -- does not replace it
-- 11-02: Completion interception handles all exit paths: taskComplete, repeatedSuccess, no_progress, stuck
-- 11-02: Auth-walled companies deferred to end; login detection uses tab-URL heuristic
-- 11-02: storeJobData fallback parsing catches AI forgetting to call the tool
-- 11-02: Per-company iteration cap set to 15 (min of user setting and 15)
-- 11-02: Career task toolPreferences augmented to always include data tools
-- 11-01: backgroundDataTools separate from multiTabActions -- data tools get overlay status updates, multi-tab tools do not
-- 11-01: extractCompaniesFromTask validates candidates against COMPANY_ALIASES and getGuideByCompanyName
-- 11-01: checkAccumulatorRelevance uses 50% keyword overlap threshold for keep vs clear
-- 10-03: Career prompt reduced from 6 phases to 4 (Phase 0-3) -- removed Google Sheets phases 4-6 entirely
-- 10-03: Company name extraction runs for ALL career tasks regardless of siteGuide state (keyword-fallback may return wrong company)
-- 10-03: careerUrl directive injected in both code paths (null siteGuide and present siteGuide)
-- 10-03: Apply link fallback: try parent a element href before reporting not available
-- 10-01: 38 alias entries in COMPANY_ALIASES verified against actual .site values (corrected 4 from research)
-- 10-01: extractCompanyFromTask uses last-occurrence "at" matching and first-word filtering for "for" pattern
-- 10-01: Cookie banner dismissal added as first-priority instruction in category guidance
-- 10-02: getText threshold lowered from 3 to 2 (search+extract needs fewer extractions than full Sheets workflow)
-- 10-02: Error reports (NO RESULTS, AUTH REQUIRED) treated as valid completions with +0.15 bonus (SEARCH-05)
-- 10-02: Career URL patterns use 12 common patterns covering ATS platforms and major job boards
-- 10-02: Job title detection uses common role keyword regex rather than exact title matching
-- 09-03: Import order: ATS bases -> third-party boards -> company guides (alpha) -> generic.js (last)
-- 09-03: generic.js confidence set to MEDIUM (fallback, not targeted)
-- 09-03: Workday-specific content removed from generic.js -- now references dedicated workday.js
-- 09-03: All 4 existing guides converted to machine-optimized minimal format (no JSDoc headers)
-- v9.4: Phase ordering follows strict dependency chain (pipeline -> single-site -> multi-site -> Sheets entry -> Sheets formatting)
-- v9.4: "Collect all, then write" tab pattern -- accumulate job data across all sites before opening Sheets once
-- 09-02: Workday/Greenhouse confidence HIGH (log-verified), Lever/iCIMS/Taleo confidence MEDIUM (general knowledge)
-- 09-02: Lever guide omits searchBox and pagination (platform lacks these features)
-- 09-01: Keyword heuristic categorization for 9 career element categories (searchBox through cookieDismiss)
-- 09-01: Selector stability 3-tier classification (STABLE/MODERATE/UNSTABLE) with XPath sub-classification
-- 09-01: Confidence scoring: coverage (4+ categories) x stability ratio (50%+) = HIGH
+- [v0.9.29]: Do not reset numbering; roadmap continues from Phase 172 and starts this milestone at Phase 173.
+- [v0.9.29]: Roadmap scope is only current milestone requirements (`SHOW-01` through `MIGR-03`).
+- [v0.9.29]: Contract parity and migration regression confidence are explicit final-phase outcomes, not assumed side effects.
+- [Phase 173]: Use Angular CLI standalone scaffold with routing/SCSS defaults to establish deterministic workspace contracts.
+- [Phase 173]: Fix build output to showcase/dist/showcase-angular/browser and enforce root npm --prefix showcase/angular script delegation.
+- [Phase 173]: Kept privacy/support Angular route scaffolds minimal and compile-safe to preserve downstream full-content migration flexibility.
+- [Phase 173]: Keep clean canonical routes (/ /about /dashboard /privacy /support) with wildcard fallback to home.
+- [Phase 173]: Preserve theme parity with pre-bootstrap fsb-showcase-theme read and runtime light-only storage semantics.
+- [Phase 173-showcase-shell-routes-theme-parity]: Port route body sections directly from legacy HTML to preserve parity anchors without legacy scripts.
+- [Phase 173-showcase-shell-routes-theme-parity]: Normalize home provider/logo references to absolute /assets/... paths for canonical route asset parity.
+- [Phase 173-showcase-shell-routes-theme-parity]: Preserve dashboard dash-* DOM IDs exactly for downstream runtime wiring compatibility.
+- [Phase 173]: Extracted legacy privacy/support route-body blocks directly to preserve anchor parity while avoiding script carryover.
+- [Phase 173]: Consolidated five-route parity assertions into one Node source-contract test to reduce split-plan regression gaps.
+- [Phase 173]: Locked dashboard parity checks to runtime-critical dash-* IDs and /assets provider paths.
+- [Phase 173]: Kept styles.scss limited to shared tokens/foundation utilities while moving page visuals into route component styles.
+- [Phase 173]: Migrated recreations.css into about-page.component.scss because about route parity depends on replay-frame styling.
+- [Phase 173]: Raised Angular anyComponentStyle budget to unblock compile-safe migration of legacy route CSS into component scope.
+- [Phase 173]: Resolved showcase static root via explicit allowlist priority with fs.existsSync
+- [Phase 173]: Locked legacy html compatibility to fixed 301 redirect map toward canonical clean routes
+- [Phase 173]: Aggregated foundation, content, and server contracts under test:showcase-shell and appended to root test chain
 
 ### Pending Todos
 
-1. Smart multi-tab management with context-aware navigation (area: general) - `.planning/todos/pending/2026-02-14-smart-multi-tab-management.md`
+- Define next milestone scope and promote deferred Angular migration requirements (`DASH-08` through `MIGR-03`) as needed.
 
 ### Blockers/Concerns
 
-- Site Guides Viewer design mismatch (deferred from v9.3, does not block v9.4)
-- Google Sheets toolbar aria-labels must be inspected live during Phase 13 (color formatting selectors change with product updates)
-- Workday/Greenhouse/Lever ATS selector precision needs live validation (15+ companies use these platforms)
-- Phase 10 verifier flagged "internship/internships" keyword gap -- fixed by orchestrator (commit 027b4ef)
+- Final local rerun of the off-screen dashboard refresh smoke (accepted debt from v0.9.27) remains a pre-release reminder for dashboard analytics dependent releases.
+- No active blockers for next-milestone planning.
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: All v9.4 phases complete (Phase 11 gap closure verified, all 5 phases passed)
-Resume file: None
+Last session: 2026-04-15T14:01:42Z
+Stopped at: Milestone v0.9.29 closeout and legacy vanilla archive
+Resume file: .planning/ROADMAP.md

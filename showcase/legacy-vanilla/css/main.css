@@ -5,28 +5,23 @@
 
 /* --- Design Tokens --- */
 :root {
-  /* Primary */
   --primary: #ff6b35;
   --primary-hover: #e55a2b;
   --primary-gradient: linear-gradient(135deg, #ff6b35, #ff8c42);
   --primary-glow: rgba(255, 107, 53, 0.3);
 
-  /* Dark backgrounds (true black) */
   --bg-body: #000000;
   --bg-card: #0a0a0a;
   --bg-elevated: #141414;
   --bg-nav: rgba(0, 0, 0, 0.5);
 
-  /* Text */
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
 
-  /* Borders */
   --border-color: rgba(255, 255, 255, 0.08);
   --border-hover: rgba(255, 255, 255, 0.15);
 
-  /* Radius */
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
@@ -401,11 +396,9 @@ code, .mono {
 }
 
 .footer-inner {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 32px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
   margin-bottom: 32px;
 }
 
@@ -556,18 +549,24 @@ code, .mono {
     display: flex;
   }
 
+  .footer {
+    padding: 32px 0 24px;
+  }
+
   .footer-inner {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    gap: 24px;
   }
 
   .footer-links {
     flex-direction: column;
-    gap: 24px;
+    gap: 20px;
   }
 
   .footer-bottom {
     flex-direction: column;
     text-align: center;
+    gap: 8px;
   }
 
   .container {
@@ -575,8 +574,61 @@ code, .mono {
   }
 }
 
+@media (max-width: 480px) {
+  .btn {
+    padding: 10px 20px;
+    font-size: 0.875rem;
+  }
+
+  .section-header {
+    margin-bottom: 32px;
+  }
+
+  .section-header p {
+    font-size: 0.9rem;
+  }
+
+  .theme-toggle-btn {
+    bottom: 12px;
+    left: 12px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .footer {
+    padding: 24px 0 20px;
+  }
+
+  .footer-brand img {
+    height: 24px;
+  }
+
+  .footer-brand span {
+    font-size: 1rem;
+  }
+
+  .footer-column h4 {
+    font-size: 0.8rem;
+    margin-bottom: 8px;
+  }
+
+  .footer-column a {
+    font-size: 0.85rem;
+  }
+
+  .footer-bottom p {
+    font-size: 0.8rem;
+  }
+}
+
 @media (min-width: 769px) {
   .nav-mobile {
     display: none !important;
   }
+}
+
+/* Global word-wrap safety */
+body {
+  overflow-wrap: break-word;
+  word-break: break-word;
 }

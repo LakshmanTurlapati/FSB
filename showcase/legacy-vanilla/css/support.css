@@ -88,7 +88,7 @@
 }
 
 .faq-item.active .faq-answer {
-  max-height: 400px;
+  max-height: 600px;
 }
 
 .faq-answer-inner {
@@ -215,5 +215,34 @@
 
   .support-page {
     padding-top: calc(var(--nav-height) + 32px);
+  }
+}
+
+@media (max-width: 480px) {
+  .faq-question {
+    padding: 14px 16px;
+  }
+
+  .faq-question h3 {
+    font-size: 0.9rem;
+  }
+
+  .faq-answer-inner {
+    padding: 0 16px 14px;
+  }
+
+  .trouble-card {
+    padding: 20px;
+  }
+
+  .contact-links {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .contact-links .btn {
+    width: 100%;
+    max-width: 280px;
+    text-align: center;
   }
 }

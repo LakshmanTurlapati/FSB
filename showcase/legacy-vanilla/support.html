@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Support - FSB</title>
   <meta name="description" content="Get help with FSB. FAQ, troubleshooting guides, and contact information.">
-  <link rel="icon" type="image/png" href="assets/icon48.png">
+  <link rel="icon" type="image/png" href="../assets/icon48.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
   <link rel="stylesheet" href="css/main.css">
@@ -20,7 +20,7 @@
   <nav class="nav">
     <div class="nav-inner">
       <a href="index.html" class="nav-brand">
-        <img src="assets/icon128.png" alt="FSB Logo">
+        <img src="../assets/icon128.png" alt="FSB Logo">
         <span>FSB</span>
       </a>
       <div class="nav-links">
@@ -81,7 +81,7 @@
             </div>
             <div class="faq-answer">
               <div class="faq-answer-inner">
-                <p>We recommend <strong>xAI Grok 4.1 Fast</strong> for the best balance of speed and accuracy. It has a 2M token context window and costs $0.20/$0.50 per million tokens. For a free option, try <strong>Gemini 2.0 Flash</strong> (experimental). For maximum quality, use <strong>Claude Opus 4.1</strong> or <strong>Grok 4.1</strong>.</p>
+                <p>We recommend <strong>xAI Grok 4.1 Fast</strong> for the best balance of speed and accuracy. It has a 2M token context window and costs $0.20/$0.50 per million tokens. For a free option, try <strong>Gemini 2.0 Flash</strong> (experimental). For maximum quality, use <strong>Claude Opus 4.1</strong> or <strong>Grok 4.1</strong>. You can also use <strong>OpenRouter</strong> to access 200+ models through a single API key.</p>
               </div>
             </div>
           </div>
@@ -136,18 +136,6 @@
 
           <div class="faq-item reveal">
             <div class="faq-question">
-              <h3>Can FSB handle CAPTCHAs?</h3>
-              <i class="fa-solid fa-chevron-down faq-icon"></i>
-            </div>
-            <div class="faq-answer">
-              <div class="faq-answer-inner">
-                <p>FSB can detect CAPTCHAs and will pause automation when one is encountered. Full CAPTCHA solver integration (supporting services like 2Captcha and CapSolver) is planned for a future release. For now, you can solve the CAPTCHA manually and then resume.</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="faq-item reveal">
-            <div class="faq-question">
               <h3>Is FSB safe to use?</h3>
               <i class="fa-solid fa-chevron-down faq-icon"></i>
             </div>
@@ -172,12 +160,84 @@
 
           <div class="faq-item reveal">
             <div class="faq-question">
-              <h3>How can I contribute?</h3>
+              <h3>What are Background Agents?</h3>
               <i class="fa-solid fa-chevron-down faq-icon"></i>
             </div>
             <div class="faq-answer">
               <div class="faq-answer-inner">
-                <p>FSB is open source under the MIT License. Fork the repository, make your changes, and submit a pull request. Check the CLAUDE.md file for architecture details and coding guidelines. Contributions of all kinds are welcome -- code, documentation, bug reports, and feature suggestions.</p>
+                <p>Background Agents let you schedule automated tasks to run on a recurring basis -- every N minutes, daily at a specific time, or as a one-shot. FSB can also record your automation workflows and replay them without AI calls, dramatically reducing costs. Agent run history, success rates, and cost savings are tracked in the dashboard.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>What is MCP and how do I use it?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>MCP (Model Context Protocol) lets you control FSB from AI coding tools like Claude Code or Cursor. Install the <code>fsb-mcp-server</code> npm package, add it to your MCP client configuration, and you can automate browsers directly from your IDE. FSB exposes 50+ browser actions as MCP tools.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Can I control FSB remotely?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>Yes. The Remote Dashboard at <a href="https://full-selfbrowsing.com/dashboard.html">full-selfbrowsing.com</a> lets you pair with your FSB extension via QR code, then send tasks, view a live DOM preview of the browser, and monitor agent runs -- all from any device with a web browser.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Does FSB learn from my usage?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>FSB has a local memory system with three layers: semantic memory (site navigation patterns), episodic memory (past action sequences), and procedural memory (successful workflows). This data stays on your device and helps FSB navigate familiar sites faster and avoid repeating mistakes. Memory auto-consolidates after enough sessions.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>How do I set up FSB's MCP server with my IDE?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>Install the server with <code>npm install -g fsb-mcp-server</code>, then add it to your MCP client config (Claude Code, Cursor, Windsurf, etc.). In the FSB extension, open Options and enable the MCP bridge -- it will listen for connections on a local WebSocket. Once connected, your AI coding assistant can call any of FSB's browser tools directly from your editor.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>What can I do with FSB through MCP tools?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>FSB exposes two modes through MCP. <strong>Manual mode</strong> gives you 50+ granular tools -- navigate, click, type, scroll, read page content, take screenshots, fill spreadsheets, and more. <strong>Autopilot mode</strong> lets you describe a task in natural language and FSB's AI handles the step-by-step execution. You also get read-only tools like <code>read_page</code>, <code>get_dom_snapshot</code>, and <code>list_sessions</code> for observing browser state without changing it.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="faq-item reveal">
+            <div class="faq-question">
+              <h3>Does FSB work without an internet connection?</h3>
+              <i class="fa-solid fa-chevron-down faq-icon"></i>
+            </div>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">
+                <p>The extension itself runs locally, but AI-powered automation requires an internet connection to reach your chosen AI provider's API. MCP manual tools (click, type, navigate) work as long as the FSB extension and MCP server are connected -- no external AI call is needed for those. Recorded workflow replays also run fully offline since they skip AI calls entirely.</p>
               </div>
             </div>
           </div>
@@ -239,7 +299,7 @@
     <div class="container">
       <div class="footer-inner">
         <div class="footer-brand">
-          <img src="assets/icon48.png" alt="FSB">
+          <img src="../assets/icon48.png" alt="FSB">
           <span>FSB</span>
         </div>
         <div class="footer-links">
@@ -255,13 +315,13 @@
             <h4>Project</h4>
             <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>
             <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">Issues</a>
-            <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+            <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">BSL 1.1 License</a>
           </div>
         </div>
       </div>
       <div class="footer-bottom">
         <p>Made by Lakshman Turlapati</p>
-        <p>FSB v0.9</p>
+        <p>FSB v9.0.2</p>
       </div>
     </div>
   </footer>
