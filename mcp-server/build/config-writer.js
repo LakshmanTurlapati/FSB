@@ -137,7 +137,7 @@ function hasExistingEntry(data, serverMapKey, serverName, format) {
  * @returns {Promise<{status: string, path: string, message: string}>}
  *   status: 'created' | 'updated' | 'skipped' | 'error'
  */
-export async function installToConfig(configPath, platform, serverName) {
+export async function installToConfig(configPath, platform, serverName, entry = null) {
   try {
     // 1. Check directory exists (INST-08, D-02) -- do NOT create it
     const dir = dirname(configPath);
@@ -149,8 +149,8 @@ export async function installToConfig(configPath, platform, serverName) {
       };
     }
 
-    // 2. Build the server entry
-    const entry = getServerEntry();
+    // 2. Build the server entry (use caller-provided entry or fall back to default)
+    const serverEntry = entry || getServerEntry();
 
     // 3. Read existing file or start fresh, backup before any mutation
     let data = {};
@@ -163,7 +163,7 @@ export async function installToConfig(configPath, platform, serverName) {
     }
 
     // 4. Check idempotency (INST-04) -- skip if already identical
-    if (checkIdempotent(data, platform.serverMapKey, serverName, entry, platform.format)) {
+    if (checkIdempotent(data, platform.serverMapKey, serverName, serverEntry, platform.format)) {
       return {
         status: 'skipped',
         path: configPath,
@@ -175,7 +175,7 @@ export async function installToConfig(configPath, platform, serverName) {
     const isUpdate = fileExists && hasExistingEntry(data, platform.serverMapKey, serverName, platform.format);
 
     // 7. Merge (INST-02)
-    mergeServerEntry(data, platform.serverMapKey, serverName, entry, platform.format);
+    mergeServerEntry(data, platform.serverMapKey, serverName, serverEntry, platform.format);
 
     // 8. Serialize and write (D-03)
     const output = serializeByFormat(data, platform.format);
