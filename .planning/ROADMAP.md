@@ -59,7 +59,11 @@ Plans:
   3. Running `install --continue` writes a YAML array entry under `mcpServers` in Continue's config.yaml
   4. Running `install --dry-run --<platform>` shows what would change without modifying any files
   5. Running `install --all` installs FSB to every detected platform in one command
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 176-01-PLAN.md -- Remove format gate, Claude Code install handler, Codex/Continue support
+- [ ] 176-02-PLAN.md -- --dry-run preview and --all bulk install/uninstall flags
 
 ## Progress
 
@@ -69,7 +73,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 174. Platform Registry & Config Engine | 0/2 | Not started | - |
 | 175. Install/Uninstall CLI & JSON Platforms | 0/2 | Not started | - |
-| 176. Non-JSON Platforms & Extended Flags | 0/? | Not started | - |
+| 176. Non-JSON Platforms & Extended Flags | 0/2 | Not started | - |
 
 ## Last Shipped Milestone: v0.9.29 Showcase Angular Migration (shipped 2026-04-15)
 
