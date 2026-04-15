@@ -2,6 +2,44 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v0.9.30 -- MCP Platform Install Flags
+
+**Shipped:** 2026-04-18
+**Phases:** 3 | **Plans:** 6
+
+### What Was Built
+- Platform registry module mapping 10 MCP platforms to config paths, formats, and entry shapes per OS
+- Format-aware config engine: read-merge-write for JSON, JSONC, TOML, and YAML with .bak backups and idempotency
+- Install/uninstall CLI with per-platform flags for all 7 JSON-format clients
+- Non-JSON platform support: Claude Code CLI delegation (execSync), Codex TOML, Continue YAML
+- --dry-run preview and --all bulk install/uninstall across all 10 platforms
+
+### What Worked
+- Data-driven platform registry pattern: each platform described as config data, single ConfigWriter handles all formats -- no per-platform code branches
+- Clean phase dependency chain (registry -> CLI wiring -> extended flags) kept each phase focused
+- Zero-dep library choices (smol-toml, yaml, strip-json-comments) kept the install lightweight
+- All 3 phases executed in a single day with stable sub-10min plan durations
+
+### What Was Inefficient
+- REQUIREMENTS.md was stale (from v0.9.27) during the entire milestone -- requirements were only tracked in ROADMAP.md phase details
+- No milestone audit was created before completion -- should have run /gsd-audit-milestone
+
+### Patterns Established
+- Platform registry map pattern: platform metadata as data, not code, enabling new platforms without code changes
+- Format-gate removal pattern: start with restricted format support, remove gates as format parsers ship
+- CLI delegation pattern for platforms that have their own install tooling (Claude Code)
+
+### Key Lessons
+1. Requirements files should be created fresh at milestone start -- stale files from prior milestones cause confusion
+2. Platform-as-data patterns scale well: adding an 11th platform requires only a registry entry, not new code
+3. Format diversity (JSON/JSONC/TOML/YAML) is manageable with a unified read-merge-write abstraction
+
+### Cost Observations
+- Model mix: quality profile (opus for planning and execution)
+- Notable: Compact milestone -- 3 phases, 6 plans, single-day execution
+
+---
+
 ## Milestone: v0.9.7 -- MCP Edge Case Validation
 
 **Shipped:** 2026-03-22
@@ -62,6 +100,7 @@
 | v0.9.5 | 4 | 8 | Progress overlay intelligence |
 | v0.9.6 | 7 | - | Agents + remote control |
 | v0.9.7 | 50 | 100 | Autonomous edge case validation at scale |
+| v0.9.30 | 3 | 6 | MCP platform install flags -- compact, data-driven |
 
 ### Top Lessons (Verified Across Milestones)
 

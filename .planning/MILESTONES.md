@@ -1,5 +1,19 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.30 MCP Platform Install Flags (Shipped: 2026-04-18)
+
+**Phases completed:** 3 phases, 6 plans, 10 tasks
+
+**Key accomplishments:**
+
+- Platform registry module with 10 MCP platform configs, cross-OS path resolution, and config format parsing dependencies
+- Format-aware config read-merge-write engine with JSON/JSONC/TOML/YAML support, backup, idempotency, and error handling
+- Install/uninstall CLI orchestration for all 7 JSON-format platforms with version constants and end-to-end wiring
+- Non-JSON platform support: Claude Code CLI delegation (execSync), TOML/YAML format gate removal, serializeByFormat export
+- --dry-run preview with [DRY RUN] prefix and --all bulk install/uninstall across all 10 platforms with per-platform status
+
+---
+
 ## v0.9.29 Showcase Angular Migration (Shipped: 2026-04-15)
 
 **Phases completed:** 1 phases, 7 plans, 14 tasks
