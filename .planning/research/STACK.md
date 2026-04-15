@@ -1,253 +1,330 @@
-# Stack Research: Progress Overlay Refinement for FSB
+# Technology Stack: MCP Platform Install Flags
 
-**Domain:** Browser extension progress overlay -- vanilla CSS/JS in Shadow DOM
-**Researched:** 2026-04-12
-**Confidence:** HIGH (existing implementation reviewed, patterns verified against authoritative sources)
+**Project:** FSB v0.9.30 - MCP Platform Install Flags
+**Researched:** 2026-04-15
+**Mode:** Ecosystem (Stack for subsequent milestone)
+**Constraint:** TypeScript, ESM (`"type": "module"`), tsc build (NOT bundled), npm-distributed CLI
+**Overall confidence:** HIGH
+
+---
 
 ## Executive Summary
 
-This research covers the CSS techniques, animation patterns, typography choices, and UX approaches needed to refine FSB's existing progress overlay from a developer-debug display into a clean, human-readable task status indicator. The overlay already works structurally -- Shadow DOM isolation, Popover API top-layer promotion, lifecycle management, and state normalization are all solid. The refinement is purely about what gets displayed and how it looks.
+The `fsb-mcp-server` npm package (v0.4.0) needs to auto-write config files for 10 MCP platforms. The existing CLI already has a hand-rolled arg parser and a `setup` command that prints copy-paste snippets. The new feature replaces manual copy-paste with `fsb-mcp-server install --claude-desktop` (and 9 other platform flags).
 
-The existing overlay (`content/visual-feedback.js` ProgressOverlay class + `utils/overlay-state.js` state builder) has a good foundation: 320px fixed-width card, black background with orange accent, header/task/step/meta/progress-bar layout. The changes needed are about stripping developer noise (iteration counts, token stats, cost), fixing the progress bar to use GPU-friendly animation, making the elapsed timer stable with tabular figures, and showing concise action summaries.
+Three new dependencies are needed. No more, no less:
 
-No npm dependencies are needed. No new libraries. Every technique below is vanilla CSS + vanilla JS, Shadow DOM compatible, and tested in production by the patterns they come from.
+1. **`smol-toml`** (103KB, zero deps) -- Parse and write TOML for Codex CLI's `~/.codex/config.toml`
+2. **`yaml`** (685KB, zero deps) -- Parse and write YAML for Continue's `~/.continue/config.yaml`
+3. **`strip-json-comments`** (8KB, zero deps) -- Strip comments and trailing commas from JSONC before `JSON.parse()` for VS Code and Zed config files
 
-## Recommended Stack
+All three are ESM-native (or ESM-compatible), zero-dependency, and are the same libraries used by `add-mcp` (the Neon-maintained open-source MCP installer) -- a validated choice. Total added weight: ~796KB unpacked, ~0 transitive dependencies.
 
-### Core Technologies
+Everything else uses Node.js built-ins: `fs/promises` for file I/O, `os.homedir()` + `path.join()` + `process.platform` for cross-OS path resolution, `JSON.parse()`/`JSON.stringify()` for JSON config merging, and `child_process.execSync` for the Claude Code CLI path.
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| CSS `font-variant-numeric: tabular-nums` | CSS3 (baseline) | Prevent layout jitter on elapsed time / action count displays | System fonts used by FSB (SF Pro via -apple-system, Segoe UI, Roboto) all support the `tnum` OpenType feature. Without it, numbers like "1:23" and "1:09" have different widths and cause the display to jump. MDN confirms baseline support across all modern browsers. |
-| CSS `transform: scaleX()` for progress fill | CSS3 (baseline) | GPU-composited progress bar animation | Animating `width` triggers layout recalculation every frame. Using `scaleX()` with `transform-origin: left` keeps the animation on the compositor thread -- zero layout/paint cost. Smashing Magazine and Chrome DevRel both confirm transform+opacity are the only two properties guaranteed to skip layout and paint. |
-| CSS `transition` on transform | CSS3 (baseline) | Smooth progress advancement | `transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)` gives a natural ease-out feel when progress jumps (e.g., 30% to 45%). The cubic bezier starts fast and decelerates -- this matches NNG's recommendation that progress should feel like it accelerates early. |
-| CSS `contain: layout paint` | CSS Containment L1 | Prevent overlay reflows from affecting host page | Already present in the existing overlay. Keeps all layout/paint calculations scoped to the overlay element, preventing reflow from leaking into the host page DOM. |
-| `performance.now()` + `requestAnimationFrame` | Web API | Smooth elapsed time counter | `setInterval` drifts and can miss ticks when the tab is backgrounded. `performance.now()` gives sub-millisecond precision. rAF ensures updates sync with display refresh. The timer only needs to update once per second visually, but rAF handles the scheduling cleanly. |
-| CSS `@keyframes` with `translateX` | CSS3 (baseline) | Indeterminate progress sweep animation | The existing `fsbProgressSweep` keyframe already uses translateX -- good. This stays on the GPU compositor. No changes needed to the indeterminate pattern. |
-| Popover API (`showPopover()`) | HTML (Chrome 114+) | Top-layer rendering above all stacking contexts | Already implemented in the existing overlay. Popover API reached Baseline Widely Available in April 2025. Ensures the overlay renders above any z-index or overflow:hidden on the host page. |
-| Shadow DOM (open mode) | Web Components | Complete style isolation from host page | Already implemented. Using `all: initial` on the host element prevents inherited styles from leaking in. The open mode is correct -- FSB needs to read/update shadow DOM elements programmatically. |
+---
 
-### Supporting Patterns
+## Platform Config Matrix
 
-| Pattern | Purpose | When to Use |
-|---------|---------|-------------|
-| `will-change: transform` on progress fill | Hint browser to pre-promote element to its own compositing layer | Apply to `.fsb-progress-fill` only. Do NOT apply to the whole overlay -- over-promoting wastes GPU memory. Remove `will-change` when progress is hidden (indeterminate mode) to free the layer. |
-| `@media (prefers-reduced-motion: reduce)` | Respect user accessibility preferences | Already partially implemented. Extend to cover the elapsed timer pulse and any new fade transitions. Replace animations with instant state changes. |
-| CSS custom properties (variables) for theming | Centralize color/sizing tokens inside Shadow DOM | Use `--fsb-accent: #FF8C00`, `--fsb-bg: #000`, `--fsb-text: #fff`, `--fsb-muted: rgba(255,255,255,0.5)` at `:host` level. Makes future theming changes single-point edits. |
-| `textContent` over `innerHTML` for updates | XSS safety + performance | Already used in the `update()` method for text updates. Keep this pattern -- never use innerHTML for dynamic content from AI-generated summaries. |
+**Confidence: HIGH** -- All paths and formats verified against official documentation.
 
-### Development Tools
+| Platform | Config File Path (macOS) | Format | Root Key | Notes |
+|---|---|---|---|---|
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` | JSON | `mcpServers` | Windows: `%APPDATA%\Claude\`; Linux: `~/.config/claude-desktop/` |
+| Claude Code | N/A (uses `claude mcp add` CLI) | CLI | N/A | Shell out to `claude mcp add fsb -- npx -y fsb-mcp-server`; fallback: print command |
+| Cursor | `~/.cursor/mcp.json` | JSON | `mcpServers` | Also supports project-level `.cursor/mcp.json` |
+| VS Code | `~/Library/Application Support/Code/User/mcp.json` | JSONC | `servers` | **Different root key** (`servers` not `mcpServers`); may contain `//` comments and trailing commas |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` | JSON | `mcpServers` | Same structure as Claude Desktop/Cursor |
+| Cline | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | JSON | `mcpServers` | Long path; Windows uses `%APPDATA%/Code/User/globalStorage/...` |
+| Zed | `~/.zed/settings.json` | JSONC | `context_servers` | **Different root key** AND **different server shape** (no wrapping object with `command`/`args` -- uses flat `command`+`args` directly) |
+| Codex CLI | `~/.codex/config.toml` | TOML | `[mcp_servers.fsb]` | Underscore in section name is critical (`mcp_servers` not `mcp-servers`) |
+| Gemini CLI | `~/.gemini/settings.json` | JSON | `mcpServers` | Same structure as Claude Desktop/Cursor |
+| Continue | `~/.continue/config.yaml` | YAML | `mcpServers` (array) | **Array** of server objects (not object-of-objects); YAML format |
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| Chrome DevTools Performance panel | Profile animation frame rate | Use "Paint flashing" to verify the overlay is not triggering host page repaints. Record a 5-second session and check that the overlay progress bar stays on the compositor thread (no "Layout" or "Paint" entries for the overlay). |
-| Chrome DevTools Layers panel | Verify GPU compositing | Confirm `.fsb-progress-fill` gets its own compositing layer when `will-change: transform` is applied. Should show as a separate layer in the 3D view. |
-| Chrome `--show-paint-rects` flag | Visualize paint regions | Verify that overlay updates don't cause paint rectangles on the host page content behind the overlay. |
+### Critical Format Variations
+
+Three distinct config shapes exist across these 10 platforms:
+
+**Shape A -- `mcpServers` object (6 platforms):** Claude Desktop, Cursor, Windsurf, Cline, Gemini CLI
+```json
+{ "mcpServers": { "fsb": { "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
+
+**Shape B -- `servers` object (1 platform):** VS Code
+```json
+{ "servers": { "fsb": { "type": "stdio", "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
+
+**Shape C -- `context_servers` object (1 platform):** Zed
+```json
+{ "context_servers": { "fsb": { "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
+
+**Shape D -- TOML table (1 platform):** Codex CLI
+```toml
+[mcp_servers.fsb]
+command = "npx"
+args = ["-y", "fsb-mcp-server"]
+```
+
+**Shape E -- YAML array (1 platform):** Continue
+```yaml
+mcpServers:
+  - name: FSB Browser Automation
+    command: npx
+    args:
+      - "-y"
+      - "fsb-mcp-server"
+```
+
+**Shape F -- CLI command (1 platform):** Claude Code
+```bash
+claude mcp add fsb -- npx -y fsb-mcp-server
+```
+
+---
+
+## Recommended Stack Additions
+
+### New Runtime Dependencies (3 total)
+
+| Library | Version | Unpacked Size | Deps | Purpose | Why This One |
+|---|---|---|---|---|---|
+| `smol-toml` | ^1.6.1 | 103KB | 0 | Parse/stringify TOML for Codex CLI config | Fastest TOML parser on npm (2x faster than @iarna/toml), ESM-native, zero deps, TOML v1.1.0 compliant, both parse AND stringify (the `toml` package is parse-only). Used by `add-mcp`. |
+| `yaml` | ^2.8.3 | 685KB | 0 | Parse/stringify YAML for Continue config | Zero deps, preserves comments on round-trip, full YAML 1.2 spec, both parse and stringify. The `js-yaml` alternative (386KB) has 1 dependency (`argparse`) and is slower at writing. The `yaml` package preserves document structure better for config file round-tripping. |
+| `strip-json-comments` | ^5.0.3 | 8KB | 0 | Strip `//` comments and trailing commas from JSONC before `JSON.parse()` | 8KB, zero deps, ESM-native (v5+), handles both comments AND trailing commas. VS Code and Zed config files use JSONC format. The `jsonc-parser` alternative (213KB) is heavier and provides AST features we do not need. |
+
+**Total added weight:** ~796KB unpacked (~30KB gzipped estimated). Zero transitive dependencies added.
+
+### Why NOT These Alternatives
+
+| Category | Rejected | Why |
+|---|---|---|
+| TOML | `@iarna/toml` (2.2.5) | 2x slower than smol-toml, CJS-only (no native ESM), last published 2020 |
+| TOML | `toml` (3.0.0) | Parse-only -- cannot stringify back to TOML. We need both directions for safe merge. |
+| YAML | `js-yaml` (4.1.1) | Has 1 dependency (argparse), slower at writing, does not preserve comments on round-trip |
+| JSONC | `jsonc-parser` (3.3.1) | 213KB with full AST/edit API we do not need. We only need to strip comments before `JSON.parse()` |
+| JSONC | `comment-json` (5.0.0) | Has 2 dependencies (array-timsort, esprima), heavier than strip + JSON.parse |
+| Full installer | `add-mcp` (1.8.0) | CLI-only, no programmatic API, adds 6 transitive dependencies (chalk, commander, clack, etc.), cannot be imported as a library |
+
+### No New Dev Dependencies
+
+The existing dev stack is sufficient:
+- `typescript` ^5.9.3 -- Already present
+- `@types/node` ^22 -- Already present
+- `tsx` ^4.19 -- Already present for dev mode
+
+Type definitions for `smol-toml`, `yaml`, and `strip-json-comments` are included in their packages (all ship `.d.ts` files).
+
+---
+
+## Built-in Node.js Capabilities (No Libraries Needed)
+
+### Cross-OS Path Resolution
+
+**Confidence: HIGH** -- Standard Node.js APIs, well-documented.
+
+```typescript
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+function getConfigPath(platform: string): string {
+  const home = homedir();
+  const os = process.platform; // 'darwin' | 'win32' | 'linux'
+
+  switch (platform) {
+    case 'claude-desktop':
+      if (os === 'darwin') return join(home, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+      if (os === 'win32') return join(process.env.APPDATA!, 'Claude', 'claude_desktop_config.json');
+      return join(home, '.config', 'claude-desktop', 'claude_desktop_config.json');
+    // ... etc
+  }
+}
+```
+
+`os.homedir()`, `path.join()`, `process.platform`, and `process.env.APPDATA` cover all cross-OS needs without any external package.
+
+### JSON Merging
+
+**Confidence: HIGH** -- Built-in `JSON.parse()` + `JSON.stringify()` with spread/Object.assign.
+
+```typescript
+// Read existing config, merge FSB entry, write back
+const existing = JSON.parse(await readFile(configPath, 'utf-8'));
+existing.mcpServers = existing.mcpServers ?? {};
+existing.mcpServers.fsb = { command: 'npx', args: ['-y', 'fsb-mcp-server'] };
+await writeFile(configPath, JSON.stringify(existing, null, 2) + '\n');
+```
+
+No deep-merge library needed. MCP server entries are shallow objects. We replace the entire `fsb` key, preserving all other servers.
+
+### File Backup Before Modification
+
+**Confidence: HIGH** -- `fs.copyFile()` built-in.
+
+```typescript
+import { copyFile } from 'node:fs/promises';
+
+// Back up before modifying
+await copyFile(configPath, `${configPath}.bak`);
+```
+
+No library needed. Simple timestamp-suffixed backup (`config.json.bak` or `config.json.1713200000.bak`).
+
+### CLI Arg Parsing
+
+**Confidence: HIGH** -- Existing hand-rolled parser is sufficient.
+
+The existing `parseArgs()` in `index.ts` already handles `--flag`, `--flag value`, `--flag=value`, and `-h`/`-j` short flags. For the new feature, we add:
+
+```typescript
+// New command: install
+// New flags: --claude-desktop, --claude-code, --cursor, --vscode, --windsurf, --cline, --zed, --codex, --gemini, --continue
+// Optional: --uninstall (modifier flag)
+// Optional: --all (install to all detected platforms)
+```
+
+No need for `commander`, `yargs`, or `meow`. The existing parser handles boolean flags natively. Platform flags are all boolean (no values).
+
+### Shelling Out to Claude Code CLI
+
+**Confidence: MEDIUM** -- Depends on `claude` being in PATH.
+
+```typescript
+import { execSync } from 'node:child_process';
+
+try {
+  execSync('claude mcp add fsb -- npx -y fsb-mcp-server', { stdio: 'inherit' });
+} catch {
+  console.log('Could not run "claude mcp add". Run this manually:');
+  console.log('  claude mcp add fsb -- npx -y fsb-mcp-server');
+}
+```
+
+Fallback to printing the command if `claude` is not in PATH.
+
+---
+
+## Integration Points with Existing Code
+
+### Build System
+
+The project uses `tsc` (TypeScript compiler) -- NOT esbuild. Dependencies are NOT bundled into the output; they remain in `node_modules` and are resolved at runtime via Node.js module resolution. This means:
+
+- New dependencies are added to `dependencies` in `package.json` (not `devDependencies`)
+- They are installed when users run `npx -y fsb-mcp-server`
+- Bundle size matters less than install weight (npm download size)
+- No esbuild/webpack configuration changes needed
+
+### CLI Entry Point (`src/index.ts`)
+
+The new `install` command slots into the existing `switch (command)` block in `main()`:
+
+```typescript
+case 'install':
+  await runInstall(flags);
+  return;
+case 'uninstall':
+  await runUninstall(flags);
+  return;
+```
+
+### New Source Files
+
+| File | Purpose | Est. Lines |
+|---|---|---|
+| `src/install.ts` | Main install/uninstall orchestrator | 150-200 |
+| `src/platforms.ts` | Platform registry (paths, formats, shapes) | 200-250 |
+| `src/config-writers/json.ts` | Read/merge/write JSON config (with JSONC strip for VS Code/Zed) | 80-100 |
+| `src/config-writers/toml.ts` | Read/merge/write TOML config for Codex | 60-80 |
+| `src/config-writers/yaml.ts` | Read/merge/write YAML config for Continue | 60-80 |
+| `src/config-writers/cli.ts` | Shell out to `claude mcp add` for Claude Code | 40-50 |
+| `src/backup.ts` | File backup utility | 30-40 |
+
+### Package.json Changes
+
+```json
+{
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "ws": "^8.19.0",
+    "zod": "^3.24.0",
+    "smol-toml": "^1.6.1",
+    "yaml": "^2.8.3",
+    "strip-json-comments": "^5.0.3"
+  }
+}
+```
+
+Going from 3 to 6 runtime dependencies. All three additions are zero-dep, so the total transitive dependency count stays low.
+
+---
+
+## What NOT to Add
+
+| Do Not Add | Why |
+|---|---|
+| `commander` / `yargs` / `meow` | Existing hand-rolled parser works. Adding a CLI framework for 10 boolean flags is overkill and adds 100KB+ |
+| `chalk` / `picocolors` | Color output is nice-to-have but unnecessary for a CLI that runs once at setup time. Use plain text with clear formatting |
+| `inquirer` / `@clack/prompts` | No interactive prompts needed. The install command is non-interactive by design (`--claude-desktop` flag, not a menu) |
+| `deep-merge` / `lodash.merge` | MCP server entries are shallow objects. `Object.assign` / spread is sufficient |
+| `platform-folders` / `env-paths` | Custom path logic for 10 specific platforms is clearer than a generic abstraction. We know exactly which paths we need. |
+| `add-mcp` as dependency | CLI-only (no library API), would add 6 transitive deps, and we need custom output formatting |
+| `jsonc-parser` | Full AST is overkill. `strip-json-comments` + `JSON.parse()` is simpler and 26x smaller |
+| `@iarna/toml` | CJS-only, slower, last updated 2020. `smol-toml` is actively maintained and ESM-native |
+| `fast-toml` | Not spec-compliant (skips string validation), no stringify support |
+
+---
 
 ## Installation
 
 ```bash
-# No installation required.
-# Everything is vanilla CSS + vanilla JS.
-# No npm dependencies. No build step.
-#
-# The techniques below are implemented directly in:
-#   content/visual-feedback.js  (ProgressOverlay class)
-#   utils/overlay-state.js      (state normalization)
+cd mcp-server
+
+# Add new runtime dependencies
+npm install smol-toml@^1.6.1 yaml@^2.8.3 strip-json-comments@^5.0.3
+
+# No new dev dependencies needed
 ```
 
-## Alternatives Considered
+---
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| `transform: scaleX()` for progress | `width` transition | Never for this use case. `width` triggers layout on every frame. The existing code already uses `width` + `transition: width 0.3s` -- this should be replaced with scaleX. |
-| `performance.now()` + rAF for timer | `setInterval(1000)` | Never for display-critical timers. setInterval drifts under load, can stack callbacks, and does not sync with display refresh. |
-| `font-variant-numeric: tabular-nums` | Monospace font for numbers | Only if you need guaranteed fixed-width for ALL characters, not just digits. `tabular-nums` is better because it keeps the proportional letter-spacing of the UI font while fixing only the digit widths. |
-| Inline `textContent` updates | DOM diffing / virtual DOM | Never. The overlay has 6 text nodes. Direct `textContent` assignment is faster than any diffing library for this scale. |
-| CSS custom properties | Inline style overrides | Only for one-off dynamic values (like progress percentage). All static theming should use custom properties for maintainability. |
-| Cubic bezier easing on progress | Linear transition | Only when progress genuinely moves at a constant rate (e.g., file download with known size). For AI automation where step duration varies, the ease-out bezier feels more natural. |
+## Confidence Assessment
 
-## What NOT to Use
+| Area | Confidence | Reason |
+|---|---|---|
+| Platform config paths | HIGH | Verified against official docs for all 10 platforms |
+| Config file formats | HIGH | Verified JSON/JSONC/TOML/YAML structures from official docs |
+| Library choices | HIGH | All three libraries are mature, zero-dep, ESM-compatible, used by production tools (add-mcp) |
+| Cross-OS path resolution | HIGH | Standard Node.js APIs, well-documented patterns |
+| CLI integration | HIGH | Existing parseArgs() easily extended, no framework needed |
+| Build system compatibility | HIGH | tsc compilation, dependencies stay in node_modules |
+| Claude Code CLI integration | MEDIUM | Depends on `claude` binary being in PATH; fallback to print-command is robust |
+| JSONC handling (VS Code/Zed) | MEDIUM | strip-json-comments handles comments + trailing commas, but user config files could have edge cases (e.g., multi-line comments with TOML-like syntax) |
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| `width` animation on progress bar | Forces layout recalculation on every frame. Causes jank on complex pages where FSB is automating. The browser must recalculate the geometry of the fill element and potentially its siblings. | `transform: scaleX(progress/100)` with `transform-origin: left`. Set the fill to `width: 100%` permanently and scale it down. |
-| `setInterval` for elapsed time | Drifts under CPU load, does not pause when tab is backgrounded (wastes resources), can stack callbacks if interval fires faster than handler. | `requestAnimationFrame` with `performance.now()` delta calculation. Only update the DOM when the displayed second changes. |
-| `rem` units inside Shadow DOM | Host page CSS resets (like `html { font-size: 62.5% }`) leak into Shadow DOM host sizing. This causes the overlay to render at wrong sizes on pages that use rem scaling. | `px` units for all sizing. The existing overlay already uses px correctly -- keep this pattern. |
-| Animating `opacity` on the whole overlay for pulse effects | Promotes the entire overlay to a GPU layer unnecessarily. Wastes compositing memory. | If a pulse is needed, apply it to a small accent element (like the step badge) only. |
-| `innerHTML` for dynamic text updates | XSS vector if AI-generated summaries contain HTML. Also slower than textContent because the browser must parse HTML. | `textContent` for all dynamic text. Already done correctly in the existing code. |
-| Third-party animation libraries (GSAP, anime.js, etc.) | Adds weight, requires bundling, not needed for the 2-3 animations this overlay uses. CSS transitions handle all the cases. | CSS `transition` for deterministic progress. CSS `@keyframes` for indeterminate sweep. Both are already in use. |
-| `backdrop-filter: blur()` on overlay | Extremely expensive on GPU. On complex pages with many layers (Sheets, Docs), this can drop the host page to 15fps. | Solid background (`background: #000`) with slight transparency if desired (`rgba(0,0,0,0.95)`). |
-
-## Specific CSS Implementation Patterns
-
-### Progress Bar: scaleX Pattern
-
-Replace the current `width` animation with GPU-composited `scaleX`:
-
-```css
-.fsb-progress-fill {
-  width: 100%;                    /* Always full width */
-  height: 100%;
-  background: linear-gradient(90deg, var(--fsb-accent), var(--fsb-accent-dark));
-  border-radius: 2px;
-  transform-origin: left center;
-  transform: scaleX(0);           /* Controlled by JS */
-  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  will-change: transform;
-}
-```
-
-Update in JS:
-```javascript
-fill.style.transform = 'scaleX(' + (progress.percent / 100) + ')';
-```
-
-### Elapsed Timer: Tabular Figures
-
-```css
-.fsb-elapsed {
-  font-variant-numeric: tabular-nums;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
-  min-width: 3.5em;              /* Prevents container resize */
-  text-align: right;
-}
-```
-
-### Step Badge: Compact Phase Indicator
-
-```css
-.fsb-step-number {
-  background: rgba(255, 140, 0, 0.15);
-  color: #FF8C00;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;  /* For "3/7" style counts */
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-```
-
-### Smooth Fade Transitions
-
-```css
-.fsb-overlay {
-  opacity: 1;
-  transition: opacity 0.2s ease-out;
-}
-
-.fsb-overlay.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Detail text crossfade when action summary changes */
-.fsb-step-text {
-  transition: opacity 0.15s ease;
-}
-```
-
-### Reduced Motion Compliance
-
-```css
-@media (prefers-reduced-motion: reduce) {
-  .fsb-overlay,
-  .fsb-progress-fill,
-  .fsb-step-text {
-    transition: none !important;
-  }
-
-  .fsb-progress-bar.indeterminate .fsb-progress-fill {
-    animation: none;
-    transform: scaleX(0.45);     /* Static bar instead of sweep */
-  }
-
-  .fsb-elapsed {
-    /* No pulse animation */
-  }
-}
-```
-
-## Elapsed Timer Implementation Pattern
-
-```javascript
-// Efficient elapsed time display using rAF
-class ElapsedTimer {
-  constructor(displayElement) {
-    this.el = displayElement;
-    this.startTime = 0;
-    this.rafId = null;
-    this.lastDisplayedSecond = -1;
-  }
-
-  start() {
-    this.startTime = performance.now();
-    this.lastDisplayedSecond = -1;
-    this._tick();
-  }
-
-  _tick() {
-    var elapsed = Math.floor((performance.now() - this.startTime) / 1000);
-    if (elapsed !== this.lastDisplayedSecond) {
-      this.lastDisplayedSecond = elapsed;
-      var mins = Math.floor(elapsed / 60);
-      var secs = elapsed % 60;
-      // Use textContent, not innerHTML
-      this.el.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
-    }
-    this.rafId = requestAnimationFrame(this._tick.bind(this));
-  }
-
-  stop() {
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
-  }
-}
-```
-
-Key details:
-- Only touches the DOM when the displayed second actually changes (max 1 DOM write/second)
-- Uses `performance.now()` for drift-free timing
-- rAF automatically pauses when tab is backgrounded (saves battery)
-- `bind(this)` is called once and cached in a real implementation
-
-## Version Compatibility
-
-| Feature | Chrome | Edge | Safari | Notes |
-|---------|--------|------|--------|-------|
-| `font-variant-numeric: tabular-nums` | 52+ | 79+ | 9.1+ | All system fonts in FSB's font stack support tnum |
-| `transform: scaleX()` | 36+ | 12+ | 9+ | Baseline for years |
-| `transition` on transform | 36+ | 12+ | 9+ | Baseline for years |
-| `will-change` | 36+ | 79+ | 9.1+ | Use sparingly -- only on animated elements |
-| `contain: layout paint` | 52+ | 79+ | 15.4+ | Already in use |
-| `performance.now()` | 24+ | 12+ | 8+ | Baseline for years |
-| `requestAnimationFrame` | 24+ | 12+ | 6.1+ | Baseline for years |
-| Popover API | 114+ | 114+ | 17+ | Already in use with fallback |
-| Shadow DOM (open) | 53+ | 79+ | 10+ | Already in use |
-| CSS custom properties | 49+ | 15+ | 9.1+ | Baseline for years |
-
-All features are well within FSB's Chrome 88+ minimum requirement. No compatibility concerns.
+---
 
 ## Sources
 
-- [Smashing Magazine: CSS GPU Animation](https://www.smashingmagazine.com/2016/12/gpu-animation-doing-it-right/) -- transform vs layout animation performance (HIGH confidence)
-- [Nielsen Norman Group: Progress Indicators](https://www.nngroup.com/articles/progress-indicators/) -- when to use determinate vs indeterminate, what information to display (HIGH confidence)
-- [Smart Interface Design Patterns: Loading and Progress UX](https://smart-interface-design-patterns.com/articles/designing-better-loading-progress-ux/) -- wait duration thresholds, progress bar movement psychology (HIGH confidence)
-- [MDN: font-variant-numeric](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/font-variant-numeric) -- tabular-nums specification and support (HIGH confidence)
-- [MDN: requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame) -- timing callback API (HIGH confidence)
-- [MDN: Popover API](https://developer.mozilla.org/en-US/docs/Web/API/Popover_API) -- top-layer rendering specification (HIGH confidence)
-- [MDN: Shadow DOM](https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_shadow_DOM) -- encapsulation model (HIGH confidence)
-- [Cloudscape: Progressive Steps Pattern](https://cloudscape.design/patterns/genai/progressive-steps/) -- AI task progress display pattern (HIGH confidence)
-- [Snook.ca: Animating Progress](https://snook.ca/archives/html_and_css/animating-progress) -- transform-based progress bar technique (MEDIUM confidence)
-- [Chrome DevRel: Hardware Accelerated Animations](https://developer.chrome.com/blog/hardware-accelerated-animations) -- compositor thread animation properties (HIGH confidence)
-- [web.dev: prefers-reduced-motion](https://web.dev/articles/prefers-reduced-motion) -- accessibility compliance for motion (HIGH confidence)
-- Existing FSB code: `content/visual-feedback.js`, `utils/overlay-state.js` -- current implementation baseline (HIGH confidence, direct inspection)
+### Official Platform Documentation
+- [Claude Desktop config](https://modelcontextprotocol.io/docs/develop/connect-local-servers) -- config path and JSON format
+- [Claude Code MCP](https://code.claude.com/docs/en/mcp) -- `claude mcp add` command and scopes
+- [Cursor MCP docs](https://cursor.com/docs/context/mcp) -- `~/.cursor/mcp.json` path and format
+- [VS Code MCP configuration](https://code.visualstudio.com/docs/copilot/reference/mcp-configuration) -- `servers` root key (not `mcpServers`), JSONC format
+- [Windsurf MCP](https://docs.windsurf.com/windsurf/cascade/mcp) -- `~/.codeium/windsurf/mcp_config.json`
+- [Cline MCP](https://docs.cline.bot/mcp/adding-and-configuring-servers) -- long globalStorage path
+- [Zed MCP](https://zed.dev/docs/ai/mcp) -- `context_servers` root key, JSONC settings.json
+- [Codex CLI MCP](https://developers.openai.com/codex/mcp) -- TOML format, `mcp_servers` with underscore
+- [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/) -- `~/.gemini/settings.json`, `mcpServers` root key
+- [Continue MCP](https://docs.continue.dev/customize/deep-dives/mcp) -- YAML format, array-of-objects
 
----
-*Stack research for: FSB v0.9.26 Progress Overlay Refinement*
-*Researched: 2026-04-12*
+### Library Documentation
+- [smol-toml](https://github.com/squirrelchat/smol-toml) -- v1.6.1, ESM, zero deps, TOML v1.1.0
+- [yaml](https://github.com/eemeli/yaml) -- v2.8.3, zero deps, YAML 1.2
+- [strip-json-comments](https://github.com/sindresorhus/strip-json-comments) -- v5.0.3, ESM, zero deps
+- [add-mcp](https://github.com/neondatabase/add-mcp) -- Reference implementation using @iarna/toml, js-yaml, jsonc-parser (Apache-2.0)
+
+### npm Registry (version/size verification)
+- `npm view smol-toml version dist.unpackedSize` -- 1.6.1, 103KB
+- `npm view yaml version dist.unpackedSize` -- 2.8.3, 685KB
+- `npm view strip-json-comments version dist.unpackedSize` -- 5.0.3, 8KB

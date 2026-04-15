@@ -1,19 +1,17 @@
-// FSB v0.9.20 - Modern Dashboard Control Panel Script
+// FSB v0.9.30 - Modern Dashboard Control Panel Script
 
 // Default settings
 const defaultSettings = {
   modelProvider: 'xai',
-  modelName: 'grok-4-1-fast-reasoning',
+  modelName: 'grok-4-1-fast',
   apiKey: '',
   geminiApiKey: '',
   openaiApiKey: '',
   anthropicApiKey: '',
-  openrouterApiKey: '',
   customApiKey: '',
   customEndpoint: '',
-  lmstudioBaseUrl: 'http://localhost:1234',
   speedMode: 'normal', // Legacy support
-  maxIterations: 500,
+  maxIterations: 20,
   debugMode: false,
   // DOM Optimization settings
   domOptimization: true,
@@ -24,56 +22,23 @@ const defaultSettings = {
   showSidepanelProgress: false,
   // Credential Manager (Beta)
   enableLogin: false,
-  enableSavedPayments: false,
   // CAPTCHA Solver
   captchaSolverEnabled: false,
   captchaApiKey: '',
-  autoRefineSiteMaps: true,
-  sttProvider: 'browser'
+  autoRefineSiteMaps: true
 };
 
 // Available models - sourced from config.js (loaded before this script) with custom provider added
 const availableModels = {
   ...config.availableModels,
-  lmstudio: [],
   custom: [
     { id: 'custom-model', name: 'Custom Model', description: 'Enter your model name below' }
   ]
 };
 
-const PROVIDER_ICONS = {
-  xai: '<svg width="18" height="18" viewBox="3 9 908 1007" fill="currentColor"><path d="M827.76 200.32L745.02 318.5l-.01 348.75L745 1016h166.002l-.251-466.93-.251-466.93-82.74 118.18"/><path d="M3.167 365.816c.183.449 102.641 146.926 227.684 325.505l227.35 324.689 100.486-.255 100.485-.255-227.675-325.25L203.822 365H103.328c-55.272 0-100.345.367-100.161.816"/><path d="M801 8.787l-93.5.286-174 248.569c-95.7 136.713-174.388 249.381-174.863 250.374-.686 1.436 9.177 16.156 48.345 72.144 27.065 38.687 49.728 70.88 50.363 71.54 1.033 1.073 37.65-50.44 128.994-181.471 2.112-3.029 54.285-77.557 115.941-165.618C763.937 216.55 815.619 142.7 817.13 140.5c1.51-2.2 22.768-32.575 47.238-67.5L908.86 9.5l-7.18-.5c-3.949-.275-49.255-.371-100.68-.213"/><path d="M103.273 872.277L3.047 1015.5l100.726.21 100.727.21 45.206-64.71c24.864-35.591 47.462-67.909 50.219-71.819l5.013-7.109-49.972-71.391c-27.484-39.265-50.308-71.491-50.719-71.614-.411-.122-45.849 64.228-100.974 143"/></svg>',
-  gemini: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg>',
-  openai: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>',
-  anthropic: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg>',
-  openrouter: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16.778 1.844v1.919q-.569-.026-1.138-.032-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237-2.911 2.066-2.731 1.95-4.14 2.75-.396.223-1.342.574-2.185.798-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799 1.41.798 1.228.683 4.14 2.75 2.126 1.509 4.22 2.11 6.148 2.236.88.058 1.716.041 2.555.005v1.918l7.222-4.168-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021-1.364-.09-2.417-.357-3.979-1.465-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 1.56-1.109 2.614-1.377 3.978-1.466.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z"/></svg>',
-  lmstudio: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 11H8v-2h4v2zm4-4H8V9h8v2z"/><path d="M7 2v2M17 2v2M7 20v2M17 20v2M2 7h2M2 17h2M20 7h2M20 17h2"/></svg>',
-  custom: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 018.5 12 3.5 3.5 0 0112 8.5a3.5 3.5 0 013.5 3.5 3.5 3.5 0 01-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.65a.5.5 0 00.12-.64l-2-3.46a.5.5 0 00-.61-.22l-2.49 1a7.05 7.05 0 00-1.69-1l-.38-2.65A.49.49 0 0014 2h-4a.49.49 0 00-.49.42l-.38 2.65a7.05 7.05 0 00-1.69 1l-2.49-1a.5.5 0 00-.61.22l-2 3.46a.5.5 0 00.12.64L4.57 11c-.04.34-.07.66-.07 1s.03.65.07.97l-2.11 1.65a.5.5 0 00-.12.64l2 3.46a.5.5 0 00.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.05.24.26.42.49.42h4c.24 0 .44-.18.49-.42l.38-2.65a7.05 7.05 0 001.69-.98l2.49 1a.5.5 0 00.61-.22l2-3.46a.5.5 0 00-.12-.64l-2.11-1.65z"/></svg>'
-};
-
-const PROVIDER_DISPLAY_NAMES = {
-  xai: 'xAI',
-  gemini: 'Gemini',
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  openrouter: 'OpenRouter',
-  lmstudio: 'LM Studio',
-  custom: 'Custom'
-};
-
-const MODEL_DISCOVERY_TIMEOUT_MS = 5000;
-let modelOptionsRequestId = 0;
-let lmstudioRefreshTimer = null;
-
-function renderProviderIcon(provider) {
-  const container = document.getElementById('providerIcon');
-  if (container) container.innerHTML = PROVIDER_ICONS[provider] || '';
-}
-
 // Dashboard state
 const dashboardState = {
   currentSection: 'dashboard',
-  analyticsNeedsRefresh: false,
   hasUnsavedChanges: false,
   isApiTesting: false,
   connectionStatus: 'checking'
@@ -89,7 +54,6 @@ const statsData = {
 
 // DOM elements
 const elements = {};
-const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', initializeDashboard);
@@ -129,7 +93,8 @@ function initializeDashboard() {
     analytics.initPromise.then(() => {
       console.log('Options page: Analytics initialized, setting up dashboard...');
       analytics.initializeChart();
-      refreshAnalyticsDashboard();
+      analytics.updateDashboard();
+      loadDashboardCostBreakdown();
     }).catch(error => {
       console.error('Options page: Analytics initialization failed:', error);
     });
@@ -138,7 +103,7 @@ function initializeDashboard() {
   // Initialize session history
   setTimeout(initializeSessionHistory, 500);
 
-  // Initialize reconnaissance
+  // Initialize site explorer
   setTimeout(initializeSiteExplorer, 600);
 
   console.log('FSB Control Panel initialized successfully');
@@ -160,7 +125,6 @@ function cacheElements() {
   elements.modelName = document.getElementById('modelName');
   elements.apiKey = document.getElementById('apiKey');
   elements.geminiApiKey = document.getElementById('geminiApiKey');
-  elements.lmstudioBaseUrl = document.getElementById('lmstudioBaseUrl');
   elements.xaiApiKeyGroup = document.getElementById('xaiApiKeyGroup');
   elements.geminiApiKeyGroup = document.getElementById('geminiApiKeyGroup');
   elements.maxIterations = document.getElementById('maxIterations');
@@ -183,15 +147,11 @@ function cacheElements() {
 
   // Credentials (Beta)
   elements.enableLogin = document.getElementById('enableLogin');
-  elements.enableSavedPayments = document.getElementById('enableSavedPayments');
 
   // CAPTCHA Solver
   elements.captchaSolverEnabled = document.getElementById('captchaSolverEnabled');
   elements.captchaApiKey = document.getElementById('captchaApiKey');
   elements.toggleCaptchaApiKey = document.getElementById('toggleCaptchaApiKey');
-
-  // Speech-to-Text
-  elements.sttProvider = document.getElementById('sttProvider');
 
   // Button elements
   elements.toggleApiKey = document.getElementById('toggleApiKey');
@@ -216,7 +176,7 @@ function cacheElements() {
   // Status toast
   elements.statusToast = document.getElementById('statusToast');
 
-  // Reconnaissance
+  // Site Explorer
   elements.explorerUrl = document.getElementById('explorerUrl');
   elements.explorerGoBtn = document.getElementById('explorerGoBtn');
   elements.explorerStopAllBtn = document.getElementById('explorerStopAllBtn');
@@ -224,28 +184,6 @@ function cacheElements() {
   elements.explorerMaxPages = document.getElementById('explorerMaxPages');
   elements.explorerCrawlers = document.getElementById('explorerCrawlers');
   elements.researchList = document.getElementById('researchList');
-}
-
-async function refreshAnalyticsDashboard() {
-  if (!analytics) {
-    return;
-  }
-
-  if (!analytics.initialized) {
-    await analytics.initPromise;
-  }
-
-  const timeRange = document.getElementById('chartTimeRange')?.value || '24h';
-
-  return analytics.loadStoredData().then(() => {
-    analytics.updateDashboardWithTimeRange(timeRange);
-    loadDashboardCostBreakdown();
-    if (analytics.chart) {
-      analytics.updateChart(timeRange);
-    }
-  }).catch((error) => {
-    console.error('Failed to refresh dashboard analytics:', error);
-  });
 }
 
 function setupEventListeners() {
@@ -265,10 +203,8 @@ function setupEventListeners() {
     elements.geminiApiKey,
     document.getElementById('openaiApiKey'),
     document.getElementById('anthropicApiKey'),
-    document.getElementById('openrouterApiKey'),
     document.getElementById('customApiKey'),
     document.getElementById('customEndpoint'),
-    elements.lmstudioBaseUrl,
     elements.maxIterations,
     elements.debugMode,
     elements.domOptimization,
@@ -278,10 +214,8 @@ function setupEventListeners() {
     elements.animatedActionHighlights,
     elements.showSidepanelProgress,
     elements.enableLogin,
-    elements.enableSavedPayments,
     elements.captchaSolverEnabled,
-    elements.captchaApiKey,
-    elements.sttProvider
+    elements.captchaApiKey
   ];
 
   formInputs.forEach(input => {
@@ -346,39 +280,17 @@ function setupEventListeners() {
 
   // Model provider change
   if (elements.modelProvider) {
-    elements.modelProvider.addEventListener('change', async (e) => {
-      const provider = e.target.value;
-      await updateModelOptions(provider, {
-        selectedModel: provider === 'lmstudio' ? '' : getDefaultModelForProvider(provider),
-        baseUrl: elements.lmstudioBaseUrl?.value || defaultSettings.lmstudioBaseUrl
-      });
-      updateApiKeyVisibility(provider);
-      renderProviderIcon(provider);
+    elements.modelProvider.addEventListener('change', (e) => {
+      updateModelOptions(e.target.value);
+      updateApiKeyVisibility(e.target.value);
       markUnsavedChanges();
     });
   }
   
   // Model name change
   if (elements.modelName) {
-    elements.modelName.addEventListener('change', () => {
-      updateSelectedModelDescription();
+    elements.modelName.addEventListener('change', (e) => {
       markUnsavedChanges();
-    });
-  }
-
-  if (elements.lmstudioBaseUrl) {
-    elements.lmstudioBaseUrl.addEventListener('input', () => {
-      markUnsavedChanges();
-      if ((elements.modelProvider?.value || 'xai') !== 'lmstudio') {
-        return;
-      }
-      clearTimeout(lmstudioRefreshTimer);
-      lmstudioRefreshTimer = setTimeout(() => {
-        updateModelOptions('lmstudio', {
-          selectedModel: elements.modelName?.value || '',
-          baseUrl: elements.lmstudioBaseUrl?.value || defaultSettings.lmstudioBaseUrl
-        });
-      }, 300);
     });
   }
   
@@ -402,21 +314,9 @@ function setupEventListeners() {
     toggleAnthropicApiKey.addEventListener('click', () => togglePasswordVisibility('anthropicApiKey'));
   }
   
-  const toggleOpenrouterApiKey = document.getElementById('toggleOpenrouterApiKey');
-  if (toggleOpenrouterApiKey) {
-    toggleOpenrouterApiKey.addEventListener('click', () => togglePasswordVisibility('openrouterApiKey'));
-  }
-
   const toggleCustomApiKey = document.getElementById('toggleCustomApiKey');
   if (toggleCustomApiKey) {
     toggleCustomApiKey.addEventListener('click', () => togglePasswordVisibility('customApiKey'));
-  }
-
-  // Debug Mode toggle -- show/hide CLI Validation nav item
-  if (elements.debugMode) {
-    elements.debugMode.addEventListener('change', (e) => {
-      updateCLIValidationVisibility(e.target.checked);
-    });
   }
 
   // CAPTCHA Solver toggle visibility
@@ -429,29 +329,6 @@ function setupEventListeners() {
 
   if (elements.toggleCaptchaApiKey) {
     elements.toggleCaptchaApiKey.addEventListener('click', () => togglePasswordVisibility('captchaApiKey'));
-  }
-
-  // Speech-to-Text toggle
-  if (elements.sttProvider) {
-    elements.sttProvider.addEventListener('change', (e) => {
-      const openaiKey = document.getElementById('openaiApiKey')?.value;
-      updateSttDescription(e.target.checked, openaiKey);
-      markUnsavedChanges();
-    });
-  }
-
-  // Auto-enable Whisper when OpenAI key is added
-  const openaiKeyInput = document.getElementById('openaiApiKey');
-  if (openaiKeyInput && elements.sttProvider) {
-    openaiKeyInput.addEventListener('input', () => {
-      const hasKey = openaiKeyInput.value.trim().length > 0;
-      if (hasKey && !elements.sttProvider.checked) {
-        elements.sttProvider.checked = true;
-        updateSttDescription(true, openaiKeyInput.value);
-        markUnsavedChanges();
-      }
-      updateSttDescription(elements.sttProvider.checked, openaiKeyInput.value);
-    });
   }
 
   // API test
@@ -535,15 +412,21 @@ function setupEventListeners() {
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local') {
       if (changes.fsbUsageData || changes.fsbCurrentModel) {
-        // Only refresh if the dashboard section is currently visible
-        if (dashboardState.currentSection !== 'dashboard') {
-          dashboardState.analyticsNeedsRefresh = true;
-          return;
-        }
+        // Only refresh if the analytics section is currently visible
+        if (dashboardState.currentSection !== 'analytics') return;
 
         clearTimeout(_analyticsRefreshTimer);
         _analyticsRefreshTimer = setTimeout(() => {
-          refreshAnalyticsDashboard();
+          if (analytics && analytics.initialized) {
+            analytics.loadStoredData().then(() => {
+              analytics.updateDashboard();
+              loadDashboardCostBreakdown();
+              if (analytics.chart) {
+                const timeRange = document.getElementById('chartTimeRange')?.value || '24h';
+                analytics.updateChart(timeRange);
+              }
+            });
+          }
         }, 2000);
       }
 
@@ -564,16 +447,6 @@ function setupEventListeners() {
             _memoryRefreshInProgress = false;
           }
         }, 1000); // 1 second debounce to batch rapid updates
-      }
-    }
-  });
-
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === 'ANALYTICS_UPDATE') {
-      if (dashboardState.currentSection === 'dashboard') {
-        refreshAnalyticsDashboard();
-      } else {
-        dashboardState.analyticsNeedsRefresh = true;
       }
     }
   });
@@ -605,146 +478,34 @@ function initializeSections() {
 }
 
 // Update model options based on provider
-function getProviderDisplayName(provider) {
-  return PROVIDER_DISPLAY_NAMES[provider] || provider;
-}
-
-function getDefaultModelForProvider(provider) {
-  const models = availableModels[provider] || [];
-  return models[0]?.id || '';
-}
-
-function providerRequiresApiKey(provider) {
-  return provider !== 'lmstudio';
-}
-
-function updateSelectedModelDescription() {
-  const selectedOption = elements.modelName?.selectedOptions?.[0];
-  updateModelDescription(selectedOption?.dataset?.description || 'Select the AI model to use');
-}
-
-async function fetchLmStudioModels(baseUrl) {
-  const endpoint = typeof buildProviderModelsEndpoint === 'function'
-    ? buildProviderModelsEndpoint('lmstudio', baseUrl)
-    : `${(baseUrl || defaultSettings.lmstudioBaseUrl).replace(/\/+$/, '')}/v1/models`;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), MODEL_DISCOVERY_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      signal: controller.signal
-    });
-
-    if (!response.ok) {
-      throw new Error(`LM Studio model discovery failed (${response.status} ${response.statusText})`);
-    }
-
-    const payload = await response.json();
-    const parser = typeof parseOpenAICompatibleModelList === 'function'
-      ? parseOpenAICompatibleModelList
-      : (data) => Array.isArray(data?.data) ? data.data.map(entry => entry?.id).filter(Boolean) : [];
-
-    return parser(payload).map((id) => ({
-      id,
-      name: id,
-      description: 'Discovered from LM Studio local server'
-    }));
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error('LM Studio model discovery timed out');
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-async function updateModelOptions(provider, options = {}) {
+function updateModelOptions(provider) {
   const modelSelect = elements.modelName;
   if (!modelSelect) return;
-
-  const requestId = ++modelOptionsRequestId;
-  const selectedModel = Object.prototype.hasOwnProperty.call(options, 'selectedModel')
-    ? options.selectedModel
-    : (modelSelect.value || '');
-  let models = availableModels[provider] || [];
-
-  if (provider === 'lmstudio') {
-    modelSelect.innerHTML = '';
-    const loadingOption = document.createElement('option');
-    loadingOption.value = selectedModel || '';
-    loadingOption.textContent = 'Loading LM Studio models...';
-    loadingOption.dataset.description = 'Querying LM Studio /v1/models';
-    modelSelect.appendChild(loadingOption);
-    updateSelectedModelDescription();
-
-    try {
-      models = await fetchLmStudioModels(options.baseUrl || elements.lmstudioBaseUrl?.value || defaultSettings.lmstudioBaseUrl);
-    } catch (error) {
-      console.warn('[Options] Failed to fetch LM Studio models:', error.message);
-      models = [];
-    }
-  }
-
-  if (requestId !== modelOptionsRequestId) {
-    return;
-  }
-
-  const normalizedModels = [];
-  const seen = new Set();
-  models.forEach((model) => {
-    const modelId = (model?.id || '').trim();
-    if (!modelId || seen.has(modelId)) return;
-    seen.add(modelId);
-    normalizedModels.push({
-      id: modelId,
-      name: model?.name || modelId,
-      description: model?.description || 'Select the AI model to use'
-    });
-  });
-
-  if (selectedModel && !seen.has(selectedModel)) {
-    normalizedModels.unshift({
-      id: selectedModel,
-      name: provider === 'lmstudio' ? `${selectedModel} (Saved)` : selectedModel,
-      description: provider === 'lmstudio'
-        ? 'Saved LM Studio model. It was not returned by the current /v1/models response.'
-        : 'Saved model selection'
-    });
-  }
-
+  
+  // Clear existing options
   modelSelect.innerHTML = '';
-
-  if (!normalizedModels.length) {
-    const option = document.createElement('option');
-    option.value = '';
-    option.textContent = provider === 'lmstudio' ? 'No LM Studio models found' : 'No models available';
-    option.dataset.description = provider === 'lmstudio'
-      ? 'Start LM Studio local server and load at least one model to populate this list.'
-      : 'No models available for this provider.';
-    modelSelect.appendChild(option);
-    modelSelect.value = '';
-    updateSelectedModelDescription();
-    return;
-  }
-
-  normalizedModels.forEach((model) => {
+  
+  // Add options for selected provider
+  const models = availableModels[provider] || [];
+  models.forEach(model => {
     const option = document.createElement('option');
     option.value = model.id;
     option.textContent = model.name;
-    option.dataset.description = model.description;
     modelSelect.appendChild(option);
   });
-
-  modelSelect.value = normalizedModels.some((model) => model.id === selectedModel)
-    ? selectedModel
-    : normalizedModels[0].id;
-  updateSelectedModelDescription();
+  
+  // Update description when model changes
+  modelSelect.addEventListener('change', (e) => {
+    const selectedModel = models.find(m => m.id === e.target.value);
+    if (selectedModel) {
+      updateModelDescription(selectedModel.description);
+    }
+  });
+  
+  // Update initial description
+  if (models.length > 0) {
+    updateModelDescription(models[0].description);
+  }
 }
 
 // Update model description
@@ -763,8 +524,6 @@ function updateApiKeyVisibility(provider) {
     gemini: document.getElementById('geminiApiKeyGroup'),
     openai: document.getElementById('openaiApiKeyGroup'),
     anthropic: document.getElementById('anthropicApiKeyGroup'),
-    openrouter: document.getElementById('openrouterApiKeyGroup'),
-    lmstudio: document.getElementById('lmstudioServerGroup'),
     custom: document.getElementById('customApiGroup')
   };
 
@@ -779,131 +538,130 @@ function updateApiKeyVisibility(provider) {
   }
 }
 
-async function loadSettings() {
-  const settings = await getStoredSettings();
-  
-  // Handle legacy speedMode to new model format
-  if (!settings.modelProvider && settings.speedMode) {
-    settings.modelProvider = 'xai';
-    settings.modelName = 'grok-4-1-fast-reasoning'; // All legacy modes map to new default
-  }
+function loadSettings() {
+  chrome.storage.local.get(Object.keys(defaultSettings), (data) => {
+    const settings = { ...defaultSettings, ...data };
+    
+    // Handle legacy speedMode to new model format
+    if (!settings.modelProvider && settings.speedMode) {
+      settings.modelProvider = 'xai';
+      settings.modelName = 'grok-4-1-fast'; // All legacy modes map to new default
+    }
+    
+    // Update model provider and options
+    if (elements.modelProvider) {
+      elements.modelProvider.value = settings.modelProvider || 'xai';
+      updateModelOptions(settings.modelProvider || 'xai');
+      updateApiKeyVisibility(settings.modelProvider || 'xai');
+    }
+    
+    // Update model name
+    if (elements.modelName && settings.modelName) {
+      // Wait for options to be populated
+      setTimeout(() => {
+        elements.modelName.value = settings.modelName;
+        const models = availableModels[settings.modelProvider || 'xai'];
+        const selectedModel = models.find(m => m.id === settings.modelName);
+        if (selectedModel) {
+          updateModelDescription(selectedModel.description);
+        }
+        updateApiKeyVisibility(settings.modelProvider || 'xai');
+      }, 100);
+    }
+    
+    // Update form elements
+    if (elements.apiKey) elements.apiKey.value = settings.apiKey || '';
+    if (elements.geminiApiKey) elements.geminiApiKey.value = settings.geminiApiKey || '';
+    // Update new provider API keys
+    const openaiApiKey = document.getElementById('openaiApiKey');
+    if (openaiApiKey) openaiApiKey.value = settings.openaiApiKey || '';
+    
+    const anthropicApiKey = document.getElementById('anthropicApiKey');
+    if (anthropicApiKey) anthropicApiKey.value = settings.anthropicApiKey || '';
+    
+    const customApiKey = document.getElementById('customApiKey');
+    if (customApiKey) customApiKey.value = settings.customApiKey || '';
+    
+    const customEndpoint = document.getElementById('customEndpoint');
+    if (customEndpoint) customEndpoint.value = settings.customEndpoint || '';
 
-  const provider = settings.modelProvider || 'xai';
+    // Max iterations
+    const maxIter = settings.maxIterations || 20;
+    if (elements.maxIterations) elements.maxIterations.value = maxIter;
+    if (elements.maxIterationsSlider) elements.maxIterationsSlider.value = maxIter;
+    if (elements.maxIterationsDisplay) elements.maxIterationsDisplay.textContent = maxIter;
 
-  // Update form elements
-  if (elements.apiKey) elements.apiKey.value = settings.apiKey || '';
-  if (elements.geminiApiKey) elements.geminiApiKey.value = settings.geminiApiKey || '';
-  if (elements.lmstudioBaseUrl) elements.lmstudioBaseUrl.value = settings.lmstudioBaseUrl || defaultSettings.lmstudioBaseUrl;
+    // Debug mode
+    if (elements.debugMode) elements.debugMode.checked = settings.debugMode;
 
-  const openaiApiKey = document.getElementById('openaiApiKey');
-  if (openaiApiKey) openaiApiKey.value = settings.openaiApiKey || '';
+    // DOM optimization settings
+    if (elements.domOptimization) {
+      elements.domOptimization.checked = settings.domOptimization ?? true;
+    }
+    const maxDOM = settings.maxDOMElements || 2000;
+    if (elements.maxDOMElements) elements.maxDOMElements.value = maxDOM;
+    if (elements.maxDOMElementsSlider) elements.maxDOMElementsSlider.value = maxDOM;
+    if (elements.maxDOMElementsDisplay) elements.maxDOMElementsDisplay.textContent = maxDOM;
 
-  const anthropicApiKey = document.getElementById('anthropicApiKey');
-  if (anthropicApiKey) anthropicApiKey.value = settings.anthropicApiKey || '';
-
-  const customApiKey = document.getElementById('customApiKey');
-  if (customApiKey) customApiKey.value = settings.customApiKey || '';
-
-  const openrouterApiKey = document.getElementById('openrouterApiKey');
-  if (openrouterApiKey) openrouterApiKey.value = settings.openrouterApiKey || '';
-
-  const customEndpoint = document.getElementById('customEndpoint');
-  if (customEndpoint) customEndpoint.value = settings.customEndpoint || '';
-
-  if (elements.modelProvider) {
-    elements.modelProvider.value = provider;
-    await updateModelOptions(provider, {
-      selectedModel: settings.modelName || '',
-      baseUrl: settings.lmstudioBaseUrl || defaultSettings.lmstudioBaseUrl
-    });
-    updateApiKeyVisibility(provider);
-    renderProviderIcon(provider);
-  }
-
-  const maxIter = settings.maxIterations || 20;
-  if (elements.maxIterations) elements.maxIterations.value = maxIter;
-  if (elements.maxIterationsSlider) elements.maxIterationsSlider.value = maxIter;
-  if (elements.maxIterationsDisplay) elements.maxIterationsDisplay.textContent = maxIter;
-
-  if (elements.debugMode) elements.debugMode.checked = settings.debugMode;
-  updateCLIValidationVisibility(settings.debugMode);
-
-  if (elements.domOptimization) {
-    elements.domOptimization.checked = settings.domOptimization ?? true;
-  }
-  const maxDOM = settings.maxDOMElements || 2000;
-  if (elements.maxDOMElements) elements.maxDOMElements.value = maxDOM;
-  if (elements.maxDOMElementsSlider) elements.maxDOMElementsSlider.value = maxDOM;
-  if (elements.maxDOMElementsDisplay) elements.maxDOMElementsDisplay.textContent = maxDOM;
-
-  const cacheSize = settings.elementCacheSize || 200;
-  if (elements.elementCacheSize) elements.elementCacheSize.value = cacheSize;
-  if (elements.elementCacheSizeDisplay) elements.elementCacheSizeDisplay.textContent = cacheSize;
-  if (elements.elementCacheSizePreset) {
-    const presetOption = elements.elementCacheSizePreset.querySelector(`option[value="${cacheSize}"]`);
-    if (presetOption && cacheSize !== 'custom') {
-      elements.elementCacheSizePreset.value = cacheSize;
-      if (elements.elementCacheSizeCustom) elements.elementCacheSizeCustom.style.display = 'none';
-    } else {
-      elements.elementCacheSizePreset.value = 'custom';
-      if (elements.elementCacheSizeCustom) {
-        elements.elementCacheSizeCustom.style.display = 'block';
-        elements.elementCacheSizeCustom.value = cacheSize;
+    // Element Cache Size
+    const cacheSize = settings.elementCacheSize || 200;
+    if (elements.elementCacheSize) elements.elementCacheSize.value = cacheSize;
+    if (elements.elementCacheSizeDisplay) elements.elementCacheSizeDisplay.textContent = cacheSize;
+    if (elements.elementCacheSizePreset) {
+      const presetOption = elements.elementCacheSizePreset.querySelector(`option[value="${cacheSize}"]`);
+      if (presetOption && cacheSize !== 'custom') {
+        elements.elementCacheSizePreset.value = cacheSize;
+        if (elements.elementCacheSizeCustom) elements.elementCacheSizeCustom.style.display = 'none';
+      } else {
+        elements.elementCacheSizePreset.value = 'custom';
+        if (elements.elementCacheSizeCustom) {
+          elements.elementCacheSizeCustom.style.display = 'block';
+          elements.elementCacheSizeCustom.value = cacheSize;
+        }
       }
     }
-  }
 
-  if (elements.prioritizeViewport) {
-    elements.prioritizeViewport.checked = settings.prioritizeViewport ?? true;
-  }
-  if (elements.animatedActionHighlights) {
-    elements.animatedActionHighlights.checked = settings.animatedActionHighlights ?? true;
-  }
-  if (elements.showSidepanelProgress) {
-    elements.showSidepanelProgress.checked = settings.showSidepanelProgress ?? false;
-  }
+    if (elements.prioritizeViewport) {
+      elements.prioritizeViewport.checked = settings.prioritizeViewport ?? true;
+    }
+    if (elements.animatedActionHighlights) {
+      elements.animatedActionHighlights.checked = settings.animatedActionHighlights ?? true;
+    }
+    if (elements.showSidepanelProgress) {
+      elements.showSidepanelProgress.checked = settings.showSidepanelProgress ?? false;
+    }
 
-  if (elements.enableLogin) {
-    elements.enableLogin.checked = settings.enableLogin ?? false;
-    updateCredentialsManagerVisibility(settings.enableLogin ?? false);
-  }
-  if (elements.enableSavedPayments) {
-    elements.enableSavedPayments.checked = settings.enableSavedPayments ?? false;
-    updatePaymentMethodsManagerVisibility(settings.enableSavedPayments ?? false);
-  }
+    // Credential Manager
+    if (elements.enableLogin) {
+      elements.enableLogin.checked = settings.enableLogin ?? false;
+      updateCredentialsManagerVisibility(settings.enableLogin ?? false);
+    }
 
-  if (elements.captchaSolverEnabled) {
-    elements.captchaSolverEnabled.checked = settings.captchaSolverEnabled ?? false;
-    updateCaptchaSolverVisibility(settings.captchaSolverEnabled ?? false);
-  }
-  if (elements.captchaApiKey) elements.captchaApiKey.value = settings.captchaApiKey || '';
+    // CAPTCHA Solver
+    if (elements.captchaSolverEnabled) {
+      elements.captchaSolverEnabled.checked = settings.captchaSolverEnabled ?? false;
+      updateCaptchaSolverVisibility(settings.captchaSolverEnabled ?? false);
+    }
+    if (elements.captchaApiKey) elements.captchaApiKey.value = settings.captchaApiKey || '';
 
-  if (elements.autoRefineSiteMaps) {
-    elements.autoRefineSiteMaps.checked = settings.autoRefineSiteMaps ?? true;
-  }
+    if (elements.autoRefineSiteMaps) {
+      elements.autoRefineSiteMaps.checked = settings.autoRefineSiteMaps ?? true;
+    }
 
-  if (elements.sttProvider) {
-    elements.sttProvider.checked = settings.sttProvider === 'whisper';
-    updateSttDescription(settings.sttProvider === 'whisper', settings.openaiApiKey);
-  }
-
-  addLog('info', 'Settings loaded successfully');
+    addLog('info', 'Settings loaded successfully');
+  });
 }
 
 function saveSettings() {
-  const provider = elements.modelProvider?.value || 'xai';
-  const selectedModel = elements.modelName?.value || (provider === 'lmstudio' ? '' : getDefaultModelForProvider(provider));
   const settings = {
-    modelProvider: provider,
-    modelName: selectedModel,
+    modelProvider: elements.modelProvider?.value || 'xai',
+    modelName: elements.modelName?.value || 'grok-4-1-fast',
     apiKey: elements.apiKey?.value || '',
     geminiApiKey: elements.geminiApiKey?.value || '',
     openaiApiKey: document.getElementById('openaiApiKey')?.value || '',
     anthropicApiKey: document.getElementById('anthropicApiKey')?.value || '',
-    openrouterApiKey: document.getElementById('openrouterApiKey')?.value || '',
     customApiKey: document.getElementById('customApiKey')?.value || '',
     customEndpoint: document.getElementById('customEndpoint')?.value || '',
-    lmstudioBaseUrl: elements.lmstudioBaseUrl?.value?.trim() || defaultSettings.lmstudioBaseUrl,
     maxIterations: parseInt(elements.maxIterations?.value) || 20,
     debugMode: elements.debugMode?.checked ?? false,
     // DOM Optimization settings
@@ -914,20 +672,21 @@ function saveSettings() {
     animatedActionHighlights: elements.animatedActionHighlights?.checked ?? true,
     showSidepanelProgress: elements.showSidepanelProgress?.checked ?? false,
     enableLogin: elements.enableLogin?.checked ?? false,
-    enableSavedPayments: elements.enableSavedPayments?.checked ?? false,
     captchaSolverEnabled: elements.captchaSolverEnabled?.checked ?? false,
     captchaApiKey: elements.captchaApiKey?.value || '',
-    autoRefineSiteMaps: elements.autoRefineSiteMaps?.checked ?? true,
-    sttProvider: elements.sttProvider?.checked ? 'whisper' : 'browser'
+    autoRefineSiteMaps: elements.autoRefineSiteMaps?.checked ?? true
   };
-
+  
   chrome.storage.local.set(settings, () => {
     dashboardState.hasUnsavedChanges = false;
     hideSaveBar();
     showToast('Settings saved successfully', 'success');
     addLog('info', 'Settings saved successfully');
     
-    checkApiConnection();
+    // Update connection status if API key changed
+    if (settings.apiKey) {
+      checkApiConnection();
+    }
   });
 }
 
@@ -984,31 +743,27 @@ async function checkApiConnection() {
     const settings = await getStoredSettings();
     const provider = settings.modelProvider || 'xai';
 
-    const providerInfo = {
-      xai: { key: settings.apiKey, name: getProviderDisplayName('xai') },
-      gemini: { key: settings.geminiApiKey, name: getProviderDisplayName('gemini') },
-      openai: { key: settings.openaiApiKey, name: getProviderDisplayName('openai') },
-      anthropic: { key: settings.anthropicApiKey, name: getProviderDisplayName('anthropic') },
-      openrouter: { key: settings.openrouterApiKey, name: getProviderDisplayName('openrouter') },
-      lmstudio: { key: '', name: getProviderDisplayName('lmstudio') },
-      custom: { key: settings.customApiKey, name: getProviderDisplayName('custom') }
-    }[provider] || { key: '', name: getProviderDisplayName(provider) };
+    // Check appropriate API key based on provider
+    const apiKeyMap = {
+      xai: settings.apiKey,
+      gemini: settings.geminiApiKey,
+      openai: settings.openaiApiKey,
+      anthropic: settings.anthropicApiKey,
+      custom: settings.customApiKey
+    };
 
-    if (provider === 'lmstudio' && !settings.modelName) {
-      updateConnectionStatus('disconnected', 'No model selected');
-      updateApiStatusCard('disconnected', 'No Model Selected', 'Select an LM Studio model discovered from /v1/models to test the local server.');
-      return;
-    }
+    const apiKey = apiKeyMap[provider];
 
-    if (provider === 'custom' && !settings.customEndpoint) {
-      updateConnectionStatus('disconnected', 'No endpoint configured');
-      updateApiStatusCard('disconnected', 'No Endpoint', 'Configure your custom OpenAI-compatible endpoint to test this provider.');
-      return;
-    }
-
-    if (providerRequiresApiKey(provider) && !providerInfo.key) {
+    if (!apiKey) {
+      const providerNames = {
+        xai: 'xAI',
+        gemini: 'Gemini',
+        openai: 'OpenAI',
+        anthropic: 'Anthropic',
+        custom: 'Custom'
+      };
       updateConnectionStatus('disconnected', 'No API key configured');
-      updateApiStatusCard('disconnected', 'No API Key', `Configure your ${providerInfo.name} API key to get started`);
+      updateApiStatusCard('disconnected', 'No API Key', `Configure your ${providerNames[provider]} API key to get started`);
       return;
     }
 
@@ -1098,25 +853,17 @@ async function runFullApiTest() {
     const settings = await getStoredSettings();
     const provider = settings.modelProvider || 'xai';
 
-    const providerInfo = {
-      xai: { key: settings.apiKey, name: getProviderDisplayName('xai') },
-      gemini: { key: settings.geminiApiKey, name: getProviderDisplayName('gemini') },
-      openai: { key: settings.openaiApiKey, name: getProviderDisplayName('openai') },
-      anthropic: { key: settings.anthropicApiKey, name: getProviderDisplayName('anthropic') },
-      openrouter: { key: settings.openrouterApiKey, name: getProviderDisplayName('openrouter') },
-      lmstudio: { key: '', name: getProviderDisplayName('lmstudio') },
-      custom: { key: settings.customApiKey, name: getProviderDisplayName('custom') }
-    }[provider] || { key: '', name: getProviderDisplayName(provider) };
+    // Check appropriate API key based on provider
+    const apiKeyMap = {
+      xai: { key: settings.apiKey, name: 'xAI' },
+      gemini: { key: settings.geminiApiKey, name: 'Gemini' },
+      openai: { key: settings.openaiApiKey, name: 'OpenAI' },
+      anthropic: { key: settings.anthropicApiKey, name: 'Anthropic' },
+      custom: { key: settings.customApiKey, name: 'Custom' }
+    };
 
-    if (provider === 'lmstudio' && !settings.modelName) {
-      throw new Error('Select an LM Studio model discovered from /v1/models before testing');
-    }
-
-    if (provider === 'custom' && !settings.customEndpoint) {
-      throw new Error('Custom API endpoint is required for testing');
-    }
-
-    if (providerRequiresApiKey(provider) && !providerInfo.key) {
+    const providerInfo = apiKeyMap[provider];
+    if (!providerInfo.key) {
       throw new Error(`${providerInfo.name} API key is required for testing`);
     }
 
@@ -1173,7 +920,6 @@ function exportSettings() {
       geminiApiKey: settings.geminiApiKey ? '[CONFIGURED]' : '',
       openaiApiKey: settings.openaiApiKey ? '[CONFIGURED]' : '',
       anthropicApiKey: settings.anthropicApiKey ? '[CONFIGURED]' : '',
-      openrouterApiKey: settings.openrouterApiKey ? '[CONFIGURED]' : '',
       customApiKey: settings.customApiKey ? '[CONFIGURED]' : ''
     };
     
@@ -1194,31 +940,16 @@ function exportSettings() {
 }
 
 function setupTheme() {
-  applyTheme(getPreferredTheme());
-
-  if (systemThemeQuery) {
-    systemThemeQuery.addEventListener('change', () => {
-      if (!localStorage.getItem('fsb-theme')) {
-        applyTheme(getPreferredTheme());
-      }
-    });
-  }
+  const savedTheme = localStorage.getItem('fsb-theme') || 'light';
+  applyTheme(savedTheme);
 }
 
 function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute('data-theme') || getPreferredTheme();
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
   const newTheme = currentTheme === 'light' ? 'dark' : 'light';
   applyTheme(newTheme);
   localStorage.setItem('fsb-theme', newTheme);
   showToast(`Switched to ${newTheme} theme`, 'info');
-}
-
-function getPreferredTheme() {
-  const savedTheme = localStorage.getItem('fsb-theme');
-  if (savedTheme === 'light' || savedTheme === 'dark') {
-    return savedTheme;
-  }
-  return systemThemeQuery?.matches ? 'dark' : 'light';
 }
 
 function updateFooterLogo(theme) {
@@ -1390,7 +1121,7 @@ async function testTokenTracking() {
 
   // Test with fake data
   const testData = {
-    model: 'grok-4-1-fast-reasoning',
+    model: 'grok-4-1-fast',
     inputTokens: 150,
     outputTokens: 75,
     success: true
@@ -1430,7 +1161,7 @@ async function clearAnalyticsData() {
       await chrome.storage.local.remove(['fsbUsageData', 'fsbCurrentModel']);
       if (analytics) {
         analytics.usageData = [];
-        analytics.currentModel = 'grok-4-1-fast-reasoning';
+        analytics.currentModel = 'grok-4-1-fast';
         analytics.updateDashboard();
         loadDashboardCostBreakdown();
         analytics.updateChart('24h');
@@ -1526,55 +1257,6 @@ function initializeSessionHistory() {
   loadSessionList();
 }
 
-function normalizeSessionOutcome(outcome, status, hasError) {
-  const normalizedOutcome = typeof outcome === 'string' ? outcome.trim().toLowerCase() : '';
-  if (normalizedOutcome === 'error') return 'failure';
-  if (normalizedOutcome === 'success' || normalizedOutcome === 'partial' || normalizedOutcome === 'failure' || normalizedOutcome === 'stopped') {
-    return normalizedOutcome;
-  }
-
-  const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
-  if (normalizedStatus === 'partial') return 'partial';
-  if (normalizedStatus === 'stopped') return 'stopped';
-  if (normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'stuck') return 'failure';
-
-  return hasError ? 'failure' : 'success';
-}
-
-function getSessionStatusDisplay(session = {}) {
-  const outcomeDetails = session.outcomeDetails && typeof session.outcomeDetails === 'object'
-    ? session.outcomeDetails
-    : {};
-  const outcome = normalizeSessionOutcome(
-    session.outcome || outcomeDetails.outcome,
-    session.status || outcomeDetails.outcome,
-    Boolean(session.error || outcomeDetails.error)
-  );
-
-  return {
-    outcome,
-    badgeClass: outcome === 'success'
-      ? 'completed'
-      : outcome === 'partial'
-        ? 'partial'
-        : outcome === 'stopped'
-          ? 'stopped'
-          : 'error',
-    badgeLabel: outcome === 'success'
-      ? 'completed'
-      : outcome === 'partial'
-        ? 'partial'
-        : outcome === 'stopped'
-          ? 'stopped'
-          : 'failed',
-    summary: outcomeDetails.summary || session.result || null,
-    blocker: outcomeDetails.blocker || session.blocker || null,
-    nextStep: outcomeDetails.nextStep || session.nextStep || null,
-    resultText: session.completionMessage || outcomeDetails.result || session.result || outcomeDetails.summary || null,
-    error: session.error || outcomeDetails.error || null
-  };
-}
-
 /**
  * Load and display the list of saved sessions
  */
@@ -1598,9 +1280,7 @@ async function loadSessionList() {
     }
 
     // Render session items (using data-action attributes, no inline onclick)
-    sessionList.innerHTML = sessions.map(session => {
-      const outcomeInfo = getSessionStatusDisplay(session);
-      return `
+    sessionList.innerHTML = sessions.map(session => `
       <div class="session-item" data-session-id="${session.id}">
         <div class="session-item-info">
           <div class="session-item-task">${escapeHtml(session.task || 'Unknown task')}</div>
@@ -1611,7 +1291,7 @@ async function loadSessionList() {
           </div>
         </div>
         <div class="session-item-status">
-          <span class="session-status-badge ${outcomeInfo.badgeClass}">${escapeHtml(outcomeInfo.badgeLabel)}</span>
+          <span class="session-status-badge ${session.status}">${session.status}</span>
         </div>
         <div class="session-item-actions">
           <button class="session-action-btn view" data-action="view" title="View logs">
@@ -1625,8 +1305,7 @@ async function loadSessionList() {
           </button>
         </div>
       </div>
-    `;
-    }).join('');
+    `).join('');
 
     addLog('info', `Loaded ${sessions.length} sessions`);
 
@@ -1740,17 +1419,12 @@ function closeSessionDetail() {
  * @returns {string} HTML string for the inline detail panel
  */
 function createInlineDetailHTML(session) {
-  // [FSB Field Audit] Consumer: options dashboard session detail
-  // Reads: session.iterationCount, session.totalCost, session.tokenUsage
-  // Display-filtered: none (dashboard shows full developer detail)
-  // Pass-through: all fields (options page is the developer-facing analytics view)
-  const outcomeInfo = getSessionStatusDisplay(session);
   return `
     <div class="session-detail-panel" data-session-id="${session.id}">
       <div class="session-detail-header">
         <div class="session-detail-title">
           <h4 id="sessionDetailTitle">${escapeHtml(session.task || 'Unknown Task')}</h4>
-          <span class="session-detail-status session-status-badge ${outcomeInfo.badgeClass}" id="sessionDetailStatus">${escapeHtml(outcomeInfo.badgeLabel)}</span>
+          <span class="session-detail-status session-status-badge ${session.status}" id="sessionDetailStatus">${session.status}</span>
         </div>
         <div class="session-detail-actions">
           <button class="control-btn" id="exportSessionText" title="Export as human-readable text">
@@ -1792,30 +1466,6 @@ function createInlineDetailHTML(session) {
           <span class="session-meta-label">Iterations</span>
           <span class="session-meta-value">${session.iterationCount || 'N/A'}</span>
         </div>
-        ${outcomeInfo.summary ? `
-        <div class="session-meta-item">
-          <span class="session-meta-label">Summary</span>
-          <span class="session-meta-value">${escapeHtml(outcomeInfo.summary)}</span>
-        </div>
-        ` : ''}
-        ${outcomeInfo.blocker ? `
-        <div class="session-meta-item">
-          <span class="session-meta-label">Blocker</span>
-          <span class="session-meta-value">${escapeHtml(outcomeInfo.blocker)}</span>
-        </div>
-        ` : ''}
-        ${outcomeInfo.nextStep ? `
-        <div class="session-meta-item">
-          <span class="session-meta-label">Next Step</span>
-          <span class="session-meta-value">${escapeHtml(outcomeInfo.nextStep)}</span>
-        </div>
-        ` : ''}
-        ${outcomeInfo.error ? `
-        <div class="session-meta-item">
-          <span class="session-meta-label">Error</span>
-          <span class="session-meta-value">${escapeHtml(outcomeInfo.error)}</span>
-        </div>
-        ` : ''}
       </div>
       <div class="session-replay-container" id="sessionReplayContainer">
         <div class="replay-controls">
@@ -2787,187 +2437,8 @@ async function exportSessionText(sessionId) {
 // Current state for credential modal
 let credentialModalMode = 'add'; // 'add' or 'edit'
 let credentialEditingDomain = null;
-let credentialVaultStatus = { configured: false, unlocked: false };
-let paymentMethodModalMode = 'add'; // 'add' or 'edit'
-let paymentMethodEditingId = null;
-let paymentVaultStatus = { configured: false, unlocked: false, paymentUnlocked: false };
-
-function resetCredentialModalFields() {
-  const domainInput = document.getElementById('credModalDomain');
-  const usernameInput = document.getElementById('credModalUsername');
-  const passwordInput = document.getElementById('credModalPassword');
-  const notesInput = document.getElementById('credModalNotes');
-  const allowSubdomainsInput = document.getElementById('credModalAllowSubdomains');
-
-  if (domainInput) {
-    domainInput.value = '';
-    domainInput.readOnly = false;
-  }
-  if (usernameInput) usernameInput.value = '';
-  if (passwordInput) passwordInput.value = '';
-  if (notesInput) notesInput.value = '';
-  if (allowSubdomainsInput) allowSubdomainsInput.checked = false;
-}
-
-async function refreshCredentialVaultStatus(options = {}) {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'credentialVaultStatus' });
-    if (!response?.success) {
-      throw new Error(response?.error || 'Unable to load credential vault status');
-    }
-
-    credentialVaultStatus = response.status || { configured: false, unlocked: false };
-    updateCredentialVaultStateUI();
-    updateCredentialsManagerVisibility(document.getElementById('enableLogin')?.checked ?? false);
-    await refreshPaymentVaultStatus({ silent: true });
-  } catch (error) {
-    if (!options.silent) {
-      showToast('Error loading credential vault status: ' + error.message, 'error');
-    }
-  }
-}
-
-function updateCredentialVaultStateUI() {
-  const statusText = document.getElementById('credentialVaultStatusText');
-  const setupPanel = document.getElementById('credentialVaultSetup');
-  const unlockPanel = document.getElementById('credentialVaultUnlock');
-  const unlockedPanel = document.getElementById('credentialVaultUnlocked');
-  const lockBtn = document.getElementById('lockCredentialVaultBtn');
-
-  if (!credentialVaultStatus.configured) {
-    if (statusText) statusText.textContent = 'No credential vault is configured yet. Set one up before storing passwords.';
-    if (setupPanel) setupPanel.style.display = 'flex';
-    if (unlockPanel) unlockPanel.style.display = 'none';
-    if (unlockedPanel) unlockedPanel.style.display = 'none';
-    if (lockBtn) lockBtn.style.display = 'none';
-    return;
-  }
-
-  if (credentialVaultStatus.unlocked) {
-    if (statusText) statusText.textContent = 'Vault unlocked. Stored credentials can be viewed, edited, autofilled, and saved.';
-    if (setupPanel) setupPanel.style.display = 'none';
-    if (unlockPanel) unlockPanel.style.display = 'none';
-    if (unlockedPanel) unlockedPanel.style.display = 'flex';
-    if (lockBtn) lockBtn.style.display = 'inline-flex';
-    return;
-  }
-
-  if (statusText) statusText.textContent = 'Vault locked. Unlock it before viewing or storing credentials.';
-  if (setupPanel) setupPanel.style.display = 'none';
-  if (unlockPanel) unlockPanel.style.display = 'flex';
-  if (unlockedPanel) unlockedPanel.style.display = 'none';
-  if (lockBtn) lockBtn.style.display = 'none';
-}
-
-async function setupCredentialVault() {
-  const passphrase = document.getElementById('credentialVaultPassphrase')?.value || '';
-  const confirmPassphrase = document.getElementById('credentialVaultConfirmPassphrase')?.value || '';
-
-  if (passphrase.length < 8) {
-    showToast('Vault passphrase must be at least 8 characters', 'error');
-    return;
-  }
-
-  if (passphrase !== confirmPassphrase) {
-    showToast('Passphrases do not match', 'error');
-    return;
-  }
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      action: 'setupCredentialVault',
-      passphrase
-    });
-
-    if (!response?.success) {
-      showToast(response?.error || 'Failed to set up credential vault', 'error');
-      return;
-    }
-
-    const setupInput = document.getElementById('credentialVaultPassphrase');
-    const confirmInput = document.getElementById('credentialVaultConfirmPassphrase');
-    if (setupInput) setupInput.value = '';
-    if (confirmInput) confirmInput.value = '';
-
-    await refreshCredentialVaultStatus({ silent: true });
-
-    const migratedCount = response.migratedCount || 0;
-    showToast(
-      migratedCount > 0
-        ? `Credential vault set up. Migrated ${migratedCount} saved credential${migratedCount === 1 ? '' : 's'}.`
-        : 'Credential vault set up successfully',
-      'success'
-    );
-  } catch (error) {
-    showToast('Error setting up credential vault: ' + error.message, 'error');
-  }
-}
-
-async function unlockCredentialVaultHandler() {
-  const passphrase = document.getElementById('credentialVaultUnlockPassphrase')?.value || '';
-  if (!passphrase) {
-    showToast('Enter your vault passphrase to unlock', 'error');
-    return;
-  }
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      action: 'unlockCredentialVault',
-      passphrase
-    });
-
-    if (!response?.success) {
-      showToast(response?.error || 'Failed to unlock credential vault', 'error');
-      return;
-    }
-
-    const unlockInput = document.getElementById('credentialVaultUnlockPassphrase');
-    if (unlockInput) unlockInput.value = '';
-
-    await refreshCredentialVaultStatus({ silent: true });
-
-    const migratedCount = response.migratedCount || 0;
-    showToast(
-      migratedCount > 0
-        ? `Vault unlocked. Migrated ${migratedCount} legacy credential${migratedCount === 1 ? '' : 's'}.`
-        : 'Credential vault unlocked',
-      'success'
-    );
-  } catch (error) {
-    showToast('Error unlocking credential vault: ' + error.message, 'error');
-  }
-}
-
-async function lockCredentialVaultHandler() {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'lockCredentialVault' });
-    if (!response?.success) {
-      showToast(response?.error || 'Failed to lock credential vault', 'error');
-      return;
-    }
-
-    hideCredentialModal();
-    hidePaymentMethodModal();
-    await refreshCredentialVaultStatus({ silent: true });
-    showToast('Credential vault locked', 'success');
-  } catch (error) {
-    showToast('Error locking credential vault: ' + error.message, 'error');
-  }
-}
 
 // Show/hide credentials manager based on toggle
-function updateSttDescription(whisperEnabled, openaiKey) {
-  const desc = document.getElementById('sttStatusDesc');
-  if (!desc) return;
-  if (whisperEnabled && openaiKey) {
-    desc.textContent = 'Using OpenAI Whisper for higher accuracy transcription.';
-  } else if (whisperEnabled && !openaiKey) {
-    desc.textContent = 'OpenAI API key required. Add one above to enable Whisper.';
-  } else {
-    desc.textContent = "Using browser's built-in speech recognition (no API key needed).";
-  }
-}
-
 function updateCaptchaSolverVisibility(enabled) {
   const configPanel = document.getElementById('captchaSolverConfig');
   if (configPanel) {
@@ -2977,22 +2448,10 @@ function updateCaptchaSolverVisibility(enabled) {
 
 function updateCredentialsManagerVisibility(enabled) {
   const manager = document.getElementById('credentialsManager');
-  const disabledNote = document.getElementById('credentialManagerDisabledNote');
-  const listEl = document.getElementById('credentialsList');
-  const emptyEl = document.getElementById('credentialsEmpty');
-  const showManager = credentialVaultStatus.unlocked;
-
   if (manager) {
-    manager.style.display = showManager ? 'block' : 'none';
-    if (disabledNote) {
-      disabledNote.style.display = showManager && !enabled ? 'block' : 'none';
-    }
-
-    if (showManager) {
+    manager.style.display = enabled ? 'block' : 'none';
+    if (enabled) {
       loadCredentials();
-    } else {
-      if (listEl) listEl.innerHTML = '';
-      if (emptyEl) emptyEl.style.display = 'none';
     }
   }
 }
@@ -3003,14 +2462,6 @@ async function loadCredentials() {
     const response = await chrome.runtime.sendMessage({ action: 'getAllCredentials' });
 
     if (!response || !response.success) {
-      if (response?.errorCode === 'locked' || response?.errorCode === 'vault_not_configured') {
-        credentialVaultStatus = {
-          configured: response.errorCode !== 'vault_not_configured',
-          unlocked: false
-        };
-        updateCredentialVaultStateUI();
-        updateCredentialsManagerVisibility(document.getElementById('enableLogin')?.checked ?? false);
-      }
       console.error('Failed to load credentials:', response?.error);
       return;
     }
@@ -3049,7 +2500,6 @@ function renderCredentialCard(cred) {
       <div class="credential-card-info">
         <div class="credential-card-domain">${escapeHtml(cred.domain)}</div>
         <div class="credential-card-username">${escapeHtml(cred.username || 'No username')}</div>
-        <div class="credential-card-scope">${cred.allowSubdomains ? 'Subdomains allowed' : 'Exact host only'}</div>
       </div>
       <div class="credential-card-password" data-domain="${escapeHtml(cred.domain)}">
         <span class="password-dots">--------</span>
@@ -3094,11 +2544,14 @@ async function showCredentialModal(mode, domain) {
   const usernameInput = document.getElementById('credModalUsername');
   const passwordInput = document.getElementById('credModalPassword');
   const notesInput = document.getElementById('credModalNotes');
-  const allowSubdomainsInput = document.getElementById('credModalAllowSubdomains');
 
   if (titleEl) titleEl.textContent = mode === 'edit' ? 'Edit Credential' : 'Add Credential';
 
-  resetCredentialModalFields();
+  // Clear fields
+  if (domainInput) domainInput.value = '';
+  if (usernameInput) usernameInput.value = '';
+  if (passwordInput) passwordInput.value = '';
+  if (notesInput) notesInput.value = '';
 
   // Pre-fill for edit mode
   if (mode === 'edit' && domain) {
@@ -3118,7 +2571,6 @@ async function showCredentialModal(mode, domain) {
         if (usernameInput) usernameInput.value = response.credential.username || '';
         if (passwordInput) passwordInput.value = response.credential.password || '';
         if (notesInput) notesInput.value = response.credential.notes || '';
-        if (allowSubdomainsInput) allowSubdomainsInput.checked = response.credential.allowSubdomains === true;
       }
     } catch (error) {
       console.error('Failed to load credential for editing:', error);
@@ -3135,7 +2587,6 @@ async function showCredentialModal(mode, domain) {
 function hideCredentialModal() {
   const modal = document.getElementById('credentialModal');
   if (modal) modal.classList.add('hidden');
-  resetCredentialModalFields();
   credentialModalMode = 'add';
   credentialEditingDomain = null;
 }
@@ -3146,7 +2597,6 @@ async function saveCredentialFromModal() {
   const username = document.getElementById('credModalUsername')?.value?.trim();
   const password = document.getElementById('credModalPassword')?.value;
   const notes = document.getElementById('credModalNotes')?.value?.trim();
-  const allowSubdomains = document.getElementById('credModalAllowSubdomains')?.checked ?? false;
 
   if (!domain) {
     showToast('Domain is required', 'error');
@@ -3161,8 +2611,8 @@ async function saveCredentialFromModal() {
   try {
     const action = credentialModalMode === 'edit' ? 'updateCredential' : 'saveCredential';
     const message = credentialModalMode === 'edit'
-      ? { action, domain: credentialEditingDomain || domain, updates: { username, password, notes, allowSubdomains } }
-      : { action, domain, data: { username, password, notes, allowSubdomains } };
+      ? { action, domain: credentialEditingDomain || domain, updates: { username, password, notes } }
+      : { action, domain, data: { username, password, notes } };
 
     const response = await chrome.runtime.sendMessage(message);
 
@@ -3292,20 +2742,11 @@ function initializeCredentialManager() {
   const modalCancel = document.getElementById('credentialModalCancel');
   const modalClose = document.getElementById('credentialModalClose');
   const modalBackdrop = document.querySelector('.credential-modal-backdrop');
-  const vaultSetupBtn = document.getElementById('setupCredentialVaultBtn');
-  const vaultUnlockBtn = document.getElementById('unlockCredentialVaultBtn');
-  const vaultLockBtn = document.getElementById('lockCredentialVaultBtn');
-  const vaultSetupPassphrase = document.getElementById('credentialVaultPassphrase');
-  const vaultSetupConfirmPassphrase = document.getElementById('credentialVaultConfirmPassphrase');
-  const vaultUnlockPassphrase = document.getElementById('credentialVaultUnlockPassphrase');
 
   if (modalSave) modalSave.addEventListener('click', saveCredentialFromModal);
   if (modalCancel) modalCancel.addEventListener('click', hideCredentialModal);
   if (modalClose) modalClose.addEventListener('click', hideCredentialModal);
   if (modalBackdrop) modalBackdrop.addEventListener('click', hideCredentialModal);
-  if (vaultSetupBtn) vaultSetupBtn.addEventListener('click', setupCredentialVault);
-  if (vaultUnlockBtn) vaultUnlockBtn.addEventListener('click', unlockCredentialVaultHandler);
-  if (vaultLockBtn) vaultLockBtn.addEventListener('click', lockCredentialVaultHandler);
 
   // Modal password toggle
   const toggleModalPw = document.getElementById('toggleCredModalPassword');
@@ -3321,653 +2762,28 @@ function initializeCredentialManager() {
     });
   }
 
-  if (vaultSetupPassphrase) {
-    vaultSetupPassphrase.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        setupCredentialVault();
-      }
-    });
-  }
-
-  if (vaultSetupConfirmPassphrase) {
-    vaultSetupConfirmPassphrase.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        setupCredentialVault();
-      }
-    });
-  }
-
-  if (vaultUnlockPassphrase) {
-    vaultUnlockPassphrase.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        unlockCredentialVaultHandler();
-      }
-    });
-  }
-
-  // Load credential/payment data when switching sections (override inside init to ensure DOM is ready)
+  // Load credentials when switching to passwords section (override inside init to ensure DOM is ready)
   // Also refresh memory data when switching to memory section (catches stale data)
   const origSwitchSection = switchSection;
   switchSection = function(sectionId) {
     origSwitchSection(sectionId);
-    if (sectionId === 'dashboard' && dashboardState.analyticsNeedsRefresh) {
-      dashboardState.analyticsNeedsRefresh = false;
-      refreshAnalyticsDashboard();
-    }
-    if (sectionId === 'passwords' || sectionId === 'payments') {
-      refreshCredentialVaultStatus({ silent: true });
-      refreshPaymentVaultStatus({ silent: true });
+    if (sectionId === 'passwords') {
+      const enableLogin = document.getElementById('enableLogin');
+      if (enableLogin?.checked) {
+        loadCredentials();
+      }
     }
     // Refresh memory tab when switching to it (picks up changes made while off-screen)
     if (sectionId === 'memory') {
       loadMemoryDashboard();
     }
   };
-
-  refreshCredentialVaultStatus({ silent: true });
 }
 
-function getCardBrandDisplayName(brand) {
-  const brandMap = {
-    visa: 'Visa',
-    mastercard: 'Mastercard',
-    amex: 'AmEx',
-    discover: 'Discover',
-    diners: 'Diners',
-    jcb: 'JCB',
-    unknown: 'Unknown'
-  };
-  return brandMap[brand] || 'Unknown';
-}
-
-function normalizeCardNumberLocal(value) {
-  return String(value || '').replace(/\D/g, '');
-}
-
-function detectCardBrandLocal(value) {
-  const digits = normalizeCardNumberLocal(value);
-  if (!digits) return 'unknown';
-  if (/^4\d{12}(\d{3}){0,2}$/.test(digits)) return 'visa';
-  if (/^(5[1-5]\d{14}|2(2[2-9]\d{12}|[3-6]\d{13}|7([01]\d{12}|20\d{12})))$/.test(digits)) return 'mastercard';
-  if (/^3[47]\d{13}$/.test(digits)) return 'amex';
-  if (/^(6011\d{12}|65\d{14}|64[4-9]\d{13})$/.test(digits)) return 'discover';
-  if (/^(30[0-5]\d{11}|36\d{12}|38\d{12}|39\d{12})$/.test(digits)) return 'diners';
-  if (/^(2131|1800|35\d{3})\d{11}$/.test(digits)) return 'jcb';
-  return 'unknown';
-}
-
-function formatCardNumberLocal(value) {
-  const digits = normalizeCardNumberLocal(value);
-  if (!digits) return '';
-  if (/^3[47]/.test(digits)) {
-    return [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)].filter(Boolean).join(' ');
-  }
-  return digits.match(/.{1,4}/g)?.join(' ') || digits;
-}
-
-function isValidCardNumberLocal(value) {
-  const digits = normalizeCardNumberLocal(value);
-  if (!/^\d{12,19}$/.test(digits)) return false;
-  let sum = 0;
-  let shouldDouble = false;
-  for (let i = digits.length - 1; i >= 0; i -= 1) {
-    let digit = Number(digits[i]);
-    if (shouldDouble) {
-      digit *= 2;
-      if (digit > 9) digit -= 9;
-    }
-    sum += digit;
-    shouldDouble = !shouldDouble;
-  }
-  return sum % 10 === 0;
-}
-
-function updatePaymentCardBrandPreview(rawCardNumber) {
-  const brandEl = document.getElementById('paymentMethodCardBrand');
-  const hintEl = document.getElementById('paymentMethodCardNumberHint');
-  const brand = detectCardBrandLocal(rawCardNumber);
-  const digits = normalizeCardNumberLocal(rawCardNumber);
-
-  if (brandEl) {
-    brandEl.textContent = getCardBrandDisplayName(brand);
-    brandEl.className = `payment-card-brand ${brand}`;
-  }
-
-  if (!hintEl) return;
-  if (!digits) {
-    hintEl.textContent = 'Card brand is detected automatically as you type.';
-    return;
-  }
-  if (digits.length >= 12) {
-    hintEl.textContent = isValidCardNumberLocal(digits)
-      ? `${getCardBrandDisplayName(brand)} detected.`
-      : 'Card number looks incomplete or invalid.';
-    return;
-  }
-  hintEl.textContent = `${getCardBrandDisplayName(brand)} detection is provisional until the full number is entered.`;
-}
-
-function resetPaymentMethodModalFields() {
-  const fieldIds = [
-    'paymentMethodNickname',
-    'paymentMethodCardholderName',
-    'paymentMethodCardNumber',
-    'paymentMethodExpiryMonth',
-    'paymentMethodExpiryYear',
-    'paymentMethodCvv',
-    'paymentMethodBillingName',
-    'paymentMethodAddressLine1',
-    'paymentMethodAddressLine2',
-    'paymentMethodCity',
-    'paymentMethodStateRegion',
-    'paymentMethodPostalCode',
-    'paymentMethodCountry'
-  ];
-
-  fieldIds.forEach((fieldId) => {
-    const field = document.getElementById(fieldId);
-    if (!field) return;
-    if (field.tagName === 'SELECT') {
-      field.value = '';
-    } else {
-      field.value = '';
-    }
-  });
-
-  const cvvInput = document.getElementById('paymentMethodCvv');
-  if (cvvInput) cvvInput.type = 'password';
-  const cvvToggleIcon = document.querySelector('#togglePaymentMethodCvv i');
-  if (cvvToggleIcon) cvvToggleIcon.className = 'fas fa-eye';
-
-  updatePaymentCardBrandPreview('');
-}
-
-async function refreshPaymentVaultStatus(options = {}) {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'paymentVaultStatus' });
-    if (!response?.success) {
-      throw new Error(response?.error || 'Unable to load saved payment method status');
-    }
-
-    paymentVaultStatus = response.status || { configured: false, unlocked: false, paymentUnlocked: false };
-    updatePaymentVaultStateUI();
-    updatePaymentMethodsManagerVisibility(document.getElementById('enableSavedPayments')?.checked ?? false);
-  } catch (error) {
-    if (!options.silent) {
-      showToast('Error loading payment method status: ' + error.message, 'error');
-    }
-  }
-}
-
-function updatePaymentVaultStateUI() {
-  const statusText = document.getElementById('paymentMethodsStatusText');
-  const blockedPanel = document.getElementById('paymentMethodsBlocked');
-  const blockedText = document.getElementById('paymentMethodsBlockedText');
-  const openPasswordsBtn = document.getElementById('openPasswordsForPaymentsBtn');
-  const unlockPanel = document.getElementById('paymentMethodsUnlock');
-  const unlockedPanel = document.getElementById('paymentMethodsUnlocked');
-  const lockBtn = document.getElementById('lockPaymentMethodsBtn');
-
-  if (!credentialVaultStatus.configured) {
-    if (statusText) statusText.textContent = 'Set up the credential vault before storing cards.';
-    if (blockedText) blockedText.textContent = 'Saved payment methods use the same encrypted vault as passwords. Open the Passwords tab to set up the vault before adding cards.';
-    if (blockedPanel) blockedPanel.style.display = 'flex';
-    if (openPasswordsBtn) openPasswordsBtn.style.display = 'inline-flex';
-    if (unlockPanel) unlockPanel.style.display = 'none';
-    if (unlockedPanel) unlockedPanel.style.display = 'none';
-    if (lockBtn) lockBtn.style.display = 'none';
-    return;
-  }
-
-  if (!credentialVaultStatus.unlocked) {
-    if (statusText) statusText.textContent = 'Credential vault locked. Unlock it before managing saved cards.';
-    if (blockedText) blockedText.textContent = 'Unlock the credential vault in the Passwords tab before viewing, editing, or filling saved payment methods.';
-    if (blockedPanel) blockedPanel.style.display = 'flex';
-    if (openPasswordsBtn) openPasswordsBtn.style.display = 'inline-flex';
-    if (unlockPanel) unlockPanel.style.display = 'none';
-    if (unlockedPanel) unlockedPanel.style.display = 'none';
-    if (lockBtn) lockBtn.style.display = 'none';
-    return;
-  }
-
-  if (paymentVaultStatus.paymentUnlocked) {
-    if (statusText) statusText.textContent = 'Saved payment methods unlocked. Stored cards can be viewed and offered during checkout.';
-    if (blockedPanel) blockedPanel.style.display = 'none';
-    if (openPasswordsBtn) openPasswordsBtn.style.display = 'none';
-    if (unlockPanel) unlockPanel.style.display = 'none';
-    if (unlockedPanel) unlockedPanel.style.display = 'flex';
-    if (lockBtn) lockBtn.style.display = 'inline-flex';
-    return;
-  }
-
-  if (statusText) statusText.textContent = 'Saved payment methods locked. Re-enter your vault passphrase to access them.';
-  if (blockedPanel) blockedPanel.style.display = 'none';
-  if (openPasswordsBtn) openPasswordsBtn.style.display = 'none';
-  if (unlockPanel) unlockPanel.style.display = 'flex';
-  if (unlockedPanel) unlockedPanel.style.display = 'none';
-  if (lockBtn) lockBtn.style.display = 'none';
-}
-
-async function unlockPaymentMethodsHandler() {
-  const passphrase = document.getElementById('paymentMethodsUnlockPassphrase')?.value || '';
-  if (!passphrase) {
-    showToast('Enter your vault passphrase to unlock saved payment methods', 'error');
-    return;
-  }
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      action: 'unlockPaymentMethods',
-      passphrase
-    });
-
-    if (!response?.success) {
-      showToast(response?.error || 'Failed to unlock saved payment methods', 'error');
-      return;
-    }
-
-    const input = document.getElementById('paymentMethodsUnlockPassphrase');
-    if (input) input.value = '';
-    await refreshPaymentVaultStatus({ silent: true });
-    showToast('Saved payment methods unlocked', 'success');
-  } catch (error) {
-    showToast('Error unlocking saved payment methods: ' + error.message, 'error');
-  }
-}
-
-async function lockPaymentMethodsHandler() {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'lockPaymentMethods' });
-    if (!response?.success) {
-      showToast(response?.error || 'Failed to lock saved payment methods', 'error');
-      return;
-    }
-
-    hidePaymentMethodModal();
-    await refreshPaymentVaultStatus({ silent: true });
-    showToast('Saved payment methods locked', 'success');
-  } catch (error) {
-    showToast('Error locking saved payment methods: ' + error.message, 'error');
-  }
-}
-
-function updatePaymentMethodsManagerVisibility(enabled) {
-  const manager = document.getElementById('paymentMethodsManager');
-  const disabledNote = document.getElementById('paymentManagerDisabledNote');
-  const listEl = document.getElementById('paymentMethodsList');
-  const emptyEl = document.getElementById('paymentMethodsEmpty');
-  const showManager = paymentVaultStatus.paymentUnlocked === true;
-
-  if (manager) {
-    manager.style.display = showManager ? 'block' : 'none';
-    if (disabledNote) {
-      disabledNote.style.display = showManager && !enabled ? 'block' : 'none';
-    }
-
-    if (showManager) {
-      loadPaymentMethods();
-    } else {
-      if (listEl) listEl.innerHTML = '';
-      if (emptyEl) emptyEl.style.display = 'none';
-    }
-  }
-}
-
-async function loadPaymentMethods() {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'getAllPaymentMethods' });
-    if (!response || !response.success) {
-      if (response?.errorCode === 'payment_locked' || response?.errorCode === 'locked' || response?.errorCode === 'vault_not_configured') {
-        await refreshPaymentVaultStatus({ silent: true });
-      }
-      console.error('Failed to load payment methods:', response?.error);
-      return;
-    }
-
-    const paymentMethods = response.paymentMethods || [];
-    const listEl = document.getElementById('paymentMethodsList');
-    const emptyEl = document.getElementById('paymentMethodsEmpty');
-
-    if (paymentMethods.length === 0) {
-      if (listEl) listEl.innerHTML = '';
-      if (emptyEl) emptyEl.style.display = 'flex';
-      return;
-    }
-
-    if (emptyEl) emptyEl.style.display = 'none';
-    if (listEl) {
-      listEl.innerHTML = paymentMethods.map(method => renderPaymentMethodCard(method)).join('');
-    }
-  } catch (error) {
-    console.error('Error loading payment methods:', error);
-  }
-}
-
-function renderPaymentMethodCard(method) {
-  const brandName = getCardBrandDisplayName(method.cardBrand);
-  const title = method.nickname || `${brandName} ending in ${method.last4 || '****'}`;
-  const metaParts = [
-    method.cardholderName || '',
-    method.expiryMonth && method.expiryYearLast2 ? `Exp ${method.expiryMonth}/${method.expiryYearLast2}` : ''
-  ].filter(Boolean);
-
-  return `
-    <div class="payment-method-card" data-payment-id="${escapeHtml(method.id)}">
-      <div class="payment-method-card-icon">
-        <i class="fas fa-credit-card"></i>
-      </div>
-      <div class="payment-method-card-info">
-        <div class="payment-method-title-row">
-          <div class="payment-method-title">${escapeHtml(title)}</div>
-          <span class="payment-card-brand ${escapeHtml(method.cardBrand || 'unknown')}">${escapeHtml(brandName)}</span>
-        </div>
-        <div class="payment-method-meta">${escapeHtml(metaParts.join(' | ') || 'Saved payment method')}</div>
-        <div class="payment-method-number" data-payment-id="${escapeHtml(method.id)}">
-          <span class="payment-method-number-text">${escapeHtml(method.maskedNumber || '****')}</span>
-        </div>
-        <div class="payment-method-billing">${escapeHtml(method.billingSummary || 'Billing profile stored')}</div>
-      </div>
-      <div class="payment-method-actions">
-        <button class="credential-action-btn" data-payment-action="toggle-number" data-payment-id="${escapeHtml(method.id)}" title="Reveal card number">
-          <i class="fas fa-eye"></i>
-        </button>
-        <button class="credential-action-btn" data-payment-action="edit" data-payment-id="${escapeHtml(method.id)}" title="Edit">
-          <i class="fas fa-edit"></i>
-        </button>
-        <button class="credential-action-btn delete" data-payment-action="delete" data-payment-id="${escapeHtml(method.id)}" title="Delete">
-          <i class="fas fa-trash"></i>
-        </button>
-      </div>
-    </div>
-  `;
-}
-
-function filterPaymentMethods(query) {
-  const cards = document.querySelectorAll('.payment-method-card');
-  const lowerQuery = query.toLowerCase();
-
-  cards.forEach((card) => {
-    const text = card.textContent?.toLowerCase() || '';
-    card.style.display = text.includes(lowerQuery) ? 'flex' : 'none';
-  });
-}
-
-async function showPaymentMethodModal(mode, id) {
-  paymentMethodModalMode = mode;
-  paymentMethodEditingId = id || null;
-
-  const modal = document.getElementById('paymentMethodModal');
-  const titleEl = document.getElementById('paymentMethodModalTitle');
-  const saveBtn = document.getElementById('paymentMethodModalSave');
-
-  if (titleEl) titleEl.textContent = mode === 'edit' ? 'Edit Payment Method' : 'Add Payment Method';
-  if (saveBtn) saveBtn.textContent = mode === 'edit' ? 'Save Changes' : 'Save Card';
-
-  resetPaymentMethodModalFields();
-
-  if (mode === 'edit' && id) {
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: 'getFullPaymentMethod',
-        id
-      });
-
-      if (response?.success && response.paymentMethod) {
-        const method = response.paymentMethod;
-        const fieldMap = {
-          paymentMethodNickname: method.nickname || '',
-          paymentMethodCardholderName: method.cardholderName || '',
-          paymentMethodCardNumber: formatCardNumberLocal(method.cardNumber || ''),
-          paymentMethodExpiryMonth: method.expiryMonth || '',
-          paymentMethodExpiryYear: method.expiryYear || '',
-          paymentMethodCvv: method.cvv || '',
-          paymentMethodBillingName: method.billingName || '',
-          paymentMethodAddressLine1: method.addressLine1 || '',
-          paymentMethodAddressLine2: method.addressLine2 || '',
-          paymentMethodCity: method.city || '',
-          paymentMethodStateRegion: method.stateRegion || '',
-          paymentMethodPostalCode: method.postalCode || '',
-          paymentMethodCountry: method.country || ''
-        };
-
-        Object.entries(fieldMap).forEach(([fieldId, value]) => {
-          const field = document.getElementById(fieldId);
-          if (!field) return;
-          field.value = value;
-        });
-        updatePaymentCardBrandPreview(method.cardNumber || '');
-      }
-    } catch (error) {
-      console.error('Failed to load payment method for editing:', error);
-    }
-  }
-
-  if (modal) modal.classList.remove('hidden');
-}
-
-function hidePaymentMethodModal() {
-  const modal = document.getElementById('paymentMethodModal');
-  if (modal) modal.classList.add('hidden');
-  paymentMethodModalMode = 'add';
-  paymentMethodEditingId = null;
-  resetPaymentMethodModalFields();
-}
-
-async function savePaymentMethodFromModal() {
-  const data = {
-    nickname: document.getElementById('paymentMethodNickname')?.value?.trim() || '',
-    cardholderName: document.getElementById('paymentMethodCardholderName')?.value?.trim() || '',
-    cardNumber: normalizeCardNumberLocal(document.getElementById('paymentMethodCardNumber')?.value || ''),
-    expiryMonth: document.getElementById('paymentMethodExpiryMonth')?.value || '',
-    expiryYear: (document.getElementById('paymentMethodExpiryYear')?.value || '').trim(),
-    cvv: (document.getElementById('paymentMethodCvv')?.value || '').trim(),
-    billingName: document.getElementById('paymentMethodBillingName')?.value?.trim() || '',
-    addressLine1: document.getElementById('paymentMethodAddressLine1')?.value?.trim() || '',
-    addressLine2: document.getElementById('paymentMethodAddressLine2')?.value?.trim() || '',
-    city: document.getElementById('paymentMethodCity')?.value?.trim() || '',
-    stateRegion: document.getElementById('paymentMethodStateRegion')?.value?.trim() || '',
-    postalCode: document.getElementById('paymentMethodPostalCode')?.value?.trim() || '',
-    country: document.getElementById('paymentMethodCountry')?.value?.trim() || ''
-  };
-
-  if (!data.cardholderName || !data.cardNumber || !data.expiryMonth || !data.expiryYear || !data.cvv) {
-    showToast('Cardholder name, card number, expiry, and CVV are required', 'error');
-    return;
-  }
-
-  if (!data.billingName || !data.addressLine1 || !data.city || !data.stateRegion || !data.postalCode || !data.country) {
-    showToast('Full billing profile is required for saved payment methods', 'error');
-    return;
-  }
-
-  if (!isValidCardNumberLocal(data.cardNumber)) {
-    showToast('Enter a valid card number', 'error');
-    return;
-  }
-
-  try {
-    const response = paymentMethodModalMode === 'edit'
-      ? await chrome.runtime.sendMessage({ action: 'updatePaymentMethod', id: paymentMethodEditingId, updates: data })
-      : await chrome.runtime.sendMessage({ action: 'savePaymentMethod', data });
-
-    if (!response?.success) {
-      showToast(response?.error || 'Failed to save payment method', 'error');
-      return;
-    }
-
-    hidePaymentMethodModal();
-    loadPaymentMethods();
-    showToast(paymentMethodModalMode === 'edit' ? 'Payment method updated' : 'Payment method saved', 'success');
-  } catch (error) {
-    showToast('Error saving payment method: ' + error.message, 'error');
-  }
-}
-
-async function deletePaymentMethodConfirm(id) {
-  if (!confirm('Delete this saved payment method? This cannot be undone.')) {
-    return;
-  }
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      action: 'deletePaymentMethod',
-      id
-    });
-
-    if (!response?.success) {
-      showToast(response?.error || 'Failed to delete payment method', 'error');
-      return;
-    }
-
-    loadPaymentMethods();
-    showToast('Payment method deleted', 'success');
-  } catch (error) {
-    showToast('Error deleting payment method: ' + error.message, 'error');
-  }
-}
-
-async function togglePaymentMethodNumber(id) {
-  const container = document.querySelector(`.payment-method-number[data-payment-id="${id}"]`);
-  if (!container) return;
-
-  const textEl = container.querySelector('.payment-method-number-text');
-  if (!textEl) return;
-
-  const card = container.closest('.payment-method-card');
-  const eyeBtn = card?.querySelector('[data-payment-action="toggle-number"] i');
-
-  if (textEl.dataset.revealed === 'true') {
-    const masked = textEl.dataset.masked || '****';
-    textEl.textContent = masked;
-    textEl.dataset.revealed = 'false';
-    if (eyeBtn) eyeBtn.className = 'fas fa-eye';
-    return;
-  }
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      action: 'getFullPaymentMethod',
-      id
-    });
-
-    if (!response?.success || !response.paymentMethod) {
-      showToast(response?.error || 'Unable to reveal card number', 'error');
-      return;
-    }
-
-    textEl.dataset.masked = textEl.textContent || '****';
-    textEl.textContent = formatCardNumberLocal(response.paymentMethod.cardNumber || '');
-    textEl.dataset.revealed = 'true';
-    if (eyeBtn) eyeBtn.className = 'fas fa-eye-slash';
-
-    setTimeout(() => {
-      if (textEl.dataset.revealed !== 'true') return;
-      textEl.textContent = textEl.dataset.masked || '****';
-      textEl.dataset.revealed = 'false';
-      if (eyeBtn) eyeBtn.className = 'fas fa-eye';
-    }, 5000);
-  } catch (error) {
-    showToast('Unable to reveal card number: ' + error.message, 'error');
-  }
-}
-
-function initializePaymentMethodManager() {
-  const enableSavedPaymentsToggle = document.getElementById('enableSavedPayments');
-  if (enableSavedPaymentsToggle) {
-    enableSavedPaymentsToggle.addEventListener('change', (e) => {
-      updatePaymentMethodsManagerVisibility(e.target.checked);
-      markUnsavedChanges();
-    });
-  }
-
-  const searchInput = document.getElementById('paymentMethodSearch');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      filterPaymentMethods(e.target.value);
-    });
-  }
-
-  const addBtn = document.getElementById('addPaymentMethodBtn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => showPaymentMethodModal('add'));
-  }
-
-  const paymentList = document.getElementById('paymentMethodsList');
-  if (paymentList) {
-    paymentList.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-payment-action]');
-      if (!btn) return;
-      const action = btn.dataset.paymentAction;
-      const id = btn.dataset.paymentId;
-      if (!id) return;
-      if (action === 'toggle-number') togglePaymentMethodNumber(id);
-      else if (action === 'edit') showPaymentMethodModal('edit', id);
-      else if (action === 'delete') deletePaymentMethodConfirm(id);
-    });
-  }
-
-  const saveBtn = document.getElementById('paymentMethodModalSave');
-  const cancelBtn = document.getElementById('paymentMethodModalCancel');
-  const closeBtn = document.getElementById('paymentMethodModalClose');
-  const modalBackdrop = document.querySelector('#paymentMethodModal .credential-modal-backdrop');
-  const unlockBtn = document.getElementById('unlockPaymentMethodsBtn');
-  const lockBtn = document.getElementById('lockPaymentMethodsBtn');
-  const openPasswordsBtn = document.getElementById('openPasswordsForPaymentsBtn');
-  const unlockInput = document.getElementById('paymentMethodsUnlockPassphrase');
-  const cardNumberInput = document.getElementById('paymentMethodCardNumber');
-  const toggleCvvBtn = document.getElementById('togglePaymentMethodCvv');
-
-  if (saveBtn) saveBtn.addEventListener('click', savePaymentMethodFromModal);
-  if (cancelBtn) cancelBtn.addEventListener('click', hidePaymentMethodModal);
-  if (closeBtn) closeBtn.addEventListener('click', hidePaymentMethodModal);
-  if (modalBackdrop) modalBackdrop.addEventListener('click', hidePaymentMethodModal);
-  if (unlockBtn) unlockBtn.addEventListener('click', unlockPaymentMethodsHandler);
-  if (lockBtn) lockBtn.addEventListener('click', lockPaymentMethodsHandler);
-  if (openPasswordsBtn) {
-    openPasswordsBtn.addEventListener('click', () => switchSection('passwords'));
-  }
-
-  if (unlockInput) {
-    unlockInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        unlockPaymentMethodsHandler();
-      }
-    });
-  }
-
-  if (cardNumberInput) {
-    cardNumberInput.addEventListener('input', (e) => {
-      const digits = normalizeCardNumberLocal(e.target.value);
-      e.target.value = formatCardNumberLocal(digits);
-      updatePaymentCardBrandPreview(digits);
-    });
-  }
-
-  if (toggleCvvBtn) {
-    toggleCvvBtn.addEventListener('click', () => {
-      const cvvField = document.getElementById('paymentMethodCvv');
-      if (!cvvField) return;
-      const isPassword = cvvField.type === 'password';
-      cvvField.type = isPassword ? 'text' : 'password';
-      const icon = toggleCvvBtn.querySelector('i');
-      if (icon) icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
-    });
-  }
-
-  refreshPaymentVaultStatus({ silent: true });
-}
-
-// Initialize credential and payment managers after DOM is ready
+// Initialize credential manager after DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   // Delay slightly to ensure all other init is done
-  setTimeout(() => {
-    initializeCredentialManager();
-    initializePaymentMethodManager();
-  }, 200);
+  setTimeout(initializeCredentialManager, 200);
 });
 
 // ==========================================
@@ -4042,7 +2858,7 @@ function initializeSiteExplorer() {
 async function startExplorer() {
   const url = (elements.explorerUrl?.value || '').trim();
   if (!url) {
-    showToast('Please enter a URL to run reconnaissance', 'error');
+    showToast('Please enter a URL to explore', 'error');
     return;
   }
 
@@ -4070,22 +2886,22 @@ async function startExplorer() {
     });
 
     if (!response || !response.success) {
-      showToast('Failed to start reconnaissance: ' + (response?.error || 'Unknown error'), 'error');
+      showToast('Failed to start explorer: ' + (response?.error || 'Unknown error'), 'error');
     } else {
-      addLog('info', 'Reconnaissance started for ' + testUrl);
+      addLog('info', 'Site Explorer started for ' + testUrl);
       // Clear input for next URL, show Stop All
       if (elements.explorerUrl) elements.explorerUrl.value = '';
       updateStopAllVisibility();
     }
   } catch (error) {
-    showToast('Failed to start reconnaissance: ' + error.message, 'error');
+    showToast('Failed to start explorer: ' + error.message, 'error');
   }
 }
 
 async function stopAllExplorers() {
   try {
     await chrome.runtime.sendMessage({ action: 'stopExplorer' });
-    addLog('info', 'All reconnaissance crawlers stopped');
+    addLog('info', 'All Site Explorers stopped');
     showToast('All crawlers stopped', 'info');
   } catch (error) {
     console.error('Failed to stop explorers:', error);
@@ -4177,10 +2993,10 @@ function updateExplorerProgress(data) {
     }
 
     if (data.status === 'completed') {
-      showToast('Reconnaissance complete: ' + data.pagesCollected + ' pages from ' + (data.domain || ''), 'success');
-      addLog('info', 'Reconnaissance completed: ' + data.pagesCollected + ' pages from ' + data.domain);
+      showToast('Crawl completed: ' + data.pagesCollected + ' pages from ' + (data.domain || ''), 'success');
+      addLog('info', 'Site Explorer completed: ' + data.pagesCollected + ' pages from ' + data.domain);
     } else if (data.status === 'error') {
-      showToast('Reconnaissance failed for ' + (data.domain || 'unknown'), 'error');
+      showToast('Crawl failed for ' + (data.domain || 'unknown'), 'error');
     }
 
     // Refresh research list
@@ -4207,7 +3023,7 @@ async function loadResearchList(page) {
       elements.researchList.innerHTML = `
         <div class="session-empty-state">
           <i class="fas fa-flask"></i>
-          <p>No research results yet. Use Reconnaissance above to crawl a website.</p>
+          <p>No research results yet. Use Site Explorer above to crawl a website.</p>
         </div>
       `;
       renderResearchPagination(0, researchPageSize, 0);
@@ -4356,21 +3172,8 @@ async function viewResearch(researchId) {
         ${data.pages && data.pages.length > 0 ? `
           <details style="margin-top: 0.5rem;">
             <summary style="cursor: pointer; font-size: 0.8125rem; color: var(--text-secondary);">Pages crawled (${data.pages.length})</summary>
-            <ul style="margin: 0.25rem 0 0; padding-left: 0; font-size: 0.75rem; font-family: monospace; color: var(--text-muted); max-height: 500px; overflow-y: auto;">
-              ${data.pages.map(p => `<li style="list-style: none; margin-bottom: 0.5rem;">
-                <div>
-                  ${escapeHtml(p.url)} (${p.interactiveElements?.length || 0} elements)${p.guideName ? `<span style="color: var(--info-color); margin-left: 0.5rem; font-size: 0.6875rem;">Guide: ${escapeHtml(p.guideName)}</span>` : ''}
-                </div>
-                <div style="margin-top: 0.15rem; font-size: 0.6875rem;">
-                  ${p.markdownSnapshot
-                    ? `Markdown: ${p.markdownSnapshot.length.toLocaleString()} chars, ${p.markdownElementCount || 0} elements`
-                    : '<span style="color: var(--warning-color);">Snapshot unavailable</span>'}
-                </div>
-                ${p.markdownSnapshot ? `<details style="margin-top: 0.25rem;">
-                  <summary style="cursor: pointer; font-size: 0.6875rem; color: var(--text-secondary);">View Markdown Snapshot</summary>
-                  <pre style="background: var(--bg-tertiary); color: var(--text-primary); padding: 0.75rem; border-radius: 4px; font-size: 0.6875rem; line-height: 1.4; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-word;">${escapeHtml(p.markdownSnapshot)}</pre>
-                </details>` : ''}
-              </li>`).join('')}
+            <ul style="margin: 0.25rem 0 0; padding-left: 1.25rem; font-size: 0.75rem; font-family: monospace; color: var(--text-muted); max-height: 200px; overflow-y: auto;">
+              ${data.pages.map(p => `<li>${escapeHtml(p.url)} (${p.interactiveElements?.length || 0} elements)</li>`).join('')}
             </ul>
           </details>
         ` : ''}
@@ -4547,11 +3350,6 @@ function initializeAgentSection() {
     });
   }
 
-  const startMode = document.getElementById('agentStartMode');
-  if (startMode) {
-    startMode.addEventListener('change', syncAgentStartModeUI);
-  }
-
   // Server sync buttons
   const btnGenerate = document.getElementById('btnGenerateHashKey');
   const btnCopy = document.getElementById('btnCopyHashKey');
@@ -4560,28 +3358,6 @@ function initializeAgentSection() {
   if (btnGenerate) btnGenerate.addEventListener('click', generateHashKey);
   if (btnCopy) btnCopy.addEventListener('click', copyHashKey);
   if (btnTest) btnTest.addEventListener('click', testServerConnection);
-
-  // Pair Dashboard button
-  const btnPairDashboard = document.getElementById('btnPairDashboard');
-  if (btnPairDashboard) {
-    btnPairDashboard.addEventListener('click', function () {
-      if (btnPairDashboard.dataset.pairing === 'true') {
-        cancelPairing();
-      } else {
-        showPairingQR();
-      }
-    });
-  }
-
-  // QR popup close button and overlay backdrop click
-  const btnCancelPairing = document.getElementById('btnCancelPairing');
-  if (btnCancelPairing) btnCancelPairing.addEventListener('click', cancelPairing);
-  const qrOverlay = document.getElementById('pairingQROverlay');
-  if (qrOverlay) {
-    qrOverlay.addEventListener('click', function (e) {
-      if (e.target === qrOverlay) cancelPairing();
-    });
-  }
 
   // Load server settings
   loadServerSettings();
@@ -4603,19 +3379,6 @@ function initializeAgentSection() {
   });
 }
 
-function syncAgentStartModeUI() {
-  const startMode = document.getElementById('agentStartMode')?.value || 'pinned';
-  const targetUrlGroup = document.getElementById('agentTargetUrlGroup');
-  const targetUrlInput = document.getElementById('agentTargetUrl');
-  const isPinned = startMode === 'pinned';
-
-  if (targetUrlGroup) targetUrlGroup.style.display = isPinned ? '' : 'none';
-  if (targetUrlInput) {
-    targetUrlInput.disabled = !isPinned;
-    targetUrlInput.required = isPinned;
-  }
-}
-
 function showAgentForm(editAgent) {
   const form = document.getElementById('agentFormCard');
   const title = document.getElementById('agentFormTitle');
@@ -4627,7 +3390,6 @@ function showAgentForm(editAgent) {
     document.getElementById('agentFormId').value = editAgent.agentId;
     document.getElementById('agentName').value = editAgent.name || '';
     document.getElementById('agentTask').value = editAgent.task || '';
-    document.getElementById('agentStartMode').value = editAgent.startMode || (editAgent.targetUrl ? 'pinned' : 'ai_routed');
     document.getElementById('agentTargetUrl').value = editAgent.targetUrl || '';
     document.getElementById('agentScheduleType').value = editAgent.schedule?.type || 'interval';
     document.getElementById('agentInterval').value = editAgent.schedule?.intervalMinutes || 30;
@@ -4648,7 +3410,6 @@ function showAgentForm(editAgent) {
     }
 
     // Trigger schedule type change to show/hide fields
-    syncAgentStartModeUI();
     document.getElementById('agentScheduleType').dispatchEvent(new Event('change'));
   } else {
     // Create mode
@@ -4656,7 +3417,6 @@ function showAgentForm(editAgent) {
     document.getElementById('agentFormId').value = '';
     document.getElementById('agentName').value = '';
     document.getElementById('agentTask').value = '';
-    document.getElementById('agentStartMode').value = 'pinned';
     document.getElementById('agentTargetUrl').value = '';
     document.getElementById('agentScheduleType').value = 'interval';
     document.getElementById('agentInterval').value = 30;
@@ -4664,7 +3424,6 @@ function showAgentForm(editAgent) {
     document.getElementById('agentMaxIterations').value = 15;
     const replayToggleCreate = document.getElementById('agentReplayEnabled');
     if (replayToggleCreate) replayToggleCreate.checked = true;
-    syncAgentStartModeUI();
     document.getElementById('agentScheduleType').dispatchEvent(new Event('change'));
   }
 
@@ -4680,14 +3439,13 @@ async function saveAgent() {
   const agentId = document.getElementById('agentFormId').value;
   const name = document.getElementById('agentName').value.trim();
   const task = document.getElementById('agentTask').value.trim();
-  const startMode = document.getElementById('agentStartMode').value || 'pinned';
   const targetUrl = document.getElementById('agentTargetUrl').value.trim();
   const scheduleType = document.getElementById('agentScheduleType').value;
   const intervalMinutes = parseInt(document.getElementById('agentInterval').value) || 30;
   const dailyTime = document.getElementById('agentDailyTime').value;
   const maxIterations = parseInt(document.getElementById('agentMaxIterations').value) || 15;
 
-  if (!name || !task || (startMode === 'pinned' && !targetUrl)) {
+  if (!name || !task || !targetUrl) {
     showToast('Please fill in all required fields', 'error');
     return;
   }
@@ -4711,8 +3469,8 @@ async function saveAgent() {
 
   const action = agentId ? 'updateAgent' : 'createAgent';
   const payload = agentId
-    ? { action, agentId, updates: { name, task, startMode, targetUrl: startMode === 'pinned' ? targetUrl : '', schedule, maxIterations, replayEnabled } }
-    : { action, params: { name, task, startMode, targetUrl: startMode === 'pinned' ? targetUrl : '', schedule, maxIterations, replayEnabled } };
+    ? { action, agentId, updates: { name, task, targetUrl, schedule, maxIterations, replayEnabled } }
+    : { action, params: { name, task, targetUrl, schedule, maxIterations, replayEnabled } };
 
   try {
     const response = await new Promise((resolve) => {
@@ -4784,10 +3542,6 @@ function createAgentCard(agent) {
   const costSavedText = replayStats.estimatedCostSaved > 0
     ? '$' + replayStats.estimatedCostSaved.toFixed(4)
     : '$0';
-  const startMode = agent.startMode || (agent.targetUrl ? 'pinned' : 'ai_routed');
-  const startValue = startMode === 'ai_routed'
-    ? 'AI decides the start site from the task'
-    : (agent.targetUrl || 'Pinned URL');
 
   card.innerHTML = `
     <div class="agent-card-header">
@@ -4806,8 +3560,8 @@ function createAgentCard(agent) {
         <span class="agent-detail-value">${escapeHtml(agent.task.substring(0, 100))}${agent.task.length > 100 ? '...' : ''}</span>
       </div>
       <div class="agent-card-detail">
-        <span class="agent-detail-label">Start:</span>
-        <span class="agent-detail-value">${escapeHtml(startValue)}</span>
+        <span class="agent-detail-label">URL:</span>
+        <span class="agent-detail-value">${escapeHtml(agent.targetUrl)}</span>
       </div>
       <div class="agent-card-detail">
         <span class="agent-detail-label">Schedule:</span>
@@ -5078,14 +3832,12 @@ function escapeHtml(text) {
 }
 
 // Server sync functions
-const FSB_SERVER_URL_OPTIONS = 'https://full-selfbrowsing.com';
-
 async function loadServerSettings() {
   try {
-    const stored = await chrome.storage.local.get(['serverHashKey']);
-    const urlDisplay = document.getElementById('serverUrl');
+    const stored = await chrome.storage.local.get(['serverUrl', 'serverHashKey']);
+    const urlInput = document.getElementById('serverUrl');
     const keyInput = document.getElementById('serverHashKey');
-    if (urlDisplay) { urlDisplay.value = FSB_SERVER_URL_OPTIONS; urlDisplay.readOnly = true; }
+    if (urlInput && stored.serverUrl) urlInput.value = stored.serverUrl;
     if (keyInput && stored.serverHashKey) keyInput.value = stored.serverHashKey;
   } catch (e) {
     // Ignore
@@ -5093,12 +3845,18 @@ async function loadServerSettings() {
 }
 
 async function generateHashKey() {
+  const serverUrl = document.getElementById('serverUrl')?.value?.trim();
+  if (!serverUrl) {
+    showToast('Please enter a server URL first', 'error');
+    return;
+  }
+
   try {
-    const resp = await fetch(FSB_SERVER_URL_OPTIONS + '/api/auth/register', { method: 'POST' });
+    const resp = await fetch(serverUrl + '/api/auth/register', { method: 'POST' });
     const data = await resp.json();
     if (data.hashKey) {
       document.getElementById('serverHashKey').value = data.hashKey;
-      await chrome.storage.local.set({ serverHashKey: data.hashKey });
+      await chrome.storage.local.set({ serverUrl, serverHashKey: data.hashKey });
       showToast('Hash key generated and saved', 'success');
     } else {
       showToast('Failed to generate hash key', 'error');
@@ -5123,18 +3881,19 @@ async function copyHashKey() {
 }
 
 async function testServerConnection() {
+  const serverUrl = document.getElementById('serverUrl')?.value?.trim();
   const hashKey = document.getElementById('serverHashKey')?.value?.trim();
   const statusEl = document.getElementById('connectionStatus');
 
-  if (!hashKey) {
-    showToast('No hash key — extension auto-registers on startup', 'error');
+  if (!serverUrl || !hashKey) {
+    showToast('Please enter server URL and hash key', 'error');
     return;
   }
 
   if (statusEl) statusEl.textContent = 'Testing...';
 
   try {
-    const resp = await fetch(FSB_SERVER_URL_OPTIONS + '/api/auth/validate', {
+    const resp = await fetch(serverUrl + '/api/auth/validate', {
       headers: { 'X-FSB-Hash-Key': hashKey }
     });
     const data = await resp.json();
@@ -5154,122 +3913,6 @@ async function testServerConnection() {
   }
 }
 
-// --- QR Pairing ---
-var pairingCountdownTimer = null;
-
-async function showPairingQR() {
-  const hashKey = document.getElementById('serverHashKey')?.value?.trim();
-  const btn = document.getElementById('btnPairDashboard');
-  const container = document.getElementById('pairingQROverlay');
-  const qrCodeEl = document.getElementById('pairingQRCode');
-  const countdownEl = document.getElementById('pairingCountdown');
-  const messageEl = document.getElementById('pairingQRMessage');
-
-  if (!hashKey) {
-    showToast('No hash key yet — restart extension to auto-register', 'error');
-    return;
-  }
-
-  // Show loading state
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-  btn.disabled = true;
-  messageEl.textContent = '';
-  messageEl.className = 'pairing-qr-message';
-
-  try {
-    const resp = await fetch(FSB_SERVER_URL_OPTIONS + '/api/pair/generate', {
-      method: 'POST',
-      headers: { 'X-FSB-Hash-Key': hashKey }
-    });
-
-    if (!resp.ok) {
-      throw new Error('Server returned ' + resp.status);
-    }
-
-    const { token, expiresAt } = await resp.json();
-
-    // Generate QR code using qrcode-generator
-    var qr = qrcode(0, 'M');
-    qr.addData(JSON.stringify({ t: token, s: FSB_SERVER_URL_OPTIONS }));
-    qr.make();
-
-    // Render SVG into container
-    qrCodeEl.innerHTML = qr.createSvgTag({ cellSize: 8, margin: 3 });
-
-    // Show container, update button
-    container.style.display = 'flex';
-    btn.innerHTML = '<i class="fas fa-times"></i> Cancel Pairing';
-    btn.dataset.pairing = 'true';
-    btn.disabled = false;
-
-    // Start countdown
-    startPairingCountdown(expiresAt, countdownEl, container, btn, messageEl);
-
-  } catch (err) {
-    btn.innerHTML = '<i class="fas fa-qrcode"></i> Pair Dashboard';
-    btn.disabled = false;
-    showToast('Failed to generate pairing token: ' + err.message, 'error');
-  }
-}
-
-function startPairingCountdown(expiresAt, countdownEl, container, btn, messageEl) {
-  clearPairingCountdown();
-
-  var expiryTime = new Date(expiresAt).getTime();
-
-  function tick() {
-    var remaining = Math.max(0, Math.ceil((expiryTime - Date.now()) / 1000));
-    countdownEl.textContent = remaining + 's';
-
-    // Pulse effect when under 10 seconds
-    if (remaining <= 10 && remaining > 0) {
-      countdownEl.classList.add('pairing-countdown-urgent');
-    }
-
-    if (remaining <= 0) {
-      clearPairingCountdown();
-      // Token expired
-      messageEl.textContent = 'Token expired';
-      messageEl.className = 'pairing-qr-message pairing-qr-expired';
-      setTimeout(function () {
-        container.style.display = 'none';
-        btn.innerHTML = '<i class="fas fa-qrcode"></i> Pair Dashboard';
-        btn.dataset.pairing = 'false';
-        messageEl.textContent = '';
-        messageEl.className = 'pairing-qr-message';
-      }, 2000);
-      return;
-    }
-
-    pairingCountdownTimer = setTimeout(tick, 1000);
-  }
-
-  tick();
-}
-
-function clearPairingCountdown() {
-  if (pairingCountdownTimer) {
-    clearTimeout(pairingCountdownTimer);
-    pairingCountdownTimer = null;
-  }
-}
-
-function cancelPairing() {
-  clearPairingCountdown();
-  var container = document.getElementById('pairingQROverlay');
-  var btn = document.getElementById('btnPairDashboard');
-  var messageEl = document.getElementById('pairingQRMessage');
-  if (container) container.style.display = 'none';
-  if (btn) {
-    btn.innerHTML = '<i class="fas fa-qrcode"></i> Pair Dashboard';
-    btn.dataset.pairing = 'false';
-  }
-  if (messageEl) {
-    messageEl.textContent = '';
-    messageEl.className = 'pairing-qr-message';
-  }
-}
-
 // ===== Memory Dashboard =====
 
 let memorySearchDebounce = null;
@@ -5284,13 +3927,6 @@ function initializeMemorySection() {
   if (consolidateBtn) consolidateBtn.addEventListener('click', consolidateMemories);
   if (exportBtn) exportBtn.addEventListener('click', exportMemories);
   if (clearBtn) clearBtn.addEventListener('click', clearAllMemories);
-
-  const importBtn = document.getElementById('btnImportMemories');
-  const importFileInput = document.getElementById('memoryImportFileInput');
-  if (importBtn && importFileInput) {
-    importBtn.addEventListener('click', () => importFileInput.click());
-    importFileInput.addEventListener('change', handleMemoryImport);
-  }
 
   if (searchInput) {
     searchInput.addEventListener('input', () => {
@@ -5439,9 +4075,9 @@ function updateMemoryStats(stats) {
   };
 
   el('memStatTotal', stats.totalCount);
+  el('memStatEpisodic', stats.byType?.episodic || 0);
   el('memStatSemantic', stats.byType?.semantic || 0);
   el('memStatProcedural', stats.byType?.procedural || 0);
-  el('memStatTask', stats.byType?.task || 0);
 
   const kb = Math.round(stats.estimatedBytes / 1024);
   el('memStatStorage', kb > 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`);
@@ -5482,9 +4118,9 @@ function renderMemoryList(memories) {
 
   container.innerHTML = sorted.map(memory => {
     const typeIcon = {
+      episodic: 'fa-clock',
       semantic: 'fa-lightbulb',
-      procedural: 'fa-list-ol',
-      task: 'fa-clipboard-check'
+      procedural: 'fa-list-ol'
     }[memory.type] || 'fa-circle';
 
     const typeLabel = memory.type.charAt(0).toUpperCase() + memory.type.slice(1);
@@ -5494,52 +4130,31 @@ function renderMemoryList(memories) {
     const confidence = Math.round((memory.metadata?.confidence || 0) * 100);
     const tags = (memory.metadata?.tags || []).slice(0, 3).join(', ');
 
-    // Task Memory metadata line: Domain | Duration | Steps | Outcome badge
-    let metaLine;
-    if (memory.type === 'task') {
-      const sess = memory.typeData?.session || {};
-      const outcomeVal = (sess.outcome || 'unknown').toLowerCase();
-      const outcomeBadgeClass = { success: 'success', failure: 'failure', partial: 'partial' }[outcomeVal] || 'unknown';
-      const outcomeLabel = outcomeVal.charAt(0).toUpperCase() + outcomeVal.slice(1);
-      const outcomeBadge = `<span class="outcome-badge outcome-badge-${outcomeBadgeClass}">${outcomeLabel}</span>`;
-      const taskDomain = sess.domain || memory.metadata?.domain || 'Unknown';
-      let durationStr = '';
-      if (sess.duration && sess.duration > 0) {
-        const totalSec = Math.round(sess.duration / 1000);
-        const mins = Math.floor(totalSec / 60);
-        const secs = totalSec % 60;
-        durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-      }
-      const stepCount = (sess.timeline || []).length;
-      metaLine = `<i class="fas fa-globe" style="font-size: 0.85em; opacity: 0.7;"></i> ${escapeHtml(taskDomain)} | ${durationStr || 'N/A'} | ${stepCount} steps | ${outcomeBadge}`;
-    } else {
-      metaLine = `${typeLabel} | ${escapeHtml(domain)} | ${age} | ${accesses} accesses | ${confidence}% conf${tags ? ' | ' + escapeHtml(tags) : ''}`;
-    }
-
     const isSiteMap = memory.typeData?.category === 'site_map';
     const isRefined = memory.typeData?.sitePattern?.refined === true;
     const badgeHtml = isSiteMap
       ? `<span class="memory-badge ${isRefined ? 'refined' : 'basic'}">${isRefined ? 'Refined' : 'Basic'}</span>`
       : '';
+    const refineBtn = isSiteMap && !isRefined
+      ? `<button class="refine-btn-prominent" data-id="${memory.id}" data-recon-id="${memory.typeData?.sitePattern?.reconId || ''}" title="Refine sitemap"><i class="fas fa-magic"></i> Refine</button>`
+      : '';
 
     const graphAttr = isSiteMap ? ' data-has-graph="true"' : '';
     const chevronHtml = '<i class="fas fa-chevron-right detail-toggle-icon" title="Toggle details"></i>';
-    const textStyle = memory.type === 'task'
-      ? 'font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;'
-      : 'font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
 
     return `
       <div class="session-item memory-item" data-memory-id="${memory.id}" data-expandable="true"${graphAttr} style="cursor: pointer;">
         <div class="session-item-header" style="display: flex; align-items: center; gap: 10px;">
           <i class="fas ${typeIcon}" style="color: var(--primary); font-size: 1.1em;" title="${typeLabel}"></i>
           <div style="flex: 1; min-width: 0;">
-            <div style="${textStyle}">
+            <div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
               ${escapeHtml(memory.text)} ${badgeHtml}
             </div>
             <div style="font-size: 0.82em; color: var(--text-secondary); margin-top: 2px;">
-              ${metaLine}
+              ${typeLabel} | ${escapeHtml(domain)} | ${age} | ${accesses} accesses | ${confidence}% conf${tags ? ' | ' + escapeHtml(tags) : ''}
             </div>
           </div>
+          ${refineBtn}
           ${chevronHtml}
           <button class="control-btn small memory-delete-btn" data-id="${memory.id}" title="Delete memory" style="color: var(--danger, #ef4444); flex-shrink: 0;">
             <i class="fas fa-trash"></i>
@@ -5562,11 +4177,21 @@ function renderMemoryList(memories) {
     });
   });
 
+  // Attach refine-with-AI handlers
+  container.querySelectorAll('.refine-btn-prominent').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const memoryId = btn.dataset.id;
+      const reconId = btn.dataset.reconId;
+      await refineMemoryWithAI(memoryId, reconId);
+    });
+  });
+
   // Attach click-to-expand handlers on all memory items
   container.querySelectorAll('.memory-item[data-expandable="true"]').forEach(item => {
     item.addEventListener('click', (e) => {
       // Don't trigger on button clicks
-      if (e.target.closest('.control-btn')) return;
+      if (e.target.closest('.control-btn') || e.target.closest('.refine-btn-prominent')) return;
       toggleMemoryDetail(item);
     });
   });
@@ -5627,25 +4252,6 @@ async function toggleMemoryDetail(memoryItem) {
   memoryItem.classList.add('detail-expanded');
   memoryItem.after(panelDiv);
 
-  // Wire up collapsible recon section toggles (Task Memory detail view)
-  panelDiv.querySelectorAll('.recon-section-toggle').forEach(toggle => {
-    toggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggle.parentElement.classList.toggle('recon-section-open');
-    });
-  });
-
-  // Render per-task graph if SiteGraph is available (Task Memory only)
-  const graphContainer = panelDiv.querySelector('.task-graph-container');
-  if (graphContainer && typeof SiteGraph !== 'undefined' && typeof SiteGraph.transformTaskData === 'function') {
-    const graphData = SiteGraph.transformTaskData(memory);
-    if (graphData.nodes.length > 0) {
-      SiteGraph.render(graphContainer, graphData, { width: graphContainer.clientWidth || 500, height: 250 });
-    } else {
-      graphContainer.style.display = 'none';
-    }
-  }
-
   // Scroll into view
   memoryItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -5654,11 +4260,6 @@ function collapseMemoryDetail(memoryItem) {
   memoryItem.classList.remove('detail-expanded');
   const nextSibling = memoryItem.nextElementSibling;
   if (nextSibling && nextSibling.classList.contains('memory-detail-panel')) {
-    // Destroy task graph SVG before removing panel
-    const graphContainer = nextSibling.querySelector('.task-graph-container');
-    if (graphContainer && typeof SiteGraph !== 'undefined') {
-      SiteGraph.destroy(graphContainer);
-    }
     nextSibling.remove();
   }
 }
@@ -5667,21 +4268,20 @@ function renderMemoryDetailPanel(memory) {
   let content = '';
 
   switch (memory.type) {
+    case 'episodic':
+      content = renderEpisodicDetail(memory);
+      break;
     case 'semantic':
       content = renderSemanticDetail(memory);
       break;
     case 'procedural':
       content = renderProceduralDetail(memory);
       break;
-    case 'task':
-      content = renderTaskDetail(memory);
-      break;
     default:
       content = `<div class="detail-section"><div class="detail-value">${escapeHtml(memory.text)}</div></div>`;
   }
 
-  // Task type integrates AI analysis into its collapsible sections; others get separate block
-  const aiSection = memory.type === 'task' ? '' : renderAIAnalysisSection(memory.aiAnalysis);
+  const aiSection = renderAIAnalysisSection(memory.aiAnalysis);
 
   return `
     <div class="detail-panel-inner">
@@ -5971,190 +4571,6 @@ function renderProceduralDetail(memory) {
   `;
 }
 
-function renderCollapsibleSection(id, title, icon, content, defaultOpen = false) {
-  return `<div class="recon-section${defaultOpen ? ' recon-section-open' : ''}">
-    <div class="recon-section-toggle" data-section="${id}">
-      <i class="fas fa-chevron-right recon-chevron"></i>
-      <i class="fas ${icon}"></i> ${title}
-    </div>
-    <div class="recon-section-body">${content}</div>
-  </div>`;
-}
-
-function renderTaskDetail(memory) {
-  const sess = memory.typeData?.session || {};
-  const learned = memory.typeData?.learned || {};
-  const procedures = memory.typeData?.procedures || [];
-  const ai = memory.aiAnalysis || {};
-
-  // Outcome badge
-  const outcomeVal = (sess.outcome || 'unknown').toLowerCase();
-  const outcomeBadgeClass = { success: 'success', failure: 'failure', partial: 'partial' }[outcomeVal] || 'unknown';
-  const outcomeLabel = outcomeVal.charAt(0).toUpperCase() + outcomeVal.slice(1);
-
-  // Duration
-  let durationStr = 'N/A';
-  if (sess.duration && sess.duration > 0) {
-    const totalSec = Math.round(sess.duration / 1000);
-    const mins = Math.floor(totalSec / 60);
-    const secs = totalSec % 60;
-    durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-  }
-
-  const timeline = sess.timeline || [];
-  const stepCount = timeline.length;
-  const taskDomain = sess.domain || memory.metadata?.domain || 'Unknown';
-
-  // --- Summary header (always visible) ---
-  const finalUrlHtml = sess.finalUrl
-    ? `<div style="margin-top: 6px; font-size: 0.85em;"><i class="fas fa-link" style="opacity: 0.5; margin-right: 4px;"></i><a href="${escapeHtml(sess.finalUrl)}" target="_blank" rel="noopener" style="color: var(--primary);">${escapeHtml(sess.finalUrl)}</a></div>`
-    : '';
-
-  const summaryHeader = `
-    <div class="recon-summary-header">
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-        <span class="outcome-badge outcome-badge-lg outcome-badge-${outcomeBadgeClass}">${outcomeLabel}</span>
-        <span style="font-weight: 600; font-size: 1.05em;">${escapeHtml(sess.task || memory.text || 'Task')}</span>
-      </div>
-      <div style="font-size: 0.85em; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 4px 12px;">
-        <span><i class="fas fa-globe" style="opacity: 0.6;"></i> ${escapeHtml(taskDomain)}</span>
-        <span><i class="fas fa-clock" style="opacity: 0.6;"></i> ${durationStr}</span>
-        <span><i class="fas fa-shoe-prints" style="opacity: 0.6;"></i> ${stepCount} steps</span>
-        <span><i class="fas fa-redo" style="opacity: 0.6;"></i> ${sess.iterationCount || 0} iterations</span>
-      </div>
-      ${finalUrlHtml}
-    </div>
-  `;
-
-  // --- Timeline section (default open) ---
-  let timelineContent = '';
-  if (timeline.length > 0) {
-    timelineContent = `<ol class="recon-timeline-list">${timeline.map((s, i) => {
-      const isFailed = s.result && /fail|error/i.test(s.result);
-      const stepClass = isFailed ? ' recon-timeline-step-failed' : '';
-      const urlHtml = s.url ? ` <a href="${escapeHtml(s.url)}" target="_blank" rel="noopener" class="recon-timeline-url" title="${escapeHtml(s.url)}"><i class="fas fa-external-link-alt"></i></a>` : '';
-      return `<li class="recon-timeline-step${stepClass}">
-        <strong>${escapeHtml(s.action || '')}</strong> on <code class="detail-code">${escapeHtml(s.target || '')}</code> &mdash; ${escapeHtml(s.result || '')}${urlHtml}
-      </li>`;
-    }).join('')}</ol>`;
-  } else {
-    timelineContent = '<span class="detail-muted">No steps recorded</span>';
-  }
-
-  // Inline failures in timeline section
-  if (sess.failures && sess.failures.length > 0) {
-    timelineContent += `<div class="recon-failures-block">
-      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px; color: var(--danger, #ef4444);"><i class="fas fa-exclamation-triangle"></i> Failures</div>
-      <ul class="detail-list">${sess.failures.map(f => `<li>${escapeHtml(String(f))}</li>`).join('')}</ul>
-    </div>`;
-  }
-
-  // AI risk factors at bottom of timeline
-  if (ai.riskFactors && ai.riskFactors.length > 0) {
-    timelineContent += `<div class="recon-ai-note">
-      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;"><i class="fas fa-shield-alt" style="opacity: 0.7;"></i> Risk Factors</div>
-      <ul class="detail-list">${ai.riskFactors.map(r => `<li>${escapeHtml(String(r))}</li>`).join('')}</ul>
-    </div>`;
-  }
-
-  const timelineSection = renderCollapsibleSection('timeline', `Timeline (${stepCount} steps)`, 'fa-route', timelineContent, true);
-
-  // --- Discoveries section (default closed) ---
-  let discoveriesContent = '';
-
-  // AI key takeaways at top
-  if (ai.keyTakeaways && ai.keyTakeaways.length > 0) {
-    discoveriesContent += `<div class="recon-ai-note" style="margin-bottom: 10px;">
-      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;"><i class="fas fa-brain" style="opacity: 0.7;"></i> Key Takeaways</div>
-      <ul class="detail-list">${ai.keyTakeaways.map(t => `<li>${escapeHtml(String(t))}</li>`).join('')}</ul>
-    </div>`;
-  }
-
-  // Selectors
-  if (learned.selectors && learned.selectors.length > 0) {
-    discoveriesContent += `<div style="margin-bottom: 8px;">
-      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;">Selectors Discovered</div>
-      <div>${learned.selectors.map(s => `<code class="detail-code">${escapeHtml(String(s))}</code>`).join(' ')}</div>
-    </div>`;
-  }
-
-  // Site structure
-  if (learned.siteStructure && Object.keys(learned.siteStructure).length > 0) {
-    const structItems = Object.entries(learned.siteStructure)
-      .map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</li>`)
-      .join('');
-    discoveriesContent += `<div style="margin-bottom: 8px;">
-      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;">Site Structure</div>
-      <ul class="detail-list">${structItems}</ul>
-    </div>`;
-  }
-
-  // Patterns
-  if (learned.patterns && learned.patterns.length > 0) {
-    discoveriesContent += `<div style="margin-bottom: 8px;">
-      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;">Patterns</div>
-      <ul class="detail-list">${learned.patterns.map(p => `<li>${escapeHtml(String(p))}</li>`).join('')}</ul>
-    </div>`;
-  }
-
-  const hasDiscoveries = discoveriesContent.length > 0;
-  if (!hasDiscoveries) discoveriesContent = '<span class="detail-muted">No discoveries recorded</span>';
-  const discoveriesSection = renderCollapsibleSection('discoveries', 'Discoveries', 'fa-search', discoveriesContent, false);
-
-  // --- Procedures section (default closed) ---
-  let proceduresContent = '';
-
-  if (procedures.length > 0) {
-    proceduresContent = procedures.map(proc => {
-      const rate = Math.round((proc.successRate ?? 1) * 100);
-      const rateClass = rate >= 80 ? 'outcome-badge-success' : rate >= 50 ? 'outcome-badge-partial' : 'outcome-badge-failure';
-      return `<div class="recon-procedure-item">
-        <strong>${escapeHtml(proc.name || 'Unnamed')}</strong>
-        <span style="color: var(--text-secondary); font-size: 0.85em;">${(proc.steps || []).length} steps</span>
-        <span class="outcome-badge ${rateClass}">${rate}%</span>
-      </div>`;
-    }).join('');
-  } else {
-    proceduresContent = '<span class="detail-muted">No procedures recorded</span>';
-  }
-
-  // AI optimization tips
-  if (ai.optimizationTips && ai.optimizationTips.length > 0) {
-    proceduresContent += `<div class="recon-ai-note" style="margin-top: 10px;">
-      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;"><i class="fas fa-lightbulb" style="opacity: 0.7;"></i> Optimization Tips</div>
-      <ul class="detail-list">${ai.optimizationTips.map(t => `<li>${escapeHtml(String(t))}</li>`).join('')}</ul>
-    </div>`;
-  }
-
-  // AI suggested improvements
-  if (ai.suggestedImprovements && ai.suggestedImprovements.length > 0) {
-    proceduresContent += `<div class="recon-ai-note">
-      <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;"><i class="fas fa-arrow-up" style="opacity: 0.7;"></i> Suggested Improvements</div>
-      <ul class="detail-list">${ai.suggestedImprovements.map(t => `<li>${escapeHtml(String(t))}</li>`).join('')}</ul>
-    </div>`;
-  }
-
-  // AI reusability assessment
-  if (ai.reusabilityAssessment) {
-    proceduresContent += `<div class="recon-ai-note" style="margin-top: 8px; padding: 8px 10px; background: var(--surface-color, #f9fafb); border-radius: 6px; font-size: 0.85em;">
-      <i class="fas fa-recycle" style="opacity: 0.7;"></i> <strong>Reusability:</strong> ${escapeHtml(String(ai.reusabilityAssessment))}
-    </div>`;
-  }
-
-  const proceduresSection = renderCollapsibleSection('procedures', `Procedures (${procedures.length})`, 'fa-code-branch', proceduresContent, false);
-
-  // Task graph container (rendered after panel opens)
-  const taskGraphHtml = `<div class="task-graph-container" data-memory-id="${memory.id}" style="min-height: 250px; margin-bottom: 12px;"></div>`;
-
-  return `
-    ${summaryHeader}
-    ${taskGraphHtml}
-    ${timelineSection}
-    ${discoveriesSection}
-    ${proceduresSection}
-  `;
-}
-
 function renderAIAnalysisSection(aiAnalysis) {
   if (!aiAnalysis || typeof aiAnalysis !== 'object') return '';
 
@@ -6263,8 +4679,8 @@ async function expandMemoryGraph(memoryItem, memoryId) {
   const hasDiscovered = graphData.nodes.some(n => n.discovered);
 
   let legendItems = '';
-  if (hasPages) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--info-color); opacity: 0.7;"></span> Page</span>';
-  if (hasDiscovered) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: transparent; border: 1.5px dashed var(--info-color); opacity: 0.5;"></span> Discovered</span>';
+  if (hasPages) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: #4285f4; opacity: 0.7;"></span> Page</span>';
+  if (hasDiscovered) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: transparent; border: 1.5px dashed #4285f4; opacity: 0.5;"></span> Discovered</span>';
   if (hasForms) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: #d97706; opacity: 0.7;"></span> Form</span>';
   if (hasElements) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: var(--text-muted, #737373); opacity: 0.5; border: 1px dashed var(--text-muted, #737373); background: transparent;"></span> Element</span>';
   if (hasWorkflowLinks) legendItems += '<span class="site-graph-legend-item"><span class="site-graph-legend-dot" style="background: transparent; border: 1.5px dashed var(--success-color, #059669);"></span> Workflow</span>';
@@ -6342,6 +4758,47 @@ function collapseMemoryGraph(memoryItem) {
   }
 }
 
+async function refineMemoryWithAI(memoryId, reconId) {
+  if (typeof refineSiteMapWithAI !== 'function') {
+    showToast('AI refiner not available', 'error');
+    return;
+  }
+
+  // Get the memory
+  const memories = await memoryManager.getAll();
+  const memory = memories.find(m => m.id === memoryId);
+  if (!memory || memory.typeData?.category !== 'site_map') {
+    showToast('Memory not found or not a site map', 'error');
+    return;
+  }
+
+  // Get research data if available
+  let researchData = null;
+  if (reconId) {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'getResearchData', researchId: reconId });
+      if (response?.success) researchData = response.data;
+    } catch (e) {
+      // Research data not available
+    }
+  }
+
+  showToast('Refining site map with AI...', 'info');
+  try {
+    const refined = await refineSiteMapWithAI(memory.typeData.sitePattern, researchData);
+    memory.typeData.sitePattern = refined;
+    memory.metadata.confidence = 0.95;
+    memory.text = memory.text.replace(/\)$/, ' (AI enhanced)').replace(/ \(AI enhanced\) \(AI enhanced\)/, ' (AI enhanced)');
+    if (!memory.text.includes('(AI enhanced)')) memory.text += ' (AI enhanced)';
+    memory.updatedAt = Date.now();
+    await memoryStorage.update(memory.id, memory);
+    showToast('Site map refined successfully', 'success');
+    loadMemoryDashboard();
+  } catch (err) {
+    showToast('AI refinement failed: ' + err.message, 'error');
+  }
+}
+
 async function searchMemories() {
   if (typeof memoryManager === 'undefined') return;
 
@@ -6397,78 +4854,6 @@ async function exportMemories() {
   }
 }
 
-async function handleMemoryImport(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  // Reset input so same file can be re-selected
-  event.target.value = '';
-
-  try {
-    const text = await file.text();
-    let imported;
-    try {
-      imported = JSON.parse(text);
-    } catch {
-      showToast('Invalid JSON file', 'error');
-      return;
-    }
-
-    // Accept both array and single object
-    if (!Array.isArray(imported)) {
-      if (imported && typeof imported === 'object' && imported.id) {
-        imported = [imported];
-      } else {
-        showToast('Invalid memory file format', 'error');
-        return;
-      }
-    }
-
-    if (imported.length === 0) {
-      showToast('No memories found in file', 'error');
-      return;
-    }
-
-    // Check for duplicates by id
-    const existing = await memoryManager.getAll();
-    const existingIds = new Set(existing.map(m => m.id));
-    const duplicates = imported.filter(m => existingIds.has(m.id));
-    const newMemories = imported.filter(m => !existingIds.has(m.id));
-
-    // Validate new memories
-    const valid = [];
-    const invalid = [];
-    for (const memory of newMemories) {
-      const validation = validateMemory(memory);
-      if (validation.valid) {
-        valid.push(memory);
-      } else {
-        invalid.push(memory);
-      }
-    }
-
-    // Confirmation dialog
-    const msg = `Import ${valid.length} memories?\n` +
-      (duplicates.length > 0 ? `${duplicates.length} duplicates will be skipped.\n` : '') +
-      (invalid.length > 0 ? `${invalid.length} invalid entries will be skipped.\n` : '');
-    if (!confirm(msg)) return;
-
-    // Import valid memories
-    let added = 0;
-    for (const memory of valid) {
-      const success = await memoryStorage.add(memory);
-      if (success) added++;
-    }
-
-    loadMemoryDashboard();
-    showToast(`Imported ${added} memories` +
-      (duplicates.length > 0 ? `, ${duplicates.length} duplicates skipped` : '') +
-      (invalid.length > 0 ? `, ${invalid.length} invalid skipped` : ''),
-      added > 0 ? 'success' : 'info');
-  } catch (error) {
-    showToast('Import failed: ' + error.message, 'error');
-  }
-}
-
 async function clearAllMemories() {
   if (typeof memoryManager === 'undefined') return;
 
@@ -6483,160 +4868,12 @@ async function clearAllMemories() {
   }
 }
 
-// Initialize agent section, memory section, and CLI validation when DOM is ready
+// Initialize agent section and memory section when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(initializeAgentSection, 300);
   setTimeout(initializeMemorySection, 400);
-  setTimeout(initCLIValidation, 500);
 });
 
-
-// =========================================================================
-// CLI Validation Section
-// =========================================================================
-
-/**
- * Show or hide the CLI Validation nav item based on Debug Mode state.
- * @param {boolean} enabled - Whether debug mode is enabled
- */
-function updateCLIValidationVisibility(enabled) {
-  const cliNavItem = document.querySelector('.debug-only-nav');
-  if (cliNavItem) {
-    cliNavItem.style.display = enabled ? '' : 'none';
-  }
-}
-
-/**
- * Initialize CLI Validation section controls and event listeners.
- */
-function initCLIValidation() {
-  const runAllBtn = document.getElementById('runAllTestsBtn');
-  const runTokenBtn = document.getElementById('runTokenComparisonBtn');
-  const runEdgeCasesBtn = document.getElementById('runEdgeCasesBtn');
-  const liveToggle = document.getElementById('liveTestMode');
-  const modeBadge = document.getElementById('testModeBadge');
-
-  if (!runAllBtn) return; // Section not present
-
-  // Toggle live/golden mode
-  liveToggle.addEventListener('change', () => {
-    modeBadge.textContent = liveToggle.checked ? 'Live' : 'Golden';
-    modeBadge.className = 'mode-badge ' + (liveToggle.checked ? 'mode-live' : '');
-  });
-
-  // Run All Tests button
-  runAllBtn.addEventListener('click', async () => {
-    runAllBtn.disabled = true;
-    try {
-      await runCLIValidationTests(liveToggle.checked);
-    } finally {
-      runAllBtn.disabled = false;
-    }
-  });
-
-  // Token Comparison button
-  runTokenBtn.addEventListener('click', async () => {
-    runTokenBtn.disabled = true;
-    try {
-      await runTokenComparison();
-    } finally {
-      runTokenBtn.disabled = false;
-    }
-  });
-
-  // Edge Cases button
-  runEdgeCasesBtn.addEventListener('click', async () => {
-    runEdgeCasesBtn.disabled = true;
-    try {
-      await runEdgeCaseTests();
-    } finally {
-      runEdgeCasesBtn.disabled = false;
-    }
-  });
-}
-
-// Dead code removed: runCLIValidationTests, renderProviderResults, renderDetailedResults,
-// and duplicate escapeHtml (Phase 139.1 cleanup).
-// CLIValidator was never loaded at runtime; these functions were unreachable.
-// The primary escapeHtml definition (line ~2335) remains for use throughout the file.
-async function runCLIValidationTests() {
-  showToast('CLI Validator has been removed.', 'info');
-}
-
-/**
- * Run token comparison between CLI and JSON formats.
- */
-async function runTokenComparison() {
-  const tokenResultsEl = document.getElementById('tokenResults');
-  const avgReductionEl = document.getElementById('avgTokenReduction');
-
-  if (!window.TokenComparator) {
-    showToast('TokenComparator not loaded. Ensure token-comparator.js is included.', 'error');
-    return;
-  }
-
-  tokenResultsEl.innerHTML = '<div style="padding: 1rem; color: var(--text-muted);">Running token comparisons...</div>';
-  tokenResultsEl.style.display = '';
-
-  try {
-    const comparator = new window.TokenComparator();
-    const data = await comparator.runAllComparisons();
-
-    // Build header
-    const avgPct = data.summary.averageReduction;
-    const meetsTarget = data.summary.meetsTarget;
-    const headerColor = meetsTarget ? 'var(--success-color)' : 'var(--error-color)';
-
-    let html = `
-      <div class="token-results-header">
-        <div>
-          <div class="aggregate-value" style="color: ${headerColor}">${avgPct}%</div>
-          <div class="aggregate-label">Average Token Reduction ${meetsTarget ? '(meets 40% target)' : '(below 40% target)'}</div>
-        </div>
-        <div style="text-align: right;">
-          <div style="font-size: 0.875rem; color: var(--text-muted);">CLI: ${data.summary.totalCliTokens.toLocaleString()} | JSON: ${data.summary.totalJsonTokens.toLocaleString()}</div>
-          ${data.summary.isEstimation ? '<div style="font-size: 0.75rem; color: var(--warning-color);">Estimated (tokenizer not available)</div>' : ''}
-        </div>
-      </div>
-    `;
-
-    // Build rows
-    for (const result of data.results) {
-      if (result.error) {
-        html += `<div class="token-row"><span class="snapshot-name">${result.snapshot}</span><span style="grid-column: span 4; color: var(--error-color);">Error: ${escapeHtml(result.error)}</span></div>`;
-        continue;
-      }
-
-      const reductionPct = result.reduction.total;
-      const reductionClass = result.meetsTarget ? 'reduction-pass' : 'reduction-fail';
-      const reductionColor = result.meetsTarget ? 'var(--success-color)' : 'var(--error-color)';
-      const barWidth = Math.min(Math.abs(reductionPct), 100);
-
-      html += `
-        <div class="token-row">
-          <span class="snapshot-name">${result.snapshot || 'Unknown'}</span>
-          <span class="token-count">CLI: ${result.cliTokens.total.toLocaleString()}</span>
-          <span class="token-count">JSON: ${result.jsonTokens.total.toLocaleString()}</span>
-          <span class="reduction-pct" style="color: ${reductionColor}">${reductionPct}%</span>
-          <div class="reduction-bar"><div class="reduction-bar-fill ${reductionClass}" style="width: ${barWidth}%"></div></div>
-        </div>
-      `;
-    }
-
-    tokenResultsEl.innerHTML = html;
-
-    // Update summary card
-    if (avgReductionEl) {
-      avgReductionEl.textContent = avgPct + '%';
-    }
-
-    // Show summary
-    document.getElementById('validationSummary').style.display = '';
-  } catch (e) {
-    tokenResultsEl.innerHTML = `<div style="padding: 1rem; color: var(--error-color);">Token comparison failed: ${escapeHtml(e.message)}</div>`;
-    showToast('Token comparison failed: ' + e.message, 'error');
-  }
-}
 
 // Export for potential use by other scripts
 if (typeof module !== 'undefined' && module.exports) {

@@ -2,74 +2,87 @@
 
 ## Milestones
 
-- v0.9 Reliability Improvements (shipped 2026-02-14)
-- v9.0.2 AI Situational Awareness (shipped 2026-02-18)
-- v9.3 Tech Debt Cleanup (shipped 2026-02-23)
-- v9.4 Career Search Automation (shipped 2026-02-28)
-- v10.0 CLI Architecture (shipped 2026-03-15)
-- v0.9.2-v0.9.4 Productivity, Memory & AI Quality (shipped 2026-03-17)
-- v0.9.5 Progress Overlay Intelligence (shipped 2026-03-17)
-- v0.9.6 Agents & Remote Control (shipped 2026-03-19)
-- v0.9.7 MCP Edge Case Validation (shipped 2026-03-22) -- [archive](milestones/v0.9.7-ROADMAP.md)
-- v0.9.8 Autopilot Refinement (shipped 2026-03-23) -- [archive](milestones/v0.9.8-ROADMAP.md)
-- v0.9.9 Excalidraw Mastery (shipped 2026-03-25) -- [archive](milestones/v0.9.9-ROADMAP.md)
-- v0.9.8.1 npm Publishing (shipped 2026-04-02) -- [archive](milestones/v0.9.8.1-ROADMAP.md)
-- v0.9.9.1 Phantom Stream (shipped 2026-03-31)
-- v0.9.11 MCP Tool Quality (shipped 2026-03-31) -- [archive](milestones/v0.9.11-ROADMAP.md)
-- v0.9.20 Autopilot Agent Architecture Rewrite (shipped 2026-04-02) -- [archive](milestones/v0.9.20-ROADMAP.md)
-- v0.9.21 UI Retouch & Cohesion (shipped 2026-04-02) -- [archive](milestones/v0.9.21-ROADMAP.md)
-- v0.9.22 Showcase High-Fidelity Replicas (superseded after Phase 145)
-- v0.9.23 Dashboard Stream & Remote Control Reliability (deferred after Phase 150)
-- v0.9.24 Claude Code Architecture Adaptation (shipped 2026-04-05) -- [archive](milestones/v0.9.24-ROADMAP.md)
-- v0.9.25 MCP & Dashboard Reliability Closure (shipped 2026-04-11) -- [archive](milestones/v0.9.25-ROADMAP.md)
-- v0.9.26 Progress Overlay Refinement (shipped 2026-04-12) -- [archive](milestones/v0.9.26-ROADMAP.md)
-- v0.9.27 Usage Dashboard Fix (shipped 2026-04-14) -- [archive](milestones/v0.9.27-ROADMAP.md)
+- v0.9.29 Showcase Angular Migration (shipped 2026-04-15, accepted scope gaps)
+- v0.9.27 Usage Dashboard Fix (shipped 2026-04-14)
 
----
+## Active Milestone: v0.9.30 MCP Platform Install Flags
 
-## No Active Milestone
+Replace copy-paste MCP setup with one-command auto-configuration for every major MCP-capable platform. 28 requirements across 3 phases, delivering a platform registry engine, JSON-based install/uninstall for 7 platforms, and non-JSON platform support with extended flags.
 
-Last shipped milestone: `v0.9.27 Usage Dashboard Fix` (shipped 2026-04-14) -- [archive](milestones/v0.9.27-ROADMAP.md)
+## Phases
 
-No new milestone has been opened yet. Start the next planning cycle with `$gsd-new-milestone`.
+- [ ] **Phase 174: Platform Registry & Config Engine** - Core engine: platform registry map, JSON/JSONC read-merge-write, cross-OS path resolution, backup, idempotency, error handling
+- [ ] **Phase 175: Install/Uninstall CLI & JSON Platforms** - Wire install/uninstall commands, deliver all 7 JSON-format platforms, uninstall semantics, CLI help, setup update
+- [ ] **Phase 176: Non-JSON Platforms & Extended Flags** - Claude Code CLI delegation, Codex TOML, Continue YAML, dry-run preview, install-all
 
----
+## Phase Details
 
-## v0.9.26 Progress Overlay Refinement (shipped 2026-04-12)
+### Phase 174: Platform Registry & Config Engine
+**Goal**: The foundational engine exists to read, merge, and write MCP config files safely across operating systems
+**Depends on**: Nothing (first phase of milestone)
+**Requirements**: INST-01, INST-02, INST-03, INST-04, INST-05, INST-06, INST-07, INST-08
+**Success Criteria** (what must be TRUE):
+  1. A platform registry data structure maps each of 10 platforms to its config path per OS, file format, root key name, and server entry shape
+  2. The config engine can read an existing JSON config file, merge an FSB server entry under the correct root key, and write it back without losing other servers
+  3. JSONC files (containing `//` comments and trailing commas) are parsed correctly without errors
+  4. Config file paths resolve correctly on macOS, Windows, and Linux using OS-appropriate base directories
+  5. A `.bak` backup of the original config file is created before any modification
+**Plans:** 2 plans
 
-**Status:** Shipped 2026-04-12 -- see [milestones/v0.9.26-ROADMAP.md](milestones/v0.9.26-ROADMAP.md) for the archived detail.
+Plans:
+- [ ] 174-01-PLAN.md -- Dependencies and platform registry map (platforms.js)
+- [ ] 174-02-PLAN.md -- Config read-merge-write engine (config-writer.js) and integration tests
 
-**Goal:** Make the progress overlay show clean, accurate, human-readable task progress instead of developer debug noise.
+### Phase 175: Install/Uninstall CLI & JSON Platforms
+**Goal**: Users can install and uninstall FSB in any JSON-format MCP client with a single command
+**Depends on**: Phase 174
+**Requirements**: PLAT-01, PLAT-02, PLAT-03, PLAT-04, PLAT-05, PLAT-06, PLAT-07, UNINST-01, UNINST-02, UNINST-03, UNINST-04, UNINST-05, CLI-01, CLI-02, CLI-03
+**Success Criteria** (what must be TRUE):
+  1. Running `npx fsb-mcp-server install --claude-desktop` auto-configures FSB in Claude Desktop's config file with the correct `mcpServers` entry
+  2. Running `npx fsb-mcp-server install --vscode` writes the correct `servers` entry with `type: "stdio"` into VS Code's mcp.json
+  3. Running `npx fsb-mcp-server uninstall --<platform>` removes only the FSB entry and preserves all other configured servers
+  4. Running `install` with no platform flags prints usage help listing all 10 available platforms
+  5. The existing `setup` command mentions `install --<platform>` as a faster alternative
+**Plans:** 2 plans
+
+Plans:
+- [ ] 175-01-PLAN.md -- Install/uninstall orchestration module (install.js) and config-writer API gap fix
+- [ ] 175-02-PLAN.md -- CLI router wiring (switch cases, help, setup updates) and end-to-end verification
+
+### Phase 176: Non-JSON Platforms & Extended Flags
+**Goal**: Users can install FSB in every remaining MCP client (Claude Code, Codex, Continue) and use convenience flags for previewing and bulk installs
+**Depends on**: Phase 175
+**Requirements**: PLAT-08, PLAT-09, PLAT-10, INST-09, INST-10
+**Success Criteria** (what must be TRUE):
+  1. Running `install --claude-code` delegates to `claude mcp add` CLI command (with fallback to printed command if CLI is unavailable)
+  2. Running `install --codex` writes the correct TOML `mcp_servers` table entry into Codex's config.toml
+  3. Running `install --continue` writes a YAML array entry under `mcpServers` in Continue's config.yaml
+  4. Running `install --dry-run --<platform>` shows what would change without modifying any files
+  5. Running `install --all` installs FSB to every detected platform in one command
+**Plans:** 2 plans
+
+Plans:
+- [ ] 176-01-PLAN.md -- Remove format gate, Claude Code install handler, Codex/Continue support
+- [ ] 176-02-PLAN.md -- --dry-run preview and --all bulk install/uninstall flags
+
+## Progress
+
+**Execution Order:** 174 -> 175 -> 176
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 168. Data Audit & Display Firewall | 2/2 | Complete | 2026-04-12 |
-| 169. Display Cleanup & Performance | 2/2 | Complete | 2026-04-12 |
-| 170. Cross-Site Validation & Final Polish | 1/1 | Complete | 2026-04-12 |
+| 174. Platform Registry & Config Engine | 0/2 | Not started | - |
+| 175. Install/Uninstall CLI & JSON Platforms | 0/2 | Not started | - |
+| 176. Non-JSON Platforms & Extended Flags | 0/2 | Not started | - |
 
-## v0.9.25 MCP & Dashboard Reliability Closure (shipped 2026-04-11)
+## Last Shipped Milestone: v0.9.29 Showcase Angular Migration (shipped 2026-04-15)
 
-**Status:** Shipped 2026-04-11 with accepted tech debt -- see [milestones/v0.9.25-ROADMAP.md](milestones/v0.9.25-ROADMAP.md) and [v0.9.25-MILESTONE-AUDIT.md](v0.9.25-MILESTONE-AUDIT.md) for the archived detail.
+**Shipped scope:** Phase 173 only (Showcase Shell, Routes & Theme Parity), including Angular shell route parity, theme persistence parity, five-route content migration, and server canonical-route/legacy-redirect compatibility.
 
-**Goal:** Close the remaining operator-facing reliability gaps across restricted-tab MCP behavior, deferred dashboard reliability work, and the live verification debt carried forward from `v0.9.24`.
+**Accepted gaps at close:** Remaining migration scope was deferred to a future milestone:
+- Phase 174: Dashboard Session Access Flows (`DASH-08` to `DASH-10`)
+- Phase 175: Agent Management & Run History Parity (`DASH-11` to `DASH-13`)
+- Phase 176: Task, Preview & Remote Runtime Parity (`DASH-14` to `DASH-17`)
+- Phase 177: Migration Regression & Delivery Readiness (`MIGR-01` to `MIGR-03`)
 
-| Phase | Plans Complete | Status | Goal |
-|-------|----------------|--------|------|
-| 163. Restricted-Tab MCP Parity | 2/2 | Complete    | 2026-04-06 |
-| 164. Dashboard Reliability Rebaseline | 2/2 | Complete   | 2026-04-06 |
-| 165. Live Dashboard Verification & Fixes | 2/2 | Complete (tech debt accepted) | 2026-04-11 |
-| 166. Runtime Carryover Hardening | 2/2 | Complete | 2026-04-07 |
-| 167. Auth Outcome Smoke Verification | 0/0 | Complete | 2026-04-07 |
-
-## v0.9.23 Dashboard Stream & Remote Control Reliability (deferred)
-
-Historical deferred milestone. Phase 150 shipped, and the remaining reliability goals are now re-scoped into `v0.9.25` with fresh phase numbers instead of reviving the old `151-155` sequence.
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 150. Dashboard Transport Baseline & Recovery | 2/2 | Complete | 2026-04-02 |
-| 151. DOM Stream Consistency & State Sync | 0/2 | Deferred | - |
-| 152. Remote Control Reliability | 0/2 | Deferred | - |
-| 153. Dashboard Task Relay Correctness | 0/2 | Deferred | - |
-| 154. End-to-End Verification & Hardening | 0/1 | Deferred | - |
-| 155. Agent Conversation Continuity & Context Reuse | 2/2 | Complete | 2026-04-02 |
+**Archive:** `.planning/milestones/v0.9.29-ROADMAP.md`

@@ -1,5 +1,5 @@
 /**
- * Configuration management for FSB v0.9.20
+ * Configuration management for FSB v0.9.30
  * This file handles loading configuration from environment variables and Chrome storage
  */
 
@@ -16,13 +16,12 @@ class Config {
     this.defaults = {
       // Model configuration
       modelProvider: 'xai', // 'xai' or 'gemini'
-      modelName: 'grok-4-1-fast-reasoning', // Current selected model - fast and efficient for automation
+      modelName: 'grok-4-1-fast', // Current selected model - fast and efficient for automation
       
       // API Keys
       apiKey: '', // xAI API key (for Grok models)
       geminiApiKey: '', // Google Gemini API key
-      openrouterApiKey: '', // OpenRouter API key
-
+      
       // Legacy support
       speedMode: 'normal', // Deprecated - use modelName instead
 
@@ -45,11 +44,8 @@ class Config {
       captchaSolverEnabled: false,
       captchaApiKey: '',
 
-      // Speech-to-Text
-      sttProvider: 'browser', // 'browser' (Web Speech API) or 'whisper' (OpenAI)
-
       // Background Agents Server
-      serverUrl: 'https://full-selfbrowsing.com',
+      serverUrl: 'https://fsb-server.fly.dev',
       serverHashKey: '',
       serverSyncEnabled: false
     };
@@ -74,67 +70,33 @@ class Config {
     // Available models configuration
     this.availableModels = {
       xai: [
-        { id: 'grok-4-0709', name: 'Grok 4', description: 'Most capable reasoning model' },
-        { id: 'grok-4-1-fast-reasoning', name: 'Grok 4.1 Fast', description: 'High-speed with reasoning (Recommended)' },
+        { id: 'grok-4-1-fast', name: 'Grok 4.1 Fast', description: 'High-speed with reasoning, 2M context (Recommended)' },
         { id: 'grok-4-1-fast-non-reasoning', name: 'Grok 4.1 Fast Non-Reasoning', description: 'Without reasoning for faster responses' },
-        { id: 'grok-4-fast-reasoning', name: 'Grok 4 Fast', description: 'Fast with reasoning capabilities' },
-        { id: 'grok-4-fast-non-reasoning', name: 'Grok 4 Fast Non-Reasoning', description: 'Fast without reasoning' },
+        { id: 'grok-4', name: 'Grok 4', description: 'Complex reasoning model' },
         { id: 'grok-code-fast-1', name: 'Grok Code Fast 1', description: 'Dedicated code generation & debugging' },
         { id: 'grok-3', name: 'Grok 3', description: 'Legacy flagship model' },
         { id: 'grok-3-mini', name: 'Grok 3 Mini', description: 'Budget option with reasoning' }
       ],
       gemini: [
-        { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview', description: 'Latest pro preview model' },
-        { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most powerful with 2M context' },
-        { id: 'gemini-2.5-pro-preview-06-05', name: 'Gemini 2.5 Pro Preview', description: 'Pro preview variant' },
-        { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', description: 'Next-gen flash preview' },
         { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Latest with thinking capabilities' },
-        { id: 'gemini-2.5-flash-preview-05-20', name: 'Gemini 2.5 Flash Preview', description: 'Flash preview variant' },
-        { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite Preview', description: 'Lightweight next-gen preview' },
-        { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', description: 'Budget option with 1M context' },
+        { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite', description: 'Budget option with 1M context' },
+        { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most powerful with 2M context' },
+        { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Experimental', description: 'FREE experimental until May 2025' },
         { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fast and efficient' }
       ],
       openai: [
-        { id: 'gpt-5.4', name: 'GPT-5.4', description: 'Latest flagship model' },
-        { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', description: 'Pro tier of latest flagship' },
-        { id: 'gpt-5.2', name: 'GPT-5.2', description: 'Previous generation flagship' },
-        { id: 'gpt-5.2-pro', name: 'GPT-5.2 Pro', description: 'Pro tier previous generation' },
-        { id: 'gpt-5.1', name: 'GPT-5.1', description: 'GPT-5 series model' },
-        { id: 'gpt-5', name: 'GPT-5', description: 'GPT-5 base model' },
-        { id: 'gpt-5-pro', name: 'GPT-5 Pro', description: 'GPT-5 pro tier' },
-        { id: 'o3', name: 'o3', description: 'Advanced reasoning model' },
-        { id: 'o3-pro', name: 'o3 Pro', description: 'Pro reasoning model' },
-        { id: 'o1', name: 'o1', description: 'Reasoning model' },
-        { id: 'o1-pro', name: 'o1 Pro', description: 'Pro reasoning model' },
-        { id: 'gpt-4.1', name: 'GPT-4.1', description: 'Balanced capability model' },
         { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable multimodal model' },
-        { id: 'gpt-5-mini', name: 'GPT-5 Mini', description: 'Fast and affordable GPT-5' },
-        { id: 'gpt-5-nano', name: 'GPT-5 Nano', description: 'Ultra-fast GPT-5 variant' },
-        { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', description: 'Fast GPT-4.1 variant' },
-        { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano', description: 'Ultra-fast GPT-4.1 variant' },
-        { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Affordable and fast' },
-        { id: 'o3-mini', name: 'o3 Mini', description: 'Fast reasoning model' },
-        { id: 'o4-mini', name: 'o4 Mini', description: 'Latest mini reasoning model' },
-        { id: 'o1-mini', name: 'o1 Mini', description: 'Budget reasoning model' }
+        { id: 'chatgpt-4o-latest', name: 'ChatGPT-4o Latest', description: 'Always newest GPT-4o version' },
+        { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Affordable and fast, better than GPT-3.5' },
+        { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Previous generation flagship' }
       ],
       anthropic: [
-        { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most powerful reasoning model' },
-        { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Previous Opus flagship' },
-        { id: 'claude-opus-4-1-20250805', name: 'Claude Opus 4.1', description: 'Opus 4.1 model' },
-        { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', description: 'Opus 4 model' },
-        { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Latest balanced model' },
-        { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Previous Sonnet flagship' },
-        { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Sonnet 4 model' },
-        { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fast and cost-effective' },
-        { id: 'claude-haiku-3-5-20241022', name: 'Claude Haiku 3.5', description: 'Legacy fast model' }
-      ],
-      openrouter: [
-        { id: 'openai/gpt-4o', name: 'GPT-4o (via OpenRouter)', description: 'OpenAI GPT-4o routed through OpenRouter' },
-        { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4 (via OpenRouter)', description: 'Anthropic Claude via OpenRouter' },
-        { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash (via OpenRouter)', description: 'Google Gemini via OpenRouter' },
-        { id: 'x-ai/grok-4-1-fast', name: 'Grok 4.1 Fast (via OpenRouter)', description: 'xAI Grok via OpenRouter' },
-        { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick (via OpenRouter)', description: 'Meta Llama 4 via OpenRouter' },
-        { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1 (via OpenRouter)', description: 'DeepSeek reasoning model via OpenRouter' }
+        { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', description: 'Latest flagship model with 200K context' },
+        { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', description: 'Fast and cost-effective with 200K context' },
+        { id: 'claude-opus-4-1', name: 'Claude Opus 4.1', description: 'Most powerful reasoning model' },
+        { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Previous Sonnet version' },
+        { id: 'claude-opus-4', name: 'Claude Opus 4', description: 'Previous Opus version' },
+        { id: 'claude-sonnet-3.7', name: 'Claude Sonnet 3.7', description: 'Extended thinking variant' }
       ]
     };
   }
@@ -197,15 +159,13 @@ class Config {
 
     // Common corrections for xAI models - map legacy/invalid models to valid ones
     const xaiCorrections = {
-      'grok-3-fast': 'grok-4-1-fast-reasoning',
-      'grok-3-fast-beta': 'grok-4-1-fast-reasoning',
-      'grok-3-mini-fast-beta': 'grok-4-1-fast-reasoning',
+      'grok-3-fast': 'grok-4-1-fast',
+      'grok-3-fast-beta': 'grok-4-1-fast',
+      'grok-3-mini-fast-beta': 'grok-4-1-fast',
       'grok-3-mini-beta': 'grok-3-mini',
-      'grok-3-mini-fast': 'grok-4-1-fast-reasoning',
-      'grok-4-fast': 'grok-4-1-fast-reasoning',
-      'grok-4-1': 'grok-4-0709',
-      'grok-4-1-fast': 'grok-4-1-fast-reasoning',
-      'grok-4': 'grok-4-0709',
+      'grok-3-mini-fast': 'grok-4-1-fast',
+      'grok-4-fast': 'grok-4-1-fast',
+      'grok-4-1': 'grok-4',  // grok-4-1 doesn't exist, map to grok-4
       'grok-beta': 'grok-3'
     };
 
@@ -216,14 +176,13 @@ class Config {
 
     // Default fallbacks per provider
     const defaultModels = {
-      'xai': 'grok-4-1-fast-reasoning',
+      'xai': 'grok-4-1-fast',
       'gemini': 'gemini-2.5-flash',
       'openai': 'gpt-4o',
-      'anthropic': 'claude-sonnet-4-6',
-      'openrouter': 'openai/gpt-4o'
+      'anthropic': 'claude-sonnet-4-5'
     };
 
-    return defaultModels[provider] || 'grok-4-1-fast-reasoning';
+    return defaultModels[provider] || 'grok-4-1-fast';
   }
   
   // Check if running in development mode
@@ -235,15 +194,14 @@ class Config {
   async getApiKey(provider = null) {
     const config = await this.loadFromStorage();
     const currentProvider = provider || config.modelProvider;
-    const keyMap = {
-      xai: config.apiKey,
-      gemini: config.geminiApiKey,
-      openai: config.openaiApiKey,
-      anthropic: config.anthropicApiKey,
-      openrouter: config.openrouterApiKey,
-      custom: config.customApiKey
-    };
-    return keyMap[currentProvider] || config.apiKey;
+    
+    switch (currentProvider) {
+      case 'gemini':
+        return config.geminiApiKey;
+      case 'xai':
+      default:
+        return config.apiKey; // xAI API key
+    }
   }
   
   // Legacy method - returns xAI key for backward compatibility

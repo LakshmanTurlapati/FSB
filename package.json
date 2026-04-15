@@ -1,6 +1,6 @@
 {
   "name": "fsb-full-self-browsing",
-  "version": "0.9.20",
+  "version": "0.9.30",
   "description": "FSB - Full Self-Browsing: An intelligent, open-source Chrome extension for AI-powered browser automation using natural language instructions",
   "main": "background.js",
   "homepage": "https://github.com/lakshmanturlapati/FSB",
@@ -13,10 +13,10 @@
   },
   "scripts": {
     "build": "echo \"Chrome extension - no build required\"",
-    "test": "node tests/test-agent-scheduler-cron.js && node tests/test-overlay-state.js && node tests/cost-tracker-ordering.test.js && node tests/runtime-contracts.test.js && node tests/dashboard-runtime-state.test.js && node tests/dashboard-analytics-refresh.test.js && node tests/task-router.test.js && node tests/agent-manager-start-mode.test.js && npm --prefix mcp-server run build && node tests/mcp-restricted-tab.test.js && node tests/turn-result.test.js && node tests/action-history.test.js && node tests/cost-tracker.test.js && node tests/transcript-store.test.js && node tests/hook-pipeline.test.js && node tests/session-schema.test.js && node tests/state-emitter.test.js",
+    "test": "echo \"Tests not implemented yet\" && exit 1",
     "lint": "echo \"Linting not configured yet\"",
     "clean": "rm -f config/dev-settings.json",
-    "package": "zip -r fsb-v0.9.20.zip . -x '*.git*' 'node_modules/*' 'config/dev-*'"
+    "package": "zip -r fsb-v0.9.30.zip . -x '*.git*' 'node_modules/*' 'config/dev-*'"
   },
   "keywords": [
     "chrome-extension",
@@ -52,7 +52,7 @@
       "url": "https://github.com/lakshmanturlapati"
     }
   ],
-  "license": "BUSL-1.1",
+  "license": "MIT",
   "engines": {
     "node": ">=16.0.0",
     "chrome": ">=88.0.0"
@@ -100,7 +100,7 @@
     {
       "description": "Version",
       "href": "https://github.com/lakshmanturlapati/FSB/releases",
-      "url": "https://img.shields.io/badge/version-0.9.20-blue.svg"
+      "url": "https://img.shields.io/badge/version-0.9.30-blue.svg"
     },
     {
       "description": "License",

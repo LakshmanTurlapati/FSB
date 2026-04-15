@@ -52,7 +52,7 @@ FSB uses two local endpoints with different roles:
 | `ws://localhost:7225` | Existing extension bridge. The browser extension connects here. |
 | `http://127.0.0.1:7226/mcp` | Optional local Streamable HTTP MCP endpoint for MCP clients. |
 
-The extension pairing contract did **not** change in `0.4.0`. The new HTTP server is only an additional MCP client entrypoint.
+The extension pairing contract did **not** change in `0.5.0`. The new HTTP server is only an additional MCP client entrypoint.
 
 ### Claude Desktop
 
@@ -118,22 +118,49 @@ Health check:
 http://127.0.0.1:7226/health
 ```
 
-### Install Helpers
+### One-Command Install (New)
 
-The server now includes setup and diagnostics helpers:
+Auto-configure FSB in any supported MCP client:
 
 ```bash
-npx -y fsb-mcp-server setup
-npx -y fsb-mcp-server status
-npx -y fsb-mcp-server doctor
-npx -y fsb-mcp-server wait-for-extension
+npx -y fsb-mcp-server install --claude-desktop
+npx -y fsb-mcp-server install --cursor
+npx -y fsb-mcp-server install --vscode
+npx -y fsb-mcp-server install --windsurf
+npx -y fsb-mcp-server install --cline
+npx -y fsb-mcp-server install --zed
+npx -y fsb-mcp-server install --gemini
+npx -y fsb-mcp-server install --claude-code
+npx -y fsb-mcp-server install --codex
+npx -y fsb-mcp-server install --continue
 ```
 
-### New In `0.4.0`
+Install to all detected platforms at once:
 
-- Added local Streamable HTTP mode for MCP clients that prefer URL-based local servers
-- Added built-in install and health helpers: `setup`, `status`, `doctor`, `wait-for-extension`
-- Kept the browser extension bridge unchanged on `ws://localhost:7225`
+```bash
+npx -y fsb-mcp-server install --all
+```
+
+Preview what would change without writing:
+
+```bash
+npx -y fsb-mcp-server install --all --dry-run
+```
+
+Remove FSB from a platform:
+
+```bash
+npx -y fsb-mcp-server uninstall --cursor
+```
+
+### Helpers
+
+```bash
+npx -y fsb-mcp-server setup              # Print manual install snippets
+npx -y fsb-mcp-server status             # Show bridge and extension status
+npx -y fsb-mcp-server doctor             # Run install diagnostics
+npx -y fsb-mcp-server wait-for-extension # Wait for extension to connect
+```
 
 ---
 

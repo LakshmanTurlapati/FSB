@@ -1,155 +1,427 @@
-# Feature Landscape: Progress Overlay Refinement
+# Feature Research: MCP Platform Install Flags
 
-**Domain:** Browser automation progress feedback UX
-**Researched:** 2026-04-11
-**Context:** FSB v0.9.26 -- refining existing progress overlay to show clean, user-facing information instead of developer debug noise
+**Domain:** MCP server auto-configuration CLI
+**Researched:** 2026-04-15
+**Confidence:** HIGH
 
-## Table Stakes
+## Feature Landscape
 
-Features users expect from any tool that performs multi-step automation on their behalf. Missing any of these makes the overlay feel broken or untrustworthy.
+### Table Stakes (Users Expect These)
+
+Features users assume exist. Missing these = product feels incomplete.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Current action in plain English** | Every shipping automation tool (Operator, Mariner, ChatGPT Agent) shows what the agent is doing right now in human-readable text. Users need to know the system is not frozen. | Low | FSB already has `display.detail` from `buildOverlayDisplay`. The issue is that some messages still leak developer-facing language. Ensure all statusText values are user-readable sentences like "Clicking the search button" not "click [ref=42]". |
-| **Animated activity indicator** | Users need visual proof the system is actively working, not hung. NN/g research: users tolerate 3x longer waits when animated feedback is present. | Low | FSB already has the indeterminate progress bar sweep animation and the viewport glow. Both are implemented and working. No change needed beyond switching the progress fill to `scaleX` transform for GPU compositing. |
-| **Task name / what was asked** | Users need a reminder of what they asked for, especially on tasks that take 30+ seconds. Operator, Mariner, and ChatGPT Agent all show the original request prominently. | Low | FSB already shows `display.title` with the task name. Keep this. |
-| **Phase/state label** | A single word or short phrase indicating the current phase: "Planning", "Acting", "Writing", "Recovering". Every automation tool uses some form of state badge. Operator uses "Watch mode" / "Takeover mode". Mariner shows "Active" / "Paused". | Low | FSB already has `humanizeOverlayPhase()` producing clean labels. The 300ms debounce prevents flicker. Keep as-is. |
-| **Elapsed time display** | How long the task has been running. For tasks taking 10+ seconds (which is most FSB tasks), this sets expectations and provides a sense of progress. ChatGPT Deep Research shows a timer. Users universally understand time, unlike tokens or iterations. | Low | Not currently shown in the overlay. Add via `performance.now()` or `Date.now()` delta from `session.startTime`. Display as "12s" or "1m 30s" in the meta row. Use `font-variant-numeric: tabular-nums` to prevent layout jitter as digits change. Update only when displayed second changes. |
-| **Clean completion state** | Clear visual signal when the task finishes -- success, failure, or stopped. Users should not have to guess whether automation is still running. | Low | FSB already handles this with `lifecycle: 'final'` and `result: 'success'/'error'/'stopped'`. Add final elapsed time freeze and action count to the completion display. |
+| **Platform flag per target** (`--claude-desktop`, `--cursor`, etc.) | Every auto-install tool (add-mcp, install-mcp) uses per-platform targeting. Users expect to name the platform they want. | LOW | One flag per platform, dispatch to platform-specific handler. The existing `setup` command already enumerates platforms. |
+| **Safe config merging (read-modify-write)** | Users already have other MCP servers configured. Overwriting the file would destroy their setup. add-mcp and install-mcp both merge into existing config. | MEDIUM | Must parse existing JSON/TOML/YAML, insert/update `fsb` key under the servers object, write back. Preserve formatting where feasible (JSON.stringify with indent 2 is standard). |
+| **Cross-OS path resolution** | MCP config files live in different locations per OS (macOS `~/Library/Application Support/`, Windows `%APPDATA%\`, Linux `~/.config/`). All auto-install tools resolve platform-specific paths. | MEDIUM | Need OS detection (`process.platform`) and path expansion. Windows needs `%APPDATA%` / `%USERPROFILE%` env var expansion. |
+| **Confirmation before write** | Users expect to see what will happen before their config files are modified. add-mcp prompts by default, offers `-y` to skip. | LOW | Print the file path, show the entry being added, ask Y/n. Trivial readline prompt. |
+| **Idempotent install** | Running install twice should not duplicate entries or corrupt config. | LOW | Check if `fsb` key already exists; if so, update in place or skip with message. |
+| **Success/failure feedback** | User needs to know if it worked, what file was written, and what to do next. | LOW | Print path written, next steps (restart client, verify with `status`/`doctor`). |
+| **Windows command wrapping** | On Windows, `npx` must be invoked via `cmd /c npx` in some clients. The existing `setup` command already handles this distinction. | LOW | Windows detection already exists in the codebase (`printSetup` shows `['cmd', '/c', 'npx', '-y', 'fsb-mcp-server']`). Apply per-platform. |
+| **Error on missing config directory** | If the platform is not installed (e.g., `~/.cursor` does not exist), fail gracefully with a clear message rather than silently creating directories. | LOW | `fs.existsSync` check before write. |
 
-## Differentiators
+### Differentiators (Competitive Advantage)
 
-Features that set FSB apart from competitors. Not strictly expected, but valued when present.
+Features that set the product apart. Not required, but valuable.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Actions completed counter** | Shows tangible progress as a number. More concrete than a phase label. "7 actions" tells users the system has been productive, not spinning its wheels. Playwright UI Mode uses a similar step counter. Format: "7 actions" not "Actions: 7". | Low | Count completed tool calls from `session.actionHistory` or a simple counter incremented per tool execution. Display with `tabular-nums` in the meta row next to elapsed time. |
-| **Determinate progress bar for structured tasks** | Multi-site search (3/5 companies) and Sheets writing (12/20 rows) already have determinate progress. This is a genuine differentiator -- most AI browser agents only show indeterminate spinners. | Low | Already implemented via `computeMultiSiteProgress` and `computeSheetsProgress` in overlay-state.js. Keep and polish. Switch from `width` to `scaleX(n)` with `transform-origin: left` for GPU-composited animation. |
-| **Contextual progress bands** | Phase-weighted bands (navigation 0-30%, extraction 30-70%, writing 70-100%) provide more meaningful progress than linear iteration counting. Users see the bar move in proportion to actual task advancement. | Low | Already implemented in FSB v0.9.5. Keep -- this is a genuine differentiator over indeterminate-only competitors. |
-| **AI-generated action summaries** | Instead of "click [ref=42]", show "Clicking the Add to Cart button". Natural language descriptions of what the agent is doing feel transparent and trustworthy, similar to ChatGPT Agent's line-by-line narration. | Low | Already implemented via fire-and-forget `generateActionSummary` with 2.5s timeout and cache. The mechanism exists but needs enforcement: ensure every overlay update uses the summarized text, never raw tool call syntax. |
-| **Recovery state visibility** | When the agent gets stuck and recovers, showing "Recovering -- trying alternative approach" instead of silently retrying builds trust. Users know the system is intelligent, not blindly repeating. | Low | Already implemented -- `humanizeOverlayPhase('recovering')` returns "Recovering". Ensure the detail text explains the recovery strategy in plain English. |
-| **Smooth progress transitions** | Progress bar glides between values with easing instead of jumping. Feels responsive and alive. | Low | CSS `transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)` on the scaleX property. Already partially present via `transition: width 0.3s ease-out` but should move to transforms. |
-| **Reduced motion respect** | Users with vestibular disorders get static indicators instead of animations. | Low | Partially implemented via `@media (prefers-reduced-motion)`. Extend to cover all new transitions including elapsed time updates. |
+| **`--uninstall` flag** | Clean removal of FSB entry from config, preserving all other servers. install-mcp does NOT support uninstall. add-mcp supports it via a separate `remove` subcommand. Having it built into `npx fsb-mcp-server install --uninstall --cursor` is cleaner than requiring a separate tool. | MEDIUM | Parse config, remove `fsb` key, write back. Must handle "file has only fsb" edge case (leave valid empty config). |
+| **`--dry-run` flag** | Show exactly what would be written/changed without modifying anything. Neither add-mcp nor install-mcp offer dry-run. Builds trust for cautious users. | LOW | Same logic as install, but print diff instead of writing. Minimal extra code if install logic is factored properly. |
+| **Backup before write** | Create `.bak` copy of config file before modifying. add-mcp does NOT back up. 1mcp.app's uninstall docs mention "automatic backup creation." Builds trust. | LOW | `fs.copyFileSync(configPath, configPath + '.bak')` before write. One line of code. |
+| **`--all` flag** | Install to every detected platform at once. add-mcp supports `--all`. Saves time for power users who use multiple editors. | LOW | Iterate over all platform handlers, skip platforms whose config directory does not exist. Report summary. |
+| **Multi-format config support (JSON + TOML + YAML)** | Codex uses TOML (`~/.codex/config.toml`), Continue uses YAML (`.continue/mcpServers/*.yaml`). Supporting these formats means truly universal coverage. | HIGH | Need TOML parser/writer (e.g., `smol-toml`) and YAML parser/writer (e.g., `yaml`). Adds dependencies to the package. |
+| **Claude Code integration via `claude mcp add`** | Instead of writing a config file, shell out to `claude mcp add fsb -- npx -y fsb-mcp-server` for Claude Code. Uses the official API rather than poking at internal config files. | MEDIUM | Need to detect if `claude` CLI is available, exec the command, handle errors. Alternative: write to `~/.claude.json` directly (simpler but less official). |
+| **Cursor deeplink generation** | Generate and optionally open `cursor://anysphere.cursor-deeplink/mcp/install?name=fsb&config=...` URL. Already partially implemented in `buildCursorDeeplink()`. | LOW | Existing logic in codebase. Add `--open` to launch via `open` (macOS) / `xdg-open` (Linux) / `start` (Windows). |
 
-## Anti-Features
+### Anti-Features (Commonly Requested, Often Problematic)
 
-Features to explicitly NOT show in the user-facing progress overlay. These are the core of the v0.9.26 cleanup.
+Features that seem good but create problems.
 
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| **Iteration count (e.g., "Iteration 3/20")** | Meaningless to end users. "Iteration" is a developer concept. Users do not know or care that the agent loop runs in numbered iterations. Showing "3/20" creates false expectations about completion timing (iteration 3 is not 15% done). | Show action count ("7 actions") or phase-weighted progress bar. |
-| **Token counts (input/output/total)** | Pure developer/cost debugging metric. No end user knows what "12,847 tokens" means or why they should care. Adds visual noise and anxiety. Research shows token metrics are exclusively a developer/ops concern. | Remove entirely from overlay. Keep in options dashboard analytics for power users who want cost tracking. |
-| **Cost information ($0.0043)** | Showing cost per interaction creates anxiety and cheapens the experience. Users already paid for the API key -- showing micro-costs per action is like a taxi meter that makes every second feel expensive. | Remove entirely from overlay. Surface in session history and analytics dashboard only. |
-| **Max iterations** | The denominator in "3/20" is an internal safety limit, not a task progress measure. Showing it implies the task will take exactly 20 steps, which is almost never true. | Remove. Use phase-weighted progress or action count instead. |
-| **Model name / provider** | Users do not care that "grok-4-1-fast" is processing their request. This is configuration noise. | Remove from overlay. Visible in options/settings only. |
-| **DOM hash / technical state** | Internal stuck detection data has zero user value. | Never expose in overlay (already not shown, but ensure it stays that way). |
-| **Raw tool call syntax** | "click [ref=42]" or "type [ref=17] 'hello'" is developer debug output. | Always use AI-generated summaries or at minimum human-readable descriptions: "Clicking the search button", "Typing 'hello' in the text field". |
-| **Error stack traces** | Technical error details belong in logs, not user-facing UI. | Show "Something went wrong -- retrying" or "Task stopped due to an error". Full error details in the automation logger for debugging. |
-| **ETA countdown** | AI automation step duration is fundamentally unpredictable. "Estimated: 47 seconds remaining" that jumps to "2 minutes" destroys trust faster than no ETA. NN/g research: "Provide general time estimates rather than precise ones. Pleasant surprises (finishing early) maintain trust better than disappointing delays." | Show elapsed time only. Let users form their own expectations. If ETA is ever re-added, use ranges ("about 30 seconds") or qualitative labels ("almost done"), never precise seconds. |
-| **Cancel button in overlay** | Would require pointer-events, click handlers, and message passing from content script to background. Increases overlay surface area and risk of accidental interaction interfering with automation. | Cancel is already available in the popup and sidepanel UIs. The overlay is read-only by design. |
-| **Action history scroll** | Showing a scrollable list of past actions in the overlay adds complexity and visual noise. The overlay is a status display, not a log viewer. | Show only the most recent action. History is in the sidepanel chat. |
-| **Expandable detail panel** | Adding click-to-expand sections makes the overlay interactive, which conflicts with `pointer-events: none` and the non-blocking design principle. | Keep the overlay read-only and minimal. Detailed logs belong in the sidepanel or dashboard. |
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| **Interactive TUI with multi-select menu** | add-mcp uses interactive multi-select for platform targeting. Looks polished. | Adds dependency on `inquirer` or `prompts`. Breaks non-interactive CI environments. The tool runs via `npx` so startup time matters -- TUI libraries are heavy. FSB is a single-server installer, not a multi-server manager. | Simple Y/n readline prompt for confirmation. Platform specified via explicit flags, not menus. |
+| **Auto-detect all installed editors** | add-mcp scans the filesystem for installed editors. Seems convenient. | Fragile heuristic (checking for directories like `~/.cursor` does not mean Cursor is actually installed). Creates false positives. For a single-server install command, the user knows which editor they want. | Let the user specify the target explicitly. `--all` flag covers the "install everywhere" case with directory existence as guard. |
+| **Registry/marketplace integration** | Smithery, MCP Market, and similar registries offer discovery. | FSB is a specific product, not a registry. Users install FSB from npm, not from a marketplace search. Adding registry metadata adds complexity for zero user benefit. | Good npm README with install instructions is sufficient. |
+| **Desktop Extension (.mcpb) packaging** | Claude Desktop now supports one-click `.mcpb` installs with bundled Node.js runtime. | Separate distribution channel with its own packaging toolchain. Requires bundling Node.js runtime. Orthogonal to the CLI install flags feature. Worth doing eventually, but as a separate milestone. | Defer to future milestone. CLI install flags cover the JSON config path that `.mcpb` would replace. |
+| **Environment variable injection** | Some MCP servers need API keys injected via env vars. add-mcp supports `--env KEY=VALUE`. | FSB does not need any environment variables or API keys in its MCP config. Adding env var support is dead feature weight. | Omit. If needed later, trivial to add `--env KEY=VALUE` flag. |
+| **Project-scoped install** | Some platforms (Cursor, VS Code, Claude Code) support project-scoped `.mcp.json` / `.cursor/mcp.json`. | FSB is a browser automation bridge -- it is inherently user-global, not project-scoped. Installing per-project creates confusion and maintenance burden. | Always install to user/global scope. Document project-scope as manual option in `setup` output. |
 
 ## Feature Dependencies
 
 ```
-Shadow DOM isolation (existing) --> all overlay features
-  |
-  +--> scaleX progress bar (CSS-only, no dependency)
-  |
-  +--> Elapsed timer (requires session.startTime from agent loop)
-  |
-  +--> Action counter (requires action count from agent loop)
-  |
-  +--> AI summaries (existing) --> clean detail text
-  |
-  +--> Phase-weighted progress (existing) --> determinate bar
-  |
-  +--> Completion state freeze --> lifecycle === 'final' detection (existing)
+[Config path resolution per platform]
+    +--requires--> [OS detection (process.platform)]
+    +--requires--> [Home directory expansion]
 
-Strip developer noise --> Clean action summaries (summaries depend on knowing what noise was removed)
+[Safe config merging]
+    +--requires--> [Config path resolution]
+    +--requires--> [JSON parser (built-in)]
+    +--requires--> [TOML parser (Codex only)]
+    +--requires--> [YAML parser (Continue only)]
+
+[Install command]
+    +--requires--> [Config path resolution]
+    +--requires--> [Safe config merging]
+    +--requires--> [Confirmation prompt]
+    +--enhances--> [Backup before write]
+    +--enhances--> [Dry-run mode]
+
+[Uninstall command]
+    +--requires--> [Config path resolution]
+    +--requires--> [Safe config merging (remove key)]
+    +--requires--> [Confirmation prompt]
+    +--enhances--> [Backup before write]
+
+[--all flag]
+    +--requires--> [Install command]
+    +--requires--> [Config path resolution for every platform]
+
+[Claude Code integration]
+    +--conflicts--> [Config file writing for Claude Code]
+    (Use claude mcp add, not file write)
+
+[Cursor deeplink]
+    +--enhances--> [Install command --cursor]
+    (Alternative install path, not primary)
 ```
 
-Key: No feature in this plan requires new infrastructure. Everything builds on the existing overlay-state.js + visual-feedback.js + agent-loop.js pipeline.
+### Dependency Notes
 
-## Information Hierarchy (What the Overlay Should Show)
+- **Install requires config path resolution:** Cannot write config without knowing where it is.
+- **Safe merging requires parsers:** JSON is built-in. TOML (Codex) and YAML (Continue) need external packages -- these are the only platforms requiring non-JSON formats.
+- **Uninstall shares all install infrastructure:** Same path resolution, same merge logic (remove instead of add), same backup and confirmation UX.
+- **Claude Code conflicts with file writing:** Claude Code's official method is `claude mcp add`, not manual file editing. Using the CLI command is preferable; fallback to writing `~/.claude.json` only if `claude` binary is not found.
 
-Based on research across Project Mariner, OpenAI Operator, ChatGPT Agent, SAP Fiori AI guidelines, and NN/g progress indicator research, the optimal information hierarchy for FSB's overlay:
+## MVP Definition
 
-### Always visible (the overlay surface)
-1. **FSB branding** -- logo + "FSB Automating" (establishes identity, already present)
-2. **Task name** -- what the user asked for (primary text, `display.title`)
-3. **Current action in plain English** -- what the agent is doing right now (secondary text, `display.detail`, updates frequently)
-4. **Phase badge** -- "Planning" / "Acting" / "Writing" / "Recovering" (small pill, `humanizeOverlayPhase`)
-5. **Progress bar** -- determinate when phase-calculable, indeterminate sweep otherwise
-6. **Meta row** -- elapsed time (left) + action count (right)
+### Launch With (v1 -- this milestone)
 
-### Never visible in overlay
-- Iteration counts, token counts, cost, model name, max iterations, DOM hash, raw tool syntax, error stack traces
+- [ ] `install` subcommand added to CLI parser -- new command alongside `stdio`, `serve`, `setup`, etc.
+- [ ] Platform flags: `--claude-desktop`, `--cursor`, `--vscode`, `--windsurf`, `--claude-code`, `--cline`, `--zed` -- covers all JSON-config platforms plus Claude Code CLI delegation
+- [ ] Cross-OS path resolution for all JSON-format platforms (macOS, Windows, Linux)
+- [ ] Safe config merging: read existing JSON, add/update `fsb` entry under correct key (`mcpServers` / `servers` / `context_servers`), write back with 2-space indent
+- [ ] Confirmation prompt before write (Y/n), skippable with `--yes` or `-y`
+- [ ] Backup before write (`.bak` file)
+- [ ] Idempotent: detect existing `fsb` entry, update or skip
+- [ ] `--uninstall` flag to remove FSB entry
+- [ ] Success/failure output with next steps
+- [ ] Error handling for missing platform directories
 
-### Visible elsewhere (options dashboard, session history)
-- Token usage, cost per session, model used, iteration breakdown, full error logs, ETA experiments
+### Add After Validation (v1.x)
 
-## Design Patterns from Best-in-Class Products
+- [ ] `--dry-run` flag -- print what would change without writing. Add once core install is solid.
+- [ ] `--all` flag -- install to every detected platform. Add once individual platform handlers are tested.
+- [ ] Codex TOML support (`--codex`) -- requires TOML parser dependency. Defer to avoid blocking launch on dependency decisions.
+- [ ] Gemini CLI support (`--gemini-cli`) -- JSON format, straightforward, but lower priority platform.
+- [ ] Continue support (`--continue`) -- YAML format, requires yaml dependency.
+- [ ] Cursor deeplink auto-open (`--cursor --open-deeplink`) -- nice-to-have alternative to config file writing.
 
-### Pattern 1: Narrated Action Stream (ChatGPT Agent, Operator)
-Both ChatGPT Agent and OpenAI Operator show a line-by-line narration of what the agent is doing. ChatGPT Agent displays this in an "activity panel" with scrolling text showing which pages are being opened and what actions are being taken. Operator shows numbered steps (001, 002, 003...) with action descriptions. Users can "watch as the agent browses autonomously and monitor its progress in the activity panel."
+### Future Consideration (v2+)
 
-**FSB adaptation:** The overlay is compact (320px floating card), not a full panel, so a scrolling log is inappropriate. Instead, show only the LATEST action as the detail line, updating it each time a new tool executes. The action count in the meta row provides the cumulative narrative.
+- [ ] Desktop Extension (.mcpb) packaging -- separate distribution format, separate milestone
+- [ ] Interactive TUI mode -- only if user feedback demands it
+- [ ] Project-scoped install -- only if use cases emerge for per-project FSB config
 
-### Pattern 2: Phase State Machine (Project Mariner, SAP Fiori)
-Mariner uses discrete states: Active, Paused, Take Over, Completed. SAP Fiori AI progress indicator uses an AI icon with looped animation, text message with status, animated gradient bar, and a stop button. Users see a clear state label plus an animated indicator appropriate to the state.
+## Feature Prioritization Matrix
 
-**FSB adaptation:** Already implemented with `humanizeOverlayPhase()`. The existing states (Planning, Analyzing, Acting, Writing, Recovering, Complete, Error) map well. No change needed.
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| `install --claude-desktop` | HIGH | LOW | P1 |
+| `install --cursor` | HIGH | LOW | P1 |
+| `install --vscode` | HIGH | LOW | P1 |
+| `install --claude-code` | HIGH | MEDIUM | P1 |
+| `install --windsurf` | MEDIUM | LOW | P1 |
+| `install --cline` | MEDIUM | LOW | P1 |
+| `install --zed` | MEDIUM | LOW | P1 |
+| Safe config merging (JSON) | HIGH | MEDIUM | P1 |
+| Cross-OS path resolution | HIGH | MEDIUM | P1 |
+| Confirmation prompt | HIGH | LOW | P1 |
+| Backup before write | MEDIUM | LOW | P1 |
+| `--uninstall` | MEDIUM | LOW | P1 |
+| Idempotent install | HIGH | LOW | P1 |
+| `--dry-run` | MEDIUM | LOW | P2 |
+| `--all` | MEDIUM | LOW | P2 |
+| `install --codex` (TOML) | LOW | HIGH | P2 |
+| `install --gemini-cli` | LOW | LOW | P2 |
+| `install --continue` (YAML) | LOW | HIGH | P2 |
+| Cursor deeplink auto-open | LOW | LOW | P3 |
+| Desktop Extension (.mcpb) | LOW | HIGH | P3 |
 
-### Pattern 3: Progressive Disclosure (Vercel AI SDK Task Component)
-The Task component uses collapsible sections: a summary trigger header with visual icons for pending/in-progress/completed/error states. Expandable content reveals individual task items. Counter displays completed tasks relative to total.
+**Priority key:**
+- P1: Must have for this milestone
+- P2: Should have, add when possible (next iteration)
+- P3: Nice to have, future consideration
 
-**FSB adaptation:** The overlay is already compact and non-expandable by design (it floats over the user's page). Progressive disclosure is handled by keeping detailed metrics in the sidepanel/dashboard, not the overlay. The overlay IS the collapsed view.
+## Competitor Feature Analysis
 
-### Pattern 4: Background Operation Pattern (Smart Interface Design Patterns)
-"For long processes, collapse the task into a background state so the user isn't blocked from using the rest of the application." The overlay should not demand attention -- it should be glanceable.
+### Existing MCP Auto-Install Tools
 
-**FSB adaptation:** The overlay is already non-blocking (pointer-events: none, positioned in top-right corner). It competes with page content minimally. The 320px width and dark theme with low opacity borders keep it unobtrusive.
+| Feature | add-mcp (Neon) | install-mcp (Supermemory) | FSB install (our plan) |
+|---------|----------------|---------------------------|------------------------|
+| **Platforms** | 13 agents | 18 clients | 7-10 platforms (focused on popular ones) |
+| **Install** | Yes, per-agent flags | Yes, `--client` flag | Yes, `--<platform>` flags |
+| **Uninstall** | Yes (`remove` subcommand) | No | Yes (`--uninstall --<platform>`) |
+| **Dry-run** | No | No | Yes (`--dry-run`) |
+| **Backup** | No | No | Yes (`.bak` file) |
+| **Confirmation** | Yes (interactive, skippable with `-y`) | No | Yes (Y/n, skippable with `-y`) |
+| **Config merge** | Writes to agent-specific files | Direct config modification | Read-modify-write with preservation |
+| **Auto-detect** | Scans for installed agents | No | No (explicit platform flags) |
+| **Multi-server** | Yes (general purpose) | Yes (general purpose) | No (FSB only -- simpler, faster) |
+| **TOML/YAML** | Unknown | Unknown | Deferred (JSON first, TOML/YAML in P2) |
+| **Claude Code** | Writes config file | Writes config file | Shells out to `claude mcp add` (official method) |
+| **Interactive TUI** | Multi-select menu | No | No (flags + Y/n prompt) |
 
-### Pattern 5: Pacing Strategy (NN/g Research)
-"Start progress animation slowly, accelerating toward completion -- this prevents setting faster expectations than the system can maintain." Also: animated progress bars make users willing to wait 3x longer than no indicator.
+### Key Differentiation
 
-**FSB adaptation:** The phase-weighted bands already implement a form of pacing (navigation is 0-30%, extraction 30-70%, writing 70-100%). The scaleX transition with cubic-bezier easing will make bar movement feel smooth and natural.
+add-mcp and install-mcp are **general-purpose multi-server installers**. FSB's `install` command is a **single-purpose, zero-config installer for FSB specifically**. This means:
 
-## MVP Recommendation for v0.9.26
+1. **Faster** -- no registry queries, no server selection, no dependency resolution
+2. **Safer** -- backup before write, dry-run option, confirmation prompt
+3. **Simpler** -- one command does one thing (`npx fsb-mcp-server install --cursor`)
+4. **Reversible** -- built-in `--uninstall` with the same flags
 
-### Must ship (table stakes fixes):
-1. **Strip developer noise** -- remove iteration count, token count, cost, max iterations from overlay payload and rendering
-2. **Fix progress bar animation** -- switch from `width` to `scaleX` for GPU compositing, add proper easing
-3. **Add elapsed time** -- `tabular-nums` in meta row, freeze on completion
-4. **Add actions completed counter** -- "N actions" in meta row, `tabular-nums`
-5. **Ensure all action text is human-readable** -- no raw tool call syntax ever reaches the overlay
+## Expected UX Flows
 
-### Should ship (differentiators that are low-cost):
-6. **Verify AI summary pipeline** -- ensure `generateActionSummary` output is actually used for every overlay update
-7. **Clean completion state** -- freeze elapsed time and show final action count on task end
-8. **Extend reduced motion support** -- cover all new transitions in `@media (prefers-reduced-motion)`
+### Install (normal)
 
-### Defer to future milestone:
-- ETA display (accuracy issues; elapsed time is strictly better for now)
-- Cancel/stop button in overlay (available in popup/sidepanel; adding to overlay increases interaction surface complexity)
-- Expandable overlay or action history scroll (adds complexity, low value -- detailed info belongs in sidepanel)
-- Overlay position customization (top-right works universally)
-- Sound notification on completion (preference-dependent, needs settings UI)
-- Theming/color customization (not needed until user requests emerge)
+```
+$ npx fsb-mcp-server install --cursor
+
+FSB MCP Server v0.4.x
+
+Target: Cursor (global)
+Config: /Users/you/.cursor/mcp.json
+Action: Add "fsb" to mcpServers
+
+  {
+    "fsb": {
+      "command": "npx",
+      "args": ["-y", "fsb-mcp-server"]
+    }
+  }
+
+Proceed? [Y/n] y
+
+Backed up: /Users/you/.cursor/mcp.json.bak
+Written:   /Users/you/.cursor/mcp.json
+
+Done. Restart Cursor to activate the FSB MCP server.
+Run `npx fsb-mcp-server doctor` to verify the connection.
+```
+
+### Install (already exists)
+
+```
+$ npx fsb-mcp-server install --cursor
+
+FSB MCP Server v0.4.x
+
+Target: Cursor (global)
+Config: /Users/you/.cursor/mcp.json
+
+FSB is already configured in this file. No changes needed.
+```
+
+### Install (config file does not exist yet)
+
+```
+$ npx fsb-mcp-server install --cursor
+
+FSB MCP Server v0.4.x
+
+Target: Cursor (global)
+Config: /Users/you/.cursor/mcp.json (will be created)
+Action: Create file with "fsb" in mcpServers
+
+  {
+    "mcpServers": {
+      "fsb": {
+        "command": "npx",
+        "args": ["-y", "fsb-mcp-server"]
+      }
+    }
+  }
+
+Proceed? [Y/n] y
+
+Created: /Users/you/.cursor/mcp.json
+
+Done. Restart Cursor to activate the FSB MCP server.
+```
+
+### Install (platform not found)
+
+```
+$ npx fsb-mcp-server install --cursor
+
+FSB MCP Server v0.4.x
+
+Error: Cursor does not appear to be installed.
+Expected config directory: /Users/you/.cursor
+Tip: If Cursor is installed elsewhere, use `fsb-mcp-server setup` for manual instructions.
+```
+
+### Uninstall
+
+```
+$ npx fsb-mcp-server install --uninstall --cursor
+
+FSB MCP Server v0.4.x
+
+Target: Cursor (global)
+Config: /Users/you/.cursor/mcp.json
+Action: Remove "fsb" from mcpServers
+
+Proceed? [Y/n] y
+
+Backed up: /Users/you/.cursor/mcp.json.bak
+Written:   /Users/you/.cursor/mcp.json
+
+Done. FSB removed from Cursor. Restart Cursor to apply.
+```
+
+### Claude Code (CLI delegation)
+
+```
+$ npx fsb-mcp-server install --claude-code
+
+FSB MCP Server v0.4.x
+
+Target: Claude Code
+Action: Run `claude mcp add fsb -- npx -y fsb-mcp-server`
+
+Proceed? [Y/n] y
+
+Running: claude mcp add fsb -- npx -y fsb-mcp-server
+Added fsb to Claude Code.
+
+Done. The FSB MCP server is now available in Claude Code.
+```
+
+### Dry-run (P2)
+
+```
+$ npx fsb-mcp-server install --cursor --dry-run
+
+FSB MCP Server v0.4.x [DRY RUN]
+
+Target: Cursor (global)
+Config: /Users/you/.cursor/mcp.json
+Action: Would add "fsb" to mcpServers (no files modified)
+
+  {
+    "fsb": {
+      "command": "npx",
+      "args": ["-y", "fsb-mcp-server"]
+    }
+  }
+
+No changes made.
+```
+
+### Non-interactive
+
+```
+$ npx fsb-mcp-server install --cursor -y
+
+FSB MCP Server v0.4.x
+
+Backed up: /Users/you/.cursor/mcp.json.bak
+Written:   /Users/you/.cursor/mcp.json
+
+Done. Restart Cursor to activate the FSB MCP server.
+```
+
+## Platform Config Reference
+
+Consolidated from research. This is the implementation reference for path resolution and config format per platform.
+
+| Platform | Config Path (macOS) | Config Path (Windows) | Config Path (Linux) | Root Key | Format |
+|----------|--------------------|-----------------------|--------------------|----------|--------|
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` | `%APPDATA%\Claude\claude_desktop_config.json` | `~/.config/Claude/claude_desktop_config.json` | `mcpServers` | JSON |
+| Cursor | `~/.cursor/mcp.json` | `~/.cursor/mcp.json` | `~/.cursor/mcp.json` | `mcpServers` | JSON |
+| VS Code | `~/.vscode/mcp.json` (user-global) | `~/.vscode/mcp.json` | `~/.vscode/mcp.json` | `servers` | JSON |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` | JSON |
+| Cline | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | `%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json` | `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | `mcpServers` | JSON |
+| Zed | `~/.config/zed/settings.json` | `%APPDATA%\Zed\settings.json` | `~/.config/zed/settings.json` | `context_servers` | JSON |
+| Claude Code | N/A (uses `claude mcp add`) | N/A | N/A | N/A | CLI |
+| Codex | `~/.codex/config.toml` | `~/.codex/config.toml` | `~/.codex/config.toml` | `mcp_servers` | TOML |
+| Gemini CLI | `~/.gemini/settings.json` | `~/.gemini/settings.json` | `~/.gemini/settings.json` | `mcpServers` | JSON |
+| Continue | `~/.continue/config.yaml` | same | same | `mcpServers` (array) | YAML |
+
+### Config Entry Shape per Platform
+
+**Most platforms (Claude Desktop, Cursor, Windsurf, Cline, Gemini CLI):**
+```json
+{ "mcpServers": { "fsb": { "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
+
+**VS Code (note: root key is `servers`, not `mcpServers`):**
+```json
+{ "servers": { "fsb": { "type": "stdio", "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
+
+**Zed (note: root key is `context_servers`):**
+```json
+{ "context_servers": { "fsb": { "command": "npx", "args": ["-y", "fsb-mcp-server"] } } }
+```
+
+**Codex (TOML, note: key is `mcp_servers` with underscore):**
+```toml
+[mcp_servers.fsb]
+command = "npx"
+args = ["-y", "fsb-mcp-server"]
+```
+
+**Continue (YAML, note: array-based, not object-based):**
+```yaml
+mcpServers:
+  - name: fsb
+    command: npx
+    args:
+      - "-y"
+      - "fsb-mcp-server"
+```
+
+**Windows variant for JSON platforms (Claude Desktop, Cursor, Windsurf, Cline):**
+```json
+{ "command": "cmd", "args": ["/c", "npx", "-y", "fsb-mcp-server"] }
+```
+
+### Format Complexity by Platform
+
+| Platform | Why Easy | Why Hard |
+|----------|----------|----------|
+| Claude Desktop | Standard mcpServers JSON | Three different OS paths |
+| Cursor | Standard mcpServers JSON, single path across OSes | None |
+| VS Code | JSON format | Different root key (`servers`), needs `type: "stdio"` field |
+| Windsurf | Standard mcpServers JSON | Two different path patterns (macOS/Linux vs Windows) |
+| Cline | Standard mcpServers JSON | Very long path with VS Code extension globalStorage |
+| Zed | JSON format | Different root key (`context_servers`), config is full settings.json (must merge carefully into existing Zed settings) |
+| Claude Code | No config file to manage | Requires `claude` CLI to be installed and in PATH |
+| Codex | Simple structure | TOML format requires parser dependency |
+| Gemini CLI | Standard mcpServers JSON | Lower adoption, fewer users |
+| Continue | Supports JSON import | Primary format is YAML (array-based, not object-based) |
 
 ## Sources
 
-- [NN/g: Progress Indicators Make a Slow System Less Insufferable](https://www.nngroup.com/articles/progress-indicators/) -- HIGH confidence, authoritative UX research. Key finding: users wait 3x longer with animated progress bars, percent-done indicators are most informative for 10+ second operations.
-- [Smart Interface Design Patterns: Designing Better Loading and Progress UX](https://smart-interface-design-patterns.com/articles/designing-better-loading-progress-ux/) -- HIGH confidence. Key finding: use background operation patterns for long tasks, start progress slowly and accelerate.
-- [SAP Fiori AI Progress Indicator](https://www.sap.com/design-system/fiori-design-web/v1-136/ui-elements/ai-progress-indicator/usage) -- HIGH confidence, enterprise design system. Key components: AI icon with looped animation, text message for status, animated gradient bar, stop generating button.
-- [OpenAI: Introducing Operator](https://openai.com/index/introducing-operator/) -- MEDIUM confidence. Key pattern: numbered step display, pause/stop/takeover controls, Watch mode and Takeover mode states.
-- [Google Project Mariner](https://support.google.com/labs/answer/16270604) -- MEDIUM confidence. Key pattern: Chrome sidebar with live view, playback of steps, user can intervene or take over.
-- [ChatGPT Agent](https://help.openai.com/en/articles/11752874-chatgpt-agent) -- MEDIUM confidence. Key pattern: activity panel with line-by-line narration, real-time visibility into pages visited and actions taken, mobile notification on completion.
-- [Vercel AI SDK Task Component](https://elements.ai-sdk.dev/components/task) -- MEDIUM confidence. Key pattern: collapsible trigger header, status icons (pending/in-progress/completed/error), progress counter.
-- [Mobbin: Progress Indicator UI Design](https://mobbin.com/glossary/progress-indicator) -- MEDIUM confidence, design pattern reference.
+- [add-mcp (Neon) -- npx add-mcp](https://github.com/neondatabase/add-mcp) -- 13-agent auto-installer with remove, sync, and registry search
+- [install-mcp (Supermemory)](https://github.com/supermemoryai/install-mcp) -- 18-client installer, no uninstall
+- [Anthropic Desktop Extensions](https://www.anthropic.com/engineering/desktop-extensions) -- .mcpb one-click install format
+- [Claude Code MCP docs](https://code.claude.com/docs/en/mcp) -- `claude mcp add` command reference
+- [Claude Desktop MCP setup](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop) -- config file paths
+- [VS Code MCP configuration reference](https://code.visualstudio.com/docs/copilot/reference/mcp-configuration) -- `servers` root key (not `mcpServers`)
+- [Windsurf Cascade MCP docs](https://docs.windsurf.com/windsurf/cascade/mcp) -- config path and format
+- [Zed MCP docs](https://zed.dev/docs/ai/mcp) -- `context_servers` root key
+- [Codex MCP config](https://developers.openai.com/codex/mcp) -- TOML format, `mcp_servers` key
+- [Codex configuration reference](https://developers.openai.com/codex/config-reference) -- full TOML schema
+- [Gemini CLI MCP docs](https://geminicli.com/docs/tools/mcp-server/) -- settings.json, `mcpServers` key
+- [Continue MCP docs](https://docs.continue.dev/customize/deep-dives/mcp) -- YAML format, array-based mcpServers
+- [Complete MCP config guide](https://mcpplaygroundonline.com/blog/complete-guide-mcp-config-files-claude-desktop-cursor-lovable) -- cross-platform path reference
+- [Cursor MCP install deeplinks](https://cursor.com/docs/context/mcp/install-links) -- deeplink URL format
 
 ---
-*Feature landscape for: FSB v0.9.26 Progress Overlay Refinement*
-*Researched: 2026-04-11*
+*Feature research for: MCP platform install flags (fsb-mcp-server v0.4.x)*
+*Researched: 2026-04-15*

@@ -1,26 +1,11 @@
-// Side Panel Script for FSB v0.9.20 - Persistent UI
+// Side Panel Script for FSB v0.9.30 - Persistent UI
 
 let currentSessionId = null;
 let conversationId = null;
-let activeConversationId = null;
-let historySessionId = null;
 let isRunning = false;
 let stopRequested = false;
 let isHistoryViewActive = false;
 let showSidepanelProgressEnabled = false;
-let lastRenderedTerminalSessionId = null;
-const DEFAULT_CHAT_INPUT_HEIGHT = 48;
-const MAX_CHAT_INPUT_HEIGHT = 120;
-const SIDEPANEL_PLACEHOLDERS = [
-  'Let\'s do everything...',
-  'Make this easier...',
-  'Automate the boring part...',
-  'Point me at the mess...',
-  'Give me the next move...',
-  'Let\'s make this disappear...'
-];
-let resetInputAnimationTimer = null;
-let currentPlaceholderIndex = 0;
 
 // Initialize or restore conversation ID for session continuity
 async function initConversationId() {
@@ -38,113 +23,21 @@ async function initConversationId() {
   }
 }
 
-async function restoreSidepanelThreadState() {
-  try {
-    const stored = await chrome.storage.session.get([
-      'fsbSidepanelActiveConversationId',
-      'fsbSidepanelHistorySessionId'
-    ]);
-    activeConversationId = stored.fsbSidepanelActiveConversationId || null;
-    historySessionId = stored.fsbSidepanelHistorySessionId || null;
-  } catch (e) {
-    activeConversationId = null;
-    historySessionId = null;
-  }
-}
-
-function persistSidepanelThreadState() {
-  chrome.storage.session.set({
-    fsbSidepanelActiveConversationId: activeConversationId || null,
-    fsbSidepanelHistorySessionId: historySessionId || null
-  }).catch(() => {});
-}
-
-function persistSidepanelConversationId() {
-  chrome.storage.session.set({ fsbSidepanelConversationId: conversationId }).catch(() => {});
-}
-
-function getSelectedConversationId() {
-  return activeConversationId || conversationId;
-}
-
 // DOM elements - adapted for side panel
 const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
-const micBtn = document.getElementById('micBtn');
+const stopBtn = document.getElementById('stopBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const chatMessages = document.getElementById('chatMessages');
 const historyBtn = document.getElementById('historyBtn');
 const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
-const footerVersion = document.getElementById('footerVersion');
-const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
-
-// Initialize speech-to-text
-const stt = new FSBSpeechToText(chatInput, micBtn, sendBtn);
 
 // Apply theme based on settings
-function getPreferredTheme() {
-  const savedTheme = localStorage.getItem('fsb-theme');
-  if (savedTheme === 'light' || savedTheme === 'dark') {
-    return savedTheme;
-  }
-  return systemThemeQuery?.matches ? 'dark' : 'light';
-}
-
 function applyTheme() {
-  document.documentElement.setAttribute('data-theme', getPreferredTheme());
-}
-
-function setUiState(state) {
-  document.body.dataset.uiState = state;
-}
-
-function setSidepanelView(view) {
-  document.body.dataset.sidepanelView = view;
-}
-
-function syncFooterVersion() {
-  if (!footerVersion || !chrome?.runtime?.getManifest) return;
-  footerVersion.textContent = `v${chrome.runtime.getManifest().version}`;
-}
-
-function isChatInputEmpty() {
-  return chatInput.textContent.trim().length === 0;
-}
-
-function canShowPlaceholder() {
-  return !isHistoryViewActive && !document.hidden && isChatInputEmpty();
-}
-
-function setChatPlaceholder(text) {
-  chatInput.dataset.placeholder = text;
-}
-
-function showCurrentPlaceholder() {
-  setChatPlaceholder(SIDEPANEL_PLACEHOLDERS[currentPlaceholderIndex] || '');
-}
-
-function clearChatPlaceholder() {
-  setChatPlaceholder('');
-}
-
-function advancePlaceholder() {
-  currentPlaceholderIndex = (currentPlaceholderIndex + 1) % SIDEPANEL_PLACEHOLDERS.length;
-}
-
-function syncPlaceholder({ resetIndex = false, advance = false } = {}) {
-  if (resetIndex) {
-    currentPlaceholderIndex = 0;
-  } else if (advance) {
-    advancePlaceholder();
-  }
-
-  if (canShowPlaceholder()) {
-    showCurrentPlaceholder();
-  } else if (!isChatInputEmpty()) {
-    clearChatPlaceholder();
-  }
+  const savedTheme = localStorage.getItem('fsb-theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
 // Listen for theme changes from options page
@@ -153,14 +46,6 @@ window.addEventListener('storage', (e) => {
     applyTheme();
   }
 });
-
-if (systemThemeQuery) {
-  systemThemeQuery.addEventListener('change', () => {
-    if (!localStorage.getItem('fsb-theme')) {
-      applyTheme();
-    }
-  });
-}
 
 // Initialize analytics for sidepanel context
 let sidepanelAnalytics = null;
@@ -300,14 +185,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 // Initialize side panel
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('FSB v0.9.20 side panel loaded');
+  console.log('FSB v0.9.30 side panel loaded');
 
   // Apply theme first
   applyTheme();
-  setUiState('idle');
-  setSidepanelView('chat');
-  syncFooterVersion();
-  syncPlaceholder({ resetIndex: true });
 
   // Load sidepanel progress setting
   try {
@@ -319,7 +200,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Initialize conversation ID for session continuity
   await initConversationId();
-  await restoreSidepanelThreadState();
 
   // Initialize analytics
   initializeSidepanelAnalytics();
@@ -342,9 +222,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   chrome.storage.local.get(['lastTask'], (data) => {
     if (data.lastTask && data.lastTask.trim()) {
       chatInput.textContent = data.lastTask;
-      adjustInputHeight();
       updateSendButtonState();
-      syncPlaceholder();
     }
   });
   
@@ -354,24 +232,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log('Background script not ready yet');
       return;
     }
-    const surfaceSession = response?.sessionsBySurface?.sidepanel;
-    if (surfaceSession?.sessionId) {
-      if (!currentSessionId) {
-        currentSessionId = surfaceSession.sessionId;
-        console.log('FSB: Recovered sidepanel sessionId from background:', currentSessionId);
+    if (response && response.activeSessions > 0) {
+      setRunningState();
+      // Recover sessionId from background if UI lost it (e.g., after service worker restart)
+      if (!currentSessionId && response.currentSessionId) {
+        currentSessionId = response.currentSessionId;
+        console.log('FSB: Recovered sessionId from background:', currentSessionId);
       }
-      if (!activeConversationId && surfaceSession.conversationId) {
-        activeConversationId = surfaceSession.conversationId;
-      }
-      if (!historySessionId && surfaceSession.historySessionId) {
-        historySessionId = surfaceSession.historySessionId;
-      }
-      persistSidepanelThreadState();
-      if (surfaceSession.status === 'running' || surfaceSession.status === 'replaying') {
-        setRunningState();
-      }
-    } else if (historySessionId) {
-      recoverLatestThreadTerminalOutcome();
     }
   });
   
@@ -452,6 +319,7 @@ async function checkEncryptedConfig() {
 
 // Event listeners
 sendBtn.addEventListener('click', handleSendMessage);
+stopBtn.addEventListener('click', stopAutomation);
 newChatBtn.addEventListener('click', startNewChat);
 settingsBtn.addEventListener('click', openSettings);
 historyBtn.addEventListener('click', toggleHistoryView);
@@ -469,7 +337,6 @@ function debouncedSaveTask() {
 chatInput.addEventListener('input', () => {
   updateSendButtonState();
   debouncedSaveTask();
-  syncPlaceholder();
 });
 
 chatInput.addEventListener('keydown', (e) => {
@@ -488,9 +355,8 @@ chatInput.addEventListener('paste', (e) => {
 
 // Update send button state based on input content
 function updateSendButtonState() {
-  if (isRunning) return; // Don't disable stop button based on input content
   const hasContent = chatInput.textContent.trim().length > 0;
-  sendBtn.disabled = !hasContent;
+  sendBtn.disabled = !hasContent || isRunning;
 }
 
 // Handle sending a message
@@ -504,9 +370,7 @@ async function handleSendMessage() {
   // Handle /agent slash commands
   if (message.startsWith('/agent')) {
     chatInput.textContent = '';
-    resetInputHeight(true);
     updateSendButtonState();
-    syncPlaceholder({ advance: true });
     addMessage(message, 'user');
     handleAgentCommand(message);
     return;
@@ -518,9 +382,7 @@ async function handleSendMessage() {
 
     // Clear input
     chatInput.textContent = '';
-    resetInputHeight(true);
     updateSendButtonState();
-    syncPlaceholder({ advance: true });
     
     // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -532,9 +394,6 @@ async function handleSendMessage() {
       action: 'startAutomation',
       task: message,
       tabId: tab.id,
-      uiSurface: 'sidepanel',
-      selectedConversationId: getSelectedConversationId(),
-      historySessionId: historySessionId,
       conversationId: conversationId
     }, (response) => {
       if (chrome.runtime.lastError) {
@@ -543,11 +402,7 @@ async function handleSendMessage() {
       }
 
       if (response && response.success) {
-        lastRenderedTerminalSessionId = null;
         currentSessionId = response.sessionId;
-        activeConversationId = response.conversationId || getSelectedConversationId();
-        historySessionId = response.historySessionId || historySessionId || response.sessionId;
-        persistSidepanelThreadState();
         setRunningState();
         addStatusMessage(response.continued ? 'Continuing...' : 'Starting automation...');
       } else {
@@ -631,14 +486,10 @@ function startNewChat() {
   // Reset session state
   currentSessionId = null;
   stopRequested = false;
-  activeConversationId = null;
-  historySessionId = null;
-  lastRenderedTerminalSessionId = null;
-  persistSidepanelThreadState();
 
   // Generate new conversationId for new chat
   conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  persistSidepanelConversationId();
+  chrome.storage.session.set({ fsbSidepanelConversationId: conversationId }).catch(() => {});
 
   // Clear chat messages
   chatMessages.innerHTML = '';
@@ -651,9 +502,7 @@ function startNewChat() {
   
   // Clear input field
   chatInput.textContent = '';
-  resetInputHeight();
   updateSendButtonState();
-  syncPlaceholder({ advance: true });
   
   // Add fresh welcome message
   addMessage('Welcome to FSB. How can I help?', 'system');
@@ -668,28 +517,21 @@ function startNewChat() {
 // Update UI for running state
 function setRunningState() {
   isRunning = true;
-  setUiState('running');
-  sendBtn.className = 'stop-btn';
-  sendBtn.title = 'Stop Automation';
-  sendBtn.querySelector('i').className = 'fa fa-stop';
-  sendBtn.disabled = false;
-  sendBtn.onclick = stopAutomation;
-  statusDot.classList.remove('error');
+  sendBtn.disabled = true;
+  stopBtn.classList.remove('hidden');
   statusDot.classList.add('running');
   statusText.textContent = 'Working';
+  updateSendButtonState();
 }
 
 // Update UI for idle state
 function setIdleState() {
   isRunning = false;
-  setUiState('idle');
-  sendBtn.className = 'send-btn';
-  sendBtn.title = 'Send Message';
-  sendBtn.querySelector('i').className = 'fa fa-arrow-up';
-  sendBtn.onclick = handleSendMessage;
+  sendBtn.disabled = false;
+  stopBtn.classList.add('hidden');
   statusDot.classList.remove('running', 'error');
   statusText.textContent = 'Ready';
-
+  
   // Clean up any remaining status message with loader
   if (currentStatusMessage) {
     const loaderDots = currentStatusMessage.querySelector('.typing-dots');
@@ -708,12 +550,8 @@ function setIdleState() {
 // Update UI for error state
 function setErrorState() {
   isRunning = false;
-  setUiState('error');
-  sendBtn.className = 'send-btn';
-  sendBtn.title = 'Send Message';
-  sendBtn.querySelector('i').className = 'fa fa-arrow-up';
-  sendBtn.onclick = handleSendMessage;
-  statusDot.classList.remove('running');
+  sendBtn.disabled = false;
+  stopBtn.classList.add('hidden');
   statusDot.classList.add('error');
   statusText.textContent = 'Error';
   updateSendButtonState();
@@ -846,23 +684,14 @@ function updateStatusMessage(text, progressData) {
     if (statusText) {
       statusText.textContent = text;
     }
-    // [FSB Field Audit] Consumer: sidepanel progress label
-    // Reads: progressData.iteration, progressData.maxIterations, progressData.progressPercent, progressData.phase
-    // Display-filtered: iteration, maxIterations, progressPercent in label (replaced with phase label per D-04)
-    // Pass-through: progressPercent (used for bar width)
-    if (progressData && (progressData.phase || progressData.iteration != null)) {
+    if (progressData && progressData.iteration != null) {
       const container = currentStatusMessage.querySelector('.progress-container');
       const fill = currentStatusMessage.querySelector('.progress-fill');
       const label = currentStatusMessage.querySelector('.progress-label');
       if (container && fill && label) {
         container.classList.remove('hidden');
         fill.style.width = (progressData.progressPercent || 0) + '%';
-        var phaseLabels = {
-          analyzing: 'Analyzing', planning: 'Planning', acting: 'Acting',
-          recovering: 'Recovering', writing: 'Writing', switching_tab: 'Switching Tabs',
-          complete: 'Complete', error: 'Error'
-        };
-        label.textContent = phaseLabels[progressData.phase] || 'Working';
+        label.textContent = `${(progressData.progressPercent || 0)}%`;
       }
     }
   }
@@ -1023,249 +852,67 @@ function openSettings() {
   window.close();
 }
 
-function normalizeAutomationOutcome(outcome, status, hasError) {
-  var normalizedOutcome = typeof outcome === 'string' ? outcome.trim().toLowerCase() : '';
-  if (normalizedOutcome === 'error') return 'failure';
-  if (normalizedOutcome === 'success' || normalizedOutcome === 'partial' || normalizedOutcome === 'failure' || normalizedOutcome === 'stopped') {
-    return normalizedOutcome;
-  }
-
-  var normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
-  if (normalizedStatus === 'partial') return 'partial';
-  if (normalizedStatus === 'stopped') return 'stopped';
-  if (normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'stuck') return 'failure';
-
-  return hasError ? 'failure' : 'success';
-}
-
-function getSessionOutcomeDisplay(session) {
-  session = session || {};
-  var outcomeDetails = session.outcomeDetails && typeof session.outcomeDetails === 'object'
-    ? session.outcomeDetails
-    : {};
-  var outcome = normalizeAutomationOutcome(
-    session.outcome || outcomeDetails.outcome,
-    session.status || outcomeDetails.outcome,
-    Boolean(session.error || outcomeDetails.error)
-  );
-
-  return {
-    outcome: outcome,
-    statusClass: outcome === 'success'
-      ? 'completed'
-      : outcome === 'partial'
-        ? 'partial'
-        : outcome === 'stopped'
-          ? 'stopped'
-          : 'error',
-    statusLabel: outcome === 'success'
-      ? 'completed'
-      : outcome === 'partial'
-        ? 'partial'
-        : outcome === 'stopped'
-          ? 'stopped'
-          : 'failed',
-    summary: outcomeDetails.summary || session.result || null,
-    blocker: outcomeDetails.blocker || session.blocker || null,
-    nextStep: outcomeDetails.nextStep || session.nextStep || null,
-    resultText: session.completionMessage || outcomeDetails.result || session.result || outcomeDetails.summary || null,
-    error: session.error || outcomeDetails.error || null
-  };
-}
-
-function removeLoginPrompt() {
-  const existing = document.getElementById('login-prompt');
-  if (existing) {
-    existing.remove();
-  }
-}
-
-function getLatestThreadSessionRecord(sessionIndex, sessionStorage, threadHistorySessionId) {
-  if (!threadHistorySessionId) return null;
-
-  var candidates = (sessionIndex || []).filter(function(entry) {
-    var entryHistorySessionId = entry?.historySessionId || entry?.id || null;
-    return entry?.id === threadHistorySessionId || entryHistorySessionId === threadHistorySessionId;
-  });
-
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  candidates.sort(function(a, b) {
-    var aTime = a?.endTime || a?.startTime || 0;
-    var bTime = b?.endTime || b?.startTime || 0;
-    return bTime - aTime;
-  });
-
-  var latest = candidates[0];
-  return (sessionStorage && latest?.id && sessionStorage[latest.id]) || latest || null;
-}
-
-function renderAutomationCompletionPayload(payload) {
-  payload = payload || {};
-
-  if (payload.sessionId && lastRenderedTerminalSessionId === payload.sessionId) {
-    return;
-  }
-
-  if (payload.historySessionId) {
-    historySessionId = payload.historySessionId;
-  } else if (!historySessionId && payload.sessionId) {
-    historySessionId = payload.sessionId;
-  }
-
-  if (payload.conversationId) {
-    activeConversationId = payload.conversationId;
-  }
-
-  persistSidepanelThreadState();
-  removeLoginPrompt();
-
-  var outcome = normalizeAutomationOutcome(
-    payload.outcome,
-    payload.outcomeDetails?.outcome,
-    Boolean(payload.error || payload.outcomeDetails?.error)
-  );
-  var completionMessage = payload.result ||
-    payload.outcomeDetails?.result ||
-    payload.outcomeDetails?.summary ||
-    'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
-
-  if (outcome === 'failure') {
-    var errorMessage = payload.error || payload.outcomeDetails?.error || completionMessage || 'Automation error';
-    setErrorState();
-    if (currentStatusMessage) {
-      completeStatusMessage('Error: ' + errorMessage, 'error');
-    } else {
-      addCompletionMessage('Error: ' + errorMessage, 'error');
-    }
-  } else if (currentStatusMessage) {
-    completeStatusMessage(
-      completionMessage,
-      outcome === 'partial' ? 'partial' : (outcome === 'stopped' ? 'system' : undefined)
-    );
-  } else if (outcome === 'stopped') {
-    addMessage(completionMessage, 'system');
-  } else {
-    addCompletionMessage(completionMessage, 'ai', outcome === 'partial');
-  }
-
-  setIdleState();
-  currentSessionId = null;
-  lastRenderedTerminalSessionId = payload.sessionId || historySessionId || null;
-
-  if (isHistoryViewActive) {
-    loadHistoryList();
-  }
-
-  if (outcome === 'partial') {
-    (async () => {
-      try {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        const currentUrl = tabs[0]?.url;
-        if (currentUrl && currentUrl.startsWith('http')) {
-          const domain = new URL(currentUrl).hostname;
-          const siteMapCheck = await chrome.runtime.sendMessage({
-            action: 'checkSiteMap',
-            domain
-          });
-
-          if (!siteMapCheck || !siteMapCheck.exists) {
-            const reconDiv = document.createElement('div');
-            reconDiv.className = 'message system new recon-suggestion';
-            const textSpan = document.createElement('span');
-            textSpan.className = 'recon-suggestion-text';
-            textSpan.textContent = 'This site does not have a map yet. Reconnaissance can help FSB learn the site structure for better performance.';
-            reconDiv.appendChild(textSpan);
-
-            const reconBtn = document.createElement('button');
-            reconBtn.className = 'recon-btn';
-            reconBtn.id = 'reconFromSidepanel';
-            reconBtn.textContent = 'Run Reconnaissance';
-            reconBtn.addEventListener('click', () => {
-              startReconFromSidepanel(currentUrl, payload.task || completionMessage);
-            });
-            reconDiv.appendChild(reconBtn);
-
-            chatMessages.appendChild(reconDiv);
-            scrollToBottom();
-          }
-        }
-      } catch (e) {
-        console.warn('Recon suggestion check failed:', e.message);
-      }
-    })();
-  }
-}
-
-async function recoverLatestThreadTerminalOutcome(options = {}) {
-  if (!historySessionId || isHistoryViewActive) {
-    return;
-  }
-
-  var force = options.force === true;
-
-  try {
-    var stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex']);
-    var sessionStorage = stored.fsbSessionLogs || {};
-    var sessionIndex = stored.fsbSessionIndex || [];
-    var latestSession = getLatestThreadSessionRecord(sessionIndex, sessionStorage, historySessionId);
-
-    if (!latestSession) {
-      return;
-    }
-
-    var latestStatus = typeof latestSession.status === 'string'
-      ? latestSession.status.trim().toLowerCase()
-      : '';
-    if (latestStatus === 'running' || latestStatus === 'replaying') {
-      return;
-    }
-    if (!force && lastRenderedTerminalSessionId === latestSession.id) {
-      return;
-    }
-    if (isRunning && currentSessionId && currentSessionId !== latestSession.id) {
-      return;
-    }
-
-    var outcomeInfo = getSessionOutcomeDisplay(latestSession);
-    if (!outcomeInfo.summary && !outcomeInfo.resultText && !outcomeInfo.error) {
-      return;
-    }
-
-    renderAutomationCompletionPayload({
-      sessionId: latestSession.id,
-      conversationId: latestSession.conversationId || activeConversationId || null,
-      historySessionId: latestSession.historySessionId || historySessionId || latestSession.id,
-      outcome: latestSession.outcome || outcomeInfo.outcome,
-      outcomeDetails: latestSession.outcomeDetails || null,
-      result: latestSession.completionMessage || latestSession.result || null,
-      error: latestSession.error || null,
-      blocker: latestSession.blocker || null,
-      nextStep: latestSession.nextStep || null,
-      task: latestSession.task || null
-    });
-  } catch (error) {
-    console.warn('Failed to recover latest thread terminal outcome:', error);
-  }
-}
-
 // Listen for messages from background
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'automationComplete':
-      {
-        var selectedConversationId = getSelectedConversationId();
-        var matchesCurrentSession = request.sessionId && request.sessionId === currentSessionId;
-        var matchesCurrentHistory = request.historySessionId && historySessionId && request.historySessionId === historySessionId;
-        var matchesCurrentConversation = request.conversationId && selectedConversationId && request.conversationId === selectedConversationId;
+      if (!isRunning) return; // Already idle, ignore duplicate
+      if (request.sessionId === currentSessionId) {
+        // AI must always provide a meaningful completion message
+        const completionMessage = request.result || 'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
+        const isPartial = request.partial === true;
 
-        if (!matchesCurrentSession && !matchesCurrentHistory && !matchesCurrentConversation) {
-          break;
+        if (currentStatusMessage) {
+          completeStatusMessage(completionMessage, isPartial ? 'partial' : undefined);
+        } else {
+          addCompletionMessage(completionMessage, 'ai', isPartial);
         }
 
-        renderAutomationCompletionPayload(request);
+        setIdleState();
+        // Refresh history list if history view is active
+        if (isHistoryViewActive) {
+          loadHistoryList();
+        }
+
+        // Check if reconnaissance could help (partial/stuck completions on unmapped sites)
+        if (isPartial) {
+          (async () => {
+            try {
+              const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+              const currentUrl = tabs[0]?.url;
+              if (currentUrl && currentUrl.startsWith('http')) {
+                const domain = new URL(currentUrl).hostname;
+                const siteMapCheck = await chrome.runtime.sendMessage({
+                  action: 'checkSiteMap',
+                  domain
+                });
+
+                if (!siteMapCheck || !siteMapCheck.exists) {
+                  const reconDiv = document.createElement('div');
+                  reconDiv.className = 'message system new recon-suggestion';
+                  const textSpan = document.createElement('span');
+                  textSpan.className = 'recon-suggestion-text';
+                  textSpan.textContent = 'This site does not have a map yet. Reconnaissance can help FSB learn the site structure for better performance.';
+                  reconDiv.appendChild(textSpan);
+
+                  const reconBtn = document.createElement('button');
+                  reconBtn.className = 'recon-btn';
+                  reconBtn.id = 'reconFromSidepanel';
+                  reconBtn.textContent = 'Run Reconnaissance';
+                  reconBtn.addEventListener('click', () => {
+                    startReconFromSidepanel(currentUrl, request.task || completionMessage);
+                  });
+                  reconDiv.appendChild(reconBtn);
+
+                  chatMessages.appendChild(reconDiv);
+                  scrollToBottom();
+                }
+              }
+            } catch (e) {
+              console.warn('Recon suggestion check failed:', e.message);
+            }
+          })();
+        }
       }
       break;
 
@@ -1333,49 +980,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.sessionId === currentSessionId) {
         // Pause the status loader
         if (currentStatusMessage) {
-          updateStatusMessage('Login required...');
+          updateStatusMessage('Login page detected...');
         }
-        showLoginPrompt(request.domain, request.fields, request.authPrompt || null);
+        showLoginPrompt(request.domain, request.fields);
         sendResponse({ received: true });
       }
       return;
-
-    case 'sessionStateEvent':
-      if (request.sessionId !== currentSessionId) break;
-      switch (request.eventType) {
-        case 'iteration_complete':
-          if (currentStatusMessage && isRunning) {
-            updateStatusMessage('Step ' + request.iteration + ' complete', {
-              iteration: request.iteration,
-              maxIterations: 20,
-              progressPercent: Math.min(100, Math.round((request.iteration / 20) * 100))
-            });
-          }
-          break;
-        case 'session_ended':
-          if (!isRunning) break;
-          setIdleState();
-          if (isHistoryViewActive) {
-            loadHistoryList();
-          }
-          break;
-        case 'tool_executed':
-          if (showSidepanelProgressEnabled && isRunning) {
-            addActionMessage(request.toolName + (request.success ? '' : ' [failed]'));
-          }
-          break;
-        case 'error_occurred':
-          console.warn('[FSB] emitter error:', request.error);
-          break;
-      }
-      break;
   }
 });
 
 // Show inline login prompt in the chat
-function showLoginPrompt(domain, fields, authPrompt) {
+function showLoginPrompt(domain, fields) {
   // Prevent duplicate prompts if rapid loginDetected messages arrive
-  removeLoginPrompt();
+  const existing = document.getElementById('login-prompt');
+  if (existing) existing.remove();
 
   // Complete any active status message
   if (currentStatusMessage) {
@@ -1390,9 +1008,6 @@ function showLoginPrompt(domain, fields, authPrompt) {
 
   // Escape domain for safe HTML insertion
   const safeDomain = (domain || 'this site').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
-  const promptDetail = (authPrompt && authPrompt.detail) || 'Submit credentials once to let FSB sign in and resume this same session.';
-  const handoffDetail = (authPrompt && authPrompt.handoff) || 'If you skip or the site still needs manual approval, FSB will preserve the completed work and finish with a manual handoff.';
-  const safeSubtext = `${promptDetail} ${handoffDetail}`.trim().replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 
   container.innerHTML = `
     <div class="login-prompt-header">
@@ -1400,7 +1015,7 @@ function showLoginPrompt(domain, fields, authPrompt) {
       <span>Login Required</span>
     </div>
     <div class="login-prompt-domain">${safeDomain}</div>
-    <div class="login-prompt-subtext">${safeSubtext}</div>
+    <div class="login-prompt-subtext">Enter your credentials to sign in. They will be encrypted and saved for future use.</div>
     <div class="login-prompt-form">
       <div class="login-prompt-field">
         <label>${fieldLabel}</label>
@@ -1477,8 +1092,8 @@ function showLoginPrompt(domain, fields, authPrompt) {
       container.remove();
 
       // Add system message
-      addMessage('Trying sign-in in this same session. If it succeeds, automation will resume automatically.', 'system');
-      addStatusMessage('Trying sign-in...');
+      addMessage('Signing in...', 'system');
+      addStatusMessage('Signing in...');
     });
   }
 
@@ -1493,8 +1108,8 @@ function showLoginPrompt(domain, fields, authPrompt) {
 
       // Remove prompt
       container.remove();
-      addMessage('Login skipped. FSB will preserve the completed work so far and finish with a manual handoff.', 'system');
-      addStatusMessage('Finishing with manual handoff...');
+      addMessage('Login skipped. Continuing automation...', 'system');
+      addStatusMessage('Continuing...');
     });
   }
 
@@ -1525,41 +1140,12 @@ document.addEventListener('keydown', (e) => {
 
 // Auto-resize chat input based on content
 function adjustInputHeight() {
-  clearTimeout(resetInputAnimationTimer);
-  chatInput.classList.remove('height-animating');
   chatInput.style.height = 'auto';
-  chatInput.style.height = Math.max(DEFAULT_CHAT_INPUT_HEIGHT, Math.min(chatInput.scrollHeight, MAX_CHAT_INPUT_HEIGHT)) + 'px';
-  chatInput.style.overflowY = chatInput.scrollHeight > MAX_CHAT_INPUT_HEIGHT ? 'auto' : 'hidden';
-}
-
-function resetInputHeight(animated = false) {
-  clearTimeout(resetInputAnimationTimer);
-  const currentHeight = Math.max(chatInput.offsetHeight || DEFAULT_CHAT_INPUT_HEIGHT, DEFAULT_CHAT_INPUT_HEIGHT);
-
-  if (!animated) {
-    chatInput.classList.remove('height-animating');
-    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
-    chatInput.style.overflowY = 'hidden';
-    return;
-  }
-
-  chatInput.classList.add('height-animating');
-  chatInput.style.height = currentHeight + 'px';
-
-  requestAnimationFrame(() => {
-    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
-  });
-
-  resetInputAnimationTimer = setTimeout(() => {
-    chatInput.classList.remove('height-animating');
-    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
-    chatInput.style.overflowY = 'hidden';
-  }, 150);
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
 }
 
 // Initialize input height adjustment
 chatInput.addEventListener('input', adjustInputHeight);
-resetInputHeight();
 
 // Prevent default drag and drop behavior
 document.addEventListener('dragover', (e) => e.preventDefault());
@@ -1567,11 +1153,10 @@ document.addEventListener('drop', (e) => e.preventDefault());
 
 // Handle side panel specific events
 document.addEventListener('visibilitychange', () => {
-  // Side panel became visible - refresh status if needed
   if (!document.hidden) {
+    // Side panel became visible - refresh status if needed
     console.log('Side panel became visible');
   }
-  syncPlaceholder();
 });
 
 
@@ -1592,9 +1177,7 @@ function showHistoryView() {
   document.querySelector('.chat-input-area').classList.add('hidden');
   document.getElementById('historyView').classList.remove('hidden');
   historyBtn.classList.add('active');
-  setSidepanelView('history');
   isHistoryViewActive = true;
-  syncPlaceholder();
   loadHistoryList();
 }
 
@@ -1603,9 +1186,7 @@ function showChatView() {
   document.querySelector('.chat-input-area').classList.remove('hidden');
   document.getElementById('historyView').classList.add('hidden');
   historyBtn.classList.remove('active');
-  setSidepanelView('chat');
   isHistoryViewActive = false;
-  syncPlaceholder();
 }
 
 async function loadHistoryList() {
@@ -1624,12 +1205,7 @@ async function loadHistoryList() {
       return;
     }
 
-    // [FSB Field Audit] Consumer: sidepanel session history
-    // Reads: session.totalCost, session.iterationCount
-    // Display-filtered: none (cost display preserved per D-05)
-    // Pass-through: totalCost (shown to power users), iterationCount (used for session detail)
     historyList.innerHTML = sessions.map(function(session) {
-      var outcomeInfo = getSessionOutcomeDisplay(session);
       var costDisplay = session.totalCost > 0
         ? '<span class="history-cost">$' + session.totalCost.toFixed(4) + '</span>'
         : '';
@@ -1640,7 +1216,7 @@ async function loadHistoryList() {
             '<span>' + formatSessionDate(session.startTime) + '</span>' +
             '<span>' + (session.actionCount || 0) + ' actions</span>' +
             costDisplay +
-            '<span class="history-status ' + outcomeInfo.statusClass + '">' + escapeHtml(outcomeInfo.statusLabel) + '</span>' +
+            '<span class="history-status ' + (session.status || '') + '">' + escapeHtml(session.status || 'unknown') + '</span>' +
           '</div>' +
         '</div>' +
         (session.actionCount > 0 ?
@@ -1722,20 +1298,14 @@ async function deleteHistorySession(sessionId) {
 
 async function loadSessionView(sessionId) {
   try {
-    const stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex']);
+    const stored = await chrome.storage.local.get(['fsbSessionLogs']);
     const sessionStorage = stored.fsbSessionLogs || {};
-    const sessionIndex = stored.fsbSessionIndex || [];
     const session = sessionStorage[sessionId];
-    const sessionMeta = sessionIndex.find(function(entry) { return entry.id === sessionId; }) || null;
 
     if (!session) {
       addMessage('Session data not found.', 'error');
       return;
     }
-
-    activeConversationId = session.conversationId || sessionMeta?.conversationId || null;
-    historySessionId = session.historySessionId || sessionMeta?.historySessionId || sessionId;
-    persistSidepanelThreadState();
 
     // Switch to chat view and clear existing messages
     showChatView();
@@ -1769,21 +1339,8 @@ async function loadSessionView(sessionId) {
       addMessage('No actions were recorded in this session.', 'system');
     }
 
-    var outcomeInfo = getSessionOutcomeDisplay(session);
-    if (outcomeInfo.outcome === 'failure') {
-      addMessage(outcomeInfo.error || outcomeInfo.resultText || 'Automation failed.', 'error');
-    } else if (outcomeInfo.summary || outcomeInfo.resultText) {
-      addCompletionMessage(outcomeInfo.summary || outcomeInfo.resultText, 'ai', outcomeInfo.outcome === 'partial');
-      if (outcomeInfo.blocker) {
-        addMessage('Blocker: ' + outcomeInfo.blocker, 'system');
-      }
-      if (outcomeInfo.nextStep) {
-        addMessage('Next step: ' + outcomeInfo.nextStep, 'system');
-      }
-    }
-
     // Show session status footer
-    var status = outcomeInfo.statusLabel || session.status || 'unknown';
+    var status = session.status || 'unknown';
     var endTime = session.endTime ? new Date(session.endTime).toLocaleString() : 'N/A';
     addMessage('Session ' + status + ' at ' + endTime, 'system');
 
@@ -1828,7 +1385,7 @@ function escapeHtml(str) {
 }
 
 
-console.log('FSB v0.9.20 side panel script loaded');
+console.log('FSB v0.9.30 side panel script loaded');
 
 // ==========================================
 // /agent Slash Command Handler
@@ -1856,11 +1413,11 @@ async function showAgentList() {
 
     const agents = response?.agents || [];
     if (agents.length === 0) {
-      addMessage('No agents configured. Use /agent to create one.', 'system');
+      addMessage('No background agents configured. Use /agent to create one.', 'system');
       return;
     }
 
-    let listText = 'Agents:\n';
+    let listText = 'Background Agents:\n';
     for (const agent of agents) {
       const status = agent.enabled ? '[ON]' : '[OFF]';
       const lastRun = agent.lastRunAt ? new Date(agent.lastRunAt).toLocaleString() : 'Never';

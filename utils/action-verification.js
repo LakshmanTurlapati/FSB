@@ -1,4 +1,4 @@
-// Action Verification Module for FSB v0.9.20
+// Action Verification Module for FSB v0.9.30
 // Provides post-action verification to ensure actions have their intended effects
 
 /**

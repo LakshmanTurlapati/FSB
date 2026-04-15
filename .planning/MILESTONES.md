@@ -1,5 +1,28 @@
 # Project Milestones: FSB (Full Self-Browsing)
 
+## v0.9.29 Showcase Angular Migration (Shipped: 2026-04-15)
+
+**Phases completed:** 1 phases, 7 plans, 14 tasks
+
+**Key accomplishments:**
+
+- Standalone Angular migration foundation with deterministic showcase build output and compile-ready home/about/dashboard route component contracts.
+- Canonical Angular shell routing plus `fsb-showcase-theme` pre-bootstrap/runtime parity contracts, protected by a source-contract regression test.
+- Legacy home/about/dashboard route content now lives in Angular templates with preserved parity anchors, normalized home asset paths, and dashboard runtime DOM IDs intact.
+- Global token/theme contracts now live in shared styles while each migrated route owns its legacy-equivalent visuals in component SCSS.
+- Express now serves Angular shell routes on canonical showcase URLs with fixed legacy `.html` redirects, and one regression command enforces route/theme/content/server contracts together.
+- Compile-ready Angular privacy and support standalone route component contracts with explicit placeholder headings for tranche-B D-02 coverage.
+- Privacy and support routes are fully migrated into Angular templates, and a single five-route parity contract test now guards canonical anchors, dashboard IDs, and required asset paths.
+
+**Accepted gaps at close:**
+
+- Phase 174 (`DASH-08` to `DASH-10`) deferred.
+- Phase 175 (`DASH-11` to `DASH-13`) deferred.
+- Phase 176 (`DASH-14` to `DASH-17`) deferred.
+- Phase 177 (`MIGR-01` to `MIGR-03`) deferred.
+
+---
+
 ## v0.9.27 Usage Dashboard Fix (Shipped: 2026-04-14)
 
 **Phases completed:** 2 phases, 3 plans, 6 tasks

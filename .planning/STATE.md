@@ -1,54 +1,51 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.27
-milestone_name: Usage Dashboard Fix
-status: completed
-stopped_at: Milestone archived and marked complete
-last_updated: "2026-04-14T09:05:00Z"
-last_activity: 2026-04-14
+milestone: v0.9.30
+milestone_name: MCP Platform Install Flags
+status: executing
+stopped_at: Phase 176 context gathered
+last_updated: "2026-04-15T22:36:56.979Z"
+last_activity: 2026-04-15 -- Phase 176 execution started
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_plans: 6
+  completed_plans: 4
+  percent: 67
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-14)
+See: .planning/PROJECT.md (updated 2026-04-15)
 
 **Core value:** Reliable single-attempt execution -- the AI decides correctly, the mechanics execute precisely
-**Current focus:** No active milestone — v0.9.27 archived, next planning cycle not started
+**Current focus:** Phase 176 — Non-JSON Platforms & Extended Flags
 
 ## Current Position
 
-Milestone: v0.9.27 (Usage Dashboard Fix)
-Phase: None
-Plan: 3 of 3 complete
-Status: Milestone archived and marked complete
-Last activity: 2026-04-14
+Phase: 176 (Non-JSON Platforms & Extended Flags) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 176
+Last activity: 2026-04-15 -- Phase 176 execution started
 
-Progress: [##########] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
-**Recent Trend (from v0.9.26):**
+**Recent Trend (from v0.9.29):**
 
-- Last 5 plans: stable execution, sub-10min typical
+- Last 5 plans: stable execution, mostly sub-10min
 - Trend: Stable
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
-| 168 | P01 | -- | -- | -- |
-| 168 | P02 | -- | -- | -- |
-| 169 | P01 | -- | -- | -- |
-| 169 | P02 | -- | -- | -- |
-| 170 | P01 | -- | -- | -- |
-| Phase 171 P01 | 1h 33m | 2 tasks | 4 files |
-| Phase 172 P01 | 0 min | 1 tasks | 1 files |
+| 173 | P01 | 4 min | 2 tasks | 26 files |
+| 173 | P02 | 4 min | 2 tasks | 11 files |
+| 173 | P03 | 4 min | 2 tasks | 5 files |
+| 173 | P04 | 10 min | 2 tasks | 15 files |
+| 173 | P05 | 2 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -57,21 +54,22 @@ Progress: [##########] 100%
 Full decision log in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [v0.9.27]: This is a focused bug-fix milestone -- no new features, only fix the broken analytics dashboard data pipeline and rendering.
-- [v0.9.27]: Two phases: 171 (all code fixes) and 172 (end-to-end verification). Six fix requirements cluster into one phase because they share the same code path (options.js / analytics.js / background.js).
-- [v0.9.27]: Key root causes identified: options.js FSBAnalytics instance reads stale cache, refreshAnalyticsDashboard may not truly re-read storage, updateTimeRangeLabels crashes on null DOM refs, Chart.js init is fragile, cost breakdown silently skips.
+- [v0.9.30]: Pivot from Angular migration continuation to MCP installation ergonomics.
+- [v0.9.30]: 10 platforms targeted for auto-config flags; ChatGPT Desktop (UI-only) and Perplexity (no MCP) are out of scope.
+- [v0.9.30]: 3 new zero-dep dependencies: smol-toml (TOML), yaml (YAML), strip-json-comments (JSONC).
+- [v0.9.30]: Platform registry map pattern -- each platform described as data, single ConfigWriter handles all formats.
 
 ### Pending Todos
 
-No pending todos for this milestone.
+- Deferred Angular migration requirements (DASH-08 through MIGR-03) remain parked from v0.9.29.
+- Final local rerun of the off-screen dashboard refresh smoke (accepted debt from v0.9.27) remains a pre-release reminder.
 
 ### Blockers/Concerns
 
-- No active milestone blockers. The next planning cycle has not started.
-- Accepted debt carried forward from v0.9.27: a final local rerun of the off-screen dashboard refresh smoke before any push or release tagging that depends on the dashboard verification path.
+- No active blockers for v0.9.30.
 
 ## Session Continuity
 
-Last session: 2026-04-14T09:05:00Z
-Stopped at: Milestone archived and marked complete
-Resume file: None
+Last session: 2026-04-15T21:03:14.882Z
+Stopped at: Phase 176 context gathered
+Resume file: .planning/phases/176-non-json-platforms-extended-flags/176-CONTEXT.md

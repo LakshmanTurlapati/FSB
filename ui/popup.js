@@ -1,12 +1,9 @@
-// Modern Chat Interface Script for FSB v0.9.20
+// Modern Chat Interface Script for FSB v0.9.30
 
 let currentSessionId = null;
 let conversationId = null;
 let isRunning = false;
 let stopRequested = false;
-const DEFAULT_CHAT_INPUT_HEIGHT = 46;
-const MAX_CHAT_INPUT_HEIGHT = 120;
-let resetInputAnimationTimer = null;
 
 // Initialize or restore conversation ID for session continuity
 async function initConversationId() {
@@ -24,14 +21,9 @@ async function initConversationId() {
   }
 }
 
-function persistPopupConversationId() {
-  chrome.storage.session.set({ fsbPopupConversationId: conversationId }).catch(() => {});
-}
-
 // DOM elements - updated for new chat interface
 const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
-const micBtn = document.getElementById('micBtn');
 const stopBtn = document.getElementById('stopBtn');
 const testBtn = document.getElementById('testBtn');
 const settingsBtn = document.getElementById('settingsBtn');
@@ -39,30 +31,11 @@ const pinBtn = document.getElementById('pinBtn');
 const chatMessages = document.getElementById('chatMessages');
 const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
-const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
-
-// Initialize speech-to-text
-const stt = new FSBSpeechToText(chatInput, micBtn, sendBtn);
 
 // Apply theme based on settings
-function getPreferredTheme() {
-  const savedTheme = localStorage.getItem('fsb-theme');
-  if (savedTheme === 'light' || savedTheme === 'dark') {
-    return savedTheme;
-  }
-  return systemThemeQuery?.matches ? 'dark' : 'light';
-}
-
 function applyTheme() {
-  document.documentElement.setAttribute('data-theme', getPreferredTheme());
-}
-
-function setUiState(state) {
-  document.body.dataset.uiState = state;
-}
-
-function setWindowMode(mode) {
-  document.body.dataset.windowMode = mode;
+  const savedTheme = localStorage.getItem('fsb-theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
 // Listen for theme changes from options page
@@ -71,14 +44,6 @@ window.addEventListener('storage', (e) => {
     applyTheme();
   }
 });
-
-if (systemThemeQuery) {
-  systemThemeQuery.addEventListener('change', () => {
-    if (!localStorage.getItem('fsb-theme')) {
-      applyTheme();
-    }
-  });
-}
 
 // Initialize analytics for popup context
 let popupAnalytics = null;
@@ -107,8 +72,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 document.addEventListener('DOMContentLoaded', async () => {
   // Apply theme first
   applyTheme();
-  setUiState('idle');
-  setWindowMode('popup');
 
   // Initialize conversation ID for session continuity
   await initConversationId();
@@ -140,25 +103,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   chrome.storage.local.get(['lastTask'], (data) => {
     if (data.lastTask && data.lastTask.trim()) {
       chatInput.textContent = data.lastTask;
-      adjustInputHeight();
       updateSendButtonState();
     }
   });
   
   // Check current status
   chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
-    const surfaceSession = response?.sessionsBySurface?.popup;
-    if (surfaceSession?.sessionId) {
-      if (!currentSessionId) {
-        currentSessionId = surfaceSession.sessionId;
-        console.log('FSB: Recovered popup sessionId from background:', currentSessionId);
-      }
-      if (surfaceSession.conversationId) {
-        conversationId = surfaceSession.conversationId;
-        persistPopupConversationId();
-      }
-      if (surfaceSession.status === 'running' || surfaceSession.status === 'replaying') {
-        setRunningState();
+    if (response && response.activeSessions > 0) {
+      setRunningState();
+      // Recover sessionId from background if UI lost it (e.g., after service worker restart)
+      if (!currentSessionId && response.currentSessionId) {
+        currentSessionId = response.currentSessionId;
+        console.log('FSB: Recovered sessionId from background:', currentSessionId);
       }
     }
   });
@@ -247,7 +203,6 @@ async function handleSendMessage() {
   // Handle /agent slash commands
   if (message.startsWith('/agent')) {
     chatInput.textContent = '';
-    resetInputHeight(true);
     updateSendButtonState();
     addMessage(message, 'user');
     handleAgentCommand(message);
@@ -260,7 +215,6 @@ async function handleSendMessage() {
 
     // Clear input
     chatInput.textContent = '';
-    resetInputHeight(true);
     updateSendButtonState();
     
     // Get current tab
@@ -273,17 +227,10 @@ async function handleSendMessage() {
       action: 'startAutomation',
       task: message,
       tabId: tab.id,
-      uiSurface: 'popup',
-      selectedConversationId: conversationId,
-      historySessionId: null,
       conversationId: conversationId
     }, (response) => {
       if (response.success) {
         currentSessionId = response.sessionId;
-        if (response.conversationId) {
-          conversationId = response.conversationId;
-          persistPopupConversationId();
-        }
         setRunningState();
         addStatusMessage(response.continued ? 'Continuing...' : 'Starting automation...');
       } else {
@@ -401,10 +348,8 @@ async function testAPI() {
 function setRunningState() {
   isRunning = true;
   stopRequested = false; // Reset stop flag when starting new automation
-  setUiState('running');
   sendBtn.disabled = true;
   stopBtn.classList.remove('hidden');
-  statusDot.classList.remove('error');
   statusDot.classList.add('running');
   statusText.textContent = 'Working';
   updateSendButtonState();
@@ -413,7 +358,6 @@ function setRunningState() {
 // Update UI for idle state
 function setIdleState() {
   isRunning = false;
-  setUiState('idle');
   sendBtn.disabled = false;
   stopBtn.classList.add('hidden');
   statusDot.classList.remove('running', 'error');
@@ -437,10 +381,8 @@ function setIdleState() {
 // Update UI for error state
 function setErrorState() {
   isRunning = false;
-  setUiState('error');
   sendBtn.disabled = false;
   stopBtn.classList.add('hidden');
-  statusDot.classList.remove('running');
   statusDot.classList.add('error');
   statusText.textContent = 'Error';
   updateSendButtonState();
@@ -581,23 +523,14 @@ function updateStatusMessage(text, progressData) {
     if (statusText) {
       statusText.textContent = text;
     }
-    // [FSB Field Audit] Consumer: popup progress label
-    // Reads: progressData.iteration, progressData.maxIterations, progressData.progressPercent, progressData.phase
-    // Display-filtered: iteration, maxIterations (replaced with phase label per D-04)
-    // Pass-through: progressPercent (used for bar width)
-    if (progressData && (progressData.phase || progressData.iteration != null)) {
+    if (progressData && progressData.iteration != null) {
       const container = currentStatusMessage.querySelector('.progress-container');
       const fill = currentStatusMessage.querySelector('.progress-fill');
       const label = currentStatusMessage.querySelector('.progress-label');
       if (container && fill && label) {
         container.classList.remove('hidden');
         fill.style.width = (progressData.progressPercent || 0) + '%';
-        var phaseLabels = {
-          analyzing: 'Analyzing', planning: 'Planning', acting: 'Acting',
-          recovering: 'Recovering', writing: 'Writing', switching_tab: 'Switching Tabs',
-          complete: 'Complete', error: 'Error'
-        };
-        label.textContent = phaseLabels[progressData.phase] || 'Working';
+        label.textContent = `Step ${progressData.iteration}/${progressData.maxIterations || 20}`;
       }
     }
   }
@@ -778,7 +711,6 @@ async function togglePinWindow() {
     // Switch back to popup mode
     await chrome.storage.local.set({ windowMode: 'popup' });
     pinBtn.classList.remove('pinned');
-    setWindowMode('popup');
     addMessage('Switched to popup mode. Extension will close when clicked outside.', 'system');
   } else {
     // Switch to persistent window mode
@@ -805,10 +737,7 @@ async function checkWindowMode() {
   const { windowMode } = await chrome.storage.local.get(['windowMode']);
   if (windowMode === 'pinned') {
     pinBtn.classList.add('pinned');
-    setWindowMode('pinned');
     addMessage('Running in persistent window mode.', 'system');
-  } else {
-    setWindowMode('popup');
   }
 }
 
@@ -818,57 +747,20 @@ function openSettings() {
   chrome.runtime.openOptionsPage();
 }
 
-function normalizeAutomationOutcome(outcome, status, hasError) {
-  const normalizedOutcome = typeof outcome === 'string' ? outcome.trim().toLowerCase() : '';
-  if (normalizedOutcome === 'error') return 'failure';
-  if (normalizedOutcome === 'success' || normalizedOutcome === 'partial' || normalizedOutcome === 'failure' || normalizedOutcome === 'stopped') {
-    return normalizedOutcome;
-  }
-
-  const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
-  if (normalizedStatus === 'partial') return 'partial';
-  if (normalizedStatus === 'stopped') return 'stopped';
-  if (normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'stuck') return 'failure';
-
-  return hasError ? 'failure' : 'success';
-}
-
 // Listen for messages from background
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'automationComplete':
       if (!isRunning) return; // Already idle, ignore duplicate
       if (request.sessionId === currentSessionId) {
-        const outcome = normalizeAutomationOutcome(
-          request.outcome,
-          request.outcomeDetails?.outcome,
-          Boolean(request.error || request.outcomeDetails?.error)
-        );
-        const completionMessage = request.result ||
-          request.outcomeDetails?.result ||
-          request.outcomeDetails?.summary ||
-          'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
-
-        if (outcome === 'failure') {
-          const errorMessage = request.error || request.outcomeDetails?.error || completionMessage || 'Automation error';
-          setErrorState();
-          if (currentStatusMessage) {
-            completeStatusMessage(`Error: ${errorMessage}`, 'error');
-          } else {
-            addCompletionMessage(`Error: ${errorMessage}`, 'error');
-          }
-          break;
-        }
+        // AI must always provide a meaningful completion message
+        const completionMessage = request.result || 'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
+        const isPartial = request.partial === true;
 
         if (currentStatusMessage) {
-          completeStatusMessage(
-            completionMessage,
-            outcome === 'partial' ? 'partial' : (outcome === 'stopped' ? 'system' : undefined)
-          );
-        } else if (outcome === 'stopped') {
-          addMessage(completionMessage, 'system');
+          completeStatusMessage(completionMessage, isPartial ? 'partial' : undefined);
         } else {
-          addCompletionMessage(completionMessage, 'ai', outcome === 'partial');
+          addCompletionMessage(completionMessage, 'ai', isPartial);
         }
 
         setIdleState();
@@ -917,32 +809,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
       }
       break;
-
-    case 'sessionStateEvent':
-      if (request.sessionId !== currentSessionId) break;
-      switch (request.eventType) {
-        case 'iteration_complete':
-          if (currentStatusMessage && isRunning) {
-            updateStatusMessage('Step ' + request.iteration + ' complete', {
-              iteration: request.iteration,
-              maxIterations: 20,
-              progressPercent: Math.min(100, Math.round((request.iteration / 20) * 100))
-            });
-          }
-          break;
-        case 'session_ended':
-          if (!isRunning) break;
-          setIdleState();
-          break;
-        case 'tool_executed':
-          console.debug('[FSB] tool:', request.toolName, request.success ? 'ok' : 'fail');
-          break;
-        case 'error_occurred':
-          console.warn('[FSB] emitter error:', request.error);
-          break;
-      }
-      break;
-
+      
   }
 });
 
@@ -960,47 +827,18 @@ document.addEventListener('keydown', (e) => {
 
 // Auto-resize chat input based on content
 function adjustInputHeight() {
-  clearTimeout(resetInputAnimationTimer);
-  chatInput.classList.remove('height-animating');
   chatInput.style.height = 'auto';
-  chatInput.style.height = Math.max(DEFAULT_CHAT_INPUT_HEIGHT, Math.min(chatInput.scrollHeight, MAX_CHAT_INPUT_HEIGHT)) + 'px';
-  chatInput.style.overflowY = chatInput.scrollHeight > MAX_CHAT_INPUT_HEIGHT ? 'auto' : 'hidden';
-}
-
-function resetInputHeight(animated = false) {
-  clearTimeout(resetInputAnimationTimer);
-  const currentHeight = Math.max(chatInput.offsetHeight || DEFAULT_CHAT_INPUT_HEIGHT, DEFAULT_CHAT_INPUT_HEIGHT);
-
-  if (!animated) {
-    chatInput.classList.remove('height-animating');
-    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
-    chatInput.style.overflowY = 'hidden';
-    return;
-  }
-
-  chatInput.classList.add('height-animating');
-  chatInput.style.height = currentHeight + 'px';
-
-  requestAnimationFrame(() => {
-    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
-  });
-
-  resetInputAnimationTimer = setTimeout(() => {
-    chatInput.classList.remove('height-animating');
-    chatInput.style.height = DEFAULT_CHAT_INPUT_HEIGHT + 'px';
-    chatInput.style.overflowY = 'hidden';
-  }, 150);
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
 }
 
 // Initialize input height adjustment
 chatInput.addEventListener('input', adjustInputHeight);
-resetInputHeight();
 
 // Prevent default drag and drop behavior
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => e.preventDefault());
 
-console.log('FSB v0.9.20 chat interface loaded');
+console.log('FSB v0.9.30 chat interface loaded');
 
 // ==========================================
 // /agent Slash Command Handler
@@ -1028,11 +866,11 @@ async function showAgentList() {
 
     const agents = response?.agents || [];
     if (agents.length === 0) {
-      addMessage('No agents configured. Use /agent to create one.', 'system');
+      addMessage('No background agents configured. Use /agent to create one.', 'system');
       return;
     }
 
-    let listText = 'Agents:\n';
+    let listText = 'Background Agents:\n';
     for (const agent of agents) {
       const status = agent.enabled ? '[ON]' : '[OFF]';
       const lastRun = agent.lastRunAt ? new Date(agent.lastRunAt).toLocaleString() : 'Never';

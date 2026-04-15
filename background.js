@@ -1,32 +1,11 @@
-// Background service worker for FSB v0.9.20
+// Background service worker for FSB v0.9.30
 
 // Import configuration and AI integration modules
 importScripts('config/config.js');
 importScripts('config/init-config.js');
 importScripts('config/secure-config.js');
 importScripts('ai/ai-integration.js');
-importScripts('ai/tool-definitions.js');
-importScripts('ai/tool-use-adapter.js');
-importScripts('ai/tool-executor.js');
-
-// Phase 156-158: extracted architecture modules (loaded before agent-loop.js)
-importScripts('ai/session-schema.js');
-importScripts('ai/state-emitter.js');
-importScripts('ai/transcript-store.js');
-importScripts('ai/turn-result.js');
-importScripts('ai/action-history.js');
-importScripts('ai/cost-tracker.js');
-importScripts('ai/engine-config.js');
-importScripts('ai/permission-context.js');
-importScripts('ai/hook-pipeline.js');
-importScripts('ai/hooks/safety-hooks.js');
-importScripts('ai/hooks/permission-hook.js');
-importScripts('ai/hooks/progress-hook.js');
-
-importScripts('ai/agent-loop.js');
-importScripts('utils/task-router.js');
 importScripts('utils/automation-logger.js');
-importScripts('utils/overlay-state.js');
 importScripts('utils/analytics.js');
 importScripts('utils/keyboard-emulator.js');
 importScripts('utils/site-explorer.js');
@@ -48,13 +27,10 @@ importScripts('site-guides/productivity/_shared.js');
 
 // Per-site guides: E-Commerce
 importScripts('site-guides/ecommerce/amazon.js');
-importScripts('site-guides/ecommerce/bestbuy.js');
-importScripts('site-guides/ecommerce/demo-store.js');
 importScripts('site-guides/ecommerce/ebay.js');
-importScripts('site-guides/ecommerce/mega-menu.js');
-importScripts('site-guides/ecommerce/nike-3d-viewer.js');
-importScripts('site-guides/ecommerce/target.js');
 importScripts('site-guides/ecommerce/walmart.js');
+importScripts('site-guides/ecommerce/target.js');
+importScripts('site-guides/ecommerce/bestbuy.js');
 
 // Per-site guides: Social Media
 importScripts('site-guides/social/linkedin.js');
@@ -63,7 +39,6 @@ importScripts('site-guides/social/facebook.js');
 importScripts('site-guides/social/reddit.js');
 importScripts('site-guides/social/instagram.js');
 importScripts('site-guides/social/youtube.js');
-importScripts('site-guides/social/tiktok.js');
 
 // Per-site guides: Finance
 importScripts('site-guides/finance/yahoo-finance.js');
@@ -81,7 +56,6 @@ importScripts('site-guides/travel/kayak.js');
 importScripts('site-guides/travel/southwest.js');
 importScripts('site-guides/travel/united.js');
 importScripts('site-guides/travel/google-travel.js');
-importScripts('site-guides/travel/google-maps.js');
 
 // Per-site guides: Email
 importScripts('site-guides/email/gmail.js');
@@ -95,7 +69,6 @@ importScripts('site-guides/coding/github.js');
 importScripts('site-guides/coding/codeforces.js');
 importScripts('site-guides/coding/geeksforgeeks.js');
 importScripts('site-guides/coding/stackoverflow.js');
-importScripts('site-guides/coding/observable.js');
 
 // Per-site guides: Career -- ATS base guides (load first)
 importScripts('site-guides/career/workday.js');
@@ -153,76 +126,15 @@ importScripts('site-guides/gaming/epic-games.js');
 importScripts('site-guides/gaming/gog.js');
 importScripts('site-guides/gaming/humble-bundle.js');
 
-// Per-site guides: Browser Games
-importScripts('site-guides/games/google-solitaire.js');
-importScripts('site-guides/games/canvas-game.js');
-
-// Per-site guides: Music
-importScripts('site-guides/music/virtual-piano.js');
-
-// Per-site guides: Media
-importScripts('site-guides/media/podcast-player.js');
-importScripts('site-guides/media/video-player.js');
-importScripts('site-guides/media/voice-recorder.js');
-
 // Per-site guides: Productivity
 importScripts('site-guides/productivity/google-sheets.js');
 importScripts('site-guides/productivity/google-docs.js');
-importScripts('site-guides/productivity/google-keep.js');
-importScripts('site-guides/productivity/google-calendar.js');
-importScripts('site-guides/productivity/todoist.js');
-importScripts('site-guides/productivity/trello.js');
-importScripts('site-guides/productivity/notion.js');
-importScripts('site-guides/productivity/jira.js');
-importScripts('site-guides/productivity/airtable.js');
-importScripts('site-guides/productivity/pdf-editor.js');
-importScripts('site-guides/productivity/pdf-viewer.js');
-importScripts('site-guides/productivity/pricing-table.js');
-importScripts('site-guides/productivity/crm-hr-cross-ref.js');
-
-// Per-site guides: Design & Whiteboard
-importScripts('site-guides/design/_shared.js');
-importScripts('site-guides/design/excalidraw.js');
-importScripts('site-guides/design/photopea.js');
-importScripts('site-guides/design/miro.js');
-
-// Per-site guides: Reference
-importScripts('site-guides/reference/wikipedia.js');
-
-// Per-site guides: News
-importScripts('site-guides/news/hackernews.js');
-importScripts('site-guides/news/news-feed.js');
-
-// Per-site guides: Sports
-importScripts('site-guides/sports/live-scores.js');
-
-// Per-site guides: Utilities
-importScripts('site-guides/utilities/carousel.js');
-importScripts('site-guides/utilities/color-picker.js');
-importScripts('site-guides/utilities/file-upload.js');
-importScripts('site-guides/utilities/slider-captcha.js');
-importScripts('site-guides/utilities/support-chatbot.js');
-importScripts('site-guides/utilities/two-factor-auth.js');
-importScripts('site-guides/utilities/session-expiry.js');
-importScripts('site-guides/utilities/freeware-download.js');
-importScripts('site-guides/utilities/cookie-opt-out.js');
-importScripts('site-guides/utilities/shuffled-cancel.js');
-importScripts('site-guides/utilities/camouflaged-close.js');
-importScripts('site-guides/utilities/adblocker-bypass.js');
-importScripts('site-guides/utilities/premium-highlighting.js');
-importScripts('site-guides/utilities/newsletter-uncheck.js');
-importScripts('site-guides/utilities/buried-login-link.js');
-importScripts('site-guides/utilities/skip-ad-countdown.js');
-importScripts('site-guides/utilities/anti-scrape-text-extraction.js');
 
 // Background agent modules
 importScripts('agents/agent-manager.js');
 importScripts('agents/agent-scheduler.js');
 importScripts('agents/agent-executor.js');
 importScripts('agents/server-sync.js');
-// Compression for WS payloads (used by ws-client.js)
-importScripts('lib/lz-string.min.js');
-importScripts('ws/ws-client.js');
 
 // Memory layer modules
 importScripts('lib/memory/memory-schemas.js');
@@ -237,84 +149,8 @@ importScripts('lib/memory/cross-site-patterns.js');
 importScripts('lib/memory/sitemap-converter.js');
 importScripts('lib/memory/sitemap-refiner.js');
 
-// ---------------------------------------------------------------------------
-// Phase 159: Hook pipeline factory for agent loop sessions
-// ---------------------------------------------------------------------------
-
-/**
- * Create a HookPipeline with all standard hooks registered for a session.
- * Called once per session before runAgentLoop.
- *
- * @returns {{ hooks: HookPipeline }}
- */
-function createSessionHooks() {
-  var hooks = new HookPipeline();
-  var emitter = new SessionStateEmitter();
-  var permCtx = new PermissionContext();
-
-  // Safety breaker on beforeIteration -- pre-iteration guard (LOOP-03 gap closure)
-  hooks.register(
-    LIFECYCLE_EVENTS.BEFORE_ITERATION,
-    createSafetyBreakerHook(checkSafetyBreakers)
-  );
-
-  // Safety hooks on afterIteration
-  hooks.register(
-    LIFECYCLE_EVENTS.AFTER_ITERATION,
-    createSafetyBreakerHook(checkSafetyBreakers)
-  );
-  hooks.register(
-    LIFECYCLE_EVENTS.AFTER_ITERATION,
-    createStuckDetectionHook(detectStuck)
-  );
-
-  // Permission hook on beforeToolExecution
-  hooks.register(
-    LIFECYCLE_EVENTS.BEFORE_TOOL_EXECUTION,
-    createPermissionHook(permCtx)
-  );
-
-  // Progress hooks
-  hooks.register(
-    LIFECYCLE_EVENTS.AFTER_TOOL_EXECUTION,
-    createToolProgressHook(emitter)
-  );
-  hooks.register(
-    LIFECYCLE_EVENTS.AFTER_ITERATION,
-    createIterationProgressHook(emitter)
-  );
-  hooks.register(
-    LIFECYCLE_EVENTS.ON_COMPLETION,
-    createCompletionProgressHook(emitter)
-  );
-  hooks.register(
-    LIFECYCLE_EVENTS.ON_ERROR,
-    createErrorProgressHook(emitter)
-  );
-
-  return { hooks: hooks };
-}
-
 // Site map intelligence - bundled map cache
 const bundledSiteMapCache = new Map();
-
-// Speech-to-Text: tracks which tab has active browser recognition
-let _sttActiveTabId = null;
-
-// Ensure offscreen document for STT on restricted pages (new tab, chrome://)
-async function _ensureOffscreenSTT() {
-  const url = chrome.runtime.getURL('offscreen/stt.html');
-  const contexts = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT'],
-    documentUrls: [url]
-  });
-  if (contexts.length > 0) return;
-  await chrome.offscreen.createDocument({
-    url,
-    reasons: ['AUDIO_PLAYBACK'],
-    justification: 'Speech-to-text recognition requires audio capture'
-  });
-}
 
 // Content script module files in dependency order.
 // Used by all file-based chrome.scripting.executeScript injection points.
@@ -322,7 +158,6 @@ async function _ensureOffscreenSTT() {
 // shared helpers, then domain modules, then messaging/lifecycle which depend on all above.
 const CONTENT_SCRIPT_FILES = [
   'utils/automation-logger.js',
-  'utils/overlay-state.js',
   'content/init.js',
   'content/utils.js',
   'content/dom-state.js',
@@ -331,7 +166,6 @@ const CONTENT_SCRIPT_FILES = [
   'content/accessibility.js',
   'content/actions.js',
   'content/dom-analysis.js',
-  'content/dom-stream.js',
   'content/messaging.js',
   'content/lifecycle.js'
 ];
@@ -438,118 +272,6 @@ async function extractAndStoreMemories(sessionId, session) {
     }
 
     const memories = await memoryManager.add(session, { domain });
-
-    // Phase 100: Extract procedural memory from successful sessions (MEM-01)
-    try {
-      if (
-        memories.length > 0 &&
-        memories[0].typeData?.session?.outcome === 'success' &&
-        memories[0].typeData?.session?.iterationCount <= 10 &&
-        (memories[0].typeData?.session?.timeline || []).length >= 2
-      ) {
-        const timeline = memories[0].typeData.session.timeline;
-        const steps = timeline.map(step => {
-          const parts = [step.action];
-          if (step.target) parts.push(step.target);
-          return parts.join(' ');
-        });
-
-        const selectors = [...new Set(
-          timeline
-            .map(step => step.target)
-            .filter(t => t && t.length > 0)
-        )];
-
-        const taskText = memories[0].typeData?.session?.task || session.task || 'Unknown task';
-        const procText = `${taskText} on ${domain || 'unknown site'}`;
-
-        const proceduralMemory = createProceduralMemory(procText, {
-          domain: domain,
-          taskType: memories[0].metadata?.taskType || null,
-          tags: ['procedural', 'auto-extracted', ...(domain ? [domain] : [])],
-          confidence: 1.0,
-          sourceSessionId: session.sessionId || null
-        }, {
-          steps: steps,
-          selectors: selectors,
-          timings: timeline.map(step => step.timestamp).filter(Boolean),
-          successRate: 1.0,
-          totalRuns: 1,
-          lastSuccessAt: Date.now(),
-          targetUrl: memories[0].typeData?.session?.finalUrl || null
-        });
-
-        // Enforce per-domain cap of 5 procedural memories
-        const existingProcedural = await memoryStorage.query({
-          domain: domain,
-          type: MEMORY_TYPES.PROCEDURAL
-        });
-        const domainProcedural = existingProcedural.filter(m => m.type === MEMORY_TYPES.PROCEDURAL);
-        if (domainProcedural.length >= 5) {
-          domainProcedural.sort((a, b) => a.createdAt - b.createdAt);
-          const toDelete = domainProcedural.slice(0, domainProcedural.length - 4);
-          for (const old of toDelete) {
-            await memoryStorage.delete(old.id);
-          }
-        }
-
-        await memoryStorage.add(proceduralMemory);
-
-        debugLog('Extracted procedural memory from successful session', {
-          sessionId,
-          domain,
-          steps: steps.length,
-          taskType: memories[0].metadata?.taskType
-        });
-      }
-    } catch (procError) {
-      console.warn('[FSB] Procedural memory extraction failed:', procError.message);
-    }
-
-    // Phase 101 (MEM-03): Auto-consolidation triggers
-    try {
-      // Increment persistent session counter
-      const counterResult = await chrome.storage.local.get('fsb_session_count');
-      const sessionCount = (counterResult.fsb_session_count || 0) + 1;
-      await chrome.storage.local.set({ fsb_session_count: sessionCount });
-
-      let shouldConsolidate = false;
-      let reason = '';
-
-      // Trigger 1: Every 10 sessions
-      if (sessionCount % 10 === 0) {
-        shouldConsolidate = true;
-        reason = `session count ${sessionCount} (every 10)`;
-      }
-
-      // Trigger 2: Any memory type at 80% capacity (80 out of 100 per type)
-      if (!shouldConsolidate) {
-        const stats = await memoryStorage.getStats();
-        const PER_TYPE_CAPACITY = 100;
-        const CAPACITY_THRESHOLD = 80; // 80% of 100
-        for (const [type, count] of Object.entries(stats.byType || {})) {
-          if (count >= CAPACITY_THRESHOLD) {
-            shouldConsolidate = true;
-            reason = `${type} memory at ${count}/${PER_TYPE_CAPACITY} (80% capacity)`;
-            break;
-          }
-        }
-      }
-
-      if (shouldConsolidate) {
-        // Fire-and-forget -- consolidation must never block automation
-        memoryManager.consolidate().then(result => {
-          console.log(`[Memory] Auto-consolidation complete (${reason}):`, result);
-          // Reset counter after successful consolidation
-          chrome.storage.local.set({ fsb_session_count: 0 });
-        }).catch(err => {
-          console.warn('[Memory] Auto-consolidation failed:', err.message);
-        });
-      }
-    } catch (err) {
-      console.warn('[Memory] Auto-consolidation trigger check failed:', err.message);
-    }
-
     if (memories.length > 0) {
       debugLog('Extracted memories from session', {
         sessionId,
@@ -575,168 +297,6 @@ function debugLog(message, data) {
     } else {
       console.log('[FSB DEBUG]', message);
     }
-  }
-}
-
-// ============================================================
-// TIMEZONE-TO-COUNTRY LOOKUP MAP
-// Static mapping of major IANA timezones to country names.
-// Used by getUserLocale() to inject locale context into AI prompts.
-// Organized by region for maintainability (~90 entries).
-// ============================================================
-const TIMEZONE_TO_COUNTRY = {
-  // Americas - United States
-  'America/New_York': 'United States',
-  'America/Chicago': 'United States',
-  'America/Denver': 'United States',
-  'America/Los_Angeles': 'United States',
-  'America/Anchorage': 'United States',
-  'Pacific/Honolulu': 'United States',
-  'America/Phoenix': 'United States',
-  'America/Indiana/Indianapolis': 'United States',
-  'America/Detroit': 'United States',
-  'America/Boise': 'United States',
-  'America/Adak': 'United States',
-
-  // Americas - Canada
-  'America/Toronto': 'Canada',
-  'America/Vancouver': 'Canada',
-  'America/Edmonton': 'Canada',
-  'America/Winnipeg': 'Canada',
-  'America/Halifax': 'Canada',
-  'America/St_Johns': 'Canada',
-
-  // Americas - Mexico
-  'America/Mexico_City': 'Mexico',
-  'America/Tijuana': 'Mexico',
-  'America/Cancun': 'Mexico',
-
-  // Americas - Brazil
-  'America/Sao_Paulo': 'Brazil',
-  'America/Manaus': 'Brazil',
-
-  // Americas - Other
-  'America/Bogota': 'Colombia',
-  'America/Lima': 'Peru',
-  'America/Santiago': 'Chile',
-  'America/Buenos_Aires': 'Argentina',
-  'America/Caracas': 'Venezuela',
-
-  // Europe
-  'Europe/London': 'United Kingdom',
-  'Europe/Paris': 'France',
-  'Europe/Berlin': 'Germany',
-  'Europe/Madrid': 'Spain',
-  'Europe/Rome': 'Italy',
-  'Europe/Amsterdam': 'Netherlands',
-  'Europe/Brussels': 'Belgium',
-  'Europe/Zurich': 'Switzerland',
-  'Europe/Stockholm': 'Sweden',
-  'Europe/Oslo': 'Norway',
-  'Europe/Copenhagen': 'Denmark',
-  'Europe/Helsinki': 'Finland',
-  'Europe/Warsaw': 'Poland',
-  'Europe/Prague': 'Czech Republic',
-  'Europe/Vienna': 'Austria',
-  'Europe/Dublin': 'Ireland',
-  'Europe/Lisbon': 'Portugal',
-  'Europe/Athens': 'Greece',
-  'Europe/Bucharest': 'Romania',
-  'Europe/Istanbul': 'Turkey',
-  'Europe/Moscow': 'Russia',
-  'Europe/Kyiv': 'Ukraine',
-
-  // Asia
-  'Asia/Tokyo': 'Japan',
-  'Asia/Shanghai': 'China',
-  'Asia/Hong_Kong': 'Hong Kong',
-  'Asia/Taipei': 'Taiwan',
-  'Asia/Seoul': 'South Korea',
-  'Asia/Kolkata': 'India',
-  'Asia/Singapore': 'Singapore',
-  'Asia/Bangkok': 'Thailand',
-  'Asia/Jakarta': 'Indonesia',
-  'Asia/Manila': 'Philippines',
-  'Asia/Ho_Chi_Minh': 'Vietnam',
-  'Asia/Kuala_Lumpur': 'Malaysia',
-  'Asia/Dubai': 'United Arab Emirates',
-  'Asia/Riyadh': 'Saudi Arabia',
-  'Asia/Karachi': 'Pakistan',
-  'Asia/Dhaka': 'Bangladesh',
-  'Asia/Colombo': 'Sri Lanka',
-  'Asia/Kathmandu': 'Nepal',
-  'Asia/Tashkent': 'Uzbekistan',
-  'Asia/Almaty': 'Kazakhstan',
-  'Asia/Tehran': 'Iran',
-  'Asia/Baghdad': 'Iraq',
-  'Asia/Jerusalem': 'Israel',
-
-  // Oceania
-  'Australia/Sydney': 'Australia',
-  'Australia/Melbourne': 'Australia',
-  'Australia/Brisbane': 'Australia',
-  'Australia/Perth': 'Australia',
-  'Australia/Adelaide': 'Australia',
-  'Pacific/Auckland': 'New Zealand',
-  'Pacific/Fiji': 'Fiji',
-
-  // Africa
-  'Africa/Cairo': 'Egypt',
-  'Africa/Lagos': 'Nigeria',
-  'Africa/Johannesburg': 'South Africa',
-  'Africa/Nairobi': 'Kenya',
-  'Africa/Casablanca': 'Morocco',
-  'Africa/Accra': 'Ghana'
-};
-
-/**
- * Detect the user's timezone, country, and local datetime using browser APIs.
- * Returns a locale object with a pre-formatted promptString for AI injection.
- * Uses Intl.DateTimeFormat for timezone detection and a static lookup table
- * for country derivation. No external dependencies.
- *
- * @returns {{ timezone: string, country: string, localDateTime: string, promptString: string }}
- */
-function getUserLocale() {
-  try {
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-    // Validate IANA format (always contains "/") -- macOS Sonoma bug mitigation
-    if (!timezone || !timezone.includes('/')) {
-      console.warn('[FSB] Timezone detection returned non-IANA value:', timezone);
-      return {
-        timezone: timezone || 'Unknown',
-        country: 'Unknown',
-        localDateTime: new Date().toISOString(),
-        promptString: 'User timezone could not be detected.'
-      };
-    }
-
-    const country = TIMEZONE_TO_COUNTRY[timezone] || 'Unknown';
-    const localDateTime = new Date().toLocaleString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZoneName: 'short'
-    });
-
-    return {
-      timezone,
-      country,
-      localDateTime,
-      promptString: `User is in ${country}, local time: ${localDateTime} (${timezone})`
-    };
-  } catch (e) {
-    console.warn('[FSB] getUserLocale() failed:', e.message);
-    return {
-      timezone: 'Unknown',
-      country: 'Unknown',
-      localDateTime: new Date().toISOString(),
-      promptString: 'User timezone could not be detected.'
-    };
   }
 }
 
@@ -790,7 +350,6 @@ function getActionStatus(tool, params) {
     case 'searchGoogle':   return `Looking up "${shorten(params?.query)}"`;
     case 'scroll':         return 'Scrolling';
     case 'getText':        return 'Reading content';
-    case 'readPage':       return 'Reading full page text';
     case 'getAttribute':   return 'Inspecting page';
     case 'selectOption': {
       const opt = shorten(params?.optionText || params?.value, 25);
@@ -879,103 +438,8 @@ async function endSessionOverlays(session, reason) {
  * @param {number} tabId - Target tab ID
  * @param {Object} statusData - Status fields: phase, taskName, iteration, maxIterations, reason, animatedHighlights
  */
-function findOverlaySession(tabId, statusData) {
-  if (statusData && statusData.sessionId && activeSessions.has(statusData.sessionId)) {
-    return activeSessions.get(statusData.sessionId);
-  }
-
-  var match = null;
-  activeSessions.forEach(function(session) {
-    if (match) return;
-    if (session.tabId === tabId || session.originalTabId === tabId || session.previousTabId === tabId) {
-      match = session;
-    }
-  });
-  return match;
-}
-
-function cloneOverlayStatusData(statusData) {
-  var source = statusData || {};
-  if (typeof structuredClone === 'function') {
-    try {
-      return structuredClone(source);
-    } catch (_cloneErr) {
-      // Fall through to JSON clone.
-    }
-  }
-
-  try {
-    return JSON.parse(JSON.stringify(source));
-  } catch (_jsonErr) {
-    return Object.assign({}, source);
-  }
-}
-
-function buildOverlayPayload(tabId, statusData, session) {
-  var utils = self.FSBOverlayStateUtils;
-  if (!utils || typeof utils.buildOverlayState !== 'function') {
-    return null;
-  }
-
-  var overlaySession = session || findOverlaySession(tabId, statusData || {});
-  var overlayState = utils.buildOverlayState(statusData || {}, overlaySession || null);
-  if (!overlayState) return null;
-
-  if (overlayState && overlaySession && Array.isArray(overlaySession.actionHistory)) {
-    overlayState.actionCount = overlaySession.actionHistory.length;
-  } else if (overlayState) {
-    overlayState.actionCount = null;
-  }
-
-  if (overlaySession) {
-    if (!overlaySession._overlaySessionToken) {
-      overlaySession._overlaySessionToken = overlaySession.sessionId || ('tab:' + tabId + ':' + Date.now());
-    }
-    overlaySession._overlayVersion = (overlaySession._overlayVersion || 0) + 1;
-    overlayState.sessionToken = overlaySession._overlaySessionToken;
-    overlayState.version = overlaySession._overlayVersion;
-  } else {
-    overlayState.sessionToken = (statusData && statusData.sessionToken) || ('tab:' + tabId);
-    overlayState.version = (statusData && typeof statusData.version === 'number')
-      ? statusData.version
-      : Date.now();
-  }
-
-  return overlayState;
-}
-
 async function sendSessionStatus(tabId, statusData) {
-  var payloadStatusData = cloneOverlayStatusData(statusData || {});
-  var isOverlayHeartbeat = !!payloadStatusData._overlayHeartbeat;
-  if (isOverlayHeartbeat) {
-    delete payloadStatusData._overlayHeartbeat;
-  }
-
-  var overlaySession = findOverlaySession(tabId, payloadStatusData || {});
-  var overlayState = buildOverlayPayload(tabId, payloadStatusData, overlaySession);
-  var sentAt = Date.now();
-
-  if (overlaySession) {
-    overlaySession._lastOverlaySentAt = sentAt;
-    overlaySession._lastOverlayTargetTabId = tabId;
-    overlaySession._lastOverlayIdentity = overlayState ? {
-      sessionToken: overlayState.sessionToken || null,
-      version: overlayState.version || null,
-      lifecycle: overlayState.lifecycle || null,
-      phase: overlayState.phase || null
-    } : null;
-
-    if (!isOverlayHeartbeat || !overlaySession._lastOverlayStatusData) {
-      overlaySession._lastOverlayStatusData = cloneOverlayStatusData(payloadStatusData);
-      overlaySession._lastOverlayActivityAt = sentAt;
-    }
-  }
-
-  const payload = {
-    action: 'sessionStatus',
-    ...payloadStatusData,
-    overlayState: overlayState
-  };
+  const payload = { action: 'sessionStatus', ...statusData };
   try {
     await chrome.tabs.sendMessage(tabId, payload, { frameId: 0 });
   } catch (firstErr) {
@@ -985,506 +449,10 @@ async function sendSessionStatus(tabId, statusData) {
       await chrome.tabs.sendMessage(tabId, payload, { frameId: 0 });
     } catch (retryErr) {
       automationLogger.debug('sendSessionStatus delivery failed', {
-        tabId, phase: payloadStatusData.phase, error: retryErr.message
+        tabId, phase: statusData.phase, error: retryErr.message
       });
     }
   }
-}
-
-var OVERLAY_HEARTBEAT_INTERVAL_MS = 15000;
-var OVERLAY_HEARTBEAT_REFRESH_MS = 45000;
-var OVERLAY_HEARTBEAT_IDLE_MS = 45000;
-
-function requestOverlayStateBroadcast(tabId) {
-  if (!_streamingActive || _streamingTabId !== tabId) return;
-  try {
-    chrome.tabs.sendMessage(tabId, { action: 'domStreamRequestOverlay' }, { frameId: 0 })
-      .catch(function() {});
-  } catch (_overlayErr) {
-    // Non-blocking
-  }
-}
-
-function buildOverlayHeartbeatStatus(session) {
-  if (!session || session.status !== 'running' || !session._lastOverlayStatusData) {
-    return null;
-  }
-
-  var heartbeatStatus = cloneOverlayStatusData(session._lastOverlayStatusData);
-  var lastActivityAt = session._lastOverlayActivityAt || session._lastOverlaySentAt || Date.now();
-  var idleMs = Math.max(0, Date.now() - lastActivityAt);
-
-  heartbeatStatus._overlayHeartbeat = true;
-
-  if (idleMs >= OVERLAY_HEARTBEAT_IDLE_MS) {
-    heartbeatStatus.statusText = idleMs >= (OVERLAY_HEARTBEAT_IDLE_MS * 2)
-      ? 'Still working on the current automation step'
-      : 'Waiting for next automation update';
-    heartbeatStatus.progress = {
-      mode: 'indeterminate',
-      label: idleMs >= (OVERLAY_HEARTBEAT_IDLE_MS * 2) ? 'Still working' : 'Waiting',
-      eta: heartbeatStatus.estimatedTimeRemaining || null
-    };
-  }
-
-  return heartbeatStatus;
-}
-
-// --- Dashboard progress broadcasting helpers ---
-
-var _lastDashboardBroadcast = 0; // Throttle: max 1 WS broadcast per second
-var _dashboardTaskTabId = null; // Tab ID for active dashboard task (used for DOM stream stop)
-var _lastDashboardTaskSnapshot = null; // Recoverable dashboard task state for reconnect snapshots
-var _streamingTabId = null; // Tab ID currently being streamed to dashboard (always-on, independent of tasks)
-var _streamingActive = false; // Whether dashboard has requested DOM streaming
-var _tabSwitchTimer = null; // Debounce timer for tab switch stream re-targeting
-var _remoteControlDebuggerTabId = null; // Tab ID with debugger attached for remote control (null = not active)
-var _remoteControlDebuggerOwned = false; // Whether remote control attached the current debugger session itself
-var _remoteControlEnabled = false; // Whether the dashboard currently wants remote control active
-var _lastRemoteControlState = null; // Last authoritative remote-control state sent to the dashboard
-var _lastRemotePrintableKeyDispatch = null; // Recent printable keyDown for legacy char-event dedupe
-var _streamTabUrl = ''; // Last known URL for the streaming tab or not-ready tab candidate
-var _streamStatus = 'not-ready'; // ready | not-ready | recovering
-var _streamReason = 'no-streamable-tab'; // restricted-tab | no-streamable-tab | waiting-for-page-ready | tab-closed
-var _streamStateSource = 'bootstrap';
-var DASHBOARD_TASK_SNAPSHOT_STORAGE_KEY = 'fsb_dashboard_task_snapshot';
-var DASHBOARD_TASK_SNAPSHOT_MAX_AGE_MS = 15 * 60 * 1000;
-
-function _createDashboardTaskRunId() {
-  return 'task_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
-}
-
-function _buildDashboardTaskSnapshot(details) {
-  return Object.assign({
-    taskRunId: '',
-    taskStatus: 'idle',
-    task: '',
-    progress: 0,
-    phase: '',
-    eta: null,
-    elapsed: 0,
-    action: '',
-    lastAction: '',
-    summary: '',
-    error: '',
-    stopped: false,
-    tabId: null
-  }, _lastDashboardTaskSnapshot || {}, details || {});
-}
-
-function _persistDashboardTaskSnapshot() {
-  try {
-    chrome.storage.session.set({
-      [DASHBOARD_TASK_SNAPSHOT_STORAGE_KEY]: _lastDashboardTaskSnapshot
-    }).catch(function() {});
-  } catch (e) { /* ignore */ }
-}
-
-function _rememberDashboardTaskSnapshot(details) {
-  _lastDashboardTaskSnapshot = Object.assign({}, _buildDashboardTaskSnapshot(details), {
-    updatedAt: Date.now()
-  });
-  _persistDashboardTaskSnapshot();
-  return Object.assign({}, _lastDashboardTaskSnapshot);
-}
-
-function _getDashboardTaskRecoverySnapshot() {
-  if (!_lastDashboardTaskSnapshot) return null;
-  var age = Date.now() - (_lastDashboardTaskSnapshot.updatedAt || 0);
-  if (_lastDashboardTaskSnapshot.taskStatus !== 'running' && age > DASHBOARD_TASK_SNAPSHOT_MAX_AGE_MS) {
-    return null;
-  }
-  return Object.assign({}, _lastDashboardTaskSnapshot);
-}
-
-function _buildDashboardTaskProgressPayload(taskSnapshot) {
-  var snapshot = _buildDashboardTaskSnapshot(taskSnapshot);
-  return {
-    taskRunId: snapshot.taskRunId || '',
-    task: snapshot.task || '',
-    taskStatus: snapshot.taskStatus || 'running',
-    progress: typeof snapshot.progress === 'number' ? snapshot.progress : 0,
-    phase: snapshot.phase || '',
-    eta: snapshot.eta || null,
-    elapsed: snapshot.elapsed || 0,
-    action: snapshot.action || snapshot.lastAction || '',
-    lastAction: snapshot.lastAction || snapshot.action || '',
-    taskSource: snapshot.taskSource || 'live',
-    updatedAt: snapshot.updatedAt || Date.now(),
-    status: snapshot.taskStatus || 'running'
-  };
-}
-
-function _buildDashboardTaskCompletePayload(taskSnapshot) {
-  var snapshot = _buildDashboardTaskSnapshot(taskSnapshot);
-  return {
-    success: snapshot.taskStatus === 'success',
-    stopped: !!snapshot.stopped,
-    taskRunId: snapshot.taskRunId || '',
-    task: snapshot.task || '',
-    taskStatus: snapshot.taskStatus || (snapshot.stopped ? 'stopped' : 'failed'),
-    progress: typeof snapshot.progress === 'number' ? snapshot.progress : 0,
-    phase: snapshot.phase || '',
-    elapsed: snapshot.elapsed || 0,
-    action: snapshot.action || '',
-    lastAction: snapshot.lastAction || snapshot.action || '',
-    summary: snapshot.summary || '',
-    error: snapshot.error || '',
-    taskSource: snapshot.taskSource || 'live',
-    updatedAt: snapshot.updatedAt || Date.now()
-  };
-}
-
-function _sendDashboardTaskProgress(taskSnapshot) {
-  return fsbWebSocket.send('ext:task-progress', _buildDashboardTaskProgressPayload(taskSnapshot));
-}
-
-function _sendDashboardTaskComplete(taskSnapshot) {
-  return fsbWebSocket.send('ext:task-complete', _buildDashboardTaskCompletePayload(taskSnapshot));
-}
-
-try {
-  chrome.storage.session.get(DASHBOARD_TASK_SNAPSHOT_STORAGE_KEY).then(function(result) {
-    var stored = result && result[DASHBOARD_TASK_SNAPSHOT_STORAGE_KEY];
-    if (stored && typeof stored === 'object') {
-      _lastDashboardTaskSnapshot = stored;
-    }
-  }).catch(function() {});
-} catch (e) { /* ignore */ }
-
-function _isStreamableTabUrl(url) {
-  return !!url && !/^(chrome|about|edge|brave|chrome-extension):/.test(url);
-}
-
-function _rememberStreamState(status, reason, tabId, url, source) {
-  var previousTabId = _streamingTabId;
-  _streamStatus = status || 'not-ready';
-  _streamReason = reason || '';
-  _streamTabUrl = url || '';
-  _streamStateSource = source || 'background';
-
-  if (_streamStatus === 'ready' || _streamStatus === 'recovering') {
-    _streamingTabId = typeof tabId === 'number' ? tabId : null;
-  } else if (_streamStatus === 'not-ready') {
-    _streamingTabId = null;
-  }
-
-  if (_remoteControlEnabled) {
-    if (_streamStatus !== 'ready') {
-      _remoteControlEnabled = false;
-      _releaseRemoteControlDebugger('stream-not-ready').catch(function() {});
-      _sendRemoteControlState('stream-not-ready', {
-        enabled: false,
-        attached: false,
-        tabId: typeof tabId === 'number' ? tabId : null,
-        ownership: 'none'
-      });
-      return;
-    }
-    if (previousTabId !== null && _streamingTabId !== previousTabId) {
-      _remoteControlEnabled = false;
-      _releaseRemoteControlDebugger('retarget-required').catch(function() {});
-      _sendRemoteControlState('retarget-required', {
-        enabled: false,
-        attached: false,
-        tabId: typeof _streamingTabId === 'number' ? _streamingTabId : null,
-        ownership: 'none'
-      });
-      return;
-    }
-    _syncRemoteControlDebugger('stream-state:' + _streamStatus);
-  }
-}
-
-function _sendStreamState(status, reason, details) {
-  var payload = details || {};
-  var tabId = Object.prototype.hasOwnProperty.call(payload, 'tabId') ? payload.tabId : _streamingTabId;
-  var url = Object.prototype.hasOwnProperty.call(payload, 'url') ? payload.url : _streamTabUrl;
-  var source = payload.source || 'background';
-
-  _rememberStreamState(status, reason, tabId, url, source);
-
-  fsbWebSocket.send('ext:stream-state', {
-    status: status,
-    reason: reason || '',
-    streamIntentActive: !!_streamingActive,
-    tabId: typeof tabId === 'number' ? tabId : null,
-    url: url || '',
-    source: source
-  });
-}
-
-function _recordStreamTransportEvent(eventName, details) {
-  if (typeof recordFSBTransportEvent !== 'function') return;
-  recordFSBTransportEvent(eventName, Object.assign({
-    streamIntentActive: !!_streamingActive
-  }, details || {}));
-}
-
-function _recordStreamTransportFailure(eventName, tabId, reason, readyState, target) {
-  if (typeof recordFSBTransportFailure !== 'function') return;
-  recordFSBTransportFailure(eventName, {
-    type: 'ext:stream-state',
-    target: target || 'stream-tab',
-    tabId: typeof tabId === 'number' ? tabId : null,
-    readyState: readyState,
-    error: reason || ''
-  });
-}
-
-function _getRemoteControlOwnership() {
-  if (_remoteControlDebuggerTabId === null) return 'none';
-  return _remoteControlDebuggerOwned ? 'remote-control' : 'external-debugger';
-}
-
-function _rememberRemoteControlState(reason, details) {
-  details = details || {};
-  _lastRemoteControlState = {
-    enabled: Object.prototype.hasOwnProperty.call(details, 'enabled') ? !!details.enabled : !!_remoteControlEnabled,
-    attached: Object.prototype.hasOwnProperty.call(details, 'attached')
-      ? !!details.attached
-      : (_remoteControlDebuggerTabId !== null),
-    tabId: Object.prototype.hasOwnProperty.call(details, 'tabId')
-      ? (typeof details.tabId === 'number' ? details.tabId : null)
-      : (typeof _remoteControlDebuggerTabId === 'number' ? _remoteControlDebuggerTabId : null),
-    reason: reason || 'user-stop',
-    ownership: details.ownership || _getRemoteControlOwnership()
-  };
-  return Object.assign({}, _lastRemoteControlState);
-}
-
-function _sendRemoteControlState(reason, details) {
-  var payload = _rememberRemoteControlState(reason, details);
-  if (fsbWebSocket && typeof fsbWebSocket.send === 'function') {
-    fsbWebSocket.send('ext:remote-control-state', payload);
-  }
-  return payload;
-}
-
-/**
- * Listen for tab activations to re-target the DOM stream to the new active tab.
- * Debounced at 300ms to avoid rapid-fire snapshots during quick tab cycling.
- */
-chrome.tabs.onActivated.addListener(function(activeInfo) {
-  if (!_streamingActive) return;
-  var newTabId = activeInfo.tabId;
-  clearTimeout(_tabSwitchTimer);
-  _tabSwitchTimer = setTimeout(function() {
-    _handleStreamTabSwitch(newTabId);
-  }, 300);
-});
-
-/**
- * Handle switching the DOM stream to a new tab.
- * Stops stream on old tab, validates the new tab is a real page,
- * starts stream on new tab, and notifies dashboard of the switch.
- * @param {number} newTabId - The tab ID to switch streaming to
- */
-async function _handleStreamTabSwitch(newTabId) {
-  var previousTabId = _streamingTabId;
-  // Stop stream on old tab
-  if (_streamingTabId && _streamingTabId !== newTabId) {
-    try {
-      await chrome.tabs.sendMessage(_streamingTabId, { action: 'domStreamStop' }, { frameId: 0 });
-    } catch (e) { /* tab may be closed */ }
-  }
-
-  try {
-    var tab = await chrome.tabs.get(newTabId);
-    _recordStreamTransportEvent('stream-tab-switch', {
-      tabId: newTabId,
-      previousTabId: typeof previousTabId === 'number' ? previousTabId : null,
-      url: tab.url || ''
-    });
-    if (!_isStreamableTabUrl(tab.url)) {
-      _recordStreamTransportEvent('stream-tab-not-ready', {
-        tabId: newTabId,
-        previousTabId: typeof previousTabId === 'number' ? previousTabId : null,
-        url: tab.url || '',
-        reason: 'restricted-tab'
-      });
-      _recordStreamTransportFailure('stream-tab-not-ready', newTabId, 'restricted-tab', 'not-ready');
-      _sendStreamState('not-ready', 'restricted-tab', {
-        tabId: newTabId,
-        url: tab.url || '',
-        source: 'tab-switch'
-      });
-      return;
-    }
-
-    _sendStreamState('recovering', 'waiting-for-page-ready', {
-      tabId: newTabId,
-      url: tab.url || '',
-      source: 'tab-switch'
-    });
-
-    // Start stream on new tab
-    chrome.tabs.sendMessage(newTabId, { action: 'domStreamStart' }, { frameId: 0 })
-      .catch(function(err) {
-        // Content script may not be injected yet -- will retry on domStreamReady signal
-        if (typeof recordFSBTransportFailure === 'function') {
-          recordFSBTransportFailure('dom-forward-failed', {
-            type: 'domStreamStart',
-            target: 'content-script',
-            tabId: newTabId,
-            readyState: 'tab-switch-start-failed',
-            error: err && err.message ? err.message : 'domStreamStart sendMessage failed during tab switch'
-          });
-        }
-        console.warn('[FSB] Content script not ready on tab', newTabId, '-- will retry');
-      });
-  } catch (e) {
-    _recordStreamTransportEvent('stream-tab-closed', {
-      tabId: newTabId,
-      previousTabId: typeof previousTabId === 'number' ? previousTabId : null,
-      reason: 'tab-closed'
-    });
-    _recordStreamTransportFailure('stream-tab-closed', newTabId, 'tab-closed', 'closed');
-    _sendStreamState('not-ready', 'tab-closed', {
-      tabId: newTabId,
-      url: '',
-      source: 'tab-switch'
-    });
-    console.warn('[FSB] Tab switch stream error:', e.message);
-  }
-}
-
-chrome.tabs.onRemoved.addListener(function(tabId) {
-  if (tabId !== _streamingTabId) return;
-
-  _recordStreamTransportEvent('stream-tab-closed', {
-    tabId: tabId,
-    reason: 'tab-closed',
-    url: _streamTabUrl || ''
-  });
-  _recordStreamTransportFailure('stream-tab-closed', tabId, 'tab-closed', 'closed');
-  _sendStreamState('not-ready', 'tab-closed', {
-    tabId: tabId,
-    url: _streamTabUrl || '',
-    source: 'tab-removed'
-  });
-});
-
-/**
- * Broadcast task progress to the dashboard via WebSocket.
- * Only fires for dashboard-initiated tasks, throttled to max 1/second.
- * @param {Object} session - Active automation session with _isDashboardTask flag
- */
-function broadcastDashboardProgress(session) {
-  if (!session._isDashboardTask && !session.agentId) return;
-  // Throttle to max 1/second
-  var now = Date.now();
-  if (now - _lastDashboardBroadcast < 1000) return;
-  _lastDashboardBroadcast = now;
-
-  // [FSB Field Audit] Consumer: dashboard WS + sidepanel agent progress
-  // Reads: session.iterationCount, session._lastActionSummary, session.actionHistory, calculateProgress() output
-  // Display-filtered: none (all fields broadcast unchanged to dashboard and sidepanel)
-  // Pass-through: iterationCount, progress, phase, eta, action, lastAction
-  var progress = calculateProgress(session);
-  var phase = detectTaskPhase(session);
-  var lastAction = session.actionHistory && session.actionHistory.length > 0
-    ? session.actionHistory[session.actionHistory.length - 1]
-    : null;
-  var actionText = session._lastActionSummary
-    || (lastAction ? getActionStatus(lastAction.tool, lastAction.params) : null)
-    || 'Working...';
-
-  // Broadcast to sidepanel UI for agent runs
-  if (session.agentId) {
-    chrome.runtime.sendMessage({
-      action: 'agentProgress',
-      agentId: session.agentId,
-      iteration: session.iterationCount || 0,
-      currentAction: actionText,
-      progress: progress.progressPercent
-    }).catch(() => {}); // sidepanel may not be open
-  }
-
-  if (!session._isDashboardTask) {
-    console.log('[FSB] broadcastDashboardProgress: skipped -- not dashboard task');
-    return;
-  }
-
-  var taskPayload = _rememberDashboardTaskSnapshot({
-    taskRunId: session._dashboardTaskRunId || '',
-    taskStatus: 'running',
-    task: session.task || '',
-    progress: progress.progressPercent,
-    phase: phase,
-    eta: progress.estimatedTimeRemaining || null,
-    elapsed: Date.now() - session.startTime,
-    action: actionText,
-    lastAction: actionText,
-    summary: '',
-    error: '',
-    stopped: false,
-    tabId: typeof session.tabId === 'number' ? session.tabId : null,
-    taskSource: 'live'
-  });
-
-  var sent = _sendDashboardTaskProgress(taskPayload);
-  console.log('[FSB] broadcastDashboardProgress:', sent ? 'SENT' : 'WS_CLOSED', 'progress=' + progress.progressPercent);
-
-  // Forward progress to MCP server for autopilot tasks
-  broadcastMCPProgress(session);
-
-  // Request overlay state from content script for DOM stream viewers
-  requestOverlayStateBroadcast(session.tabId);
-}
-
-/**
- * Broadcast task completion to the dashboard via WebSocket.
- * @param {Object} result - Return value from executeAutomationTask
- */
-function broadcastDashboardComplete(result) {
-  // Dedup: if stop handler already sent completion, skip
-  if (fsbWebSocket && fsbWebSocket._dashStopSent) {
-    fsbWebSocket._dashStopSent = false;
-    _dashboardTaskTabId = null;
-    console.log('[FSB] broadcastDashboardComplete: skipped (stop already sent)');
-    return true;
-  }
-  var previousTask = _getDashboardTaskRecoverySnapshot();
-  var payload;
-  if (result.success) {
-    payload = {
-      success: true,
-      summary: result.result || 'Task completed',
-      elapsed: result.duration || 0,
-      taskStatus: 'success'
-    };
-  } else {
-    payload = {
-      success: false,
-      error: result.error || 'Task failed',
-      elapsed: result.duration || 0,
-      taskStatus: 'failed'
-    };
-  }
-  var rememberedPayload = _rememberDashboardTaskSnapshot({
-    taskRunId: result && result.taskRunId ? result.taskRunId : (previousTask && previousTask.taskRunId ? previousTask.taskRunId : ''),
-    taskStatus: payload.taskStatus,
-    task: previousTask && previousTask.task ? previousTask.task : '',
-    progress: result.success ? 100 : (previousTask && typeof previousTask.progress === 'number' ? previousTask.progress : 0),
-    phase: previousTask && previousTask.phase ? previousTask.phase : '',
-    eta: null,
-    elapsed: payload.elapsed || 0,
-    action: previousTask && previousTask.action ? previousTask.action : '',
-    lastAction: previousTask && previousTask.lastAction ? previousTask.lastAction : '',
-    summary: payload.summary || '',
-    error: payload.error || '',
-    stopped: false,
-    tabId: previousTask && typeof previousTask.tabId === 'number' ? previousTask.tabId : null,
-    taskSource: result && result.success ? 'live' : 'complete-fallback'
-  });
-  var terminalPayload = _buildDashboardTaskCompletePayload(rememberedPayload);
-  var sent = _sendDashboardTaskComplete(rememberedPayload);
-  console.log('[FSB] broadcastDashboardComplete:', sent ? 'SENT' : 'WS_CLOSED', JSON.stringify(terminalPayload).slice(0, 200));
-
-  // Clear dashboard task tab reference (stream continues independently)
-  _dashboardTaskTabId = null;
-  return sent;
 }
 
 /**
@@ -1537,124 +505,24 @@ function formatDuration(ms) {
 }
 
 /**
- * Detect the current task phase from action history patterns.
- * Phases: 'navigation' (0-30%), 'extraction' (30-70%), 'writing' (70-100%)
- * Sets session._taskPhase and returns the phase string.
- * @param {Object} session
- * @returns {string} 'navigation'|'extraction'|'writing'|'unknown'
- */
-function detectTaskPhase(session) {
-  const history = session.actionHistory || [];
-  if (history.length === 0) {
-    session._taskPhase = 'navigation';
-    return 'navigation';
-  }
-
-  // Classify action types
-  const navTools = new Set(['searchGoogle', 'navigate', 'clickSearchResult', 'openNewTab', 'switchToTab', 'waitForTabLoad', 'scroll']);
-  const extractTools = new Set(['getText', 'readPage', 'getPageSource', 'readStructuredContent', 'getStoredJobs']);
-  const writeTools = new Set(['type', 'click', 'select', 'fillSheetData', 'storeJobData', 'submit']);
-
-  // Count actions in recent window (last 5 actions weigh more)
-  const recent = history.slice(-5);
-  let navCount = 0, extractCount = 0, writeCount = 0;
-
-  for (const a of recent) {
-    if (navTools.has(a.tool)) navCount++;
-    else if (extractTools.has(a.tool)) extractCount++;
-    else if (writeTools.has(a.tool)) writeCount++;
-  }
-
-  let phase;
-  if (writeCount >= 2 || (writeCount > 0 && extractCount > 0 && navCount === 0)) {
-    phase = 'writing';
-  } else if (extractCount >= 2 || (extractCount > 0 && navCount === 0)) {
-    phase = 'extraction';
-  } else {
-    phase = 'navigation';
-  }
-
-  session._taskPhase = phase;
-  return phase;
-}
-
-/**
  * Calculate progress percentage and estimated time remaining for a session.
- * Uses phase-weighted model: navigation=0-30%, extraction=30-70%, writing=70-99%.
  * @param {Object} session - Active automation session
  * @returns {{ progressPercent: number, estimatedTimeRemaining: string|null }}
  */
 function calculateProgress(session) {
-  // Delegate to workflow-specific progress when applicable
-  if (session.multiSite) return calculateMultiSiteProgress(session);
-  if (session.sheetsData) return calculateSheetsProgress(session);
-
   const maxIter = session.maxIterations || 20;
   const current = session.iterationCount || 0;
+  const progressPercent = Math.min(99, Math.round((current / maxIter) * 100));
 
-  // Detect task phase from action patterns
-  const phase = detectTaskPhase(session);
-
-  // Phase weight floors: navigation=0%, extraction=30%, writing=70%
-  const phaseFloors = { navigation: 0, extraction: 30, writing: 70, unknown: 0 };
-  const phaseCeilings = { navigation: 30, extraction: 70, writing: 99, unknown: 99 };
-
-  const floor = phaseFloors[phase] || 0;
-  const ceiling = phaseCeilings[phase] || 99;
-
-  // Within-phase progress: iteration-based but scaled to phase range
-  const iterationRatio = maxIter > 0 ? current / maxIter : 0;
-
-  // Map iteration ratio to within-phase progress
-  let progressPercent;
-
-  if (current === 0) {
-    progressPercent = 0;
-  } else {
-    // Use phase floor as minimum, then add within-phase progress
-    const phaseRange = ceiling - floor;
-    // Within-phase progress based on how far through maxIter we are,
-    // but clamped to current phase range
-    const withinPhase = Math.min(1, iterationRatio * (99 / ceiling));
-    progressPercent = Math.min(99, Math.round(floor + phaseRange * Math.min(1, withinPhase)));
-  }
-
-  // Ensure progress never goes backward
-  if (session._lastProgressPercent && progressPercent < session._lastProgressPercent) {
-    progressPercent = session._lastProgressPercent;
-  }
-  session._lastProgressPercent = progressPercent;
-
-  // ETA calculation -- blend iteration average with complexity estimate
   let estimatedTimeRemaining = null;
   if (current > 0 && session.startTime) {
     const elapsed = Date.now() - session.startTime;
     const avgPerIteration = elapsed / current;
-    const iterationBasedETA = (maxIter - current) * avgPerIteration;
-
-    let finalETA = iterationBasedETA;
-
-    // Blend with complexity estimate when available
-    const estimate = session._taskEstimate;
-    if (estimate && session._complexityResolved) {
-      const estimateBasedETA = Math.max(0, (estimate.estimatedTimeoutSec * 1000) - elapsed);
-
-      // Weight: early iterations trust estimate more, later iterations trust actual more
-      // At iteration 1: 70% estimate, 30% actual
-      // At iteration maxIter/2: 50/50
-      // At iteration maxIter: 10% estimate, 90% actual
-      const iterationRatio = Math.min(1, current / maxIter);
-      const estimateWeight = Math.max(0.1, 0.7 - (0.6 * iterationRatio));
-      const actualWeight = 1 - estimateWeight;
-
-      finalETA = (estimateBasedETA * estimateWeight) + (iterationBasedETA * actualWeight);
-    }
-
-    if (finalETA > 0) {
-      estimatedTimeRemaining = formatETA(finalETA);
+    const remaining = (maxIter - current) * avgPerIteration;
+    if (remaining > 0) {
+      estimatedTimeRemaining = formatETA(remaining);
     }
   }
-
   return { progressPercent, estimatedTimeRemaining };
 }
 
@@ -1671,90 +539,6 @@ function formatETA(ms) {
 }
 
 /**
- * Calculate progress for multi-site workflows based on completed companies.
- * Overrides generic calculateProgress when session.multiSite is active.
- * @param {Object} session
- * @returns {{ progressPercent: number, estimatedTimeRemaining: string|null }}
- */
-function calculateMultiSiteProgress(session) {
-  const ms = session.multiSite;
-  if (!ms) return calculateProgress(session);
-
-  const companies = ms.companyList || ms.companies || [];
-  const totalCompanies = companies.length;
-  if (totalCompanies === 0) return calculateProgress(session);
-
-  const completedIndex = ms.currentIndex || 0;
-
-  // Within-company progress from iteration ratio (0 to 1)
-  const maxIter = session.maxIterations || 20;
-  const current = session.iterationCount || 0;
-  const withinCompanyProgress = maxIter > 0 ? Math.min(1, current / maxIter) : 0;
-
-  // Overall: (completed companies + fraction of current) / total
-  const progressPercent = Math.min(99, Math.round(
-    ((completedIndex + withinCompanyProgress) / totalCompanies) * 100
-  ));
-
-  // ETA: average time per company * remaining companies
-  let estimatedTimeRemaining = null;
-  if (completedIndex > 0 && session.multiSite.startedAt) {
-    const elapsed = Date.now() - session.multiSite.startedAt;
-    const avgPerCompany = elapsed / completedIndex;
-    const remainingCompanies = totalCompanies - completedIndex - withinCompanyProgress;
-    const remaining = remainingCompanies * avgPerCompany;
-    if (remaining > 0) {
-      estimatedTimeRemaining = formatETA(remaining);
-    }
-  }
-
-  return { progressPercent, estimatedTimeRemaining };
-}
-
-/**
- * Calculate progress for Google Sheets workflows based on rows written or formatting state.
- * Overrides generic calculateProgress when session.sheetsData is active.
- * @param {Object} session
- * @returns {{ progressPercent: number, estimatedTimeRemaining: string|null }}
- */
-function calculateSheetsProgress(session) {
-  const sd = session.sheetsData;
-  if (!sd) return calculateProgress(session);
-
-  let progressPercent;
-  let estimatedTimeRemaining = null;
-
-  if (sd.formattingPhase || sd.formattingComplete) {
-    // Formatting phase: use iteration-based progress within 0-100 range
-    // Formatting is typically 2-4 iterations
-    if (sd.formattingComplete) {
-      progressPercent = 99;
-    } else {
-      const maxIter = session.maxIterations || 5;
-      const current = session.iterationCount || 0;
-      progressPercent = Math.min(99, Math.round((current / maxIter) * 100));
-    }
-  } else {
-    // Data entry phase: rows written / total rows
-    const totalRows = sd.totalRows || 1;
-    const rowsWritten = sd.rowsWritten || 0;
-    progressPercent = Math.min(99, Math.round((rowsWritten / totalRows) * 100));
-
-    // ETA based on write rate
-    if (rowsWritten > 0 && sd.startedAt) {
-      const elapsed = Date.now() - sd.startedAt;
-      const avgPerRow = elapsed / rowsWritten;
-      const remaining = (totalRows - rowsWritten) * avgPerRow;
-      if (remaining > 0) {
-        estimatedTimeRemaining = formatETA(remaining);
-      }
-    }
-  }
-
-  return { progressPercent, estimatedTimeRemaining };
-}
-
-/**
  * Summarize a task description into a short label using the AI provider.
  * Non-blocking -- returns null on failure. Skips tasks already short enough.
  * @param {string} taskText - Original task description
@@ -1767,7 +551,7 @@ async function summarizeTask(taskText, settings) {
 
     const provider = new UniversalProvider(settings);
     const requestBody = await provider.buildRequest({
-      systemPrompt: 'Summarize this browser automation task in under 8 words. Use imperative form (e.g. "Book flight to LA"). No first-person, no conversational text. Return only the summary.',
+      systemPrompt: 'Summarize this browser automation task in under 10 words. Return only the summary, nothing else.',
       userPrompt: taskText
     }, {});
 
@@ -1790,194 +574,10 @@ async function summarizeTask(taskText, settings) {
     }
 
     summary = summary?.trim();
-
-    // DBG-04: Strip markdown formatting from AI summary output
-    if (summary) {
-      summary = summary
-        .replace(/\*\*(.+?)\*\*/g, '$1')
-        .replace(/\*(.+?)\*/g, '$1')
-        .replace(/__(.+?)__/g, '$1')
-        .replace(/_(.+?)_/g, '$1')
-        .replace(/`(.+?)`/g, '$1')
-        .replace(/^#{1,6}\s+/gm, '')
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-        .trim();
-      // Strip conversational AI prefixes
-      summary = summary
-        .replace(/^(Here's how I'll |I'll |I will |I can |Let me |Sure,? |OK,? |Okay,? )/i, '')
-        .replace(/^(help you |help |assist you |assist )/i, '')
-        .trim();
-      if (summary) summary = summary.charAt(0).toUpperCase() + summary.slice(1);
-    }
-
     if (summary && summary.length > 0 && summary.length <= 60) return summary;
     return summary ? summary.substring(0, 40) : null;
   } catch (e) {
     automationLogger.debug('Task summarization failed (non-blocking)', { error: e.message });
-    return null;
-  }
-}
-
-/** Cache for AI-generated action summaries. Key: "tool:selector_or_url", Value: summary string. Max 50 entries. */
-const actionSummaryCache = new Map();
-
-/**
- * Generate a contextual AI summary for an action being executed.
- * Non-blocking: returns null if AI doesn't respond within 2.5s.
- * Uses cache to avoid redundant calls for the same tool+target combo.
- *
- * @param {Object} action - The action being executed { tool, params }
- * @param {Object} session - Active automation session
- * @param {Object} settings - AI provider settings from config.getAll()
- * @returns {Promise<string|null>} Contextual description or null
- */
-async function generateActionSummary(action, session, settings) {
-  try {
-    // Build cache key from tool + primary identifier (selector, url, or query)
-    const target = action.params?.selector || action.params?.url || action.params?.query || action.params?.text || '';
-    const cacheKey = `${action.tool}:${target}`;
-
-    // Check cache first
-    const cached = actionSummaryCache.get(cacheKey);
-    if (cached) return cached;
-
-    // Build compact context for the AI
-    const taskGoal = session.taskSummary || session.task;
-    const elementHint = action.params?.text || action.params?.ariaLabel || action.params?.placeholder || action.params?.selector || '';
-    const phase = session._taskPhase || 'unknown';
-
-    const provider = new UniversalProvider(settings);
-    const requestBody = await provider.buildRequest({
-      systemPrompt: 'You describe what a browser automation step is doing in context of the user\'s goal. Return ONLY a short phrase (5-10 words). No quotes, no markdown, no punctuation at the end. Examples: "Opening LinkedIn Jobs section", "Typing search query for React jobs", "Reading company contact details".',
-      userPrompt: `Goal: ${taskGoal}\nAction: ${action.tool}${elementHint ? ' on "' + elementHint + '"' : ''}\nPhase: ${phase}`
-    }, {});
-
-    // Minimal tokens - we only need a short phrase
-    if (requestBody.max_tokens) requestBody.max_tokens = 30;
-    if (requestBody.generationConfig?.maxOutputTokens) requestBody.generationConfig.maxOutputTokens = 30;
-
-    // Race against timeout - 2.5s max
-    const response = await Promise.race([
-      provider.sendRequest(requestBody, { timeout: 2500 }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
-    ]);
-
-    // Extract text per provider (same pattern as summarizeTask)
-    let summary = null;
-    const providerName = settings.modelProvider || 'xai';
-    if (providerName === 'gemini') {
-      summary = response?.candidates?.[0]?.content?.parts?.[0]?.text;
-    } else if (providerName === 'anthropic') {
-      summary = response?.content?.[0]?.text;
-    } else {
-      // xAI / OpenAI compatible
-      summary = response?.choices?.[0]?.message?.content;
-    }
-
-    summary = summary?.trim();
-
-    // Strip markdown formatting from AI output
-    if (summary) {
-      summary = summary
-        .replace(/\*\*(.+?)\*\*/g, '$1')
-        .replace(/\*(.+?)\*/g, '$1')
-        .replace(/__(.+?)__/g, '$1')
-        .replace(/_(.+?)_/g, '$1')
-        .replace(/`(.+?)`/g, '$1')
-        .replace(/^#{1,6}\s+/gm, '')
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-        .replace(/[."'!]+$/g, '') // Strip trailing punctuation
-        .trim();
-    }
-
-    // Validate: must be short and non-empty
-    if (!summary || summary.length === 0 || summary.length > 80) return null;
-
-    // Cache the result (evict oldest if cache is full)
-    if (actionSummaryCache.size >= 50) {
-      const firstKey = actionSummaryCache.keys().next().value;
-      actionSummaryCache.delete(firstKey);
-    }
-    actionSummaryCache.set(cacheKey, summary);
-
-    return summary;
-  } catch (e) {
-    // Non-blocking: silently return null on any failure
-    return null;
-  }
-}
-
-/**
- * Task Complexity Estimator — parallel AI call at session start.
- * Analyzes the task description and current URL to estimate required iterations,
- * timeout, and action count. Runs concurrently with the first automation iteration
- * so results are available by iteration 2 at the latest.
- *
- * @param {string} task - User's task description
- * @param {string} currentUrl - The starting page URL
- * @param {Object} settings - AI provider settings
- * @returns {Promise<{estimatedIterations: number, estimatedTimeoutSec: number, estimatedActions: number, taskType: string}|null>}
- */
-async function estimateTaskComplexity(task, currentUrl, settings) {
-  try {
-    if (!task || !settings) return null;
-
-    const provider = new UniversalProvider(settings);
-    const requestBody = await provider.buildRequest({
-      systemPrompt: `You are a browser automation task estimator. Given a task description and current URL, estimate the complexity.
-
-Respond with ONLY a JSON object (no markdown, no explanation):
-{"estimatedIterations": N, "estimatedTimeoutSec": N, "estimatedActions": N, "taskType": "simple|moderate|complex|multi-site"}
-
-Guidelines:
-- simple (1 site, few actions): 5-8 iterations, 120s timeout, 5-15 actions
-- moderate (1 site, data entry/reading): 8-15 iterations, 300s timeout, 15-40 actions
-- complex (multi-step workflow): 12-18 iterations, 420s timeout, 30-60 actions
-- multi-site (research across sites + output): 15-25 iterations, 600s timeout, 40-80 actions
-
-Consider: number of sites involved, data collection needs, form filling, navigation depth.`,
-      userPrompt: `Task: "${task}"\nStarting URL: ${currentUrl || 'new tab'}`
-    }, {});
-
-    // Limit tokens — we only need a small JSON response
-    if (requestBody.max_tokens) requestBody.max_tokens = 150;
-    if (requestBody.generationConfig?.maxOutputTokens) requestBody.generationConfig.maxOutputTokens = 150;
-
-    const response = await provider.sendRequest(requestBody, { timeout: 10000 });
-
-    // Extract raw text from provider-specific response format
-    let text = null;
-    const providerName = settings.modelProvider || 'xai';
-    if (providerName === 'gemini') {
-      text = response?.candidates?.[0]?.content?.parts?.[0]?.text;
-    } else if (providerName === 'anthropic') {
-      text = response?.content?.[0]?.text;
-    } else {
-      text = response?.choices?.[0]?.message?.content;
-    }
-
-    if (!text) return null;
-
-    // Parse JSON from response (strip any markdown fences)
-    text = text.trim().replace(/^```json?\s*/i, '').replace(/\s*```$/, '');
-    const estimate = JSON.parse(text);
-
-    // Validate and clamp values to sane ranges
-    const result = {
-      estimatedIterations: Math.max(5, Math.min(30, parseInt(estimate.estimatedIterations) || 20)),
-      estimatedTimeoutSec: Math.max(60, Math.min(900, parseInt(estimate.estimatedTimeoutSec) || 300)),
-      estimatedActions: Math.max(3, Math.min(100, parseInt(estimate.estimatedActions) || 30)),
-      taskType: ['simple', 'moderate', 'complex', 'multi-site'].includes(estimate.taskType) ? estimate.taskType : 'moderate'
-    };
-
-    automationLogger.info('Task complexity estimated', {
-      task: task.substring(0, 80),
-      ...result
-    });
-
-    return result;
-  } catch (e) {
-    automationLogger.debug('Task complexity estimation failed (non-blocking)', { error: e.message });
     return null;
   }
 }
@@ -2145,6 +745,71 @@ class PageLoadWatcher {
 // Global PageLoadWatcher instance
 const pageLoadWatcher = new PageLoadWatcher();
 
+/**
+ * Calculate smart delay after an action based on what happened
+ * @param {Object} actionResult - Result from the action
+ * @param {Object} context - Current automation context
+ * @returns {Promise} Resolves when ready to continue
+ */
+async function smartWaitAfterAction(actionResult, context) {
+  const { tool, params } = context.lastAction || {};
+  const tabId = context.tabId;
+
+  // Navigation actions - wait for page load
+  if (['navigate', 'goBack', 'goForward'].includes(tool)) {
+    automationLogger.logNavigation(null, tool, null, null, { waiting: true, tabId });
+    return pageLoadWatcher.waitForPageReady(tabId, {
+      maxWait: 5000,
+      requireDOMStable: true,
+      stableTime: 300
+    });
+  }
+
+  // Click that triggered navigation
+  if (tool === 'click' && (actionResult?.navigationTriggered || context.urlChanged)) {
+    automationLogger.logNavigation(null, 'click', context.lastUrl, null, { navigationTriggered: true, tabId });
+    return pageLoadWatcher.waitForPageReady(tabId, {
+      maxWait: 5000,
+      requireDOMStable: true,
+      stableTime: 300
+    });
+  }
+
+  // Type/input actions - minimal wait, just ensure input registered
+  if (['type', 'clearInput', 'keyPress'].includes(tool)) {
+    // No delay needed - immediate continuation is fine
+    return Promise.resolve({ success: true, waitTime: 0, method: 'no-wait' });
+  }
+
+  // pressEnter might trigger form submission/navigation
+  if (tool === 'pressEnter') {
+    // Brief check for URL change
+    await new Promise(resolve => setTimeout(resolve, 100));
+    if (context.urlChanged) {
+      return pageLoadWatcher.waitForPageReady(tabId, {
+        maxWait: 5000,
+        requireDOMStable: true
+      });
+    }
+    // Otherwise just wait for DOM stability
+    return pageLoadWatcher.waitForDOMStable(tabId, 2000, 200);
+  }
+
+  // Click that didn't navigate - might trigger AJAX
+  if (tool === 'click' && !context.urlChanged) {
+    automationLogger.logActionExecution(null, 'click', 'wait_dom', { tabId, reason: 'ajax_possible' });
+    return pageLoadWatcher.waitForDOMStable(tabId, 2000, 200);
+  }
+
+  // Scroll actions - short wait for lazy loading
+  if (tool === 'scroll') {
+    return pageLoadWatcher.waitForDOMStable(tabId, 1500, 200);
+  }
+
+  // Default: no delay needed
+  return Promise.resolve({ success: true, waitTime: 0, method: 'default' });
+}
+
 // EASY WIN #10: Service worker keep-alive mechanism
 // Prevents service worker from shutting down during active automation sessions
 let keepAliveInterval = null;
@@ -2204,17 +869,6 @@ async function cleanupSession(sessionId) {
       session.pendingTimeout = null;
     }
 
-    // Clear safety timeout to prevent zombie promise resolution after stop
-    if (session._safetyTimeout) {
-      clearTimeout(session._safetyTimeout);
-      session._safetyTimeout = null;
-    }
-
-    if (session._paymentPromptTimer) {
-      clearTimeout(session._paymentPromptTimer);
-      session._paymentPromptTimer = null;
-    }
-
     // Clean up orphaned login handler if session had one
     if (session._loginHandler) {
       chrome.runtime.onMessage.removeListener(session._loginHandler.handler);
@@ -2242,7 +896,12 @@ async function cleanupSession(sessionId) {
   removePersistedSession(sessionId);
 
   // Clean up conversation session entries that reference this session
-  removeConversationThread(sessionId, session?.conversationId || null);
+  for (const [convId, entry] of conversationSessions) {
+    if (entry.sessionId === sessionId) {
+      conversationSessions.delete(convId);
+    }
+  }
+  persistConversationSessions();
 
   // Clean up AI instance and its conversation history
   if (sessionAIInstances.has(sessionId)) {
@@ -2251,7 +910,6 @@ async function cleanupSession(sessionId) {
       ai.clearConversationHistory();
     }
     sessionAIInstances.delete(sessionId);
-    mcpProgressCallbacks.delete(sessionId);
     automationLogger.debug('Cleaned up AI instance for session', { sessionId });
   }
 
@@ -2280,12 +938,12 @@ function isSessionTerminating(sessionId) {
  * @param {string} newTask - The new follow-up task/command
  */
 function reactivateSession(session, newTask) {
-  // Reset per-command fields (new command = fresh stuck detection state)
+  // Reset per-command fields
   session.status = 'running';
   session.task = newTask;
   session.iterationCount = 0;
-  session.stuckCounter = 0;              // Reset: new command
-  session.consecutiveNoProgressCount = 0; // Reset: new command
+  session.stuckCounter = 0;
+  session.consecutiveNoProgressCount = 0;
   session.lastDOMHash = null;
   session.lastDOMSignals = null;
   session.actionSequences = [];
@@ -2297,10 +955,6 @@ function reactivateSession(session, newTask) {
   session.commandCount = (session.commandCount || 1) + 1;
   session.commands = session.commands || [];
   session.commands.push(newTask);
-  session.lastTask = newTask;
-  session.lastCommandAt = Date.now();
-  session.uiSurface = normalizeUiSurface(session.uiSurface);
-  session.historySessionId = session.historySessionId || session.sessionId || null;
 
   // Clear idle timeout if one was scheduled
   if (session.idleTimeout) {
@@ -2324,16 +978,16 @@ function idleSession(sessionId) {
   if (!session) return;
 
   session.status = 'idle';
-  session.lastTask = session.task;
-  session.lastCommandAt = session.lastCommandAt || Date.now();
-  session.historySessionId = session.historySessionId || session.sessionId || null;
-  upsertConversationThread(session);
 
   // Schedule deferred cleanup -- if no follow-up comes within the timeout, clean up fully
   session.idleTimeout = setTimeout(() => {
     if (session.status === 'idle') {
       automationLogger.debug('Idle session timeout, cleaning up', { sessionId });
       cleanupSession(sessionId);
+      if (session.conversationId) {
+        conversationSessions.delete(session.conversationId);
+        persistConversationSessions();
+      }
     }
   }, IDLE_SESSION_TIMEOUT);
 
@@ -2344,8 +998,6 @@ function idleSession(sessionId) {
   automationLogger.info('Session transitioned to idle', {
     sessionId,
     conversationId: session.conversationId || null,
-    historySessionId: session.historySessionId || null,
-    uiSurface: session.uiSurface || 'unknown',
     commandCount: session.commandCount || 1,
     actionHistoryLength: session.actionHistory?.length || 0
   });
@@ -2380,17 +1032,7 @@ async function restoreConversationSessions() {
       for (const [convId, entry] of Object.entries(data)) {
         // Only restore if the referenced session still exists
         if (entry?.sessionId && activeSessions.has(entry.sessionId)) {
-          const session = activeSessions.get(entry.sessionId);
-          const threadRecord = createConversationThreadRecord({
-            ...session,
-            ...entry,
-            conversationId: entry.conversationId || convId,
-            sessionId: entry.sessionId
-          });
-
-          if (threadRecord) {
-            conversationSessions.set(threadRecord.conversationId, threadRecord);
-          }
+          conversationSessions.set(convId, entry);
         }
       }
       automationLogger.debug('Conversation sessions restored', { count: conversationSessions.size });
@@ -2407,17 +1049,11 @@ let activeSessions = new Map();
 // This allows conversation history to persist across iterations within a session
 let sessionAIInstances = new Map();
 
-// Session continuity: maps conversationId to a durable thread record.
-// Enables follow-up commands in the same conversation to reuse the existing session
-// and recover the correct UI/history thread after service worker restarts.
+// Session continuity: maps conversationId to { sessionId, lastActiveTime }
+// Enables follow-up commands in the same conversation to reuse the existing session and AI instance
 let conversationSessions = new Map();
 const IDLE_SESSION_TIMEOUT = 10 * 60 * 1000; // 10 minutes before idle sessions are cleaned up
 const MAX_CONVERSATION_SESSIONS = 5; // FIFO cap using enforceMapLimit
-const MAX_PERSISTED_COMMANDS = 25;
-const MAX_AGENT_RESUME_MESSAGES = 12;
-const MAX_AGENT_RESUME_SUMMARY_LINES = 8;
-const MAX_AGENT_RESUME_TEXT_CHARS = 600;
-const MAX_AGENT_RESUME_SUMMARY_CHARS = 1800;
 
 // PERF: Max Map sizes to prevent unbounded growth
 const MAX_CONTENT_SCRIPT_ENTRIES = 200;
@@ -2437,536 +1073,69 @@ function enforceMapLimit(map, maxSize) {
   }
 }
 
-function normalizeUiSurface(uiSurface) {
-  if (uiSurface === 'sidepanel' || uiSurface === 'popup') {
-    return uiSurface;
-  }
-  return 'unknown';
-}
+// SPEED-02: Track pending DOM prefetch for parallel analysis
+// When AI is processing, we speculatively start the next DOM fetch
+let pendingDOMPrefetch = null;
 
-function inferUiSurface(request, sender, triggerSource) {
-  if (request?.uiSurface) {
-    return normalizeUiSurface(request.uiSurface);
-  }
-
-  const senderUrl = sender?.url || sender?.documentUrl || '';
-  if (typeof senderUrl === 'string') {
-    if (senderUrl.includes('/ui/sidepanel.html')) {
-      return 'sidepanel';
-    }
-    if (senderUrl.includes('/ui/popup.html')) {
-      return 'popup';
-    }
-  }
-
-  if (triggerSource === 'sidepanel' || triggerSource === 'popup') {
-    return triggerSource;
-  }
-
-  return 'unknown';
-}
-
-function getPersistedCommands(commands, fallbackTask) {
-  const nextCommands = Array.isArray(commands)
-    ? commands.filter(command => typeof command === 'string' && command.trim().length > 0)
-    : [];
-
-  if (nextCommands.length > 0) {
-    return nextCommands.slice(-MAX_PERSISTED_COMMANDS);
-  }
-
-  if (typeof fallbackTask === 'string' && fallbackTask.trim().length > 0) {
-    return [fallbackTask];
-  }
-
-  return [];
-}
-
-function truncateAgentResumeText(value, maxChars = MAX_AGENT_RESUME_TEXT_CHARS) {
-  if (value == null) return '';
-  const text = typeof value === 'string' ? value : String(value);
-  if (text.length <= maxChars) {
-    return text;
-  }
-  return `${text.slice(0, Math.max(0, maxChars - 3))}...`;
-}
-
-function summarizeAgentResumeValue(value, maxChars = MAX_AGENT_RESUME_TEXT_CHARS) {
-  if (value == null) return null;
-  if (typeof value === 'string') {
-    return truncateAgentResumeText(value, maxChars);
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return value;
-  }
-
+/**
+ * SPEED-02: Prefetch DOM for parallel analysis
+ * Initiates DOM analysis while AI is processing, to reduce sequential waiting.
+ * Returns a Promise that can be awaited later (or discarded if not needed).
+ *
+ * @param {number} tabId - Tab ID to fetch DOM from
+ * @param {Object} options - DOM fetch options
+ * @returns {Promise<Object|null>} Promise resolving to DOM response, or null on failure
+ */
+async function prefetchDOM(tabId, options = {}) {
   try {
-    const json = JSON.stringify(value);
-    if (json.length <= maxChars) {
-      return JSON.parse(json);
-    }
-    return {
-      truncated: true,
-      preview: truncateAgentResumeText(json, maxChars)
+    const domOptions = {
+      useIncrementalDiff: true,
+      prefetch: true, // Hint to content script this is speculative
+      ...options
     };
-  } catch (_error) {
-    return {
-      truncated: true,
-      preview: truncateAgentResumeText(String(value), maxChars)
-    };
-  }
-}
 
-function isProviderToolResultMessage(message) {
-  return message?.role === 'tool' ||
-    (Array.isArray(message?.content) && message.content.some(block => block.type === 'tool_result')) ||
-    (Array.isArray(message?.parts) && message.parts.some(part => part.functionResponse));
-}
+    automationLogger.debug('Starting DOM prefetch', { tabId, options: domOptions });
 
-function hasProviderToolCalls(message) {
-  return Array.isArray(message?.tool_calls) ||
-    (Array.isArray(message?.content) && message.content.some(block => block.type === 'tool_use')) ||
-    (Array.isArray(message?.parts) && message.parts.some(part => part.functionCall));
-}
+    const response = await chrome.tabs.sendMessage(tabId, {
+      action: 'getDOM',
+      options: domOptions
+    }, { frameId: 0 });
 
-function getAgentResumeWindowStart(messages) {
-  let startIndex = Math.max(0, messages.length - MAX_AGENT_RESUME_MESSAGES);
-
-  while (startIndex > 0 && isProviderToolResultMessage(messages[startIndex])) {
-    startIndex--;
-  }
-
-  if (startIndex > 0 && isProviderToolResultMessage(messages[startIndex - 1])) {
-    while (startIndex > 0 && isProviderToolResultMessage(messages[startIndex - 1])) {
-      startIndex--;
+    if (response && response.success) {
+      automationLogger.debug('DOM prefetch complete', {
+        tabId,
+        elementCount: response.structuredDOM?.elements?.length || 0
+      });
+      return response;
     }
-    if (startIndex > 0 && hasProviderToolCalls(messages[startIndex - 1])) {
-      startIndex--;
-    }
-  }
 
-  return startIndex;
-}
-
-function summarizeAgentResumeMessage(message) {
-  if (!message || typeof message !== 'object') {
-    return '';
-  }
-
-  if (message.role === 'tool') {
-    const toolName = message.name || 'unknown_tool';
-    let status = 'completed';
-    try {
-      const parsed = typeof message.content === 'string' ? JSON.parse(message.content) : message.content;
-      status = parsed?.success === false ? 'error' : 'success';
-    } catch (_error) {
-      status = typeof message.content === 'string' && message.content.includes('error') ? 'error' : 'success';
-    }
-    return `Tool ${toolName} returned ${status}`;
-  }
-
-  if (Array.isArray(message.content)) {
-    const toolNames = message.content
-      .filter(block => block.type === 'tool_use')
-      .map(block => block.name)
-      .filter(Boolean);
-    if (toolNames.length > 0) {
-      return `Assistant requested tools: ${toolNames.join(', ')}`;
-    }
-    const textBlock = message.content.find(block => block.type === 'text' && typeof block.text === 'string');
-    if (textBlock) {
-      return `${message.role || 'message'}: ${truncateAgentResumeText(textBlock.text, 120)}`;
-    }
-  }
-
-  if (Array.isArray(message.parts)) {
-    const functionNames = message.parts
-      .map(part => part.functionCall?.name || part.functionResponse?.name || null)
-      .filter(Boolean);
-    if (functionNames.length > 0) {
-      return `${message.role || 'message'}: ${functionNames.join(', ')}`;
-    }
-    const textPart = message.parts.find(part => typeof part.text === 'string');
-    if (textPart?.text) {
-      return `${message.role || 'message'}: ${truncateAgentResumeText(textPart.text, 120)}`;
-    }
-  }
-
-  if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
-    const toolNames = message.tool_calls
-      .map(call => call.function?.name || null)
-      .filter(Boolean);
-    return `Assistant requested tools: ${toolNames.join(', ')}`;
-  }
-
-  if (typeof message.content === 'string') {
-    return `${message.role || 'message'}: ${truncateAgentResumeText(message.content, 120)}`;
-  }
-
-  return `${message.role || 'message'} update`;
-}
-
-function sanitizeAgentResumeMessage(message) {
-  if (!message || typeof message !== 'object') {
+    // Invalid response
+    automationLogger.debug('DOM prefetch returned invalid response', { tabId });
+    return null;
+  } catch (error) {
+    // Prefetch failure should not block - return null silently
+    automationLogger.debug('DOM prefetch failed (non-blocking)', {
+      tabId,
+      error: error.message
+    });
     return null;
   }
-
-  if (message.role === 'tool') {
-    return {
-      role: 'tool',
-      tool_call_id: message.tool_call_id || '',
-      name: message.name || '',
-      content: truncateAgentResumeText(message.content, MAX_AGENT_RESUME_TEXT_CHARS)
-    };
-  }
-
-  if (message.role === 'assistant' && Array.isArray(message.tool_calls)) {
-    return {
-      role: 'assistant',
-      content: truncateAgentResumeText(message.content, 240),
-      tool_calls: message.tool_calls.map(call => ({
-        id: call.id,
-        type: call.type || 'function',
-        function: {
-          name: call.function?.name || '',
-          arguments: JSON.stringify(summarizeAgentResumeValue(
-            typeof call.function?.arguments === 'string'
-              ? (() => {
-                  try { return JSON.parse(call.function.arguments); } catch (_error) { return call.function.arguments; }
-                })()
-              : call.function?.arguments,
-            400
-          ) || {})
-        }
-      }))
-    };
-  }
-
-  if (Array.isArray(message.content)) {
-    return {
-      role: message.role || 'assistant',
-      content: message.content.map(block => {
-        if (block.type === 'text') {
-          return {
-            type: 'text',
-            text: truncateAgentResumeText(block.text, MAX_AGENT_RESUME_TEXT_CHARS)
-          };
-        }
-        if (block.type === 'tool_use') {
-          return {
-            type: 'tool_use',
-            id: block.id || '',
-            name: block.name || '',
-            input: summarizeAgentResumeValue(block.input, 400) || {}
-          };
-        }
-        if (block.type === 'tool_result') {
-          return {
-            type: 'tool_result',
-            tool_use_id: block.tool_use_id || '',
-            content: truncateAgentResumeText(block.content, MAX_AGENT_RESUME_TEXT_CHARS),
-            ...(block.is_error ? { is_error: true } : {})
-          };
-        }
-        return {
-          type: block.type || 'text',
-          text: truncateAgentResumeText(JSON.stringify(block), MAX_AGENT_RESUME_TEXT_CHARS)
-        };
-      })
-    };
-  }
-
-  if (Array.isArray(message.parts)) {
-    return {
-      role: message.role || 'user',
-      parts: message.parts.map(part => {
-        if (typeof part.text === 'string') {
-          return { text: truncateAgentResumeText(part.text, MAX_AGENT_RESUME_TEXT_CHARS) };
-        }
-        if (part.functionCall) {
-          return {
-            functionCall: {
-              name: part.functionCall.name || '',
-              args: summarizeAgentResumeValue(part.functionCall.args, 400) || {}
-            }
-          };
-        }
-        if (part.functionResponse) {
-          return {
-            functionResponse: {
-              name: part.functionResponse.name || '',
-              response: summarizeAgentResumeValue(part.functionResponse.response, 400) || {}
-            }
-          };
-        }
-        return { text: truncateAgentResumeText(JSON.stringify(part), MAX_AGENT_RESUME_TEXT_CHARS) };
-      })
-    };
-  }
-
-  return {
-    role: message.role || 'user',
-    content: truncateAgentResumeText(message.content, MAX_AGENT_RESUME_TEXT_CHARS)
-  };
-}
-
-function serializeAgentResumeState(sessionLike) {
-  const nonSystemMessages = Array.isArray(sessionLike?.messages)
-    ? sessionLike.messages.filter(message => message && message.role !== 'system')
-    : [];
-  const startIndex = getAgentResumeWindowStart(nonSystemMessages);
-  const olderMessages = nonSystemMessages.slice(0, startIndex);
-  const recentMessages = nonSystemMessages
-    .slice(startIndex)
-    .map(sanitizeAgentResumeMessage)
-    .filter(Boolean);
-
-  const olderSummaryLines = olderMessages
-    .slice(-MAX_AGENT_RESUME_SUMMARY_LINES)
-    .map(summarizeAgentResumeMessage)
-    .filter(Boolean);
-
-  const inheritedSummary = sessionLike?.resumeSummary || sessionLike?.agentResumeState?.historySummary || null;
-  let historySummary = inheritedSummary ? truncateAgentResumeText(inheritedSummary, MAX_AGENT_RESUME_SUMMARY_CHARS) : null;
-
-  if (olderSummaryLines.length > 0) {
-    historySummary = truncateAgentResumeText([
-      historySummary,
-      `Earlier automation context omitted ${olderMessages.length} message(s).`,
-      ...olderSummaryLines
-    ].filter(Boolean).join('\n'), MAX_AGENT_RESUME_SUMMARY_CHARS);
-  }
-
-  const agentState = sessionLike?.agentState || sessionLike?.agentResumeState?.agentState || {};
-
-  return {
-    providerConfig: {
-      providerKey: sessionLike?.providerConfig?.providerKey || sessionLike?.agentResumeState?.providerConfig?.providerKey || null,
-      model: sessionLike?.providerConfig?.model || sessionLike?.agentResumeState?.providerConfig?.model || null
-    },
-    historySummary,
-    recentMessages,
-    agentState: {
-      completedIterations: (agentState.completedIterations || 0) + (agentState.iterationCount || 0),
-      totalInputTokens: agentState.totalInputTokens || sessionLike?.totalInputTokens || 0,
-      totalOutputTokens: agentState.totalOutputTokens || sessionLike?.totalOutputTokens || 0,
-      totalCost: agentState.totalCost || sessionLike?.totalCost || 0,
-      lastCommandAt: sessionLike?.lastCommandAt || Date.now()
-    },
-    updatedAt: Date.now()
-  };
-}
-
-function serializeSessionContinuity(sessionLike) {
-  const commands = getPersistedCommands(sessionLike?.commands, sessionLike?.task || sessionLike?.lastTask);
-  const lastTask = sessionLike?.task || sessionLike?.lastTask || commands[commands.length - 1] || null;
-  const commandCount = Math.max(sessionLike?.commandCount || 0, commands.length || 0, lastTask ? 1 : 0);
-
-  return {
-    conversationId: sessionLike?.conversationId || null,
-    sessionId: sessionLike?.sessionId || null,
-    uiSurface: normalizeUiSurface(sessionLike?.uiSurface),
-    historySessionId: sessionLike?.historySessionId || sessionLike?.sessionId || null,
-    lastTask,
-    lastCommandAt: sessionLike?.lastCommandAt || sessionLike?.startTime || Date.now(),
-    commandCount: commandCount || 1,
-    commands
-  };
-}
-
-function applyContinuityToSession(session, continuity) {
-  if (!session || !continuity) return session;
-
-  session.conversationId = continuity.conversationId;
-  session.uiSurface = continuity.uiSurface;
-  session.historySessionId = continuity.historySessionId;
-  session.lastTask = continuity.lastTask;
-  session.lastCommandAt = continuity.lastCommandAt;
-  session.commandCount = continuity.commandCount;
-  session.commands = continuity.commands;
-  session.continuity = continuity;
-
-  return session;
-}
-
-function createConversationThreadRecord(sessionLike) {
-  const continuity = serializeSessionContinuity(sessionLike);
-  if (!continuity.conversationId || !continuity.sessionId) {
-    return null;
-  }
-
-  return {
-    conversationId: continuity.conversationId,
-    sessionId: continuity.sessionId,
-    uiSurface: continuity.uiSurface,
-    historySessionId: continuity.historySessionId,
-    persistedSessionId: continuity.sessionId,
-    lastTask: continuity.lastTask,
-    lastCommandAt: continuity.lastCommandAt,
-    commandCount: continuity.commandCount,
-    updatedAt: Date.now()
-  };
-}
-
-function upsertConversationThread(sessionLike) {
-  const threadRecord = createConversationThreadRecord(sessionLike);
-  if (!threadRecord) {
-    return null;
-  }
-
-  conversationSessions.set(threadRecord.conversationId, threadRecord);
-  enforceMapLimit(conversationSessions, MAX_CONVERSATION_SESSIONS);
-  persistConversationSessions();
-  return threadRecord;
-}
-
-function removeConversationThread(sessionId, conversationId = null) {
-  let removed = false;
-
-  for (const [convId, entry] of conversationSessions) {
-    if (entry.sessionId === sessionId || (conversationId && convId === conversationId)) {
-      conversationSessions.delete(convId);
-      removed = true;
-    }
-  }
-
-  if (removed) {
-    persistConversationSessions();
-  }
-}
-
-function findConversationThreadByHistorySessionId(historySessionId) {
-  if (!historySessionId) {
-    return null;
-  }
-
-  for (const entry of conversationSessions.values()) {
-    if (entry.historySessionId === historySessionId || entry.sessionId === historySessionId) {
-      return entry;
-    }
-  }
-
-  return null;
-}
-
-function resolveRequestedConversationThread({ uiSurface, selectedConversationId, historySessionId, conversationId }) {
-  const normalizedSurface = normalizeUiSurface(uiSurface);
-
-  if (historySessionId) {
-    const historyThread = findConversationThreadByHistorySessionId(historySessionId);
-    if (historyThread) {
-      return {
-        uiSurface: normalizedSurface,
-        conversationId: historyThread.conversationId,
-        historySessionId: historyThread.historySessionId || historySessionId,
-        threadRecord: historyThread
-      };
-    }
-  }
-
-  if (selectedConversationId) {
-    const selectedThread = conversationSessions.has(selectedConversationId)
-      ? conversationSessions.get(selectedConversationId)
-      : null;
-
-    return {
-      uiSurface: normalizedSurface,
-      conversationId: selectedThread?.conversationId || selectedConversationId,
-      historySessionId: selectedThread?.historySessionId || historySessionId || null,
-      threadRecord: selectedThread
-    };
-  }
-
-  if (conversationId) {
-    const fallbackThread = conversationSessions.has(conversationId)
-      ? conversationSessions.get(conversationId)
-      : null;
-
-    return {
-      uiSurface: normalizedSurface,
-      conversationId: fallbackThread?.conversationId || conversationId,
-      historySessionId: fallbackThread?.historySessionId || historySessionId || null,
-      threadRecord: fallbackThread
-    };
-  }
-
-  return {
-    uiSurface: normalizedSurface,
-    conversationId: null,
-    historySessionId: historySessionId || null,
-    threadRecord: null
-  };
-}
-
-function buildSessionsBySurface() {
-  const sessionsBySurface = {};
-
-  for (const session of activeSessions.values()) {
-    const uiSurface = normalizeUiSurface(session.uiSurface);
-    if (uiSurface === 'unknown') {
-      continue;
-    }
-
-    const entry = {
-      sessionId: session.sessionId || null,
-      conversationId: session.conversationId || null,
-      historySessionId: session.historySessionId || session.sessionId || null,
-      task: session.task || null,
-      startTime: session.startTime || null,
-      status: session.status || null,
-      commandCount: session.commandCount || 1,
-      lastCommandAt: session.lastCommandAt || session.startTime || 0
-    };
-
-    if (!sessionsBySurface[uiSurface] || entry.lastCommandAt >= (sessionsBySurface[uiSurface].lastCommandAt || 0)) {
-      sessionsBySurface[uiSurface] = entry;
-    }
-  }
-
-  return sessionsBySurface;
 }
 
 // Session persistence helpers - survive service worker restarts
 // Persists essential session data to chrome.storage.session
 async function persistSession(sessionId, session) {
   try {
-    const continuity = serializeSessionContinuity({
-      ...session,
-      sessionId
-    });
-    const agentResumeState = serializeAgentResumeState({
-      ...session,
-      sessionId
-    });
-    session.continuity = continuity;
-    session.agentResumeState = agentResumeState;
-
     // Only persist essential fields needed for stop button and session continuity to work
     const persistableSession = {
       sessionId: sessionId,
       task: session.task,
       tabId: session.tabId,
       status: session.status,
-      mode: session.mode,
       startTime: session.startTime,
-      conversationId: continuity.conversationId,
-      uiSurface: continuity.uiSurface,
-      historySessionId: continuity.historySessionId,
-      lastTask: continuity.lastTask,
-      lastCommandAt: continuity.lastCommandAt,
-      commandCount: continuity.commandCount,
-      commands: continuity.commands,
-      continuity,
-      followUpContext: session.followUpContext ? {
-        previousTask: session.followUpContext.previousTask || null,
-        newTask: session.followUpContext.newTask || session.task,
-        requestedAt: session.followUpContext.requestedAt || Date.now(),
-        commandCount: session.followUpContext.commandCount || continuity.commandCount,
-        historySessionId: session.followUpContext.historySessionId || continuity.historySessionId
-      } : null,
-      agentResumeState,
+      conversationId: session.conversationId || null,
+      commandCount: session.commandCount || 1,
       // Don't persist: loopPromise, pendingTimeout, DOM hashes, etc. (non-serializable or transient)
-      // Agent loop state for follow-up hydration is stored inside agentResumeState.
     };
 
     // Persist multi-site orchestration state for service worker restart recovery
@@ -3001,9 +1170,8 @@ async function removePersistedSession(sessionId) {
   }
 }
 
-// Restore sessions from storage on service worker startup.
-// Running sessions are auto-resumed (D-03); idle sessions retain agent state
-// for follow-up reactivation when the user continues the thread later.
+// Restore sessions from storage on service worker startup
+// Note: Restored sessions can only be stopped, not resumed (loop state is lost)
 async function restoreSessionsFromStorage() {
   try {
     const allStorage = await chrome.storage.session.get(null);
@@ -3012,78 +1180,16 @@ async function restoreSessionsFromStorage() {
     for (const key of sessionKeys) {
       const persistedSession = allStorage[key];
       if (persistedSession && persistedSession.sessionId) {
-        const continuity = serializeSessionContinuity({
-          ...persistedSession,
-          ...persistedSession.continuity,
-          sessionId: persistedSession.sessionId
-        });
-
-        if (persistedSession.status === 'running') {
-          // D-03: Auto-resume running sessions after service worker restart
-          var restoredSession = applyContinuityToSession(createSession({
+        // Check if session is still supposed to be running or idle (idle sessions can be reactivated)
+        if (persistedSession.status === 'running' || persistedSession.status === 'idle') {
+          // Restore to activeSessions map so stop button works (and idle sessions can be reactivated)
+          // Mark as 'recoverable' so we know it was restored (can't resume automation loop)
+          activeSessions.set(persistedSession.sessionId, {
             ...persistedSession,
-            isRestored: true,
-            followUpContext: persistedSession.followUpContext || null,
-            agentResumeState: persistedSession.agentResumeState || null,
-            resumeSummary: persistedSession.agentResumeState?.historySummary || null,
-            messages: null,
-            tools: null,
-            providerConfig: persistedSession.agentResumeState?.providerConfig || null,
-            agentState: persistedSession.agentResumeState?.agentState || null,
-          }), continuity);
-
-          activeSessions.set(persistedSession.sessionId, restoredSession);
-
-          automationLogger.info('Auto-resuming running session after SW restart (D-03)', {
-            sessionId: persistedSession.sessionId,
-            status: persistedSession.status,
-            task: persistedSession.task?.substring(0, 50),
-            iteration: restoredSession.agentState?.iterationCount || 0
+            isRestored: true,  // Flag to indicate this was restored, automation loop is not running
+            // Keep original status -- 'running' for stop button, 'idle' for reactivation
           });
-
-          // D-03: Automatic resumption -- continue automation seamlessly
-          try {
-            // Verify tab still exists before resuming
-            await chrome.tabs.get(restoredSession.tabId);
-            startKeepAlive();
-            var resumeHooks = createSessionHooks();
-            runAgentLoop(persistedSession.sessionId, {
-              activeSessions,
-              persistSession,
-              sendSessionStatus,
-              broadcastDashboardProgress,
-              endSessionOverlays, cleanupSession,
-              startKeepAlive,
-              executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-              handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
-              resolveAuthWall: resolveInlineAuthWall,
-              hooks: resumeHooks.hooks
-            });
-          } catch (tabErr) {
-            automationLogger.warn('Cannot auto-resume: tab no longer exists', {
-              sessionId: persistedSession.sessionId,
-              tabId: restoredSession.tabId,
-              error: tabErr.message
-            });
-            restoredSession.status = 'stopped';
-            restoredSession.error = 'Tab closed during service worker restart';
-          }
-        } else if (persistedSession.status === 'idle') {
-          // Idle sessions: restore for reactivation (existing behavior)
-          var restoredSession = applyContinuityToSession(createSession({
-            ...persistedSession,
-            isRestored: true,
-            followUpContext: persistedSession.followUpContext || null,
-            agentResumeState: persistedSession.agentResumeState || null,
-            resumeSummary: persistedSession.agentResumeState?.historySummary || null,
-            messages: null,
-            tools: null,
-            providerConfig: persistedSession.agentResumeState?.providerConfig || null,
-            agentState: persistedSession.agentResumeState?.agentState || null,
-          }), continuity);
-
-          activeSessions.set(persistedSession.sessionId, restoredSession);
-          automationLogger.info('Restored idle session from storage', {
+          automationLogger.info('Restored session from storage', {
             sessionId: persistedSession.sessionId,
             status: persistedSession.status,
             task: persistedSession.task?.substring(0, 50)
@@ -3104,10 +1210,10 @@ async function restoreSessionsFromStorage() {
   }
 }
 
-// Run bootstrap pipeline on service worker wake
-// Handles settings, environment, tools, and session restoration in order
-swBootstrap('wake').catch(function(err) {
-  console.warn('FSB: Bootstrap failed on wake:', err);
+// Immediately restore sessions when service worker wakes up
+// This handles both service worker restarts and browser startups
+restoreSessionsFromStorage().catch(err => {
+  console.warn('FSB: Failed to restore sessions on wake:', err);
 });
 
 // Periodic cleanup of stale sessions (every 5 minutes)
@@ -3121,37 +1227,6 @@ setInterval(async () => {
       activeSessions.delete(sessionId);
       sessionAIInstances.delete(sessionId);
       removePersistedSession(sessionId);
-      removeConversationThread(sessionId, session.conversationId || null);
-      continue;
-    }
-    // VMFIX-03: Expire running sessions with no iteration progress for 5 minutes
-    const RUNNING_INACTIVITY_THRESHOLD = 5 * 60 * 1000; // 5 minutes
-    if (session.status === 'running' && session.lastIterationTime &&
-        now - session.lastIterationTime > RUNNING_INACTIVITY_THRESHOLD) {
-      automationLogger.warn('Expiring stale running session (no iteration in 5 min)', {
-        sessionId,
-        lastIteration: session.lastIterationTime,
-        iterationCount: session.iterationCount,
-        ageMs: now - session.lastIterationTime
-      });
-      session.status = 'expired';
-      activeSessions.delete(sessionId);
-      sessionAIInstances.delete(sessionId);
-      removePersistedSession(sessionId);
-      removeConversationThread(sessionId, session.conversationId || null);
-      // Notify UI that session expired
-      chrome.runtime.sendMessage({
-        action: 'automationComplete',
-        sessionId,
-        conversationId: session.conversationId || null,
-        historySessionId: session.historySessionId || sessionId,
-        result: {
-          success: false,
-          result: 'Session expired due to inactivity (no progress for 5 minutes)',
-          error: 'session_expired_inactivity'
-        },
-        task: session.task
-      }).catch(() => {});
       continue;
     }
     // Remove sessions whose tab no longer exists
@@ -3163,7 +1238,6 @@ setInterval(async () => {
         activeSessions.delete(sessionId);
         sessionAIInstances.delete(sessionId);
         removePersistedSession(sessionId);
-        removeConversationThread(sessionId, session.conversationId || null);
       }
     }
   }
@@ -3177,13 +1251,8 @@ setInterval(async () => {
 // Track content script ready status per tab
 let contentScriptReadyStatus = new Map();
 
-// Analytics instance managed by getAnalytics() lazy guard via _analyticsInstance (var, declared below)
-
-// Bootstrap pipeline guards (var for importScripts compatibility)
-var _bootstrapDone = false;
-var _analyticsInstance = null;
-var _wsInitDone = false;
-var _deferredInitDone = false;
+// Global analytics instance
+let globalAnalytics = null;
 
 // Content script communication health tracking
 let contentScriptHealth = new Map();
@@ -3226,20 +1295,6 @@ chrome.runtime.onConnect.addListener((port) => {
           method: 'port'
         });
         automationLogger.logComm(null, 'receive', 'port_ready', true, { tabId, url: msg.url });
-
-        var overlaySession = findOverlaySession(tabId, msg || {});
-        if (overlaySession &&
-            overlaySession.status === 'running' &&
-            overlaySession._lastOverlayStatusData &&
-            overlaySession._lastOverlayTargetTabId === tabId) {
-          sendSessionStatus(tabId, overlaySession._lastOverlayStatusData)
-            .then(function() {
-              requestOverlayStateBroadcast(tabId);
-            })
-            .catch(function(_replayErr) {
-              // Non-blocking: ready handling should not fail if replay delivery misses.
-            });
-        }
       } else if (msg.type === 'heartbeat-ack') {
         const portInfo = contentScriptPorts.get(tabId);
         if (portInfo) portInfo.lastHeartbeat = Date.now();
@@ -3285,12 +1340,6 @@ chrome.webNavigation.onCommitted.addListener((details) => {
     transitionType: details.transitionType,
     url: details.url
   });
-
-  // Reset STT if the recording tab navigated away
-  if (tabId === _sttActiveTabId) {
-    _sttActiveTabId = null;
-    chrome.runtime.sendMessage({ from: 'content-stt', event: 'end', text: '' }).catch(() => {});
-  }
 });
 
 // PERF: Clean up all state when a tab is closed to prevent memory leaks
@@ -3304,17 +1353,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     if (session.tabId === tabId) {
       session.status = 'stopped';
       activeSessions.delete(sessionId);
-      removeConversationThread(sessionId, session.conversationId || null);
       if (sessionAIInstances.has(sessionId)) {
         sessionAIInstances.delete(sessionId);
       }
     }
-  }
-
-  // Reset STT if the recording tab was closed
-  if (tabId === _sttActiveTabId) {
-    _sttActiveTabId = null;
-    chrome.runtime.sendMessage({ from: 'content-stt', event: 'end', text: '' }).catch(() => {});
   }
 });
 
@@ -3330,33 +1372,9 @@ const _heartbeatIntervalId = setInterval(() => {
   }
 }, 3000);
 
-const _overlayHeartbeatIntervalId = setInterval(() => {
-  activeSessions.forEach(function(session) {
-    if (!session || session.status !== 'running') return;
-
-    var targetTabId = session._lastOverlayTargetTabId || session.tabId || session.originalTabId;
-    if (typeof targetTabId !== 'number' || !session._lastOverlayStatusData) return;
-
-    var lastSentAt = session._lastOverlaySentAt || 0;
-    if ((Date.now() - lastSentAt) < OVERLAY_HEARTBEAT_REFRESH_MS) return;
-
-    var heartbeatStatus = buildOverlayHeartbeatStatus(session);
-    if (!heartbeatStatus) return;
-
-    sendSessionStatus(targetTabId, heartbeatStatus)
-      .then(function() {
-        requestOverlayStateBroadcast(targetTabId);
-      })
-      .catch(function() {
-        // Non-blocking: the next heartbeat or real progress update can recover.
-      });
-  });
-}, OVERLAY_HEARTBEAT_INTERVAL_MS);
-
 // PERF: Clean up on service worker suspension
 chrome.runtime.onSuspend.addListener(() => {
   clearInterval(_heartbeatIntervalId);
-  clearInterval(_overlayHeartbeatIntervalId);
   contentScriptPorts.clear();
   contentScriptReadyStatus.clear();
   contentScriptHealth.clear();
@@ -3511,19 +1529,6 @@ function isRestrictedURL(url) {
   return restrictedProtocols.some(protocol => url.startsWith(protocol));
 }
 
-function isSmartNavigableRestrictedURL(url) {
-  if (!url) return false;
-
-  const navigablePages = [
-    'chrome://newtab/',
-    'about:blank',
-    'chrome://newtab',
-    'about:newtab'
-  ];
-
-  return navigablePages.some(page => url.startsWith(page));
-}
-
 // Get user-friendly page type description
 function getPageTypeDescription(url) {
   if (url.startsWith('chrome://')) return 'Chrome internal page';
@@ -3532,47 +1537,6 @@ function getPageTypeDescription(url) {
   if (url.startsWith('about:')) return 'Browser internal page';
   if (url.startsWith('file://')) return 'Local file';
   return 'Restricted page';
-}
-
-async function resolveMCPActiveTabContext() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab) {
-    return null;
-  }
-
-  const currentUrl = tab.url || '';
-  return {
-    tab,
-    currentUrl,
-    restricted: isRestrictedURL(currentUrl),
-    pageType: getPageTypeDescription(currentUrl),
-    autoRouteAvailable: isSmartNavigableRestrictedURL(currentUrl)
-  };
-}
-
-function buildRestrictedMCPResponse(tabContext, toolName) {
-  const allowedRecovery = ['navigate', 'open_tab', 'switch_tab', 'list_tabs'];
-  const currentUrl = tabContext?.currentUrl || '';
-  const pageType = tabContext?.pageType || 'Restricted page';
-  const autoRouteAvailable = Boolean(tabContext?.autoRouteAvailable);
-  if (autoRouteAvailable) {
-    allowedRecovery.push('run_task');
-  }
-  const baseHint = autoRouteAvailable
-    ? 'This blank/new-tab page is a neutral launch point. Use navigate, open_tab, switch_tab, or list_tabs to move to a normal webpage first, or use run_task to let FSB choose a starting page from this restricted tab.'
-    : 'Use navigate, open_tab, switch_tab, or list_tabs to move to a normal website before using page-reading or interaction tools.';
-
-  return {
-    success: false,
-    errorCode: 'restricted_active_tab',
-    error: `The active tab is a restricted page (${pageType}: ${currentUrl || 'unknown URL'}).`,
-    tool: toolName || null,
-    currentUrl,
-    pageType,
-    autoRouteAvailable,
-    allowedRecovery,
-    hint: baseHint
-  };
 }
 
 // Content script health monitoring with enhanced timeout and retry
@@ -3941,10 +1905,6 @@ function slimActionResult(result) {
   if (result.validationPassed === false && result.actualValue !== undefined) slim.actualValue = result.actualValue;
   if (result.warning) slim.warning = result.warning;
   if (!result.success && result.suggestion) slim.suggestion = result.suggestion;
-  // DBG-05: Preserve AI debugger diagnosis for continuation prompt
-  if (!result.success && result.aiDiagnosis) slim.aiDiagnosis = typeof result.aiDiagnosis === 'string' ? result.aiDiagnosis.substring(0, 500) : result.aiDiagnosis;
-  // DBG-06: Preserve 8-point diagnostic suggestions array for continuation prompt
-  if (!result.success && result.suggestions && Array.isArray(result.suggestions)) slim.diagnosticSuggestions = result.suggestions.slice(0, 5);
   if (result.typed) slim.typed = result.typed;
   if (result.clicked) slim.clicked = result.clicked;
   if (result.navigatingTo) slim.navigatingTo = result.navigatingTo;
@@ -3959,23 +1919,6 @@ function slimActionResult(result) {
   // CMP-04: Preserve value field for getText/getAttribute -- needed by progress tracking
   // and hard-stop extracted-text display (lines that reference result.value)
   if (result.value !== undefined) slim.value = typeof result.value === 'string' ? result.value.substring(0, 200) : result.value;
-  // readPage: preserve text field (truncated) and charCount for AI prompt inclusion
-  if (result.text !== undefined && result.charCount !== undefined) {
-    slim.text = typeof result.text === 'string' ? result.text.substring(0, 30000) : result.text;
-    slim.charCount = result.charCount;
-  }
-  // Sheets fillsheet/readsheet: preserve data entry metrics for completion validator
-  if (result.cellsFilled !== undefined) slim.cellsFilled = result.cellsFilled;
-  if (result.rows !== undefined) slim.rows = result.rows;
-  if (result.cols !== undefined) slim.cols = result.cols;
-  if (result.data !== undefined) slim.data = typeof result.data === 'string' ? result.data.substring(0, 2000) : result.data;
-  // togglecheck: preserve toggle state for debugging and AI verification
-  if (result.toggled !== undefined) slim.toggled = result.toggled;
-  if (result.wasChecked !== undefined) slim.wasChecked = result.wasChecked;
-  if (result.nowChecked !== undefined) slim.nowChecked = result.nowChecked;
-  if (result.todoText) slim.todoText = result.todoText;
-  if (result.todoIndex) slim.todoIndex = result.todoIndex;
-  if (result.totalTodos) slim.totalTodos = result.totalTodos;
   return slim;
 }
 
@@ -4166,10 +2109,8 @@ async function executeReplaySequence(replaySessionId) {
       chrome.runtime.sendMessage({
         action: 'automationComplete',
         sessionId: replaySessionId,
-        conversationId: session.conversationId || null,
-        historySessionId: session.historySessionId || replaySessionId,
         result: `Replay complete: ${successCount}/${session.totalSteps} steps executed successfully.${failedCount > 0 ? ` ${failedCount} steps skipped.` : ''}`
-      }).catch(() => {});
+      });
     } catch (e) { /* UI may not be listening */ }
   } else if (session.status === 'replay_failed') {
     // Send error message to UI
@@ -4505,141 +2446,174 @@ function generateAlternativeSelectors(originalSelector) {
   return alternatives.slice(0, 5); // Limit alternatives
 }
 
-// =============================================================================
-// PARALLEL DEBUG FALLBACK (ERR-01/02/03)
-// When an action fails, fire heuristic fix AND AI debugger concurrently.
-// If heuristic fix works, discard AI response. If heuristic fails, AI diagnosis
-// is already ready -- zero extra latency for the AI debugger path.
-// =============================================================================
-
-/**
- * Parallel debug fallback: fires heuristic engine (content script) and AI debugger
- * (background) concurrently on action failure.
- * @param {Object} failedAction - The action result that failed
- * @param {Object} session - Current session object
- * @param {Object} context - Current page context (URL, etc.)
- * @param {number} tabId - Tab ID for content script communication
- * @returns {Promise<Object>} { resolved, method, fix, diagnosis, elapsed }
- */
-async function parallelDebugFallback(failedAction, session, context, tabId) {
-  const startTime = Date.now();
-
-  // Fire both in parallel: heuristic in content script, AI debugger in background
-  const [heuristicResult, aiDebugResult] = await Promise.allSettled([
-    chrome.tabs.sendMessage(tabId, {
-      action: 'HEURISTIC_FIX',
-      failedAction: {
-        diagnostic: failedAction.diagnostic,
-        selector: failedAction.selector || failedAction.selectorTried || failedAction.clicked,
-        selectorTried: failedAction.selectorTried
-      }
-    }).catch(() => ({ resolved: false })),
-    runAIDebugger(failedAction, session, context)
-  ]);
-
-  const heuristic = heuristicResult.status === 'fulfilled' ? heuristicResult.value : null;
-  const aiDebug = aiDebugResult.status === 'fulfilled' ? aiDebugResult.value : null;
-
-  const elapsed = Date.now() - startTime;
-  automationLogger.debug('Parallel debug fallback completed', {
-    sessionId: session.sessionId,
-    elapsed,
-    heuristicResolved: heuristic?.resolved || false,
-    aiDebugAvailable: !!aiDebug?.diagnosis
+// Enhanced stuck detection with pattern recognition
+function analyzeStuckPatterns(session) {
+  const recentActions = session.actionHistory.slice(-10); // Look at last 10 actions
+  const patterns = {
+    repetitiveActions: false,
+    cyclingBetweenStates: false,
+    failingOnSameElement: false,
+    noProgressMade: false,
+    severity: 'low'
+  };
+  
+  if (recentActions.length < 3) return patterns;
+  
+  // Check for repetitive actions (same action/params repeated)
+  const actionGroups = {};
+  recentActions.forEach(action => {
+    const key = `${action.tool}_${JSON.stringify(action.params)}`;
+    actionGroups[key] = (actionGroups[key] || 0) + 1;
   });
-
-  // If heuristic fix worked, use it and discard AI debugger response
-  if (heuristic?.resolved) {
-    return {
-      resolved: true,
-      method: 'heuristic',
-      fix: heuristic.fix,
-      diagnosis: null,
-      elapsed
-    };
+  
+  const maxRepeats = Math.max(...Object.values(actionGroups));
+  if (maxRepeats >= 3) {
+    patterns.repetitiveActions = true;
+    patterns.severity = 'high';
   }
-
-  // If heuristic failed but AI debugger has a diagnosis, return it
-  if (aiDebug?.diagnosis) {
-    return {
-      resolved: false,
-      method: 'ai_debugger',
-      fix: null,
-      diagnosis: aiDebug.diagnosis,
-      suggestions: aiDebug.suggestions || [],
-      elapsed
-    };
+  
+  // Check for cycling between different states
+  const domHashes = session.stateHistory.slice(-5).map(state => state.domHash);
+  const uniqueHashes = new Set(domHashes);
+  if (uniqueHashes.size <= 2 && domHashes.length >= 4) {
+    patterns.cyclingBetweenStates = true;
+    patterns.severity = Math.max(patterns.severity, 'medium');
   }
-
-  // Neither resolved
-  return { resolved: false, method: 'none', fix: null, diagnosis: null, elapsed };
+  
+  // Check for failing on same elements
+  const failedSelectors = recentActions
+    .filter(action => !action.result?.success && action.params?.selector)
+    .map(action => action.params.selector);
+  
+  if (failedSelectors.length >= 3) {
+    const selectorCounts = {};
+    failedSelectors.forEach(selector => {
+      selectorCounts[selector] = (selectorCounts[selector] || 0) + 1;
+    });
+    
+    if (Math.max(...Object.values(selectorCounts)) >= 2) {
+      patterns.failingOnSameElement = true;
+      patterns.severity = 'high';
+    }
+  }
+  
+  // Check for overall lack of progress
+  const recentSuccesses = recentActions.filter(action => action.result?.success).length;
+  if (recentSuccesses / recentActions.length < 0.3) { // Less than 30% success rate
+    patterns.noProgressMade = true;
+    patterns.severity = 'high';
+  }
+  
+  return patterns;
 }
 
 /**
- * AI-powered debugger: sends compact failure context to the AI provider for diagnosis.
- * Runs in background (has API access). Returns natural language diagnosis + suggestions.
- * @param {Object} failedAction - The action result that failed
- * @param {Object} session - Current session object
- * @param {Object} context - Current page context
- * @returns {Promise<Object>} { diagnosis, suggestions }
+ * Check if click actions are targeting nearby elements (same area of the page)
+ * Used to detect when automation is repeatedly clicking in the same area without progress
+ * @param {Array} clickActions - Array of recent click actions with results
+ * @returns {boolean} True if clicks are targeting nearby positions
  */
-async function runAIDebugger(failedAction, session, context) {
-  const debugContext = {
-    failedAction: {
-      action: failedAction.action || failedAction.tool,
-      selector: failedAction.selector || failedAction.selectorTried || failedAction.clicked,
-      error: failedAction.error,
-      diagnosticSummary: failedAction.diagnostic?.summary,
-      elementSnapshot: failedAction.elementSnapshot
-    },
-    recentActions: (session.actionHistory || []).slice(-5).map(a => ({
-      action: a.tool,
-      success: a.result?.success,
-      selector: a.params?.selector
-    })),
-    pageUrl: context?.currentUrl || 'unknown',
-    siteName: context?.siteGuide?.name || 'unknown'
-  };
+function areClicksNearby(clickActions) {
+  if (clickActions.length < 2) return false;
 
-  try {
-    const settings = await config.getAll();
-    if (!settings) return { diagnosis: null };
+  // Extract position data from click results
+  const positions = clickActions
+    .filter(a => a.result?.verification?.preState || a.result?.elementInfo)
+    .map(a => {
+      // Try to get position from element rect if available
+      const elementRect = a.result?.elementRect;
+      if (elementRect) {
+        return { x: elementRect.x + elementRect.width / 2, y: elementRect.y + elementRect.height / 2 };
+      }
 
-    const provider = new UniversalProvider(settings);
-    const requestBody = await provider.buildRequest({
-      systemPrompt: `You are a browser automation debugger. An action failed during automation. Analyze the failure and suggest recovery.
+      // Fallback: compare by selector similarity
+      return { selector: a.params?.selector };
+    });
 
-Respond in this exact format:
-DIAGNOSIS: What likely went wrong (1-2 sentences)
-SUGGESTIONS: 2-3 specific recovery actions`,
-      userPrompt: `FAILED ACTION:\n${JSON.stringify(debugContext.failedAction, null, 2)}\n\nRECENT HISTORY:\n${JSON.stringify(debugContext.recentActions, null, 2)}\n\nPAGE: ${debugContext.pageUrl} (${debugContext.siteName})`
-    }, {});
+  // If we have position data, check for proximity
+  const positionsWithCoords = positions.filter(p => p.x !== undefined);
+  if (positionsWithCoords.length >= 2) {
+    // Check if all positions are within 100px of each other
+    const avgX = positionsWithCoords.reduce((sum, p) => sum + p.x, 0) / positionsWithCoords.length;
+    const avgY = positionsWithCoords.reduce((sum, p) => sum + p.y, 0) / positionsWithCoords.length;
 
-    // Limit tokens for this diagnostic call
-    if (requestBody.max_tokens) requestBody.max_tokens = 300;
-    if (requestBody.generationConfig?.maxOutputTokens) requestBody.generationConfig.maxOutputTokens = 300;
+    const allNearby = positionsWithCoords.every(p => {
+      const distance = Math.sqrt(Math.pow(p.x - avgX, 2) + Math.pow(p.y - avgY, 2));
+      return distance < 100;
+    });
 
-    const response = await provider.sendRequest(requestBody, { timeout: 8000 });
+    if (allNearby) return true;
+  }
 
-    // Extract text from provider-specific response format
-    let diagnosis = null;
-    const providerName = settings.modelProvider || 'xai';
-    if (providerName === 'gemini') {
-      diagnosis = response?.candidates?.[0]?.content?.parts?.[0]?.text;
-    } else if (providerName === 'anthropic') {
-      diagnosis = response?.content?.[0]?.text;
-    } else {
-      diagnosis = response?.choices?.[0]?.message?.content;
+  // Fallback: check selector similarity
+  const selectors = positions.filter(p => p.selector).map(p => p.selector);
+  if (selectors.length >= 2) {
+    // Check if selectors target similar elements (same class or ID patterns)
+    const uniqueSelectors = [...new Set(selectors)];
+    if (uniqueSelectors.length === 1) {
+      return true; // All clicks on same selector
     }
 
-    return {
-      diagnosis: diagnosis?.trim() || null,
-      suggestions: []
-    };
-  } catch (e) {
-    automationLogger.debug('AI debugger failed', { error: e.message });
-    return { diagnosis: null };
+    // Check for similar selector patterns (e.g., all targeting .btn classes)
+    const selectorPatterns = selectors.map(s => s.split(/[#.\[\]]/)[0]);
+    const uniquePatterns = [...new Set(selectorPatterns)];
+    if (uniquePatterns.length <= 2) {
+      return true; // Similar selector patterns
+    }
   }
+
+  return false;
+}
+
+// Generate recovery strategies based on stuck patterns
+function generateRecoveryStrategies(patterns, session) {
+  const strategies = [];
+  
+  if (patterns.repetitiveActions) {
+    strategies.push({
+      type: 'break_repetition',
+      description: 'Switch to alternative approach to break repetitive loop',
+      priority: 'high'
+    });
+  }
+  
+  if (patterns.cyclingBetweenStates) {
+    strategies.push({
+      type: 'reset_state',
+      description: 'Navigate to different page or refresh to reset state',
+      priority: 'medium'
+    });
+  }
+  
+  if (patterns.failingOnSameElement) {
+    strategies.push({
+      type: 'alternative_selectors',
+      description: 'Use completely different element selection strategy',
+      priority: 'high'
+    });
+  }
+  
+  if (patterns.noProgressMade) {
+    strategies.push({
+      type: 'change_approach',
+      description: 'Fundamentally change approach (e.g., use Google search instead of direct interaction)',
+      priority: 'high'
+    });
+
+    // If we navigated or clicked before getting stuck, suggest goBack to return to previous page
+    if (session.actionHistory?.some(a => a.tool === 'navigate' || a.tool === 'click' || a.tool === 'clickSearchResult')) {
+      strategies.push({
+        type: 'go_back',
+        description: 'Use goBack to return to previous page (e.g., search results) and try a different link or approach',
+        priority: 'high'
+      });
+    }
+  }
+
+  return strategies.sort((a, b) => {
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    return priorityOrder[b.priority] - priorityOrder[a.priority];
+  });
 }
 
 // Performance monitoring functions
@@ -4724,11 +2698,11 @@ function finalizeSessionMetrics(sessionId, successful = false) {
   });
 }
 
-function accumulateSessionCost(sessionId, model, inputTokens, outputTokens, provider = '') {
+function accumulateSessionCost(sessionId, model, inputTokens, outputTokens) {
   const session = activeSessions.get(sessionId);
   if (!session) return;
-  const analytics = getAnalytics();
-  const cost = analytics.calculateCost(model, inputTokens, outputTokens, provider);
+  const analytics = initializeAnalytics();
+  const cost = analytics.calculateCost(model, inputTokens, outputTokens);
   session.totalCost = (session.totalCost || 0) + cost;
   session.totalInputTokens = (session.totalInputTokens || 0) + (inputTokens || 0);
   session.totalOutputTokens = (session.totalOutputTokens || 0) + (outputTokens || 0);
@@ -4784,6 +2758,51 @@ function generatePerformanceRecommendations() {
   return recommendations;
 }
 
+// Domain keyword map: ordered array of [url, keywords] pairs.
+// More specific keywords come first to avoid false matches (e.g., "google docs" before "google").
+const DOMAIN_KEYWORD_MAP = [
+  // Productivity - specific Google products first
+  ['https://docs.google.com', ['google docs', 'gdocs']],
+  ['https://sheets.google.com', ['google sheets', 'gsheets', 'spreadsheet']],
+  ['https://drive.google.com', ['google drive', 'gdrive']],
+  ['https://maps.google.com', ['google maps']],
+  ['https://news.google.com', ['google news']],
+  // Email
+  ['https://gmail.com', ['gmail', 'email', 'mail', 'inbox']],
+  ['https://outlook.live.com', ['outlook', 'hotmail']],
+  // Social media
+  ['https://youtube.com', ['youtube']],
+  ['https://twitter.com', ['twitter', 'tweet', 'x.com']],
+  ['https://facebook.com', ['facebook']],
+  ['https://instagram.com', ['instagram']],
+  ['https://linkedin.com', ['linkedin']],
+  ['https://reddit.com', ['reddit', 'subreddit']],
+  ['https://tiktok.com', ['tiktok']],
+  // Shopping
+  ['https://amazon.com', ['amazon']],
+  ['https://ebay.com', ['ebay']],
+  ['https://etsy.com', ['etsy']],
+  // Entertainment
+  ['https://netflix.com', ['netflix']],
+  ['https://spotify.com', ['spotify']],
+  ['https://twitch.tv', ['twitch']],
+  // Development
+  ['https://github.com', ['github', 'repository', 'repo']],
+  ['https://stackoverflow.com', ['stackoverflow', 'stack overflow']],
+  // Communication
+  ['https://discord.com', ['discord']],
+  ['https://slack.com', ['slack']],
+  ['https://web.whatsapp.com', ['whatsapp']],
+  // Productivity - other
+  ['https://notion.so', ['notion']],
+  ['https://dropbox.com', ['dropbox']],
+  // Information
+  ['https://wikipedia.org', ['wikipedia', 'wiki']],
+  ['https://weather.com', ['weather', 'forecast']],
+  // Generic Google last (catches "google something" not matched above)
+  ['https://google.com', ['google']],
+];
+
 // Extract the first logical segment of a multi-step task.
 // "Do X on Amazon, then email it" -> "Do X on Amazon"
 function getFirstTaskSegment(task) {
@@ -4799,6 +2818,26 @@ function getFirstTaskSegment(task) {
   }
 
   return earliestSplit < task.length ? task.substring(0, earliestSplit).trim() : task;
+}
+
+// Smart navigation: match task keywords to known domains.
+// Picks the keyword whose first occurrence is earliest in the task text.
+function analyzeTaskAndGetTargetUrl(task) {
+  const taskLower = task.toLowerCase();
+  let bestUrl = null;
+  let bestPosition = Infinity;
+
+  for (const [url, keywords] of DOMAIN_KEYWORD_MAP) {
+    for (const kw of keywords) {
+      const pos = taskLower.indexOf(kw);
+      if (pos !== -1 && pos < bestPosition) {
+        bestPosition = pos;
+        bestUrl = url;
+      }
+    }
+  }
+
+  return bestUrl || 'https://google.com';
 }
 
 // ==========================================
@@ -4831,13 +2870,14 @@ function calculateTabScore(tabUrl, targetUrl) {
 async function findMatchingTabs(targetUrl) {
   try {
     const allTabs = await chrome.tabs.query({ currentWindow: true });
-    return allTabs
+    const scored = allTabs
       .map(tab => ({ tab, score: calculateTabScore(tab.url || '', targetUrl) }))
       .filter(entry => entry.score > 0)
       .sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
         return (b.tab.lastAccessed || 0) - (a.tab.lastAccessed || 0);
       });
+    return scored.map(entry => entry.tab);
   } catch (error) {
     automationLogger.debug('findMatchingTabs error', { error: error.message });
     return [];
@@ -4870,9 +2910,8 @@ function isUserContentTab(tab) {
  * Decide what tab action to take: navigate, switch, or create.
  * Returns { action: 'navigate'|'switch'|'create', tabId?, url?, reason }
  */
-async function decideTabAction(currentTabId, currentTabUrl, targetUrl, task, options = {}) {
+async function decideTabAction(currentTabId, currentTabUrl, targetUrl, task) {
   try {
-    const reuseMatchingTabs = options.reuseMatchingTabs !== false;
     const targetHost = new URL(targetUrl).hostname.replace(/^www\./, '');
     const currentHost = currentTabUrl ? new URL(currentTabUrl).hostname.replace(/^www\./, '') : '';
 
@@ -4881,218 +2920,36 @@ async function decideTabAction(currentTabId, currentTabUrl, targetUrl, task, opt
       return { action: 'navigate', tabId: currentTabId, url: targetUrl, reason: 'Already on target domain' };
     }
 
-    const matchingTabs = reuseMatchingTabs ? await findMatchingTabs(targetUrl) : [];
-    const bestMatchingEntry = matchingTabs[0] || null;
-    const bestMatchingTab = bestMatchingEntry?.tab || null;
-    const bestMatchingScore = bestMatchingEntry?.score || 0;
+    const matchingTabs = await findMatchingTabs(targetUrl);
     const currentTab = await chrome.tabs.get(currentTabId).catch(() => null);
     const currentIsRestricted = !currentTabUrl || isRestrictedURL(currentTabUrl);
     const currentHasContent = currentTab ? isUserContentTab(currentTab) : false;
 
     if (currentIsRestricted) {
       // Safe to overwrite restricted pages, but prefer existing matching tab
-      if (bestMatchingTab && bestMatchingScore >= 75) {
-        return { action: 'switch', tabId: bestMatchingTab.id, url: targetUrl, reason: 'Found strong matching tab, current is restricted' };
+      if (matchingTabs.length > 0) {
+        return { action: 'switch', tabId: matchingTabs[0].id, url: targetUrl, reason: 'Found matching tab, current is restricted' };
       }
       return { action: 'navigate', tabId: currentTabId, url: targetUrl, reason: 'Navigating restricted page to target' };
     }
 
     if (currentHasContent) {
       // Preserve user content - switch to existing tab or open new one
-      if (bestMatchingTab && bestMatchingScore >= 75) {
-        return { action: 'switch', tabId: bestMatchingTab.id, url: targetUrl, reason: 'Switching to strong matching tab, preserving user content' };
+      if (matchingTabs.length > 0) {
+        return { action: 'switch', tabId: matchingTabs[0].id, url: targetUrl, reason: 'Switching to matching tab, preserving user content' };
       }
       return { action: 'create', url: targetUrl, reason: 'Creating new tab to preserve user content' };
     }
 
     // Generic page without meaningful content - navigate in place
-    if (bestMatchingTab && bestMatchingScore >= 75) {
-      return { action: 'switch', tabId: bestMatchingTab.id, url: targetUrl, reason: 'Found strong matching tab' };
+    if (matchingTabs.length > 0) {
+      return { action: 'switch', tabId: matchingTabs[0].id, url: targetUrl, reason: 'Found matching tab' };
     }
     return { action: 'navigate', tabId: currentTabId, url: targetUrl, reason: 'Navigating generic page to target' };
   } catch (error) {
     automationLogger.debug('decideTabAction error, falling back to navigate', { error: error.message });
     return { action: 'navigate', tabId: currentTabId, url: targetUrl, reason: 'Fallback after error' };
   }
-}
-
-async function waitForNavigationComplete(tabId, timeout = 10000) {
-  try {
-    const existingTab = await chrome.tabs.get(tabId);
-    if (existingTab?.status === 'complete') return;
-  } catch {
-    return;
-  }
-
-  return new Promise((resolve) => {
-    const navListener = (updatedTabId, changeInfo) => {
-      if (updatedTabId === tabId && changeInfo.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(navListener);
-        resolve();
-      }
-    };
-    chrome.tabs.onUpdated.addListener(navListener);
-    setTimeout(() => {
-      chrome.tabs.onUpdated.removeListener(navListener);
-      resolve();
-    }, timeout);
-  });
-}
-
-async function getOpenTabSummaries() {
-  try {
-    const tabs = await chrome.tabs.query({ currentWindow: true });
-    return tabs
-      .filter(tab => tab?.url && !isRestrictedURL(tab.url))
-      .map(tab => ({
-        id: tab.id,
-        title: tab.title || '',
-        url: tab.url || '',
-        active: !!tab.active
-      }));
-  } catch {
-    return [];
-  }
-}
-
-async function loadRoutingSettings() {
-  try {
-    return await config.getAll();
-  } catch (error) {
-    automationLogger.debug('Failed to load routing settings', { error: error.message });
-    return null;
-  }
-}
-
-function describeRouteTarget(routeDecision) {
-  if (typeof extractRouteTargetLabel === 'function') {
-    return extractRouteTargetLabel(routeDecision);
-  }
-  if (!routeDecision?.url) return 'the selected page';
-  try {
-    return new URL(routeDecision.url).hostname.replace(/^www\./, '');
-  } catch {
-    return 'the selected page';
-  }
-}
-
-async function prepareAutomationStartTarget(currentTabId, task, options = {}) {
-  const triggerSource = options.triggerSource || 'extension';
-  const reuseMatchingTabs = options.reuseMatchingTabs !== false;
-  const activateTab = options.activateTab !== false;
-  const explicitTargetUrl = options.explicitTargetUrl || null;
-
-  let targetTabId = currentTabId;
-  if (!targetTabId) {
-    const createdTab = await chrome.tabs.create({
-      url: explicitTargetUrl || 'about:blank',
-      active: activateTab
-    });
-    targetTabId = createdTab.id;
-  }
-
-  let tabInfo;
-  try {
-    tabInfo = await chrome.tabs.get(targetTabId);
-  } catch (error) {
-    throw new Error(`Cannot access tab ${targetTabId}. Tab may have been closed or is not accessible.`);
-  }
-
-  let navigationMessage = '';
-  let navigationPerformed = false;
-  let routeDecision = null;
-  const originalUrl = tabInfo.url || '';
-
-  if (!isRestrictedURL(tabInfo.url)) {
-    automationLogger.debug('Non-restricted URL, deferring tab decision to AI agent', {
-      currentUrl: tabInfo.url,
-      task: task.substring(0, 100),
-      triggerSource
-    });
-    return { targetTabId, tabInfo, navigationMessage, navigationPerformed, routeDecision };
-  }
-
-  if (!shouldUseSmartNavigation(tabInfo.url, task)) {
-    const chromeError = new Error(`Chrome security restrictions prevent extensions from accessing this type of page (${tabInfo.url}). Please navigate to a regular website to use automation.`);
-    chromeError.isChromePage = true;
-    throw chromeError;
-  }
-
-  const routingTask = getFirstTaskSegment(task || '');
-  const routingSettings = await loadRoutingSettings();
-  const openTabs = await getOpenTabSummaries();
-
-  routeDecision = await resolveTaskStartRoute(routingTask, {
-    settings: routingSettings,
-    triggerSource,
-    currentUrl: tabInfo.url || '',
-    currentPageType: getPageTypeDescription(tabInfo.url || ''),
-    openTabs,
-    explicitTargetUrl
-  });
-
-  if (!routeDecision?.url) {
-    throw new Error('AI start router did not return a valid URL.');
-  }
-
-  const decision = await decideTabAction(targetTabId, tabInfo.url, routeDecision.url, routingTask, {
-    reuseMatchingTabs
-  });
-
-  automationLogger.logNavigation(null, 'smart-ai', tabInfo.url, routeDecision.url, {
-    triggerSource,
-    task: routingTask.substring(0, 100),
-    routeMode: routeDecision.mode,
-    routeConfidence: routeDecision.confidence,
-    routeReason: routeDecision.reason,
-    decision: decision.action,
-    reason: decision.reason
-  });
-
-  const routeLabel = describeRouteTarget(routeDecision);
-  let shouldWaitForLoad = false;
-
-  if (decision.action === 'switch') {
-    try {
-      await chrome.tabs.update(decision.tabId, { active: activateTab });
-      targetTabId = decision.tabId;
-      const switchedTab = await chrome.tabs.get(targetTabId).catch(() => null);
-      if (!switchedTab?.url || switchedTab.url !== routeDecision.url) {
-        await chrome.tabs.update(targetTabId, { url: routeDecision.url, active: activateTab });
-        navigationMessage = `Switched to existing ${routeLabel} tab and refreshed the route.`;
-        shouldWaitForLoad = true;
-      } else {
-        navigationMessage = `Switched to existing ${routeLabel}.`;
-      }
-    } catch (switchErr) {
-      automationLogger.debug('Tab switch failed, falling back to navigate', { error: switchErr.message, triggerSource });
-      await chrome.tabs.update(targetTabId, { url: routeDecision.url, active: activateTab });
-      navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${routeLabel}.`;
-      shouldWaitForLoad = true;
-    }
-  } else if (decision.action === 'create') {
-    const createdTab = await chrome.tabs.create({ url: routeDecision.url, active: activateTab });
-    targetTabId = createdTab.id;
-    navigationMessage = `Opened ${routeLabel} in a new tab.`;
-    shouldWaitForLoad = true;
-  } else {
-    await chrome.tabs.update(targetTabId, { url: routeDecision.url, active: activateTab });
-    navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${routeLabel}.`;
-    shouldWaitForLoad = true;
-  }
-
-  if (shouldWaitForLoad) {
-    await waitForNavigationComplete(targetTabId, 10000);
-  }
-
-  try {
-    tabInfo = await chrome.tabs.get(targetTabId);
-  } catch (error) {
-    throw new Error(`Tab became inaccessible after AI start routing to ${routeDecision.url}`);
-  }
-
-  navigationPerformed = true;
-  return { targetTabId, tabInfo, navigationMessage, navigationPerformed, routeDecision };
 }
 
 /**
@@ -5113,10 +2970,17 @@ function shouldUseSmartNavigation(url, task) {
   if (!isRestrictedURL(url)) {
     return false; // Not on a restricted page
   }
-
-  // Only use smart navigation for blank/new-tab style pages.
+  
+  // Only use smart navigation for chrome://newtab and about:blank
   // Don't navigate away from settings, extensions, etc.
-  return isSmartNavigableRestrictedURL(url);
+  const navigablePages = [
+    'chrome://newtab/',
+    'about:blank',
+    'chrome://newtab',
+    'about:newtab'
+  ];
+  
+  return navigablePages.some(page => url.startsWith(page));
 }
 
 // Service Worker compatible analytics class
@@ -5174,41 +3038,34 @@ class BackgroundAnalytics {
     }
   }
   
-  calculateCost(model, inputTokens, outputTokens, provider = '') {
-    if ((provider || '').toLowerCase() === 'lmstudio') {
-      return 0;
-    }
-
+  calculateCost(model, inputTokens, outputTokens) {
     const pricing = {
-      // xAI Current models
-      'grok-4-0709': { input: 3.00, output: 15.00 },
-      'grok-4-1-fast-reasoning': { input: 0.20, output: 0.50 },
-      'grok-4-1-fast-non-reasoning': { input: 0.20, output: 0.50 },
-      'grok-4-fast-reasoning': { input: 3.00, output: 15.00 },
-      'grok-4-fast-non-reasoning': { input: 3.00, output: 15.00 },
-      'grok-code-fast-1': { input: 0.20, output: 1.50 },
-      'grok-3': { input: 5.00, output: 25.00 },
-      'grok-3-mini': { input: 0.30, output: 0.50 },
-      // xAI Legacy
-      'grok-4-1-fast': { input: 0.20, output: 0.50 },
+      // New Grok 4.1 series (2026)
       'grok-4-1': { input: 3.00, output: 15.00 },
+      'grok-4-1-fast': { input: 0.20, output: 0.50 },
+      'grok-4-1-fast-non-reasoning': { input: 0.20, output: 0.50 },
       'grok-4': { input: 3.00, output: 15.00 },
-      'grok-4-fast': { input: 3.00, output: 15.00 },
-      'grok-3-fast': { input: 0.50, output: 2.50 },
+      'grok-code-fast-1': { input: 0.20, output: 1.50 },
+      'grok-3': { input: 3.00, output: 15.00 },
+      'grok-3-mini': { input: 0.30, output: 0.50 },
+      'grok-2-vision': { input: 2.00, output: 10.00 },
+      // Legacy model IDs for backward compatibility
+      'grok-3-fast': { input: 0.20, output: 0.50 },
       'grok-3-mini-beta': { input: 0.30, output: 0.50 },
       'grok-3-mini-fast-beta': { input: 0.20, output: 0.50 },
+      'grok-4-fast': { input: 3.00, output: 15.00 },
       // Other providers
       'gpt-4o': { input: 2.50, output: 10.00 },
       'gpt-4o-mini': { input: 0.15, output: 0.60 }
     };
 
-    const modelPricing = pricing[model] || pricing['grok-4-1-fast-reasoning'];
+    const modelPricing = pricing[model] || pricing['grok-4-1-fast'];
     const inputCost = (inputTokens / 1000000) * modelPricing.input;
     const outputCost = (outputTokens / 1000000) * modelPricing.output;
     return inputCost + outputCost;
   }
   
-  async trackUsage(model, inputTokens, outputTokens, success = true, source = 'automation', provider = '') {
+  async trackUsage(model, inputTokens, outputTokens, success = true, source = 'automation') {
     try {
       // Ensure initialization is complete
       if (!this.initialized) {
@@ -5218,18 +3075,17 @@ class BackgroundAnalytics {
       const entry = {
         timestamp: Date.now(),
         model: model,
-        provider: provider,
         inputTokens: inputTokens || 0,
         outputTokens: outputTokens || 0,
         success: success,
         source: source,
-        cost: this.calculateCost(model, inputTokens, outputTokens, provider)
+        cost: this.calculateCost(model, inputTokens, outputTokens)
       };
 
       this.usageData.push(entry);
       this.currentModel = model;
 
-      automationLogger.logAPI(null, 'analytics', 'track', { model, provider, inputTokens, outputTokens, success, source, cost: entry.cost });
+      automationLogger.logAPI(null, 'analytics', 'track', { model, inputTokens, outputTokens, success, source, cost: entry.cost });
 
       // Clean old data (keep only last 30 days)
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
@@ -5244,172 +3100,766 @@ class BackgroundAnalytics {
   }
 }
 
-// Lazy analytics guard -- replaces eager initializeAnalytics()
-function getAnalytics() {
-  if (!_analyticsInstance) {
-    _analyticsInstance = new BackgroundAnalytics();
-    automationLogger.logInit('background_analytics', 'lazy_init', {});
+// Initialize analytics
+function initializeAnalytics() {
+  if (!globalAnalytics) {
+    globalAnalytics = new BackgroundAnalytics();
+    automationLogger.logInit('background_analytics', 'ready', {});
   }
-  return _analyticsInstance;
+  return globalAnalytics;
 }
 
-// Lazy WebSocket guard -- defers connection until first UI interaction
-function ensureWsConnected() {
-  if (_wsInitDone) return;
-  _wsInitDone = true;
-  fsbWebSocket.connect();
+/**
+ * Validates if a result is meaningful based on task context
+ * @param {string} result - The result to validate
+ * @param {string} task - The original task
+ * @returns {boolean} True if result is valid and meaningful
+ */
+function isValidResult(result, task) {
+  // Handle null/undefined
+  if (!result || result === null || result === undefined) {
+    return false;
+  }
+  
+  // Convert to string for analysis
+  const resultStr = String(result).trim();
+  
+  // Empty results or placeholder text are invalid
+  if (resultStr === '' || resultStr === 'null' || resultStr === 'undefined') {
+    return false;
+  }
+  
+  // Reject generic placeholder messages
+  const genericMessages = [
+    'task completed',
+    'task completed successfully', 
+    'completed successfully',
+    'done',
+    'finished',
+    'success',
+    'completed',
+    'found it',
+    'found the information',
+    'extracted the data'
+  ];
+  
+  const resultLower = resultStr.toLowerCase();
+  if (genericMessages.some(msg => resultLower === msg || resultLower === msg + '.')) {
+    return false;
+  }
+  
+  // Accept any result that is reasonably detailed (shows AI provided context)
+  // This is much more permissive than the old validation
+  if (resultStr.length >= 15) {
+    // Check if it contains meaningful content words (not just filler)
+    const meaningfulWords = resultStr.match(/\b\w{3,}\b/g) || [];
+    return meaningfulWords.length >= 3; // At least 3 meaningful words
+  }
+  
+  // For shorter results, be more flexible - accept if it has specific data patterns
+  // Numbers, currency, percentages, URLs, etc.
+  const hasSpecificData = /(\d+\.?\d*|\$|%|https?:\/\/|@|#|\w+\.\w+)/.test(resultStr);
+  if (hasSpecificData && resultStr.length >= 5) {
+    return true;
+  }
+  
+  // Accept if it looks like extracted data (has quotes, colons, specific formats)
+  const hasDataFormat = /(["'].*["']|:\s*\w+|\w+:\s*\w+|\d+\s*(USD|EUR|BTC|°F|°C|%))/.test(resultStr);
+  if (hasDataFormat) {
+    return true;
+  }
+  
+  // Default: accept anything with reasonable length and multiple words
+  const wordCount = (resultStr.match(/\b\w+\b/g) || []).length;
+  return wordCount >= 2 && resultStr.length >= 8;
 }
 
-// Deferred init trigger -- fires analytics + WS on first UI message or MCP session
-function maybeRunDeferredInit(request, sender) {
-  if (_deferredInitDone) return;
-  // Only trigger on extension page messages (popup, sidepanel, options)
-  // Content scripts always have sender.tab set
-  if (sender && sender.tab) return;
-  // STT broadcasts from content scripts
-  if (request.from === 'content-stt') return;
-
-  _deferredInitDone = true;
-  automationLogger.logInit('deferred', 'start', { trigger: request.action || 'unknown' });
-
-  getAnalytics();
-  ensureWsConnected();
-
-  automationLogger.logInit('deferred', 'complete', { trigger: request.action || 'unknown' });
+/**
+ * Creates a unique signature for an action based on tool and key parameters
+ * @param {Object} action - The action object
+ * @returns {string} A unique signature for the action
+ */
+function createActionSignature(action) {
+  // Create a signature that uniquely identifies this action
+  const tool = action.tool || '';
+  const params = action.params || {};
+  
+  // For most actions, the selector is the key differentiator
+  if (params.selector) {
+    return `${tool}:${params.selector}`;
+  }
+  
+  // For navigation actions, use the URL
+  if (params.url) {
+    return `${tool}:${params.url}`;
+  }
+  
+  // For type actions, include the text (truncated)
+  if (tool === 'type' && params.text) {
+    const textPreview = params.text.substring(0, 20);
+    return `${tool}:${params.selector || 'unknown'}:${textPreview}`;
+  }
+  
+  // For other actions, create a simple hash of params
+  const paramsStr = JSON.stringify(params);
+  return `${tool}:${simpleHash(paramsStr)}`;
 }
 
-// Bootstrap pipeline: 4 sequential phases for structured service worker startup
-async function swBootstrap(trigger) {
-  if (_bootstrapDone) return;
-  _bootstrapDone = true;
-
-  var bsStart = Date.now();
-  automationLogger.logInit('bootstrap', 'start', { trigger: trigger });
-
-  // Phase 1: SETTINGS
-  var t0 = Date.now();
-  automationLogger.logInit('bootstrap:SETTINGS', 'start', {});
-  try {
-    await loadDebugMode();
-    automationLogger.logInit('bootstrap:SETTINGS', 'complete', { durationMs: Date.now() - t0 });
-  } catch (err) {
-    automationLogger.logInit('bootstrap:SETTINGS', 'failed', { error: err.message, durationMs: Date.now() - t0 });
+/**
+ * Simple hash function for creating signatures
+ * @param {string} str - String to hash
+ * @returns {number} Hash value
+ */
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
   }
+  return Math.abs(hash);
+}
 
-  // Phase 2: ENVIRONMENT
-  t0 = Date.now();
-  automationLogger.logInit('bootstrap:ENVIRONMENT', 'start', {});
-  try {
-    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
-    automationLogger.logInit('bootstrap:ENVIRONMENT', 'complete', { durationMs: Date.now() - t0 });
-  } catch (err) {
-    automationLogger.logInit('bootstrap:ENVIRONMENT', 'complete', {
-      durationMs: Date.now() - t0, sidePanelFallback: true
-    });
+/**
+ * CMP-03: Classify a task string into one of the supported task types.
+ * Simplified port of ai-integration.js detectTaskType() for background.js use
+ * (no site guide dependency). Used by completion validators and progress tracking.
+ * @param {string} taskString - The user's task description
+ * @returns {string} One of: 'multitab', 'gaming', 'email', 'messaging', 'form', 'shopping', 'career', 'search', 'extraction', 'navigation', 'general'
+ */
+function classifyTask(taskString) {
+  if (!taskString) return 'general';
+  const t = taskString.toLowerCase();
+
+  // Multitab / cross-site workflows -- MUST check before messaging/search/extraction
+  // to avoid partial keyword matches (e.g. "post" matching messaging, "check" matching extraction)
+  const outputDestinations = ['google doc', 'google sheet', 'google drive', 'google slide', 'notion', 'spreadsheet', 'my doc', 'my sheet'];
+  const gatherActions = ['find', 'search', 'research', 'get', 'look up', 'check', 'go to', 'visit', 'summarize', 'compile'];
+  const hasOutputDest = outputDestinations.some(kw => t.includes(kw));
+  const hasGatherAction = gatherActions.some(kw => t.includes(kw));
+  if (hasOutputDest && hasGatherAction) return 'multitab';
+  // Sequential cross-site tasks (e.g. "go to X then Y")
+  const sequentialSeparators = [' and then ', ', then ', ' then ', ' after that ', ' afterwards '];
+  const hasSequentialSep = sequentialSeparators.some(sep => t.includes(sep));
+  if (hasSequentialSep) {
+    const domainKeywords = [
+      'gmail', 'email', 'mail', 'outlook', 'amazon', 'ebay', 'etsy',
+      'youtube', 'twitter', 'facebook', 'instagram', 'linkedin', 'reddit',
+      'github', 'stackoverflow', 'google docs', 'google sheets', 'google drive',
+      'netflix', 'spotify', 'twitch', 'discord', 'slack', 'whatsapp',
+      'notion', 'dropbox', 'wikipedia'
+    ];
+    const matched = domainKeywords.filter(kw => t.includes(kw));
+    if (matched.length >= 2) return 'multitab';
   }
+  // Explicit tab keywords
+  if (/new tab|open tab|switch tab|multiple tab|other tab|different tab|compare|both sites|cross-reference/.test(t)) return 'multitab';
+  // Gaming
+  if (/play|game|start game|asteroids|snake|pong|tetris/.test(t) && !/play.*video|play.*music|play.*song|playlist/.test(t)) return 'gaming';
+  // Email -- check before messaging to avoid 'send' matching messaging
+  if (/email|mail|gmail|outlook|compose|inbox|draft/.test(t)) return 'email';
+  // Messaging -- 'send', 'reply', 'post', 'comment' etc. (after email ruled out)
+  if (/message|send|text|chat|reply|comment|dm\b|post/.test(t)) return 'messaging';
+  // Form
+  if (/fill|form|submit|register|sign.?up|apply/.test(t)) return 'form';
+  // Shopping
+  if (/buy|purchase|order|add.?to.?cart|checkout|shop/.test(t)) return 'shopping';
+  // Career -- check before search since "find jobs" would otherwise match search
+  if (/career|job|jobs|position|opening|hiring|employment/.test(t)) return 'career';
+  // Search
+  if (/search|find|look.?for|what.?is|how.?to/.test(t)) return 'search';
+  // Extraction
+  if (/get|extract|price|read|check|scrape/.test(t)) return 'extraction';
+  // Navigation
+  if (/go.?to|navigate|open|visit/.test(t)) return 'navigation';
+  // Fallback
+  return 'general';
+}
 
-  // Phase 3: TOOLS
-  t0 = Date.now();
-  automationLogger.logInit('bootstrap:TOOLS', 'start', {});
-  try {
-    agentScheduler.rescheduleAllAgents();
-    automationLogger.logInit('bootstrap:TOOLS', 'complete', { durationMs: Date.now() - t0 });
-  } catch (err) {
-    automationLogger.logInit('bootstrap:TOOLS', 'failed', { error: err.message, durationMs: Date.now() - t0 });
+// CMP-03: Irrevocable verb pattern -- matches verbs whose side effects cannot be undone
+const IRREVOCABLE_VERB_PATTERN = /send|submit|purchase|order|delete|publish|post/i;
+
+/**
+ * CMP-03: Record a critical (irrevocable) action in the session registry.
+ * Called after action execution when the action is a click on an element whose
+ * text or selector matches the irrevocable verb pattern.
+ * @param {Object} session - The automation session
+ * @param {Object} action - The action object { tool, params }
+ * @param {Object} result - The slim action result
+ */
+function recordCriticalAction(session, action, result) {
+  // Initialize registry if absent
+  if (!session.criticalActionRegistry) {
+    session.criticalActionRegistry = {
+      actions: [],    // { tool, selector, elementText, iteration, verified, timestamp }
+      cooldowns: {}   // { signature: { blockedUntilIteration, reason } }
+    };
   }
+  const registry = session.criticalActionRegistry;
 
-  // Phase 4: SESSIONS
-  t0 = Date.now();
-  automationLogger.logInit('bootstrap:SESSIONS', 'start', {});
-  try {
-    await restoreSessionsFromStorage();
-    automationLogger.logInit('bootstrap:SESSIONS', 'complete', {
-      durationMs: Date.now() - t0,
-      restoredSessions: activeSessions.size
-    });
-  } catch (err) {
-    automationLogger.logInit('bootstrap:SESSIONS', 'failed', { error: err.message, durationMs: Date.now() - t0 });
-  }
+  const elementText = result?.elementText || result?.clicked || '';
+  const selector = action.params?.selector || '';
 
-  automationLogger.logInit('bootstrap', 'complete', {
-    trigger: trigger,
-    durationMs: Date.now() - bsStart,
-    phases: 4
+  // Push to actions array (cap at 20, drop oldest per Pitfall 6)
+  registry.actions.push({
+    tool: action.tool,
+    selector: selector.substring(0, 80),
+    elementText: elementText.substring(0, 50),
+    iteration: session.iterationCount,
+    verified: false,
+    timestamp: Date.now()
   });
-  automationLogger.flush();
-}
+  if (registry.actions.length > 20) {
+    registry.actions.shift();
+  }
 
-function isCredentialControlPanelSender(sender) {
-  const controlPanelUrl = chrome.runtime.getURL('ui/control_panel.html');
-  return typeof sender?.url === 'string' && sender.url.startsWith(controlPanelUrl);
-}
+  // Set 3-iteration cooldown on the action signature
+  const signature = createActionSignature(action);
+  registry.cooldowns[signature] = {
+    blockedUntilIteration: session.iterationCount + 3,
+    reason: `Irrevocable action "${elementText.substring(0, 30)}" needs cooldown`
+  };
 
-function sendCredentialSenderError(sendResponse) {
-  sendResponse({
-    success: false,
-    errorCode: 'unauthorized_sender',
-    error: 'Credential actions are only available from the control panel'
+  automationLogger.info('Critical action recorded', {
+    sessionId: session.id,
+    tool: action.tool,
+    elementText: elementText.substring(0, 30),
+    cooldownUntil: session.iterationCount + 3
   });
 }
 
-async function getCredentialRuntimePolicy() {
-  let enableLogin = false;
-  try {
-    const settings = await config.getAll();
-    enableLogin = settings.enableLogin === true;
-  } catch (_error) {
-    enableLogin = false;
+/**
+ * CMP-03: Check if an action is currently on cooldown (blocked from re-execution).
+ * @param {Object} session - The automation session
+ * @param {Object} action - The action to check
+ * @returns {boolean} True if the action is blocked (still cooling down)
+ */
+function isCooledDown(session, action) {
+  if (!session.criticalActionRegistry?.cooldowns) return false;
+  const signature = createActionSignature(action);
+  const cooldown = session.criticalActionRegistry.cooldowns[signature];
+  if (!cooldown) return false;
+  return session.iterationCount < cooldown.blockedUntilIteration;
+}
+
+/**
+ * CMP-03: Get a compact summary of critical actions for prompt injection.
+ * @param {Object} session - The automation session
+ * @returns {Array} Array of { description, verified, cooldownRemaining }
+ */
+function getCriticalActionSummary(session) {
+  if (!session.criticalActionRegistry?.actions?.length) return [];
+  const summary = [];
+  let charCount = 0;
+  // Iterate most recent first, stop at 300 chars
+  const actions = session.criticalActionRegistry.actions.slice().reverse();
+  for (const entry of actions) {
+    const cooldownEntry = session.criticalActionRegistry.cooldowns[
+      `${entry.tool}:${entry.selector}`
+    ];
+    const cooldownRemaining = cooldownEntry
+      ? Math.max(0, cooldownEntry.blockedUntilIteration - session.iterationCount)
+      : 0;
+    const desc = `${entry.tool} "${entry.elementText}" @iter${entry.iteration}`;
+    if (charCount + desc.length > 300) break;
+    summary.push({
+      description: desc,
+      verified: entry.verified,
+      cooldownRemaining
+    });
+    charCount += desc.length;
   }
+  return summary;
+}
 
-  const vaultStatus = await secureConfig.getCredentialVaultStatus();
-  let saveDisabledReason = '';
+// ============================================================================
+// CMP-01 + CMP-02: Multi-signal completion validation
+// Replaces ad-hoc completion checks with structured task-type validators
+// and weighted multi-signal scoring.
+// ============================================================================
 
-  if (!enableLogin) {
-    saveDisabledReason = 'Enable Auto-Login in the control panel to save credentials for future sessions.';
-  } else if (!vaultStatus.configured) {
-    saveDisabledReason = 'Set up the credential vault in the Passwords section before saving credentials.';
-  } else if (!vaultStatus.unlocked) {
-    saveDisabledReason = 'Unlock the credential vault in the Passwords section before saving credentials.';
+/**
+ * CMP-02: Detect URL patterns that indicate task completion.
+ * @param {string} url - The current page URL
+ * @param {Object} session - The automation session
+ * @returns {string|null} Matched pattern description, or null
+ */
+function detectUrlCompletionPattern(url, session) {
+  if (!url) return null;
+  // Check for success URL patterns
+  const successPattern = /\/(?:confirm|success|thank|receipt|done|complete|order-placed|submitted)/i;
+  const match = url.match(successPattern);
+  if (match) return 'success-url: ' + match[0];
+  // For navigation tasks: URL differs from start
+  if (session.startUrl && url !== session.startUrl) {
+    const startHost = new URL(session.startUrl).hostname;
+    const currentHost = new URL(url).hostname;
+    if (startHost !== currentHost) return 'navigated-away: ' + currentHost;
   }
+  return null;
+}
 
+/**
+ * CMP-01: Check if action history shows task-appropriate completion.
+ * @param {Object} session - The automation session
+ * @param {string} taskType - Classified task type
+ * @returns {boolean}
+ */
+function checkActionChainComplete(session, taskType) {
+  const history = session.actionHistory || [];
+  if (history.length === 0) return false;
+  const recent = history.slice(-15);
+  switch (taskType) {
+    case 'messaging':
+    case 'email': {
+      // Has a successful click on a send/submit-like element
+      return recent.some(a =>
+        a.tool === 'click' && a.result?.success &&
+        /send|submit|post|reply/i.test(a.result?.elementText || a.result?.clicked || a.params?.selector || '')
+      );
+    }
+    case 'form':
+    case 'shopping': {
+      // Type actions followed by a submit click
+      const hasType = recent.some(a => a.tool === 'type' && a.result?.success);
+      const hasSubmit = recent.some(a =>
+        a.tool === 'click' && a.result?.success &&
+        /submit|confirm|place.?order|checkout|register|sign.?up|apply|continue/i.test(
+          a.result?.elementText || a.result?.clicked || a.params?.selector || ''
+        )
+      );
+      return hasType && hasSubmit;
+    }
+    case 'navigation': {
+      return session.startUrl && session.lastUrl !== session.startUrl;
+    }
+    case 'search': {
+      const hasSearch = recent.some(a =>
+        (a.tool === 'type' || a.tool === 'searchGoogle') && a.result?.success
+      );
+      const hasNavOrResult = recent.some(a =>
+        (a.tool === 'clickSearchResult' || a.tool === 'click' || a.tool === 'getText') && a.result?.success
+      );
+      return hasSearch && hasNavOrResult;
+    }
+    case 'extraction': {
+      return recent.some(a =>
+        a.tool === 'getText' && a.result?.success && a.result?.value && a.result.value.trim().length > 0
+      );
+    }
+    case 'multitab': {
+      // Cross-site workflows: navigated to 2+ distinct domains AND performed data actions (getText/type)
+      const urlEntries = (session.urlHistory || []).map(e => e.url || e);
+      if (session.lastUrl) urlEntries.push(session.lastUrl);
+      const uniqueHosts = new Set();
+      for (const u of urlEntries) {
+        try { uniqueHosts.add(new URL(u).hostname); } catch (_) { /* skip invalid */ }
+      }
+      const hasDataAction = recent.some(a =>
+        (a.tool === 'getText' || a.tool === 'type') && a.result?.success
+      );
+      return uniqueHosts.size >= 2 && hasDataAction;
+    }
+    default:
+      return false;
+  }
+}
+
+/**
+ * CMP-02: Summarize the last 5 actions as compact evidence string.
+ * @param {Object} session - The automation session
+ * @returns {string}
+ */
+function summarizeRecentActions(session) {
+  const recent = (session.actionHistory || []).slice(-5);
+  return recent.map(a => {
+    const status = a.result?.success ? 'ok' : 'fail';
+    const target = (a.result?.elementText || a.params?.selector || '').substring(0, 25);
+    return `${a.tool}(${target}):${status}`;
+  }).join(', ');
+}
+
+/**
+ * CMP-02: Collect completion signals from all sources.
+ * @param {Object} session - The automation session
+ * @param {Object} aiResponse - The AI response with taskComplete and result
+ * @param {Object} context - The iteration context (includes completionSignals from DOM)
+ * @returns {Object} Signal bundle for scoring
+ */
+function gatherCompletionSignals(session, aiResponse, context) {
+  const taskType = classifyTask(session.task);
   return {
-    enableLogin,
-    vaultStatus,
-    canUseSavedCredentials: enableLogin && vaultStatus.unlocked,
-    canSaveSubmittedCredentials: enableLogin && vaultStatus.unlocked,
-    saveDisabledReason
+    // URL signal (0.3 weight)
+    urlMatch: detectUrlCompletionPattern(context.currentUrl, session),
+    // DOM signal (0.25 weight) -- from content script completionSignals (Plan 02)
+    domSuccess: context.completionSignals?.successMessages?.length > 0
+      ? context.completionSignals.successMessages[0].text : null,
+    confirmationPage: context.completionSignals?.confirmationPage || false,
+    formReset: context.completionSignals?.formReset || false,
+    toast: context.completionSignals?.toastNotification?.text || null,
+    // AI self-report (0.2 weight, boosted when actions empty)
+    aiComplete: aiResponse.taskComplete === true,
+    aiResult: aiResponse.result || '',
+    aiActionsEmpty: aiResponse.taskComplete === true && (!aiResponse.actions || aiResponse.actions.length === 0),
+    // Action chain (0.15 weight)
+    actionChainComplete: checkActionChainComplete(session, taskType),
+    actionChainEvidence: summarizeRecentActions(session),
+    criticalActionsVerified: (session.criticalActionRegistry?.actions || [])
+      .filter(a => a.verified).length,
+    // Page stability (0.1 weight) -- use changeSignals if available
+    pageStable: !context.changeSignals?.changed || false
   };
 }
 
-async function getPaymentRuntimePolicy() {
-  let enableSavedPayments = false;
-  try {
-    const settings = await config.getAll();
-    enableSavedPayments = settings.enableSavedPayments === true;
-  } catch (_error) {
-    enableSavedPayments = false;
-  }
-
-  const vaultStatus = await secureConfig.getPaymentVaultStatus();
-  let fillDisabledReason = '';
-
-  if (!enableSavedPayments) {
-    fillDisabledReason = 'Enable Saved Payment Methods in the Payments section to use saved cards during checkout.';
-  } else if (!vaultStatus.configured) {
-    fillDisabledReason = 'Set up the credential vault in the Passwords section before saving payment methods.';
-  } else if (!vaultStatus.unlocked) {
-    fillDisabledReason = 'Unlock the credential vault in the Passwords section before using saved payment methods.';
-  } else if (!vaultStatus.paymentUnlocked) {
-    fillDisabledReason = 'Unlock saved payment methods in the Payments section before using saved cards.';
-  }
-
-  return {
-    enableSavedPayments,
-    vaultStatus,
-    canUseSavedPaymentMethods: enableSavedPayments && vaultStatus.unlocked && vaultStatus.paymentUnlocked,
-    canSavePaymentMethods: vaultStatus.unlocked && vaultStatus.paymentUnlocked,
-    fillDisabledReason
+/**
+ * CMP-02: Compute weighted completion score from gathered signals.
+ * @param {Object} signals - Signal bundle from gatherCompletionSignals
+ * @param {string} taskType - Classified task type
+ * @returns {{ score: number, evidence: string[], threshold: number }}
+ */
+function computeCompletionScore(signals, taskType) {
+  const weights = {
+    urlSignal: 0.3,
+    domSignal: 0.25,
+    aiReport: 0.2,
+    actionChain: 0.15,
+    pageStability: 0.1
   };
+  let score = 0;
+  const evidence = [];
+
+  // URL signal
+  if (signals.urlMatch) {
+    score += weights.urlSignal;
+    evidence.push('URL: ' + signals.urlMatch);
+  }
+  // DOM signal (any of: success message, confirmation page, toast, form reset with action chain)
+  if (signals.domSuccess || signals.confirmationPage || signals.toast) {
+    score += weights.domSignal;
+    evidence.push('DOM: ' + (signals.domSuccess || signals.toast || 'confirmation page'));
+  } else if (signals.formReset && signals.actionChainComplete) {
+    // Form reset alone is weak (Pitfall: empty forms on load); combine with action chain
+    score += weights.domSignal * 0.5;
+    evidence.push('DOM: form reset + action chain');
+  }
+  // AI self-report
+  if (signals.aiComplete && signals.aiResult.length >= 10) {
+    score += weights.aiReport;
+    evidence.push('AI: task complete');
+    // Boost: AI says complete AND submitted zero actions -- strongest completion indicator.
+    // The AI has nothing left to do. This warrants extra weight (+0.15).
+    if (signals.aiActionsEmpty) {
+      score += 0.15;
+      evidence.push('AI: no remaining actions');
+    }
+  }
+  // Action chain
+  if (signals.actionChainComplete) {
+    score += weights.actionChain;
+    evidence.push('Actions: chain complete');
+  }
+  // Page stability
+  if (signals.pageStable) {
+    score += weights.pageStability;
+    evidence.push('Page: stable');
+  }
+
+  return { score, evidence, threshold: 0.5 };
+}
+
+// --- Task-type-specific validators (CMP-01) ---
+// Each returns { approved: boolean, score: number, evidence: string[], taskType: string }
+
+function messagingValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // Bonus: compose window closed or send button was clicked and verified
+  const sendClicked = (session.criticalActionRegistry?.actions || []).some(a =>
+    /send|submit|post|reply/i.test(a.elementText) && a.verified
+  );
+  if (sendClicked) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Messaging: send action verified');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'messaging' };
+}
+
+function formValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // Bonus: URL changed after form submission
+  if (signals.urlMatch && signals.actionChainComplete) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Form: URL changed + submit chain');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'form' };
+}
+
+function navigationValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // URL change to expected target is a strong signal for navigation
+  if (signals.urlMatch) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Navigation: URL matches target');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'navigation' };
+}
+
+function searchValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // Search tasks have a low bar -- search + results page loaded
+  if (signals.actionChainComplete) {
+    score = Math.min(1, score + 0.05);
+    evidence.push('Search: results obtained');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'search' };
+}
+
+function careerValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  const currentUrl = context.currentUrl || '';
+  const resultText = (aiResponse.result || '');
+  const resultLower = resultText.toLowerCase();
+
+  // Bonus: AI is on a career site URL (not Google, not Sheets)
+  const careerUrlPatterns = [
+    /careers?\./i,
+    /jobs?\./i,
+    /\/careers/i,
+    /\/jobs/i,
+    /workday\.com/i,
+    /greenhouse\.io/i,
+    /lever\.co/i,
+    /icims\.com/i,
+    /taleo/i,
+    /indeed\.com/i,
+    /glassdoor\.com/i,
+    /builtin\.com/i
+  ];
+  const isOnCareerSite = careerUrlPatterns.some(p => p.test(currentUrl));
+  if (isOnCareerSite) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Career: on career site URL');
+  }
+
+  // Bonus: getText actions indicate job data extraction
+  const actionHistory = session.actionHistory || [];
+  const getTextCount = actionHistory.filter(a => a.tool === 'getText').length;
+  const getAttrCount = actionHistory.filter(a => a.tool === 'getAttribute').length;
+  if (getTextCount >= 2) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Career: getText extraction actions (' + getTextCount + ')');
+  }
+  if (getAttrCount >= 1) {
+    score = Math.min(1, score + 0.05);
+    evidence.push('Career: getAttribute actions for links (' + getAttrCount + ')');
+  }
+
+  // Bonus: AI result contains structured job data
+  const hasJobsFound = /jobs?\s*found|found\s*\d+\s*jobs?/i.test(resultText);
+  const hasApplyLink = /https?:\/\//i.test(resultText);
+  const hasJobTitle = resultText.split('\n').filter(line =>
+    /engineer|manager|analyst|developer|designer|intern|director|specialist|associate|coordinator/i.test(line)
+  ).length >= 1;
+  const hasErrorReport = /NO RESULTS|AUTH REQUIRED|PAGE ERROR|NO GUIDE|no.*results|requires.*login|auth.*wall/i.test(resultText);
+
+  if (hasJobsFound || (hasJobTitle && hasApplyLink)) {
+    score = Math.min(1, score + 0.15);
+    evidence.push('Career: structured job data in result');
+  }
+  if (hasErrorReport) {
+    // Error reports are valid completions (SEARCH-05)
+    score = Math.min(1, score + 0.15);
+    evidence.push('Career: explicit error report (valid completion)');
+  }
+
+  // Bonus: navigation + search + extraction pattern (click + type + getText)
+  const clickCount = actionHistory.filter(a => a.tool === 'click').length;
+  const typeCount = actionHistory.filter(a => a.tool === 'type').length;
+  if (clickCount >= 2 && typeCount >= 1 && getTextCount >= 2) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Career: navigate+search+extract action pattern');
+  }
+
+  return { approved: score >= 0.5, score, evidence, taskType: 'career' };
+}
+
+function extractionValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // Very permissive -- getText returned content
+  if (signals.actionChainComplete && signals.aiResult.length >= 10) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Extraction: data extracted');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'extraction' };
+}
+
+function multitabValidator(session, aiResponse, context, signals, scoreResult) {
+  let { score, evidence } = scoreResult;
+  // Cross-site workflows often lack URL/DOM success signals (e.g. typing in Google Docs).
+  // Bonus: visited 2+ distinct hosts AND performed data actions (getText + type)
+  const urlEntries = (session.urlHistory || []).map(e => e.url || e);
+  if (session.lastUrl) urlEntries.push(session.lastUrl);
+  const uniqueHosts = new Set();
+  for (const u of urlEntries) {
+    try { uniqueHosts.add(new URL(u).hostname); } catch (_) { /* skip */ }
+  }
+  const history = session.actionHistory || [];
+  const hasGetText = history.some(a => a.tool === 'getText' && a.result?.success);
+  const hasType = history.some(a => a.tool === 'type' && a.result?.success);
+  if (uniqueHosts.size >= 2 && (hasGetText || hasType)) {
+    score = Math.min(1, score + 0.15);
+    evidence.push('Multitab: cross-site data workflow (' + uniqueHosts.size + ' hosts)');
+  }
+  if (hasGetText && hasType) {
+    score = Math.min(1, score + 0.1);
+    evidence.push('Multitab: extract+write pattern');
+  }
+  return { approved: score >= 0.5, score, evidence, taskType: 'multitab' };
+}
+
+function generalValidator(session, aiResponse, context, signals, scoreResult) {
+  // Score-only decision, no bonuses
+  return { approved: scoreResult.score >= 0.5, score: scoreResult.score, evidence: scoreResult.evidence, taskType: 'general' };
+}
+
+/**
+ * CMP-01: Main completion validation dispatcher.
+ * Replaces the ad-hoc isMessagingTask / critical-failures block.
+ * @param {Object} session - The automation session
+ * @param {Object} aiResponse - The AI response
+ * @param {Object} context - The iteration context
+ * @returns {{ approved: boolean, score: number, evidence: string[], taskType: string }}
+ */
+function validateCompletion(session, aiResponse, context) {
+  // Require non-empty result from AI (keep existing check: length >= 10)
+  if (!aiResponse.result || aiResponse.result.trim().length < 10) {
+    return { approved: false, score: 0, evidence: ['AI result too short or missing'], taskType: 'unknown' };
+  }
+
+  const taskType = classifyTask(session.task);
+  const signals = gatherCompletionSignals(session, aiResponse, context);
+  const scoreResult = computeCompletionScore(signals, taskType);
+
+  // Dispatch to task-type-specific validator
+  const validators = {
+    messaging: messagingValidator,
+    email: messagingValidator,
+    form: formValidator,
+    shopping: formValidator,
+    navigation: navigationValidator,
+    search: searchValidator,
+    career: careerValidator,
+    extraction: extractionValidator,
+    multitab: multitabValidator,
+    gaming: generalValidator,
+    general: generalValidator
+  };
+  const validator = validators[taskType] || generalValidator;
+  const result = validator(session, aiResponse, context, signals, scoreResult);
+
+  automationLogger.debug('Completion signals gathered', {
+    sessionId: session.id,
+    taskType,
+    signals: {
+      urlMatch: signals.urlMatch,
+      domSuccess: !!signals.domSuccess,
+      confirmationPage: signals.confirmationPage,
+      toast: !!signals.toast,
+      formReset: signals.formReset,
+      aiComplete: signals.aiComplete,
+      actionChainComplete: signals.actionChainComplete,
+      pageStable: signals.pageStable
+    },
+    score: result.score,
+    approved: result.approved
+  });
+
+  return result;
+}
+
+/**
+ * Detects if specific actions have failed repeatedly
+ * @param {Object} session - The automation session
+ * @returns {Array} Array of actions that need alternative strategies
+ */
+function detectRepeatedActionFailures(session) {
+  const repeatedFailures = [];
+  
+  // Check each failed action
+  for (const [signature, details] of Object.entries(session.failedActionDetails)) {
+    // If an action has failed 2 or more times, it needs an alternative strategy
+    if (details.count >= 2) {
+      repeatedFailures.push({
+        signature,
+        tool: details.tool,
+        params: details.params,
+        failureCount: details.count,
+        lastError: details.errors[details.errors.length - 1]?.error || 'Unknown error',
+        allErrors: details.errors.map(e => e.error),
+        timeSinceFirstFailure: Date.now() - details.firstFailure
+      });
+    }
+  }
+  
+  return repeatedFailures;
+}
+
+/**
+ * Detects if the same valid result has been extracted multiple times
+ * @param {Object} session - The automation session
+ * @returns {string|null} The repeated result if found, null otherwise
+ */
+function detectRepeatedSuccess(session) {
+  // Look at recent getText actions
+  const recentTextActions = session.actionHistory
+    .filter(action => action.tool === 'getText' && action.result?.success && action.result?.value)
+    .slice(-10); // Last 10 successful getText actions
+  
+  if (recentTextActions.length < 3) {
+    return null; // Not enough data
+  }
+  
+  // Count occurrences of each result
+  const resultCounts = {};
+  recentTextActions.forEach(action => {
+    const value = String(action.result.value).trim();
+    if (value && value !== 'null' && value !== 'undefined') {
+      resultCounts[value] = (resultCounts[value] || 0) + 1;
+    }
+  });
+  
+  // Find results that appear at least 3 times
+  for (const [result, count] of Object.entries(resultCounts)) {
+    if (count >= 3 && isValidResult(result, session.task)) {
+      automationLogger.debug('Found repeated valid result', { result: result.substring(0, 100), count });
+      return result;
+    }
+  }
+  
+  // Also check for similar results (e.g., same number with different formatting)
+  const numericResults = recentTextActions
+    .map(action => {
+      const value = String(action.result.value).trim();
+      const numMatch = value.match(/(\d+\.?\d*)/);
+      return numMatch ? parseFloat(numMatch[1]) : null;
+    })
+    .filter(num => num !== null);
+
+  if (numericResults.length >= 3) {
+    // Check if the same number appears multiple times
+    const numCounts = {};
+    numericResults.forEach(num => {
+      numCounts[num] = (numCounts[num] || 0) + 1;
+    });
+
+    for (const [num, count] of Object.entries(numCounts)) {
+      if (count >= 3) {
+        automationLogger.debug('Found repeated numeric result', { num, count });
+        return String(num);
+      }
+    }
+  }
+
+  return null;
 }
 
 // Listen for messages from popup and content scripts
@@ -5421,13 +3871,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return;
   }
 
-  // Deferred init: trigger analytics + WS on first UI message
-  maybeRunDeferredInit(request, sender);
-
   automationLogger.logComm(null, 'receive', request.action || 'unknown', true, { tabId: sender.tab?.id });
-
-  // STT content script broadcasts results to all extension pages — let them pass through
-  if (request.from === 'content-stt') return;
 
   switch (request.action) {
     case 'startAutomation':
@@ -5442,17 +3886,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const report = getPerformanceReport();
       sendResponse({ success: true, report });
       break;
-
+      
+    case 'callAI':
+      handleAICall(request, sender, sendResponse);
+      return true; // Will respond asynchronously
+      
     case 'getStatus':
       // Return sessionIds so UI can recover after service worker restart
       const sessionIds = Array.from(activeSessions.keys());
       const firstSession = sessionIds.length > 0 ? activeSessions.get(sessionIds[0]) : null;
-      const sessionsBySurface = buildSessionsBySurface();
       sendResponse({
         status: 'ready',
         activeSessions: activeSessions.size,
         sessionIds: sessionIds,
-        sessionsBySurface,
         currentSessionId: sessionIds[0] || null,  // First active session for UI recovery
         currentTask: firstSession?.task || null,
         currentStartTime: firstSession?.startTime || null,
@@ -5498,26 +3944,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleKeyboardDebuggerAction(request, sender, sendResponse);
       return true; // Will respond asynchronously
 
-    case 'cdpMouseClick':
-      handleCDPMouseClick(request, sender, sendResponse);
-      return true; // Will respond asynchronously
-
-    case 'cdpMouseClickAndHold':
-      handleCDPMouseClickAndHold(request, sender, sendResponse);
-      return true; // Will respond asynchronously
-
-    case 'cdpMouseDrag':
-      handleCDPMouseDrag(request, sender, sendResponse);
-      return true; // Will respond asynchronously
-
-    case 'cdpMouseDragVariableSpeed':
-      handleCDPMouseDragVariableSpeed(request, sender, sendResponse);
-      return true; // Will respond asynchronously
-
-    case 'cdpMouseWheel':
-      handleCDPMouseWheel(request, sender, sendResponse);
-      return true; // Will respond asynchronously
-
     case 'cdpInsertText':
       handleCDPInsertText(request, sender, sendResponse);
       return true; // Will respond asynchronously
@@ -5544,7 +3970,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           chrome.action.setBadgeText({ text: '' });
           debugLog('[FSB Background] Tab marked as ready:', tabId);
           automationLogger.logInit('content_script', 'ready', { tabId, frameId, readyState: request.readyState, retry: request.retry || false });
-          schedulePaymentPromptCheckForTab(tabId, 'content_script_ready');
         } else {
           debugLog('[FSB Background] Iframe ready ignored, frame:', frameId);
           automationLogger.debug('Iframe content script ready (ignored)', { tabId, frameId });
@@ -5591,7 +4016,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           url: request.url,
           method: request.method
         });
-        schedulePaymentPromptCheckForTab(spaTabId, 'spa_navigation');
       }
       sendResponse({ success: true });
       break;
@@ -5661,84 +4085,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })();
       return true; // Will respond asynchronously
 
-    case 'credentialVaultStatus':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const status = await secureConfig.getCredentialVaultStatus();
-          sendResponse({ success: true, status });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'setupCredentialVault':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const result = await secureConfig.createCredentialVault(request.passphrase || '');
-          sendResponse(result);
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'unlockCredentialVault':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const result = await secureConfig.unlockCredentialVault(request.passphrase || '');
-          sendResponse(result);
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'lockCredentialVault':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const result = await secureConfig.lockCredentialVault();
-          sendResponse(result);
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
     // Credential management actions (Passwords Beta)
     case 'getCredential':
       (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
         try {
-          const ready = await secureConfig.ensureCredentialVaultUnlocked();
-          if (!ready.ok) {
-            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
-            return;
-          }
           const cred = await secureConfig.getCredential(request.domain);
           sendResponse({ success: true, credential: cred });
         } catch (error) {
@@ -5749,17 +4099,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'getFullCredential':
       (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
         try {
-          const ready = await secureConfig.ensureCredentialVaultUnlocked();
-          if (!ready.ok) {
-            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
-            return;
-          }
           const cred = await secureConfig.getFullCredential(request.domain);
           sendResponse({ success: true, credential: cred });
         } catch (error) {
@@ -5770,11 +4110,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'saveCredential':
       (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
         try {
           const result = await secureConfig.saveCredential(request.domain, request.data);
           sendResponse(result);
@@ -5786,17 +4121,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'getAllCredentials':
       (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
         try {
-          const ready = await secureConfig.ensureCredentialVaultUnlocked();
-          if (!ready.ok) {
-            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
-            return;
-          }
           const credentials = await secureConfig.getAllCredentials();
           sendResponse({ success: true, credentials });
         } catch (error) {
@@ -5807,17 +4132,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'deleteCredential':
       (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
         try {
-          const ready = await secureConfig.ensureCredentialVaultUnlocked();
-          if (!ready.ok) {
-            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
-            return;
-          }
           const result = await secureConfig.deleteCredential(request.domain);
           sendResponse(result);
         } catch (error) {
@@ -5828,183 +4143,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'updateCredential':
       (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
         try {
-          const ready = await secureConfig.ensureCredentialVaultUnlocked();
-          if (!ready.ok) {
-            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
-            return;
-          }
           const result = await secureConfig.updateCredential(request.domain, request.updates);
           sendResponse(result);
         } catch (error) {
           sendResponse({ success: false, error: error.message });
         }
       })();
-      return true;
-
-    case 'paymentVaultStatus':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const status = await secureConfig.getPaymentVaultStatus();
-          sendResponse({ success: true, status });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'unlockPaymentMethods':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const result = await secureConfig.unlockPaymentMethods(request.passphrase || '');
-          sendResponse(result);
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'lockPaymentMethods':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const result = await secureConfig.lockPaymentMethods();
-          sendResponse(result);
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'getAllPaymentMethods':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const ready = await secureConfig.ensurePaymentAccessUnlocked();
-          if (!ready.ok) {
-            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
-            return;
-          }
-
-          const paymentMethods = await secureConfig.getAllPaymentMethods();
-          sendResponse({ success: true, paymentMethods });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'getFullPaymentMethod':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const ready = await secureConfig.ensurePaymentAccessUnlocked();
-          if (!ready.ok) {
-            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
-            return;
-          }
-
-          const paymentMethod = await secureConfig.getFullPaymentMethod(request.id);
-          sendResponse({ success: true, paymentMethod });
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'savePaymentMethod':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const result = await secureConfig.savePaymentMethod(request.data || {});
-          sendResponse(result);
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'updatePaymentMethod':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const ready = await secureConfig.ensurePaymentAccessUnlocked();
-          if (!ready.ok) {
-            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
-            return;
-          }
-
-          const result = await secureConfig.updatePaymentMethod(request.id, request.updates || {});
-          sendResponse(result);
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'deletePaymentMethod':
-      (async () => {
-        if (!isCredentialControlPanelSender(sender)) {
-          sendCredentialSenderError(sendResponse);
-          return;
-        }
-
-        try {
-          const ready = await secureConfig.ensurePaymentAccessUnlocked();
-          if (!ready.ok) {
-            sendResponse({ success: false, errorCode: ready.errorCode, error: ready.error });
-            return;
-          }
-
-          const result = await secureConfig.deletePaymentMethod(request.id);
-          sendResponse(result);
-        } catch (error) {
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-
-    case 'paymentMethodSelected':
-      handlePaymentMethodSelected(request, sender, sendResponse);
-      return true;
-
-    case 'paymentSkipped':
-      handlePaymentPromptSkipped(request, sender, sendResponse);
       return true;
 
     // SM-22: Site map retrieval for AI context injection
@@ -6315,146 +4460,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleReplaySession(request, sender, sendResponse);
       return true; // Will respond asynchronously
 
-    case 'stt-start':
-      (async () => {
-        try {
-          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-          if (!tab?.id) {
-            sendResponse({ error: 'No active tab found' });
-            return;
-          }
-          if (isRestrictedURL(tab.url)) {
-            // Restricted page (new tab, chrome://) — use offscreen document
-            await _ensureOffscreenSTT();
-            chrome.runtime.sendMessage({ target: 'offscreen-stt', action: 'start', lang: request.lang }).catch(() => {});
-            _sttActiveTabId = null;
-            sendResponse({ ok: true });
-            return;
-          }
-          // Stop any existing STT session on a different tab
-          if (_sttActiveTabId && _sttActiveTabId !== tab.id) {
-            try { await chrome.tabs.sendMessage(_sttActiveTabId, { target: 'content-stt', action: 'stop' }); } catch (_) {}
-          }
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id, frameIds: [0] },
-            files: ['content/stt-recognition.js'],
-            world: 'ISOLATED'
-          });
-          _sttActiveTabId = tab.id;
-          await chrome.tabs.sendMessage(tab.id, { target: 'content-stt', action: 'start', lang: request.lang });
-          sendResponse({ ok: true });
-        } catch (e) {
-          sendResponse({ error: e.message });
-        }
-      })();
-      return true;
-
-    case 'stt-stop':
-      (async () => {
-        if (_sttActiveTabId) {
-          try { await chrome.tabs.sendMessage(_sttActiveTabId, { target: 'content-stt', action: 'stop' }); } catch (_) {}
-          _sttActiveTabId = null;
-        } else {
-          // Might be using offscreen document
-          chrome.runtime.sendMessage({ target: 'offscreen-stt', action: 'stop' }).catch(() => {});
-        }
-        sendResponse({ ok: true });
-      })();
-      return true;
-
-    // --- DOM Stream: page-ready signal from content script ---
-    case 'domStreamReady':
-      // Content script reports it loaded on a real page -- update streaming tab
-      _streamingTabId = sender.tab?.id || _streamingTabId;
-      _recordStreamTransportEvent('dom-stream-ready', {
-        tabId: _streamingTabId,
-        url: sender.tab?.url || ''
-      });
-      _sendStreamState('ready', '', {
-        tabId: _streamingTabId,
-        url: sender.tab?.url || '',
-        source: 'domStreamReady'
-      });
-      if (_streamingActive) {
-        // Auto-start stream on this tab
-        chrome.tabs.sendMessage(_streamingTabId, { action: 'domStreamStart' }, { frameId: 0 })
-          .catch(function(err) {
-            if (typeof recordFSBTransportFailure === 'function') {
-              recordFSBTransportFailure('dom-forward-failed', {
-                type: 'domStreamStart',
-                target: 'content-script',
-                tabId: _streamingTabId,
-                readyState: 'page-ready-start-failed',
-                error: err && err.message ? err.message : 'domStreamStart sendMessage failed after page ready'
-              });
-            }
-          });
-      }
-      fsbWebSocket.send('ext:page-ready', { tabId: _streamingTabId, url: sender.tab?.url || '' });
-      sendResponse({ success: true });
-      break;
-
-    // --- DOM Stream forwarding: content script -> dashboard via WS ---
-    case 'domStreamSnapshot':
-      fsbWebSocket.send('ext:dom-snapshot', Object.assign({}, request.snapshot || {}, {
-        tabId: sender.tab?.id || null,
-        tabUrl: sender.tab?.url || ''
-      }));
-      sendResponse({ success: true });
-      break;
-
-    case 'domStreamMutations':
-      fsbWebSocket.send('ext:dom-mutations', {
-        mutations: request.mutations,
-        streamSessionId: request.streamSessionId || '',
-        snapshotId: request.snapshotId || 0,
-        tabId: sender.tab?.id || null,
-        tabUrl: sender.tab?.url || ''
-      });
-      sendResponse({ success: true });
-      break;
-
-    case 'domStreamScroll':
-      fsbWebSocket.send('ext:dom-scroll', {
-        scrollX: request.scrollX,
-        scrollY: request.scrollY,
-        streamSessionId: request.streamSessionId || '',
-        snapshotId: request.snapshotId || 0,
-        tabId: sender.tab?.id || null,
-        tabUrl: sender.tab?.url || ''
-      });
-      sendResponse({ success: true });
-      break;
-
-    case 'domStreamOverlay':
-      fsbWebSocket.send('ext:dom-overlay', {
-        glow: request.glow,
-        progress: request.progress,
-        streamSessionId: request.streamSessionId || '',
-        snapshotId: request.snapshotId || 0,
-        tabId: sender.tab?.id || null,
-        tabUrl: sender.tab?.url || ''
-      });
-      sendResponse({ success: true });
-      break;
-
-    case 'domStreamDialog':
-      fsbWebSocket.send('ext:dom-dialog', {
-        dialog: request.dialog,
-        streamSessionId: request.dialog && request.dialog.streamSessionId ? request.dialog.streamSessionId : '',
-        snapshotId: request.dialog && request.dialog.snapshotId ? request.dialog.snapshotId : 0,
-        tabId: sender.tab?.id || null,
-        tabUrl: sender.tab?.url || ''
-      });
-      sendResponse({ success: true });
-      break;
-
     default:
       sendResponse({ error: 'Unknown action' });
   }
 });
 
-// Rate limit tracker for CLI validation live tests
 /**
  * Handles the start of a new automation session
  * @param {Object} request - The automation start request
@@ -6599,65 +4609,33 @@ async function handleSolveCaptcha(request, sender, sendResponse) {
 }
 
 async function handleStartAutomation(request, sender, sendResponse) {
-  // Secondary deferred init trigger for MCP-initiated sessions (D-03)
-  maybeRunDeferredInit(request, sender || {});
-
-  const {
-    task,
-    tabId,
-    conversationId,
-    uiSurface: requestedUiSurface,
-    selectedConversationId,
-    historySessionId: requestedHistorySessionId
-  } = request;
+  const { task, tabId, conversationId } = request;
 
   try {
     // Get the target tab ID (may be updated by smart tab management below)
     let targetTabId = tabId || sender.tab?.id;
-    const triggerSource = request._triggerSource || 'extension';
-    const uiSurface = inferUiSurface({ ...request, uiSurface: requestedUiSurface }, sender, triggerSource);
-    const requestedThread = resolveRequestedConversationThread({
-      uiSurface,
-      selectedConversationId,
-      historySessionId: requestedHistorySessionId,
-      conversationId
-    });
-    const resolvedConversationId = requestedThread.conversationId;
-    const resolvedHistorySessionId = requestedThread.historySessionId || requestedHistorySessionId || null;
 
     // Check for existing conversation session for follow-up reuse
-    if (resolvedConversationId && conversationSessions.has(resolvedConversationId)) {
-      const convEntry = conversationSessions.get(resolvedConversationId);
+    if (conversationId && conversationSessions.has(conversationId)) {
+      const convEntry = conversationSessions.get(conversationId);
       const existingSession = activeSessions.get(convEntry.sessionId);
       if (existingSession && existingSession.status === 'idle') {
-        const previousTask = existingSession.lastTask || existingSession.task || null;
         // Reactivate the existing session
         reactivateSession(existingSession, task);
         const sessionId = convEntry.sessionId;
-        existingSession.conversationId = resolvedConversationId;
-        existingSession.uiSurface = uiSurface;
-        existingSession.historySessionId = existingSession.historySessionId || convEntry.historySessionId || resolvedHistorySessionId || sessionId;
-        existingSession.followUpContext = {
-          previousTask,
-          newTask: task,
-          requestedAt: Date.now(),
-          commandCount: existingSession.commandCount,
-          historySessionId: existingSession.historySessionId || sessionId
-        };
-        existingSession.agentResumeState = serializeAgentResumeState(existingSession);
-        existingSession.resumeSummary = existingSession.resumeSummary || existingSession.agentResumeState?.historySummary || null;
-        existingSession.isRestored = false;
-        const threadRecord = upsertConversationThread(existingSession);
+        convEntry.lastActiveTime = Date.now();
+
+        // Inject follow-up context into AI
+        const ai = sessionAIInstances.get(sessionId);
+        if (ai && typeof ai.injectFollowUpContext === 'function') {
+          ai.injectFollowUpContext(task);
+        }
 
         // Log the follow-up command for session tracking
         automationLogger.logFollowUpCommand(sessionId, task, existingSession.commandCount);
 
         automationLogger.info('Reactivating conversation session', {
-          sessionId,
-          conversationId: resolvedConversationId,
-          historySessionId: threadRecord?.historySessionId || existingSession.historySessionId || null,
-          uiSurface,
-          commandCount: existingSession.commandCount
+          sessionId, conversationId, commandCount: existingSession.commandCount
         });
 
         // Persist updated session
@@ -6666,9 +4644,6 @@ async function handleStartAutomation(request, sender, sendResponse) {
         sendResponse({
           success: true,
           sessionId,
-          conversationId: resolvedConversationId,
-          historySessionId: threadRecord?.historySessionId || existingSession.historySessionId || sessionId,
-          uiSurface,
           message: 'Continuing conversation session',
           continued: true
         });
@@ -6682,32 +4657,88 @@ async function handleStartAutomation(request, sender, sendResponse) {
           automationLogger.debug('Could not reset DOM state for follow-up', { sessionId, error: e.message });
         }
 
-        var sessionHooks = createSessionHooks();
-        runAgentLoop(sessionId, {
-          activeSessions,
-          persistSession,
-          sendSessionStatus,
-          broadcastDashboardProgress,
-          endSessionOverlays, cleanupSession,
-          startKeepAlive,
-          executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-          handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
-          resolveAuthWall: resolveInlineAuthWall,
-          hooks: sessionHooks.hooks
-        });
+        startAutomationLoop(sessionId);
         return;
       }
     }
 
-    const preparedStart = await prepareAutomationStartTarget(targetTabId, task, {
-      triggerSource,
-      activateTab: true,
-      reuseMatchingTabs: true
-    });
-    targetTabId = preparedStart.targetTabId;
-    let tabInfo = preparedStart.tabInfo;
-    const navigationMessage = preparedStart.navigationMessage;
-    const navigationPerformed = preparedStart.navigationPerformed;
+    // Get tab information to check URL
+    let tabInfo;
+    try {
+      tabInfo = await chrome.tabs.get(targetTabId);
+    } catch (error) {
+      throw new Error(`Cannot access tab ${targetTabId}. Tab may have been closed or is not accessible.`);
+    }
+
+    // Track smart navigation for user feedback
+    let navigationMessage = '';
+    let navigationPerformed = false;
+    const originalUrl = tabInfo.url;
+
+    // ==========================================
+    // SMART TAB MANAGEMENT
+    // ==========================================
+    // For restricted URLs (newtab, about:blank): must navigate somewhere
+    // For non-restricted URLs: check if current tab is relevant, preserve user content
+    if (isRestrictedURL(tabInfo.url)) {
+      if (shouldUseSmartNavigation(tabInfo.url, task)) {
+        const targetUrl = analyzeTaskAndGetTargetUrl(getFirstTaskSegment(task));
+        const decision = await decideTabAction(targetTabId, tabInfo.url, targetUrl, task);
+        automationLogger.logNavigation(null, 'smart', tabInfo.url, targetUrl, { task: task.substring(0, 100), decision: decision.action, reason: decision.reason });
+
+        if (decision.action === 'switch') {
+          // Switch to an already-open matching tab
+          try {
+            await chrome.tabs.update(decision.tabId, { active: true });
+            targetTabId = decision.tabId;
+            navigationMessage = `Switched to existing ${new URL(targetUrl).hostname} tab.`;
+          } catch (switchErr) {
+            // Tab may have been closed between discovery and switch - fall back to navigate
+            automationLogger.debug('Tab switch failed, falling back to navigate', { error: switchErr.message });
+            await chrome.tabs.update(targetTabId, { url: targetUrl });
+            navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${new URL(targetUrl).hostname}.`;
+          }
+        } else {
+          // Navigate current (restricted) tab to target
+          await chrome.tabs.update(targetTabId, { url: targetUrl });
+          navigationMessage = `Navigated from ${getPageTypeDescription(originalUrl)} to ${new URL(targetUrl).hostname}.`;
+        }
+
+        // Wait for tab to finish loading
+        await new Promise((resolve) => {
+          const navListener = (updatedTabId, changeInfo) => {
+            if (updatedTabId === targetTabId && changeInfo.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(navListener);
+              resolve();
+            }
+          };
+          chrome.tabs.onUpdated.addListener(navListener);
+          setTimeout(() => { chrome.tabs.onUpdated.removeListener(navListener); resolve(); }, 10000);
+        });
+
+        // Refresh tabInfo after action
+        try {
+          tabInfo = await chrome.tabs.get(targetTabId);
+        } catch (error) {
+          throw new Error(`Tab became inaccessible after smart navigation to ${targetUrl}`);
+        }
+        navigationPerformed = true;
+      } else {
+        // Non-navigable restricted pages (settings, extensions, etc.)
+        const chromeError = new Error(`Chrome security restrictions prevent extensions from accessing this type of page (${tabInfo.url}). Please navigate to a regular website to use automation.`);
+        chromeError.isChromePage = true;
+        throw chromeError;
+      }
+    } else {
+      // Non-restricted URL: let the AI agent decide tab management.
+      // The AI receives MULTI-TAB CONTEXT with all open tabs and has
+      // listTabs/switchToTab/navigate tools to handle tab switching itself.
+      // This avoids the hardcoded DOMAIN_KEYWORD_MAP which can't cover all sites.
+      automationLogger.debug('Non-restricted URL, deferring tab decision to AI agent', {
+        currentUrl: tabInfo.url,
+        task: task.substring(0, 100)
+      });
+    }
 
     // Read settings from storage before creating session
     const storedSettings = await getStorageWithTimeout(
@@ -6729,39 +4760,45 @@ async function handleStartAutomation(request, sender, sendResponse) {
 
     // Create new session with enhanced tracking
     const sessionId = `session_${Date.now()}`;
-    const sessionData = createSession({
-      sessionId,
+    const sessionData = {
       task,
       tabId: targetTabId,
-      originalTabId: targetTabId,
-      startUrl: tabInfo?.url || null,
+      originalTabId: targetTabId,  // Store original tab - automation is restricted to this tab
       status: 'running',
       startTime: Date.now(),
-      maxIterations: userMaxIterations,
-      lastIterationTime: Date.now(),
-      allowedTabs: initialAllowedTabs,
-      navigationMessage,
+      maxIterations: userMaxIterations, // User-configured iteration limit
+      actionHistory: [],        // Track all actions executed
+      stateHistory: [],         // Track DOM state changes
+      failedAttempts: {},       // Track failed actions by type
+      failedActionDetails: {},  // Track detailed failures by action signature
+      lastDOMHash: null,        // Hash of last DOM state to detect changes (backward compat)
+      lastDOMSignals: null,     // Multi-channel DOM signals for fine-grained change detection
+      stuckCounter: 0,          // Counter for detecting stuck state
+      consecutiveNoProgressCount: 0, // Counter for iterations with no meaningful progress (doesn't reset on URL change)
+      iterationCount: 0,        // Total iterations
+      urlHistory: [],           // Track URL changes
+      lastUrl: null,            // Last known URL
+      actionSequences: [],      // Track sequences of actions to detect patterns
+      sequenceRepeatCount: {},  // Count how many times each sequence repeats
+      allowedTabs: initialAllowedTabs, // All non-restricted tabs in the current window
+      tabHistory: [],             // Track tab switches for debugging
+      navigationMessage,        // Store navigation message for UI
       animatedActionHighlights: storedSettings.animatedActionHighlights ?? true,
+      // Session continuity fields
       conversationId: conversationId || null,
-      selectedConversationId: selectedConversationId || null,
-      uiSurface,
-      historySessionId: resolvedHistorySessionId || sessionId,
-      lastTask: task,
-      lastCommandAt: Date.now(),
       commandCount: 1,
       commands: [task],
+      // PERF: Cache DOM settings at session start to avoid repeated storage reads
       domSettings: {
         domOptimization: storedSettings.domOptimization !== false,
         maxDOMElements: storedSettings.maxDOMElements || 2000,
         prioritizeViewport: storedSettings.prioritizeViewport !== false
       },
-      userLocale: getUserLocale(),
-      mode: 'autopilot'
-    });
-
-    sessionData.conversationId = resolvedConversationId || null;
-
-    sessionData.continuity = serializeSessionContinuity(sessionData);
+      // Cost tracking fields
+      totalCost: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0
+    };
 
     activeSessions.set(sessionId, sessionData);
 
@@ -6803,20 +4840,15 @@ async function handleStartAutomation(request, sender, sendResponse) {
     persistSession(sessionId, sessionData);
 
     // Register in conversation sessions for follow-up reuse
-    if (sessionData.conversationId) {
-      upsertConversationThread(sessionData);
+    if (conversationId) {
+      conversationSessions.set(conversationId, { sessionId, lastActiveTime: Date.now() });
+      enforceMapLimit(conversationSessions, MAX_CONVERSATION_SESSIONS);
+      persistConversationSessions();
     }
 
     automationLogger.logSessionStart(sessionId, task, sessionData.tabId);
     initializeSessionMetrics(sessionId);
-    automationLogger.info('Created new session', {
-      sessionId,
-      tabId: sessionData.tabId,
-      activeSessions: activeSessions.size,
-      conversationId: sessionData.conversationId || null,
-      historySessionId: sessionData.historySessionId,
-      uiSurface
-    });
+    automationLogger.info('Created new session', { sessionId, tabId: sessionData.tabId, activeSessions: activeSessions.size, conversationId: conversationId || null });
 
     // Content script injection is now handled by the automation loop
     // to prevent double injection and race conditions
@@ -6824,9 +4856,6 @@ async function handleStartAutomation(request, sender, sendResponse) {
     sendResponse({
       success: true,
       sessionId,
-      conversationId: sessionData.conversationId || null,
-      historySessionId: sessionData.historySessionId || sessionId,
-      uiSurface,
       message: navigationMessage || 'Automation started',
       navigationPerformed: navigationPerformed
     });
@@ -6901,10 +4930,6 @@ async function handleStartAutomation(request, sender, sendResponse) {
       estimatedTimeRemaining: null,
       taskSummary: sessionData.taskSummary || null
     });
-    schedulePaymentPromptCheckForTab(targetTabId, 'session_start');
-
-    // Clear action summary cache for fresh session
-    actionSummaryCache.clear();
 
     // Non-blocking task summarization (runs in parallel, does not delay start)
     config.getAll().then(settings => {
@@ -6914,13 +4939,6 @@ async function handleStartAutomation(request, sender, sendResponse) {
           s.taskSummary = summary;
         }
       });
-
-      // Non-blocking task complexity estimation (runs in parallel with first iteration)
-      // Results consumed by agent loop to set dynamic thresholds
-      const s = activeSessions.get(sessionId);
-      if (s) {
-        s._complexityEstimate = estimateTaskComplexity(task, tabInfo?.url || '', settings);
-      }
     }).catch(() => {});
 
     // Reset DOM state in content script to prevent stale state comparison between sessions
@@ -6931,20 +4949,8 @@ async function handleStartAutomation(request, sender, sendResponse) {
       automationLogger.debug('Could not reset DOM state', { sessionId, error: e.message });
     }
 
-    // Start the agent loop
-    var sessionHooks = createSessionHooks();
-    runAgentLoop(sessionId, {
-      activeSessions,
-      persistSession,
-      sendSessionStatus,
-      broadcastDashboardProgress,
-      endSessionOverlays, cleanupSession,
-      startKeepAlive,
-      executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-      handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
-      resolveAuthWall: resolveInlineAuthWall,
-      hooks: sessionHooks.hooks
-    });
+    // Start the automation loop
+    startAutomationLoop(sessionId);
 
   } catch (error) {
     automationLogger.error('Error starting automation', { error: error.message, isChromePage: error.isChromePage || false });
@@ -6969,81 +4975,57 @@ async function handleStartAutomation(request, sender, sendResponse) {
  * @returns {Promise<Object>} { success, sessionId, result, error, duration, tokensUsed, costUsd, iterations }
  */
 async function executeAutomationTask(tabId, task, options = {}) {
-  const {
-    maxIterations = 15,
-    isBackgroundAgent = false,
-    agentId = null,
-    isDashboardTask = false,
-    dashboardTaskRunId = '',
-    triggerSource = isBackgroundAgent ? 'background-agent' : (isDashboardTask ? 'dashboard' : 'extension'),
-    explicitTargetUrl = null,
-    reuseMatchingTabs = !isBackgroundAgent,
-    activateTab = !isBackgroundAgent
-  } = options;
+  const { maxIterations = 15, isBackgroundAgent = false, agentId = null } = options;
 
   return new Promise(async (resolve) => {
     try {
-      const preparedStart = await prepareAutomationStartTarget(tabId, task, {
-        triggerSource,
-        explicitTargetUrl,
-        reuseMatchingTabs,
-        activateTab
-      });
-      const targetTabId = preparedStart.targetTabId;
-      const tabInfo = preparedStart.tabInfo;
-
-      if (isDashboardTask) {
-        _dashboardTaskTabId = targetTabId;
-      }
-
       const sessionId = `session_${Date.now()}`;
-      var sessionMode = isDashboardTask ? 'dashboard-remote'
-        : (isBackgroundAgent ? 'mcp-agent' : 'autopilot');
-
-      const sessionData = createSession({
+      const sessionData = {
         task,
-        tabId: targetTabId,
-        originalTabId: targetTabId,
-        startUrl: tabInfo?.url || null,
+        tabId: tabId,
+        originalTabId: tabId,
         status: 'running',
         startTime: Date.now(),
         maxIterations: maxIterations,
-        lastIterationTime: Date.now(),
+        actionHistory: [],
+        stateHistory: [],
+        failedAttempts: {},
+        failedActionDetails: {},
+        lastDOMHash: null,
+        stuckCounter: 0,
+        consecutiveNoProgressCount: 0,
+        iterationCount: 0,
+        urlHistory: [],
+        lastUrl: null,
+        actionSequences: [],
+        sequenceRepeatCount: {},
         isBackgroundAgent: isBackgroundAgent,
         agentId: agentId,
-        _isDashboardTask: isDashboardTask,
-        _dashboardTaskRunId: dashboardTaskRunId || '',
-        animatedActionHighlights: isDashboardTask ? true : (isBackgroundAgent ? false : true),
-        _completionCallback: resolve,
-        navigationMessage: preparedStart.navigationMessage || '',
+        animatedActionHighlights: false, // No highlights for background agents
+        _completionCallback: resolve, // Store callback for when automation finishes
+        // PERF: Cache DOM settings (use defaults for background agents)
         domSettings: {
           domOptimization: true,
           maxDOMElements: 2000,
           prioritizeViewport: true
         },
-        userLocale: getUserLocale(),
-        mode: sessionMode
-      });
+        // Cost tracking fields
+        totalCost: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0
+      };
 
       activeSessions.set(sessionId, sessionData);
       persistSession(sessionId, sessionData);
 
-      automationLogger.logSessionStart(sessionId, task, targetTabId);
+      automationLogger.logSessionStart(sessionId, task, tabId);
       initializeSessionMetrics(sessionId);
 
       startKeepAlive();
 
-      // Non-blocking task complexity estimation for background agents too
-      config.getAll().then(settings => {
-        const s = activeSessions.get(sessionId);
-        if (s) {
-          s._complexityEstimate = estimateTaskComplexity(task, tabInfo?.url || '', settings);
-        }
-      }).catch(() => {});
-
       // Reset DOM state
       try {
-        await chrome.tabs.sendMessage(targetTabId, { action: 'resetDOMState', sessionId });
+        await chrome.tabs.sendMessage(tabId, { action: 'resetDOMState', sessionId });
       } catch (e) {
         // Content script may not be ready yet, proceed anyway
       }
@@ -7058,36 +5040,16 @@ async function executeAutomationTask(tabId, task, options = {}) {
           const session = activeSessions.get(sessionId) || sessionData;
           const duration = Date.now() - sessionData.startTime;
           const metrics = performanceMetrics.sessionStats.get(sessionId);
-          const outcome = typeof message.outcome === 'string'
-            ? message.outcome
-            : (message.stopped ? 'stopped' : (message.partial ? 'partial' : (message.error ? 'error' : 'success')));
-          const outcomeDetails = message.outcomeDetails && typeof message.outcomeDetails === 'object'
-            ? message.outcomeDetails
-            : null;
-          const isStopped = outcome === 'stopped' || message.stopped === true;
-          const isPartial = outcome === 'partial' || (!isStopped && message.partial === true);
-          const isSuccess = outcome === 'success' || isPartial;
-          const blocker = message.blocker || outcomeDetails?.blocker || null;
-          const nextStep = message.nextStep || outcomeDetails?.nextStep || null;
           resolve({
-            success: isSuccess,
-            partial: isPartial,
-            stopped: isStopped,
-            outcome,
-            outcomeDetails,
+            success: !message.partial && !message.error,
             sessionId,
-            taskRunId: session._dashboardTaskRunId || sessionData._dashboardTaskRunId || '',
-            result: message.result || outcomeDetails?.summary || null,
-            blocker: blocker,
-            nextStep: nextStep,
-            error: outcome === 'error' ? (message.error || outcomeDetails?.error || 'Automation error') : null,
+            result: message.result || null,
+            error: message.error || (message.partial ? 'Task completed partially: ' + (message.reason || 'unknown') : null),
             duration,
-            tokensUsed: (session.totalInputTokens || 0) + (session.totalOutputTokens || 0),
-            costUsd: session.totalCost || 0,
+            tokensUsed: metrics?.totalActions || 0,
+            costUsd: 0,
             iterations: session.iterationCount || 0,
-            actionHistory: session.actionHistory || [],
-            startUrl: session.startUrl || tabInfo?.url || null,
-            finalUrl: session.lastUrl || tabInfo?.url || null
+            actionHistory: session.actionHistory || []
           });
         }
 
@@ -7097,12 +5059,11 @@ async function executeAutomationTask(tabId, task, options = {}) {
           resolve({
             success: false,
             sessionId,
-            taskRunId: sessionData._dashboardTaskRunId || '',
             result: null,
             error: message.error || 'Automation error',
             duration,
-            tokensUsed: (sessionData.totalInputTokens || 0) + (sessionData.totalOutputTokens || 0),
-            costUsd: sessionData.totalCost || 0,
+            tokensUsed: 0,
+            costUsd: 0,
             iterations: sessionData.iterationCount || 0
           });
         }
@@ -7116,12 +5077,11 @@ async function executeAutomationTask(tabId, task, options = {}) {
         resolve({
           success: false,
           sessionId,
-          taskRunId: sessionData._dashboardTaskRunId || '',
           result: null,
           error: 'Execution safety timeout reached',
           duration,
-          tokensUsed: (sessionData.totalInputTokens || 0) + (sessionData.totalOutputTokens || 0),
-          costUsd: sessionData.totalCost || 0,
+          tokensUsed: 0,
+          costUsd: 0,
           iterations: sessionData.iterationCount || 0
         });
       }, Math.min(maxIterations * 30000, 4 * 60 * 1000));
@@ -7129,26 +5089,13 @@ async function executeAutomationTask(tabId, task, options = {}) {
       // Store timeout for cleanup
       sessionData._safetyTimeout = safetyTimeout;
 
-      // Start the agent loop
-      var sessionHooks = createSessionHooks();
-      runAgentLoop(sessionId, {
-        activeSessions,
-        persistSession,
-        sendSessionStatus,
-        broadcastDashboardProgress,
-        endSessionOverlays, cleanupSession,
-        startKeepAlive,
-        executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-        handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
-        resolveAuthWall: resolveInlineAuthWall,
-        hooks: sessionHooks.hooks
-      });
+      // Start the automation loop
+      startAutomationLoop(sessionId);
 
     } catch (error) {
       resolve({
         success: false,
         sessionId: null,
-        taskRunId: dashboardTaskRunId || '',
         result: null,
         error: error.message,
         duration: 0,
@@ -7160,151 +5107,10 @@ async function executeAutomationTask(tabId, task, options = {}) {
   });
 }
 
-/**
- * Start a dashboard-initiated automation task.
- * Called from ws-client.js when a dash:task-submit message is received.
- * Uses executeAutomationTask with the isDashboardTask flag for progress broadcasting.
- * @param {number} tabId - Target tab ID
- * @param {string} task - Task description from the dashboard
- */
-async function startDashboardTask(tabId, task) {
-  _dashboardTaskTabId = tabId;
-  var taskRunId = _createDashboardTaskRunId();
-  var initialTaskPayload = _rememberDashboardTaskSnapshot({
-    taskRunId: taskRunId,
-    taskStatus: 'running',
-    task: task || '',
-    progress: 0,
-    phase: '',
-    eta: null,
-    elapsed: 0,
-    action: 'Working...',
-    lastAction: '',
-    summary: '',
-    error: '',
-    stopped: false,
-    tabId: typeof tabId === 'number' ? tabId : null,
-    taskSource: 'live'
-  });
-  _sendDashboardTaskProgress(initialTaskPayload);
-  var _completionSent = false;
-  // Fallback: retry one terminal completion send if the first terminal delivery could not be written to the WS.
-  var _fallbackTimer = null;
-  try {
-    var result = await executeAutomationTask(tabId, task, {
-      maxIterations: 20,
-      isDashboardTask: true,
-      dashboardTaskRunId: taskRunId,
-      triggerSource: 'dashboard'
-    });
-    console.log('[FSB] startDashboardTask: executeAutomationTask resolved, result.success=', result && result.success);
-    _completionSent = broadcastDashboardComplete(result);
-  } catch (err) {
-    console.warn('[FSB] startDashboardTask: executeAutomationTask threw', err.message);
-    var previousTask = _getDashboardTaskRecoverySnapshot();
-    var failedPayload = _rememberDashboardTaskSnapshot({
-      taskRunId: previousTask && previousTask.taskRunId ? previousTask.taskRunId : taskRunId,
-      taskStatus: 'failed',
-      task: task || '',
-      progress: previousTask && typeof previousTask.progress === 'number' ? previousTask.progress : 0,
-      phase: previousTask && previousTask.phase ? previousTask.phase : '',
-      eta: null,
-      elapsed: previousTask && previousTask.elapsed ? previousTask.elapsed : 0,
-      action: previousTask && previousTask.action ? previousTask.action : '',
-      lastAction: previousTask && previousTask.lastAction ? previousTask.lastAction : '',
-      summary: '',
-      error: err.message || 'Task execution failed',
-      stopped: false,
-      tabId: typeof tabId === 'number' ? tabId : null,
-      taskSource: 'complete-fallback'
-    });
-    _completionSent = _sendDashboardTaskComplete(failedPayload);
-  }
-
-  // Safety net: if the relay was unavailable for the first terminal send, retry once with the last known terminal snapshot.
-  if (!_completionSent) {
-    _fallbackTimer = setTimeout(function() {
-      console.warn('[FSB] startDashboardTask: fallback timer fired -- sending ext:task-complete directly');
-      var fallbackPayload = _getDashboardTaskRecoverySnapshot();
-      if (!fallbackPayload || fallbackPayload.taskRunId !== taskRunId) return;
-      if (!/^(success|failed|stopped)$/.test(fallbackPayload.taskStatus || '')) return;
-      _sendDashboardTaskComplete(fallbackPayload);
-    }, 1500);
-  }
-}
-
-
-/**
- * Execute an agent immediately upon dashboard "Run Now" request.
- * Loads agent from storage, runs via agentExecutor, and broadcasts progress/completion via WS.
- * @param {string} agentId - The agent to run
- */
-async function startAgentRunNow(agentId) {
-  try {
-    const agent = await agentManager.getAgent(agentId);
-    if (!agent) {
-      fsbWebSocket.send('ext:agent-run-complete', { agentId, success: false, error: 'Agent not found' });
-      return;
-    }
-
-    // Send initial progress
-    fsbWebSocket.send('ext:agent-run-progress', {
-      agentId,
-      progress: 0,
-      phase: 'starting',
-      action: 'Initializing agent run...'
-    });
-
-    // Execute via the agent executor
-    const result = await agentExecutor.execute(agent);
-
-    // Record the run in history
-    await agentManager.recordRun(agentId, {
-      status: result.success ? 'success' : 'failed',
-      result: result.summary || null,
-      error: result.error || null,
-      iterations: result.iterations || 0,
-      tokensUsed: result.tokensUsed || 0,
-      costUsd: result.costUsd || 0,
-      durationMs: result.durationMs || 0,
-      executionMode: result.executionMode || 'ai_initial',
-      costSaved: result.costSaved || 0
-    });
-
-    // Broadcast completion to dashboard
-    fsbWebSocket.send('ext:agent-run-complete', {
-      agentId,
-      success: result.success !== false,
-      summary: result.summary || '',
-      error: result.error || '',
-      executionMode: result.executionMode || 'ai_initial',
-      costSaved: result.costSaved || 0,
-      durationMs: result.durationMs || 0
-    });
-
-    // Sync to server if enabled
-    if (agent.syncEnabled && typeof serverSync !== 'undefined') {
-      try { serverSync.syncRun(agent, result).catch(() => {}); } catch (_) { /* fire and forget */ }
-    }
-
-  } catch (err) {
-    fsbWebSocket.send('ext:agent-run-complete', {
-      agentId,
-      success: false,
-      error: err.message || 'Agent execution failed'
-    });
-  }
-}
 
 // Handle automation stop
 async function handleStopAutomation(request, sender, sendResponse) {
-  var sessionId = request.sessionId;
-
-  // Fallback: if no sessionId provided, grab the first active session (dashboard/MCP stop pattern)
-  if (!sessionId && activeSessions.size > 0) {
-    sessionId = activeSessions.keys().next().value;
-    automationLogger.info('No sessionId in stop request, using first active session', { sessionId });
-  }
+  const { sessionId } = request;
 
   automationLogger.info('Stop automation request received', { sessionId, activeSessions: Array.from(activeSessions.keys()) });
 
@@ -7332,65 +5138,13 @@ async function handleStopAutomation(request, sender, sendResponse) {
     }
   }
 
-  // Idempotency guard: skip if this session is already being stopped
-  if (session && (session.status === 'stopped' || session._stopInFlight)) {
-    automationLogger.info('Stop already in progress, skipping duplicate', { sessionId });
-    sendResponse({ success: true, message: 'Stop already in progress', duplicate: true });
-    return;
-  }
-
   if (session) {
-    session._stopInFlight = true; // Set BEFORE status change to close re-entry window
     automationLogger.debug('Found session to stop', { sessionId, status: session.status });
 
     session.status = 'stopped';
-    session.outcome = 'stopped';
-
-    // Cancel pending agent loop iteration if scheduled (Phase 137)
-    if (session._nextIterationTimer) {
-      clearTimeout(session._nextIterationTimer);
-      session._nextIterationTimer = null;
-    }
-
-    // Capture last action summary before cleanup (per D-06)
-    var lastAction = session._lastActionSummary || null;
-    if (!lastAction && session.actionHistory && session.actionHistory.length > 0) {
-      var last = session.actionHistory[session.actionHistory.length - 1];
-      lastAction = (typeof getActionStatus === 'function')
-        ? getActionStatus(last.tool, last.params)
-        : (last.tool || 'Unknown action');
-    }
-    _rememberDashboardTaskSnapshot({
-      taskRunId: session._dashboardTaskRunId || '',
-      taskStatus: 'stopped',
-      task: session.task || '',
-      progress: typeof calculateProgress === 'function' ? calculateProgress(session).progressPercent : 0,
-      phase: typeof detectTaskPhase === 'function' ? detectTaskPhase(session) : '',
-      eta: null,
-      elapsed: Date.now() - session.startTime,
-      action: lastAction || '',
-      lastAction: lastAction || '',
-      summary: '',
-      error: 'Stopped by user',
-      stopped: true,
-      tabId: typeof session.tabId === 'number' ? session.tabId : null
-    });
 
     // Log and save session before cleanup
     const duration = Date.now() - session.startTime;
-    const stopSummary = 'Stopped by user' + (lastAction ? ' -- was: ' + lastAction : '');
-    session.result = stopSummary;
-    session.completionMessage = stopSummary;
-    session.error = null;
-    session.outcomeDetails = {
-      outcome: 'stopped',
-      reason: 'stopped',
-      summary: stopSummary,
-      blocker: null,
-      nextStep: null,
-      result: stopSummary,
-      error: null
-    };
     automationLogger.logSessionEnd(sessionId, 'stopped', session.actionHistory.length, duration);
     automationLogger.saveSession(sessionId, session);
       extractAndStoreMemories(sessionId, session).catch(() => {});
@@ -7398,34 +5152,13 @@ async function handleStopAutomation(request, sender, sendResponse) {
     // Tell content script to clean up visual overlays (covers previousTabId if set)
     await endSessionOverlays(session, 'stopped');
 
-    // Resolve the executeAutomationTask promise so startDashboardTask can complete.
-    // Without this, the completionListener inside executeAutomationTask never fires
-    // and the promise hangs until the safety timeout (up to 4 minutes).
-    chrome.runtime.sendMessage({
-      action: 'automationComplete',
-      sessionId: sessionId,
-      conversationId: session.conversationId || null,
-      historySessionId: session.historySessionId || sessionId,
-      result: stopSummary,
-      partial: true,
-      stopped: true,
-      reason: 'stopped',
-      outcome: 'stopped',
-      blocker: null,
-      nextStep: null,
-      outcomeDetails: session.outcomeDetails,
-      task: session.task
-    }).catch(() => {});
-
     finalizeSessionMetrics(sessionId, false); // Stopped, not completed
     await cleanupSession(sessionId); // Await to ensure full cleanup before responding
 
     automationLogger.info('Session stopped and removed', { sessionId });
     sendResponse({
       success: true,
-      message: 'Automation stopped',
-      lastAction: lastAction,
-      duration: duration
+      message: 'Automation stopped'
     });
   } else {
     automationLogger.warn('Session not found in memory or storage', { sessionId });
@@ -7477,6 +5210,575 @@ async function handleTestAPI(request, sender, sendResponse) {
   }
 }
 
+// Handle AI API calls
+async function handleAICall(request, sender, sendResponse) {
+  const { prompt, structuredDOM, apiKey } = request;
+  
+  try {
+    // This is where we'll integrate with xAI Grok or OpenAI
+    // For now, we'll simulate an AI response
+    const aiResponse = await callAIAPI(prompt, structuredDOM, apiKey);
+    
+    sendResponse({ 
+      success: true, 
+      response: aiResponse 
+    });
+  } catch (error) {
+    automationLogger.error('AI API error', { error: error.message });
+    sendResponse({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * EASY WIN #5: Smart delay calculation with context awareness
+ * Calculates delays based on action types, recent failures, DOM changes, and network activity
+ * @param {Object} currentAction - The current action being executed
+ * @param {string} currentAction.tool - The tool/action type
+ * @param {Object} currentAction.params - Action parameters
+ * @param {Object} nextAction - The next action to be executed
+ * @param {string} nextAction.tool - The next tool/action type
+ * @param {Object} context - Execution context (failures, DOM changes, etc.)
+ * @returns {number} Delay in milliseconds
+ */
+function calculateActionDelay(currentAction, nextAction, context = {}) {
+  // Define action categories
+  const fastActions = ['type', 'clearInput', 'selectText', 'focus', 'blur', 'pressEnter', 'keyPress'];
+  const mediumActions = ['hover', 'moveMouse', 'getAttribute', 'getText'];
+  const slowActions = ['click', 'rightClick', 'doubleClick', 'selectOption', 'toggleCheckbox'];
+  const verySlowActions = ['navigate', 'refresh', 'goBack', 'goForward', 'solveCaptcha', 'waitForElement'];
+  
+  // Base delays in milliseconds
+  const delays = {
+    fastToFast: 300,      // Fast typing sequences
+    fastToMedium: 500,    // Type then hover
+    fastToSlow: 800,      // Type then click
+    fastToVerySlow: 1500, // Type then navigate
+    
+    mediumToFast: 400,    // Hover then type
+    mediumToMedium: 600,  // Hover then move
+    mediumToSlow: 800,    // Hover then click
+    mediumToVerySlow: 1500,
+    
+    slowToFast: 1000,     // Click then type (need DOM to settle)
+    slowToMedium: 800,    // Click then hover
+    slowToSlow: 1200,     // Click then click
+    slowToVerySlow: 2000, // Click then navigate
+    
+    verySlowToAny: 3000   // Navigation actions need time
+  };
+  
+  // Categorize actions
+  function getActionCategory(action) {
+    if (!action) return 'unknown';
+    
+    if (fastActions.includes(action.tool)) return 'fast';
+    if (mediumActions.includes(action.tool)) return 'medium';
+    if (slowActions.includes(action.tool)) return 'slow';
+    if (verySlowActions.includes(action.tool)) return 'verySlow';
+    return 'medium'; // Default
+  }
+  
+  const currentCategory = getActionCategory(currentAction);
+  const nextCategory = getActionCategory(nextAction);
+  
+  // Special cases for related actions
+  if (currentAction.tool === 'type' && nextAction && nextAction.tool === 'type') {
+    // Fast consecutive typing - check if they're in the same form
+    const currentSelector = currentAction.params?.selector || '';
+    const nextSelector = nextAction.params?.selector || '';
+    
+    // If typing in different fields of same form, use shorter delay
+    if (currentSelector.includes('input') && nextSelector.includes('input')) {
+      return 200; // Very fast for form filling
+    }
+    if (currentSelector.includes('textarea') && nextSelector.includes('textarea')) {
+      return 300; // Fast for text areas
+    }
+  }
+  
+  // Click followed by type (common pattern like clicking input then typing)
+  if (currentAction.tool === 'click' && nextAction && nextAction.tool === 'type') {
+    return 600; // Moderate delay for click-to-type
+  }
+  
+  // Type with pressEnter followed by anything needs more time
+  if (currentAction.tool === 'type' && currentAction.params?.pressEnter) {
+    return 1000; // Enter key usually triggers actions
+  }
+  
+  // Use category-based delays
+  const delayKey = `${currentCategory}To${nextCategory.charAt(0).toUpperCase() + nextCategory.slice(1)}`;
+
+  let baseDelay;
+  if (currentCategory === 'verySlow') {
+    baseDelay = delays.verySlowToAny;
+  } else {
+    baseDelay = delays[delayKey] || delays.mediumToMedium;
+  }
+
+  // EASY WIN #5: Adjust delay based on execution context
+  let adjustedDelay = baseDelay;
+
+  // Increase delay if recent failures detected
+  if (context.recentFailures && context.recentFailures > 2) {
+    adjustedDelay *= 2; // Double delay when struggling
+    automationLogger.logTiming(null, 'ACTION', 'delay_increase', adjustedDelay, { reason: 'recent_failures', failures: context.recentFailures });
+  }
+
+  // Increase delay if DOM is changing rapidly
+  if (context.domChangeVelocity && context.domChangeVelocity > 10) {
+    adjustedDelay *= 1.5; // 50% more time for unstable DOM
+    automationLogger.logTiming(null, 'ACTION', 'delay_increase', adjustedDelay, { reason: 'rapid_dom_changes', velocity: context.domChangeVelocity });
+  }
+
+  // Increase delay if network activity detected
+  if (context.networkActive) {
+    adjustedDelay *= 1.5;
+    automationLogger.logTiming(null, 'ACTION', 'delay_increase', adjustedDelay, { reason: 'network_active' });
+  }
+
+  // Decrease delay if consecutive successes (things going smoothly)
+  if (context.consecutiveSuccesses && context.consecutiveSuccesses > 5) {
+    adjustedDelay *= 0.7; // 30% faster when on a roll
+  }
+
+  // Clamp delay between 100ms minimum and 3000ms maximum
+  adjustedDelay = Math.min(Math.max(adjustedDelay, 100), 3000);
+
+  return Math.round(adjustedDelay);
+}
+
+/**
+ * SPEED-01: Outcome-based delay strategies
+ * Maps detected outcome types to appropriate wait strategies
+ */
+const OUTCOME_DELAYS = {
+  navigation: { waitFor: 'pageLoad', maxWait: 5000 },
+  network: { waitFor: 'networkQuiet', maxWait: 2000, quietTime: 200 },
+  majorDOMChange: { waitFor: 'domStable', maxWait: 1000, stableTime: 300 },
+  minorDOMChange: { waitFor: 'domStable', maxWait: 500, stableTime: 100 },
+  elementStateChange: { waitFor: 'minimal', delayMs: 50 },
+  noChange: { waitFor: 'none', delayMs: 0 }
+};
+
+/**
+ * SPEED-01: Applies outcome-based delay instead of category-based delay
+ * Waits appropriately based on what actually happened after an action
+ * @param {number} tabId - Tab ID for communication with content script
+ * @param {string} outcomeType - Type from detectActionOutcome (navigation, network, etc.)
+ * @param {Object} options - Override options
+ * @returns {Promise<Object>} Wait result { waited: true, strategy, waitTime }
+ */
+async function outcomeBasedDelay(tabId, outcomeType, options = {}) {
+  const startTime = Date.now();
+  const strategy = OUTCOME_DELAYS[outcomeType] || OUTCOME_DELAYS.noChange;
+
+  try {
+    switch (strategy.waitFor) {
+      case 'pageLoad':
+        // Use pageLoadWatcher for navigation outcomes
+        const loadResult = await pageLoadWatcher.waitForPageReady(tabId, {
+          maxWait: options.maxWait || strategy.maxWait,
+          requireDOMStable: true,
+          stableTime: 300
+        });
+        automationLogger.logTiming(null, 'WAIT', 'outcome_pageLoad', Date.now() - startTime, {
+          outcomeType,
+          success: loadResult.success
+        });
+        return {
+          waited: true,
+          strategy: outcomeType,
+          waitTime: Date.now() - startTime,
+          method: 'pageLoad',
+          result: loadResult
+        };
+
+      case 'networkQuiet':
+        // Wait for network to quiet down
+        try {
+          const networkResult = await sendMessageWithRetry(tabId, {
+            action: 'executeAction',
+            tool: 'waitForPageStability',
+            params: {
+              maxWait: options.maxWait || strategy.maxWait,
+              stableTime: 100,
+              networkQuietTime: options.quietTime || strategy.quietTime
+            }
+          });
+          automationLogger.logTiming(null, 'WAIT', 'outcome_networkQuiet', Date.now() - startTime, {
+            outcomeType,
+            stable: networkResult?.result?.stable
+          });
+          return {
+            waited: true,
+            strategy: outcomeType,
+            waitTime: Date.now() - startTime,
+            method: 'networkQuiet',
+            result: networkResult
+          };
+        } catch (err) {
+          // Fallback to minimal delay if network wait fails
+          await new Promise(r => setTimeout(r, 200));
+          return {
+            waited: true,
+            strategy: outcomeType,
+            waitTime: Date.now() - startTime,
+            method: 'networkQuiet-fallback',
+            error: err.message
+          };
+        }
+
+      case 'domStable':
+        // Wait for DOM to stabilize
+        try {
+          const domResult = await sendMessageWithRetry(tabId, {
+            action: 'executeAction',
+            tool: 'waitForDOMStable',
+            params: {
+              timeout: options.maxWait || strategy.maxWait,
+              stableTime: options.stableTime || strategy.stableTime
+            }
+          });
+          automationLogger.logTiming(null, 'WAIT', 'outcome_domStable', Date.now() - startTime, {
+            outcomeType,
+            stable: domResult?.result?.stable
+          });
+          return {
+            waited: true,
+            strategy: outcomeType,
+            waitTime: Date.now() - startTime,
+            method: 'domStable',
+            result: domResult
+          };
+        } catch (err) {
+          // Fallback to minimal delay if DOM wait fails
+          await new Promise(r => setTimeout(r, 100));
+          return {
+            waited: true,
+            strategy: outcomeType,
+            waitTime: Date.now() - startTime,
+            method: 'domStable-fallback',
+            error: err.message
+          };
+        }
+
+      case 'minimal':
+        // Very short fixed delay for state changes
+        await new Promise(r => setTimeout(r, strategy.delayMs));
+        automationLogger.logTiming(null, 'WAIT', 'outcome_minimal', strategy.delayMs, { outcomeType });
+        return {
+          waited: true,
+          strategy: outcomeType,
+          waitTime: strategy.delayMs,
+          method: 'minimal'
+        };
+
+      case 'none':
+      default:
+        // No delay needed
+        automationLogger.logTiming(null, 'WAIT', 'outcome_none', 0, { outcomeType });
+        return {
+          waited: false,
+          strategy: outcomeType,
+          waitTime: 0,
+          method: 'none'
+        };
+    }
+  } catch (error) {
+    automationLogger.warn('Outcome-based delay error, using fallback', {
+      outcomeType,
+      error: error.message
+    });
+    // Fallback: use a safe minimal delay
+    await new Promise(r => setTimeout(r, 100));
+    return {
+      waited: true,
+      strategy: outcomeType,
+      waitTime: Date.now() - startTime,
+      method: 'error-fallback',
+      error: error.message
+    };
+  }
+}
+
+/**
+ * SPEED-03: Deterministic action patterns that can be batched without AI roundtrips
+ * These patterns represent predictable sequences where we know the outcome
+ */
+const DETERMINISTIC_PATTERNS = [
+  {
+    name: 'formFill',
+    description: 'Multiple type actions to different form fields',
+    detect: (actions) => {
+      // All actions must be type operations
+      if (!actions.every(a => a.tool === 'type')) return false;
+      // Must target different selectors (filling different fields)
+      const selectors = actions.map(a => a.params?.selector).filter(Boolean);
+      return selectors.length === actions.length &&
+             new Set(selectors).size === selectors.length;
+    },
+    optimize: true,
+    minDelay: 50  // Minimal delay between batched typing actions
+  },
+  {
+    name: 'clickType',
+    description: 'Click input then type (focus + input pattern)',
+    detect: (actions) => {
+      // Click followed by type (clicking input then typing)
+      return actions.length === 2 &&
+             actions[0].tool === 'click' &&
+             actions[1].tool === 'type';
+    },
+    optimize: true,
+    minDelay: 100  // Small delay between click and type
+  },
+  {
+    name: 'multiClick',
+    description: 'Multiple clicks to different elements (checkbox selections)',
+    detect: (actions) => {
+      // All actions must be clicks
+      if (!actions.every(a => a.tool === 'click')) return false;
+      // Must target different selectors
+      const selectors = actions.map(a => a.params?.selector).filter(Boolean);
+      // Limit to 3 to avoid unexpected side effects
+      return selectors.length === actions.length &&
+             new Set(selectors).size === selectors.length &&
+             actions.length <= 3;
+    },
+    optimize: true,
+    minDelay: 100  // Between click actions
+  }
+];
+
+/**
+ * SPEED-03: Detect if an action sequence matches a deterministic pattern
+ * @param {Array} actions - Array of actions to analyze
+ * @returns {Object|null} Matching pattern or null
+ */
+function detectDeterministicPattern(actions) {
+  if (!actions || actions.length < 1) return null;
+
+  for (const pattern of DETERMINISTIC_PATTERNS) {
+    if (pattern.detect(actions)) {
+      automationLogger.debug('Deterministic pattern detected', {
+        pattern: pattern.name,
+        actionCount: actions.length,
+        tools: actions.map(a => a.tool)
+      });
+      return pattern;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * SPEED-03: Execute a batch of actions matching a deterministic pattern
+ * Skips AI roundtrips between actions, using minimal inter-action delays
+ *
+ * @param {Array} actions - Actions to execute
+ * @param {Object} session - Current automation session
+ * @param {number} tabId - Tab ID for action execution
+ * @returns {Promise<Object|null>} Batch result or null if pattern not matched
+ */
+async function executeDeterministicBatch(actions, session, tabId) {
+  const pattern = detectDeterministicPattern(actions);
+
+  // If no pattern matched, return null (caller should execute normally)
+  if (!pattern || !pattern.optimize) {
+    return null;
+  }
+
+  const batchStartTime = Date.now();
+  const results = [];
+
+  automationLogger.info('Executing deterministic batch', {
+    sessionId: session?.sessionId,
+    pattern: pattern.name,
+    actionCount: actions.length
+  });
+
+  try {
+    for (let i = 0; i < actions.length; i++) {
+      const action = actions[i];
+      const actionStartTime = Date.now();
+
+      // Execute the action
+      const actionResult = await sendMessageWithRetry(tabId, {
+        action: 'executeAction',
+        tool: action.tool,
+        params: action.params,
+        visualContext: {
+          taskName: session?.task?.substring(0, 50) || 'Automation',
+          stepNumber: i + 1,
+          totalSteps: actions.length,
+          iterationCount: session?.iterationCount || 1,
+          isBatchedAction: true,
+          batchPattern: pattern.name,
+          animatedHighlights: session?.animatedActionHighlights ?? true
+        }
+      });
+
+      results.push({
+        action,
+        result: actionResult,
+        duration: Date.now() - actionStartTime
+      });
+
+      // Track in session action history (slim result to reduce memory and prompt token usage)
+      if (session) {
+        session.actionHistory.push({
+          timestamp: Date.now(),
+          tool: action.tool,
+          params: action.params,
+          result: slimActionResult(actionResult),
+          iteration: session.iterationCount,
+          batched: true,
+          batchPattern: pattern.name
+        });
+      }
+
+      // Log action execution
+      automationLogger.logTiming(
+        session?.sessionId,
+        'ACTION',
+        `${action.tool}_batched`,
+        Date.now() - actionStartTime,
+        { success: actionResult?.success, batch: pattern.name }
+      );
+
+      // If action failed, break the batch (don't continue with remaining actions)
+      if (!actionResult?.success) {
+        automationLogger.warn('Batch action failed, breaking batch', {
+          sessionId: session?.sessionId,
+          pattern: pattern.name,
+          actionIndex: i,
+          tool: action.tool,
+          error: actionResult?.error
+        });
+        break;
+      }
+
+      // Apply minimal delay between actions (except for last action)
+      if (i < actions.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, pattern.minDelay));
+      }
+    }
+
+    const batchDuration = Date.now() - batchStartTime;
+    const successCount = results.filter(r => r.result?.success).length;
+
+    automationLogger.info('Deterministic batch complete', {
+      sessionId: session?.sessionId,
+      pattern: pattern.name,
+      successCount,
+      totalCount: actions.length,
+      batchDuration,
+      savedTime: `~${(actions.length - 1) * 1000}ms AI roundtrips avoided`
+    });
+
+    return {
+      batched: true,
+      pattern: pattern.name,
+      results,
+      count: actions.length,
+      successCount,
+      duration: batchDuration
+    };
+  } catch (error) {
+    automationLogger.error('Deterministic batch execution error', {
+      sessionId: session?.sessionId,
+      pattern: pattern.name,
+      error: error.message
+    });
+
+    // Return partial results if any completed
+    return {
+      batched: true,
+      pattern: pattern.name,
+      results,
+      count: actions.length,
+      successCount: results.filter(r => r.result?.success).length,
+      duration: Date.now() - batchStartTime,
+      error: error.message
+    };
+  }
+}
+
+// Helper function to create smart sequence signatures that group similar actions
+function createSmartSequenceSignature(actions) {
+  return actions.map(action => {
+    // Normalize action signatures to group similar actions
+    if (action.tool === 'type') {
+      // Group typing actions by selector type, not exact text
+      const selector = action.params?.selector || '';
+      let selectorType = 'unknown';
+      
+      if (selector.includes('input')) selectorType = 'input';
+      else if (selector.includes('textarea')) selectorType = 'textarea';
+      else if (selector.includes('search')) selectorType = 'search';
+      else if (selector.includes('email')) selectorType = 'email';
+      else if (selector.includes('password')) selectorType = 'password';
+      
+      return `type:${selectorType}`;
+    }
+    
+    if (action.tool === 'click') {
+      // Group clicks by element type
+      const selector = action.params?.selector || '';
+      let elementType = 'unknown';
+      
+      if (selector.includes('button') || selector.includes('btn')) elementType = 'button';
+      else if (selector.includes('link') || selector.includes('a[')) elementType = 'link';
+      else if (selector.includes('submit')) elementType = 'submit';
+      else if (selector.includes('form')) elementType = 'form';
+      
+      return `click:${elementType}`;
+    }
+    
+    // For other actions, use a simplified signature
+    return action.tool;
+  }).join('->');
+}
+
+// Helper function to check if repetition is harmful
+function checkHarmfulRepetition(actions, repeatCount, session) {
+  // Don't flag as harmful if repeat count is low
+  if (repeatCount <= 2) return false;
+  
+  // Check if the actions are making progress
+  const hasProgressIndicators = actions.some(action => {
+    // Actions that typically indicate progress
+    return ['navigate', 'searchGoogle', 'refresh', 'solveCaptcha'].includes(action.tool) ||
+           (action.tool === 'type' && action.params?.pressEnter) || // Form submissions
+           (action.tool === 'click' && action.params?.selector?.includes('submit'));
+  });
+  
+  // If actions include progress indicators, be less aggressive about flagging
+  if (hasProgressIndicators && repeatCount <= 4) return false;
+  
+  // Check recent success rate
+  const recentActions = session.actionHistory.slice(-10);
+  const recentFailures = recentActions.filter(a => !a.result?.success).length;
+  const failureRate = recentActions.length > 0 ? recentFailures / recentActions.length : 0;
+  
+  // If most actions are succeeding, don't flag as harmful even with repetition
+  if (failureRate < 0.3 && repeatCount <= 5) return false;
+  
+  // Check if we're stuck on the same URL without making progress
+  const urlHistory = session.urlHistory.slice(-3);
+  const sameUrlCount = urlHistory.filter(entry => entry.url === session.lastUrl).length;
+  
+  // If we're repeating the same actions on the same URL multiple times, it's likely harmful
+  if (sameUrlCount >= 2 && repeatCount >= 3) return true;
+  
+  // Default threshold - flag as harmful if repeated more than 4 times
+  return repeatCount > 4;
+}
 
 // ==========================================
 // Login Detection Helpers (Passwords Beta)
@@ -7691,1153 +5993,6 @@ async function fillCredentialsOnPageDirect(tabId, { usernameSelector, passwordSe
     console.error('[FSB] fillCredentialsOnPageDirect error:', error.message || 'Unknown error');
     return { success: false, error: 'Credential fill failed' };
   }
-}
-
-function getPaymentFieldSignal(element) {
-  const attrs = element?.attributes || {};
-  return [
-    element?.text,
-    element?.description,
-    element?.accessibilityName,
-    element?.labelText,
-    element?.context?.labelText,
-    element?.context?.hintText,
-    attrs['aria-label'],
-    attrs.placeholder,
-    attrs.name,
-    attrs.autocomplete,
-    element?.id
-  ]
-    .filter(value => typeof value === 'string' && value.trim())
-    .join(' ')
-    .toLowerCase();
-}
-
-function getPaymentFieldFormId(element) {
-  return element?.formId || element?.context?.formId || null;
-}
-
-function getPaymentFieldSelector(element) {
-  if (Array.isArray(element?.selectors) && element.selectors.length > 0) {
-    return element.selectors[0];
-  }
-  if (element?.id) {
-    return `#${element.id}`;
-  }
-  return null;
-}
-
-function classifyPaymentField(element) {
-  if (!element || !['input', 'select', 'textarea'].includes(element.type)) {
-    return null;
-  }
-
-  const selector = getPaymentFieldSelector(element);
-  if (!selector) return null;
-
-  const attrs = element.attributes || {};
-  const autocomplete = String(attrs.autocomplete || '').toLowerCase();
-  const intent = String(element?.purpose?.intent || '').toLowerCase();
-  const signal = getPaymentFieldSignal(element);
-  const isShippingField = /shipping|delivery/.test(signal) && !/billing/.test(signal);
-
-  const result = {
-    selector,
-    formId: getPaymentFieldFormId(element),
-    signal,
-    isCore: false,
-    score: 10,
-    fieldKey: null
-  };
-
-  if (autocomplete.includes('cc-number') || intent === 'cc-number' || /card number|credit card number|debit card number|cc.?number|card no\b/.test(signal)) {
-    result.fieldKey = 'cardNumberSelector';
-    result.isCore = true;
-    result.score = 120;
-    return result;
-  }
-
-  if (autocomplete.includes('cc-csc') || autocomplete.includes('cc-cvc') || autocomplete.includes('csc') || intent === 'cc-csc' || /cvv|cvc|csc|security code|card code|verification code/.test(signal)) {
-    result.fieldKey = 'cvvSelector';
-    result.isCore = true;
-    result.score = 118;
-    return result;
-  }
-
-  if (autocomplete.includes('cc-exp-month') || intent === 'cc-exp-month' || /(exp|expiration).*(month)|month.*(exp|expiration)/.test(signal)) {
-    result.fieldKey = 'expiryMonthSelector';
-    result.isCore = true;
-    result.score = 110;
-    return result;
-  }
-
-  if (autocomplete.includes('cc-exp-year') || intent === 'cc-exp-year' || /(exp|expiration).*(year)|year.*(exp|expiration)/.test(signal)) {
-    result.fieldKey = 'expiryYearSelector';
-    result.isCore = true;
-    result.score = 110;
-    return result;
-  }
-
-  if (autocomplete.includes('cc-exp') || intent === 'cc-exp' || /expiration date|expiry date|exp date|mm\s*\/\s*yy|mm\s*\/\s*yyyy/.test(signal)) {
-    result.fieldKey = 'expirySelector';
-    result.isCore = true;
-    result.score = 112;
-    return result;
-  }
-
-  if (autocomplete.includes('cc-name') || intent === 'cc-name' || /name on card|cardholder|card holder|name as it appears/.test(signal)) {
-    result.fieldKey = 'cardholderSelector';
-    result.isCore = true;
-    result.score = 105;
-    return result;
-  }
-
-  if (isShippingField) {
-    return null;
-  }
-
-  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('postal-code') || /zip|postal/.test(signal))) {
-    result.fieldKey = 'billingPostalSelector';
-    result.score = 90;
-    return result;
-  }
-
-  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('address-line2') || /address line 2|apt|suite|unit/.test(signal))) {
-    result.fieldKey = 'billingAddress2Selector';
-    result.score = 85;
-    return result;
-  }
-
-  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('address-line1') || autocomplete.includes('street-address') || /address|street/.test(signal))) {
-    result.fieldKey = 'billingAddress1Selector';
-    result.score = 95;
-    return result;
-  }
-
-  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('address-level2') || /city/.test(signal))) {
-    result.fieldKey = 'billingCitySelector';
-    result.score = 82;
-    return result;
-  }
-
-  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('address-level1') || /state|province|region/.test(signal))) {
-    result.fieldKey = 'billingStateSelector';
-    result.score = 82;
-    return result;
-  }
-
-  if ((autocomplete.includes('billing') || /billing/.test(signal)) && (autocomplete.includes('country') || /country/.test(signal))) {
-    result.fieldKey = 'billingCountrySelector';
-    result.score = 82;
-    return result;
-  }
-
-  if ((autocomplete.includes('billing') || /billing/.test(signal)) && /name/.test(signal)) {
-    result.fieldKey = 'billingNameSelector';
-    result.score = 80;
-    return result;
-  }
-
-  if (autocomplete.includes('address-line2') || /address line 2|apt|suite|unit/.test(signal)) {
-    result.fieldKey = 'billingAddress2Selector';
-    result.score = 55;
-    return result;
-  }
-
-  if (autocomplete.includes('address-line1') || autocomplete.includes('street-address') || /billing address|street address/.test(signal)) {
-    result.fieldKey = 'billingAddress1Selector';
-    result.score = 70;
-    return result;
-  }
-
-  if (autocomplete.includes('address-level2') || /billing city|city/.test(signal)) {
-    result.fieldKey = 'billingCitySelector';
-    result.score = 52;
-    return result;
-  }
-
-  if (autocomplete.includes('address-level1') || /billing state|state|province|region/.test(signal)) {
-    result.fieldKey = 'billingStateSelector';
-    result.score = 52;
-    return result;
-  }
-
-  if (autocomplete.includes('postal-code') || /billing zip|zip|postal code/.test(signal)) {
-    result.fieldKey = 'billingPostalSelector';
-    result.score = 60;
-    return result;
-  }
-
-  if (autocomplete.includes('country') || /billing country|country/.test(signal)) {
-    result.fieldKey = 'billingCountrySelector';
-    result.score = 50;
-    return result;
-  }
-
-  if (/billing name/.test(signal)) {
-    result.fieldKey = 'billingNameSelector';
-    result.score = 50;
-    return result;
-  }
-
-  return null;
-}
-
-function extractPaymentFields(domData) {
-  const elements = Array.isArray(domData?.elements) ? domData.elements : [];
-  const pageContext = domData?.pageContext || {};
-  const fieldCandidates = [];
-  const formScores = new Map();
-
-  for (const element of elements) {
-    const candidate = classifyPaymentField(element);
-    if (!candidate) continue;
-
-    fieldCandidates.push(candidate);
-
-    if (candidate.isCore) {
-      const formKey = candidate.formId || '__page__';
-      formScores.set(formKey, (formScores.get(formKey) || 0) + candidate.score);
-    }
-  }
-
-  let candidateFormId = null;
-  let candidateFormScore = 0;
-  for (const [formId, score] of formScores.entries()) {
-    if (score > candidateFormScore) {
-      candidateFormId = formId;
-      candidateFormScore = score;
-    }
-  }
-
-  const assignments = {
-    candidateFormId: candidateFormId === '__page__' ? null : candidateFormId,
-    paymentFieldCount: 0
-  };
-  const coreFieldKeys = new Set([
-    'cardholderSelector',
-    'cardNumberSelector',
-    'expirySelector',
-    'expiryMonthSelector',
-    'expiryYearSelector',
-    'cvvSelector'
-  ]);
-
-  for (const candidate of fieldCandidates) {
-    const sameForm = !candidateFormId || candidate.formId === candidateFormId || candidate.formId == null;
-    if (!sameForm && candidate.isCore) {
-      continue;
-    }
-
-    const existingScore = assignments[`${candidate.fieldKey}Score`] || 0;
-    if (candidate.score < existingScore) {
-      continue;
-    }
-
-    assignments[candidate.fieldKey] = candidate.selector;
-    assignments[`${candidate.fieldKey}Score`] = candidate.score;
-  }
-
-  assignments.paymentFieldCount = Array.from(coreFieldKeys).reduce((count, key) => (
-    assignments[key] ? count + 1 : count
-  ), 0);
-  assignments.hasPaymentFields = Boolean(
-    assignments.cardNumberSelector &&
-    (assignments.expirySelector || assignments.expiryMonthSelector || assignments.expiryYearSelector || assignments.cvvSelector)
-  );
-  assignments.isCheckout = pageContext?.pageTypes?.checkout === true ||
-    /checkout|payment|purchase|order/.test(String(domData?.url || '').toLowerCase());
-
-  return assignments;
-}
-
-async function acquireCheckoutPaymentContext(sessionId, session) {
-  if (!session?.tabId) {
-    return { success: false, error: 'No active tab available for payment detection' };
-  }
-
-  let tab = null;
-  try {
-    tab = await chrome.tabs.get(session.tabId);
-  } catch (error) {
-    return { success: false, error: error.message || 'Payment tab is no longer available' };
-  }
-
-  let domain = '';
-  try {
-    domain = new URL(tab.url || '').hostname || '';
-  } catch (_error) {
-    domain = '';
-  }
-
-  try {
-    await waitForContentScriptReady(session.tabId, 5000);
-  } catch (_error) {
-    // Continue. The actual DOM request below is the real gate.
-  }
-
-  try {
-    const domResponse = await chrome.tabs.sendMessage(session.tabId, {
-      action: 'getDOM',
-      sessionId,
-      options: {
-        maxElements: 600,
-        prioritizeViewport: true,
-        viewportOnlyMode: false,
-        useIncrementalDiff: false,
-        useCompactFormat: false
-      }
-    }, { frameId: 0 });
-    const domData = domResponse?.structuredDOM || null;
-    const fields = extractPaymentFields(domData);
-    const promptKey = `${(tab.url || '').split('#')[0]}|${fields.candidateFormId || 'page'}`;
-
-    return {
-      success: true,
-      domain,
-      url: tab.url || '',
-      tabId: session.tabId,
-      domData,
-      fields,
-      hasPaymentFields: fields.hasPaymentFields === true,
-      promptKey
-    };
-  } catch (error) {
-    return {
-      success: false,
-      domain,
-      url: tab.url || '',
-      tabId: session.tabId,
-      error: error.message || 'Unable to inspect the current page for payment fields'
-    };
-  }
-}
-
-async function fillPaymentMethodOnPageDirect(tabId, fields, paymentMethod) {
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      world: 'MAIN',
-      func: (fieldMap, method) => {
-        const inputSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-        const textAreaSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-        const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
-
-        function normalize(value) {
-          return String(value || '').trim().toLowerCase();
-        }
-
-        function dispatchValueEvents(el) {
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-          el.dispatchEvent(new Event('blur', { bubbles: true }));
-        }
-
-        function selectOptionValue(el, candidates) {
-          if (!el || el.tagName !== 'SELECT') return false;
-          const options = Array.from(el.options || []);
-          const normalizedCandidates = candidates
-            .map(candidate => normalize(candidate))
-            .filter(Boolean);
-
-          const option = options.find(opt => {
-            const optionValue = normalize(opt.value);
-            const optionText = normalize(opt.textContent);
-            return normalizedCandidates.some(candidate => (
-              candidate === optionValue ||
-              candidate === optionText ||
-              optionText.includes(candidate) ||
-              candidate.includes(optionText)
-            ));
-          });
-
-          if (!option) return false;
-
-          if (selectSetter) {
-            selectSetter.call(el, option.value);
-          } else {
-            el.value = option.value;
-          }
-          dispatchValueEvents(el);
-          return normalize(el.value) === normalize(option.value);
-        }
-
-        function setTextValue(el, value, fallbacks) {
-          if (!el || value == null || value === '') return false;
-
-          const setter = el.tagName === 'TEXTAREA' ? textAreaSetter : inputSetter;
-          const candidates = [value].concat(Array.isArray(fallbacks) ? fallbacks : []).filter(Boolean);
-
-          for (const candidate of candidates) {
-            el.focus();
-            if (setter) {
-              setter.call(el, candidate);
-            } else {
-              el.value = candidate;
-            }
-            dispatchValueEvents(el);
-            if (String(el.value || '') === String(candidate)) {
-              return true;
-            }
-
-            try {
-              el.select?.();
-              document.execCommand('selectAll', false, null);
-              document.execCommand('insertText', false, candidate);
-              if (String(el.value || '') === String(candidate)) {
-                dispatchValueEvents(el);
-                return true;
-              }
-            } catch (_error) {
-              // Ignore fallback failures.
-            }
-          }
-
-          return false;
-        }
-
-        function setField(selector, value, fallbackValues) {
-          if (!selector || value == null || value === '') {
-            return { attempted: false, success: false };
-          }
-
-          const el = document.querySelector(selector);
-          if (!el) {
-            return { attempted: true, success: false };
-          }
-
-          el.scrollIntoView({ block: 'center', behavior: 'auto' });
-          const success = el.tagName === 'SELECT'
-            ? selectOptionValue(el, [value].concat(fallbackValues || []))
-            : setTextValue(el, value, fallbackValues);
-
-          return { attempted: true, success };
-        }
-
-        const groupedNumber = method.cardNumber || '';
-        const expiryMonth = String(method.expiryMonth || '').padStart(2, '0');
-        const expiryYear = String(method.expiryYear || '');
-        const expiryYearShort = expiryYear.slice(-2);
-        const expiryCombined = `${expiryMonth}/${expiryYearShort}`;
-        const expiryCombinedAlt = `${expiryMonth} / ${expiryYearShort}`;
-
-        const attempts = {
-          cardholderSelector: setField(fieldMap.cardholderSelector, method.cardholderName),
-          cardNumberSelector: setField(fieldMap.cardNumberSelector, groupedNumber, [method.formattedCardNumber]),
-          expirySelector: setField(fieldMap.expirySelector, expiryCombined, [expiryCombinedAlt, `${expiryMonth}${expiryYearShort}`]),
-          expiryMonthSelector: setField(fieldMap.expiryMonthSelector, expiryMonth, [String(Number(expiryMonth))]),
-          expiryYearSelector: setField(fieldMap.expiryYearSelector, expiryYear, [expiryYearShort]),
-          cvvSelector: setField(fieldMap.cvvSelector, method.cvv),
-          billingNameSelector: setField(fieldMap.billingNameSelector, method.billingName),
-          billingAddress1Selector: setField(fieldMap.billingAddress1Selector, method.addressLine1),
-          billingAddress2Selector: setField(fieldMap.billingAddress2Selector, method.addressLine2),
-          billingCitySelector: setField(fieldMap.billingCitySelector, method.city),
-          billingStateSelector: setField(fieldMap.billingStateSelector, method.stateRegion),
-          billingPostalSelector: setField(fieldMap.billingPostalSelector, method.postalCode),
-          billingCountrySelector: setField(fieldMap.billingCountrySelector, method.country)
-        };
-
-        const requiredKeys = [
-          'cardNumberSelector',
-          'cvvSelector'
-        ];
-        const requiredSatisfied = requiredKeys.every(key => !fieldMap[key] || attempts[key].success);
-        const expirySatisfied = (
-          (!fieldMap.expirySelector || attempts.expirySelector.success) &&
-          (!fieldMap.expiryMonthSelector || attempts.expiryMonthSelector.success) &&
-          (!fieldMap.expiryYearSelector || attempts.expiryYearSelector.success)
-        );
-        const filledFields = Object.keys(attempts).filter(key => attempts[key].success);
-        const failedFields = Object.keys(attempts).filter(key => attempts[key].attempted && !attempts[key].success);
-
-        return {
-          success: requiredSatisfied && expirySatisfied && filledFields.length > 0,
-          filledFields,
-          failedFields
-        };
-      },
-      args: [{
-        cardholderSelector: fields.cardholderSelector || null,
-        cardNumberSelector: fields.cardNumberSelector || null,
-        expirySelector: fields.expirySelector || null,
-        expiryMonthSelector: fields.expiryMonthSelector || null,
-        expiryYearSelector: fields.expiryYearSelector || null,
-        cvvSelector: fields.cvvSelector || null,
-        billingNameSelector: fields.billingNameSelector || null,
-        billingAddress1Selector: fields.billingAddress1Selector || null,
-        billingAddress2Selector: fields.billingAddress2Selector || null,
-        billingCitySelector: fields.billingCitySelector || null,
-        billingStateSelector: fields.billingStateSelector || null,
-        billingPostalSelector: fields.billingPostalSelector || null,
-        billingCountrySelector: fields.billingCountrySelector || null
-      }, {
-        cardholderName: paymentMethod.cardholderName,
-        cardNumber: paymentMethod.cardNumber,
-        formattedCardNumber: secureConfig.formatCardNumber(paymentMethod.cardNumber),
-        expiryMonth: paymentMethod.expiryMonth,
-        expiryYear: paymentMethod.expiryYear,
-        cvv: paymentMethod.cvv,
-        billingName: paymentMethod.billingName,
-        addressLine1: paymentMethod.addressLine1,
-        addressLine2: paymentMethod.addressLine2,
-        city: paymentMethod.city,
-        stateRegion: paymentMethod.stateRegion,
-        postalCode: paymentMethod.postalCode,
-        country: paymentMethod.country
-      }]
-    });
-
-    return results[0]?.result || { success: false, error: 'No result from script injection' };
-  } catch (error) {
-    console.error('[FSB] fillPaymentMethodOnPageDirect error:', error.message || 'Unknown error');
-    return { success: false, error: 'Payment method fill failed' };
-  }
-}
-
-async function sendInlinePaymentStatus(sessionId, session, statusText) {
-  if (!session?.tabId || !statusText) return;
-
-  try {
-    chrome.runtime.sendMessage({
-      action: 'statusUpdate',
-      sessionId,
-      message: statusText
-    }).catch(() => {});
-  } catch (_error) {
-    // Non-fatal.
-  }
-}
-
-function getPaymentPromptState(policy, paymentMethods) {
-  if (!policy?.enableSavedPayments) return 'feature_disabled';
-  if (!policy.vaultStatus?.configured) return 'vault_not_configured';
-  if (!policy.vaultStatus?.unlocked) return 'vault_locked';
-  if (!policy.vaultStatus?.paymentUnlocked) return 'payment_locked';
-  if (!Array.isArray(paymentMethods) || paymentMethods.length === 0) return 'no_saved_methods';
-  return 'available';
-}
-
-function getPaymentPromptMeta(policy, paymentMethods, triggerSource) {
-  const state = getPaymentPromptState(policy, paymentMethods);
-  const available = state === 'available';
-  let detail = 'Saved payment methods are unavailable for this checkout.';
-  let primaryAction = '';
-  let primaryActionLabel = '';
-
-  if (state === 'available') {
-    detail = 'Choose a saved payment method to fill the checkout form. FSB will fill the selected card details, but it will not submit the final payment.';
-  } else if (state === 'no_saved_methods') {
-    detail = 'No saved payment methods are available yet. Open Payments to add a card before checkout.';
-    primaryAction = 'open_payments_section';
-    primaryActionLabel = 'Add Card';
-  } else if (state === 'feature_disabled') {
-    detail = 'Saved Payment Methods is disabled. Open Payments to enable it and manage cards for checkout.';
-    primaryAction = 'open_payments_section';
-    primaryActionLabel = 'Enable Payments';
-  } else if (state === 'vault_not_configured') {
-    detail = 'Set up the credential vault in Passwords before storing cards for checkout.';
-    primaryAction = 'open_passwords_section';
-    primaryActionLabel = 'Set Up Vault';
-  } else if (state === 'vault_locked') {
-    detail = 'Unlock the credential vault in Passwords before using saved cards during checkout.';
-    primaryAction = 'open_passwords_section';
-    primaryActionLabel = 'Unlock Vault';
-  } else if (state === 'payment_locked') {
-    detail = 'Unlock saved payment methods in Payments before using saved cards during checkout.';
-    primaryAction = 'open_payments_section';
-    primaryActionLabel = 'Unlock Payments';
-  } else if (policy?.fillDisabledReason) {
-    detail = policy.fillDisabledReason;
-  }
-
-  return {
-    triggerSource: triggerSource || 'detected',
-    state,
-    available,
-    blockedReason: available ? '' : detail,
-    detail,
-    primaryAction,
-    primaryActionLabel,
-    methods: available ? paymentMethods : []
-  };
-}
-
-function createPaymentPromptState() {
-  return {
-    promptedKeys: new Set(),
-    promptedStateByKey: new Map(),
-    active: false,
-    completed: false,
-    processing: false
-  };
-}
-
-async function maybeOfferSavedPaymentMethods(sessionId, session, triggerSource) {
-  if (!session || session.isTerminating || session.tabId == null) return;
-  if (session.uiSurface && session.uiSurface !== 'sidepanel') return;
-
-  const promptState = session._paymentPromptState || (session._paymentPromptState = createPaymentPromptState());
-
-  if (promptState.completed || promptState.processing || promptState.active) {
-    return;
-  }
-
-  const policy = await getPaymentRuntimePolicy();
-  promptState.processing = true;
-
-  try {
-    const context = await acquireCheckoutPaymentContext(sessionId, session);
-    if (!context.success || !context.hasPaymentFields || !context.fields.isCheckout) {
-      return;
-    }
-
-    const paymentMethods = policy.canUseSavedPaymentMethods
-      ? await secureConfig.getAllPaymentMethods()
-      : [];
-    const paymentPrompt = getPaymentPromptMeta(policy, paymentMethods, triggerSource);
-    const previousPromptState = promptState.promptedStateByKey instanceof Map
-      ? promptState.promptedStateByKey.get(context.promptKey)
-      : undefined;
-
-    if (promptState.promptedKeys.has(context.promptKey) && previousPromptState === paymentPrompt.state) {
-      return;
-    }
-
-    promptState.promptedKeys.add(context.promptKey);
-    if (promptState.promptedStateByKey instanceof Map) {
-      promptState.promptedStateByKey.set(context.promptKey, paymentPrompt.state);
-    }
-    promptState.active = paymentPrompt.available === true;
-    promptState.latestPromptKey = context.promptKey;
-
-    chrome.runtime.sendMessage({
-      action: 'paymentDetected',
-      sessionId,
-      domain: context.domain,
-      fields: context.fields,
-      paymentPrompt
-    }).catch(() => {});
-  } finally {
-    promptState.processing = false;
-  }
-}
-
-function schedulePaymentPromptCheckForTab(tabId, triggerSource) {
-  if (tabId == null) return;
-
-  for (const [sessionId, session] of activeSessions.entries()) {
-    if (!session || session.tabId !== tabId || session.isTerminating) continue;
-
-    if (session._paymentPromptTimer) {
-      clearTimeout(session._paymentPromptTimer);
-    }
-
-    session._paymentPromptTimer = setTimeout(() => {
-      maybeOfferSavedPaymentMethods(sessionId, session, triggerSource).catch(error => {
-        automationLogger.debug('Saved payment prompt check failed', {
-          sessionId,
-          triggerSource,
-          error: error?.message || String(error)
-        });
-      });
-    }, 800);
-  }
-}
-
-async function handlePaymentMethodSelected(request, sender, sendResponse) {
-  const sessionId = request.sessionId;
-  const session = activeSessions.get(sessionId);
-  if (!session) {
-    sendResponse({ received: true, success: false, error: 'Session not found' });
-    return;
-  }
-
-  const promptState = session._paymentPromptState || (session._paymentPromptState = createPaymentPromptState());
-
-  promptState.active = false;
-  promptState.processing = true;
-
-  try {
-    const policy = await getPaymentRuntimePolicy();
-    if (!policy.canUseSavedPaymentMethods) {
-      sendResponse({ received: true, success: false, error: policy.fillDisabledReason });
-      return;
-    }
-
-    const paymentMethod = await secureConfig.getFullPaymentMethod(request.paymentMethodId);
-    if (!paymentMethod) {
-      sendResponse({ received: true, success: false, error: 'Saved payment method not found' });
-      return;
-    }
-
-    const context = await acquireCheckoutPaymentContext(sessionId, session);
-    if (!context.success || !context.hasPaymentFields) {
-      sendResponse({ received: true, success: false, error: 'No checkout payment fields were detected on the current page' });
-      return;
-    }
-
-    const fillResult = await fillPaymentMethodOnPageDirect(session.tabId, context.fields, paymentMethod);
-    if (!fillResult?.success) {
-      await sendInlinePaymentStatus(sessionId, session, 'Saved payment method could not be filled automatically.');
-      sendResponse({
-        received: true,
-        success: false,
-        error: fillResult?.error || 'Saved payment method could not be filled automatically.'
-      });
-      return;
-    }
-
-    promptState.completed = true;
-    promptState.latestPromptKey = context.promptKey;
-
-    await sendInlinePaymentStatus(
-      sessionId,
-      session,
-      'Saved payment method filled. Review the checkout details and submit manually if you still want to proceed.'
-    );
-
-    sendResponse({ received: true, success: true });
-  } catch (error) {
-    sendResponse({ received: true, success: false, error: error.message });
-  } finally {
-    promptState.processing = false;
-  }
-}
-
-function handlePaymentPromptSkipped(request, sender, sendResponse) {
-  const sessionId = request.sessionId;
-  const session = activeSessions.get(sessionId);
-  if (!session) {
-    sendResponse({ received: true, success: false, error: 'Session not found' });
-    return;
-  }
-
-  const promptState = session._paymentPromptState || (session._paymentPromptState = createPaymentPromptState());
-
-  promptState.active = false;
-  promptState.completed = true;
-
-  sendInlinePaymentStatus(
-    sessionId,
-    session,
-    'Saved payment method prompt skipped. Review the checkout form manually before any final payment step.'
-  ).catch(() => {});
-
-  sendResponse({ received: true, success: true });
-}
-
-const AUTH_MANUAL_APPROVAL_PATTERN = /(two[- ]factor|two factor|2fa|multi[- ]factor|multifactor|mfa|verification code|security code|one[- ]time|one time|otp|approve|approval|check your email|check your phone|confirm it's you|enter code|authenticator|challenge|verification required|captcha)/i;
-
-function buildAuthSignalText(domData, url) {
-  const elements = Array.isArray(domData?.elements) ? domData.elements : [];
-  const parts = [];
-
-  for (const el of elements) {
-    if (parts.length >= 120) break;
-    if (typeof el.text === 'string' && el.text.trim()) {
-      parts.push(el.text.trim());
-    }
-
-    const attrs = el.attributes || {};
-    const attrCandidates = [
-      attrs.placeholder,
-      attrs['aria-label'],
-      attrs.value,
-      attrs.name,
-      attrs.id
-    ];
-
-    for (const candidate of attrCandidates) {
-      if (typeof candidate === 'string' && candidate.trim()) {
-        parts.push(candidate.trim());
-      }
-    }
-  }
-
-  if (url) {
-    parts.push(url);
-  }
-
-  return parts.join(' ').slice(0, 2500).toLowerCase();
-}
-
-function getAuthHandoffNextStep(domain) {
-  const siteLabel = domain || 'the site';
-  return `Sign in manually on ${siteLabel}, complete any approval or MFA if required, then rerun or continue from the authenticated page.`;
-}
-
-function mergeAuthPartialOutcome(baseOutcome, override) {
-  const merged = override || {};
-  return {
-    summary: merged.summary || baseOutcome.summary || 'Task partially completed',
-    blocker: merged.blocker || baseOutcome.blocker || 'Authentication is still required to finish the last step.',
-    nextStep: merged.nextStep || baseOutcome.nextStep || getAuthHandoffNextStep(baseOutcome.domain),
-    reason: merged.reason || baseOutcome.reason || 'auth_required'
-  };
-}
-
-async function sendInlineAuthStatus(sessionId, session, statusText) {
-  if (!session?.tabId || !statusText) return;
-
-  const overlayPayload = {
-    phase: 'waiting_auth',
-    taskName: session.task,
-    iteration: session.iterationCount || session.agentState?.iterationCount || 0,
-    maxIterations: session.maxIterations || 20,
-    statusText,
-    animatedHighlights: session.animatedActionHighlights,
-    taskSummary: session.taskSummary || null
-  };
-
-  try {
-    await sendSessionStatus(session.tabId, overlayPayload);
-  } catch (_error) {
-    // Non-fatal. Sidepanel completion/handoff still works without overlay refresh.
-  }
-
-  try {
-    chrome.runtime.sendMessage({
-      action: 'statusUpdate',
-      sessionId,
-      message: statusText
-    }).catch(() => {});
-  } catch (_error) {
-    // Non-fatal.
-  }
-}
-
-async function acquireInlineAuthContext(sessionId, session) {
-  if (!session?.tabId) {
-    return { success: false, error: 'No active tab available for auth resolution' };
-  }
-
-  let tab = null;
-  try {
-    tab = await chrome.tabs.get(session.tabId);
-  } catch (error) {
-    return { success: false, error: error.message || 'Auth tab is no longer available' };
-  }
-
-  let domain = '';
-  try {
-    domain = new URL(tab.url || '').hostname || '';
-  } catch (_error) {
-    domain = '';
-  }
-
-  try {
-    await waitForContentScriptReady(session.tabId, 5000);
-  } catch (_error) {
-    // Continue. The sendMessage attempt below is the real gate.
-  }
-
-  try {
-    const domResponse = await chrome.tabs.sendMessage(session.tabId, {
-      action: 'getDOM',
-      sessionId,
-      options: {
-        maxElements: 500,
-        prioritizeViewport: true,
-        useIncrementalDiff: false
-      }
-    }, { frameId: 0 });
-    const domData = domResponse?.structuredDOM || null;
-    const fields = extractLoginFields(domData);
-    const authSignalText = buildAuthSignalText(domData, tab.url || '');
-    const hasPasswordField = !!fields.passwordSelector;
-    const hasLoginSignal = hasPasswordField || /(log ?in|sign ?in|password|username|email)/i.test(authSignalText);
-    const manualApproval = AUTH_MANUAL_APPROVAL_PATTERN.test(authSignalText);
-
-    return {
-      success: true,
-      domain,
-      url: tab.url || '',
-      tabId: session.tabId,
-      domData,
-      fields,
-      hasLoginSignal,
-      hasPasswordField,
-      manualApproval,
-      authSignalText
-    };
-  } catch (error) {
-    return {
-      success: false,
-      domain,
-      url: tab.url || '',
-      tabId: session.tabId,
-      error: error.message || 'Unable to inspect the current page for sign-in fields'
-    };
-  }
-}
-
-async function evaluateInlineAuthAttempt(sessionId, session, attemptSource, baseOutcome) {
-  await new Promise(resolve => setTimeout(resolve, 1800));
-
-  const refreshed = await acquireInlineAuthContext(sessionId, session);
-  if (!refreshed.success) {
-    return {
-      success: false,
-      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-        reason: 'manual_approval',
-        blocker: 'Sign-in was submitted, but FSB could not verify the authenticated page afterward.',
-        nextStep: getAuthHandoffNextStep(baseOutcome.domain || refreshed.domain)
-      })
-    };
-  }
-
-  if (!refreshed.hasLoginSignal && !refreshed.manualApproval) {
-    return {
-      success: true,
-      context: refreshed
-    };
-  }
-
-  if (refreshed.manualApproval) {
-    return {
-      success: false,
-      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-        reason: 'manual_approval',
-        blocker: 'The site now requires manual approval, MFA, or another external verification step before the final action can continue.',
-        nextStep: getAuthHandoffNextStep(baseOutcome.domain || refreshed.domain)
-      })
-    };
-  }
-
-  return {
-    success: false,
-    partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-      reason: attemptSource === 'saved_credentials' ? 'credentials_failed' : 'credentials_failed',
-      blocker: attemptSource === 'saved_credentials'
-        ? 'Saved credentials were submitted, but the site still requires login.'
-        : 'Submitted credentials did not finish the sign-in.',
-      nextStep: getAuthHandoffNextStep(baseOutcome.domain || refreshed.domain)
-    })
-  };
-}
-
-async function requestInlineLoginPrompt(sessionId, domain, fields, promptMeta) {
-  try {
-    const response = await Promise.race([
-      chrome.runtime.sendMessage({
-        action: 'loginDetected',
-        sessionId,
-        domain,
-        fields,
-        authPrompt: promptMeta || {}
-      }),
-      new Promise(resolve => setTimeout(() => resolve(null), 1000))
-    ]);
-    return response?.received === true;
-  } catch (_error) {
-    return false;
-  }
-}
-
-async function resolveInlineAuthWall({ sessionId, session, reason, summary, blocker, nextStep }) {
-  const baseOutcome = {
-    reason: reason || 'auth_required',
-    summary: summary || 'Task partially completed',
-    blocker: blocker || 'Authentication is still required to finish the last step.',
-    nextStep: nextStep || null,
-    domain: null
-  };
-
-  await sendInlineAuthStatus(sessionId, session, 'Authentication required. Checking the current page...');
-  const initialContext = await acquireInlineAuthContext(sessionId, session);
-  baseOutcome.domain = initialContext.domain || null;
-
-  if (!initialContext.success) {
-    return {
-      resume: false,
-      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-        reason: 'auth_required',
-        blocker: baseOutcome.blocker || 'Authentication is still required to finish the last step.',
-        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
-      })
-    };
-  }
-
-  if (initialContext.manualApproval && !initialContext.hasPasswordField) {
-    return {
-      resume: false,
-      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-        reason: 'manual_approval',
-        blocker: 'The site requires manual approval, MFA, or another verification step before FSB can continue.',
-        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
-      })
-    };
-  }
-
-  const credentialPolicy = await getCredentialRuntimePolicy();
-  let savedAttempted = false;
-  let savedAttemptFailed = false;
-  const savedCredential = credentialPolicy.canUseSavedCredentials
-    ? await secureConfig.getCredential(initialContext.domain)
-    : null;
-
-  if (savedCredential) {
-    savedAttempted = true;
-    await sendInlineAuthStatus(sessionId, session, 'Authentication required. Trying saved credentials once...');
-    const savedFill = await fillCredentialsOnPage(session.tabId, initialContext.domain, initialContext.domData);
-
-    if (savedFill?.success) {
-      const savedResolution = await evaluateInlineAuthAttempt(sessionId, session, 'saved_credentials', baseOutcome);
-      if (savedResolution.success) {
-        await sendInlineAuthStatus(sessionId, session, 'Sign-in succeeded. Resuming the same session...');
-        return {
-          resume: true,
-          source: 'saved_credentials',
-          toolResultMessage: 'Saved credentials were used successfully. Continue the same task from the authenticated page.',
-          resumeMessage: 'Saved credentials were accepted. Re-check the page and finish the gated step.'
-        };
-      }
-
-      if (savedResolution.partialOutcome?.reason === 'manual_approval') {
-        return {
-          resume: false,
-          partialOutcome: savedResolution.partialOutcome
-        };
-      }
-
-      savedAttemptFailed = true;
-    } else {
-      savedAttemptFailed = true;
-    }
-  }
-
-  const promptContext = await acquireInlineAuthContext(sessionId, session);
-  baseOutcome.domain = promptContext.domain || baseOutcome.domain;
-  const promptDomain = promptContext.domain || baseOutcome.domain;
-
-  if (promptContext.manualApproval && !promptContext.hasPasswordField) {
-    return {
-      resume: false,
-      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-        reason: 'manual_approval',
-        blocker: 'The site requires manual approval, MFA, or another verification step before the final action can continue.',
-        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
-      })
-    };
-  }
-
-  const promptAcknowledged = await requestInlineLoginPrompt(sessionId, promptDomain, promptContext.fields || initialContext.fields, {
-    detail: savedAttemptFailed
-      ? 'Saved credentials did not finish the sign-in. Submit updated credentials once to retry in this same session.'
-      : (!credentialPolicy.enableLogin
-        ? 'Auto-Login is disabled. Submit credentials once to let FSB sign in and resume this same session.'
-        : 'Submit credentials once to let FSB sign in and resume this same session.'),
-    handoff: 'If you skip or the site still needs manual approval, FSB will preserve the completed work and finish with a manual handoff.',
-    reason: savedAttemptFailed ? 'credentials_failed' : (savedAttempted ? 'auth_required' : 'credentials_missing'),
-    allowSave: credentialPolicy.canSaveSubmittedCredentials,
-    saveDisabledReason: credentialPolicy.saveDisabledReason
-  });
-
-  if (!promptAcknowledged) {
-    return {
-      resume: false,
-      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-        reason: savedAttemptFailed ? 'credentials_failed' : 'credentials_missing',
-        blocker: savedAttemptFailed
-          ? 'Saved credentials did not finish the sign-in, and no matching sidepanel was available to collect updated credentials.'
-          : 'Authentication is still required, and no matching sidepanel was available to collect credentials.',
-        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
-      })
-    };
-  }
-
-  await sendInlineAuthStatus(sessionId, session, 'Waiting for one sign-in attempt from the sidepanel...');
-  const loginResponse = await waitForLoginResponse(sessionId);
-
-  if (!loginResponse || loginResponse.action !== 'loginFormSubmitted') {
-    return {
-      resume: false,
-      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-        reason: loginResponse?.reason === 'timeout' ? 'auth_required' : 'user_skipped_login',
-        blocker: loginResponse?.reason === 'timeout'
-          ? 'The sign-in prompt timed out before credentials were submitted.'
-          : 'The sign-in prompt was skipped.',
-        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
-      })
-    };
-  }
-
-  const submittedCredentials = loginResponse.credentials || {};
-  if (!submittedCredentials.username || !submittedCredentials.password) {
-    return {
-      resume: false,
-      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-        reason: 'credentials_missing',
-        blocker: 'Credentials were submitted without both a username/email and password.',
-        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
-      })
-    };
-  }
-
-  if (credentialPolicy.canSaveSubmittedCredentials && loginResponse.save && baseOutcome.domain) {
-    await secureConfig.saveCredential(baseOutcome.domain, submittedCredentials);
-  }
-
-  const latestContext = await acquireInlineAuthContext(sessionId, session);
-  const latestFields = latestContext.fields || promptContext.fields || initialContext.fields || {};
-
-  if (latestContext.manualApproval && !latestContext.hasPasswordField) {
-    return {
-      resume: false,
-      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-        reason: 'manual_approval',
-        blocker: 'The site requires manual approval, MFA, or another verification step before the final action can continue.',
-        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
-      })
-    };
-  }
-
-  if (!latestFields.passwordSelector) {
-    return {
-      resume: false,
-      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-        reason: 'manual_approval',
-        blocker: 'Credentials were submitted, but FSB could not find a usable sign-in form to retry automatically.',
-        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
-      })
-    };
-  }
-
-  await sendInlineAuthStatus(sessionId, session, 'Trying the submitted credentials in this same session...');
-  const submittedFill = await fillCredentialsOnPageDirect(session.tabId, {
-    usernameSelector: latestFields.usernameSelector,
-    passwordSelector: latestFields.passwordSelector,
-    submitSelector: latestFields.submitSelector,
-    username: submittedCredentials.username,
-    password: submittedCredentials.password
-  });
-
-  if (!submittedFill?.success) {
-    return {
-      resume: false,
-      partialOutcome: mergeAuthPartialOutcome(baseOutcome, {
-        reason: 'credentials_failed',
-        blocker: 'Submitted credentials could not be applied to the current sign-in form.',
-        nextStep: getAuthHandoffNextStep(baseOutcome.domain)
-      })
-    };
-  }
-
-  const promptedResolution = await evaluateInlineAuthAttempt(sessionId, session, 'prompt_credentials', baseOutcome);
-  if (promptedResolution.success) {
-    await sendInlineAuthStatus(sessionId, session, 'Sign-in succeeded. Resuming the same session...');
-    return {
-      resume: true,
-      source: 'prompt_credentials',
-      toolResultMessage: 'Credentials were submitted successfully. Continue the same task from the authenticated page.',
-      resumeMessage: 'The submitted credentials were accepted. Re-check the page and finish the remaining step.'
-    };
-  }
-
-  return {
-    resume: false,
-    partialOutcome: promptedResolution.partialOutcome
-  };
 }
 
 // Fast DJB2-style string hash for signal channel generation
@@ -9078,11 +6233,11 @@ async function handleMultiTabAction(action, currentTabId) {
           // rather than waiting for the next automation iteration (800ms+ later).
           if (contentScriptReady && session) {
             await sendSessionStatus(switchRequest.tabId, {
-              phase: 'switching_tab',
+              phase: 'acting',
               taskName: session.task,
               iteration: session.iterationCount,
               maxIterations: session.maxIterations || 20,
-              statusText: 'Switched tabs and loading destination',
+              statusText: 'Switched tab -- preparing next step...',
               animatedHighlights: session.animatedActionHighlights,
               taskSummary: session.taskSummary || null
             });
@@ -9538,20 +6693,8 @@ async function launchNextCompanySearch(sessionId, session, companyName) {
   // Persist updated session state
   persistSession(sessionId, session);
 
-  // Small delay for page transition before starting agent loop
-  var sessionHooks = createSessionHooks();
-  setTimeout(() => runAgentLoop(sessionId, {
-    activeSessions,
-    persistSession,
-    sendSessionStatus,
-    broadcastDashboardProgress,
-    endSessionOverlays, cleanupSession,
-    startKeepAlive,
-    executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
-    resolveAuthWall: resolveInlineAuthWall,
-    hooks: sessionHooks.hooks
-  }), 500);
+  // Small delay for page transition before restarting loop
+  setTimeout(() => startAutomationLoop(sessionId), 500);
   return true;
 }
 
@@ -9951,7 +7094,6 @@ async function startSheetsDataEntry(sessionId, session) {
   // 5. Build session.sheetsData
   session.sheetsData = {
     jobDataPrompt: formattedData,
-    rawJobs: jobData.jobs,
     totalRows: rowCount,
     columns: customColumns,
     sheetTarget: sheetTarget,
@@ -9964,7 +7106,7 @@ async function startSheetsDataEntry(sessionId, session) {
   session.sheetsData.sheetTitle = buildSheetTitle(session);
 
   // 6. Rewrite session task for Sheets-specific entry
-  session.task = `Open Google Sheets, call fillSheetData to write ${rowCount} job listings, verify the data was written correctly, then rename the sheet to "${session.sheetsData.sheetTitle || 'Job Search Results'}".`;
+  session.task = `Write ${rowCount} job listings to Google Sheets. Navigate to the sheet, write headers (${customColumns.join(', ')}) in row 1, then write all data rows. Use Name Box + Tab/Enter pattern. Verify each row after writing.`;
 
   // 7. Reset session iteration state (same pattern as launchNextCompanySearch)
   session.iterationCount = 0;
@@ -9994,7 +7136,7 @@ async function startSheetsDataEntry(sessionId, session) {
   session.startTime = Date.now();
 
   // 10. Set iteration cap proportional to job count (enough for writing + verification)
-  session.maxIterations = 15;
+  session.maxIterations = Math.max(jobData.jobs.length * 3, 30);
 
   // 11. Update task summary for progress overlay
   session.taskSummary = `Sheets data entry: 0/${rowCount} rows`;
@@ -10007,28 +7149,14 @@ async function startSheetsDataEntry(sessionId, session) {
     taskName: session.task,
     iteration: 0,
     maxIterations: session.maxIterations,
-    taskSummary: session.taskSummary,
-    progressPercent: 0,
-    estimatedTimeRemaining: null
+    taskSummary: session.taskSummary
   });
 
   // 13. Persist session state
   persistSession(sessionId, session);
 
-  // 12. Start agent loop with transition delay
-  var sessionHooks = createSessionHooks();
-  setTimeout(() => runAgentLoop(sessionId, {
-    activeSessions,
-    persistSession,
-    sendSessionStatus,
-    broadcastDashboardProgress,
-    endSessionOverlays, cleanupSession,
-    startKeepAlive,
-    executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
-    resolveAuthWall: resolveInlineAuthWall,
-    hooks: sessionHooks.hooks
-  }), 500);
+  // 12. Start automation loop with transition delay
+  setTimeout(() => startAutomationLoop(sessionId), 500);
 
   automationLogger.info('Sheets data entry session launched', {
     sessionId,
@@ -10112,26 +7240,12 @@ async function startSheetsFormatting(sessionId, session) {
     taskName: session.task,
     iteration: 0,
     maxIterations: session.maxIterations,
-    taskSummary: session.taskSummary,
-    progressPercent: 0,
-    estimatedTimeRemaining: null
+    taskSummary: session.taskSummary
   });
 
-  // Persist and launch agent loop
+  // Persist and launch
   persistSession(sessionId, session);
-  var sessionHooks = createSessionHooks();
-  setTimeout(() => runAgentLoop(sessionId, {
-    activeSessions,
-    persistSession,
-    sendSessionStatus,
-    broadcastDashboardProgress,
-    endSessionOverlays, cleanupSession,
-    startKeepAlive,
-    executeCDPToolDirect: typeof executeCDPToolDirect === 'function' ? executeCDPToolDirect : null,
-    handleDataTool: typeof handleDataTool === 'function' ? handleDataTool : null,
-    resolveAuthWall: resolveInlineAuthWall,
-    hooks: sessionHooks.hooks
-  }), 500);
+  setTimeout(() => startAutomationLoop(sessionId), 500);
 
   automationLogger.info('Sheets formatting session launched', {
     sessionId,
@@ -10224,185 +7338,2185 @@ async function handleBackgroundAction(action, session) {
       };
     }
 
-    case 'fillSheetData': {
-      const sd = session.sheetsData;
-      if (!sd || !sd.rawJobs || !sd.columns) {
-        return { success: false, error: 'fillSheetData: no sheetsData with rawJobs/columns on session' };
+    default:
+      return { success: false, error: `Unknown background action: ${tool}` };
+  }
+}
+
+/**
+ * Main automation loop that executes AI-generated actions iteratively
+ * @param {string} sessionId - The unique session identifier
+ * @returns {Promise<void>}
+ */
+async function startAutomationLoop(sessionId) {
+  const session = activeSessions.get(sessionId);
+
+  // RACE CONDITION FIX: Check if session is terminating before starting iteration
+  if (isSessionTerminating(sessionId)) {
+    automationLogger.debug('Session is terminating, exiting loop', { sessionId });
+    return;
+  }
+
+  // Track the current loop iteration as a promise for cleanup coordination
+  let loopResolve;
+  session.loopPromise = new Promise(resolve => { loopResolve = resolve; });
+
+  session.iterationCount++;
+
+  // Update content script with iteration progress
+  sendSessionStatus(session.tabId, {
+    phase: 'analyzing',
+    taskName: session.task,
+    iteration: session.iterationCount,
+    maxIterations: session.maxIterations || 20,
+    animatedHighlights: session.animatedActionHighlights,
+    statusText: null,  // Don't carry over previous action text; let content script show "Analyzing page..."
+    ...calculateProgress(session),
+    taskSummary: session.taskSummary || null
+  });
+
+  // Fallback: clean up overlays on previous tab if a tab switch occurred
+  if (session.previousTabId && session.previousTabId !== session.tabId) {
+    sendSessionStatus(session.previousTabId, { phase: 'ended', reason: 'tab_switch' });
+    session.previousTabId = null;
+  }
+
+  // === SAFETY NET: Absolute iteration cap and session time limit ===
+  const ABSOLUTE_MAX_ITERATIONS = session.maxIterations || 20;
+  const MAX_SESSION_DURATION = 5 * 60 * 1000; // 5 minutes
+  const sessionAge = Date.now() - (session.startTime || Date.now());
+
+  if (session.iterationCount > ABSOLUTE_MAX_ITERATIONS) {
+    automationLogger.warn('Absolute iteration cap reached', {
+      sessionId,
+      iterationCount: session.iterationCount,
+      maxIterations: ABSOLUTE_MAX_ITERATIONS
+    });
+    session.status = 'max_iterations';
+
+    const duration = Date.now() - session.startTime;
+    const finalResult = 'Reached the maximum number of iterations (' + ABSOLUTE_MAX_ITERATIONS + '). ' +
+      'The task may be too complex for a single session. Try breaking it into smaller steps.';
+
+    automationLogger.logSessionEnd(sessionId, 'max_iterations', session.actionHistory.length, duration);
+    automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
+
+    endSessionOverlays(session, 'max_iterations');
+    finalizeSessionMetrics(sessionId, false);
+    idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
+
+    chrome.runtime.sendMessage({
+      action: 'automationComplete',
+      sessionId,
+      result: finalResult,
+      partial: true,
+      reason: 'max_iterations',
+      task: session.task
+    }).catch(() => {});
+
+    loopResolve?.();
+    return;
+  }
+
+  if (sessionAge > MAX_SESSION_DURATION) {
+    automationLogger.warn('Session time limit exceeded', {
+      sessionId,
+      sessionAge,
+      maxDuration: MAX_SESSION_DURATION,
+      iterationCount: session.iterationCount
+    });
+    session.status = 'timeout';
+
+    const finalResult = 'Session timed out after ' + Math.round(sessionAge / 1000) + ' seconds. ' +
+      'Try breaking the task into smaller steps.';
+
+    automationLogger.logSessionEnd(sessionId, 'timeout', session.actionHistory.length, sessionAge);
+    automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
+
+    endSessionOverlays(session, 'timeout');
+    finalizeSessionMetrics(sessionId, false);
+    idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
+
+    chrome.runtime.sendMessage({
+      action: 'automationComplete',
+      sessionId,
+      result: finalResult,
+      partial: true,
+      reason: 'timeout',
+      task: session.task
+    }).catch(() => {});
+
+    loopResolve?.();
+    return;
+  }
+
+  // FSB TIMING: Track iteration start time
+  const iterationStart = Date.now();
+
+  // PART 3: Add cumulative session elapsed time
+  const sessionElapsed = Date.now() - (session.startTime || Date.now());
+  automationLogger.logTiming(sessionId, 'LOOP', 'iteration_start', 0, {
+    iteration: session.iterationCount,
+    sessionElapsedMs: sessionElapsed,
+    sessionElapsedFormatted: formatDuration(sessionElapsed)
+  });
+
+  // Track iteration in performance metrics
+  const sessionStats = performanceMetrics.sessionStats.get(sessionId);
+  if (sessionStats) {
+    sessionStats.iterations = session.iterationCount;
+  }
+
+  // Log iteration with session elapsed context
+  automationLogger.debug('Iteration start', {
+    sessionId,
+    iteration: session.iterationCount,
+    sessionElapsedMs: sessionElapsed,
+    sessionElapsedFormatted: formatDuration(sessionElapsed),
+    stuckCounter: session.stuckCounter
+  });
+  automationLogger.logIteration(sessionId, session.iterationCount, session.lastDOMHash, session.stuckCounter);
+
+  // Debug mode: Log iteration start
+  debugLog('Iteration start', {
+    sessionId,
+    iterationCount: session.iterationCount,
+    stuckCounter: session.stuckCounter
+  });
+
+  try {
+    // SECURITY: Only inject content script into authorized tabs (original tab or allowedTabs whitelist)
+    if (session.tabId !== session.originalTabId && !(session.allowedTabs || []).includes(session.tabId)) {
+      throw new Error(`Security violation: Attempted to inject content script into unauthorized tab ${session.tabId}. Session allowed tabs: [${session.originalTabId}, ${(session.allowedTabs || []).join(', ')}].`);
+    }
+
+    // Content script is now injected via manifest.json content_scripts
+    // Verify it's responding with enhanced retry logic
+    try {
+      let healthOk = false;
+      const maxHealthRetries = 5;
+      const healthRetryDelay = 500;
+
+      // PART 4: Track health check recovery timing
+      const recoveryStart = Date.now();
+      let wasReinjected = false;
+      let healthCheckAttempts = 0;
+
+      for (let attempt = 1; attempt <= maxHealthRetries; attempt++) {
+        healthCheckAttempts = attempt;
+
+        // Early exit: check if tab still exists before retrying
+        try {
+          await chrome.tabs.get(session.tabId);
+        } catch {
+          automationLogger.warn('Tab no longer exists, aborting health check', { sessionId, tabId: session.tabId });
+          healthOk = false;
+          break;
+        }
+
+        // FIX: Log the health check attempt WITHOUT claiming success yet
+        // Previously logged success:true before the check ran, making comm logs misleading
+        automationLogger.logComm(sessionId, 'health', 'healthCheck_attempt', true, { tabId: session.tabId, attempt, maxRetries: maxHealthRetries });
+        healthOk = await checkContentScriptHealth(session.tabId);
+
+        // Log the ACTUAL result of the health check
+        automationLogger.logComm(sessionId, 'health', 'healthCheck', healthOk, { tabId: session.tabId, attempt, status: healthOk ? 'healthy' : 'failed' });
+
+        if (healthOk) {
+          break;
+        }
+
+        if (attempt < maxHealthRetries) {
+          // Try re-injecting content script on later attempts
+          if (attempt >= 3) {
+            automationLogger.logRecovery(sessionId, 'health_fail', 're-inject', 'attempt', { tabId: session.tabId, attempt });
+            try {
+              await ensureContentScriptInjected(session.tabId);
+              wasReinjected = true;
+            } catch (e) {
+              automationLogger.logRecovery(sessionId, 'health_fail', 're-inject', 'failed', { tabId: session.tabId, error: e.message });
+            }
+          }
+          await new Promise(resolve => setTimeout(resolve, healthRetryDelay * attempt));
+        }
       }
 
-      const { rawJobs, columns } = sd;
-      const columnToField = {
-        'Title': 'title', 'Company': 'company', 'Location': 'location',
-        'Date': 'datePosted', 'Description': 'description', 'Apply Link': 'applyLink'
-      };
+      if (!healthOk) {
+        throw new Error('Content script not responding to health check after multiple attempts');
+      }
 
-      // Build TSV string (headers + data rows)
-      const headerRow = columns.join('\t');
-      const dataRows = rawJobs.map(job => {
-        return columns.map(col => {
-          const field = columnToField[col];
-          let value = (job[field] || 'N/A').toString();
-          // Sanitize: remove tabs, newlines, leading formula chars
-          value = value.replace(/[\t\n\r]/g, ' ');
-          if (/^[=+\-@]/.test(value)) value = "'" + value;
-          // Apply Link gets HYPERLINK formula
-          if (col === 'Apply Link' && value !== 'N/A' && value.startsWith('http')) {
-            value = `=HYPERLINK("${value.replace(/"/g, "'")}","Apply")`;
+      // PART 4: Log recovery duration if it took significant time
+      const recoveryDuration = Date.now() - recoveryStart;
+      if (recoveryDuration > 2000) {
+        automationLogger.info('Health check recovery completed', {
+          sessionId,
+          recoveryDurationMs: recoveryDuration,
+          recoveryDurationFormatted: formatDuration(recoveryDuration),
+          attempts: healthCheckAttempts,
+          method: wasReinjected ? 'content_script_reinjection' : 'retry'
+        });
+      }
+
+      automationLogger.logComm(sessionId, 'health', 'verified', true, { tabId: session.tabId, recoveryDurationMs: recoveryDuration });
+    } catch (healthError) {
+      automationLogger.logComm(sessionId, 'health', 'healthCheck', false, { tabId: session.tabId, error: healthError.message });
+
+      // Get tab URL for error message
+      let tabUrl = 'unknown';
+      try {
+        const tab = await chrome.tabs.get(session.tabId);
+        tabUrl = tab.url;
+      } catch (e) {}
+
+      // Send error to UI
+      chrome.runtime.sendMessage({
+        action: 'automationError',
+        sessionId: sessionId,
+        error: `Failed to communicate with the page (${tabUrl}). The content script may not have loaded yet. Try refreshing the page. Error: ${healthError.message}`,
+        task: session.task
+      }).catch(() => {});
+
+      // Stop the session
+      session.status = 'failed';
+      const duration = Date.now() - session.startTime;
+      automationLogger.logSessionEnd(sessionId, 'failed', session.actionHistory.length, duration);
+      automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
+      endSessionOverlays(session, 'error');
+      cleanupSession(sessionId);
+      return;
+    }
+
+    // Get current DOM state with enhanced error handling
+    // SPEED-02: Check for pending prefetch first
+    let domResponse;
+    let usedPrefetch = false;
+    try {
+      // PERF: Use session-cached DOM settings instead of reading from storage each iteration
+      const settings = session.domSettings || { domOptimization: true, maxDOMElements: 2000, prioritizeViewport: true };
+      const domOptimizationEnabled = settings.domOptimization !== false;
+
+      // FSB TIMING: Track DOM fetch time
+      const domFetchStart = Date.now();
+
+      // SPEED-02: Try to use pending prefetch if available
+      if (pendingDOMPrefetch) {
+        automationLogger.debug('Using pending DOM prefetch', { sessionId, iteration: session.iterationCount });
+        try {
+          domResponse = await pendingDOMPrefetch;
+          usedPrefetch = true;
+          if (domResponse && domResponse.success) {
+            // Safety net: verify prefetch URL matches current tab URL
+            // Catches stale prefetches from before navigation (e.g., click that redirects)
+            try {
+              const currentTab = await chrome.tabs.get(session.tabId);
+              const prefetchUrl = domResponse.structuredDOM?.url || domResponse.structuredDOM?.htmlContext?.pageStructure?.url || '';
+              const tabUrl = currentTab?.url || '';
+              if (prefetchUrl && tabUrl) {
+                const prefetchOrigin = new URL(prefetchUrl).origin;
+                const tabOrigin = new URL(tabUrl).origin;
+                if (prefetchOrigin !== tabOrigin) {
+                  automationLogger.debug('Prefetch URL mismatch, fetching fresh DOM', {
+                    sessionId, prefetchUrl, tabUrl
+                  });
+                  domResponse = null; // Discard stale prefetch
+                  usedPrefetch = false;
+                }
+              }
+            } catch (urlCheckErr) {
+              // URL check failed - still use the prefetch rather than failing
+              automationLogger.debug('Prefetch URL verification failed, using prefetch anyway', {
+                sessionId, error: urlCheckErr.message
+              });
+            }
+
+            if (domResponse) {
+              automationLogger.logTiming(sessionId, 'DOM', 'prefetch_consumed', Date.now() - domFetchStart, {
+                tabId: session.tabId,
+                source: 'prefetch'
+              });
+            }
+          } else {
+            // Prefetch returned invalid response, fetch normally
+            automationLogger.debug('Prefetch response invalid, fetching normally', { sessionId });
+            domResponse = null;
           }
-          return value;
-        }).join('\t');
-      });
-      const tsvContent = [headerRow, ...dataRows].join('\n');
+        } catch (prefetchErr) {
+          // Prefetch failed, will fetch normally
+          automationLogger.debug('Prefetch await failed, fetching normally', {
+            sessionId,
+            error: prefetchErr.message
+          });
+          domResponse = null;
+        }
+        pendingDOMPrefetch = null; // Clear regardless of success
+      }
 
-      const emulator = initializeKeyboardEmulator();
-      let methodUsed = 'clipboard';
+      // If no prefetch or prefetch failed, fetch normally
+      if (!domResponse) {
+        automationLogger.logDOMOperation(sessionId, 'request', {
+          iteration: session.iterationCount,
+          useIncrementalDiff: domOptimizationEnabled,
+          maxElements: settings.maxDOMElements || 2000,
+          prioritizeViewport: settings.prioritizeViewport !== false
+        });
+
+        const getDOMPayload = {
+          action: 'getDOM',
+          options: {
+            useIncrementalDiff: domOptimizationEnabled,
+            maxElements: settings.maxDOMElements || 2000,
+            prioritizeViewport: settings.prioritizeViewport !== false,
+            includeCompactSnapshot: true
+          }
+        };
+
+        // Log outgoing message for comprehensive session logging
+        automationLogger.logContentMessage(sessionId, 'send', 'getDOM', getDOMPayload, null);
+
+        domResponse = await sendMessageWithRetry(session.tabId, getDOMPayload);
+        automationLogger.logTiming(sessionId, 'DOM', 'fetch', Date.now() - domFetchStart, {
+          tabId: session.tabId,
+          source: 'direct'
+        });
+      }
+
+      // Log received DOM response
+      automationLogger.logContentMessage(sessionId, 'receive', 'getDOM', null, {
+        success: domResponse?.success,
+        elementCount: domResponse?.structuredDOM?.elements?.length || 0
+      });
+    } catch (messageError) {
+      // Check if this is a restricted URL error
+      let tabInfo;
+      try {
+        tabInfo = await chrome.tabs.get(session.tabId);
+      } catch (tabError) {
+        throw new Error('Tab has been closed or is no longer accessible.');
+      }
+      
+      if (isRestrictedURL(tabInfo.url)) {
+        const pageType = getPageTypeDescription(tabInfo.url);
+        throw new Error(`Cannot access ${pageType} (${tabInfo.url}). The page navigated to a restricted URL that extensions cannot automate. Please navigate to a regular website to continue automation.`);
+      }
+      
+      // Other message sending errors
+      throw new Error(`Failed to communicate with the page (${tabInfo.url}). This may happen if the page is still loading, has security restrictions, or the content script failed to load. Error: ${messageError.message}`);
+    }
+    
+    // Check if DOM response is valid
+    if (!domResponse || !domResponse.success || !domResponse.structuredDOM) {
+      throw new Error('Failed to get DOM state from content script. Response: ' + JSON.stringify(domResponse));
+    }
+
+    // PERF: Event-driven SPA element detection (replaces 6-iteration polling loop)
+    // Uses MutationObserver in content script to detect elements as soon as they render
+    const initialElementCount = domResponse.structuredDOM.elements?.length || 0;
+    const initialTotalElements = domResponse.structuredDOM._totalElements || initialElementCount;
+    const urlRecentlyChanged = session.lastUrl && session.lastUrl !== domResponse.structuredDOM.url;
+
+    if (initialTotalElements === 0 && (urlRecentlyChanged || session.iterationCount <= 2)) {
+      automationLogger.debug('Zero elements detected after navigation, waiting for SPA render', {
+        sessionId,
+        url: domResponse.structuredDOM.url,
+        iteration: session.iterationCount
+      });
+
+      if (isSessionTerminating(sessionId)) {
+        loopResolve?.();
+        return;
+      }
 
       try {
-        // Primary method: Clipboard paste
-        automationLogger.info('fillSheetData: attempting clipboard paste', {
-          sessionId: session.sessionId, rows: rawJobs.length, cols: columns.length
+        const waitResult = await sendMessageWithRetry(session.tabId, {
+          action: 'waitForInteractiveElements',
+          timeout: 3000
         });
 
-        // 1. Write TSV to clipboard via page context
-        await chrome.scripting.executeScript({
-          target: { tabId: session.tabId },
-          func: (tsv) => navigator.clipboard.writeText(tsv),
-          args: [tsvContent],
-          world: 'MAIN'
+        if (waitResult?.found) {
+          automationLogger.debug('SPA elements appeared via MutationObserver', {
+            sessionId,
+            elementCount: waitResult.elementCount,
+            waitTime: waitResult.waitTime
+          });
+
+          // Fetch fresh DOM now that elements exist
+          domResponse = await sendMessageWithRetry(session.tabId, {
+            action: 'getDOM',
+            options: {
+              useIncrementalDiff: false,
+              maxElements: settings.maxDOMElements || 2000,
+              prioritizeViewport: settings.prioritizeViewport !== false,
+              includeCompactSnapshot: true
+            }
+          });
+        } else {
+          automationLogger.debug('SPA wait timed out, proceeding with empty DOM', {
+            sessionId,
+            waitTime: waitResult?.waitTime
+          });
+        }
+      } catch (e) {
+        automationLogger.debug('SPA MutationObserver wait failed, proceeding', { sessionId, error: e.message });
+      }
+    }
+
+    // Log DOM response details
+    const domData = domResponse.structuredDOM;
+    automationLogger.logDOMOperation(sessionId, 'received', {
+      isDelta: domData._isDelta || false,
+      type: domData.type || 'full',
+      payloadSize: JSON.stringify(domData).length,
+      optimization: domData.optimization || {}
+    });
+
+    // Log DOM state for comprehensive session logging
+    automationLogger.logDOMState(sessionId, domData, session.iterationCount);
+
+    // Debug mode: Log DOM received
+    debugLog('DOM received', {
+      elementCount: domData?.elements?.length,
+      url: domData?.url
+    });
+
+    // Create hash of current DOM state
+    const currentDOMHash = createDOMHash(domResponse.structuredDOM);
+    const currentDOMSignals = createDOMSignals(domResponse.structuredDOM);
+    const currentUrl = domResponse.structuredDOM.url;
+    
+    // Track URL changes
+    let urlChanged = false;
+    const previousUrl = session.lastUrl || null; // Capture before overwriting
+    if (session.lastUrl) {
+      urlChanged = currentUrl !== session.lastUrl;
+      if (urlChanged) {
+        session.urlHistory.push({
+          url: currentUrl,
+          timestamp: Date.now(),
+          iteration: session.iterationCount
         });
+        automationLogger.logNavigation(sessionId, 'change', session.lastUrl, currentUrl, { iteration: session.iterationCount });
+      }
+    }
+    session.lastUrl = currentUrl;
+    
+    // Multi-signal change detection: compare current signals against previous
+    const changeResult = compareSignals(currentDOMSignals, session.lastDOMSignals);
 
-        // 2. Click Name Box, type A1, press Enter to position cursor
-        await emulator.pressKey(session.tabId, 'Escape');
-        await new Promise(r => setTimeout(r, 200));
+    // Build structured change descriptor with human-readable summary
+    const changeSignals = {
+      changed: changeResult.changed,
+      channels: changeResult.channels,
+      summary: []
+    };
 
-        // Click the Name Box to focus it
-        const nameBoxClick = await chrome.scripting.executeScript({
-          target: { tabId: session.tabId },
-          func: () => {
-            const nameBox = document.getElementById('t-name-box');
-            if (nameBox) { nameBox.click(); nameBox.select(); return true; }
-            return false;
+    if (changeResult.channels.length === 1 && changeResult.channels[0] === 'initial') {
+      changeSignals.summary = ['First DOM snapshot -- no comparison available'];
+    } else {
+      // Structural channel: diff topTypes to report WHICH element types appeared/disappeared
+      if (changeResult.channels.includes('structural')) {
+        const prevTopTypes = parseTopTypes(session.lastDOMSignals?._raw?.topTypes);
+        const currTopTypes = parseTopTypes(currentDOMSignals._raw.topTypes);
+        let structuralItems = [];
+
+        // Types in current but not previous
+        for (const [type, count] of currTopTypes) {
+          if (!prevTopTypes.has(type)) {
+            structuralItems.push(`${type} elements appeared`);
           }
-        });
-
-        if (nameBoxClick && nameBoxClick[0] && nameBoxClick[0].result) {
-          await new Promise(r => setTimeout(r, 200));
-          await emulator.typeText(session.tabId, 'A1', 30);
-          await emulator.pressKey(session.tabId, 'Enter');
-          await new Promise(r => setTimeout(r, 300));
+        }
+        // Types in previous but not current
+        for (const [type, count] of prevTopTypes) {
+          if (!currTopTypes.has(type)) {
+            structuralItems.push(`${type} elements removed`);
+          }
+        }
+        // Types with count changes
+        for (const [type, count] of currTopTypes) {
+          if (prevTopTypes.has(type) && prevTopTypes.get(type) !== count) {
+            const countDelta = count - prevTopTypes.get(type);
+            structuralItems.push(`${Math.abs(countDelta)} ${type} elements ${countDelta > 0 ? 'added' : 'removed'}`);
+          }
+        }
+        // Edge case: hashes differ but topTypes maps are identical
+        if (structuralItems.length === 0) {
+          structuralItems.push('element structure changed');
         }
 
-        // 3. Select all existing content in case sheet has data, then paste
-        await emulator.pressKey(session.tabId, 'v', { ctrlKey: true });
-        await new Promise(r => setTimeout(r, 1500)); // Wait for Sheets to parse TSV
-
-        // Verify paste worked by checking if A1 has the first header
-        const verifyResult = await chrome.scripting.executeScript({
-          target: { tabId: session.tabId },
-          func: (expectedHeader) => {
-            const formulaBar = document.querySelector('.cell-input');
-            const nameBox = document.getElementById('t-name-box');
-            // Click A1 to check
-            if (nameBox) { nameBox.click(); nameBox.select(); }
-            return { formulaText: formulaBar ? formulaBar.textContent : null };
-          },
-          args: [columns[0]]
-        });
-
-        automationLogger.info('fillSheetData: clipboard paste completed', {
-          sessionId: session.sessionId, methodUsed
-        });
-
-      } catch (clipboardError) {
-        // Fallback: Keyboard emulator cell-by-cell
-        methodUsed = 'keyboard-emulator';
-        automationLogger.warn('fillSheetData: clipboard paste failed, falling back to keyboard emulator', {
-          sessionId: session.sessionId, error: clipboardError.message
-        });
-
-        try {
-          // Navigate to A1 first
-          await emulator.pressKey(session.tabId, 'Escape');
-          await new Promise(r => setTimeout(r, 200));
-
-          const nameBoxClick = await chrome.scripting.executeScript({
-            target: { tabId: session.tabId },
-            func: () => {
-              const nameBox = document.getElementById('t-name-box');
-              if (nameBox) { nameBox.click(); nameBox.select(); return true; }
-              return false;
-            }
-          });
-
-          if (nameBoxClick && nameBoxClick[0] && nameBoxClick[0].result) {
-            await new Promise(r => setTimeout(r, 200));
-            await emulator.typeText(session.tabId, 'A1', 30);
-            await emulator.pressKey(session.tabId, 'Enter');
-            await new Promise(r => setTimeout(r, 300));
-          }
-
-          // Type headers
-          for (let i = 0; i < columns.length; i++) {
-            await emulator.typeText(session.tabId, columns[i], 20);
-            if (i < columns.length - 1) {
-              await emulator.pressKey(session.tabId, 'Tab');
-            }
-          }
-          await emulator.pressKey(session.tabId, 'Enter');
-
-          // Type data rows
-          for (const job of rawJobs) {
-            for (let i = 0; i < columns.length; i++) {
-              const field = columnToField[columns[i]];
-              let value = (job[field] || 'N/A').toString().replace(/[\t\n\r]/g, ' ');
-              if (/^[=+\-@]/.test(value) && columns[i] !== 'Apply Link') {
-                value = "'" + value;
-              }
-              if (columns[i] === 'Apply Link' && value !== 'N/A' && value.startsWith('http')) {
-                value = `=HYPERLINK("${value.replace(/"/g, "'")}","Apply")`;
-              }
-              await emulator.typeText(session.tabId, value, 15);
-              if (i < columns.length - 1) {
-                await emulator.pressKey(session.tabId, 'Tab');
-              }
-            }
-            await emulator.pressKey(session.tabId, 'Enter');
-            await new Promise(r => setTimeout(r, 50));
-          }
-
-          automationLogger.info('fillSheetData: keyboard emulator fallback completed', {
-            sessionId: session.sessionId, rows: rawJobs.length
-          });
-
-        } catch (fallbackError) {
-          automationLogger.error('fillSheetData: both methods failed', {
-            sessionId: session.sessionId,
-            clipboardError: clipboardError.message,
-            fallbackError: fallbackError.message
-          });
-          return {
-            success: false,
-            error: `fillSheetData failed. Clipboard: ${clipboardError.message}. Keyboard: ${fallbackError.message}`
-          };
+        // Append overall element count delta to last structural item
+        const prevCount = session.lastDOMSignals?._raw?.elementCount || 0;
+        const currCount = currentDOMSignals._raw.elementCount;
+        if (prevCount !== currCount) {
+          const countDelta = currCount - prevCount;
+          structuralItems[structuralItems.length - 1] += ` (${Math.abs(countDelta)} elements net ${countDelta > 0 ? 'added' : 'removed'})`;
         }
+
+        changeSignals.summary.push(...structuralItems);
       }
 
-      // Update session tracking
-      sd.rowsWritten = rawJobs.length;
-      session.taskSummary = `Sheets data entry: ${rawJobs.length}/${sd.totalRows} rows`;
+      // Content channel
+      if (changeResult.channels.includes('content')) {
+        changeSignals.summary.push('page content changed (text or input values)');
+      }
 
-      return {
-        success: true,
-        message: `Successfully wrote ${rawJobs.length} rows x ${columns.length} columns to Google Sheet`,
-        methodUsed,
-        rowsWritten: rawJobs.length,
-        columnsWritten: columns.length,
-        headers: columns
+      // Interaction channel
+      if (changeResult.channels.includes('interaction')) {
+        changeSignals.summary.push('element states changed (disabled, checked, or readonly)');
+      }
+
+      // Page state channel: report specific changes
+      if (changeResult.channels.includes('pageState')) {
+        const prevFlags = session.lastDOMSignals?._raw?.pageStateFlags;
+        const currFlags = currentDOMSignals._raw.pageStateFlags;
+        if (prevFlags) {
+          if (!prevFlags.hasModal && currFlags.hasModal) changeSignals.summary.push('modal/dialog opened');
+          if (prevFlags.hasModal && !currFlags.hasModal) changeSignals.summary.push('modal/dialog closed');
+          if (!prevFlags.hasAlert && currFlags.hasAlert) changeSignals.summary.push('alert/status message appeared');
+          if (prevFlags.hasAlert && !currFlags.hasAlert) changeSignals.summary.push('alert/status message removed');
+          if (prevFlags.title !== currFlags.title) changeSignals.summary.push(`title changed to "${currFlags.title.substring(0, 60)}"`);
+        }
+      }
+    }
+
+    // Derive domChanged from changeResult for backward compatibility and reuse
+    let domChanged = changeResult.changed;
+
+    // Multi-signal stuck detection
+    if (!changeResult.changed && !urlChanged) {
+      // No signal changes detected -- apply stuck detection logic
+
+      // Safety net: typing-sequence special-case (catches edge cases where content
+      // sampling misses the change, e.g., typing into fields not in the sampled set)
+      const recentActions = session.actionHistory.slice(-3);
+      const isTypingSequence = recentActions.length > 0 &&
+        recentActions.every(action => ['type', 'clearInput', 'selectText', 'focus', 'blur', 'pressEnter', 'keyPress'].includes(action.tool));
+
+      if (isTypingSequence) {
+        const lastAction = recentActions[recentActions.length - 1];
+        const sameTypeRepeats = recentActions.filter(action =>
+          action.tool === lastAction?.tool &&
+          JSON.stringify(action.params) === JSON.stringify(lastAction?.params)
+        ).length;
+
+        const recentTypeActions = session.actionHistory.slice(-5).filter(a => a.tool === 'type');
+        const allTypingFailed = recentTypeActions.length >= 3 &&
+                                recentTypeActions.every(a => !a.result?.success);
+
+        const recentClicks = session.actionHistory.slice(-5).filter(a => a.tool === 'click');
+        const clicksNearSameArea = recentClicks.length >= 3 && areClicksNearby(recentClicks);
+
+        if (sameTypeRepeats >= 2) {
+          session.stuckCounter++;
+          automationLogger.debug('Stuck: Repetitive typing detected', { sessionId, stuckCounter: session.stuckCounter });
+        } else if (allTypingFailed) {
+          session.stuckCounter++;
+          automationLogger.debug('Stuck: All recent type actions failed', { sessionId, stuckCounter: session.stuckCounter });
+        } else if (clicksNearSameArea) {
+          session.stuckCounter++;
+          automationLogger.debug('Stuck: Clicking same area repeatedly', { sessionId, stuckCounter: session.stuckCounter });
+        } else {
+          automationLogger.debug('Typing sequence in progress - not counting as stuck', { sessionId });
+        }
+      } else {
+        session.stuckCounter++;
+        automationLogger.debug('Stuck: DOM and URL unchanged', { sessionId, stuckCounter: session.stuckCounter });
+      }
+
+      if (session.stuckCounter > 0) {
+        automationLogger.logStuckDetection(sessionId, session.stuckCounter, session.actionHistory);
+      }
+    } else if (changeResult.changed) {
+      // Channel-aware stuck counter management
+      const substantiveChannels = changeResult.channels.filter(ch => ch !== 'interaction');
+      if (substantiveChannels.length > 0) {
+        // Structural, content, or pageState changed -- definite progress
+        session.stuckCounter = 0;
+        automationLogger.debug('Stuck counter reset: substantive DOM change', { sessionId, channels: changeResult.channels });
+      } else {
+        // Only interaction changed (focus moved, element state toggled) -- reduce penalty
+        session.stuckCounter = Math.max(0, session.stuckCounter - 1);
+        automationLogger.debug('Stuck counter reduced: interaction-only change', { sessionId, stuckCounter: session.stuckCounter });
+      }
+    } else {
+      // URL changed -- reset stuck counter
+      session.stuckCounter = 0;
+    }
+
+    session.lastDOMHash = currentDOMHash;
+    session.lastDOMSignals = currentDOMSignals;
+
+    // Log iteration details
+    automationLogger.logIteration(sessionId, session.iterationCount, currentDOMHash, session.stuckCounter);
+    
+    // Store state history
+    session.stateHistory.push({
+      timestamp: Date.now(),
+      url: domResponse.structuredDOM.url,
+      domHash: currentDOMHash,
+      elementCount: domResponse.structuredDOM.elements?.length || 0
+    });
+    
+    // Enhanced stuck detection with pattern recognition
+    const stuckPatterns = analyzeStuckPatterns(session);
+    const isStuck = session.stuckCounter >= 3 || stuckPatterns.severity === 'high';
+    
+    // Generate recovery strategies if stuck
+    let recoveryStrategies = [];
+    if (isStuck) {
+      recoveryStrategies = generateRecoveryStrategies(stuckPatterns, session);
+      automationLogger.logRecovery(sessionId, 'stuck_detected', 'analyze', 'attempt', { patterns: stuckPatterns, strategies: recoveryStrategies.length });
+    }
+    
+    // Get settings for AI call using config
+    const settings = await config.getAll();
+
+    // ==========================================
+    // LOGIN DETECTION HOOK (Passwords Beta)
+    // ==========================================
+    const enableLogin = settings.enableLogin === true;
+    const domElements = domResponse.structuredDOM?.elements || [];
+    const domForms = domResponse.structuredDOM?.htmlContext?.pageStructure?.forms || [];
+    const hasPasswordField = domElements.some(el =>
+      el.type === 'input' && (
+        el.inputType === 'password' ||
+        el.attributes?.type === 'password' ||
+        (el.id && el.id.includes('password')) ||
+        el.selectors?.some(s => typeof s === 'string' && s.includes('type="password"'))
+      )
+    ) || domForms.some(f => f.fields?.some(field => field.type === 'password'));
+
+    if (enableLogin && hasPasswordField && !session._loginHandledForUrl?.includes(currentUrl)) {
+      const loginDomain = secureConfig.normalizeDomain(currentUrl);
+      automationLogger.debug('Login page detected', { sessionId, domain: loginDomain, url: currentUrl });
+
+      // Track that we've handled login for this URL to avoid repeated prompts
+      if (!session._loginHandledForUrl) session._loginHandledForUrl = [];
+
+      // Check for saved credentials
+      const savedCred = await secureConfig.getCredential(loginDomain);
+
+      if (savedCred) {
+        // SILENT AUTO-FILL: use saved credentials
+        automationLogger.info('Auto-filling saved credentials', { sessionId, domain: loginDomain });
+
+        sendSessionStatus(session.tabId, {
+          phase: 'acting',
+          taskName: session.task,
+          iteration: session.iterationCount,
+          maxIterations: session.maxIterations || 20,
+          statusText: 'Signing in...',
+          animatedHighlights: session.animatedActionHighlights
+        });
+
+        const signinProgress = calculateProgress(session);
+        chrome.runtime.sendMessage({
+          action: 'statusUpdate',
+          sessionId,
+          message: 'Signing in...',
+          iteration: session.iterationCount,
+          maxIterations: session.maxIterations || 20,
+          progressPercent: signinProgress.progressPercent,
+          estimatedTimeRemaining: signinProgress.estimatedTimeRemaining
+        }).catch(() => {});
+
+        const loginFields = extractLoginFields(domResponse.structuredDOM);
+        const fillResult = await fillCredentialsOnPage(session.tabId, loginDomain, domResponse.structuredDOM);
+
+        automationLogger.debug('Auto-fill result', { sessionId, success: fillResult?.success, filledUsername: fillResult?.filledUsername, filledPassword: fillResult?.filledPassword, usernameVerified: fillResult?.usernameVerified, passwordVerified: fillResult?.passwordVerified });
+
+        if (fillResult?.success) {
+          session._loginHandledForUrl.push(currentUrl);
+
+          // Wait for page to settle after login submission
+          await new Promise(r => setTimeout(r, 2000));
+
+          // Check if login actually succeeded (URL changed = redirect after login)
+          try {
+            const tab = await chrome.tabs.get(session.tabId);
+            const newUrl = tab?.url || '';
+            if (newUrl === currentUrl) {
+              // Still on login page - login may have failed, allow re-detection
+              const idx = session._loginHandledForUrl.indexOf(currentUrl);
+              if (idx !== -1) session._loginHandledForUrl.splice(idx, 1);
+              automationLogger.debug('Still on login page after fill - re-enabling detection', { sessionId });
+            }
+          } catch (e) { /* tab may be gone */ }
+
+          // Auto-fill succeeded -- restart loop to verify login worked
+          loopResolve?.();
+          if (!isSessionTerminating(sessionId) && activeSessions.has(sessionId)) {
+            setTimeout(() => startAutomationLoop(sessionId), 500);
+          }
+          return;
+        }
+        // Auto-fill failed -- fall through to AI call so it can handle the login form
+        automationLogger.info('Auto-fill failed, deferring to AI for login handling', { sessionId, domain: loginDomain });
+        session._loginHandledForUrl.push(currentUrl); // Prevent re-triggering hook next iteration
+      } else {
+        // NO SAVED CREDS: interrupt sidepanel for credentials
+        const loginFields = extractLoginFields(domResponse.structuredDOM);
+        automationLogger.info('No saved credentials, requesting from user', { sessionId, domain: loginDomain });
+
+        chrome.runtime.sendMessage({
+          action: 'loginDetected',
+          sessionId,
+          domain: loginDomain,
+          fields: loginFields
+        }).catch(() => {});
+
+        // PAUSE: wait for user response
+        const userResponse = await waitForLoginResponse(sessionId);
+
+        if (userResponse.action === 'loginFormSubmitted') {
+          // Save credentials if requested
+          if (userResponse.save) {
+            await secureConfig.saveCredential(loginDomain, {
+              username: userResponse.credentials.username,
+              password: userResponse.credentials.password
+            });
+          }
+
+          // Fill the form on page
+          const directFillResult = await fillCredentialsOnPageDirect(session.tabId, {
+            usernameSelector: loginFields.usernameSelector,
+            passwordSelector: loginFields.passwordSelector,
+            submitSelector: loginFields.submitSelector,
+            username: userResponse.credentials.username,
+            password: userResponse.credentials.password
+          });
+
+          if (directFillResult?.success) {
+            session._loginHandledForUrl.push(currentUrl);
+
+            // Wait for page to settle
+            await new Promise(r => setTimeout(r, 2000));
+
+            // Check if login actually succeeded (URL changed = redirect after login)
+            try {
+              const tab = await chrome.tabs.get(session.tabId);
+              const newUrl = tab?.url || '';
+              if (newUrl === currentUrl) {
+                const idx = session._loginHandledForUrl.indexOf(currentUrl);
+                if (idx !== -1) session._loginHandledForUrl.splice(idx, 1);
+                automationLogger.debug('Still on login page after direct fill - re-enabling detection', { sessionId });
+              }
+            } catch (e) { /* tab may be gone */ }
+
+            // Direct fill succeeded -- restart loop
+            loopResolve?.();
+            if (!isSessionTerminating(sessionId) && activeSessions.has(sessionId)) {
+              setTimeout(() => startAutomationLoop(sessionId), 500);
+            }
+            return;
+          }
+          // Direct fill failed -- fall through to AI
+          automationLogger.info('Direct credential fill failed, deferring to AI', { sessionId, domain: loginDomain });
+          session._loginHandledForUrl.push(currentUrl);
+        } else {
+          // User skipped - mark as handled so we don't prompt again
+          session._loginHandledForUrl.push(currentUrl);
+          // Continue automation, AI will handle as it can
+        }
+      }
+    }
+    // ==========================================
+    // END LOGIN DETECTION HOOK
+    // ==========================================
+
+    // Detect repeated action failures
+    const repeatedFailures = detectRepeatedActionFailures(session);
+    const forceAlternativeStrategy = repeatedFailures.length > 0;
+    
+    // Gather multi-tab context with allowed-tab awareness
+    let tabInfo = null;
+    try {
+      const allTabs = await chrome.tabs.query({ currentWindow: true });
+      const sessionTabs = Array.from(activeSessions.values()).map(s => s.tabId);
+      const allowedTabs = session.allowedTabs || [];
+
+      tabInfo = {
+        currentTabId: session.tabId,
+        allTabs: allTabs.map(tab => {
+          const isAllowed = allowedTabs.includes(tab.id);
+          let domain;
+          if (tab.url) {
+            try { domain = new URL(tab.url).hostname; } catch { /* skip */ }
+          }
+          return {
+            id: tab.id,
+            url: tab.url,
+            title: tab.title,
+            active: tab.active,
+            status: tab.status,
+            isAllowedTab: isAllowed,
+            ...(domain ? { domain } : {}),
+          };
+        }),
+        sessionTabs: sessionTabs,
+        allowedTabs: allowedTabs
+      };
+    } catch (error) {
+      automationLogger.debug('Failed to gather tab context', { sessionId, error: error.message });
+    }
+    
+    // Calculate progress metrics for AI context
+    const maxIterations = session.maxIterations || 20;
+    const actionsSucceeded = session.actionHistory?.filter(a => a.result?.success).length || 0;
+    const actionsFailed = session.actionHistory?.filter(a => !a.result?.success).length || 0;
+    const uniquePagesVisited = new Set(session.urlHistory?.map(u => u.url) || []).size;
+
+    // Estimate task completion based on various signals
+    const estimateTaskCompletion = () => {
+      // If we're on a success page, likely near completion
+      if (domResponse.structuredDOM.pageContext?.pageState?.hasSuccess) return 0.9;
+
+      // If stuck, progress is questionable
+      if (isStuck) return Math.min(0.5, session.iterationCount / maxIterations);
+
+      // If we've done significant actions without failure, good progress
+      const successRate = actionsSucceeded / Math.max(1, actionsSucceeded + actionsFailed);
+      const iterationProgress = session.iterationCount / maxIterations;
+
+      // Weighted estimate
+      return Math.min(0.95, (successRate * 0.4) + (iterationProgress * 0.6));
+    };
+
+    // Progress tracking context for AI
+    const progressContext = {
+      iterationsUsed: session.iterationCount,
+      maxIterations: maxIterations,
+      progressPercent: Math.round((session.iterationCount / maxIterations) * 100),
+      actionsSucceeded: actionsSucceeded,
+      actionsFailed: actionsFailed,
+      successRate: actionsSucceeded / Math.max(1, actionsSucceeded + actionsFailed),
+      uniquePagesVisited: uniquePagesVisited,
+      stuckDuration: session.stuckCounter,
+      estimatedCompletion: estimateTaskCompletion(),
+      // Time tracking
+      elapsedTime: Date.now() - (session.startTime || Date.now()),
+      // Momentum indicator
+      momentum: actionsFailed === 0 ? 'good' : (actionsFailed <= 2 ? 'moderate' : 'struggling')
+    };
+
+    // Prepare context with action history and task plan
+    const context = {
+      sessionId: sessionId, // Include sessionId for comprehensive logging
+      actionHistory: session.actionHistory.slice(-10), // Last 10 actions
+      lastActionResult: session.actionHistory.length > 0
+        ? session.actionHistory[session.actionHistory.length - 1]
+        : null,
+      isStuck,
+      stuckCounter: session.stuckCounter,
+      domChanged,             // Boolean backward compat (derived from changeResult.changed)
+      changeSignals,          // Structured: { changed, channels, summary }
+      urlChanged,
+      failedAttempts: session.failedAttempts,
+      failedActionDetails: repeatedFailures, // Specific actions that keep failing
+      forceAlternativeStrategy, // Flag to force AI to try different approach
+      iterationCount: session.iterationCount,
+      urlHistory: session.urlHistory.slice(-5), // Last 5 URL changes
+      currentUrl: currentUrl,
+      previousUrl: previousUrl, // FIX: Track previous URL for domain transition detection in prompt tier selection
+      // NEW: Progress tracking for AI awareness
+      progress: progressContext,
+      // Add sequence repetition info
+      repeatedSequences: Object.entries(session.sequenceRepeatCount)
+        .filter(([_, count]) => count > 2)
+        .map(([signature, count]) => ({ signature, count })),
+      lastSequences: session.actionSequences.slice(-3), // Last 3 action sequences
+      // Add multi-tab context
+      tabInfo: tabInfo,
+      // Recovery strategies when stuck (generated by generateRecoveryStrategies)
+      recoveryStrategies: recoveryStrategies.length > 0 ? recoveryStrategies : undefined
+    };
+
+    // DIF-02: Wire completion signals from DOM response into context
+    context.completionSignals = domResponse.structuredDOM.completionSignals || null;
+    const pageIntent = domResponse.structuredDOM.pageContext?.pageIntent;
+    if (pageIntent === 'success-confirmation') {
+      const completionSignals = domResponse.structuredDOM.completionSignals;
+      if (completionSignals && (completionSignals.successMessages?.length > 0 || completionSignals.confirmationPage)) {
+        context.completionCandidate = {
+          pageIntent,
+          signals: completionSignals,
+          suggestion: 'Page shows success state -- verify task completion and set taskComplete: true if your task objective was met'
+        };
+      }
+    }
+
+    // CMP-03: Critical action warnings for AI prompt
+    const criticalSummary = getCriticalActionSummary(session);
+    if (criticalSummary.length > 0) {
+      context.criticalActionWarnings = criticalSummary;
+    }
+
+    // Inject multi-site context for career prompt augmentation
+    if (session.multiSite) {
+      context.multiSite = {
+        currentCompany: session.multiSite.companyList[session.multiSite.currentIndex],
+        currentIndex: session.multiSite.currentIndex,
+        totalCompanies: session.multiSite.companyList.length,
+        completedCompanies: session.multiSite.companyList.slice(0, session.multiSite.currentIndex)
       };
     }
 
-    default:
-      return { success: false, error: `Unknown background action: ${tool}` };
+    // Inject Sheets data entry context for prompt augmentation (Phase 12)
+    if (session.sheetsData) {
+      context.sheetsData = session.sheetsData;
+    }
+
+    // Check for intermediate/redirect pages that should be allowed to resolve
+    // Note: With frameId: 0 targeting, we now get DOM from main frame only,
+    // so this only triggers when the main page itself is an intermediate page
+    const intermediatePagePatterns = [
+      /accounts\.google\.com\/RotateCookiesPage/i,
+      /accounts\.google\.com\/ServiceLogin/i,
+      /consent\.google\.com/i,
+      /accounts\.google\.com\/signin\/oauth/i,
+      /login\.microsoftonline\.com\/common\/oauth2/i,
+      /www\.google\.com\/url\?/i  // Google redirect URLs
+    ];
+
+    const isIntermediatePage = intermediatePagePatterns.some(pattern => pattern.test(currentUrl));
+
+    if (isIntermediatePage) {
+      automationLogger.logNavigation(sessionId, 'intermediate', currentUrl, null, { waiting: true });
+
+      // Wait for page to be ready using event-driven detection instead of hardcoded 1500ms
+      const loadResult = await pageLoadWatcher.waitForPageReady(session.tabId, {
+        maxWait: 3000,
+        requireDOMStable: true,
+        stableTime: 300
+      });
+      automationLogger.logTiming(sessionId, 'WAIT', 'intermediate_page', loadResult.waitTime, { method: loadResult.method });
+
+      // Check if URL changed after waiting
+      let newTabInfo;
+      try {
+        newTabInfo = await chrome.tabs.get(session.tabId);
+      } catch (e) {
+        // Tab closed, let normal error handling deal with it
+      }
+
+      if (newTabInfo && newTabInfo.url !== currentUrl) {
+        automationLogger.logNavigation(sessionId, 'redirect', currentUrl, newTabInfo.url, {});
+
+        // Reset state for the new page
+        session.lastUrl = newTabInfo.url;
+        session.lastDOMHash = null;
+        session.lastDOMSignals = null;
+        session.stuckCounter = 0;
+
+        // Continue to next iteration with the new page
+        session.pendingTimeout = setTimeout(() => {
+          session.pendingTimeout = null;
+          startAutomationLoop(sessionId);
+        }, 300);
+        return;
+      }
+
+      // If still on intermediate page after waiting, add context for AI
+      context.isIntermediatePage = true;
+      context.intermediatePageNote = 'This appears to be an intermediate/authentication page. Wait for it to redirect or look for a continue/proceed button.';
+      automationLogger.debug('Still on intermediate page, continuing with AI', { sessionId, url: currentUrl });
+    }
+
+    // Call AI to get next actions with context
+    // SPEED-02: Start AI call and DOM prefetch in parallel
+    // The prefetch will be ready for the NEXT iteration while we process this one
+
+    // Debug mode: Log AI call start
+    debugLog('Sending to AI', {
+      model: settings.modelName,
+      provider: settings.modelProvider,
+      isStuck: context.isStuck
+    });
+
+    // Signal thinking phase to content script
+    sendSessionStatus(session.tabId, {
+      phase: 'thinking',
+      taskName: session.task,
+      iteration: session.iterationCount,
+      maxIterations: session.maxIterations || 20,
+      animatedHighlights: session.animatedActionHighlights,
+      statusText: null,  // Don't carry over previous action text; let content script show "Planning next step..."
+      ...calculateProgress(session),
+      taskSummary: session.taskSummary || null
+    });
+
+    const aiPromise = callAIAPI(
+      session.task,
+      domResponse.structuredDOM,
+      settings,
+      context
+    );
+
+    // Start prefetching DOM for next iteration while AI processes
+    // Key: prefetch starts AFTER AI call begins, so DOM reflects current state changes
+    pendingDOMPrefetch = prefetchDOM(session.tabId, {
+      maxElements: settings.maxDOMElements || 2000,
+      prioritizeViewport: settings.prioritizeViewport !== false,
+      includeCompactSnapshot: true
+    });
+
+    // FIX 1A: Race AI response against a stop signal so stop button works during API calls
+    // PERF: Use event-based AbortController pattern instead of 500ms polling
+    const stopController = new AbortController();
+    session._stopAbortController = stopController;
+
+    const stopSignal = new Promise((resolve) => {
+      stopController.signal.addEventListener('abort', () => {
+        resolve({ stopped: true });
+      }, { once: true });
+      // Fallback: check once in case already terminating
+      if (isSessionTerminating(sessionId)) {
+        resolve({ stopped: true });
+      }
+    });
+
+    const raceResult = await Promise.race([aiPromise, stopSignal]);
+
+    // Clean up the abort controller
+    session._stopAbortController = null;
+
+    // If stopped, bail out immediately
+    if (raceResult?.stopped) {
+      automationLogger.debug('Session stopped during AI call', { sessionId });
+      loopResolve?.();
+      return;
+    }
+
+    const aiResponse = raceResult;
+
+    // Log AI response
+    // automationLogger.logAIResponse(sessionId, aiResponse.reasoning, aiResponse.actions, aiResponse.taskComplete);
+    automationLogger.logAIResponse(sessionId, '', aiResponse.actions, aiResponse.taskComplete); // Reasoning disabled for performance
+
+    // Debug mode: Log AI response received
+    debugLog('AI response received', {
+      hasActions: !!aiResponse?.actions?.length,
+      actionCount: aiResponse?.actions?.length || 0,
+      taskComplete: aiResponse?.taskComplete
+    });
+
+    // CRITICAL FIX: Handle failedDueToError flag - stop automation and report failure properly
+    if (aiResponse.failedDueToError) {
+      session.status = 'failed';
+      const duration = Date.now() - session.startTime;
+
+      automationLogger.logSessionEnd(sessionId, 'failed', session.actionHistory.length, duration);
+      automationLogger.error('Task failed due to API error', { sessionId, result: aiResponse.result });
+
+      // Save session logs for history
+      automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
+
+      endSessionOverlays(session, 'error');
+      finalizeSessionMetrics(sessionId, false); // Failed
+      cleanupSession(sessionId);
+
+      // Notify UI of failure (simple message for user)
+      chrome.runtime.sendMessage({
+        action: 'automationError',
+        sessionId,
+        error: 'AI service error - please try again',
+        message: 'Stopped due to an error',
+        task: session.task
+      }).catch(() => {});
+
+      return; // Stop automation loop
+    }
+
+    // Execute actions and track results
+    if (aiResponse.actions && aiResponse.actions.length > 0) {
+      // Sheets data entry progress overlay update (Phase 12)
+      // When a Sheets entry session is active, show row-writing progress instead of generic acting phase
+      if (session.sheetsData) {
+        // Approximate rows written based on iteration count (rough estimate: ~2 iterations per row)
+        session.sheetsData.rowsWritten = Math.min(
+          Math.floor(session.iterationCount / 2),
+          session.sheetsData.totalRows
+        );
+        session.taskSummary = `Sheets data entry: ${session.sheetsData.rowsWritten}/${session.sheetsData.totalRows} rows`;
+        sendSessionStatus(session.tabId, {
+          phase: 'sheets-entry',
+          step: `Writing row ${session.sheetsData.rowsWritten} of ${session.sheetsData.totalRows}`,
+          status: `Written ${session.sheetsData.rowsWritten}/${session.sheetsData.totalRows} rows...`,
+          taskName: session.task,
+          iteration: session.iterationCount,
+          maxIterations: session.maxIterations,
+          taskSummary: session.taskSummary
+        });
+
+        // Persist session every 5 iterations during Sheets entry to survive service worker restarts
+        if (session.iterationCount % 5 === 0) {
+          persistSession(sessionId, session);
+        }
+      }
+
+      // Signal acting phase to content script
+      sendSessionStatus(session.tabId, {
+        phase: 'acting',
+        taskName: session.task,
+        iteration: session.iterationCount,
+        maxIterations: session.maxIterations || 20,
+        actionCount: aiResponse.actions.length,
+        animatedHighlights: session.animatedActionHighlights,
+        statusText: getActionStatus(aiResponse.actions[0].tool, aiResponse.actions[0].params),
+        ...calculateProgress(session),
+        taskSummary: session.taskSummary || null
+      });
+      // Create a smart signature for this action sequence
+      const sequenceSignature = createSmartSequenceSignature(aiResponse.actions);
+      
+      // Track sequence repetition with context awareness
+      const sequenceKey = `${sequenceSignature}:${domResponse.structuredDOM.url}`;
+      if (!session.sequenceRepeatCount[sequenceKey]) {
+        session.sequenceRepeatCount[sequenceKey] = 0;
+      }
+      session.sequenceRepeatCount[sequenceKey]++;
+      
+      // Check if this sequence has been repeated too many times
+      const sequenceRepeats = session.sequenceRepeatCount[sequenceKey];
+      const isHarmfulRepetition = checkHarmfulRepetition(aiResponse.actions, sequenceRepeats, session);
+      
+      if (isHarmfulRepetition) {
+        automationLogger.warn('Harmful action sequence repetition', { sessionId, repeats: sequenceRepeats, signature: sequenceSignature });
+        session.stuckCounter = Math.max(session.stuckCounter, 2); // Increase stuck counter but not too aggressively
+      }
+      
+      // Add to sequence history
+      session.actionSequences.push({
+        signature: sequenceSignature,
+        actions: aiResponse.actions,
+        iteration: session.iterationCount,
+        repeatCount: sequenceRepeats
+      });
+
+      // SPEED-03: Try deterministic batch execution for recognized patterns
+      // This skips AI roundtrips between actions for predictable sequences
+      let batchExecuted = false;
+      if (aiResponse.actions.length > 1) {
+        const batchResult = await executeDeterministicBatch(aiResponse.actions, session, session.tabId);
+        if (batchResult) {
+          batchExecuted = true;
+          automationLogger.info('Deterministic batch completed', {
+            sessionId,
+            pattern: batchResult.pattern,
+            successCount: batchResult.successCount,
+            totalCount: batchResult.count,
+            duration: batchResult.duration
+          });
+
+          // Clear stale prefetch since batch may have changed DOM significantly
+          // Start fresh prefetch for next iteration
+          if (batchResult.successCount > 0) {
+            pendingDOMPrefetch = null;
+            pendingDOMPrefetch = prefetchDOM(session.tabId, {
+              maxElements: settings.maxDOMElements || 2000,
+              prioritizeViewport: settings.prioritizeViewport !== false,
+              includeCompactSnapshot: true
+            });
+          }
+        }
+      }
+
+      // Skip individual action loop if batch was executed
+      if (!batchExecuted) {
+      for (let i = 0; i < aiResponse.actions.length; i++) {
+        const action = aiResponse.actions[i];
+        const nextAction = aiResponse.actions[i + 1];
+
+        // Check if session was stopped between actions
+        if (isSessionTerminating(sessionId)) {
+          automationLogger.debug('Session terminated during action execution', { sessionId, actionIndex: i, totalActions: aiResponse.actions.length });
+          loopResolve?.();
+          return;
+        }
+
+        // CMP-03: Skip actions that are on cooldown (irrevocable action re-execution guard)
+        if (isCooledDown(session, action)) {
+          const cooldown = session.criticalActionRegistry.cooldowns[createActionSignature(action)];
+          automationLogger.warn('Skipping cooled-down irrevocable action', {
+            sessionId,
+            tool: action.tool,
+            selector: action.params?.selector,
+            blockedUntilIteration: cooldown?.blockedUntilIteration,
+            currentIteration: session.iterationCount
+          });
+          continue;
+        }
+
+        automationLogger.logActionExecution(sessionId, action.tool, 'start', { index: i + 1, total: aiResponse.actions.length, params: action.params });
+        const actionStartTime = Date.now();
+
+        // Debug mode: Log action execution
+        debugLog('Executing action', {
+          tool: action.tool,
+          index: i + 1,
+          total: aiResponse.actions.length
+        });
+
+        // Send action-specific status update to UI with progress data
+        const actionProgress = calculateProgress(session);
+        chrome.runtime.sendMessage({
+          action: 'statusUpdate',
+          sessionId,
+          message: getActionStatus(action.tool, action.params),
+          iteration: session.iterationCount,
+          maxIterations: session.maxIterations || 20,
+          progressPercent: actionProgress.progressPercent,
+          estimatedTimeRemaining: actionProgress.estimatedTimeRemaining
+        }).catch(() => {
+          // Ignore errors if no listeners
+        });
+
+        // Store last action status on session so it persists across navigations
+        session.lastActionStatusText = getActionStatus(action.tool, action.params);
+
+        // Multi-tab actions are handled directly by background script
+        const multiTabActions = ['openNewTab', 'switchToTab', 'closeTab', 'listTabs', 'waitForTabLoad', 'getCurrentTab'];
+        // Background-handled data tools (storage operations, not DOM actions)
+        const backgroundDataTools = ['storeJobData', 'getStoredJobs'];
+        // Combined list for background dispatch check
+        const backgroundHandledTools = [...multiTabActions, ...backgroundDataTools];
+
+        // Send per-action status to content script viewport overlay
+        // Skip for multi-tab actions -- they change session.tabId mid-flight,
+        // and sending 'acting' to the old tab right before switchToTab would
+        // re-create overlays that we are about to clean up.
+        // Data tools DO get overlay status updates (they don't change tabs).
+        if (!multiTabActions.includes(action.tool)) {
+          sendSessionStatus(session.tabId, {
+            phase: 'acting',
+            taskName: session.task,
+            iteration: session.iterationCount,
+            maxIterations: session.maxIterations || 20,
+            statusText: getActionStatus(action.tool, action.params),
+            animatedHighlights: session.animatedActionHighlights,
+            ...calculateProgress(session),
+            taskSummary: session.taskSummary || null
+          });
+        }
+
+        let actionResult;
+
+        if (multiTabActions.includes(action.tool)) {
+          // Handle multi-tab actions directly in background script
+          automationLogger.logActionExecution(sessionId, action.tool, 'routing', { handler: 'background' });
+          try {
+            actionResult = await handleMultiTabAction(action, session.tabId);
+            automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: actionResult?.success });
+          } catch (error) {
+            automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: false, error: error.message });
+            actionResult = {
+              success: false,
+              error: `Multi-tab action failed: ${error.message}`,
+              tool: action.tool
+            };
+          }
+        } else if (backgroundDataTools.includes(action.tool)) {
+          // Handle data storage actions in background script (chrome.storage.local)
+          automationLogger.logActionExecution(sessionId, action.tool, 'routing', { handler: 'background-data' });
+          try {
+            actionResult = await handleBackgroundAction(action, session);
+            automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: actionResult?.success });
+          } catch (error) {
+            automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: false, error: error.message });
+            actionResult = {
+              success: false,
+              error: `Background data action failed: ${error.message}`,
+              tool: action.tool
+            };
+          }
+        } else {
+          // Send regular DOM actions to content script
+          try {
+            const actionPayload = {
+              action: 'executeAction',
+              tool: action.tool,
+              params: action.params,
+              visualContext: {
+                taskName: session.task?.substring(0, 50) || 'Automation',
+                stepNumber: i + 1,
+                totalSteps: aiResponse.actions.length,
+                iterationCount: session.iterationCount,
+                animatedHighlights: session.animatedActionHighlights ?? true
+              }
+            };
+
+            // Log outgoing action message for comprehensive session logging (includes visualContext)
+            automationLogger.logContentMessage(sessionId, 'send', 'executeAction', actionPayload, null);
+
+            actionResult = await sendMessageWithRetry(session.tabId, actionPayload);
+
+            // Log action result received
+            automationLogger.logContentMessage(sessionId, 'receive', 'executeAction', { tool: action.tool }, actionResult);
+          } catch (messageError) {
+            // Check if this is a restricted URL error during action execution
+            let tabInfo;
+            try {
+              tabInfo = await chrome.tabs.get(session.tabId);
+              if (isRestrictedURL(tabInfo.url)) {
+                const pageType = getPageTypeDescription(tabInfo.url);
+                throw new Error(`Cannot execute action on ${pageType} (${tabInfo.url}). The page navigated to a restricted URL during automation.`);
+              }
+            } catch (tabError) {
+              throw new Error('Tab was closed or became inaccessible during action execution.');
+            }
+            
+            // For other errors, provide a failure result with classification
+            const failureType = classifyFailure(messageError, action);
+            actionResult = {
+              success: false,
+              error: `Failed to execute ${action.tool}: ${messageError.message || messageError}`,
+              tool: action.tool,
+              failureType,
+              retryable: failureType !== FAILURE_TYPES.PERMISSION
+            };
+          }
+        }
+        
+        // FSB TIMING: Log action execution time
+        automationLogger.logTiming(sessionId, 'ACTION', action.tool, Date.now() - actionStartTime, { success: actionResult?.success });
+
+        // Track action in history (slim result to reduce memory and prompt token usage)
+        const actionRecord = {
+          timestamp: Date.now(),
+          tool: action.tool,
+          params: action.params,
+          result: slimActionResult(actionResult),
+          iteration: session.iterationCount
+        };
+        session.actionHistory.push(actionRecord);
+
+        // CMP-03: Record critical (irrevocable) actions for cooldown enforcement
+        if (action.tool === 'click' && actionResult?.success) {
+          const clickedText = actionResult?.elementInfo?.text || actionResult?.clicked || '';
+          const selectorStr = action.params?.selector || '';
+          if (IRREVOCABLE_VERB_PATTERN.test(clickedText) || IRREVOCABLE_VERB_PATTERN.test(selectorStr)) {
+            recordCriticalAction(session, action, slimActionResult(actionResult));
+          }
+        }
+
+        // Log action result
+        automationLogger.logAction(sessionId, action, actionResult);
+
+        // Fix: Invalidate stale DOM prefetch after navigation-triggering actions
+        // Navigate returns instantly (window.location.href = url) but the page hasn't loaded yet.
+        // Without this, the next iteration consumes a prefetch captured from the OLD page.
+        const navigationTools = ['navigate', 'searchGoogle', 'goBack', 'goForward', 'switchToTab'];
+        if (navigationTools.includes(action.tool) || actionResult?.navigationTriggered) {
+          pendingDOMPrefetch = null;
+          automationLogger.debug('Invalidated stale DOM prefetch after navigation action', {
+            sessionId, tool: action.tool
+          });
+
+          // Wait for the new page to actually load before continuing
+          if (actionResult?.success) {
+            try {
+              await pageLoadWatcher.waitForPageReady(session.tabId, { maxWait: 5000 });
+              automationLogger.debug('Page load confirmed after navigation', {
+                sessionId, tool: action.tool
+              });
+            } catch (e) {
+              automationLogger.debug('Page load wait failed after navigation', {
+                sessionId, tool: action.tool, error: e.message
+              });
+            }
+          }
+        }
+
+        // Ensure actionResult has proper structure
+        if (!actionResult) {
+          actionResult = {
+            success: false,
+            error: 'Action returned no result - possible content script communication failure',
+            tool: action.tool,
+            failureType: FAILURE_TYPES.COMMUNICATION,
+            retryable: true
+          };
+        }
+        
+        // Track failures and verification issues
+        if (!actionResult.success) {
+          // Track by tool type (existing)
+          if (!session.failedAttempts[action.tool]) {
+            session.failedAttempts[action.tool] = 0;
+          }
+          session.failedAttempts[action.tool]++;
+          
+          // Track detailed failures by action signature
+          const actionSignature = createActionSignature(action);
+          if (!session.failedActionDetails[actionSignature]) {
+            session.failedActionDetails[actionSignature] = {
+              tool: action.tool,
+              params: action.params,
+              count: 0,
+              errors: [],
+              firstFailure: Date.now(),
+              lastFailure: null
+            };
+          }
+          
+          session.failedActionDetails[actionSignature].count++;
+          session.failedActionDetails[actionSignature].lastFailure = Date.now();
+          const errorMessage = actionResult.error || 'Unknown error - no error details provided';
+          session.failedActionDetails[actionSignature].errors.push({
+            error: errorMessage,
+            timestamp: Date.now(),
+            iteration: session.iterationCount
+          });
+          
+          // Keep only last 3 errors to avoid memory bloat
+          if (session.failedActionDetails[actionSignature].errors.length > 3) {
+            session.failedActionDetails[actionSignature].errors.shift();
+          }
+          
+          automationLogger.logActionExecution(sessionId, action.tool, 'complete', { success: false, error: errorMessage, failureCount: session.failedActionDetails[actionSignature].count });
+          
+          // Try alternative actions for critical failures
+          if (actionResult.retryable && actionResult.failureType !== FAILURE_TYPES.PERMISSION) {
+            automationLogger.logRecovery(sessionId, 'action_fail', 'alternative', 'attempt', { tool: action.tool });
+            const alternativeResult = await tryAlternativeAction(sessionId, action, actionResult);
+
+            if (alternativeResult && alternativeResult.success) {
+              automationLogger.logRecovery(sessionId, 'action_fail', 'alternative', 'success', { tool: action.tool, alternative: alternativeResult.alternativeUsed });
+              actionResult = alternativeResult;
+              
+              // Log the successful alternative
+              automationLogger.logAction(sessionId, {
+                ...action,
+                description: `${getActionStatus(action.tool, action.params)} (Alternative: ${alternativeResult.alternativeUsed})`
+              }, alternativeResult);
+              
+              // Track alternative action usage
+              trackActionPerformance(sessionId, action, actionResult, actionStartTime, true);
+            } else {
+              // Track failed action
+              trackActionPerformance(sessionId, action, actionResult, actionStartTime, false);
+            }
+          } else {
+            // Track failed action
+            trackActionPerformance(sessionId, action, actionResult, actionStartTime, false);
+          }
+        } else {
+          // Track successful action
+          trackActionPerformance(sessionId, action, actionResult, actionStartTime, false);
+          
+          // Check for verification warnings
+          if (actionResult.success && (actionResult.warning || actionResult.hadEffect === false || actionResult.validationPassed === false)) {
+            automationLogger.logValidation(sessionId, 'action_effect', false, {
+              tool: action.tool,
+              selector: action.params?.selector,
+              warning: actionResult.warning,
+              hadEffect: actionResult.hadEffect,
+              validationPassed: actionResult.validationPassed
+            });
+            
+            // Track actions that succeeded but had no effect
+            if (!session.noEffectActions) {
+              session.noEffectActions = [];
+            }
+            
+            session.noEffectActions.push({
+              tool: action.tool,
+              params: action.params,
+              warning: actionResult.warning || 'Action completed but verification failed',
+              iteration: session.iterationCount,
+              timestamp: Date.now()
+            });
+            
+            // If too many no-effect actions, increase stuck counter
+            const recentNoEffectCount = session.noEffectActions.filter(a => 
+              Date.now() - a.timestamp < 30000 // Last 30 seconds
+            ).length;
+            
+            if (recentNoEffectCount >= 3) {
+              session.stuckCounter++;
+              automationLogger.debug('Multiple no-effect actions detected', { sessionId, stuckCounter: session.stuckCounter, noEffectCount: recentNoEffectCount });
+            }
+          }
+        }
+        
+        // SPEED-01: Outcome-based delay calculation
+        // Only add delay if not the last action in this batch
+        if (i < aiResponse.actions.length - 1) {
+          const nextAction = aiResponse.actions[i + 1];
+
+          // Try to detect action outcome for smart waiting
+          let outcomeType = 'noChange'; // Default to no change
+
+          try {
+            // Check if actionResult already has verification with pre/post state
+            if (actionResult?.verification?.preState && actionResult?.verification?.postState) {
+              // Use verification data already captured by the action handler
+              const outcome = await sendMessageWithRetry(session.tabId, {
+                action: 'detectActionOutcome',
+                preState: actionResult.verification.preState,
+                postState: actionResult.verification.postState,
+                actionResult: actionResult
+              });
+
+              if (outcome?.type) {
+                outcomeType = outcome.type;
+                automationLogger.debug('Outcome detected from verification', {
+                  sessionId,
+                  tool: action.tool,
+                  outcomeType,
+                  confidence: outcome.confidence
+                });
+              }
+            } else {
+              // For actions without built-in verification, capture current state and compare
+              // Get current page state as a proxy for post-action state
+              const postState = await sendMessageWithRetry(session.tabId, {
+                action: 'capturePageState'
+              });
+
+              // Infer outcome based on action type and result
+              if (actionResult?.success) {
+                if (['navigate', 'searchGoogle', 'goBack', 'goForward'].includes(action.tool)) {
+                  outcomeType = 'navigation';
+                } else if (['click', 'type', 'pressEnter', 'submit'].includes(action.tool)) {
+                  // Check if there was a URL change or DOM change indication
+                  if (postState?.urlChanged || actionResult?.urlChanged) {
+                    outcomeType = 'navigation';
+                  } else if (actionResult?.hadEffect) {
+                    outcomeType = 'minorDOMChange';
+                  } else {
+                    // Check for loading indicators
+                    const loadingCheck = await sendMessageWithRetry(session.tabId, {
+                      action: 'executeAction',
+                      tool: 'detectLoadingState',
+                      params: {}
+                    });
+                    if (loadingCheck?.success && loadingCheck?.result?.loading) {
+                      outcomeType = 'network';
+                    }
+                  }
+                } else if (['getText', 'getAttribute', 'hover', 'moveMouse', 'focus'].includes(action.tool)) {
+                  // Read-only actions - no change expected
+                  outcomeType = 'noChange';
+                }
+              }
+
+              automationLogger.debug('Outcome inferred from action type', {
+                sessionId,
+                tool: action.tool,
+                outcomeType,
+                hadEffect: actionResult?.hadEffect
+              });
+            }
+          } catch (outcomeError) {
+            // If outcome detection fails, fall back to category-based delay
+            automationLogger.debug('Outcome detection failed, using fallback', {
+              sessionId,
+              error: outcomeError.message
+            });
+
+            // Fallback: use calculateActionDelay for unknown situations
+            const fallbackDelay = Math.min(calculateActionDelay(action, nextAction), 500);
+            automationLogger.logTiming(sessionId, 'WAIT', 'outcome_fallback', fallbackDelay, { tool: action.tool });
+            await new Promise(resolve => setTimeout(resolve, fallbackDelay));
+            continue; // Skip outcome-based delay
+          }
+
+          // Apply outcome-based delay
+          const delayResult = await outcomeBasedDelay(session.tabId, outcomeType);
+          automationLogger.debug('Applied outcome-based delay', {
+            sessionId,
+            outcomeType,
+            waitTime: delayResult.waitTime,
+            method: delayResult.method
+          });
+        }
+      }
+      } // End of if (!batchExecuted)
+
+      // Invalidate stale DOM prefetch if actions had visible effects
+      // The prefetch was started BEFORE actions executed (line ~4127), so it's stale
+      if (!batchExecuted) {
+        const currentIterationActions = session.actionHistory.filter(a => a.iteration === session.iterationCount);
+        const anyHadEffect = currentIterationActions.some(a =>
+          a.result?.hadEffect || a.result?.navigationTriggered ||
+          a.result?.verification?.urlChanged || a.result?.verification?.contentChanged
+        );
+        if (anyHadEffect) {
+          pendingDOMPrefetch = null;
+          automationLogger.debug('Invalidated stale DOM prefetch - actions had visible effects', {
+            sessionId,
+            effectfulActions: currentIterationActions.filter(a => a.result?.hadEffect).map(a => a.tool)
+          });
+        }
+      }
+    }
+
+    // === PROGRESS TRACKING: Determine if this iteration made meaningful progress ===
+    // This counter does NOT reset on URL changes like stuckCounter does
+    const iterationActions = session.actionHistory.filter(a => a.iteration === session.iterationCount);
+    const iterationStats = {
+      actionsSucceeded: iterationActions.filter(a => a.result?.success).length,
+      actionsFailed: iterationActions.filter(a => !a.result?.success).length,
+      domChanged: domChanged,
+      urlChanged: currentUrl !== session.lastUrl,
+      // getText/getAttribute are read-only operations - tracked for logging but NOT counted as progress
+      newDataExtracted: iterationActions.some(a =>
+        a.tool === 'getText' && a.result?.success && a.result?.value && a.result.value.trim().length > 0
+      ),
+      hadEffect: iterationActions.some(a => a.result?.hadEffect === true),
+      hadNavigation: iterationActions.some(a =>
+        ['navigate', 'goBack', 'goForward'].includes(a.tool) && a.result?.success
+      )
+    };
+
+    // CMP-04: Enhanced progress tracking using changeSignals channels (Phase 3)
+    // Only count changes that are structural, content, or pageState -- not interaction-only
+    const madeProgress = (
+      iterationStats.urlChanged ||
+      iterationStats.hadNavigation ||
+      iterationStats.hadEffect ||
+      // Use changeSignals channels to distinguish meaningful changes from noise
+      (changeSignals.changed && changeSignals.channels.some(
+        ch => ['structural', 'content', 'pageState'].includes(ch)
+      ) && iterationStats.actionsSucceeded > 0) ||
+      // For extraction tasks, successful getText with content counts as progress
+      (classifyTask(session.task) === 'extraction' &&
+       iterationStats.newDataExtracted)
+    );
+
+    if (madeProgress) {
+      session.consecutiveNoProgressCount = 0;
+      automationLogger.debug('Progress made this iteration', {
+        sessionId,
+        consecutiveNoProgressCount: session.consecutiveNoProgressCount,
+        stats: iterationStats,
+        progressSignal: iterationStats.urlChanged ? 'url_changed' :
+                        iterationStats.hadNavigation ? 'navigation' :
+                        iterationStats.hadEffect ? 'had_effect' :
+                        iterationStats.newDataExtracted ? 'extraction_progress' :
+                        'dom_change_substantive'
+      });
+    } else if (iterationStats.actionsFailed > 0 || !iterationStats.domChanged) {
+      session.consecutiveNoProgressCount++;
+      automationLogger.debug('No meaningful progress this iteration', {
+        sessionId,
+        consecutiveNoProgressCount: session.consecutiveNoProgressCount,
+        stats: iterationStats
+      });
+    }
+
+    // === HARD STOP: No progress for 6 consecutive iterations ===
+    if (session.consecutiveNoProgressCount >= 6) {
+      automationLogger.warn('No progress detected for 6 consecutive iterations', {
+        sessionId,
+        consecutiveNoProgressCount: session.consecutiveNoProgressCount,
+        iterationCount: session.iterationCount,
+        lastIterationStats: iterationStats
+      });
+
+      // Multi-site orchestration: treat no_progress as a company failure and advance
+      if (session.multiSite) {
+        const currentCompany = session.multiSite.companyList[session.multiSite.currentIndex];
+        automationLogger.info('Multi-site: no_progress for company, advancing', {
+          sessionId,
+          company: currentCompany
+        });
+        session.multiSite.failures.push({
+          company: currentCompany,
+          reason: 'no_progress',
+          error: 'Page not responding after 6 consecutive iterations'
+        });
+        const fakeAiResponse = { result: `PAGE ERROR: ${currentCompany} - no progress`, taskComplete: true };
+        const handled = await handleMultiSiteCompletion(sessionId, session, fakeAiResponse);
+        if (handled) {
+          loopResolve?.();
+          return;
+        }
+        // All companies done -- fall through to finalized completion
+        if (session.multiSiteResult) {
+          session.status = 'completed';
+          const duration = Date.now() - session.startTime;
+          automationLogger.logSessionEnd(sessionId, 'completed', session.actionHistory.length, duration);
+          automationLogger.saveSession(sessionId, session);
+          extractAndStoreMemories(sessionId, session).catch(() => {});
+          endSessionOverlays(session, 'complete');
+          finalizeSessionMetrics(sessionId, true);
+          idleSession(sessionId);
+          chrome.runtime.sendMessage({
+            action: 'automationComplete',
+            sessionId,
+            result: session.multiSiteResult
+          });
+          return;
+        }
+      }
+
+      session.status = 'no_progress';
+
+      // Provide a concise summary for the user
+      let finalResult = 'Could not complete the task - the page was not responding as expected. ';
+
+      // Include any extracted text if available
+      const recentTextActions = session.actionHistory
+        .filter(action => action.tool === 'getText' && action.result?.success && action.result?.value)
+        .slice(-3);
+
+      if (recentTextActions.length > 0) {
+        const extractedTexts = recentTextActions.map(action => action.result.value).filter(text => text && text.trim());
+        if (extractedTexts.length > 0) {
+          finalResult += `Found: ${extractedTexts[0].substring(0, 150)}`;
+          if (extractedTexts[0].length > 150) finalResult += '...';
+          finalResult += ' ';
+        }
+      }
+
+      finalResult += 'Try refreshing the page or rephrasing your request.';
+
+      automationLogger.logSessionEnd(sessionId, 'no_progress', session.actionHistory.length, Date.now() - session.startTime);
+      automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
+
+      endSessionOverlays(session, 'no_progress');
+      finalizeSessionMetrics(sessionId, false);
+      idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
+
+      chrome.runtime.sendMessage({
+        action: 'automationComplete',
+        sessionId,
+        result: finalResult,
+        partial: true,
+        reason: 'no_progress',
+        task: session.task
+      });
+
+      return;
+    }
+
+    // Smart stuck detection with early exit for repeated success
+    // Check for repeated success earlier (at 4 iterations) to avoid unnecessary loops
+    if (session.stuckCounter >= 4) {
+      const repeatedResult = detectRepeatedSuccess(session);
+      if (repeatedResult) {
+        automationLogger.info('Found repeated valid result', { sessionId, stuckCounter: session.stuckCounter, result: repeatedResult.substring(0, 100) });
+
+        // Multi-site orchestration: intercept repeated-success completion too
+        if (session.multiSite) {
+          const fakeAiResponse = { result: repeatedResult, taskComplete: true };
+          const handled = await handleMultiSiteCompletion(sessionId, session, fakeAiResponse);
+          if (handled) {
+            loopResolve?.();
+            return;
+          }
+          if (session.multiSiteResult) {
+            // Override with multi-site finalized result
+            // Fall through to normal completion with the multi-site result
+          }
+        }
+
+        // Complete the task with the repeated result
+        session.status = 'completed';
+        const duration = Date.now() - session.startTime;
+        automationLogger.logSessionEnd(sessionId, 'completed', session.actionHistory.length, duration);
+
+        // Save session logs for history
+        automationLogger.saveSession(sessionId, session);
+        extractAndStoreMemories(sessionId, session).catch(() => {});
+
+        // Send success message via runtime message
+        chrome.runtime.sendMessage({
+          action: 'automationComplete',
+          sessionId,
+          result: session.multiSiteResult || repeatedResult,
+          navigatedTo: currentUrl
+        });
+
+        // Transition to idle for follow-up continuation
+        endSessionOverlays(session, 'complete');
+        finalizeSessionMetrics(sessionId, true); // Successfully completed
+        idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
+        return;
+      }
+    }
+
+    // Check if we're stuck in a loop after more iterations
+    if (session.stuckCounter >= 8) {
+
+      automationLogger.error('Automation appears stuck', { sessionId, stuckCounter: session.stuckCounter });
+
+      // Multi-site orchestration: treat stuck as a company failure and advance
+      if (session.multiSite) {
+        const currentCompany = session.multiSite.companyList[session.multiSite.currentIndex];
+        automationLogger.info('Multi-site: stuck for company, advancing', {
+          sessionId,
+          company: currentCompany
+        });
+        session.multiSite.failures.push({
+          company: currentCompany,
+          reason: 'stuck',
+          error: 'Automation got stuck after 8 stuck iterations'
+        });
+        const fakeAiResponse = { result: `PAGE ERROR: ${currentCompany} - stuck`, taskComplete: true };
+        const handled = await handleMultiSiteCompletion(sessionId, session, fakeAiResponse);
+        if (handled) {
+          loopResolve?.();
+          return;
+        }
+        // All companies done -- fall through to finalized completion
+        if (session.multiSiteResult) {
+          session.status = 'completed';
+          const duration = Date.now() - session.startTime;
+          automationLogger.logSessionEnd(sessionId, 'completed', session.actionHistory.length, duration);
+          automationLogger.saveSession(sessionId, session);
+          extractAndStoreMemories(sessionId, session).catch(() => {});
+          endSessionOverlays(session, 'complete');
+          finalizeSessionMetrics(sessionId, true);
+          idleSession(sessionId);
+          chrome.runtime.sendMessage({
+            action: 'automationComplete',
+            sessionId,
+            result: session.multiSiteResult
+          });
+          return;
+        }
+      }
+
+      session.status = 'stuck';
+
+      // Provide a concise summary for the user
+      let finalResult = 'Got stuck trying to complete your task. ';
+
+      // Include any extracted text if available
+      const recentTextActions = session.actionHistory
+        .filter(action => action.tool === 'getText' && action.result?.success && action.result?.value)
+        .slice(-3);
+
+      if (recentTextActions.length > 0) {
+        const extractedTexts = recentTextActions.map(action => action.result.value).filter(text => text && text.trim());
+        if (extractedTexts.length > 0) {
+          finalResult += `Found: ${extractedTexts[0].substring(0, 150)}`;
+          if (extractedTexts[0].length > 150) finalResult += '...';
+          finalResult += ' ';
+        }
+      }
+
+      finalResult += 'Try rephrasing your request or breaking it into smaller steps.';
+
+      automationLogger.logSessionEnd(sessionId, 'stuck', session.actionHistory.length, Date.now() - session.startTime);
+
+      // Save session logs for history
+      automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
+
+      endSessionOverlays(session, 'stuck');
+      finalizeSessionMetrics(sessionId, false); // Failed due to stuck loop
+      idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
+
+      // Send completion with partial results instead of error
+      chrome.runtime.sendMessage({
+        action: 'automationComplete',
+        sessionId,
+        result: finalResult,
+        partial: true,
+        task: session.task
+      });
+
+      return;
+    }
+    
+    // COMPLETION VALIDATION: Multi-signal verification (CMP-01 + CMP-02)
+    if (aiResponse.taskComplete) {
+      const validation = validateCompletion(session, aiResponse, context);
+      automationLogger.info('Completion validation result', {
+        sessionId,
+        approved: validation.approved,
+        score: validation.score,
+        taskType: validation.taskType,
+        evidence: validation.evidence
+      });
+      if (!validation.approved) {
+        aiResponse.taskComplete = false;
+        automationLogger.warn('Completion blocked by multi-signal validation', {
+          sessionId,
+          score: validation.score,
+          evidence: validation.evidence
+        });
+      }
+    }
+    
+    // Check if task is complete (after verification enforcement)
+    if (aiResponse.taskComplete) {
+      // VERIFY-04: Global stability gate - enforce page stability before confirming completion
+      // AI operates on DOM snapshots and cannot see pending network requests or in-flight mutations
+      automationLogger.info('Task completion claimed by AI, verifying page stability', { sessionId });
+
+      try {
+        const stabilityCheck = await sendMessageWithRetry(session.tabId, {
+          action: 'waitForPageStability',
+          options: {
+            maxWait: 3000,     // Allow more time for final action effects
+            stableTime: 500,   // DOM stable for 500ms
+            networkQuietTime: 300  // No network for 300ms
+          }
+        });
+
+        const stabilityDuration = stabilityCheck?.waitTime || 0;
+        automationLogger.logTiming(sessionId, 'WAIT', 'completion_stability', stabilityDuration, {
+          stable: stabilityCheck?.stable,
+          timedOut: stabilityCheck?.timedOut,
+          pendingRequests: stabilityCheck?.pendingRequests,
+          domChanges: stabilityCheck?.domChangeCount
+        });
+
+        if (!stabilityCheck?.stable) {
+          automationLogger.warn('Task completion: page not fully stable, proceeding anyway', {
+            sessionId,
+            timedOut: stabilityCheck?.timedOut,
+            pendingRequests: stabilityCheck?.pendingRequests,
+            domStableFor: stabilityCheck?.domStableFor,
+            networkQuietFor: stabilityCheck?.networkQuietFor
+          });
+        } else {
+          automationLogger.info('Task completion: page stability verified', { sessionId });
+        }
+      } catch (stabilityError) {
+        // Stability check failure should NOT block completion
+        // Content script may be disconnected if final action navigated away
+        automationLogger.warn('Stability check failed before completion, proceeding anyway', {
+          sessionId,
+          error: stabilityError.message
+        });
+      }
+
+      // Multi-site orchestration: intercept completion to advance to next company
+      if (session.multiSite) {
+        const handled = await handleMultiSiteCompletion(sessionId, session, aiResponse);
+        if (handled) {
+          // Multi-site handler took over -- do NOT proceed with normal completion
+          loopResolve?.();
+          return;
+        }
+        // If handled === false, all companies done -- fall through to normal completion
+        // Use the finalized multi-site result if available
+        if (session.multiSiteResult) {
+          aiResponse.result = session.multiSiteResult;
+        }
+      }
+
+      // Sheets data entry completion handler (Phase 12) + formatting trigger (Phase 13)
+      if (session.sheetsData) {
+        if (!session.sheetsData.formattingComplete) {
+          // Data entry just finished OR formatting just finished -- check which
+          if (!session.sheetsData.formattingPhase) {
+            // Data entry completed -- launch formatting pass
+            automationLogger.info('Sheets data entry completed, launching formatting pass', {
+              sessionId,
+              totalRows: session.sheetsData.totalRows,
+              rowsWritten: session.sheetsData.rowsWritten,
+              duration: Date.now() - session.sheetsData.startedAt
+            });
+            await startSheetsFormatting(sessionId, session);
+            loopResolve?.();
+            return; // Don't mark complete yet -- formatting will run
+          }
+          // formattingPhase is true and formattingComplete is false -- formatting just finished
+          // Set formattingComplete so the state machine is clean
+          session.sheetsData.formattingComplete = true;
+          automationLogger.info('Sheets formatting pass completed', { sessionId });
+        }
+        // formattingComplete is true -- both data entry and formatting done
+        automationLogger.info('Sheets data entry and formatting completed', {
+          sessionId,
+          totalRows: session.sheetsData.totalRows,
+          duration: Date.now() - session.sheetsData.startedAt
+        });
+        if (aiResponse.result) {
+          aiResponse.result = `Wrote ${session.sheetsData.totalRows} job listings to Google Sheets with professional formatting. ${aiResponse.result}`;
+        }
+      }
+
+      // NOW mark complete (existing logic below this point stays unchanged)
+      session.status = 'completed';
+      const duration = Date.now() - session.startTime;
+
+      automationLogger.logSessionEnd(sessionId, 'completed', session.actionHistory.length, duration);
+      automationLogger.info('Task completed successfully', { sessionId, totalActions: session.actionHistory.length, duration });
+
+      // Debug mode: Log task completion
+      debugLog('Task complete', {
+        sessionId,
+        totalActions: session.actionHistory.length,
+        durationMs: duration
+      });
+
+      // Save session logs for history
+      automationLogger.saveSession(sessionId, session);
+      extractAndStoreMemories(sessionId, session).catch(() => {});
+
+      endSessionOverlays(session, 'complete');
+      finalizeSessionMetrics(sessionId, true); // Successfully completed
+      idleSession(sessionId); // Idle instead of cleanup -- allow follow-up continuation
+
+      // Notify popup
+      chrome.runtime.sendMessage({
+        action: 'automationComplete',
+        sessionId,
+        result: aiResponse.result
+      });
+    } else {
+      // Dynamic delay based on stuck counter - optimized for speed
+      // FSB TIMING: Log iteration end
+      automationLogger.logTiming(sessionId, 'LOOP', 'iteration_end', Date.now() - iterationStart, { iteration: session.iterationCount });
+
+      const delay = session.stuckCounter > 0 ?
+        Math.min(1000 * Math.pow(1.5, session.stuckCounter), 10000) : // Exponential backoff up to 10s
+        800; // Reduced from 2000ms for faster automation
+
+      automationLogger.debug('Continuing loop', { sessionId, delay, stuckCounter: session.stuckCounter });
+
+      // RACE CONDITION FIX: Check termination before scheduling next iteration
+      if (isSessionTerminating(sessionId)) {
+        automationLogger.debug('Session terminated during iteration', { sessionId });
+        loopResolve?.(); // Signal that loop has yielded
+        return;
+      }
+
+      // Store timeout reference for cleanup
+      session.pendingTimeout = setTimeout(() => {
+        session.pendingTimeout = null;
+        startAutomationLoop(sessionId);
+      }, delay);
+    }
+
+  } catch (error) {
+    automationLogger.error('Automation loop error', { sessionId, error: error.message });
+
+    // Check if session still exists before updating
+    const currentSession = activeSessions.get(sessionId);
+    if (currentSession && !currentSession.isTerminating) {
+      currentSession.status = 'error';
+      currentSession.error = error.message;
+
+      // Save session logs so failures are recorded
+      const duration = Date.now() - currentSession.startTime;
+      automationLogger.logSessionEnd(sessionId, 'error', currentSession.actionHistory?.length || 0, duration);
+      automationLogger.saveSession(sessionId, currentSession);
+      extractAndStoreMemories(sessionId, currentSession).catch(() => {});
+
+      // Clean up visual overlays on error (was previously missing, leaving orphaned overlays)
+      endSessionOverlays(currentSession, 'error');
+      cleanupSession(sessionId);
+    }
+
+    // Notify UI about error (keep message simple for user)
+    const userError = error.message && error.message.length > 100
+      ? 'Something went wrong. Please try again.'
+      : (error.message || 'Something went wrong. Please try again.');
+    chrome.runtime.sendMessage({
+      action: 'automationError',
+      sessionId,
+      error: userError,
+      task: currentSession?.task
+    });
+  } finally {
+    // Signal that this loop iteration has completed
+    loopResolve?.();
+
+    // Defensive: If session was terminated (stopped/failed) and the loop is exiting,
+    // notify the UI in case the stop handler's sendResponse didn't reach it
+    const finalSession = activeSessions.get(sessionId);
+    if (!finalSession || finalSession.status === 'stopped' || finalSession.status === 'failed') {
+      chrome.runtime.sendMessage({
+        action: 'automationError',
+        sessionId,
+        error: 'Automation ended.',
+        task: finalSession?.task
+      }).catch(() => {});
+    }
+  }
+}
+
+/**
+ * Calls the xAI Grok-3-mini API to generate automation actions
+ * @param {string} task - The task description in natural language
+ * @param {Object} structuredDOM - The structured DOM representation
+ * @param {Object} settings - Extension settings including API key
+ * @param {Object|null} context - Optional context for stuck detection and history
+ * @returns {Promise<Object>} AI response with actions and completion status
+ */
+async function callAIAPI(task, structuredDOM, settings, context = null) {
+  try {
+    // Get settings if not provided
+    if (!settings) {
+      settings = await config.getAll();
+    }
+
+    // Check if appropriate API key is configured for the selected provider
+    const provider = settings.modelProvider || 'xai';
+    const providerApiKeyMap = {
+      xai: { key: 'apiKey', name: 'xAI' },
+      gemini: { key: 'geminiApiKey', name: 'Gemini' },
+      openai: { key: 'openaiApiKey', name: 'OpenAI' },
+      anthropic: { key: 'anthropicApiKey', name: 'Anthropic' }
+    };
+    const providerConfig = providerApiKeyMap[provider];
+    if (providerConfig && !settings[providerConfig.key]) {
+      throw new Error(`${providerConfig.name} API key not configured. Please set it in extension settings.`);
+    }
+
+    // Get or create AI integration instance for this session
+    // Reusing instances enables multi-turn conversation history
+    const sessionId = context?.sessionId;
+    let ai;
+
+    if (sessionId && sessionAIInstances.has(sessionId)) {
+      // Reuse existing instance for multi-turn conversation
+      ai = sessionAIInstances.get(sessionId);
+      automationLogger.debug('Reusing AI instance for multi-turn', { sessionId });
+    } else {
+      // Create new AI integration instance
+      ai = new AIIntegration(settings);
+
+      // Store for future iterations if we have a session ID
+      if (sessionId) {
+        sessionAIInstances.set(sessionId, ai);
+        automationLogger.debug('Created new AI instance for session', { sessionId });
+      }
+    }
+
+    automationLogger.logAPI(context?.sessionId, settings.modelProvider || 'xai', 'call', {
+      task: task.substring(0, 100),
+      domType: structuredDOM._isDelta ? 'delta' : 'full',
+      iteration: context?.iterationCount || 0,
+      multiTurn: sessionId && sessionAIInstances.has(sessionId)
+    });
+
+    // FSB TIMING: Track AI API call time
+    const aiCallStart = Date.now();
+    // Get automation actions with context (multi-turn if available)
+    // FIX 1B: Pass shouldAbort callback so retry loop can check if session was stopped
+    const result = await ai.getAutomationActions(task, structuredDOM, context, {
+      shouldAbort: () => isSessionTerminating(context?.sessionId)
+    });
+    automationLogger.logTiming(context?.sessionId, 'LLM', 'api_call', Date.now() - aiCallStart, { model: settings.modelName || 'default' });
+
+    return result;
+    
+  } catch (error) {
+    automationLogger.error('AI API error', { sessionId: context?.sessionId, error: error.message });
+
+    // CRITICAL FIX: Do NOT mark taskComplete: true on errors - this falsely reports success
+    // Return error response that stops automation but indicates failure
+    return {
+      actions: [],
+      taskComplete: false,  // FIX: Do not mark as complete when there's an error
+      failedDueToError: true,  // NEW: Explicit error flag for UI to display
+      reasoning: '',
+      result: `Task failed due to API error: ${error.message}. The automation will stop. Please check your API settings and try again.`,
+      error: true
+    };
   }
 }
 
@@ -10411,9 +9525,9 @@ function handleTrackUsage(request, sender, sendResponse) {
   automationLogger.debug('Usage tracking request received', {});
 
   // Initialize analytics if not already done
-  const analytics = getAnalytics();
+  const analytics = initializeAnalytics();
 
-  const { model, inputTokens, outputTokens, success, tokenSource, timestamp, provider } = request.data;
+  const { model, inputTokens, outputTokens, success, tokenSource, timestamp } = request.data;
 
   automationLogger.logAPI(null, 'analytics', 'track_request', {
     model,
@@ -10425,7 +9539,7 @@ function handleTrackUsage(request, sender, sendResponse) {
   });
 
   // Track the usage and handle response
-  analytics.trackUsage(model, inputTokens, outputTokens, success, tokenSource || 'automation', provider || '')
+  analytics.trackUsage(model, inputTokens, outputTokens, success)
     .then(() => {
       // Broadcast update to all extension contexts
       broadcastAnalyticsUpdate();
@@ -10993,825 +10107,6 @@ function initializeKeyboardEmulator() {
   return keyboardEmulator;
 }
 
-// --- Remote Control CDP dispatch functions ---
-// Called by ws-client.js when dashboard sends dash:remote-* messages.
-// Debugger is attached once on start and detached on stop (no per-event attach/detach).
-
-/**
- * Start remote control session: attach debugger to the streaming tab.
- */
-async function handleRemoteControlStart() {
-  _remoteControlEnabled = true;
-  var attached = await _ensureRemoteControlDebugger(_streamingTabId, 'start');
-  if (!attached) {
-    _remoteControlEnabled = false;
-    _sendRemoteControlState('debugger-blocked', {
-      enabled: false,
-      attached: false,
-      tabId: typeof _streamingTabId === 'number' ? _streamingTabId : null,
-      ownership: _getRemoteControlOwnership()
-    });
-    console.warn('[FSB Remote] Remote control enabled but debugger is not attached yet');
-    return;
-  }
-  _remoteControlEnabled = true;
-  _sendRemoteControlState('ready', {
-    enabled: true,
-    attached: true,
-    tabId: typeof _remoteControlDebuggerTabId === 'number' ? _remoteControlDebuggerTabId : _streamingTabId,
-    ownership: _getRemoteControlOwnership()
-  });
-}
-
-/**
- * Stop remote control session: detach debugger from the tab.
- */
-async function handleRemoteControlStop() {
-  _remoteControlEnabled = false;
-  await _releaseRemoteControlDebugger('stop');
-  _sendRemoteControlState('user-stop', {
-    enabled: false,
-    attached: false,
-    tabId: null,
-    ownership: 'none'
-  });
-}
-
-/**
- * Dispatch a remote click via CDP on the streaming tab.
- * @param {Object} payload - { x: number, y: number, button: 'left'|'right', modifiers: number }
- */
-async function handleRemoteClick(payload) {
-  var targetTabId = _streamingTabId;
-  if (!(await _ensureRemoteControlDebugger(targetTabId, 'click'))) {
-    console.warn('[FSB Remote] Click ignored -- remote control not active');
-    return;
-  }
-  try {
-    var btn = payload.button || 'left';
-    var mods = payload.modifiers || 0;
-    await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchMouseEvent', {
-      type: 'mousePressed', x: payload.x, y: payload.y, button: btn, clickCount: 1, modifiers: mods
-    });
-    await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchMouseEvent', {
-      type: 'mouseReleased', x: payload.x, y: payload.y, button: btn, clickCount: 1, modifiers: mods
-    });
-    console.log('[FSB Remote] Click dispatched at (' + payload.x + ', ' + payload.y + ')');
-  } catch (err) {
-    console.error('[FSB Remote] Click failed:', err.message);
-    await _handleRemoteControlDispatchFailure('click', err);
-  }
-}
-
-function _getRemotePrintableKeyText(payload) {
-  if (!payload) return '';
-  var text = typeof payload.text === 'string' && payload.text ? payload.text : '';
-  if (!text && typeof payload.key === 'string' && payload.key.length === 1) {
-    text = payload.key;
-  }
-  return text.length === 1 ? text : '';
-}
-
-function _rememberRemotePrintableKeyDispatch(tabId, payload) {
-  var text = _getRemotePrintableKeyText(payload);
-  if (!text) {
-    _lastRemotePrintableKeyDispatch = null;
-    return;
-  }
-  _lastRemotePrintableKeyDispatch = {
-    tabId: tabId,
-    text: text,
-    key: payload && typeof payload.key === 'string' ? payload.key : '',
-    modifiers: payload && typeof payload.modifiers === 'number' ? payload.modifiers : 0,
-    ts: Date.now()
-  };
-}
-
-function _shouldIgnoreDuplicateRemoteChar(tabId, payload) {
-  var text = _getRemotePrintableKeyText(payload);
-  if (!text || !_lastRemotePrintableKeyDispatch) return false;
-
-  var recentDispatch = _lastRemotePrintableKeyDispatch;
-  var isFresh = (Date.now() - recentDispatch.ts) <= 500;
-  var sameTab = recentDispatch.tabId === tabId;
-  var sameText = recentDispatch.text === text;
-  var compatibleModifiers = recentDispatch.modifiers === (payload && typeof payload.modifiers === 'number' ? payload.modifiers : 0);
-
-  return sameTab && sameText && compatibleModifiers && isFresh;
-}
-
-/**
- * Dispatch a remote key event via CDP on the streaming tab.
- * @param {Object} payload - { type: 'keyDown'|'keyUp'|'char', key: string, code: string, text: string, modifiers: number }
- */
-async function handleRemoteKey(payload) {
-  var targetTabId = _streamingTabId;
-  if (!(await _ensureRemoteControlDebugger(targetTabId, 'key'))) {
-    console.warn('[FSB Remote] Key ignored -- remote control not active');
-    return;
-  }
-  try {
-    if (payload.type === 'insertText') {
-      _lastRemotePrintableKeyDispatch = null;
-      await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.insertText', {
-        text: payload.text || payload.key || ''
-      });
-    } else if (payload.type === 'char') {
-      if (_shouldIgnoreDuplicateRemoteChar(targetTabId, payload)) {
-        console.log('[FSB Remote] Duplicate char ignored for legacy dashboard payload: ' + (_getRemotePrintableKeyText(payload) || payload.key || ''));
-        _lastRemotePrintableKeyDispatch = null;
-        return;
-      }
-      await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchKeyEvent', {
-        type: 'char', text: payload.text || payload.key
-      });
-    } else if (payload.type === 'keyDown') {
-      _rememberRemotePrintableKeyDispatch(targetTabId, payload);
-      await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchKeyEvent', {
-        type: 'keyDown', key: payload.key, code: payload.code, text: payload.text || '', modifiers: payload.modifiers || 0
-      });
-    } else if (payload.type === 'keyUp') {
-      await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchKeyEvent', {
-        type: 'keyUp', key: payload.key, code: payload.code, modifiers: payload.modifiers || 0
-      });
-      if (_lastRemotePrintableKeyDispatch && _lastRemotePrintableKeyDispatch.tabId === targetTabId) {
-        var keyUpText = _getRemotePrintableKeyText(payload);
-        if (!keyUpText || keyUpText === _lastRemotePrintableKeyDispatch.text) {
-          _lastRemotePrintableKeyDispatch = null;
-        }
-      }
-    }
-    console.log('[FSB Remote] Key dispatched: ' + payload.type + ' ' + payload.key);
-  } catch (err) {
-    console.error('[FSB Remote] Key failed:', err.message);
-    await _handleRemoteControlDispatchFailure('key', err);
-  }
-}
-
-/**
- * Dispatch a remote scroll via CDP on the streaming tab.
- * @param {Object} payload - { x: number, y: number, deltaX: number, deltaY: number }
- */
-async function handleRemoteScroll(payload) {
-  var targetTabId = _streamingTabId;
-  if (!(await _ensureRemoteControlDebugger(targetTabId, 'scroll'))) {
-    console.warn('[FSB Remote] Scroll ignored -- remote control not active');
-    return;
-  }
-  try {
-    await chrome.debugger.sendCommand({ tabId: targetTabId }, 'Input.dispatchMouseEvent', {
-      type: 'mouseWheel', x: payload.x, y: payload.y,
-      deltaX: payload.deltaX || 0, deltaY: payload.deltaY || 0
-    });
-  } catch (err) {
-    console.error('[FSB Remote] Scroll failed:', err.message);
-    await _handleRemoteControlDispatchFailure('scroll', err);
-  }
-}
-
-async function _releaseRemoteControlDebugger(reason) {
-  var tabId = _remoteControlDebuggerTabId;
-  var owned = _remoteControlDebuggerOwned;
-  _remoteControlDebuggerTabId = null;
-  _remoteControlDebuggerOwned = false;
-
-  if (tabId === null) return;
-  if (!owned) {
-    console.log('[FSB Remote] Cleared reused debugger reference on tab ' + tabId + ' (' + (reason || 'release') + ')');
-    return;
-  }
-
-  try {
-    await chrome.debugger.detach({ tabId: tabId });
-    console.log('[FSB Remote] Debugger detached from tab ' + tabId + ' (' + (reason || 'release') + ')');
-  } catch (err) {
-    console.warn('[FSB Remote] Debugger detach skipped for tab ' + tabId + ':', err && err.message ? err.message : err);
-  }
-}
-
-async function _ensureRemoteControlDebugger(targetTabId, reason) {
-  if (!_remoteControlEnabled) return false;
-  if (typeof targetTabId !== 'number') {
-    await _releaseRemoteControlDebugger(reason || 'missing-tab');
-    _sendRemoteControlState('stream-not-ready', {
-      enabled: false,
-      attached: false,
-      tabId: null,
-      ownership: 'none'
-    });
-    return false;
-  }
-
-  if (_remoteControlDebuggerTabId === targetTabId) {
-    return true;
-  }
-
-  if (_remoteControlDebuggerTabId !== null && _remoteControlDebuggerTabId !== targetTabId) {
-    await _releaseRemoteControlDebugger('retarget:' + (reason || 'unknown'));
-    _remoteControlEnabled = false;
-    _sendRemoteControlState('retarget-required', {
-      enabled: false,
-      attached: false,
-      tabId: targetTabId,
-      ownership: 'none'
-    });
-    return false;
-  }
-
-  try {
-    await chrome.debugger.attach({ tabId: targetTabId }, '1.3');
-    _remoteControlDebuggerTabId = targetTabId;
-    _remoteControlDebuggerOwned = true;
-    console.log('[FSB Remote] Debugger attached to tab ' + targetTabId + ' (' + (reason || 'attach') + ')');
-    return true;
-  } catch (err) {
-    var message = err && err.message ? err.message : '';
-    if (message.includes('Already attached')) {
-      _remoteControlDebuggerTabId = targetTabId;
-      _remoteControlDebuggerOwned = false;
-      console.log('[FSB Remote] Reusing debugger attachment on tab ' + targetTabId + ' (' + (reason || 'attach') + ')');
-      return true;
-    }
-    if (message.includes('Another debugger is already attached')) {
-      _remoteControlEnabled = false;
-      _sendRemoteControlState('debugger-blocked', {
-        enabled: false,
-        attached: false,
-        tabId: targetTabId,
-        ownership: 'external-debugger'
-      });
-      console.warn('[FSB Remote] Remote attach blocked by another debugger on tab ' + targetTabId);
-      return false;
-    }
-    console.error('[FSB Remote] Failed to attach debugger for ' + (reason || 'attach') + ':', message || err);
-    return false;
-  }
-}
-
-function _syncRemoteControlDebugger(reason) {
-  if (!_remoteControlEnabled) return;
-
-  var targetTabId = _streamStatus === 'ready' ? _streamingTabId : null;
-  if (typeof targetTabId !== 'number') {
-    _remoteControlEnabled = false;
-    _releaseRemoteControlDebugger(reason || 'not-ready').catch(function(err) {
-      console.warn('[FSB Remote] Failed to release debugger during sync:', err && err.message ? err.message : err);
-    });
-    _sendRemoteControlState('stream-not-ready', {
-      enabled: false,
-      attached: false,
-      tabId: null,
-      ownership: 'none'
-    });
-    return;
-  }
-
-  if (_remoteControlDebuggerTabId !== null && _remoteControlDebuggerTabId !== targetTabId) {
-    _remoteControlEnabled = false;
-    _releaseRemoteControlDebugger('retarget-required').catch(function(err) {
-      console.warn('[FSB Remote] Failed to release debugger during retarget sync:', err && err.message ? err.message : err);
-    });
-    _sendRemoteControlState('retarget-required', {
-      enabled: false,
-      attached: false,
-      tabId: targetTabId,
-      ownership: 'none'
-    });
-  }
-}
-
-async function _handleRemoteControlDispatchFailure(kind, err) {
-  _remoteControlEnabled = false;
-  await _releaseRemoteControlDebugger('dispatch-failed:' + kind);
-  _sendRemoteControlState('dispatch-failed', {
-    enabled: false,
-    attached: false,
-    tabId: null,
-    ownership: 'none'
-  });
-}
-
-/**
- * Execute a CDP tool directly from the automation loop (no message round-trip).
- * Wraps chrome.debugger calls for each CDP tool type, replicating the exact
- * dispatch logic from the existing handler functions but returning results
- * directly instead of using sendResponse callbacks.
- * @param {Object} action - { tool, params }
- * @param {number} tabId - Tab to attach debugger to
- * @returns {Object} Result with success field
- */
-async function executeCDPToolDirect(action, tabId) {
-  const p = action.params || {};
-
-  try {
-    await chrome.debugger.attach({ tabId }, '1.3');
-  } catch (attachErr) {
-    // Already attached is OK -- detach and retry once
-    if (attachErr.message?.includes('Already attached')) {
-      try { await chrome.debugger.detach({ tabId }); } catch (_) {}
-      await chrome.debugger.attach({ tabId }, '1.3');
-    } else {
-      throw attachErr;
-    }
-  }
-
-  try {
-    switch (action.tool) {
-      case 'cdpClickAt': {
-        let modifiers = 0;
-        if (p.altKey) modifiers |= 1;
-        if (p.ctrlKey) modifiers |= 2;
-        if (p.shiftKey) modifiers |= 8;
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1, modifiers
-        });
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1, modifiers
-        });
-        return { success: true, x: p.x, y: p.y, modifiers, method: 'cdp_mouse_direct' };
-      }
-
-      case 'cdpClickAndHold': {
-        const holdMs = p.holdMs || 5000;
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1
-        });
-        await new Promise(r => setTimeout(r, holdMs));
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1
-        });
-        return { success: true, x: p.x, y: p.y, holdMs, method: 'cdp_click_and_hold_direct' };
-      }
-
-      case 'cdpDrag': {
-        const steps = p.steps || 10;
-        const stepDelayMs = p.stepDelayMs || 20;
-        let modifiers = 0;
-        if (p.altKey) modifiers |= 1;
-        if (p.ctrlKey) modifiers |= 2;
-        if (p.shiftKey) modifiers |= 8;
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mousePressed', x: p.startX, y: p.startY, button: 'left', clickCount: 1, modifiers
-        });
-        for (let i = 1; i <= steps; i++) {
-          const t = i / steps;
-          const mx = Math.round(p.startX + (p.endX - p.startX) * t);
-          const my = Math.round(p.startY + (p.endY - p.startY) * t);
-          await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-            type: 'mouseMoved', x: mx, y: my, button: 'left', buttons: 1, modifiers
-          });
-          if (stepDelayMs > 0) await new Promise(r => setTimeout(r, stepDelayMs));
-        }
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mouseReleased', x: p.endX, y: p.endY, button: 'left', clickCount: 1, modifiers
-        });
-        return { success: true, startX: p.startX, startY: p.startY, endX: p.endX, endY: p.endY, steps, method: 'cdp_drag_direct' };
-      }
-
-      case 'cdpDragVariableSpeed': {
-        const totalSteps = Math.max(p.steps || 20, 5);
-        const minDelayMs = p.minDelayMs || 5;
-        const maxDelayMs = p.maxDelayMs || 40;
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mousePressed', x: p.startX, y: p.startY, button: 'left', clickCount: 1
-        });
-        for (let i = 1; i <= totalSteps; i++) {
-          const t = i / totalSteps;
-          const mx = Math.round(p.startX + (p.endX - p.startX) * t);
-          const my = Math.round(p.startY + (p.endY - p.startY) * t);
-          await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-            type: 'mouseMoved', x: mx, y: my, button: 'left', buttons: 1
-          });
-          // Ease-in-out delay: high at start/end, low in middle
-          const speedFactor = 1.0 - 4.0 * Math.pow(t - 0.5, 2);
-          const clampedFactor = Math.max(0, Math.min(1, speedFactor));
-          const delay = Math.round(maxDelayMs - clampedFactor * (maxDelayMs - minDelayMs));
-          await new Promise(r => setTimeout(r, delay));
-        }
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mouseReleased', x: p.endX, y: p.endY, button: 'left', clickCount: 1
-        });
-        return { success: true, startX: p.startX, startY: p.startY, endX: p.endX, endY: p.endY, steps: totalSteps, minDelayMs, maxDelayMs, method: 'cdp_drag_variable_direct' };
-      }
-
-      case 'cdpScrollAt': {
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mouseWheel', x: p.x, y: p.y,
-          deltaX: p.deltaX || 0, deltaY: p.deltaY || -120
-        });
-        return { success: true, x: p.x, y: p.y, deltaX: p.deltaX || 0, deltaY: p.deltaY || -120, method: 'cdp_scroll_direct' };
-      }
-
-      case 'cdpInsertText': {
-        const text = p.text || '';
-        await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text });
-        return { success: true, text, length: text.length, method: 'cdp_inserttext_direct' };
-      }
-
-      case 'cdpDoubleClickAt': {
-        let modifiers = 0;
-        if (p.altKey) modifiers |= 1;
-        if (p.ctrlKey) modifiers |= 2;
-        if (p.shiftKey) modifiers |= 8;
-        // First click
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1, modifiers
-        });
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1, modifiers
-        });
-        // Brief pause between clicks (50ms)
-        await new Promise(r => setTimeout(r, 50));
-        // Second click with clickCount=2
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 2, modifiers
-        });
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-          type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 2, modifiers
-        });
-        return { success: true, x: p.x, y: p.y, method: 'cdp_doubleclick_direct' };
-      }
-
-      default:
-        return { success: false, error: `Unknown CDP tool: ${action.tool}` };
-    }
-  } finally {
-    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
-  }
-}
-
-/**
- * Reads canvas scene data via CDP Runtime.evaluate.
- * First tries intercepted draw call log via getCanvasScene() which reads window.__canvasCallLog,
- * then attempts triggerCanvasRerender(), and falls back to pixel analysis.
- * @param {number} tabId - Tab to read canvas from
- * @returns {Object|null} Canvas scene data or null if no canvas
- */
-async function fetchCanvasScene(tabId) {
-  // Try to attach debugger -- if already attached (e.g., by KeyboardEmulator during automation),
-  // just use the existing connection. Do NOT detach+reattach as that breaks the emulator.
-  let ownedDebugger = false;
-  try {
-    await chrome.debugger.attach({ tabId }, '1.3');
-    ownedDebugger = true;
-  } catch (attachErr) {
-    if (attachErr.message?.includes('Already attached')) {
-      // Another component has it attached -- reuse the connection
-      ownedDebugger = false;
-    } else {
-      return null;
-    }
-  }
-
-  try {
-    // Step 1: Check if interceptor is installed and has data
-    const interceptCheck = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
-      expression: `(() => {
-        if (!window.__canvasInterceptorInstalled) return JSON.stringify({ installed: false });
-        const scene = window.getCanvasScene();
-        return JSON.stringify({ installed: true, scene: scene });
-      })()`,
-      returnByValue: true
-    });
-
-    if (interceptCheck?.result?.value) {
-      const parsed = JSON.parse(interceptCheck.result.value);
-      if (parsed.installed && parsed.scene && (parsed.scene.texts?.length > 0 || parsed.scene.shapes?.length > 0 || parsed.scene.rects?.length > 0 || parsed.scene.paths?.length > 0)) {
-        return { source: 'interceptor', ...parsed.scene };
-      }
-
-      // Interceptor installed but no data -- try re-render trigger
-      if (parsed.installed && parsed.scene && parsed.scene.totalCalls === 0) {
-        const rerender = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
-          expression: `window.triggerCanvasRerender().then(r => JSON.stringify(r))`,
-          returnByValue: true,
-          awaitPromise: true
-        });
-        // After re-render, read scene again
-        if (rerender?.result?.value) {
-          const sceneAfter = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
-            expression: `JSON.stringify(window.getCanvasScene())`,
-            returnByValue: true
-          });
-          if (sceneAfter?.result?.value) {
-            const scene2 = JSON.parse(sceneAfter.result.value);
-            if (scene2.texts?.length > 0 || scene2.shapes?.length > 0 || scene2.rects?.length > 0 || scene2.paths?.length > 0) {
-              return { source: 'interceptor-rerender', ...scene2 };
-            }
-          }
-        }
-      }
-    }
-
-    // Step 2: Fallback to pixel analysis
-    // Get the pixel fallback expression from content script
-    const pixelExpr = await chrome.tabs.sendMessage(tabId, {
-      action: 'getCanvasPixelFallback'
-    }, { frameId: 0 });
-
-    if (pixelExpr?.expression) {
-      const pixelResult = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
-        expression: pixelExpr.expression,
-        returnByValue: true
-      });
-      if (pixelResult?.result?.value) {
-        const pixelData = JSON.parse(pixelResult.result.value);
-        if (pixelData.scenes && pixelData.scenes.length > 0) {
-          return { source: 'pixel-fallback', ...pixelData };
-        }
-      }
-    }
-
-    return null;
-  } catch (err) {
-    automationLogger.debug('fetchCanvasScene failed', { tabId, error: err.message });
-    return null;
-  } finally {
-    // Only detach if WE attached the debugger -- don't break other components' connections
-    if (ownedDebugger) {
-      try { await chrome.debugger.detach({ tabId }); } catch (_) {}
-    }
-  }
-}
-
-/**
- * Converts canvas scene data into markdown text for the DOM snapshot.
- * Target: 200-500 tokens for typical diagrams.
- * @param {Object} scene - Canvas scene from fetchCanvasScene
- * @returns {string|null} Markdown section or null if empty
- */
-function formatCanvasSceneMarkdown(scene) {
-  if (!scene) return null;
-
-  const lines = ['## CANVAS SCENE'];
-
-  if (scene.source === 'interceptor' || scene.source === 'interceptor-rerender') {
-    lines.push(`> ${scene.summary || 'Canvas content detected'}`);
-
-    // Shapes (clustered from paths + rects)
-    if (scene.shapes && scene.shapes.length > 0) {
-      lines.push('');
-      for (const s of scene.shapes.slice(0, 30)) {
-        const label = s.label ? ` "${s.label}"` : '';
-        lines.push(`- ${s.type}${label} at (${s.x},${s.y}) ${s.w}x${s.h} color:${s.color}`);
-      }
-    }
-
-    // Standalone text labels (not associated with shapes)
-    const shapeLabelTexts = new Set();
-    if (scene.shapes) scene.shapes.forEach(s => { if (s.label) s.label.split(' ').forEach(t => shapeLabelTexts.add(t)); });
-    const standaloneTexts = (scene.texts || []).filter(t => !shapeLabelTexts.has(t.text));
-    if (standaloneTexts.length > 0) {
-      lines.push('');
-      lines.push('Text:');
-      for (const t of standaloneTexts.slice(0, 20)) {
-        lines.push(`- "${t.text}" at (${t.x},${t.y}) color:${t.color}`);
-      }
-    }
-
-    if ((!scene.shapes || scene.shapes.length === 0) && (!scene.texts || scene.texts.length === 0)) {
-      return null; // No meaningful data
-    }
-  } else if (scene.source === 'pixel-fallback') {
-    lines.push('> Source: pixel analysis (no draw call data available)');
-
-    if (scene.scenes) {
-      for (const s of scene.scenes) {
-        if (s.error) {
-          lines.push(`Canvas ${s.canvas}: ${s.error} (${s.width}x${s.height})`);
-          continue;
-        }
-        lines.push(`\nCanvas ${s.canvas} (${s.width}x${s.height}):`);
-        if (s.colorRegions && s.colorRegions.length > 0) {
-          lines.push('Color regions:');
-          for (const r of s.colorRegions) {
-            const sec = r.secondary ? `, ${r.secondary}` : '';
-            lines.push(`- ${r.pos}: ${r.pct}% ${r.color}${sec}`);
-          }
-        }
-        if (s.edges) {
-          lines.push('Edge wireframe:');
-          lines.push('```');
-          lines.push(s.edges);
-          lines.push('```');
-        }
-      }
-    }
-  }
-
-  return lines.join('\n');
-}
-
-/**
- * Handle CDP mouse click at specific page coordinates.
- * Uses Input.dispatchMouseEvent for browser-level click simulation.
- * Called from content scripts that need to click elements not reachable via DOM APIs.
- */
-async function handleCDPMouseClick(request, sender, sendResponse) {
-  const tabId = sender.tab?.id;
-  const { x, y, shiftKey, ctrlKey, altKey } = request;
-  if (!tabId || typeof x !== 'number' || typeof y !== 'number') {
-    sendResponse({ success: false, error: 'Missing tabId or coordinates' });
-    return;
-  }
-  // Compute CDP modifiers bitmask: 1=Alt, 2=Ctrl, 4=Meta, 8=Shift
-  let modifiers = 0;
-  if (altKey) modifiers |= 1;
-  if (ctrlKey) modifiers |= 2;
-  if (shiftKey) modifiers |= 8;
-  try {
-    await chrome.debugger.attach({ tabId }, '1.3');
-    // mousePressed
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-      type: 'mousePressed', x, y, button: 'left', clickCount: 1, modifiers
-    });
-    // mouseReleased
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-      type: 'mouseReleased', x, y, button: 'left', clickCount: 1, modifiers
-    });
-    await chrome.debugger.detach({ tabId });
-    sendResponse({ success: true, x, y, modifiers, method: 'cdp_mouse' });
-  } catch (e) {
-    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
-    sendResponse({ success: false, error: e.message });
-  }
-}
-
-/**
- * Handle CDP mouse click-and-hold at specific page coordinates.
- * Uses Input.dispatchMouseEvent for browser-level press-hold-release simulation.
- * mousePressed -> wait holdMs -> mouseReleased at same coordinates.
- * Essential for record buttons, long-press menus, and timed press interactions.
- */
-async function handleCDPMouseClickAndHold(request, sender, sendResponse) {
-  const tabId = sender.tab?.id;
-  const { x, y, holdMs = 5000 } = request;
-  if (!tabId || typeof x !== 'number' || typeof y !== 'number') {
-    sendResponse({ success: false, error: 'Missing tabId or coordinates' });
-    return;
-  }
-  try {
-    await chrome.debugger.attach({ tabId }, '1.3');
-    // mousePressed
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-      type: 'mousePressed', x, y, button: 'left', clickCount: 1
-    });
-    // Hold for specified duration
-    await new Promise(r => setTimeout(r, holdMs));
-    // mouseReleased at same position
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-      type: 'mouseReleased', x, y, button: 'left', clickCount: 1
-    });
-    await chrome.debugger.detach({ tabId });
-    sendResponse({ success: true, x, y, holdMs, method: 'cdp_click_and_hold' });
-  } catch (e) {
-    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
-    sendResponse({ success: false, error: e.message });
-  }
-}
-
-/**
- * Handle CDP mouse drag between two viewport coordinates.
- * Uses Input.dispatchMouseEvent for browser-level drag simulation:
- * mousePressed at start -> N mouseMoved steps -> mouseReleased at end.
- * Essential for canvas apps (TradingView, Figma, etc.) that ignore untrusted DOM events.
- */
-async function handleCDPMouseDrag(request, sender, sendResponse) {
-  const tabId = sender.tab?.id;
-  const { startX, startY, endX, endY, steps = 10, stepDelayMs = 20, shiftKey, ctrlKey, altKey } = request;
-  if (!tabId || typeof startX !== 'number' || typeof startY !== 'number' ||
-      typeof endX !== 'number' || typeof endY !== 'number') {
-    sendResponse({ success: false, error: 'Missing tabId or coordinates (startX, startY, endX, endY required)' });
-    return;
-  }
-  // Compute CDP modifiers bitmask: 1=Alt, 2=Ctrl, 4=Meta, 8=Shift
-  let modifiers = 0;
-  if (altKey) modifiers |= 1;
-  if (ctrlKey) modifiers |= 2;
-  if (shiftKey) modifiers |= 8;
-  try {
-    await chrome.debugger.attach({ tabId }, '1.3');
-
-    // mousePressed at start position
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-      type: 'mousePressed', x: startX, y: startY, button: 'left', clickCount: 1, modifiers
-    });
-
-    // mouseMoved in intermediate steps (canvas apps need this to register drag intent)
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const x = Math.round(startX + (endX - startX) * t);
-      const y = Math.round(startY + (endY - startY) * t);
-      await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-        type: 'mouseMoved', x, y, button: 'left', buttons: 1, modifiers
-      });
-      if (stepDelayMs > 0) await new Promise(r => setTimeout(r, stepDelayMs));
-    }
-
-    // mouseReleased at end position
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-      type: 'mouseReleased', x: endX, y: endY, button: 'left', clickCount: 1, modifiers
-    });
-
-    await chrome.debugger.detach({ tabId });
-    sendResponse({ success: true, startX, startY, endX, endY, steps, modifiers, method: 'cdp_drag' });
-  } catch (e) {
-    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
-    sendResponse({ success: false, error: e.message });
-  }
-}
-
-/**
- * Handle CDP mouse drag with variable speed (ease-in-out timing).
- * Like handleCDPMouseDrag but varies the delay between mouseMoved steps
- * using a quadratic ease-in-out function to produce human-like drag movement:
- * slow start, acceleration through middle, deceleration at end.
- *
- * The speed curve: speedFactor = 1 - 4*(t-0.5)^2 maps [0,1] -> [0,1] where
- * values near 0 and 1 produce higher delays (slower movement) and
- * values near 0.5 produce lower delays (faster movement).
- *
- * Used for slider CAPTCHAs where constant-speed drag is detected as bot behavior.
- */
-async function handleCDPMouseDragVariableSpeed(request, sender, sendResponse) {
-  const tabId = sender.tab?.id;
-  const { startX, startY, endX, endY, steps = 20, minDelayMs = 5, maxDelayMs = 40 } = request;
-  if (!tabId || typeof startX !== 'number' || typeof startY !== 'number' ||
-      typeof endX !== 'number' || typeof endY !== 'number') {
-    sendResponse({ success: false, error: 'Missing tabId or coordinates (startX, startY, endX, endY required)' });
-    return;
-  }
-  try {
-    await chrome.debugger.attach({ tabId }, '1.3');
-
-    // mousePressed at start position
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-      type: 'mousePressed', x: startX, y: startY, button: 'left', clickCount: 1
-    });
-
-    // mouseMoved with variable-speed delays using ease-in-out quadratic curve
-    // Ease-in-out: slow at edges (t near 0 or 1), fast in middle (t near 0.5)
-    // Speed curve (inverted to get delay): high delay at edges, low delay in middle
-    const totalSteps = Math.max(steps, 5); // minimum 5 steps for meaningful curve
-    for (let i = 1; i <= totalSteps; i++) {
-      const t = i / totalSteps; // progress 0..1
-      const x = Math.round(startX + (endX - startX) * t);
-      const y = Math.round(startY + (endY - startY) * t);
-
-      await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-        type: 'mouseMoved', x, y, button: 'left', buttons: 1
-      });
-
-      // Ease-in-out delay: high at start/end, low in middle
-      // speedFactor = 1 - 4*(t-0.5)^2 maps [0,1] -> [0,1] with peak at 0.5
-      // delay = maxDelay at edges (speedFactor=0), minDelay at center (speedFactor=1)
-      const speedFactor = 1.0 - 4.0 * Math.pow(t - 0.5, 2); // 0 at edges, 1 at center
-      const clampedFactor = Math.max(0, Math.min(1, speedFactor));
-      const delay = Math.round(maxDelayMs - clampedFactor * (maxDelayMs - minDelayMs));
-      await new Promise(r => setTimeout(r, delay));
-    }
-
-    // mouseReleased at end position
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-      type: 'mouseReleased', x: endX, y: endY, button: 'left', clickCount: 1
-    });
-
-    await chrome.debugger.detach({ tabId });
-    sendResponse({
-      success: true, startX, startY, endX, endY, steps: totalSteps,
-      minDelayMs, maxDelayMs, method: 'cdp_drag_variable_speed'
-    });
-  } catch (e) {
-    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
-    sendResponse({ success: false, error: e.message });
-  }
-}
-
-/**
- * Handle CDP mouse wheel at specific viewport coordinates.
- * Uses Input.dispatchMouseEvent with type "mouseWheel" for coordinate-targeted scrolling.
- * Essential for map zoom (Google Maps, Leaflet) and canvas zoom where page-level scroll does nothing.
- */
-async function handleCDPMouseWheel(request, sender, sendResponse) {
-  const tabId = sender.tab?.id;
-  const { x, y, deltaX = 0, deltaY = -120 } = request;
-  if (!tabId || typeof x !== 'number' || typeof y !== 'number') {
-    sendResponse({ success: false, error: 'Missing tabId or coordinates' });
-    return;
-  }
-  try {
-    await chrome.debugger.attach({ tabId }, '1.3');
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-      type: 'mouseWheel', x, y, deltaX, deltaY
-    });
-    await chrome.debugger.detach({ tabId });
-    sendResponse({ success: true, x, y, deltaX, deltaY, method: 'cdp_mouseWheel' });
-  } catch (e) {
-    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
-    sendResponse({ success: false, error: e.message });
-  }
-}
-
 /**
  * Handle keyboard emulator actions from content scripts
  * @param {Object} request - The keyboard action request
@@ -11950,91 +10245,52 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 // --- Background Agent Alarm Handler ---
-
-// Agent retry configuration
-const AGENT_RETRY_DELAYS = [1, 5, 15]; // minutes: exponential backoff
-const AGENT_RETRY_PREFIX = 'fsb_agent_retry_';
-
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  // Check if this is a retry alarm
-  let isRetry = false;
-  let retryAgentId = null;
-  if (alarm.name.startsWith(AGENT_RETRY_PREFIX)) {
-    retryAgentId = alarm.name.substring(AGENT_RETRY_PREFIX.length);
-    isRetry = true;
-  }
+  const agentId = agentScheduler.getAgentIdFromAlarm(alarm.name);
+  if (!agentId) return; // Not an FSB agent alarm
 
-  const scheduledAgentId = agentScheduler.getAgentIdFromAlarm(alarm.name);
-  const effectiveAgentId = isRetry ? retryAgentId : scheduledAgentId;
-  if (!effectiveAgentId) return; // Not an FSB agent alarm
-
-  console.log('[FSB] Agent alarm fired:', alarm.name, isRetry ? '(retry)' : '');
+  console.log('[FSB] Agent alarm fired:', alarm.name);
 
   try {
-    const agent = await agentManager.getAgent(effectiveAgentId);
+    const agent = await agentManager.getAgent(agentId);
     if (!agent) {
-      console.warn('[FSB] Agent not found for alarm, clearing:', effectiveAgentId);
-      if (!isRetry) await agentScheduler.clearAlarm(effectiveAgentId);
+      console.warn('[FSB] Agent not found for alarm, clearing:', agentId);
+      await agentScheduler.clearAlarm(agentId);
       return;
     }
 
     if (!agent.enabled) {
-      console.log('[FSB] Agent disabled, skipping:', effectiveAgentId);
+      console.log('[FSB] Agent disabled, skipping:', agentId);
       return;
     }
 
-    // Guard against double-runs (skip for retry alarms)
-    if (!isRetry && !agentScheduler.isValidAlarmFire(agent)) {
-      console.log('[FSB] Agent alarm fired too soon, skipping:', effectiveAgentId);
+    // Guard against double-runs
+    if (!agentScheduler.isValidAlarmFire(agent)) {
+      console.log('[FSB] Agent alarm fired too soon, skipping:', agentId);
       return;
     }
 
     // Execute the agent
     const result = await agentExecutor.execute(agent);
 
-    // Handle failed runs with retry
-    if (!result.success) {
-      const currentRetry = agent.retryCount || 0;
-      if (currentRetry < (agent.retryMaxAttempts || 3)) {
-        const delayMinutes = AGENT_RETRY_DELAYS[currentRetry] || 15;
-        await agentManager.incrementRetry(effectiveAgentId);
-        const retryAlarmName = AGENT_RETRY_PREFIX + effectiveAgentId;
-        await chrome.alarms.create(retryAlarmName, { delayInMinutes: delayMinutes });
-        console.log('[FSB] Agent run failed, scheduling retry', currentRetry + 1, 'in', delayMinutes, 'min:', effectiveAgentId);
-      } else {
-        console.log('[FSB] Agent run failed, max retries reached:', effectiveAgentId);
-        await agentManager.resetRetry(effectiveAgentId);
-      }
-    } else {
-      // Success - reset retry counter
-      if (agent.retryCount > 0) {
-        await agentManager.resetRetry(effectiveAgentId);
-      }
-    }
-
     // Record the run
-    const updatedAgent = await agentManager.recordRun(effectiveAgentId, result);
+    const updatedAgent = await agentManager.recordRun(agentId, result);
 
     // Reschedule daily agents for their next occurrence
     if (agent.schedule.type === 'daily') {
       await agentScheduler.rescheduleDaily(updatedAgent);
     }
 
-    // Reschedule cron agents for their next occurrence
-    if (agent.schedule.type === 'cron') {
-      await agentScheduler.rescheduleCron(updatedAgent);
-    }
-
     // Disable once-type agents after execution
     if (agent.schedule.type === 'once') {
-      await agentManager.updateAgent(effectiveAgentId, { enabled: false });
-      await agentScheduler.clearAlarm(effectiveAgentId);
+      await agentManager.updateAgent(agentId, { enabled: false });
+      await agentScheduler.clearAlarm(agentId);
     }
 
     // Notify any open UI about the run completion
     chrome.runtime.sendMessage({
       action: 'agentRunComplete',
-      agentId: effectiveAgentId,
+      agentId: agentId,
       result: {
         success: result.success,
         duration: result.duration,
@@ -12056,23 +10312,43 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 // Set up side panel behavior
 chrome.runtime.onInstalled.addListener(async () => {
-  automationLogger.logInit('extension', 'installed', { version: 'v0.9.20' });
+  automationLogger.logInit('extension', 'installed', { version: 'v0.9.30' });
 
-  // Install-specific: Set default UI mode if not set
-  var stored = await chrome.storage.local.get(['uiMode']);
-  if (!stored.uiMode) {
+  // Initialize analytics
+  initializeAnalytics();
+
+  // Load debug mode setting
+  await loadDebugMode();
+
+  // Set default UI mode if not set
+  const { uiMode } = await chrome.storage.local.get(['uiMode']);
+  if (!uiMode) {
     await chrome.storage.local.set({ uiMode: 'sidepanel' });
     automationLogger.debug('Default UI mode set to sidepanel', {});
   }
 
-  // Run shared bootstrap (SETTINGS, ENVIRONMENT, TOOLS, SESSIONS)
-  await swBootstrap('installed');
+  // Configure side panel to open automatically on action click
+  try {
+    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    automationLogger.debug('Side panel behavior configured', { autoOpen: true });
+  } catch (error) {
+    automationLogger.debug('Side panel API not available', { chromeVersion: 'below 114' });
+  }
+
+  // Reschedule all background agents
+  agentScheduler.rescheduleAllAgents();
 });
 
 // Initialize analytics and restore sessions on startup
 chrome.runtime.onStartup.addListener(async () => {
   automationLogger.logServiceWorker('startup', {});
-  await swBootstrap('startup');
+  initializeAnalytics();
+  // Load debug mode setting
+  await loadDebugMode();
+  // Restore sessions from storage so stop button works after service worker restart
+  await restoreSessionsFromStorage();
+  // Reschedule all background agents
+  agentScheduler.rescheduleAllAgents();
 });
 
 // Listen for debug mode changes so toggling takes effect immediately
@@ -12080,15 +10356,6 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.debugMode) {
     fsbDebugMode = changes.debugMode.newValue === true;
     console.log('[FSB] Debug mode ' + (fsbDebugMode ? 'enabled' : 'disabled'));
-  }
-
-  // Connect/disconnect WebSocket when serverSyncEnabled is toggled
-  if (namespace === 'local' && changes.serverSyncEnabled) {
-    if (changes.serverSyncEnabled.newValue) {
-      fsbWebSocket.connect();
-    } else {
-      fsbWebSocket.disconnect();
-    }
   }
 
   // PERF: Update cached DOM settings in active sessions when changed
@@ -12106,802 +10373,3 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
   }
 });
-
-// ============================================================================
-// MCP WEBSOCKET BRIDGE (localhost:7225)
-// ============================================================================
-
-let mcpProgressCallbacks = new Map(); // sessionId -> MCP message id for progress forwarding
-
-class MCPWebSocket {
-  constructor() {
-    this.ws = null;
-    this.reconnectTimer = null;
-    this.reconnectDelay = 0;
-    this.maxReconnectDelay = 30000;
-    this.connected = false;
-    this.intentionalClose = false;
-    this.keepaliveTimer = null;
-    this.healthCheckTimer = null;
-  }
-
-  connect() {
-    if (this.ws) {
-      try { this.ws.close(); } catch (_) { /* ignore */ }
-      this.ws = null;
-    }
-
-    this._stopKeepalive();
-    this.intentionalClose = false;
-
-    try {
-      this.ws = new WebSocket('ws://localhost:7225');
-    } catch (err) {
-      console.warn('[FSB MCP WS] Failed to create WebSocket:', err.message);
-      this._scheduleReconnect();
-      return;
-    }
-
-    this.ws.onopen = () => {
-      this.reconnectDelay = 0;
-      this.connected = true;
-      this._startKeepalive();
-      console.log('[FSB MCP WS] Connected to MCP server');
-    };
-
-    this.ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        this._handleMessage(msg);
-      } catch (err) {
-        console.warn('[FSB MCP WS] Failed to parse message:', err.message);
-      }
-    };
-
-    this.ws.onclose = () => {
-      this.connected = false;
-      this._stopKeepalive();
-      if (!this.intentionalClose) {
-        this._scheduleReconnect();
-      }
-      console.log('[FSB MCP WS] Disconnected');
-    };
-
-    this.ws.onerror = () => {
-      // onclose fires after onerror
-    };
-  }
-
-  disconnect() {
-    this.intentionalClose = true;
-    this._stopKeepalive();
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    if (this.ws) {
-      this.ws.close();
-    }
-    this.ws = null;
-    this.connected = false;
-  }
-
-  send(data) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
-    this.ws.send(JSON.stringify(data));
-    return true;
-  }
-
-  // Phase 102.1: Keepalive pings prevent service worker suspension from killing MCP connection.
-  // Service workers suspend after ~30s idle, closing all WebSockets. A 15s ping keeps
-  // the worker alive and detects stale connections early.
-  _startKeepalive() {
-    this._stopKeepalive();
-    this.keepaliveTimer = setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'mcp:ping', ts: Date.now() }));
-      } else if (!this.intentionalClose) {
-        // WebSocket is not open but we think we're connected -- stale state
-        this.connected = false;
-        this._stopKeepalive();
-        this._scheduleReconnect();
-      }
-    }, 15000); // 15-second keepalive (under 30s service worker timeout)
-  }
-
-  _stopKeepalive() {
-    if (this.keepaliveTimer) {
-      clearInterval(this.keepaliveTimer);
-      this.keepaliveTimer = null;
-    }
-  }
-
-  // Health check: called on service worker wake to verify connection is still alive.
-  // If ws is null or closed, reconnect immediately.
-  ensureConnected() {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.log('[FSB MCP WS] Health check: connection lost, reconnecting...');
-      this.connected = false;
-      this._stopKeepalive();
-      this.reconnectDelay = 0; // Immediate reconnect on wake
-      this.connect();
-    }
-  }
-
-  _handleMessage(msg) {
-    // Ignore pong responses
-    if (msg && msg.type === 'mcp:pong') return;
-    // All messages from MCP server are MCPMessage objects with { id, type, payload }
-    // Route them to the existing handleMCPMessage handler
-    if (msg && msg.type && msg.type.startsWith('mcp:')) {
-      handleMCPMessage(msg);
-    }
-  }
-
-  _scheduleReconnect() {
-    if (this.reconnectDelay === 0) {
-      this.reconnectDelay = 2000;
-      // Don't reconnect immediately -- MCP server may not be running
-      console.log('[FSB MCP WS] Will retry in 2s');
-      this.reconnectTimer = setTimeout(() => this.connect(), 2000);
-    } else {
-      console.log('[FSB MCP WS] Reconnecting in ' + this.reconnectDelay + 'ms');
-      this.reconnectTimer = setTimeout(() => this.connect(), this.reconnectDelay);
-      this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
-    }
-  }
-}
-
-const mcpWebSocket = new MCPWebSocket();
-
-/**
- * Handle messages from MCP server via WebSocket bridge.
- * Routes to existing extension handlers and returns results.
- */
-async function handleMCPMessage(msg) {
-  const { id, type, payload } = msg;
-  console.log(`[FSB MCP] >> Received: ${type}`, { id, payload: JSON.stringify(payload).slice(0, 200) });
-
-  try {
-    switch (type) {
-      case 'mcp:start-automation': {
-        let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab) {
-          tab = await chrome.tabs.create({ url: 'about:blank', active: true });
-        }
-        // Delegate to existing handleStartAutomation
-        const result = await new Promise((resolve) => {
-          handleStartAutomation(
-            { action: 'startAutomation', task: payload.task, tabId: tab.id, _triggerSource: 'mcp' },
-            { id: chrome.runtime.id, tab: tab },
-            resolve
-          );
-        });
-
-        // For autopilot tasks, register progress callback
-        if (result && result.success && result.sessionId) {
-          mcpProgressCallbacks.set(result.sessionId, id);
-        }
-
-        sendMCPResponse(id, result || { success: false, error: 'No response from handler' });
-        break;
-      }
-
-      case 'mcp:stop-automation': {
-        const result = await new Promise((resolve) => {
-          handleStopAutomation(
-            { action: 'stopAutomation' },
-            { id: chrome.runtime.id },
-            resolve
-          );
-        });
-        sendMCPResponse(id, result || { success: true });
-        break;
-      }
-
-      case 'mcp:get-status': {
-        const sessionIds = Array.from(activeSessions.keys());
-        const firstSession = sessionIds.length > 0 ? activeSessions.get(sessionIds[0]) : null;
-        sendMCPResponse(id, {
-          success: true,
-          activeSessions: activeSessions.size,
-          sessionIds,
-          currentSessionId: sessionIds[0] || null,
-          currentTask: firstSession?.task || null,
-          progress: firstSession ? calculateProgress(firstSession) : null,
-          phase: firstSession ? detectTaskPhase(firstSession) : null
-        });
-        break;
-      }
-
-      case 'mcp:execute-action': {
-        const tabContext = await resolveMCPActiveTabContext();
-        if (!tabContext?.tab) {
-          console.warn('[FSB MCP] execute-action: No active tab found');
-          sendMCPResponse(id, { success: false, error: 'No active tab' });
-          return;
-        }
-        const { tab } = tabContext;
-        console.log(`[FSB MCP] execute-action: tab=${tab.id} url=${tab.url} tool=${payload.tool}`);
-
-        // Navigation tools that work without content scripts -- handle directly in background
-        // This prevents the dead-end where a crashed/error tab blocks all MCP actions
-        const bgNavTools = ['navigate', 'open_tab', 'switch_tab', 'list_tabs', 'go_back', 'go_forward', 'refresh', 'openNewTab', 'switchToTab', 'listTabs'];
-        if (bgNavTools.includes(payload.tool)) {
-          try {
-            let result;
-            switch (payload.tool) {
-              case 'navigate': {
-                const url = payload.params?.url;
-                if (!url) { sendMCPResponse(id, { success: false, error: 'No URL provided' }); return; }
-                const fromUrl = tab.url;
-                await chrome.tabs.update(tab.id, { url });
-                // Wait briefly for navigation to start
-                await new Promise(r => setTimeout(r, 500));
-                result = { success: true, hadEffect: true, navigatingTo: url, fromUrl, verification: { note: 'Navigation initiated - verification will occur after page load', expectedUrl: url }, tool: 'navigate', executionTime: 1 };
-                break;
-              }
-              case 'open_tab':
-              case 'openNewTab': {
-                const url = payload.params?.url || 'about:blank';
-                const newTab = await chrome.tabs.create({ url, active: payload.params?.active !== false });
-                result = { success: true, tabId: newTab.id, url, active: payload.params?.active !== false };
-                break;
-              }
-              case 'switch_tab':
-              case 'switchToTab': {
-                const tabId = payload.params?.tabId;
-                if (!tabId) { sendMCPResponse(id, { success: false, error: 'Tab ID is required' }); return; }
-                await chrome.tabs.update(tabId, { active: true });
-                const tabWindow = await chrome.tabs.get(tabId);
-                if (tabWindow.windowId) await chrome.windows.update(tabWindow.windowId, { focused: true });
-                result = { success: true, tabId };
-                break;
-              }
-              case 'list_tabs':
-              case 'listTabs': {
-                const allTabs = await chrome.tabs.query({});
-                result = { success: true, tabs: allTabs.map(t => ({ id: t.id, title: t.title, url: t.url, active: t.active, windowId: t.windowId })) };
-                break;
-              }
-              case 'go_back': {
-                await chrome.tabs.goBack(tab.id);
-                result = {
-                  success: true,
-                  hadEffect: true,
-                  navigationTriggered: true,
-                  result: { direction: 'back' },
-                  tool: 'go_back'
-                };
-                break;
-              }
-              case 'go_forward': {
-                await chrome.tabs.goForward(tab.id);
-                result = {
-                  success: true,
-                  hadEffect: true,
-                  navigationTriggered: true,
-                  result: { direction: 'forward' },
-                  tool: 'go_forward'
-                };
-                break;
-              }
-              case 'refresh': {
-                await chrome.tabs.reload(tab.id);
-                result = {
-                  success: true,
-                  hadEffect: true,
-                  navigationTriggered: true,
-                  result: { action: 'refresh' },
-                  tool: 'refresh'
-                };
-                break;
-              }
-            }
-            console.log(`[FSB MCP] execute-action: bg-nav ${payload.tool} success`);
-            sendMCPResponse(id, result);
-          } catch (navErr) {
-            console.error(`[FSB MCP] execute-action: bg-nav ${payload.tool} FAILED:`, navErr.message);
-            sendMCPResponse(id, { success: false, error: navErr.message });
-          }
-          break;
-        }
-
-        if (tabContext.restricted) {
-          console.warn(`[FSB MCP] execute-action: restricted tab ${tabContext.currentUrl} for tool=${payload.tool}`);
-          sendMCPResponse(id, buildRestrictedMCPResponse(tabContext, payload.tool));
-          return;
-        }
-
-        try {
-          const injected = await ensureContentScriptInjected(tab.id);
-          console.log(`[FSB MCP] execute-action: ensureContentScript result=${injected}`);
-        } catch (injectErr) {
-          console.error(`[FSB MCP] execute-action: ensureContentScript FAILED:`, injectErr.message);
-          sendMCPResponse(id, { success: false, error: `Content script injection failed: ${injectErr.message}` });
-          return;
-        }
-        // Capture URL before action -- used to detect navigation-triggering clicks (per D-05)
-        let previousUrl = null;
-        try {
-          previousUrl = tab.url;
-        } catch (e) {
-          // tab.url already available from the query above
-        }
-
-        try {
-          const result = await chrome.tabs.sendMessage(tab.id, {
-            action: 'executeAction',
-            tool: payload.tool,
-            params: payload.params || {},
-            source: 'mcp-manual'
-          });
-          console.log(`[FSB MCP] execute-action: result success=${result?.success}`, result?.error ? `error=${result.error}` : '');
-          sendMCPResponse(id, result || { success: false, error: 'No response from content script (result was null/undefined)' });
-        } catch (msgErr) {
-          console.warn(`[FSB MCP] execute-action: sendMessage error: ${msgErr.message}`);
-
-          // Classify the error to detect BF cache specifically (per D-06)
-          const failureType = classifyFailure(msgErr);
-
-          if (failureType === FAILURE_TYPES.BF_CACHE) {
-            console.log('[FSB MCP] execute-action: BF cache error detected, checking for navigation...');
-
-            // Check if URL changed -- click-triggered navigation means the action succeeded (per D-04)
-            try {
-              const currentTab = await chrome.tabs.get(tab.id);
-              const currentUrl = currentTab?.url;
-
-              if (previousUrl && currentUrl && currentUrl !== previousUrl) {
-                console.log(`[FSB MCP] execute-action: navigation detected ${previousUrl} -> ${currentUrl}`);
-                sendMCPResponse(id, {
-                  success: true,
-                  navigationTriggered: true,
-                  previousUrl: previousUrl,
-                  newUrl: currentUrl,
-                  note: 'Click triggered page navigation. Content script will reconnect automatically via pageshow handler.',
-                  tool: payload.tool
-                });
-                return;
-              }
-            } catch (urlCheckErr) {
-              console.warn('[FSB MCP] execute-action: URL check failed:', urlCheckErr.message);
-            }
-
-            // URL did not change -- page restored from BF cache without navigation
-            // Wake tab, wait for content script pageshow reconnection, retry once
-            console.log('[FSB MCP] execute-action: BF cache without navigation, attempting recovery...');
-            try {
-              await chrome.tabs.update(tab.id, { active: true });
-              // Give the pageshow handler in lifecycle.js time to re-establish the port
-              await new Promise(r => setTimeout(r, 1500));
-              await ensureContentScriptInjected(tab.id);
-
-              const retryResult = await chrome.tabs.sendMessage(tab.id, {
-                action: 'executeAction',
-                tool: payload.tool,
-                params: payload.params || {},
-                source: 'mcp-manual'
-              });
-              console.log(`[FSB MCP] execute-action: BF cache retry success=${retryResult?.success}`);
-              sendMCPResponse(id, retryResult || { success: false, error: 'No response after BF cache recovery' });
-            } catch (retryErr) {
-              console.error('[FSB MCP] execute-action: BF cache recovery failed:', retryErr.message);
-              sendMCPResponse(id, {
-                success: false,
-                error: `Content script communication failed after BF cache recovery: ${retryErr.message}`,
-                recovery: 'bf_cache_retry_failed',
-                hint: 'Try calling read_page to re-establish connection, then retry the action'
-              });
-            }
-          } else {
-            // Non-BF-cache error -- return as-is with recovery hint (per D-04 actionable response)
-            console.error(`[FSB MCP] execute-action: sendMessage FAILED (${failureType}):`, msgErr.message);
-            sendMCPResponse(id, {
-              success: false,
-              error: `Content script communication failed: ${msgErr.message}`,
-              failureType: failureType,
-              hint: failureType === FAILURE_TYPES.COMMUNICATION
-                ? 'Content script may need re-injection. Try navigating to the page again.'
-                : 'Unexpected error. Try read_page to check page state.'
-            });
-          }
-        }
-        break;
-      }
-
-      case 'mcp:get-dom': {
-        const tabContext = await resolveMCPActiveTabContext();
-        if (!tabContext?.tab) {
-          console.warn('[FSB MCP] get-dom: No active tab found');
-          sendMCPResponse(id, { success: false, error: 'No active tab' });
-          return;
-        }
-        const { tab } = tabContext;
-        console.log(`[FSB MCP] get-dom: tab=${tab.id} url=${tab.url}`);
-        if (tabContext.restricted) {
-          console.warn(`[FSB MCP] get-dom: restricted tab ${tabContext.currentUrl}`);
-          sendMCPResponse(id, buildRestrictedMCPResponse(tabContext, 'get_dom_snapshot'));
-          return;
-        }
-        try {
-          await ensureContentScriptInjected(tab.id);
-        } catch (injectErr) {
-          console.error(`[FSB MCP] get-dom: ensureContentScript FAILED:`, injectErr.message);
-          sendMCPResponse(id, { success: false, error: `Content script injection failed: ${injectErr.message}` });
-          return;
-        }
-        try {
-          const dom = await chrome.tabs.sendMessage(tab.id, {
-            action: 'getDOM',
-            maxElements: payload.maxElements || 2000,
-            prioritizeViewport: payload.prioritizeViewport !== false
-          });
-          console.log(`[FSB MCP] get-dom: result success=${dom?.success}, elements=${dom?.structuredDOM?.elements?.length || 'N/A'}`);
-          sendMCPResponse(id, dom || { success: false, error: 'No DOM response (result was null/undefined)' });
-        } catch (msgErr) {
-          console.error(`[FSB MCP] get-dom: sendMessage FAILED:`, msgErr.message);
-          sendMCPResponse(id, { success: false, error: `Content script communication failed: ${msgErr.message}` });
-        }
-        break;
-      }
-
-      case 'mcp:get-tabs': {
-        const tabs = await chrome.tabs.query({});
-        sendMCPResponse(id, {
-          success: true,
-          tabs: tabs.map(t => ({
-            id: t.id,
-            title: t.title,
-            url: t.url,
-            active: t.active,
-            windowId: t.windowId
-          }))
-        });
-        break;
-      }
-
-      case 'mcp:get-site-guides': {
-        const guides = await loadSiteGuides();
-        sendMCPResponse(id, { success: true, guides });
-        break;
-      }
-
-      case 'mcp:get-memory': {
-        if (payload.statsOnly) {
-          const stats = await memoryManager.getStats();
-          sendMCPResponse(id, { success: true, stats });
-        } else {
-          const memories = await memoryManager.getAll();
-          const stats = await memoryManager.getStats();
-          sendMCPResponse(id, { success: true, memories, stats });
-        }
-        break;
-      }
-
-      case 'mcp:get-config': {
-        const config = await chrome.storage.local.get([
-          'modelProvider', 'modelName', 'actionDelay', 'maxIterations',
-          'confirmSensitive', 'debugMode'
-        ]);
-        // Explicitly exclude API keys -- never expose through MCP
-        sendMCPResponse(id, { success: true, config });
-        break;
-      }
-
-      case 'mcp:read-page': {
-        const tabContext = await resolveMCPActiveTabContext();
-        if (!tabContext?.tab) {
-          console.warn('[FSB MCP] read-page: No active tab found');
-          sendMCPResponse(id, { success: false, error: 'No active tab' });
-          return;
-        }
-        const { tab } = tabContext;
-        console.log(`[FSB MCP] read-page: tab=${tab.id} url=${tab.url}`);
-        if (tabContext.restricted) {
-          console.warn(`[FSB MCP] read-page: restricted tab ${tabContext.currentUrl}`);
-          sendMCPResponse(id, buildRestrictedMCPResponse(tabContext, 'read_page'));
-          return;
-        }
-        try {
-          await ensureContentScriptInjected(tab.id);
-        } catch (injectErr) {
-          console.error(`[FSB MCP] read-page: ensureContentScript FAILED:`, injectErr.message);
-          sendMCPResponse(id, { success: false, error: `Content script injection failed: ${injectErr.message}` });
-          return;
-        }
-        try {
-          const pageContent = await chrome.tabs.sendMessage(tab.id, {
-            action: 'readPage',
-            params: {
-              full: payload.full || false,
-              maxChars: payload.full ? 50000 : 8000
-            }
-          });
-          console.log(`[FSB MCP] read-page: result success=${pageContent?.success}, chars=${pageContent?.charCount || 'N/A'}`);
-          sendMCPResponse(id, pageContent || { success: false, error: 'No page content response (result was null/undefined)' });
-        } catch (msgErr) {
-          console.error(`[FSB MCP] read-page: sendMessage FAILED:`, msgErr.message);
-          sendMCPResponse(id, { success: false, error: `Content script communication failed: ${msgErr.message}` });
-        }
-        break;
-      }
-
-      case 'mcp:list-sessions': {
-        const sessions = await automationLogger.listSessions();
-        sendMCPResponse(id, { success: true, sessions });
-        break;
-      }
-
-      case 'mcp:get-session': {
-        const sessionId = payload.sessionId;
-        if (!sessionId) {
-          sendMCPResponse(id, { success: false, error: 'Missing sessionId' });
-          break;
-        }
-        if (payload.format === 'text') {
-          const report = await automationLogger.exportHumanReadable(sessionId);
-          sendMCPResponse(id, { success: true, report });
-        } else {
-          const session = await automationLogger.loadSession(sessionId);
-          if (!session) {
-            sendMCPResponse(id, { success: false, error: `Session ${sessionId} not found` });
-          } else {
-            sendMCPResponse(id, { success: true, session });
-          }
-        }
-        break;
-      }
-
-      case 'mcp:get-logs': {
-        const sid = payload.sessionId;
-        const count = payload.count || 50;
-        let logs, report;
-        if (sid) {
-          logs = automationLogger.getSessionLogs(sid);
-          report = automationLogger.generateReport(sid);
-        } else {
-          logs = automationLogger.getRecentLogs(count);
-          report = automationLogger.generateReport();
-        }
-        sendMCPResponse(id, { success: true, logs, report });
-        break;
-      }
-
-      case 'mcp:search-memory': {
-        const query = payload.query;
-        if (!query) {
-          sendMCPResponse(id, { success: false, error: 'Missing query parameter' });
-          break;
-        }
-        const results = await memoryManager.search(
-          query,
-          payload.filters || {},
-          payload.options || {}
-        );
-        const stats = await memoryManager.getStats();
-        sendMCPResponse(id, { success: true, results, stats });
-        break;
-      }
-
-      case 'mcp:create-agent': {
-        const { name, task, targetUrl, startMode, schedule, maxIterations } = payload;
-        if (!name || !task || !schedule) {
-          sendMCPResponse(id, { success: false, error: 'Missing required fields: name, task, schedule' });
-          break;
-        }
-        const newAgent = await agentManager.createAgent({ name, task, targetUrl, startMode, schedule, maxIterations });
-        if (newAgent.enabled) {
-          await agentScheduler.scheduleAgent(newAgent);
-        }
-        sendMCPResponse(id, { success: true, agent: newAgent });
-        break;
-      }
-
-      case 'mcp:list-agents': {
-        const agents = await agentManager.listAgents();
-        const summaries = agents.map(a => ({
-          agentId: a.agentId,
-          name: a.name,
-          task: a.task,
-          targetUrl: a.targetUrl,
-          startMode: a.startMode || 'pinned',
-          enabled: a.enabled,
-          schedule: a.schedule,
-          lastRunAt: a.lastRunAt,
-          lastRunStatus: a.lastRunStatus,
-          runCount: a.runCount,
-          replayEnabled: a.replayEnabled !== false
-        }));
-        sendMCPResponse(id, { success: true, agents: summaries });
-        break;
-      }
-
-      case 'mcp:run-agent': {
-        const runAgentId = payload.agentId;
-        if (!runAgentId) {
-          sendMCPResponse(id, { success: false, error: 'Missing agentId' });
-          break;
-        }
-        const runAgent = await agentManager.getAgent(runAgentId);
-        if (!runAgent) {
-          sendMCPResponse(id, { success: false, error: `Agent not found: ${runAgentId}` });
-          break;
-        }
-        // Store MCP message id for progress forwarding
-        mcpProgressCallbacks.set(`agent:${runAgentId}`, id);
-        try {
-          const execResult = await agentExecutor.execute(runAgent);
-          await agentManager.recordRun(runAgentId, {
-            status: execResult.success ? 'success' : 'failed',
-            result: execResult.summary || null,
-            error: execResult.error || null,
-            iterations: execResult.iterations || 0,
-            tokensUsed: execResult.tokensUsed || 0,
-            costUsd: execResult.costUsd || 0,
-            durationMs: execResult.durationMs || 0,
-            executionMode: execResult.executionMode || 'ai_initial',
-            costSaved: execResult.costSaved || 0
-          });
-          sendMCPResponse(id, {
-            success: execResult.success !== false,
-            summary: execResult.summary || '',
-            iterations: execResult.iterations || 0,
-            durationMs: execResult.durationMs || 0,
-            executionMode: execResult.executionMode || 'ai_initial'
-          });
-        } finally {
-          mcpProgressCallbacks.delete(`agent:${runAgentId}`);
-        }
-        break;
-      }
-
-      case 'mcp:stop-agent': {
-        const stopAgentId = payload.agentId;
-        if (!stopAgentId) {
-          sendMCPResponse(id, { success: false, error: 'Missing agentId' });
-          break;
-        }
-        await agentExecutor.forceStop(stopAgentId);
-        sendMCPResponse(id, { success: true, message: `Agent ${stopAgentId} stopped` });
-        break;
-      }
-
-      case 'mcp:delete-agent': {
-        const delAgentId = payload.agentId;
-        if (!delAgentId) {
-          sendMCPResponse(id, { success: false, error: 'Missing agentId' });
-          break;
-        }
-        await agentScheduler.clearAlarm(delAgentId);
-        await agentExecutor.forceStop(delAgentId);
-        const deleted = await agentManager.deleteAgent(delAgentId);
-        sendMCPResponse(id, { success: deleted, message: deleted ? `Agent ${delAgentId} deleted` : `Agent ${delAgentId} not found` });
-        break;
-      }
-
-      case 'mcp:toggle-agent': {
-        const toggleAgentId = payload.agentId;
-        if (!toggleAgentId) {
-          sendMCPResponse(id, { success: false, error: 'Missing agentId' });
-          break;
-        }
-        const toggledAgent = await agentManager.toggleAgent(toggleAgentId);
-        if (toggledAgent.enabled) {
-          await agentScheduler.scheduleAgent(toggledAgent);
-        } else {
-          await agentScheduler.clearAlarm(toggledAgent.agentId);
-        }
-        sendMCPResponse(id, { success: true, agent: { agentId: toggledAgent.agentId, name: toggledAgent.name, enabled: toggledAgent.enabled } });
-        break;
-      }
-
-      case 'mcp:get-agent-stats': {
-        const agentStats = await agentManager.getStats();
-        sendMCPResponse(id, { success: true, stats: agentStats });
-        break;
-      }
-
-      case 'mcp:get-agent-history': {
-        const histAgentId = payload.agentId;
-        if (!histAgentId) {
-          sendMCPResponse(id, { success: false, error: 'Missing agentId' });
-          break;
-        }
-        const limit = payload.limit || 10;
-        const history = await agentManager.getRunHistory(histAgentId, limit);
-        sendMCPResponse(id, { success: true, history });
-        break;
-      }
-
-      default:
-        sendMCPResponse(id, { success: false, error: `Unknown MCP message type: ${type}` });
-    }
-  } catch (err) {
-    console.error(`[FSB MCP] UNHANDLED ERROR in ${type}:`, err.message, err.stack?.split('\n').slice(0, 3).join(' | '));
-    sendMCPResponse(id, { success: false, error: `[${type}] ${err.message || 'Internal extension error'}` });
-  }
-}
-
-/**
- * Send a response back to MCP server via WebSocket.
- */
-function sendMCPResponse(id, payload) {
-  if (!payload.success) {
-    console.warn(`[FSB MCP] << Sending error response:`, { id, error: payload.error });
-  }
-  mcpWebSocket.send({ id, type: 'mcp:result', payload });
-}
-
-/**
- * Forward automation progress to MCP server for autopilot tasks.
- * Called from broadcastDashboardProgress.
- */
-function broadcastMCPProgress(session) {
-  if (!mcpWebSocket.connected) return;
-  const mcpMsgId = mcpProgressCallbacks.get(session.sessionId);
-  if (!mcpMsgId) return;
-  try {
-    var progress = calculateProgress(session);
-    mcpWebSocket.send({
-      id: mcpMsgId,
-      type: 'mcp:progress',
-      payload: {
-        taskId: session.sessionId,
-        progress: progress.progressPercent,
-        phase: detectTaskPhase(session),
-        eta: progress.estimatedTimeRemaining || null,
-        action: session._lastActionSummary || null
-      }
-    });
-  } catch (err) {
-    console.error('[FSB MCP WS] Failed to send progress:', err.message);
-  }
-}
-
-/**
- * Load site guides from extension resources.
- * Returns array of { filename, domain } objects.
- */
-async function loadSiteGuides() {
-  try {
-    const siteGuideFiles = await new Promise((resolve) => {
-      chrome.runtime.getPackageDirectoryEntry((dirEntry) => {
-        if (!dirEntry) { resolve([]); return; }
-        dirEntry.getDirectory('site-maps', {}, (subDir) => {
-          const reader = subDir.createReader();
-          reader.readEntries((entries) => {
-            resolve(entries.filter(e => e.name.endsWith('.json')).map(e => e.name));
-          }, () => resolve([]));
-        }, () => resolve([]));
-      });
-    });
-    return siteGuideFiles.map(f => ({
-      filename: f,
-      domain: f.replace('.json', '').replace(/_/g, '.')
-    }));
-  } catch (err) {
-    return [];
-  }
-}
-
-// Auto-connect to MCP WebSocket server.
-// Will silently retry if MCP server isn't running (localhost:7225).
-mcpWebSocket.connect();
-
-// Phase 102.1: Health check on service worker wake events.
-// Service workers can suspend and resume; on resume, verify MCP connection is alive.
-// chrome.runtime.onStartup fires on browser launch; onMessage fires on wake from content scripts.
-chrome.runtime.onStartup.addListener(() => {
-  mcpWebSocket.ensureConnected();
-});
-// Also check MCP health when any message arrives (service worker woke for a reason)
-const _origOnMessage = chrome.runtime.onMessage.hasListener ? null : undefined;
-if (typeof chrome.runtime.onMessage !== 'undefined') {
-  chrome.runtime.onMessage.addListener((msg) => {
-    // Lightweight: only check if we think we're connected but socket is actually dead
-    if (mcpWebSocket.connected && (!mcpWebSocket.ws || mcpWebSocket.ws.readyState !== WebSocket.OPEN)) {
-      mcpWebSocket.ensureConnected();
-    }
-  });
-}

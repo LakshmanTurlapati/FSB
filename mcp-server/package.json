@@ -1,6 +1,6 @@
 {
   "name": "fsb-mcp-server",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "FSB Browser Automation MCP Server",
   "license": "BUSL-1.1",
   "author": "Lakshman Turlapati",
@@ -18,9 +18,6 @@
     "model-context-protocol",
     "ai-agent"
   ],
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "type": "module",
   "main": "build/index.js",
   "bin": {
@@ -33,6 +30,9 @@
     "README.md",
     "server.json"
   ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "build": "tsc && cp ../ai/tool-definitions.js ai/tool-definitions.cjs",
     "dev": "tsx src/index.ts",
@@ -46,7 +46,10 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "ws": "^8.19.0",
-    "zod": "^3.24.0"
+    "zod": "^3.24.0",
+    "strip-json-comments": "^5.0.3",
+    "smol-toml": "^1.6.1",
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

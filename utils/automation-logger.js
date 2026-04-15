@@ -7,176 +7,8 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
   globalThis.__FSB_AUTOMATION_LOGGER_LOADED__ = true;
   console.log('[FSB] automation-logger.js loading');
 
-  // Automation Logger for FSB v0.9.20
+  // Automation Logger for FSB v0.9.30
   // Provides structured logging for debugging automation loops
-
-  function filterPersistedSessionLogs(sessionLogs) {
-    return (sessionLogs || []).filter(log => {
-      const logType = log?.data?.logType || log?.logType || null;
-      return logType !== 'prompt' && logType !== 'rawResponse';
-    });
-  }
-
-  function getPersistedCommandList(sessionData = {}, fallbackTask = '') {
-    const commands = Array.isArray(sessionData.commands)
-      ? sessionData.commands.filter(command => typeof command === 'string' && command.trim().length > 0)
-      : [];
-
-    if (commands.length > 0) {
-      return commands.slice(-25);
-    }
-
-    if (typeof fallbackTask === 'string' && fallbackTask.trim().length > 0) {
-      return [fallbackTask];
-    }
-
-    return [];
-  }
-
-  function getPersistedTextValue(...values) {
-    for (const value of values) {
-      if (value === undefined || value === null) continue;
-      const text = String(value).trim();
-      if (text) return text;
-    }
-    return null;
-  }
-
-  function normalizePersistedOutcomeValue(value) {
-    if (typeof value !== 'string') return null;
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) return null;
-    if (normalized === 'error') return 'failure';
-    return ['success', 'partial', 'failure', 'stopped'].includes(normalized) ? normalized : null;
-  }
-
-  function derivePersistedOutcomeFromStatus(status) {
-    const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
-    if (!normalizedStatus) return 'success';
-    if (normalizedStatus === 'partial') return 'partial';
-    if (normalizedStatus === 'stopped') return 'stopped';
-    if (normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'stuck' || normalizedStatus === 'replay_failed') {
-      return 'failure';
-    }
-    return 'success';
-  }
-
-  function normalizePersistedOutcomeFields(sessionData = {}, existing = null) {
-    const incomingDetails = sessionData.outcomeDetails && typeof sessionData.outcomeDetails === 'object'
-      ? sessionData.outcomeDetails
-      : {};
-    const existingDetails = existing?.outcomeDetails && typeof existing.outcomeDetails === 'object'
-      ? existing.outcomeDetails
-      : {};
-    const status = getPersistedTextValue(sessionData.status, existing?.status) || 'completed';
-    const outcome = normalizePersistedOutcomeValue(sessionData.outcome) ||
-      normalizePersistedOutcomeValue(incomingDetails.outcome) ||
-      normalizePersistedOutcomeValue(existing?.outcome) ||
-      normalizePersistedOutcomeValue(existingDetails.outcome) ||
-      derivePersistedOutcomeFromStatus(status);
-    const summary = getPersistedTextValue(
-      sessionData.result,
-      incomingDetails.summary,
-      existing?.result,
-      existingDetails.summary,
-      sessionData.completionMessage,
-      existing?.completionMessage
-    );
-    const blocker = getPersistedTextValue(
-      sessionData.blocker,
-      incomingDetails.blocker,
-      existing?.blocker,
-      existingDetails.blocker
-    );
-    const nextStep = getPersistedTextValue(
-      sessionData.nextStep,
-      incomingDetails.nextStep,
-      existing?.nextStep,
-      existingDetails.nextStep
-    );
-    const error = outcome === 'failure'
-      ? getPersistedTextValue(
-        sessionData.error,
-        incomingDetails.error,
-        existing?.error,
-        existingDetails.error
-      )
-      : null;
-    const completionMessage = getPersistedTextValue(
-      sessionData.completionMessage,
-      incomingDetails.result,
-      existing?.completionMessage,
-      existingDetails.result,
-      summary,
-      error
-    );
-    const reason = getPersistedTextValue(
-      sessionData.reason,
-      incomingDetails.reason,
-      existingDetails.reason
-    ) || (
-      outcome === 'partial' ? 'blocked'
-        : outcome === 'failure' ? 'error'
-          : outcome === 'stopped' ? 'stopped'
-            : 'completed'
-    );
-
-    return {
-      outcome,
-      result: summary || completionMessage || null,
-      completionMessage: outcome === 'failure' ? null : (completionMessage || null),
-      error,
-      blocker,
-      nextStep,
-      outcomeDetails: {
-        outcome,
-        reason,
-        summary: summary || null,
-        blocker: blocker || null,
-        nextStep: nextStep || null,
-        result: completionMessage || null,
-        error: error || null
-      }
-    };
-  }
-
-  function hydratePersistedSessionRecord(sessionId, sessionData = {}) {
-    if (!sessionData || typeof sessionData !== 'object') return null;
-    const normalized = normalizePersistedOutcomeFields(sessionData, sessionData);
-    return {
-      ...sessionData,
-      id: sessionData.id || sessionId,
-      outcome: normalized.outcome,
-      outcomeDetails: normalized.outcomeDetails,
-      result: normalized.result,
-      completionMessage: normalized.completionMessage,
-      error: normalized.error,
-      blocker: normalized.blocker,
-      nextStep: normalized.nextStep
-    };
-  }
-
-  function formatPersistedOutcomeLabel(outcome) {
-    if (outcome === 'failure') return 'Failure';
-    if (!outcome) return 'Unknown';
-    return outcome.charAt(0).toUpperCase() + outcome.slice(1);
-  }
-
-  function buildPersistedSessionMetadata(sessionId, sessionData = {}, existing = null) {
-    const commands = getPersistedCommandList(sessionData, sessionData.task || existing?.lastTask || existing?.task || '');
-    const lastTask = sessionData.task || existing?.lastTask || commands[commands.length - 1] || existing?.task || 'Unknown task';
-    const lastCommandAt = sessionData.lastCommandAt || existing?.lastCommandAt || sessionData.startTime || Date.now();
-
-    return {
-      conversationId: sessionData.conversationId || existing?.conversationId || null,
-      uiSurface: sessionData.uiSurface || existing?.uiSurface || 'unknown',
-      historySessionId: sessionData.historySessionId || existing?.historySessionId || sessionId,
-      commandCount: sessionData.commandCount || existing?.commandCount || commands.length || 1,
-      commands,
-      lastTask,
-      lastCommandAt
-    };
-  }
 
   class AutomationLogger {
     constructor() {
@@ -561,25 +393,18 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
     }
 
     async exportHumanReadable(sessionId) {
-      const session = await this.loadSession(sessionId);
-      if (!session) return 'Session not found.';
       const replay = await this.getReplayData(sessionId);
-      const outcomeLabel = formatPersistedOutcomeLabel(session.outcome);
+      if (!replay) return 'Session not found.';
       const lines = [];
       lines.push('=' .repeat(80));
       lines.push('FSB AUTOMATION SESSION REPORT');
       lines.push('='.repeat(80));
-      lines.push(`Session ID: ${session.id}`);
-      lines.push(`Task: ${session.task}`);
-      lines.push(`Status: ${session.status}`);
-      lines.push(`Outcome: ${outcomeLabel}`);
-      if (session.outcomeDetails?.summary) lines.push(`Summary: ${session.outcomeDetails.summary}`);
-      if (session.outcomeDetails?.blocker) lines.push(`Blocker: ${session.outcomeDetails.blocker}`);
-      if (session.outcomeDetails?.nextStep) lines.push(`Next step: ${session.outcomeDetails.nextStep}`);
-      if (session.error) lines.push(`Error: ${session.error}`);
-      lines.push(`Steps: ${replay?.summary?.successfulSteps || 0}/${replay?.summary?.totalSteps || 0} successful`);
+      lines.push(`Session ID: ${replay.id}`);
+      lines.push(`Task: ${replay.metadata.task}`);
+      lines.push(`Status: ${replay.metadata.status}`);
+      lines.push(`Steps: ${replay.summary.successfulSteps}/${replay.summary.totalSteps} successful`);
       lines.push('');
-      (replay?.steps || []).forEach(step => {
+      replay.steps.forEach(step => {
         const status = step.result.success ? '[OK]' : '[FAILED]';
         lines.push(`${status} Step ${step.stepNumber}: ${step.action.tool}`);
         lines.push(`    Selector: ${step.targeting.selectorUsed || step.targeting.selectorTried || 'N/A'}`);
@@ -705,8 +530,7 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
       if (!chrome.runtime?.id) return false;
       try {
         const sessionLogs = this.getSessionLogs(sessionId);
-        const persistedLogs = filterPersistedSessionLogs(sessionLogs);
-        if (sessionLogs.length === 0 && persistedLogs.length === 0) return false;
+        if (sessionLogs.length === 0) return false;
 
         const stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex']);
         const sessionStorage = stored.fsbSessionLogs || {};
@@ -715,40 +539,22 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
         if (sessionStorage[sessionId]) {
           // APPEND MODE: Update existing session entry
           const existing = sessionStorage[sessionId];
-          const metadata = buildPersistedSessionMetadata(sessionId, sessionData, existing);
-          const normalizedOutcome = normalizePersistedOutcomeFields(sessionData, existing);
           // Merge logs: add only new logs (those with timestamps after existing endTime)
-          const newLogs = persistedLogs.filter(log => Date.parse(log.timestamp) > (existing.endTime || 0));
-          existing.logs = filterPersistedSessionLogs(existing.logs || []);
+          const newLogs = sessionLogs.filter(log => log.timestamp > existing.endTime);
           if (newLogs.length > 0) {
-            existing.logs = filterPersistedSessionLogs(existing.logs.concat(newLogs));
+            existing.logs = (existing.logs || []).concat(newLogs);
           }
           existing.endTime = Date.now();
           existing.status = sessionData.status || existing.status;
           existing.actionCount = sessionData.actionHistory?.length || existing.actionCount;
           existing.iterationCount = sessionData.iterationCount || existing.iterationCount;
-          existing.conversationId = metadata.conversationId;
-          existing.uiSurface = metadata.uiSurface;
-          existing.historySessionId = metadata.historySessionId;
-          existing.commandCount = metadata.commandCount;
-          existing.commands = metadata.commands;
-          existing.lastTask = metadata.lastTask;
-          existing.lastCommandAt = metadata.lastCommandAt;
+          existing.commandCount = sessionData.commandCount || existing.commandCount || 1;
           existing.totalCost = sessionData.totalCost || existing.totalCost || 0;
           existing.totalInputTokens = sessionData.totalInputTokens || existing.totalInputTokens || 0;
           existing.totalOutputTokens = sessionData.totalOutputTokens || existing.totalOutputTokens || 0;
-          existing.outcome = normalizedOutcome.outcome;
-          existing.outcomeDetails = normalizedOutcome.outcomeDetails;
-          existing.result = normalizedOutcome.result;
-          existing.completionMessage = normalizedOutcome.completionMessage;
-          existing.error = normalizedOutcome.error;
-          existing.blocker = normalizedOutcome.blocker;
-          existing.nextStep = normalizedOutcome.nextStep;
           // Update task to show the latest command
-          if (metadata.commands.length > 1) {
-            existing.task = metadata.commands.map((cmd, i) => `[${i + 1}] ${cmd}`).join(' | ');
-          } else if (metadata.lastTask) {
-            existing.task = metadata.lastTask;
+          if (sessionData.commands && sessionData.commands.length > 1) {
+            existing.task = sessionData.commands.map((cmd, i) => `[${i + 1}] ${cmd}`).join(' | ');
           }
           // Persist actionHistory for session replay (successful actions only, capped at 100)
           if (sessionData.actionHistory) {
@@ -760,37 +566,20 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
           sessionStorage[sessionId] = existing;
         } else {
           // NEW MODE: Create session entry
-          const metadata = buildPersistedSessionMetadata(sessionId, sessionData);
-          const normalizedOutcome = normalizePersistedOutcomeFields(sessionData);
           const session = {
             id: sessionId,
-            task: metadata.commands.length > 1
-              ? metadata.commands.map((cmd, i) => `[${i + 1}] ${cmd}`).join(' | ')
-              : (metadata.lastTask || 'Unknown task'),
+            task: sessionData.task || 'Unknown task',
             startTime: sessionData.startTime || Date.now(),
             endTime: Date.now(),
             status: sessionData.status || 'completed',
             tabId: sessionData.tabId || null,
             actionCount: sessionData.actionHistory?.length || 0,
             iterationCount: sessionData.iterationCount || 0,
-            conversationId: metadata.conversationId,
-            uiSurface: metadata.uiSurface,
-            historySessionId: metadata.historySessionId,
-            commandCount: metadata.commandCount,
-            commands: metadata.commands,
-            lastTask: metadata.lastTask,
-            lastCommandAt: metadata.lastCommandAt,
+            commandCount: sessionData.commandCount || 1,
             totalCost: sessionData.totalCost || 0,
             totalInputTokens: sessionData.totalInputTokens || 0,
             totalOutputTokens: sessionData.totalOutputTokens || 0,
-            outcome: normalizedOutcome.outcome,
-            outcomeDetails: normalizedOutcome.outcomeDetails,
-            result: normalizedOutcome.result,
-            completionMessage: normalizedOutcome.completionMessage,
-            error: normalizedOutcome.error,
-            blocker: normalizedOutcome.blocker,
-            nextStep: normalizedOutcome.nextStep,
-            logs: filterPersistedSessionLogs(sessionLogs),
+            logs: sessionLogs,
             // Persist actionHistory for session replay (successful actions only, capped at 100)
             actionHistory: (sessionData.actionHistory || [])
               .filter(a => a.result?.success)
@@ -808,21 +597,7 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
           id: sessionId, task: savedSession.task, startTime: savedSession.startTime,
           endTime: savedSession.endTime, status: savedSession.status, actionCount: savedSession.actionCount,
           domSnapshotCount: snapshotCount,
-          totalCost: savedSession.totalCost || 0,
-          outcome: savedSession.outcome || null,
-          outcomeDetails: savedSession.outcomeDetails || null,
-          result: savedSession.result || null,
-          completionMessage: savedSession.completionMessage || null,
-          error: savedSession.error || null,
-          blocker: savedSession.blocker || null,
-          nextStep: savedSession.nextStep || null,
-          conversationId: savedSession.conversationId || null,
-          uiSurface: savedSession.uiSurface || 'unknown',
-          historySessionId: savedSession.historySessionId || sessionId,
-          commandCount: savedSession.commandCount || 1,
-          commands: savedSession.commands || [],
-          lastTask: savedSession.lastTask || savedSession.task || null,
-          lastCommandAt: savedSession.lastCommandAt || savedSession.endTime || savedSession.startTime
+          totalCost: savedSession.totalCost || 0
         };
         const existingIndex = sessionIndex.findIndex(s => s.id === sessionId);
         if (existingIndex !== -1) sessionIndex[existingIndex] = indexEntry;
@@ -894,8 +669,7 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
       if (!chrome.runtime?.id) return null;
       try {
         const stored = await chrome.storage.local.get(['fsbSessionLogs']);
-        const session = (stored.fsbSessionLogs || {})[sessionId] || null;
-        return hydratePersistedSessionRecord(sessionId, session);
+        return (stored.fsbSessionLogs || {})[sessionId] || null;
       } catch (error) {
         if (chrome.runtime?.id) {
           console.error('[FSB Logger] Failed to load session:', error);
@@ -909,9 +683,7 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
       if (!chrome.runtime?.id) return [];
       try {
         const stored = await chrome.storage.local.get(['fsbSessionIndex']);
-        return (stored.fsbSessionIndex || [])
-          .map(entry => hydratePersistedSessionRecord(entry?.id, entry))
-          .filter(Boolean);
+        return stored.fsbSessionIndex || [];
       } catch (error) {
         return [];
       }
@@ -942,7 +714,6 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
     async exportSession(sessionId) {
       const session = await this.loadSession(sessionId);
       if (!session) return `Session ${sessionId} not found.`;
-      const outcomeLabel = formatPersistedOutcomeLabel(session.outcome);
       const lines = [];
       lines.push('='.repeat(80));
       lines.push('FSB Automation Session Report');
@@ -952,11 +723,6 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
       lines.push(`Started: ${new Date(session.startTime).toLocaleString()}`);
       lines.push(`Ended: ${new Date(session.endTime).toLocaleString()}`);
       lines.push(`Status: ${session.status.toUpperCase()}`);
-      lines.push(`Outcome: ${outcomeLabel.toUpperCase()}`);
-      if (session.outcomeDetails?.summary) lines.push(`Summary: ${session.outcomeDetails.summary}`);
-      if (session.outcomeDetails?.blocker) lines.push(`Blocker: ${session.outcomeDetails.blocker}`);
-      if (session.outcomeDetails?.nextStep) lines.push(`Next Step: ${session.outcomeDetails.nextStep}`);
-      if (session.error) lines.push(`Error: ${session.error}`);
       lines.push(`Duration: ${this.formatDuration(session.endTime - session.startTime)}`);
       lines.push(`Total Actions: ${session.actionCount}`);
       lines.push('');
@@ -985,9 +751,8 @@ if (globalThis.__FSB_AUTOMATION_LOGGER_LOADED__) {
   }
 
   // Create singleton and attach to globalThis (works in both service workers and content scripts)
-  // Do NOT call loadLogs() eagerly -- chrome.storage may not be ready during importScripts init.
-  // Logs load lazily on first addLog/getLogs call, or when explicitly triggered.
   globalThis.automationLogger = new AutomationLogger();
+  globalThis.automationLogger.loadLogs();
 }
 
 // Export from globalThis - use var because it can be re-declared safely

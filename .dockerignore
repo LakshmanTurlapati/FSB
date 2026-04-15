@@ -3,7 +3,7 @@
 
 # Allow only what we need for the server deployment
 !server/
-!showcase/
+!showcase/dist/
 
 # Re-ignore things inside those dirs we don't need
 server/node_modules

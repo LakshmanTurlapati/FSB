@@ -13,8 +13,8 @@ RUN npm ci --production
 COPY server/server.js ./
 COPY server/src/ ./src/
 
-# Copy showcase static files as /app/public
-COPY showcase/ ./public/
+# Copy Angular showcase build output as static files
+COPY showcase/dist/showcase-angular/browser/browser/ ./public/
 
 # Create data directory for SQLite persistent volume
 RUN mkdir -p /data

@@ -8,15 +8,17 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current State
+## Current Milestone: v0.9.30 MCP Platform Install Flags
 
-FSB shipped `v0.9.27 Usage Dashboard Fix` on 2026-04-14, following `v0.9.26 Progress Overlay Refinement` (2026-04-12). The options-page analytics dashboard now re-reads storage-backed usage data through an init-safe refresh path, defers off-screen updates until the operator returns to the dashboard, guards missing time-range label nodes, and keeps the cost breakdown in the refreshed render path. `tests/dashboard-analytics-refresh.test.js` protects the refresh lifecycle, and the local Phase 172 smoke run confirmed that real task completion updates request count, token totals, cost, and chart data. No new milestone is active yet.
+**Goal:** Replace copy-paste setup with one-command auto-configuration for every major MCP-capable platform.
 
-## Next Milestone Goals
-
-- Decide whether to resume the older hosted dashboard reliability debt from `v0.9.25` / `v0.9.23` or open a different top-priority milestone.
-- Re-run the deferred `Off-Screen Dashboard Refresh Smoke` before any push or release tagging that depends on the v0.9.27 dashboard verification evidence.
-- Start the next planning cycle with `$gsd-new-milestone` and a fresh milestone-scoped requirements file.
+**Target features:**
+- Platform-specific `--<platform>` flags that auto-write the correct config file (Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Cline, Zed, Codex, Gemini CLI, Continue)
+- Cross-OS path resolution (macOS, Windows, Linux)
+- Safe config merging (read existing config, add FSB entry, preserve other servers)
+- Support for JSON, TOML, and YAML config formats
+- Uninstall semantics (`--uninstall --<platform>`) to cleanly remove the FSB entry
+- Upgraded `setup` command as fallback for unsupported/unknown platforms
 
 ## Requirements
 
@@ -132,12 +134,21 @@ FSB shipped `v0.9.27 Usage Dashboard Fix` on 2026-04-14, following `v0.9.26 Prog
 - ✓ First-sentence overlay text extraction and conversational prefix stripping for concise task summaries -- v0.9.26/P170
 - ✓ Storage-backed dashboard analytics refresh, deferred off-screen refresh handling, null-safe dashboard labels, and regression coverage for the refresh contract -- v0.9.27/P171
 - ✓ End-to-end local dashboard smoke verification proving real task completion updates metrics and chart data -- v0.9.27/P172
+- ✓ Angular showcase shell introduced with canonical route parity, runtime asset parity, and persisted theme behavior contracts -- validated in Phase 173 (v0.9.29)
 
-### Active
+### Deferred At v0.9.29 Close
 
-No active milestone-scoped requirements. Start the next planning cycle with `$gsd-new-milestone`.
+- [ ] Dashboard session/auth, agent lifecycle management, and run-history views are ported to Angular with parity to the current experience.
+- [ ] Task execution, live preview streaming, and remote-control state handling are ported to Angular with contract-safe behavior.
+- [ ] Migration parity and regression checks are in place, including the deferred off-screen dashboard refresh smoke evidence before release tagging.
 
-## Last Shipped Milestone: v0.9.27 Usage Dashboard Fix (shipped 2026-04-14)
+## Last Shipped Milestone: v0.9.29 Showcase Angular Migration (shipped 2026-04-15)
+
+**Shipped:** Angular showcase shell route parity (`/`, `/about`, `/dashboard`, `/privacy`, `/support`), persisted `fsb-showcase-theme` behavior, page-content parity contracts, canonical clean-route server handling, legacy `.html` redirects, and archival of the old vanilla showcase source under `showcase/legacy-vanilla/`. 1 phase, 7 plans, 14 tasks.
+
+**Accepted gaps:** Phase 174-177 migration scope (`DASH-08` through `MIGR-03`) deferred to the next milestone.
+
+## Previous Milestone: v0.9.27 Usage Dashboard Fix (shipped 2026-04-14)
 
 **Shipped:** Storage-backed analytics refresh on `ANALYTICS_UPDATE`, deferred off-screen dashboard refresh handling, null-safe time-range label updates, reliable cost-breakdown rendering, regression coverage in `tests/dashboard-analytics-refresh.test.js`, and local end-to-end smoke verification that real task completion updates usage metrics and chart data. 2 phases, 3 plans, 7 requirements.
 
@@ -314,4 +325,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-14 -- Milestone v0.9.27 shipped*
+*Last updated: 2026-04-15 -- Milestone v0.9.30 started*
