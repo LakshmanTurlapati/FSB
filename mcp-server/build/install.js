@@ -1,5 +1,5 @@
 import { PLATFORMS, resolvePlatformConfig, getServerEntry } from './platforms.js';
-import { installToConfig, removeFromConfig } from './config-writer.js';
+import { installToConfig, removeFromConfig, serializeByFormat } from './config-writer.js';
 import { FSB_MCP_VERSION, FSB_SERVER_NAME } from './version.js';
 import { execSync } from 'node:child_process';
 
@@ -78,14 +78,45 @@ function printUninstallUsage() {
 }
 
 /**
+ * Print a dry-run preview for a file-based platform showing what would be written.
+ * @param {object} platform - Platform entry from PLATFORMS registry
+ * @param {string} configPath - Resolved config file path
+ * @param {object} entry - Server entry that would be installed
+ */
+function printDryRunPreview(platform, configPath, entry) {
+  console.log('[DRY RUN] ' + platform.displayName);
+  if (configPath) {
+    console.log('  Config: ' + configPath);
+  }
+  // Wrap the single entry in the platform's root key structure for realistic preview
+  const wrapper = {};
+  if (platform.format === 'yaml' && platform.serverMapKey === 'mcpServers') {
+    // Continue uses array format
+    wrapper[platform.serverMapKey] = [{ name: FSB_SERVER_NAME, ...entry }];
+  } else {
+    wrapper[platform.serverMapKey] = { [FSB_SERVER_NAME]: entry };
+  }
+  const preview = serializeByFormat(wrapper, platform.format === 'jsonc' ? 'json' : platform.format);
+  console.log('  Entry:');
+  for (const line of preview.split('\n')) {
+    if (line.trim()) console.log('    ' + line);
+  }
+}
+
+/**
  * Handle Claude Code install via CLI delegation.
  * Shells out to `claude mcp add` with --scope user (FSB is user-global).
  * Falls back to printing the manual command if the CLI is not found.
  *
  * @returns {{installed: boolean, skipped: boolean}}
  */
-function handleClaudeCodeInstall() {
+function handleClaudeCodeInstall(dryRun) {
   const cmd = 'claude mcp add --scope user ' + FSB_SERVER_NAME + ' -- npx -y fsb-mcp-server';
+  if (dryRun) {
+    console.log('[DRY RUN] Claude Code');
+    console.log('  Command: ' + cmd);
+    return { installed: false, skipped: false };
+  }
   try {
     execSync(cmd, { stdio: 'pipe', encoding: 'utf-8' });
     console.log('\u2713 Added to Claude Code');
@@ -110,7 +141,7 @@ function handleClaudeCodeInstall() {
 export async function runInstall(flags) {
   // Claude Code: CLI delegation (mirrors uninstall pattern)
   if (flags['claude-code'] === true) {
-    handleClaudeCodeInstall();
+    handleClaudeCodeInstall(flags['dry-run'] === true);
   }
 
   const matched = getMatchedPlatforms(flags);
@@ -133,6 +164,11 @@ export async function runInstall(flags) {
       entry = { type: 'stdio', ...entry };
     }
 
+    if (flags['dry-run'] === true) {
+      printDryRunPreview(platform, configPath, entry);
+      continue;
+    }
+
     const result = await installToConfig(configPath, platform, FSB_SERVER_NAME, entry);
     printResult(result);
   }
@@ -148,11 +184,16 @@ export async function runInstall(flags) {
 export async function runUninstall(flags) {
   // Special case: Claude Code uninstall via CLI delegation (UNINST-05)
   if (flags['claude-code'] === true) {
-    try {
-      execSync('claude mcp remove ' + FSB_SERVER_NAME, { stdio: 'pipe', encoding: 'utf-8' });
-      console.log('\u2713 Removed FSB from Claude Code');
-    } catch {
-      console.log('\u25CB Claude Code: run manually: claude mcp remove ' + FSB_SERVER_NAME);
+    if (flags['dry-run'] === true) {
+      console.log('[DRY RUN] Claude Code');
+      console.log('  Command: claude mcp remove ' + FSB_SERVER_NAME);
+    } else {
+      try {
+        execSync('claude mcp remove ' + FSB_SERVER_NAME, { stdio: 'pipe', encoding: 'utf-8' });
+        console.log('\u2713 Removed FSB from Claude Code');
+      } catch {
+        console.log('\u25CB Claude Code: run manually: claude mcp remove ' + FSB_SERVER_NAME);
+      }
     }
   }
 
@@ -167,6 +208,11 @@ export async function runUninstall(flags) {
     const configPath = resolvePlatformConfig(key);
     if (configPath === null) {
       console.log('\u25CB ' + platform.displayName + ' is not supported on this OS');
+      continue;
+    }
+
+    if (flags['dry-run'] === true) {
+      console.log('[DRY RUN] Would remove FSB from ' + platform.displayName + ': ' + configPath);
       continue;
     }
 
