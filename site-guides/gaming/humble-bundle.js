@@ -11,6 +11,17 @@ registerSiteGuide({
   ],
   guidance: `HUMBLE BUNDLE-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for a game
+  click e5    # search input
+  type e5 "indie game"
+  enter
+  click e10   # game or bundle result
+  gettext e15   # price or tier info
+  # browse bundles
+  scroll down
+  click e20   # bundle card
+
 SEARCH:
 - Search input: input[name="search"]
 - Type the game name and press Enter to search

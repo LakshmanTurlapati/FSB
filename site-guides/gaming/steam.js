@@ -12,6 +12,15 @@ registerSiteGuide({
   ],
   guidance: `STEAM-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search the store
+  click e5    # search box
+  type e5 "Elden Ring"
+  enter
+  click e10   # game result
+  gettext e15   # price or discount info
+  getattr e15 "aria-label"   # structured price from discount block
+
 CRITICAL -- CSS CLASSES ARE HASHED/DYNAMIC:
 - Steam uses hashed CSS classes like "_175B12uOwmeGBNcSaQFe-Z" that change on every build.
 - NEVER use these hashed classes as selectors. They WILL break.

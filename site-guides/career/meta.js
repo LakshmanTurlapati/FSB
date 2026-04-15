@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.metacareers\.com/i
   ],
-  guidance: `META CAREER NAVIGATION:\nStart: https://www.metacareers.com/`,
+  guidance: `META CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.metacareers.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "machine learning engineer"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Meta","role":"...","location":"...","link":"...","source":"meta"}\nStart: https://www.metacareers.com/`,
   selectors: {
     searchBox: '[aria-label="Search all results"], [role="button"], //label[normalize-space(.)="Search"], .xjbqb8w.x1lliihq, input[type="text"][placeholder="Search\\ by\\ technology\\,\\ team\\,\\ location\\,\\ or\\ ref\\.code"], .x1lliihq.x1r8uery',
     locationFilter: '[role="link"], .x1i10hfl.x1qjc9v5',

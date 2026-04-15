@@ -12,18 +12,87 @@ registerSiteGuide({
   ],
   guidance: `GOOGLE SHEETS-SPECIFIC INTELLIGENCE:
 
+BULK DATA ENTRY (PREFERRED — USE THIS FIRST):
+  # For ANY task that involves filling multiple cells, use fillsheet:
+  fillsheet "A1" "Name,Age,City\\nJohn,25,NYC\\nJane,30,LA" "My Sheet Name"
+  # Headers auto-bolded. Sheet auto-renamed. All cells filled mechanically.
+  # The CSV uses commas for columns and \\n for rows.
+  # For values containing commas, use quotes: fillsheet "A1" "\\"Hello, World\\",foo,bar"
+  # The third argument (sheet name) is optional — omit it to keep the default name.
+
+READING EXISTING DATA:
+  # To see what's already in the sheet before adding data:
+  readsheet "A1:D10"
+  # Returns CSV of cell values. Use this to understand existing layout.
+
+SINGLE CELL EDITING (for small edits only):
+  key "Escape"              # exit any edit mode
+  click e5                  # click Name Box
+  type e5 "B2"              # type cell reference
+  key "Enter"               # navigate to cell
+  type "new value"          # type into active cell
+
+IMPORTANT: ALWAYS prefer fillsheet for bulk data entry. Do NOT use manual type+Tab sequences.
+fillsheet is faster, more reliable, and handles cell navigation automatically.
+
+FEEDBACK LOOP AWARENESS:
+  The cell grid is CANVAS-RENDERED -- after typing data into a cell, the DOM snapshot will NOT show
+  the typed text in the grid. The ONLY way to verify cell content is via the formula bar.
+  DO NOT assume typing failed just because the grid looks unchanged in the snapshot.
+
+  For bulk data entry, TRUST your type+Tab/Enter sequences:
+  1. Navigate to starting cell via Name Box
+  2. Type all values using type + Tab (columns) + Enter (rows) pattern
+  3. Do NOT stop to verify each cell after typing -- continue the sequence
+  4. After completing all data entry, verify a SAMPLE cell (navigate via Name Box, read formula bar)
+  5. If the formula bar shows the expected value for the sample cell, the sequence worked
+
+  The formula bar element shows the content of the currently selected cell.
+  After navigating to a cell, the formula bar ref in the snapshot shows its value
+  as = "value" (e.g., \`e8: toolbar-input "Formula bar" [hint:formulaBar] = "Revenue"\`).
+  Check this FIRST before using getText. If the snapshot shows = "" or no value,
+  use getText on the formula bar ref as a fallback.
+
+COMMON PATTERNS:
+  # Name Box click pattern (also reliable with toolbar bypass):
+  # navigate to cell and enter data
+  key "Escape"          # exit edit mode first
+  click e5              # Name Box
+  type e5 "A1"
+  enter                 # navigate to A1
+  type e10 "cell value" # type into active cell
+  key "Tab"             # move to next column
+  # read cell value
+  click e5              # Name Box
+  type e5 "B2"
+  enter
+  gettext e8            # formula bar content
+
+CRITICAL WARNING -- CELL NAVIGATION VS DATA ENTRY:
+These are TWO SEPARATE STEPS using the "type" tool with DIFFERENT TARGETS:
+  Step 1 (NAVIGATE): Click the Name Box (#t-name-box), type the cell reference (e.g., "B1"), press Enter.
+    This MOVES the cursor to that cell. The cell reference is a NAVIGATION COMMAND, not data.
+  Step 2 (ENTER DATA): Now type the actual data value. Keystrokes go into the active cell (no ref needed).
+    The data value is what you want stored in the cell. Do NOT include the cell reference in the data.
+NEVER DO THIS: Never type "b1" or any cell reference directly into a cell as if it were data.
+  If you want to put data in cell B1: FIRST navigate to B1 via the Name Box, THEN type the actual data.
+The "type" tool is used for BOTH steps but the TARGET differs: Step 1 targets #t-name-box, Step 2 targets the spreadsheet grid (NOT the Name Box). NEVER type data values into the Name Box.
+
 CANVAS-BASED GRID:
 - Google Sheets uses a CANVAS-BASED GRID for cell rendering. Individual cells are NOT standard DOM elements.
 - You CANNOT click directly on cells in the grid -- the canvas intercepts clicks.
 - The primary navigation method is the NAME BOX (cell reference input at top-left, showing "A1", "B2", etc.).
 
 NAME BOX NAVIGATION (PRIMARY METHOD):
+0. Press Escape to exit cell edit mode (CRITICAL -- if in edit mode, the reference will go into the active cell instead of the Name Box)
 1. Click the Name Box element (#t-name-box) showing current cell reference like "A1"
 2. The Name Box text will be selected/highlighted
 3. Type the target cell reference (e.g., "A1", "B3", "D10")
 4. Press Enter to navigate to that cell
-5. The cell is now selected and ready for input
-6. Type the cell value -- it will go into the formula bar and cell
+5. The cell is now selected and ready for input -- focus has returned to the grid
+6. Type the cell value (do NOT target the Name Box -- it is ONLY for cell references). Keystrokes go to the active cell.
+  KEYBOARD ALTERNATIVE: If click on Name Box fails, use Ctrl+Home to go to A1 as a starting point,
+  then use Tab/Enter to navigate to the target cell sequentially.
 
 DATA ENTRY:
 - After typing a cell value, press TAB to move to the next column (right)
@@ -43,8 +112,10 @@ KEYBOARD SHORTCUTS:
 - Enter: Confirm and move down one cell
 
 FORMULA BAR VERIFICATION:
-- The formula bar (#t-formula-bar-input or .cell-input) shows the content of the currently selected cell
-- Navigate to a cell via Name Box, then use getText on the formula bar to read the cell's value
+- The formula bar appears in the snapshot as a toolbar-input ref with the cell's value (= "value")
+- FIRST check the formula bar ref in the snapshot for the cell value (passive -- no action needed)
+- If the snapshot shows no value or = "", use getText on the formula bar ref as a fallback
+- Navigate to a cell via Name Box, then check the snapshot or use getText on the formula bar
 - For HYPERLINK cells, the formula bar shows the full formula (e.g., =HYPERLINK("url","Apply"))
 - This is the ONLY reliable way to verify cell contents -- do NOT try to read from the canvas grid
 
@@ -54,10 +125,290 @@ DATA ENTRY BEST PRACTICES:
 - Always press Ctrl+A after clicking the Name Box before typing a cell reference
 - Sanitize cell values: prefix with space if starting with = + - @
 - Use =HYPERLINK("url","label") for clickable links`,
+  fsbElements: {
+    'name-box': {
+      label: 'Name Box (current cell reference)',
+      selectors: [
+        { strategy: 'id', selector: '#t-name-box' },
+        { strategy: 'class', selector: '.waffle-name-box' },
+        { strategy: 'aria', selector: 'input[aria-label*="Name Box" i]' },
+        { strategy: 'role', selector: 'input[role="combobox"][title*="ame"]' },
+        { strategy: 'context', selector: '#docs-chrome input[type="text"]:first-child' }
+      ]
+    },
+    'formula-bar': {
+      label: 'Formula bar (shows selected cell content)',
+      selectors: [
+        { strategy: 'id', selector: '#t-formula-bar-input' },
+        { strategy: 'class', selector: '.cell-input' },
+        { strategy: 'aria', selector: '[aria-label*="formula" i]' },
+        { strategy: 'role', selector: '[contenteditable="true"][role="textbox"]' },
+        { strategy: 'context', selector: '#formula_bar [contenteditable]' }
+      ]
+    },
+    // Tier 1 -- Toolbar Formatting Buttons (15 elements)
+    'bold': {
+      label: 'Bold',
+      selectors: [
+        { strategy: 'id', selector: '#t-bold' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-bold"]' },
+        { strategy: 'aria', selector: '[aria-label^="Bold"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Bold" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label^="Bold"]' }
+      ]
+    },
+    'italic': {
+      label: 'Italic',
+      selectors: [
+        { strategy: 'id', selector: '#t-italic' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-italic"]' },
+        { strategy: 'aria', selector: '[aria-label^="Italic"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Italic" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label^="Italic"]' }
+      ]
+    },
+    'text-color': {
+      label: 'Text color picker',
+      selectors: [
+        { strategy: 'id', selector: '#t-text-color' },
+        { strategy: 'class', selector: '.docs-toolbar-color-menu-button[id="t-text-color"]' },
+        { strategy: 'aria', selector: '[aria-label="Text color"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Text color" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Text color"]' }
+      ]
+    },
+    'fill-color': {
+      label: 'Fill color picker',
+      selectors: [
+        { strategy: 'id', selector: '#t-cell-color' },
+        { strategy: 'class', selector: '.docs-toolbar-color-menu-button[id="t-cell-color"]' },
+        { strategy: 'aria', selector: '[aria-label="Fill color"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Fill color" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Fill color"]' }
+      ]
+    },
+    'borders': {
+      label: 'Borders',
+      selectors: [
+        { strategy: 'id', selector: '#t-border' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-border"]' },
+        { strategy: 'aria', selector: '[aria-label="Borders"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Borders" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Borders"]' }
+      ]
+    },
+    'merge': {
+      label: 'Merge cells',
+      selectors: [
+        { strategy: 'id', selector: '#t-merge-button' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-merge-button"]' },
+        { strategy: 'aria', selector: '[aria-label="Merge cells"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Merge" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Merge cells"]' }
+      ]
+    },
+    'h-align': {
+      label: 'Horizontal align',
+      selectors: [
+        { strategy: 'id', selector: '#t-align' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-align"]' },
+        { strategy: 'aria', selector: '[aria-label="Horizontal align"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="align" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Horizontal align"]' }
+      ]
+    },
+    'font-family': {
+      label: 'Font family selector',
+      selectors: [
+        { strategy: 'id', selector: '#docs-font-family' },
+        { strategy: 'class', selector: '.docs-font-family' },
+        { strategy: 'aria', selector: '[aria-label="Font"]' },
+        { strategy: 'role', selector: '[role="listbox"][aria-label="Font"]' },
+        { strategy: 'context', selector: '#docs-toolbar #docs-font-family' }
+      ]
+    },
+    'font-size': {
+      label: 'Font size input',
+      selectors: [
+        { strategy: 'id', selector: '#fontSizeSelect' },
+        { strategy: 'class', selector: '.docs-toolbar-font-size-combo' },
+        { strategy: 'aria', selector: '[aria-label="Font size"]' },
+        { strategy: 'role', selector: 'input[aria-label="Font size"]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Font size"]' }
+      ]
+    },
+    'num-fmt-currency': {
+      label: 'Format as currency',
+      selectors: [
+        { strategy: 'id', selector: '#t-num-fmt-currency' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-num-fmt-currency"]' },
+        { strategy: 'aria', selector: '[aria-label*="currency" i]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="currency" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label*="currency" i]' }
+      ]
+    },
+    'num-fmt-percent': {
+      label: 'Format as percent',
+      selectors: [
+        { strategy: 'id', selector: '#t-num-fmt-percent' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-num-fmt-percent"]' },
+        { strategy: 'aria', selector: '[aria-label*="percent" i]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="percent" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label*="percent" i]' }
+      ]
+    },
+    'num-fmt-other': {
+      label: 'More number formats',
+      selectors: [
+        { strategy: 'id', selector: '#t-num-fmt-other' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-num-fmt-other"]' },
+        { strategy: 'aria', selector: '[aria-label*="More formats" i]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="formats" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label*="More formats" i]' }
+      ]
+    },
+    'filter-toggle': {
+      label: 'Create a filter',
+      selectors: [
+        { strategy: 'id', selector: '#t-autofilter-toggle' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-autofilter-toggle"]' },
+        { strategy: 'aria', selector: '[aria-label*="filter" i]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="filter" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label*="filter" i]' }
+      ]
+    },
+    'functions': {
+      label: 'Functions menu',
+      selectors: [
+        { strategy: 'id', selector: '#t-formula' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-formula"]' },
+        { strategy: 'aria', selector: '[aria-label="Functions"]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="Functions" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label="Functions"]' }
+      ]
+    },
+    'insert-chart': {
+      label: 'Insert chart',
+      selectors: [
+        { strategy: 'id', selector: '#t-insert-chart' },
+        { strategy: 'class', selector: '.docs-toolbar-button[id="t-insert-chart"]' },
+        { strategy: 'aria', selector: '[aria-label*="chart" i]' },
+        { strategy: 'role', selector: '[role="button"][aria-label*="chart" i]' },
+        { strategy: 'context', selector: '#docs-toolbar [aria-label*="chart" i]' }
+      ]
+    },
+    // Tier 2 -- Menu Bar Items (6 elements)
+    'menu-file': {
+      label: 'File menu',
+      selectors: [
+        { strategy: 'id', selector: '#docs-file-menu' },
+        { strategy: 'class', selector: '.menu-button[id="docs-file-menu"]' },
+        { strategy: 'aria', selector: '#docs-menubar [aria-label="File"]' },
+        { strategy: 'role', selector: '[role="menuitem"]:nth-child(2)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(2)' }
+      ]
+    },
+    'menu-edit': {
+      label: 'Edit menu',
+      selectors: [
+        { strategy: 'id', selector: '#docs-edit-menu' },
+        { strategy: 'class', selector: '.menu-button[id="docs-edit-menu"]' },
+        { strategy: 'aria', selector: '#docs-menubar [aria-label="Edit"]' },
+        { strategy: 'role', selector: '[role="menuitem"]:nth-child(3)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(3)' }
+      ]
+    },
+    'menu-view': {
+      label: 'View menu',
+      selectors: [
+        { strategy: 'id', selector: '#docs-view-menu' },
+        { strategy: 'class', selector: '.menu-button[id="docs-view-menu"]' },
+        { strategy: 'aria', selector: '#docs-menubar [aria-label="View"]' },
+        { strategy: 'role', selector: '[role="menuitem"]:nth-child(4)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(4)' }
+      ]
+    },
+    'menu-insert': {
+      label: 'Insert menu',
+      selectors: [
+        { strategy: 'id', selector: '#docs-insert-menu' },
+        { strategy: 'class', selector: '.menu-button[id="docs-insert-menu"]' },
+        { strategy: 'aria', selector: '#docs-menubar [aria-label="Insert"]' },
+        { strategy: 'role', selector: '[role="menuitem"]:nth-child(5)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(5)' }
+      ]
+    },
+    'menu-format': {
+      label: 'Format menu',
+      selectors: [
+        { strategy: 'id', selector: '#docs-format-menu' },
+        { strategy: 'class', selector: '.menu-button[id="docs-format-menu"]' },
+        { strategy: 'aria', selector: '#docs-menubar [aria-label="Format"]' },
+        { strategy: 'role', selector: '[role="menuitem"]:nth-child(6)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(6)' }
+      ]
+    },
+    'menu-data': {
+      label: 'Data menu',
+      selectors: [
+        { strategy: 'aria', selector: '[aria-label="Data"]' },
+        { strategy: 'role', selector: '#docs-menubar [role="menuitem"]:nth-child(7)' },
+        { strategy: 'context', selector: '#docs-menubar .menu-button:nth-child(7)' },
+        { strategy: 'class', selector: '.menu-button:nth-of-type(7)' },
+        { strategy: 'id', selector: '#docs-data-menu' }
+      ]
+    },
+    // Tier 3 -- Sheet Management (3 elements)
+    'add-sheet': {
+      label: 'Add new sheet tab',
+      selectors: [
+        { strategy: 'aria', selector: '[aria-label="Add Sheet"]' },
+        { strategy: 'class', selector: '.docs-sheet-add-button' },
+        { strategy: 'role', selector: '[role="button"][aria-label="Add Sheet"]' },
+        { strategy: 'context', selector: '.docs-sheet-button.docs-sheet-add-button' },
+        { strategy: 'id', selector: '#sheet-button' }
+      ]
+    },
+    'sheet-tab': {
+      label: 'Active sheet tab',
+      selectors: [
+        { strategy: 'class', selector: '.docs-sheet-active-tab' },
+        { strategy: 'aria', selector: '.docs-sheet-tab[aria-selected="true"]' },
+        { strategy: 'role', selector: '[role="tab"][aria-selected="true"]' },
+        { strategy: 'context', selector: '.docs-sheet-tab-container .docs-sheet-tab:first-child' },
+        { strategy: 'id', selector: '.docs-sheet-tab' }
+      ]
+    },
+    'spreadsheet-title': {
+      label: 'Spreadsheet title (rename)',
+      selectors: [
+        { strategy: 'class', selector: '.docs-title-input' },
+        { strategy: 'aria', selector: 'input[aria-label*="Rename" i]' },
+        { strategy: 'role', selector: 'input[aria-label*="name" i]' },
+        { strategy: 'context', selector: '.docs-title-widget input' },
+        { strategy: 'id', selector: '#docs-title-input' }
+      ]
+    }
+  },
   selectors: {
     nameBox: '#t-name-box',
     cellInput: '.cell-input, #cell-input',
     formulaBar: '#t-formula-bar-input, .cell-input',
+    bold: '#t-bold',
+    italic: '#t-italic',
+    textColor: '#t-text-color',
+    fillColor: '#t-cell-color',
+    borders: '#t-border',
+    merge: '#t-merge-button',
+    hAlign: '#t-align',
+    fontFamily: '#docs-font-family',
+    fontSize: '#fontSizeSelect',
+    numFmtCurrency: '#t-num-fmt-currency',
+    numFmtPercent: '#t-num-fmt-percent',
+    numFmtOther: '#t-num-fmt-other',
+    filterToggle: '#t-autofilter-toggle',
+    functions: '#t-formula',
+    insertChart: '#t-insert-chart',
     menuFile: '#docs-file-menu',
     menuEdit: '#docs-edit-menu',
     menuView: '#docs-view-menu',
@@ -66,7 +417,8 @@ DATA ENTRY BEST PRACTICES:
     menuData: '#docs-data-menu',
     menuTools: '#docs-tools-menu',
     sheetTabs: '.docs-sheet-tab',
-    addSheet: '#sheet-button',
+    sheetTab: '.docs-sheet-active-tab, .docs-sheet-tab',
+    addSheet: '[aria-label="Add Sheet"], .docs-sheet-add-button, #sheet-button',
     toolbar: '#docs-toolbar',
     formulaBarInput: '#t-formula-bar-input, .cell-input',
     spreadsheetTitle: '.docs-title-input, input[aria-label*="name"], input[aria-label*="Rename"]',
@@ -89,6 +441,7 @@ DATA ENTRY BEST PRACTICES:
       'The sheet is ready for interaction'
     ],
     setupHeaderRow: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box (#t-name-box)',
       'Type "A1" and press Enter to navigate to cell A1',
       'Type the first header text (e.g., "Company")',
@@ -98,6 +451,7 @@ DATA ENTRY BEST PRACTICES:
       'Press Enter after the last header to move to row 2'
     ],
     enterRowData: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box (#t-name-box)',
       'Type the target cell reference (e.g., "A2") and press Enter',
       'Type the first field value',
@@ -107,12 +461,14 @@ DATA ENTRY BEST PRACTICES:
       'Press Enter to move to the start of the next row'
     ],
     navigateToCell: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box (#t-name-box) to select it',
       'Type the cell reference (e.g., "C5")',
       'Press Enter to navigate to that cell',
       'The cell is now selected and ready for input or reading'
     ],
     dataEntrySequential: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box (#t-name-box) to select it',
       'Press Ctrl+A to select all text in the Name Box',
       'Type the starting cell reference (e.g., "A1") and press Enter',
@@ -123,6 +479,7 @@ DATA ENTRY BEST PRACTICES:
       'Repeat for all data rows'
     ],
     formulaBarVerification: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box (#t-name-box)',
       'Press Ctrl+A to select all existing text',
       'Type the cell reference to verify (e.g., "A2") and press Enter',
@@ -133,7 +490,7 @@ DATA ENTRY BEST PRACTICES:
       'Press Tab or Enter to confirm the correction'
     ],
     enterHyperlinkFormula: [
-      'Navigate to the target cell via Name Box',
+      'Press Escape to exit any cell edit mode, then navigate to the target cell via Name Box (click Name Box, type cell ref, press Enter)',
       'Ensure the cell is empty (if not, press Delete to clear)',
       'Type the formula: =HYPERLINK("url","Apply")',
       'Press Tab or Enter to confirm -- the cell should show "Apply" as a clickable link',
@@ -147,6 +504,7 @@ DATA ENTRY BEST PRACTICES:
       'The title bar should now show the new name'
     ],
     appendToExistingSheet: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box, type "A1", press Enter to go to the top',
       'Read the formula bar to check if A1 has a header value',
       'Press Tab to move through columns, reading each header from the formula bar',
@@ -172,6 +530,7 @@ DATA ENTRY BEST PRACTICES:
       'Alternative: press Alt+/ (Option+/ on Mac) to open the tool finder, type "Freeze", select "1 row"'
     ],
     applyAlternatingColors: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box, type the full data range (e.g., "A1:F26"), press Enter to select the range',
       'Click the Format menu (#docs-format-menu)',
       'Click "Alternating colors" to open the sidebar panel',
@@ -191,13 +550,17 @@ DATA ENTRY BEST PRACTICES:
       'Alternative: double-click the border between column headers to auto-fit individual columns'
     ],
     applyLinkColumnBlueText: [
+      'Press Escape to exit any cell edit mode',
       'Click the Name Box, type the Apply Link column data range (e.g., "F2:F26"), press Enter to select',
       'Apply blue text color (#1155CC) to signal clickability',
       'Use the text color toolbar button or Alt+/ tool finder typing "Text color"'
     ]
   },
   warnings: [
+    'KEYBOARD NAVIGATION IS MOST RELIABLE: The key and type (without ref) commands use the Chrome DevTools Protocol keyboard API, bypassing all DOM readiness checks. When click actions fail or time out, switch to keyboard-only navigation: Escape (exit edit mode), Ctrl+Home (go to A1), Tab (next column), Enter (next row). For sequential data entry, prefer type + Tab + type + Tab + Enter over clicking individual cells.',
+    'CANVAS FEEDBACK: The cell grid is canvas-rendered and invisible to DOM snapshots. After typing data, the grid will look unchanged. This is NORMAL. Trust your type+Tab sequences and verify via the formula bar only. Do NOT retry typing just because the grid snapshot looks empty.',
     'Google Sheets cells are rendered on a CANVAS -- you CANNOT click individual cells via DOM selectors. Always use the Name Box for cell navigation.',
+    'CRITICAL: Press Escape before clicking the Name Box to exit cell edit mode. If you type a cell reference while still in edit mode, the reference will be appended to the current cell\'s content instead of navigating.',
     'The Name Box is the ONLY reliable way to navigate to specific cells. It is located at the top-left of the sheet.',
     'Google Sheets auto-saves continuously -- there is no explicit save needed, but Ctrl+S can force a save.',
     'If the sheet is in VIEW-ONLY mode, data entry will not work. Check for an "Edit" or "Request access" button.',
@@ -215,7 +578,8 @@ DATA ENTRY BEST PRACTICES:
     'FORMATTING: Use Shift+Space to select an entire row (must NOT be in cell edit mode). Click the row number on the left margin as an alternative.',
     'FORMATTING: The Alt+/ (Option+/ on Mac) tool finder searches all menu items by name. Use it when you cannot find a menu item or when toolbar button selectors are unreliable.',
     'FORMATTING: For alternating colors, select the data range FIRST, then open Format > Alternating colors. If the range is wrong, close the sidebar, reselect, and try again.',
-    'FORMATTING: Column auto-size via right-click > Resize > "Fit to data" works on all selected columns at once. Select all columns first for best results.'
+    'FORMATTING: Column auto-size via right-click > Resize > "Fit to data" works on all selected columns at once. Select all columns first for best results.',
+    'CRITICAL: Do NOT type cell references (A1, B2, C3, etc.) as cell VALUES. Cell references are ONLY for Name Box navigation. To put data in cell B1: click Name Box -> type "B1" -> press Enter -> THEN type your actual data value.'
   ],
-  toolPreferences: ['navigate', 'click', 'rightClick', 'type', 'keyPress', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable', 'openNewTab', 'switchToTab', 'listTabs']
+  toolPreferences: ['navigate', 'click', 'rightClick', 'type', 'keyPress', 'waitForTabLoad', 'getText', 'waitForElement', 'getAttribute', 'waitForDOMStable', 'openNewTab', 'switchToTab', 'listTabs', 'fillsheet', 'readsheet']
 });

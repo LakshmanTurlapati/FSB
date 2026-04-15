@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.jpmorganchase\.com\/careers/i
   ],
-  guidance: `JPMORGAN CHASE CAREER NAVIGATION:\nStart: https://www.jpmorganchase.com/careers`,
+  guidance: `JPMORGAN CHASE CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.jpmorganchase.com/careers"
+  # search and extract
+  click e5    # search box
+  type e5 "quantitative analyst"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"JPMorgan Chase","role":"...","location":"...","link":"...","source":"jpmorganchase"}\nStart: https://www.jpmorganchase.com/careers`,
   selectors: {
     searchBox: '[data-fsb-id="button_cws_primary_nav"], [data-fsb-id="a_research_research_cmp_secondary_n"], [aria-label="JPMorganChase Institute Research Topics "], .search-icon, .hyper-link.anchor-9, .hyper-link',
     locationFilter: '[aria-label="Global locations"], .hyper-link.anchor-9',

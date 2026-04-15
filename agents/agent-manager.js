@@ -20,6 +20,59 @@ class BackgroundAgentManager {
     return 'agent_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
   }
 
+  _normalizeTargetUrl(targetUrl) {
+    return typeof targetUrl === 'string' ? targetUrl.trim() : '';
+  }
+
+  _normalizeStartMode(startMode, targetUrl) {
+    if (startMode === 'pinned' || startMode === 'ai_routed') return startMode;
+    return this._normalizeTargetUrl(targetUrl) ? 'pinned' : 'ai_routed';
+  }
+
+  _validateStartConfig(startMode, targetUrl) {
+    const normalizedTargetUrl = this._normalizeTargetUrl(targetUrl);
+    const normalizedStartMode = this._normalizeStartMode(startMode, normalizedTargetUrl);
+
+    if (normalizedStartMode === 'pinned') {
+      if (!normalizedTargetUrl) {
+        throw new Error('Pinned agents require a targetUrl');
+      }
+      let parsed;
+      try {
+        parsed = new URL(normalizedTargetUrl);
+      } catch {
+        throw new Error('Pinned agents require a valid http/https targetUrl');
+      }
+      if (!/^https?:$/i.test(parsed.protocol)) {
+        throw new Error('Pinned agents require a valid http/https targetUrl');
+      }
+      return {
+        startMode: 'pinned',
+        targetUrl: parsed.toString()
+      };
+    }
+
+    return {
+      startMode: 'ai_routed',
+      targetUrl: ''
+    };
+  }
+
+  _normalizeAgent(agent) {
+    if (!agent || typeof agent !== 'object') return agent;
+    const normalizedStartMode = this._normalizeStartMode(agent.startMode, agent.targetUrl);
+    const normalizedTargetUrl = normalizedStartMode === 'pinned'
+      ? this._normalizeTargetUrl(agent.targetUrl)
+      : '';
+
+    return {
+      ...agent,
+      startMode: normalizedStartMode,
+      targetUrl: normalizedTargetUrl,
+      replayEnabled: agent.replayEnabled !== false
+    };
+  }
+
   /**
    * Load all agents from storage
    * @returns {Promise<Object>} Map of agentId -> agent data
@@ -30,7 +83,12 @@ class BackgroundAgentManager {
     }
     try {
       const result = await chrome.storage.local.get(this.STORAGE_KEY);
-      this._cache = result[this.STORAGE_KEY] || {};
+      const storedAgents = result[this.STORAGE_KEY] || {};
+      const normalizedAgents = {};
+      for (const [agentId, agent] of Object.entries(storedAgents)) {
+        normalizedAgents[agentId] = this._normalizeAgent(agent);
+      }
+      this._cache = normalizedAgents;
       this._cacheTime = Date.now();
       return this._cache;
     } catch (error) {
@@ -45,8 +103,12 @@ class BackgroundAgentManager {
    */
   async saveAgents(agents) {
     try {
-      await chrome.storage.local.set({ [this.STORAGE_KEY]: agents });
-      this._cache = agents;
+      const normalizedAgents = {};
+      for (const [agentId, agent] of Object.entries(agents || {})) {
+        normalizedAgents[agentId] = this._normalizeAgent(agent);
+      }
+      await chrome.storage.local.set({ [this.STORAGE_KEY]: normalizedAgents });
+      this._cache = normalizedAgents;
       this._cacheTime = Date.now();
     } catch (error) {
       console.error('[FSB AgentManager] Failed to save agents:', error.message);
@@ -59,7 +121,8 @@ class BackgroundAgentManager {
    * @param {Object} params - Agent configuration
    * @param {string} params.name - Agent display name
    * @param {string} params.task - Task description for the AI
-   * @param {string} params.targetUrl - URL to navigate to before executing
+   * @param {string} [params.startMode='pinned'] - 'pinned' or 'ai_routed'
+   * @param {string} [params.targetUrl] - URL to navigate to before executing when pinned
    * @param {Object} params.schedule - Schedule configuration
    * @param {string} params.schedule.type - 'interval' | 'daily' | 'once'
    * @param {number} [params.schedule.intervalMinutes] - Minutes between runs (for interval type)
@@ -69,26 +132,31 @@ class BackgroundAgentManager {
    * @returns {Promise<Object>} The created agent
    */
   async createAgent(params) {
-    const { name, task, targetUrl, schedule, maxIterations = 15, replayEnabled = true } = params;
+    const { name, task, targetUrl, startMode, schedule, maxIterations = 15, replayEnabled = true } = params;
 
-    if (!name || !task || !targetUrl) {
-      throw new Error('Agent requires name, task, and targetUrl');
+    if (!name || !task) {
+      throw new Error('Agent requires name and task');
     }
     if (!schedule || !schedule.type) {
       throw new Error('Agent requires a schedule with type');
     }
-    if (!['interval', 'daily', 'once'].includes(schedule.type)) {
-      throw new Error('Schedule type must be interval, daily, or once');
+    if (!['interval', 'daily', 'once', 'cron'].includes(schedule.type)) {
+      throw new Error('Schedule type must be interval, daily, once, or cron');
+    }
+    if (schedule.type === 'cron' && !schedule.cronExpression) {
+      throw new Error('Cron schedule requires a cronExpression field');
     }
 
     const agents = await this.loadAgents();
     const agentId = this._generateId();
+    const startConfig = this._validateStartConfig(startMode, targetUrl);
 
     const agent = {
       agentId,
       name: name.trim(),
       task: task.trim(),
-      targetUrl: targetUrl.trim(),
+      startMode: startConfig.startMode,
+      targetUrl: startConfig.targetUrl,
       schedule: { ...schedule },
       enabled: true,
       createdAt: Date.now(),
@@ -106,9 +174,14 @@ class BackgroundAgentManager {
       replayStats: {
         totalReplays: 0,
         totalAISaves: 0,
-        estimatedCostSaved: 0
+        estimatedCostSaved: 0,
+        stepSuccessRates: {},
+        needsReRecord: false
       },
-      runHistory: []
+      runHistory: [],
+      retryCount: 0,
+      retryMaxAttempts: 3,
+      lastRetryAt: null
     };
 
     agents[agentId] = agent;
@@ -133,20 +206,32 @@ class BackgroundAgentManager {
 
     // Fields that can be updated
     const allowedFields = [
-      'name', 'task', 'targetUrl', 'schedule', 'enabled',
+      'name', 'task', 'startMode', 'targetUrl', 'schedule', 'enabled',
       'maxIterations', 'serverHashKey', 'syncEnabled',
       'replayEnabled', 'recordedScript', 'replayStats'
     ];
+
+    const startConfig = this._validateStartConfig(
+      updates.startMode !== undefined ? updates.startMode : agent.startMode,
+      updates.targetUrl !== undefined ? updates.targetUrl : agent.targetUrl
+    );
 
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
         if (field === 'maxIterations') {
           agent[field] = Math.min(Math.max(1, updates[field]), 50);
+        } else if (field === 'name' || field === 'task') {
+          agent[field] = typeof updates[field] === 'string' ? updates[field].trim() : updates[field];
+        } else if (field === 'startMode' || field === 'targetUrl') {
+          // Applied after validating the combined start config.
         } else {
           agent[field] = updates[field];
         }
       }
     }
+
+    agent.startMode = startConfig.startMode;
+    agent.targetUrl = startConfig.targetUrl;
 
     agents[agentId] = agent;
     await this.saveAgents(agents);
@@ -255,13 +340,48 @@ class BackgroundAgentManager {
 
     // Update replay stats
     if (!agent.replayStats) {
-      agent.replayStats = { totalReplays: 0, totalAISaves: 0, estimatedCostSaved: 0 };
+      agent.replayStats = { totalReplays: 0, totalAISaves: 0, estimatedCostSaved: 0, stepSuccessRates: {}, needsReRecord: false };
+    }
+    if (!agent.replayStats.stepSuccessRates) {
+      agent.replayStats.stepSuccessRates = {};
     }
     if (runEntry.executionMode === 'replay') {
       agent.replayStats.totalReplays++;
       agent.replayStats.estimatedCostSaved += runEntry.costSaved || 0;
+
+      // Track per-step success rates
+      if (runResult.stepResults) {
+        for (const sr of runResult.stepResults) {
+          const key = String(sr.stepNumber);
+          const existing = agent.replayStats.stepSuccessRates[key] || { successes: 0, total: 0 };
+          existing.total++;
+          if (sr.success) existing.successes++;
+          agent.replayStats.stepSuccessRates[key] = existing;
+        }
+      }
+
+      // Check for unreliable steps (below 50% success rate with >= 4 data points)
+      const unreliableSteps = Object.entries(agent.replayStats.stepSuccessRates)
+        .filter(([_, s]) => s.total >= 4 && (s.successes / s.total) < 0.5);
+
+      if (unreliableSteps.length > 0) {
+        agent.replayStats.needsReRecord = true;
+        console.log('[FSB Agent] Steps below 50% success rate:', unreliableSteps.map(([k]) => k).join(', '),
+          '-- flagging for re-record');
+      }
     } else if (runEntry.executionMode === 'ai_fallback') {
       agent.replayStats.totalAISaves++;
+      // If AI fallback succeeded with a new script, reset step tracking
+      if (runResult.success) {
+        agent.replayStats.stepSuccessRates = {};
+        agent.replayStats.needsReRecord = false;
+      }
+    } else if (runEntry.executionMode === 'ai_initial') {
+      // Fresh AI run with new script -- reset step tracking
+      if (runResult.success) {
+        agent.replayStats.stepSuccessRates = {};
+        agent.replayStats.needsReRecord = false;
+      }
     }
 
     // Add to history, cap at MAX_HISTORY
@@ -276,6 +396,34 @@ class BackgroundAgentManager {
 
     console.log('[FSB AgentManager] Run recorded for agent:', agentId, 'success:', runResult.success);
     return agent;
+  }
+
+  /**
+   * Reset retry counter for an agent (on success or max retries reached)
+   * @param {string} agentId
+   * @returns {Promise<Object|null>}
+   */
+  async resetRetry(agentId) {
+    const agents = await this.loadAgents();
+    if (!agents[agentId]) return null;
+    agents[agentId].retryCount = 0;
+    agents[agentId].lastRetryAt = null;
+    await this.saveAgents(agents);
+    return agents[agentId];
+  }
+
+  /**
+   * Increment retry counter for an agent
+   * @param {string} agentId
+   * @returns {Promise<Object|null>}
+   */
+  async incrementRetry(agentId) {
+    const agents = await this.loadAgents();
+    if (!agents[agentId]) return null;
+    agents[agentId].retryCount = (agents[agentId].retryCount || 0) + 1;
+    agents[agentId].lastRetryAt = Date.now();
+    await this.saveAgents(agents);
+    return agents[agentId];
   }
 
   /**

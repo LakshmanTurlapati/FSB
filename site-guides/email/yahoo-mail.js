@@ -11,6 +11,14 @@ registerSiteGuide({
   ],
   guidance: `YAHOO MAIL-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # compose and send an email
+  click e5    # Compose button
+  type e10 "recipient@email.com"
+  type e15 "Subject line"
+  type e20 "Email body text here"
+  click e25   # Send button
+
 COMPOSE WORKFLOW:
 1. Click the Compose button ([data-test-id="compose-button"]) to open a new email.
 2. TO FIELD: Click the To field (#message-to-field) and type the recipient email address.

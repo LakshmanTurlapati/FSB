@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.oracle\.com\/corporate/i
   ],
-  guidance: `ORACLE CAREER NAVIGATION:\nStart: https://www.oracle.com/corporate/careers/`,
+  guidance: `ORACLE CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.oracle.com/corporate/careers/"
+  # search and extract
+  click e5    # search jobs link
+  type e8 "database administrator"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Oracle","role":"...","location":"...","link":"...","source":"oracle"}\nStart: https://www.oracle.com/corporate/careers/`,
   selectors: {
     searchBox: '#u30searchBtn, [aria-label="Open Search Field"], //a[normalize-space(.)="Search jobs at Oracle"], [data-fsb-id="a_search_jobs_at_oracl_rh09"], [aria-label="Search Oracle.com"], [role="combobox"]',
     locationFilter: '//a[normalize-space(.)="Country"], //a[normalize-space(.)="United States"], [data-fsb-id="a_united_states"], //a[normalize-space(.)="Find phone numbers for your re"], [data-fsb-id="a_find_phone_numbers_f_rc59"], .flag-focus',

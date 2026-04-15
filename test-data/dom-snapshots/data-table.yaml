@@ -1,0 +1,56 @@
+url: https://example.com/products
+title: Product Catalog - Example.com
+scroll: 0/2400 (0%)
+viewport: 1920x1080
+state: complete
+captcha: false
+forms: product-search-form
+headings: h1:"Product Catalog"
+
+@nav
+  e1: a "Home" .nav-link [href=/]
+  e2: a "Products" .nav-link.active [href=/products]
+
+@main
+  e3: h1 "Product Catalog" .page-title
+  e4: input "" #product-search [type=search placeholder="Search products..."]
+  e5: select "" #sort-by [name=sort]
+    e6: option "Price: Low to High" [value=price-asc]
+    e7: option "Price: High to Low" [value=price-desc]
+  e8: table "" .product-table #products
+    e9: th "Product Name" .col-name
+    e10: th "Price" .col-price
+    e11: th "Description" .col-desc
+    e12: th "Rating" .col-rating
+    e13: th "Availability" .col-avail
+    e14: td "Wireless Mouse Pro" .cell-name [data-row=1]
+    e15: td "$49.99" .cell-price [data-row=1]
+    e16: td "Ergonomic wireless mouse with 16000 DPI sensor" .cell-desc [data-row=1]
+    e17: td "4.5/5" .cell-rating [data-row=1]
+    e18: td "In Stock" .cell-avail [data-row=1]
+    e19: td "Mechanical Keyboard" .cell-name [data-row=2]
+    e20: td "$129.99" .cell-price [data-row=2]
+    e21: td "Cherry MX Blue switches with RGB backlighting" .cell-desc [data-row=2]
+    e22: td "4.8/5" .cell-rating [data-row=2]
+    e23: td "In Stock" .cell-avail [data-row=2]
+    e24: td "USB-C Hub" .cell-name [data-row=3]
+    e25: td "$34.99" .cell-price [data-row=3]
+    e26: td "7-in-1 USB-C hub with HDMI and SD card reader" .cell-desc [data-row=3]
+    e27: td "4.2/5" .cell-rating [data-row=3]
+    e28: td "Low Stock" .cell-avail [data-row=3]
+    e29: td "Monitor Stand" .cell-name [data-row=4]
+    e30: td "$79.99" .cell-price [data-row=4]
+    e31: td "Adjustable aluminum monitor stand with cable management" .cell-desc [data-row=4]
+    e32: td "4.6/5" .cell-rating [data-row=4]
+    e33: td "In Stock" .cell-avail [data-row=4]
+    e34: td "Webcam HD" .cell-name [data-row=5]
+    e35: td "$59.99" .cell-price [data-row=5]
+    e36: td "1080p webcam with noise-canceling microphone" .cell-desc [data-row=5]
+    e37: td "4.3/5" .cell-rating [data-row=5]
+    e38: td "In Stock" .cell-avail [data-row=5]
+  e39: a "Page 1" .pagination.active [href=?page=1]
+  e40: a "Page 2" .pagination [href=?page=2]
+  e41: a "Next" .pagination.next [href=?page=2]
+  e42: span "Showing 1-5 of 25 products" .result-count
+
+--- 42/42 shown (0 offscreen)

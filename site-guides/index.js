@@ -130,6 +130,23 @@ function getGuideForTask(task, url) {
     if (urlGuide) return urlGuide;
   }
 
+  // Secondary: extract URLs from task text and try URL-based match
+  if (task) {
+    const urlRegex = /https?:\/\/\S+/g;
+    const taskUrls = task.match(urlRegex);
+    if (taskUrls) {
+      for (const rawUrl of taskUrls) {
+        try {
+          const taskUrl = new URL(rawUrl).href;
+          const taskUrlGuide = getGuideForUrl(taskUrl);
+          if (taskUrlGuide) return taskUrlGuide;
+        } catch (e) {
+          // Invalid URL, skip
+        }
+      }
+    }
+  }
+
   // Fallback: task keyword matching
   if (!task) return null;
   const taskLower = task.toLowerCase();
@@ -173,25 +190,51 @@ function getGuideForTask(task, url) {
       'hiring', 'employment', 'internship', 'internships', 'indeed', 'glassdoor',
       'linkedin jobs', 'builtin', 'job search', 'job listing'
     ],
-    'Productivity Tools': [
-      'google sheets', 'spreadsheet', 'sheets', 'google docs',
-      'create sheet', 'new sheet', 'add to sheet', 'enter data',
-      'create document', 'new document', 'write document', 'google doc',
-      'share document', 'edit document'
-    ]
+    'Productivity Tools': {
+      strong: [
+        'google sheets', 'google sheet', 'spreadsheet', 'google docs', 'google doc',
+        'notion', 'google calendar', 'google keep', 'todoist', 'trello', 'jira', 'airtable'
+      ],
+      weak: [
+        'sheets', 'sheet', 'create sheet', 'new sheet', 'add to sheet', 'enter data',
+        'create document', 'new document', 'write document', 'share document', 'edit document',
+        'calendar event', 'create event', 'schedule meeting', 'schedule',
+        'note', 'create note', 'checklist', 'keep note',
+        'task', 'create task', 'todo', 'add task', 'quick add',
+        'card', 'create card', 'board', 'kanban',
+        'issue', 'create issue', 'ticket', 'sprint', 'backlog', 'story points',
+        'base', 'record', 'create record', 'grid view', 'table view',
+        'page', 'create page', 'block', 'slash command', 'database view'
+      ]
+    }
   };
 
-  // Require at least 2 keyword matches to avoid false positives
-  // (e.g., "search for hotels" matching Social Media because of "share" substring)
+  // Weighted keyword matching: strong keywords (weight 2) meet threshold alone,
+  // weak keywords (weight 1) need 2+ matches. Flat arrays use weight 1 per keyword.
+  const MATCH_THRESHOLD = 2;
   let bestMatch = null;
-  let bestMatchCount = 0;
-  for (const [categoryName, keywords] of Object.entries(categoryKeywords)) {
-    const matchCount = keywords.filter(kw => taskLower.includes(kw)).length;
-    if (matchCount >= 2 && matchCount > bestMatchCount) {
+  let bestScore = 0;
+  for (const [categoryName, config] of Object.entries(categoryKeywords)) {
+    let score = 0;
+    if (config.strong) {
+      // Weighted format (e.g., Productivity Tools)
+      for (const kw of config.strong) {
+        if (taskLower.includes(kw)) score += 2;
+      }
+      for (const kw of config.weak) {
+        if (taskLower.includes(kw)) score += 1;
+      }
+    } else {
+      // Flat array format (all other categories)
+      for (const kw of config) {
+        if (taskLower.includes(kw)) score += 1;
+      }
+    }
+    if (score >= MATCH_THRESHOLD && score > bestScore) {
       const guide = SITE_GUIDES_REGISTRY.find(g => g.name === categoryName || g.category === categoryName);
       if (guide) {
         bestMatch = guide;
-        bestMatchCount = matchCount;
+        bestScore = score;
       }
     }
   }
@@ -412,6 +455,19 @@ function extractCompaniesFromTask(taskString) {
 
   // Return array only if 2+ valid companies found
   return validCompanies.length >= 2 ? validCompanies : null;
+}
+
+/**
+ * Extract the selectors object from the matched site guide for a given URL.
+ * Returns the guide's selectors (CSS/XPath mappings to page elements) or null.
+ * Used by the markdown snapshot engine for [hint:key:action] annotation matching.
+ * @param {string} url - The current page URL
+ * @returns {Object|null} The selectors object or null
+ */
+function getGuideSelectorsForUrl(url) {
+  const guide = getGuideForUrl(url);
+  if (!guide || !guide.selectors) return null;
+  return guide.selectors;
 }
 
 /**

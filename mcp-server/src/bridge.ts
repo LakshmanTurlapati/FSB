@@ -1,0 +1,608 @@
+import { randomBytes } from 'node:crypto';
+import WebSocket from 'ws';
+import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
+import type { MCPMessage, MCPResponse, RelayHello, RelayWelcome } from './types.js';
+import { FSB_ERROR_MESSAGES } from './errors.js';
+
+const PORT = 7225;
+const HANDSHAKE_TIMEOUT_MS = 2_000;
+const PROMOTION_JITTER_MS = 500; // max random delay before attempting promotion
+
+interface PendingRequest {
+  resolve: (value: MCPResponse) => void;
+  reject: (reason: Error) => void;
+  timeout: ReturnType<typeof setTimeout>;
+}
+
+type BridgeMode = 'hub' | 'relay' | 'disconnected';
+
+export class WebSocketBridge {
+  // Identity
+  private instanceId: string;
+  private mode: BridgeMode = 'disconnected';
+
+  // Hub mode state
+  private wss: WebSocketServer | null = null;
+  private extensionClient: WsWebSocket | null = null;
+  private relayClients = new Map<string, WsWebSocket>();
+  private messageOrigin = new Map<string, string>(); // msgId -> instanceId | "local"
+  private handshakeTimers = new Map<WsWebSocket, ReturnType<typeof setTimeout>>();
+
+  // Relay mode state
+  private hubConnection: WebSocket | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectDelay = 0;
+  private maxReconnectDelay = 30_000;
+  private intentionalClose = false;
+
+  // Shared state
+  private pendingRequests = new Map<string, PendingRequest>();
+  private progressListeners = new Map<string, (progress: MCPResponse) => void>();
+  private msgIdCounter = 0;
+  private connected = false;
+
+  constructor() {
+    this.instanceId = randomBytes(4).toString('hex');
+  }
+
+  // --------------------------------------------------------------------------
+  // Public API
+  // --------------------------------------------------------------------------
+
+  /**
+   * Try to start as hub (WebSocket server on port 7225).
+   * If the port is taken, fall back to relay mode (connect as client).
+   */
+  async connect(): Promise<void> {
+    try {
+      await this._startAsHub();
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+        console.error(`[FSB Bridge ${this.instanceId}] Port ${PORT} in use, connecting as relay client`);
+        await this._startAsRelay();
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  /**
+   * Gracefully shut down regardless of mode.
+   */
+  disconnect(): void {
+    this.intentionalClose = true;
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    if (this.mode === 'hub') {
+      // Close all relay clients
+      for (const [id, ws] of this.relayClients) {
+        ws.close();
+        this.relayClients.delete(id);
+      }
+      // Close extension connection
+      if (this.extensionClient) {
+        this.extensionClient.close();
+        this.extensionClient = null;
+      }
+      // Close server
+      if (this.wss) {
+        this.wss.close();
+        this.wss = null;
+      }
+      // Clean up handshake timers
+      for (const [, timer] of this.handshakeTimers) {
+        clearTimeout(timer);
+      }
+      this.handshakeTimers.clear();
+    } else if (this.mode === 'relay') {
+      if (this.hubConnection) {
+        this.hubConnection.close();
+        this.hubConnection = null;
+      }
+    }
+
+    // Reject all pending requests
+    for (const [id, pending] of this.pendingRequests) {
+      clearTimeout(pending.timeout);
+      pending.reject(new Error('Bridge disconnected'));
+      this.pendingRequests.delete(id);
+    }
+    this.progressListeners.clear();
+    this.messageOrigin.clear();
+    this.connected = false;
+    this.mode = 'disconnected';
+    console.error(`[FSB Bridge ${this.instanceId}] Disconnected`);
+  }
+
+  /**
+   * Send a message to the extension and wait for a response.
+   * Works in both hub and relay modes.
+   */
+  async sendAndWait(
+    msg: Omit<MCPMessage, 'id'>,
+    options?: { timeout?: number; onProgress?: (p: MCPResponse) => void },
+  ): Promise<Record<string, unknown>> {
+    if (!this.connected) {
+      console.error(`[FSB Bridge ${this.instanceId}] sendAndWait: NOT CONNECTED (mode=${this.mode})`);
+      throw new Error(FSB_ERROR_MESSAGES['extension_not_connected']);
+    }
+
+    const id = this.generateId();
+    const fullMsg: MCPMessage = { id, ...msg };
+    const timeoutMs = options?.timeout ?? 30_000;
+
+    console.error(`[FSB Bridge ${this.instanceId}] >> Sending: ${msg.type} (id=${id}, mode=${this.mode}, timeout=${timeoutMs}ms)`);
+
+    return new Promise<Record<string, unknown>>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        this.progressListeners.delete(id);
+        if (this.mode === 'hub') this.messageOrigin.delete(id);
+        console.error(`[FSB Bridge ${this.instanceId}] TIMEOUT: ${msg.type} (id=${id}) after ${timeoutMs}ms`);
+        reject(new Error(`Request ${id} (${msg.type}) timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      this.pendingRequests.set(id, {
+        resolve: (resp: MCPResponse) => {
+          const success = resp.payload?.success;
+          const error = resp.payload?.error;
+          console.error(`[FSB Bridge ${this.instanceId}] << Response: ${msg.type} (id=${id}) success=${success}${error ? ` error="${error}"` : ''}`);
+          resolve(resp.payload);
+        },
+        reject,
+        timeout: timer,
+      });
+
+      if (options?.onProgress) {
+        this.progressListeners.set(id, options.onProgress);
+      }
+
+      if (this.mode === 'hub') {
+        // Send directly to extension
+        this.messageOrigin.set(id, 'local');
+        this.extensionClient!.send(JSON.stringify(fullMsg));
+      } else if (this.mode === 'relay') {
+        // Send to hub for forwarding
+        this.hubConnection!.send(JSON.stringify(fullMsg));
+      }
+    });
+  }
+
+  /** Whether this bridge can reach the extension (directly or via relay). */
+  get isConnected(): boolean {
+    return this.connected;
+  }
+
+  /** Current operating mode. */
+  get currentMode(): BridgeMode {
+    return this.mode;
+  }
+
+  /** Generate a unique message ID with instance prefix. */
+  generateId(): string {
+    return `mcp_${this.instanceId}_${++this.msgIdCounter}_${Date.now()}`;
+  }
+
+  // --------------------------------------------------------------------------
+  // Hub mode
+  // --------------------------------------------------------------------------
+
+  private _startAsHub(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      this.wss = new WebSocketServer({ port: PORT });
+
+      this.wss.on('listening', () => {
+        this.mode = 'hub';
+        console.error(`[FSB Bridge ${this.instanceId}] Hub mode: WebSocket server listening on port ${PORT}`);
+        resolve();
+      });
+
+      this.wss.on('error', (err: NodeJS.ErrnoException) => {
+        reject(err);
+      });
+
+      this.wss.on('connection', (ws: WsWebSocket) => {
+        this._handleNewConnection(ws);
+      });
+    });
+  }
+
+  /**
+   * When a new WebSocket connection arrives, wait for a relay:hello handshake.
+   * If it arrives, this is a relay client. If not within HANDSHAKE_TIMEOUT_MS,
+   * treat it as the Chrome extension.
+   */
+  private _handleNewConnection(ws: WsWebSocket): void {
+    let identified = false;
+
+    // Buffer messages until we know what this connection is
+    const buffered: string[] = [];
+
+    const onMessage = (data: Buffer | string): void => {
+      const raw = typeof data === 'string' ? data : data.toString();
+
+      if (!identified) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed.type === 'relay:hello' && parsed.instanceId) {
+            // This is a relay MCP client
+            identified = true;
+            clearTimeout(handshakeTimer);
+            this.handshakeTimers.delete(ws);
+            this._registerRelayClient(ws, parsed as RelayHello);
+            return;
+          }
+        } catch {
+          // Not valid JSON or not a relay hello -- treat as extension
+        }
+
+        // First message was NOT relay:hello -> this is the extension
+        identified = true;
+        clearTimeout(handshakeTimer);
+        this.handshakeTimers.delete(ws);
+        this._registerExtensionClient(ws);
+
+        // Process the buffered message as an extension message
+        this._handleExtensionMessage(raw);
+        return;
+      }
+
+      buffered.push(raw);
+    };
+
+    ws.on('message', onMessage);
+
+    // If no message arrives within timeout, assume it's the extension
+    // (extension may not send anything until it receives a message)
+    const handshakeTimer = setTimeout(() => {
+      if (!identified) {
+        identified = true;
+        this.handshakeTimers.delete(ws);
+        this._registerExtensionClient(ws);
+        // Process any buffered messages
+        for (const raw of buffered) {
+          this._handleExtensionMessage(raw);
+        }
+      }
+    }, HANDSHAKE_TIMEOUT_MS);
+
+    this.handshakeTimers.set(ws, handshakeTimer);
+
+    ws.on('close', () => {
+      if (!identified) {
+        identified = true;
+        clearTimeout(handshakeTimer);
+        this.handshakeTimers.delete(ws);
+      }
+    });
+  }
+
+  private _registerExtensionClient(ws: WsWebSocket): void {
+    if (this.extensionClient) {
+      console.error(`[FSB Bridge ${this.instanceId}] New extension connected, closing previous`);
+      this.extensionClient.close();
+    }
+
+    this.extensionClient = ws;
+    this.connected = true;
+    console.error(`[FSB Bridge ${this.instanceId}] Extension connected`);
+
+    // Replace the temporary message handler with the real one
+    ws.removeAllListeners('message');
+    ws.on('message', (data: Buffer | string) => {
+      this._handleExtensionMessage(typeof data === 'string' ? data : data.toString());
+    });
+
+    ws.on('close', () => {
+      console.error(`[FSB Bridge ${this.instanceId}] Extension disconnected`);
+      this.extensionClient = null;
+      this.connected = this.relayClients.size > 0 ? false : false;
+      // Actually hub is "connected" only when extension is present
+      this.connected = false;
+
+      // Reject all pending local requests
+      for (const [id, pending] of this.pendingRequests) {
+        clearTimeout(pending.timeout);
+        pending.reject(new Error('Extension disconnected'));
+        this.pendingRequests.delete(id);
+      }
+      this.progressListeners.clear();
+
+      // Notify relay clients about pending requests that can't be fulfilled
+      // (they'll get errors when they timeout)
+      // Clean up messageOrigin entries for non-local origins
+      for (const [msgId, origin] of this.messageOrigin) {
+        if (origin !== 'local') {
+          this.messageOrigin.delete(msgId);
+        }
+      }
+    });
+
+    ws.on('error', (err: Error) => {
+      console.error(`[FSB Bridge ${this.instanceId}] Extension error:`, err.message);
+    });
+  }
+
+  private _registerRelayClient(ws: WsWebSocket, hello: RelayHello): void {
+    const clientId = hello.instanceId;
+
+    if (this.relayClients.has(clientId)) {
+      console.error(`[FSB Bridge ${this.instanceId}] Relay client ${clientId} reconnected, closing old`);
+      this.relayClients.get(clientId)!.close();
+    }
+
+    this.relayClients.set(clientId, ws);
+    console.error(`[FSB Bridge ${this.instanceId}] Relay client ${clientId} registered (total: ${this.relayClients.size})`);
+
+    // Send welcome
+    const welcome: RelayWelcome = { type: 'relay:welcome', instanceId: clientId };
+    ws.send(JSON.stringify(welcome));
+
+    // Replace message handler
+    ws.removeAllListeners('message');
+    ws.on('message', (data: Buffer | string) => {
+      this._handleRelayClientMessage(clientId, typeof data === 'string' ? data : data.toString());
+    });
+
+    ws.on('close', () => {
+      console.error(`[FSB Bridge ${this.instanceId}] Relay client ${clientId} disconnected`);
+      this.relayClients.delete(clientId);
+
+      // Clean up messageOrigin entries for this client
+      for (const [msgId, origin] of this.messageOrigin) {
+        if (origin === clientId) {
+          this.messageOrigin.delete(msgId);
+        }
+      }
+    });
+
+    ws.on('error', (err: Error) => {
+      console.error(`[FSB Bridge ${this.instanceId}] Relay client ${clientId} error:`, err.message);
+    });
+  }
+
+  /**
+   * Handle a message FROM the extension (a response to some request).
+   * Route it to the correct origin (local pending request or relay client).
+   */
+  private _handleExtensionMessage(raw: string): void {
+    // Phase 102.1: Handle keepalive pings from extension before type-checking MCPResponse
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.type === 'mcp:ping') {
+        if (this.extensionClient && this.extensionClient.readyState === 1 /* WebSocket.OPEN */) {
+          this.extensionClient.send(JSON.stringify({ type: 'mcp:pong', ts: Date.now() }));
+        }
+        return;
+      }
+    } catch { /* fall through to normal parse */ }
+
+    let resp: MCPResponse;
+    try {
+      resp = JSON.parse(raw) as MCPResponse;
+    } catch {
+      console.error(`[FSB Bridge ${this.instanceId}] Failed to parse extension message`);
+      return;
+    }
+
+    const origin = this.messageOrigin.get(resp.id);
+
+    // Progress notifications
+    if (resp.type === 'mcp:progress') {
+      if (origin === 'local') {
+        const listener = this.progressListeners.get(resp.id);
+        if (listener) listener(resp);
+      } else if (origin) {
+        // Forward progress to relay client
+        const relayWs = this.relayClients.get(origin);
+        if (relayWs) relayWs.send(raw);
+      }
+      return;
+    }
+
+    // Final result
+    if (origin === 'local' || !origin) {
+      // Handle locally (same as original logic)
+      const pending = this.pendingRequests.get(resp.id);
+      if (pending) {
+        clearTimeout(pending.timeout);
+        this.pendingRequests.delete(resp.id);
+        this.progressListeners.delete(resp.id);
+        this.messageOrigin.delete(resp.id);
+        pending.resolve(resp);
+      }
+    } else {
+      // Forward to relay client
+      const relayWs = this.relayClients.get(origin);
+      if (relayWs) {
+        relayWs.send(raw);
+      }
+      this.messageOrigin.delete(resp.id);
+    }
+  }
+
+  /**
+   * Handle a message FROM a relay client (a request to forward to extension).
+   */
+  private _handleRelayClientMessage(clientId: string, raw: string): void {
+    let msg: MCPMessage;
+    try {
+      msg = JSON.parse(raw) as MCPMessage;
+    } catch {
+      console.error(`[FSB Bridge ${this.instanceId}] Failed to parse relay client message`);
+      return;
+    }
+
+    if (!this.extensionClient) {
+      // Can't forward -- send error back to relay client
+      const errorResp: MCPResponse = {
+        id: msg.id,
+        type: 'mcp:error',
+        payload: { success: false, error: 'extension_not_connected' },
+      };
+      const relayWs = this.relayClients.get(clientId);
+      if (relayWs) relayWs.send(JSON.stringify(errorResp));
+      return;
+    }
+
+    // Track origin so we can route the response back
+    this.messageOrigin.set(msg.id, clientId);
+
+    // Forward to extension
+    this.extensionClient.send(raw);
+  }
+
+  // --------------------------------------------------------------------------
+  // Relay mode
+  // --------------------------------------------------------------------------
+
+  private _startAsRelay(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      this.intentionalClose = false;
+      this.mode = 'relay';
+
+      try {
+        this.hubConnection = new WebSocket(`ws://localhost:${PORT}`);
+      } catch (err) {
+        reject(err);
+        return;
+      }
+
+      this.hubConnection.on('open', () => {
+        // Send handshake
+        const hello: RelayHello = { type: 'relay:hello', instanceId: this.instanceId };
+        this.hubConnection!.send(JSON.stringify(hello));
+        console.error(`[FSB Bridge ${this.instanceId}] Relay mode: connected to hub, sent hello`);
+      });
+
+      this.hubConnection.on('message', (data: Buffer | string) => {
+        const raw = typeof data === 'string' ? data : data.toString();
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          console.error(`[FSB Bridge ${this.instanceId}] Failed to parse hub message`);
+          return;
+        }
+
+        // Handle welcome handshake
+        if (parsed.type === 'relay:welcome') {
+          this.connected = true;
+          this.reconnectDelay = 0;
+          console.error(`[FSB Bridge ${this.instanceId}] Relay mode: handshake complete, ready`);
+          resolve();
+          return;
+        }
+
+        // Handle responses routed back from hub
+        this._handleRelayResponse(parsed as unknown as MCPResponse);
+      });
+
+      this.hubConnection.on('close', () => {
+        const wasConnected = this.connected;
+        this.connected = false;
+        console.error(`[FSB Bridge ${this.instanceId}] Relay mode: disconnected from hub`);
+
+        // Reject all pending requests
+        for (const [id, pending] of this.pendingRequests) {
+          clearTimeout(pending.timeout);
+          pending.reject(new Error('Lost connection to hub'));
+          this.pendingRequests.delete(id);
+        }
+        this.progressListeners.clear();
+
+        if (!this.intentionalClose) {
+          // Try to promote to hub or reconnect as relay
+          this._attemptPromotion();
+        }
+      });
+
+      this.hubConnection.on('error', (err: Error) => {
+        console.error(`[FSB Bridge ${this.instanceId}] Relay error:`, err.message);
+        // onclose fires after onerror, promotion/reconnect handled there
+      });
+
+      // Timeout the initial connection attempt
+      setTimeout(() => {
+        if (!this.connected && this.mode === 'relay') {
+          reject(new Error('Relay handshake timed out'));
+        }
+      }, 5_000);
+    });
+  }
+
+  /**
+   * Handle a response message routed from the hub back to this relay client.
+   */
+  private _handleRelayResponse(resp: MCPResponse): void {
+    // Progress notifications
+    if (resp.type === 'mcp:progress') {
+      const listener = this.progressListeners.get(resp.id);
+      if (listener) listener(resp);
+      return;
+    }
+
+    // Final result
+    const pending = this.pendingRequests.get(resp.id);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      this.pendingRequests.delete(resp.id);
+      this.progressListeners.delete(resp.id);
+      pending.resolve(resp);
+    }
+  }
+
+  /**
+   * After losing hub connection, try to become the new hub.
+   * If the port is still taken (another relay won the race), reconnect as relay.
+   */
+  private async _attemptPromotion(): Promise<void> {
+    if (this.intentionalClose) return;
+
+    // Random jitter to avoid thundering herd
+    const jitter = Math.floor(Math.random() * PROMOTION_JITTER_MS);
+    console.error(`[FSB Bridge ${this.instanceId}] Attempting promotion in ${jitter}ms`);
+
+    await new Promise(r => setTimeout(r, jitter));
+
+    if (this.intentionalClose) return;
+
+    try {
+      await this._startAsHub();
+      console.error(`[FSB Bridge ${this.instanceId}] Promoted to hub mode`);
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+        console.error(`[FSB Bridge ${this.instanceId}] Promotion failed (port taken), reconnecting as relay`);
+        this._scheduleRelayReconnect();
+      } else {
+        console.error(`[FSB Bridge ${this.instanceId}] Promotion failed:`, err);
+        this._scheduleRelayReconnect();
+      }
+    }
+  }
+
+  private _scheduleRelayReconnect(): void {
+    if (this.intentionalClose) return;
+
+    if (this.reconnectDelay === 0) {
+      this.reconnectDelay = 2_000;
+    } else {
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
+    }
+
+    console.error(`[FSB Bridge ${this.instanceId}] Relay reconnect in ${this.reconnectDelay}ms`);
+    this.reconnectTimer = setTimeout(async () => {
+      if (this.intentionalClose) return;
+      try {
+        await this._startAsRelay();
+      } catch {
+        // Failed to connect as relay, maybe try promotion again
+        this._attemptPromotion();
+      }
+    }, this.reconnectDelay);
+  }
+}

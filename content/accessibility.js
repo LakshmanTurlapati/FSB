@@ -636,6 +636,13 @@
    * @returns {Object} { passed: boolean, reason: string|null, details: object, obscuredBy?: string }
    */
   function checkElementReceivesEvents(element) {
+    // Canvas-based editors (Google Sheets/Docs/Slides) have inherently layered UIs
+    // with sidebars, panels, and overlays that cause elementFromPoint to return
+    // overlay elements instead of the target. Skip obscuration check for these apps.
+    if (FSB.isCanvasBasedEditor && FSB.isCanvasBasedEditor()) {
+      return { passed: true, reason: null, details: { checkedPoints: 0, passedPoints: 0, skipped: 'canvas-editor' } };
+    }
+
     let rect = element.getBoundingClientRect();
 
     // Helper to calculate 5 check points from a rect
@@ -745,6 +752,36 @@
       result.obscuredBy = obscuredBy;
     }
 
+    // Detect if obstruction is caused by a fixed/sticky positioned element (header, navbar, etc.)
+    if (!passed && obscuredBy) {
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const obscuringElement = document.elementFromPoint(centerX, centerY);
+
+      if (obscuringElement && obscuringElement !== element && !element.contains(obscuringElement)) {
+        const obscStyle = getComputedStyle(obscuringElement);
+        let isFixedOrSticky = obscStyle.position === 'fixed' || obscStyle.position === 'sticky';
+
+        // Also check ancestors -- the obscuring element might be inside a fixed container
+        if (!isFixedOrSticky) {
+          let ancestor = obscuringElement.parentElement;
+          while (ancestor && ancestor !== document.body) {
+            const aStyle = getComputedStyle(ancestor);
+            if (aStyle.position === 'fixed' || aStyle.position === 'sticky') {
+              isFixedOrSticky = true;
+              break;
+            }
+            ancestor = ancestor.parentElement;
+          }
+        }
+
+        if (isFixedOrSticky) {
+          result.obscuredByFixedHeader = true;
+          result.reason = `Element obscured by fixed/sticky element: ${obscuredBy}`;
+        }
+      }
+    }
+
     return result;
   }
 
@@ -814,6 +851,32 @@
   }
 
   /**
+   * Detect the total height of fixed/sticky headers anchored at the top of the viewport.
+   * Queries common header/nav selectors and checks computed position + top offset.
+   * @returns {number} The bottom edge of the tallest fixed/sticky top-anchored element, or 0 if none.
+   */
+  function getStickyHeaderHeight() {
+    const candidates = document.querySelectorAll(
+      'header, nav, [role="banner"], [class*="header"], [class*="navbar"], [class*="topbar"], [class*="app-bar"]'
+    );
+    let maxBottom = 0;
+    for (const el of candidates) {
+      try {
+        const style = getComputedStyle(el);
+        if (style.position !== 'fixed' && style.position !== 'sticky') continue;
+        const rect = el.getBoundingClientRect();
+        // Only consider elements anchored at the top of the viewport (not sticky footers or sidebars)
+        if (rect.top < 10) {
+          maxBottom = Math.max(maxBottom, rect.bottom);
+        }
+      } catch (e) {
+        // Skip elements that throw on getComputedStyle (e.g., disconnected nodes)
+      }
+    }
+    return maxBottom;
+  }
+
+  /**
    * Scroll element into view only if needed (not fully visible or center not visible)
    * @param {Element} element - The DOM element to scroll into view
    * @returns {Promise<Object>} { scrolled: boolean, details: object }
@@ -823,8 +886,9 @@
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    // Check if element is fully visible in viewport
-    const wasFullyVisible = rect.top >= 0 &&
+    // Check if element is fully visible in viewport (account for fixed/sticky headers)
+    const stickyHeaderHeight = getStickyHeaderHeight();
+    const wasFullyVisible = rect.top >= stickyHeaderHeight &&
                             rect.left >= 0 &&
                             rect.bottom <= viewportHeight &&
                             rect.right <= viewportWidth;
@@ -864,6 +928,18 @@
     // Wait for scroll animation (300ms)
     await new Promise(r => setTimeout(r, 300));
 
+    // Compensate for fixed/sticky headers: if element is behind a header, scroll to clear it
+    const postScrollHeaderHeight = getStickyHeaderHeight();
+    if (postScrollHeaderHeight > 0) {
+      const postScrollRect = element.getBoundingClientRect();
+      if (postScrollRect.top < postScrollHeaderHeight + 8) {
+        // Element is behind the fixed header -- scroll the page upward so element moves down in viewport
+        window.scrollBy(0, postScrollRect.top - postScrollHeaderHeight - 16);
+        // Wait for the adjustment scroll
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+
     // Get final rect
     const finalRectRaw = element.getBoundingClientRect();
     const finalRect = {
@@ -881,7 +957,8 @@
         initialRect,
         finalRect,
         wasFullyVisible,
-        wasCenterVisible
+        wasCenterVisible,
+        stickyHeaderHeight: postScrollHeaderHeight
       }
     };
   }
@@ -926,17 +1003,23 @@
                      style.visibility !== 'hidden' &&
                      parseFloat(style.opacity) > 0;
 
-    // Check 4: In viewport
-    checks.inViewport = rect.top >= 0 &&
+    // Check 4: In viewport (account for fixed/sticky headers at the top)
+    const quickStickyHeight = getStickyHeaderHeight();
+    checks.inViewport = rect.top >= quickStickyHeight &&
                         rect.bottom <= window.innerHeight &&
                         rect.left >= 0 &&
                         rect.right <= window.innerWidth;
 
     // Check 5: Receives events (element at center point)
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const elementAtPoint = document.elementFromPoint(centerX, centerY);
-    checks.receivesEvents = elementAtPoint === element || element.contains(elementAtPoint);
+    // Canvas editors skip this check — their layered UI causes false obscuration failures
+    if (FSB.isCanvasBasedEditor && FSB.isCanvasBasedEditor()) {
+      checks.receivesEvents = true;
+    } else {
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const elementAtPoint = document.elementFromPoint(centerX, centerY);
+      checks.receivesEvents = elementAtPoint === element || element.contains(elementAtPoint);
+    }
 
     // Determine overall status
     const basicChecksPass = checks.hasSize && checks.notDisabled && checks.visible;
@@ -958,6 +1041,180 @@
     };
   }
 
+  // =============================================================================
+  // COOKIE CONSENT AUTO-DISMISS (OVLY-01 through OVLY-04)
+  // =============================================================================
+
+  /**
+   * Detect and dismiss cookie consent overlays proactively.
+   * 3-tier detection: CMP-specific, generic overlay patterns, text-based fallback.
+   * Prefers reject/decline buttons over Accept All to minimize tracking.
+   * Idempotent: safe to call multiple times on the same page.
+   */
+  async function dismissCookieConsent() {
+    if (window.__FSB_COOKIE_DISMISSED__) {
+      return { dismissed: false, method: null, cmp: null, skipped: true, reason: 'already dismissed on this page' };
+    }
+    const currentURL = window.location.href;
+    if (FSB._lastCookieDismissURL === currentURL &&
+        FSB._lastCookieDismissTime && (Date.now() - FSB._lastCookieDismissTime) < 5000) {
+      return { dismissed: false, method: null, cmp: null, skipped: true, reason: 'cooldown (same URL within 5s)' };
+    }
+    FSB._lastCookieDismissURL = currentURL;
+    FSB._lastCookieDismissTime = Date.now();
+
+    const CMP_CONFIGS = [
+      {
+        name: 'onetrust',
+        containers: ['#onetrust-consent-sdk', '#onetrust-banner-sdk'],
+        rejectButtons: ['button[class*="ot-pc-refuse-all-handler"]', '.onetrust-close-btn-handler[aria-label*="reject" i]', '#onetrust-reject-all-handler'],
+        acceptButtons: ['#onetrust-accept-btn-handler']
+      },
+      {
+        name: 'cookiebot',
+        containers: ['#CybotCookiebotDialog'],
+        rejectButtons: ['#CybotCookiebotDialogBodyButtonDecline', '#CybotCookiebotDialogBodyLevelButtonLevelOptinDeclineAll', 'a[id*="Decline"]'],
+        acceptButtons: ['#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll']
+      },
+      {
+        name: 'trustarc',
+        containers: ['#truste_overlay', '#consent_blackbar'],
+        rejectButtons: ['.trustarc-manage-btn', '#truste-consent-required'],
+        acceptButtons: ['#truste-consent-button']
+      },
+      {
+        name: 'quantcast',
+        containers: ['#qc-cmp2-container', '.qc-cmp2-main'],
+        rejectButtons: ['.qc-cmp2-summary-buttons button:last-child', 'button[mode="secondary"]'],
+        acceptButtons: ['.qc-cmp2-summary-buttons button:first-child', 'button[mode="primary"]']
+      },
+      {
+        name: 'didomi',
+        containers: ['#didomi-popup', '#didomi-notice'],
+        rejectButtons: ['#didomi-notice-disagree-button', 'button.didomi-components-button--secondary'],
+        acceptButtons: ['#didomi-notice-agree-button']
+      },
+      {
+        name: 'sourcepoint',
+        containers: ['div[class*="sp_veil"]', 'div.message-overlay'],
+        rejectButtons: ['button[title*="Reject" i]', 'button[title*="Ablehnen" i]', 'button[title*="Refuser" i]', 'button.sp_choice_type_REJECT_ALL'],
+        acceptButtons: ['button.sp_choice_type_11']
+      }
+    ];
+
+    const NON_COOKIE_KEYWORDS = ['password', 'log in', 'login', 'sign in', 'signin', 'age verification', 'over 18', 'over 21'];
+    const COOKIE_TEXT_KEYWORDS = ['cookie', 'consent', 'gdpr', 'privacy policy', 'data protection', 'we use cookies', 'this site uses cookies', 'datenschutz', 'protection des donnees', 'informativa sulla privacy'];
+    const REJECT_TEXT_PATTERN = /^(reject|decline|refuse|deny|necessary only|essential only|tout refuser|ablehnen|rifiuta|rechazar|refuser|nur notwendige|solo necessari|solo esenciales)$/i;
+    const ACCEPT_TEXT_PATTERN = /^(accept|agree|ok|got it|allow|i understand|j'accepte|akzeptieren|accetta|aceptar|accept all|allow all)$/i;
+
+    function isVisibleEl(el) { return el.offsetWidth > 0 && el.offsetHeight > 0; }
+    function hasOverlayPos(el) {
+      const style = getComputedStyle(el);
+      return style.position === 'fixed' || style.position === 'sticky' || (parseInt(style.zIndex) || 0) >= 999;
+    }
+    function isInsideMain(el) { return !!el.closest('main, [role="main"]'); }
+    function hasNonCookieKW(el) {
+      const text = (el.innerText || '').substring(0, 500).toLowerCase();
+      return NON_COOKIE_KEYWORDS.some(kw => text.includes(kw));
+    }
+    function hasCookieText(el) {
+      const text = (el.innerText || '').substring(0, 1000).toLowerCase();
+      return COOKIE_TEXT_KEYWORDS.some(kw => text.includes(kw));
+    }
+    function isValidCookieOverlay(el) {
+      return isVisibleEl(el) && hasOverlayPos(el) && !isInsideMain(el) && !hasNonCookieKW(el);
+    }
+    function findBtnBySelectors(container, selectors) {
+      for (const sel of selectors) {
+        try { const btn = container.querySelector(sel); if (btn && isVisibleEl(btn)) return btn; } catch (e) {}
+      }
+      return null;
+    }
+    function findBtnByText(container, pattern) {
+      const btns = container.querySelectorAll('button, a[role="button"], a[href="#"], input[type="button"], input[type="submit"]');
+      for (const btn of btns) {
+        const text = (btn.innerText || btn.value || '').trim();
+        if (text && pattern.test(text) && isVisibleEl(btn)) return btn;
+      }
+      return null;
+    }
+    function findCloseBtn(container) {
+      const sels = ['button[aria-label*="close" i]', 'button[aria-label*="dismiss" i]', '.close-button', '[class*="close"]'];
+      for (const sel of sels) {
+        try { const btn = container.querySelector(sel); if (btn && isVisibleEl(btn)) return btn; } catch (e) {}
+      }
+      return null;
+    }
+
+    async function tryDismiss(container, cmpName, rejectSelectors, acceptSelectors) {
+      // Priority 1: Reject/decline buttons (from CMP config or text match)
+      let btn = rejectSelectors ? findBtnBySelectors(container, rejectSelectors) : null;
+      let method = 'reject';
+      if (!btn) { btn = findBtnByText(container, REJECT_TEXT_PATTERN); method = 'reject-text'; }
+      // Priority 2: Accept as last resort
+      if (!btn) {
+        btn = acceptSelectors ? findBtnBySelectors(container, acceptSelectors) : null;
+        method = 'accept-fallback';
+      }
+      if (!btn) { btn = findBtnByText(container, ACCEPT_TEXT_PATTERN); method = 'accept-text'; }
+      // Priority 3: Close/X button
+      if (!btn) { btn = findCloseBtn(container); method = 'close'; }
+      if (!btn) return { dismissed: false, method: null, cmp: cmpName, skipped: false, reason: 'no dismiss button found' };
+
+      btn.click();
+      await new Promise(r => setTimeout(r, 500));
+      if (!isVisibleEl(container) || container.offsetParent === null) {
+        window.__FSB_COOKIE_DISMISSED__ = true;
+        return { dismissed: true, method, cmp: cmpName, skipped: false, reason: null };
+      }
+      return { dismissed: false, method, cmp: cmpName, skipped: false, reason: 'overlay persisted after click' };
+    }
+
+    // Tier 1: CMP-specific detection
+    for (const cmp of CMP_CONFIGS) {
+      for (const sel of cmp.containers) {
+        try {
+          const container = document.querySelector(sel);
+          if (container && isValidCookieOverlay(container)) {
+            return await tryDismiss(container, cmp.name, cmp.rejectButtons, cmp.acceptButtons);
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Tier 2: Generic overlay detection
+    const genericSelectors = [
+      'div[role="dialog"][class*="cookie" i]', 'div[class*="consent-banner" i]',
+      'div[class*="cookie-banner" i]', 'div[id*="cookie-banner" i]',
+      'div[id*="cookie-notice" i]', 'div[id*="consent-banner" i]',
+      'div[class*="cookie-consent" i]', 'div[class*="gdpr" i]',
+      'div[id*="gdpr" i]', 'div[class*="cookie-notice" i]'
+    ];
+    for (const sel of genericSelectors) {
+      try {
+        const container = document.querySelector(sel);
+        if (container && isValidCookieOverlay(container) && hasCookieText(container)) {
+          return await tryDismiss(container, 'generic', null, null);
+        }
+      } catch (e) {}
+    }
+
+    // Tier 3: Text-based fallback (scan direct children of body only, cap at 20)
+    const bodyChildren = document.querySelectorAll('body > div, body > aside, body > section');
+    let scanned = 0;
+    for (const el of bodyChildren) {
+      if (scanned >= 20) break;
+      scanned++;
+      try {
+        if (isValidCookieOverlay(el) && hasCookieText(el)) {
+          return await tryDismiss(el, 'text-fallback', null, null);
+        }
+      } catch (e) {}
+    }
+
+    return { dismissed: false, method: null, cmp: null, skipped: false, reason: 'no cookie consent overlay detected' };
+  }
+
   /**
    * Smart element readiness wrapper that uses fast-path when possible
    * SPEED-05: Bypass full ensureElementReady when quick check passes
@@ -966,6 +1223,9 @@
    * @returns {Promise<Object>} Readiness result object
    */
   async function smartEnsureReady(element, actionType = 'click') {
+    // Proactively dismiss cookie consent overlays before readiness checks (OVLY-03)
+    try { await dismissCookieConsent(); } catch (e) { /* non-fatal */ }
+
     // Perform quick readiness check
     const quickCheck = performQuickReadinessCheck(element);
 
@@ -1064,11 +1324,34 @@
     }
 
     // 5. Check receives events - not obscured
-    const eventsCheck = checkElementReceivesEvents(element);
+    let eventsCheck = checkElementReceivesEvents(element);
+
+    // Retry if obscured by fixed/sticky header -- scroll to clear and re-check
+    if (!eventsCheck.passed && eventsCheck.obscuredByFixedHeader) {
+      const headerHeight = getStickyHeaderHeight();
+      if (headerHeight > 0) {
+        // First attempt: scroll element below the header
+        const r = element.getBoundingClientRect();
+        window.scrollBy(0, r.top - headerHeight - 20);
+        await new Promise(resolve => setTimeout(resolve, 150));
+        eventsCheck = checkElementReceivesEvents(element);
+
+        // Second attempt if still obscured
+        if (!eventsCheck.passed && eventsCheck.obscuredByFixedHeader) {
+          const r2 = element.getBoundingClientRect();
+          window.scrollBy(0, r2.top - headerHeight - 30);
+          await new Promise(resolve => setTimeout(resolve, 150));
+          eventsCheck = checkElementReceivesEvents(element);
+        }
+      }
+    }
+
     result.checks.receivesEvents = eventsCheck;
     if (!eventsCheck.passed) {
       result.ready = false;
-      result.failureReason = eventsCheck.reason;
+      result.failureReason = eventsCheck.obscuredByFixedHeader
+        ? `Element obscured by fixed/sticky element: ${eventsCheck.obscuredBy || 'unknown'}`
+        : eventsCheck.reason;
       result.failureDetails = eventsCheck.details;
       if (eventsCheck.obscuredBy) {
         result.failureDetails.obscuredBy = eventsCheck.obscuredBy;
@@ -1103,6 +1386,7 @@
   FSB.isElementActionable = isElementActionable;
 
   // Element readiness check functions
+  FSB.getStickyHeaderHeight = getStickyHeaderHeight;
   FSB.checkElementVisibility = checkElementVisibility;
   FSB.checkElementEnabled = checkElementEnabled;
   FSB.checkElementStable = checkElementStable;
@@ -1111,6 +1395,7 @@
   FSB.checkElementEditable = checkElementEditable;
   FSB.scrollIntoViewIfNeeded = scrollIntoViewIfNeeded;
   FSB.performQuickReadinessCheck = performQuickReadinessCheck;
+  FSB.dismissCookieConsent = dismissCookieConsent;
   FSB.smartEnsureReady = smartEnsureReady;
   FSB.ensureElementReady = ensureElementReady;
 

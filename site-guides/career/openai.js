@@ -7,7 +7,17 @@ registerSiteGuide({
   patterns: [
     /openai\.com\/careers/i
   ],
-  guidance: `OPENAI CAREER NAVIGATION:\nStart: https://openai.com/careers`,
+  guidance: `OPENAI CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://openai.com/careers"
+  # browse and extract
+  scroll down
+  click e5    # job listing
+  gettext e8    # job title
+  gettext e10   # location
+  storejobdata {"company":"OpenAI","role":"...","location":"...","link":"...","source":"openai"}\nStart: https://openai.com/careers`,
   selectors: {
     searchBox: '[aria-label="Open Search"], [aria-label="Close Search"], //a[normalize-space(.)="Research Index"], //a[normalize-space(.)="Research Overview"], //a[normalize-space(.)="Research Residency"], #\\31 VETmSyUHHLzJufUMpS9VS',
     locationFilter: '[aria-label="logo HP Electric Blue keyline RGB, intuit logo, state farm logo, thermofisher-black@2x, Logo > Oracle grayscale, uber, BBVA logo SVG, cisco-black@2x, t-mobile wordmark"], [role="group"]',

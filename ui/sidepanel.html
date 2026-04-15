@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>FSB - Side Panel</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg==" crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="../shared/fsb-ui-core.css">
   <link rel="stylesheet" href="sidepanel.css">
   <link rel="stylesheet" href="markdown.css">
 </head>
@@ -11,7 +12,10 @@
   <div class="sidepanel-container">
     <header class="sidepanel-header">
       <div class="header-info">
-        <h1>FSB</h1>
+        <div class="brand-row">
+          <h1>FSB</h1>
+          <span class="surface-subtitle">Persistent workspace</span>
+        </div>
         <div class="status-indicator">
           <i class="fa fa-circle status-dot"></i>
           <span class="status-text">Ready</span>
@@ -56,13 +60,13 @@
             id="chatInput" 
             class="chat-input" 
             contenteditable="true" 
-            data-placeholder="Ask me to automate something..."
+            data-placeholder=""
             role="textbox"
             aria-multiline="true"
           ></div>
           <div class="input-actions">
-            <button id="stopBtn" class="stop-btn hidden" title="Stop Automation">
-              <i class="fa fa-stop"></i>
+            <button id="micBtn" class="mic-btn" title="Voice input">
+              <i class="fa fa-microphone"></i>
             </button>
             <button id="sendBtn" class="send-btn" title="Send Message">
               <i class="fa fa-arrow-up"></i>
@@ -75,7 +79,9 @@
     
     <!-- Extension Footer -->
     <div class="author-footer">
-      <span>Made by Lakshman Turlapati</span>
+      <div class="footer-line">
+        <span class="footer-version" id="footerVersion"></span>
+      </div>
     </div>
   </div>
   
@@ -85,6 +91,7 @@
   <script src="../lib/chart.min.js"></script>
   <script src="markdown-renderer.js"></script>
   <script src="../utils/analytics.js"></script>
+  <script src="speech-to-text.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

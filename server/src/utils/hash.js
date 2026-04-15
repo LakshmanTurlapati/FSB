@@ -1,13 +1,11 @@
 const crypto = require('crypto');
 
 /**
- * Generate an HMAC-SHA256 hash key
- * @param {string} secret - Server secret
+ * Generate a random 64-char hex hash key
  * @returns {string} Hash key
  */
-function generateHashKey(secret) {
-  const data = crypto.randomBytes(32).toString('hex') + Date.now().toString(36);
-  return crypto.createHmac('sha256', secret).update(data).digest('hex');
+function generateHashKey() {
+  return crypto.randomBytes(32).toString('hex');
 }
 
 /**

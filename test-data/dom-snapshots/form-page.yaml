@@ -1,0 +1,46 @@
+url: https://example.com/contact
+title: Contact Us - Example.com
+scroll: 0/1800 (0%)
+viewport: 1920x1080
+state: complete
+captcha: false
+forms: contact-form(name-input,email-input,phone-input,subject-select,message-textarea,newsletter-checkbox,submit-btn)
+headings: h1:"Contact Us"
+
+@nav
+  e1: a "Home" .nav-link [href=/]
+  e2: a "Contact" .nav-link.active [href=/contact]
+  e3: a "About" .nav-link [href=/about]
+
+@main
+  e4: h1 "Contact Us" .page-title
+  e5: p "Fill out the form below and we will get back to you" .form-desc
+  e29: div "" .form-group.name-group
+    e6: label "Full Name" [for=name-input]
+    e7: input "" #name-input [type=text name=fullname placeholder="Enter your full name" required]
+  e30: div "" .form-group.email-group
+    e8: label "Email Address" [for=email-input]
+    e9: input "" #email-input [type=email name=email placeholder="you@example.com" required]
+  e10: label "Phone Number" [for=phone-input]
+  e11: input "" #phone-input [type=tel name=phone placeholder="+1 (555) 123-4567"]
+  e12: label "Subject" [for=subject-select]
+  e13: select "" #subject-select [name=subject]
+    e14: option "General Inquiry" [value=general]
+    e15: option "Technical Support" [value=support]
+    e16: option "Sales" [value=sales]
+  e17: label "Message" [for=message-textarea]
+  e18: textarea "" #message-textarea [name=message placeholder="Type your message here..." rows=5 required]
+  e19: label "Subscribe to newsletter" [for=newsletter-checkbox]
+  e20: input "" #newsletter-checkbox [type=checkbox name=newsletter]
+  e21: button "Send Message" .submit-btn #submit-btn [type=submit]
+  e22: button "Reset" .reset-btn [type=reset]
+  e23: div "Required fields are marked with *" .form-note
+
+@footer
+  e24: a "Privacy Policy" .footer-link [href=/privacy]
+  e25: a "Terms" .footer-link [href=/terms]
+  e26: span "2026 Example.com" .copyright
+  e27: a "Facebook" .social-link [href=#]
+  e28: a "Twitter" .social-link [href=#]
+
+--- 30/30 shown (0 offscreen)

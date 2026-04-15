@@ -11,6 +11,16 @@ registerSiteGuide({
   ],
   guidance: `YOUTUBE-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for a video
+  click e5    # search box
+  type e5 "javascript tutorial"
+  click e8    # search button
+  click e12   # video result
+  # subscribe to channel
+  click e20   # Subscribe button
+  scroll down   # load comments
+
 SEARCH:
 - Search box: [role="combobox"] (class ytSearchboxComponentInput). Autocomplete appears as you type.
 - Search submit: [aria-label="Search"] or .ytSearchboxComponentSearchButton
@@ -37,6 +47,13 @@ WATCH PAGE:
 - Description expand: .yt-truncated-text__absolute-button (text "...more")
 - Join channel: [aria-label="Join this channel"]
 - Captions: [aria-label="Subtitles/CC turned on"]
+
+PLAYER KEYBOARD SHORTCUTS (use keyPress instead of clicking player controls):
+- Full screen: keyPress "f" (preferred over clicking fullscreen button -- click may fail due to user-gesture requirement)
+- Play/Pause: keyPress "k"
+- Mute/Unmute: keyPress "m"
+- Captions: keyPress "c"
+- Theater mode: keyPress "t"
 
 SHORTS:
 - Shorts have a different UI with custom controls
@@ -78,7 +95,9 @@ UI FRAMEWORK NOTES:
     watchVideo: [
       'Navigate to the video URL or search for it',
       'Wait for the video player to load',
-      'Video will autoplay -- report the video title and channel'
+      'Video will autoplay -- report the video title and channel',
+      'For full screen: use keyPress "f" (NOT click on fullscreen button)',
+      'For player controls: use keyboard shortcuts (k=play/pause, m=mute, c=captions, t=theater)'
     ],
     subscribeToChannel: [
       'Navigate to the channel page or a video by the channel',

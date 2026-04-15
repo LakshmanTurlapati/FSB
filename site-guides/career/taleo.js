@@ -10,6 +10,19 @@ registerSiteGuide({
   ],
   guidance: `TALEO ATS PLATFORM INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for jobs
+  click e5    # keyword search box
+  type e5 "marketing manager"
+  click e8    # location dropdown
+  click e10   # location option
+  click e12   # search button
+  # extract from results
+  click e15   # job title link
+  gettext e18   # job title
+  gettext e20   # location
+  storejobdata {"company":"...","role":"...","location":"...","type":"...","link":"...","source":"taleo"}
+
 SEARCH:
 - searchBox: input#ftlKeywordSearch, input[name="keyword"], [aria-label="Search Keyword"]
 - locationFilter: select#ftlLocation, select[name="location"], [id*="locationInput"]

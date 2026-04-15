@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /jobs\.boeing\.com/i
   ],
-  guidance: `BOEING CAREER NAVIGATION:\nStart: https://jobs.boeing.com/`,
+  guidance: `BOEING CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://jobs.boeing.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "aerospace engineer"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Boeing","role":"...","location":"...","link":"...","source":"boeing"}\nStart: https://jobs.boeing.com/`,
   selectors: {
     searchBox: '#search-location-7065cf89f2, [name="l"], #search-keyword-7065cf89f2, [name="k"], //a[normalize-space(.)="Find U.S. Contract Jobs"], #search-submit-7065cf89f2',
     locationFilter: '[aria-controls="tablist-benefits"], [aria-label="select benefits tab"], #country-toggle, //button[normalize-space(.)="Country"], #region-toggle, //button[normalize-space(.)="State"]',

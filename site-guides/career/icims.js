@@ -10,6 +10,19 @@ registerSiteGuide({
   ],
   guidance: `ICIMS ATS PLATFORM INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for jobs
+  click e5    # keyword search box
+  type e5 "data analyst"
+  click e8    # location filter
+  type e8 "New York"
+  click e12   # search button
+  # extract from results
+  click e15   # job title link
+  gettext e18   # job title
+  gettext e20   # location
+  storejobdata {"company":"...","role":"...","location":"...","type":"...","link":"...","source":"icims"}
+
 SEARCH:
 - searchBox: input#iCIMS_Keyword, input[name="keyword"], [aria-label="Keyword search"]
 - locationFilter: input#iCIMS_Location, input[name="location"], select[name="location"]

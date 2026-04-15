@@ -11,6 +11,17 @@ registerSiteGuide({
   ],
   guidance: `INSTAGRAM-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for a user
+  click e5    # search input
+  type e5 "username"
+  click e10   # search result
+  # interact with a post
+  scroll down
+  click e15   # Like button
+  click e18   # comment input
+  type e18 "nice photo!"
+
 Instagram is a photo and video sharing platform with limited web functionality compared to the mobile app.
 
 SEARCH & NAVIGATION:

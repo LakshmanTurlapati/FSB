@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /jobs\.cvshealth\.com/i
   ],
-  guidance: `CVS HEALTH CAREER NAVIGATION:\nStart: https://jobs.cvshealth.com/\nATS: workday`,
+  guidance: `CVS HEALTH CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://jobs.cvshealth.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "pharmacist"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"CVS Health","role":"...","location":"...","link":"...","source":"cvshealth"}\nStart: https://jobs.cvshealth.com/\nATS: workday`,
   selectors: {
     searchBox: '[aria-controls="typehead-listbox"], [role="combobox"], [aria-controls="gllocationListbox"], #ph-search-backdrop, [aria-label="Search"], //a[normalize-space(.)="Search Jobs"]',
     locationFilter: '//label[normalize-space(.)="location"], [aria-controls="loc-listbox"], [aria-owns="loc-listbox"], //label[normalize-space(.)="Location"], .phw-visually-hidden, .phw-component-v1-meta-default.phw-posn-relative',

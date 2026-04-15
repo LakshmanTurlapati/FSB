@@ -311,7 +311,25 @@ class KeyboardEmulator {
       // instead of firing the shortcut action.
       const hasShortcutModifier = modifiers.ctrl || modifiers.control || modifiers.meta || modifiers.cmd || modifiers.command || modifiers.alt;
       if ((type === 'char' || type === 'keyDown') && isPrintableKey(keyData.key) && !hasShortcutModifier) {
-        params.text = keyData.key;
+        if (modifiers.shift) {
+          // Shift+letter: uppercase
+          const isLetter = /^[a-z]$/.test(keyData.key);
+          if (isLetter) {
+            params.text = keyData.key.toUpperCase();
+          } else {
+            // Shift+number/symbol: produce the shifted character
+            // e.g., shift+9 = '(', shift+7 = '&', shift+1 = '!'
+            const SHIFT_CHAR_MAP = {
+              '1': '!', '2': '@', '3': '#', '4': '$', '5': '%',
+              '6': '^', '7': '&', '8': '*', '9': '(', '0': ')',
+              '-': '_', '=': '+', '[': '{', ']': '}', '\\': '|',
+              ';': ':', "'": '"', ',': '<', '.': '>', '/': '?', '`': '~'
+            };
+            params.text = SHIFT_CHAR_MAP[keyData.key] || keyData.key;
+          }
+        } else {
+          params.text = keyData.key;
+        }
       }
 
       await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', params);
@@ -470,12 +488,29 @@ class KeyboardEmulator {
         results.push({ char, key, modifiers, result });
 
         if (!result.success) {
-          return {
-            success: false,
-            error: `Failed at character: ${char}`,
-            completedChars: results.length - 1,
-            results
-          };
+          // Fallback: use Input.insertText for characters not in KEY_MAPPINGS (Unicode, special symbols)
+          // This handles middle-dot ·, em-dash —, smart quotes "", etc.
+          try {
+            const attached = await this.attachDebugger(tabId);
+            if (attached) {
+              await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text: char });
+              results[results.length - 1].result = { success: true, method: 'insertText', char };
+            } else {
+              return {
+                success: false,
+                error: `Failed at character: ${char}`,
+                completedChars: results.length - 1,
+                results
+              };
+            }
+          } catch (insertErr) {
+            return {
+              success: false,
+              error: `Failed at character: ${char} (insertText fallback also failed: ${insertErr.message})`,
+              completedChars: results.length - 1,
+              results
+            };
+          }
         }
 
         if (delay > 0 && text.indexOf(char) < text.length - 1) {

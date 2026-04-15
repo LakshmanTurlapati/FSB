@@ -1,0 +1,43 @@
+url: https://example.com/
+title: Example.com - Welcome
+scroll: 0/1200 (0%)
+viewport: 1920x1080
+state: complete
+captcha: false
+forms: search-form
+headings: h1:"Welcome to Example.com"
+
+@nav
+  e1: a "Home" .nav-link [href=/]
+  e2: a "Products" .nav-link [href=/products]
+  e3: a "About" .nav-link [href=/about]
+  e4: a "Contact" .nav-link [href=/contact]
+  e8: a "Sign In" .auth-link [href=/login]
+  e9: a "Sign Up" .auth-link [href=/register]
+
+@header
+  e7: img "" .logo [src=/logo.png alt="Site Logo"]
+  e5: input "" .search-input #search-input [type=search placeholder="Search..."]
+  e6: button "Search" .search-btn [type=submit]
+
+@main
+  e10: h1 "Welcome to Example.com" .hero-title
+  e11: p "Browse our extensive product catalog" .hero-subtitle
+  e12: a "Shop Now" .cta-btn [href=/products]
+  e13: a "Learn More" .cta-btn.secondary [href=/about]
+  e14: div "" .category-list
+  e15: a "Electronics" .category-link [href=/products/electronics]
+  e16: a "Clothing" .category-link [href=/products/clothing]
+  e17: a "Books" .category-link [href=/products/books]
+  e18: a "Home & Garden" .category-link [href=/products/home-garden]
+
+@footer
+  e19: footer "" .site-footer
+  e20: a "Privacy Policy" .footer-link [href=/privacy]
+  e21: a "Terms of Service" .footer-link [href=/terms]
+  e22: a "Help Center" .footer-link [href=/help]
+  e23: span "2026 Example.com" .copyright
+  e24: a "Facebook" .social-link [href=https://facebook.com/example]
+  e25: a "Twitter" .social-link [href=https://twitter.com/example]
+
+--- 25/25 shown (0 offscreen)

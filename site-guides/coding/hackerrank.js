@@ -11,6 +11,15 @@ registerSiteGuide({
   ],
   guidance: `HACKERRANK-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # solve a challenge
+  click e5    # editor area
+  key "a" --ctrl   # select all existing code
+  type e5 "solution code here"
+  click e10   # Run button
+  gettext e12   # test result
+  click e15   # Submit button
+
 CODE EDITOR:
 - HackerRank uses Monaco editor via ".monaco-editor textarea"
 - CLEAR BEFORE TYPING: Click the editor to focus, then press Ctrl+A to select all existing code.

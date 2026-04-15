@@ -1,0 +1,26 @@
+# Golden response file: openai/form-fill.txt
+# Provider: openai (gpt-4o)
+# Task: Fill out a contact form with name, email, and message
+# DOM: test-data/dom-snapshots/form-page.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# Analyzing the contact form structure:
+# - e7: name input (required) - text type
+# - e9: email input (required) - email type
+# - e11: phone input (optional) - tel type
+# - e13: subject select dropdown
+# - e18: message textarea (required)
+# - e21: submit button
+# I will fill all required fields and submit the form
+click e7
+type e7 "Jane Doe"
+click e9
+type e9 "jane.doe@company.org"
+click e18
+type e18 "I am interested in learning more about your enterprise plans. Could you please send me pricing details and available demo slots? Looking forward to hearing from you."
+# Selecting subject as General Inquiry
+select e13 "general"
+# Now submitting the form by clicking the submit button
+click e21
+done "submitted contact form"

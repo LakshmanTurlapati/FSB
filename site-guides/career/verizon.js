@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.verizon\.com\/about/i
   ],
-  guidance: `VERIZON CAREER NAVIGATION:\nStart: https://www.verizon.com/about/careers/`,
+  guidance: `VERIZON CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.verizon.com/about/careers/"
+  # search and extract
+  click e5    # search box
+  type e5 "network operations"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Verizon","role":"...","location":"...","link":"...","source":"verizon"}\nStart: https://www.verizon.com/about/careers/`,
   selectors: {
     searchBox: '#js-main-search-field, [aria-label="job titles, skills and keywords"], #js-quick-job-search, //button[normalize-space(.)="Explore Jobs"], //label[normalize-space(.)="Search Jobs"], #gnav20-search-icon',
     locationFilter: '[aria-controls="radix-_R_aladlfkeivb_"], [role="combobox"], //button[normalize-space(.)="Locations"], [aria-controls="radix-_R_3eceivb_-content-radix-_R_8receivb_"], //label[normalize-space(.)="Location:"], [aria-label="Get it fast | Enter your location"]',

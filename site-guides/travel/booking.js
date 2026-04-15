@@ -11,6 +11,16 @@ registerSiteGuide({
   ],
   guidance: `BOOKING.COM-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for hotels
+  click e5    # destination input
+  type e5 "Paris"
+  click e8    # check-in date field
+  click e12   # calendar day
+  click e15   # check-out date field
+  click e18   # calendar day
+  click e22   # search button
+
 HOTEL SEARCH:
 1. Enter destination in the search input (#ss or input[name="ss"])
 2. Select check-in date: [data-testid="date-display-field-start"]

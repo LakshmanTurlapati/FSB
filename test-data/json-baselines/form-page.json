@@ -1,0 +1,233 @@
+{
+  "_meta": {
+    "description": "Reconstructed JSON-format baseline for token comparison",
+    "sourceSnapshot": "test-data/dom-snapshots/form-page.yaml",
+    "format": "v9.x JSON tool-call format (pre-CLI)",
+    "generated": "2026-03-01"
+  },
+  "systemPrompt": "__USE_OLD_SYSTEM_PROMPT_TEMPLATE__",
+  "domSnapshot": {
+    "elements": [
+      {
+        "elementId": "elem_1",
+        "type": "link",
+        "text": "Home",
+        "id": null,
+        "class": "nav-link",
+        "position": {"x": 50, "y": 15, "width": 60, "height": 24, "inViewport": true},
+        "attributes": {"href": "/", "aria-label": "Home page"},
+        "dataAttributes": {},
+        "visibility": {"display": "inline-block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": [".nav-link:nth-of-type(1)", "a[aria-label='Home page']", "a:contains(\"Home\")"],
+        "formId": null,
+        "labelText": null
+      },
+      {
+        "elementId": "elem_2",
+        "type": "link",
+        "text": "About",
+        "id": null,
+        "class": "nav-link",
+        "position": {"x": 130, "y": 15, "width": 60, "height": 24, "inViewport": true},
+        "attributes": {"href": "/about"},
+        "dataAttributes": {},
+        "visibility": {"display": "inline-block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": [".nav-link:nth-of-type(2)", "a[href='/about']", "a:contains(\"About\")"],
+        "formId": null,
+        "labelText": null
+      },
+      {
+        "elementId": "elem_3",
+        "type": "link",
+        "text": "Contact",
+        "id": null,
+        "class": "nav-link active",
+        "position": {"x": 210, "y": 15, "width": 70, "height": 24, "inViewport": true},
+        "attributes": {"href": "/contact", "aria-current": "page"},
+        "dataAttributes": {},
+        "visibility": {"display": "inline-block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": [".nav-link.active", "a[aria-current='page']", "a:contains(\"Contact\")"],
+        "formId": null,
+        "labelText": null
+      },
+      {
+        "elementId": "elem_4",
+        "type": "heading",
+        "text": "Contact Us",
+        "id": null,
+        "class": "page-title",
+        "position": {"x": 200, "y": 100, "width": 400, "height": 48, "inViewport": true},
+        "attributes": {},
+        "dataAttributes": {},
+        "visibility": {"display": "block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": [".page-title", "h1:contains(\"Contact Us\")"],
+        "formId": null,
+        "labelText": null
+      },
+      {
+        "elementId": "elem_5",
+        "type": "text",
+        "text": "",
+        "id": "name",
+        "class": "form-control",
+        "position": {"x": 200, "y": 200, "width": 400, "height": 40, "inViewport": true},
+        "attributes": {"name": "name", "placeholder": "Your Name", "required": "true", "type": "text", "aria-label": "Full Name", "autocomplete": "name", "maxlength": "100"},
+        "dataAttributes": {},
+        "visibility": {"display": "block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": ["#name", ".form-control:nth-of-type(1)", "input[name='name']"],
+        "formId": "form_0",
+        "labelText": "Full Name"
+      },
+      {
+        "elementId": "elem_6",
+        "type": "email",
+        "text": "",
+        "id": "email",
+        "class": "form-control",
+        "position": {"x": 200, "y": 280, "width": 400, "height": 40, "inViewport": true},
+        "attributes": {"name": "email", "placeholder": "Your Email", "required": "true", "type": "email", "aria-label": "Email Address", "autocomplete": "email", "maxlength": "254"},
+        "dataAttributes": {},
+        "visibility": {"display": "block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": ["#email", ".form-control:nth-of-type(2)", "input[name='email']"],
+        "formId": "form_0",
+        "labelText": "Email Address"
+      },
+      {
+        "elementId": "elem_7",
+        "type": "tel",
+        "text": "",
+        "id": "phone",
+        "class": "form-control",
+        "position": {"x": 200, "y": 360, "width": 400, "height": 40, "inViewport": true},
+        "attributes": {"name": "phone", "placeholder": "Phone Number (optional)", "type": "tel", "aria-label": "Phone Number", "autocomplete": "tel", "pattern": "[0-9+\\-\\s()]+"},
+        "dataAttributes": {},
+        "visibility": {"display": "block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": ["#phone", ".form-control:nth-of-type(3)", "input[name='phone']"],
+        "formId": "form_0",
+        "labelText": "Phone Number"
+      },
+      {
+        "elementId": "elem_8",
+        "type": "select",
+        "text": "General Inquiry",
+        "id": "subject",
+        "class": "form-control",
+        "position": {"x": 200, "y": 440, "width": 400, "height": 40, "inViewport": true},
+        "attributes": {"name": "subject", "aria-label": "Subject"},
+        "dataAttributes": {},
+        "visibility": {"display": "block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": ["#subject", "select[name='subject']", ".form-control:nth-of-type(4)"],
+        "formId": "form_0",
+        "labelText": "Subject"
+      },
+      {
+        "elementId": "elem_9",
+        "type": "textarea",
+        "text": "",
+        "id": "message",
+        "class": "form-control",
+        "position": {"x": 200, "y": 520, "width": 400, "height": 120, "inViewport": true},
+        "attributes": {"name": "message", "placeholder": "Your message...", "required": "true", "rows": "5", "aria-label": "Message", "maxlength": "2000"},
+        "dataAttributes": {},
+        "visibility": {"display": "block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": ["#message", "textarea[name='message']", ".form-control:nth-of-type(5)"],
+        "formId": "form_0",
+        "labelText": "Message"
+      },
+      {
+        "elementId": "elem_10",
+        "type": "checkbox",
+        "text": "",
+        "id": "agree-terms",
+        "class": "form-check-input",
+        "position": {"x": 200, "y": 670, "width": 20, "height": 20, "inViewport": true},
+        "attributes": {"name": "agree", "type": "checkbox", "required": "true"},
+        "dataAttributes": {},
+        "visibility": {"display": "inline-block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": ["#agree-terms", "input[name='agree']", ".form-check-input"],
+        "formId": "form_0",
+        "labelText": "I agree to the terms and conditions"
+      },
+      {
+        "elementId": "elem_11",
+        "type": "button",
+        "text": "Send Message",
+        "id": "submit-btn",
+        "class": "btn btn-primary",
+        "position": {"x": 200, "y": 720, "width": 160, "height": 44, "inViewport": true},
+        "attributes": {"type": "submit", "aria-label": "Submit contact form"},
+        "dataAttributes": {},
+        "visibility": {"display": "block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": ["#submit-btn", ".btn.btn-primary", "button[type='submit']"],
+        "formId": "form_0",
+        "labelText": null
+      },
+      {
+        "elementId": "elem_12",
+        "type": "button",
+        "text": "Reset",
+        "id": null,
+        "class": "btn btn-secondary",
+        "position": {"x": 380, "y": 720, "width": 80, "height": 44, "inViewport": true},
+        "attributes": {"type": "reset"},
+        "dataAttributes": {},
+        "visibility": {"display": "block", "visibility": "visible", "opacity": "1"},
+        "interactionState": {"disabled": false, "focused": false},
+        "selectors": [".btn.btn-secondary", "button[type='reset']", "button:contains(\"Reset\")"],
+        "formId": "form_0",
+        "labelText": null
+      }
+    ],
+    "htmlContext": {
+      "pageStructure": {
+        "title": "Contact Us - Example Corp",
+        "url": "https://www.example.com/contact",
+        "forms": [
+          {
+            "id": "form_0",
+            "action": "/api/contact",
+            "method": "POST",
+            "fields": ["elem_5", "elem_6", "elem_7", "elem_8", "elem_9", "elem_10", "elem_11", "elem_12"]
+          }
+        ],
+        "navigation": [
+          {"text": "Home", "href": "/"},
+          {"text": "About", "href": "/about"},
+          {"text": "Contact", "href": "/contact"},
+          {"text": "Products", "href": "/products"},
+          {"text": "Blog", "href": "/blog"}
+        ],
+        "headings": [
+          {"level": 1, "text": "Contact Us"},
+          {"level": 2, "text": "Send us a message"},
+          {"level": 2, "text": "Our office locations"}
+        ]
+      },
+      "relevantElements": [
+        {"elementId": "elem_5", "type": "text", "text": "", "selector": "#name"},
+        {"elementId": "elem_6", "type": "email", "text": "", "selector": "#email"},
+        {"elementId": "elem_7", "type": "tel", "text": "", "selector": "#phone"},
+        {"elementId": "elem_8", "type": "select", "text": "General Inquiry", "selector": "#subject"},
+        {"elementId": "elem_9", "type": "textarea", "text": "", "selector": "#message"},
+        {"elementId": "elem_10", "type": "checkbox", "text": "", "selector": "#agree-terms"},
+        {"elementId": "elem_11", "type": "button", "text": "Send Message", "selector": "#submit-btn"}
+      ]
+    },
+    "scrollPosition": {"x": 0, "y": 0},
+    "viewport": {"width": 1920, "height": 1080},
+    "captchaPresent": false,
+    "timestamp": 1709251200000
+  },
+  "userMessage": "Fill out the contact form with name John Smith, email john@example.com, and submit"
+}

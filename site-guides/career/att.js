@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.att\.jobs/i
   ],
-  guidance: `AT&T CAREER NAVIGATION:\nStart: https://www.att.jobs/`,
+  guidance: `AT&T CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.att.jobs/"
+  # search and extract
+  click e5    # search box
+  type e5 "network engineer"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"AT&T","role":"...","location":"...","link":"...","source":"att"}\nStart: https://www.att.jobs/`,
   selectors: {
     searchBox: '//button[normalize-space(.)="Search Jobs"], #search-keyword-77da3e4899, [name="k"], [aria-controls="search-location-77da3e4899-mindreader"], [role="combobox"][aria-describedby="search-error-2 autocomplete-message-search-location-77da3e4899"], #search-submit-77da3e4899',
     locationFilter: '#country-toggle, //button[normalize-space(.)="Country"], #region-toggle, //button[normalize-space(.)="State"], #city-toggle, //button[normalize-space(.)="City"]',

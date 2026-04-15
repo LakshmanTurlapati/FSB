@@ -1,0 +1,20 @@
+# Test YAML block parsing with special content
+storejobdata
+  company: O'Reilly Media & Associates
+  jobs:
+    - title: Senior Software Engineer: Backend Systems
+      location: San Francisco, CA
+      datePosted: 2026-02-28
+      applyLink: https://careers.oreilly.com/apply?job=12345&ref=search&utm_source=google&utm_medium=cpc
+      description: Design and build scalable backend systems using Go and PostgreSQL. Must have 5+ years experience.
+    - title: Data Engineer - ML Pipeline (Remote)
+      location: Remote (US)
+      datePosted: 2026-02-25
+      applyLink: https://careers.oreilly.com/apply?job=67890&ref=search&utm_source=linkedin
+      description: Build ML data pipelines processing 10TB+ daily. Python, Spark, and Airflow required.
+    - title: Technical Writer & Content Strategist
+      location: Sebastopol, CA
+      datePosted: 2026-02-20
+      applyLink: https://careers.oreilly.com/apply?job=11111&ref=internal&source=employee%20referral
+      description: Create technical documentation and guides. Strong writing skills and knowledge of APIs required.
+done "stored job data"

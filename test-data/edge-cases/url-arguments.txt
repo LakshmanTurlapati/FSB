@@ -1,0 +1,6 @@
+# Navigate commands with complex URLs containing query strings, fragments, and encoded characters
+navigate "https://example.com/search?q=hello+world&page=2&sort=date#results"
+navigate "https://api.example.com/v2/users?filter=active&limit=50&offset=100&format=json"
+navigate "https://shop.example.com/products?category=electronics&brand=Sony%20Inc&price_min=10.00&price_max=999.99&in_stock=true#featured"
+navigate "https://careers.google.com/jobs/results/?distance=50&hl=en_US&jlo=en_US&location=Mountain%20View%2C%20CA&q=software+engineer&sort_by=date"
+done "navigated to complex URLs"

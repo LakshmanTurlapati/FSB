@@ -64,21 +64,26 @@ async def list_agents(hash_key: str = Depends(require_hash_key)):
 # --- POST /api/agents ---
 @router.post("", response_model=AgentResponse)
 async def upsert_agent(body: AgentUpsert, hash_key: str = Depends(require_hash_key)):
-    if not body.agentId or not body.name or not body.task or not body.targetUrl:
+    effective_start_mode = body.startMode or ("pinned" if body.targetUrl else "ai_routed")
+
+    if not body.agentId or not body.name or not body.task:
         raise HTTPException(
             status_code=400,
-            detail="Missing required fields: agentId, name, task, targetUrl",
+            detail="Missing required fields: agentId, name, task",
         )
+    if effective_start_mode == "pinned" and not body.targetUrl:
+        raise HTTPException(status_code=400, detail="Pinned agents require targetUrl")
 
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO agents (hash_key, agent_id, name, task, target_url, schedule_type, schedule_config, enabled)
-            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+            INSERT INTO agents (hash_key, agent_id, name, task, start_mode, target_url, schedule_type, schedule_config, enabled)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
             ON CONFLICT (hash_key, agent_id) DO UPDATE SET
                 name = EXCLUDED.name,
                 task = EXCLUDED.task,
+                start_mode = EXCLUDED.start_mode,
                 target_url = EXCLUDED.target_url,
                 schedule_type = EXCLUDED.schedule_type,
                 schedule_config = EXCLUDED.schedule_config,
@@ -89,7 +94,8 @@ async def upsert_agent(body: AgentUpsert, hash_key: str = Depends(require_hash_k
             body.agentId,
             body.name,
             body.task,
-            body.targetUrl,
+            effective_start_mode,
+            body.targetUrl or "",
             body.scheduleType,
             body.scheduleConfig or "{}",
             body.enabled,
@@ -131,14 +137,16 @@ async def report_run(
     pool = await get_pool()
     async with pool.acquire() as conn:
         # Upsert agent data if provided
-        if body.name and body.task and body.targetUrl:
+        if body.name and body.task and body.targetUrl is not None:
+            effective_start_mode = body.startMode or ("pinned" if body.targetUrl else "ai_routed")
             await conn.execute(
                 """
-                INSERT INTO agents (hash_key, agent_id, name, task, target_url, schedule_type, schedule_config, enabled)
-                VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+                INSERT INTO agents (hash_key, agent_id, name, task, start_mode, target_url, schedule_type, schedule_config, enabled)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
                 ON CONFLICT (hash_key, agent_id) DO UPDATE SET
                     name = EXCLUDED.name,
                     task = EXCLUDED.task,
+                    start_mode = EXCLUDED.start_mode,
                     target_url = EXCLUDED.target_url,
                     schedule_type = EXCLUDED.schedule_type,
                     schedule_config = EXCLUDED.schedule_config,
@@ -149,7 +157,8 @@ async def report_run(
                 agentId,
                 body.name,
                 body.task,
-                body.targetUrl,
+                effective_start_mode,
+                body.targetUrl or "",
                 body.scheduleType,
                 body.scheduleConfig or "{}",
                 body.enabled,

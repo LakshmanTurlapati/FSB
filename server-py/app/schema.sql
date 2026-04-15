@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS agents (
     agent_id TEXT NOT NULL,
     name TEXT NOT NULL,
     task TEXT NOT NULL,
+    start_mode TEXT NOT NULL DEFAULT 'pinned',
     target_url TEXT NOT NULL,
     schedule_type TEXT NOT NULL,
     schedule_config JSONB DEFAULT '{}'::jsonb,

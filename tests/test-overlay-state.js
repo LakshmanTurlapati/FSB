@@ -1,0 +1,263 @@
+/**
+ * Tests for overlay state normalization and stale-message handling.
+ * Run: node tests/test-overlay-state.js
+ */
+
+const overlayStateUtils = require('../utils/overlay-state.js');
+
+let passed = 0;
+let failed = 0;
+
+function assert(cond, msg) {
+  if (cond) {
+    passed++;
+    console.log('  PASS:', msg);
+  } else {
+    failed++;
+    console.error('  FAIL:', msg);
+  }
+}
+
+function assertEqual(actual, expected, msg) {
+  assert(actual === expected, `${msg} (expected: ${expected}, got: ${actual})`);
+}
+
+console.log('\n--- buildOverlayState generic automation ---');
+
+const genericState = overlayStateUtils.buildOverlayState({
+  phase: 'analyzing',
+  taskName: 'Find the pricing page and summarize it',
+  iteration: 3,
+  maxIterations: 20
+}, null);
+
+assertEqual(genericState.lifecycle, 'running', 'generic lifecycle is running');
+assertEqual(genericState.phase, 'analyzing', 'generic phase remains analyzing');
+assertEqual(genericState.progress.mode, 'indeterminate', 'generic automation is indeterminate');
+
+console.log('\n--- explicit progress wins ---');
+
+const explicitState = overlayStateUtils.buildOverlayState({
+  phase: 'acting',
+  progressPercent: 42,
+  statusText: 'Clicking submit'
+}, null);
+
+assertEqual(explicitState.progress.mode, 'determinate', 'explicit progress is determinate');
+assertEqual(explicitState.progress.percent, 42, 'explicit progress percent is preserved');
+assertEqual(explicitState.progress.label, '42%', 'explicit progress label is derived');
+
+console.log('\n--- multi-site progress uses completed companies ---');
+
+const multiSiteState = overlayStateUtils.buildOverlayState({
+  phase: 'analyzing',
+  taskSummary: 'Job search: 3/4 companies'
+}, {
+  multiSite: {
+    companyList: ['A', 'B', 'C', 'D'],
+    currentIndex: 2
+  }
+});
+
+assertEqual(multiSiteState.progress.mode, 'determinate', 'multi-site progress is determinate');
+assertEqual(multiSiteState.progress.percent, 50, 'multi-site percent uses completed companies only');
+assertEqual(multiSiteState.progress.label, '3/4 companies', 'multi-site label shows current company');
+
+console.log('\n--- sheets progress uses rows, formatting is indeterminate ---');
+
+const sheetsDataEntryState = overlayStateUtils.buildOverlayState({
+  phase: 'sheets-entry'
+}, {
+  sheetsData: {
+    totalRows: 10,
+    rowsWritten: 3
+  }
+});
+
+assertEqual(sheetsDataEntryState.progress.mode, 'determinate', 'sheets data entry is determinate');
+assertEqual(sheetsDataEntryState.progress.percent, 30, 'sheets data entry uses row ratio');
+assertEqual(sheetsDataEntryState.progress.label, '3/10 rows', 'sheets data entry label shows row counts');
+
+const sheetsFormattingState = overlayStateUtils.buildOverlayState({
+  phase: 'sheets-formatting'
+}, {
+  sheetsData: {
+    totalRows: 10,
+    rowsWritten: 10,
+    formattingPhase: true,
+    formattingComplete: false
+  }
+});
+
+assertEqual(sheetsFormattingState.phase, 'writing', 'sheets formatting normalizes to writing phase');
+assertEqual(sheetsFormattingState.progress.mode, 'indeterminate', 'sheets formatting is indeterminate');
+assertEqual(sheetsFormattingState.progress.label, 'Formatting', 'sheets formatting uses explicit label');
+
+console.log('\n--- final state normalization ---');
+
+const finalState = overlayStateUtils.buildOverlayState({
+  phase: 'complete',
+  statusText: 'Finished successfully'
+}, null);
+
+assertEqual(finalState.lifecycle, 'final', 'complete phase maps to final lifecycle');
+assertEqual(finalState.result, 'success', 'complete phase maps to success result');
+assertEqual(finalState.progress.percent, 100, 'final success shows 100 percent');
+
+console.log('\n--- stale message handling ---');
+
+assert(
+  overlayStateUtils.shouldApplyOverlayState(
+    { sessionToken: 'current', version: 4, lifecycle: 'running' },
+    { sessionToken: 'older', version: 7, lifecycle: 'cleared' }
+  ) === false,
+  'clear for a different session token is ignored'
+);
+
+assert(
+  overlayStateUtils.shouldApplyOverlayState(
+    { sessionToken: 'same', version: 4, lifecycle: 'running' },
+    { sessionToken: 'same', version: 3, lifecycle: 'running' }
+  ) === false,
+  'older version for same token is ignored'
+);
+
+assert(
+  overlayStateUtils.shouldApplyOverlayState(
+    { sessionToken: 'same', version: 4, lifecycle: 'running' },
+    { sessionToken: 'same', version: 5, lifecycle: 'final' }
+  ) === true,
+  'newer version for same token is applied'
+);
+
+console.log('\n--- sanitizeActionText strips CLI tool syntax ---');
+
+assertEqual(overlayStateUtils.sanitizeActionText('click #submit-btn'), 'Clicking element', 'click maps to Clicking element');
+assertEqual(overlayStateUtils.sanitizeActionText('rightClick .menu-item'), 'Clicking element', 'rightClick maps to Clicking element');
+assertEqual(overlayStateUtils.sanitizeActionText('doubleClick #cell'), 'Clicking element', 'doubleClick maps to Clicking element');
+assertEqual(overlayStateUtils.sanitizeActionText('hover .menu-item'), 'Hovering over element', 'hover maps to Hovering over element');
+assertEqual(overlayStateUtils.sanitizeActionText('type [ref=42] "hello"'), 'Typing text', 'type maps to Typing text');
+assertEqual(overlayStateUtils.sanitizeActionText('clearInput #field'), 'Clearing input', 'clearInput maps to Clearing input');
+assertEqual(overlayStateUtils.sanitizeActionText('selectText #paragraph'), 'Selecting text', 'selectText maps to Selecting text');
+assertEqual(overlayStateUtils.sanitizeActionText('pressEnter'), 'Pressing key', 'pressEnter maps to Pressing key');
+assertEqual(overlayStateUtils.sanitizeActionText('keyPress Tab'), 'Pressing key', 'keyPress maps to Pressing key');
+assertEqual(overlayStateUtils.sanitizeActionText('selectOption #dropdown value'), 'Selecting option', 'selectOption maps to Selecting option');
+assertEqual(overlayStateUtils.sanitizeActionText('toggleCheckbox #agree'), 'Toggling checkbox', 'toggleCheckbox maps to Toggling checkbox');
+assertEqual(overlayStateUtils.sanitizeActionText('navigate https://example.com/long/path'), 'Navigating to page', 'navigate maps to Navigating to page');
+assertEqual(overlayStateUtils.sanitizeActionText('searchGoogle "wireless mouse"'), 'Searching', 'searchGoogle maps to Searching');
+assertEqual(overlayStateUtils.sanitizeActionText('scroll down 500'), 'Scrolling page', 'scroll maps to Scrolling page');
+assertEqual(overlayStateUtils.sanitizeActionText('waitForElement .loading'), 'Waiting for page', 'waitForElement maps to Waiting for page');
+assertEqual(overlayStateUtils.sanitizeActionText('getText .result'), 'Reading page content', 'getText maps to Reading page content');
+assertEqual(overlayStateUtils.sanitizeActionText('getAttribute .elem href'), 'Reading page content', 'getAttribute maps to Reading page content');
+assertEqual(overlayStateUtils.sanitizeActionText('setAttribute .elem style "color:red"'), 'Updating element', 'setAttribute maps to Updating element');
+assertEqual(overlayStateUtils.sanitizeActionText('moveMouse 100 200'), 'Moving cursor', 'moveMouse maps to Moving cursor');
+assertEqual(overlayStateUtils.sanitizeActionText('focus #input'), 'Focusing element', 'focus maps to Focusing element');
+assertEqual(overlayStateUtils.sanitizeActionText('blur #input'), 'Focusing element', 'blur maps to Focusing element');
+assertEqual(overlayStateUtils.sanitizeActionText('refresh'), 'Refreshing page', 'refresh maps to Refreshing page');
+assertEqual(overlayStateUtils.sanitizeActionText('goBack'), 'Going back', 'goBack maps to Going back');
+assertEqual(overlayStateUtils.sanitizeActionText('goForward'), 'Going forward', 'goForward maps to Going forward');
+assertEqual(overlayStateUtils.sanitizeActionText('solveCaptcha'), 'Handling verification', 'solveCaptcha maps to Handling verification');
+
+console.log('\n--- sanitizeActionText preserves human-readable text ---');
+
+assertEqual(overlayStateUtils.sanitizeActionText('Clicking Add to Cart'), 'Clicking Add to Cart', 'already human-readable text passes through');
+assertEqual(overlayStateUtils.sanitizeActionText('Planning next step'), 'Planning next step', 'no tool prefix passes through');
+assertEqual(overlayStateUtils.sanitizeActionText('Reviewing page state'), 'Reviewing page state', 'natural language passes through');
+
+console.log('\n--- sanitizeActionText strips Step X/Y prefix ---');
+
+assertEqual(overlayStateUtils.sanitizeActionText('Step 5/20: click #submit-btn'), 'Clicking element', 'strips Step prefix and sanitizes CLI');
+assertEqual(overlayStateUtils.sanitizeActionText('Step 3/20: Clicking Add to Cart'), 'Clicking Add to Cart', 'strips Step prefix, keeps human text');
+
+console.log('\n--- sanitizeActionText edge cases ---');
+
+assertEqual(overlayStateUtils.sanitizeActionText(''), '', 'empty string passthrough');
+assertEqual(overlayStateUtils.sanitizeActionText(null), '', 'null returns empty');
+assertEqual(overlayStateUtils.sanitizeActionText(undefined), '', 'undefined returns empty');
+
+console.log('\n--- buildOverlayDisplay sanitizes detail ---');
+
+const displayWithCLI = overlayStateUtils.buildOverlayState({
+  phase: 'acting',
+  statusText: 'Step 5/20: click #submit-btn'
+}, null);
+assertEqual(displayWithCLI.display.detail, 'Clicking element', 'buildOverlayDisplay sanitizes CLI syntax from detail');
+
+const displayWithHuman = overlayStateUtils.buildOverlayState({
+  phase: 'acting',
+  statusText: 'Clicking Add to Cart'
+}, null);
+assertEqual(displayWithHuman.display.detail, 'Clicking Add to Cart', 'buildOverlayDisplay preserves human-readable detail');
+
+console.log('\n--- ETA removed from progress ---');
+
+const etaState1 = overlayStateUtils.buildOverlayState({
+  phase: 'acting',
+  progressPercent: 42,
+  estimatedTimeRemaining: '30s'
+}, null);
+assertEqual(etaState1.progress.eta, null, 'ETA is null for explicit percent progress even with estimatedTimeRemaining');
+
+const etaState2 = overlayStateUtils.buildOverlayState({
+  phase: 'planning'
+}, null);
+assertEqual(etaState2.progress.eta, null, 'ETA is null for indeterminate progress');
+
+const etaStateMultisite = overlayStateUtils.buildOverlayState({
+  phase: 'acting',
+  estimatedTimeRemaining: '45s'
+}, {
+  multiSite: {
+    companyList: ['A', 'B', 'C'],
+    currentIndex: 1
+  }
+});
+assertEqual(etaStateMultisite.progress.eta, null, 'ETA is null for multisite progress');
+
+const etaStateSheets = overlayStateUtils.buildOverlayState({
+  phase: 'sheets-entry',
+  estimatedTimeRemaining: '60s'
+}, {
+  sheetsData: {
+    totalRows: 10,
+    rowsWritten: 3
+  }
+});
+assertEqual(etaStateSheets.progress.eta, null, 'ETA is null for sheets progress');
+
+console.log('\n--- progress label never shows Step X/Y ---');
+
+const indeterminateProgress = overlayStateUtils.buildOverlayState({
+  phase: 'acting'
+}, null);
+assertEqual(indeterminateProgress.progress.label, 'Acting', 'indeterminate label shows phase name not Step X/Y');
+
+const planningProgress = overlayStateUtils.buildOverlayState({
+  phase: 'thinking'
+}, null);
+assertEqual(planningProgress.progress.label, 'Planning', 'thinking phase label shows Planning');
+
+console.log('\n--- multisite and sheets counters preserved ---');
+
+const multiSiteCounter = overlayStateUtils.buildOverlayState({
+  phase: 'analyzing'
+}, {
+  multiSite: {
+    companyList: ['A', 'B', 'C', 'D', 'E'],
+    currentIndex: 1
+  }
+});
+assertEqual(multiSiteCounter.progress.label, '2/5 companies', 'multisite counter preserved');
+
+const sheetsCounter = overlayStateUtils.buildOverlayState({
+  phase: 'sheets-entry'
+}, {
+  sheetsData: {
+    totalRows: 10,
+    rowsWritten: 3
+  }
+});
+assertEqual(sheetsCounter.progress.label, '3/10 rows', 'sheets counter preserved');
+
+console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
+process.exit(failed > 0 ? 1 : 0);

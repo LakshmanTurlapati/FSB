@@ -11,6 +11,16 @@ registerSiteGuide({
   ],
   guidance: `KAYAK-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for flights
+  click e5    # origin input
+  type e5 "SFO"
+  click e8    # destination input
+  type e8 "ORD"
+  click e12   # date field
+  click e15   # calendar day
+  click e20   # search button
+
 FLIGHT SEARCH:
 1. Origin input: .zEiP-origin input
 2. Destination input: .zEiP-destination input

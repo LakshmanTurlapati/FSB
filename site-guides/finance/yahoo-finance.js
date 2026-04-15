@@ -11,6 +11,16 @@ registerSiteGuide({
   ],
   guidance: `YAHOO FINANCE-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # look up a stock quote
+  click e5    # search bar
+  type e5 "AAPL"
+  enter
+  click e8    # autocomplete match
+  gettext e12   # current price
+  gettext e15   # price change
+  gettext e18   # volume
+
 STOCK QUOTE LOOKUP:
 1. Use the search bar (#ybar-sbq or #yfin-usr-qry) to enter a ticker symbol (e.g., AAPL, MSFT, TSLA)
 2. Wait for autocomplete suggestions and click the correct match

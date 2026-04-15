@@ -1,0 +1,31 @@
+# Golden response file: xai/data-extraction.txt
+# Provider: xai (grok-4-1-fast)
+# Task: Extract product names, prices, and descriptions from the table
+# DOM: test-data/dom-snapshots/data-table.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+Alright, I'll extract the product details from this table.
+
+# Extract product data from the table rows
+# Row 1
+gettext e14
+gettext e15
+gettext e16
+# Row 2
+gettext e19
+gettext e20
+gettext e21
+# Row 3
+gettext e24
+gettext e25
+gettext e26
+# Row 4
+gettext e29
+gettext e30
+gettext e31
+# Row 5
+gettext e34
+gettext e35
+gettext e36
+done "extracted 5 product details"

@@ -11,6 +11,17 @@ registerSiteGuide({
   ],
   guidance: `LINKEDIN-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for a person
+  click e5    # search box
+  type e5 "John Smith software engineer"
+  enter
+  click e10   # People filter
+  click e15   # profile result
+  # send a connection request
+  click e20   # Connect button
+  click e25   # Send without a note
+
 IMPORTANT -- LinkedIn has TWO different UI systems:
 1. LEGACY pages (Feed, Messaging, Notifications): Uses Ember.js framework with #ember<N> IDs (dynamic, unreliable) and .global-nav__* classes (stable).
 2. REDESIGNED pages (My Network/Grow, Jobs): Uses hashed CSS classes (_5b06d96c, _9954a25d) -- NEVER use these. Use aria-label and XPath normalize-space() selectors instead.

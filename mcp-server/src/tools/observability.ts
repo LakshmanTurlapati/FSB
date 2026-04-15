@@ -1,0 +1,125 @@
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
+import type { WebSocketBridge } from '../bridge.js';
+import type { TaskQueue } from '../queue.js';
+import { mapFSBError } from '../errors.js';
+
+/**
+ * Register observability tools: list_sessions, get_session_detail,
+ * get_logs, search_memory, get_memory_stats.
+ *
+ * All tools are read-only and bypass the TaskQueue mutation
+ * serialization (their names are in the readOnlyTools set).
+ */
+export function registerObservabilityTools(
+  server: McpServer,
+  bridge: WebSocketBridge,
+  queue: TaskQueue,
+): void {
+  server.tool(
+    'list_sessions',
+    'List all past FSB automation sessions with summary info (task, status, duration, action count, cost). Use to find session IDs for deeper inspection with get_session_detail. Related: get_session_detail (inspect a specific session), get_logs (get raw logs).',
+    { limit: z.number().optional().describe('Max sessions to return (default: all, max 50)') },
+    async ({ limit }) => {
+      if (!bridge.isConnected) {
+        return mapFSBError({ success: false, error: 'extension_not_connected' });
+      }
+      return queue.enqueue('list_sessions', async () => {
+        const result = await bridge.sendAndWait(
+          { type: 'mcp:list-sessions', payload: { limit } },
+          { timeout: 5_000 },
+        );
+        return mapFSBError(result);
+      });
+    },
+  );
+
+  server.tool(
+    'get_session_detail',
+    'Get full detail for a past automation session including logs, action history, and timing. Use after list_sessions to inspect what happened. Returns structured JSON or human-readable text report. Related: list_sessions (find session IDs first), get_logs (get raw log entries).',
+    {
+      sessionId: z.string().describe('Session ID from list_sessions'),
+      format: z.enum(['json', 'text']).optional().describe('Output format: json (structured, default) or text (human-readable report)'),
+    },
+    async ({ sessionId, format }) => {
+      if (!bridge.isConnected) {
+        return mapFSBError({ success: false, error: 'extension_not_connected' });
+      }
+      return queue.enqueue('get_session_detail', async () => {
+        const result = await bridge.sendAndWait(
+          { type: 'mcp:get-session', payload: { sessionId, format } },
+          { timeout: 10_000 },
+        );
+        return mapFSBError(result);
+      });
+    },
+  );
+
+  server.tool(
+    'get_logs',
+    'Get recent automation logs or logs for a specific session. Includes error/warning summary report. Use to debug issues or understand what FSB has been doing.',
+    {
+      sessionId: z.string().optional().describe('If provided, get logs only for this session. Otherwise get most recent logs.'),
+      count: z.number().optional().describe('Number of recent logs to return (default: 50, max: 200). Ignored when sessionId is provided.'),
+    },
+    async ({ sessionId, count }) => {
+      if (!bridge.isConnected) {
+        return mapFSBError({ success: false, error: 'extension_not_connected' });
+      }
+      return queue.enqueue('get_logs', async () => {
+        const result = await bridge.sendAndWait(
+          { type: 'mcp:get-logs', payload: { sessionId, count } },
+          { timeout: 5_000 },
+        );
+        return mapFSBError(result);
+      });
+    },
+  );
+
+  server.tool(
+    'search_memory',
+    'Search FSB\'s memory system for relevant past experiences. Returns memories ranked by relevance with keyword matching and recency scoring. Use to find what FSB learned from previous tasks on similar sites or domains. When to use: before automating a site to check if FSB has learned relevant patterns from past sessions. Related: get_memory_stats (check memory size), list_sessions (find specific sessions).',
+    {
+      query: z.string().describe('Natural language search query'),
+      domain: z.string().optional().describe('Filter by domain (e.g., "amazon.com")'),
+      type: z.enum(['task', 'episodic', 'semantic', 'procedural']).optional().describe('Filter by memory type'),
+      topN: z.number().optional().describe('Max results to return (default: 5)'),
+    },
+    async ({ query, domain, type, topN }) => {
+      if (!bridge.isConnected) {
+        return mapFSBError({ success: false, error: 'extension_not_connected' });
+      }
+      return queue.enqueue('search_memory', async () => {
+        const filters: Record<string, unknown> = {};
+        if (domain) filters.domain = domain;
+        if (type) filters.type = type;
+        const options: Record<string, unknown> = {};
+        if (topN) options.topN = topN;
+
+        const result = await bridge.sendAndWait(
+          { type: 'mcp:search-memory', payload: { query, filters, options } },
+          { timeout: 5_000 },
+        );
+        return mapFSBError(result);
+      });
+    },
+  );
+
+  server.tool(
+    'get_memory_stats',
+    'Get FSB memory system statistics including total count, type breakdown, and storage usage. Use to understand how much FSB has learned from past sessions.',
+    {},
+    async () => {
+      if (!bridge.isConnected) {
+        return mapFSBError({ success: false, error: 'extension_not_connected' });
+      }
+      return queue.enqueue('get_memory_stats', async () => {
+        const result = await bridge.sendAndWait(
+          { type: 'mcp:get-memory', payload: { statsOnly: true } },
+          { timeout: 5_000 },
+        );
+        return mapFSBError(result);
+      });
+    },
+  );
+}

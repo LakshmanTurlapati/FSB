@@ -207,6 +207,16 @@
     }
   }
 
+  function markOverlayElement(element, role) {
+    if (!element) return element;
+    element.setAttribute('data-fsb-overlay', 'true');
+    element.setAttribute('aria-hidden', 'true');
+    if (role) {
+      element.setAttribute('data-fsb-overlay-role', role);
+    }
+    return element;
+  }
+
   /**
    * ProgressOverlay - Floating progress indicator using Shadow DOM
    *
@@ -221,6 +231,53 @@
       this.host = null;
       this.shadow = null;
       this.container = null;
+      this._startTime = null;
+      this._timerRAF = null;
+      this._frozen = false;
+      this._autoHideTimer = null;
+    }
+
+    /**
+     * Format elapsed milliseconds as M:SS (e.g., "0:42", "1:05")
+     * No leading zero on minutes per D-03.
+     */
+    _formatElapsed(ms) {
+      var totalSeconds = Math.floor(ms / 1000);
+      var minutes = Math.floor(totalSeconds / 60);
+      var seconds = totalSeconds % 60;
+      return minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+    }
+
+    /**
+     * Start the rAF-driven elapsed timer loop (D-05).
+     * Updates .fsb-phase with M:SS elapsed time every frame.
+     */
+    _startTimerLoop() {
+      if (this._timerRAF !== null) return;
+      var self = this;
+      function tick() {
+        if (self._frozen || !self._startTime || !self.container) {
+          self._timerRAF = null;  // clear stale handle on early exit
+          return;
+        }
+        var elapsed = performance.now() - self._startTime;
+        var phaseEl = self.container.querySelector('.fsb-phase');
+        if (phaseEl) {
+          phaseEl.textContent = self._formatElapsed(elapsed);
+        }
+        self._timerRAF = requestAnimationFrame(tick);
+      }
+      self._timerRAF = requestAnimationFrame(tick);
+    }
+
+    /**
+     * Stop the rAF timer loop and clean up the animation frame.
+     */
+    _stopTimerLoop() {
+      if (this._timerRAF !== null) {
+        cancelAnimationFrame(this._timerRAF);
+        this._timerRAF = null;
+      }
     }
 
     /**
@@ -230,7 +287,7 @@
       if (this.host) return; // Already created
 
       // Create host element
-      this.host = document.createElement('div');
+      this.host = markOverlayElement(document.createElement('div'), 'progress-host');
       this.host.id = 'fsb-progress-host';
       // Reset all inherited styles and position at top of stacking context
       // z-index is kept as fallback for browsers without Popover API support
@@ -263,10 +320,13 @@
         box-sizing: border-box;
         margin: 0;
         padding: 0;
+        font: inherit;
+        color: inherit;
       }
 
       .fsb-overlay {
-        width: 300px;
+        width: min(320px, calc(100vw - 32px));
+        max-width: 320px;
         background: #000000;
         color: #ffffff;
         padding: 14px 18px;
@@ -275,10 +335,10 @@
         font-size: 13px;
         line-height: 1.4;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 140, 0, 0.3);
-        pointer-events: auto;
+        pointer-events: none;
         opacity: 1;
         transition: opacity 0.2s ease-out;
-        contain: paint;
+        contain: layout paint;
       }
 
       .fsb-overlay.hidden {
@@ -312,14 +372,24 @@
         color: rgba(255, 255, 255, 0.7);
         font-size: 12px;
         margin-bottom: 8px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+
+      .fsb-summary {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 11px;
+        margin-bottom: 6px;
+        font-style: italic;
+      }
+
+      .fsb-summary:empty {
+        display: none;
       }
 
       .fsb-step {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 8px;
         margin-bottom: 10px;
       }
@@ -331,22 +401,30 @@
         border-radius: 4px;
         font-size: 11px;
         font-weight: 600;
+        flex-shrink: 0;
       }
 
       .fsb-step-text {
         color: rgba(255, 255, 255, 0.9);
         font-size: 12px;
         flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
       }
 
+      .fsb-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .fsb-phase,
       .fsb-eta {
         color: rgba(255, 255, 255, 0.5);
         font-size: 11px;
-        margin-bottom: 8px;
-        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
 
       .fsb-progress-bar {
@@ -354,13 +432,53 @@
         background: rgba(255, 255, 255, 0.1);
         border-radius: 2px;
         overflow: hidden;
+        position: relative;
+      }
+
+      .fsb-progress-bar.hidden {
+        display: none;
+      }
+
+      .fsb-progress-bar.indeterminate .fsb-progress-fill {
+        width: 38%;
+        transform-origin: center center;
+        animation: fsbProgressSweep 1.2s ease-in-out infinite;
       }
 
       .fsb-progress-fill {
         height: 100%;
+        width: 100%;
         background: linear-gradient(90deg, #FF8C00, #FF6600);
         border-radius: 2px;
-        transition: width 0.3s ease-out;
+        transform-origin: left center;
+        transform: scaleX(0);
+        transition: transform 0.3s ease-out;
+        will-change: transform;
+      }
+
+      .fsb-progress-fill.complete {
+        background: #34D399;
+        transform: scaleX(1) !important;
+      }
+
+      @keyframes fsbProgressSweep {
+        0% { transform: translateX(-120%); }
+        100% { transform: translateX(320%); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .fsb-overlay,
+        .fsb-progress-fill {
+          transition: none;
+        }
+        .fsb-progress-fill.complete {
+          transition: none;
+        }
+        .fsb-progress-bar.indeterminate .fsb-progress-fill {
+          animation: none;
+          transform: none;
+          width: 45%;
+        }
       }
     `;
 
@@ -375,13 +493,17 @@
         <span class="fsb-title">FSB Automating</span>
       </div>
       <div class="fsb-task">-</div>
+      <div class="fsb-summary"></div>
       <div class="fsb-step">
-        <span class="fsb-step-number">0%</span>
+        <span class="fsb-step-number">Planning</span>
         <span class="fsb-step-text">Initializing...</span>
       </div>
-      <div class="fsb-eta"></div>
+      <div class="fsb-meta">
+        <span class="fsb-phase"></span>
+        <span class="fsb-eta"></span>
+      </div>
       <div class="fsb-progress-bar">
-        <div class="fsb-progress-fill" style="width: 0%"></div>
+        <div class="fsb-progress-fill"></div>
       </div>
     `;
 
@@ -409,26 +531,136 @@
      * @param {string} data.stepText - Step description
      * @param {number} data.progress - Progress percentage (0-100)
      */
-    update({ taskName, stepNumber, totalSteps, stepText, progress, eta }) {
+    update(state) {
       if (!this.container) return;
 
-      if (taskName !== undefined) {
-        this.container.querySelector('.fsb-task').textContent = taskName;
+      // Once frozen (lifecycle=final received), ignore further updates
+      // to prevent post-completion status messages from altering the display
+      if (this._frozen) return;
+
+      var overlayState = state && state.display ? state : {
+        lifecycle: 'running',
+        phase: state && state.phase ? state.phase : 'planning',
+        display: {
+          title: state && state.taskName ? String(state.taskName) : '-',
+          subtitle: state && state.taskSummary ? String(state.taskSummary) : '',
+          detail: state && state.stepText ? String(state.stepText) : 'Working'
+        },
+        progress: state && state.progress !== undefined
+          ? {
+              mode: 'determinate',
+              percent: Math.min(100, Math.max(0, Math.round(Number(state.progress) || 0))),
+              label: Math.round(Number(state.progress) || 0) + '%',
+              eta: state && state.eta ? String(state.eta) : ''
+            }
+          : {
+              mode: 'indeterminate',
+              percent: null,
+              label: (function() {
+                var utils = window.FSBOverlayStateUtils;
+                var phase = state && state.phase ? state.phase : 'planning';
+                return (utils && typeof utils.humanizeOverlayPhase === 'function')
+                  ? utils.humanizeOverlayPhase(phase)
+                  : 'Working';
+              })(),
+              eta: ''
+            }
+      };
+
+      // Timer lifecycle (D-04, D-05)
+      // Start elapsed timer on first update call (first sessionStatus)
+      if (!this._startTime && overlayState.lifecycle !== 'cleared') {
+        this._startTime = performance.now();
+        this._frozen = false;
+        var phaseEl = this.container.querySelector('.fsb-phase');
+        if (phaseEl) phaseEl.textContent = '0:00';  // seed before first rAF fires
+        this._startTimerLoop();
       }
-      if (progress !== undefined) {
-        const clamped = Math.min(100, Math.max(0, progress));
-        this.container.querySelector('.fsb-step-number').textContent = `${Math.round(clamped)}%`;
-        this.container.querySelector('.fsb-progress-fill').style.width = `${clamped}%`;
-      } else if (stepNumber !== undefined) {
-        const label = totalSteps ? `Iter ${stepNumber}/${totalSteps}` : `Step ${stepNumber}`;
-        this.container.querySelector('.fsb-step-number').textContent = label;
+
+      var utils = window.FSBOverlayStateUtils;
+      var phaseLabel = utils && typeof utils.humanizeOverlayPhase === 'function'
+        ? utils.humanizeOverlayPhase(overlayState.phase)
+        : (overlayState.phase || 'Working');
+      var display = overlayState.display || {};
+      var progress = overlayState.progress || { mode: 'indeterminate', label: phaseLabel };
+
+      this.container.querySelector('.fsb-task').textContent = display.title || '-';
+      this.container.querySelector('.fsb-summary').textContent = display.subtitle || '';
+      this.container.querySelector('.fsb-step-text').textContent = display.detail || 'Working';
+      this.container.querySelector('.fsb-step-number').textContent = progress.label || phaseLabel;
+
+      // .fsb-phase elapsed timer display (D-02) -- initial 0:00 seeded in timer-start block above
+
+      // Action count display (D-06, D-07, DISP-03)
+      var actionCount = overlayState.actionCount;
+      var etaEl = this.container.querySelector('.fsb-eta');
+      if (etaEl) {
+        if (actionCount !== null && actionCount !== undefined) {
+          etaEl.textContent = 'Actions: ' + actionCount;
+        } else {
+          etaEl.textContent = '';
+        }
       }
-      if (stepText !== undefined) {
-        this.container.querySelector('.fsb-step-text').textContent = stepText;
+
+      var bar = this.container.querySelector('.fsb-progress-bar');
+      var fill = this.container.querySelector('.fsb-progress-fill');
+      if (progress.mode === 'determinate' && progress.percent !== null) {
+        bar.classList.remove('indeterminate');
+        bar.classList.remove('hidden');
+        fill.style.width = '100%';
+        fill.style.transform = 'scaleX(' + (progress.percent / 100) + ')';
+      } else {
+        fill.style.width = '38%';
+        fill.style.transform = '';
+        fill.style.transformOrigin = '';
+        if (overlayState.lifecycle === 'final') {
+          bar.classList.add('hidden');
+          bar.classList.remove('indeterminate');
+        } else {
+          bar.classList.remove('hidden');
+          bar.classList.add('indeterminate');
+        }
       }
-      if (eta !== undefined) {
-        const etaEl = this.container.querySelector('.fsb-eta');
-        if (etaEl) etaEl.textContent = eta || '';
+
+      // Completion freeze (D-08, D-09, D-10, POLISH-03)
+      if (overlayState.lifecycle === 'final' && !this._frozen) {
+        this._frozen = true;
+        this._stopTimerLoop();
+
+        // Freeze elapsed time at final value
+        if (this._startTime) {
+          var finalElapsed = performance.now() - this._startTime;
+          var finalPhaseEl = this.container.querySelector('.fsb-phase');
+          if (finalPhaseEl) {
+            finalPhaseEl.textContent = this._formatElapsed(finalElapsed);
+          }
+        }
+
+        // Success-specific presentation (D-08)
+        if (overlayState.result === 'success') {
+          // Green progress bar
+          fill.classList.add('complete');
+          // Green glow on overlay
+          this.container.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(52, 211, 153, 0.3)';
+          // Done pill
+          this.container.querySelector('.fsb-step-number').textContent = 'Done';
+        }
+        // Failure: bar stays orange, pill keeps existing text (D-10) -- no action needed
+
+        // Auto-hide after 3 seconds (D-09)
+        var self = this;
+        if (this._autoHideTimer !== null) clearTimeout(this._autoHideTimer);
+        this._autoHideTimer = setTimeout(function() {
+          self._autoHideTimer = null;
+          if (self.container) {
+            self.container.classList.add('hidden');
+          }
+        }, 3000);
+      }
+
+      // Auto-broadcast overlay state to dashboard if streaming
+      if (window.FSB && window.FSB.domStream && window.FSB.domStream.isStreaming()) {
+        window.FSB.domStream.broadcastOverlayState();
       }
     }
 
@@ -464,6 +696,13 @@
      * Remove overlay from DOM completely
      */
     destroy() {
+      this._stopTimerLoop();
+      if (this._autoHideTimer !== null) {
+        clearTimeout(this._autoHideTimer);
+        this._autoHideTimer = null;
+      }
+      this._startTime = null;
+      this._frozen = false;
       if (this.host) {
         demoteFromTopLayer(this.host);
         this.host.remove();
@@ -675,7 +914,7 @@
     }
 
     _create() {
-      this.host = document.createElement('div');
+      this.host = markOverlayElement(document.createElement('div'), 'viewport-glow-host');
       this.host.id = 'fsb-viewport-glow-host';
       // z-index kept as fallback; top-layer via Popover API is the primary mechanism
       this.host.style.cssText = 'all:initial!important;position:fixed!important;inset:0!important;z-index:2147483647!important;pointer-events:none!important;margin:0!important;padding:0!important;border:none!important;background:none!important;';
@@ -793,19 +1032,23 @@
   const viewportGlow = new ViewportGlow();
 
   /**
-   * ActionGlowOverlay - Animated pulsing glow that persists during action execution
+   * ActionGlowOverlay - Animated target-aware highlight that persists during action execution
    *
-   * Uses Shadow DOM for style isolation. Shows an orange pulsing glow border
-   * around the target element for the entire duration of the action, with
-   * smooth fade-in/out transitions and requestAnimationFrame position tracking.
+   * Uses Shadow DOM for style isolation. Inline links and text-first targets
+   * receive an orange text-highlight treatment, while controls and larger
+   * surfaces keep a tighter pulsing outline.
    */
   class ActionGlowOverlay {
     constructor() {
       this.host = null;
       this.shadow = null;
-      this.overlay = null;
+      this.overlayRoot = null;
+      this.boxOverlay = null;
       this.targetElement = null;
       this.trackingId = null;
+      this.currentGeometry = null;
+      this.currentMode = null;
+      this._isVisible = false;
     }
 
     /**
@@ -847,6 +1090,258 @@
       return candidate || element;
     }
 
+    _shouldUseTextHighlight(element) {
+      if (!element || !element.isConnected) return false;
+
+      const tagName = element.tagName;
+      if (['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'OPTION'].includes(tagName)) return false;
+      if (element.isContentEditable) return false;
+
+      const text = (element.innerText || '').trim();
+      if (!text) return false;
+
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 8 || rect.height < 8) return false;
+
+      const compactTarget = rect.height <= 72
+        && rect.width <= Math.min(window.innerWidth * 0.8, 560);
+
+      const role = element.getAttribute('role');
+      if (tagName === 'A' || role === 'link') return compactTarget;
+
+      const computed = window.getComputedStyle(element);
+      const inlineDisplay = computed.display === 'inline'
+        || computed.display === 'inline-block'
+        || computed.display === 'inline-flex';
+
+      return inlineDisplay
+        && rect.height <= 56
+        && rect.width <= Math.min(window.innerWidth * 0.75, 520);
+    }
+
+    _clampRect(rect) {
+      if (!rect) return null;
+
+      const left = Math.max(0, rect.left);
+      const top = Math.max(0, rect.top);
+      const right = Math.min(window.innerWidth, rect.left + rect.width);
+      const bottom = Math.min(window.innerHeight, rect.top + rect.height);
+
+      if (right <= left || bottom <= top) return null;
+
+      return {
+        left: Math.round(left * 100) / 100,
+        top: Math.round(top * 100) / 100,
+        width: Math.round((right - left) * 100) / 100,
+        height: Math.round((bottom - top) * 100) / 100
+      };
+    }
+
+    _mergeTextRects(rects) {
+      if (!rects.length) return [];
+
+      const sorted = rects
+        .map(rect => this._clampRect(rect))
+        .filter(Boolean)
+        .sort((a, b) => (a.top - b.top) || (a.left - b.left));
+
+      if (!sorted.length) return [];
+
+      const merged = [];
+      for (const rect of sorted) {
+        const previous = merged[merged.length - 1];
+        if (!previous) {
+          merged.push({ ...rect });
+          continue;
+        }
+
+        const sameLine = Math.abs(previous.top - rect.top) <= 3
+          && Math.abs(previous.height - rect.height) <= 6;
+        const closeEnough = rect.left <= (previous.left + previous.width + 12);
+
+        if (sameLine && closeEnough) {
+          const right = Math.max(previous.left + previous.width, rect.left + rect.width);
+          previous.left = Math.min(previous.left, rect.left);
+          previous.top = Math.min(previous.top, rect.top);
+          previous.width = right - previous.left;
+          previous.height = Math.max(previous.height, rect.height);
+        } else {
+          merged.push({ ...rect });
+        }
+      }
+
+      return merged;
+    }
+
+    _getTextRects(element) {
+      if (!element || !element.isConnected) return [];
+
+      const range = document.createRange();
+      try {
+        range.selectNodeContents(element);
+        const rawRects = Array.from(range.getClientRects())
+          .filter(rect => rect.width >= 6 && rect.height >= 8)
+          .map(rect => ({
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height
+          }));
+        return this._mergeTextRects(rawRects);
+      } catch (e) {
+        return [];
+      } finally {
+        if (typeof range.detach === 'function') {
+          range.detach();
+        }
+      }
+    }
+
+    _getUnionBounds(rects) {
+      if (!rects.length) return null;
+
+      let left = rects[0].left;
+      let top = rects[0].top;
+      let right = rects[0].left + rects[0].width;
+      let bottom = rects[0].top + rects[0].height;
+
+      for (let i = 1; i < rects.length; i++) {
+        const rect = rects[i];
+        left = Math.min(left, rect.left);
+        top = Math.min(top, rect.top);
+        right = Math.max(right, rect.left + rect.width);
+        bottom = Math.max(bottom, rect.top + rect.height);
+      }
+
+      return this._clampRect({
+        left,
+        top,
+        width: right - left,
+        height: bottom - top
+      });
+    }
+
+    _buildTextHighlightSpec(element) {
+      const textRects = this._getTextRects(element);
+      if (!textRects.length) return null;
+
+      const expandedRects = textRects
+        .map(rect => this._clampRect({
+          left: rect.left - 4,
+          top: rect.top - 2,
+          width: rect.width + 8,
+          height: rect.height + 4
+        }))
+        .filter(Boolean);
+
+      if (!expandedRects.length) return null;
+
+      return {
+        mode: 'text',
+        rects: expandedRects,
+        bounds: this._getUnionBounds(expandedRects)
+      };
+    }
+
+    _buildBoxHighlightSpec(element) {
+      if (!element || !element.isConnected) return null;
+
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
+
+      const tagName = element.tagName;
+      const paddingX = ['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName) ? 4 : 6;
+      const paddingY = ['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName) ? 4 : (rect.height <= 40 ? 4 : 6);
+      const expandedRect = this._clampRect({
+        left: rect.left - paddingX,
+        top: rect.top - paddingY,
+        width: rect.width + paddingX * 2,
+        height: rect.height + paddingY * 2
+      });
+
+      if (!expandedRect) return null;
+
+      const computed = window.getComputedStyle(element);
+      const rawRadius = parseFloat(computed.borderTopLeftRadius);
+      const radius = Number.isFinite(rawRadius)
+        ? Math.min(18, Math.max(6, rawRadius + 4))
+        : (rect.height <= 36 ? 8 : 10);
+
+      return {
+        mode: 'box',
+        rect: expandedRect,
+        bounds: expandedRect,
+        radius
+      };
+    }
+
+    _buildHighlightSpec(element) {
+      if (!element || !element.isConnected) return null;
+
+      if (this._shouldUseTextHighlight(element)) {
+        const textSpec = this._buildTextHighlightSpec(element);
+        if (textSpec) return textSpec;
+      }
+
+      return this._buildBoxHighlightSpec(element);
+    }
+
+    _ensureBoxOverlay() {
+      if (!this.overlayRoot || this.boxOverlay) return;
+
+      this.boxOverlay = document.createElement('div');
+      this.boxOverlay.className = 'box-overlay';
+      this.overlayRoot.appendChild(this.boxOverlay);
+    }
+
+    _clearTextHighlights() {
+      if (!this.overlayRoot) return;
+      this.overlayRoot.querySelectorAll('.text-highlight').forEach(node => node.remove());
+    }
+
+    _renderTextHighlights(rects) {
+      if (!this.overlayRoot) return;
+
+      const existing = Array.from(this.overlayRoot.querySelectorAll('.text-highlight'));
+
+      rects.forEach((rect, index) => {
+        const node = existing[index] || document.createElement('div');
+        if (!existing[index]) {
+          node.className = 'text-highlight';
+          this.overlayRoot.appendChild(node);
+        }
+
+        node.style.top = `${rect.top}px`;
+        node.style.left = `${rect.left}px`;
+        node.style.width = `${rect.width}px`;
+        node.style.height = `${rect.height}px`;
+
+        if (this._isVisible) {
+          node.classList.add('active');
+        } else {
+          node.classList.remove('active');
+        }
+      });
+
+      for (let i = rects.length; i < existing.length; i++) {
+        existing[i].remove();
+      }
+    }
+
+    _setActiveState(isActive) {
+      this._isVisible = isActive;
+
+      if (this.boxOverlay) {
+        this.boxOverlay.classList.toggle('active', isActive && this.currentMode === 'box');
+      }
+
+      if (this.overlayRoot) {
+        this.overlayRoot.querySelectorAll('.text-highlight').forEach(node => {
+          node.classList.toggle('active', isActive && this.currentMode === 'text');
+        });
+      }
+    }
+
     show(element) {
       // Destroy any existing overlay first
       this.destroy();
@@ -855,10 +1350,10 @@
       this.targetElement = this._findHighlightTarget(element);
 
       // Create host element
-      this.host = document.createElement('div');
+      this.host = markOverlayElement(document.createElement('div'), 'action-glow-host');
       this.host.id = 'fsb-action-glow-host';
       // z-index kept as fallback; top-layer via Popover API is the primary mechanism
-      this.host.style.cssText = 'all:initial!important;position:fixed!important;inset:auto!important;top:0!important;left:0!important;width:0!important;height:0!important;z-index:2147483647!important;pointer-events:none!important;margin:0!important;padding:0!important;border:none!important;background:none!important;';
+      this.host.style.cssText = 'all:initial!important;position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483647!important;pointer-events:none!important;margin:0!important;padding:0!important;border:none!important;background:none!important;';
 
       // Attach Shadow DOM
       this.shadow = this.host.attachShadow({ mode: 'closed' });
@@ -889,30 +1384,73 @@
         40%  { transform: scale(1.03); }
         100% { transform: scale(1); }
       }
-      .glow-overlay {
+      @keyframes fsbTextGlow {
+        0%, 100% {
+          background: linear-gradient(90deg, rgba(255, 140, 0, 0.30), rgba(255, 166, 0, 0.16));
+          box-shadow:
+            0 0 0 1px rgba(255, 140, 0, 0.24),
+            0 0 10px rgba(255, 140, 0, 0.18);
+        }
+        50% {
+          background: linear-gradient(90deg, rgba(255, 140, 0, 0.44), rgba(255, 166, 0, 0.24));
+          box-shadow:
+            0 0 0 1px rgba(255, 140, 0, 0.36),
+            0 0 16px rgba(255, 140, 0, 0.24);
+        }
+      }
+      .glow-root {
         position: fixed;
-        border: 2.5px solid rgba(255, 140, 0, 0.8);
-        border-radius: 10px;
+        inset: 0;
+        pointer-events: none;
+      }
+      .box-overlay,
+      .text-highlight {
+        position: fixed;
         pointer-events: none;
         opacity: 0;
+        will-change: top, left, width, height, opacity, transform;
+      }
+      .box-overlay {
+        border: 2.5px solid rgba(255, 140, 0, 0.8);
+        border-radius: 10px;
         transition: opacity 0.25s ease-out;
         animation: fsbActionGlow 1.5s ease-in-out infinite;
         background: rgba(255, 140, 0, 0.04);
       }
-      .glow-overlay.active {
+      .box-overlay.active {
         opacity: 1;
         animation: fsbActionGlow 1.5s ease-in-out infinite, fsbGlowAppear 0.3s ease-out;
+      }
+      .text-highlight {
+        border-radius: 6px;
+        transform: scale(0.985);
+        transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+        background: linear-gradient(90deg, rgba(255, 140, 0, 0.30), rgba(255, 166, 0, 0.16));
+        box-shadow:
+          0 0 0 1px rgba(255, 140, 0, 0.24),
+          0 0 10px rgba(255, 140, 0, 0.18);
+      }
+      .text-highlight.active {
+        opacity: 1;
+        transform: scale(1);
+        animation: fsbTextGlow 1.3s ease-in-out infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .box-overlay,
+        .text-highlight {
+          transition: none;
+        }
+        .box-overlay.active,
+        .text-highlight.active {
+          animation: none;
+        }
       }
     `;
       this.shadow.appendChild(style);
 
-      // Create overlay div
-      this.overlay = document.createElement('div');
-      this.overlay.className = 'glow-overlay';
-      this.shadow.appendChild(this.overlay);
-
-      // Position over element
-      this._updatePosition();
+      this.overlayRoot = document.createElement('div');
+      this.overlayRoot.className = 'glow-root';
+      this.shadow.appendChild(this.overlayRoot);
 
       // Promote to top layer via Popover API for guaranteed rendering above all page content
       this._inTopLayer = promoteToTopLayer(this.host);
@@ -920,39 +1458,95 @@
         document.documentElement.appendChild(this.host);
       }
 
-      // Trigger fade-in on next frame
-      requestAnimationFrame(() => {
-        if (this.overlay) {
-          this.overlay.classList.add('active');
-        }
-      });
-
-      // Start position tracking
-      this._startTracking();
-    }
-
-    _updatePosition() {
-      if (!this.targetElement || !this.overlay) return;
-
-      // Check if element is still in DOM
-      if (!document.body.contains(this.targetElement)) {
+      // Position over element
+      this._updatePosition();
+      if (!this.currentGeometry) {
         this.destroy();
         return;
       }
 
-      const rect = this.targetElement.getBoundingClientRect();
-      const padding = 10;
+      // Trigger fade-in on next frame
+      requestAnimationFrame(() => {
+        this._setActiveState(true);
+      });
 
-      // Calculate position with padding, clamped to viewport
-      const top = Math.max(0, rect.top - padding);
-      const left = Math.max(0, rect.left - padding);
-      const width = Math.min(window.innerWidth - left, rect.width + padding * 2);
-      const height = Math.min(window.innerHeight - top, rect.height + padding * 2);
+      // Start position tracking
+      this._startTracking();
 
-      this.overlay.style.top = `${top}px`;
-      this.overlay.style.left = `${left}px`;
-      this.overlay.style.width = `${width}px`;
-      this.overlay.style.height = `${height}px`;
+      // Broadcast glow position to dashboard DOM stream
+      if (window.FSB && window.FSB.domStream && window.FSB.domStream.isStreaming()) {
+        window.FSB.domStream.broadcastOverlayState();
+      }
+    }
+
+    _updatePosition() {
+      if (!this.targetElement || !this.overlayRoot) return;
+
+      // Check if element is still in DOM
+      if (!this.targetElement.isConnected) {
+        this.destroy();
+        return;
+      }
+
+      const spec = this._buildHighlightSpec(this.targetElement);
+      if (!spec || !spec.bounds) {
+        this.destroy();
+        return;
+      }
+
+      this.currentMode = spec.mode;
+
+      if (spec.mode === 'text') {
+        if (this.boxOverlay) {
+          this.boxOverlay.classList.remove('active');
+          this.boxOverlay.style.display = 'none';
+        }
+        this._renderTextHighlights(spec.rects || []);
+      } else {
+        this._clearTextHighlights();
+        this._ensureBoxOverlay();
+        this.boxOverlay.style.display = 'block';
+        this.boxOverlay.style.top = `${spec.rect.top}px`;
+        this.boxOverlay.style.left = `${spec.rect.left}px`;
+        this.boxOverlay.style.width = `${spec.rect.width}px`;
+        this.boxOverlay.style.height = `${spec.rect.height}px`;
+        this.boxOverlay.style.borderRadius = `${spec.radius || 10}px`;
+        if (this._isVisible) {
+          this.boxOverlay.classList.add('active');
+        } else {
+          this.boxOverlay.classList.remove('active');
+        }
+      }
+
+      this.currentGeometry = {
+        mode: spec.mode,
+        x: spec.bounds.left,
+        y: spec.bounds.top,
+        w: spec.bounds.width,
+        h: spec.bounds.height,
+        fragments: spec.rects
+          ? spec.rects.map(rect => ({
+              x: rect.left,
+              y: rect.top,
+              w: rect.width,
+              h: rect.height
+            }))
+          : null
+      };
+    }
+
+    getStreamState() {
+      if (!this.currentGeometry) return null;
+
+      return {
+        x: this.currentGeometry.x,
+        y: this.currentGeometry.y,
+        w: this.currentGeometry.w,
+        h: this.currentGeometry.h,
+        state: 'active',
+        mode: this.currentGeometry.mode || 'box',
+        fragments: this.currentGeometry.fragments || null
+      };
     }
 
     _startTracking() {
@@ -978,11 +1572,16 @@
     }
 
     hide() {
+      // Broadcast glow removal to dashboard DOM stream before clearing
+      if (window.FSB && window.FSB.domStream && window.FSB.domStream.isStreaming()) {
+        this.currentGeometry = null;
+        this.targetElement = null;
+        window.FSB.domStream.broadcastOverlayState();
+      }
+
       this._stopTracking();
 
-      if (this.overlay) {
-        this.overlay.classList.remove('active');
-      }
+      this._setActiveState(false);
 
       // Wait for fade-out transition then clean up
       setTimeout(() => {
@@ -992,13 +1591,24 @@
         }
         this.host = null;
         this.shadow = null;
-        this.overlay = null;
+        this.overlayRoot = null;
+        this.boxOverlay = null;
         this.targetElement = null;
+        this.currentGeometry = null;
+        this.currentMode = null;
+        this._isVisible = false;
         this._inTopLayer = false;
       }, 250);
     }
 
     destroy() {
+      // Broadcast glow removal to dashboard DOM stream
+      if (window.FSB && window.FSB.domStream && window.FSB.domStream.isStreaming()) {
+        this.currentGeometry = null;
+        this.targetElement = null;
+        window.FSB.domStream.broadcastOverlayState();
+      }
+
       this._stopTracking();
       if (this.host) {
         demoteFromTopLayer(this.host);
@@ -1006,8 +1616,12 @@
       }
       this.host = null;
       this.shadow = null;
-      this.overlay = null;
+      this.overlayRoot = null;
+      this.boxOverlay = null;
       this.targetElement = null;
+      this.currentGeometry = null;
+      this.currentMode = null;
+      this._isVisible = false;
       this._inTopLayer = false;
     }
   }
@@ -1056,7 +1670,7 @@
 
     createHoverOverlay() {
       if (this.hoverOverlay) return;
-      this.hoverOverlay = document.createElement('div');
+      this.hoverOverlay = markOverlayElement(document.createElement('div'), 'inspector-hover');
       this.hoverOverlay.id = 'fsb-inspector-overlay';
       // z-index kept as fallback; top-layer via Popover API is the primary mechanism
       // Use visibility:hidden instead of display:none for popover compatibility
@@ -1069,7 +1683,7 @@
 
     createInspectionPanel() {
       if (this.inspectionPanel) return;
-      this.inspectionPanel = document.createElement('div');
+      this.inspectionPanel = markOverlayElement(document.createElement('div'), 'inspector-panel');
       this.inspectionPanel.id = 'fsb-inspector-panel';
       // z-index kept as fallback; top-layer via Popover API is the primary mechanism
       // Use visibility:hidden instead of display:none for popover compatibility
@@ -1090,7 +1704,7 @@
 
     createActiveIndicator() {
       if (this.activeIndicator) return;
-      this.activeIndicator = document.createElement('div');
+      this.activeIndicator = markOverlayElement(document.createElement('div'), 'inspector-indicator');
       this.activeIndicator.id = 'fsb-inspector-indicator';
       // z-index kept as fallback; top-layer via Popover API is the primary mechanism
       this.activeIndicator.style.cssText = 'all:initial!important;position:fixed!important;inset:auto!important;top:10px!important;left:50%!important;transform:translateX(-50%)!important;z-index:2147483647!important;background:#FF8C00!important;color:#fff!important;padding:6px 16px!important;border-radius:20px!important;font-family:system-ui,-apple-system,sans-serif!important;font-size:12px!important;font-weight:600!important;box-shadow:0 2px 10px rgba(0,0,0,0.3)!important;pointer-events:none!important;margin:0!important;border:none!important;';
@@ -1242,7 +1856,7 @@
     create() {
       if (this.host) return;
 
-      this.host = document.createElement('div');
+      this.host = markOverlayElement(document.createElement('div'), 'crawl-progress-host');
       this.host.id = 'fsb-crawl-progress-host';
       this.host.style.cssText = `
       all: initial !important;
@@ -1449,6 +2063,7 @@
       progressOverlay.destroy();
       crawlProgressOverlay.destroy();
       elementInspector.disable();
+      FSB.overlayState = null;
       // Disconnect MutationObservers to prevent leaks on BFCache/re-injection
       if (FSB.domStateManager && FSB.domStateManager.mutationObserver) {
         FSB.domStateManager.mutationObserver.disconnect();

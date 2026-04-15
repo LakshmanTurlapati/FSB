@@ -1,0 +1,58 @@
+url: https://careers.google.com/jobs/results/
+title: Google Careers - Find Your Next Role
+scroll: 0/3600 (0%)
+viewport: 1920x1080
+state: complete
+captcha: false
+forms: job-search-form(job-search,location-filter,team-filter,search-jobs-btn)
+headings: h1:"Find your next role",h3:"Software Engineer, Frontend",h3:"Site Reliability Engineer",h3:"Machine Learning Engineer"
+
+@nav
+  e1: a "Google" .logo-link [href=https://careers.google.com]
+  e2: a "Home" .nav-link [href=/]
+  e3: a "Teams" .nav-link [href=/teams]
+  e4: a "Locations" .nav-link [href=/locations]
+
+@main
+  e5: h1 "Find your next role" .hero-title
+  e6: input "" .search-input #job-search [type=text name=q placeholder="Search job titles, keywords"]
+  e7: select "" .filter-select #location-filter [name=location]
+    e8: option "All Locations" [value=]
+    e9: option "Mountain View, CA" [value=mountain-view]
+    e10: option "New York, NY" [value=new-york]
+    e11: option "Remote" [value=remote]
+  e39: select "" .filter-select #team-filter [name=team]
+    e40: option "All Teams" [value=]
+    e41: option "Engineering" [value=engineering]
+    e42: option "Product" [value=product]
+  e12: button "Search Jobs" .search-btn #search-jobs-btn [type=submit]
+  e13: div "" .job-results #results-container
+  e14: h3 "Software Engineer, Frontend" .job-title
+  e15: span "Google" .company-name
+  e16: span "Mountain View, CA" .job-location
+  e17: span "Posted 2 days ago" .date-posted
+  e18: p "Build user-facing products using modern web technologies including React and TypeScript" .job-description
+  e19: a "Apply" .apply-link [href=https://careers.google.com/jobs/123?src=online&utm_source=careers]
+  e20: h3 "Site Reliability Engineer" .job-title
+  e21: span "Google" .company-name
+  e22: span "New York, NY" .job-location
+  e23: span "Posted 5 days ago" .date-posted
+  e24: p "Ensure reliability and availability of Google services at scale" .job-description
+  e25: a "Apply" .apply-link [href=https://careers.google.com/jobs/456?src=online&utm_source=careers]
+  e26: h3 "Machine Learning Engineer" .job-title
+  e27: span "Google" .company-name
+  e28: span "Remote" .job-location
+  e29: span "Posted 1 week ago" .date-posted
+  e30: p "Design and implement ML models for natural language processing and computer vision" .job-description
+  e31: a "Apply" .apply-link [href=https://careers.google.com/jobs/789?src=online&utm_source=careers]
+  e32: a "Page 1" .pagination.active [href=?page=1]
+  e33: a "Page 2" .pagination [href=?page=2]
+  e34: a "Next" .pagination.next [href=?page=2]
+  e35: span "Showing 1-3 of 42 jobs" .result-count
+
+@footer
+  e36: footer "" .site-footer
+  e37: a "Privacy" .footer-link [href=/privacy]
+  e38: a "Terms" .footer-link [href=/terms]
+
+--- 42/42 shown (0 offscreen)

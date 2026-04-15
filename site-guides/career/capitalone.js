@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.capitalonecareers\.com/i
   ],
-  guidance: `CAPITAL ONE CAREER NAVIGATION:\nStart: https://www.capitalonecareers.com/`,
+  guidance: `CAPITAL ONE CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.capitalonecareers.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "data scientist"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Capital One","role":"...","location":"...","link":"...","source":"capitalone"}\nStart: https://www.capitalonecareers.com/`,
   selectors: {
     searchBox: '//button[normalize-space(.)="Search Jobs"], [aria-expanded="true"], [aria-controls="search-location-ab25abfe04-mindreader"], [role="combobox"][aria-describedby="search-error-1 autocomplete-message-search-location-ab25abfe04"], #search-keyword-ab25abfe04, [name="k"]',
     locationFilter: '//button[normalize-space(.)="Locations"], [aria-expanded="false"], //a[normalize-space(.)="United States"], #city-toggle, //a[normalize-space(.)="60303514304\n\n                 "], [data-fsb-id="a_60303514304_02232026_search_results_"]',

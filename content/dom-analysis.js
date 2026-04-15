@@ -268,15 +268,19 @@
     const name = (element.name || '').toLowerCase();
     const id = (element.id || '').toLowerCase();
     const placeholder = (element.placeholder || '').toLowerCase();
+    const autocomplete = (element.getAttribute('autocomplete') || '').toLowerCase();
     const role = (element.getAttribute('role') || '').toLowerCase();
 
-    const combined = `${text} ${ariaLabel} ${className} ${name} ${id} ${placeholder}`;
+    const combined = `${text} ${ariaLabel} ${className} ${name} ${id} ${placeholder} ${autocomplete}`;
 
     // FSB-injected canvas editor elements (Google Docs/Sheets)
     if (element.dataset && element.dataset.fsbRole) {
       const fsbRole = element.dataset.fsbRole;
       if (fsbRole === 'document-body' || fsbRole === 'document-title') {
         return { role: 'content-editor', intent: 'edit', danger: false, sensitive: false, priority: 'high' };
+      }
+      if (fsbRole === 'formula-bar' || fsbRole === 'name-box') {
+        return { role: 'toolbar-input', intent: 'edit', danger: false, sensitive: false, priority: 'high' };
       }
       return { role: 'editor-container', intent: 'edit', danger: false, sensitive: false, priority: 'medium' };
     }
@@ -383,7 +387,46 @@
       }
 
       // Payment/card fields
-      if (/card|credit|debit|payment|cvv|cvc|ccv|expir|billing/.test(combined)) {
+      if (autocomplete.includes('cc-number') || /card number|credit card number|debit card number|cc.?number|card no\b/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-number', sensitive: true, priority: 'high' };
+      }
+      if (autocomplete.includes('cc-csc') || autocomplete.includes('cc-cvc') || /cvv|cvc|csc|security code|card code|verification code/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-csc', sensitive: true, priority: 'high' };
+      }
+      if (autocomplete.includes('cc-exp-month') || /(exp|expiration).*(month)|month.*(exp|expiration)/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-exp-month', sensitive: false, priority: 'high' };
+      }
+      if (autocomplete.includes('cc-exp-year') || /(exp|expiration).*(year)|year.*(exp|expiration)/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-exp-year', sensitive: false, priority: 'high' };
+      }
+      if (autocomplete.includes('cc-exp') || /expiration date|expiry date|exp date|mm\s*\/\s*yy|mm\s*\/\s*yyyy/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-exp', sensitive: false, priority: 'high' };
+      }
+      if (autocomplete.includes('cc-name') || /name on card|cardholder|card holder|name as it appears/.test(combined)) {
+        return { role: 'payment-input', intent: 'cc-name', sensitive: false, priority: 'high' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('postal-code') || /zip|postal/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-postal-code', sensitive: false, priority: 'high' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('address-line2') || /address line 2|apt|suite|unit/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-address-line2', sensitive: false, priority: 'medium' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('address-line1') || autocomplete.includes('street-address') || /address|street/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-address-line1', sensitive: false, priority: 'high' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('address-level2') || /city/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-city', sensitive: false, priority: 'medium' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('address-level1') || /state|province|region/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-region', sensitive: false, priority: 'medium' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && (autocomplete.includes('country') || /country/.test(combined))) {
+        return { role: 'payment-input', intent: 'billing-country', sensitive: false, priority: 'medium' };
+      }
+      if ((autocomplete.includes('billing') || /billing/.test(combined)) && /name/.test(combined)) {
+        return { role: 'payment-input', intent: 'billing-name', sensitive: false, priority: 'medium' };
+      }
+      if (/card|credit|debit|payment|billing/.test(combined)) {
         return { role: 'payment-input', intent: 'payment', sensitive: true, priority: 'high' };
       }
 
@@ -1730,6 +1773,14 @@
     // Has data-testid
     if (element.hasAttribute('data-testid')) score += 3;
 
+    // Deprioritize sidebar/aside/nav elements — main content is more relevant for most tasks
+    // This prevents sidebar navigation links from stealing refs from main content on complex pages
+    if (element.closest('aside, [role="complementary"]')) {
+      score -= 6;
+    } else if (element.closest('nav, [role="navigation"]') && !element.closest('main, [role="main"]')) {
+      score -= 4;
+    }
+
     // FSB-injected canvas editor elements
     if (element.dataset.fsbRole) {
       score += 15;
@@ -1740,13 +1791,57 @@
   }
 
   /**
+   * Try an ordered list of selectors for an fsbElement, returning the first match.
+   * @param {Object} fsbElementDef - { label, selectors: [{ strategy, selector }] }
+   * @returns {{ element: Element, matchedIndex: number, matchedStrategy: string, total: number } | null}
+   */
+  function findElementByStrategies(fsbElementDef) {
+    const strategies = fsbElementDef.selectors;
+    const total = strategies.length;
+    for (let i = 0; i < total; i++) {
+      const { strategy, selector } = strategies[i];
+      const element = document.querySelector(selector);
+      if (element) {
+        // Store context for re-resolution if selector breaks later
+        const context = {
+          role: element.getAttribute('role') || element.tagName.toLowerCase(),
+          accName: (element.getAttribute('aria-label') || element.textContent?.trim() || '').substring(0, 60),
+          nearbyText: (element.parentElement?.textContent?.trim() || '').substring(0, 100),
+          parentTag: element.parentElement?.tagName?.toLowerCase(),
+          parentClasses: element.parentElement?.className || '',
+          position: Array.from(element.parentElement?.children || []).indexOf(element)
+        };
+        element._fsbResolveContext = context;
+        fsbElementDef._lastContext = context;
+        return { element, matchedIndex: i, matchedStrategy: strategy, total, context };
+      }
+    }
+
+    // All selectors failed -- try context-aware re-resolution via last-known context
+    if (FSB.reResolveElement && fsbElementDef._lastContext) {
+      const reResolved = FSB.reResolveElement(fsbElementDef._lastContext);
+      if (reResolved) {
+        logger.log('info', `[findElementByStrategies] Re-resolved element via ${reResolved.method} (confidence: ${reResolved.confidence})`, {
+          role: fsbElementDef._lastContext.role,
+          method: reResolved.method
+        });
+        return { element: reResolved.element, matchedIndex: -1, matchedStrategy: `re-resolve:${reResolved.method}`, total, context: fsbElementDef._lastContext };
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Get filtered elements using a 3-stage pipeline: collection -> visibility -> scoring
    */
   function getFilteredElements(options = {}) {
     const {
       maxElements = 50,
       prioritizeViewport = true,
-      taskType = 'general'
+      taskType = 'general',
+      guideSelectors = null,
+      viewportComplete = false
     } = options;
 
     // Stage 1: Get potentially relevant elements
@@ -1775,10 +1870,54 @@
           candidateArray.push(el);
         }
       }
+
+    }
+
+    // Stage 1c: Inject site guide fsbElements (generic - works for ANY guide with fsbElements)
+    const fsbElements = guideSelectors?.fsbElements;
+    if (fsbElements) {
+      const selectorMatches = {};
+      for (const [role, def] of Object.entries(fsbElements)) {
+        const result = findElementByStrategies(def);
+        if (result) {
+          const { element: el, matchedIndex, matchedStrategy, total } = result;
+          el.dataset.fsbRole = role;
+          el.dataset.fsbLabel = def.label;
+          if (!candidateArray.includes(el)) {
+            candidateArray.push(el);
+          }
+          selectorMatches[role] = `${def.selectors[matchedIndex].selector} [${matchedIndex + 1}/${total}]`;
+          logger.logDOMOperation(FSB.sessionId, 'fsbElements_selector_match', {
+            role,
+            matched: `${def.selectors[matchedIndex].selector} [${matchedIndex + 1}/${total}]`,
+            strategy: matchedStrategy
+          });
+        } else {
+          logger.log('warn', `[fsbElements] All ${def.selectors.length} selectors failed for ${role} - element skipped`, {
+            role,
+            selectorsAttempted: def.selectors.length
+          });
+          selectorMatches[role] = 'NONE';
+        }
+      }
+
+      // Generic injection logging
+      const siteName = guideSelectors?._siteName || 'unknown';
+      const fsbInjectedCount = candidateArray.filter(el => el.dataset.fsbRole).length;
+      logger.logDOMOperation(FSB.sessionId, 'fsbElements_injection', {
+        site: siteName,
+        totalFsbElements: fsbInjectedCount,
+        matchedCount: Object.values(selectorMatches).filter(v => v !== 'NONE').length,
+        failedCount: Object.values(selectorMatches).filter(v => v === 'NONE').length,
+        selectorMatches
+      });
     }
 
     // Stage 2: Filter by visibility
     const visible = candidateArray.filter(el => {
+      // Bypass ALL visibility checks for FSB-injected canvas editor elements
+      if (el.dataset.fsbRole) return true;
+
       const rect = el.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) {
         // Bypass for contenteditable
@@ -1790,8 +1929,6 @@
           }
           return true;
         }
-        // Bypass for FSB-injected canvas editor elements
-        if (el.dataset.fsbRole) return true;
         return false;
       }
 
@@ -1803,6 +1940,44 @@
 
       return true;
     });
+
+    // Log when fsbElements are filtered by visibility
+    {
+      const injected = candidateArray.filter(el => el.dataset.fsbRole);
+      const survived = visible.filter(el => el.dataset.fsbRole);
+      if (injected.length > 0) {
+        logger.logDOMOperation(FSB.sessionId, 'fsbElements_visibility_filter', {
+          injected: injected.length,
+          survived: survived.length,
+          filtered_out: injected.length - survived.length,
+          details: injected.map(el => ({
+            role: el.dataset.fsbRole,
+            survived: visible.includes(el),
+            ariaHidden: el.getAttribute('aria-hidden'),
+            display: getComputedStyle(el).display,
+            hasContent: !!(el.innerText || el.textContent || el.value || '').trim()
+          }))
+        });
+      }
+    }
+
+    // SPA fallback: after SPA navigation, elements may exist in DOM but have
+    // zero-size rects (layout not yet complete) or transitional hidden styles.
+    // If visibility filtering dropped ALL candidates, relax the filter to include
+    // elements that are at least in the DOM and not display:none.
+    if (visible.length === 0 && candidateArray.length > 0) {
+      const relaxed = candidateArray.filter(el => {
+        try {
+          const styles = getComputedStyle(el);
+          return styles.display !== 'none';
+        } catch {
+          return false;
+        }
+      });
+      if (relaxed.length > 0) {
+        return relaxed.slice(0, maxElements).map(el => el);
+      }
+    }
 
     // Stage 3: Score by relevance and limit
     const scored = visible.map(el => ({
@@ -1830,177 +2005,982 @@
     return topElements.map(item => item.element);
   }
 
-  // ============================================================================
-  // COMPACT SNAPSHOT GENERATION
-  // ============================================================================
 
   /**
-   * Generate a compact text snapshot of page elements for AI consumption.
+   * Classify an element into a landmark region using element.closest().
+   * Returns a region string like @dialog, @nav, @header, @footer, @aside, @main.
+   * Forms are NOT a region -- they are grouped WITHIN regions.
+   * @param {Element} el - DOM element to classify
+   * @returns {string} Region tag
    */
-  function generateCompactSnapshot(options = {}) {
-    const {
-      prioritizeViewport = true
-    } = options;
-    const maxElements = Math.min(options.maxElements || 80, 80);
+  function getRegion(el) {
+    // Priority order: most specific first
+    if (el.closest('dialog, [role="dialog"], [role="alertdialog"], [aria-modal="true"]')) return '@dialog';
+    if (el.closest('nav, [role="navigation"]')) return '@nav';
+    if (el.closest('header, [role="banner"]')) return '@header';
+    if (el.closest('footer, [role="contentinfo"]')) return '@footer';
+    if (el.closest('aside, [role="complementary"]')) return '@aside';
+    if (el.closest('main, [role="main"]')) return '@main';
+    return '@main'; // default fallback
+  }
 
-    // Access cross-module singletons via FSB namespace
+
+  /**
+   * Infer the suggested action verb for a site guide annotation.
+   * @param {Element} el - DOM element
+   * @returns {string} Action verb
+   */
+  function inferActionForElement(el) {
+    const tag = el.tagName;
+    if (tag === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) return 'check';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return 'type';
+    if (tag === 'SELECT') return 'select';
+    if (tag === 'BUTTON' || el.getAttribute('role') === 'button') return 'click';
+    if (tag === 'A') return 'click';
+    if (el.getAttribute('contenteditable') === 'true' || el.isContentEditable) return 'type';
+    return 'click';
+  }
+
+  /**
+   * Build site guide annotation Map from guide selectors.
+   * Matches elements against CSS selectors and infers action verbs.
+   * @param {Object|null} guideSelectors - Object of {key: cssSelector} pairs
+   * @param {Set} elementSet - Set of elements in the snapshot for intersection check
+   * @returns {Map|null} Map(element -> {key, action}) or null
+   */
+  function buildGuideAnnotations(guideSelectors, elementSet) {
+    if (!guideSelectors || typeof guideSelectors !== 'object') return null;
+
+    const annotations = new Map();
+
+    for (const [key, selectorStr] of Object.entries(guideSelectors)) {
+      if (typeof selectorStr !== 'string') continue;
+      // Skip XPath selectors (start with / or //)
+      if (selectorStr.startsWith('/')) continue;
+
+      // Handle comma-separated selectors
+      const parts = selectorStr.split(',').map(s => s.trim());
+
+      for (const part of parts) {
+        if (!part) continue;
+        try {
+          const matched = document.querySelector(part);
+          if (matched && elementSet.has(matched) && !annotations.has(matched)) {
+            const action = inferActionForElement(matched);
+            annotations.set(matched, { key, action });
+          }
+        } catch {
+          // Invalid selector, skip
+        }
+      }
+    }
+
+    return annotations.size > 0 ? annotations : null;
+  }
+
+
+  // --------------------------------------------------------------------------
+  // MARKDOWN SNAPSHOT ENGINE (Phase 22)
+  // --------------------------------------------------------------------------
+
+  // Extended cell reference regex for Google Sheets Name Box validation
+  // Handles: A1, A1:B10, Sheet2!A1, 'Sheet Name'!A1:B10
+  const SHEETS_CELL_REF_REGEX = /^('?[A-Za-z0-9_ ]+!'?)?[A-Z]{1,3}[0-9]{1,7}(:[A-Z]{1,3}[0-9]{1,7})?$/i;
+
+  // Region-to-heading mapping constant
+  const REGION_HEADING_MAP = {
+    '@dialog': '## Dialog',
+    '@nav':    '## Navigation',
+    '@header': '## Header',
+    '@main':   '## Main Content',
+    '@aside':  '## Sidebar',
+    '@footer': '## Footer'
+  };
+
+  // Block-level HTML tag set
+  const BLOCK_TAGS = new Set([
+    'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'ul', 'ol', 'li', 'table', 'tr', 'th', 'td',
+    'blockquote', 'pre', 'hr', 'br', 'figure', 'figcaption',
+    'section', 'article', 'aside', 'nav', 'header', 'footer', 'main',
+    'details', 'summary', 'dt', 'dd', 'address', 'form', 'fieldset'
+  ]);
+
+  /**
+   * Check if a tag name is a block-level element.
+   * @param {string} tag - Lowercase tag name
+   * @returns {boolean}
+   */
+  function isBlockElement(tag) {
+    return BLOCK_TAGS.has(tag);
+  }
+
+  /**
+   * Check if a DOM element is visible for snapshot walking.
+   * Skips hidden elements, FSB-injected elements, and zero-dimension elements.
+   * @param {Element} node - DOM element to check
+   * @returns {boolean}
+   */
+  function isVisibleForSnapshot(node) {
+    if (node.nodeType !== Node.ELEMENT_NODE) return true;
+
+    // Skip FSB-injected elements
+    if (isFsbElement(node)) return false;
+    if (node.id && node.id.startsWith('__fsb')) return false;
+    if (node.hasAttribute && node.hasAttribute('data-fsb')) return false;
+
+    // Bypass all visibility checks for FSB-injected canvas editor elements (Sheets formula bar, etc.)
+    if (node.dataset && node.dataset.fsbRole) return true;
+
+    // Skip aria-hidden
+    if (node.getAttribute('aria-hidden') === 'true') return false;
+
+    // Skip script/style/noscript/template
+    const tag = node.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'style' || tag === 'noscript' || tag === 'template' || tag === 'svg') return false;
+
+    // Check computed styles
+    try {
+      const style = window.getComputedStyle(node);
+      if (style.display === 'none') return false;
+      if (style.visibility === 'hidden') return false;
+    } catch {
+      // getComputedStyle can fail for detached nodes
+    }
+
+    // Skip zero-dimension elements (but allow zero-size inline elements like <br>)
+    if (tag !== 'br' && tag !== 'hr') {
+      try {
+        const rect = node.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0 && node.children.length === 0) return false;
+      } catch {
+        // getBoundingClientRect can fail
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Format an interactive element as an inline backtick reference.
+   * Format: `e5: button "Submit" [disabled]`
+   * @param {Element} node - DOM element
+   * @param {Object} refMap - Element ref registry
+   * @param {Map|null} guideAnnotations - Site guide annotation map
+   * @returns {string} Formatted inline ref
+   */
+  function formatInlineRef(node, refMap, guideAnnotations) {
+    // Find ref for this element
+    let ref = null;
+    for (const [r, entry] of refMap.map.entries()) {
+      const el = entry.element.deref();
+      if (el === node) {
+        ref = r;
+        break;
+      }
+    }
+    if (!ref) return '';
+
+    const tag = node.tagName.toLowerCase();
+    const role = getImplicitRole(node) || tag;
+
+    // Accessible name (truncated to 60 chars)
+    const accName = computeAccessibleName(node);
+    const name = accName?.name || '';
+    const truncName = name.length > 60 ? name.substring(0, 57) + '...' : name;
+
+    let parts = [`${ref}: ${role}`];
+    if (truncName) {
+      parts.push(`"${truncName}"`);
+    }
+
+    // Attributes
+    const attrs = [];
+    if (node.disabled) attrs.push('[disabled]');
+    if (node.required) attrs.push('[required]');
+    if (node.checked) attrs.push('[checked]');
+
+    // Guide annotations
+    if (guideAnnotations && guideAnnotations.has(node)) {
+      const annotation = guideAnnotations.get(node);
+      attrs.push(`[hint:${annotation.key}]`);
+    }
+
+    if (attrs.length > 0) {
+      parts.push(attrs.join(' '));
+    }
+
+    // Form values for inputs/selects (skip if fsbRole handles value display)
+    const hasFsbValueHandler = node.dataset?.fsbRole === 'name-box' || node.dataset?.fsbRole === 'formula-bar' || node.dataset?.fsbRole === 'font-size';
+    if ((tag === 'input' || tag === 'textarea') && node.value && !hasFsbValueHandler) {
+      const truncVal = node.value.length > 40 ? node.value.substring(0, 37) + '...' : node.value;
+      parts.push(`= "${truncVal}"`);
+    }
+    if (tag === 'select' && node.value) {
+      // Show selected option text
+      const selectedOption = node.options?.[node.selectedIndex];
+      const displayVal = selectedOption?.text || node.value;
+      const truncVal = displayVal.length > 40 ? displayVal.substring(0, 37) + '...' : displayVal;
+      parts.push(`= "${truncVal}"`);
+    }
+    // Formula bar content (Google Sheets) — read from multiple DOM sources
+    // In view mode, the contenteditable div may be hidden; content lives in a display sibling
+    if (node.dataset && node.dataset.fsbRole === 'formula-bar') {
+      let formulaContent = '';
+      // Try 1: Direct innerText/textContent of the element itself
+      formulaContent = (node.innerText || node.textContent || '').trim();
+      // Try 2: If empty, check contenteditable children
+      if (!formulaContent) {
+        const editableChild = node.querySelector('[contenteditable="true"]');
+        if (editableChild) {
+          formulaContent = (editableChild.innerText || editableChild.textContent || '').trim();
+        }
+      }
+      // Try 3: If still empty, look for the formula bar display span siblings/parent children
+      if (!formulaContent) {
+        const parent = node.parentElement;
+        if (parent) {
+          // Google Sheets often has a sibling or cousin element showing the display value
+          const displayEl = parent.querySelector('.cell-input, [aria-label*="formula"], [data-tooltip*="formula"]');
+          if (displayEl && displayEl !== node) {
+            formulaContent = (displayEl.innerText || displayEl.textContent || '').trim();
+          }
+        }
+      }
+      logger.logDOMOperation(FSB.sessionId, 'sheets_formula_bar_capture', {
+        found: !!formulaContent,
+        source: formulaContent ? (node.innerText?.trim() ? 'innerText' : 'child/sibling') : 'none',
+        value: formulaContent ? formulaContent.substring(0, 40) : null,
+        ariaHidden: node.getAttribute('aria-hidden'),
+        contenteditable: node.getAttribute('contenteditable'),
+        isContentEditable: node.isContentEditable
+      });
+      if (formulaContent) {
+        const truncVal = formulaContent.length > 80 ? formulaContent.substring(0, 77) + '...' : formulaContent;
+        parts.push(`= "${truncVal}"`);
+      } else {
+        parts.push(`= ""`);
+      }
+    }
+
+    // Name Box content (Google Sheets) — shows current cell reference like "A1"
+    if (node.dataset && node.dataset.fsbRole === 'name-box') {
+      const cellRef = (node.value || node.innerText || node.textContent || '').trim();
+      if (cellRef) {
+        parts.push(`= "${cellRef}"`);
+        // Validate cell reference format and log unusual values
+        if (!SHEETS_CELL_REF_REGEX.test(cellRef)) {
+          logger.logDOMOperation(FSB.sessionId, 'sheets_namebox_unusual_value', {
+            value: cellRef.substring(0, 40),
+            looksLikeNamedRange: /^[A-Za-z_][A-Za-z0-9_]*$/.test(cellRef)
+          });
+        }
+      } else {
+        parts.push(`= ""`);
+      }
+    }
+
+    // Contenteditable value (formula bar, rich text editors)
+    if (node.getAttribute('contenteditable') === 'true' || node.isContentEditable) {
+      const editableText = node.innerText?.trim();
+      if (editableText) {
+        const truncVal = editableText.length > 40 ? editableText.substring(0, 37) + '...' : editableText;
+        parts.push(`= "${truncVal}"`);
+      }
+    }
+
+    // Href for links
+    if (tag === 'a' && node.href) {
+      const href = node.getAttribute('href') || '';
+      if (href && href !== '#') {
+        const truncHref = href.length > 60 ? href.substring(0, 57) + '...' : href;
+        parts.push(`href="${truncHref}"`);
+      }
+    }
+
+    return '`' + parts.join(' ') + '`';
+  }
+
+  /**
+   * Recursive DOM walker that produces markdown lines with interleaved element refs.
+   * @param {Element} root - Root element to walk
+   * @param {Set} interactiveSet - Set of interactive DOM elements
+   * @param {Object} refMap - Element ref registry
+   * @param {Map|null} guideAnnotations - Site guide annotation map
+   * @returns {Array<{region: string, text: string}>} Array of region-tagged lines
+   */
+  function walkDOMToMarkdown(root, interactiveSet, refMap, guideAnnotations) {
+    const lines = [];
+    let currentLine = '';
+    let listDepth = 0;
+    let currentRegion = '@main';
+    let inPreBlock = false;
+
+    function flushLine() {
+      if (currentLine.trim()) {
+        lines.push({ region: currentRegion, text: currentLine.trimEnd() });
+      }
+      currentLine = '';
+    }
+
+    function getListIndex(node) {
+      let index = 1;
+      let sibling = node.previousElementSibling;
+      while (sibling) {
+        if (sibling.tagName.toLowerCase() === 'li') index++;
+        sibling = sibling.previousElementSibling;
+      }
+      return index;
+    }
+
+    function visit(node) {
+      // Text nodes
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent.replace(/\s+/g, ' ').trim();
+        if (text) {
+          if (currentLine && !currentLine.endsWith(' ') && !currentLine.endsWith('\n')) {
+            currentLine += ' ';
+          }
+          currentLine += text;
+        }
+        return;
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+      // Skip hidden elements (entire subtree)
+      if (!isVisibleForSnapshot(node)) return;
+
+      const tag = node.tagName.toLowerCase();
+
+      // Skip iframes
+      if (tag === 'iframe') return;
+
+      // Update region tracking
+      const nodeRegion = getRegion(node);
+      if (nodeRegion !== currentRegion) {
+        flushLine();
+        currentRegion = nodeRegion;
+      }
+
+      // Interactive elements: emit ref inline, skip children (Pitfall 1)
+      if (interactiveSet.has(node)) {
+        const refStr = formatInlineRef(node, refMap, guideAnnotations);
+        if (refStr) {
+          if (currentLine && !currentLine.endsWith(' ')) {
+            currentLine += ' ';
+          }
+          currentLine += refStr;
+        }
+        return; // Don't recurse into interactive element children
+      }
+
+      // Image handling
+      if (tag === 'img') {
+        const alt = node.getAttribute('alt') || '';
+        currentLine += `[Image: ${alt || 'no description'}]`;
+        return;
+      }
+
+      // Block elements: flush and set prefix
+      if (isBlockElement(tag)) {
+        flushLine();
+
+        if (/^h[1-6]$/.test(tag)) {
+          const level = parseInt(tag[1]) + 1; // offset by 1 since H1 = page title
+          currentLine = '#'.repeat(Math.min(level, 6)) + ' ';
+        } else if (tag === 'li') {
+          const parent = node.parentElement?.tagName.toLowerCase();
+          const prefix = parent === 'ol' ? `${getListIndex(node)}. ` : '- ';
+          currentLine = '  '.repeat(listDepth) + prefix;
+        } else if (tag === 'blockquote') {
+          currentLine = '> ';
+        } else if (tag === 'hr') {
+          lines.push({ region: currentRegion, text: '---' });
+          return;
+        } else if (tag === 'br') {
+          flushLine();
+          return;
+        } else if (tag === 'pre') {
+          flushLine();
+          inPreBlock = true;
+          lines.push({ region: currentRegion, text: '```' });
+          // Get raw text content for pre blocks
+          const preText = node.textContent || '';
+          if (preText.trim()) {
+            for (const preLine of preText.split('\n')) {
+              lines.push({ region: currentRegion, text: preLine });
+            }
+          }
+          lines.push({ region: currentRegion, text: '```' });
+          inPreBlock = false;
+          return; // Don't recurse into pre
+        }
+      }
+
+      // Table handling
+      if (tag === 'table') {
+        flushLine();
+        const rows = node.querySelectorAll(':scope > thead > tr, :scope > tbody > tr, :scope > tr');
+        let isFirstRow = true;
+        for (const row of rows) {
+          // Check for colspan/rowspan (complex table)
+          const hasComplex = row.querySelector('[colspan], [rowspan]');
+          const cells = row.querySelectorAll(':scope > th, :scope > td');
+          if (cells.length === 0) continue;
+
+          // Cap at 8 columns
+          const maxCols = Math.min(cells.length, 8);
+          const cellTexts = [];
+          for (let i = 0; i < maxCols; i++) {
+            let cellText = cells[i].textContent.replace(/\s+/g, ' ').trim();
+            if (cellText.length > 40) cellText = cellText.substring(0, 37) + '...';
+            cellTexts.push(cellText);
+          }
+          if (cells.length > 8) cellTexts.push('...');
+
+          lines.push({ region: currentRegion, text: '| ' + cellTexts.join(' | ') + ' |' });
+          if (isFirstRow) {
+            const sep = cellTexts.map(() => '---').join(' | ');
+            lines.push({ region: currentRegion, text: '| ' + sep + ' |' });
+            isFirstRow = false;
+          }
+        }
+        return; // Don't recurse into table (already processed)
+      }
+
+      // Inline formatting open
+      if (tag === 'strong' || tag === 'b') currentLine += '**';
+      if (tag === 'em' || tag === 'i') currentLine += '*';
+      if (tag === 'code' && !inPreBlock) currentLine += '`';
+
+      // Non-interactive links
+      if (tag === 'a' && !interactiveSet.has(node)) {
+        const linkText = node.textContent.replace(/\s+/g, ' ').trim();
+        const href = node.getAttribute('href') || '';
+        if (linkText && href && href !== '#') {
+          const truncHref = href.length > 60 ? href.substring(0, 57) + '...' : href;
+          currentLine += `[${linkText}](${truncHref})`;
+        } else if (linkText) {
+          currentLine += linkText;
+        }
+        return; // Don't recurse into link children (text already captured)
+      }
+
+      // Lists: increment depth
+      if (tag === 'ul' || tag === 'ol') listDepth++;
+
+      // Recurse children
+      for (const child of node.childNodes) {
+        visit(child);
+      }
+
+      // Lists: decrement depth
+      if (tag === 'ul' || tag === 'ol') listDepth--;
+
+      // Inline formatting close
+      if (tag === 'code' && !inPreBlock) currentLine += '`';
+      if (tag === 'em' || tag === 'i') currentLine += '*';
+      if (tag === 'strong' || tag === 'b') currentLine += '**';
+
+      // Block close: flush line
+      if (isBlockElement(tag)) {
+        flushLine();
+      }
+    }
+
+    visit(root);
+    flushLine();
+
+    // Post-walk: guarantee fsbRole elements appear even if parent was aria-hidden
+    const emittedText = lines.map(l => l.text).join('\n');
+    let postInjected = 0;
+    let alreadyEmitted = 0;
+    const fsbRoleElements = [];
+    for (const el of interactiveSet) {
+      if (el.dataset && el.dataset.fsbRole) {
+        fsbRoleElements.push(el);
+        const refStr = formatInlineRef(el, refMap, guideAnnotations);
+        if (refStr) {
+          if (emittedText.includes(refStr)) {
+            alreadyEmitted++;
+          } else {
+            // Insert after metadata header (index 0 is usually first content line)
+            lines.splice(postInjected, 0, { region: '@main', text: refStr });
+            postInjected++;
+          }
+        }
+      }
+    }
+    if (fsbRoleElements.length > 0) {
+      logger.logDOMOperation(FSB.sessionId, 'sheets_walker_postinject', {
+        fsbRoleCount: fsbRoleElements.length,
+        alreadyEmitted,
+        postInjected,
+        roles: fsbRoleElements.map(el => el.dataset.fsbRole)
+      });
+    }
+
+    return lines;
+  }
+
+  /**
+   * Build a unified markdown snapshot of the current page.
+   * Produces a markdown document with page text and inline element refs interwoven.
+   *
+   * @param {Object} options
+   * @param {Object|null} options.guideSelectors - CSS selectors from matched site guide
+   * @param {number} options.charBudget - Character limit for output (default 12000)
+   * @note Uses viewportComplete mode - includes all viewport elements, charBudget is the only size limit
+   * @returns {{ snapshot: string, refGeneration: number, elementCount: number }}
+   */
+  function buildMarkdownSnapshot(options = {}) {
+    const {
+      guideSelectors = null,
+      charBudget = 12000
+    } = options;
+
+    // Access cross-module singletons
     const refMap = FSB.refMap;
     const generateSelectors = FSB.generateSelectors;
 
-    // Reset refMap for this generation
+    // a. Reset refMap for this generation
     refMap.reset();
     refMap.generationUrl = window.location.href;
 
-    // Reuse the existing 3-stage filtering pipeline
+    // b. Get interactive elements via existing 3-stage filtering pipeline
     const elements = getFilteredElements({
-      maxElements,
-      prioritizeViewport,
-      taskType: 'general'
+      viewportComplete: true,
+      prioritizeViewport: true,
+      taskType: 'general',
+      guideSelectors
     });
 
-    const lines = [];
+    // c. Build interactiveSet and register each in refMap
+    const interactiveSet = new Set();
+    let elementCount = 0;
 
     for (const el of elements) {
-      // Compute role and accessible name
-      const role = getImplicitRole(el) || el.tagName.toLowerCase();
-      const accName = computeAccessibleName(el);
-      const name = accName?.name || '';
-
-      // Generate selectors for fallback resolution
       const sels = generateSelectors(el);
       const cssSelector = sels.find(s => typeof s === 'string' ? !s.startsWith('//') : !s.selector?.startsWith('//'));
       const primarySelector = typeof cssSelector === 'string' ? cssSelector : (cssSelector?.selector || sels[0]?.selector || sels[0] || '');
-
-      // Register in refMap
-      const ref = refMap.register(el, primarySelector, role, name.substring(0, 60));
-
-      // Build compact line
-      let line = `[${ref}] ${role}`;
-
-      // Accessible name (truncated to 60 chars)
-      if (name) {
-        const truncName = name.length > 60 ? name.substring(0, 57) + '...' : name;
-        line += ` "${truncName}"`;
-      }
-
-      // Key attributes
-      const inputType = el.getAttribute('type');
-      if (inputType && el.tagName === 'INPUT' && inputType !== 'text') {
-        line += ` type="${inputType}"`;
-      }
-
-      const placeholder = el.getAttribute('placeholder');
-      if (placeholder) {
-        line += ` placeholder="${placeholder.substring(0, 40)}"`;
-      }
-
-      // Value for inputs
-      if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.value) {
-        const valDisplay = el.value.length > 30 ? el.value.substring(0, 27) + '...' : el.value;
-        line += ` value="${valDisplay}"`;
-      }
-
-      // Contenteditable indicator
-      if (el.getAttribute('contenteditable') === 'true' || el.isContentEditable) {
-        line += ' [editable]';
-        const textContent = el.textContent?.trim();
-        if (textContent) {
-          const preview = textContent.length > 40 ? textContent.substring(0, 37) + '...' : textContent;
-          line += ` content="${preview}"`;
-        } else {
-          line += ' [empty]';
-        }
-      }
-
-      // FSB-injected canvas editor role labels
-      if (el.dataset.fsbRole) {
-        line += ` [${el.dataset.fsbRole}]`;
-        if (el.dataset.fsbLabel) {
-          line += ` "${el.dataset.fsbLabel}"`;
-        }
-      }
-
-      // href for links
-      if (el.tagName === 'A' && el.href) {
-        try {
-          const url = new URL(el.href);
-          const shortHref = url.pathname.length > 40 ? url.pathname.substring(0, 37) + '...' : url.pathname;
-          line += ` href="${shortHref}"`;
-        } catch {
-          // Invalid URL, skip href
-        }
-      }
-
-      // Selected option for selects
-      if (el.tagName === 'SELECT' && el.selectedOptions?.length > 0) {
-        line += ` selected="${el.selectedOptions[0].text?.substring(0, 30) || ''}"`;
-      }
-
-      // State flags
-      const states = [];
-      if (el.disabled) states.push('disabled');
-      if (el.checked) states.push('checked');
-      if (document.activeElement === el) states.push('focused');
-      if (el.readOnly) states.push('readonly');
-
-      // Off-screen detection
-      const rect = el.getBoundingClientRect();
-      const inViewport = rect.bottom >= 0 && rect.top <= window.innerHeight &&
-                         rect.right >= 0 && rect.left <= window.innerWidth;
-      if (!inViewport) states.push('offscreen');
-
-      if (states.length > 0) line += ` [${states.join(',')}]`;
-
-      // Label context for unlabeled inputs
-      if (!name && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
-        const labelEl = el.id ? document.querySelector(`label[for="${el.id}"]`) : el.closest('label');
-        if (labelEl) {
-          const labelText = labelEl.textContent?.trim().substring(0, 40);
-          if (labelText) line += ` label="${labelText}"`;
-        }
-      }
-
-      // Form association
-      if (el.form && el.form.id) {
-        line += ` in:${el.form.id}`;
-      }
-
-      lines.push(line);
+      const role = getImplicitRole(el) || el.tagName.toLowerCase();
+      const accName = computeAccessibleName(el);
+      const nameStr = accName?.name || '';
+      refMap.register(el, primarySelector, role, nameStr.substring(0, 60));
+      interactiveSet.add(el);
+      elementCount++;
     }
 
-    const snapshot = lines.join('\n');
+    // d. Build guide annotations
+    const guideAnnotationsMap = buildGuideAnnotations(guideSelectors, interactiveSet);
 
-    // Build metadata
+    // e. Walk the DOM tree producing region-tagged lines
+    const walkedLines = walkDOMToMarkdown(document.body, interactiveSet, refMap, guideAnnotationsMap);
+
+    // Log snapshot content summary for debugging (generic - any site with fsbElements)
+    if (guideSelectors?.fsbElements) {
+      const snapshotText = walkedLines.map(l => l.text || l).join('\n');
+      const fsbRoleNames = Object.keys(guideSelectors.fsbElements);
+      const fsbPresence = {};
+      for (const role of fsbRoleNames) {
+        fsbPresence[role] = snapshotText.includes(role);
+      }
+      const siteName = guideSelectors?._siteName || 'unknown';
+      logger.logDOMOperation(FSB.sessionId, 'fsbElements_snapshot_summary', {
+        site: siteName,
+        totalLines: walkedLines.length,
+        totalChars: snapshotText.length,
+        fsbPresence,
+        interactiveElements: elementCount
+      });
+    }
+
+    // First-snapshot health check: verify pipeline is working (generic - any site with fsbElements)
+    const healthCheckKey = `_healthCheckDone_${(guideSelectors?._siteName || 'default').replace(/\s+/g, '_')}`;
+    if (guideSelectors?.fsbElements && !FSB[healthCheckKey]) {
+      FSB[healthCheckKey] = true;
+      const healthSnapshotText = walkedLines.map(l => l.text || l).join('\n');
+      const siteName = guideSelectors?._siteName || 'unknown';
+      const fsbRoleNames = Object.keys(guideSelectors.fsbElements);
+      let fsbRoleCount = 0;
+      for (const el of interactiveSet) {
+        if (el.dataset && el.dataset.fsbRole) fsbRoleCount++;
+      }
+      const checks = {
+        site: siteName,
+        fsbRoleElementCount: fsbRoleCount,
+        minExpectedFsbElements: Math.max(3, Math.floor(fsbRoleNames.length * 0.3)),
+        expectedRoles: fsbRoleNames,
+        foundRoles: fsbRoleNames.filter(role => healthSnapshotText.includes(role))
+      };
+      const allPass = fsbRoleCount >= checks.minExpectedFsbElements;
+      console.log(`[${siteName} Health] fsbRole elements: ${fsbRoleCount} (min: ${checks.minExpectedFsbElements}), roles found in snapshot: ${checks.foundRoles.length}/${fsbRoleNames.length}`);
+      if (allPass) {
+        logger.logDOMOperation(FSB.sessionId, 'fsbElements_health_check', { passed: true, checks });
+      } else {
+        console.warn(`[${siteName} Health] FAILED - diagnostic dump:`, checks);
+        logger.logDOMOperation(FSB.sessionId, 'fsbElements_health_check', {
+          passed: false,
+          checks,
+          stages: {
+            injection: fsbRoleCount > 0 ? 'pass' : 'fail',
+            walker: walkedLines.length > 0 ? 'pass' : 'fail'
+          }
+        });
+      }
+      if (FSB._debugMode) {
+        console.debug(`[${siteName} Health] Full diagnostic:`, JSON.stringify(checks, null, 2));
+      }
+    }
+
+    // f. Build metadata header as markdown
     const scrollTop = window.scrollY || document.documentElement.scrollTop;
-    const pageHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0);
+    const pageHeight = Math.max(
+      document.documentElement.scrollHeight,
+      document.body?.scrollHeight || 0
+    );
     const viewportHeight = window.innerHeight;
-    const scrollPct = pageHeight > viewportHeight ? Math.round((scrollTop / (pageHeight - viewportHeight)) * 100) : 0;
+    const scrollPct = pageHeight > viewportHeight
+      ? Math.round((scrollTop / (pageHeight - viewportHeight)) * 100)
+      : 0;
 
-    const metadata = {
-      url: window.location.href,
-      title: document.title,
-      scrollInfo: {
-        scrollPct,
-        hasMoreBelow: scrollTop + viewportHeight < pageHeight - 50,
-        atBottom: scrollTop + viewportHeight >= pageHeight - 50,
-        hasMoreAbove: scrollTop > 50,
-        atTop: scrollTop <= 50,
-        pageHeight
-      },
-      viewport: {
-        width: window.innerWidth,
-        height: viewportHeight
-      },
-      captchaPresent: !!(document.querySelector('[class*="captcha"], [id*="captcha"], iframe[src*="recaptcha"], iframe[src*="hcaptcha"]'))
-    };
+    // Scroll awareness flags
+    const hasMoreAbove = scrollTop > 10;
+    const hasMoreBelow = scrollTop + viewportHeight < pageHeight - 10;
+    const contentAbove = Math.round(scrollTop / viewportHeight * 100);
+    const contentBelow = Math.round((pageHeight - scrollTop - viewportHeight) / viewportHeight * 100);
+    const atTop = scrollTop <= 10;
+    const atBottom = scrollTop + viewportHeight >= pageHeight - 10;
+
+    const title = document.title || 'Untitled Page';
+    let scrollMeta = `Scroll: ${scrollPct}%`;
+    if (atTop) scrollMeta += ' | atTop';
+    if (hasMoreAbove) scrollMeta += ` | Above: ${contentAbove}% content above`;
+    if (hasMoreBelow) scrollMeta += ` | Below: ${contentBelow}% content below`;
+    if (atBottom) scrollMeta += ' | atBottom';
+    let metaHeader = `# ${title}\n> URL: ${window.location.href} | ${scrollMeta} | Viewport: ${window.innerWidth}x${viewportHeight}`;
+
+    // Include focused element ref if applicable
+    const active = document.activeElement;
+    if (active && active !== document.body && active !== document.documentElement) {
+      for (const [ref, entry] of refMap.map.entries()) {
+        const el = entry.element.deref();
+        if (el && el === active) {
+          metaHeader += ` | Focus: ${ref}`;
+          break;
+        }
+      }
+    }
+
+    // g. Organize output by regions with ## headings
+    const REGION_ORDER = ['@dialog', '@nav', '@header', '@main', '@aside', '@footer'];
+    const regionLines = new Map();
+    for (const r of REGION_ORDER) {
+      regionLines.set(r, []);
+    }
+
+    for (const entry of walkedLines) {
+      const bucket = regionLines.get(entry.region) || regionLines.get('@main');
+      bucket.push(entry.text);
+    }
+
+    // Assemble output sections
+    const outputParts = [metaHeader, ''];
+
+    for (const regionKey of REGION_ORDER) {
+      const rLines = regionLines.get(regionKey);
+      if (!rLines || rLines.length === 0) continue;
+
+      const heading = REGION_HEADING_MAP[regionKey] || '## Content';
+      outputParts.push(heading);
+      outputParts.push(...rLines);
+      outputParts.push(''); // blank line between regions
+    }
+
+    // h. Post-process: collapse 3+ consecutive blank lines to 1
+    let assembled = outputParts.join('\n');
+    assembled = assembled.replace(/\n{3,}/g, '\n\n');
+    // Trim trailing whitespace per line
+    assembled = assembled.split('\n').map(l => l.trimEnd()).join('\n');
+    assembled = assembled.trim();
+
+    // i. Apply character budget: truncate at last complete line
+    let snapshot;
+    if (assembled.length <= charBudget) {
+      snapshot = assembled;
+    } else {
+      const truncMarker = '\n\n[...content continues below -- scroll down and observe]';
+      const budget = charBudget - truncMarker.length;
+      const budgetLines = assembled.substring(0, budget).split('\n');
+      // Remove last potentially incomplete line
+      budgetLines.pop();
+      snapshot = budgetLines.join('\n') + truncMarker;
+    }
 
     return {
       snapshot,
       refGeneration: refMap.generationId,
-      elementCount: lines.length,
-      metadata
+      elementCount
     };
   }
+
+  /**
+   * Extract page text as markdown with no element refs.
+   * Used by the readpage CLI command for content reading/summarization.
+   *
+   * @param {Element} root - Root DOM element to extract from
+   * @param {Object} options
+   * @param {boolean} options.viewportOnly - If true, only extract visible viewport text (default true)
+   * @param {string} options.format - Output format (default 'markdown-lite')
+   * @param {number} options.maxChars - Maximum characters to extract (default 50000)
+   * @returns {string} Markdown-formatted page text
+   */
+
+  /**
+   * Find the main content root element of the page using semantic selectors.
+   * Tries selectors in priority order and returns the first match with >100 chars of text.
+   * @param {Element} root - Root element to search within
+   * @returns {Element|null} Main content element or null if not found
+   */
+  function findMainContentRoot(root) {
+    const mainSelectors = [
+      'main', '[role="main"]', '#main-content', '#content',
+      'article', '.post-content', '.article-content', '.entry-content',
+      '#primary', '.main-content', '.content'
+    ];
+    for (const sel of mainSelectors) {
+      try {
+        const el = root.querySelector(sel);
+        if (el && el.textContent.trim().length > 100) return el;
+      } catch { /* invalid selector, skip */ }
+    }
+    return null; // no main content root found, caller uses full root
+  }
+
+  function extractPageText(root, options = {}) {
+    const {
+      viewportOnly = true,
+      format = 'markdown-lite',
+      maxChars = 50000
+    } = options;
+
+    const MAX_CHARS = maxChars;
+    const vpTop = viewportOnly ? window.scrollY : -Infinity;
+    const vpBottom = viewportOnly ? window.scrollY + window.innerHeight : Infinity;
+
+    const lines = [];
+    let currentLine = '';
+    let listDepth = 0;
+    let totalChars = 0;
+    let truncated = false;
+
+    function flushLine() {
+      if (currentLine.trim()) {
+        const line = currentLine.trimEnd();
+        totalChars += line.length + 1; // +1 for newline
+        if (totalChars > MAX_CHARS) {
+          truncated = true;
+          return;
+        }
+        lines.push(line);
+      }
+      currentLine = '';
+    }
+
+    function getListIndex(node) {
+      let index = 1;
+      let sibling = node.previousElementSibling;
+      while (sibling) {
+        if (sibling.tagName.toLowerCase() === 'li') index++;
+        sibling = sibling.previousElementSibling;
+      }
+      return index;
+    }
+
+    function visit(node) {
+      if (truncated) return;
+
+      // Text nodes
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent.replace(/\s+/g, ' ').trim();
+        if (text) {
+          if (currentLine && !currentLine.endsWith(' ') && !currentLine.endsWith('\n')) {
+            currentLine += ' ';
+          }
+          currentLine += text;
+        }
+        return;
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+      // Skip hidden elements
+      if (!isVisibleForSnapshot(node)) return;
+
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'iframe') return;
+
+      // Viewport filtering
+      if (viewportOnly) {
+        try {
+          const rect = node.getBoundingClientRect();
+          // Skip elements entirely above or below viewport
+          if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+        } catch {
+          // Skip if can't determine position
+        }
+      }
+
+      // Image handling (alt text only)
+      if (tag === 'img') {
+        const alt = node.getAttribute('alt') || '';
+        if (alt) currentLine += `[Image: ${alt}]`;
+        return;
+      }
+
+      // Block elements
+      if (isBlockElement(tag)) {
+        flushLine();
+
+        if (/^h[1-6]$/.test(tag)) {
+          const level = parseInt(tag[1]);
+          currentLine = '#'.repeat(level) + ' ';
+        } else if (tag === 'li') {
+          const parent = node.parentElement?.tagName.toLowerCase();
+          const prefix = parent === 'ol' ? `${getListIndex(node)}. ` : '- ';
+          currentLine = '  '.repeat(listDepth) + prefix;
+        } else if (tag === 'blockquote') {
+          currentLine = '> ';
+        } else if (tag === 'hr') {
+          lines.push('---');
+          return;
+        } else if (tag === 'br') {
+          flushLine();
+          return;
+        } else if (tag === 'pre') {
+          flushLine();
+          lines.push('```');
+          const preText = node.textContent || '';
+          if (preText.trim()) {
+            for (const preLine of preText.split('\n')) {
+              lines.push(preLine);
+            }
+          }
+          lines.push('```');
+          return;
+        }
+      }
+
+      // Table handling
+      if (tag === 'table') {
+        flushLine();
+        const rows = node.querySelectorAll(':scope > thead > tr, :scope > tbody > tr, :scope > tr');
+        let isFirstRow = true;
+        for (const row of rows) {
+          const cells = row.querySelectorAll(':scope > th, :scope > td');
+          if (cells.length === 0) continue;
+          const maxCols = Math.min(cells.length, 8);
+          const cellTexts = [];
+          for (let i = 0; i < maxCols; i++) {
+            let cellText = cells[i].textContent.replace(/\s+/g, ' ').trim();
+            if (cellText.length > 40) cellText = cellText.substring(0, 37) + '...';
+            cellTexts.push(cellText);
+          }
+          if (cells.length > 8) cellTexts.push('...');
+          lines.push('| ' + cellTexts.join(' | ') + ' |');
+          if (isFirstRow) {
+            lines.push('| ' + cellTexts.map(() => '---').join(' | ') + ' |');
+            isFirstRow = false;
+          }
+        }
+        return;
+      }
+
+      // Inline formatting
+      if (tag === 'strong' || tag === 'b') currentLine += '**';
+      if (tag === 'em' || tag === 'i') currentLine += '*';
+      if (tag === 'code') currentLine += '`';
+
+      // Links (text with URL)
+      if (tag === 'a') {
+        const linkText = node.textContent.replace(/\s+/g, ' ').trim();
+        const href = node.getAttribute('href') || '';
+        if (linkText && href && href !== '#') {
+          const truncHref = href.length > 60 ? href.substring(0, 57) + '...' : href;
+          currentLine += `[${linkText}](${truncHref})`;
+        } else if (linkText) {
+          currentLine += linkText;
+        }
+        return;
+      }
+
+      // Lists
+      if (tag === 'ul' || tag === 'ol') listDepth++;
+
+      // Recurse
+      for (const child of node.childNodes) {
+        visit(child);
+      }
+
+      if (tag === 'ul' || tag === 'ol') listDepth--;
+
+      // Inline formatting close
+      if (tag === 'code') currentLine += '`';
+      if (tag === 'em' || tag === 'i') currentLine += '*';
+      if (tag === 'strong' || tag === 'b') currentLine += '**';
+
+      if (isBlockElement(tag)) flushLine();
+    }
+
+    // Main content prioritization when truncating (MCP path uses maxChars < 50000)
+    const mainRoot = (maxChars < 50000) ? findMainContentRoot(root || document.body) : null;
+    const extractionRoot = mainRoot || root || document.body;
+
+    visit(extractionRoot);
+    flushLine();
+
+    // If we used a main content root and have budget left, add supplementary content
+    if (mainRoot && !truncated && totalChars < maxChars * 0.9) {
+      const supplementaryVisit = (node) => {
+        if (truncated) return;
+        if (node === mainRoot) return; // skip already-extracted main
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const tag = node.tagName.toLowerCase();
+          // Skip noise elements for supplementary content
+          if (['nav', 'footer', 'aside', 'header'].includes(tag)) return;
+          if (node.getAttribute('role') === 'navigation') return;
+          if (node.getAttribute('role') === 'complementary') return;
+        }
+        // Use existing visit for actual extraction
+        visit(node);
+      };
+      for (const child of (root || document.body).childNodes) {
+        supplementaryVisit(child);
+      }
+      flushLine();
+    }
+
+    let result = lines.join('\n');
+    // Collapse 3+ blank lines
+    result = result.replace(/\n{3,}/g, '\n\n');
+    result = result.trim();
+
+    if (truncated) {
+      result += `\n\n[...text truncated at ${Math.round(maxChars / 1000)}K chars]`;
+    }
+
+    // Prepend page title/URL header when main content was detected for MCP callers
+    if (mainRoot && maxChars < 50000) {
+      const title = document.title || '';
+      const url = window.location.href || '';
+      const header = `# ${title}\nURL: ${url}\n\n`;
+      result = header + result;
+    }
+
+    return result;
+  }
+
 
   // ============================================================================
   // STRUCTURED DOM EXTRACTION (Main entry point)
@@ -2014,6 +2994,7 @@
       useDiffing = false,
       prioritizeViewport = true,
       viewportOnlyMode = true,
+      viewportComplete = false,
       maxElements = 50,
       includeAllAttributes = false,
       includeComputedStyles = false
@@ -2080,6 +3061,9 @@
         const rect = node.getBoundingClientRect();
 
         const semanticId = generateSemanticElementId(node, totalElementCount);
+
+        // Stamp data-fsb-id so tools can locate this element by its snapshot ID
+        try { node.setAttribute('data-fsb-id', semanticId); } catch (_e) {}
 
         const elementData = {
           elementId: semanticId,
@@ -2187,7 +3171,7 @@
             }
           });
         } else {
-          ['data-testid', 'aria-label', 'name', 'role', 'type', 'value', 'placeholder', 'title', 'alt'].forEach(attr => {
+          ['data-testid', 'aria-label', 'name', 'role', 'type', 'value', 'placeholder', 'title', 'alt', 'autocomplete'].forEach(attr => {
             if (node.getAttribute(attr)) {
               elementData.attributes[attr] = node.getAttribute(attr);
             }
@@ -2237,13 +3221,65 @@
       }
     });
 
+    // CDK overlay scan: Angular Material renders mat-select/autocomplete options in
+    // cdk-overlay-container appended to <body>, outside the main component tree.
+    // Without this, get_dom_snapshot returns no options after a mat-select opens.
+    try {
+      const overlayContainer = document.querySelector('.cdk-overlay-container');
+      if (overlayContainer) {
+        const overlayNodes = overlayContainer.querySelectorAll(
+          'mat-option, [role="option"], [role="listbox"], .mat-select-panel *, .mat-autocomplete-panel *'
+        );
+        overlayNodes.forEach(node => {
+          try {
+            if (node.nodeType !== Node.ELEMENT_NODE) return;
+            const rect = node.getBoundingClientRect();
+            if (rect.height === 0 && rect.width === 0) return; // invisible
+            const semanticId = generateSemanticElementId(node, totalElementCount);
+            try { node.setAttribute('data-fsb-id', semanticId); } catch (_e) {}
+            const overlayElementData = {
+              elementId: semanticId,
+              type: node.tagName.toLowerCase(),
+              description: generateElementDescription(node),
+              text: node.innerText?.trim() || node.textContent?.trim() || '',
+              id: node.id || '',
+              class: node.className ? String(node.className) : '',
+              position: { x: Math.round(rect.left), y: Math.round(rect.top), width: Math.round(rect.width), height: Math.round(rect.height), inViewport: true },
+              selectors: generateSelectors(node, semanticId).map(s => s.selector),
+              interactive: true,
+              inViewport: true,
+              _fromOverlay: true
+            };
+            ['aria-label', 'role', 'aria-selected', 'data-value'].forEach(attr => {
+              if (node.getAttribute(attr)) {
+                if (!overlayElementData.attributes) overlayElementData.attributes = {};
+                overlayElementData.attributes[attr] = node.getAttribute(attr);
+              }
+            });
+            viewportElements.push(overlayElementData);
+            totalElementCount++;
+          } catch (_nodeErr) {}
+        });
+      }
+    } catch (_overlayErr) {}
+
     // Combine viewport and offscreen elements
     let elements;
     let viewportBudget;
     let offscreenBudget;
     let importantOffscreen = [];
 
-    if (viewportOnlyMode) {
+    if (viewportComplete) {
+      // Viewport-complete mode: include ALL viewport elements, cap offscreen at 30
+      viewportBudget = viewportElements.length;
+      offscreenBudget = 30;
+      importantOffscreen = offscreenElements
+        .filter(el => el.isButton || el.isInput || el.isLink ||
+                      el.attributes?.['data-testid'] || el.attributes?.['aria-label'] ||
+                      el.isCaptcha)
+        .slice(0, 30);
+      elements = [...viewportElements, ...importantOffscreen];
+    } else if (viewportOnlyMode) {
       viewportBudget = maxElements;
       offscreenBudget = 0;
       elements = viewportElements.slice(0, maxElements);
@@ -2268,6 +3304,7 @@
 
     logger.logDOMOperation(FSB.sessionId, 'viewport_first_collection', {
       viewportOnlyMode,
+      viewportComplete,
       viewportElements: viewportElements.length,
       offscreenElements: viewportOnlyMode ? 0 : offscreenElements.length,
       viewportBudget,
@@ -2279,9 +3316,11 @@
     // Apply optimizations
     let processedElements = elements;
 
-    if (prioritizeViewport) {
+    if (prioritizeViewport && !viewportComplete) {
       processedElements = prioritizeElements(processedElements);
       processedElements = processedElements.slice(0, maxElements);
+    } else if (prioritizeViewport) {
+      processedElements = prioritizeElements(processedElements);
     }
 
     // Apply DOM diffing
@@ -2438,6 +3477,139 @@
     return domStructure;
   }
 
+  /**
+   * Returns a Runtime.evaluate expression string that extracts canvas pixel data
+   * as a color grid + edge detection fallback when draw call interception is unavailable.
+   * Used when the interceptor fails (WebGL, CORS taint, page loaded before extension).
+   * @returns {string} JavaScript expression for Runtime.evaluate
+   */
+  function getCanvasPixelFallback() {
+    return `(() => {
+      const canvases = document.querySelectorAll('canvas');
+      if (!canvases.length) return JSON.stringify({ error: 'NO_CANVAS_FOUND', scenes: [] });
+
+      function colorName(r, g, b) {
+        if (r > 220 && g > 220 && b > 220) return 'white';
+        if (r < 40 && g < 40 && b < 40) return 'black';
+        if (r > 150 && g < 80 && b < 80) return 'red';
+        if (r < 80 && g > 150 && b < 80) return 'green';
+        if (r < 80 && g < 80 && b > 150) return 'blue';
+        if (r > 150 && g > 150 && b < 80) return 'yellow';
+        if (r > 100 && g > 150 && b > 200) return 'light-blue';
+        if (r > 150 && g > 100 && b < 80) return 'orange';
+        if (r > 150 && g < 100 && b > 150) return 'purple';
+        if (r > 120 && g > 120 && b > 120) return 'gray';
+        return 'other';
+      }
+
+      const scenes = [];
+
+      for (let ci = 0; ci < Math.min(canvases.length, 3); ci++) {
+        const canvas = canvases[ci];
+        let ctx;
+        try { ctx = canvas.getContext('2d'); } catch(e) { continue; }
+        if (!ctx) continue;
+
+        const w = canvas.width, h = canvas.height;
+        if (w < 10 || h < 10) continue;
+
+        let data;
+        try { data = ctx.getImageData(0, 0, w, h).data; } catch(e) {
+          scenes.push({ canvas: ci, error: 'CORS_TAINTED', width: w, height: h });
+          continue;
+        }
+
+        // --- Color Grid: 8x6 regions ---
+        const gridCols = 8, gridRows = 6;
+        const cellW = Math.floor(w / gridCols), cellH = Math.floor(h / gridRows);
+        const colorRegions = [];
+
+        for (let row = 0; row < gridRows; row++) {
+          for (let col = 0; col < gridCols; col++) {
+            const x0 = col * cellW, y0 = row * cellH;
+            const counts = {};
+            const step = Math.max(4, Math.floor(Math.min(cellW, cellH) / 8));
+            let total = 0;
+            for (let py = y0; py < y0 + cellH; py += step) {
+              for (let px = x0; px < x0 + cellW; px += step) {
+                const idx = (py * w + px) * 4;
+                const name = colorName(data[idx], data[idx+1], data[idx+2]);
+                counts[name] = (counts[name] || 0) + 1;
+                total++;
+              }
+            }
+            const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+            const dominant = sorted[0][0];
+            const pct = Math.round(sorted[0][1] / total * 100);
+            if (dominant !== 'white' || pct < 85) {
+              const rowNames = ['top','upper','mid-upper','mid-lower','lower','bottom'];
+              const colNames = ['far-left','left','center-left','center','center-right','right','far-right','edge'];
+              colorRegions.push({
+                pos: rowNames[row] + ' ' + colNames[col],
+                color: dominant,
+                pct: pct,
+                secondary: sorted.length > 1 && sorted[1][1]/total > 0.08 ? sorted[1][0] : null
+              });
+            }
+          }
+        }
+
+        // --- Edge Detection: Sobel-like ---
+        const edgeCols = 80, edgeRows = 30;
+        const eCellW = w / edgeCols, eCellH = h / edgeRows;
+        const threshold = 0.15;
+        let edgeLines = [];
+        let edgeCount = 0;
+
+        for (let row = 0; row < edgeRows; row++) {
+          let line = '';
+          for (let col = 0; col < edgeCols; col++) {
+            const cx = Math.floor(col * eCellW + eCellW / 2);
+            const cy = Math.floor(row * eCellH + eCellH / 2);
+
+            function bright(px, py) {
+              const xx = Math.min(Math.max(px, 0), w - 1);
+              const yy = Math.min(Math.max(py, 0), h - 1);
+              const i = (yy * w + xx) * 4;
+              return (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114) / 255;
+            }
+
+            const gx = bright(cx + Math.floor(eCellW), cy) - bright(cx - Math.floor(eCellW), cy);
+            const gy = bright(cx, cy + Math.floor(eCellH)) - bright(cx, cy - Math.floor(eCellH));
+            const mag = Math.sqrt(gx * gx + gy * gy);
+
+            if (mag < threshold) {
+              line += ' ';
+            } else {
+              edgeCount++;
+              const angle = Math.atan2(gy, gx) * 180 / Math.PI;
+              if (angle >= -22.5 && angle < 22.5) line += '|';
+              else if (angle >= 22.5 && angle < 67.5) line += '/';
+              else if (angle >= 67.5 && angle < 112.5) line += '-';
+              else if (angle >= 112.5 || angle < -112.5) line += '|';
+              else if (angle >= -67.5 && angle < -22.5) line += '\\\\';
+              else line += '-';
+            }
+          }
+          if (line.trim().length > 0) {
+            edgeLines.push(line.replace(/\\s+$/, ''));
+          }
+        }
+
+        scenes.push({
+          canvas: ci,
+          width: w,
+          height: h,
+          colorRegions: colorRegions,
+          edgeLineCount: edgeCount,
+          edges: edgeLines.length > 0 ? edgeLines.join('\\n') : null
+        });
+      }
+
+      return JSON.stringify({ scenes: scenes });
+    })()`;
+  }
+
   // ============================================================================
   // EXPORT TO NAMESPACE
   // ============================================================================
@@ -2467,8 +3639,12 @@
   FSB.extractEcommerceProducts = extractEcommerceProducts;
   FSB.calculateElementScore = calculateElementScore;
   FSB.getFilteredElements = getFilteredElements;
-  FSB.generateCompactSnapshot = generateCompactSnapshot;
+  FSB.findElementByStrategies = findElementByStrategies;
+  FSB.buildMarkdownSnapshot = buildMarkdownSnapshot;
+  FSB.findMainContentRoot = findMainContentRoot;
+  FSB.extractPageText = extractPageText;
   FSB.getStructuredDOM = getStructuredDOM;
+  FSB.getCanvasPixelFallback = getCanvasPixelFallback;
 
   window.FSB._modules['dom-analysis'] = { loaded: true, timestamp: Date.now() };
 })();

@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.apple\.com\/careers/i
   ],
-  guidance: `APPLE CAREER NAVIGATION:\nStart: https://www.apple.com/careers/`,
+  guidance: `APPLE CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.apple.com/careers/"
+  # search and extract
+  click e5    # search roles link
+  type e8 "iOS developer"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Apple","role":"...","location":"...","link":"...","source":"apple"}\nStart: https://www.apple.com/careers/`,
   selectors: {
     searchBox: '#globalnav-menubutton-link-search, //a[normalize-space(.)="Search Roles"], [aria-controls="_r_0__listbox"], [role="combobox"][aria-labelledby="_r_0__label"], //button[normalize-space(.)="Submit"], #_r_0__label',
     locationFilter: '#as-localnav-menustate-open, //a[normalize-space(.)="Local Nav Open Menu"], //a[normalize-space(.)="United States"], .as-localnav-menucta-anchor.as-localnav-menucta-anchor-open, .as-globalfooter-mini-locale-link',

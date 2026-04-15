@@ -200,8 +200,12 @@
       // Try role + tag combination
       const roleWithTag = `${tag}[role="${role}"]`;
       const roleMatches = document.querySelectorAll(roleWithTag);
-      if (roleMatches.length > 0 && roleMatches.length <= 5) {
+      if (roleMatches.length === 1) {
         return roleWithTag;
+      }
+      if (roleMatches.length > 1) {
+        const unique = makeUnique(roleWithTag, element);
+        if (unique) return unique;
       }
     }
 
@@ -237,28 +241,44 @@
       const classes = element.className.trim().split(/\s+/).filter(c => c);
 
       if (classes.length > 0) {
+        // Escape CSS special characters in class names (e.g. CSS module hashes with +, ~, etc.)
+        const escapeCSS = (cls) => cls.replace(/([!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~])/g, '\\$1');
+        const escapedClasses = classes.map(escapeCSS);
+
         // Try full class combination
-        const fullSelector = `.${classes.join('.')}`;
+        const fullSelector = `.${escapedClasses.join('.')}`;
         const fullMatches = document.querySelectorAll(fullSelector);
-        if (fullMatches.length > 0 && fullMatches.length <= 3) {
+        if (fullMatches.length === 1) {
           return fullSelector;
+        }
+        if (fullMatches.length > 1 && fullMatches.length <= 3) {
+          const unique = makeUnique(fullSelector, element);
+          if (unique) return unique;
         }
 
         // IMPROVED: Try partial class combinations (more robust)
         // Try first 2 classes
-        if (classes.length >= 2) {
-          const partialSelector = `.${classes.slice(0, 2).join('.')}`;
+        if (escapedClasses.length >= 2) {
+          const partialSelector = `.${escapedClasses.slice(0, 2).join('.')}`;
           const partialMatches = document.querySelectorAll(partialSelector);
-          if (partialMatches.length > 0 && partialMatches.length <= 5) {
+          if (partialMatches.length === 1) {
             return partialSelector;
+          }
+          if (partialMatches.length > 1 && partialMatches.length <= 5) {
+            const unique = makeUnique(partialSelector, element);
+            if (unique) return unique;
           }
         }
 
         // Try just the first class
-        const singleClass = `.${classes[0]}`;
+        const singleClass = `.${escapedClasses[0]}`;
         const singleMatches = document.querySelectorAll(singleClass);
-        if (singleMatches.length > 0 && singleMatches.length <= 10) {
+        if (singleMatches.length === 1) {
           return singleClass;
+        }
+        if (singleMatches.length > 1 && singleMatches.length <= 10) {
+          const unique = makeUnique(singleClass, element);
+          if (unique) return unique;
         }
       }
     }
@@ -266,16 +286,26 @@
     // Strategy 4: Tag + type combination
     if (element.type) {
       const typeSelector = `${tag}[type="${element.type}"]`;
-      if (document.querySelectorAll(typeSelector).length <= 5) {
+      const typeMatches = document.querySelectorAll(typeSelector).length;
+      if (typeMatches === 1) {
         return typeSelector;
+      }
+      if (typeMatches > 1 && typeMatches <= 5) {
+        const unique = makeUnique(typeSelector, element);
+        if (unique) return unique;
       }
     }
 
     // Strategy 5: Tag + name combination
     if (element.name) {
       const nameSelector = `${tag}[name="${element.name}"]`;
-      if (document.querySelectorAll(nameSelector).length <= 3) {
+      const nameMatches = document.querySelectorAll(nameSelector).length;
+      if (nameMatches === 1) {
         return nameSelector;
+      }
+      if (nameMatches > 1 && nameMatches <= 3) {
+        const unique = makeUnique(nameSelector, element);
+        if (unique) return unique;
       }
     }
 
@@ -289,8 +319,13 @@
     const elemRole = element.getAttribute('role');
     if (elemRole) {
       const roleSelector = `${tag}[role="${elemRole}"]`;
-      if (document.querySelectorAll(roleSelector).length <= 5) {
+      const roleCount = document.querySelectorAll(roleSelector).length;
+      if (roleCount === 1) {
         return roleSelector;
+      }
+      if (roleCount > 1 && roleCount <= 5) {
+        const unique = makeUnique(roleSelector, element);
+        if (unique) return unique;
       }
     }
 
@@ -536,6 +571,20 @@
           sessionId: FSB.sessionId, selector: sanitized
         });
       }
+    }
+
+    // data-fsb-id fallback: if the selector looks like an FSB semantic elementId
+    // (contains underscores, no CSS special chars like #.[: at start) look it up
+    // by the data-fsb-id attribute stamped during get_dom_snapshot.
+    if (!element && /^[a-z][a-z0-9_-]+$/.test(sanitized)) {
+      try {
+        element = document.querySelector('[data-fsb-id="' + sanitized + '"]');
+        if (element) {
+          logger.debug('Found element via data-fsb-id fallback', {
+            sessionId: FSB.sessionId, selector: sanitized
+          });
+        }
+      } catch (_e) {}
     }
 
     // SPEED-04: Cache the found element for future lookups
@@ -915,6 +964,103 @@
   }
 
   // ============================================================================
+  // CONTEXT-AWARE SELECTOR RE-RESOLUTION
+  // ============================================================================
+
+  /**
+   * Attempt to make a CSS selector uniquely match one element by adding positional constraints.
+   * @param {string} selector - The base CSS selector
+   * @param {Element} element - The target element
+   * @returns {string|null} A unique selector, or null if not uniquifiable
+   */
+  function makeUnique(selector, element) {
+    const matches = document.querySelectorAll(selector);
+    if (matches.length === 1) return selector;
+    // Try nth-of-type
+    const parent = element.parentElement;
+    if (parent) {
+      const siblings = parent.querySelectorAll(`:scope > ${element.tagName.toLowerCase()}`);
+      const idx = Array.from(siblings).indexOf(element);
+      if (idx >= 0) {
+        const nthSelector = `${selector}:nth-of-type(${idx + 1})`;
+        try {
+          if (document.querySelectorAll(nthSelector).length === 1) return nthSelector;
+        } catch (e) { /* invalid selector */ }
+      }
+    }
+    return null; // Not uniquifiable with this strategy
+  }
+
+  /**
+   * Context-aware element re-resolution.
+   * Attempts to find an element by its last-known context when the primary selector fails.
+   * @param {Object} context - Element context from _fsbResolveContext
+   * @param {string} [context.role] - Element role or tag
+   * @param {string} [context.accName] - Accessible name (aria-label or text content)
+   * @param {string} [context.nearbyText] - Parent text content for proximity matching
+   * @param {string} [context.parentTag] - Parent element tag name
+   * @param {string} [context.parentClasses] - Parent element class names
+   * @param {number} [context.position] - Index among parent's children
+   * @returns {{element: Element, confidence: number, method: string}|null}
+   */
+  function reResolveElement(context) {
+    if (!context) return null;
+
+    const candidates = [];
+
+    // Strategy 1: Find by role + accessible name
+    if (context.role && context.accName) {
+      try {
+        const byRole = document.querySelectorAll(`[role="${context.role}"]`);
+        for (const el of byRole) {
+          const name = el.getAttribute('aria-label') || el.textContent?.trim()?.substring(0, 60) || '';
+          if (name.includes(context.accName) || context.accName.includes(name)) {
+            candidates.push({ element: el, confidence: 0.9, method: 'role+name' });
+          }
+        }
+      } catch (e) { /* invalid role selector */ }
+    }
+
+    // Strategy 2: Find by nearby text content
+    if (context.nearbyText && context.nearbyText.length > 5) {
+      try {
+        const searchText = context.nearbyText.substring(0, 50);
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode: (node) => node.textContent.includes(searchText) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+        });
+        const textNode = walker.nextNode();
+        if (textNode) {
+          const parent = textNode.parentElement;
+          if (parent) {
+            const nearby = parent.querySelectorAll('button, a, input, [role="button"], [role="link"], [tabindex]');
+            for (const el of nearby) {
+              candidates.push({ element: el, confidence: 0.6, method: 'nearby_text' });
+            }
+          }
+        }
+      } catch (e) { /* tree walker error */ }
+    }
+
+    // Strategy 3: Find by parent structure + position
+    if (context.parentTag && context.position !== undefined) {
+      try {
+        const parentSelector = context.parentTag + (context.parentClasses ? `.${context.parentClasses.split(' ')[0]}` : '');
+        const parents = document.querySelectorAll(parentSelector);
+        for (const parent of parents) {
+          const children = parent.querySelectorAll('button, a, input, [role], [tabindex]');
+          if (children[context.position]) {
+            candidates.push({ element: children[context.position], confidence: 0.5, method: 'parent+position' });
+          }
+        }
+      } catch (e) { /* invalid parent selector */ }
+    }
+
+    // Return best candidate
+    candidates.sort((a, b) => b.confidence - a.confidence);
+    return candidates.length > 0 ? candidates[0] : null;
+  }
+
+  // ============================================================================
   // SHADOW DOM DETECTION
   // ============================================================================
 
@@ -951,6 +1097,8 @@
   FSB.isInShadowDOM = isInShadowDOM;
   FSB.AUTO_GENERATED_ID_PATTERN = AUTO_GENERATED_ID_PATTERN;
   FSB.DYNAMIC_CLASS_PATTERNS = DYNAMIC_CLASS_PATTERNS;
+  FSB.reResolveElement = reResolveElement;
+  FSB.makeUnique = makeUnique;
 
   window.FSB._modules['selectors'] = { loaded: true, timestamp: Date.now() };
 })();

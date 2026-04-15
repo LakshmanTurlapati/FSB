@@ -212,11 +212,15 @@
   // ============================================================================
 
   /**
-   * Detect canvas-based editors (Google Docs, Sheets, Slides, etc.)
+   * Detect canvas-based editors (Google Docs, Sheets, Slides, Excalidraw, etc.)
    */
   function isCanvasBasedEditor() {
     const host = window.location.hostname;
     if (host === 'docs.google.com') return true;
+    // Check for Excalidraw canvas editor
+    if (host === 'excalidraw.com' || host.endsWith('.excalidraw.com')) return true;
+    // Check for Excalidraw DOM markers (self-hosted instances)
+    if (document.querySelector('.excalidraw, canvas.interactive')) return true;
     // Check for Google Docs kix classes or the text event target iframe
     if (document.querySelector('.kix-appview-editor, .kix-page, .docs-texteventtarget-iframe')) return true;
     // Check for Google Sheets waffle classes
@@ -743,30 +747,131 @@
               compressionRatio: (result.optimization?.compressionRatio * 100).toFixed(1) + '%'
             });
           }
-          // Optionally embed compact snapshot
-          if (domOptions.includeCompactSnapshot) {
-            const compactStart = Date.now();
-            const compact = FSB.generateCompactSnapshot(domOptions);
-            result._compactSnapshot = compact.snapshot;
-            result._refGeneration = compact.refGeneration;
-            result._compactElementCount = compact.elementCount;
-            result._compactMetadata = compact.metadata;
-            logger.logTiming(FSB.sessionId, 'DOM', 'generateCompactSnapshot', Date.now() - compactStart, { elements: compact.elementCount });
-          }
           sendResponse({ success: true, structuredDOM: result });
           break;
 
-        case 'getCompactDOM':
-          const compactResult = FSB.generateCompactSnapshot(request.options || {});
-          sendResponse({ success: true, compactSnapshot: compactResult });
+        case 'getMarkdownSnapshot':
+          const mdGuideSelectors = request.options?.guideSelectors || null;
+          const mdStart = Date.now();
+          const mdResult = FSB.buildMarkdownSnapshot({
+            guideSelectors: mdGuideSelectors,
+            charBudget: request.options?.charBudget || 12000,
+            maxElements: request.options?.maxElements || 80
+          });
+          const mdTime = Date.now() - mdStart;
+          logger.logTiming(FSB.sessionId, 'DOM', 'buildMarkdownSnapshot', mdTime, {
+            elements: mdResult.elementCount
+          });
+          sendResponse({
+            success: true,
+            markdownSnapshot: mdResult.snapshot,
+            refGeneration: mdResult.refGeneration,
+            elementCount: mdResult.elementCount
+          });
+          break;
+
+        case 'getCanvasPixelFallback':
+          const fallbackExpr = FSB.getCanvasPixelFallback ? FSB.getCanvasPixelFallback() : null;
+          if (fallbackExpr) {
+            sendResponse({ success: true, expression: fallbackExpr });
+          } else {
+            sendResponse({ success: false, error: 'getCanvasPixelFallback not available' });
+          }
+          break;
+
+        case 'readPage':
+          const rpStart = Date.now();
+          const rpSelector = request.params?.selector || null;
+          const rpFull = request.params?.flags?.full || request.params?.full || false;
+          const rpMaxChars = request.params?.maxChars || (rpFull ? 50000 : 50000);
+          const rpRoot = rpSelector ? document.querySelector(rpSelector) : document.body;
+          if (!rpRoot) {
+            sendResponse({ success: true, text: '[Selector not found: ' + rpSelector + ']', charCount: 0 });
+            break;
+          }
+
+          // Step 0: Proactively dismiss cookie consent overlays before extraction (OVLY-03)
+          if (FSB.dismissCookieConsent) {
+            try {
+              const cookieResult = await FSB.dismissCookieConsent();
+              if (cookieResult.dismissed) {
+                logger.logAction(FSB.sessionId, 'dismissCookieConsent', 'readPage-proactive', true, {
+                  cmp: cookieResult.cmp,
+                  method: cookieResult.method
+                });
+              }
+            } catch (cookieErr) {
+              logger.logComm(FSB.sessionId, 'warn', 'readPage-cookieDismiss-failed', false, {
+                error: cookieErr.message
+              });
+            }
+          }
+
+          const rpExtractOpts = {
+            viewportOnly: !rpFull,
+            format: 'markdown-lite',
+            maxChars: rpMaxChars
+          };
+
+          // Step 1: Quick extract (no stability wait) -- per D-01
+          let rpText = FSB.extractPageText(rpRoot, rpExtractOpts);
+          let rpStabilityWaited = false;
+
+          // Step 2: If sparse, wait for DOM stability and re-extract -- per D-02, D-03
+          // Sparse threshold: <200 chars (per D-02: Airbnb=0, Booking=173, Kayak=233)
+          // Guard: only retry if page has non-trivial DOM (>5 child elements)
+          // to avoid waiting on genuinely empty pages like about:blank
+          if (rpText.length < 200 && document.body.childElementCount > 5) {
+            try {
+              const stabilityResult = await FSB.waitForPageStability({
+                maxWait: 3000,     // per D-03: 3 second max wait
+                stableTime: 300,   // DOM stable for 300ms
+                networkQuietTime: 200 // network quiet for 200ms
+              });
+              rpStabilityWaited = true;
+              logger.logTiming(FSB.sessionId, 'DOM', 'readPage-stabilityWait', stabilityResult.waitTime, {
+                stable: stabilityResult.stable,
+                timedOut: stabilityResult.timedOut
+              });
+            } catch (stabilityErr) {
+              // Non-fatal: proceed with whatever we have
+              rpStabilityWaited = true;
+              logger.logComm(FSB.sessionId, 'warn', 'readPage-stabilityWait-failed', false, {
+                error: stabilityErr.message
+              });
+            }
+            // Re-extract after stability wait
+            rpText = FSB.extractPageText(rpRoot, rpExtractOpts);
+          }
+
+          const rpTime = Date.now() - rpStart;
+          logger.logTiming(FSB.sessionId, 'DOM', 'extractPageText', rpTime, {
+            selector: rpSelector,
+            full: rpFull,
+            maxChars: rpMaxChars,
+            charCount: rpText.length,
+            stabilityWaited: rpStabilityWaited
+          });
+          sendResponse({
+            success: true,
+            text: rpText || '[No readable text content on page]',
+            charCount: rpText ? rpText.length : 0,
+            stabilityWaited: rpStabilityWaited
+          });
           break;
 
         case 'executeAction':
-          const { tool, params, visualContext } = request;
+          const { tool, params, visualContext, source } = request;
+          const isManualMCP = source === 'mcp-manual';
           logger.logActionExecution(FSB.sessionId, tool, 'start', params);
 
-          // VIS-02: Initialize/update progress overlay on action start
-          if (visualContext) {
+          // MCP manual tools: show viewport glow without progress overlay
+          if (isManualMCP) {
+            try { FSB.viewportGlow.show('acting'); } catch (e) { /* non-blocking */ }
+          }
+
+          // VIS-02: Initialize/update progress overlay on action start (autopilot only)
+          if (visualContext && !isManualMCP && (!FSB.overlayState || FSB.overlayState.lifecycle !== 'running')) {
             try {
               FSB.progressOverlay.create();
               FSB.progressOverlay.update({
@@ -807,6 +912,28 @@
             }
           }
 
+          // REF-LESS ACTION FALLBACK: target focused element when no ref and no selector provided
+          // Supports type-without-ref (Sheets active cell) and pressEnter-without-ref
+          if (FSB.tools[tool] && (!params || (!params.selector && !params.ref))) {
+            const refLessTools = ['type', 'pressEnter', 'keyPress'];
+            if (refLessTools.includes(tool)) {
+              const focused = document.activeElement;
+              if (focused && focused !== document.body && focused !== document.documentElement) {
+                const sels = FSB.generateSelectors(focused);
+                const cssSel = sels.find(s => typeof s === 'string' ? !s.startsWith('//') : !s.selector?.startsWith('//'));
+                params.selector = typeof cssSel === 'string' ? cssSel : (cssSel?.selector || '');
+                if (params.selector) FSB.elementCache.set(params.selector, focused);
+              } else if (tool === 'keyPress') {
+                // keyPress can use Chrome Debugger API (CDP) without a focused element.
+                // Let it through - the debugger API dispatches browser-level trusted events
+                // that work for fullscreen, shortcuts, etc. without needing DOM focus.
+              } else {
+                sendResponse({ success: false, error: 'No element is currently focused. Use click to focus an element first, then retry.' });
+                return;
+              }
+            }
+          }
+
           if (FSB.tools[tool]) {
             // VIS-01/VIS-03: Show highlight on target element
             if (params && (params.selector || params.ref)) {
@@ -824,7 +951,7 @@
             }
 
             // Update progress
-            if (visualContext) {
+            if (visualContext && (!FSB.overlayState || FSB.overlayState.lifecycle !== 'running')) {
               try {
                 FSB.progressOverlay.update({
                   stepText: `${tool}: Executing...`,
@@ -836,7 +963,8 @@
             }
 
             // Timeout wrapper
-            const actionTimeout = tool === 'solveCaptcha' ? 180000 : 10000;
+            const longTimeoutTools = ['solveCaptcha', 'fillsheet', 'readsheet'];
+            const actionTimeout = longTimeoutTools.includes(tool) ? 120000 : 10000;
             const timeoutPromise = new Promise((_, reject) => {
               setTimeout(() => reject(new Error(`Action ${tool} timed out after ${actionTimeout / 1000} seconds`)), actionTimeout);
             });
@@ -853,7 +981,12 @@
               // Clean up highlights
               try { FSB.actionGlowOverlay.hide(); } catch (e) { /* non-blocking */ }
               FSB.highlightManager.hide();
-              try { FSB.viewportGlow.setState('thinking'); } catch (e) { /* non-blocking */ }
+              if (isManualMCP) {
+                // Manual MCP: no session to return to, destroy the glow entirely
+                try { FSB.viewportGlow.destroy(); } catch (e) { /* non-blocking */ }
+              } else {
+                try { FSB.viewportGlow.setState('thinking'); } catch (e) { /* non-blocking */ }
+              }
 
               if (result === undefined || result === null) {
                 logger.warn('Action returned null/undefined result', { sessionId: FSB.sessionId, tool });
@@ -874,6 +1007,7 @@
               try {
                 FSB.actionGlowOverlay.destroy();
                 FSB.highlightManager.hide();
+                if (isManualMCP) { FSB.viewportGlow.destroy(); }
               } catch (cleanupError) {
                 // Ignore cleanup errors
               }
@@ -882,6 +1016,7 @@
           } else {
             try {
               FSB.actionGlowOverlay.destroy();
+              if (isManualMCP) { FSB.viewportGlow.destroy(); }
             } catch (e) { /* ignore */ }
             logger.error('Unknown tool requested', { sessionId: FSB.sessionId, tool });
             sendResponse({ success: false, error: `Unknown tool: ${tool}` });
@@ -929,7 +1064,7 @@
     logger.logComm(FSB.sessionId, 'receive', request.action, true, { hasSessionId: !!request.sessionId });
 
     // Handle async operations properly
-    if (request.action === 'executeAction' || request.action === 'getDOM') {
+    if (request.action === 'executeAction' || request.action === 'getDOM' || request.action === 'getMarkdownSnapshot' || request.action === 'readPage') {
       handleAsyncMessage(request, sendResponse);
       return true; // Keep message channel open for async response
     }
@@ -968,11 +1103,28 @@
 
       case 'sessionStatus':
         try {
-          const { phase, taskName, iteration, maxIterations, reason,
-                  animatedHighlights, statusText, progressPercent,
-                  estimatedTimeRemaining, taskSummary } = request;
+          // [FSB Field Audit] Consumer: content script overlay renderer
+          // Reads: request.overlayState (full normalized object from buildOverlayState)
+          // Display-filtered: overlayState.display.detail (CLI syntax sanitized by overlay-state.js)
+          // Pass-through: overlayState.progress, overlayState.phase, overlayState.lifecycle (used for rendering)
+          const overlayState = request.overlayState;
+          const shouldApply = (window.FSBOverlayStateUtils && typeof window.FSBOverlayStateUtils.shouldApplyOverlayState === 'function')
+            ? window.FSBOverlayStateUtils.shouldApplyOverlayState(FSB.overlayState, overlayState)
+            : true;
 
-          if (phase === 'ended') {
+          if (!overlayState || !shouldApply) {
+            sendResponse({ success: true, ignored: true });
+            break;
+          }
+
+          FSB.overlayState = overlayState;
+
+          if (FSB._overlayOrphanTimer) {
+            clearTimeout(FSB._overlayOrphanTimer);
+            FSB._overlayOrphanTimer = null;
+          }
+
+          if (overlayState.lifecycle === 'cleared') {
             if (FSB._overlayWatchdogTimer) {
               clearTimeout(FSB._overlayWatchdogTimer);
               FSB._overlayWatchdogTimer = null;
@@ -982,51 +1134,80 @@
             FSB.actionGlowOverlay.destroy();
             FSB.lastActionStatusText = null;
           } else {
-            if (animatedHighlights !== false) {
-              const glowState = (phase === 'acting') ? 'acting' : 'thinking';
+            if (overlayState.highlight?.animated) {
+              const glowState = (overlayState.phase === 'acting' || overlayState.phase === 'writing' || overlayState.phase === 'switching_tab')
+                ? 'acting'
+                : 'thinking';
               FSB.viewportGlow.show(glowState);
-            }
-
-            if (statusText) {
-              FSB.lastActionStatusText = statusText;
+            } else {
+              FSB.viewportGlow.destroy();
             }
 
             FSB.progressOverlay.create();
-            const phaseLabels = {
-              analyzing: 'Analyzing page...',
-              thinking: 'Planning next step...',
-              acting: 'Executing...'
-            };
-            const displayText = statusText
-              || FSB.lastActionStatusText
-              || phaseLabels[phase]
-              || phase;
-
-            FSB.progressOverlay.update({
-              taskName: taskSummary || taskName,
-              stepNumber: iteration || 0,
-              totalSteps: maxIterations,
-              stepText: displayText,
-              progress: progressPercent !== undefined
-                ? progressPercent
-                : (maxIterations ? (iteration / maxIterations) * 100 : 0),
-              eta: estimatedTimeRemaining
-            });
+            FSB.progressOverlay.update(overlayState);
             FSB.progressOverlay.show();
 
-            if (FSB._overlayWatchdogTimer) {
-              clearTimeout(FSB._overlayWatchdogTimer);
+            if (overlayState.lifecycle === 'final') {
+              if (FSB._overlayWatchdogTimer) {
+                clearTimeout(FSB._overlayWatchdogTimer);
+                FSB._overlayWatchdogTimer = null;
+              }
+              FSB.actionGlowOverlay.destroy();
+              FSB.viewportGlow.destroy();
+            } else {
+              if (FSB._overlayWatchdogTimer) {
+                clearTimeout(FSB._overlayWatchdogTimer);
+              }
+              FSB._overlayWatchdogTimer = setTimeout(() => {
+                FSB._overlayWatchdogTimer = null;
+                try {
+                  var currentOverlayState = FSB.overlayState;
+                  if (!currentOverlayState || currentOverlayState.lifecycle !== 'running') {
+                    FSB.viewportGlow.destroy();
+                    FSB.progressOverlay.destroy();
+                    FSB.actionGlowOverlay.destroy();
+                    FSB.overlayState = null;
+                    FSB.lastActionStatusText = null;
+                    return;
+                  }
+
+                  console.warn('[FSB] Overlay watchdog: no session status for 60s, degrading active overlay');
+
+                  var degradedState = Object.assign({}, currentOverlayState, {
+                    display: Object.assign({}, currentOverlayState.display || {}, {
+                      detail: currentOverlayState.reconnecting
+                        ? 'Reconnecting to the active page'
+                        : 'Waiting for next automation update'
+                    }),
+                    progress: Object.assign({}, currentOverlayState.progress || {}, {
+                      mode: 'indeterminate',
+                      percent: null,
+                      label: currentOverlayState.reconnecting ? 'Reconnecting' : 'Waiting'
+                    }),
+                    reconnecting: true
+                  });
+
+                  FSB.overlayState = degradedState;
+                  FSB.progressOverlay.create();
+                  FSB.progressOverlay.update(degradedState);
+                  FSB.progressOverlay.show();
+                  try { FSB.actionGlowOverlay.hide(); } catch (_hideErr) { /* non-blocking */ }
+                  try { FSB.viewportGlow.show('thinking'); } catch (_glowErr) { /* non-blocking */ }
+
+                  FSB._overlayOrphanTimer = setTimeout(() => {
+                    FSB._overlayOrphanTimer = null;
+                    console.warn('[FSB] Overlay watchdog: extended silence, cleaning up orphaned overlays');
+                    try {
+                      FSB.viewportGlow.destroy();
+                      FSB.progressOverlay.destroy();
+                      FSB.actionGlowOverlay.destroy();
+                      FSB.overlayState = null;
+                      FSB.lastActionStatusText = null;
+                    } catch (_cleanupErr) { /* non-blocking */ }
+                  }, 120000);
+                } catch (e) { /* non-blocking */ }
+              }, 60000);
             }
-            FSB._overlayWatchdogTimer = setTimeout(() => {
-              FSB._overlayWatchdogTimer = null;
-              console.warn('[FSB] Overlay watchdog: no session status for 60s, cleaning up orphaned overlays');
-              try {
-                FSB.viewportGlow.destroy();
-                FSB.progressOverlay.destroy();
-                FSB.actionGlowOverlay.destroy();
-                FSB.lastActionStatusText = null;
-              } catch (e) { /* non-blocking */ }
-            }, 60000);
           }
           sendResponse({ success: true });
         } catch (e) {
@@ -1222,6 +1403,19 @@
           sendResponse({ success: true });
         } catch (e) {
           sendResponse({ success: false, error: e.message });
+        }
+        break;
+
+      // Handle heuristic fix requests from background.js (parallel debug fallback)
+      case 'HEURISTIC_FIX':
+        if (FSB.runHeuristicFix) {
+          FSB.runHeuristicFix(request.failedAction).then(result => {
+            sendResponse(result);
+          }).catch(err => {
+            sendResponse({ resolved: false, error: err.message });
+          });
+        } else {
+          sendResponse({ resolved: false, error: 'runHeuristicFix not available' });
         }
         break;
 

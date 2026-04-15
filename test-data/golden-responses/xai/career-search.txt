@@ -1,0 +1,42 @@
+# Golden response file: xai/career-search.txt
+# Provider: xai (grok-4-1-fast)
+# Task: Search for engineering jobs and store results with storeJobData
+# DOM: test-data/dom-snapshots/career-page.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# I can see job listings already loaded on the Google Careers page
+# There are 3 jobs visible: Frontend Engineer, SRE, and ML Engineer
+# Let me extract the details and store them
+
+# First read the job titles and details
+gettext e14
+gettext e16
+gettext e18
+gettext e20
+gettext e22
+gettext e24
+gettext e26
+gettext e28
+gettext e30
+
+# Now store all extracted job data
+storejobdata
+  company: Google
+  jobs:
+    - title: Software Engineer, Frontend
+      location: Mountain View, CA
+      datePosted: 2 days ago
+      applyLink: https://careers.google.com/jobs/123?src=online&utm_source=careers
+      description: Build user-facing products using modern web technologies including React and TypeScript
+    - title: Site Reliability Engineer
+      location: New York, NY
+      datePosted: 5 days ago
+      applyLink: https://careers.google.com/jobs/456?src=online&utm_source=careers
+      description: Ensure reliability and availability of Google services at scale
+    - title: Machine Learning Engineer
+      location: Remote
+      datePosted: 1 week ago
+      applyLink: https://careers.google.com/jobs/789?src=online&utm_source=careers
+      description: Design and implement ML models for natural language processing and computer vision
+done "stored 3 jobs from Google careers"

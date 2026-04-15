@@ -4,7 +4,7 @@
   "commit_docs": false,
   "model_profile": "quality",
   "workflow": {
-    "research": true,
+    "research": false,
     "plan_check": true,
     "verifier": true,
     "_auto_chain_active": false

@@ -4,6 +4,20 @@
   "description": "FSB Browser Automation MCP Server",
   "license": "BUSL-1.1",
   "author": "Lakshman Turlapati",
+  "mcpName": "io.github.lakshmanturlapati/fsb-mcp-server",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakshmanturlapati/FSB.git",
+    "directory": "mcp-server"
+  },
+  "keywords": [
+    "mcp",
+    "browser-automation",
+    "chrome",
+    "fsb",
+    "model-context-protocol",
+    "ai-agent"
+  ],
   "type": "module",
   "main": "build/index.js",
   "bin": {
@@ -12,10 +26,22 @@
   },
   "files": [
     "build/",
-    "README.md"
+    "ai/",
+    "README.md",
+    "server.json"
   ],
   "engines": {
     "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc && cp ../ai/tool-definitions.js ai/tool-definitions.cjs",
+    "dev": "tsx src/index.ts",
+    "doctor": "node build/index.js doctor",
+    "serve": "node build/index.js serve",
+    "setup": "node build/index.js setup",
+    "status": "node build/index.js status",
+    "wait-for-extension": "node build/index.js wait-for-extension",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
@@ -24,5 +50,11 @@
     "strip-json-comments": "^5.0.3",
     "smol-toml": "^1.6.1",
     "yaml": "^2.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.3"
   }
 }

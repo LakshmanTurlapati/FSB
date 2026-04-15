@@ -11,6 +11,16 @@ registerSiteGuide({
   ],
   guidance: `CODEFORCES-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # submit a solution
+  click e5    # editor area
+  key "a" --ctrl   # select all
+  type e5 "solution code here"
+  click e8    # language dropdown
+  click e10   # language option
+  click e15   # Submit button
+  gettext e18   # verdict
+
 CODE EDITOR:
 - Editor: #sourceCodeTextarea or .ace_editor textarea
 - Codeforces may use a plain textarea or ACE editor depending on the page

@@ -9,6 +9,18 @@ registerSiteGuide({
   ],
   guidance: `LEVER ATS PLATFORM INTELLIGENCE:
 
+COMMON PATTERNS:
+  # browse job listings (Lever has no search box)
+  scroll down
+  click e5    # department filter
+  click e8    # department option
+  click e12   # job posting title
+  # extract job data
+  gettext e15   # job title
+  gettext e18   # location
+  getattr e20 "href"   # apply link
+  storejobdata {"company":"...","role":"...","location":"...","type":"...","link":"...","source":"lever"}
+
 FILTERS:
 - departmentFilter: .filter [data-department], .sort-by-dept, [class*="department"]
 - locationFilter: .filter [data-location], .sort-by-location, [class*="location"]

@@ -1,0 +1,38 @@
+# Golden response file: xai/google-sheets.txt
+# Provider: xai (grok-4-1-fast)
+# Task: Use Name Box navigation to enter job data into cells
+# DOM: test-data/dom-snapshots/google-sheets.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# First escape any existing cell edit mode
+key "Escape"
+# Navigate to cell A1 using the Name Box
+click e5
+type e5 "A1"
+pressenter
+# Type the header value
+type e13 "Company"
+key "Tab"
+# Move to B1
+type e14 "Position"
+key "Tab"
+# Move to C1
+type e15 "Location"
+key "Tab"
+# Move to D1
+type e16 "Date Posted"
+key "Tab"
+# Move to E1
+type e17 "Apply Link"
+key "Escape"
+# Now go to row 2 for data entry
+click e5
+type e5 "A2"
+pressenter
+type e18 "Google"
+key "Tab"
+type e19 "Software Engineer"
+key "Tab"
+type e20 "Mountain View, CA"
+done "filled row 1 with job data"

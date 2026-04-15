@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /careers\.unitedhealthgroup\.com/i
   ],
-  guidance: `UNITEDHEALTH GROUP CAREER NAVIGATION:\nStart: https://careers.unitedhealthgroup.com/`,
+  guidance: `UNITEDHEALTH GROUP CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://careers.unitedhealthgroup.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "healthcare data analyst"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"UnitedHealth Group","role":"...","location":"...","link":"...","source":"unitedhealthgroup"}\nStart: https://careers.unitedhealthgroup.com/`,
   selectors: {
     searchBox: '[aria-controls="search-container"], #careers-job-search-input, #cws_jobsearch_parent_category, [name="parent_category"], [aria-label="Choose Business"], [role="combobox"][aria-describedby="search-help_1"]',
     locationFilter: '//a[normalize-space(.)="Country"], #geotooltip, [aria-label="Use your current location"], //label[normalize-space(.)="Location"], [data-fsb-id="label_location_cws_search_form"], //label[normalize-space(.)="within"]',

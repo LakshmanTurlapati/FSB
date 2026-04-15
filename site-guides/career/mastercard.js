@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /careers\.mastercard\.com/i
   ],
-  guidance: `MASTERCARD CAREER NAVIGATION:\nStart: https://careers.mastercard.com/`,
+  guidance: `MASTERCARD CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://careers.mastercard.com/"
+  # search and extract
+  click e5    # search box
+  type e5 "software engineer"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Mastercard","role":"...","location":"...","link":"...","source":"mastercard"}\nStart: https://careers.mastercard.com/`,
   selectors: {
     searchBox: '[aria-controls="typehead-listbox"], [aria-owns="typehead-listbox"], #ph-search-backdrop, [aria-label="Search"], //label[normalize-space(.)="Search job title"], //a[normalize-space(.)="​​​​​​​See what we\'re made of"]',
     locationFilter: '[aria-controls="gllocationListbox"], [aria-owns="gllocationListbox"], //label[normalize-space(.)="Location"], .sr-only',

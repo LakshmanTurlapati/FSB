@@ -1,0 +1,18 @@
+# Golden response file: gemini/search-click.txt
+# Provider: gemini (gemini-2.5-flash)
+# Task: Search for wireless mouse and click a result
+# DOM: test-data/dom-snapshots/search-results.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+Here are the commands to search and click the first result:
+
+```
+# The search results for "wireless mouse" are already visible
+# Refining search and clicking the top result
+click e1
+type e1 "wireless mouse reviews"
+click e2
+click e7
+done "clicked first search result for wireless mouse reviews"
+```

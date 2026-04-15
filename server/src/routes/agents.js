@@ -1,6 +1,7 @@
 const express = require('express');
+const { broadcastToRoom } = require('../ws/handler');
 
-function createAgentsRouter(queries, sseClients) {
+function createAgentsRouter(queries) {
   const router = express.Router();
 
   // GET /api/agents - List all agents
@@ -16,21 +17,27 @@ function createAgentsRouter(queries, sseClients) {
   // POST /api/agents - Upsert agent definition
   router.post('/', (req, res) => {
     try {
-      const { agentId, name, task, targetUrl, scheduleType, scheduleConfig, enabled } = req.body;
+      const { agentId, name, task, startMode, targetUrl, scheduleType, scheduleConfig, enabled } = req.body;
+      const effectiveStartMode = startMode || (targetUrl ? 'pinned' : 'ai_routed');
 
-      if (!agentId || !name || !task || !targetUrl) {
-        return res.status(400).json({ error: 'Missing required fields: agentId, name, task, targetUrl' });
+      if (!agentId || !name || !task) {
+        return res.status(400).json({ error: 'Missing required fields: agentId, name, task' });
+      }
+      if (effectiveStartMode === 'pinned' && !targetUrl) {
+        return res.status(400).json({ error: 'Pinned agents require targetUrl' });
       }
 
       queries.upsertAgentData(req.hashKey, {
-        agentId, name, task, targetUrl,
+        agentId, name, task,
+        startMode: effectiveStartMode,
+        targetUrl: targetUrl || '',
         scheduleType: scheduleType || 'interval',
         scheduleConfig: scheduleConfig || '{}',
         enabled: enabled !== false
       });
 
       const agent = queries.getAgentData(req.hashKey, agentId);
-      broadcastSSE(sseClients, req.hashKey, { type: 'agent_updated', agent });
+      broadcastToRoom(req.hashKey, { type: 'agent_updated', agent });
       res.json({ success: true, agent });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -44,8 +51,27 @@ function createAgentsRouter(queries, sseClients) {
       if (result.changes === 0) {
         return res.status(404).json({ error: 'Agent not found' });
       }
-      broadcastSSE(sseClients, req.hashKey, { type: 'agent_deleted', agentId: req.params.agentId });
+      broadcastToRoom(req.hashKey, { type: 'agent_deleted', agentId: req.params.agentId });
       res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/agents/:agentId - Toggle agent enabled/disabled
+  router.patch('/:agentId', (req, res) => {
+    try {
+      const { enabled } = req.body;
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'Missing required field: enabled (boolean)' });
+      }
+      const result = queries.toggleAgentEnabled(req.hashKey, req.params.agentId, enabled);
+      if (result.changes === 0) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      const agent = queries.getAgentData(req.hashKey, req.params.agentId);
+      broadcastToRoom(req.hashKey, { type: 'agent_updated', agent });
+      res.json({ success: true, agent });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -58,12 +84,13 @@ function createAgentsRouter(queries, sseClients) {
       const body = req.body;
 
       // Upsert agent data if provided
-      if (body.name && body.task && body.targetUrl) {
+      if (body.name && body.task && body.targetUrl !== undefined) {
         queries.upsertAgentData(req.hashKey, {
           agentId,
           name: body.name,
           task: body.task,
-          targetUrl: body.targetUrl,
+          startMode: body.startMode || (body.targetUrl ? 'pinned' : 'ai_routed'),
+          targetUrl: body.targetUrl || '',
           scheduleType: body.scheduleType || 'interval',
           scheduleConfig: body.scheduleConfig || '{}',
           enabled: body.enabled !== false
@@ -82,16 +109,28 @@ function createAgentsRouter(queries, sseClients) {
         iterations: run.iterations || 0,
         tokensUsed: run.tokensUsed || 0,
         costUsd: run.costUsd || 0,
-        durationMs: run.durationMs || 0
+        durationMs: run.durationMs || 0,
+        executionMode: run.executionMode || 'ai_initial',
+        costSaved: run.costSaved || 0
       });
 
-      broadcastSSE(sseClients, req.hashKey, {
+      broadcastToRoom(req.hashKey, {
         type: 'run_completed',
         agentId,
         run: run
       });
 
       res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/agents/:agentId/stats - Per-agent cost savings stats
+  router.get('/:agentId/stats', (req, res) => {
+    try {
+      const stats = queries.getPerAgentStats(req.hashKey, req.params.agentId);
+      res.json(stats);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -110,7 +149,7 @@ function createAgentsRouter(queries, sseClients) {
     }
   });
 
-  // GET /api/stats - Aggregate stats
+  // GET /api/agents/stats - Aggregate stats
   router.get('/stats', (req, res) => {
     try {
       const stats = queries.getAgentStats(req.hashKey);
@@ -121,20 +160,6 @@ function createAgentsRouter(queries, sseClients) {
   });
 
   return router;
-}
-
-function broadcastSSE(sseClients, hashKey, data) {
-  const clients = sseClients.get(hashKey);
-  if (!clients || clients.length === 0) return;
-
-  const message = `data: ${JSON.stringify(data)}\n\n`;
-  for (const client of clients) {
-    try {
-      client.write(message);
-    } catch {
-      // Client disconnected
-    }
-  }
 }
 
 module.exports = createAgentsRouter;

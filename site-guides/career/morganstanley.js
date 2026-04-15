@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.morganstanley\.com\/people/i
   ],
-  guidance: `MORGAN STANLEY CAREER NAVIGATION:\nStart: https://www.morganstanley.com/people`,
+  guidance: `MORGAN STANLEY CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.morganstanley.com/people"
+  # search and extract
+  click e5    # search box
+  type e5 "wealth management advisor"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Morgan Stanley","role":"...","location":"...","link":"...","source":"morganstanley"}\nStart: https://www.morganstanley.com/people`,
   selectors: {
     searchBox: '[aria-label="Search Bar"], //a[normalize-space(.)="What We Do"], [aria-expanded="false"], //a[normalize-space(.)="Research"], [data-fsb-id="a_research"], [aria-label="Research"]',
     locationFilter: '//a[normalize-space(.)="Region"], [aria-expanded="false"]',

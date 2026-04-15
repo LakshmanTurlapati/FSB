@@ -51,7 +51,12 @@ ERROR REPORTING (use these exact formats):
 - If login/auth wall blocks access: report "AUTH REQUIRED: [Company] requires login to view job listings. Career page: [URL]"
 - If career page is unreachable or broken: report "PAGE ERROR: Could not access [Company] career page at [URL]. The site may be temporarily unavailable."
 - If no site guide exists for the company: report "NO GUIDE: No career intelligence for [Company]. Attempting Google search for '[Company] careers'..."
-- NEVER silently fail. Always report what happened and suggest next steps.`,
+- NEVER silently fail. Always report what happened and suggest next steps.
+
+AUTH REQUIRED HANDOFF:
+- Keep the "AUTH REQUIRED:" wording, but if useful research is already complete treat it as a partial/manual handoff rather than a crash-style failure.
+- Preserve the jobs or company research already collected, the exact blocker that stopped the last step, and the next step the user should take after logging in or getting access.
+- If the wall appears before any useful results are gathered, use the "AUTH REQUIRED:" report directly. If it appears after useful work is done, preserve that work and end with partial_task semantics instead of discarding it.`,
   warnings: [
     'Sponsored/promoted job listings appear first on job boards -- skip unless no organic results match',
     'Many job boards require login to see full job descriptions or apply',

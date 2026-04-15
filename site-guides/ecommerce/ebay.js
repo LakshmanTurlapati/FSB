@@ -11,6 +11,16 @@ registerSiteGuide({
   ],
   guidance: `EBAY-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # search for an item
+  click e5    # search box
+  type e5 "vintage watch"
+  enter
+  # browse results and check listing type
+  click e12   # item result
+  gettext e15   # price or current bid
+  click e20   # add to cart or buy it now button
+
 eBay is an auction and fixed-price marketplace. Items can be listed as:
 - Buy It Now (fixed price) -- immediate purchase available
 - Auction -- bidding required, check current bid and time remaining

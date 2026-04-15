@@ -1,0 +1,19 @@
+# Golden response file: anthropic/form-fill.txt
+# Provider: anthropic (claude-sonnet-4-5)
+# Task: Fill out a contact form with name, email, and message
+# DOM: test-data/dom-snapshots/form-page.yaml
+# Captured: 2026-03-01
+# Prompt version: v10.0 CLI
+
+# Fill the contact form fields
+click e7
+type e7 "Alex Johnson"
+click e9
+type e9 "alex.johnson@email.com"
+click e11
+type e11 "+1 (555) 234-5678"
+click e18
+type e18 "I would like to schedule a product demonstration for our team of 15 engineers. Please let me know available time slots for next week."
+select e13 "sales"
+click e21
+done "submitted contact form"

@@ -11,6 +11,15 @@ registerSiteGuide({
   ],
   guidance: `LEETCODE-SPECIFIC INTELLIGENCE:
 
+COMMON PATTERNS:
+  # solve a problem
+  click e5    # editor area
+  key "a" --ctrl   # select all existing code
+  type e5 "def twoSum(self, nums, target):\\n    seen = {}\\n    ..."
+  click e10   # Run button
+  gettext e15   # test output
+  click e18   # Submit button
+
 CODE EDITOR:
 1. LeetCode uses Monaco editor. The editor is [role="textbox"] (contenteditable div).
 2. CLEAR BEFORE TYPING: Click the editor to focus, then press Ctrl+A (Cmd+A on Mac) to select all existing code.

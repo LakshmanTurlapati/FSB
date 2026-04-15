@@ -70,10 +70,22 @@ class AgentExecutor {
 
     try {
       console.log('[FSB Executor] Starting agent:', agent.agentId, agent.name);
+      const startMode = agent.startMode || (agent.targetUrl ? 'pinned' : 'ai_routed');
+      const pinnedTargetUrl = startMode === 'pinned' ? agent.targetUrl : '';
+      const replayTargetUrl = agent.recordedScript?.targetUrl || pinnedTargetUrl || '';
+
+      const hasScript = agent.recordedScript &&
+        agent.recordedScript.steps &&
+        agent.recordedScript.steps.length > 0;
+      const replayEnabled = agent.replayEnabled !== false;
+      const canReplay = hasScript && replayEnabled && !!replayTargetUrl;
+      const initialUrl = canReplay
+        ? replayTargetUrl
+        : (pinnedTargetUrl || 'about:blank');
 
       // Create background tab
       backgroundTab = await chrome.tabs.create({
-        url: agent.targetUrl,
+        url: initialUrl,
         active: false
       });
 
@@ -85,19 +97,12 @@ class AgentExecutor {
       };
       this._running.set(agent.agentId, executionState);
 
-      // Wait for page to load
-      await this._waitForTabLoad(backgroundTab.id, 15000);
+      if (initialUrl !== 'about:blank') {
+        await this._waitForTabLoad(backgroundTab.id, 15000);
+        await this._ensureContentScript(backgroundTab.id);
+      }
 
-      // Wait for content script to be ready
-      await this._ensureContentScript(backgroundTab.id);
-
-      // --- Decision gate: replay or AI? ---
-      const hasScript = agent.recordedScript &&
-        agent.recordedScript.steps &&
-        agent.recordedScript.steps.length > 0;
-      const replayEnabled = agent.replayEnabled !== false;
-
-      if (hasScript && replayEnabled) {
+      if (canReplay) {
         // --- REPLAY PATH ---
         console.log('[FSB Executor] Attempting replay for agent:', agent.agentId,
           'steps:', agent.recordedScript.steps.length);
@@ -109,7 +114,7 @@ class AgentExecutor {
         if (replayResult.success) {
           // Replay succeeded -- zero cost
           const duration = Date.now() - startTime;
-          const costSaved = agent.recordedScript.estimatedCostPerRun || 0.002;
+          const costSaved = agent.recordedScript.estimatedCostPerRun || 0;
           console.log('[FSB Executor] Replay succeeded for agent:', agent.agentId,
             'duration:', duration + 'ms', 'costSaved: $' + costSaved);
 
@@ -123,7 +128,8 @@ class AgentExecutor {
             costUsd: 0,
             iterations: 0,
             executionMode: 'replay',
-            costSaved
+            costSaved,
+            stepResults: replayResult.stepResults || []
           };
         }
 
@@ -139,15 +145,17 @@ class AgentExecutor {
 
         // Open fresh tab for AI fallback
         backgroundTab = await chrome.tabs.create({
-          url: agent.targetUrl,
+          url: pinnedTargetUrl || 'about:blank',
           active: false
         });
 
         // Update running state with new tab
         executionState.tabId = backgroundTab.id;
 
-        await this._waitForTabLoad(backgroundTab.id, 15000);
-        await this._ensureContentScript(backgroundTab.id);
+        if (pinnedTargetUrl) {
+          await this._waitForTabLoad(backgroundTab.id, 15000);
+          await this._ensureContentScript(backgroundTab.id);
+        }
 
         // Run AI fallback
         const aiResult = await this._executeWithTimeout(
@@ -156,7 +164,10 @@ class AgentExecutor {
           {
             maxIterations: agent.maxIterations || 15,
             isBackgroundAgent: true,
-            agentId: agent.agentId
+            agentId: agent.agentId,
+            triggerSource: 'background-agent',
+            reuseMatchingTabs: false,
+            activateTab: false
           }
         );
 
@@ -165,12 +176,18 @@ class AgentExecutor {
         // If AI succeeds, update the recorded script
         if (aiResult.success && aiResult.actionHistory) {
           const newScript = this._extractRecordedScript(
-            aiResult, agent.targetUrl, aiResult.actionHistory
+            aiResult, aiResult.startUrl || pinnedTargetUrl || replayTargetUrl, aiResult.actionHistory
           );
           if (newScript) {
             try {
               await agentManager.saveRecordedScript(agent.agentId, newScript);
               console.log('[FSB Executor] Updated recorded script after AI fallback for agent:', agent.agentId);
+              // Clear needsReRecord flag since we have a fresh script
+              if (agent.replayStats?.needsReRecord) {
+                await agentManager.updateAgent(agent.agentId, {
+                  replayStats: { ...agent.replayStats, needsReRecord: false, stepSuccessRates: {} }
+                });
+              }
             } catch (e) {
               console.error('[FSB Executor] Failed to save updated script:', e.message);
             }
@@ -188,6 +205,7 @@ class AgentExecutor {
           iterations: aiResult.iterations || 0,
           executionMode: 'ai_fallback',
           replayFailedAtStep: replayResult.failedAtStep,
+          stepResults: replayResult.stepResults || [],
           costSaved: 0
         };
       }
@@ -199,7 +217,10 @@ class AgentExecutor {
         {
           maxIterations: agent.maxIterations || 15,
           isBackgroundAgent: true,
-          agentId: agent.agentId
+          agentId: agent.agentId,
+          triggerSource: 'background-agent',
+          reuseMatchingTabs: false,
+          activateTab: false
         }
       );
 
@@ -210,13 +231,19 @@ class AgentExecutor {
       // If AI succeeds, extract and save the script for future replays
       if (result.success && result.actionHistory) {
         const script = this._extractRecordedScript(
-          result, agent.targetUrl, result.actionHistory
+          result, result.startUrl || pinnedTargetUrl || replayTargetUrl, result.actionHistory
         );
         if (script) {
           try {
             await agentManager.saveRecordedScript(agent.agentId, script);
             console.log('[FSB Executor] Saved initial recorded script for agent:', agent.agentId,
               'steps:', script.totalSteps);
+            // Clear needsReRecord flag since we have a fresh script
+            if (agent.replayStats?.needsReRecord) {
+              await agentManager.updateAgent(agent.agentId, {
+                replayStats: { ...agent.replayStats, needsReRecord: false, stepSuccessRates: {} }
+              });
+            }
           } catch (e) {
             console.error('[FSB Executor] Failed to save script:', e.message);
           }
@@ -256,7 +283,7 @@ class AgentExecutor {
    * Extract a recorded script from a successful AI run's action history.
    * Filters to only successful, meaningful actions and assigns delays.
    * @param {Object} result - The AI execution result
-   * @param {string} targetUrl - Agent's target URL
+   * @param {string} targetUrl - Resolved start URL for replay
    * @param {Object[]} actionHistory - Array of action records from the session
    * @returns {Object|null} RecordedScript object, or null if no meaningful steps
    */
@@ -307,7 +334,7 @@ class AgentExecutor {
     if (meaningfulSteps.length === 0) return null;
 
     const estimatedDuration = steps.reduce((sum, s) => sum + s.delayAfter + 200, 0);
-    const estimatedCostPerRun = result.costUsd || 0.002;
+    const estimatedCostPerRun = result.costUsd || 0;
 
     return {
       version: '1.0',
@@ -331,26 +358,53 @@ class AgentExecutor {
    */
   async _executeReplayScript(tabId, script, agent) {
     const replayStart = Date.now();
+    const stepResults = [];
 
     for (const step of script.steps) {
       // Skip read-only steps -- they were for AI reasoning
       if (step.isReadOnly) continue;
 
-      try {
-        // Send the action to the content script
-        const actionResult = await sendMessageWithRetry(tabId, {
-          action: 'executeAction',
-          tool: step.tool,
-          params: step.params
-        });
+      let stepSuccess = false;
+      const MAX_STEP_RETRIES = 3; // initial + 2 retries
+      let attempt = 0;
+      let lastError = null;
 
-        if (!actionResult || actionResult.success === false) {
+      try {
+        // Step-level retry loop: retry individual steps before full AI fallback
+        for (attempt = 1; attempt <= MAX_STEP_RETRIES; attempt++) {
+          const actionResult = await sendMessageWithRetry(tabId, {
+            action: 'executeAction',
+            tool: step.tool,
+            params: step.params
+          });
+
+          if (actionResult && actionResult.success !== false) {
+            stepSuccess = true;
+            break;
+          }
+
+          lastError = actionResult?.error || 'action returned failure';
+
+          // Don't retry on last attempt
+          if (attempt < MAX_STEP_RETRIES) {
+            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+          }
+        }
+
+        if (!stepSuccess) {
+          stepResults.push({
+            stepNumber: step.stepNumber,
+            tool: step.tool,
+            success: false,
+            attempts: attempt,
+            retriesUsed: attempt - 1
+          });
           return {
             success: false,
             failedAtStep: step.stepNumber,
-            error: 'Step ' + step.stepNumber + ' (' + step.tool + ') failed: ' +
-              (actionResult?.error || 'action returned failure'),
-            duration: Date.now() - replayStart
+            error: 'Step ' + step.stepNumber + ' (' + step.tool + ') failed after ' + attempt + ' attempts: ' + lastError,
+            duration: Date.now() - replayStart,
+            stepResults
           };
         }
 
@@ -370,27 +424,51 @@ class AgentExecutor {
             await ensureContentScriptInjected(tabId);
             const ready = await waitForContentScriptReady(tabId, 3000);
             if (!ready) {
+              stepResults.push({
+                stepNumber: step.stepNumber,
+                tool: step.tool,
+                success: false,
+                attempts: attempt
+              });
               return {
                 success: false,
                 failedAtStep: step.stepNumber,
                 error: 'Content script lost after navigation at step ' + step.stepNumber,
-                duration: Date.now() - replayStart
+                duration: Date.now() - replayStart,
+                stepResults
               };
             }
           }
         }
 
-        // Wait the prescribed delay before the next step
-        if (step.delayAfter > 0) {
-          await new Promise(resolve => setTimeout(resolve, step.delayAfter));
+        // Smart replay timing: use recorded original duration (clamped) or fall back to delayAfter
+        const replayDelay = step.metadata?.originalDuration > 0
+          ? Math.max(200, Math.min(step.metadata.originalDuration, 5000))
+          : step.delayAfter;
+        if (replayDelay > 0) {
+          await new Promise(resolve => setTimeout(resolve, replayDelay));
         }
 
+        stepResults.push({
+          stepNumber: step.stepNumber,
+          tool: step.tool,
+          success: stepSuccess,
+          attempts: attempt
+        });
+
       } catch (error) {
+        stepResults.push({
+          stepNumber: step.stepNumber,
+          tool: step.tool,
+          success: false,
+          attempts: attempt + 1
+        });
         return {
           success: false,
           failedAtStep: step.stepNumber,
           error: 'Step ' + step.stepNumber + ' (' + step.tool + ') threw: ' + error.message,
-          duration: Date.now() - replayStart
+          duration: Date.now() - replayStart,
+          stepResults
         };
       }
     }
@@ -399,7 +477,8 @@ class AgentExecutor {
       success: true,
       failedAtStep: null,
       error: null,
-      duration: Date.now() - replayStart
+      duration: Date.now() - replayStart,
+      stepResults
     };
   }
 

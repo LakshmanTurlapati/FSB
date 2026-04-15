@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.pfizer\.com\/about/i
   ],
-  guidance: `PFIZER CAREER NAVIGATION:\nStart: https://www.pfizer.com/about/careers\nATS: workday`,
+  guidance: `PFIZER CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.pfizer.com/about/careers"
+  # search and extract
+  click e5    # search box
+  type e5 "clinical research associate"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Pfizer","role":"...","location":"...","link":"...","source":"pfizer"}\nStart: https://www.pfizer.com/about/careers\nATS: workday`,
   selectors: {
     searchBox: '#edit-keywords, [name="keywords"], //button[normalize-space(.)="Search"], #edit-search-api-fulltext, [aria-label="Search Input Box"], .header__search.hide-element-text',
     locationFilter: '#edit-workday-wrapper-region_input, #edit-workday-wrapper-location_input, input[type="text"][placeholder="Region"], input[type="text"][placeholder="Site\\ Location"]',

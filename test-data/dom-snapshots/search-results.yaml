@@ -1,0 +1,46 @@
+url: https://www.google.com/search?q=wireless+mouse
+title: wireless mouse - Google Search
+scroll: 0/4800 (0%)
+viewport: 1920x1080
+state: complete
+captcha: false
+forms: search-form
+headings: none
+
+@nav
+  e3: a "Images" .nav-tab [href=/images?q=wireless+mouse]
+  e4: a "News" .nav-tab [href=/news?q=wireless+mouse]
+  e5: a "Shopping" .nav-tab [href=/shopping?q=wireless+mouse]
+
+@header
+  e1: input "" .search-input #search-box [type=search name=q value="wireless mouse"]
+  e2: button "Search" .search-btn #search-submit [type=submit]
+
+@main
+  e6: span "About 12,500,000 results (0.42 seconds)" .result-count
+  e7: a "Best Wireless Mouse 2026 - Top 10 Reviews" .result-title [href=https://techreviews.com/best-wireless-mouse]
+  e8: span "techreviews.com" .result-url
+  e9: p "Compare the top wireless mice of 2026. Expert reviews and buying guide..." .result-snippet
+  e10: a "Wireless Mouse Pro - Official Store" .result-title [href=https://shop.example.com/wireless-mouse-pro]
+  e11: span "shop.example.com" .result-url
+  e12: p "Premium ergonomic wireless mouse. Free shipping on orders over $50..." .result-snippet
+  e13: a "Amazon.com: Wireless Mouse - Best Sellers" .result-title [href=https://www.amazon.com/wireless-mouse/dp/B09XYZ]
+  e14: span "www.amazon.com" .result-url
+  e15: p "Shop wireless mice. Bluetooth and USB receiver options available..." .result-snippet
+  e16: a "How to Choose a Wireless Mouse - Buying Guide" .result-title [href=https://www.pcmag.com/how-to/wireless-mouse-guide]
+  e17: span "www.pcmag.com" .result-url
+  e18: p "Everything you need to know about wireless mice. DPI, ergonomics, battery life..." .result-snippet
+  e19: a "Logitech MX Master 3S Review" .result-title [href=https://www.tomsguide.com/reviews/logitech-mx-master-3s]
+  e20: span "www.tomsguide.com" .result-url
+  e21: p "The Logitech MX Master 3S is the best wireless mouse for productivity..." .result-snippet
+  e22: a "Razer DeathAdder V3 Pro - Gaming Mouse" .result-title [href=https://www.razer.com/gaming-mice/deathadder-v3-pro]
+  e23: span "www.razer.com" .result-url
+  e24: p "Ultra-lightweight wireless gaming mouse with HyperSpeed technology..." .result-snippet
+  e25: a "Wireless Mouse Comparison Chart" .result-title [href=https://www.rtings.com/mouse/tools/compare]
+  e26: span "www.rtings.com" .result-url
+  e27: p "Side-by-side comparison of the best wireless mice..." .result-snippet
+  e28: a "2" .pagination [href=?q=wireless+mouse&page=2]
+  e29: a "3" .pagination [href=?q=wireless+mouse&page=3]
+  e30: a "Next" .pagination.next [href=?q=wireless+mouse&page=2]
+
+--- 30/30 shown (0 offscreen)

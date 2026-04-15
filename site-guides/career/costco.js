@@ -7,7 +7,18 @@ registerSiteGuide({
   patterns: [
     /www\.costco\.com\/jobs\.html/i
   ],
-  guidance: `COSTCO CAREER NAVIGATION:\nStart: https://www.costco.com/jobs.html`,
+  guidance: `COSTCO CAREER NAVIGATION:
+
+COMMON PATTERNS:
+  # navigate to career page
+  navigate "https://www.costco.com/jobs.html"
+  # search and extract
+  click e5    # search box
+  type e5 "warehouse associate"
+  enter
+  click e10   # job result
+  gettext e12   # job title
+  storejobdata {"company":"Costco","role":"...","location":"...","link":"...","source":"costco"}\nStart: https://www.costco.com/jobs.html`,
   selectors: {
     searchBox: '#search-field, [aria-label="Search"], //a[normalize-space(.)="What\'s New"], [aria-label="Search Costco"], [role="combobox"][aria-describedby="typeahead-search-field-description"], [data-testid="SearchButton"]',
     locationFilter: '//button[normalize-space(.)="19707"], [aria-label=" ZIP Code 19707, current delivery location"], #Home_Ancillary_10, //a[normalize-space(.)="Locations"], #country-select, [aria-expanded="false"]',
