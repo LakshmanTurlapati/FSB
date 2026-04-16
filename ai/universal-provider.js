@@ -36,6 +36,18 @@ const PROVIDER_CONFIGS = {
     authHeader: 'Authorization',
     authPrefix: 'Bearer',
     keyField: 'customApiKey'
+  },
+  lmstudio: {
+    // Local LM Studio server - no API key required
+    endpoint: '{lmstudioBaseUrl}/v1/chat/completions',
+    keyField: null,
+    noAuth: true
+  },
+  openrouter: {
+    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+    authHeader: 'Authorization',
+    authPrefix: 'Bearer',
+    keyField: 'openrouterApiKey'
   }
 };
 
@@ -289,17 +301,19 @@ class UniversalProvider {
    */
   getEndpoint() {
     let endpoint = this.config.endpoint;
-    
+
     // Replace placeholders
     endpoint = endpoint.replace('{model}', this.model);
     endpoint = endpoint.replace('{customEndpoint}', this.settings.customEndpoint || '');
-    
+    endpoint = endpoint.replace('{lmstudioBaseUrl}',
+      normalizeProviderBaseUrl('lmstudio', this.settings.lmstudioBaseUrl));
+
     // Add API key to query string if needed
     if (this.config.authQuery) {
       const separator = endpoint.includes('?') ? '&' : '?';
       endpoint += `${separator}${this.config.authQuery}=${this.settings[this.config.keyField]}`;
     }
-    
+
     return endpoint;
   }
   
@@ -310,16 +324,21 @@ class UniversalProvider {
     const headers = {
       'Content-Type': 'application/json'
     };
-    
+
+    // Skip auth for local providers (e.g. LM Studio)
+    if (this.config.noAuth) {
+      return headers;
+    }
+
     // Add auth header if not using query string auth
     if (this.config.authHeader && !this.config.authQuery) {
       const apiKey = this.settings[this.config.keyField];
-      const authValue = this.config.authPrefix 
+      const authValue = this.config.authPrefix
         ? `${this.config.authPrefix} ${apiKey}`
         : apiKey;
       headers[this.config.authHeader] = authValue;
     }
-    
+
     return headers;
   }
   
@@ -1009,7 +1028,64 @@ class UniversalProvider {
   }
 }
 
+/**
+ * Normalize a provider base URL by stripping path suffixes and ensuring http:// prefix.
+ * @param {string} provider - Provider key (e.g. 'lmstudio')
+ * @param {string} baseUrl - Raw base URL from settings
+ * @returns {string} Normalized base URL
+ */
+function normalizeProviderBaseUrl(provider, baseUrl) {
+  const defaultUrl = provider === 'lmstudio' ? 'http://localhost:1234' : '';
+  if (!baseUrl) return defaultUrl;
+
+  let url = baseUrl.trim();
+  // Strip known path suffixes
+  url = url.replace(/\/v1\/chat\/completions\/?$/, '');
+  url = url.replace(/\/v1\/?$/, '');
+  // Remove trailing slashes
+  url = url.replace(/\/+$/, '');
+  // Prepend http:// if no protocol
+  if (!/^https?:\/\//i.test(url)) {
+    url = 'http://' + url;
+  }
+  return url;
+}
+
+/**
+ * Build the /v1/models discovery endpoint for a provider.
+ * @param {string} provider - Provider key
+ * @param {string} baseUrl - Raw base URL from settings
+ * @returns {string} Full models endpoint URL
+ */
+function buildProviderModelsEndpoint(provider, baseUrl) {
+  return normalizeProviderBaseUrl(provider, baseUrl) + '/v1/models';
+}
+
+/**
+ * Parse an OpenAI-compatible model list response into unique model IDs.
+ * @param {Object} response - Response object with data array of {id: string}
+ * @returns {string[]} Deduplicated array of model IDs
+ */
+function parseOpenAICompatibleModelList(response) {
+  if (!response || !Array.isArray(response.data)) return [];
+  const seen = new Set();
+  const ids = [];
+  for (const entry of response.data) {
+    if (entry && entry.id && !seen.has(entry.id)) {
+      seen.add(entry.id);
+      ids.push(entry.id);
+    }
+  }
+  return ids;
+}
+
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { UniversalProvider, PROVIDER_CONFIGS };
+  module.exports = {
+    UniversalProvider,
+    PROVIDER_CONFIGS,
+    normalizeProviderBaseUrl,
+    buildProviderModelsEndpoint,
+    parseOpenAICompatibleModelList
+  };
 }
