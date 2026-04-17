@@ -10,6 +10,8 @@ const defaultSettings = {
   anthropicApiKey: '',
   customApiKey: '',
   customEndpoint: '',
+  openrouterApiKey: '',
+  lmstudioBaseUrl: 'http://localhost:1234',
   speedMode: 'normal', // Legacy support
   maxIterations: 20,
   debugMode: false,
@@ -319,6 +321,26 @@ function setupEventListeners() {
     toggleCustomApiKey.addEventListener('click', () => togglePasswordVisibility('customApiKey'));
   }
 
+  const toggleOpenrouterApiKey = document.getElementById('toggleOpenrouterApiKey');
+  if (toggleOpenrouterApiKey) {
+    toggleOpenrouterApiKey.addEventListener('click', () => togglePasswordVisibility('openrouterApiKey'));
+  }
+
+  // Re-fetch LM Studio models when base URL changes
+  const lmstudioBaseUrl = document.getElementById('lmstudioBaseUrl');
+  if (lmstudioBaseUrl) {
+    let debounceTimer;
+    lmstudioBaseUrl.addEventListener('input', () => {
+      markUnsavedChanges();
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (elements.modelProvider?.value === 'lmstudio') {
+          updateModelOptions('lmstudio');
+        }
+      }, 800);
+    });
+  }
+
   // CAPTCHA Solver toggle visibility
   if (elements.captchaSolverEnabled) {
     elements.captchaSolverEnabled.addEventListener('change', (e) => {
@@ -485,6 +507,65 @@ function updateModelOptions(provider) {
   // Clear existing options
   modelSelect.innerHTML = '';
   
+  // LM Studio: fetch models dynamically from local server
+  if (provider === 'lmstudio') {
+    const loadingOption = document.createElement('option');
+    loadingOption.value = '';
+    loadingOption.textContent = 'Discovering models...';
+    modelSelect.appendChild(loadingOption);
+    updateModelDescription('Connecting to LM Studio server...');
+
+    const baseUrlInput = document.getElementById('lmstudioBaseUrl');
+    const rawUrl = baseUrlInput?.value || 'http://localhost:1234';
+    // Normalize: strip /v1 suffixes, ensure http://
+    let baseUrl = rawUrl.trim();
+    baseUrl = baseUrl.replace(/\/v1\/chat\/completions\/?$/, '');
+    baseUrl = baseUrl.replace(/\/v1\/?$/, '');
+    baseUrl = baseUrl.replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(baseUrl)) baseUrl = 'http://' + baseUrl;
+    const modelsEndpoint = baseUrl + '/v1/models';
+
+    fetch(modelsEndpoint)
+      .then(res => res.json())
+      .then(data => {
+        modelSelect.innerHTML = '';
+        const seen = new Set();
+        const ids = [];
+        if (data && Array.isArray(data.data)) {
+          for (const entry of data.data) {
+            if (entry && entry.id && !seen.has(entry.id)) {
+              seen.add(entry.id);
+              ids.push(entry.id);
+            }
+          }
+        }
+        if (ids.length === 0) {
+          const noModel = document.createElement('option');
+          noModel.value = '';
+          noModel.textContent = 'No models loaded in LM Studio';
+          modelSelect.appendChild(noModel);
+          updateModelDescription('Start a model in LM Studio, then re-select the provider to refresh.');
+          return;
+        }
+        ids.forEach(id => {
+          const option = document.createElement('option');
+          option.value = id;
+          option.textContent = id;
+          modelSelect.appendChild(option);
+        });
+        updateModelDescription('Discovered ' + ids.length + ' model(s) from LM Studio');
+      })
+      .catch(() => {
+        modelSelect.innerHTML = '';
+        const errOption = document.createElement('option');
+        errOption.value = '';
+        errOption.textContent = 'Could not connect to LM Studio';
+        modelSelect.appendChild(errOption);
+        updateModelDescription('Ensure LM Studio is running with the local server enabled.');
+      });
+    return;
+  }
+
   // Add options for selected provider
   const models = availableModels[provider] || [];
   models.forEach(model => {
@@ -493,7 +574,7 @@ function updateModelOptions(provider) {
     option.textContent = model.name;
     modelSelect.appendChild(option);
   });
-  
+
   // Update description when model changes
   modelSelect.addEventListener('change', (e) => {
     const selectedModel = models.find(m => m.id === e.target.value);
@@ -501,7 +582,7 @@ function updateModelOptions(provider) {
       updateModelDescription(selectedModel.description);
     }
   });
-  
+
   // Update initial description
   if (models.length > 0) {
     updateModelDescription(models[0].description);
@@ -524,7 +605,9 @@ function updateApiKeyVisibility(provider) {
     gemini: document.getElementById('geminiApiKeyGroup'),
     openai: document.getElementById('openaiApiKeyGroup'),
     anthropic: document.getElementById('anthropicApiKeyGroup'),
-    custom: document.getElementById('customApiGroup')
+    custom: document.getElementById('customApiGroup'),
+    openrouter: document.getElementById('openrouterApiKeyGroup'),
+    lmstudio: document.getElementById('lmstudioServerGroup')
   };
 
   // Hide all groups first
@@ -584,6 +667,12 @@ function loadSettings() {
     
     const customEndpoint = document.getElementById('customEndpoint');
     if (customEndpoint) customEndpoint.value = settings.customEndpoint || '';
+
+    const openrouterApiKey = document.getElementById('openrouterApiKey');
+    if (openrouterApiKey) openrouterApiKey.value = settings.openrouterApiKey || '';
+
+    const lmstudioBaseUrl = document.getElementById('lmstudioBaseUrl');
+    if (lmstudioBaseUrl) lmstudioBaseUrl.value = settings.lmstudioBaseUrl || 'http://localhost:1234';
 
     // Max iterations
     const maxIter = settings.maxIterations || 20;
@@ -662,6 +751,8 @@ function saveSettings() {
     anthropicApiKey: document.getElementById('anthropicApiKey')?.value || '',
     customApiKey: document.getElementById('customApiKey')?.value || '',
     customEndpoint: document.getElementById('customEndpoint')?.value || '',
+    openrouterApiKey: document.getElementById('openrouterApiKey')?.value || '',
+    lmstudioBaseUrl: document.getElementById('lmstudioBaseUrl')?.value || 'http://localhost:1234',
     maxIterations: parseInt(elements.maxIterations?.value) || 20,
     debugMode: elements.debugMode?.checked ?? false,
     // DOM Optimization settings
