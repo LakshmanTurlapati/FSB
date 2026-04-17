@@ -8,17 +8,20 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 
 **Reliable single-attempt execution.** The AI decides correctly; the mechanics execute precisely. Every click hits the right element, every action succeeds on the first try.
 
-## Current Milestone: v0.9.30 MCP Platform Install Flags
+## Current Milestone: v0.9.31 Dashboard & MCP Repair
 
-**Goal:** Replace copy-paste setup with one-command auto-configuration for every major MCP-capable platform.
+**Goal:** Fix the broken Angular dashboard and non-functional MCP install/uninstall commands so both shipped features actually work.
 
 **Target features:**
-- Platform-specific `--<platform>` flags that auto-write the correct config file (Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Cline, Zed, Codex, Gemini CLI, Continue)
-- Cross-OS path resolution (macOS, Windows, Linux)
-- Safe config merging (read existing config, add FSB entry, preserve other servers)
-- Support for JSON, TOML, and YAML config formats
-- Uninstall semantics (`--uninstall --<platform>`) to cleanly remove the FSB entry
-- Upgraded `setup` command as fallback for unsupported/unknown platforms
+- Complete Angular dashboard foundation (missing bootstrap, routing, page components, styles, package.json)
+- Fix Express server to serve built Angular app
+- Create TypeScript source files for MCP install/config-writer/platforms modules
+- Wire install/uninstall command routing into MCP server index.ts
+- Validate both systems end-to-end
+
+## Previous State: v0.9.30 MCP Platform Install Flags (shipped 2026-04-18)
+
+**Shipped:** One-command MCP auto-configuration for all 10 major platforms (build artifacts only -- TS sources missing, commands not wired).
 
 ## Requirements
 
@@ -135,6 +138,11 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - ✓ Storage-backed dashboard analytics refresh, deferred off-screen refresh handling, null-safe dashboard labels, and regression coverage for the refresh contract -- v0.9.27/P171
 - ✓ End-to-end local dashboard smoke verification proving real task completion updates metrics and chart data -- v0.9.27/P172
 - ✓ Angular showcase shell introduced with canonical route parity, runtime asset parity, and persisted theme behavior contracts -- validated in Phase 173 (v0.9.29)
+- ✓ Platform registry with 10 MCP platform configs, cross-OS path resolution, and format parsing dependencies -- v0.9.30
+- ✓ Format-aware config read-merge-write engine (JSON/JSONC/TOML/YAML) with backup, idempotency, and error handling -- v0.9.30
+- ✓ Install/uninstall CLI for all 10 MCP platforms with per-platform flags -- v0.9.30
+- ✓ Claude Code CLI delegation, Codex TOML, Continue YAML support -- v0.9.30
+- ✓ --dry-run preview and --all bulk install/uninstall across all platforms -- v0.9.30
 
 ### Deferred At v0.9.29 Close
 
@@ -142,11 +150,15 @@ FSB is an AI-powered browser automation Chrome extension that executes tasks thr
 - [ ] Task execution, live preview streaming, and remote-control state handling are ported to Angular with contract-safe behavior.
 - [ ] Migration parity and regression checks are in place, including the deferred off-screen dashboard refresh smoke evidence before release tagging.
 
-## Last Shipped Milestone: v0.9.29 Showcase Angular Migration (shipped 2026-04-15)
+## Last Shipped Milestone: v0.9.30 MCP Platform Install Flags (shipped 2026-04-18)
 
-**Shipped:** Angular showcase shell route parity (`/`, `/about`, `/dashboard`, `/privacy`, `/support`), persisted `fsb-showcase-theme` behavior, page-content parity contracts, canonical clean-route server handling, legacy `.html` redirects, and archival of the old vanilla showcase source under `showcase/legacy-vanilla/`. 1 phase, 7 plans, 14 tasks.
+**Shipped:** Platform registry with 10 MCP platform configs, format-aware config engine (JSON/JSONC/TOML/YAML), install/uninstall CLI for all platforms, Claude Code CLI delegation, --dry-run preview, --all bulk operations. 3 phases, 6 plans.
 
-**Accepted gaps:** Phase 174-177 migration scope (`DASH-08` through `MIGR-03`) deferred to the next milestone.
+## Previous Milestone: v0.9.29 Showcase Angular Migration (shipped 2026-04-15)
+
+**Shipped:** Angular showcase shell route parity, persisted theme behavior, canonical clean-route server handling, legacy `.html` redirects. 1 phase, 7 plans, 14 tasks.
+
+**Accepted gaps:** Phase 174-177 migration scope (`DASH-08` through `MIGR-03`) deferred.
 
 ## Previous Milestone: v0.9.27 Usage Dashboard Fix (shipped 2026-04-14)
 
@@ -325,4 +337,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-15 -- Milestone v0.9.30 started*
+*Last updated: 2026-04-18 -- Milestone v0.9.31 started*

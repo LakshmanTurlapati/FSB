@@ -1,8 +1,8 @@
 {
   "mode": "yolo",
   "parallelization": true,
-  "commit_docs": false,
-  "model_profile": "quality",
+  "commit_docs": true,
+  "model_profile": "inherit",
   "workflow": {
     "research": false,
     "plan_check": true,
