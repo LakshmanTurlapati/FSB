@@ -1,3 +1,18 @@
+FROM node:20-alpine AS angular-build
+
+WORKDIR /build
+
+# Install Angular dependencies
+COPY showcase/angular/package.json showcase/angular/package-lock.json ./
+RUN npm ci
+
+# Copy Angular source and assets (angular.json references ../assets)
+COPY showcase/angular/ ./
+COPY showcase/assets/ ../assets/
+RUN npx ng build --configuration production
+
+# ---
+
 FROM node:20-alpine
 
 # better-sqlite3 needs build tools for native compilation
@@ -13,8 +28,8 @@ RUN npm ci --production
 COPY server/server.js ./
 COPY server/src/ ./src/
 
-# Copy Angular showcase build output as static files
-COPY showcase/dist/showcase-angular/browser/ ./public/
+# Copy Angular showcase build output from build stage
+COPY --from=angular-build /build/dist/showcase-angular/browser/ ./public/
 
 # Create data directory for SQLite persistent volume
 RUN mkdir -p /data
