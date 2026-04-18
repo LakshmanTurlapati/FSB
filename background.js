@@ -14,6 +14,10 @@ importScripts('utils/crawler-manager.js');
 // MCP bridge client for local MCP server connection
 importScripts('ws/mcp-bridge-client.js');
 
+// Dashboard relay WebSocket client (auto-connects to full-selfbrowsing.com)
+importScripts('lib/lz-string.min.js');
+importScripts('ws/ws-client.js');
+
 // Site-specific AI guidance modules
 importScripts('site-guides/index.js');
 
@@ -10350,6 +10354,9 @@ chrome.runtime.onInstalled.addListener(async () => {
 
   // Connect to local MCP bridge (auto-reconnects if server not running yet)
   mcpBridgeClient.connect();
+
+  // Connect to dashboard relay (auto-reconnects with backoff)
+  fsbWebSocket.connect();
 });
 
 // Initialize analytics and restore sessions on startup
@@ -10365,6 +10372,9 @@ chrome.runtime.onStartup.addListener(async () => {
 
   // Connect to local MCP bridge (auto-reconnects if server not running yet)
   mcpBridgeClient.connect();
+
+  // Connect to dashboard relay (auto-reconnects with backoff)
+  fsbWebSocket.connect();
 });
 
 // Listen for debug mode changes so toggling takes effect immediately
@@ -10372,6 +10382,15 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.debugMode) {
     fsbDebugMode = changes.debugMode.newValue === true;
     console.log('[FSB] Debug mode ' + (fsbDebugMode ? 'enabled' : 'disabled'));
+  }
+
+  // React to dashboard sync toggle -- connect/disconnect relay WebSocket immediately
+  if (namespace === 'local' && changes.serverSyncEnabled) {
+    if (changes.serverSyncEnabled.newValue) {
+      fsbWebSocket.connect();
+    } else {
+      fsbWebSocket.disconnect();
+    }
   }
 
   // PERF: Update cached DOM settings in active sessions when changed
