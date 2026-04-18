@@ -12,6 +12,7 @@
  */
 
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 import path from 'path';
 import { z } from 'zod';
 
@@ -20,8 +21,9 @@ import { z } from 'zod';
 // ---------------------------------------------------------------------------
 
 const require = createRequire(import.meta.url);
-// Navigate from mcp-server/src/tools/ up to project root, then into ai/
-const toolDefs = require(path.resolve(import.meta.dirname, '../../ai/tool-definitions.cjs'));
+// Node 18 compat: import.meta.dirname requires Node 21+, use fileURLToPath fallback
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const toolDefs = require(path.resolve(__dirname, '../../ai/tool-definitions.cjs'));
 
 // ---------------------------------------------------------------------------
 // TypeScript interfaces
