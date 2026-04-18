@@ -14,7 +14,7 @@ COPY server/server.js ./
 COPY server/src/ ./src/
 
 # Copy Angular showcase build output as static files
-COPY showcase/dist/showcase-angular/browser/browser/ ./public/
+COPY showcase/dist/showcase-angular/browser/ ./public/
 
 # Create data directory for SQLite persistent volume
 RUN mkdir -p /data
