@@ -67,10 +67,27 @@ app.use('/api/stats', auth, (req, res) => {
 
 // Serve showcase static files with cache headers
 // In Docker: showcase is copied to /app/public
-// Local dev: fall back to ../showcase relative to server/
+// Local dev: serve Angular dist output, fall back to vanilla showcase
 const publicPath = path.join(__dirname, 'public');
-const showcasePath = path.join(__dirname, '..', 'showcase');
-const staticPath = require('fs').existsSync(publicPath) ? publicPath : showcasePath;
+const angularDistPath = path.join(__dirname, '..', 'showcase', 'dist', 'showcase-angular', 'browser');
+const showcaseFallback = path.join(__dirname, '..', 'showcase');
+const staticPath = require('fs').existsSync(publicPath)
+  ? publicPath
+  : require('fs').existsSync(angularDistPath)
+    ? angularDistPath
+    : showcaseFallback;
+
+// Legacy .html redirects (per D-05)
+const htmlRedirects = {
+  '/index.html': '/',
+  '/about.html': '/about',
+  '/dashboard.html': '/dashboard',
+  '/privacy.html': '/privacy',
+  '/support.html': '/support',
+};
+app.get(Object.keys(htmlRedirects), (req, res) => {
+  res.redirect(301, htmlRedirects[req.path]);
+});
 
 app.use(express.static(staticPath, {
   maxAge: 0,
@@ -83,18 +100,8 @@ app.use(express.static(staticPath, {
   }
 }));
 
-// SPA fallback - serve index.html for dashboard routes
-app.get('/dashboard*', (req, res) => {
-  const indexPath = path.join(staticPath, 'dashboard.html');
-  if (require('fs').existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.sendFile(path.join(staticPath, 'index.html'));
-  }
-});
-
-// Root serves landing page (not redirect to dashboard)
-app.get('/', (req, res) => {
+// SPA fallback -- serve Angular index.html for all showcase routes (per D-04)
+app.get(['/', '/about', '/dashboard', '/privacy', '/support'], (req, res) => {
   res.sendFile(path.join(staticPath, 'index.html'));
 });
 
