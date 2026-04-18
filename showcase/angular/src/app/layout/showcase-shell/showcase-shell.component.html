@@ -1,0 +1,72 @@
+<nav class="nav" [class.scrolled]="navScrolled">
+  <div class="nav-inner">
+    <a routerLink="/" class="nav-brand" (click)="closeMobileMenu()">
+      <img src="assets/icon128.png" alt="FSB Logo">
+      <span>FSB</span>
+    </a>
+    <div class="nav-links">
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Home</a>
+      <a routerLink="/about" routerLinkActive="active">About</a>
+      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+      <a routerLink="/privacy" routerLinkActive="active">Privacy</a>
+      <a routerLink="/support" routerLinkActive="active">Support</a>
+    </div>
+    <div class="nav-actions">
+      <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" class="btn btn-sm btn-github">
+        <i class="fa-brands fa-github"></i> GitHub
+      </a>
+    </div>
+    <button class="nav-toggle" [class.active]="mobileMenuOpen" aria-label="Toggle navigation" (click)="toggleMobileMenu()">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+  </div>
+</nav>
+<div class="nav-mobile" [class.active]="mobileMenuOpen">
+  <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" (click)="closeMobileMenu()">Home</a>
+  <a routerLink="/about" routerLinkActive="active" (click)="closeMobileMenu()">About</a>
+  <a routerLink="/dashboard" routerLinkActive="active" (click)="closeMobileMenu()">Dashboard</a>
+  <a routerLink="/privacy" routerLinkActive="active" (click)="closeMobileMenu()">Privacy</a>
+  <a routerLink="/support" routerLinkActive="active" (click)="closeMobileMenu()">Support</a>
+  <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener" (click)="closeMobileMenu()"><i class="fa-brands fa-github"></i> GitHub</a>
+</div>
+
+<main>
+  <ng-content></ng-content>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="assets/icon48.png" alt="FSB">
+        <span>FSB</span>
+      </div>
+      <div class="footer-links">
+        <div class="footer-column">
+          <h4>Pages</h4>
+          <a routerLink="/">Home</a>
+          <a routerLink="/about">About</a>
+          <a routerLink="/dashboard">Dashboard</a>
+          <a routerLink="/privacy">Privacy</a>
+          <a routerLink="/support">Support</a>
+        </div>
+        <div class="footer-column">
+          <h4>Project</h4>
+          <a href="https://github.com/lakshmanturlapati/FSB" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/lakshmanturlapati/FSB/issues" target="_blank" rel="noopener">Issues</a>
+          <a href="https://github.com/lakshmanturlapati/FSB/blob/main/LICENSE" target="_blank" rel="noopener">BSL 1.1 License</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>Made by Lakshman Turlapati</p>
+      <p>FSB v9.0.2</p>
+    </div>
+  </div>
+</footer>
+
+<button class="theme-toggle-btn" aria-label="Toggle theme" (click)="toggleTheme()">
+  <i [class]="isDark ? 'ph ph-sun' : 'ph ph-moon'"></i>
+</button>
