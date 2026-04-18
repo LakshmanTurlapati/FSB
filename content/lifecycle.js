@@ -444,7 +444,7 @@
     }
   }
 
-  logger.logInit('content_script', 'loaded', { version: '0.9.25', url: window.location.href });
+  logger.logInit('content_script', 'loaded', { version: '0.9.31', url: window.location.href });
 
   // ============================================================================
   // SPA NAVIGATION DETECTION

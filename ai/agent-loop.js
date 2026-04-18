@@ -1,5 +1,5 @@
 /**
- * Agent Loop Engine for FSB v0.9.25
+ * Agent Loop Engine for FSB v0.9.31
  *
  * Core tool_use protocol loop that replaces startAutomationLoop.
  * Each iteration is a separate setTimeout callback (not a blocking while-loop)
