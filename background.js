@@ -14,11 +14,11 @@ importScripts('utils/site-explorer.js');
 importScripts('utils/crawler-manager.js');
 
 // MCP bridge client for local MCP server connection
-importScripts('ws/mcp-bridge-client.js');
+try { importScripts('ws/mcp-bridge-client.js'); } catch (e) { console.error('[FSB] Failed to load mcp-bridge-client.js:', e.message); }
 
 // Dashboard relay WebSocket client (auto-connects to full-selfbrowsing.com)
-importScripts('lib/lz-string.min.js');
-importScripts('ws/ws-client.js');
+try { importScripts('lib/lz-string.min.js'); } catch (e) { console.error('[FSB] Failed to load lz-string.min.js:', e.message); }
+try { importScripts('ws/ws-client.js'); } catch (e) { console.error('[FSB] Failed to load ws-client.js:', e.message); }
 
 // Site-specific AI guidance modules
 importScripts('site-guides/index.js');
@@ -4897,10 +4897,18 @@ async function handleStartAutomation(request, sender, sendResponse) {
     // Previously, isReady was captured but never checked, causing a 90-second death spiral
     // where the automation loop would start and waste time on health checks that inevitably fail
     if (!isReady) {
-      // Do one final health check to be absolutely sure
+      // Force-inject content scripts before giving up
+      automationLogger.debug('Content script not ready, force-injecting', { sessionId, tabId: targetTabId });
+      try {
+        await ensureContentScriptInjected(targetTabId, 3);
+      } catch (injectErr) {
+        automationLogger.warn('Force-injection failed', { sessionId, error: injectErr.message });
+      }
+
+      // Do one final health check after forced injection
       const finalHealthCheck = await checkContentScriptHealth(targetTabId);
       if (!finalHealthCheck) {
-        automationLogger.warn('Content script not ready after waiting, aborting session', {
+        automationLogger.warn('Content script not ready after waiting and force-injection, aborting session', {
           sessionId,
           tabId: targetTabId
         });
