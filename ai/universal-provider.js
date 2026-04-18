@@ -607,22 +607,11 @@ class UniversalProvider {
     
     // Debug: xAI cleaning effect logging removed for performance
     
-    // Parse the cleaned content -- may be JSON or CLI format
-    let parsedContent;
-    try {
-      parsedContent = JSON.parse(content);
-    } catch (error) {
-      // Not valid JSON -- return raw text for CLI parser downstream
-      // FSB uses CLI format (not JSON) as the primary AI response format since v10.0
-      return {
-        content: content,
-        usage,
-        model: response.model || this.model
-      };
-    }
-
+    // Always return raw text -- FSB uses CLI format (not JSON) since v10.0.
+    // The downstream CLI parser (parseCliResponse) handles all interpretation.
+    // Never return parsed objects; callAPI at ai-integration.js:4324 expects a string.
     return {
-      content: parsedContent,
+      content: content,
       usage,
       model: response.model || this.model
     };

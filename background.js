@@ -13,6 +13,9 @@ importScripts('utils/keyboard-emulator.js');
 importScripts('utils/site-explorer.js');
 importScripts('utils/crawler-manager.js');
 
+// Overlay state builder for sendSessionStatus -> content script overlay
+importScripts('utils/overlay-state.js');
+
 // MCP bridge client for local MCP server connection
 try { importScripts('ws/mcp-bridge-client.js'); } catch (e) { console.error('[FSB] Failed to load mcp-bridge-client.js:', e.message); }
 
@@ -448,7 +451,13 @@ async function endSessionOverlays(session, reason) {
  * @param {Object} statusData - Status fields: phase, taskName, iteration, maxIterations, reason, animatedHighlights
  */
 async function sendSessionStatus(tabId, statusData) {
-  const payload = { action: 'sessionStatus', ...statusData };
+  // Build proper overlayState object that content script expects (messaging.js:1110)
+  // Content script reads request.overlayState, not flat fields
+  const session = null; // session context is optional for buildOverlayState
+  const overlayState = (typeof FSBOverlayStateUtils !== 'undefined' && FSBOverlayStateUtils.buildOverlayState)
+    ? FSBOverlayStateUtils.buildOverlayState(statusData, session)
+    : statusData; // fallback: send raw data if overlay-state.js failed to load
+  const payload = { action: 'sessionStatus', overlayState };
   try {
     await chrome.tabs.sendMessage(tabId, payload, { frameId: 0 });
   } catch (firstErr) {
