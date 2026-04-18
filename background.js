@@ -1781,6 +1781,21 @@ async function ensureContentScriptInjected(tabId, maxRetries = 3) {
       // automation-logger first, then init.js (namespace), then domain modules,
       // then messaging/lifecycle last (they depend on all above).
       automationLogger.logComm(null, 'send', 'inject', true, { tabId, attempt });
+
+      // Clear re-injection guards so content scripts re-initialize with fresh extension context.
+      // After extension reload, old content scripts have invalidated chrome.runtime contexts.
+      // This lets the new injection create scripts with valid chrome.runtime.id.
+      await chrome.scripting.executeScript({
+        target: { tabId, frameIds: [0] },
+        world: 'ISOLATED',
+        injectImmediately: true,
+        func: () => {
+          globalThis.__FSB_AUTOMATION_LOGGER_LOADED__ = false;
+          if (window.FSB) window.FSB = undefined;
+          window.__FSB_SKIP_INIT__ = false;
+        }
+      });
+
       await chrome.scripting.executeScript({
         target: { tabId, frameIds: [0] },  // frameIds: [0] = main frame only
         files: CONTENT_SCRIPT_FILES,
