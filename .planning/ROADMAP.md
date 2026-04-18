@@ -86,3 +86,21 @@ Plans:
 - Phase 177: Migration Regression & Delivery Readiness (`MIGR-01` to `MIGR-03`)
 
 **Archive:** `.planning/milestones/v0.9.29-ROADMAP.md`
+
+## Backlog
+
+### Phase 999.1: MCP Tool Gaps & Click Heuristics (BACKLOG)
+
+**Goal:** Fix three MCP tool issues surfaced during LinkedIn automation: (1) wire execute_js tool handler using chrome.scripting.executeScript in MAIN world, (2) add text-based click targeting with case-insensitive substring matching for dynamic web apps, (3) fix MCP bridge routing so background-routed tools are handled by the service worker instead of being sent to the content script.
+**Depends on**: Nothing (independent backlog fix)
+**Requirements**: MCP-ROUTE-01, MCP-EXEC-01, MCP-CLICK-01, MCP-CLICK-02
+**Success Criteria** (what must be TRUE):
+  1. MCP bridge routes background-flagged tools to the service worker and content-flagged tools to the content script
+  2. execute_js tool executes user JavaScript in the active tab's MAIN world and returns serialized results
+  3. Click tool accepts a text parameter for case-insensitive substring matching against element textContent
+  4. First visible element matching the text is clicked; error returned when no visible match exists
+**Plans:** 2 plans
+
+Plans:
+- [ ] 999.1-01-PLAN.md -- Route-aware MCP bridge dispatch and execute_js background handler
+- [ ] 999.1-02-PLAN.md -- Text-based click targeting in tool definition and content actions
