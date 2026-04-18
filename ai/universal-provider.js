@@ -601,15 +601,11 @@ class UniversalProvider {
         }
     }
     
-    // Clean the response
-    const originalContent = content;
-    content = this.cleanResponse(content);
-    
-    // Debug: xAI cleaning effect logging removed for performance
-    
-    // Always return raw text -- FSB uses CLI format (not JSON) since v10.0.
-    // The downstream CLI parser (parseCliResponse) handles all interpretation.
-    // Never return parsed objects; callAPI at ai-integration.js:4324 expects a string.
+    // Return raw text as-is -- FSB uses CLI format (not JSON) since v10.0.
+    // Do NOT call cleanResponse/parseJSONSafely: those functions strip text
+    // before the first '{', mangle CLI commands with JSON fixers, and can
+    // destroy the entire response. The downstream CLI parser (parseCliResponse
+    // in ai-integration.js) handles all interpretation.
     return {
       content: content,
       usage,
