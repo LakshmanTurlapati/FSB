@@ -97,6 +97,15 @@ console.log('\n--- estimateCost: null / zero inputs ---');
 assertEqual(estimateCost(null, 0, 0), 0, 'null model, zero tokens returns 0');
 assertEqual(estimateCost('grok-4-1-fast-reasoning', 0, 0), 0, 'zero tokens returns 0 regardless of model');
 
+// --- estimateCost: LM Studio stays free -----------------------------------
+
+console.log('\n--- estimateCost: LM Studio local usage ---');
+assertEqual(
+  estimateCost('qwen/qwen3-30b-a3b', 1000000, 1000000, 'lmstudio'),
+  0,
+  'LM Studio local usage is always $0'
+);
+
 // --- CostTracker construction --------------------------------------------
 
 console.log('\n--- CostTracker construction ---');
@@ -147,6 +156,17 @@ console.log('\n--- CostTracker.record() handles missing tokens ---');
   assertEqual(ct.totalInputTokens, 0, 'undefined inputTokens treated as 0');
   assertEqual(ct.totalOutputTokens, 0, 'undefined outputTokens treated as 0');
   assertEqual(ct.callCount, 1, 'callCount still incremented');
+}
+
+// --- CostTracker.record() keeps LM Studio free ----------------------------
+
+console.log('\n--- CostTracker.record() keeps LM Studio free ---');
+{
+  const ct = new CostTracker();
+  const cost = ct.record('qwen/qwen3-30b-a3b', 1000000, 1000000, 'lmstudio');
+  assertEqual(cost, 0, 'LM Studio call cost is $0');
+  assertEqual(ct.totalCost, 0, 'LM Studio does not increase totalCost');
+  assertEqual(ct.callCount, 1, 'LM Studio calls still increment callCount');
 }
 
 // --- CostTracker.checkBudget(): under limit ------------------------------

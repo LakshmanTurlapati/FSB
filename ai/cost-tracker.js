@@ -63,9 +63,14 @@ var MODEL_PRICING = {
  * @param {string} model - Model name (e.g. 'grok-4-1-fast')
  * @param {number} inputTokens - Number of input tokens
  * @param {number} outputTokens - Number of output tokens
+ * @param {string} [provider] - Provider key (used for local free providers)
  * @returns {number} Estimated cost in USD
  */
-function estimateCost(model, inputTokens, outputTokens) {
+function estimateCost(model, inputTokens, outputTokens, provider) {
+  if ((provider || '').toLowerCase() === 'lmstudio') {
+    return 0;
+  }
+
   // Try exact match first, then prefix match for versioned model names
   var pricing = MODEL_PRICING[model];
   if (!pricing) {
@@ -117,10 +122,11 @@ function CostTracker(costLimit) {
  * @param {string} model - Model name used for the call.
  * @param {number} inputTokens - Number of input tokens consumed.
  * @param {number} outputTokens - Number of output tokens produced.
+ * @param {string} [provider] - Provider key used for the call.
  * @returns {number} Cost of this individual call in USD.
  */
-CostTracker.prototype.record = function(model, inputTokens, outputTokens) {
-  var cost = estimateCost(model, inputTokens, outputTokens);
+CostTracker.prototype.record = function(model, inputTokens, outputTokens, provider) {
+  var cost = estimateCost(model, inputTokens, outputTokens, provider);
   this.totalCost += cost;
   this.totalInputTokens += (inputTokens || 0);
   this.totalOutputTokens += (outputTokens || 0);

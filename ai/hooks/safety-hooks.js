@@ -58,12 +58,12 @@ function createSafetyBreakerHook(checkSafetyBreakersFn) {
  * Create a stuck detection hook handler for the HookPipeline.
  *
  * Wraps detectStuck(session, toolResults) and translates its result into
- * the pipeline return shape.  Stuck detection does NOT stop the pipeline --
- * it provides a hint that the agent loop injects into the next prompt.
- * Only safety breakers return shouldStop: true.
+ * the pipeline return shape.  When shouldForceStop is true, the pipeline
+ * halts and the agent loop terminates the session (same as safety breakers).
+ * Otherwise it provides a hint injected into the next prompt.
  *
  * @param {Function} detectStuckFn - The detectStuck function from
- *   agent-loop.js.  Signature: (session, toolResults) => { isStuck, hint }.
+ *   agent-loop.js.  Signature: (session, toolResults) => { isStuck, shouldForceStop, hint }.
  * @returns {Function} Handler suitable for pipeline.register(AFTER_ITERATION, handler).
  */
 function createStuckDetectionHook(detectStuckFn) {
@@ -77,6 +77,10 @@ function createStuckDetectionHook(detectStuckFn) {
     try {
       var result = detectStuckFn(context.session, context.toolResults);
       if (result && result.isStuck) {
+        // Force-stop when stuck detection escalates past threshold
+        if (result.shouldForceStop) {
+          return { shouldStop: true, isStuck: true, hint: result.hint, reason: result.hint, source: 'stuckDetection' };
+        }
         return { shouldStop: false, isStuck: true, hint: result.hint, source: 'stuckDetection' };
       }
       return { shouldStop: false, isStuck: false };

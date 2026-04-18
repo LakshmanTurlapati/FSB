@@ -2094,6 +2094,45 @@ body {
 }
 
 /* Credentials toolbar */
+.credential-vault-panel {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin-bottom: var(--space-lg);
+}
+
+.credential-vault-header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  align-items: flex-start;
+  margin-bottom: var(--space-lg);
+}
+
+.credential-vault-header h3 {
+  margin: 0 0 var(--space-xs);
+  color: var(--text-primary);
+}
+
+.credential-vault-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.credential-vault-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.credential-vault-helper {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
 .credentials-toolbar {
   display: flex;
   align-items: center;
@@ -2182,6 +2221,12 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.credential-card-scope {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
 }
 
 .credential-card-password {
@@ -2332,6 +2377,19 @@ body {
   margin-bottom: 0;
 }
 
+.credential-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.credential-checkbox input {
+  width: auto;
+  margin: 0;
+}
+
 .credential-modal-footer {
   display: flex;
   justify-content: flex-end;
@@ -2360,6 +2418,11 @@ body {
 
 /* Responsive adjustments for credentials */
 @media (max-width: 768px) {
+  .credential-vault-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .credentials-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -2371,6 +2434,195 @@ body {
 
   .credential-card-password {
     display: none;
+  }
+}
+
+.payment-methods-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.payment-method-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-fast);
+}
+
+.payment-method-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+.payment-method-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #0f172a, #334155);
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+.payment-method-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.payment-method-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.payment-method-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.payment-method-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.payment-method-number {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.payment-method-billing {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.payment-method-actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.payment-method-card:hover .payment-method-actions {
+  opacity: 1;
+}
+
+.payment-card-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+.payment-card-brand.visa {
+  background: rgba(30, 64, 175, 0.12);
+  color: #1d4ed8;
+}
+
+.payment-card-brand.mastercard {
+  background: rgba(234, 88, 12, 0.12);
+  color: #ea580c;
+}
+
+.payment-card-brand.amex {
+  background: rgba(8, 145, 178, 0.12);
+  color: #0891b2;
+}
+
+.payment-card-brand.discover {
+  background: rgba(217, 119, 6, 0.12);
+  color: #d97706;
+}
+
+.payment-card-brand.diners,
+.payment-card-brand.jcb {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+.payment-card-brand.unknown {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+.payment-method-modal-content {
+  max-width: 720px;
+}
+
+.payment-expiry-grid,
+.payment-billing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.payment-billing-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.payment-method-security-note {
+  margin-top: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: rgba(217, 119, 6, 0.08);
+  border: 1px solid rgba(217, 119, 6, 0.18);
+}
+
+[data-theme="dark"] .payment-method-card {
+  background: var(--bg-primary);
+}
+
+[data-theme="dark"] .payment-card-brand.visa {
+  color: #93c5fd;
+}
+
+[data-theme="dark"] .payment-card-brand.mastercard {
+  color: #fdba74;
+}
+
+[data-theme="dark"] .payment-card-brand.amex {
+  color: #67e8f9;
+}
+
+[data-theme="dark"] .payment-card-brand.discover {
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .payment-card-brand.diners,
+[data-theme="dark"] .payment-card-brand.jcb {
+  color: #86efac;
+}
+
+@media (max-width: 768px) {
+  .payment-method-actions {
+    opacity: 1;
+  }
+
+  .payment-expiry-grid,
+  .payment-billing-grid {
+    grid-template-columns: 1fr;
   }
 }
 

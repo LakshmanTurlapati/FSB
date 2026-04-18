@@ -3007,7 +3007,12 @@ class BackgroundAnalytics {
     try {
       const result = await chrome.storage.local.get(['fsbUsageData', 'fsbCurrentModel']);
       if (result.fsbUsageData) {
-        this.usageData = result.fsbUsageData;
+        this.usageData = result.fsbUsageData.map((entry) => ({
+          ...entry,
+          source: typeof normalizeUsageSource === 'function'
+            ? normalizeUsageSource(entry?.source)
+            : (entry?.source || 'automation')
+        }));
         automationLogger.debug('Loaded analytics data', { entries: this.usageData.length });
       }
       if (result.fsbCurrentModel) {
@@ -3078,8 +3083,10 @@ class BackgroundAnalytics {
         inputTokens: inputTokens || 0,
         outputTokens: outputTokens || 0,
         success: success,
-        source: source,
-        cost: this.calculateCost(model, inputTokens, outputTokens)
+        source: typeof normalizeUsageSource === 'function'
+          ? normalizeUsageSource(source)
+          : (source || 'automation'),
+        cost: this.calculateCost(model, inputTokens, outputTokens, provider)
       };
 
       this.usageData.push(entry);
@@ -9527,7 +9534,7 @@ function handleTrackUsage(request, sender, sendResponse) {
   // Initialize analytics if not already done
   const analytics = initializeAnalytics();
 
-  const { model, inputTokens, outputTokens, success, tokenSource, timestamp } = request.data;
+  const { model, inputTokens, outputTokens, success, source, tokenSource, timestamp, provider } = request.data;
 
   automationLogger.logAPI(null, 'analytics', 'track_request', {
     model,
@@ -9539,7 +9546,7 @@ function handleTrackUsage(request, sender, sendResponse) {
   });
 
   // Track the usage and handle response
-  analytics.trackUsage(model, inputTokens, outputTokens, success)
+  analytics.trackUsage(model, inputTokens, outputTokens, success, source || 'automation', provider || '')
     .then(() => {
       // Broadcast update to all extension contexts
       broadcastAnalyticsUpdate();

@@ -141,7 +141,7 @@ class AIIntegration {
 
     // Initialize model name from settings (fix for undefined in analytics)
     // This ensures model is available before testConnection() completes
-    this.model = this.settings.modelName || this.settings.model || 'unknown';
+    this.model = this.settings.modelName || this.settings.model || '';
 
     // Set API endpoint for legacy fallback
     this.apiEndpoint = 'https://api.x.ai/v1/chat/completions';
@@ -197,6 +197,8 @@ class AIIntegration {
   // Migrate legacy settings to new format
   migrateSettings(settings) {
     const migrated = { ...settings };
+    const provider = migrated.modelProvider || 'xai';
+    const preservesArbitraryModelIds = provider === 'lmstudio' || provider === 'custom';
 
     // Handle legacy speedMode
     if (!migrated.modelName && migrated.speedMode) {
@@ -212,13 +214,13 @@ class AIIntegration {
       'grok-4-fast',        // Old model that no longer exists
       'grok-3-fast-beta'    // Old beta model
     ];
-    if (legacyModels.includes(migrated.modelName)) {
+    if (provider === 'xai' && legacyModels.includes(migrated.modelName)) {
       migrated.modelName = 'grok-4-1-fast-reasoning'; // New recommended default
     }
 
     // Set defaults
     migrated.modelProvider = migrated.modelProvider || 'xai';
-    migrated.modelName = migrated.modelName || 'grok-4-1-fast-reasoning';
+    migrated.modelName = migrated.modelName || (preservesArbitraryModelIds ? '' : 'grok-4-1-fast-reasoning');
 
     return migrated;
   }
@@ -2517,6 +2519,7 @@ class AIIntegration {
       automationLogger.debug('Final token tracking data', {
         sessionId: this.currentSessionId,
         model: modelName,
+        provider: this.settings?.modelProvider || '',
         inputTokens,
         outputTokens,
         success,
@@ -2526,28 +2529,48 @@ class AIIntegration {
       // Check if analytics is available (from options page)
       if (typeof window !== 'undefined' && window.analytics) {
         automationLogger.debug('Tracking via window.analytics', { sessionId: this.currentSessionId });
-        window.analytics.trackUsage(modelName, inputTokens, outputTokens, success);
+        window.analytics.trackUsage(
+          modelName,
+          inputTokens,
+          outputTokens,
+          success,
+          'automation',
+          this.settings?.modelProvider || ''
+        );
       } else {
         automationLogger.debug('window.analytics not available - using background script', { sessionId: this.currentSessionId });
       }
 
       // Check if we're in the background script context
-      if (typeof initializeAnalytics !== 'undefined') {
+      if (typeof getAnalytics === 'function') {
         // We're in the background script, track directly
         automationLogger.debug('In background context, tracking directly', { sessionId: this.currentSessionId });
         try {
-          const analytics = initializeAnalytics();
-          analytics.trackUsage(modelName, inputTokens, outputTokens, success).then(() => {
+          const analytics = getAnalytics();
+          analytics.trackUsage(
+            modelName,
+            inputTokens,
+            outputTokens,
+            success,
+            'automation',
+            this.settings?.modelProvider || ''
+          ).then(() => {
             automationLogger.debug('Direct usage tracking completed', { sessionId: this.currentSessionId });
           }).catch((error) => {
             automationLogger.error('Direct tracking failed', { sessionId: this.currentSessionId, error: error.message });
           });
           // Accumulate cost on the active session for history display
           if (typeof accumulateSessionCost !== 'undefined' && this.currentSessionId) {
-            accumulateSessionCost(this.currentSessionId, modelName, inputTokens, outputTokens);
+            accumulateSessionCost(
+              this.currentSessionId,
+              modelName,
+              inputTokens,
+              outputTokens,
+              this.settings?.modelProvider || ''
+            );
           }
         } catch (error) {
-          automationLogger.error('Failed to initialize analytics', { sessionId: this.currentSessionId, error: error.message });
+          automationLogger.error('Failed to get analytics instance', { sessionId: this.currentSessionId, error: error.message });
         }
       } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
         // We're in a content script or other context, send message
@@ -2558,6 +2581,8 @@ class AIIntegration {
             inputTokens: inputTokens,
             outputTokens: outputTokens,
             success: success,
+            source: 'automation',
+            provider: this.settings?.modelProvider || '',
             tokenSource: tokenSource,
             timestamp: Date.now()
           }

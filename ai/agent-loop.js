@@ -193,39 +193,115 @@ function checkSafetyBreakers(session) {
  */
 function detectStuck(session, toolResults) {
   const state = session.agentState || {};
+  var stuckThreshold = _al_SESSION_DEFAULTS.stuckThreshold || 3;
+  var forceStopThreshold = _al_SESSION_DEFAULTS.stuckForceStopThreshold || 5;
 
-  // Check if ANY tool result had effect -- if yes, reset counter
-  const anyEffect = toolResults.some(tr => tr.result && tr.result.hadEffect === true);
+  // --- Read-only tools that never change the page ---
+  var READ_ONLY_TOOLS = {
+    read_page: true, get_text: true, get_attribute: true, read_sheet: true,
+    get_dom_snapshot: true, get_page_snapshot: true, get_site_guide: true,
+    report_progress: true, get_logs: true, search_memory: true
+  };
+
+  // --- 1. hadEffect check (existing logic, unchanged) ---
+  var anyEffect = toolResults.some(function(tr) {
+    return tr.result && tr.result.hadEffect === true;
+  });
 
   if (anyEffect) {
     state.consecutiveNoChangeCount = 0;
-    return { isStuck: false, hint: null };
+  } else {
+    state.consecutiveNoChangeCount = (state.consecutiveNoChangeCount || 0) + 1;
   }
 
-  // No tool had effect -- increment counter
-  state.consecutiveNoChangeCount = (state.consecutiveNoChangeCount || 0) + 1;
+  // --- 2. Action repetition detection ---
+  // Build a fingerprint for mutation tools in this iteration.
+  // Fingerprint = sorted list of "toolName:target" for non-read-only tools.
+  var mutationParts = [];
+  for (var i = 0; i < toolResults.length; i++) {
+    var tr = toolResults[i];
+    if (READ_ONLY_TOOLS[tr.name]) continue;
+    var target = '';
+    if (tr.args) {
+      target = tr.args.selector || tr.args.elementId || tr.args.element_id || '';
+      if (!target && tr.args.code) {
+        // For execute_js, use first 40 chars of code as fingerprint
+        target = String(tr.args.code).substring(0, 40);
+      }
+    }
+    mutationParts.push(tr.name + ':' + target);
+  }
+  var fingerprint = mutationParts.sort().join('|') || '_read_only_';
 
-  if (state.consecutiveNoChangeCount >= 3) {
-    // Build recent actions summary from actionHistory
-    const history = session.actionHistory || [];
-    const recentEntries = history.slice(-5);
-    const recentActions = recentEntries.map(entry => {
-      const paramStr = entry.params?.selector || entry.params?.text || entry.params?.url || '';
-      return paramStr ? `${entry.tool}(${paramStr})` : entry.tool;
-    });
+  if (!state.actionFingerprints) state.actionFingerprints = [];
+  state.actionFingerprints.push(fingerprint);
+  // Keep last 20 fingerprints
+  if (state.actionFingerprints.length > 20) {
+    state.actionFingerprints = state.actionFingerprints.slice(-20);
+  }
 
+  // Check repetition: count how many of the last 10 fingerprints match the current one
+  var windowSize = Math.min(state.actionFingerprints.length, 10);
+  var recent = state.actionFingerprints.slice(-windowSize);
+  var matchCount = 0;
+  for (var j = 0; j < recent.length; j++) {
+    if (recent[j] === fingerprint) matchCount++;
+  }
+  // Repetitive if 60%+ of recent iterations have same fingerprint and window >= 5
+  var isRepetitive = windowSize >= 5 && (matchCount / windowSize) >= 0.6;
+
+  // --- 3. Determine stuck state ---
+  var isStuckByNoChange = state.consecutiveNoChangeCount >= stuckThreshold;
+  var isStuck = isStuckByNoChange || isRepetitive;
+
+  if (!isStuck) {
+    // Not stuck -- reset warning count
+    if (state.stuckWarningCount > 0 && !isRepetitive) {
+      state.stuckWarningCount = 0;
+    }
+    return { isStuck: false, shouldForceStop: false, hint: null };
+  }
+
+  // --- 4. Escalating warnings + force stop ---
+  state.stuckWarningCount = (state.stuckWarningCount || 0) + 1;
+
+  // Build context about what the model has been doing
+  var history = session.actionHistory || [];
+  var recentEntries = history.slice(-5);
+  var recentActions = recentEntries.map(function(entry) {
+    var paramStr = entry.params?.selector || entry.params?.text || entry.params?.url || '';
+    return paramStr ? (entry.tool + '(' + paramStr + ')') : entry.tool;
+  });
+
+  var reason = isRepetitive
+    ? 'Repeating the same actions on the same elements'
+    : 'No visible page changes from tool calls';
+
+  // Force stop after threshold warnings
+  if (state.stuckWarningCount >= forceStopThreshold) {
     return {
       isStuck: true,
-      hint: `WARNING: The last ${state.consecutiveNoChangeCount} tool calls produced no visible change on the page. ` +
-        `Previous actions: [${recentActions.join(', ')}]. ` +
-        `Suggestions: (1) Call get_dom_snapshot to refresh your view of the page -- elements may have changed. ` +
-        `(2) Try scrolling to reveal hidden elements. ` +
-        `(3) Try a completely different approach to the task. ` +
-        `(4) If the task appears complete, respond with a summary instead of calling more tools.`
+      shouldForceStop: true,
+      hint: 'AUTOMATION FORCE-STOPPED: ' + reason + ' for ' +
+        state.stuckWarningCount + ' consecutive checks (' +
+        (state.stuckWarningCount * stuckThreshold) + '+ iterations). ' +
+        'Recent actions: [' + recentActions.join(', ') + ']. ' +
+        'The current approach cannot complete this task. Session terminated.'
     };
   }
 
-  return { isStuck: false, hint: null };
+  // Escalating severity
+  var severity = state.stuckWarningCount >= 3 ? 'CRITICAL' : 'WARNING';
+  var hint = severity + ' (stuck check ' + state.stuckWarningCount + '/' + forceStopThreshold + '): ' +
+    reason + '. Recent actions: [' + recentActions.join(', ') + ']. ' +
+    'Your actions are NOT changing the page state. You MUST try a fundamentally different approach NOW: ' +
+    '(1) Use execute_js with React/framework-specific event dispatching (e.g. el.dispatchEvent(new Event("input", {bubbles:true}))). ' +
+    '(2) Navigate to a completely different URL or use a different website. ' +
+    '(3) Use keyboard navigation (press_key Tab/Enter/ArrowDown) instead of click. ' +
+    '(4) If this sub-task is impossible, skip it and move to the next step. ' +
+    '(5) If the entire task is impossible with current tools, call fail_task with a clear explanation.';
+
+  return { isStuck: true, shouldForceStop: false, hint: hint };
 }
 
 
@@ -1740,6 +1816,14 @@ async function runAgentIteration(sessionId, options) {
       var stuckResult = (afterIterResult.results || []).find(function(r) { return r && r.isStuck; });
       if (stuckResult && stuckResult.hint) {
         session.messages.push({ role: 'user', content: stuckResult.hint });
+        if (typeof automationLogger !== 'undefined' && automationLogger.log) {
+          automationLogger.log('warn', 'Stuck detection triggered', {
+            sessionId: sessionId, iteration: iterNum,
+            warningCount: session.agentState?.stuckWarningCount,
+            forceStop: Boolean(stuckResult.shouldStop),
+            hint: stuckResult.hint.substring(0, 200)
+          });
+        }
       }
       // Check if safety breaker hook stopped the iteration
       if (afterIterResult.stopped) {
@@ -1755,6 +1839,23 @@ async function runAgentIteration(sessionId, options) {
       var stuckCheck = detectStuck(session, toolResults);
       if (stuckCheck.isStuck && stuckCheck.hint) {
         session.messages.push({ role: 'user', content: stuckCheck.hint });
+        if (typeof automationLogger !== 'undefined' && automationLogger.log) {
+          automationLogger.log('warn', 'Stuck detection triggered (fallback)', {
+            sessionId: sessionId, iteration: iterNum,
+            warningCount: session.agentState?.stuckWarningCount,
+            forceStop: stuckCheck.shouldForceStop,
+            hint: stuckCheck.hint.substring(0, 200)
+          });
+        }
+      }
+      // Force-stop when stuck detection escalates past threshold
+      if (stuckCheck.shouldForceStop) {
+        session.status = 'stopped';
+        if (typeof endSessionOverlays === 'function') {
+          await endSessionOverlays(session, 'stuck');
+        }
+        await persist(sessionId, session);
+        return;
       }
     }
 

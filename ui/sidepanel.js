@@ -852,6 +852,258 @@ function openSettings() {
   window.close();
 }
 
+async function openControlPanelSection(sectionId) {
+  const baseUrl = chrome.runtime.getURL('ui/control_panel.html');
+  const targetUrl = sectionId ? `${baseUrl}#${sectionId}` : baseUrl;
+
+  try {
+    if (chrome.tabs?.create) {
+      await chrome.tabs.create({ url: targetUrl, active: true });
+    } else {
+      chrome.runtime.openOptionsPage();
+    }
+    window.close();
+  } catch (_error) {
+    chrome.runtime.openOptionsPage();
+    window.close();
+  }
+}
+
+function normalizeAutomationOutcome(outcome, status, hasError) {
+  var normalizedOutcome = typeof outcome === 'string' ? outcome.trim().toLowerCase() : '';
+  if (normalizedOutcome === 'error') return 'failure';
+  if (normalizedOutcome === 'success' || normalizedOutcome === 'partial' || normalizedOutcome === 'failure' || normalizedOutcome === 'stopped') {
+    return normalizedOutcome;
+  }
+
+  var normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+  if (normalizedStatus === 'partial') return 'partial';
+  if (normalizedStatus === 'stopped') return 'stopped';
+  if (normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'stuck') return 'failure';
+
+  return hasError ? 'failure' : 'success';
+}
+
+function getSessionOutcomeDisplay(session) {
+  session = session || {};
+  var outcomeDetails = session.outcomeDetails && typeof session.outcomeDetails === 'object'
+    ? session.outcomeDetails
+    : {};
+  var outcome = normalizeAutomationOutcome(
+    session.outcome || outcomeDetails.outcome,
+    session.status || outcomeDetails.outcome,
+    Boolean(session.error || outcomeDetails.error)
+  );
+
+  return {
+    outcome: outcome,
+    statusClass: outcome === 'success'
+      ? 'completed'
+      : outcome === 'partial'
+        ? 'partial'
+        : outcome === 'stopped'
+          ? 'stopped'
+          : 'error',
+    statusLabel: outcome === 'success'
+      ? 'completed'
+      : outcome === 'partial'
+        ? 'partial'
+        : outcome === 'stopped'
+          ? 'stopped'
+          : 'failed',
+    summary: outcomeDetails.summary || session.result || null,
+    blocker: outcomeDetails.blocker || session.blocker || null,
+    nextStep: outcomeDetails.nextStep || session.nextStep || null,
+    resultText: session.completionMessage || outcomeDetails.result || session.result || outcomeDetails.summary || null,
+    error: session.error || outcomeDetails.error || null
+  };
+}
+
+function removeLoginPrompt() {
+  const existing = document.getElementById('login-prompt');
+  if (existing) {
+    existing.remove();
+  }
+}
+
+function removePaymentPrompt() {
+  const existing = document.getElementById('payment-prompt');
+  if (existing) {
+    existing.remove();
+  }
+}
+
+function getLatestThreadSessionRecord(sessionIndex, sessionStorage, threadHistorySessionId) {
+  if (!threadHistorySessionId) return null;
+
+  var candidates = (sessionIndex || []).filter(function(entry) {
+    var entryHistorySessionId = entry?.historySessionId || entry?.id || null;
+    return entry?.id === threadHistorySessionId || entryHistorySessionId === threadHistorySessionId;
+  });
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  candidates.sort(function(a, b) {
+    var aTime = a?.endTime || a?.startTime || 0;
+    var bTime = b?.endTime || b?.startTime || 0;
+    return bTime - aTime;
+  });
+
+  var latest = candidates[0];
+  return (sessionStorage && latest?.id && sessionStorage[latest.id]) || latest || null;
+}
+
+function renderAutomationCompletionPayload(payload) {
+  payload = payload || {};
+
+  if (payload.sessionId && lastRenderedTerminalSessionId === payload.sessionId) {
+    return;
+  }
+
+  if (payload.historySessionId) {
+    historySessionId = payload.historySessionId;
+  } else if (!historySessionId && payload.sessionId) {
+    historySessionId = payload.sessionId;
+  }
+
+  if (payload.conversationId) {
+    activeConversationId = payload.conversationId;
+  }
+
+  persistSidepanelThreadState();
+  removeLoginPrompt();
+
+  var outcome = normalizeAutomationOutcome(
+    payload.outcome,
+    payload.outcomeDetails?.outcome,
+    Boolean(payload.error || payload.outcomeDetails?.error)
+  );
+  var completionMessage = payload.result ||
+    payload.outcomeDetails?.result ||
+    payload.outcomeDetails?.summary ||
+    'The automation completed but no summary was provided. Please try again if the task wasn\'t completed as expected.';
+
+  if (outcome === 'failure') {
+    var errorMessage = payload.error || payload.outcomeDetails?.error || completionMessage || 'Automation error';
+    setErrorState();
+    if (currentStatusMessage) {
+      completeStatusMessage('Error: ' + errorMessage, 'error');
+    } else {
+      addCompletionMessage('Error: ' + errorMessage, 'error');
+    }
+  } else if (currentStatusMessage) {
+    completeStatusMessage(
+      completionMessage,
+      outcome === 'partial' ? 'partial' : (outcome === 'stopped' ? 'system' : undefined)
+    );
+  } else if (outcome === 'stopped') {
+    addMessage(completionMessage, 'system');
+  } else {
+    addCompletionMessage(completionMessage, 'ai', outcome === 'partial');
+  }
+
+  setIdleState();
+  currentSessionId = null;
+  lastRenderedTerminalSessionId = payload.sessionId || historySessionId || null;
+
+  if (isHistoryViewActive) {
+    loadHistoryList();
+  }
+
+  if (outcome === 'partial') {
+    (async () => {
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const currentUrl = tabs[0]?.url;
+        if (currentUrl && currentUrl.startsWith('http')) {
+          const domain = new URL(currentUrl).hostname;
+          const siteMapCheck = await chrome.runtime.sendMessage({
+            action: 'checkSiteMap',
+            domain
+          });
+
+          if (!siteMapCheck || !siteMapCheck.exists) {
+            const reconDiv = document.createElement('div');
+            reconDiv.className = 'message system new recon-suggestion';
+            const textSpan = document.createElement('span');
+            textSpan.className = 'recon-suggestion-text';
+            textSpan.textContent = 'This site does not have a map yet. Reconnaissance can help FSB learn the site structure for better performance.';
+            reconDiv.appendChild(textSpan);
+
+            const reconBtn = document.createElement('button');
+            reconBtn.className = 'recon-btn';
+            reconBtn.id = 'reconFromSidepanel';
+            reconBtn.textContent = 'Run Reconnaissance';
+            reconBtn.addEventListener('click', () => {
+              startReconFromSidepanel(currentUrl, payload.task || completionMessage);
+            });
+            reconDiv.appendChild(reconBtn);
+
+            chatMessages.appendChild(reconDiv);
+            scrollToBottom();
+          }
+        }
+      } catch (e) {
+        console.warn('Recon suggestion check failed:', e.message);
+      }
+    })();
+  }
+}
+
+async function recoverLatestThreadTerminalOutcome(options = {}) {
+  if (!historySessionId || isHistoryViewActive) {
+    return;
+  }
+
+  var force = options.force === true;
+
+  try {
+    var stored = await chrome.storage.local.get(['fsbSessionLogs', 'fsbSessionIndex']);
+    var sessionStorage = stored.fsbSessionLogs || {};
+    var sessionIndex = stored.fsbSessionIndex || [];
+    var latestSession = getLatestThreadSessionRecord(sessionIndex, sessionStorage, historySessionId);
+
+    if (!latestSession) {
+      return;
+    }
+
+    var latestStatus = typeof latestSession.status === 'string'
+      ? latestSession.status.trim().toLowerCase()
+      : '';
+    if (latestStatus === 'running' || latestStatus === 'replaying') {
+      return;
+    }
+    if (!force && lastRenderedTerminalSessionId === latestSession.id) {
+      return;
+    }
+    if (isRunning && currentSessionId && currentSessionId !== latestSession.id) {
+      return;
+    }
+
+    var outcomeInfo = getSessionOutcomeDisplay(latestSession);
+    if (!outcomeInfo.summary && !outcomeInfo.resultText && !outcomeInfo.error) {
+      return;
+    }
+
+    renderAutomationCompletionPayload({
+      sessionId: latestSession.id,
+      conversationId: latestSession.conversationId || activeConversationId || null,
+      historySessionId: latestSession.historySessionId || historySessionId || latestSession.id,
+      outcome: latestSession.outcome || outcomeInfo.outcome,
+      outcomeDetails: latestSession.outcomeDetails || null,
+      result: latestSession.completionMessage || latestSession.result || null,
+      error: latestSession.error || null,
+      blocker: latestSession.blocker || null,
+      nextStep: latestSession.nextStep || null,
+      task: latestSession.task || null
+    });
+  } catch (error) {
+    console.warn('Failed to recover latest thread terminal outcome:', error);
+  }
+}
+
 // Listen for messages from background
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
@@ -986,6 +1238,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ received: true });
       }
       return;
+
+    case 'sessionStateEvent':
+      if (request.sessionId !== currentSessionId) break;
+      switch (request.eventType) {
+        case 'iteration_complete':
+          if (currentStatusMessage && isRunning) {
+            updateStatusMessage('Step ' + request.iteration + ' complete', {
+              iteration: request.iteration,
+              maxIterations: 20,
+              progressPercent: Math.min(100, Math.round((request.iteration / 20) * 100))
+            });
+          }
+          break;
+        case 'session_ended':
+          if (!isRunning) break;
+          setIdleState();
+          if (isHistoryViewActive) {
+            loadHistoryList();
+          }
+          break;
+        case 'tool_executed':
+          if (showSidepanelProgressEnabled && isRunning) {
+            addActionMessage(request.toolName + (request.success ? '' : ' [failed]'));
+          }
+          break;
+        case 'error_occurred':
+          console.warn('[FSB] emitter error:', request.error);
+          break;
+      }
+      break;
   }
 });
 
@@ -1008,6 +1290,13 @@ function showLoginPrompt(domain, fields) {
 
   // Escape domain for safe HTML insertion
   const safeDomain = (domain || 'this site').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+  const authPrompt = null;
+  const promptDetail = (authPrompt && authPrompt.detail) || 'Submit credentials once to let FSB sign in and resume this same session.';
+  const handoffDetail = (authPrompt && authPrompt.handoff) || 'If you skip or the site still needs manual approval, FSB will preserve the completed work and finish with a manual handoff.';
+  const allowSave = authPrompt?.allowSave !== false;
+  const saveDisabledReason = authPrompt?.saveDisabledReason || 'Saving is unavailable for this session.';
+  const safeSubtext = `${promptDetail} ${handoffDetail}`.trim().replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+  const safeSaveDisabledReason = saveDisabledReason.replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 
   container.innerHTML = `
     <div class="login-prompt-header">
@@ -1031,9 +1320,10 @@ function showLoginPrompt(domain, fields) {
         </div>
       </div>
       <label class="login-prompt-save-label">
-        <input type="checkbox" id="loginPromptSave" checked>
+        <input type="checkbox" id="loginPromptSave" ${allowSave ? 'checked' : ''} ${allowSave ? '' : 'disabled'}>
         <span>Save for future use</span>
       </label>
+      ${allowSave ? '' : `<div class="login-prompt-subtext">${safeSaveDisabledReason}</div>`}
       <div class="login-prompt-actions">
         <button class="login-prompt-btn primary" id="loginPromptSubmit">Sign In</button>
         <button class="login-prompt-btn ghost" id="loginPromptSkip">Skip</button>
@@ -1121,6 +1411,151 @@ function showLoginPrompt(domain, fields) {
         e.preventDefault();
         submitBtn?.click();
       }
+    });
+  }
+}
+
+function showPaymentPrompt(domain, paymentPrompt) {
+  removePaymentPrompt();
+
+  const methods = Array.isArray(paymentPrompt?.methods) ? paymentPrompt.methods : [];
+  const available = paymentPrompt?.available === true && methods.length > 0;
+  const state = paymentPrompt?.state || (available ? 'available' : 'unavailable');
+  const container = document.createElement('div');
+  container.className = 'message payment-prompt new';
+  container.id = 'payment-prompt';
+
+  const safeDomain = escapeHtml(domain || 'this checkout');
+  const headerText = 'Checkout Detected';
+  const detailText = escapeHtml(paymentPrompt?.detail || paymentPrompt?.blockedReason || 'Saved payment methods are not available for this checkout.');
+  const stateLabelMap = {
+    no_saved_methods: 'No saved cards',
+    feature_disabled: 'Payments disabled',
+    vault_not_configured: 'Vault setup required',
+    vault_locked: 'Vault locked',
+    payment_locked: 'Payment access locked'
+  };
+  const stateLabel = escapeHtml(stateLabelMap[state] || 'Saved payments unavailable');
+  const primaryAction = paymentPrompt?.primaryAction || '';
+  const primaryActionLabel = escapeHtml(paymentPrompt?.primaryActionLabel || 'Open Payments');
+
+  if (!available) {
+    container.innerHTML = `
+      <div class="login-prompt-header">
+        <i class="fas fa-credit-card"></i>
+        <span>${headerText}</span>
+      </div>
+      <div class="login-prompt-domain">${safeDomain}</div>
+      <div class="payment-prompt-state">${stateLabel}</div>
+      <div class="login-prompt-subtext">${detailText}</div>
+      <div class="login-prompt-actions">
+        ${primaryAction ? `<button class="login-prompt-btn primary" id="paymentPromptPrimaryAction">${primaryActionLabel}</button>` : ''}
+        <button class="login-prompt-btn ghost" id="paymentPromptDismiss">Dismiss</button>
+      </div>
+    `;
+
+    chatMessages.appendChild(container);
+    scrollToBottom();
+    setTimeout(() => container.classList.remove('new'), 400);
+
+    const dismissBtn = document.getElementById('paymentPromptDismiss');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', () => {
+        container.remove();
+      });
+    }
+
+    const primaryActionBtn = document.getElementById('paymentPromptPrimaryAction');
+    if (primaryActionBtn) {
+      primaryActionBtn.addEventListener('click', () => {
+        if (primaryAction === 'open_payments_section') {
+          openControlPanelSection('payments');
+        } else if (primaryAction === 'open_passwords_section') {
+          openControlPanelSection('passwords');
+        }
+      });
+    }
+    return;
+  }
+
+  const methodOptions = methods.map((method, index) => {
+    const brandLabelMap = {
+      visa: 'Visa',
+      mastercard: 'Mastercard',
+      amex: 'AmEx',
+      discover: 'Discover',
+      diners: 'Diners',
+      jcb: 'JCB'
+    };
+    const brandLabel = brandLabelMap[method.cardBrand] || 'Unknown';
+    const title = escapeHtml(method.nickname || `${brandLabel} ending in ${method.last4 || '****'}`);
+    const subtitle = escapeHtml(`${method.maskedNumber || '****'}${method.expiryMonth && method.expiryYearLast2 ? ` | Exp ${method.expiryMonth}/${method.expiryYearLast2}` : ''}`);
+    const billing = escapeHtml(method.billingSummary || 'Billing profile stored');
+    const brand = (method.cardBrand || 'unknown').replace(/[^a-z]/gi, '').toLowerCase() || 'unknown';
+    return `
+      <button class="payment-prompt-option ${index === 0 ? 'selected' : ''}" data-payment-id="${method.id}">
+        <div class="payment-prompt-option-top">
+          <span class="payment-card-brand ${brand}">${escapeHtml(brandLabel)}</span>
+          <span class="payment-prompt-option-title">${title}</span>
+        </div>
+        <div class="payment-prompt-option-subtitle">${subtitle}</div>
+        <div class="payment-prompt-option-billing">${billing}</div>
+      </button>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="login-prompt-header">
+      <i class="fas fa-credit-card"></i>
+      <span>${headerText}</span>
+    </div>
+    <div class="login-prompt-domain">${safeDomain}</div>
+    <div class="login-prompt-subtext">${detailText}</div>
+    <div class="payment-prompt-options">${methodOptions}</div>
+    <div class="login-prompt-actions">
+      <button class="login-prompt-btn primary" id="paymentPromptFill">Fill Saved Card</button>
+      <button class="login-prompt-btn ghost" id="paymentPromptSkip">Skip</button>
+    </div>
+  `;
+
+  chatMessages.appendChild(container);
+  scrollToBottom();
+  setTimeout(() => container.classList.remove('new'), 400);
+
+  let selectedPaymentId = methods[0]?.id || null;
+  const optionButtons = container.querySelectorAll('.payment-prompt-option');
+  optionButtons.forEach((optionBtn) => {
+    optionBtn.addEventListener('click', () => {
+      optionButtons.forEach(btn => btn.classList.remove('selected'));
+      optionBtn.classList.add('selected');
+      selectedPaymentId = optionBtn.dataset.paymentId || null;
+    });
+  });
+
+  const fillBtn = document.getElementById('paymentPromptFill');
+  if (fillBtn) {
+    fillBtn.addEventListener('click', () => {
+      if (!selectedPaymentId) return;
+      chrome.runtime.sendMessage({
+        action: 'paymentMethodSelected',
+        sessionId: currentSessionId,
+        paymentMethodId: selectedPaymentId
+      });
+      container.remove();
+      addMessage('Saved payment method selected. FSB will fill the card details, but it will not submit the final payment for you.', 'system');
+      addStatusMessage('Filling saved card...');
+    });
+  }
+
+  const skipBtn = document.getElementById('paymentPromptSkip');
+  if (skipBtn) {
+    skipBtn.addEventListener('click', () => {
+      chrome.runtime.sendMessage({
+        action: 'paymentSkipped',
+        sessionId: currentSessionId
+      });
+      container.remove();
+      addMessage('Saved payment method skipped. Review the checkout form manually before any final payment step.', 'system');
     });
   }
 }

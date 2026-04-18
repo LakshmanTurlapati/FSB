@@ -307,6 +307,8 @@ async function testAPI() {
     gemini: 'Gemini',
     openai: 'OpenAI',
     anthropic: 'Anthropic',
+    openrouter: 'OpenRouter',
+    lmstudio: 'LM Studio',
     custom: 'Custom'
   };
   const displayName = providerNames[provider] || provider;

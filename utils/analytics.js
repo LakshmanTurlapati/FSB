@@ -1,6 +1,14 @@
 // FSB Analytics - Usage Tracking and Cost Calculation
 // Manages token counting, cost calculation, and usage analytics
 
+function normalizeUsageSource(source) {
+  const value = typeof source === 'string' ? source.trim().toLowerCase() : '';
+  if (value === 'memory' || value === 'sitemap') {
+    return value;
+  }
+  return 'automation';
+}
+
 class FSBAnalytics {
   constructor() {
     // Model pricing per 1M tokens (USD) - Updated January 2025
@@ -145,7 +153,10 @@ class FSBAnalytics {
       });
       
       if (result.fsbUsageData) {
-        this.usageData = result.fsbUsageData;
+        this.usageData = result.fsbUsageData.map((entry) => ({
+          ...entry,
+          source: normalizeUsageSource(entry?.source)
+        }));
         console.log(`Analytics: Loaded ${this.usageData.length} usage entries`);
         // Clean old data (keep only last 30 days)
         this.cleanOldData();
@@ -181,7 +192,7 @@ class FSBAnalytics {
   }
 
   // Track AI request usage
-  async trackUsage(model, inputTokens, outputTokens, success = true, source = 'automation') {
+  async trackUsage(model, inputTokens, outputTokens, success = true, source = 'automation', provider = '') {
     try {
       // Ensure initialization is complete
       await this.ensureInitialized();
@@ -189,11 +200,12 @@ class FSBAnalytics {
       const entry = {
         timestamp: Date.now(),
         model: model,
+        provider: provider,
         inputTokens: inputTokens || 0,
         outputTokens: outputTokens || 0,
         success: success,
-        source: source,
-        cost: this.calculateCost(model, inputTokens, outputTokens)
+        source: normalizeUsageSource(source),
+        cost: this.calculateCost(model, inputTokens, outputTokens, provider)
       };
 
       this.usageData.push(entry);
@@ -213,7 +225,11 @@ class FSBAnalytics {
   }
 
   // Calculate cost for a request
-  calculateCost(model, inputTokens, outputTokens) {
+  calculateCost(model, inputTokens, outputTokens, provider = '') {
+    if ((provider || '').toLowerCase() === 'lmstudio') {
+      return 0;
+    }
+
     const modelKey = this.normalizeModelName(model);
     const pricing = this.pricing[modelKey];
     

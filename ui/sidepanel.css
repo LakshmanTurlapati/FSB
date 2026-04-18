@@ -892,6 +892,150 @@ body {
   background: rgba(249, 115, 22, 0.15);
 }
 
+.message.payment-prompt {
+  align-self: stretch;
+  max-width: 100%;
+  background: #eff6ff;
+  border: 1.5px solid #60a5fa;
+  border-radius: 12px;
+  padding: 16px;
+  border-left: none;
+}
+
+[data-theme="dark"] .message.payment-prompt {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: #3b82f6;
+}
+
+.payment-prompt-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.payment-prompt-state {
+  display: inline-flex;
+  align-items: center;
+  margin: 2px 0 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+[data-theme="dark"] .payment-prompt-state {
+  background: rgba(96, 165, 250, 0.16);
+  color: #bfdbfe;
+}
+
+.payment-prompt-option {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  background: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.payment-prompt-option:hover,
+.payment-prompt-option.selected {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+[data-theme="dark"] .payment-prompt-option {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+[data-theme="dark"] .payment-prompt-option:hover,
+[data-theme="dark"] .payment-prompt-option.selected {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.12);
+}
+
+.payment-prompt-option-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.payment-card-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 66px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(148, 163, 184, 0.18);
+  color: #334155;
+}
+
+.payment-card-brand.visa {
+  background: rgba(30, 64, 175, 0.12);
+  color: #1d4ed8;
+}
+
+.payment-card-brand.mastercard {
+  background: rgba(234, 88, 12, 0.12);
+  color: #ea580c;
+}
+
+.payment-card-brand.amex {
+  background: rgba(8, 145, 178, 0.12);
+  color: #0891b2;
+}
+
+.payment-card-brand.discover {
+  background: rgba(217, 119, 6, 0.12);
+  color: #d97706;
+}
+
+.payment-card-brand.diners,
+.payment-card-brand.jcb {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+[data-theme="dark"] .payment-card-brand {
+  color: #e2e8f0;
+}
+
+.payment-prompt-option-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+[data-theme="dark"] .payment-prompt-option-title {
+  color: #f8fafc;
+}
+
+.payment-prompt-option-subtitle,
+.payment-prompt-option-billing {
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+[data-theme="dark"] .payment-prompt-option-subtitle,
+[data-theme="dark"] .payment-prompt-option-billing {
+  color: #cbd5e1;
+}
+
 /* Partial result indicator */
 .message.partial-result {
   border-left: 3px solid #f59e0b;

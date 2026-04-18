@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "FSB v0.9.30",
-  "version": "0.9.30",
+  "name": "FSB v0.9.25",
+  "version": "0.9.25",
   "description": "FSB - Universal AI-powered browser automation assistant with multi-model support",
   "permissions": [
     "activeTab",
@@ -14,8 +14,8 @@
     "debugger",
     "webNavigation",
     "alarms",
-    "offscreen",
-    "clipboardWrite"
+    "clipboardWrite",
+    "offscreen"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -38,11 +38,19 @@
   "side_panel": {
     "default_path": "ui/sidepanel.html"
   },
-  "options_page": "ui/options.html",
+  "options_page": "ui/control_panel.html",
   "web_accessible_resources": [
     {
-      "resources": ["assets/icon48.png", "site-maps/*.json"],
+      "resources": ["assets/icon48.png", "site-maps/*.json", "test-data/**/*"],
       "matches": ["<all_urls>"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["canvas-interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ]
 }

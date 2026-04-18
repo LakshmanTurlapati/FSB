@@ -15,13 +15,19 @@ class Config {
     // Default configuration - Multi-model support
     this.defaults = {
       // Model configuration
-      modelProvider: 'xai', // 'xai' or 'gemini'
+      modelProvider: 'xai', // xai, gemini, openai, anthropic, openrouter, lmstudio, custom
       modelName: 'grok-4-1-fast', // Current selected model - fast and efficient for automation
       
       // API Keys
       apiKey: '', // xAI API key (for Grok models)
       geminiApiKey: '', // Google Gemini API key
-      
+      openaiApiKey: '', // OpenAI API key
+      anthropicApiKey: '', // Anthropic API key
+      openrouterApiKey: '', // OpenRouter API key
+      customApiKey: '', // Custom OpenAI-compatible API key
+      customEndpoint: '', // Custom OpenAI-compatible endpoint
+      lmstudioBaseUrl: 'http://localhost:1234', // LM Studio local server URL
+
       // Legacy support
       speedMode: 'normal', // Deprecated - use modelName instead
 
@@ -39,6 +45,7 @@ class Config {
 
       // Credential Manager (Beta)
       enableLogin: false,
+      enableSavedPayments: false,
 
       // CAPTCHA Solver
       captchaSolverEnabled: false,
@@ -91,13 +98,25 @@ class Config {
         { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Previous generation flagship' }
       ],
       anthropic: [
-        { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', description: 'Latest flagship model with 200K context' },
-        { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', description: 'Fast and cost-effective with 200K context' },
-        { id: 'claude-opus-4-1', name: 'Claude Opus 4.1', description: 'Most powerful reasoning model' },
-        { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Previous Sonnet version' },
-        { id: 'claude-opus-4', name: 'Claude Opus 4', description: 'Previous Opus version' },
-        { id: 'claude-sonnet-3.7', name: 'Claude Sonnet 3.7', description: 'Extended thinking variant' }
-      ]
+        { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most powerful reasoning model' },
+        { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Previous Opus flagship' },
+        { id: 'claude-opus-4-1-20250805', name: 'Claude Opus 4.1', description: 'Opus 4.1 model' },
+        { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', description: 'Opus 4 model' },
+        { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Latest balanced model' },
+        { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Previous Sonnet flagship' },
+        { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Sonnet 4 model' },
+        { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fast and cost-effective' },
+        { id: 'claude-haiku-3-5-20241022', name: 'Claude Haiku 3.5', description: 'Legacy fast model' }
+      ],
+      openrouter: [
+        { id: 'openai/gpt-4o', name: 'GPT-4o (via OpenRouter)', description: 'OpenAI GPT-4o routed through OpenRouter' },
+        { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4 (via OpenRouter)', description: 'Anthropic Claude via OpenRouter' },
+        { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash (via OpenRouter)', description: 'Google Gemini via OpenRouter' },
+        { id: 'x-ai/grok-4-1-fast', name: 'Grok 4.1 Fast (via OpenRouter)', description: 'xAI Grok via OpenRouter' },
+        { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick (via OpenRouter)', description: 'Meta Llama 4 via OpenRouter' },
+        { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1 (via OpenRouter)', description: 'DeepSeek reasoning model via OpenRouter' }
+      ],
+      lmstudio: []
     };
   }
   
@@ -145,6 +164,11 @@ class Config {
    * @returns {string} Valid model name (corrected if necessary)
    */
   validateAndCorrectModel(modelName, provider = 'xai') {
+    // OpenAI-compatible local/custom providers accept arbitrary model IDs.
+    if (provider === 'lmstudio' || provider === 'custom') {
+      return modelName || '';
+    }
+
     // Get valid models for the provider
     const validModels = this.availableModels[provider] || [];
     const validModelIds = validModels.map(m => m.id);
@@ -179,7 +203,10 @@ class Config {
       'xai': 'grok-4-1-fast',
       'gemini': 'gemini-2.5-flash',
       'openai': 'gpt-4o',
-      'anthropic': 'claude-sonnet-4-5'
+      'anthropic': 'claude-sonnet-4-6',
+      'openrouter': 'openai/gpt-4o',
+      'lmstudio': '',
+      'custom': ''
     };
 
     return defaultModels[provider] || 'grok-4-1-fast';
@@ -194,14 +221,19 @@ class Config {
   async getApiKey(provider = null) {
     const config = await this.loadFromStorage();
     const currentProvider = provider || config.modelProvider;
-    
-    switch (currentProvider) {
-      case 'gemini':
-        return config.geminiApiKey;
-      case 'xai':
-      default:
-        return config.apiKey; // xAI API key
+    const keyMap = {
+      xai: config.apiKey,
+      gemini: config.geminiApiKey,
+      openai: config.openaiApiKey,
+      anthropic: config.anthropicApiKey,
+      openrouter: config.openrouterApiKey,
+      lmstudio: '',
+      custom: config.customApiKey
+    };
+    if (Object.prototype.hasOwnProperty.call(keyMap, currentProvider)) {
+      return keyMap[currentProvider];
     }
+    return config.apiKey;
   }
   
   // Legacy method - returns xAI key for backward compatibility
@@ -257,4 +289,8 @@ if (typeof self !== 'undefined') {
 // For use in content scripts
 if (typeof window !== 'undefined') {
   window.BrowserAgentConfig = config;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { Config, config };
 }
