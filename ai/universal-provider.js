@@ -607,16 +607,20 @@ class UniversalProvider {
     
     // Debug: xAI cleaning effect logging removed for performance
     
-    // Parse the cleaned JSON content
+    // Parse the cleaned content -- may be JSON or CLI format
     let parsedContent;
     try {
       parsedContent = JSON.parse(content);
     } catch (error) {
-      console.error(`Failed to parse cleaned ${this.provider} response:`, error.message);
-      console.error('Cleaned content:', content.substring(0, 500));
-      throw new Error(`Invalid JSON from ${this.provider} after cleaning: ${error.message}`);
+      // Not valid JSON -- return raw text for CLI parser downstream
+      // FSB uses CLI format (not JSON) as the primary AI response format since v10.0
+      return {
+        content: content,
+        usage,
+        model: response.model || this.model
+      };
     }
-    
+
     return {
       content: parsedContent,
       usage,
@@ -691,9 +695,10 @@ class UniversalProvider {
         }
       }
       
-      // Last resort: return a minimal valid JSON if everything fails
-      console.warn('All JSON parsing attempts failed, returning minimal fallback');
-      return '{ "success": false, "error": "JSON parsing failed", "actions": [], "taskComplete": false }';
+      // Last resort: return the original content as-is (may be CLI format, not JSON)
+      // The downstream CLI parser (parseCliResponse) handles non-JSON responses.
+      console.warn('All JSON parsing attempts failed, returning original content for CLI parser');
+      return content;
     }
   }
   
