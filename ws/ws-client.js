@@ -723,7 +723,12 @@ class FSBWebSocket {
         });
         return;
       }
-      startDashboardTask(tabId, task);
+      chrome.runtime.sendMessage({
+        action: 'startAutomation',
+        task: task,
+        tabId: tabId,
+        source: 'dashboard'
+      });
     } catch (err) {
       this.send('ext:task-complete', {
         success: false,
