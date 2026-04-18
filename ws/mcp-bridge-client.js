@@ -321,12 +321,108 @@ class MCPBridgeClient {
   async _handleExecuteAction(payload) {
     const tab = await this._getActiveTab();
     if (!tab || !tab.id) throw new Error('No active tab');
+
+    // D-06: Route-aware dispatch using TOOL_REGISTRY _route field
+    const toolDef = typeof getToolByName === 'function' ? getToolByName(payload.tool) : null;
+
+    if (toolDef && toolDef._route === 'background') {
+      return this._handleExecuteBackground(tab, payload, toolDef);
+    }
+
+    // Default: send to content script (content-routed or unknown tools)
     const response = await this._sendToContentScript(tab.id, {
       action: 'executeAction',
       tool: payload.tool,
       params: payload.params || {},
+      source: 'mcp-manual',
     });
     return response;
+  }
+
+  /**
+   * Handle background-routed tools directly in the service worker.
+   * Special-cases execute_js (chrome.scripting.executeScript); others
+   * dispatch via chrome.runtime.sendMessage to background.js onMessage handler.
+   */
+  async _handleExecuteBackground(tab, payload, toolDef) {
+    const toolName = payload.tool;
+    const params = payload.params || {};
+
+    // Special handler for execute_js -- uses chrome.scripting.executeScript directly
+    if (toolName === 'execute_js') {
+      return this._handleExecuteJS(tab, params);
+    }
+
+    // For other background tools (navigate, report_progress, etc.),
+    // dispatch via chrome.runtime.sendMessage to background.js onMessage handler
+    const bgAction = toolDef._contentVerb || toolName;
+    const response = await this._dispatchToBackground({
+      action: bgAction,
+      ...params,
+      tabId: tab.id,
+    });
+    return response;
+  }
+
+  /**
+   * Execute arbitrary JavaScript in the active tab's MAIN world.
+   * Uses chrome.scripting.executeScript (same pattern as background.js:5945).
+   * Per D-01: MAIN world gives full page DOM access.
+   */
+  async _handleExecuteJS(tab, params) {
+    const code = params.code;
+    if (!code || typeof code !== 'string') {
+      throw new Error('execute_js requires a "code" parameter (string)');
+    }
+
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        world: 'MAIN',
+        func: (userCode) => {
+          try {
+            // Use Function constructor to execute in page context
+            // This allows return values and multi-statement code
+            const fn = new Function(userCode);
+            const result = fn();
+            // Serialize result for message passing
+            if (result === undefined) return { value: 'undefined' };
+            if (result === null) return { value: 'null' };
+            if (typeof result === 'object') {
+              try { return { value: JSON.stringify(result) }; }
+              catch { return { value: String(result) }; }
+            }
+            return { value: String(result) };
+          } catch (execError) {
+            return { error: execError.message || String(execError) };
+          }
+        },
+        args: [code],
+      });
+
+      // chrome.scripting.executeScript returns an array of InjectionResult
+      const injectionResult = results && results[0];
+      if (!injectionResult) {
+        return { success: false, error: 'No result from script execution' };
+      }
+
+      const resultValue = injectionResult.result;
+      if (resultValue && resultValue.error) {
+        return { success: false, error: resultValue.error };
+      }
+
+      return {
+        success: true,
+        result: resultValue ? resultValue.value : 'undefined',
+        tool: 'execute_js',
+      };
+    } catch (err) {
+      // chrome.scripting.executeScript can throw for restricted pages (chrome://, etc.)
+      return {
+        success: false,
+        error: `execute_js failed: ${err.message || String(err)}`,
+      };
+    }
   }
 
   /**
