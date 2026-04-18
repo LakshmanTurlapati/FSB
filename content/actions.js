@@ -1580,17 +1580,111 @@ const tools = {
     const selectorTried = params.selector;
     let coordinatesUsed = null;
     let coordinateSource = null;
-
-    // Support selector cascade -- try multiple selectors before falling back to coordinates
-    const selectors = params.selectors || [params.selector];
     let element = null;
     let selectorUsed = null;
 
-    for (const sel of selectors) {
-      element = FSB.querySelectorWithShadow(sel);
-      if (element) {
-        selectorUsed = sel;
-        break;
+    // TEXT-BASED TARGETING (D-03, D-04, D-05)
+    // When params.text is provided, find element by visible text content.
+    // This handles dynamic apps (LinkedIn/Ember, Facebook/React) where IDs
+    // regenerate and CSS classes are shared across list items.
+    if (params.text && typeof params.text === 'string') {
+      const searchText = params.text.toLowerCase();
+      const candidates = [];
+
+      // Use TreeWalker for efficient traversal of all elements
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_ELEMENT,
+        {
+          acceptNode: (node) => {
+            // Skip invisible containers early
+            const style = window.getComputedStyle(node);
+            if (style.display === 'none' || style.visibility === 'hidden') {
+              return NodeFilter.FILTER_REJECT; // Skip node and its children
+            }
+            // Check if this element's own text content matches
+            // Use innerText (rendered text only) for accuracy
+            const nodeText = (node.innerText || node.textContent || '').toLowerCase();
+            if (nodeText.includes(searchText)) {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+            return NodeFilter.FILTER_SKIP; // Skip node but check children
+          }
+        }
+      );
+
+      let node;
+      while ((node = walker.nextNode())) {
+        candidates.push(node);
+      }
+
+      // Find the most specific match: prefer the deepest (most nested) element
+      // whose text matches, as it is closest to the actual text content.
+      // Filter for visibility: non-zero dimensions.
+      let textMatchElement = null;
+      for (let i = candidates.length - 1; i >= 0; i--) {
+        const el = candidates[i];
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          textMatchElement = el;
+          break;
+        }
+      }
+
+      // D-05: If no "deepest visible" found, fall back to first visible match
+      if (!textMatchElement) {
+        for (const el of candidates) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            textMatchElement = el;
+            break;
+          }
+        }
+      }
+
+      if (textMatchElement) {
+        // Found element by text -- skip the selector cascade and proceed
+        // directly to the readiness/click logic below.
+        element = textMatchElement;
+        selectorUsed = `[text-match: "${params.text}"]`;
+        // Cache element for potential re-use
+        const textSelector = `[text-match-${Date.now()}]`;
+        FSB.elementCache?.set(textSelector, element);
+      } else {
+        // No visible element matches the text
+        actionRecorder.record(null, 'click', params, {
+          selectorTried: `text:"${params.text}"`,
+          selectorUsed: null,
+          elementFound: false,
+          elementDetails: null,
+          coordinatesUsed: null,
+          coordinateSource: null,
+          success: false,
+          error: `No visible element found containing text "${params.text}"`,
+          duration: Date.now() - startTime
+        });
+        return {
+          success: false,
+          error: `No visible element found containing text "${params.text}". ${candidates.length} hidden/zero-dimension elements matched. Try scrolling the page or using a CSS selector instead.`,
+          tool: 'click',
+          textSearched: params.text,
+          hiddenMatches: candidates.length
+        };
+      }
+    }
+
+    // Support selector cascade -- try multiple selectors before falling back to coordinates
+    // Skip if element was already found by text matching above
+    if (!element) {
+      const selectors = params.selectors || [params.selector];
+
+      for (const sel of selectors) {
+        if (!sel) continue; // skip undefined/null selectors when text param was used without selector
+        element = FSB.querySelectorWithShadow(sel);
+        if (element) {
+          selectorUsed = sel;
+          break;
+        }
       }
     }
 
