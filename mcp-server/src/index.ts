@@ -12,6 +12,7 @@ import {
   FSB_EXTENSION_BRIDGE_URL,
   FSB_MCP_VERSION,
 } from './version.js';
+import { runInstall, runUninstall } from './install.js';
 
 type FlagValue = boolean | string;
 
@@ -83,6 +84,8 @@ Usage:
   fsb-mcp-server doctor             Run install diagnostics with remediation
   fsb-mcp-server setup              Print install snippets for common MCP clients
   fsb-mcp-server wait-for-extension Wait until the extension connects
+  fsb-mcp-server install             Install FSB to an MCP client config
+  fsb-mcp-server uninstall           Remove FSB from an MCP client config
 
 Options:
   --host <host>       HTTP listen host for \`serve\` (default: ${DEFAULT_HTTP_HOST})
@@ -337,6 +340,12 @@ async function main(): Promise<void> {
       return;
     case 'help':
       printHelp();
+      return;
+    case 'install':
+      await runInstall(flags);
+      return;
+    case 'uninstall':
+      await runUninstall(flags);
       return;
     default:
       throw new Error(`Unknown command: ${command}`);

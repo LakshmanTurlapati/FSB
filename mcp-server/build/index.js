@@ -69,9 +69,9 @@ Usage:
   fsb-mcp-server status             Show bridge and extension status
   fsb-mcp-server doctor             Run install diagnostics with remediation
   fsb-mcp-server setup              Print install snippets for common MCP clients
-  fsb-mcp-server install             Auto-configure FSB in an MCP client
-  fsb-mcp-server uninstall           Remove FSB from an MCP client's config
   fsb-mcp-server wait-for-extension Wait until the extension connects
+  fsb-mcp-server install             Install FSB to an MCP client config
+  fsb-mcp-server uninstall           Remove FSB from an MCP client config
 
 Options:
   --host <host>       HTTP listen host for \`serve\` (default: ${DEFAULT_HTTP_HOST})
@@ -138,9 +138,7 @@ function buildCursorDeeplink() {
 function printSetup() {
     const windowsCommand = ['cmd', '/c', 'npx', '-y', 'fsb-mcp-server'];
     const stdioCommand = ['npx', '-y', 'fsb-mcp-server'];
-    console.log(`Tip: Use 'npx fsb-mcp-server install --<platform>' for automatic setup.
-
-FSB MCP install snippets
+    console.log(`FSB MCP install snippets
 
 Stdio command
   macOS / Linux:
@@ -296,17 +294,17 @@ async function main() {
         case 'setup':
             printSetup();
             return;
-        case 'install':
-            await runInstall(flags);
-            return;
-        case 'uninstall':
-            await runUninstall(flags);
-            return;
         case 'wait-for-extension':
             await runWaitForExtension(flags);
             return;
         case 'help':
             printHelp();
+            return;
+        case 'install':
+            await runInstall(flags);
+            return;
+        case 'uninstall':
+            await runUninstall(flags);
             return;
         default:
             throw new Error(`Unknown command: ${command}`);
