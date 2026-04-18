@@ -248,29 +248,31 @@ class MCPBridgeClient {
   }
 
   // --------------------------------------------------------------------------
-  // Handler implementations -- delegate to chrome.runtime messaging
+  // Handler implementations
+  // Uses background.js functions directly (same service worker scope via importScripts)
   // --------------------------------------------------------------------------
-
-  _chromeMessage(request) {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage(request, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        resolve(response || {});
-      });
-    });
-  }
 
   async _getActiveTab() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     return tab;
   }
 
-  async _sendToTab(tabId, message) {
+  /**
+   * Send message to content script using background.js's sendMessageWithRetry.
+   * This ensures content scripts are injected before sending, handling the
+   * MV3 content script lifecycle properly.
+   */
+  async _sendToContentScript(tabId, message) {
+    // sendMessageWithRetry is defined in background.js (same scope)
+    if (typeof sendMessageWithRetry === 'function') {
+      return await sendMessageWithRetry(tabId, message);
+    }
+    // Fallback: inject then send directly
+    if (typeof ensureContentScriptInjected === 'function') {
+      await ensureContentScriptInjected(tabId);
+    }
     return new Promise((resolve, reject) => {
-      chrome.tabs.sendMessage(tabId, message, (response) => {
+      chrome.tabs.sendMessage(tabId, message, { frameId: 0 }, (response) => {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
           return;
@@ -299,7 +301,7 @@ class MCPBridgeClient {
   async _handleGetDOM(payload) {
     const tab = await this._getActiveTab();
     if (!tab || !tab.id) throw new Error('No active tab');
-    const response = await this._sendToTab(tab.id, {
+    const response = await this._sendToContentScript(tab.id, {
       action: 'getDOM',
       maxElements: payload.maxElements || 50,
     });
@@ -309,7 +311,7 @@ class MCPBridgeClient {
   async _handleReadPage(payload) {
     const tab = await this._getActiveTab();
     if (!tab || !tab.id) throw new Error('No active tab');
-    const response = await this._sendToTab(tab.id, {
+    const response = await this._sendToContentScript(tab.id, {
       action: 'readPage',
       full: payload.full || false,
     });
@@ -319,7 +321,7 @@ class MCPBridgeClient {
   async _handleExecuteAction(payload) {
     const tab = await this._getActiveTab();
     if (!tab || !tab.id) throw new Error('No active tab');
-    const response = await this._sendToTab(tab.id, {
+    const response = await this._sendToContentScript(tab.id, {
       action: 'executeAction',
       tool: payload.tool,
       params: payload.params || {},
@@ -327,11 +329,40 @@ class MCPBridgeClient {
     return response;
   }
 
+  /**
+   * Dispatch a request through background.js's onMessage handler.
+   * Since we're in the same service worker scope, we simulate the
+   * chrome.runtime.onMessage pattern by calling the handler directly.
+   */
+  _dispatchToBackground(request) {
+    return new Promise((resolve) => {
+      // Trigger the onMessage listener in background.js
+      // The listener uses sendResponse callback pattern
+      const fakeMessageEvent = new CustomEvent('fsb-mcp-internal', {
+        detail: { request, resolve }
+      });
+
+      // Direct dispatch: call the handler via the existing message listener
+      // background.js's chrome.runtime.onMessage handler is not directly callable,
+      // so we use chrome.runtime.sendMessage which loops back within the service worker
+      chrome.runtime.sendMessage(request, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve({ success: false, error: chrome.runtime.lastError.message });
+          return;
+        }
+        resolve(response || {});
+      });
+    });
+  }
+
   async _handleStartAutomation(payload, mcpMsgId) {
-    // Use the background.js startAutomation handler via chrome.runtime message
-    const response = await this._chromeMessage({
+    const tab = await this._getActiveTab();
+    if (!tab || !tab.id) throw new Error('No active tab');
+
+    const response = await this._dispatchToBackground({
       action: 'startAutomation',
       task: payload.task,
+      tabId: tab.id,
       source: 'mcp',
     });
 
@@ -341,11 +372,11 @@ class MCPBridgeClient {
 
     const sessionId = response.sessionId;
 
-    // Set up a listener for automation progress and completion
-    return new Promise((resolve, reject) => {
+    // Listen for automation completion via message listener
+    return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         chrome.runtime.onMessage.removeListener(listener);
-        resolve({ success: true, sessionId, status: 'timeout', message: 'Automation timed out after 5 minutes' });
+        resolve({ sessionId, status: 'timeout', message: 'Automation timed out after 5 minutes' });
       }, 300000);
 
       const listener = (message) => {
@@ -385,12 +416,12 @@ class MCPBridgeClient {
   }
 
   async _handleStopAutomation() {
-    const response = await this._chromeMessage({ action: 'stopAutomation' });
+    const response = await this._dispatchToBackground({ action: 'stopAutomation' });
     return response || { stopped: true };
   }
 
   async _handleGetStatus() {
-    const response = await this._chromeMessage({ action: 'getStatus' });
+    const response = await this._dispatchToBackground({ action: 'getStatus' });
     return response || {};
   }
 
@@ -403,7 +434,7 @@ class MCPBridgeClient {
   }
 
   async _handleGetSiteGuides(payload) {
-    const response = await this._chromeMessage({
+    const response = await this._dispatchToBackground({
       action: 'getSiteGuides',
       domain: payload.domain,
     });
@@ -411,7 +442,7 @@ class MCPBridgeClient {
   }
 
   async _handleGetMemory(payload) {
-    const response = await this._chromeMessage({
+    const response = await this._dispatchToBackground({
       action: 'getMemory',
       type: payload.type,
       domain: payload.domain,
@@ -420,12 +451,12 @@ class MCPBridgeClient {
   }
 
   async _handleListSessions() {
-    const response = await this._chromeMessage({ action: 'listSessions' });
+    const response = await this._dispatchToBackground({ action: 'listSessions' });
     return response || {};
   }
 
   async _handleGetSession(payload) {
-    const response = await this._chromeMessage({
+    const response = await this._dispatchToBackground({
       action: 'getSession',
       sessionId: payload.sessionId,
     });
@@ -433,7 +464,7 @@ class MCPBridgeClient {
   }
 
   async _handleGetLogs(payload) {
-    const response = await this._chromeMessage({
+    const response = await this._dispatchToBackground({
       action: 'getLogs',
       sessionId: payload.sessionId,
       level: payload.level,
@@ -443,7 +474,7 @@ class MCPBridgeClient {
   }
 
   async _handleSearchMemory(payload) {
-    const response = await this._chromeMessage({
+    const response = await this._dispatchToBackground({
       action: 'searchMemory',
       query: payload.query,
       type: payload.type,
@@ -454,7 +485,7 @@ class MCPBridgeClient {
   }
 
   async _handleAgentAction(action, payload) {
-    const response = await this._chromeMessage({
+    const response = await this._dispatchToBackground({
       action,
       ...payload,
     });
