@@ -1,4 +1,4 @@
-# FSB v0.9.30 - Full Self-Browsing
+# FSB v0.9.31 - Full Self-Browsing
 
 <div align="center">
 
@@ -42,7 +42,7 @@
 
 ## Overview
 
-> **Note**: While FSB v0.9.30 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
+> **Note**: While FSB v0.9.31 is production-ready and fully functional, browser automation can behave unpredictably on complex sites. Always monitor automation actions and test on non-critical pages first. Feedback and contributions are welcome!
 
 FSB (Full Self-Browsing) is a powerful Chrome extension that brings AI-powered browser automation to your fingertips. Simply describe what you want to accomplish in natural language, and FSB will analyze the webpage, plan the necessary actions, and execute them automatically. Choose from **four AI providers** -- xAI Grok, OpenAI GPT, Anthropic Claude, and Google Gemini -- with 21 models.
 
@@ -885,7 +885,7 @@ FSB provides real-time visual indicators during automation:
 
 ## Roadmap
 
-### Completed in v0.9.30
+### Completed in v0.9.31
 - Full automation engine with smart iteration and stuck recovery
 - Four AI providers (xAI, OpenAI, Anthropic, Gemini) with 21 models
 - Universal model-agnostic provider architecture
