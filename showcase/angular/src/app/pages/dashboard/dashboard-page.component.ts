@@ -3103,8 +3103,8 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
           if (this.detailRunAction) this.detailRunAction.textContent = rc.success ? 'Complete' : (rc.error || 'Failed');
           setTimeout(() => { if (this.detailRunProgress) this.detailRunProgress.style.display = 'none'; }, 3000);
         }
-        this.loadAgentStats(this.detailAgentId);
-        this.loadDetailRuns(this.detailAgentId, 0);
+        this.loadAgentStats(this.detailAgentId!);
+        this.loadDetailRuns(this.detailAgentId!, 0);
       }
       this.loadData();
       return;
@@ -3151,8 +3151,8 @@ export class DashboardPageComponent implements AfterViewInit, OnDestroy {
     if (msg.type === 'agent_updated' || msg.type === 'agent_deleted' || msg.type === 'run_completed') {
       this.loadData();
       if (msg.agentId && msg.agentId === this.detailAgentId) {
-        this.loadAgentStats(this.detailAgentId);
-        this.loadDetailRuns(this.detailAgentId, 0);
+        this.loadAgentStats(this.detailAgentId!);
+        this.loadDetailRuns(this.detailAgentId!, 0);
       }
     }
   }
