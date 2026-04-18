@@ -3,10 +3,13 @@
 
 # Allow only what we need for the server deployment
 !server/
-!showcase/dist/
+!showcase/angular/
+!showcase/assets/
 
 # Re-ignore things inside those dirs we don't need
 server/node_modules
 server/fsb-data.db
 server/.env
 server/*.log
+showcase/angular/node_modules
+showcase/angular/dist
