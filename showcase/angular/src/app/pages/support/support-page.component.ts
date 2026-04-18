@@ -3,7 +3,15 @@ import { Component } from '@angular/core';
 @Component({
   selector: 'app-support-page',
   standalone: true,
-  template: `<section class="faq-section"><div class="container"><h1>Support</h1></div></section>`,
+  templateUrl: './support-page.component.html',
   styleUrl: './support-page.component.scss',
 })
-export class SupportPageComponent {}
+export class SupportPageComponent {
+  toggleFaq(event: Event): void {
+    const question = event.currentTarget as HTMLElement;
+    const item = question.closest('.faq-item');
+    if (item) {
+      item.classList.toggle('active');
+    }
+  }
+}
