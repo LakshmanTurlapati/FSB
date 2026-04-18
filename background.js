@@ -11,6 +11,9 @@ importScripts('utils/keyboard-emulator.js');
 importScripts('utils/site-explorer.js');
 importScripts('utils/crawler-manager.js');
 
+// MCP bridge client for local MCP server connection
+importScripts('ws/mcp-bridge-client.js');
+
 // Site-specific AI guidance modules
 importScripts('site-guides/index.js');
 
@@ -10344,6 +10347,9 @@ chrome.runtime.onInstalled.addListener(async () => {
 
   // Reschedule all background agents
   agentScheduler.rescheduleAllAgents();
+
+  // Connect to local MCP bridge (auto-reconnects if server not running yet)
+  mcpBridgeClient.connect();
 });
 
 // Initialize analytics and restore sessions on startup
@@ -10356,6 +10362,9 @@ chrome.runtime.onStartup.addListener(async () => {
   await restoreSessionsFromStorage();
   // Reschedule all background agents
   agentScheduler.rescheduleAllAgents();
+
+  // Connect to local MCP bridge (auto-reconnects if server not running yet)
+  mcpBridgeClient.connect();
 });
 
 // Listen for debug mode changes so toggling takes effect immediately
