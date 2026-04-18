@@ -21,7 +21,11 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "outputPath": "../dist/showcase-angular/browser",
+            "outputPath": {
+              "base": "../dist/showcase-angular",
+              "browser": "browser"
+            },
+            "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [
               "zone.js"

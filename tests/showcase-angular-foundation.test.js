@@ -110,9 +110,15 @@ assert(
   'root showcase scripts preserve deterministic npm --prefix workspace delegation'
 );
 
+// outputPath can be a string or an object { base, browser }
+const resolvedOutputPath = typeof angularOutputPath === 'string'
+  ? angularOutputPath
+  : (angularOutputPath && angularOutputPath.base && angularOutputPath.browser)
+    ? angularOutputPath.base + '/' + angularOutputPath.browser
+    : '';
 assert(
-  angularOutputPath === '../dist/showcase-angular/browser',
-  'angular workspace build output path remains ../dist/showcase-angular/browser'
+  resolvedOutputPath === '../dist/showcase-angular/browser',
+  'angular workspace build output path resolves to ../dist/showcase-angular/browser'
 );
 
 assert(
